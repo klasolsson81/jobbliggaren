@@ -35,3 +35,18 @@ logs/
 # IDE
 .idea/
 .vscode/settings.json
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+*.tfplan
+plan.out
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# NOTE: keep .terraform.lock.hcl committed per provider-pinning best practice.

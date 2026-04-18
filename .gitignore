@@ -1,0 +1,37 @@
+# Claude Code — personal session state
+.claude/settings.local.json
+.claude/auto-memory/
+
+# Environment files (dev secrets)
+.env
+.env.local
+.env.*.local
+appsettings.Local.json
+
+# .NET build artifacts
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+coverage/
+*.coverage
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/settings.json

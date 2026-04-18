@@ -1,6 +1,10 @@
 # Claude Code — personal session state
 .claude/settings.local.json
 .claude/auto-memory/
+# Maskin-genererade artefakter från hooks (session-history, pre-compact snapshots)
+.claude/logs/
+.claude/backups/
+.claude/tasks/
 
 # Environment files (dev secrets)
 .env

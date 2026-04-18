@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  // Denna fil är en MALL. Kopiera till `.claude/settings.local.json`
+  // (gitignored) och fyll i personliga inställningar. Filen läses
+  // EFTER `.claude/settings.json`; arrays konkateneras, scalars
+  // överskrivs.
+  //
+  //   cp .claude/settings.local.json.example .claude/settings.local.json
+  //
+  // Committa ALDRIG `.claude/settings.local.json`.
+
+  "permissions": {
+    // Personliga tillägg utöver team-shared allow-listan. Exempel:
+    "allow": [
+      // "Bash(docker exec:*)",
+      // "Bash(psql:*)",
+      // "Bash(redis-cli:*)",
+      // "Bash(ssh you@staging-bastion:*)",
+      // "Read(//c/Users/<dig>/.claude/**)"
+    ]
+  },
+
+  "env": {
+    // Miljövariabler som injiceras i subprocesser Claude Code spawnar.
+    // AWS_PROFILE sätts här så du slipper --profile per kommando:
+    "AWS_PROFILE": "jobbpilot"
+
+    // Andra exempel:
+    // "POSTHOG_API_KEY": "phc_local_noop",
+    // "SEQ_SERVER_URL": "http://localhost:5341"
+  }
+}

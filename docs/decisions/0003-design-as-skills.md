@@ -2,6 +2,7 @@
 
 **Datum:** 2026-04-18
 **Status:** Accepted
+**Reviderad:** 2026-04-18 (§ Beslut — DESIGN.md-strategi uppdaterad till Alt B)
 
 ---
 
@@ -38,10 +39,21 @@ Varje skill-mapp följer progressive-disclosure-pattern:
     └── <area>-full.md
 ```
 
-**DESIGN.md** i repo-roten förvandlas till **ren index-fil**:
-- Behåller §1 (filosofi, 1 sida) som människoingång
-- Länkar till varje skill-mapp
-- Ingen duplicering av tokens / komponent-specs / copy-regler
+**DESIGN.md** i repo-roten behåller en **dubbel roll**:
+- Behåller §1 (filosofi) samt kortade sammanfattningar per §2–§10 som
+  människoingång och pedagogisk inramning
+- Länkar till varje skill-mapp för fullständiga specs
+- DESIGN.md äger **filosofi och pedagogik**; skills äger **detaljerad spec**
+
+Den textuella överlappningen mellan DESIGN.md-sammanfattningarna och skills
+SKILL.md är medveten kuratering — inte duplicering som skapar drift-risk.
+Skills äger den detaljerade specen; DESIGN.md äger den pedagogiska
+inramningen. `docs-keeper` verifierar konsistens vid drift-check.
+
+*(Revision 2026-04-18: ursprunglig text sa "ren index-fil" och "ingen
+duplicering" — detta ersattes med Alt B-beslutet efter att
+jobbpilot-design-principles/SKILL.md pilotades och visade att filosofi-
+sammanfattningar i DESIGN.md ger värde som inte skapar underhållsproblem.)*
 
 En ny agent, **`design-reviewer`** ([SESSION-2-PLAN §1.3.9](../research/SESSION-2-PLAN.md)), verifierar design-compliance på frontend-diff:ar parallellt med `code-reviewer`. Modell: `claude-sonnet-4-6`.
 

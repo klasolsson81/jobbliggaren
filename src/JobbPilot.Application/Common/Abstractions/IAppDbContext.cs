@@ -1,4 +1,5 @@
 using JobbPilot.Domain.JobAds;
+using JobbPilot.Domain.JobSeekers;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobbPilot.Application.Common.Abstractions;
@@ -11,5 +12,6 @@ namespace JobbPilot.Application.Common.Abstractions;
 public interface IAppDbContext
 {
     DbSet<JobAd> JobAds { get; }
+    DbSet<JobSeeker> JobSeekers { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

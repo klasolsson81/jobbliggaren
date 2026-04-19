@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>JobbPilot.Architecture.Tests</RootNamespace>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit.v3.mtp-v2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\JobbPilot.Domain\JobbPilot.Domain.csproj" />
+    <ProjectReference Include="..\..\src\JobbPilot.Application\JobbPilot.Application.csproj" />
+    <ProjectReference Include="..\..\src\JobbPilot.Infrastructure\JobbPilot.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\JobbPilot.Api\JobbPilot.Api.csproj" />
+    <ProjectReference Include="..\..\src\JobbPilot.Worker\JobbPilot.Worker.csproj" />
+  </ItemGroup>
+
+</Project>

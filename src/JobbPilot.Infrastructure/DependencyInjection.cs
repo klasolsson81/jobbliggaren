@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();
+        services.AddScoped<IUserAccountService, UserAccountService>();
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();

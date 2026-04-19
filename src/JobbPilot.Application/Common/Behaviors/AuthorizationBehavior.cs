@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Exceptions;
 using Mediator;
 
 namespace JobbPilot.Application.Common.Behaviors;
@@ -12,9 +13,9 @@ public sealed class AuthorizationBehavior<TMessage, TResponse>(ICurrentUser curr
         MessageHandlerDelegate<TMessage, TResponse> next,
         CancellationToken cancellationToken)
     {
-        // TODO STEG 3: implementera riktig auth-logik efter auth-ADR.
-        // ICurrentUser stub returnerar null/false (anonymous) — pass-through i STEG 2.
-        _ = currentUser;
+        if (message is IAuthenticatedRequest && !currentUser.IsAuthenticated)
+            throw new UnauthorizedException();
+
         return next(message, cancellationToken);
     }
 }

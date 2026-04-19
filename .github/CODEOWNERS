@@ -1,0 +1,8 @@
+# CODEOWNERS — JobbPilot
+#
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Fas 0: Klas äger allt. När team växer: split per lager (src/Domain/ →
+# dotnet-reviewers, web/ → frontend-reviewers, infra/ → devops-reviewers).
+
+*       @klasolsson81

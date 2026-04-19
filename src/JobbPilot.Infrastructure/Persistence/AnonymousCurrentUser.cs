@@ -6,4 +6,5 @@ public sealed class AnonymousCurrentUser : ICurrentUser
 {
     public Guid? UserId => null;
     public bool IsAuthenticated => false;
+    public string? Jti => null;
 }

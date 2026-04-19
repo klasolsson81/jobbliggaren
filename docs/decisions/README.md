@@ -24,6 +24,9 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0009 | Inga Repositories; direkt IAppDbContext + IUnitOfWork | Accepted | 2026-04-19 | [0009-no-repository-pattern.md](./0009-no-repository-pattern.md) |
 | 0010 | Worker som separat composition root | Accepted | 2026-04-19 | [0010-worker-composition-root.md](./0010-worker-composition-root.md) |
 | 0011 | Strongly-typed IDs som `readonly record struct` | Accepted | 2026-04-19 | [0011-strongly-typed-ids.md](./0011-strongly-typed-ids.md) |
+| 0012 | Auth-stack: ASP.NET Core Identity + JWT (RS256) | Accepted | 2026-04-19 | [0012-auth-stack-identity-jwt.md](./0012-auth-stack-identity-jwt.md) |
+| 0013 | Separat AppIdentityDbContext för Identity-tabeller | Accepted | 2026-04-19 | [0013-separate-identity-dbcontext.md](./0013-separate-identity-dbcontext.md) |
+| 0014 | Refresh tokens i DB + Redis för access-token jti (avviker från BUILD.md §11.2) | Accepted | 2026-04-19 | [0014-refresh-token-strategy.md](./0014-refresh-token-strategy.md) |
 
 ## Planerade ADRs
 

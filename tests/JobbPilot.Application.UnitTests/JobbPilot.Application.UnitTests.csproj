@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit.v3.mtp-v2" />
@@ -23,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\JobbPilot.Application\JobbPilot.Application.csproj" />
     <ProjectReference Include="..\..\src\JobbPilot.Domain\JobbPilot.Domain.csproj" />
+    <ProjectReference Include="..\..\src\JobbPilot.Infrastructure\JobbPilot.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

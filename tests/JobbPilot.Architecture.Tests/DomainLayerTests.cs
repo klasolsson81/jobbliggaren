@@ -26,17 +26,36 @@ public class DomainLayerTests
     }
 
     [Fact]
-    public void Application_should_not_depend_on_Infrastructure_or_EFCore()
+    public void Application_should_not_depend_on_Infrastructure()
     {
         var result = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
             .ShouldNot()
-            .HaveDependencyOnAny(
-                "Microsoft.EntityFrameworkCore",
-                "JobbPilot.Infrastructure")
+            .HaveDependencyOn("JobbPilot.Infrastructure")
             .GetResult();
 
         result.IsSuccessful.ShouldBeTrue(
-            $"Application läcker: {string.Join(", ", result.FailingTypeNames ?? [])}");
+            $"Application läcker mot Infrastructure: {string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    [Fact]
+    public void Application_should_not_depend_on_EFCore_database_providers()
+    {
+        // Application MÅ bero på Microsoft.EntityFrameworkCore (kärnabstraktioner som
+        // DbSet<T>, DbContext-interface) per ADR 0009 — "medveten kompromiss".
+        // Application får dock INTE bero på konkreta providers eller relational-specifika
+        // paket, eftersom de hör hemma i Infrastructure.
+        var result = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
+            .ShouldNot()
+            .HaveDependencyOnAny(
+                "Npgsql",
+                "Npgsql.EntityFrameworkCore.PostgreSQL",
+                "Microsoft.EntityFrameworkCore.SqlServer",
+                "Microsoft.EntityFrameworkCore.Sqlite",
+                "Microsoft.EntityFrameworkCore.Relational")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            $"Application läcker mot databasprovider: {string.Join(", ", result.FailingTypeNames ?? [])}");
     }
 
     [Fact]

@@ -4,6 +4,10 @@
     <PackageVersion Include="Mediator.SourceGenerator" Version="3.0.2" />
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
 
+    <!-- EF Core — Application uses DbSet<T> as abstraction per ADR 0009 (bridge pattern).
+         Provider-specific packages (Npgsql, Relational) stay in Infrastructure. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.6" />
+
     <!-- Test stack -->
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />

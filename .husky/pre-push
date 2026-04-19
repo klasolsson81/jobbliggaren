@@ -4,16 +4,33 @@ set -e
 
 echo "[pre-push] Kör gates..."
 
-# Gitleaks: scaffold-agnostisk, alltid aktiv
+# Gitleaks: scaffold-agnostisk, alltid aktiv.
+# Fallback-lookup för Windows/WinGet-installation där PATH kan missa i hook-context.
+GITLEAKS_BIN=""
 if command -v gitleaks >/dev/null 2>&1; then
+    GITLEAKS_BIN="gitleaks"
+elif command -v gitleaks.exe >/dev/null 2>&1; then
+    GITLEAKS_BIN="gitleaks.exe"
+else
+    # Sök i WinGet-standardplats (Windows)
+    WINGET_GITLEAKS=$(ls "$HOME/AppData/Local/Microsoft/WinGet/Packages/"Gitleaks.Gitleaks_*/gitleaks.exe 2>/dev/null | head -1)
+    if [ -n "$WINGET_GITLEAKS" ] && [ -x "$WINGET_GITLEAKS" ]; then
+        GITLEAKS_BIN="$WINGET_GITLEAKS"
+    fi
+fi
+
+if [ -n "$GITLEAKS_BIN" ]; then
     echo "[pre-push] Gitleaks scan..."
-    gitleaks detect --source . --no-banner --redact || {
+    "$GITLEAKS_BIN" detect --source . --no-banner --redact || {
         echo "✗ Gitleaks fann potentiella secrets. Granska innan push." >&2
         echo "  Om false positive: lägg till i .gitleaksignore med kommentar." >&2
         exit 1
     }
 else
-    echo "⚠ gitleaks saknas — installera via 'winget install gitleaks.gitleaks'. Pushen tillåts men secret-scan skedde inte." >&2
+    echo "✗ gitleaks hittades inte i PATH eller standard WinGet-sökväg." >&2
+    echo "  Installera via 'winget install gitleaks.gitleaks' eller fixa PATH." >&2
+    echo "  BLOCKERAR PUSH — secret-scan är obligatorisk på publikt repo." >&2
+    exit 1
 fi
 
 # Scaffold-gate för tester

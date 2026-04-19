@@ -21,10 +21,9 @@ if [ -n "$SLN" ]; then
         echo "✗ dotnet format fel. Kör 'dotnet format' och stega in igen." >&2
         exit 1
     }
-    # Tests aktiveras när test-projekt finns (Fas 0/1)
-    # dotnet test tests/JobbPilot.Domain.UnitTests --no-build --verbosity minimal || exit 1
-    # dotnet test tests/JobbPilot.Application.UnitTests --no-build --verbosity minimal || exit 1
-    # dotnet test tests/JobbPilot.Architecture.Tests --no-build --verbosity minimal || exit 1
+    dotnet test --project tests/JobbPilot.Domain.UnitTests/JobbPilot.Domain.UnitTests.csproj --verbosity minimal || exit 1
+    dotnet test --project tests/JobbPilot.Application.UnitTests/JobbPilot.Application.UnitTests.csproj --verbosity minimal || exit 1
+    dotnet test --project tests/JobbPilot.Architecture.Tests/JobbPilot.Architecture.Tests.csproj --verbosity minimal || exit 1
 fi
 
 # Web-gates (aktiveras när web/jobbpilot-web/ finns)

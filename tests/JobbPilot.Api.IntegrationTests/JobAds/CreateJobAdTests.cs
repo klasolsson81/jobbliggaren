@@ -6,7 +6,8 @@ using Shouldly;
 
 namespace JobbPilot.Api.IntegrationTests.JobAds;
 
-public class CreateJobAdTests(ApiFactory factory) : IClassFixture<ApiFactory>
+[Collection("Api")]
+public class CreateJobAdTests(ApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 

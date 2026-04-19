@@ -23,6 +23,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0008 | Pipeline behavior order (Logging→Validation→Auth→UoW) | Accepted | 2026-04-19 | [0008-pipeline-behavior-order.md](./0008-pipeline-behavior-order.md) |
 | 0009 | Inga Repositories; direkt IAppDbContext + IUnitOfWork | Accepted | 2026-04-19 | [0009-no-repository-pattern.md](./0009-no-repository-pattern.md) |
 | 0010 | Worker som separat composition root | Accepted | 2026-04-19 | [0010-worker-composition-root.md](./0010-worker-composition-root.md) |
+| 0011 | Strongly-typed IDs som `readonly record struct` | Accepted | 2026-04-19 | [0011-strongly-typed-ids.md](./0011-strongly-typed-ids.md) |
 
 ## Planerade ADRs
 
@@ -32,7 +33,6 @@ BUILD.md Bilaga B listar ADRs som ska skrivas när respektive tekniskt val blir 
 - `NNNN-aws-over-azure.md` — när moln-val ifrågasätts
 - `NNNN-bedrock-eu-for-system-key.md` — när EU-inference-profile-beslutet formaliseras
 - `NNNN-byok-architecture.md` — BYOK-krypteringsflöde
-- `NNNN-strongly-typed-ids.md` — record struct-mönstret
 - `NNNN-hangfire-background-jobs.md` — när bakgrundsjobb-val görs
 - `NNNN-nextjs-app-router.md` — när frontend-arkitektur dokumenteras
 - `NNNN-civic-design-language.md` — när design-språket får egen ADR utöver DESIGN.md

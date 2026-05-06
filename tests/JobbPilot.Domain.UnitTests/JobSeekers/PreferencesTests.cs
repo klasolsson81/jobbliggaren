@@ -12,7 +12,7 @@ public class PreferencesTests
 
         prefs.Language.ShouldBe("sv");
         prefs.EmailNotifications.ShouldBeTrue();
-        prefs.WeeklySummary.ShouldBeTrue();
+        prefs.WeeklySummary.ShouldBeFalse();
     }
 
     [Fact]

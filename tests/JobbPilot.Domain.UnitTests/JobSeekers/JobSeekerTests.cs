@@ -82,6 +82,6 @@ public class JobSeekerTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.Preferences.Language.ShouldBe("sv");
         result.Value.Preferences.EmailNotifications.ShouldBeTrue();
-        result.Value.Preferences.WeeklySummary.ShouldBeTrue();
+        result.Value.Preferences.WeeklySummary.ShouldBeFalse();
     }
 }

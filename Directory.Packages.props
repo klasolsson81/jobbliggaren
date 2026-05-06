@@ -8,9 +8,9 @@
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
     <!-- EF Core — Application uses DbSet<T> as abstraction per ADR 0009 (bridge pattern).
          Provider-specific packages (Npgsql, Relational) stay in Infrastructure. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
     <!-- Test stack -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.6">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
@@ -23,16 +23,16 @@
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.6" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.6" />
     <!-- Integration testing -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.7" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
     <!-- Worker host -->
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
     <!-- Auth + JWT -->
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.6" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />
     <!-- Redis -->
     <PackageVersion Include="StackExchange.Redis" Version="2.12.14" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.7" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
   </ItemGroup>

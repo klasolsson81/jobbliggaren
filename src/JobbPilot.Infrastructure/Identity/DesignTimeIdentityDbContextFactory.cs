@@ -19,6 +19,7 @@ public sealed class DesignTimeIdentityDbContextFactory
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 })
+            .UseSnakeCaseNamingConvention()
             .Options;
 
         return new AppIdentityDbContext(options);

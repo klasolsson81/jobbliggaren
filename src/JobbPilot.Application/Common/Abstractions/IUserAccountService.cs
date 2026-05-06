@@ -10,4 +10,5 @@ public interface IUserAccountService
     Task DeleteUserAsync(Guid userId, CancellationToken ct);
     Task<Result<UserCredentials>> ValidateCredentialsAsync(string email, string password, CancellationToken ct);
     Task<IReadOnlyList<string>> GetRolesAsync(Guid userId, CancellationToken ct);
+    Task<string?> GetEmailAsync(Guid userId, CancellationToken ct);
 }

@@ -24,4 +24,7 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
         Principal?.Identity?.IsAuthenticated == true;
 
     public string? Jti => Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+
+    public string? Email => Principal?.FindFirstValue(JwtRegisteredClaimNames.Email)
+        ?? Principal?.FindFirstValue(ClaimTypes.Email);
 }

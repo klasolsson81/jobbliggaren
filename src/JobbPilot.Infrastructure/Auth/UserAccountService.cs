@@ -61,4 +61,10 @@ public sealed class UserAccountService(
         var roles = await userManager.GetRolesAsync(user);
         return roles.ToList();
     }
+
+    public async Task<string?> GetEmailAsync(Guid userId, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        return user?.Email;
+    }
 }

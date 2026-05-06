@@ -43,8 +43,13 @@ public static class DependencyInjection
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(opts =>
             {
-                opts.Password.RequiredLength = 8;
-                opts.Password.RequireNonAlphanumeric = true;
+                // NIST SP 800-63B: längd är primärt skydd, komplexitet sekundärt.
+                // PwnedPasswords-integration planeras för Fas 1 (MAJOR-1, security-audit 2026-04-20).
+                opts.Password.RequiredLength = 12;
+                opts.Password.RequireNonAlphanumeric = false;
+                opts.Password.RequireDigit = false;
+                opts.Password.RequireUppercase = false;
+                opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
             })
             .AddEntityFrameworkStores<AppIdentityDbContext>()

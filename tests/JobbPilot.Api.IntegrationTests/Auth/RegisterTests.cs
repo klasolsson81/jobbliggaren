@@ -18,7 +18,7 @@ public class RegisterTests(ApiFactory factory)
         var body = new
         {
             email = $"reg-{Guid.NewGuid()}@example.com",
-            password = "T3stPwd!",
+            password = "T3stlosen123456",
             displayName = "Test User",
         };
 
@@ -34,7 +34,7 @@ public class RegisterTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"dup-{Guid.NewGuid()}@example.com";
-        var body = new { email, password = "T3stPwd!", displayName = "First User" };
+        var body = new { email, password = "T3stlosen123456", displayName = "First User" };
 
         await _client.PostAsJsonAsync("/api/v1/auth/register", body, ct);
         var second = await _client.PostAsJsonAsync("/api/v1/auth/register", body, ct);
@@ -49,7 +49,7 @@ public class RegisterTests(ApiFactory factory)
         var body = new
         {
             email = $"blank-{Guid.NewGuid()}@example.com",
-            password = "T3stPwd!",
+            password = "T3stlosen123456",
             displayName = "   ",
         };
 

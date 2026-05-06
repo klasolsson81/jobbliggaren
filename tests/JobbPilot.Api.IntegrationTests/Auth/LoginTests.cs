@@ -16,7 +16,7 @@ public class LoginTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"login-{Guid.NewGuid()}@example.com";
-        var password = "T3stPwd!";
+        var password = "T3stlosen123456";
 
         await _client.PostAsJsonAsync("/api/v1/auth/register",
             new { email, password, displayName = "Login User" }, ct);
@@ -36,7 +36,7 @@ public class LoginTests(ApiFactory factory)
         var email = $"wrong-{Guid.NewGuid()}@example.com";
 
         await _client.PostAsJsonAsync("/api/v1/auth/register",
-            new { email, password = "T3stPwd!", displayName = "User" }, ct);
+            new { email, password = "T3stlosen123456", displayName = "User" }, ct);
 
         var response = await _client.PostAsJsonAsync("/api/v1/auth/login",
             new { email, password = "WrongPwd!" }, ct);

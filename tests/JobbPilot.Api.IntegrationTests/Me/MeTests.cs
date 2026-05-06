@@ -16,7 +16,7 @@ public class MeTests(ApiFactory factory)
     {
         var email = $"me-{Guid.NewGuid()}@example.com";
         var response = await _client.PostAsJsonAsync("/api/v1/auth/register",
-            new { email, password = "T3stPwd!", displayName = "Me User" }, ct);
+            new { email, password = "T3stlosen123456", displayName = "Me User" }, ct);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         return json.GetProperty("accessToken").GetString()!;
     }

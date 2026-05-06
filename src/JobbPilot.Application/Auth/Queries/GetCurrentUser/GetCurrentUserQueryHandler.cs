@@ -17,6 +17,6 @@ public sealed class GetCurrentUserQueryHandler(
         var userId = currentUser.UserId.Value;
         var roles = await userAccountService.GetRolesAsync(userId, cancellationToken);
 
-        return new CurrentUserDto(userId, string.Empty, roles);
+        return new CurrentUserDto(userId, currentUser.Email ?? string.Empty, roles);
     }
 }

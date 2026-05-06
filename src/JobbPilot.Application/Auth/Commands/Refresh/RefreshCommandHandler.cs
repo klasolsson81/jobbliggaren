@@ -41,7 +41,11 @@ public sealed partial class RefreshCommandHandler(
             return Result.Failure<AuthTokensDto>(InvalidToken);
 
         var roles = await userAccountService.GetRolesAsync(stored.UserId, cancellationToken);
-        var newTokens = tokenGenerator.GenerateTokens(stored.UserId, string.Empty, roles);
+        var email = await userAccountService.GetEmailAsync(stored.UserId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"User {stored.UserId} har refresh token men ingen email — data-integritetsfel.");
+
+        var newTokens = tokenGenerator.GenerateTokens(stored.UserId, email, roles);
 
         var newHash = tokenGenerator.HashToken(newTokens.RefreshToken);
 

@@ -1,0 +1,9 @@
+# False positives — testlösenord i integration-tester
+# T3stlosen123456 är ett hårdkodat testlösenord, inte ett riktigt secret.
+# Regel generic-api-key matchar heuristiskt på alphanumeriska strängar med siffror.
+2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Auth/LoginTests.cs:generic-api-key:19
+2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Auth/LoginTests.cs:generic-api-key:39
+2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Auth/RegisterTests.cs:generic-api-key:21
+2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Auth/RegisterTests.cs:generic-api-key:37
+2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Auth/RegisterTests.cs:generic-api-key:52
+2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Me/MeTests.cs:generic-api-key:19

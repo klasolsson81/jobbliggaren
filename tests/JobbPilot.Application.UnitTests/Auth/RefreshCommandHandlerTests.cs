@@ -46,6 +46,8 @@ public class RefreshCommandHandlerTests
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.GetRolesAsync(userId, Arg.Any<CancellationToken>())
             .Returns(new List<string> { "User" });
+        userAccountService.GetEmailAsync(userId, Arg.Any<CancellationToken>())
+            .Returns("user@example.com");
 
         var handler = CreateHandler(refreshTokenStore, userAccountService, tokenGenerator);
 
@@ -53,6 +55,36 @@ public class RefreshCommandHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.AccessToken.ShouldBe("new-access");
+    }
+
+    [Fact]
+    public async Task Handle_WithValidToken_PassesEmailToGenerateTokens()
+    {
+        var userId = Guid.NewGuid();
+        const string email = "test@example.com";
+        var storedToken = new StoredRefreshToken(Guid.NewGuid(), userId, "hash",
+            Clock.UtcNow.AddDays(14), RevokedAt: null);
+
+        var tokenGenerator = Substitute.For<IJwtTokenGenerator>();
+        tokenGenerator.HashToken(Arg.Any<string>()).Returns("hash", "new-hash");
+        tokenGenerator.GenerateTokens(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IEnumerable<string>>())
+            .Returns(new GeneratedTokens("a", "r", Clock.UtcNow.AddMinutes(15), Clock.UtcNow.AddDays(14)));
+
+        var refreshTokenStore = Substitute.For<IRefreshTokenStore>();
+        refreshTokenStore.FindByHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(storedToken);
+
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.GetRolesAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new List<string>());
+        userAccountService.GetEmailAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(email);
+
+        var handler = CreateHandler(refreshTokenStore, userAccountService, tokenGenerator);
+
+        await handler.Handle(new RefreshCommand("any-token"), CancellationToken.None);
+
+        tokenGenerator.Received(1).GenerateTokens(userId, email, Arg.Any<IEnumerable<string>>());
     }
 
     [Fact]
@@ -104,6 +136,8 @@ public class RefreshCommandHandlerTests
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.GetRolesAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new List<string>());
+        userAccountService.GetEmailAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns("u@example.com");
 
         var handler = CreateHandler(refreshTokenStore, userAccountService, tokenGenerator);
 

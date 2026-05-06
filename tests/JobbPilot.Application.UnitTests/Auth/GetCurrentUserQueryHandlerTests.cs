@@ -14,6 +14,7 @@ public class GetCurrentUserQueryHandlerTests
 
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
+        currentUser.Email.Returns("klas@example.com");
 
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.GetRolesAsync(userId, Arg.Any<CancellationToken>())
@@ -25,6 +26,7 @@ public class GetCurrentUserQueryHandlerTests
 
         result.ShouldNotBeNull();
         result!.UserId.ShouldBe(userId);
+        result.Email.ShouldBe("klas@example.com");
         result.Roles.ShouldContain("User");
     }
 

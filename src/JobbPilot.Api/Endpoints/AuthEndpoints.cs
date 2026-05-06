@@ -52,9 +52,15 @@ public static class AuthEndpoints
             return Results.Ok(new { result.Value.AccessToken, result.Value.AccessTokenExpiresAt });
         });
 
-        group.MapPost("/logout", async (IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/logout", async (IMediator mediator, HttpContext ctx, CancellationToken ct) =>
         {
             await mediator.Send(new LogoutCommand(), ct);
+            ctx.Response.Cookies.Delete(RefreshCookieName, new CookieOptions
+            {
+                Path = "/api/v1/auth",
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+            });
             return Results.NoContent();
         }).RequireAuthorization();
     }
@@ -73,6 +79,7 @@ public static class AuthEndpoints
             HttpOnly = true,
             Secure = true,
             SameSite = SameSiteMode.Strict,
+            Path = "/api/v1/auth",
             Expires = expiresAt,
         });
 }

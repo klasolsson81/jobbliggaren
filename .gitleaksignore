@@ -8,3 +8,7 @@
 2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Auth/RegisterTests.cs:generic-api-key:52
 2283fc737ff8da1c73a3e6c563b2466a15b23daa:tests/JobbPilot.Api.IntegrationTests/Me/MeTests.cs:generic-api-key:19
 f3211530b2876f47e2e11967347d8b09dee920c4:tests/JobbPilot.Api.IntegrationTests/Auth/AuthProviderDefaultsTests.cs:generic-api-key:23
+292fb3fb4932d9d1d4d64a4f69d5c410386cd20b:tests/JobbPilot.Api.IntegrationTests/Helpers/AuthTestHelpers.cs:generic-api-key:15
+292fb3fb4932d9d1d4d64a4f69d5c410386cd20b:tests/JobbPilot.Api.IntegrationTests/Helpers/AuthTestHelpers.cs:generic-api-key:39
+292fb3fb4932d9d1d4d64a4f69d5c410386cd20b:tests/JobbPilot.Api.IntegrationTests/Auth/BearerTokenValidationTests.cs:generic-api-key:110
+292fb3fb4932d9d1d4d64a4f69d5c410386cd20b:tests/JobbPilot.Api.IntegrationTests/Auth/BearerTokenValidationTests.cs:generic-api-key:130

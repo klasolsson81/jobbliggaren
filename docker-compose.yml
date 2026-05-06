@@ -46,7 +46,7 @@ services:
     image: redis:8.6-alpine
     container_name: jobbpilot-redis-dev
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - jobbpilot_redis_dev_data:/data
     healthcheck:

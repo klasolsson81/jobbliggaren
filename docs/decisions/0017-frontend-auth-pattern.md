@@ -70,6 +70,25 @@ on a session table than a denylist insert.
 **Rejected** because: XSS-readable. Industry consensus and Next.js
 documentation explicitly warn against this pattern.
 
+## Log and Audit Policy
+
+Session-id values are opaque high-entropy tokens equivalent in sensitivity to
+passwords. The following rules are non-negotiable:
+
+- **Session-id and JTI MUST NOT appear in logs, error messages, exception
+  details, or response bodies.** Structural enforcement: `SessionId` is a
+  `readonly record struct` whose `ToString()` returns a 6-character prefix
+  followed by `…`. Raw value is only accessible via the explicit `Reveal()`
+  method, which must only be called at Redis key derivation and cookie write
+  sites.
+- Redis keys store a SHA-256 hash of the raw session-id (base64url-encoded),
+  not the raw token. This ensures a Redis dump cannot be used for direct
+  impersonation.
+- `userId` (Guid) may appear in logs as a correlation key. It is PII under
+  GDPR but pseudonymous and already present in other audit traces.
+- This policy applies to both `ISessionStore` implementations (InMemory and
+  Redis) and all call sites in the auth pipeline.
+
 ## Consequences
 
 ### Positive
@@ -101,6 +120,14 @@ documentation explicitly warn against this pattern.
 - Password reset flow (Fas 1)
 - Email verification (Fas 1)
 - "Remember me" / persistent sessions (Fas 1)
+- Secondary user-sessions index — efficient bulk invalidation for
+  `InvalidateAllForUserAsync` (GDPR erasure via SCAN-based fallback until
+  implemented). Required by account-deletion flow; must be implemented
+  synchronously before SQL DELETE commits.
+- JTI value-object migration — coherent refactor with `SessionId` pattern,
+  deferred to Fas 1. JTI is a public JWT claim (not a bearer secret), so
+  raw JTI in Redis keys is acceptable; the refactor is for architectural
+  consistency, not security necessity.
 
 ## References
 

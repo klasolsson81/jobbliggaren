@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure.Auth;
+using JobbPilot.Infrastructure.Auth.Sessions;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -78,9 +79,11 @@ public static class DependencyInjection
             return new RsaSecurityKey(rsa);
         });
 
+        services.Configure<SessionStoreOptions>(configuration.GetSection(SessionStoreOptions.SectionName));
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();
+        services.AddScoped<ISessionStore, RedisSessionStore>();
         services.AddScoped<IUserAccountService, UserAccountService>();
 
         services.AddHttpContextAccessor();

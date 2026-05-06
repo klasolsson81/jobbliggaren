@@ -9,6 +9,7 @@ using JobbPilot.Application.Common.Exceptions;
 using ValidationException = JobbPilot.Application.Common.Exceptions.ValidationException;
 using JobbPilot.Infrastructure;
 using JobbPilot.Infrastructure.Auth;
+using JobbPilot.Infrastructure.Auth.Sessions;
 using Mediator;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -98,6 +99,11 @@ app.Use(async (ctx, next) =>
     catch (NotFoundException ex)
     {
         ctx.Response.StatusCode = 404;
+        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    catch (SessionStoreUnavailableException ex)
+    {
+        ctx.Response.StatusCode = 503;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
 });

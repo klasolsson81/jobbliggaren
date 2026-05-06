@@ -1,6 +1,5 @@
 ---
 name: ai-prompt-engineer
-model: claude-opus-4-7
 description: >
   Designs, versions, and evaluates prompts for AWS Bedrock (Claude models in
   EU regions for GDPR compliance). Owns the /prompts/*.prompt.md library.

@@ -1,6 +1,5 @@
 ---
 name: test-runner
-model: claude-sonnet-4-6
 description: >
   Executes .NET test suites via dotnet test and parses xUnit output. Triggers
   on pre-commit, pre-push, and manual /test commands. Reports pass/fail status

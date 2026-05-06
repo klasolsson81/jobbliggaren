@@ -1,6 +1,5 @@
 ---
 name: test-writer
-model: claude-opus-4-7
 description: >
   Generates unit and integration tests for .NET 10 projects using xUnit v3,
   Shouldly, NSubstitute, and Testcontainers. Triggers on new domain entities,

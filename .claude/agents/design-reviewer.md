@@ -1,6 +1,5 @@
 ---
 name: design-reviewer
-model: claude-opus-4-7
 description: >
   Reviews frontend changes against DESIGN.md (and future design skills per
   ADR 0003). Has veto power on design issues — can block PRs that violate

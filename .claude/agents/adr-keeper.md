@@ -1,6 +1,5 @@
 ---
 name: adr-keeper
-model: claude-sonnet-4-6
 description: >
   Authors new Architecture Decision Records (ADRs) when Klas takes architectural
   decisions. Maintains ADR template consistency, handles status lifecycle

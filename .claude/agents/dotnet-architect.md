@@ -1,6 +1,5 @@
 ---
 name: dotnet-architect
-model: claude-opus-4-7
 description: >
   Backend architecture expert for .NET 10 / C# 14 projects following Clean
   Architecture and DDD. Triggers on domain modeling, aggregate design, bounded

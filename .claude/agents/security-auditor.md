@@ -1,6 +1,5 @@
 ---
 name: security-auditor
-model: claude-opus-4-7
 description: >
   Audits PII handling, secrets management, authentication/authorization, GDPR
   compliance, and cross-region data flows. Has veto power on security issues

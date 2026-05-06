@@ -1,6 +1,5 @@
 ---
 name: db-migration-writer
-model: claude-sonnet-4-6
 description: >
   Generates, reviews, and applies EF Core 10 migrations for PostgreSQL 18.3.
   Triggers on new DbContext entities, domain model changes, and explicit

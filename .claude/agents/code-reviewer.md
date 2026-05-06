@@ -1,6 +1,5 @@
 ---
 name: code-reviewer
-model: claude-opus-4-7
 description: >
   Reviews all code changes (backend + frontend) against CLAUDE.md before merge.
   Has veto power on quality issues — can block PRs that violate Clean

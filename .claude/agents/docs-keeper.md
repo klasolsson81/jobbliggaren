@@ -1,6 +1,5 @@
 ---
 name: docs-keeper
-model: claude-sonnet-4-6
 description: >
   Maintains synchronization between code, configuration, and documentation.
   Triggers on session-end, ADR creation, BUILD.md/CLAUDE.md/DESIGN.md changes,

@@ -1,6 +1,5 @@
 ---
 name: nextjs-ui-engineer
-model: claude-opus-4-7
 description: >
   Builds React Server Components, Client Components, and pages for JobbPilot's
   Next.js 16 App Router frontend. Uses shadcn/ui, Tailwind 4.2, and TypeScript 6

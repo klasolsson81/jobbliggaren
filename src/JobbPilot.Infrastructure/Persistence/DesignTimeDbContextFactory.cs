@@ -12,7 +12,8 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<App
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(
-                "Host=localhost;Port=5432;Database=jobbpilot_dev;Username=postgres;Password=postgres",
+                Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
+                    ?? "Host=localhost;Port=5432;Database=jobbpilot;Username=jobbpilot;Password=jobbpilot",
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention()
             .Options;

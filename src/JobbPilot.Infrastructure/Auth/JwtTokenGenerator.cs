@@ -9,11 +9,14 @@ using Microsoft.IdentityModel.Tokens;
 namespace JobbPilot.Infrastructure.Auth;
 
 public sealed class JwtTokenGenerator(
+    RsaSecurityKey signingKey,
     IOptions<JwtSettings> settings,
     IDateTimeProvider clock)
     : IJwtTokenGenerator
 {
     private readonly JwtSettings _settings = settings.Value;
+    private readonly SigningCredentials _signingCredentials =
+        new(signingKey, SecurityAlgorithms.RsaSha256);
 
     public GeneratedTokens GenerateTokens(Guid userId, string email, IEnumerable<string> roles)
     {
@@ -36,18 +39,13 @@ public sealed class JwtTokenGenerator(
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
 
-        var privateKey = LoadPrivateKey();
-        var signingCredentials = new SigningCredentials(
-            new RsaSecurityKey(privateKey),
-            SecurityAlgorithms.RsaSha256);
-
         var token = new JwtSecurityToken(
             issuer: _settings.Issuer,
             audience: _settings.Audience,
             claims: claims,
             notBefore: now.UtcDateTime,
             expires: accessExpires.UtcDateTime,
-            signingCredentials: signingCredentials);
+            signingCredentials: _signingCredentials);
 
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
 
@@ -65,13 +63,5 @@ public sealed class JwtTokenGenerator(
         var bytes = System.Text.Encoding.UTF8.GetBytes(rawToken);
         var hash = SHA256.HashData(bytes);
         return Convert.ToHexString(hash).ToLowerInvariant();
-    }
-
-    private RSA LoadPrivateKey()
-    {
-        var pem = File.ReadAllText(_settings.PrivateKeyPath);
-        var rsa = RSA.Create();
-        rsa.ImportFromPem(pem);
-        return rsa;
     }
 }

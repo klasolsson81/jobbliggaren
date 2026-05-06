@@ -1,5 +1,7 @@
 using JobbPilot.Application.Auth.Commands.Logout;
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Configuration;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -20,12 +22,13 @@ public class LogoutCommandHandlerTests
         var refreshTokenStore = Substitute.For<IRefreshTokenStore>();
         var revocationStore = Substitute.For<IAccessTokenRevocationStore>();
 
-        var handler = new LogoutCommandHandler(currentUser, refreshTokenStore, revocationStore);
+        var jwtSettings = Options.Create(new JwtSettings { AccessTokenLifetimeMinutes = 15 });
+        var handler = new LogoutCommandHandler(currentUser, refreshTokenStore, revocationStore, jwtSettings);
 
         var result = await handler.Handle(new LogoutCommand(), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
-        await revocationStore.Received(1).RevokeAsync(jti, Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await revocationStore.Received(1).RevokeAsync(jti, TimeSpan.FromMinutes(15), Arg.Any<CancellationToken>());
         await refreshTokenStore.Received(1).RevokeAllForUserAsync(userId, Arg.Any<CancellationToken>());
     }
 
@@ -40,8 +43,9 @@ public class LogoutCommandHandlerTests
 
         var revocationStore = Substitute.For<IAccessTokenRevocationStore>();
         var refreshTokenStore = Substitute.For<IRefreshTokenStore>();
+        var jwtSettings = Options.Create(new JwtSettings { AccessTokenLifetimeMinutes = 15 });
 
-        var handler = new LogoutCommandHandler(currentUser, refreshTokenStore, revocationStore);
+        var handler = new LogoutCommandHandler(currentUser, refreshTokenStore, revocationStore, jwtSettings);
 
         await handler.Handle(new LogoutCommand(), CancellationToken.None);
 

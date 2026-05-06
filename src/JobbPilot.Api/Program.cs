@@ -20,6 +20,8 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
+builder.Services.Configure<JobbPilot.Application.Common.Configuration.JwtSettings>(
+    builder.Configuration.GetSection(JobbPilot.Application.Common.Configuration.JwtSettings.SectionName));
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddMediator(options =>
 {

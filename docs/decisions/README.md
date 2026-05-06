@@ -30,6 +30,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0015 | Frontend-stack för JobbPilot (STEG 4a) | Accepted | 2026-05-06 | [0015-frontend-stack.md](./0015-frontend-stack.md) |
 | 0016 | Civic design language som arkitekturkrav | Accepted | 2026-05-06 | [0016-civic-design-language.md](./0016-civic-design-language.md) |
 | 0017 | Frontend Authentication Pattern (Custom, Cookie-Based) | Accepted | 2026-05-06 | [0017-frontend-auth-pattern.md](./0017-frontend-auth-pattern.md) |
+| 0018 | Cookie and CSRF Strategy for Frontend Auth | Accepted | 2026-05-06 | [0018-cookie-and-csrf-strategy.md](./0018-cookie-and-csrf-strategy.md) |
 
 ## Planerade ADRs
 

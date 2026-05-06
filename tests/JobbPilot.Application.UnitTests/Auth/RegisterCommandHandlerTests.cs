@@ -19,8 +19,8 @@ public class RegisterCommandHandlerTests
     private static RegisterCommandHandler CreateHandler(
         IAppDbContext? db = null,
         IUserAccountService? userAccountService = null,
-        IJwtTokenGenerator? tokenGenerator = null,
-        IRefreshTokenStore? refreshTokenStore = null)
+        ISessionStore? sessionStore = null,
+        IAuthAuditLogger? auditLogger = null)
     {
         if (db is null)
         {
@@ -29,33 +29,39 @@ public class RegisterCommandHandlerTests
         }
 
         userAccountService ??= Substitute.For<IUserAccountService>();
-        tokenGenerator ??= Substitute.For<IJwtTokenGenerator>();
-        refreshTokenStore ??= Substitute.For<IRefreshTokenStore>();
+        sessionStore ??= Substitute.For<ISessionStore>();
+        auditLogger ??= Substitute.For<IAuthAuditLogger>();
 
-        return new RegisterCommandHandler(db, userAccountService, tokenGenerator, refreshTokenStore, FakeDateTimeProvider.Default);
+        return new RegisterCommandHandler(db, userAccountService, sessionStore, auditLogger, FakeDateTimeProvider.Default);
+    }
+
+    private static ISessionStore DefaultSessionStore(Guid userId)
+    {
+        var store = Substitute.For<ISessionStore>();
+        store.CreateAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
+        return store;
     }
 
     [Fact]
-    public async Task Handle_WithValidCommand_ReturnsAuthTokens()
+    public async Task Handle_WithValidCommand_ReturnsSessionId()
     {
         var userId = Guid.NewGuid();
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(userId));
-        userAccountService.GetRolesAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(new List<string> { "User" });
 
-        var tokenGenerator = Substitute.For<IJwtTokenGenerator>();
-        tokenGenerator.GenerateTokens(userId, Arg.Any<string>(), Arg.Any<IEnumerable<string>>())
-            .Returns(new GeneratedTokens("access", "refresh", FakeDateTimeProvider.Default.UtcNow.AddMinutes(15), FakeDateTimeProvider.Default.UtcNow.AddDays(14)));
-        tokenGenerator.HashToken("refresh").Returns("hash");
+        var sessionId = SessionId.Generate();
+        var sessionStore = Substitute.For<ISessionStore>();
+        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new Session(sessionId, userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
-        var handler = CreateHandler(userAccountService: userAccountService, tokenGenerator: tokenGenerator);
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
 
         var result = await handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.AccessToken.ShouldBe("access");
+        result.Value.SessionId.ShouldBe(sessionId.Reveal());
     }
 
     [Fact]
@@ -84,15 +90,8 @@ public class RegisterCommandHandlerTests
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(userId));
-        userAccountService.GetRolesAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new List<string>());
 
-        var tokenGenerator = Substitute.For<IJwtTokenGenerator>();
-        tokenGenerator.GenerateTokens(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IEnumerable<string>>())
-            .Returns(new GeneratedTokens("a", "r", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
-        tokenGenerator.HashToken(Arg.Any<string>()).Returns("hash");
-
-        var handler = CreateHandler(db: db, userAccountService: userAccountService, tokenGenerator: tokenGenerator);
+        var handler = CreateHandler(db: db, userAccountService: userAccountService, sessionStore: DefaultSessionStore(userId));
 
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
@@ -106,14 +105,12 @@ public class RegisterCommandHandlerTests
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(userId));
-        userAccountService.GetRolesAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new List<string>());
 
         var result = await new RegisterCommandHandler(
             Substitute.For<IAppDbContext>(),
             userAccountService,
-            Substitute.For<IJwtTokenGenerator>(),
-            Substitute.For<IRefreshTokenStore>(),
+            Substitute.For<ISessionStore>(),
+            Substitute.For<IAuthAuditLogger>(),
             FakeDateTimeProvider.Default)
             .Handle(new RegisterCommand("klas@example.com", "S3kret!pass", "   "), CancellationToken.None);
 

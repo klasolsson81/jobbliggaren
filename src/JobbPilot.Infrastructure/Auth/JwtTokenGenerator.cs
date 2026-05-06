@@ -8,6 +8,13 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace JobbPilot.Infrastructure.Auth;
 
+#pragma warning disable JOBBPILOT0001 // Tas bort i Fas 1, ADR 0017
+[Obsolete(
+    "JWT-issuance ersätts av ISessionStore i Fas 0 STEG 4b (ADR 0017). " +
+    "Klassen bevaras tillfälligt för RefreshCommandHandler. Raderas i Fas 1.",
+    error: false,
+    DiagnosticId = "JOBBPILOT0001",
+    UrlFormat = "https://github.com/klasolsson81/jobbpilot/blob/main/docs/decisions/0017-frontend-auth-pattern.md")]
 public sealed class JwtTokenGenerator(
     RsaSecurityKey signingKey,
     IOptions<JwtSettings> settings,
@@ -65,3 +72,4 @@ public sealed class JwtTokenGenerator(
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
+#pragma warning restore JOBBPILOT0001

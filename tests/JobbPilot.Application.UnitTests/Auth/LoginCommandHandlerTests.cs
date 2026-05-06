@@ -1,4 +1,5 @@
 using JobbPilot.Application.Auth.Commands.Login;
+using JobbPilot.Application.Auth.Dtos;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.Common;
@@ -15,37 +16,34 @@ public class LoginCommandHandlerTests
 
     private static LoginCommandHandler CreateHandler(
         IUserAccountService? userAccountService = null,
-        IJwtTokenGenerator? tokenGenerator = null,
-        IRefreshTokenStore? refreshTokenStore = null)
+        ISessionStore? sessionStore = null,
+        IAuthAuditLogger? auditLogger = null)
     {
         userAccountService ??= Substitute.For<IUserAccountService>();
-        tokenGenerator ??= Substitute.For<IJwtTokenGenerator>();
-        refreshTokenStore ??= Substitute.For<IRefreshTokenStore>();
-        return new LoginCommandHandler(userAccountService, tokenGenerator, refreshTokenStore);
+        sessionStore ??= Substitute.For<ISessionStore>();
+        auditLogger ??= Substitute.For<IAuthAuditLogger>();
+        return new LoginCommandHandler(userAccountService, sessionStore, auditLogger);
     }
 
     [Fact]
-    public async Task Handle_WithValidCredentials_ReturnsAuthTokens()
+    public async Task Handle_WithValidCredentials_ReturnsSessionId()
     {
         var userId = Guid.NewGuid();
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new UserCredentials(userId, new List<string> { "User" })));
 
-        var tokenGenerator = Substitute.For<IJwtTokenGenerator>();
-        tokenGenerator.GenerateTokens(userId, Arg.Any<string>(), Arg.Any<IEnumerable<string>>())
-            .Returns(new GeneratedTokens("access", "refresh",
-                FakeDateTimeProvider.Default.UtcNow.AddMinutes(15),
-                FakeDateTimeProvider.Default.UtcNow.AddDays(14)));
-        tokenGenerator.HashToken("refresh").Returns("hash");
+        var sessionStore = Substitute.For<ISessionStore>();
+        var sessionId = SessionId.Generate();
+        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new Session(sessionId, userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
-        var handler = CreateHandler(userAccountService: userAccountService, tokenGenerator: tokenGenerator);
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
 
         var result = await handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.AccessToken.ShouldBe("access");
-        result.Value.RefreshToken.ShouldBe("refresh");
+        result.Value.SessionId.ShouldBe(sessionId.Reveal());
     }
 
     [Fact]
@@ -65,24 +63,57 @@ public class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithValidCredentials_StoresRefreshToken()
+    public async Task Handle_WithValidCredentials_CreatesSession()
     {
         var userId = Guid.NewGuid();
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
 
-        var tokenGenerator = Substitute.For<IJwtTokenGenerator>();
-        tokenGenerator.GenerateTokens(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IEnumerable<string>>())
-            .Returns(new GeneratedTokens("a", "r", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
-        tokenGenerator.HashToken("r").Returns("hash");
+        var sessionStore = Substitute.For<ISessionStore>();
+        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
-        var refreshTokenStore = Substitute.For<IRefreshTokenStore>();
-        var handler = CreateHandler(userAccountService, tokenGenerator, refreshTokenStore);
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
 
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
-        await refreshTokenStore.Received(1).StoreAsync(
-            userId, "hash", Arg.Any<DateTimeOffset>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await sessionStore.Received(1).CreateAsync(userId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithValidCredentials_EmitsAuditLog()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
+
+        var sessionStore = Substitute.For<ISessionStore>();
+        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
+
+        var auditLogger = Substitute.For<IAuthAuditLogger>();
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore, auditLogger: auditLogger);
+
+        await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        auditLogger.Received(1).LoginSucceeded(userId, Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task Handle_WithInvalidCredentials_EmitsLoginFailedAudit()
+    {
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<UserCredentials>(
+                DomainError.Validation("Auth.InvalidCredentials", "Fel.")));
+
+        var auditLogger = Substitute.For<IAuthAuditLogger>();
+        var handler = CreateHandler(userAccountService: userAccountService, auditLogger: auditLogger);
+
+        await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        auditLogger.Received(1).LoginFailed(Arg.Any<string>());
     }
 }

@@ -7,4 +7,4 @@ namespace JobbPilot.Application.Auth.Commands.Register;
 public sealed record RegisterCommand(
     string? Email,
     string? Password,
-    string? DisplayName) : ICommand<Result<AuthTokensDto>>;
+    string? DisplayName) : ICommand<Result<SessionDto>>;

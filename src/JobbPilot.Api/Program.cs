@@ -1,6 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
 using JobbPilot.Api.Endpoints;
 using JobbPilot.Application.Common;
 using JobbPilot.Application.Common.Behaviors;
@@ -11,9 +8,7 @@ using JobbPilot.Infrastructure;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Sessions;
 using Mediator;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,8 +16,6 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
-builder.Services.Configure<JobbPilot.Application.Common.Configuration.JwtSettings>(
-    builder.Configuration.GetSection(JobbPilot.Application.Common.Configuration.JwtSettings.SectionName));
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddMediator(options =>
 {
@@ -37,44 +30,19 @@ builder.Services.AddMediator(options =>
     ];
 });
 
-var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
-    ?? throw new InvalidOperationException("JWT-konfiguration (sektion 'Jwt') saknas.");
-
+// Scheme-namnet "Bearer" speglar wire-format (Authorization: Bearer <token>), inte token-typ.
+// Backend lagrar opaque session-id i Redis sedan Turn 4 (ADR 0017).
+// Schemnamnet byter till "Session" när JWT-klasserna raderas i Fas 1.
+//
+// ARKITEKTUR-VARNING: Lägg INTE till AddCookie() på backend. CSRF-modellen (ADR 0018)
+// förutsätter att backend är icke-browser-reachable och alltid tar emot Bearer-header.
+// Cookie-baserad auth på backend bryter trust-modellen.
 builder.Services.AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultAuthenticateScheme = "Bearer";
+        options.DefaultChallengeScheme = "Bearer";
     })
-    .AddJwtBearer(options =>
-    {
-        var rsa = RSA.Create();
-        rsa.ImportFromPem(File.ReadAllText(jwtSettings.PublicKeyPath));
-
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidateAudience = true,
-            ValidAudience = jwtSettings.Audience,
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new RsaSecurityKey(rsa),
-        };
-
-        options.Events = new JwtBearerEvents
-        {
-            OnTokenValidated = async context =>
-            {
-                var jti = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
-                if (jti is null) return;
-                var store = context.HttpContext.RequestServices
-                    .GetRequiredService<IAccessTokenRevocationStore>();
-                if (await store.IsRevokedAsync(jti, context.HttpContext.RequestAborted))
-                    context.Fail("Token är återkallat.");
-            },
-        };
-    });
+    .AddScheme<SessionAuthenticationSchemeOptions, SessionAuthenticationHandler>("Bearer", _ => { });
 
 builder.Services.AddAuthorization();
 

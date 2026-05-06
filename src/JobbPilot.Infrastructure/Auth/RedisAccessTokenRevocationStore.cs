@@ -3,6 +3,13 @@ using Microsoft.Extensions.Caching.Distributed;
 
 namespace JobbPilot.Infrastructure.Auth;
 
+#pragma warning disable JOBBPILOT0001 // Tas bort i Fas 1, ADR 0017
+[Obsolete(
+    "JWT-revokering ersätts av ISessionStore.InvalidateAsync i Fas 0 STEG 4b (ADR 0017). " +
+    "Klassen bevaras tillfälligt för RefreshCommandHandler. Raderas i Fas 1.",
+    error: false,
+    DiagnosticId = "JOBBPILOT0001",
+    UrlFormat = "https://github.com/klasolsson81/jobbpilot/blob/main/docs/decisions/0017-frontend-auth-pattern.md")]
 public sealed class RedisAccessTokenRevocationStore(IDistributedCache cache)
     : IAccessTokenRevocationStore
 {
@@ -23,3 +30,4 @@ public sealed class RedisAccessTokenRevocationStore(IDistributedCache cache)
         return value is not null;
     }
 }
+#pragma warning restore JOBBPILOT0001

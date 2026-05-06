@@ -6,4 +6,4 @@ namespace JobbPilot.Application.Auth.Commands.Login;
 
 public sealed record LoginCommand(
     string? Email,
-    string? Password) : ICommand<Result<AuthTokensDto>>;
+    string? Password) : ICommand<Result<SessionDto>>;

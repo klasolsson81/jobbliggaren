@@ -7,35 +7,34 @@ namespace JobbPilot.Application.Auth.Commands.Login;
 
 public sealed class LoginCommandHandler(
     IUserAccountService userAccountService,
-    IJwtTokenGenerator tokenGenerator,
-    IRefreshTokenStore refreshTokenStore)
-    : ICommandHandler<LoginCommand, Result<AuthTokensDto>>
+    ISessionStore sessionStore,
+    IAuthAuditLogger auditLogger)
+    : ICommandHandler<LoginCommand, Result<SessionDto>>
 {
-    public async ValueTask<Result<AuthTokensDto>> Handle(
+    public async ValueTask<Result<SessionDto>> Handle(
         LoginCommand command, CancellationToken cancellationToken)
     {
         var credentialsResult = await userAccountService.ValidateCredentialsAsync(
             command.Email!, command.Password!, cancellationToken);
 
         if (credentialsResult.IsFailure)
-            return Result.Failure<AuthTokensDto>(credentialsResult.Error);
+        {
+            auditLogger.LoginFailed(HashEmail(command.Email!));
+            return Result.Failure<SessionDto>(credentialsResult.Error);
+        }
 
-        var credentials = credentialsResult.Value;
-        var tokens = tokenGenerator.GenerateTokens(
-            credentials.UserId, command.Email!, credentials.Roles);
+        var userId = credentialsResult.Value.UserId;
+        var session = await sessionStore.CreateAsync(userId, cancellationToken);
 
-        var tokenHash = tokenGenerator.HashToken(tokens.RefreshToken);
-        await refreshTokenStore.StoreAsync(
-            credentials.UserId,
-            tokenHash,
-            tokens.RefreshTokenExpiresAt,
-            createdByIp: null,
-            cancellationToken);
+        auditLogger.LoginSucceeded(userId, session.Id.ToString());
 
-        return Result.Success(new AuthTokensDto(
-            tokens.AccessToken,
-            tokens.AccessTokenExpiresAt,
-            tokens.RefreshToken,
-            tokens.RefreshTokenExpiresAt));
+        return Result.Success(new SessionDto(session.Id.Reveal()));
+    }
+
+    private static string HashEmail(string email)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(email.Trim().ToLowerInvariant());
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }

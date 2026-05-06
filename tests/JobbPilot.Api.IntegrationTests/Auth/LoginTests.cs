@@ -12,7 +12,7 @@ public class LoginTests(ApiFactory factory)
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task POST_login_with_valid_credentials_returns_access_token()
+    public async Task POST_login_with_valid_credentials_returns_session_id()
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"login-{Guid.NewGuid()}@example.com";
@@ -26,7 +26,7 @@ public class LoginTests(ApiFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("accessToken").GetString().ShouldNotBeNullOrEmpty();
+        json.GetProperty("sessionId").GetString().ShouldNotBeNullOrEmpty();
     }
 
     [Fact]

@@ -89,6 +89,43 @@ passwords. The following rules are non-negotiable:
 - This policy applies to both `ISessionStore` implementations (InMemory and
   Redis) and all call sites in the auth pipeline.
 
+## Auth Audit Logging
+
+All authentication events are recorded as structured log entries for security
+observability and GDPR audit compliance.
+
+### EventId table
+
+| EventId | Name              | Level       | Trigger                                 |
+|---------|-------------------|-------------|-----------------------------------------|
+| 1001    | `LoginSucceeded`  | Information | Credentials verified; session created   |
+| 1002    | `LoginFailed`     | Warning     | Bad credentials; no session created     |
+| 1003    | `LogoutSucceeded` | Information | Session invalidated via `ISessionStore` |
+
+### Structured event shape
+
+`LoginSucceeded` and `LogoutSucceeded` log: `UserId` (Guid),
+`SessionIdPrefix` (6-char prefix + `…`), `Ip`, `UserAgent` (truncated to 256
+chars).
+
+`LoginFailed` logs: `EmailHash` (SHA-256 of raw email, lowercase hex-encoded)
+instead of `UserId` — no PII in warning-level logs. Raw email is **never**
+logged.
+
+### Fas 0 destination
+
+`ILogger<AuthAuditLogger>` → Serilog → Seq (local) / CloudWatch Logs (dev,
+prod). Source-generator pattern (`[LoggerMessage]` attribute on
+`sealed partial class`) ensures zero-allocation structured logging; no string
+allocations on hot path.
+
+### Fas 1 upgrade path
+
+A Postgres `auth_audit_log` table (append-only, no soft-delete, 90-day
+retention) will replace or supplement the structured log as queryable audit
+history. GDPR subject-access requests will query this table. Schema and
+migration are out-of-scope for Fas 0.
+
 ## Consequences
 
 ### Positive
@@ -122,12 +159,49 @@ passwords. The following rules are non-negotiable:
 - "Remember me" / persistent sessions (Fas 1)
 - Secondary user-sessions index — efficient bulk invalidation for
   `InvalidateAllForUserAsync` (GDPR erasure via SCAN-based fallback until
-  implemented). Required by account-deletion flow; must be implemented
-  synchronously before SQL DELETE commits.
+  implemented), and Active-sessions UI (list all open sessions per user,
+  revoke individually — requires secondary index as read model). Required
+  by account-deletion flow; must be implemented synchronously before SQL
+  DELETE commits.
 - JTI value-object migration — coherent refactor with `SessionId` pattern,
   deferred to Fas 1. JTI is a public JWT claim (not a bearer secret), so
   raw JTI in Redis keys is acceptable; the refactor is for architectural
   consistency, not security necessity.
+
+## Deprecated Endpoints
+
+### POST /auth/refresh — 410 Gone (Turn 4)
+
+The refresh endpoint was replaced by stateful session-based authentication in
+Turn 4. As of this change:
+
+- `POST /api/v1/auth/refresh` returns `410 Gone` immediately, without
+  invoking `RefreshCommandHandler` or reading any cookie.
+- The response body is a `ProblemDetails` object with the message:
+  _"Refresh-flödet är ersatt av session-baserad autentisering. Använd
+  /auth/login för ny session. Se ADR 0017."_
+- `RefreshCommandHandler`, `RefreshTokenStore`, `IRefreshTokenStore`, and
+  the `jobbpilot-refresh` cookie contract remain in the codebase under
+  `[Obsolete(DiagnosticId = "JOBBPILOT0001")]` until Fas 1 cleanup.
+- `POST /auth/refresh` will be **deleted entirely** in Fas 1, together with
+  all JWT-related infrastructure.
+
+## Performance Budget
+
+| Operation                   | Target (prod Redis) | Measured (Docker Redis, 2026-05-06) |
+|-----------------------------|---------------------|--------------------------------------|
+| `ISessionStore.GetAsync`    | p99 < 5 ms          | p50: 1,88 ms · p99: 2,42 ms         |
+| `ISessionStore.CreateAsync` | not measured        | not measured                         |
+
+The 5 ms prod budget is conservative: measured p99 of 2,42 ms on local Docker
+Redis (Windows, Testcontainers) with no connection pooling optimization. In
+production (ElastiCache, same-region, persistent connection) p99 is expected
+to be lower.
+
+CI guard: assertion is `p99 < 50 ms` (10× budget) to absorb Windows container
+overhead and CI runner variance without masking genuine regressions. Measured
+by `RedisSessionStoreTests.GetAsync_Performance_1000Calls_P99Under5ms`
+(1 000 iterations, 10 warmup calls, `redis:8-alpine`).
 
 ## References
 

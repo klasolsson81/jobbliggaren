@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure.Auth;
+using JobbPilot.Infrastructure.Auth.Auditing;
 using JobbPilot.Infrastructure.Auth.Sessions;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
@@ -67,6 +68,7 @@ public static class DependencyInjection
             opts.InstanceName = "jobbpilot:";
         });
 
+#pragma warning disable JOBBPILOT0001 // JwtSettings och RsaSecurityKey bevaras för RefreshCommandHandler tills Fas 1, ADR 0017
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
 
         // Singleton RSA-nyckel — läses en gång, återanvänds per token-generering.
@@ -78,16 +80,22 @@ public static class DependencyInjection
             rsa.ImportFromPem(File.ReadAllText(jwt.PrivateKeyPath));
             return new RsaSecurityKey(rsa);
         });
+#pragma warning restore JOBBPILOT0001
 
         services.Configure<SessionStoreOptions>(configuration.GetSection(SessionStoreOptions.SectionName));
+
+#pragma warning disable JOBBPILOT0001 // JWT-klasser bevaras för RefreshCommandHandler tills Fas 1, ADR 0017
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
-        services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();
+#pragma warning restore JOBBPILOT0001
+
+        services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<ISessionStore, RedisSessionStore>();
         services.AddScoped<IUserAccountService, UserAccountService>();
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();
+        services.AddScoped<IAuthAuditLogger, AuthAuditLogger>();
 
         return services;
     }

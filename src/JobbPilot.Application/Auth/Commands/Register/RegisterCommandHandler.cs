@@ -9,19 +9,19 @@ namespace JobbPilot.Application.Auth.Commands.Register;
 public sealed class RegisterCommandHandler(
     IAppDbContext db,
     IUserAccountService userAccountService,
-    IJwtTokenGenerator tokenGenerator,
-    IRefreshTokenStore refreshTokenStore,
+    ISessionStore sessionStore,
+    IAuthAuditLogger auditLogger,
     IDateTimeProvider clock)
-    : ICommandHandler<RegisterCommand, Result<AuthTokensDto>>
+    : ICommandHandler<RegisterCommand, Result<SessionDto>>
 {
-    public async ValueTask<Result<AuthTokensDto>> Handle(
+    public async ValueTask<Result<SessionDto>> Handle(
         RegisterCommand command, CancellationToken cancellationToken)
     {
         var createResult = await userAccountService.CreateUserAsync(
             command.Email!, command.Password!, cancellationToken);
 
         if (createResult.IsFailure)
-            return Result.Failure<AuthTokensDto>(createResult.Error);
+            return Result.Failure<SessionDto>(createResult.Error);
 
         var userId = createResult.Value;
 
@@ -29,26 +29,15 @@ public sealed class RegisterCommandHandler(
         if (seekerResult.IsFailure)
         {
             await userAccountService.DeleteUserAsync(userId, cancellationToken);
-            return Result.Failure<AuthTokensDto>(seekerResult.Error);
+            return Result.Failure<SessionDto>(seekerResult.Error);
         }
 
         db.JobSeekers.Add(seekerResult.Value);
 
-        var roles = await userAccountService.GetRolesAsync(userId, cancellationToken);
-        var tokens = tokenGenerator.GenerateTokens(userId, command.Email!, roles);
+        var session = await sessionStore.CreateAsync(userId, cancellationToken);
 
-        var tokenHash = tokenGenerator.HashToken(tokens.RefreshToken);
-        await refreshTokenStore.StoreAsync(
-            userId,
-            tokenHash,
-            tokens.RefreshTokenExpiresAt,
-            createdByIp: null,
-            cancellationToken);
+        auditLogger.LoginSucceeded(userId, session.Id.ToString());
 
-        return Result.Success(new AuthTokensDto(
-            tokens.AccessToken,
-            tokens.AccessTokenExpiresAt,
-            tokens.RefreshToken,
-            tokens.RefreshTokenExpiresAt));
+        return Result.Success(new SessionDto(session.Id.Reveal()));
     }
 }

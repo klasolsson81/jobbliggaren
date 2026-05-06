@@ -1,30 +1,26 @@
 using JobbPilot.Application.Common.Abstractions;
-using JobbPilot.Application.Common.Configuration;
 using JobbPilot.Domain.Common;
 using Mediator;
-using Microsoft.Extensions.Options;
 
 namespace JobbPilot.Application.Auth.Commands.Logout;
 
 public sealed class LogoutCommandHandler(
     ICurrentUser currentUser,
-    IRefreshTokenStore refreshTokenStore,
-    IAccessTokenRevocationStore revocationStore,
-    IOptions<JwtSettings> jwtSettings)
+    ISessionStore sessionStore,
+    IAuthAuditLogger auditLogger)
     : ICommandHandler<LogoutCommand, Result>
 {
     public async ValueTask<Result> Handle(
         LogoutCommand command, CancellationToken cancellationToken)
     {
-        if (currentUser.Jti is not null)
-            await revocationStore.RevokeAsync(
-                currentUser.Jti,
-                TimeSpan.FromMinutes(jwtSettings.Value.AccessTokenLifetimeMinutes),
-                cancellationToken);
+        if (currentUser.SessionId is { } sessionId)
+        {
+            // Returvärde ignoreras — logout är idempotent (race: annan enhet loggade ut simultant)
+            _ = await sessionStore.InvalidateAsync(sessionId, cancellationToken);
 
-        if (currentUser.UserId.HasValue)
-            await refreshTokenStore.RevokeAllForUserAsync(
-                currentUser.UserId.Value, cancellationToken);
+            if (currentUser.UserId is { } userId)
+                auditLogger.LogoutSucceeded(userId, sessionId.ToString());
+        }
 
         return Result.Success();
     }

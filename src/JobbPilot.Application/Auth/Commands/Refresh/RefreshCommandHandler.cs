@@ -6,6 +6,11 @@ using Microsoft.Extensions.Logging;
 
 namespace JobbPilot.Application.Auth.Commands.Refresh;
 
+// NOTE: Denna handler är inte längre wired upp sedan Turn 4.
+// /auth/refresh returnerar 410 Gone direkt (AuthEndpoints.cs).
+// Handler + tester bevaras som referens tills RefreshTokenStore-tabellen
+// migreras bort i Fas 1 (ADR 0017).
+#pragma warning disable JOBBPILOT0001 // JWT refresh bevaras tills Fas 1, ADR 0017
 public sealed partial class RefreshCommandHandler(
     IRefreshTokenStore refreshTokenStore,
     IUserAccountService userAccountService,
@@ -69,3 +74,4 @@ public sealed partial class RefreshCommandHandler(
         Message = "Refresh token replay detected for user {UserId}. Revoking entire chain.")]
     private partial void LogReplayDetected(Guid userId);
 }
+#pragma warning restore JOBBPILOT0001

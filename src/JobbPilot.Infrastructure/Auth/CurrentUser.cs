@@ -27,4 +27,7 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
 
     public string? Email => Principal?.FindFirstValue(JwtRegisteredClaimNames.Email)
         ?? Principal?.FindFirstValue(ClaimTypes.Email);
+
+    public SessionId? SessionId =>
+        httpContextAccessor.HttpContext?.Items["SessionId"] is SessionId sid ? sid : null;
 }

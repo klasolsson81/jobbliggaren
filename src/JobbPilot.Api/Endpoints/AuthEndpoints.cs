@@ -1,6 +1,5 @@
 using JobbPilot.Application.Auth.Commands.Login;
 using JobbPilot.Application.Auth.Commands.Logout;
-using JobbPilot.Application.Auth.Commands.Refresh;
 using JobbPilot.Application.Auth.Commands.Register;
 using JobbPilot.Domain.Common;
 using Mediator;
@@ -9,58 +8,46 @@ namespace JobbPilot.Api.Endpoints;
 
 public static class AuthEndpoints
 {
-    private const string RefreshCookieName = "jobbpilot-refresh";
-
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/auth").WithTags("Auth");
 
         group.MapPost("/register", async (
-            RegisterCommand command, IMediator mediator, HttpContext ctx, CancellationToken ct) =>
+            RegisterCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             if (result.IsFailure)
                 return ToErrorResult(result.Error);
 
-            AppendRefreshCookie(ctx, result.Value.RefreshToken, result.Value.RefreshTokenExpiresAt);
-            return Results.Ok(new { result.Value.AccessToken, result.Value.AccessTokenExpiresAt });
+            // Session-id returneras i response body — Next.js-proxyn sätter HTTPOnly-cookie (ADR 0018).
+            return Results.Ok(new { sessionId = result.Value.SessionId });
         });
 
         group.MapPost("/login", async (
-            LoginCommand command, IMediator mediator, HttpContext ctx, CancellationToken ct) =>
+            LoginCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             if (result.IsFailure)
                 return ToErrorResult(result.Error);
 
-            AppendRefreshCookie(ctx, result.Value.RefreshToken, result.Value.RefreshTokenExpiresAt);
-            return Results.Ok(new { result.Value.AccessToken, result.Value.AccessTokenExpiresAt });
+            return Results.Ok(new { sessionId = result.Value.SessionId });
         });
 
-        group.MapPost("/refresh", async (
-            IMediator mediator, HttpContext ctx, CancellationToken ct) =>
-        {
-            var token = ctx.Request.Cookies[RefreshCookieName];
-            if (string.IsNullOrWhiteSpace(token))
-                return Results.Unauthorized();
+        // [Obsolete] 410 Gone — ersatt av session-baserad auth i Turn 4, ADR 0017.
+        // Raderas i Fas 1 tillsammans med RefreshTokenStore och övrig JWT-infrastruktur.
+        group.MapPost("/refresh", () =>
+            Results.Problem(
+                detail: "Refresh-flödet är ersatt av session-baserad autentisering. " +
+                        "Använd /auth/login för ny session. Se ADR 0017.",
+                title: "Gone",
+                statusCode: StatusCodes.Status410Gone))
+            .ProducesProblem(StatusCodes.Status410Gone)
+            .WithSummary("[Obsolete] Refresh-flödet är ersatt av session-baserad auth — se ADR 0017");
 
-            var result = await mediator.Send(new RefreshCommand(token), ct);
-            if (result.IsFailure)
-                return Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 401);
-
-            AppendRefreshCookie(ctx, result.Value.RefreshToken, result.Value.RefreshTokenExpiresAt);
-            return Results.Ok(new { result.Value.AccessToken, result.Value.AccessTokenExpiresAt });
-        });
-
-        group.MapPost("/logout", async (IMediator mediator, HttpContext ctx, CancellationToken ct) =>
+        group.MapPost("/logout", async (IMediator mediator, CancellationToken ct) =>
         {
             await mediator.Send(new LogoutCommand(), ct);
-            ctx.Response.Cookies.Delete(RefreshCookieName, new CookieOptions
-            {
-                Path = "/api/v1/auth",
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-            });
+            // Cookie-radering sker i Next.js-proxyn (ADR 0018) — backend är cookie-agnostiskt.
             return Results.NoContent();
         }).RequireAuthorization();
     }
@@ -72,14 +59,4 @@ public static class AuthEndpoints
         _ => Results.Problem(
             detail: error.Message, title: error.Code, statusCode: 400),
     };
-
-    private static void AppendRefreshCookie(HttpContext ctx, string token, DateTimeOffset expiresAt) =>
-        ctx.Response.Cookies.Append(RefreshCookieName, token, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            Path = "/api/v1/auth",
-            Expires = expiresAt,
-        });
 }

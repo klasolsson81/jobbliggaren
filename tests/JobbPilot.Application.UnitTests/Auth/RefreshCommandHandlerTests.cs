@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 
+#pragma warning disable JOBBPILOT0001 // JWT refresh bevaras tills Fas 1, ADR 0017
 namespace JobbPilot.Application.UnitTests.Auth;
 
 public class RefreshCommandHandlerTests

@@ -12,7 +12,7 @@ public class RegisterTests(ApiFactory factory)
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task POST_register_with_valid_data_returns_access_token()
+    public async Task POST_register_with_valid_data_returns_session_id()
     {
         var ct = TestContext.Current.CancellationToken;
         var body = new
@@ -26,7 +26,7 @@ public class RegisterTests(ApiFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("accessToken").GetString().ShouldNotBeNullOrEmpty();
+        json.GetProperty("sessionId").GetString().ShouldNotBeNullOrEmpty();
     }
 
     [Fact]

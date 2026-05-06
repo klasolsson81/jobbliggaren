@@ -1,0 +1,206 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* ── Surfaces ──────────────────────────────────── */
+  --color-surface-primary:   #FFFFFF;
+  --color-surface-secondary: #F7F7F5;
+  --color-surface-tertiary:  #EDECE7;
+  --color-surface-inverse:   #1A1A1A;
+
+  /* ── Text ──────────────────────────────────────── */
+  --color-text-primary:      #1A1A1A;
+  --color-text-secondary:    #5A5A5A;
+  --color-text-tertiary:     #8A8A85;
+  --color-text-inverse:      #FFFFFF;
+
+  /* ── Brand (myndighetsblå) ─────────────────────── */
+  --color-brand-50:          #EAF2FB;
+  --color-brand-100:         #C8DDF1;
+  --color-brand-300:         #6BA1DC;
+  --color-brand-500:         #1F6EB8;
+  --color-brand-600:         #0B5CAD;
+  --color-brand-700:         #094B8C;
+  --color-brand-900:         #062F57;
+
+  /* ── Status: success ───────────────────────────── */
+  --color-success-50:        #E8F3EC;
+  --color-success-600:       #0F7A2E;
+  --color-success-700:       #0B5E24;
+
+  /* ── Status: warning ───────────────────────────── */
+  --color-warning-50:        #FAF2DE;
+  --color-warning-600:       #946200;
+  --color-warning-700:       #734D00;
+
+  /* ── Status: danger ────────────────────────────── */
+  --color-danger-50:         #FBEBEB;
+  --color-danger-600:        #B42121;
+  --color-danger-700:        #8C1919;
+
+  /* ── Status: info ──────────────────────────────── */
+  --color-info-50:           #EEF1F5;
+  --color-info-600:          #4A5A7A;
+  --color-info-700:          #384560;
+
+  /* ── Borders ───────────────────────────────────── */
+  --color-border-default:    #D8D6D0;
+  --color-border-strong:     #B8B6B0;
+  --color-border-brand:      #0B5CAD;
+
+  /* ── Focus ─────────────────────────────────────── */
+  --color-focus-ring:        #0B5CAD;
+  --color-focus-ring-offset: #FFFFFF;
+
+  /* ── Shadows ───────────────────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* ── Typography ────────────────────────────────── */
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-display:  36px;
+  --text-h1:       28px;
+  --text-h2:       22px;
+  --text-h3:       18px;
+  --text-h4:       16px;
+  --text-body-lg:  16px;
+  --text-body:     14px;
+  --text-body-sm:  13px;
+  --text-caption:  12px;
+  --text-label:    13px;
+  --text-mono:     13px;
+}
+
+/* ── Base styles ──────────────────────────────────── */
+body {
+  background-color: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Global focus ring ────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Reduced motion ───────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── shadcn/ui bridge: maps bg-* classes to :root vars ── */
+/* Placed AFTER body styles. @theme inline uses var() so it resolves   */
+/* at runtime — :root values below drive what shadcn components get.   */
+@theme inline {
+  --font-heading:                       var(--font-sans);
+  --font-sans:                          var(--font-sans);
+  --color-background:                   var(--background);
+  --color-foreground:                   var(--foreground);
+  --color-card:                         var(--card);
+  --color-card-foreground:              var(--card-foreground);
+  --color-popover:                      var(--popover);
+  --color-popover-foreground:           var(--popover-foreground);
+  --color-primary:                      var(--primary);
+  --color-primary-foreground:           var(--primary-foreground);
+  --color-secondary:                    var(--secondary);
+  --color-secondary-foreground:         var(--secondary-foreground);
+  --color-muted:                        var(--muted);
+  --color-muted-foreground:             var(--muted-foreground);
+  --color-accent:                       var(--accent);
+  --color-accent-foreground:            var(--accent-foreground);
+  --color-destructive:                  var(--destructive);
+  --color-border:                       var(--border);
+  --color-input:                        var(--input);
+  --color-ring:                         var(--ring);
+  --color-chart-1:                      var(--chart-1);
+  --color-chart-2:                      var(--chart-2);
+  --color-chart-3:                      var(--chart-3);
+  --color-chart-4:                      var(--chart-4);
+  --color-chart-5:                      var(--chart-5);
+  --color-sidebar:                      var(--sidebar);
+  --color-sidebar-foreground:           var(--sidebar-foreground);
+  --color-sidebar-primary:              var(--sidebar-primary);
+  --color-sidebar-primary-foreground:   var(--sidebar-primary-foreground);
+  --color-sidebar-accent:               var(--sidebar-accent);
+  --color-sidebar-accent-foreground:    var(--sidebar-accent-foreground);
+  --color-sidebar-border:               var(--sidebar-border);
+  --color-sidebar-ring:                 var(--sidebar-ring);
+  /* Radius: civic fixed values — NOT shadcn's calc(var(--radius) * n).  */
+  /* Placed here to override any earlier @theme radius entries.           */
+  /* --radius-xl clamped to 6px (= lg) — no shadcn component may exceed  */
+  /* civic max of 6px by using rounded-xl. Pill remains exception.        */
+  --radius-sm:   2px;
+  --radius-md:   4px;
+  --radius-lg:   6px;
+  --radius-xl:   6px;
+  --radius-pill: 9999px;
+}
+
+/* ── :root — civic color values for shadcn components ── */
+:root {
+  --background:                 #FFFFFF;          /* surface-primary */
+  --foreground:                 #1A1A1A;          /* text-primary */
+  --card:                       #FFFFFF;          /* surface-primary */
+  --card-foreground:            #1A1A1A;
+  --popover:                    #FFFFFF;
+  --popover-foreground:         #1A1A1A;
+  --primary:                    #0B5CAD;          /* brand-600 */
+  --primary-foreground:         #FFFFFF;
+  --secondary:                  #F7F7F5;          /* surface-secondary */
+  --secondary-foreground:       #1A1A1A;
+  --muted:                      #EDECE7;          /* surface-tertiary */
+  --muted-foreground:           #5A5A5A;          /* text-secondary */
+  --accent:                     #F7F7F5;          /* surface-secondary */
+  --accent-foreground:          #1A1A1A;
+  --destructive:                #B42121;          /* danger-600 */
+  --border:                     #D8D6D0;          /* border-default */
+  --input:                      #D8D6D0;          /* border-default */
+  --ring:                       #0B5CAD;          /* brand-600 */
+  --radius:                     0.25rem;          /* 4px base — NOT used for our radius-sm/md/lg */
+  /* chart: brand palette */
+  --chart-1:                    #0B5CAD;
+  --chart-2:                    #1F6EB8;
+  --chart-3:                    #6BA1DC;
+  --chart-4:                    #C8DDF1;
+  --chart-5:                    #EAF2FB;
+  /* sidebar */
+  --sidebar:                    #F7F7F5;
+  --sidebar-foreground:         #1A1A1A;
+  --sidebar-primary:            #0B5CAD;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent:             #EDECE7;
+  --sidebar-accent-foreground:  #1A1A1A;
+  --sidebar-border:             #D8D6D0;
+  --sidebar-ring:               #0B5CAD;
+}
+
+/* Dark mode: removed in Fas 0 — shadcn nova-preset generated oklch values   */
+/* including oklch(0.488 0.243 264.376) (indigo-violet) which violates        */
+/* CLAUDE.md §5.2. Dark mode will be specified in a future ADR with civic     */
+/* neutral-scale values (no hue). Do NOT re-add without Klas approval + ADR.  */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

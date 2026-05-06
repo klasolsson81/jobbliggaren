@@ -27,6 +27,8 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0012 | Auth-stack: ASP.NET Core Identity + JWT (RS256) | Accepted | 2026-04-19 | [0012-auth-stack-identity-jwt.md](./0012-auth-stack-identity-jwt.md) |
 | 0013 | Separat AppIdentityDbContext för Identity-tabeller | Accepted | 2026-04-19 | [0013-separate-identity-dbcontext.md](./0013-separate-identity-dbcontext.md) |
 | 0014 | Refresh tokens i DB + Redis för access-token jti (avviker från BUILD.md §11.2) | Accepted | 2026-04-19 | [0014-refresh-token-strategy.md](./0014-refresh-token-strategy.md) |
+| 0015 | Frontend-stack för JobbPilot (STEG 4a) | Accepted | 2026-05-06 | [0015-frontend-stack.md](./0015-frontend-stack.md) |
+| 0016 | Civic design language som arkitekturkrav | Accepted | 2026-05-06 | [0016-civic-design-language.md](./0016-civic-design-language.md) |
 
 ## Planerade ADRs
 
@@ -37,8 +39,6 @@ BUILD.md Bilaga B listar ADRs som ska skrivas när respektive tekniskt val blir 
 - `NNNN-bedrock-eu-for-system-key.md` — när EU-inference-profile-beslutet formaliseras
 - `NNNN-byok-architecture.md` — BYOK-krypteringsflöde
 - `NNNN-hangfire-background-jobs.md` — när bakgrundsjobb-val görs
-- `NNNN-nextjs-app-router.md` — när frontend-arkitektur dokumenteras
-- `NNNN-civic-design-language.md` — när design-språket får egen ADR utöver DESIGN.md
 
 Numrering tilldelas löpande när ADR skrivs. BUILD.md Bilaga B är förslag på ordning, inte bindande.
 

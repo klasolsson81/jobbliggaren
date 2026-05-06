@@ -13,7 +13,8 @@ public sealed class DesignTimeIdentityDbContextFactory
     {
         var options = new DbContextOptionsBuilder<AppIdentityDbContext>()
             .UseNpgsql(
-                "Host=localhost;Port=5432;Database=jobbpilot_dev;Username=postgres;Password=postgres",
+                Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
+                    ?? "Host=localhost;Port=5432;Database=jobbpilot;Username=jobbpilot;Password=jobbpilot",
                 npgsql =>
                 {
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure.Auth;
@@ -7,6 +8,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 
 namespace JobbPilot.Infrastructure;
 
@@ -64,6 +67,17 @@ public static class DependencyInjection
         });
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+
+        // Singleton RSA-nyckel — läses en gång, återanvänds per token-generering.
+        // Förhindrar CNG-handle-läcka vid RSA.Create() per anrop.
+        services.AddSingleton<RsaSecurityKey>(sp =>
+        {
+            var jwt = sp.GetRequiredService<IOptions<JwtSettings>>().Value;
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(File.ReadAllText(jwt.PrivateKeyPath));
+            return new RsaSecurityKey(rsa);
+        });
+
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();

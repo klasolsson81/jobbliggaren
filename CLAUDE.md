@@ -264,10 +264,9 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
 
 ### 6.1 Branches
 
-- `main` = produktion + utveckling (GitHub Flow per ADR 0004), skyddad, kräver PR + godkänd review + grön CI när workflows finns
-- Feature branches: `feat/<kontext>-<beskrivning>` — `feat/applications-ghosted-detection`
-- Fix branches: `fix/<beskrivning>`
-- Chore: `chore/<beskrivning>`
+- `main` = enda branch (direct-push-praxis per ADR 0019, superseder ADR 0004)
+- Inga feature-branches, inga PRs — granskningsspärrar listas i §6.3
+- Conventional Commits-format består (§6.2)
 - Deploy via taggar på `main`: `v*-dev` → dev-miljö, `v*-rc*` → staging, `v*` → prod (manuell approval)
 - Staging är *miljö*, inte *branch*
 
@@ -283,14 +282,17 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
   - `fix(ai): honorera EU-inferens när systemnyckel används`
   - `refactor(resumes): extrahera ResumeContent som value object`
 
-### 6.3 Pull requests
+### 6.3 Granskningsspärrar (PR-fri praxis)
 
-- PR-titel = sammanfattning
-- PR-beskrivning: **Varför**, **Vad**, **Hur testat**
-- Länka till issue eller ADR om det finns
-- Self-review först — läs diff:en en gång till innan du ber om review
-- Håll PR:er små, helst <500 rader diff
-- Ingen merge utan grön CI + minst 1 approval (när vi är fler än Klas)
+JobbPilot kör direct-push till `main` per ADR 0019. PR-flödet finns inte. Granskningsvärdet ersätts av fem mekanismer:
+
+1. **Plan-design** — webb-Claude och Klas designar scope, sekvens, risker och alternativ i chat innan kod skrivs
+2. **STOPP-disciplin** — Claude Code halt vid varje övergång; inga `str_replace`, inga commits, ingen analys mellan STOPP och GO
+3. **Agent-invocation** — security-auditor / code-reviewer / dotnet-architect invokeras vid relevant scope och rapporter granskas innan commit (§9.2)
+4. **Manuell diff-granskning** — Klas läser `git diff` innan varje push
+5. **Pre-push hooks** — gitleaks, dotnet format, lint-staged
+
+Chat-history (Klas + webb-Claude) är primär granskningstrail. GitHub-side review-record finns inte. Vid bidragsgivar-tillkomst eller disciplin-regression: trigger för återgång till PR-flöde finns dokumenterad i ADR 0019.
 
 ---
 
@@ -349,7 +351,7 @@ En feature är "klar" när:
 5. Implementera minimalt för att passera
 6. Kör `dotnet test` + relevant lint lokalt
 7. Commit med conventional commits
-8. Beskriv i PR: Varför, Vad, Hur testat
+8. Bifoga relevanta agent-rapporter (security-auditor / code-reviewer / dotnet-architect) till STOPP-rapport så Klas kan granska parallellt — direct-push till `main` efter Klas:s GO (per ADR 0019)
 
 ### 9.2 Gränser för Claude Code
 
@@ -365,6 +367,15 @@ En feature är "klar" när:
 - Lägga till nya top-level dependencies utan motivering
 - Använda externa bibliotek som inte står i BUILD.md §3.1 utan diskussion
 - Skriva kod som bryter mot anti-patterns i §5
+- Påbörja ny session-fas baserat på "logiskt nästa steg från ADR-läsning" — sessionsbyten är strategiska transitioner och kräver explicit GO från Klas
+
+**Du ska invocera (vid relevant scope, innan STOPP-rapport till Klas):**
+- **security-auditor** — kod som rör PII, auth, secrets eller external integrations
+- **code-reviewer + dotnet-architect** — större kodändringar (>5 filer eller arkitekturella val)
+- **db-migration-writer** — nya migrations
+- **test-writer** — nya domain-typer eller handlers
+
+Agent-rapporter sparas i `docs/reviews/<datum>-<fas>-<agent>.md` och bifogas STOPP-rapporten så Klas kan granska parallellt. Att hoppa över relevant agent-invocation räknas som disciplinmiss.
 
 ### 9.3 När du är osäker
 
@@ -373,6 +384,42 @@ En feature är "klar" när:
 - **Gissa aldrig** — om du inte vet om en feature ska finnas, fråga innan du bygger den
 
 ---
+
+### 9.4 Discovery-rapporter och verifiering
+
+Strukturella spärrar mot sammanfattnings-glidning och otillämpade ändringar.
+
+**När använda discovery-rapport:** vid osäkerhet om fil-state, on-disk-config, befintlig kodstruktur eller existerande patterns. Format:
+
+> "Discovery: läs/kartlägg X. Rapportera Y. Inga ändringar."
+
+Discovery är gratis. Använd liberalt — kostnaden är minimal jämfört med att agera på fel antagande.
+
+**Rå output-krav:** discovery-rapport innehåller hela filer i kodblock. Inga `...`-trunkeringar, inga sammanfattningar, ingen TL;DR. Om filen är >500 rader: rapportera hela filen ändå — webb-Claude behöver verbatim text för att designa `str_replace`.
+
+**Paste-verifiering:** efter `str_replace` eller paste skall STOPP-rapporten innehålla `grep`- eller `git diff`-output som bevisar fil-state. Påståenden om "verbatim paste:at" utan verifierings-evidens behandlas som otillämpat tills bevisat.
+
+**Pre-flight-check för `str_replace`:** vid långa paste:ar (>20 rader eller flera sektioner samtidigt) — visa target-sträng + nytt innehåll i kodblock innan apply, vänta på GO. Pre-flight-check är inte overhead när det fungerar — det är försäkring mot omformulerings-glidning.
+
+**Verbatim-text-källa:** när text ska appliceras verbatim till fil (ADR-sektion, dokumentation, kod-snippet) producerar webb-Claude källtexten. CC:s roll är att applicera, inte konstruera. Om CC saknar källtext i kontext (t.ex. efter kompaktering): STOPP, be webb-Claude om verbatim text.
+
+### 9.5 Web-search vid osäkerhet om externa fakta
+
+Externa fakta uppdateras konstant. Training data är out-of-date i veckor till månader. Vid present-tense-frågor om externa system: web-search > gissning från minnet.
+
+**Triggers för web-search:**
+
+- AWS — feature, pris, region, IAM-policy-format, Bedrock-modell-tillgänglighet
+- .NET / Next.js / TypeScript — library-version, breaking changes, deprecation-status
+- AI-modeller — modell-namn, kontextfönster, prissättning, EU-inferens-tillgänglighet
+- Claude-features — Claude Code-flaggor, SDK-versioner, agent-konfiguration
+- NuGet / npm — paket-status, senaste version, compat-matriser
+
+**Regel:** vid feature/version/pris-frågor i presens — sök innan du svarar. Gissa inte från training data.
+
+**Källprioritering:** officiella docs och release-notes > paketregistry > tredje-parts-blogg. Verifiera datum på källan.
+
+**Rapportering:** vid web-search-baserade beslut — bifoga URL + datum i STOPP-rapporten så Klas kan följa upp källan.
 
 ## 10. Svenska-relaterat
 

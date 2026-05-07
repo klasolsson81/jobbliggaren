@@ -9,7 +9,7 @@ const MAX_AGE = 14 * 24 * 60 * 60; // 14 days in seconds
 export type CurrentUser = {
   userId: string;
   email: string;
-  roles?: string[];
+  roles: readonly string[];
 };
 
 export const getServerSession = cache(
@@ -24,7 +24,8 @@ export const getServerSession = cache(
         cache: "no-store",
       });
       if (!res.ok) return null;
-      return res.json() as Promise<CurrentUser>;
+      const data: CurrentUser = await res.json();
+      return data;
     } catch {
       return null;
     }

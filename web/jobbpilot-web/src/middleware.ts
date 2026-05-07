@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const PROTECTED_PREFIXES = ["/mig"];
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isProtected = PROTECTED_PREFIXES.some((prefix) =>

@@ -16,7 +16,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0001 | Clean Architecture med DDD | Accepted | 2026-04-18 | [0001-clean-architecture.md](./0001-clean-architecture.md) |
 | 0002 | Explicit modell-versioner för agenter | Accepted | 2026-04-18 | [0002-explicit-model-versions.md](./0002-explicit-model-versions.md) |
 | 0003 | Design as skills (arkitektur) | Accepted | 2026-04-18 | [0003-design-as-skills.md](./0003-design-as-skills.md) |
-| 0004 | GitHub Flow över GitFlow | Accepted | 2026-04-18 | [0004-github-flow.md](./0004-github-flow.md) |
+| 0004 | GitHub Flow över GitFlow | Superseded by 0019 | 2026-04-18 | [0004-github-flow.md](./0004-github-flow.md) |
 | 0005 | Go-to-market + monetarisering (Fas 2-prereq) | Proposed | 2026-04-18 | [0005-go-to-market-strategy.md](./0005-go-to-market-strategy.md) |
 | 0006 | Claude Code hooks — kända begränsningar | Accepted | 2026-04-18 | [0006-claude-code-hooks-known-limitations.md](./0006-claude-code-hooks-known-limitations.md) |
 | 0007 | Branch protection för main (Fas 0) | Accepted | 2026-04-18 | [0007-branch-protection-fas0.md](./0007-branch-protection-fas0.md) |
@@ -31,6 +31,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0016 | Civic design language som arkitekturkrav | Accepted | 2026-05-06 | [0016-civic-design-language.md](./0016-civic-design-language.md) |
 | 0017 | Frontend Authentication Pattern (Custom, Cookie-Based) | Accepted | 2026-05-06 | [0017-frontend-auth-pattern.md](./0017-frontend-auth-pattern.md) |
 | 0018 | Cookie and CSRF Strategy for Frontend Auth | Accepted | 2026-05-06 | [0018-cookie-and-csrf-strategy.md](./0018-cookie-and-csrf-strategy.md) |
+| 0019 | Solo direct-push till main | Accepted | 2026-05-07 | [0019-solo-direct-push-to-main.md](./0019-solo-direct-push-to-main.md) |
 
 ## Planerade ADRs
 

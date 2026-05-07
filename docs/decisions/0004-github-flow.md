@@ -1,10 +1,12 @@
 # ADR 0004 — GitHub Flow över GitFlow
 
 **Datum:** 2026-04-18
-**Status:** Accepted
+**Status:** Superseded by ADR 0019 (2026-05-07)
 **Kontext:** Session 2 (bootstrap-beslut), formaliserad session 4 STEG 9
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** BUILD.md §6.1, ADR 0007 (Branch protection)
+
+> **Superseded 2026-05-07.** Denna ADR är ersatt av [ADR 0019 — Solo direct-push till main](./0019-solo-direct-push-to-main.md). Beslutet om GitHub Flow med feature-branches + PR ersätts med direct-push-praxis. Detta dokument bevaras för historik.
 
 ## Kontext
 

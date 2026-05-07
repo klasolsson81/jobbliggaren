@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Domain.Applications;
 using JobbPilot.Domain.JobAds;
 using JobbPilot.Domain.JobSeekers;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 {
     public DbSet<JobAd> JobAds => Set<JobAd>();
     public DbSet<JobSeeker> JobSeekers => Set<JobSeeker>();
+    public DbSet<DomainApplication> Applications => Set<DomainApplication>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

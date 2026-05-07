@@ -43,6 +43,11 @@ JobbPilot är en svensk jobbansökningshanterare byggd som en **civic utility** 
    - Body covers: goals, what was completed per step, decisions, commits, next session
 3. Commit current-work + session log together
 4. Push to origin/main
+5. Generera startprompt för nästa session — ett copy-paste-klart kodblock med:
+   - Förväntat HEAD (SHA)
+   - Vilka filer att läsa vid session-start
+   - Första uppgiften / nästa STEG i klartext
+   Klas klipper prompten direkt in i ny `/clear`-session utan att behöva webb-Claude.
 
 **Format for session log files**:
 

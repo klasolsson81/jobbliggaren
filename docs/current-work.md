@@ -1,72 +1,68 @@
 # Current work — JobbPilot
 
-**Status:** Session 4b.1 KOMPLETT — STEG 4b Turn 4 (backend session-auth) klar. Nästa: Session 4b.2 — frontend auth-implementation (login/register/me-sidor, auth-helper).
-**Datum:** 2026-05-06
+**Status:** Upptakten 2026-05-07 — Moment 5 (steg-tracker + denna fil) pågår. Nästa: STEG 5 (Application aggregate, Väg A) i ny chatt.
+**Senast uppdaterad:** 2026-05-07
+**Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
+**Tech debt:** `docs/tech-debt.md`
 
 ---
 
 ## Aktivt nu
 
-**STEG 4b Turn 4 (backend session-auth) KOMPLETT.** JWT-utgivning ersatt av stateful Redis-sessioner. 153 tester gröna. ADR 0017-0018 uppdaterade.
+**Upptakten 2026-05-07 — disciplin-uppgradering.** Moment 1-4 stängda, Moment 5 (denna fil + steg-tracker) pågår.
 
-**Fas 0-milstolpe:**
-- ✅ Backend auth-stack (STEG 3): Identity + JWT + Redis, 75 tester
-- ✅ Frontend scaffold (STEG 4a): Next.js 16, civic-tokens, shadcn, demo-page
-- ✅ Backend session-auth (STEG 4b Turn 1-4): ISessionStore + SessionAuthenticationHandler + IAuthAuditLogger, 153 tester
-- 🔲 Frontend auth-flöden (Session 4b.2): login/register/me-sidor, auth-helper, Next.js proxy
+**Senaste klar-checkpoints:**
 
-**Vad som är på plats (Fas 0 bootstrap + STEG 1-4b Turn 4):**
-- AWS-foundation, Docker-compose, Claude Code-agenter/skills/hooks, GitHub-integration, docs
-- ADR 0001-0018
-- .NET Solution: 5 src-projekt, 4 test-projekt
-- Domain: JobAd aggregate + JobSeeker aggregate
-- Infrastructure: AppDbContext, AppIdentityDbContext, SessionAuthenticationHandler (RFC 6750), ISessionStore (InMemory + Redis), IAuthAuditLogger (EventId 1001/1002/1003)
-- Application: 4 pipeline-behaviors, auth commands (Login/Register/Logout + SessionDto), JobSeeker queries
-- API: `/api/v1/job-ads` + `/api/v1/auth` + `/api/v1/me` · `/auth/refresh` → 410 Gone
-- Tests: 153 tester (21 domain, 46 application, 6 arch, 80 integration)
-- Frontend: `web/jobbpilot-web/` — Next.js 16.2.4, Tailwind v4 CSS-first, shadcn nova, civic design-tokens, Button/Input/Card
+- STEG 4b Turn 1-4 (backend session-auth — ISessionStore, SessionAuthenticationHandler, IAuthAuditLogger, ADR 0017-0018, 153 tester) — Session 4b.1
+- STEG 4b Turn 5+ (frontend auth — login/register/me-sidor, /(app)-layout, middleware) — Session 4b.2
+- ADR 0019 etablerad (solo direct-push till main, superseder ADR 0004)
+- CLAUDE.md uppgraderad (§6.1, §6.3, §9.1 punkt 8, §9.2 utökad, §9.4 ny, §9.5 ny)
+- tech-debt.md etablerad
+- Hook-vakt fix:ad för Agent SDK-läget (sentinel-fil-mekanism)
+- Precompact-rapporter exkluderade från versionshantering
 
-**Commits Session 4b.1:**
+## Vad som är på plats (kondenserat)
 
-| Commit | Innehåll |
-|--------|----------|
-| *(pending push)* | feat(auth): refactor to stateful session-based authentication |
+För komplett historik och fas-mappning, se `docs/steg-tracker.md`. Kortfattat:
 
-**Open follow-ups (ej blockande för Session 4b.2):**
+- **Infra:** AWS-foundation, Docker-compose, Claude Code-agenter/skills/hooks, GitHub-integration
+- **ADRs:** 0001-0019 (se `docs/decisions/README.md`)
+- **.NET Solution:** 5 src-projekt, 4 test-projekt
+- **Domain:** JobAd + JobSeeker aggregates (Application aggregate kommande i STEG 5)
+- **Infrastructure:** AppDbContext, AppIdentityDbContext, SessionAuthenticationHandler, ISessionStore (InMemory + Redis), IAuthAuditLogger
+- **Application:** pipeline-behaviors, auth commands (Login/Register/Logout + SessionDto), JobSeeker queries
+- **API:** `/api/v1/job-ads`, `/api/v1/auth`, `/api/v1/me`
+- **Tests:** 153 tester (21 domain, 46 application, 6 arch, 80 integration)
+- **Frontend:** Next.js 16.2.4 + Tailwind v4, civic design-tokens, shadcn nova, login/register/me-sidor, /(app)-layout, session-auth via cookie
 
-| # | Beskrivning | Ursprung |
-|---|-------------|----------|
-| m5 | Höj warmup-iterationer i RedisSessionStoreTests till 32 om test flakar | code-reviewer Minor |
-| m7 | Reflection mot ApiFactory i SessionStoreUnavailableTests — städ-PR Fas 0.x | code-reviewer Minor |
-| m8 | AuthAuditLoggerTests fel projekt (Application.UnitTests testar Infrastructure) — städ-PR Fas 0.x | code-reviewer Minor |
-| m9 | HashEmail-duplikation i LoginCommandHandler — löses naturligt vid JWT-radering Fas 1 | code-reviewer Minor |
-| NB-1/2/3 | ADR 0017+0018 format/språk-divergens (English vs Swedish metadata, kolon vs em-dash) | adr-keeper |
-| paste-pattern | CC paste:ar godkänd text verbalt men skriver aldrig till fil — disciplin-gap kräver CLAUDE.md-uppdatering | P3+P4 pattern |
+## Senaste commits (sedan upptaktens början 2026-05-07)
 
-**När nästa session startar (Session 4b.2 — frontend auth):**
+Verifiera SHA via `git log --oneline -10`. Uppdaterad till och med Moment 4-stängning:
 
-1. Kör `git log --oneline -10` — verifiera Turn 4-commit på HEAD
+| Riktnings-SHA | Moment | Beskrivning |
+|---------------|--------|-------------|
+| 085210a | Moment 4 | docs(tech-debt) etablering + ev. README-fix (no-op om länk redan korrekt) |
+| (förra) | Moment 3 | chore(gitignore): exkludera precompact-rapporter |
+| 808792d | Moment 2 | docs(claude): uppdatera workflow per ADR 0019 + discovery + agent-krav |
+| (förra) | Moment 2 | fix(hooks): aktivera spec-fil-vakt i Agent SDK-läget via sentinel-fil |
+| d372a57 | Moment 1 | ADR 0019 + README-uppdatering |
+
+## Open follow-ups
+
+Tidigare poster i denna fil har migrerat till `docs/tech-debt.md` (TD-numrering). Se den filen för aktuella poster.
+
+## När nästa session startar
+
+1. Kör `git log --oneline -10` — verifiera senaste commit
 2. Verifiera `dotnet test` — 153 tester gröna
-3. Läs `docs/sessions/` senaste session-log
-4. Starta frontend: `cd web/jobbpilot-web && pnpm dev`
-5. Implementera: Next.js Route Handler proxy → .NET backend, `__Host-jobbpilot_session`-cookie, `lib/auth/session.ts`, login/register/me-sidor
-
-## Klart senaste sessioner
-
-- Session 1: research
-- Session 2: plan
-- Session 2.5: Design-research
-- Session 3–5: AWS, Docker, agents, skills, hooks, GitHub, docs
-- Session 6 ✅: ADR 0008-0011 + .NET Solution STEG 1
-- Session 7 ✅: Domain, Infrastructure, Application, API, Tests (35 tester — JobAd)
-- Session 8 ✅: STEG 3 — ADRs 0012-0014, Auth-stack, JobSeeker-aggregate, 75 tester
-- Session 9 ✅: STEG 4a — ADRs 0015-0016, Next.js 16, civic-tokens, shadcn, demo-page
-- Session 4b.1 ✅: STEG 4b Turn 1-4 — ISessionStore, SessionAuthenticationHandler, IAuthAuditLogger, ADR 0017-0018, 153 tester
+3. Läs `docs/steg-tracker.md` för långsiktig bana
+4. Läs senaste filen i `docs/sessions/` för senaste session-detaljer
+5. För STEG 5 (Application aggregate): plan-design med webb-Claude i ny chatt först
 
 ## Kända begränsningar
 
 Se **ADR 0006** för Claude Code-hooks-begränsningar.
 
-**DesignTimeDbContextFactory** använder hårdkodade `postgres/postgres`-credentials för `migrations add`. Ej ett problem i runtime — bara för design-time verktyg.
+**DesignTimeDbContextFactory** använder hårdkodade `postgres/postgres`-credentials för `migrations add`. Ej runtime-problem — bara design-time verktyg.
 
-**guard-spec-files.sh** matchar alla `CLAUDE.md` i repo:t (inte bara rot-relativa). Behöver justeras.
+**guard-spec-files.sh** uppgraderad 2026-05-07 — kontrollerar nu sentinel-fil i `.claude/spec-edit-approved` istället för `CLAUDE_USER_PROMPT` (som inte sätts i Agent SDK-läge). Se `fix(hooks)`-commit i Moment 2.

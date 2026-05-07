@@ -125,6 +125,45 @@ samtliga frontend-DTO-konsumtioner.
 
 ---
 
+## TD-8: GetPipeline saknar fullständig paginering
+**Kategori:** Scalability
+**Severity:** Minor
+**Källa:** code-reviewer, STEG 5 (2026-05-07)
+
+`GetPipelineQueryHandler` läser alla ansökningar per användare i ett anrop.
+Pipeline är en kanban-vy designad att visa hela stadiet — traditionell
+paginering motverkar det UX-målet. Nuvarande lösning: hård övre gräns
+`.Take(500)` som skyddsventil.
+
+**Föreslagen åtgärd:** Ingen förändring föreslagen inom överskådlig tid,
+men om en användare någonsin når hundratals aktiva ansökningar behöver
+pipeline UI:t designas om (virtualisering, lazy-load per status). Beslut
+i det skedet.
+
+---
+
+## TD-9: Audit log saknas för Application-domänhändelser
+**Kategori:** GDPR / Compliance
+**Severity:** Major
+**Källa:** security-auditor, STEG 5 (2026-05-07)
+
+GDPR Art. 5(2) kräver att behandling av personuppgifter kan redovisas
+(accountability). Application-aggregatets domänhändelser (skapande,
+status­övergångar, noteringar, uppföljningar) loggas inte till
+audit-trail. `IAuthAuditLogger` finns men är bunden till auth-flödet.
+
+**Risk:** Kan inte bevisa vem som skapat eller ändrat en ansökan om tvist
+uppstår eller Datainspektionen begär redovisning.
+
+**Föreslagen åtgärd:** Implementera pipeline-behavior
+`ApplicationAuditBehavior` (eller domain event handler) i Fas 1 som
+skriver till en `application_audit_log`-tabell. Kräver ny migration,
+ny `IApplicationAuditLogger`-abstraktion i Application-lagret, och
+implementation i Infrastructure. Notera: ADR behövs för val av audit-
+strategi (inline i handler vs. domain event subscriber vs. pipeline behavior).
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

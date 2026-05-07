@@ -13,5 +13,6 @@ public interface IAppDbContext
 {
     DbSet<JobAd> JobAds { get; }
     DbSet<JobSeeker> JobSeekers { get; }
+    DbSet<DomainApplication> Applications { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

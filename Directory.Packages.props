@@ -35,5 +35,7 @@
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.7" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
+    <!-- Smart enum — state machines i domänen -->
+    <PackageVersion Include="Ardalis.SmartEnum" Version="8.1.0" />
   </ItemGroup>
 </Project>

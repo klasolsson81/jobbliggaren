@@ -3,13 +3,21 @@
 # guard-spec-files.sh — PreToolUse hook
 #
 # Blocks Edit/Write/Bash operations on spec files (BUILD.md, CLAUDE.md, DESIGN.md)
-# unless the user prompt contains an explicit approval phrase.
+# unless an approval token exists.
+#
+# Approval mechanism (file-based, works in both CLI and Agent SDK):
+#   Create the token file before the edit:
+#     bash .claude/hooks/approve-spec-edit.sh
+#   The token is single-use — consumed on first approved edit.
+#
+# Legacy prompt-based approval (CLAUDE_USER_PROMPT) is retained as fallback
+# for CLI mode where the variable is available.
 #
 # Bash-native JSON parsing (no jq dependency) — see ADR 0006 §4 for rationale.
 #
 # Exit codes:
-#   0 = allow (file is not protected, OR approval phrase found)
-#   2 = block (protected file, no approval phrase, OR JSON parse failure on
+#   0 = allow (file is not protected, OR approval token found)
+#   2 = block (protected file, no approval token, OR JSON parse failure on
 #       protected-file path)
 
 set -u
@@ -65,10 +73,18 @@ if [ -z "$TARGET" ]; then
     exit 0
 fi
 
+# Approval token file — single-use, consumed on first approved edit
+APPROVAL_TOKEN="${CLAUDE_PROJECT_DIR:-$(pwd)}/.claude/spec-edit-approved"
+
 # Check if target references a protected spec file
 case "$TARGET" in
     *BUILD.md*|*CLAUDE.md*|*DESIGN.md*)
-        # Protected — require approval phrase in user prompt
+        # Check file-based approval token first (works in CLI + Agent SDK)
+        if [ -f "$APPROVAL_TOKEN" ]; then
+            rm -f "$APPROVAL_TOKEN"
+            exit 0
+        fi
+        # Fallback: prompt-based approval (CLI mode only — CLAUDE_USER_PROMPT set by CLI harness)
         LAST_PROMPT="${CLAUDE_USER_PROMPT:-}"
         if echo "$LAST_PROMPT" | grep -qiE \
             '(godkänt|approved|uppdatera.*(build|claude|design)\.md|fixa.*(build|claude|design)\.md|STEG [0-9]+.*(BUILD|CLAUDE|DESIGN)\.md)'; then
@@ -77,10 +93,9 @@ case "$TARGET" in
         fi
         # No approval — block
         echo "[guard-spec-files] BLOCKED: $TARGET is a protected spec file." >&2
-        echo "[guard-spec-files] User prompt must contain approval phrase:" >&2
-        echo "[guard-spec-files]   - 'godkänt', 'approved'" >&2
-        echo "[guard-spec-files]   - 'uppdatera/fixa BUILD.md|CLAUDE.md|DESIGN.md'" >&2
-        echo "[guard-spec-files]   - 'STEG <n> ... BUILD/CLAUDE/DESIGN.md'" >&2
+        echo "[guard-spec-files] To approve, run:" >&2
+        echo "[guard-spec-files]   bash .claude/hooks/approve-spec-edit.sh" >&2
+        echo "[guard-spec-files] Token is single-use and consumed on first approved edit." >&2
         exit 2
         ;;
 esac

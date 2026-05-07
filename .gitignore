@@ -58,3 +58,6 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 # NOTE: keep .terraform.lock.hcl committed per provider-pinning best practice.
+
+# Sentinel-fil för spec-fil-vakt (one-shot, raderas av guard-hook)
+.claude/spec-edit-approved

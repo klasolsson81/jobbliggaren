@@ -208,6 +208,27 @@ validerar att `PLAYWRIGHT_BASE_URL` innehåller `localhost` eller `staging`.
 
 ---
 
+### TD-12 — Saknad integration-test för cross-user isolation
+
+**Kategori:** Säkerhet / Test  
+**Fas:** 0 (backend)  
+**Prioritet:** Medium  
+**Källa:** STEG 5 discovery 2026-05-08
+
+Queries och commands för Application-aggregatet filtrerar korrekt på
+`a.JobSeekerId == jobSeekerId` — user A kan inte se eller mutera user B:s
+ansökningar. Men detta beteende saknar ett integration-test som verifierar
+det explicit.
+
+**Risk:** Om filtret tas bort eller refaktoreras bort i framtiden fångas
+det inte av testerna förrän manuellt verifierat.
+
+**Föreslagen åtgärd:** Lägg till ett integration-test i `ApplicationsTests.cs`:
+två separata användare registreras, user A skapar en ansökan, user B försöker
+`GET /{id}` och `POST /{id}/transition` — förväntat utfall: 404 resp. 404.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

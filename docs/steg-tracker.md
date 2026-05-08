@@ -1,7 +1,7 @@
 # JobbPilot — STEG-tracker
 
-> **Version:** 1.0
-> **Senast uppdaterad:** 2026-05-07
+> **Version:** 1.1
+> **Senast uppdaterad:** 2026-05-08
 > **Roll:** permanent översikt över STEG- och fas-progression.
 
 Kompletteras av:
@@ -57,18 +57,20 @@ STEG-numrering följer faktisk arbetsutveckling och mappar inte exakt mot fas-gr
 | STEG 3 | Fas 1 | Auth-stack (Identity + JWT, ADR 0012-0014) + JobSeeker aggregate (75 tester) | Session 8 |
 | STEG 4a | Fas 0 | Frontend bootstrap (Next.js 16, civic-tokens, shadcn nova, ADR 0015-0016) | Session 9 |
 | STEG 4b | Fas 1 | Session-auth backend (ISessionStore, SessionAuthenticationHandler, IAuthAuditLogger, ADR 0017-0018) + frontend auth (login/register/me-sidor, /(app)-layout, 153 tester) | Session 4b.1, 4b.2 |
+| STEG 5 | Fas 1 | Application-aggregat — domän (SmartEnum state machine, FollowUp, ApplicationNote), EF Core, 5 commands, 3 queries, 7 API-endpoints, 280 tester (53 nya) | 2026-05-07 |
+| STEG 6 | Fas 1 | Frontend /ansokningar — pipeline-tabell, ny-ansökan, detaljvy, transitionsformulär, Server Actions, Zod v4, 28 Vitest + 13 Playwright E2E | 2026-05-08 |
 
 ### Pågående
 
-(inga aktiva STEG just nu — pågår mellan-arbete, se §4)
+(inga aktiva STEG just nu — se §5)
 
 ### Planerade
 
 | STEG | Fas | Beskrivning | Status |
 |------|-----|-------------|--------|
-| STEG 5 | Fas 1 | Application aggregate (Väg A) — domän, EF-konfiguration, commands/queries, API-endpoints | Nästa upp |
+| STEG 7 | Fas 1 | Ej planerat — kräver plan-design med webb-Claude. Kandidater: Resume-aggregat (domain + EF + CQRS + API) eller Hangfire-setup + GhostedDetectionJob | Behöver planeras |
 
-STEG 6+ fastställs när STEG 5 närmar sig stängning.
+STEG 7 fastställs i dedikerad plan-design-chatt med webb-Claude.
 
 ## 4. Mellan-arbete
 
@@ -80,34 +82,38 @@ Cleanup-passningar, disciplin-uppgraderingar och dokumentations-arbete som inte 
 
 ## 5. Aktuellt
 
-**STEG-fokus:** mellan STEG 4b (klar) och STEG 5 (Applications, nästa upp).
+**STEG-fokus:** STEG 5 och STEG 6 klara (2026-05-07/08). Inga aktiva STEG.
 
-**Aktivt arbete:** Moment 5 av upptakten — denna tracker etableras och `current-work.md` uppdateras.
+**STEG 5** (Application-aggregat): Komplett — domain, EF Core, CQRS, 7 API-endpoints, 280 tester.
+Discovery 2026-05-08 bekräftade att inget arbete avbröts eller saknas.
 
-För session-detaljer och commit-historik sedan senaste session, se `docs/current-work.md`.
+**STEG 6** (Frontend /ansokningar): Komplett — pipeline-tabell, ny-ansökan, detaljvy, 28 Vitest + 13 Playwright E2E. Code review + security audit genomförda. TD-10/TD-11/TD-12 dokumenterade.
+
+**Nästa:** STEG 7 kräver plan-design med webb-Claude. Se §6.
+
+För session-detaljer och commit-historik, se `docs/current-work.md`.
 
 ## 6. Nästa STEG
 
-**STEG 5 — Application aggregate (Väg A)**
+**STEG 7 — kräver plan-design**
 
-Plan-design behövs i ny chatt. Webb-Claude involveras för domain-design. Förväntat scope baserat på BUILD.md §2.1:
+Beslutas i dedikerad webb-Claude-chatt. Kandidater baserade på BUILD.md §18 Fas 1:
 
-- Application aggregate-rot med state machine (Draft → Submitted → Acknowledged → InterviewScheduled → Interviewing → OfferReceived → Accepted/Rejected/Withdrawn/Ghosted)
-- ApplicationStatus som SmartEnum (Ardalis.SmartEnum)
-- FollowUp-entitet (kanal, datum, anteckning, utfall)
-- ApplicationNote (datumstämplade journalinlägg)
-- EF Core-konfiguration + migrations
-- Commands: CreateApplication, TransitionTo, AddFollowUp, AddNote, MarkGhosted
-- Queries: GetApplications (paginerad), GetApplicationById, GetPipeline (status-grupperad)
-- API-endpoints under `/api/v1/applications`
-- Tests (domain + application + arch + integration)
+**Alt A — Resume-aggregat (sannolikt)**
+- Resume-aggregat + ResumeVersion-entitet (domain + EF + migrations)
+- Commands: CreateResume, UploadResumeVersion, DeleteResume
+- Queries: GetResumes, GetResumeById
+- API-endpoints under `/api/v1/resumes`
+- Frontend: `/cv`-sidor (lista, uppladdning, detaljvy)
+- Tests: domain + application + integration + Playwright
 
-Agenter att invokera per CLAUDE.md §9.2:
-- **dotnet-architect** — arkitekturella val (state machine-implementation, value objects vs entities)
-- **test-writer** — nya domain-typer och commands
-- **code-reviewer** — vid commit-storlek >5 filer
-- **db-migration-writer** — migrations för Application-tabeller
-- **security-auditor** — om FollowUp/notes innehåller PII (sannolikt ja)
+**Alt B — Hangfire-setup + GhostedDetectionJob**
+- Hangfire-infrastruktur (Worker-projekt)
+- `GhostedDetectionJob` som kör `MarkGhostedCommand` för stale applications
+- Konfiguration: `ghosted_threshold_days` per JobSeeker (default 21)
+- Tests: Hangfire-testinfrastruktur
+
+**Rekommendation:** Alt A (Resume) ger mer värde för Fas 1-milstolpen ("CV manuellt"), men Klas beslutar i plan-design-chatten.
 
 ## 7. Numreringsfotnot
 

@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** STEG 6 (frontend för ansökningar) — KLAR. Nästa: STEG 7 (tbd — se steg-tracker).
+**Status:** STEG 5 + STEG 6 KLARA (bekräftat via discovery). Nästa: STEG 7 (plan-design krävs — se steg-tracker §6).
 **Senast uppdaterad:** 2026-05-08
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`

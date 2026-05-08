@@ -284,6 +284,39 @@ Exempel-test (idag inaktiv): `DeleteResumeVersion_WhenTailoredVersionReferencedB
 
 ---
 
+### TD-15 — Resume-formulär: koppla Zod-issue path till `aria-invalid` per fält
+
+**Kategori:** Accessibility (WCAG 2.1 AA SC 3.3.1, 4.1.3)
+**Fas:** 1 (a11y-pass)
+**Prioritet:** Medium
+**Källa:** design-review STEG 7b 2026-05-08 (Major M1)
+
+`src/components/resumes/resume-content-form.tsx` visar valideringsfel via en
+toppnivå `role="alert"` med första issue:n från Zod (inkl. path som sträng).
+Fältet som triggade felet får dock inget `aria-invalid="true"` och inget
+`aria-describedby` som pekar på felmeddelandet — kopplingen mellan fel och
+fält är endast visuell.
+
+**Bakgrund:** RHF + manuell `safeParse` valdes över `zodResolver` p.g.a. en
+typkonflikt mellan formulärlagrets `string` (number-input) och schemats
+`number | null`-output. Resolver-vägen hade gett RHF:s `errors`-objekt med
+path-baserad fältkoppling out-of-the-box.
+
+**Risk:** A11y-golvet är inte brutet (felet finns synligt och annonseras via
+`role="alert"`), men för komplexa formulär (4 sektioner, 3 field arrays,
+20+ fält) är path-baserad fältkoppling standard.
+
+**Föreslagen åtgärd:** Lyft `serverError`-state till att hålla path. Sätt
+`aria-invalid="true"` + `aria-describedby="content-form-error"` på det fält
+vars path matchar. Eller — strukturell fix: lös typkonflikten med en
+"display-shape"-schema som transformerar till "wire-shape" vid submit, så
+`zodResolver` kan användas och RHF ger errors-objekt direkt. Den senare ger
+bättre per-field-feedback från första försök.
+
+Adresseras lämpligen i ett a11y-pass tillsammans med TD-1, TD-2.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

@@ -1,5 +1,6 @@
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Domain.Applications;
+using JobbPilot.Domain.Auditing;
 using JobbPilot.Domain.JobAds;
 using JobbPilot.Domain.JobSeekers;
 using JobbPilot.Domain.Resumes;
@@ -14,6 +15,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<JobSeeker> JobSeekers => Set<JobSeeker>();
     public DbSet<DomainApplication> Applications => Set<DomainApplication>();
     public DbSet<Resume> Resumes => Set<Resume>();
+    public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Domain.Common;
+using JobbPilot.Infrastructure.Auditing;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Auditing;
 using JobbPilot.Infrastructure.Auth.Sessions;
@@ -96,6 +98,11 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<IAuthAuditLogger, AuthAuditLogger>();
+
+        // Audit-portar (ADR 0022) — Scoped så samma correlation-ID/request-kontext
+        // gäller över hela request-livscykeln
+        services.AddScoped<ICorrelationIdProvider, CorrelationIdProvider>();
+        services.AddScoped<IRequestContextProvider, RequestContextProvider>();
 
         return services;
     }

@@ -19,7 +19,51 @@ namespace JobbPilot.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>
+    /// Composition-root entry för Api. Registrerar alla Infrastructure-moduler.
+    /// Worker använder INTE denna metod — Worker anropar bara <see cref="AddPersistence"/>
+    /// + egna stub-implementationer av audit-portarna (per ADR 0022 + ADR 0023 / STEG 9).
+    /// </summary>
     public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddPersistence(configuration);
+        services.AddIdentityAndSessions(configuration);
+        services.AddHttpAuditing();
+        return services;
+    }
+
+    /// <summary>
+    /// Persistence-modul: <see cref="AppDbContext"/>, <see cref="IAppDbContext"/>,
+    /// <see cref="IDateTimeProvider"/>. Ingen HTTP-bagage, ingen Identity, ingen Redis.
+    /// Worker registrerar denna modul + egna audit-port-stubs.
+    /// </summary>
+    public static IServiceCollection AddPersistence(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Postgres")
+            ?? throw new InvalidOperationException(
+                "ConnectionStrings:Postgres saknas i konfiguration.");
+
+        services.AddDbContext<AppDbContext>(options =>
+            options
+                .UseNpgsql(connectionString,
+                    npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
+                .UseSnakeCaseNamingConvention());
+
+        services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Identity, sessions, JWT-rester, Redis, HTTP-baserad <see cref="ICurrentUser"/>,
+    /// auth audit logger. HTTP-only. Worker laddar inte denna modul.
+    /// </summary>
+    public static IServiceCollection AddIdentityAndSessions(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -31,12 +75,6 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Redis saknas i konfiguration.");
 
-        services.AddDbContext<AppDbContext>(options =>
-            options
-                .UseNpgsql(connectionString,
-                    npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention());
-
         services.AddDbContext<AppIdentityDbContext>(options =>
             options
                 .UseNpgsql(connectionString, npgsql =>
@@ -45,9 +83,6 @@ public static class DependencyInjection
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 })
                 .UseSnakeCaseNamingConvention());
-
-        services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
-        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(opts =>
@@ -99,11 +134,20 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<IAuthAuditLogger, AuthAuditLogger>();
 
-        // Audit-portar (ADR 0022) — Scoped så samma correlation-ID/request-kontext
-        // gäller över hela request-livscykeln
+        return services;
+    }
+
+    /// <summary>
+    /// HTTP-only audit-portar: <see cref="ICorrelationIdProvider"/> +
+    /// <see cref="IRequestContextProvider"/>. Implementationerna beror på
+    /// <see cref="Microsoft.AspNetCore.Http.IHttpContextAccessor"/> och får aldrig
+    /// laddas i Worker — Worker registrerar egna stubs (per ADR 0022 + ADR 0023 / STEG 9).
+    /// </summary>
+    public static IServiceCollection AddHttpAuditing(this IServiceCollection services)
+    {
+        services.AddHttpContextAccessor();
         services.AddScoped<ICorrelationIdProvider, CorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, RequestContextProvider>();
-
         return services;
     }
 }

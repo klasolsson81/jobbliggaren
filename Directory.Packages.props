@@ -37,5 +37,16 @@
     <PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
     <!-- Smart enum — state machines i domänen -->
     <PackageVersion Include="Ardalis.SmartEnum" Version="8.1.0" />
+    <!-- Hangfire — schedulerade jobb i Worker (BUILD.md §16, ADR 0023) -->
+    <PackageVersion Include="Hangfire.Core" Version="1.8.23" />
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
+    <!-- Transitiv CVE-pinning. Hangfire (och NetArchTest.Rules) drar in Newtonsoft.Json 11.0.1
+         vilket är sårbar mot CVE-2024-21907 (GHSA-5crp-9r3c-p9vr — DoS via StackOverflow vid
+         djupt nestade JSON). Vi använder inte Newtonsoft direkt — pinningen sker bara via
+         CentralPackageTransitivePinningEnabled (Directory.Build.props) för att eliminera
+         CVE-warningen som annars failar build under TreatWarningsAsErrors. 13.0.3 är senaste
+         stabila version och första post-fix release-linje. -->
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 </Project>

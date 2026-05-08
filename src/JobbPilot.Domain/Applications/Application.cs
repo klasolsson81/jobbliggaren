@@ -13,6 +13,8 @@ public sealed class Application : AggregateRoot<ApplicationId>
     public ApplicationStatus Status { get; private set; } = null!;
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+    public DateTimeOffset LastStatusChangeAt { get; private set; }
+    public int GhostedThresholdDays { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
 
     private readonly List<FollowUp> _followUps = [];
@@ -37,6 +39,8 @@ public sealed class Application : AggregateRoot<ApplicationId>
         Status = ApplicationStatus.Draft;
         CreatedAt = now;
         UpdatedAt = now;
+        LastStatusChangeAt = now;
+        GhostedThresholdDays = 21;
     }
 
     public static Result<Application> Create(
@@ -71,6 +75,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
         var previous = Status;
         Status = target;
         UpdatedAt = clock.UtcNow;
+        LastStatusChangeAt = clock.UtcNow;
         RaiseDomainEvent(
             new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, clock.UtcNow));
         return Result.Success();
@@ -84,6 +89,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
         var previous = Status;
         Status = ApplicationStatus.Ghosted;
         UpdatedAt = clock.UtcNow;
+        LastStatusChangeAt = clock.UtcNow;
         RaiseDomainEvent(
             new ApplicationGhostedDomainEvent(Id, JobSeekerId, previous, clock.UtcNow));
         return Result.Success();

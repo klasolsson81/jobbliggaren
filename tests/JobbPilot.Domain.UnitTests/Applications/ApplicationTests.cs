@@ -473,6 +473,144 @@ public class ApplicationTests
     }
 
     // ---------------------------------------------------------------
+    // LastStatusChangeAt + GhostedThresholdDays (Fas 9.1)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Application_Create_SetsLastStatusChangeAtToCurrentTime()
+    {
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var clock = FakeDateTimeProvider.At(t1);
+
+        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.LastStatusChangeAt.ShouldBe(t1);
+    }
+
+    [Fact]
+    public void Application_Create_SetsGhostedThresholdDaysToDefault21()
+    {
+        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.GhostedThresholdDays.ShouldBe(21);
+    }
+
+    [Fact]
+    public void Application_TransitionTo_UpdatesLastStatusChangeAt()
+    {
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddMinutes(5);
+        var clockT1 = FakeDateTimeProvider.At(t1);
+        var clockT2 = FakeDateTimeProvider.At(t2);
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+
+        var result = application.TransitionTo(ApplicationStatus.Submitted, clockT2);
+
+        result.IsSuccess.ShouldBeTrue();
+        application.LastStatusChangeAt.ShouldBe(t2);
+    }
+
+    [Fact]
+    public void Application_TransitionTo_FailedTransition_DoesNotUpdateLastStatusChangeAt()
+    {
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddMinutes(5);
+        var clockT1 = FakeDateTimeProvider.At(t1);
+        var clockT2 = FakeDateTimeProvider.At(t2);
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+
+        // Draft → Accepted är otillåten övergång
+        var result = application.TransitionTo(ApplicationStatus.Accepted, clockT2);
+
+        result.IsFailure.ShouldBeTrue();
+        application.LastStatusChangeAt.ShouldBe(t1);
+    }
+
+    [Fact]
+    public void Application_MarkGhosted_UpdatesLastStatusChangeAt()
+    {
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddMinutes(5);
+        var t3 = t2.AddDays(22);
+        var clockT1 = FakeDateTimeProvider.At(t1);
+        var clockT2 = FakeDateTimeProvider.At(t2);
+        var clockT3 = FakeDateTimeProvider.At(t3);
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        application.TransitionTo(ApplicationStatus.Submitted, clockT2);
+
+        var result = application.MarkGhosted(clockT3);
+
+        result.IsSuccess.ShouldBeTrue();
+        application.Status.ShouldBe(ApplicationStatus.Ghosted);
+        application.LastStatusChangeAt.ShouldBe(t3);
+    }
+
+    [Fact]
+    public void Application_MarkGhosted_FromTerminalState_DoesNotUpdateLastStatusChangeAt()
+    {
+        // Status=Draft → MarkGhosted är idempotent success utan flip enligt aggregatets nuvarande logik.
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddMinutes(5);
+        var clockT1 = FakeDateTimeProvider.At(t1);
+        var clockT2 = FakeDateTimeProvider.At(t2);
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+
+        var result = application.MarkGhosted(clockT2);
+
+        result.IsSuccess.ShouldBeTrue();
+        application.Status.ShouldBe(ApplicationStatus.Draft);
+        application.LastStatusChangeAt.ShouldBe(t1);
+    }
+
+    [Fact]
+    public void Application_AddFollowUp_DoesNotUpdateLastStatusChangeAt()
+    {
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddMinutes(5);
+        var clockT1 = FakeDateTimeProvider.At(t1);
+        var clockT2 = FakeDateTimeProvider.At(t2);
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var scheduledAt = t2.AddDays(3);
+
+        var result = application.AddFollowUp(FollowUpChannel.Email, scheduledAt, null, clockT2);
+
+        result.IsSuccess.ShouldBeTrue();
+        application.LastStatusChangeAt.ShouldBe(t1);
+    }
+
+    [Fact]
+    public void Application_AddNote_DoesNotUpdateLastStatusChangeAt()
+    {
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddMinutes(5);
+        var clockT1 = FakeDateTimeProvider.At(t1);
+        var clockT2 = FakeDateTimeProvider.At(t2);
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+
+        var result = application.AddNote("Viktig notering", clockT2);
+
+        result.IsSuccess.ShouldBeTrue();
+        application.LastStatusChangeAt.ShouldBe(t1);
+    }
+
+    [Fact]
+    public void Application_SoftDelete_DoesNotUpdateLastStatusChangeAt()
+    {
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddMinutes(5);
+        var clockT1 = FakeDateTimeProvider.At(t1);
+        var clockT2 = FakeDateTimeProvider.At(t2);
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+
+        application.SoftDelete(clockT2);
+
+        application.DeletedAt.ShouldBe(t2);
+        application.LastStatusChangeAt.ShouldBe(t1);
+    }
+
+    // ---------------------------------------------------------------
     // Hjälpmetoder
     // ---------------------------------------------------------------
 

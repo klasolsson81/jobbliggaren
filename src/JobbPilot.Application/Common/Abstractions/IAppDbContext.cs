@@ -1,3 +1,4 @@
+using JobbPilot.Domain.Auditing;
 using JobbPilot.Domain.JobAds;
 using JobbPilot.Domain.JobSeekers;
 using JobbPilot.Domain.Resumes;
@@ -16,5 +17,6 @@ public interface IAppDbContext
     DbSet<JobSeeker> JobSeekers { get; }
     DbSet<DomainApplication> Applications { get; }
     DbSet<Resume> Resumes { get; }
+    DbSet<AuditLogEntry> AuditLogEntries { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

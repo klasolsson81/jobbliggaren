@@ -1,5 +1,6 @@
 using JobbPilot.Api.Endpoints;
 using JobbPilot.Application.Common;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Behaviors;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Exceptions;
@@ -21,12 +22,17 @@ builder.Services.AddMediator(options =>
 {
     options.ServiceLifetime = ServiceLifetime.Scoped;
     options.Assemblies = [typeof(JobbPilot.Application.AssemblyMarker)];
+    // Pipeline-ordning per ADR 0008 + ADR 0022. AuditBehavior placeras innerst
+    // (efter UnitOfWork) — Audit:s post-action lägger AuditLogEntry i DbContext
+    // varefter UnitOfWork:s post-action SaveChanges persisterar handler-mutation
+    // och audit-rad atomiskt i samma transaction.
     options.PipelineBehaviors =
     [
         typeof(LoggingBehavior<,>),
         typeof(ValidationBehavior<,>),
         typeof(AuthorizationBehavior<,>),
         typeof(UnitOfWorkBehavior<,>),
+        typeof(AuditBehavior<,>),
     ];
 });
 

@@ -33,6 +33,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0018 | Cookie and CSRF Strategy for Frontend Auth | Accepted | 2026-05-06 | [0018-cookie-and-csrf-strategy.md](./0018-cookie-and-csrf-strategy.md) |
 | 0019 | Solo direct-push till main | Accepted | 2026-05-07 | [0019-solo-direct-push-to-main.md](./0019-solo-direct-push-to-main.md) |
 | 0021 | Master-version-strategi för Resume-aggregat (Fas 1) | Accepted | 2026-05-08 | [0021-resume-master-mutation-strategy.md](./0021-resume-master-mutation-strategy.md) |
+| 0022 | Audit log-strategi: pipeline-behavior + marker-interface | Accepted | 2026-05-08 | [0022-audit-log-pipeline-behavior.md](./0022-audit-log-pipeline-behavior.md) |
 
 ## Planerade ADRs
 

@@ -1,6 +1,6 @@
 # JobbPilot — STEG-tracker
 
-> **Version:** 1.5
+> **Version:** 1.6
 > **Senast uppdaterad:** 2026-05-08
 > **Roll:** permanent översikt över STEG- och fas-progression.
 
@@ -64,6 +64,7 @@ STEG-numrering följer faktisk arbetsutveckling och mappar inte exakt mot fas-gr
 | STEG 8 | Fas 1 | Audit log-infrastruktur — pipeline-behavior + marker-interface (ADR 0022). 10 commands märkta IAuditableCommand. Migration `AddAuditLogTable`. IP-anonymisering /24+/48, server-gen correlation-ID. Stänger TD-9. +41 tester (14 Domain + 11 Application + 12 Integration + 4 Architecture). | 2026-05-08 |
 | STEG 9 | Fas 1+2/3 förskott | Worker-pipeline-aktivering + Hangfire-infrastruktur (ADR 0023). DI-modulär refaktor (`AddPersistence`/`AddIdentityAndSessions`/`AddHttpAuditing`). 3 Worker-stubs av audit-portarna. `DetectGhostedApplicationsJob` orchestrator + `StaleApplicationSpecification`. Application-aggregat utökat med `LastStatusChangeAt` + `GhostedThresholdDays` (per Application, BUILD.md §schema). Migration `AddApplicationStaleDetectionFields` (NOW()-backfill, partial index). **Pipeline-bug-fix:** `AddMediatorPipelineBehaviors()` (open-generic DI) ersätter trasig `options.PipelineBehaviors`-fält-reference. Newtonsoft.Json 13.0.3 transitiv CVE-pinning. +32 tester (9 Domain + 12 Application + 5 Architecture + 6 Worker SmokeTest). | 2026-05-08 |
 | STEG 10a | Fas 1 | Audit-log retention via PostgreSQL native daily partitioning + Hangfire-jobb (ADR 0024 D1+D2). `audit_log` konverterad till `PARTITION BY RANGE (occurred_at)` med komposit-PK `(id, occurred_at)`. Migration `AddAuditLogPartitioning` (rename → 7 bootstrap-partitions + default → INSERT-SELECT med explicit kolumnlista → DROP legacy). `IAuditPartitionMaintainer`-port + impl + `AuditLogRetentionJob`-orchestrator. Hangfire-cron 03:00 UTC daily. Idempotent (`CREATE IF NOT EXISTS`). 3 nya arch-tester för bypass-isolering. 4 nya smoke-tester. Runbook `docs/runbooks/audit-retention.md`. **Stänger del 1 av TD-16** (Art. 5(1)(e) Storage Limitation). TD-20 ny (defensiv refactor av SqlQueryRaw → SqlQuery<FormattableString>, defererad). +7 tester (3 arch + 4 smoke). | 2026-05-08 |
+| STEG 10b | Fas 1 | DELETE /me + GDPR Art. 17-cascade + HardDeleteAccountsJob (ADR 0024 D3+D4+D5+D6). `IAuditTrailEraser`-port + impl (audit-bypass via direct SQL UPDATE). `DeleteAccountCommand` + handler (cascade soft-delete + idempotent). `DELETE /api/v1/me`-endpoint + post-commit session-invalidering via secondary Redis-set. `LoginCommandHandler` D5-blockering vid `JobSeeker.DeletedAt` (returnerar `Auth.InvalidCredentials`, inte `AccountPendingDeletion` — sec-fix mot info disclosure). `IAccountHardDeleter` + `AccountHardDeleter` cross-context impl. `HardDeleteAccountsJob` orchestrator: Steg 0 orphan-cleanup + Steg 1 hämta mogna + Steg 2 explicit transaction (anonymize audit + hard-delete cascade) + separat Identity-DELETE-boundary. Cron 04:00 UTC daily. `AddCoreIdentityForWorker`-extension (HTTP-fri Identity för Worker, utan AddDefaultTokenProviders). 4 nya arch-tester + 6 nya smoke-tester + 5 nya integration-tester + 2 unit-tester (D5). Runbook `docs/runbooks/account-deletion.md`. **Stänger TD-16 helt.** TD-21-25 nya (rate-limiting prod-blockare, app-logg-retention prod-blockare, Redis MULTI/EXEC defensiv refactor, cascade-paginering Fas 4, per-konto try/catch opportunistiskt). +17 tester (2 unit + 4 arch + 6 worker smoke + 5 api integration). | 2026-05-08 |
 
 ### Pågående
 
@@ -73,7 +74,7 @@ STEG-numrering följer faktisk arbetsutveckling och mappar inte exakt mot fas-gr
 
 | STEG | Fas | Beskrivning | Status |
 |------|-----|-------------|--------|
-| STEG 10b | Fas 1 | TD-16 del 2: DELETE /me + GDPR Art. 17-cascade. ADR 0024 D3+D4+D5+D6 design klar. `IAuditTrailEraser`-port (audit-bypass via direct SQL UPDATE) + `DeleteAccountCommand` (cascade soft-delete JobSeeker + Application + Resume) + `DELETE /me`-endpoint + `LoginCommandHandler`-blockering vid `JobSeeker.DeletedAt` + `HardDeleteAccountsJob` (Steg 0 orphan-cleanup + Steg 1+2 hard-delete + separat Identity-DELETE-boundary). 30-dagars restore-fönster utan Identity-tabell-migration. Två öppna CC-design-frågor: `ISessionStore.InvalidateAllForUserAsync`-strategi (rek: secondary Redis-set) + `LoginCommandHandler`-blockering (rek: ny IAppDbContext-injektion). **Stänger del 2 av TD-16.** | Designed, redo att implementeras |
+| STEG 11 | Fas 0/1 | **Ej beslutat.** Återstående Fas 1 prod-deploy-blockare: TD-17 (Hangfire prod-härdning), TD-21 (rate-limiting), TD-22 (app-logg-retention — kräver Klas-policy-beslut). Eller: Fas 0-stängning (deploy + GitHub Actions CI/CD + bootstrap-IAM-cleanup). Eller: fortsätt Fas 1-features. | Behöver beslutas |
 
 ## 4. Mellan-arbete
 
@@ -85,7 +86,7 @@ Cleanup-passningar, disciplin-uppgraderingar och dokumentations-arbete som inte 
 
 ## 5. Aktuellt
 
-**STEG-fokus:** STEG 10a klar 2026-05-08. Audit-log retention via partitioning + Hangfire-jobb (ADR 0024 D1+D2). TD-16 del 1 stängd. Inga aktiva STEG.
+**STEG-fokus:** STEG 10b klar 2026-05-08. DELETE /me + GDPR Art. 17-cascade + HardDeleteAccountsJob (ADR 0024 D3-D6). **TD-16 STÄNGD HELT.** Inga aktiva STEG.
 
 **STEG 7a** (Resume-aggregat backend): Komplett 2026-05-08.
 
@@ -103,7 +104,9 @@ Cleanup-passningar, disciplin-uppgraderingar och dokumentations-arbete som inte 
 
 **STEG 10a** (Audit-retention via partitioning): Komplett 2026-05-08. ADR 0024 D1+D2. `audit_log` partitionerad daglig. `AuditLogRetentionJob` registrerad i Hangfire 03:00 UTC. Komposit-PK `(id, occurred_at)`. **Lärdomar fångade:** PK-constraint följde inte med RENAME (fix: `ALTER TABLE … RENAME CONSTRAINT`); EF Core 10 PendingModelChangesWarning kräver `ValueGeneratedNever` på alla komposit-PK-kolumner; SqlQueryRaw + format-string tolkar `[0-9]{8}` som `{8}`-placeholder (fix: escape till `{{8}}`, smoke-test fångade). +7 tester (3 arch + 4 smoke). TD-16 del 1 stängd. TD-20 ny (defensiv refactor defererad).
 
-**Nästa:** STEG 10b — TD-16 del 2 (DELETE /me + Art. 17-cascade). Designad i ADR 0024 D3+D4+D5+D6. Se §6.
+**STEG 10b** (DELETE /me + Art. 17-cascade): Komplett 2026-05-08. ADR 0024 D3-D6. Två CC-design-frågor besvarade: secondary Redis-set för InvalidateAllForUserAsync + ny IAppDbContext-injektion i LoginCommandHandler. Säkerhets-fix från audit: returnera `Auth.InvalidCredentials` istället för `AccountPendingDeletion` för att undvika info disclosure (GDPR Art. 32). `AddCoreIdentityForWorker`-extension löser cross-context-fråga (Worker behöver UserManager utan HTTP-bagage). +17 tester totalt. TD-16 stängd. TD-21-25 nya (varav TD-21+TD-22 är Fas 1 prod-blockare).
+
+**Nästa:** STEG 11 — kräver beslut. Se §6.
 
 För session-detaljer och commit-historik, se `docs/current-work.md`.
 

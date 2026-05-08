@@ -328,13 +328,17 @@ Adresseras lämpligen i ett a11y-pass tillsammans med TD-1, TD-2.
 
 ---
 
-### TD-16 — Audit-log retention + GDPR Art. 17-anonymisering
+### TD-16 — Audit-log retention + GDPR Art. 17-anonymisering ✓ STÄNGD STEG 10a+10b (2026-05-08)
 
 **Kategori:** GDPR / Compliance / Data retention
-**Fas:** 4 (AI Layer — när retention-jobb byggs)
-**Prioritet:** Hög (blocker för Fas 1 prod-deploy)
+**Fas:** 1
+**Prioritet:** Hög (Fas 1 prod-deploy-blockare)
 **Källa:** Security audit STEG 8 2026-05-08 (Major M1 + Major M2)
-**Status:** Del 1 (audit-retention) **STÄNGD via STEG 10a** 2026-05-08 (ADR 0024 D1+D2). Del 2 (Art. 17-cascade) kvar för STEG 10b (ADR 0024 D3-D6 designade).
+**Status:** **STÄNGD KOMPLETT** 2026-05-08.
+- Del 1 (audit-retention) stängd via STEG 10a (ADR 0024 D1+D2). 90-dagars partition-rotation via Hangfire-jobb.
+- Del 2 (Art. 17-cascade + DELETE /me) stängd via STEG 10b (ADR 0024 D3-D6). IAuditTrailEraser + DeleteAccountCommand + HardDeleteAccountsJob.
+- Runbook: `docs/runbooks/audit-retention.md` + `docs/runbooks/account-deletion.md`
+- Tester: 22 arch + 16 worker smoke + 5 api integration för STEG 10a+b kombinerat
 
 ADR 0022 specificerar 90-dagars retention för `audit_log` via PostgreSQL daily
 partitioning, samt anonymiseringspolicy vid GDPR Art. 17-radering (user_id,
@@ -533,6 +537,171 @@ regression).
 **Beroenden:** Ingen — kan adresseras opportunistiskt vid touch på
 `AuditPartitionMaintainer` eller om EF Core-versionsuppdatering ändrar
 `SqlQuery<T>`-projection-beteende.
+
+---
+
+### TD-21 — Rate-limiting på DELETE /me + andra känsliga auth-endpoints
+
+**Kategori:** Säkerhet / DoS-skydd
+**Fas:** 1 (innan prod-deploy)
+**Prioritet:** Hög (blocker för Fas 1 prod-deploy)
+**Källa:** Security audit STEG 10b 2026-05-08 (Major-2)
+
+DELETE /me är den dyraste endpointen i appen — cascade-soft-delete laddar
+*alla* user-ägda Application + Resume in-memory utan paginering, triggar
+AuditBehavior + bulk Redis-invalidering. Saknad rate-limiting öppnar för:
+
+- Auth-credential-DoS (stulen session raderar kontot impulsivt)
+- Resource-DoS (power user med 10000 applications laddar hela trädet)
+
+Plus: hela auth-yta (login, register, refresh) saknar rate-limiting per
+användare/IP, vilket är credential-stuffing-yta.
+
+**Risk i Fas 1:** noll (dev, ingen prod-trafik).
+**Risk vid Fas 1 prod-deploy:** Major.
+
+**Föreslagen åtgärd:**
+1. Lägg till `services.AddRateLimiter()` med policy `account-deletion`
+   (1 request / 60s per user) + global default-policy för auth-endpoints
+2. `[EnableRateLimiting("account-deletion")]` på DELETE /me
+3. Frontend: typed-confirmation-UX för DELETE /me (civic-utility-ton)
+4. Eventuellt re-auth-prompt (password-prompt) före DELETE /me för defense-in-depth
+
+**Beroenden:** Ingen. Kan implementeras självständigt.
+
+---
+
+### TD-22 — App-logg-retention + IP/UA-redaction
+
+**Kategori:** Säkerhet / GDPR / Data retention
+**Fas:** 1 (innan prod-deploy)
+**Prioritet:** Hög (urholkar Art. 17-anonymisering annars)
+**Källa:** Security audit STEG 10b 2026-05-08 (Major-3)
+
+Audit-tabellen anonymiseras efter Art. 17 (user_id/ip/user_agent → NULL
+efter 30 dagars restore-fönster). MEN app-loggen (CloudWatch sink i prod,
+Seq i dev) innehåller IP + UA + email-hash vid login-failures, oberoende
+av audit-tabellen. Även efter Art. 17-anonymisering kan en angripare
+re-identifiera användare via app-logg-data.
+
+Kombinationen email-hash + IP + UA är **pseudonym** (GDPR Art. 4(5)).
+Samma user kan korreleras över tid via app-loggen även efter audit-
+anonymisering.
+
+**Risk i Fas 1:** noll (dev-loggar, ingen prod-data).
+**Risk vid Fas 1 prod-deploy:** Major (Art. 32 + Art. 5(1)(c)).
+
+**Föreslagen åtgärd:**
+1. **Policy-beslut (Klas):** retention för app-loggar (≤ 30 dagar
+   rekommenderat för PII-konsistens med Art. 17-fönstret)
+2. **CloudWatch retention** sätts till 30 dagar via AWS-konfig
+3. **Seq lokal dev**: ingen retention nödvändig (utvecklarmiljö)
+4. **HashEmail** kan omvandlas till HMAC med roterande nyckel istället för
+   rå SHA-256 (mindre korrelerbart men kostnaden är ops-komplexitet)
+5. **ADR-tillägg** till ADR 0024 om kopplingen mellan audit-anonymisering
+   och app-logg-retention
+
+**Beroenden:** AWS CloudWatch-konfig vid första prod-deploy.
+
+---
+
+### TD-23 — RedisSessionStore atomicitet via MULTI/EXEC eller Lua-script
+
+**Kategori:** Säkerhet / Robusthet
+**Fas:** 2 (efter MVP)
+**Prioritet:** Medium
+**Källa:** Code review STEG 10b 2026-05-08 (Code-Nit-3) +
+Security audit STEG 10b 2026-05-08 (Sec-Minor-3)
+
+`RedisSessionStore.CreateAsync` gör SADD secondary-index → SET main-key i
+två separata Redis-anrop. Om första lyckas men andra failar kvarstår
+orphan-membership i secondary-set (no-op vid InvalidateAllForUserAsync).
+Mitigerat i STEG 10b genom att vända ordningen (SADD-först), men full
+atomicitet kräver MULTI/EXEC eller Lua-script.
+
+**Risk i Fas 1:** mycket låg. Worst-case är harmless orphan-membership i
+secondary-set som plockas upp via TTL.
+
+**Föreslagen åtgärd vid Fas 2:**
+1. Migrera CreateAsync + InvalidateAsync till `IBatch` (StackExchange.Redis)
+   eller Lua-script för atomisk multi-key-operation
+2. Eventuellt: använd Redis Streams istället för secondary-set för
+   bättre observability vid DELETE-cascade
+
+**Beroenden:** Ingen — opportunistiskt vid touch på RedisSessionStore.
+
+---
+
+### TD-24 — DeleteAccountCommand cascade-paginering vid power-user
+
+**Kategori:** Skalbarhet / DoS-skydd
+**Fas:** 2 (vid första rapporterad prestanda-incident)
+**Prioritet:** Låg (idag), Medium (vid skala)
+**Källa:** Security audit STEG 10b 2026-05-08 (Sec-Minor-1)
+
+`DeleteAccountCommandHandler` laddar `db.Applications.ToListAsync()` +
+`db.Resumes.Include(r => r.Versions).ToListAsync()` utan paginering.
+För en power user med 10 000 applications laddas hela trädet i minnet
+i en request-thread.
+
+**Risk i Fas 1:** noll (få users, små portföljer).
+**Risk vid Fas 4-volym:** Medium (DoS-vektor).
+
+**Föreslagen åtgärd:**
+1. Paginerings-loop: hämta + soft-delete batches om 500 applications/resumes
+2. Eller: utför soft-delete via direct UPDATE-SQL (audit-bypass-mönstret)
+   istället för att ladda + mutera + spara via EF
+3. Behåll JobSeeker.SoftDelete via aggregate-mutation (rotaggregatet är
+   alltid en rad)
+
+**Beroenden:** Behöver paginering-mönster verifieras mot audit-paritet —
+ska EN audit-rad skrivas (Account.Deleted) eller flera (per batch)?
+Rek: en rad. Audit-rad skrivs sist, efter alla cascade-batches.
+
+---
+
+### TD-25 — HardDeleteAccountsJob per-konto try/catch (resilient loop)
+
+**Kategori:** Robusthet / Operations
+**Fas:** 1+ (opportunistiskt)
+**Prioritet:** Medium
+**Källa:** Code review STEG 10b 2026-05-08 (Code-Nit-5)
+
+`HardDeleteAccountsJob.RunAsync` har ingen try/catch per konto i Steg 2-loopen.
+Vid första exception bubblar den och avbryter loopen för **alla** efterföljande
+konton. Hangfire retry:ar hela jobbet, men under retry-fönstret är de andra
+moget-för-deletion-kontona också blockerade.
+
+**Risk i Fas 1:** låg (få konton att hard-deleta).
+**Risk vid skala:** medium (en korrupt rad blockerar alla andra).
+
+**Föreslagen åtgärd:**
+1. Lägg per-konto try/catch som loggar fel och `continue`:ar
+2. Konsekvens-checka mot DetectGhostedApplicationsJob (ADR 0023)-mönstret —
+   om DetectGhosted också låter exception bubbla bör båda förändras tillsammans
+   för konsistens
+3. Eventuellt: aggregera failed-id:s och rapportera vid slutet av jobbet
+
+**Exempel:**
+```csharp
+foreach (var jobSeekerId in jobSeekerIds)
+{
+    cancellationToken.ThrowIfCancellationRequested();
+    try
+    {
+        await hardDeleter.HardDeleteAccountAsync(jobSeekerId, cancellationToken);
+        processed++;
+    }
+    catch (OperationCanceledException) { throw; }
+    catch (Exception ex)
+    {
+        LogAccountFailed(logger, jobSeekerId, ex);
+    }
+}
+```
+
+**Beroenden:** Konsekvens-decision om DetectGhosted-mönstret också ska
+ändras. Diskutera vid Fas 2-touch.
 
 ---
 

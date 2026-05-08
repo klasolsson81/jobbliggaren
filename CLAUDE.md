@@ -31,23 +31,25 @@ JobbPilot är en svensk jobbansökningshanterare byggd som en **civic utility** 
   triggers code-reviewer on completed code-related todos)
 - Pause and ask Klas before deviating from the planned step
 
-**At session end**, before pause:
+**After each STEG completion** (and at session end before pause):
 
 1. Update `docs/current-work.md`:
    - Status header (current step + next step)
    - "Active now" section (what was completed, what's pending)
    - Commit table (append new commits)
    - "Done last session" list
-2. Create or update session log in `docs/sessions/YYYY-MM-DD-HHMM-<slug>.md`
+2. Update `docs/steg-tracker.md` om STEG flyttat status (Klar/Pågående/Planerad)
+3. Create session log in `docs/sessions/YYYY-MM-DD-HHMM-<slug>.md`
    - YAML frontmatter (session, datum, slug, status, commits)
    - Body covers: goals, what was completed per step, decisions, commits, next session
-3. Commit current-work + session log together
-4. Push to origin/main
-5. Generera startprompt för nästa session — ett copy-paste-klart kodblock med:
+4. Commit docs-uppdateringar separat från feature-commits (inte bundlade) och pusha
+5. **Endast vid session-end:** Generera startprompt för nästa session — ett copy-paste-klart kodblock med:
    - Förväntat HEAD (SHA)
    - Vilka filer att läsa vid session-start
    - Första uppgiften / nästa STEG i klartext
    Klas klipper prompten direkt in i ny `/clear`-session utan att behöva webb-Claude.
+
+**Trigger:** STEG-completion (även när sessionen fortsätter med nästa STEG). Att synka docs först vid session-end gör att pushed state ljuger om verkligheten under sessionens gång — om context tappas eller ny session startas innan session-end-rutinen körs vet nästa Claude inte vad som faktiskt är klart.
 
 **Format for session log files**:
 

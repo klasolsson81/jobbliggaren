@@ -56,6 +56,11 @@ public static class DependencyInjection
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
+        // IAuditPartitionMaintainer registreras här (inte i AddHttpAuditing) eftersom
+        // porten används av AuditLogRetentionJob i Worker — porten har ingen
+        // HTTP-bagage. Lifetime Scoped: följer IAppDbContext-livscykeln.
+        services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
+
         return services;
     }
 

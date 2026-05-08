@@ -27,7 +27,7 @@ Frågorna som avgörs i denna ADR:
 
 ## Beslut
 
-Sex delbeslut. De är tätt sammanvävda — uppdelning hade gett två ADR:er som måste läsas tillsammans ändå.
+Sju delbeslut. D1–D6 landades i STEG 10a + 10b; D7 kompletterar i STEG 11 (app-logg-redaction). De är tätt sammanvävda — uppdelning hade gett flera ADR:er som måste läsas tillsammans ändå.
 
 ### Delbeslut 1 — Audit-retention via PostgreSQL native partitioning per dag (STEG 10a)
 
@@ -329,6 +329,64 @@ Steg 2 — För varje JobSeeker:
 **Atomicitet — medveten gränsdragning.** Domain-aggregat + audit-anonymisering är atomic via explicit transaction (Steg 2 a–g). Identity-DELETE är separat (Steg 2 h) och kan failas — orphan-loop i Steg 0 plockar upp resten på nästa daily run. Detta är **inte** TD; det är medveten design som följer Clean Arch:s context-isolering. AppDbContext och AppIdentityDbContext har separata ansvar (ADR 0013) och ska inte tvinga distribuerade transaktioner mot samma fysiska Postgres-server bara för att vinna nominell atomicitet.
 
 **Audit-paritet vid hard-delete:** ingen ny audit-rad skrivs (kontot är raderat — det finns ingen att referera). Anonymisering av befintliga audit-rader sker via `IAuditTrailEraser`. `event_type = "Account.Deleted"`-raden från D4 finns redan och anonymiseras (user_id → NULL) men bevaras i 90 dagar för accountability.
+
+### Delbeslut 7 — App-logg-redaction + retention-policy (STEG 11, kompletterar D3)
+
+Audit-tabellen anonymiseras via `IAuditTrailEraser` efter 30-dagars restore-fönstret. **Men app-loggen** (CloudWatch i prod, `Microsoft.Extensions.Logging` Console-sink i dev) bär parallell PII (IP-adress, User-Agent, EmailHash) via `AuthAuditLogger` — oberoende av audit-tabellen. Utan motåtgärder kan en angripare med CloudWatch-access re-identifiera användare även efter Art. 17-anonymiseringen.
+
+Tre policyer:
+
+**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).**
+
+Matchar Art. 17 restore-fönstret från D5/D6. Efter 30 dagar är användarens audit-rad anonymiserad och konton hard-deletad — då ska app-loggens IP/UA/EmailHash inte heller vara åtkomliga. Ren GDPR Art. 5(1)(c) data-minimisation-story.
+
+Avvisade alternativ:
+- 90 dagar (matcha audit-tabellen) — pseudonym data finns kvar 60 dagar efter Art. 17, svårare att försvara mot Datainspektionen
+- 14 dagar — för kort för incident-postmortems vid Fas 1 prod-launch
+
+CloudWatch LogGroup-konfig (`retention_in_days = 30`) är operativ uppgift som spec:as här men appliceras vid första prod-deploy (Fas 0-stängning).
+
+**2. IP /24+/48-anonymisering vid logg-tid — defense-in-depth.**
+
+`AuthAuditLogger.ExtractRequestContext()` anonymiserar IP innan loggning, så app-loggen aldrig bär unik IPv4-fingerprint. Maskningen återanvänds från audit-pipeline via en gemensam port:
+
+```csharp
+// Application/Common/Auditing/IIpAnonymizer.cs
+public interface IIpAnonymizer
+{
+    string Anonymize(IPAddress address);
+}
+```
+
+Logiken (lyft från `RequestContextProvider`) är:
+- IPv4: sista oktetten nollas (/24-mask) — bevarar geo-region för ops, eliminerar unik fingerprint
+- IPv6: sista 80 bitarna nollas (/48-mask)
+- IPv4-mapped-IPv6 (`::ffff:1.2.3.4`) normaliseras till IPv4 före maskning
+- Okänd familj → `"unknown"` (fail-safe — aldrig rå adress)
+
+Både `RequestContextProvider` och `AuthAuditLogger` injicerar `IIpAnonymizer`. Singleton (stateless BCL-baserad helper).
+
+Defense-in-depth-motivering: retention-policy (1) skyddar inte mot logg-läckage *under* retention-fönstret. Ops-personal med CloudWatch-access kan korrelera under 30 dagar utan maskningen.
+
+**3. EmailHash → HMAC med roterande nyckel: defererat till Fas 2.**
+
+`LoginCommandHandler.HashEmail` använder rå SHA-256 (deterministic). Samma email → samma hash över tid → korrelerbar. HMAC med roterande nyckel hade brutit korrelationen, men kräver KMS-integration + nyckel-arkiv för att verifiera historiska hashar (audit-paritet vid restore). Inte trivialt i Fas 1 — 30-dagars retention minimerar korrelations-fönstret tillräckligt.
+
+Defererat till Fas 2 som ny TD (utvidgning av TD-22 eller fristående). Beslut tas i Fas 2 när KMS-integrations-mönstret etableras (TD-13 PII-encryption använder samma KMS-yta).
+
+**Tester:**
+- `IpAnonymizerTests` (Application.UnitTests) — IPv4/24, IPv6/48, IPv4-mapped, ::1
+- `AuthAuditLoggerTests.LoginSucceeded_AnonymizesIpv4ToSlash24` + `LoginFailed_*` + `NoIp_LogsUnknown` — verifierar att app-loggen får anonymiserad IP, inte rå
+- Befintliga `RequestContextProvider`-täckning via audit-integration-tester (oförändrad eftersom logiken är identisk)
+
+**Vad som *inte* görs i STEG 11:**
+- CloudWatch LogGroup-konfig (deferreras till Fas 0-stängning — IaC eller AWS-konsol)
+- HMAC-nyckel-rotation (Fas 2)
+- Serilog-stack-byte (Fas 0-stängning, separat ADR vid behov)
+
+**Avvisade alternativ:**
+- *Bara retention-policy, ingen logg-tid-redaction* — pseudonym-data flödar fritt under 30d, ops-personal kan korrelera. Defense-in-depth-värde högt jämfört med implementations-kostnad (ren refaktor av befintlig metod).
+- *Egen anonymiserings-logik i `AuthAuditLogger`* — duplicerar `RequestContextProvider`-logik. Drift-risk om någon glömmer uppdatera båda. Port + delad impl är rätt nivå.
 
 ## Konsekvenser
 

@@ -1,3 +1,4 @@
+using JobbPilot.Infrastructure.Auditing;
 using JobbPilot.Infrastructure.Auth.Auditing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -44,7 +45,7 @@ public class AuthAuditLoggerTests
         req.Headers.Returns(headers);
         accessor.HttpContext.Returns(ctx);
 
-        return (new AuthAuditLogger(recorder, accessor), recorder);
+        return (new AuthAuditLogger(recorder, accessor, new IpAnonymizer()), recorder);
     }
 
     [Fact]
@@ -116,12 +117,49 @@ public class AuthAuditLoggerTests
     }
 
     [Fact]
-    public void LoginSucceeded_ExtractsIpFromHttpContext()
+    public void LoginSucceeded_AnonymizesIpv4ToSlash24()
     {
-        var (sut, recorder) = CreateLogger(ip: "10.0.0.1");
+        // ADR 0024 D7: app-loggens IP ska vara /24-maskad (sista oktetten 0)
+        // så även CloudWatch-loggen följer GDPR Art. 5(1)(c) data minimisation.
+        var (sut, recorder) = CreateLogger(ip: "10.0.0.123");
 
         sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
 
-        recorder.Latest.Message.ShouldContain("10.0.0.1");
+        recorder.Latest.Message.ShouldContain("10.0.0.0");
+        recorder.Latest.Message.ShouldNotContain("10.0.0.123");
+    }
+
+    [Fact]
+    public void LoginFailed_AnonymizesIpv4ToSlash24()
+    {
+        var (sut, recorder) = CreateLogger(ip: "203.0.113.42");
+
+        sut.LoginFailed("hash");
+
+        recorder.Latest.Message.ShouldContain("203.0.113.0");
+        recorder.Latest.Message.ShouldNotContain("203.0.113.42");
+    }
+
+    [Fact]
+    public void LoginSucceeded_NoIp_LogsUnknown()
+    {
+        var (sut, recorder) = CreateLogger(ip: null);
+
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+
+        recorder.Latest.Message.ShouldContain("Ip=unknown");
+    }
+
+    [Fact]
+    public void LoginSucceeded_AnonymizesIpv6ToSlash48()
+    {
+        // Defense-in-depth-symmetri: AuthAuditLogger ska maska IPv6 likadant
+        // som RequestContextProvider, så app-loggen aldrig bär unik IPv6-adress.
+        var (sut, recorder) = CreateLogger(ip: "2001:db8:1234:5678:90ab:cdef:1234:5678");
+
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+
+        recorder.Latest.Message.ShouldContain("2001:db8:1234::");
+        recorder.Latest.Message.ShouldNotContain("90ab");
     }
 }

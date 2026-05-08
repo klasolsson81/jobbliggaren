@@ -24,6 +24,9 @@ public class AuditingLayerTests
     private const string AccountHardDeleterFqn =
         "JobbPilot.Application.Auth.Jobs.HardDeleteAccounts.IAccountHardDeleter";
 
+    private const string IpAnonymizerFqn =
+        "JobbPilot.Application.Common.Auditing.IIpAnonymizer";
+
     [Fact]
     public void IAuditPartitionMaintainer_in_Application_should_only_be_referenced_by_AuditLogRetentionJob()
     {
@@ -166,6 +169,40 @@ public class AuditingLayerTests
         unauthorized.ShouldBeEmpty(
             $"IAccountHardDeleter i Infrastructure får endast konsumeras av " +
             $"AccountHardDeleter (impl) eller DependencyInjection (registrering). " +
+            $"Otillåtna: {string.Join(", ", unauthorized)}");
+    }
+
+    // ─── IIpAnonymizer (ADR 0024 D7 — delad PII-redaction-yta) ───
+    //
+    // Inte audit-bypass-port — porten kan användas brett. Men eftersom maskningen
+    // är gemensam yta mellan audit-pipelinen och app-loggen vill vi låsa
+    // konsument-listan så framtida tredje konsument går genom medveten review.
+
+    [Fact]
+    public void IIpAnonymizer_in_Infrastructure_should_only_be_referenced_by_known_consumers()
+    {
+        var consumers = Types.InAssembly(typeof(AppDbContext).Assembly)
+            .That()
+            .HaveDependencyOn(IpAnonymizerFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        // IpAnonymizer (impl) + RequestContextProvider (audit-pipeline) +
+        // AuthAuditLogger (app-logg) + DependencyInjection (registrering).
+        var allowed = new[]
+        {
+            "IpAnonymizer",
+            "RequestContextProvider",
+            "AuthAuditLogger",
+            "DependencyInjection"
+        };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"IIpAnonymizer i Infrastructure får endast konsumeras av " +
+            $"IpAnonymizer (impl), RequestContextProvider (audit-pipeline), " +
+            $"AuthAuditLogger (app-logg) eller DependencyInjection (registrering). " +
             $"Otillåtna: {string.Join(", ", unauthorized)}");
     }
 }

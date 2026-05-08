@@ -65,6 +65,13 @@ public static class DependencyInjection
         services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
         services.AddScoped<IAuditTrailEraser, AuditTrailEraser>();
 
+        // IP-anonymisering (ADR 0024 D7). Stateless BCL-baserad helper —
+        // singleton. Konsumeras av RequestContextProvider (audit-pipeline) och
+        // AuthAuditLogger (app-logg) så samma /24+/48-maskning gäller överallt.
+        // Registrerad i AddPersistence eftersom Worker-stub:ar inte använder
+        // den men ingen kostnad finns att ha den tillgänglig.
+        services.AddSingleton<IIpAnonymizer, IpAnonymizer>();
+
         return services;
     }
 

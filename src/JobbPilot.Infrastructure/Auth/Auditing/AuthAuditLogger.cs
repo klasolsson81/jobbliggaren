@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -6,7 +7,8 @@ namespace JobbPilot.Infrastructure.Auth.Auditing;
 
 public sealed partial class AuthAuditLogger(
     ILogger<AuthAuditLogger> logger,
-    IHttpContextAccessor httpContextAccessor)
+    IHttpContextAccessor httpContextAccessor,
+    IIpAnonymizer ipAnonymizer)
     : IAuthAuditLogger
 {
     public void LoginSucceeded(Guid userId, string sessionIdPrefix)
@@ -27,10 +29,18 @@ public sealed partial class AuthAuditLogger(
         LogLogoutSucceeded(logger, "logout_succeeded", userId, sessionIdPrefix, resolvedIp);
     }
 
+    // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
+    // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
+    // ska app-loggen inte bära unika IP-fingerprints.
+    //
+    // UA-trunkering duplicerar avsiktligt RequestContextProvider:s motsvarighet —
+    // medveten skuld dokumenterad i tech-debt: UA är inte PII på samma nivå som
+    // IP och 256-tröskeln matchar audit_log.user_agent-kolumnens längdgräns.
     private (string ip, string userAgent) ExtractRequestContext()
     {
         var ctx = httpContextAccessor.HttpContext;
-        var ip = ctx?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rawIp = ctx?.Connection.RemoteIpAddress;
+        var ip = rawIp is null ? IIpAnonymizer.UnknownLabel : ipAnonymizer.Anonymize(rawIp);
         var rawAgent = ctx?.Request.Headers.UserAgent.ToString() ?? string.Empty;
         var userAgent = rawAgent.Length > 256 ? rawAgent[..256] : rawAgent;
         return (ip, userAgent);

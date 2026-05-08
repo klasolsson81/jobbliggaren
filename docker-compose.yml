@@ -29,7 +29,7 @@ services:
       POSTGRES_USER: jobbpilot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_DEV:?POSTGRES_PASSWORD_DEV måste sättas i .env}
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       # Postgres 18+: mount /var/lib/postgresql (inte .../data) så att
       # version-specifika subkataloger skapas — krävs för pg_upgrade --link.

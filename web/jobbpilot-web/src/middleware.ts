@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_PREFIXES = ["/mig"];
+const PROTECTED_PREFIXES = ["/mig", "/ansokningar"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

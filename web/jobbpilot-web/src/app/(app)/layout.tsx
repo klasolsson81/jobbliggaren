@@ -31,6 +31,12 @@ export default async function AppLayout({
             >
               Ansökningar
             </Link>
+            <Link
+              href="/cv"
+              className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
+            >
+              CV
+            </Link>
           </nav>
           <div className="flex items-center gap-4">
             <span className="text-body-sm text-text-secondary">{user.email}</span>

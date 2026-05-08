@@ -164,6 +164,50 @@ strategi (inline i handler vs. domain event subscriber vs. pipeline behavior).
 
 ---
 
+### TD-10 — PII-läckage via `body?.detail` i Server Actions
+
+**Kategori:** Säkerhet  
+**Fas:** 0 (nu, web)  
+**Prioritet:** Hög  
+**Källa:** Security audit 2026-05-08 (Major 1, öppen)
+
+Server Actions i `src/lib/actions/applications.ts` exponerar `body?.detail`
+direkt till UI-lagret. Beroende på hur backend formaterar feldetaljer kan
+känslig intern information (stacktraces, SQL-felmeddelanden, användardata)
+läcka till klientens felmeddelande.
+
+**Risk:** PII eller interna systemdetaljer visas för användaren — bryter GDPR
+Art. 5(1)(f) om integritet och konfidentialitet.
+
+**Föreslagen åtgärd:** Ersätt `body?.detail ?? "Okänt fel."` med ett
+whitelistat-felmeddelande. Tillåt bara förväntade HTTP-statuskoder att
+mappas till specifika svenska felmeddelanden — allt annat returnerar
+ett generiskt "Något gick fel. Försök igen." utan interna detaljer.
+
+---
+
+### TD-11 — Hårdkodad E2E-lösenord och testemail på produktionsdomän
+
+**Kategori:** Säkerhet  
+**Fas:** 0 (nu, web/e2e)  
+**Prioritet:** Medium  
+**Källa:** Security audit 2026-05-08 (Major 3, öppen)
+
+`tests/e2e/helpers/auth.ts` innehåller hårdkodat lösenord `TestPassword123!`
+och genererar testmail på `@jobbpilot.se` (produktionsdomän). E2E-testkonton
+skapas mot produktionsdatabasen vid pipeline-körning om miljövariabler inte
+separeras tydligt.
+
+**Risk:** Testanvändare hamnar i produktionsdatabasen om E2E körs mot fel
+miljö; lösenordet är läsbart i klartext i repot.
+
+**Föreslagen åtgärd:** (1) Flytta lösenord till `TEST_USER_PASSWORD`
+miljövariabel i `.env.test`. (2) Ändra testdomain till `@test.jobbpilot.internal`
+eller liknande non-resolvable domän. (3) Lägg guard i `ensureTestUser` som
+validerar att `PLAYWRIGHT_BASE_URL` innehåller `localhost` eller `staging`.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

@@ -35,6 +35,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0021 | Master-version-strategi för Resume-aggregat (Fas 1) | Accepted | 2026-05-08 | [0021-resume-master-mutation-strategy.md](./0021-resume-master-mutation-strategy.md) |
 | 0022 | Audit log-strategi: pipeline-behavior + marker-interface | Accepted | 2026-05-08 | [0022-audit-log-pipeline-behavior.md](./0022-audit-log-pipeline-behavior.md) |
 | 0023 | Worker-pipeline-aktivering + Hangfire-infrastruktur | Accepted | 2026-05-08 | [0023-worker-pipeline-hangfire.md](./0023-worker-pipeline-hangfire.md) |
+| 0024 | Audit-retention via PostgreSQL native partitioning + GDPR Art. 17-cascade-orchestration | Accepted | 2026-05-08 | [0024-audit-retention-and-art17-cascade.md](./0024-audit-retention-and-art17-cascade.md) |
 
 ## Planerade ADRs
 

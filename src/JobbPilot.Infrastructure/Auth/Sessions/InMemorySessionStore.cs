@@ -47,4 +47,12 @@ public sealed class InMemorySessionStore(
 
     public Task<bool> InvalidateAsync(SessionId sessionId, CancellationToken ct)
         => Task.FromResult(_sessions.TryRemove(sessionId.Reveal(), out _));
+
+    public Task<int> InvalidateAllForUserAsync(Guid userId, CancellationToken ct)
+    {
+        var toRemove = _sessions.Where(kv => kv.Value.UserId == userId).Select(kv => kv.Key).ToList();
+        foreach (var key in toRemove)
+            _sessions.TryRemove(key, out _);
+        return Task.FromResult(toRemove.Count);
+    }
 }

@@ -46,6 +46,7 @@ public sealed class WorkerTestFixture : IAsyncLifetime
 
         // Speglar Worker/Program.cs DI-yta (utan Hangfire — vi anropar jobb direkt)
         services.AddPersistence(configuration);
+        services.AddCoreIdentityForWorker(configuration);
         services.AddApplication();
         services.AddSingleton<ICurrentUser, WorkerSystemUser>();
         services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
@@ -59,9 +60,11 @@ public sealed class WorkerTestFixture : IAsyncLifetime
 
         Services = services.BuildServiceProvider();
 
-        // Migration
+        // Migration — både AppDbContext och AppIdentityDbContext (krävs för
+        // AccountHardDeleter-tester som anropar UserManager).
         using var scope = Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<JobbPilot.Infrastructure.Identity.AppIdentityDbContext>().Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()

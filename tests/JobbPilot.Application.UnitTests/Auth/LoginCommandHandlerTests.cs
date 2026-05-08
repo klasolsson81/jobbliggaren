@@ -3,6 +3,7 @@ using JobbPilot.Application.Auth.Dtos;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.Common;
+using JobbPilot.Domain.JobSeekers;
 using NSubstitute;
 using Shouldly;
 
@@ -15,14 +16,20 @@ public class LoginCommandHandlerTests
         Password: "S3kret!pass");
 
     private static LoginCommandHandler CreateHandler(
+        IAppDbContext? db = null,
         IUserAccountService? userAccountService = null,
         ISessionStore? sessionStore = null,
         IAuthAuditLogger? auditLogger = null)
     {
+        // Default: tom InMemory-context — JobSeekers.FirstOrDefaultAsync returnerar
+        // null → D5-blockering (Auth.AccountPendingDeletion) inte triggad.
+        // Tester som verifierar D5-blockering skapar egen context med soft-deletad
+        // JobSeeker.
+        db ??= TestAppDbContextFactory.Create();
         userAccountService ??= Substitute.For<IUserAccountService>();
         sessionStore ??= Substitute.For<ISessionStore>();
         auditLogger ??= Substitute.For<IAuthAuditLogger>();
-        return new LoginCommandHandler(userAccountService, sessionStore, auditLogger);
+        return new LoginCommandHandler(db, userAccountService, sessionStore, auditLogger);
     }
 
     [Fact]
@@ -115,5 +122,70 @@ public class LoginCommandHandlerTests
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
         auditLogger.Received(1).LoginFailed(Arg.Any<string>());
+    }
+
+    // ─── ADR 0024 D5: D5-blockering vid soft-deletad JobSeeker ───
+
+    [Fact]
+    public async Task Handle_WithSoftDeletedJobSeeker_ReturnsInvalidCredentials_NotPendingDeletion()
+    {
+        // Sec-1-fix (security-auditor STEG 10b): soft-deletad konto returnerar
+        // SAMMA fel som okänd email / fel lösen för att undvika information disclosure.
+        var userId = Guid.NewGuid();
+
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
+
+        var clock = FakeDateTimeProvider.Default;
+        var seeker = JobSeeker.Register(userId, "Soft Deleted User", clock).Value;
+        seeker.SoftDelete(clock);
+
+        var db = TestAppDbContextFactory.Create();
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var sessionStore = Substitute.For<ISessionStore>();
+        var handler = CreateHandler(db: db, userAccountService: userAccountService, sessionStore: sessionStore);
+
+        var result = await handler.Handle(ValidCommand(), TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Auth.InvalidCredentials",
+            "soft-deletad konto ska returnera samma felkod som okänd email/fel lösen — undviker info disclosure");
+
+        // Session ska INTE skapas för soft-deletad konto
+        await sessionStore.DidNotReceive().CreateAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithActiveJobSeeker_AllowsLoginAndCreatesSession()
+    {
+        // Verifierar att D5-checken inte blockerar normal login (regression-skydd
+        // mot att vi blockerar för aggressivt).
+        var userId = Guid.NewGuid();
+
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
+
+        var clock = FakeDateTimeProvider.Default;
+        var seeker = JobSeeker.Register(userId, "Active User", clock).Value;
+        // INTE soft-deletad
+
+        var db = TestAppDbContextFactory.Create();
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var sessionStore = Substitute.For<ISessionStore>();
+        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
+
+        var handler = CreateHandler(db: db, userAccountService: userAccountService, sessionStore: sessionStore);
+
+        var result = await handler.Handle(ValidCommand(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await sessionStore.Received(1).CreateAsync(userId, Arg.Any<CancellationToken>());
     }
 }

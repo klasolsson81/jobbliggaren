@@ -53,4 +53,18 @@ public interface ISessionStore
     Task<Session> CreateAsync(Guid userId, CancellationToken ct);
 
     Task<bool> InvalidateAsync(SessionId sessionId, CancellationToken ct);
+
+    /// <summary>
+    /// Invaliderar alla aktiva sessioner för en användare. Anropas vid
+    /// kontoradering (DELETE /me) post-commit per ADR 0024 D4 + ADR 0017
+    /// "Out of Scope (Deferred)"-sektion (account-deletion-flow).
+    ///
+    /// Implementation: Redis secondary index `user:{userId}:sessions`
+    /// (SET) trackar session-IDs per användare. Vid invalidate-all
+    /// itereras setets medlemmar och varje session-key droppas, sedan
+    /// setet självt. O(N) över användarens sessioner — typiskt 1-3 i
+    /// Fas 1.
+    /// </summary>
+    /// <returns>Antal sessions som invaliderades.</returns>
+    Task<int> InvalidateAllForUserAsync(Guid userId, CancellationToken ct);
 }

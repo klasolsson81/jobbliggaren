@@ -20,6 +20,13 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 // Persistence-modul (DbContext, IAppDbContext, IDateTimeProvider) — utan HTTP-bagage,
 // utan Identity. Worker-kontextens DI-yta är medvetet minimerad per ADR 0023 / STEG 9.
 builder.Services.AddPersistence(builder.Configuration);
+
+// HTTP-fri Identity-modul för Worker (per ADR 0024 D6 / STEG 10b). UserManager +
+// AppIdentityDbContext krävs av AccountHardDeleter (HardDeleteAccountsJob använder
+// porten för Identity-DELETE och orphan-cleanup). AddIdentityCore<>() utelämnar
+// AuthenticationScheme/Cookies/SignInManager — håller Worker HTTP-fri.
+builder.Services.AddCoreIdentityForWorker(builder.Configuration);
+
 builder.Services.AddApplication();
 
 // Worker-stubs av audit-portarna (per ADR 0022 + ADR 0023 / STEG 9).

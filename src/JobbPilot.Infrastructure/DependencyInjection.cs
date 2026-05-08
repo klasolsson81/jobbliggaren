@@ -3,6 +3,7 @@ using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure.Auditing;
+using JobbPilot.Application.Auth.Jobs.HardDeleteAccounts;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Auditing;
 using JobbPilot.Infrastructure.Auth.Sessions;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 
 namespace JobbPilot.Infrastructure;
 
@@ -56,10 +58,12 @@ public static class DependencyInjection
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
-        // IAuditPartitionMaintainer registreras här (inte i AddHttpAuditing) eftersom
-        // porten används av AuditLogRetentionJob i Worker — porten har ingen
-        // HTTP-bagage. Lifetime Scoped: följer IAppDbContext-livscykeln.
+        // Audit-bypass-portar (ADR 0024 D1+D3). Båda anropas från Worker
+        // (AuditLogRetentionJob + HardDeleteAccountsJob) — registreras därför här
+        // i AddPersistence, inte i HTTP-only-extensionerna. Lifetime Scoped:
+        // följer IAppDbContext-livscykeln.
         services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
+        services.AddScoped<IAuditTrailEraser, AuditTrailEraser>();
 
         return services;
     }
@@ -110,6 +114,15 @@ public static class DependencyInjection
             opts.InstanceName = "jobbpilot:";
         });
 
+        // IConnectionMultiplexer registreras separat så RedisSessionStore kan
+        // använda Redis SET-kommandon (SADD/SREM/SMEMBERS) för secondary user-
+        // sessions-index — krävs för InvalidateAllForUserAsync vid kontoradering
+        // (ADR 0024 D4 + ADR 0017 deferred-not stängd här). IDistributedCache
+        // stödjer bara key-value, inte SET. Singleton — lazy connect, fungerar
+        // även om Redis är ner vid app-start.
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+            ConnectionMultiplexer.Connect(redisConnectionString));
+
 #pragma warning disable JOBBPILOT0001 // JwtSettings och RsaSecurityKey bevaras för RefreshCommandHandler tills Fas 1, ADR 0017
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
 
@@ -153,6 +166,53 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
         services.AddScoped<ICorrelationIdProvider, CorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, RequestContextProvider>();
+        return services;
+    }
+
+    /// <summary>
+    /// HTTP-fri Identity-modul för Worker. Registrerar
+    /// <see cref="AppIdentityDbContext"/>, AspNet IdentityCore (UserManager +
+    /// UserStore — utan cookies/sessions/JWT/SignInManager), och de portar
+    /// som <see cref="HardDeleteAccountsJob"/> behöver för att radera
+    /// Identity-rader vid GDPR Art. 17-cascade (ADR 0024 D6).
+    ///
+    /// Skiljer sig från <see cref="AddIdentityAndSessions"/> genom att INTE
+    /// dra in HTTP-bagage (cookies, AuthenticationScheme, JWT, IHttpContextAccessor).
+    /// Får anropas EXKLUSIVT av Worker-composition-roten — Api laddar
+    /// AddIdentityAndSessions istället, som täcker fullt Identity-stack
+    /// inklusive HTTP. Att anropa båda i samma DI-container ger duplicerade
+    /// registreringar.
+    /// </summary>
+    public static IServiceCollection AddCoreIdentityForWorker(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Postgres")
+            ?? throw new InvalidOperationException(
+                "ConnectionStrings:Postgres saknas i konfiguration.");
+
+        services.AddDbContext<AppIdentityDbContext>(options =>
+            options
+                .UseNpgsql(connectionString, npgsql =>
+                {
+                    npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
+                    npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
+                })
+                .UseSnakeCaseNamingConvention());
+
+        // AddIdentityCore<TUser>() registrerar UserManager + UserStore utan
+        // AuthenticationScheme/Cookies/SignInManager — HTTP-fritt.
+        // AddDefaultTokenProviders() utelämnas medvetet — token-providers
+        // (password-reset, email-confirm) kräver IDataProtectionProvider
+        // som är HTTP-bagage. Worker behöver bara CreateAsync/FindByIdAsync/
+        // DeleteAsync vilka inte använder token-providers.
+        services.AddIdentityCore<ApplicationUser>()
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<AppIdentityDbContext>();
+
+        services.AddScoped<IUserAccountService, UserAccountService>();
+        services.AddScoped<IAccountHardDeleter, AccountHardDeleter>();
+
         return services;
     }
 }

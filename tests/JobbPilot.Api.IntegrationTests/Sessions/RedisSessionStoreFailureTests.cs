@@ -14,20 +14,26 @@ public class RedisSessionStoreFailureTests : IAsyncLifetime
 
     private RedisSessionStore _store = null!;
     private Session _existingSession = null!;
+    private ConnectionMultiplexer _mux = null!;
 
     public async ValueTask InitializeAsync()
     {
         await _redis.StartAsync();
 
+        var connectionString = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000";
+
         var cache = new RedisCache(Options.Create(
             new RedisCacheOptions
             {
-                Configuration = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000",
+                Configuration = connectionString,
                 InstanceName = "jobbpilot:",
             }));
 
+        _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
+
         _store = new RedisSessionStore(
             cache,
+            _mux,
             FakeDateTimeProvider.Now,
             Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) }));
 
@@ -36,6 +42,8 @@ public class RedisSessionStoreFailureTests : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        await _mux.CloseAsync();
+        _mux.Dispose();
         await _redis.DisposeAsync();
         GC.SuppressFinalize(this);
     }

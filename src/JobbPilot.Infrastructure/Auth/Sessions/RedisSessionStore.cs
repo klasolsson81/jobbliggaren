@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -11,9 +12,15 @@ namespace JobbPilot.Infrastructure.Auth.Sessions;
 
 public sealed class RedisSessionStore(
     IDistributedCache cache,
+    IConnectionMultiplexer redis,
     IDateTimeProvider dateTimeProvider,
     IOptions<SessionStoreOptions> options) : ISessionStore
 {
+    // IDistributedCache prefixar automatiskt med "jobbpilot:" (InstanceName).
+    // För secondary index måste vi prefixa manuellt eftersom vi använder
+    // IConnectionMultiplexer direkt — håll prefixet identiskt.
+    private const string KeyPrefix = "jobbpilot:";
+
     private readonly TimeSpan _ttl = options.Value.Ttl;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -64,13 +71,34 @@ public sealed class RedisSessionStore(
 
         var payload = new SessionPayload(userId, now);
         var json = JsonSerializer.Serialize(payload, JsonOptions);
+        var sessionKey = Key(sessionId);
 
         try
         {
-            // TODO Fas 1: secondary index for efficient InvalidateAllForUserAsync
-            // (GDPR erasure via SCAN until then)
+            // Secondary user-sessions-index FÖRST (ADR 0024 D4 + säkerhets-
+            // hardening per security-auditor Sec-Minor-3): SADD session-key
+            // i SET före main-key skapas. Skälet: om vi gör main-key först
+            // och SADD failer (Redis-connection-fel) får vi en aktiv session
+            // som inte ligger i secondary-index → InvalidateAllForUserAsync
+            // missar den vid kontoradering = SÄKERHETSHÅL. Med SADD-först
+            // blir worst-case: orphan-membership i set om main-key-SET failer,
+            // vilket ger no-op vid InvalidateAllForUserAsync (cache.RemoveAsync
+            // på icke-existerande key är säker). Slutgiltig atomisk garanti
+            // kräver MULTI/EXEC eller Lua-script (TD-23).
+            //
+            // Vi lagrar IDistributedCache-key:n (samma hash som main cache-key
+            // utan prefix) så InvalidateAllForUserAsync kan anropa
+            // cache.RemoveAsync(member) direkt utan extra hash-runda.
+            // Set-key:n får TTL = sliding-fönstret (förlängs vid varje create);
+            // expirerar tillsammans med användarens sista session.
+            var db = redis.GetDatabase();
+            var setKey = UserSessionsKey(userId);
+            await db.SetAddAsync(setKey, sessionKey);
+            await db.KeyExpireAsync(setKey, _ttl);
+
+            // Primär session-rad efter SADD
             await cache.SetStringAsync(
-                Key(sessionId),
+                sessionKey,
                 json,
                 new DistributedCacheEntryOptions { SlidingExpiration = _ttl },
                 ct);
@@ -97,10 +125,19 @@ public sealed class RedisSessionStore(
 
         if (existing is null) return false;
 
+        // Hämta payload för att veta vilken user:s set vi ska SREM från.
+        // Om payload-deserialiseringen misslyckas (korrupt data) hoppar vi
+        // bara secondary-index-borttagning — main-key:n droppas ändå.
+        var payload = JsonSerializer.Deserialize<SessionPayload>(existing, JsonOptions);
+
         try
         {
-            // TODO Fas 1: secondary index for efficient InvalidateAllForUserAsync
-            // (GDPR erasure via SCAN until then)
+            if (payload is not null)
+            {
+                var db = redis.GetDatabase();
+                await db.SetRemoveAsync(UserSessionsKey(payload.UserId), Key(sessionId));
+            }
+
             await cache.RemoveAsync(Key(sessionId), ct);
         }
         catch (RedisConnectionException ex)
@@ -109,6 +146,35 @@ public sealed class RedisSessionStore(
         }
 
         return true;
+    }
+
+    public async Task<int> InvalidateAllForUserAsync(Guid userId, CancellationToken ct)
+    {
+        // ADR 0024 D4 + ADR 0017 deferred — bulk-invalidering vid kontoradering.
+        // Iterera secondary-index, droppa varje session-key, droppa setet självt.
+        // O(N) över användarens aktiva sessioner — typiskt 1-3 i Fas 1.
+        try
+        {
+            var db = redis.GetDatabase();
+            var setKey = UserSessionsKey(userId);
+
+            var members = await db.SetMembersAsync(setKey);
+            var count = 0;
+            foreach (var member in members)
+            {
+                var sessionKey = (string?)member;
+                if (sessionKey is null) continue;
+                await cache.RemoveAsync(sessionKey, ct);
+                count++;
+            }
+
+            await db.KeyDeleteAsync(setKey);
+            return count;
+        }
+        catch (RedisConnectionException ex)
+        {
+            throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
+        }
     }
 
     // Session-id hashas med SHA-256 → base64url innan det används som Redis-nyckel.
@@ -120,6 +186,12 @@ public sealed class RedisSessionStore(
         SHA256.HashData(Encoding.UTF8.GetBytes(sessionId.Reveal()), hash);
         return $"session:{Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
     }
+
+    // Secondary-index-key: tracks alla aktiva session-keys för en user.
+    // Manuellt prefixad med jobbpilot: eftersom vi använder IConnectionMultiplexer
+    // direkt (inte IDistributedCache som auto-prefixar via InstanceName).
+    private static string UserSessionsKey(Guid userId) =>
+        string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}user:{userId}:sessions");
 
     private sealed record SessionPayload(Guid UserId, DateTimeOffset CreatedAt);
 }

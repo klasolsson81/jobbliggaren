@@ -18,6 +18,12 @@ public class AuditingLayerTests
     private const string AuditPartitionMaintainerFqn =
         "JobbPilot.Application.Common.Auditing.IAuditPartitionMaintainer";
 
+    private const string AuditTrailEraserFqn =
+        "JobbPilot.Application.Common.Auditing.IAuditTrailEraser";
+
+    private const string AccountHardDeleterFqn =
+        "JobbPilot.Application.Auth.Jobs.HardDeleteAccounts.IAccountHardDeleter";
+
     [Fact]
     public void IAuditPartitionMaintainer_in_Application_should_only_be_referenced_by_AuditLogRetentionJob()
     {
@@ -79,5 +85,87 @@ public class AuditingLayerTests
             $"Worker får inte referera IAuditPartitionMaintainer direkt — gå via " +
             $"AuditLogRetentionJob i Application-lagret. Otillåtna: " +
             $"{string.Join(", ", consumers)}");
+    }
+
+    // ─── IAuditTrailEraser (ADR 0024 D3 — GDPR Art. 17-anonymisering) ───
+    //
+    // Porten anropas inte direkt från Application-lagret (orchestrator
+    // HardDeleteAccountsJob går via IAccountHardDeleter, vars Infrastructure-
+    // impl AccountHardDeleter använder IAuditTrailEraser). Application-
+    // konsument-listan ska vara tom.
+
+    [Fact]
+    public void IAuditTrailEraser_should_not_be_referenced_from_Application()
+    {
+        var consumers = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
+            .That()
+            .HaveDependencyOn(AuditTrailEraserFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        consumers.ShouldBeEmpty(
+            $"IAuditTrailEraser ska inte konsumeras från Application-lagret " +
+            $"(porten anropas av AccountHardDeleter i Infrastructure, ej direkt " +
+            $"av orchestrator). Otillåtna: {string.Join(", ", consumers)}");
+    }
+
+    [Fact]
+    public void IAuditTrailEraser_in_Infrastructure_should_only_be_referenced_by_impl_or_consumer()
+    {
+        var consumers = Types.InAssembly(typeof(AppDbContext).Assembly)
+            .That()
+            .HaveDependencyOn(AuditTrailEraserFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        // Tillåtna: AuditTrailEraser (impl) + AccountHardDeleter (anropare) + DependencyInjection
+        var allowed = new[] { "AuditTrailEraser", "AccountHardDeleter", "DependencyInjection" };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"IAuditTrailEraser i Infrastructure får endast konsumeras av " +
+            $"AuditTrailEraser (impl), AccountHardDeleter (anropare) eller DependencyInjection " +
+            $"(registrering). Otillåtna: {string.Join(", ", unauthorized)}");
+    }
+
+    // ─── IAccountHardDeleter (ADR 0024 D6 — konto hard-delete) ───
+
+    [Fact]
+    public void IAccountHardDeleter_in_Application_should_only_be_referenced_by_HardDeleteAccountsJob()
+    {
+        var consumers = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
+            .That()
+            .HaveDependencyOn(AccountHardDeleterFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        var allowed = new[] { "HardDeleteAccountsJob" };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"IAccountHardDeleter får endast konsumeras av HardDeleteAccountsJob i " +
+            $"Application-lagret. Otillåtna: {string.Join(", ", unauthorized)}");
+    }
+
+    [Fact]
+    public void IAccountHardDeleter_in_Infrastructure_should_only_be_referenced_by_impl_or_DI()
+    {
+        var consumers = Types.InAssembly(typeof(AppDbContext).Assembly)
+            .That()
+            .HaveDependencyOn(AccountHardDeleterFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        var allowed = new[] { "AccountHardDeleter", "DependencyInjection" };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"IAccountHardDeleter i Infrastructure får endast konsumeras av " +
+            $"AccountHardDeleter (impl) eller DependencyInjection (registrering). " +
+            $"Otillåtna: {string.Join(", ", unauthorized)}");
     }
 }

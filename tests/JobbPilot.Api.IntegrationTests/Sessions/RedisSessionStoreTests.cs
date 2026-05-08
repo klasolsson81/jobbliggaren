@@ -3,6 +3,7 @@ using JobbPilot.Infrastructure.Auth.Sessions;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Options;
 using Shouldly;
+using StackExchange.Redis;
 using Testcontainers.Redis;
 
 namespace JobbPilot.Api.IntegrationTests.Sessions;
@@ -14,6 +15,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
 
     private RedisSessionStore _store = null!;
     private FakeDateTimeProvider _time = null!;
+    private ConnectionMultiplexer _mux = null!;
 
     public RedisSessionStoreTests(ITestOutputHelper output)
     {
@@ -31,15 +33,19 @@ public class RedisSessionStoreTests : IAsyncLifetime
                 InstanceName = "jobbpilot:",
             }));
 
+        _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
         _time = FakeDateTimeProvider.Now;
         _store = new RedisSessionStore(
             cache,
+            _mux,
             _time,
             Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) }));
     }
 
     public async ValueTask DisposeAsync()
     {
+        await _mux.CloseAsync();
+        _mux.Dispose();
         await _redis.DisposeAsync();
         GC.SuppressFinalize(this);
     }

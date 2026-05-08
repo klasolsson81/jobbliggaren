@@ -264,6 +264,14 @@ encryption (DEK per rad eller per aggregate). Migration är icke-destruktiv (enc
 decrypt-on-read; befintliga klartext-rader migreras lazy vid nästa write eller via
 back-fill-job). Designval och nyckel-rotationsstrategi får egen ADR i Fas 2.
 
+**Övervägning — cryptographic erasure för Art. 17-tillämpning på backups:**
+Standardpraxis för GDPR Art. 17 är att radera från live-system + dokumentera att RDS
+automated backups (default 7d, max 35d) skrivs över naturligt — bekräftad acceptabel av
+EDPB CEF 2025-rapporten (2026-02). Crypto-erasure-pattern (per-user data encryption key,
+DEK kastas vid kontoradering → backups blir omedelbart olesbara) är ett alternativ som
+kan bakas in i Fas 2-impl. Tradeoff: extra komplexitet i restore-flöden + key-rotation,
+men ger omedelbar Art. 17-täckning av backup-data. ADR i Fas 2 ska ta ställning.
+
 ---
 
 ### TD-14 — DeleteResumeVersion: VersionInUse-check är inaktiv tills Application får ResumeVersionId
@@ -427,6 +435,34 @@ Kostsam i dev/test (kräver två DB-users) — defereras tills prod-deploy.
 Migration `AddApplicationStaleDetectionFields` backfillar `last_status_change_at = NOW()` (per Klas tillägg #1). Befintliga apps får 21-dagars-fönster räknat från migrationsdatum.
 
 **Åtgärd:** Dokumentera i runbook att de första 21 dagarna efter prod-deploy är "kalibrerings-fas" — Klas följer Hangfire-dashboard för anomaliska volymer av MarkGhostedCommand. Defensiv anteckning, ingen kodändring.
+
+**6. Fargate SIGTERM-grace period + Hangfire ShutdownTimeout:**
+
+Worker körs i AWS ECS Fargate-container. Default Fargate-flöde vid scale-in /
+deployment / underliggande patch: SIGTERM → 30s grace → SIGKILL. Hangfire's
+`BackgroundJobServerOptions.ShutdownTimeout` default är 15 sekunder.
+
+Idag har `Worker/Program.cs` ingen explicit shutdown-konfiguration —
+`AddHangfireServer` använder defaults. Vid SIGTERM avbryts pågående jobb
+mid-flight. Mitigerat av att alla jobb är idempotenta (DetectGhosted,
+AuditLogRetention, HardDeleteAccounts via ADR 0023+0024-design), men ger
+oönskade rollbacks + retry-volym.
+
+**Åtgärd vid prod-deploy:**
+
+1. `BackgroundJobServerOptions.ShutdownTimeout = TimeSpan.FromSeconds(25)`
+   — strax under Fargate default 30s, säkerställer att Hangfire hinner
+   committa job-state innan SIGKILL
+2. Eventuellt: höj Fargate task-definition `stopTimeout` till 60s om
+   smoke-tests visar att SaveChanges-batches eller Hangfire-cleanup tar
+   > 25s vid hög belastning
+3. Verifiera idempotency-egenskaper i ny smoke-test (kör jobb, skicka
+   SIGTERM mid-flight, verifiera korrekt restart)
+4. Ingen kod-ändring av jobb-orchestrators krävs — befintliga retry-/
+   cancel-token-mönster räcker
+
+Källa: AWS docs, Hangfire BackgroundJobServerOptions docs, EDPB CEF 2025-
+related Fargate-shutdown-rekommendationer.
 
 **Beroenden:** ADR 0023 implementerad (klart). Inga andra beroenden — kan adresseras parallellt med TD-16 (audit-retention) eftersom båda gäller Fas 1 prod-deploy.
 
@@ -702,6 +738,50 @@ foreach (var jobSeekerId in jobSeekerIds)
 
 **Beroenden:** Konsekvens-decision om DetectGhosted-mönstret också ska
 ändras. Diskutera vid Fas 2-touch.
+
+---
+
+### TD-26 — AI-kostnadstak: token/tecken-limit pre-Bedrock + per-user spend-cap
+
+**Kategori:** Säkerhet / DoS-skydd / Kostnad
+**Fas:** 4 (när AI-Layer byggs)
+**Prioritet:** Hög (innan AI-features släpps till slutanvändare)
+**Källa:** Extern review-input 2026-05-08
+
+BUILD.md §8.3 specar fritt-tier "50 AI-operationer per kalendermånad per
+användare". Operation som mätenhet är otillräckligt: en 1-sidig CV-extraktion
+kostar bråkdel jämfört med 25-sidig PDF med ostrukturerad text — Anthropic
+prissätter per token, inte per anrop. 50 "operationer" kan drevas till
+mass-poison-pill-attacker där varje anrop maximerar input-context.
+
+**Risk i Fas 1:** noll (inga AI-features byggda).
+**Risk vid Fas 4-launch:** kostnads-DoS + budget-blowout.
+
+**Föreslagen åtgärd (Fas 4):**
+
+1. **Pre-Bedrock token/tecken-limit i C#-lagret:** efter PDF-extraktion via
+   PdfPig (BUILD.md §3.1), validera total-input-tecken < t.ex. 15 000 (≈
+   3 750 input-tokens). Vid överskott: kasta `ValidationException("Filen
+   är för stor för att analyseras — komprimera CV:t eller lägg till egen
+   API-nyckel via BYOK")`. Kommunicera limit i UI.
+
+2. **Per-user kostnadstak (USD/månad):** komplettera operation-räknare
+   med running-cost-summa från `ai_operations.tokens_used × pris-per-modell`.
+   När user når t.ex. 95% av budget: stoppa nya AI-anrop, visa varning.
+   Hård cut vid 100%.
+
+3. **Token-tracking-pipeline-behavior:** AI-commands som `IAiOperation`-
+   marker triggar centraliserad token + cost logging post-call (analog
+   med AuditBehavior).
+
+4. **Budget-alert via AWS CloudWatch:** alarm vid daglig spend > X USD
+   (Klas-konfigurerbart). Manuell ops-procedur i runbook.
+
+5. **BYOK-användare** påverkas inte av tak — egen budget gäller (BUILD.md
+   §13.2).
+
+**Beroenden:** Fas 4 AI-Layer + ADR för IAiProvider-port. Skapa egen ADR
+för cost-cap-design när AI-features designas.
 
 ---
 

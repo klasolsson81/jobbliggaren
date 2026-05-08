@@ -24,6 +24,14 @@ export default async function AppLayout({
           >
             JobbPilot
           </Link>
+          <nav aria-label="Huvudnavigation" className="flex items-center gap-1">
+            <Link
+              href="/ansokningar"
+              className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
+            >
+              Ansökningar
+            </Link>
+          </nav>
           <div className="flex items-center gap-4">
             <span className="text-body-sm text-text-secondary">{user.email}</span>
             <form action={logoutAction}>

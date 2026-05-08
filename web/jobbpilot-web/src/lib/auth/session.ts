@@ -3,8 +3,13 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
 
-const COOKIE_NAME = "__Host-jobbpilot_session";
+export const SESSION_COOKIE_NAME = "__Host-jobbpilot_session";
 const MAX_AGE = 14 * 24 * 60 * 60; // 14 days in seconds
+
+export async function getSessionId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(SESSION_COOKIE_NAME)?.value ?? null;
+}
 
 export type CurrentUser = {
   userId: string;
@@ -14,8 +19,7 @@ export type CurrentUser = {
 
 export const getServerSession = cache(
   async (): Promise<CurrentUser | null> => {
-    const cookieStore = await cookies();
-    const sessionId = cookieStore.get(COOKIE_NAME)?.value;
+    const sessionId = await getSessionId();
     if (!sessionId) return null;
 
     try {
@@ -34,7 +38,7 @@ export const getServerSession = cache(
 
 export async function setSessionCookie(sessionId: string): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, sessionId, {
+  cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     secure: true,
     sameSite: "strict",
@@ -45,7 +49,7 @@ export async function setSessionCookie(sessionId: string): Promise<void> {
 
 export async function deleteSessionCookie(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, "", {
+  cookieStore.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
     secure: true,
     sameSite: "strict",

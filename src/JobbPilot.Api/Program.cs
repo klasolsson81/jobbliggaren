@@ -88,6 +88,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Jobb
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapApplicationsEndpoints();
+app.MapResumesEndpoints();
 
 var jobAds = app.MapGroup("/api/v1/job-ads").WithTags("JobAds");
 

@@ -15,14 +15,21 @@ public sealed class AuditLogEntryConfiguration : IEntityTypeConfiguration<AuditL
     {
         builder.ToTable("audit_log");
 
-        builder.HasKey(a => a.Id);
+        builder.HasKey(a => new { a.Id, a.OccurredAt });
         builder.Property(a => a.Id)
             .HasConversion(
                 id => id.Value,
                 value => new AuditLogEntryId(value))
             .ValueGeneratedNever();
 
-        builder.Property(a => a.OccurredAt).IsRequired();
+        // OccurredAt är del av komposit-PK (krav från native partitioning per ADR 0024 D2).
+        // ValueGeneratedNever() krävs för konsistens med Id-konfigurationen — utan det
+        // emit:ar EF Core 10 PendingModelChangesWarning vid Migrate() trots att model
+        // och snapshot är logiskt synced (känd EF-quirk för komposit-PK med blandad
+        // value-generation-config).
+        builder.Property(a => a.OccurredAt)
+            .ValueGeneratedNever()
+            .IsRequired();
         builder.Property(a => a.CorrelationId).IsRequired();
 
         builder.Property(a => a.UserId);              // nullable — system-jobb i Fas 2+ får null

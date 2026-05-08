@@ -229,6 +229,61 @@ två separata användare registreras, user A skapar en ansökan, user B försök
 
 ---
 
+### TD-13 — Encryption av PII-kolumner (Fas 2)
+
+**Kategori:** Säkerhet / GDPR
+**Fas:** 2 (after Fas 1 milestone)
+**Prioritet:** Hög
+**Källa:** Security audit STEG 7a 2026-05-08 (Major M1) + befintliga TODOs i ApplicationConfiguration
+
+Flera kolumner lagrar PII-känsligt innehåll (BUILD.md §13.1 "Känsligt") som klartext-JSONB/TEXT
+i Postgres. RDS har AES-256 disk-encryption via KMS, men app-side envelope encryption saknas.
+
+Berörda kolumner:
+- `applications.cover_letter` (TEXT)
+- `application_notes.content` (TEXT)
+- `follow_ups.note` (TEXT)
+- `resume_versions.content` (JSONB) — innehåller `PersonalInfo`, `Experiences`, `Educations`, `Skills`
+
+**Risk:** vid backup-läckage, snapshot-export eller intern obehörig DB-access exponeras PII
+i klartext. RDS-disk-encryption skyddar bara mot fysisk stöld av disk.
+
+**Föreslagen åtgärd:** Implementera KMS-backed `ValueConverter<T, string>` med envelope
+encryption (DEK per rad eller per aggregate). Migration är icke-destruktiv (encrypt-on-write,
+decrypt-on-read; befintliga klartext-rader migreras lazy vid nästa write eller via
+back-fill-job). Designval och nyckel-rotationsstrategi får egen ADR i Fas 2.
+
+---
+
+### TD-14 — DeleteResumeVersion: VersionInUse-check är inaktiv tills Application får ResumeVersionId
+
+**Kategori:** Säkerhet / Data integrity
+**Fas:** 4 (AI Layer)
+**Prioritet:** Medium
+**Källa:** Code review STEG 7a 2026-05-08 (N8) + dotnet-architect design-validering
+
+`DeleteResumeVersionCommandHandler` (`src/JobbPilot.Application/Resumes/Commands/DeleteResumeVersion/`)
+hårdkodar `isReferencedByOpenApplication = false`. Domänen `Resume.DeleteVersion` har redan
+checken implementerad — handlern saknar bara databas-uppslaget.
+
+I Fas 1 kan ingen Tailored-version skapas (BUILD.md §18 milstolpe "manuell CV") och
+Application-aggregatet har ingen `ResumeVersionId`-referens ännu, så funktionellt sett är
+checken icke-applicerbar. Master-versionen blockas separat via egen invariant
+(`Resume.MasterCannotBeDeleted`).
+
+**Risk i Fas 1:** noll (ingen kod-väg där en refererad version kan raderas).
+
+**Föreslagen åtgärd vid Fas 4:** När `Application.ResumeVersionId` införs (BUILD.md §5.3):
+
+1. Uppdatera `DeleteResumeVersionCommandHandler` så att `isReferencedByOpenApplication`
+   beräknas via `db.Applications.AnyAsync(a => a.ResumeVersionId == versionId &&
+   !a.Status.IsTerminal, ct)`.
+2. Eller introducera dedikerad domän-port `IResumeVersionUsageChecker` för testbarhet.
+
+Exempel-test (idag inaktiv): `DeleteResumeVersion_WhenTailoredVersionReferencedByOpenApplication_ReturnsVersionInUse`.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

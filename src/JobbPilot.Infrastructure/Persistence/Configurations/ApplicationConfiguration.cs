@@ -40,6 +40,10 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
 
         builder.Property(a => a.CreatedAt).IsRequired();
         builder.Property(a => a.UpdatedAt).IsRequired();
+        builder.Property(a => a.LastStatusChangeAt).IsRequired();
+        builder.Property(a => a.GhostedThresholdDays)
+            .IsRequired()
+            .HasDefaultValue(21);
         builder.Property(a => a.DeletedAt);
 
         // xmin är PostgreSQL-systemkolumn — ingen DDL-kolumn behövs, Npgsql mappar automatiskt

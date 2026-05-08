@@ -22,19 +22,14 @@ builder.Services.AddMediator(options =>
 {
     options.ServiceLifetime = ServiceLifetime.Scoped;
     options.Assemblies = [typeof(JobbPilot.Application.AssemblyMarker)];
-    // Pipeline-ordning per ADR 0008 + ADR 0022. AuditBehavior placeras innerst
-    // (efter UnitOfWork) — Audit:s post-action lägger AuditLogEntry i DbContext
-    // varefter UnitOfWork:s post-action SaveChanges persisterar handler-mutation
-    // och audit-rad atomiskt i samma transaction.
-    options.PipelineBehaviors =
-    [
-        typeof(LoggingBehavior<,>),
-        typeof(ValidationBehavior<,>),
-        typeof(AuthorizationBehavior<,>),
-        typeof(UnitOfWorkBehavior<,>),
-        typeof(AuditBehavior<,>),
-    ];
 });
+
+// Pipeline-behaviors registreras explicit som open-generics per ADR 0008 + ADR 0022.
+// Mediator.SourceGenerator 3.0.2 läser inte options.PipelineBehaviors vid compile-time
+// från fält-references — explicit DI-registrering krävs för att Mediator runtime ska
+// hitta behaviors via GetServices<IPipelineBehavior<...>>(). Delad konstant så Api/Worker
+// inte driftar isär (verifieras av WorkerLayerTests).
+builder.Services.AddMediatorPipelineBehaviors();
 
 // Scheme-namnet "Bearer" speglar wire-format (Authorization: Bearer <token>), inte token-typ.
 // Backend lagrar opaque session-id i Redis sedan Turn 4 (ADR 0017).

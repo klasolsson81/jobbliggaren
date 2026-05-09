@@ -17,6 +17,11 @@ output "port" {
 }
 
 output "auth_token_secret_arn" {
-  description = "ARN för Secrets Manager-secret med AUTH-token."
+  description = "ARN för raw AUTH-token-secret (debug/rotation)."
   value       = aws_secretsmanager_secret.auth_token.arn
+}
+
+output "connection_string_secret_arn" {
+  description = "ARN för komponerad StackExchange.Redis-ConnectionString-secret. Konsumeras via ECS task-def secrets-block som ConnectionStrings__Redis."
+  value       = aws_secretsmanager_secret.connection_string.arn
 }

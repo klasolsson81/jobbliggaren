@@ -86,3 +86,51 @@ output "db_app_connection_secret_arn" {
 output "db_hangfire_connection_secret_arn" {
   value = aws_secretsmanager_secret.db_hangfire_connection.arn
 }
+
+# ---------------------------------------------------------------------------
+# STEG 13b — container-infra
+# ---------------------------------------------------------------------------
+
+output "ecr_api_repository_url" {
+  description = "ECR-repo-URL för Api. Används vid `docker push` (kräver `aws ecr get-login-password` först)."
+  value       = module.ecr.repository_urls["api"]
+}
+
+output "ecr_worker_repository_url" {
+  description = "ECR-repo-URL för Worker."
+  value       = module.ecr.repository_urls["worker"]
+}
+
+output "alb_dns_name" {
+  description = "ALB-default-DNS. Pekas mot via Route53 ALIAS-record när domän registreras (jobbpilot.se → ALB)."
+  value       = module.alb.alb_dns_name
+}
+
+output "alb_url_http" {
+  description = "Klickbart HTTP-URL till Api via ALB. Svarar på /api/ready, /api/v1/* etc."
+  value       = "http://${module.alb.alb_dns_name}"
+}
+
+output "ecs_cluster_name" {
+  value = module.ecs.cluster_name
+}
+
+output "ecs_api_service_name" {
+  value = module.ecs.api_service_name
+}
+
+output "ecs_worker_service_name" {
+  value = module.ecs.worker_service_name
+}
+
+output "ecs_execution_role_arn" {
+  value = module.iam_ecs.execution_role_arn
+}
+
+output "ecs_task_api_role_arn" {
+  value = module.iam_ecs.task_api_role_arn
+}
+
+output "ecs_task_worker_role_arn" {
+  value = module.iam_ecs.task_worker_role_arn
+}

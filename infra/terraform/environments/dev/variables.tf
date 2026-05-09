@@ -66,3 +66,79 @@ variable "common_tags" {
     Owner       = "klas"
   }
 }
+
+# ---------------------------------------------------------------------------
+# STEG 13b — container-infra
+# ---------------------------------------------------------------------------
+
+variable "api_image_tag" {
+  description = "Image-tag för Api-container. Default \"latest\" (mutable för dev). STEG 14 ersätter med SHA-tag via GitHub Actions."
+  type        = string
+  default     = "latest"
+}
+
+variable "worker_image_tag" {
+  description = "Image-tag för Worker-container."
+  type        = string
+  default     = "latest"
+}
+
+variable "api_cpu" {
+  description = "Fargate CPU för Api. Lean dev = 512 (0.5 vCPU)."
+  type        = number
+  default     = 512
+}
+
+variable "api_memory" {
+  description = "Fargate memory MB för Api. Lean dev = 1024 (1 GB)."
+  type        = number
+  default     = 1024
+}
+
+variable "worker_cpu" {
+  description = "Fargate CPU för Worker. Lean dev = 256 (0.25 vCPU)."
+  type        = number
+  default     = 256
+}
+
+variable "worker_memory" {
+  description = "Fargate memory MB för Worker. Lean dev = 512 (0.5 GB)."
+  type        = number
+  default     = 512
+}
+
+variable "api_desired_count" {
+  description = "Antal Api-tasks. Lean dev = 1."
+  type        = number
+  default     = 1
+}
+
+variable "worker_desired_count" {
+  description = "Antal Worker-tasks. Lean dev = 1."
+  type        = number
+  default     = 1
+}
+
+variable "use_fargate_spot" {
+  description = "FARGATE_SPOT för ~70% rabatt. Lean dev = true; staging/prod = false."
+  type        = bool
+  default     = true
+}
+
+variable "enable_autoscaling" {
+  description = "ECS auto-scaling targets + CPU-policies. Lean dev = false (fast desired_count); staging/prod = true."
+  type        = bool
+  default     = false
+}
+
+variable "alb_https_enabled" {
+  description = "ALB HTTPS-listener på 443. Default false per ADR 0026 (HTTP-only acceptance under Fas 0 med tidsfönster + triggers). Sätts true när ADR 0026-trigger uppfylls (domän + ACM-cert, eller superseder-ADR). Värdet injiceras också som env-var Alb__HttpsEnabled till Api-tasken som gate:ar app.UseHttpsRedirection() i Program.cs (Sec-Major-2-fix STEG 13b)."
+  type        = bool
+  default     = false
+}
+
+variable "alb_acm_certificate_arn" {
+  description = "ACM-cert-ARN för HTTPS-listener. Sätts efter domän-registrering (TD-30) + ACM-utfärdande. När detta sätts → flippa alb_https_enabled = true samtidigt."
+  type        = string
+  default     = null
+}

@@ -107,3 +107,151 @@ resource "aws_secretsmanager_secret" "db_hangfire_connection" {
     Purpose = "worker-hangfire-connection"
   })
 }
+
+# ---------------------------------------------------------------------------
+# STEG 13b — container-infra
+#
+# Lookup baseline JobbPilotBedrockInvoke-policy som task-role-api attachas till.
+# Skapad i environments/prod/baseline (modules/bedrock_model_access).
+# ---------------------------------------------------------------------------
+
+data "aws_iam_policy" "bedrock_invoke" {
+  name = "JobbPilotBedrockInvoke"
+}
+
+# ECR repos — separata för api + worker
+module "ecr" {
+  source = "../../modules/ecr"
+
+  name_prefix      = var.name_prefix
+  repository_names = ["api", "worker"]
+  kms_key_id       = data.aws_kms_alias.master.target_key_arn
+
+  tags = var.common_tags
+}
+
+# CloudWatch LogGroups — 30d retention per ADR 0024 D7
+module "cloudwatch_logs" {
+  source = "../../modules/cloudwatch_logs"
+
+  name_prefix       = var.name_prefix
+  log_group_names   = ["api", "worker", "ecs-exec"]
+  retention_in_days = 30
+  kms_key_id        = data.aws_kms_alias.master.target_key_arn
+
+  tags = var.common_tags
+}
+
+# IAM-roller för ECS — execution + task-role-api + task-role-worker
+module "iam_ecs" {
+  source = "../../modules/iam_ecs"
+
+  name_prefix         = var.name_prefix
+  account_id          = var.account_id
+  ecr_repository_arns = values(module.ecr.repository_arns)
+  log_group_arns      = values(module.cloudwatch_logs.log_group_arns)
+  secret_arns = [
+    aws_secretsmanager_secret.db_app_connection.arn,
+    aws_secretsmanager_secret.db_hangfire_connection.arn,
+    module.rds.master_user_secret_arn,
+    module.redis.auth_token_secret_arn,
+    module.redis.connection_string_secret_arn,
+  ]
+  kms_key_arn               = data.aws_kms_alias.master.target_key_arn
+  bedrock_invoke_policy_arn = data.aws_iam_policy.bedrock_invoke.arn
+
+  tags = var.common_tags
+}
+
+# ALB — internet-facing, HTTP-only initialt (HTTPS aktiveras när domän finns)
+module "alb" {
+  source = "../../modules/alb"
+
+  name_prefix           = var.name_prefix
+  vpc_id                = module.network.vpc_id
+  public_subnet_ids     = module.network.public_subnet_ids
+  alb_security_group_id = module.network.alb_security_group_id
+
+  https_listener_enabled = var.alb_https_enabled
+  acm_certificate_arn    = var.alb_acm_certificate_arn
+
+  # Lean dev = ingen deletion protection (lättare destroy mellan utvecklingspass)
+  enable_deletion_protection = false
+
+  tags = var.common_tags
+}
+
+# ECS — cluster + task-defs + services + (valbar) autoscaling
+module "ecs" {
+  source = "../../modules/ecs"
+
+  name_prefix           = var.name_prefix
+  aws_region            = var.aws_region
+  private_subnet_ids    = module.network.private_subnet_ids
+  ecs_security_group_id = module.network.ecs_security_group_id
+
+  execution_role_arn   = module.iam_ecs.execution_role_arn
+  task_api_role_arn    = module.iam_ecs.task_api_role_arn
+  task_worker_role_arn = module.iam_ecs.task_worker_role_arn
+
+  # ECR images — taggar styrs av var.api_image_tag / var.worker_image_tag.
+  # Initial smoke: bygg + push manuellt med `latest`-tag innan första apply
+  # (annars startar ECS-tasks utan image → image_pull_failure).
+  api_image_uri    = "${module.ecr.repository_urls["api"]}:${var.api_image_tag}"
+  worker_image_uri = "${module.ecr.repository_urls["worker"]}:${var.worker_image_tag}"
+
+  api_target_group_arn = module.alb.api_target_group_arn
+
+  api_log_group_name    = module.cloudwatch_logs.log_group_names["api"]
+  worker_log_group_name = module.cloudwatch_logs.log_group_names["worker"]
+
+  # Sizing
+  api_cpu       = var.api_cpu
+  api_memory    = var.api_memory
+  worker_cpu    = var.worker_cpu
+  worker_memory = var.worker_memory
+
+  # Counts
+  api_desired_count    = var.api_desired_count
+  worker_desired_count = var.worker_desired_count
+
+  # Spot + autoscaling
+  use_fargate_spot   = var.use_fargate_spot
+  enable_autoscaling = var.enable_autoscaling
+
+  # Secrets injection — task-def-secrets-block, läses av execution-rollen vid task-startup.
+  # Redis-CS komponeras i modules/redis (host:port,password=...,ssl=True,abortConnect=False)
+  # och injiceras som single secret ConnectionStrings__Redis. Matchar
+  # Infrastructure/DependencyInjection.cs:90+120 GetConnectionString("Redis")-pattern.
+  api_secrets = {
+    "ConnectionStrings__Postgres" = aws_secretsmanager_secret.db_app_connection.arn
+    "ConnectionStrings__Redis"    = module.redis.connection_string_secret_arn
+  }
+
+  # Worker använder INTE Redis (verifierat: Infrastructure/DependencyInjection.cs:90 läser
+  # Redis bara i AddIdentityAndSessions som är HTTP-only; Worker laddar inte denna).
+  # Bara Postgres + HangfireStorage krävs.
+  worker_secrets = {
+    "ConnectionStrings__HangfireStorage" = aws_secretsmanager_secret.db_hangfire_connection.arn
+    "ConnectionStrings__Postgres"        = aws_secretsmanager_secret.db_app_connection.arn
+  }
+
+  # Klartext env-vars (icke-känsligt). Alb__HttpsEnabled gate:ar
+  # app.UseHttpsRedirection() — se Api/Program.cs (förhindrar redirect-loop
+  # bakom HTTP-only-ALB per ADR 0026 + sec-auditor Sec-Major-2 STEG 13b).
+  api_environment = {
+    "ASPNETCORE_ENVIRONMENT"             = "Production"
+    "ASPNETCORE_URLS"                    = "http://+:8080"
+    "ForwardedHeaders__KnownNetworks__0" = var.vpc_cidr
+    "Alb__HttpsEnabled"                  = tostring(var.alb_https_enabled)
+  }
+
+  # Worker har inga Redis-deps; Hangfire + Postgres räcker. DOTNET_ENVIRONMENT
+  # (inte ASPNETCORE_ENVIRONMENT) eftersom Worker använder Generic Host
+  # (Host.CreateApplicationBuilder).
+  worker_environment = {
+    "DOTNET_ENVIRONMENT" = "Production"
+  }
+
+  tags = var.common_tags
+}

@@ -1,0 +1,64 @@
+# .dockerignore — exkluderar build-artefakter, secrets, tests, frontend.
+# Mindre build-context = snabbare docker build + mindre risk för accidental inkludering.
+
+# .NET build-artefakter
+**/bin/
+**/obj/
+**/TestResults/
+**/coverage/
+*.user
+.vs/
+
+# Tests — körs inte i image, bara i CI
+tests/
+
+# Frontend — Vercel hanterar
+web/
+
+# Node
+**/node_modules/
+.next/
+out/
+.turbo/
+
+# IDE
+.idea/
+.vscode/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Dev secrets — får ALDRIG in i image
+.env
+.env.local
+.env.*.local
+appsettings.Local.json
+.secrets/
+*.pem
+*.key
+
+# Terraform — separat lifecycle
+infra/
+
+# Docs — onödigt i image
+docs/
+*.md
+!**/README.md
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Husky — finns inte i image
+.husky/

@@ -39,7 +39,7 @@ resource "random_password" "auth_token" {
 
 resource "aws_secretsmanager_secret" "auth_token" {
   name                    = "${var.name_prefix}/redis/auth-token"
-  description             = "ElastiCache AUTH-token för ${var.name_prefix} replication group."
+  description             = "ElastiCache AUTH-token för ${var.name_prefix} replication group (raw token för debug/rotation)."
   kms_key_id              = var.kms_key_id
   recovery_window_in_days = 7
 
@@ -51,6 +51,41 @@ resource "aws_secretsmanager_secret" "auth_token" {
 resource "aws_secretsmanager_secret_version" "auth_token" {
   secret_id     = aws_secretsmanager_secret.auth_token.id
   secret_string = random_password.auth_token.result
+}
+
+# ---------------------------------------------------------------------------
+# Komponerad ConnectionString-secret för app-konsumtion.
+# Format: StackExchange.Redis ConfigurationOptions-string
+#   <host>:<port>,password=<auth-token>,ssl=True,abortConnect=False
+#
+# Infrastructure/DependencyInjection.cs:90+120 läser ConnectionStrings:Redis
+# som single string och passar direkt till AddStackExchangeRedisCache +
+# ConnectionMultiplexer.Connect. Ingen .NET-kod-ändring krävs — appen ser
+# en standard Redis-CS via env-var ConnectionStrings__Redis.
+#
+# secret_string komponeras av Terraform vid plan/apply-tid eftersom
+# primary_endpoint_address är known efter replication-group-skapning.
+# ---------------------------------------------------------------------------
+
+resource "aws_secretsmanager_secret" "connection_string" {
+  name                    = "${var.name_prefix}/redis/connection-string"
+  description             = "Komponerad StackExchange.Redis ConnectionString för app-injection. Format: host:port,password=...,ssl=True,abortConnect=False."
+  kms_key_id              = var.kms_key_id
+  recovery_window_in_days = 7
+
+  tags = merge(var.tags, {
+    Purpose = "elasticache-connection-string"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "connection_string" {
+  secret_id = aws_secretsmanager_secret.connection_string.id
+  secret_string = format(
+    "%s:%d,password=%s,ssl=True,abortConnect=False",
+    aws_elasticache_replication_group.this.primary_endpoint_address,
+    aws_elasticache_replication_group.this.port,
+    random_password.auth_token.result,
+  )
 }
 
 # ---------------------------------------------------------------------------

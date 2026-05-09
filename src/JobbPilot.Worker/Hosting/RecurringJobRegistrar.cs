@@ -12,13 +12,15 @@ namespace JobbPilot.Worker.Hosting;
 /// kan köras flera gånger utan biverkningar.
 ///
 /// Cron-tider är UTC (Hangfire-default). Schedule:
-///   03:00 UTC — audit-log-retention + detect-ghosted (samtidiga)
+///   03:00 UTC — audit-log-retention (atomisk partition-DDL, &lt; 100ms typiskt)
+///   03:30 UTC — detect-ghosted (DML på applications + audit-skrivningar)
 ///   04:00 UTC — hard-delete-accounts (1h efter retention)
 ///
-/// Samkörning vid 03:00 UTC mellan retention och detect-ghosted är säker:
-/// retention gör atomisk DDL på audit_log (CREATE/DROP partition, &lt; 100ms
-/// typiskt), detect-ghosted gör DML på applications + skriver audit-rader.
-/// Olika tabeller — PG-locking sker per tabell, ingen kontention.
+/// 30-min-padding mellan retention och detect-ghosted eliminerar kollision
+/// helt (per security-auditor STEG 11 Sec-Minor) — även om DDL och
+/// applications-DML rör olika tabeller skulle samtidighet kunna ge
+/// retry-volym i logg vid pålastnings-toppar. Padding är gratis (jobben
+/// är &lt; 1s typiskt) och gör recovery-flöden tydligare.
 ///
 /// Hard-delete separeras till 04:00 UTC (per ADR 0024 D6) eftersom det rör
 /// SAMMA tabell som retention (audit_log UPDATE via IAuditTrailEraser vs
@@ -41,7 +43,7 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
         manager.AddOrUpdate<DetectGhostedApplicationsJob>(
             "detect-ghosted",
             job => job.RunAsync(CancellationToken.None),
-            Cron.Daily(3));
+            "30 3 * * *");  // 03:30 UTC — 30-min padding efter audit-log-retention
 
         manager.AddOrUpdate<HardDeleteAccountsJob>(
             "hard-delete-accounts",

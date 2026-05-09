@@ -48,10 +48,48 @@ builder.Services.AddMediator(options =>
 builder.Services.AddMediatorPipelineBehaviors();
 
 // Hangfire-storage. Egen schema "hangfire" undviker konflikt med JobbPilot-tabeller.
-// PrepareSchemaIfNecessary=true för dev/test — i prod sätts false och schema migreras
-// via runbook (TD spårat i ADR 0023).
+// PrepareSchemaIfNecessary styrs per miljö via HangfireWorkerOptions (TD-17 punkt 1):
+// dev/test = true (enklare lokal uppstart), prod = false (schema-DDL körs via
+// docs/runbooks/hangfire-schema.md innan första prod-deploy så Worker-DB-user kan
+// köras med minimal GRANT-set).
+//
+// SECURITY (TD-17 punkt 3): Worker hostar idag ingen Hangfire-dashboard. Om
+// dashboard någonsin exponeras (i Api eller dev-tooling) MÅSTE den skyddas via
+// custom IDashboardAuthorizationFilter + admin-policy + IP-restrict — Hangfire-
+// default är PUBLIK. Dashboard exponerar job-arguments (user-IDs/aggregat-IDs)
+// och stack-traces (potentiellt PII). Se docs/runbooks/hangfire-schema.md.
+//
+// TD-17 punkt 4 (ConnectionStrings split för least-privilege) är defererad till
+// prod-deploy — ingen kostnad i dev. Runbook-procedur dokumenterad.
 var hangfireConnectionString = builder.Configuration.GetConnectionString("Postgres")
     ?? throw new InvalidOperationException("ConnectionStrings:Postgres saknas i konfiguration.");
+
+var hangfireOpts = builder.Configuration.GetSection(HangfireWorkerOptions.SectionName)
+    .Get<HangfireWorkerOptions>() ?? new HangfireWorkerOptions();
+
+// Production-defense via allow-list: bara Development och Test får auto-skapa schema.
+// Staging/Preprod/Demo/Production etc. tvingas till explicit overlay (TD-17 punkt 1,
+// security-auditor STEG 11 Sec-Major-1+4). Worker-DB-användarens GRANT-set ska aldrig
+// innehålla CREATE i icke-dev-miljöer.
+var safeForAutoSchema =
+    builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test");
+if (!safeForAutoSchema && hangfireOpts.PrepareSchemaIfNecessary)
+{
+    throw new InvalidOperationException(
+        $"Hangfire:PrepareSchemaIfNecessary måste vara false utanför Development/Test " +
+        $"(aktuell miljö: {builder.Environment.EnvironmentName}). Kör schema-DDL via " +
+        "docs/runbooks/hangfire-schema.md innan deploy. (TD-17)");
+}
+
+// Range-validering på ShutdownTimeoutSeconds — fail-loud om någon sätter 0/negativt
+// eller orealistiskt högt värde via overlay. Direct-bound config (utan IOptions) ger
+// ingen DataAnnotations-validering "gratis" — manuell guard räcker för en option.
+if (hangfireOpts.ShutdownTimeoutSeconds is < 1 or > 300)
+{
+    throw new InvalidOperationException(
+        $"Hangfire:ShutdownTimeoutSeconds måste vara 1-300, fick " +
+        $"{hangfireOpts.ShutdownTimeoutSeconds}. Default 25s (strax under Fargate 30s).");
+}
 
 builder.Services.AddHangfire(cfg => cfg
     .UseRecommendedSerializerSettings()
@@ -61,15 +99,26 @@ builder.Services.AddHangfire(cfg => cfg
         new PostgreSqlStorageOptions
         {
             SchemaName = "hangfire",
-            PrepareSchemaIfNecessary = true,
+            PrepareSchemaIfNecessary = hangfireOpts.PrepareSchemaIfNecessary,
         }));
 
 // Worker-count explicit satt — default Environment.ProcessorCount blir 1 i Fargate-container
 // med 1 vCPU. 4 är lämpligt för IO-bundna Mediator-jobb.
+//
+// ShutdownTimeout strax under Fargate default stopTimeout (30 s) så Hangfire hinner
+// committa job-state innan SIGKILL (TD-17 punkt 6). Alla jobb är idempotenta — vid
+// abort plockar nästa daily run upp igen via orphan/state-check.
 builder.Services.AddHangfireServer(opts =>
 {
     opts.WorkerCount = 4;
+    opts.ShutdownTimeout = TimeSpan.FromSeconds(hangfireOpts.ShutdownTimeoutSeconds);
 });
+
+// Generic Host shutdown-timeout — explicit satt så hela timeout-kedjan (Hangfire 25s →
+// Host disposal 28s → Fargate 30s → SIGKILL) är synlig på ett ställe. 3s marginal mellan
+// Hangfire-stop och host-disposal räcker för EF Core dispose + log-flush.
+builder.Services.Configure<HostOptions>(opts =>
+    opts.ShutdownTimeout = TimeSpan.FromSeconds(hangfireOpts.ShutdownTimeoutSeconds + 3));
 
 // Recurring-jobs registreras vid host-start.
 builder.Services.AddHostedService<RecurringJobRegistrar>();

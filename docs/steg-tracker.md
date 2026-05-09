@@ -1,7 +1,7 @@
 # JobbPilot — STEG-tracker
 
-> **Version:** 1.7
-> **Senast uppdaterad:** 2026-05-09
+> **Version:** 1.8
+> **Senast uppdaterad:** 2026-05-09 (STEG 12 klar — Alt A1 av A4-sekvens)
 > **Roll:** permanent översikt över STEG- och fas-progression.
 
 Kompletteras av:
@@ -67,6 +67,12 @@ STEG-numrering följer faktisk arbetsutveckling och mappar inte exakt mot fas-gr
 | STEG 10b | Fas 1 | DELETE /me + GDPR Art. 17-cascade + HardDeleteAccountsJob (ADR 0024 D3+D4+D5+D6). `IAuditTrailEraser`-port + impl (audit-bypass via direct SQL UPDATE). `DeleteAccountCommand` + handler (cascade soft-delete + idempotent). `DELETE /api/v1/me`-endpoint + post-commit session-invalidering via secondary Redis-set. `LoginCommandHandler` D5-blockering vid `JobSeeker.DeletedAt` (returnerar `Auth.InvalidCredentials`, inte `AccountPendingDeletion` — sec-fix mot info disclosure). `IAccountHardDeleter` + `AccountHardDeleter` cross-context impl. `HardDeleteAccountsJob` orchestrator: Steg 0 orphan-cleanup + Steg 1 hämta mogna + Steg 2 explicit transaction (anonymize audit + hard-delete cascade) + separat Identity-DELETE-boundary. Cron 04:00 UTC daily. `AddCoreIdentityForWorker`-extension (HTTP-fri Identity för Worker, utan AddDefaultTokenProviders). 4 nya arch-tester + 6 nya smoke-tester + 5 nya integration-tester + 2 unit-tester (D5). Runbook `docs/runbooks/account-deletion.md`. **Stänger TD-16 helt.** TD-21-25 nya (rate-limiting prod-blockare, app-logg-retention prod-blockare, Redis MULTI/EXEC defensiv refactor, cascade-paginering Fas 4, per-konto try/catch opportunistiskt). +17 tester (2 unit + 4 arch + 6 worker smoke + 5 api integration). | 2026-05-08 |
 | STEG 11 | Fas 1 | **Fas 1 prod-deploy-blockare-cleanup** (TD-22 → TD-17 → TD-21). **TD-22** stängd: `IIpAnonymizer`-port (Application) + impl (Infrastructure) lyft från `RequestContextProvider`-private metod, konsumeras nu även av `AuthAuditLogger` så app-loggens IP /24+/48-anonymiseras vid logg-tid. ADR 0024 D7 (App-logg-redaction + 30d CloudWatch-retention som matchar Art. 17-fönstret). EmailHash-HMAC defererad till Fas 2 → ny TD-27. **TD-17** stängd 5/6 punkter: `HangfireWorkerOptions` config-driven (allow-list-defense `IsDevelopment\|\|IsEnvironment(Test)` för PrepareSchemaIfNecessary, fail-loud-throw utanför), `BackgroundJobServerOptions.ShutdownTimeout=25s` + `HostOptions.ShutdownTimeout+3s` (Fargate SIGTERM 30s grace), cron-kollision åtgärdad (detect-ghosted 03:00 → 03:30 UTC), runbook `hangfire-schema.md` (Install.sql-export, GRANT-modell med REVOKE PUBLIC, 8-punkts dashboard-auth-checklista, kalibrerings-fas, idempotency-tabell). Punkt 4 (ConnectionStrings split) defererad till Fas 0-stängning (kräver två AWS Secrets Manager-poster). **TD-21** stängd: tre rate-limit-policies (account-deletion 1/60s per UserId med NoLimiter för anonymous, auth-write 20/min per IP, auth-loose 30/min per IP), `UseForwardedHeaders` middleware (KnownNetworks-prod-konfig defererad till runbook §3.3 pre-launch-gate), `OnRejected`-callback med LoggerMessage source-gen + Retry-After-header (RFC 6585), separat `StrictRateLimitApiFactory` för isolerad 429-integration-test, `parallelizeTestCollections=false` så env-var-overlay inte race:ar. Frontend typed-confirmation-UX defererad → ny TD-28. **Reviews:** alla 3 backend-block fick security-auditor + code-reviewer parallellt (TD-21 även re-review efter Sec-Major-fixes). 0 Critical/Blocker, alla Major-fynd fixade in-block. +27 tester (8 IpAnonymizer + 4 AuthAuditLogger inkl IPv6 + 1 IIpAnonymizer arch-test + 5 HangfireWorkerOptions + 6 RateLimitingOptions + 2 AuthWriteRateLimit + 1 strict-fixture). Backend totalt 502 tester gröna. | 2026-05-09 |
 
+### Klara (forts.)
+
+| STEG | Fas | Beskrivning | Sessions |
+|------|-----|-------------|----------|
+| STEG 12 | Fas 0 | **Kod-pre-launch-gates inför första prod-deploy** (Alt A1 av A4-sekvens A1→A2→A3). **Block 1:** TD-17 punkt 4 stängd — `HangfireConnectionStringResolver` lyft till statisk testbar metod, fallback-kedja `HangfireStorage → Postgres` så prod kan splitta access-yta (jobbpilot_worker DML-only) utan dev-overhead. Worker `appsettings.Production.json` overlay (PrepareSchemaIfNecessary=false + ShutdownTimeoutSeconds=25). **Block 2:** TD-21 KnownNetworks stängd — `ForwardedHeadersConfig` config-driven med fail-loud parse (System.Net.IPNetwork + KnownIPNetworks per .NET 10). Production-defense `EnsureSafeForEnvironment` allow-list `IsDevelopment\|\|IsEnvironment("Test")` (Sec-Major-1 fixad in-block) — tom KnownNetworks utanför dev/test → uppstart-throw → ECS-container startar inte. Api `appsettings.Production.json` overlay (KnownNetworks tom som pre-launch-gate, ForwardLimit=1 för ALB-only). **Block 3:** Två overlay-filer + comment-stilad i sektioner. **Sec-Major-2 docs-fix:** `aws-setup.md §3.3` förtydligad om CloudFront edge-IPs i AWS-managed prefix-list (com.amazonaws.global.cloudfront.origin-facing) — bara VPC-CIDR räcker inte för ForwardLimit=2; ALB-only-deploy ska sätta 1. **Reviews:** security-auditor (Sec-Major-1+2 fixade in-block, 3 Minor + 2 Nit defererade) + code-reviewer (0 Major, M1-M3 fixade in-block, 4 Nit "rätt val"). +35 tester (5 HangfireConnectionStringResolver + 17 ForwardedHeadersConfig parse + 14 EnsureSafeForEnvironment + 1 strict-fixture artifact). Backend 537 totalt (157 Domain + 183 Application + 23 Architecture + 26 Worker + 148 Api Integration). | 2026-05-09 |
+
 ### Pågående
 
 (inga aktiva STEG just nu — se §5)
@@ -75,7 +81,8 @@ STEG-numrering följer faktisk arbetsutveckling och mappar inte exakt mot fas-gr
 
 | STEG | Fas | Beskrivning | Status |
 |------|-----|-------------|--------|
-| STEG 12 | Fas 0/1 | **Ej beslutat.** Tre primära kandidater: (a) Fas 0-stängning (första deploy till dev.jobbpilot.se + GitHub Actions CI/CD + bootstrap-IAM-cleanup + applicering av STEG 11:s pre-launch-gates: CloudWatch retention=30, ALB ForwardedHeaders KnownNetworks, ConnectionStrings split, Hangfire schema-DDL via runbook). (b) Fortsätt Fas 1-features (Application UX-pass, Resume-version-Tailored, etc.). (c) Hangfire.AspNetCore-paket-trim (TD-19 Worker HTTP-fri-disciplin, opportunistic). | Behöver beslutas |
+| STEG 13 | Fas 0 | **Infra-as-code-stack** (Alt A2). Bygg Terraform-modules för VPC + RDS PostgreSQL + ElastiCache Redis + ECS cluster + ALB + ECR + Route53 + CloudWatch LogGroups + IAM-execution/task-roles. Inkluderar Dockerfiles för Api + Worker. Pre-launch-gates appliceras inline via Terraform (KnownNetworks=VPC-CIDR populerad, CloudWatch retention=30). Inget GitHub Actions ännu. Tunt smoke-deploy via `terraform apply` + manuellt push till ECR möjligt vid slut. Stort scope — 1-3 sessioner. security-auditor + dotnet-architect i loop. | Planerad |
+| STEG 14 | Fas 0 | **GitHub Actions tag-pipeline + första prod-deploy** (Alt A3). `.github/workflows/` för build+test+push-to-ECR + tag-trigger för deploy (`v*-dev`/`v*-rc`/`v*`). Hangfire schema-DDL via Install.sql + REVOKE PUBLIC i RDS. ConnectionStrings split i AWS Secrets Manager (jobbpilot_app + jobbpilot_worker). Bootstrap-IAM-user cleanup. Första deploy till dev.jobbpilot.se. **Stänger Fas 0** per BUILD.md §18. | Planerad |
 
 ## 4. Mellan-arbete
 
@@ -87,7 +94,7 @@ Cleanup-passningar, disciplin-uppgraderingar och dokumentations-arbete som inte 
 
 ## 5. Aktuellt
 
-**STEG-fokus:** STEG 11 klar 2026-05-09. **Alla Fas 1 prod-deploy-blockare stängda för kod-delen** (TD-22 + TD-17 + TD-21). Operativa pre-launch-gates dokumenterade i runbooks (CloudWatch retention=30, ALB ForwardedHeaders KnownNetworks, Hangfire schema-DDL, ConnectionStrings split). Inga aktiva STEG.
+**STEG-fokus:** STEG 12 klar 2026-05-09. **Alla kod-pre-launch-gates stängda** (Alt A1 av Klas:s A4-sekvens A1→A2→A3 för Fas 0-stängning). Worker HangfireStorage-fallback + Api ForwardedHeadersConfig + production-defense + båda Production overlays. Sec-Major-1 (KnownNetworks-symmetri-miss) + Sec-Major-2 (CloudFront-prefix-list-clarification) fixade in-block. Inga aktiva STEG. Nästa: STEG 13 (Terraform-stack — Alt A2).
 
 **STEG 7a** (Resume-aggregat backend): Komplett 2026-05-08.
 
@@ -115,6 +122,15 @@ Cleanup-passningar, disciplin-uppgraderingar och dokumentations-arbete som inte 
 - xUnit `parallelizeTestCollections=false` krävs när två separata fixturer delar process-globala env-vars (här: rate-limit-overlay)
 - Hangfire.AspNetCore drar in Microsoft.AspNetCore.* — bryter mot ADR 0023 Worker HTTP-fri-disciplin. Trim defererad till TD-19 Fas 2.
 - LoggerMessage source-gen är obligatorisk under CA1848 i JobbPilot — `_logger.LogWarning(...)` i hot path bryter build
+
+**STEG 12** (kod-pre-launch-gates): Komplett 2026-05-09. Alt A1 av Klas:s A4-sekvens (A1→A2→A3 för Fas 0-stängning). Tre block: Worker HangfireStorage-fallback (TD-17 punkt 4), Api ForwardedHeadersConfig + production-defense (TD-21 KnownNetworks), båda `appsettings.Production.json` overlays. **Sec-Major-1** (allow-list-symmetri-miss mellan Worker `safeForAutoSchema` och Api KnownNetworks-tomt-array) fixad in-block via lyft till testbar `EnsureSafeForEnvironment(envName)`-metod på `ForwardedHeadersConfig`. **Sec-Major-2** (vilseledande overlay-kommentar om CloudFront) docs-fixad — runbook §3.3 förtydligad om AWS-managed prefix-list för CloudFront edge-IPs. +35 tester (537 backend-totalt). Reviews: 0 Critical/Major-blocker. M1-M3 fixade in-block.
+
+**Lärdomar STEG 12:**
+- .NET 10 `Microsoft.AspNetCore.HttpOverrides.IPNetwork` är deprecated → använd `System.Net.IPNetwork.TryParse` + `ForwardedHeadersOptions.KnownIPNetworks` istället
+- Allow-list-pattern (Worker `safeForAutoSchema` + Api `EnsureSafeForEnvironment`) ska replikeras strukturellt mellan parallella entry-points — symmetri-miss → tyst no-op-yta i prod
+- ForwardLimit > 1 kräver att ALLA hops är i KnownNetworks/KnownProxies — bara VPC-CIDR räcker inte vid CloudFront+ALB-kedja eftersom CloudFront edge-IPs ligger i AWS-managed prefix-list, inte VPC
+- ASP.NET JsonConfigurationProvider stödjer `// comments` sedan .NET Core 3.0 (`JsonReaderOptions.CommentHandling = Skip`) — användbart för load-bearing pre-launch-gate-dokumentation i overlays
+- Statisk testbar metod på options-klassen > inline-Program.cs-logik så uppstart-validering kan unit-testas utan host-bygge
 
 **Nästa:** STEG 12 — kräver beslut. Se §6.
 

@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** STEG 11 KLAR. **Alla Fas 1 prod-deploy-blockare stängda i kod** (TD-22 + TD-17 + TD-21). Operativa pre-launch-gates dokumenterade i runbooks. Nästa: STEG 12 — kräver beslut (Alt A Fas 0-stängning rek).
+**Status:** STEG 12 KLAR. **Alla kod-pre-launch-gates stängda** (Alt A1 av A4-sekvens A1→A2→A3 för Fas 0-stängning). Worker HangfireStorage-fallback + Api ForwardedHeadersConfig + production-defense + båda Production overlays. Sec-Major-1+2 fixade in-block. Nästa: STEG 13 (Terraform-stack — Alt A2).
 **Senast uppdaterad:** 2026-05-09
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`
@@ -9,88 +9,63 @@
 
 ## Aktivt nu
 
-**STEG 11 klar.** Tre block i ordning TD-22 → TD-17 → TD-21, alla med parallella security-auditor + code-reviewer reviews per CLAUDE.md §9.2. TD-21 gick även genom re-review efter Sec-Major-fix-runda. Backend totalt 502 tester gröna (157 Domain + 183 Application + 23 Architecture + 117 Api Integration + 22 Worker).
+**STEG 12 klar.** Tre block (Worker resolver → Api config → båda overlays) + fix-runda för Sec-Major-1 (allow-list-symmetri) och Sec-Major-2 (CloudFront-prefix-list-clarification i runbook). Backend totalt 537 tester gröna (157 Domain + 183 Application + 23 Architecture + 26 Worker + 148 Api Integration), upp från 502 i STEG 11 (+35).
 
-### STEG 11 — Fas 1 prod-blockare-cleanup
+### STEG 12 — Kod-pre-launch-gates (Alt A1 av A4-sekvens)
 
-**Strategi:** Stäng kvarvarande tre Fas 1 prod-deploy-blockare (TD-17/21/22) i ordning policy-först → mest-kod → mest-avgränsat. Pre-launch-gates dokumenterade i runbooks så Fas 0-stängning (Alt A nästa STEG) kan applicera dem operativt.
+**Strategi:** Klas valde A4-sekvens (A1 → A2 → A3) efter discovery-rapport som avslöjade att startpromptens Alt A antog mer infra än som existerar (inget `.github/workflows/`, inga Dockerfiles, Terraform har bara baseline-stacken). STEG 12 = A1 (smalt: kod-pre-launch-gates), STEG 13 = A2 (Terraform-stack), STEG 14 = A3 (GitHub Actions + första deploy + IAM-cleanup).
 
-#### Block 1 — TD-22 (App-logg-redaction + retention) — ADR 0024 D7
+#### Block 1 — TD-17 punkt 4 (Worker HangfireStorage ConnectionString-fallback)
 
-**Klas-policy-beslut:** 30d CloudWatch-retention (matchar Art. 17-fönstret) + IP /24+/48-anonymisering vid logg-tid (defense-in-depth) + EmailHash-HMAC defererad till Fas 2.
+- `HangfireConnectionStringResolver.Resolve(IConfiguration)` — statisk testbar metod, fallback-kedja `HangfireStorage → Postgres`
+- Prod-overlay sätter `HangfireStorage` → routar Worker till `jobbpilot_worker`-rollen (DML-only på `hangfire.*`); dev faller tillbaka på `Postgres` (en sanning lokalt)
+- `Worker/appsettings.Production.json` (ny): `Hangfire.PrepareSchemaIfNecessary=false` + `Hangfire.ShutdownTimeoutSeconds=25`. ConnectionStrings injiceras via env-vars från ECS task-definition + AWS Secrets Manager.
+- Tester: +5 (HangfireStorage-prefer + Postgres-fallback + throw-both-missing + null-arg + const-stability)
 
-- `IIpAnonymizer`-port (Application) + `IpAnonymizer`-impl (Infrastructure) — lyft från privat metod i `RequestContextProvider`
-- `RequestContextProvider` + `AuthAuditLogger` delegerar nu till delad port (en sanning för IPv4 /24, IPv6 /48, IPv4-mapped→IPv4)
-- `IIpAnonymizer.UnknownLabel`-konstant (interface const) eliminerar magic string
-- ADR 0024 utökad med D7 (Sju delbeslut totalt — räknare uppdaterad)
-- Pre-launch-gate i `docs/runbooks/aws-setup.md` §3.2 (CloudWatch LogGroup retention=30)
-- Tech-debt: TD-22 delvis stängd (kod-redaction klar, CloudWatch-konfig Fas 0-stängning); ny TD-27 (EmailHash-HMAC Fas 2)
-- Reviews: 0 Critical/Major. Sec-Minor-3 (exception-middleware ex.Message) defererad till TD-10. Code-Minor-2 (UA-trunkering) accepterad medvetet.
-- Tester: +13 (8 IpAnonymizer Theory + 4 AuthAuditLogger inkl IPv6 + 1 IIpAnonymizer arch-test allow-list)
+#### Block 2 — TD-21 KnownNetworks (Api ForwardedHeadersConfig + production-defense)
 
-#### Block 2 — TD-17 (Hangfire prod-härdning, 6 punkter)
+- `ForwardedHeadersConfig` (sealed class, init-only properties, public const SectionName) — pattern-konsistens med `RateLimitingOptions` + `HangfireWorkerOptions`
+- Fail-loud parse-metoder via .NET 10 `System.Net.IPNetwork.TryParse` + `ForwardedHeadersOptions.KnownIPNetworks` (inte deprecated `Microsoft.AspNetCore.HttpOverrides.IPNetwork`)
+- **Sec-Major-1 fix in-block:** `EnsureSafeForEnvironment(envName)` allow-list `IsDevelopment\|\|IsEnvironment("Test")` — symmetri med Worker `safeForAutoSchema`. Tom KnownNetworks utanför dev/test → uppstart-throw → ECS-container startar inte.
+- **Sec-Major-2 docs-fix in-block:** overlay-kommentar + `aws-setup.md §3.3` förtydligade om CloudFront edge-IPs i AWS-managed prefix-list (`com.amazonaws.global.cloudfront.origin-facing`). ALB-only-deploy använder `ForwardLimit = 1`.
+- `Api/appsettings.Production.json` (ny): `ForwardedHeaders.KnownNetworks=[]` (pre-launch-gate, populeras i STEG 13 efter VPC-skapande), `ForwardLimit=1`
+- Tester: +31 (17 parse + 14 EnsureSafeForEnvironment)
 
-5/6 punkter stängda i kod + runbook:
+#### Block 3 — appsettings.Production.json overlays
 
-- ✓ Punkt 1 — `HangfireWorkerOptions` config-driven med allow-list production-defense (`IsDevelopment || IsEnvironment("Test")`). Fail-loud `InvalidOperationException` utanför dev/test om PrepareSchemaIfNecessary=true. Range-validering 1-300 på ShutdownTimeoutSeconds.
-- ✓ Punkt 2 — Runbook `docs/runbooks/hangfire-schema.md` (Install.sql-export CPM-anpassad, GRANT-modell, schema-state-felsökning)
-- ✓ Punkt 3 — `// SECURITY:`-kommentar i Worker/Program.cs + 8-punkts dashboard-auth-checklista i runbook §5 (CSRF, rate-limit, session-expire, CSP, no-cache, granulär audit, read-only-roll, version-check)
-- ✓ Punkt 5 — Kalibrerings-fas-anteckning i runbook §8 (första 21d post-deploy är detect-ghosted-anomaliska volymer förväntade)
-- ✓ Punkt 6 — `BackgroundJobServerOptions.ShutdownTimeout=25s` (default via HangfireWorkerOptions) + explicit `HostOptions.ShutdownTimeout+3s` (synlig timeout-kedja: Hangfire 25s → Host 28s → Fargate 30s → SIGKILL). Idempotency-tabell i runbook §6.
-- ⏸ Punkt 4 — ConnectionStrings split (jobbpilot_app + jobbpilot_worker) defererad till Fas 0-stängning (kräver två AWS Secrets Manager-poster)
+- Två overlay-filer + JSON-comments-stilade sektioner. ASP.NET `JsonConfigurationProvider` stödjer `// xxx`-comments (`JsonReaderOptions.CommentHandling = Skip`).
+- Comments är load-bearing: dokumenterar pre-launch-gates, env-var-injection-strategi, ConnectionStrings-frånvaro
 
-Plus: cron-kollision åtgärdad (detect-ghosted 03:00 → 03:30 UTC), REVOKE PUBLIC i runbook §4 (Sec-Major-2), grep-pattern fixad för CPM, Hangfire.AspNetCore-trim defererad till TD-19.
+### Säkerhets-fixar värda att lyfta från STEG 12
 
-- Reviews: 4 Sec-Major (alla fixade in-block: allow-list defense, REVOKE PUBLIC, dashboard-checklist-utvidgning, range-validering). 0 Code-Major.
-- Tester: +5 `HangfireWorkerOptionsTests` (defaults, section-name, full+partial overlay, missing-section)
-
-#### Block 3 — TD-21 (Rate-limiting på DELETE /me + auth)
-
-Tre ASP.NET Core RateLimiter-policies efter `UseAuthentication`:
-
-- `account-deletion` 1 req/60s per UserId (claim "sub"). Anonymous → `NoLimiter` (RequireAuthorization returnerar 401 innan endpoint exekveras)
-- `auth-write` 20 req/min per IP (login + register). OWASP-CGN-kompatibel default (höjd från initial 10 efter Sec-Minor-3)
-- `auth-loose` 30 req/min per IP (logout). Permissivt — logout är idempotent
-
-Defense-in-depth-fix per security-auditor:
-- ✓ `UseForwardedHeaders` middleware tillagd FÖRE auth (Sec-Major-1) — pre-launch KnownNetworks=ALB-VPC-CIDR-konfig dokumenterad i `aws-setup.md §3.3`
-- ✓ `OnRejected`-callback (LoggerMessage source-gen, EventId 2001, ingen PII — endast Path + Method) + Retry-After-header (RFC 6585) (Sec-Major-3)
-- ✓ Separat `StrictRateLimitApiFactory` för isolerad 429-integration-test (Sec-Major-2). `xunit.runner.json: parallelizeTestCollections=false` förhindrar env-var-race mellan ApiFactory + StrictRateLimitApiFactory.
-- ✓ Frontend typed-confirmation-UX + re-auth-prompt → ny TD-28 (defererad till frontend-STEG, inte prod-blocker)
-
-- Reviews: TD-21 gick två rundor — initial 3 Sec-Major + 4 Sec-Minor. Re-review efter fix-runda **Approved** för stängning.
-- Tester: +8 (6 RateLimitingOptionsTests + 2 AuthWriteRateLimitTests). 117 Api Integration-tester gröna.
-
-### Säkerhets-fixar värda att lyfta från STEG 11
-
-- **TD-22 / IIpAnonymizer:** defense-in-depth — audit-tabellen anonymiserades redan men app-loggen bar parallell PII. Lyft till delad port garanterar att framtida konsumenter får samma maskning.
-- **TD-21 / UseForwardedHeaders:** utan denna middleware blir rate-limiting effektivt no-op i prod bakom ALB (alla requests från proxy-IP → samma bucket). Pre-launch-gate i runbook blockerar deploy utan VPC-CIDR-konfig.
-- **TD-21 / OnRejected utan PII:** klient-IP är personuppgift per GDPR Recital 30 — många implementationer loggar IP "för säkerhets skull" och bryter mot Recital 30. Path + Method räcker för incident-respons utan att kompromettera GDPR.
-- **TD-17 / allow-list production-defense:** pure `IsProduction()` täcker inte Staging/Preprod/Demo-miljöer. Allow-list `IsDevelopment || IsEnvironment("Test")` säkrar alla okända miljöer by default.
+- **Sec-Major-1 / EnsureSafeForEnvironment:** symmetri-miss mellan Worker `safeForAutoSchema` och Api `KnownNetworks`-tomt-array hade öppnat OWASP A07-yta i prod-launch-fönstret. Lyft till testbar metod ger strukturell anti-regression istället för bara runbook-disciplin.
+- **Sec-Major-2 / ForwardLimit-CloudFront:** initial overlay-kommentar antydde att `ForwardLimit=2` räcker bakom ALB+CloudFront. Men CloudFront edge-IPs är dynamiska — bara VPC-CIDR i KnownNetworks → middleware stoppar vid CloudFront-hop → `RemoteIpAddress` blir CloudFront-IP, inte klient-IP. Förtydligad runbook + ALB-only-deploy använder `ForwardLimit=1`.
+- **`System.Net.IPNetwork` istället för deprecated `Microsoft.AspNetCore.HttpOverrides.IPNetwork`:** ASPDEPR005-warning fångade det. Modernt API, bättre IPv6-stöd.
 
 ## Senaste commits
 
 | SHA | Beskrivning |
 |-----|-------------|
-| f566d5d | feat(api): TD-21 — rate-limiting + ForwardedHeaders + OnRejected (DELETE /me + auth) |
+| d879f96 | docs(runbooks): STEG 12 Sec-Major-2 — ForwardLimit + CloudFront-prefix-list |
+| bb26fec | feat(api): TD-21 — ForwardedHeadersConfig + production-defense (STEG 12) |
+| f8488b4 | feat(worker): TD-17 punkt 4 — HangfireConnectionStringResolver-fallback (STEG 12) |
+| 8211ddb | docs: STEG 11 docs-sync (current-work + steg-tracker + session-logg) |
+| f566d5d | feat(api): TD-21 — rate-limiting + ForwardedHeaders + OnRejected |
 | d5dde0b | feat(worker): TD-17 — Hangfire prod-härdning + Fargate SIGTERM-handling |
-| c7094aa | feat(auditing): TD-22 — IIpAnonymizer-port + app-logg-redaction (ADR 0024 D7) |
-| cfbfbc4 | docs(tech-debt): bredda TD-13 + TD-17, lägg till TD-26 (extern review-input) |
-| c07e52f | chore(security): allowlist test-password fingerprint för STEG 10b DeleteMeTests |
-| 5ace16f | docs: STEG 10b docs-sync (runbook + tech-debt + steg-tracker + current-work + session-logg) |
 
 ## Tester totalt
 
-- **Backend:** 502 (157 Domain + 183 Application + 23 Architecture + 117 Api Integration + 22 Worker) — +27 sedan STEG 10b
+- **Backend:** 537 (157 Domain + 183 Application + 23 Architecture + 26 Worker + 148 Api Integration) — +35 sedan STEG 11
 - **Frontend:** 65 Vitest + 19 Playwright E2E (oförändrat)
 
 ## När nästa session startar
 
-1. Kör `git log --oneline -10` — verifiera HEAD = f566d5d
+1. Kör `git log --oneline -10` — verifiera HEAD = (post docs-sync-commit)
 2. Verifiera backend-tester: kör test-exen direkt under `tests/*/bin/Debug/net10.0/`
-3. Läs `docs/steg-tracker.md` §6 för STEG 12-kandidater
-4. Läs senaste session-logg (STEG 11) för detaljer
-5. Läs `docs/runbooks/aws-setup.md` §3.2-3.4 (pre-launch-gates) + `docs/runbooks/hangfire-schema.md` (om Alt A Fas 0-stängning)
+3. Läs `docs/steg-tracker.md` §3 STEG 13 (Terraform-stack scope)
+4. Läs senaste session-logg (STEG 12) för detaljer
+5. Läs `docs/runbooks/aws-setup.md` (hela — STEG 13 är Terraform-baseline-utvidgning)
+6. Läs `docs/runbooks/hangfire-schema.md` (operativ procedur som ska tas via Terraform/IaC)
 
 ## Kända begränsningar / quirks
 
@@ -98,29 +73,31 @@ Defense-in-depth-fix per security-auditor:
 - **`dotnet ef`** plockar inte upp `appsettings.Local.json` — använd `export ConnectionStrings__Postgres=...`
 - **`dotnet test`** på solution-nivå returnerar "Zero tests ran" (xunit.v3.mtp-v2-issue) — kör test-exen direkt
 - **API kräver `ASPNETCORE_ENVIRONMENT=Development`** för Redis-connstring
-- **Hangfire 3 jobs**: audit-log-retention 03:00 + detect-ghosted **03:30** (flyttat STEG 11) + hard-delete-accounts 04:00 UTC
-- **Hangfire-schema** skapas automatiskt vid Worker-start i dev men FAIL-LOUD i Staging/Production utan explicit overlay (TD-17)
+- **Hangfire 3 jobs**: audit-log-retention 03:00 + detect-ghosted **03:30** + hard-delete-accounts 04:00 UTC
+- **Hangfire-schema** skapas automatiskt vid Worker-start i dev men FAIL-LOUD utanför Development/Test (TD-17 + STEG 12 explicit)
 - **Rate-limiting**: 1/60s per UserId på DELETE /me, 20/min per IP på auth-write, 30/min per IP på auth-loose
-- **xunit.runner.json**: `parallelizeTestCollections=false` så env-var-overlay inte race:as mellan ApiFactory och StrictRateLimitApiFactory
-- **`UseForwardedHeaders` aktiv i Api**: i dev no-op (direkt-anrop), i prod kräver `KnownNetworks=ALB-VPC-CIDR` innan första traffic
+- **xunit.runner.json**: `parallelizeTestCollections=false`
+- **`UseForwardedHeaders` aktiv i Api**: i dev no-op (direkt-anrop); i prod **fail-loud-throw vid uppstart om KnownNetworks tom utanför Development/Test** (STEG 12 Sec-Major-1)
 - **Worker.csproj** drar fortfarande in Hangfire.AspNetCore (TD-19 Fas 2 trim)
+- **HangfireStorage ConnectionString-fallback** (STEG 12): prod-overlay sätter `ConnectionStrings:HangfireStorage` (jobbpilot_worker-roll); dev faller tillbaka på `ConnectionStrings:Postgres`
 
 ## Open follow-ups
 
-**Fas 0-stängning operativa pre-launch-gates (alla dokumenterade i runbooks):**
-- CloudWatch LogGroups retention=30 (`aws-setup.md` §3.2)
-- ALB ForwardedHeaders KnownNetworks=VPC-CIDR (`aws-setup.md` §3.3)
-- Bootstrap-IAM-user cleanup (`aws-setup.md` §3.4)
-- Hangfire schema-DDL via Install.sql + REVOKE PUBLIC (`hangfire-schema.md` §3-4)
-- ConnectionStrings split (jobbpilot_app + jobbpilot_worker) (`hangfire-schema.md` §4)
-- `appsettings.Production.json` overlay (Hangfire-konfig)
+**Operativa AWS-uppgifter (alla dokumenterade i runbooks, appliceras i STEG 13/14):**
+- VPC + subnets + RDS + Redis + ECS + ECR + ALB + Route53 + ACM (STEG 13 Terraform)
+- CloudWatch LogGroups retention=30 (`aws-setup.md` §3.2 — STEG 13 Terraform inline)
+- ALB ForwardedHeaders KnownNetworks=VPC-CIDR (`aws-setup.md` §3.3 — STEG 13 Terraform overlay-population)
+- ConnectionStrings split (jobbpilot_app + jobbpilot_worker) (`hangfire-schema.md` §4 — STEG 14)
+- Hangfire schema-DDL via Install.sql + REVOKE PUBLIC (`hangfire-schema.md` §3-4 — STEG 14)
+- GitHub Actions tag-pipeline (`v*-dev`/`v*-rc`/`v*`) — STEG 14
+- Bootstrap-IAM-user cleanup (`aws-setup.md` §3.4 — STEG 14 sista steg)
 
 **Övriga TD:**
 - TD-13 (PII-encryption Fas 2)
 - TD-14 (DeleteResumeVersion Fas 4)
 - TD-15 (Resume-formulär a11y Fas 1)
 - TD-18 (intervju-states-utökning)
-- TD-19 (Worker defense-in-depth Fas 2 — inkl Hangfire.AspNetCore-trim per STEG 11)
+- TD-19 (Worker defense-in-depth Fas 2 — inkl Hangfire.AspNetCore-trim)
 - TD-20 (SqlQuery<FormattableString>-refactor opportunistiskt)
 - TD-23 (Redis MULTI/EXEC opportunistiskt)
 - TD-24 (cascade-paginering Fas 4)
@@ -129,12 +106,8 @@ Defense-in-depth-fix per security-auditor:
 - TD-27 (EmailHash-HMAC Fas 2)
 - TD-28 (Frontend typed-confirmation-UX för DELETE /me)
 
-## STEG 12 — kräver beslut
-
-**Alt A — Fas 0-stängning** (rek): applicera STEG 11:s pre-launch-gates + första prod-deploy. security-auditor invokeras vid IAM/secrets/deploy-block.
-
-**Alt B — Fortsätt Fas 1-features:** Application UX-pass, Resume-version-Tailored, etc.
-
-**Alt C — TD-19 Worker defense-in-depth:** Hangfire.AspNetCore → Hangfire.NetCore + arch-test-utökning.
-
-Min rek: Alt A naturlig efter STEG 11 — gates dokumenterade, Klas applicerar dem operativt.
+**Sec-Minor från STEG 12 (defererade):**
+- Sec-Minor-1: ForwardedHeaders flag-set hårdkodad (lyfts om CloudFront-Host-routing aktualiseras)
+- Sec-Minor-2: Worker-allow-list `IsEnvironment("Test")` är dead branch tills test-fixture sätter `DOTNET_ENVIRONMENT=Test`
+- Sec-Minor-3: Felmeddelanden vid CIDR/IP-parse läcker raw-värdet (CIDR/IP är publik infra-info, ingen secret-leak)
+- Sec-Nit-1: Verifiera Prettier i lint-staged strippar inte JSON-comments i `appsettings.Production.json`

@@ -387,15 +387,29 @@ invarianten — motiverat val men dokumenteras).
 
 ---
 
-### TD-17 — Hangfire prod-härdning ✓ DELVIS STÄNGD STEG 11 (2026-05-09)
+### TD-17 — Hangfire prod-härdning ✓ KOD-DELEN HELT STÄNGD STEG 12 (2026-05-09)
 
 **Kategori:** Säkerhet / Operations
 **Fas:** 1 (innan prod-deploy)
 **Prioritet:** Hög (blocker för Fas 1 prod-deploy, tillsammans med TD-16)
 **Källa:** Security audit STEG 9 2026-05-08 (MAJ-1, MAJ-2, MIN-3, MIN-4) + ADR 0023
-**Status:** **Delvis stängd** STEG 11. Punkt 1, 2, 3, 5, 6 stängda i kod + runbook.
-Punkt 4 (ConnectionStrings split för least-privilege) dokumenterad i runbook men
-defererad till Fas 0-stängning (kräver två DB-users i AWS-miljön).
+**Status:** **Kod-delen helt stängd** efter STEG 12. Punkt 1, 2, 3, 5, 6 stängda
+STEG 11. Punkt 4 (ConnectionStrings split-fallback i kod) stängd STEG 12 via
+`HangfireConnectionStringResolver`. Operativ split (två AWS Secrets Manager-
+poster + två Postgres-roller) appliceras i STEG 13/14 enligt runbook §4.
+
+**STEG 12-tillägg (kod-delen av punkt 4):**
+- ✓ `HangfireConnectionStringResolver.Resolve(IConfiguration)` — statisk testbar metod
+  med fallback-kedja `HangfireStorage → Postgres`. Prod-overlay sätter `HangfireStorage`
+  → routar Worker till `jobbpilot_worker`-rollen (DML-only på `hangfire.*`); dev faller
+  tillbaka på `Postgres` (en sanning lokalt, ingen split-overhead).
+- ✓ `Worker/appsettings.Production.json` overlay (`PrepareSchemaIfNecessary: false` +
+  `ShutdownTimeoutSeconds: 25`) committad. ConnectionStrings injiceras via env-vars
+  från ECS task-definition + AWS Secrets Manager — committas INTE i overlay.
+- ✓ Felmeddelandet pekar konkret på env-var (`ConnectionStrings__HangfireStorage`) +
+  Secrets Manager-path-konvention (`jobbpilot/<env>/postgres-worker`) + runbook §4.
+- +5 tester (HangfireStorage-prefer + Postgres-fallback + throw-both-missing + null-arg
+  + const-stability).
 
 **Stängningsnoteringar (STEG 11):**
 - ✓ Punkt 1 — `HangfireWorkerOptions.PrepareSchemaIfNecessary` (default `true` Development/Test,
@@ -642,7 +656,15 @@ registrerade och verifierade:
 - ✓ `UseForwardedHeaders` middleware tillagd (Sec-Major-1) — klient-IP plockas
   från `X-Forwarded-For` när Api körs bakom proxy/ALB. Pre-launch-gate
   `KnownNetworks=ALB-VPC-CIDR` dokumenterad i `docs/runbooks/aws-setup.md` §3.3,
-  appliceras vid Fas 0-stängning.
+  appliceras operativt i STEG 13 (Terraform).
+- ✓ **STEG 12-tillägg:** `ForwardedHeadersConfig` config-driven med fail-loud parse
+  + `EnsureSafeForEnvironment` production-defense (Sec-Major-1 STEG 12) — tom
+  KnownNetworks utanför Development/Test → uppstart-throw → ECS-container startar
+  inte. Allow-list-symmetri med Worker `safeForAutoSchema`. `Api/appsettings.Production.json`
+  overlay (KnownNetworks tom som pre-launch-gate, ForwardLimit=1 ALB-only).
+  **Sec-Major-2 docs-fix:** `aws-setup.md §3.3` förtydligad om CloudFront
+  edge-IPs i AWS-managed prefix-list (`com.amazonaws.global.cloudfront.origin-facing`)
+  — bara VPC-CIDR räcker inte för ForwardLimit=2.
 - ✓ Frontend typed-confirmation-UX + re-auth-prompt (punkt 3+4 från ursprungs-TD)
   → ny TD-28 (separat frontend-STEG, inte prod-blocker — UX nice-to-have ovanpå
   hard rate-limit-ceiling).

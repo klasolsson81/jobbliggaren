@@ -111,14 +111,32 @@ foreach (var proxy in forwardedCfg.ParseKnownProxies())
 
 app.UseForwardedHeaders(forwardedOptions);
 
-app.UseHttpsRedirection();
+// HttpsRedirection bara om ALB-listenern faktiskt har en HTTPS-port att redirecta TILL.
+// Bakom HTTP-only-ALB skulle redirect → port 443 (stängd) → ALB-health-check failer →
+// ECS deployment_circuit_breaker triggar rollback (security-auditor STEG 13b Sec-Major-2).
+// Konfig-driven via AlbOptions.HttpsEnabled (env-var Alb__HttpsEnabled från ECS task-def,
+// sätts av Terraform när var.alb_https_enabled = true; default false fram till ADR 0026-trigger).
+// Development-miljö behåller redirect (dotnet run använder dev-cert via Kestrel + IIS Express).
+var albOptions = builder.Configuration.GetSection(AlbOptions.SectionName).Get<AlbOptions>() ?? new AlbOptions();
+if (builder.Environment.IsDevelopment() || albOptions.HttpsEnabled)
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 // Rate-limiter efter auth så User-claims är populated för UserId-baserad
 // partitionering (account-deletion-policy använder claim "sub").
 app.UseRateLimiter();
 
+// /health är legacy-alias; /api/ready är spec'd path per BUILD.md §15.4 (ALB target-group).
+//
+// TODO TD-29: /api/ready är idag liveness, inte readiness — namnet ljuger. Returnerar 200 OK
+// utan DB/Redis-ping → ALB target-group registrerar tasken som "healthy" innan DbContext är
+// användbar. För Fas 0/MVP räcker liveness; vid Fas 2 trafikvolym behövs strict readiness via
+// AddHealthChecks().AddDbContextCheck<AppDbContext>().AddRedis(...).
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "JobbPilot.Api" }));
+app.MapGet("/api/ready", () => Results.Ok(new { status = "ready", service = "JobbPilot.Api" }));
 
 app.MapAuthEndpoints();
 app.MapMeEndpoints();

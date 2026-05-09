@@ -1,3 +1,4 @@
+using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.Auth.Commands.DeleteAccount;
 using JobbPilot.Application.Auth.Queries.GetCurrentUser;
 using JobbPilot.Application.Common.Abstractions;
@@ -61,6 +62,7 @@ public static class MeEndpoints
                 await sessions.InvalidateAllForUserAsync(currentUser.UserId.Value, ct);
 
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AccountDeletionPolicy);
     }
 }

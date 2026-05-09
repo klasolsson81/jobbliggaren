@@ -623,12 +623,45 @@ regression).
 
 ---
 
-### TD-21 — Rate-limiting på DELETE /me + andra känsliga auth-endpoints
+### TD-21 — Rate-limiting på DELETE /me + andra känsliga auth-endpoints ✓ STÄNGD STEG 11 (2026-05-09)
 
 **Kategori:** Säkerhet / DoS-skydd
 **Fas:** 1 (innan prod-deploy)
 **Prioritet:** Hög (blocker för Fas 1 prod-deploy)
 **Källa:** Security audit STEG 10b 2026-05-08 (Major-2)
+**Status:** **Stängd** STEG 11 (efter Sec-Major-fixes). Tre rate-limit-policies
+registrerade och verifierade:
+- ✓ `account-deletion` (1 req/60s per UserId-claim "sub") på DELETE /me. Anonymous
+  → `NoLimiter` (Sec-Minor-1: RequireAuthorization returnerar 401 innan endpoint).
+- ✓ `auth-write` (20 req/min per IP) på POST /auth/login + POST /auth/register.
+  Höjt från 10 → 20 (Sec-Minor-3: CGN/NAT-kompabilitet, OWASP-rekommenderad).
+- ✓ `auth-loose` (30 req/min per IP) på POST /auth/logout.
+- ✓ `RateLimitingOptions` config-driven via `RateLimiting:*`-section.
+- ✓ `OnRejected`-callback (Sec-Major-3): strukturerad warning utan PII +
+  `Retry-After`-header (RFC 6585-compliance) via LoggerMessage source-gen.
+- ✓ `UseForwardedHeaders` middleware tillagd (Sec-Major-1) — klient-IP plockas
+  från `X-Forwarded-For` när Api körs bakom proxy/ALB. Pre-launch-gate
+  `KnownNetworks=ALB-VPC-CIDR` dokumenterad i `docs/runbooks/aws-setup.md` §3.3,
+  appliceras vid Fas 0-stängning.
+- ✓ Frontend typed-confirmation-UX + re-auth-prompt (punkt 3+4 från ursprungs-TD)
+  → ny TD-28 (separat frontend-STEG, inte prod-blocker — UX nice-to-have ovanpå
+  hard rate-limit-ceiling).
+
+**Filer:**
+- `src/JobbPilot.Api/RateLimiting/RateLimitingOptions.cs` (ny)
+- `src/JobbPilot.Api/RateLimiting/RateLimitingExtensions.cs` (ny)
+- `src/JobbPilot.Api/Program.cs` (`UseForwardedHeaders` + `AddJobbPilotRateLimiting` + `UseRateLimiter`)
+- `src/JobbPilot.Api/Endpoints/AuthEndpoints.cs` (RequireRateLimiting på 3 endpoints)
+- `src/JobbPilot.Api/Endpoints/MeEndpoints.cs` (RequireRateLimiting på DELETE /me)
+- `tests/JobbPilot.Api.IntegrationTests/RateLimiting/StrictRateLimitApiFactory.cs` (ny isolerad fixture)
+- `tests/JobbPilot.Api.IntegrationTests/RateLimiting/AuthWriteRateLimitTests.cs` (Sec-Major-2: 429-respons + Retry-After)
+- `tests/JobbPilot.Api.IntegrationTests/xunit.runner.json` (parallelizeTestCollections=false så collections inte race:ar env-vars)
+- `docs/runbooks/aws-setup.md` (§3.3 ForwardedHeaders pre-launch-gate)
+
+**Tester:** 8 nya tester totalt:
+- 6 `RateLimitingOptionsTests` (defaults per policy, section-name, binding, policy-key-stabilitet)
+- 2 `AuthWriteRateLimitTests` med strict-fixture (login spam → 429 efter 20, 429 inkluderar Retry-After)
+- 117 Api Integration-tester gröna (109 tidigare + 8 nya).
 
 DELETE /me är den dyraste endpointen i appen — cascade-soft-delete laddar
 *alla* user-ägda Application + Resume in-memory utan paginering, triggar
@@ -696,6 +729,42 @@ godkännande.
   `LogLoginSucceeded`/`LogLoginFailed`/`LogLogoutSucceeded`-anropen
 - 470 backend-tester gröna efter ändring (157 Domain + 182 Application
   +11 nya + 22 Architecture + 109 Api Integration)
+
+---
+
+### TD-28 — Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me
+
+**Kategori:** UX / Säkerhet (defense-in-depth)
+**Fas:** 1 (frontend)
+**Prioritet:** Medium
+**Källa:** TD-21 ursprungs-Major-2 punkt 3+4 (defererad från STEG 11)
+
+Backend-rate-limit (1 req/60s per user) är hard ceiling, men UX:en på frontend
+ska göra ett misstag — eller en kompromettera-session-attacker — verkligen
+medvetet. Två kompletterande UX-skydd:
+
+1. **Typed-confirmation:** modal som kräver att användaren skriver ordet
+   "RADERA" (eller email-adress) innan submit-knappen aktiveras. Civic-
+   utility-ton enligt DESIGN.md — ingen rosa text, ingen "Hoppsan!"
+2. **Re-auth-prompt:** lösenordsfält som måste fyllas i innan DELETE /me-
+   anropet skickas. Backend kan validera via `IUserAccountService.ValidateCredentialsAsync`.
+   Skyddar mot kompromettera-session-radera-konto-attack (angripare med
+   stulen cookie kan inte radera utan lösenord).
+
+**Risk i Fas 1 (utan TD-28):** låg — backend-rate-limit räcker som hard
+floor. Men UX:en idag är "klicka, ångra dig, för sent" → impulsivt klick
+kan radera konto.
+
+**Föreslagen åtgärd:**
+1. Komponent `<DeleteAccountModal>` i `src/components/me/` med RHF + Zod
+   typed-confirmation
+2. Server Action `deleteAccountAction` i `src/lib/actions/me.ts` som tar
+   email + lösenord, validerar credentials via `/auth/login`-anrop först,
+   sen DELETE /me
+3. Tester: Vitest + Playwright E2E för knapp-aktivering + 429-respons-mappning
+
+**Beroenden:** Frontend STEG-7b mönster (Server Actions + Zod). Inga
+backend-ändringar krävs.
 
 ---
 

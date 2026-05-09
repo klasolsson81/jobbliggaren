@@ -1,5 +1,7 @@
 using JobbPilot.Api.Endpoints;
+using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.Common;
+using Microsoft.AspNetCore.HttpOverrides;
 using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Behaviors;
 using JobbPilot.Application.Common.Abstractions;
@@ -46,6 +48,7 @@ builder.Services.AddAuthentication(options =>
     .AddScheme<SessionAuthenticationSchemeOptions, SessionAuthenticationHandler>("Bearer", _ => { });
 
 builder.Services.AddAuthorization();
+builder.Services.AddJobbPilotRateLimiting(builder.Configuration);
 
 var app = builder.Build();
 
@@ -80,9 +83,25 @@ app.Use(async (ctx, next) =>
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// ForwardedHeaders FÖRE auth + rate-limiting. Krävs i prod bakom Next.js-proxy +
+// ALB/CloudFront så Connection.RemoteIpAddress reflekterar klient-IP, inte proxy-IP
+// (TD-21 / Sec-Major-1). I dev körs API:t direkt → headers saknas, ingen verkan.
+//
+// SECURITY: KnownProxies/KnownNetworks MÅSTE konfigureras med ALB:s VPC-CIDR i prod
+// innan första traffic. Standard-default (ForwardLimit=1, KnownProxies=loopback)
+// accepterar inte spoofade X-Forwarded-For från klient — men i prod-miljö med
+// proxy-kedja krävs explicit allow-list. Se docs/runbooks/aws-setup.md §3.3.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+});
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+// Rate-limiter efter auth så User-claims är populated för UserId-baserad
+// partitionering (account-deletion-policy använder claim "sub").
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "JobbPilot.Api" }));
 

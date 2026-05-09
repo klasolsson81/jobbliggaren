@@ -1,3 +1,4 @@
+using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.Auth.Commands.Login;
 using JobbPilot.Application.Auth.Commands.Logout;
 using JobbPilot.Application.Auth.Commands.Register;
@@ -21,7 +22,7 @@ public static class AuthEndpoints
 
             // Session-id returneras i response body — Next.js-proxyn sätter HTTPOnly-cookie (ADR 0018).
             return Results.Ok(new { sessionId = result.Value.SessionId });
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         group.MapPost("/login", async (
             LoginCommand command, IMediator mediator, CancellationToken ct) =>
@@ -31,7 +32,7 @@ public static class AuthEndpoints
                 return ToErrorResult(result.Error);
 
             return Results.Ok(new { sessionId = result.Value.SessionId });
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         // [Obsolete] 410 Gone — ersatt av session-baserad auth i Turn 4, ADR 0017.
         // Raderas i Fas 1 tillsammans med RefreshTokenStore och övrig JWT-infrastruktur.
@@ -49,7 +50,8 @@ public static class AuthEndpoints
             await mediator.Send(new LogoutCommand(), ct);
             // Cookie-radering sker i Next.js-proxyn (ADR 0018) — backend är cookie-agnostiskt.
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthLoosePolicy);
     }
 
     private static IResult ToErrorResult(DomainError error) => error.Code switch

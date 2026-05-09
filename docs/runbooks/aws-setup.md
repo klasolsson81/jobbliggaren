@@ -150,7 +150,42 @@ När IaC införs (Terraform/CDK): hantera via `aws_cloudwatch_log_group`-resurs
 med explicit `retention_in_days = 30`. Drift-detection upptäcker manuella
 ändringar.
 
-### 3.3 Bootstrap-IAM-user cleanup
+### 3.3 ForwardedHeaders KnownProxies — pre-launch-gate
+
+Per TD-21 (rate-limiting) använder Api `app.UseForwardedHeaders(...)` så
+`Connection.RemoteIpAddress` reflekterar klient-IP, inte ALB:s/CloudFront:s
+proxy-IP. Utan korrekt KnownProxies/KnownNetworks-konfig:
+- accepterar dotnet-default `X-Forwarded-For` bara från loopback → klient-IP
+  förblir proxy-IP → IP-baserad rate-limiting blir effektivt no-op i prod
+- alternativt (om KnownProxies sätts till `0.0.0.0/0`) accepteras spoofade
+  headers från klient → rate-limit kan kringgås trivialt
+
+**Pre-launch-gate (måste vara grönt innan första prod-trafiken):**
+
+1. Identifiera ALB:s VPC-CIDR-block. För standard-VPC: `aws ec2 describe-vpcs
+   --query 'Vpcs[].CidrBlock' --profile jobbpilot`.
+2. Sätt `ForwardedHeaders__KnownNetworks__0` env-var (eller motsvarande IaC-
+   resurs på Fargate task-definition) till VPC-CIDR.
+3. Verifiera via curl + manuell `X-Forwarded-For: 198.51.100.42`-header att
+   `Connection.RemoteIpAddress` i app-loggen reflekterar den header:n
+   (om ALB skickar requesten — annars ignoreras header:n).
+
+**Kod-skiss för Fas 0-stängning** (uppdatering av Api/Program.cs när
+ALB-CIDR är känd):
+
+```csharp
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    KnownNetworks = { new IPNetwork(IPAddress.Parse("10.0.0.0"), 16) },  // ALB:s VPC-CIDR
+    ForwardLimit = 2,  // 2 hops: ALB → CloudFront (om används)
+});
+```
+
+Idag (dev) körs Api direkt utan proxy → headers saknas → no-op. Säkerhets-
+impact noll i dev, kritiskt i prod.
+
+### 3.4 Bootstrap-IAM-user cleanup
 
 Raderas **som sista steg av Fas 0** — efter att Terraform verifierat fungerar
 fullt ut mot SSO-profilen. Detta är inte en del av session 3.

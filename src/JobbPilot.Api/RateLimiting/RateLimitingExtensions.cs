@@ -1,0 +1,116 @@
+using System.Globalization;
+using System.IdentityModel.Tokens.Jwt;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+
+namespace JobbPilot.Api.RateLimiting;
+
+/// <summary>
+/// Rate-limiting-konfiguration för JobbPilot Api (TD-21). Tre policies:
+/// account-deletion (1/60s per user), auth-write (20/min per IP),
+/// auth-loose (30/min per IP).
+///
+/// Defaults är prod-värden; konfigurerbara via <see cref="RateLimitingOptions"/>
+/// så test-miljöer kan höja limits för att inte krocka mellan tester.
+///
+/// Vid 429: <c>Retry-After</c>-header sätts (RFC 6585) och en strukturerad
+/// warning emiteras till app-loggen utan PII (endpoint + path, ingen IP/email).
+/// </summary>
+public static partial class RateLimitingExtensions
+{
+    public const string AccountDeletionPolicy = "account-deletion";
+    public const string AuthWritePolicy = "auth-write";
+    public const string AuthLoosePolicy = "auth-loose";
+
+    [LoggerMessage(2001, LogLevel.Warning,
+        "Rate limit exceeded. Path={Path} Method={Method}")]
+    private static partial void LogRateLimitExceeded(
+        ILogger logger, string path, string method);
+
+    public static IServiceCollection AddJobbPilotRateLimiting(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var rateLimitOpts = configuration.GetSection(RateLimitingOptions.SectionName)
+            .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
+
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // OnRejected — strukturerad warning + Retry-After-header (Sec-Major-3).
+            // Loggar inte PII (klient-IP är personuppgift per GDPR Recital 30; email/
+            // session är direkt PII). Endpoint + path räcker för incident-respons.
+            options.OnRejected = (ctx, _) =>
+            {
+                var logger = ctx.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("JobbPilot.Api.RateLimiting");
+                LogRateLimitExceeded(
+                    logger,
+                    ctx.HttpContext.Request.Path,
+                    ctx.HttpContext.Request.Method);
+
+                if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    ctx.HttpContext.Response.Headers.RetryAfter =
+                        ((int)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+                }
+
+                return ValueTask.CompletedTask;
+            };
+
+            // Partition: UserId (claim "sub"). Skyddar mot kompromettera-session-radera-
+            // konto-DoS + power-user resource-DoS. Anonymous → NoLimiter eftersom
+            // RequireAuthorization returnerar 401 innan endpoint exekveras (Sec-Minor-1).
+            options.AddPolicy(AccountDeletionPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-deletion");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.AccountDeletion.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.AccountDeletion.WindowSeconds),
+                        // QueueLimit=0 ger fail-fast 429 — höj inte (DoS-risk via queue-
+                        // memory-exhaustion + latency-spike som döljer attack-signal).
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: IP (Connection.RemoteIpAddress). Bromsar credential-stuffing
+            // och registration-spam. Vid prod bakom ALB krävs UseForwardedHeaders så
+            // klient-IP plockas från X-Forwarded-For (TD-21 / Sec-Major-1) — annars
+            // hamnar alla i samma proxy-IP-bucket och rate-limit blir effektivt no-op.
+            options.AddPolicy(AuthWritePolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.AuthWrite.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.AuthWrite.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: IP. Mer permissiv än AuthWrite eftersom logout är idempotent
+            // och inte öppnar abuse-vektor på samma sätt som login/register.
+            options.AddPolicy(AuthLoosePolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.AuthLoose.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.AuthLoose.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+        });
+
+        return services;
+    }
+}

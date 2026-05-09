@@ -86,7 +86,7 @@ Fas 7-milstolpe).
 Följande måste vara implementerade innan JobbPilot exponeras utanför Klas
 direkta kontroll — även för Alternativ A (stängd klassapp):
 
-### 1. AWS Budget Actions vid $80/mån
+### 1. AWS Budget Actions vid $50/mån
 
 - Auto-disable IAM-policy `JobbPilotBedrockInvoke`
 - Stoppa eventuella ECS-services
@@ -127,3 +127,13 @@ direkta kontroll — även för Alternativ A (stängd klassapp):
 - Viral oförutsedd tillväxt orsakar skenande AWS-faktura
 - Klas fastnar med oväntade skulder som student
 - Projektet stängs ner av ekonomiska skäl snarare än tekniska
+
+## Revision-historik
+
+- **2026-05-09 (STEG 13a):** Tröskel sänkt $80 → $50 efter cost-policy-skärpning.
+  Lean-dev-defaults (RDS t4g.micro Single-AZ, Redis t4g.micro × 1, Interface
+  VPC Endpoints av) gjorde dev-baseline ~$53/mån — $80-tröskeln gav för tunn
+  margin. $50 är enda lager-tröskeln (ingen $80-fallback kvar); månads-slut-
+  trigger accepteras som disciplin-mekanism. Höjs vid Fas 4 (AI-features
+  driver Bedrock-cost) eller MVP-närmande, i samma round som ADR 0005:s
+  slutgiltiga go-to-market-beslut (Alt A/B/C). ADR-status oförändrat PROPOSED.

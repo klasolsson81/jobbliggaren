@@ -36,6 +36,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0022 | Audit log-strategi: pipeline-behavior + marker-interface | Accepted | 2026-05-08 | [0022-audit-log-pipeline-behavior.md](./0022-audit-log-pipeline-behavior.md) |
 | 0023 | Worker-pipeline-aktivering + Hangfire-infrastruktur | Accepted | 2026-05-08 | [0023-worker-pipeline-hangfire.md](./0023-worker-pipeline-hangfire.md) |
 | 0024 | Audit-retention via PostgreSQL native partitioning + GDPR Art. 17-cascade-orchestration | Accepted | 2026-05-08 | [0024-audit-retention-and-art17-cascade.md](./0024-audit-retention-and-art17-cascade.md) |
+| 0025 | ECS task egress accepterad som 0.0.0.0/0 under Fas 0 | Accepted | 2026-05-09 | [0025-ecs-egress-acceptance-fas0.md](./0025-ecs-egress-acceptance-fas0.md) |
 
 ## Planerade ADRs
 

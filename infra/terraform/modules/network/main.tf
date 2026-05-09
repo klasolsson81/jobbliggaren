@@ -254,7 +254,7 @@ resource "aws_vpc_security_group_ingress_rule" "redis_from_ecs" {
 
 # VPC Endpoints — accepterar 443 bara från ECS-SG.
 resource "aws_security_group" "vpc_endpoints" {
-  count = var.enable_vpc_endpoints ? 1 : 0
+  count = var.enable_interface_endpoints ? 1 : 0
 
   name        = "${var.name_prefix}-vpce"
   description = "Interface VPC Endpoints. Ingress 443 från ECS-SG."
@@ -266,7 +266,7 @@ resource "aws_security_group" "vpc_endpoints" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "vpce_from_ecs" {
-  count = var.enable_vpc_endpoints ? 1 : 0
+  count = var.enable_interface_endpoints ? 1 : 0
 
   security_group_id            = aws_security_group.vpc_endpoints[0].id
   description                  = "HTTPS från ECS till VPC endpoints"
@@ -282,7 +282,7 @@ resource "aws_vpc_security_group_ingress_rule" "vpce_from_ecs" {
 
 # S3 Gateway endpoint — gratis, used för ECR-image-layers + S3-data-access.
 resource "aws_vpc_endpoint" "s3" {
-  count = var.enable_vpc_endpoints ? 1 : 0
+  count = var.enable_s3_endpoint ? 1 : 0
 
   vpc_id            = aws_vpc.this.id
   service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
@@ -296,7 +296,7 @@ resource "aws_vpc_endpoint" "s3" {
 
 # Secrets Manager Interface endpoint — Api/Worker hämtar ConnectionStrings.
 resource "aws_vpc_endpoint" "secretsmanager" {
-  count = var.enable_vpc_endpoints ? 1 : 0
+  count = var.enable_interface_endpoints ? 1 : 0
 
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.secretsmanager"
@@ -312,7 +312,7 @@ resource "aws_vpc_endpoint" "secretsmanager" {
 
 # KMS Interface endpoint — Decrypt vid Secrets Manager-getValue + RDS/Redis-access.
 resource "aws_vpc_endpoint" "kms" {
-  count = var.enable_vpc_endpoints ? 1 : 0
+  count = var.enable_interface_endpoints ? 1 : 0
 
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.kms"

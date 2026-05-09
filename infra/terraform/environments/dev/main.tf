@@ -16,11 +16,16 @@ data "aws_kms_alias" "master" {
 module "network" {
   source = "../../modules/network"
 
-  name_prefix          = var.name_prefix
-  vpc_cidr             = var.vpc_cidr
-  az_count             = 3
-  single_nat_gateway   = true # cost-optimized för Fas 0; uppgraderas till multi-NAT i staging/prod
-  enable_vpc_endpoints = true
+  name_prefix        = var.name_prefix
+  vpc_cidr           = var.vpc_cidr
+  az_count           = 3
+  single_nat_gateway = true # cost-optimized för Fas 0; uppgraderas till multi-NAT i staging/prod
+
+  # Lean dev: bara S3-Gateway-endpoint (gratis). Interface-endpoints (~$22/mån)
+  # av i dev — Secrets Manager + KMS-trafik går via NAT istället. Trivial extra
+  # NAT-data-cost vid app-startup vs $22/mån besparing.
+  enable_s3_endpoint         = true
+  enable_interface_endpoints = false
 
   tags = var.common_tags
 }
@@ -37,9 +42,9 @@ module "rds" {
   vpc_security_group_ids = [module.network.rds_security_group_id]
   kms_key_id             = data.aws_kms_alias.master.target_key_arn
 
-  engine_version  = var.rds_engine_version
-  instance_class  = var.rds_instance_class
-  multi_az        = true
+  engine_version = var.rds_engine_version
+  instance_class = var.rds_instance_class
+  # multi_az default false (lean dev); staging/prod sätter true explicit
   db_name         = "jobbpilot"
   master_username = "jobbpilot_admin"
 
@@ -65,7 +70,8 @@ module "redis" {
   engine_version         = var.redis_engine_version
   parameter_group_family = var.redis_parameter_group_family
   node_type              = var.redis_node_type
-  num_cache_clusters     = 2
+  # num_cache_clusters default 1 (lean dev = single node, ingen failover);
+  # staging/prod sätter 2 + automatic_failover_enabled + multi_az_enabled explicit
 
   tags = var.common_tags
 }

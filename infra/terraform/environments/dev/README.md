@@ -10,7 +10,8 @@ ECS, ECR, ALB, Route53, ACM, CloudWatch LogGroups, Dockerfiles → **STEG 13b**.
 2. Prod-baseline-stacken är applied (`infra/terraform/environments/prod/`) — denna stack använder dess `alias/jobbpilot-master-key` via lookup.
 3. `AWS_PROFILE=jobbpilot` (SSO) eller `--profile jobbpilot` per kommando.
 4. SSO-session aktiv: `aws sso login --profile jobbpilot` vid behov.
-5. **Budget-justering:** baseline ~$140/mån (RDS Multi-AZ + Redis 2-node + NAT Gateway + 3 Interface Endpoints). Höj `monthly_budget_usd` i `environments/prod/terraform.tfvars` från `50` till `200` innan apply, annars trigga 100%-alert direkt.
+
+**Cost-policy:** dev-stacken är scoped som **deploy-pipeline-verifierare**, inte produktions-mirror. Multi-AZ-failover, replica-load och cross-AZ-resilience testas först i staging/prod. Lean-defaults (~$30/mån) håller dev-kostnaden under $50-budget-alerten.
 
 ## Vad som skapas
 
@@ -21,11 +22,11 @@ ECS, ECR, ALB, Route53, ACM, CloudWatch LogGroups, Dockerfiles → **STEG 13b**.
 | Private subnets | `10.0.10.0/24`, `.11.0/24`, `.12.0/24` (för ECS + RDS + Redis) |
 | Internet Gateway | För publika subnets |
 | NAT Gateway | **En** i AZ-a (cost-optimized; AZ-a-failure → utgående trafik bryts) |
-| VPC Endpoints | S3 (Gateway, gratis), Secrets Manager + KMS (Interface) |
-| Security groups | `alb`, `ecs`, `rds`, `redis`, `vpce` (least-privilege via SG-references) |
-| RDS | Postgres 18.3, db.t4g.medium, **Multi-AZ**, gp3 20GB → 100GB auto-scale, KMS-encrypted, Performance Insights, Enhanced Monitoring |
+| VPC Endpoints | S3 Gateway (gratis). Interface-endpoints (SM + KMS) **AV i dev** — sparar ~$22/mån; SM/KMS-trafik går via NAT istället. |
+| Security groups | `alb`, `ecs`, `rds`, `redis` (`vpce` skapas bara om interface-endpoints aktiveras) |
+| RDS | Postgres 18.3, **db.t4g.micro Single-AZ**, gp3 20GB → 100GB auto-scale, KMS-encrypted, Performance Insights, Enhanced Monitoring |
 | RDS master-pwd | AWS-managed via Secrets Manager (auto-rotation 7d default) |
-| ElastiCache | Valkey 8.0, cache.t4g.small × 2 noder, multi-AZ failover, transit + at-rest encryption, AUTH-token i Secrets Manager |
+| ElastiCache | Valkey 8.0, **cache.t4g.micro × 1 nod (single primary)**, transit + at-rest encryption, AUTH-token i Secrets Manager |
 | Secrets-placeholders | `jobbpilot/dev/db/app-connection-string` + `jobbpilot/dev/db/hangfire-storage-connection-string` (sätts post-DDL i STEG 14) |
 
 ## Körning
@@ -89,14 +90,30 @@ aws ecs execute-command --cluster <cluster> --task <task-id> --container api --c
 - DDL-init av Hangfire-schema + jobbpilot_app/jobbpilot_worker-roller (operativt, runbook `hangfire-schema.md §3-4`)
 - KnownNetworks-overlay-värde i task-def env-vars (= VPC-CIDR `10.0.0.0/16`)
 
-## Kostnad — baseline ~$140/mån utan trafik
+## Kostnad — baseline ~$30/mån utan trafik
 
 | Resurs | ~$/mån |
 |---|---|
-| RDS db.t4g.medium Multi-AZ + 20GB gp3 | ~$60 |
-| ElastiCache cache.t4g.small × 2 | ~$25 |
+| RDS db.t4g.micro Single-AZ + 20GB gp3 | ~$13 |
+| ElastiCache cache.t4g.micro × 1 | ~$8 |
 | NAT Gateway (single) | ~$32 + data |
-| VPC Endpoints (3 Interface) | ~$22 |
+| S3 Gateway endpoint | $0 (gratis) |
+| **Totalt** | **~$53/mån** |
+
+Med `monthly_budget_usd=50` triggar 100%-alert vid första hela debiteringscykel. Acceptabelt — det är den varning vi vill ha. Vid behov: höj till $80 vid Fas 2 (JobTech-trafik) eller `terraform destroy` mellan utvecklingspass.
+
+**Att göra dev billigare:**
+- Kör `terraform destroy` när du inte aktivt utvecklar (~15 min apply-tid att återskapa). Sparar ~$1,75/dag.
+- Sätt `single_nat_gateway = false` *inte* — multi-NAT är dyrare, inte billigare. Lean-dev har redan single NAT.
+- NAT Gateway är dominant cost (~$32/mån). Att ta bort den helt kräver re-design (ECS i public subnets eller VPC Endpoints för ECR + Bedrock — komplext).
+
+**Kostnadsskillnad mot prod-spec (BUILD.md §15.1, för senare staging/prod):**
+| Resurs | Dev (lean) | Prod (BUILD.md §15.1) |
+|---|---|---|
+| RDS | t4g.micro Single-AZ | t4g.medium Multi-AZ (~$60/mån) |
+| Redis | t4g.micro × 1 | t4g.small × 2 Multi-AZ (~$25/mån) |
+| Interface VPC Endpoints | Av | På (~$22/mån) |
+| Multi-AZ NAT (ev. prod) | Av | Av/på (~$96/mån om på) |
 
 ## Cleanup
 

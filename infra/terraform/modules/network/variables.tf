@@ -33,10 +33,16 @@ variable "single_nat_gateway" {
   default     = true
 }
 
-variable "enable_vpc_endpoints" {
-  description = "Skapa Interface VPC Endpoints för Secrets Manager + KMS samt Gateway-endpoint för S3."
+variable "enable_s3_endpoint" {
+  description = "Skapa S3 Gateway endpoint (gratis, attachas till privata route-tables)."
   type        = bool
   default     = true
+}
+
+variable "enable_interface_endpoints" {
+  description = "Skapa Interface VPC Endpoints för Secrets Manager + KMS (~$22/mån för 3-AZ × 2 endpoints). Lean dev = false; staging/prod sätter true explicit för att undvika SM/KMS-trafik via NAT."
+  type        = bool
+  default     = false
 }
 
 variable "tags" {

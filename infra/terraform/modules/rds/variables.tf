@@ -25,9 +25,9 @@ variable "engine_version" {
 }
 
 variable "instance_class" {
-  description = "RDS-instance-class. BUILD.md §15.1: db.t4g.medium."
+  description = "RDS-instance-class. Lean dev-default; staging/prod sätter db.t4g.medium eller större explicit (BUILD.md §15.1)."
   type        = string
-  default     = "db.t4g.medium"
+  default     = "db.t4g.micro"
 }
 
 variable "allocated_storage" {
@@ -43,9 +43,9 @@ variable "max_allocated_storage" {
 }
 
 variable "multi_az" {
-  description = "Multi-AZ deployment (HA + automatisk failover). BUILD.md §15.1: true."
+  description = "Multi-AZ deployment (HA + automatisk failover). Lean dev-default false; staging/prod sätter true explicit (BUILD.md §15.1)."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "db_name" {

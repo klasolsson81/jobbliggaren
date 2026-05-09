@@ -28,9 +28,9 @@ variable "rds_engine_version" {
 }
 
 variable "rds_instance_class" {
-  description = "RDS-instance-class."
+  description = "RDS-instance-class. Lean dev = micro; staging/prod sätter db.t4g.medium explicit."
   type        = string
-  default     = "db.t4g.medium"
+  default     = "db.t4g.micro"
 }
 
 variable "redis_engine" {
@@ -52,9 +52,9 @@ variable "redis_parameter_group_family" {
 }
 
 variable "redis_node_type" {
-  description = "ElastiCache node-type."
+  description = "ElastiCache node-type. Lean dev = micro; staging/prod sätter cache.t4g.small explicit."
   type        = string
-  default     = "cache.t4g.small"
+  default     = "cache.t4g.micro"
 }
 
 variable "common_tags" {

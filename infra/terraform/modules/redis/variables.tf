@@ -37,33 +37,33 @@ variable "parameter_group_family" {
 }
 
 variable "node_type" {
-  description = "Node-type. BUILD.md §15.1: cache.t4g.small."
+  description = "Node-type. Lean dev-default; staging/prod sätter cache.t4g.small explicit (BUILD.md §15.1)."
   type        = string
-  default     = "cache.t4g.small"
+  default     = "cache.t4g.micro"
 }
 
 variable "num_cache_clusters" {
-  description = "Antal noder i replication-gruppen (1 primary + N-1 replicas). BUILD.md §15.1: 2."
+  description = "Antal noder i replication-gruppen (1 primary + N-1 replicas). Lean dev = 1; staging/prod sätter 2 explicit."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "automatic_failover_enabled" {
-  description = "Aktivera automatisk failover. Kräver minst 2 noder."
+  description = "Aktivera automatisk failover. Kräver minst 2 noder. Lean dev = false."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "multi_az_enabled" {
-  description = "Sprid replicas över AZs."
+  description = "Sprid replicas över AZs. Kräver automatic_failover_enabled = true. Lean dev = false."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "snapshot_retention_days" {
-  description = "Antal dagar daily snapshots behålls."
+  description = "Antal dagar daily snapshots behålls. Lean dev = 1; staging/prod sätter 7 explicit."
   type        = number
-  default     = 7
+  default     = 1
 }
 
 variable "tags" {

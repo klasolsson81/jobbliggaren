@@ -1,7 +1,7 @@
 # JobbPilot — STEG-tracker
 
-> **Version:** 1.6
-> **Senast uppdaterad:** 2026-05-08
+> **Version:** 1.7
+> **Senast uppdaterad:** 2026-05-09
 > **Roll:** permanent översikt över STEG- och fas-progression.
 
 Kompletteras av:
@@ -65,6 +65,7 @@ STEG-numrering följer faktisk arbetsutveckling och mappar inte exakt mot fas-gr
 | STEG 9 | Fas 1+2/3 förskott | Worker-pipeline-aktivering + Hangfire-infrastruktur (ADR 0023). DI-modulär refaktor (`AddPersistence`/`AddIdentityAndSessions`/`AddHttpAuditing`). 3 Worker-stubs av audit-portarna. `DetectGhostedApplicationsJob` orchestrator + `StaleApplicationSpecification`. Application-aggregat utökat med `LastStatusChangeAt` + `GhostedThresholdDays` (per Application, BUILD.md §schema). Migration `AddApplicationStaleDetectionFields` (NOW()-backfill, partial index). **Pipeline-bug-fix:** `AddMediatorPipelineBehaviors()` (open-generic DI) ersätter trasig `options.PipelineBehaviors`-fält-reference. Newtonsoft.Json 13.0.3 transitiv CVE-pinning. +32 tester (9 Domain + 12 Application + 5 Architecture + 6 Worker SmokeTest). | 2026-05-08 |
 | STEG 10a | Fas 1 | Audit-log retention via PostgreSQL native daily partitioning + Hangfire-jobb (ADR 0024 D1+D2). `audit_log` konverterad till `PARTITION BY RANGE (occurred_at)` med komposit-PK `(id, occurred_at)`. Migration `AddAuditLogPartitioning` (rename → 7 bootstrap-partitions + default → INSERT-SELECT med explicit kolumnlista → DROP legacy). `IAuditPartitionMaintainer`-port + impl + `AuditLogRetentionJob`-orchestrator. Hangfire-cron 03:00 UTC daily. Idempotent (`CREATE IF NOT EXISTS`). 3 nya arch-tester för bypass-isolering. 4 nya smoke-tester. Runbook `docs/runbooks/audit-retention.md`. **Stänger del 1 av TD-16** (Art. 5(1)(e) Storage Limitation). TD-20 ny (defensiv refactor av SqlQueryRaw → SqlQuery<FormattableString>, defererad). +7 tester (3 arch + 4 smoke). | 2026-05-08 |
 | STEG 10b | Fas 1 | DELETE /me + GDPR Art. 17-cascade + HardDeleteAccountsJob (ADR 0024 D3+D4+D5+D6). `IAuditTrailEraser`-port + impl (audit-bypass via direct SQL UPDATE). `DeleteAccountCommand` + handler (cascade soft-delete + idempotent). `DELETE /api/v1/me`-endpoint + post-commit session-invalidering via secondary Redis-set. `LoginCommandHandler` D5-blockering vid `JobSeeker.DeletedAt` (returnerar `Auth.InvalidCredentials`, inte `AccountPendingDeletion` — sec-fix mot info disclosure). `IAccountHardDeleter` + `AccountHardDeleter` cross-context impl. `HardDeleteAccountsJob` orchestrator: Steg 0 orphan-cleanup + Steg 1 hämta mogna + Steg 2 explicit transaction (anonymize audit + hard-delete cascade) + separat Identity-DELETE-boundary. Cron 04:00 UTC daily. `AddCoreIdentityForWorker`-extension (HTTP-fri Identity för Worker, utan AddDefaultTokenProviders). 4 nya arch-tester + 6 nya smoke-tester + 5 nya integration-tester + 2 unit-tester (D5). Runbook `docs/runbooks/account-deletion.md`. **Stänger TD-16 helt.** TD-21-25 nya (rate-limiting prod-blockare, app-logg-retention prod-blockare, Redis MULTI/EXEC defensiv refactor, cascade-paginering Fas 4, per-konto try/catch opportunistiskt). +17 tester (2 unit + 4 arch + 6 worker smoke + 5 api integration). | 2026-05-08 |
+| STEG 11 | Fas 1 | **Fas 1 prod-deploy-blockare-cleanup** (TD-22 → TD-17 → TD-21). **TD-22** stängd: `IIpAnonymizer`-port (Application) + impl (Infrastructure) lyft från `RequestContextProvider`-private metod, konsumeras nu även av `AuthAuditLogger` så app-loggens IP /24+/48-anonymiseras vid logg-tid. ADR 0024 D7 (App-logg-redaction + 30d CloudWatch-retention som matchar Art. 17-fönstret). EmailHash-HMAC defererad till Fas 2 → ny TD-27. **TD-17** stängd 5/6 punkter: `HangfireWorkerOptions` config-driven (allow-list-defense `IsDevelopment\|\|IsEnvironment(Test)` för PrepareSchemaIfNecessary, fail-loud-throw utanför), `BackgroundJobServerOptions.ShutdownTimeout=25s` + `HostOptions.ShutdownTimeout+3s` (Fargate SIGTERM 30s grace), cron-kollision åtgärdad (detect-ghosted 03:00 → 03:30 UTC), runbook `hangfire-schema.md` (Install.sql-export, GRANT-modell med REVOKE PUBLIC, 8-punkts dashboard-auth-checklista, kalibrerings-fas, idempotency-tabell). Punkt 4 (ConnectionStrings split) defererad till Fas 0-stängning (kräver två AWS Secrets Manager-poster). **TD-21** stängd: tre rate-limit-policies (account-deletion 1/60s per UserId med NoLimiter för anonymous, auth-write 20/min per IP, auth-loose 30/min per IP), `UseForwardedHeaders` middleware (KnownNetworks-prod-konfig defererad till runbook §3.3 pre-launch-gate), `OnRejected`-callback med LoggerMessage source-gen + Retry-After-header (RFC 6585), separat `StrictRateLimitApiFactory` för isolerad 429-integration-test, `parallelizeTestCollections=false` så env-var-overlay inte race:ar. Frontend typed-confirmation-UX defererad → ny TD-28. **Reviews:** alla 3 backend-block fick security-auditor + code-reviewer parallellt (TD-21 även re-review efter Sec-Major-fixes). 0 Critical/Blocker, alla Major-fynd fixade in-block. +27 tester (8 IpAnonymizer + 4 AuthAuditLogger inkl IPv6 + 1 IIpAnonymizer arch-test + 5 HangfireWorkerOptions + 6 RateLimitingOptions + 2 AuthWriteRateLimit + 1 strict-fixture). Backend totalt 502 tester gröna. | 2026-05-09 |
 
 ### Pågående
 
@@ -74,7 +75,7 @@ STEG-numrering följer faktisk arbetsutveckling och mappar inte exakt mot fas-gr
 
 | STEG | Fas | Beskrivning | Status |
 |------|-----|-------------|--------|
-| STEG 11 | Fas 0/1 | **Ej beslutat.** Återstående Fas 1 prod-deploy-blockare: TD-17 (Hangfire prod-härdning), TD-21 (rate-limiting), TD-22 (app-logg-retention — kräver Klas-policy-beslut). Eller: Fas 0-stängning (deploy + GitHub Actions CI/CD + bootstrap-IAM-cleanup). Eller: fortsätt Fas 1-features. | Behöver beslutas |
+| STEG 12 | Fas 0/1 | **Ej beslutat.** Tre primära kandidater: (a) Fas 0-stängning (första deploy till dev.jobbpilot.se + GitHub Actions CI/CD + bootstrap-IAM-cleanup + applicering av STEG 11:s pre-launch-gates: CloudWatch retention=30, ALB ForwardedHeaders KnownNetworks, ConnectionStrings split, Hangfire schema-DDL via runbook). (b) Fortsätt Fas 1-features (Application UX-pass, Resume-version-Tailored, etc.). (c) Hangfire.AspNetCore-paket-trim (TD-19 Worker HTTP-fri-disciplin, opportunistic). | Behöver beslutas |
 
 ## 4. Mellan-arbete
 
@@ -86,7 +87,7 @@ Cleanup-passningar, disciplin-uppgraderingar och dokumentations-arbete som inte 
 
 ## 5. Aktuellt
 
-**STEG-fokus:** STEG 10b klar 2026-05-08. DELETE /me + GDPR Art. 17-cascade + HardDeleteAccountsJob (ADR 0024 D3-D6). **TD-16 STÄNGD HELT.** Inga aktiva STEG.
+**STEG-fokus:** STEG 11 klar 2026-05-09. **Alla Fas 1 prod-deploy-blockare stängda för kod-delen** (TD-22 + TD-17 + TD-21). Operativa pre-launch-gates dokumenterade i runbooks (CloudWatch retention=30, ALB ForwardedHeaders KnownNetworks, Hangfire schema-DDL, ConnectionStrings split). Inga aktiva STEG.
 
 **STEG 7a** (Resume-aggregat backend): Komplett 2026-05-08.
 
@@ -106,33 +107,54 @@ Cleanup-passningar, disciplin-uppgraderingar och dokumentations-arbete som inte 
 
 **STEG 10b** (DELETE /me + Art. 17-cascade): Komplett 2026-05-08. ADR 0024 D3-D6. Två CC-design-frågor besvarade: secondary Redis-set för InvalidateAllForUserAsync + ny IAppDbContext-injektion i LoginCommandHandler. Säkerhets-fix från audit: returnera `Auth.InvalidCredentials` istället för `AccountPendingDeletion` för att undvika info disclosure (GDPR Art. 32). `AddCoreIdentityForWorker`-extension löser cross-context-fråga (Worker behöver UserManager utan HTTP-bagage). +17 tester totalt. TD-16 stängd. TD-21-25 nya (varav TD-21+TD-22 är Fas 1 prod-blockare).
 
-**Nästa:** STEG 11 — kräver beslut. Se §6.
+**STEG 11** (Fas 1 prod-blockare-cleanup): Komplett 2026-05-09. Tre block i ordning TD-22 → TD-17 → TD-21, alla med parallella security-auditor + code-reviewer reviews per CLAUDE.md §9.2. **TD-22:** ADR 0024 D7 (App-logg-redaction + 30d retention). `IIpAnonymizer`-port lyft från privat metod, konsumeras nu av både audit-pipeline och AuthAuditLogger. **TD-17:** 5/6 punkter stängda — config-driven Hangfire-options med allow-list production-defense, Fargate SIGTERM 25s+3s timeout-kedja, runbook med GRANT-modell + REVOKE PUBLIC + 8-punkts dashboard-checklista. Punkt 4 (ConnectionStrings split) defererad till Fas 0-stängning. **TD-21:** rate-limiting på DELETE /me (1/60s per UserId med NoLimiter för anonymous) + auth-endpoints (20/min auth-write OWASP-CGN-kompatibel, 30/min auth-loose). UseForwardedHeaders + OnRejected med LoggerMessage source-gen + Retry-After (RFC 6585). Separat StrictRateLimitApiFactory för isolerad 429-integration-test. **Nya TD:** TD-27 (EmailHash-HMAC Fas 2), TD-28 (frontend typed-confirmation-UX). +27 tester. Backend 502 totalt.
+
+**Lärdomar STEG 11:**
+- `IConfiguration.GetSection().Get<>()` direkt vid Program.cs-startup istället för `IOptions<>` är OK när värdet bara läses vid host-uppstart — håller direct-binding-elegansen
+- Allow-list production-defense (`IsDevelopment\|\|IsEnvironment("Test")`) > pure `IsProduction()` så Staging/Preprod/Demo inte tappar skydd
+- xUnit `parallelizeTestCollections=false` krävs när två separata fixturer delar process-globala env-vars (här: rate-limit-overlay)
+- Hangfire.AspNetCore drar in Microsoft.AspNetCore.* — bryter mot ADR 0023 Worker HTTP-fri-disciplin. Trim defererad till TD-19 Fas 2.
+- LoggerMessage source-gen är obligatorisk under CA1848 i JobbPilot — `_logger.LogWarning(...)` i hot path bryter build
+
+**Nästa:** STEG 12 — kräver beslut. Se §6.
 
 För session-detaljer och commit-historik, se `docs/current-work.md`.
 
 ## 6. Nästa STEG
 
-**STEG 10b — DELETE /me + Art. 17-cascade**
+**STEG 12 — kräver beslut.** Tre primära kandidater:
 
-ADR 0024 D3+D4+D5+D6 är designade i webb-Claude och justerade efter STEG 10.1-discovery. Implementation är bounded:
+**Alt A — Fas 0-stängning (rekommenderad efter STEG 11)**
 
-**Komponenter:**
-- `IAuditTrailEraser`-port + Infrastructure-impl (audit-bypass-pattern via direct SQL UPDATE)
-- `DeleteAccountCommand` som samlat Mediator-command (cascade soft-delete: JobSeeker + alla Application + alla Resume)
-- `DELETE /me`-endpoint i `MeEndpoints.cs` + post-commit `InvalidateAllForUserAsync`
-- `LoginCommandHandler`-blockering vid `JobSeeker.DeletedAt is not null` (kräver ny `IAppDbContext`-injektion)
-- `HardDeleteAccountsJob`-orchestrator: Steg 0 orphan-cleanup + Steg 1 hämta soft-deletade > 30 dagar + Steg 2 hard-delete med explicit transaction + separat Identity-DELETE-boundary
-- Architecture-test för `IAuditTrailEraser`-bypass-isolering (analog 10.7)
-- Smoke-test för Art. 17-cascade + hard-delete
-- Integration-test för DELETE /me end-to-end
-- Runbook `docs/runbooks/account-deletion.md`
+Applicera STEG 11:s pre-launch-gates och göra första prod-deploy:
+- Första deploy till dev.jobbpilot.se via GitHub Actions tag-pipeline (BUILD.md §15.3)
+- AWS-konfig:
+  - CloudWatch LogGroups retention=30 (TD-22 / aws-setup.md §3.2)
+  - ALB ForwardedHeaders KnownNetworks=VPC-CIDR (TD-21 / aws-setup.md §3.3)
+  - ConnectionStrings split: jobbpilot_app + jobbpilot_worker AWS Secrets Manager (TD-17 punkt 4 / hangfire-schema.md §4)
+  - Hangfire schema-DDL via Install.sql körd av jobbpilot_migrations-roll (hangfire-schema.md §3)
+  - REVOKE ALL ON SCHEMA hangfire FROM PUBLIC innan GRANT (Sec-Major-2 STEG 11)
+- Bootstrap-IAM-user raderad (aws-setup.md §3.4)
+- appsettings.Production.json med:
+  - `Hangfire:PrepareSchemaIfNecessary: false`
+  - `Hangfire:ShutdownTimeoutSeconds: 25`
+- security-auditor invokeras vid Fas 0-block (deployment + IAM-cleanup)
 
-**Två öppna CC-design-frågor inom ADR-ramen:**
+**Alt B — Fortsätt Fas 1-features**
 
-1. **`ISessionStore.InvalidateAllForUserAsync`-strategi** (ADR 0017 listar metoden som deferred): bygg secondary Redis-set `user:{userId}:sessions` (rek — proper bulk invalidation) eller SCAN-fallback (O(N) över alla session-nycklar — temporary, dokumenterat som tech-debt)
-2. **`LoginCommandHandler`-blockering**: ny `IAppDbContext`-injektion (rek — standard pattern) för att hämta JobSeeker.DeletedAt mellan validate-credentials och session-create
+Per BUILD.md §18 milstolpe "manuell CV + 'fake' ansökningar":
+- Application Management UX-pass (Resume-version-Tailored, status-flöde-polish)
+- Andra Fas 1-features
 
-**Status:** Designed, redo att implementeras. Klas beslutar startdatum.
+**Alt C — TD-19 Worker defense-in-depth-cleanup (mindre scope)**
+
+- Hangfire.AspNetCore → Hangfire.NetCore (Worker HTTP-fri-disciplin per ADR 0023)
+- Architecture-test-utökning till allow-list-pattern
+- Worker-orchestrator max-batch-size-guard
+
+**Min rek:** Alt A naturlig efter STEG 11 — alla pre-launch-gates dokumenterade, Klas applicerar dem operativt och får första prod-miljö. Vid Alt B finns risk att STEG 11:s dokumentation åldras innan den används.
+
+**Status:** Behöver beslutas av Klas.
 
 ## 7. Numreringsfotnot
 

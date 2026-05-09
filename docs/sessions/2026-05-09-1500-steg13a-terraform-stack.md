@@ -214,3 +214,24 @@ Min rek: **Alt 1 först** så vi får apply-feedback (Valkey/PG version-stränga
 - Redis AUTH-rotation runbook (`docs/runbooks/redis-auth-rotation.md`) — STEG 13b
 - Redis CloudWatch-export aktivering — STEG 13b
 - Bootstrap-IAM-user cleanup — STEG 14 sista steg per `aws-setup.md §3.4`
+
+## Post-session: lean-cost-justering 2026-05-09 (samma datum, ~kl 15:30)
+
+Klas påpekade att budget-bumpen $50→$200 missade hans cost-prio. Ursprungliga modul-defaults var BUILD.md §15.1 prod-spec (~$140/mån för dev). Lean-cost-justering (Alt B från val-tabellen):
+
+- `modules/rds/`: `instance_class` default `db.t4g.medium` → `db.t4g.micro`, `multi_az` default `true` → `false`
+- `modules/redis/`: `node_type` default `cache.t4g.small` → `cache.t4g.micro`, `num_cache_clusters` default `2` → `1`, `automatic_failover_enabled` + `multi_az_enabled` defaults `true` → `false`, `snapshot_retention_days` default `7` → `1`
+- `modules/network/`: split `enable_vpc_endpoints` (bool) → `enable_s3_endpoint` (default true) + `enable_interface_endpoints` (default false). S3 Gateway gratis kvar; Interface (SM + KMS, ~$22/mån) av i lean-dev.
+- `environments/dev/main.tf`: ta bort explicit `multi_az = true`, `num_cache_clusters = 2`, `enable_vpc_endpoints = true` — alla defaultar till lean nu. Sätter explicit `enable_interface_endpoints = false`.
+- `environments/dev/variables.tf`: `rds_instance_class` + `redis_node_type` defaults sänkta för konsistens med modul-defaults.
+- `environments/prod/terraform.tfvars`: `monthly_budget_usd = 200` reverterad (kommenterad ut igen).
+- `environments/dev/README.md`: cost-tabell uppdaterad till ~$30/mån (RDS t4g.micro Single-AZ ~$13 + Redis t4g.micro × 1 ~$8 + NAT $32).
+
+**Princip kvar för staging/prod:** modul-defaults är lean; staging/prod-stacks sätter explicit `multi_az = true`, `num_cache_clusters = 2`, `automatic_failover_enabled = true`, `enable_interface_endpoints = true` etc. när de skapas.
+
+**Resultat:** dev kostar ~$30-50/mån istället för ~$140. $50-budget-alert står kvar som tidig varning.
+
+**Lärdom (post-session):**
+- Cost-policy ska vara explicit i variabel-defaults, inte i env-stack-overrides. Lean-default → staging/prod uppgraderar; prod-default → dev måste downgrade. Förra är cost-säkrare.
+- Budget = alert ≠ spending-cap. Sänkning av faktiska resurser > höjning av alert-tröskel.
+- BUILD.md §15.1 specar prod, inte dev. Översättning kräver justering, inte 1:1-mappning.

@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** STEG 13a KLAR (kod-skriven, ej applied). Terraform dev-stack: network + RDS + ElastiCache moduler + `environments/dev/`-stack + ADR 0025 (ECS-egress Fas 0-acceptance). Sec-Major-1 + Sec-Minor-6 fixade in-block. Sec-Major-2 ADR-accepterad. Nästa: **operativa pre-apply-steg** (SSO-login, budget-höjning, AWS-version-verifiering, `terraform apply`) ELLER **STEG 13b** (containerinfra: ECR + ECS + ALB + Route53 + ACM + Dockerfiles + IAM-task-roller).
+**Status:** STEG 13a KLAR (kod-skriven, ej applied). Terraform dev-stack: network + RDS + ElastiCache moduler + `environments/dev/`-stack + ADR 0025 (ECS-egress Fas 0-acceptance). Sec-Major-1 + Sec-Minor-6 fixade in-block. Sec-Major-2 ADR-accepterad. **Lean-cost-justering 2026-05-09:** modul-defaults sänkta till lean-dev (RDS t4g.micro Single-AZ, Redis t4g.micro × 1, Interface VPC Endpoints av) → ~$30/mån istället för ~$140. Budget-bump $50→$200 reverterad — $50 alert står kvar för tidig varning. Dev = deploy-pipeline-verifierare; Multi-AZ + replicas testas först i staging/prod. Nästa: **operativa pre-apply-steg** (SSO-login, AWS-version-verifiering, `terraform apply`) ELLER **STEG 13b** (containerinfra: ECR + ECS + ALB + Route53 + ACM + Dockerfiles + IAM-task-roller).
 **Senast uppdaterad:** 2026-05-09
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`
@@ -21,13 +21,13 @@
 - Public subnets `10.0.0.0/24, .1.0/24, .2.0/24` (för ALB + NAT)
 - Private subnets `10.0.10.0/24, .11.0/24, .12.0/24` (för ECS + RDS + Redis)
 - Single NAT Gateway i AZ-a (cost-optimized; ~$32/mån vs ~$96 för Multi-AZ NAT). AZ-a-failure → utgående trafik bryts. Mitigation-väg dokumenterad i README.
-- VPC Endpoints: S3 Gateway (gratis), Secrets Manager + KMS Interface (`private_dns_enabled=true`)
+- VPC Endpoints: S3 Gateway (gratis, alltid på). **Interface-endpoints (SM + KMS) AV i lean-dev** (sparar ~$22/mån; SM/KMS-trafik går via NAT istället). Staging/prod sätter `enable_interface_endpoints = true` explicit.
 - Bedrock VPC endpoint utelämnad — Bedrock-tjänsten finns ej i eu-north-1 (cross-region inference går via NAT till eu-central-1/eu-west-1)
-- 5 security groups: `alb` (80/443 från 0.0.0.0/0), `ecs` (8080 från ALB-SG), `rds` (5432 från ECS-SG), `redis` (6379 från ECS-SG), `vpc_endpoints` (443 från ECS-SG). Strikt principal-based via `referenced_security_group_id`.
+- Security groups: `alb` (80/443 från 0.0.0.0/0), `ecs` (8080 från ALB-SG), `rds` (5432 från ECS-SG), `redis` (6379 från ECS-SG). `vpc_endpoints` (443 från ECS-SG) skapas bara om interface-endpoints aktiveras. Strikt principal-based via `referenced_security_group_id`.
 
-#### Block 2 — `modules/rds/` (Postgres 18.3 Multi-AZ)
+#### Block 2 — `modules/rds/` (Postgres 18.3, lean-dev defaults)
 
-- Engine `postgres` 18.3, db.t4g.medium, Multi-AZ, gp3 20GB → 100GB auto-scale
+- Engine `postgres` 18.3, **db.t4g.micro Single-AZ** (lean dev-default; staging/prod sätter db.t4g.medium Multi-AZ explicit), gp3 20GB → 100GB auto-scale
 - `manage_master_user_password=true` (AWS-managed Secrets Manager + auto-rotation 7d default)
 - KMS-encryption på storage + master-secret + Performance Insights (alla på `alias/jobbpilot-master-key`)
 - `deletion_protection=true` + `skip_final_snapshot=false` + `final_snapshot_identifier` med `timestamp()` + `lifecycle.ignore_changes`

@@ -59,10 +59,10 @@ builder.Services.AddMediatorPipelineBehaviors();
 // default är PUBLIK. Dashboard exponerar job-arguments (user-IDs/aggregat-IDs)
 // och stack-traces (potentiellt PII). Se docs/runbooks/hangfire-schema.md.
 //
-// TD-17 punkt 4 (ConnectionStrings split för least-privilege) är defererad till
-// prod-deploy — ingen kostnad i dev. Runbook-procedur dokumenterad.
-var hangfireConnectionString = builder.Configuration.GetConnectionString("Postgres")
-    ?? throw new InvalidOperationException("ConnectionStrings:Postgres saknas i konfiguration.");
+// TD-17 punkt 4 — split jobbpilot_app (Postgres) / jobbpilot_worker (HangfireStorage)
+// via fallback-kedja. Prod-overlay sätter HangfireStorage; dev faller tillbaka på
+// Postgres. Resolver lyft till testbar statisk metod (STEG 12).
+var hangfireConnectionString = HangfireConnectionStringResolver.Resolve(builder.Configuration);
 
 var hangfireOpts = builder.Configuration.GetSection(HangfireWorkerOptions.SectionName)
     .Get<HangfireWorkerOptions>() ?? new HangfireWorkerOptions();

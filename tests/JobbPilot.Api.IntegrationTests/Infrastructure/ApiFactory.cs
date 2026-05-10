@@ -9,6 +9,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 
@@ -53,6 +54,19 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Program.cs läser ASPNETCORE_ENVIRONMENT INNAN denna callback körs.
         // Verklig env-override sker via env-var i InitializeAsync nedan.
         builder.UseEnvironment("Development");
+
+        // TD-37 debug: aktiv console-logger så ASP.NET-internal pipeline-fel
+        // (Identity, EF Core, etc.) syns i CI-stdout.
+        builder.ConfigureLogging(logging =>
+        {
+            logging.ClearProviders();
+            logging.AddSimpleConsole(opts =>
+            {
+                opts.SingleLine = true;
+                opts.IncludeScopes = false;
+            });
+            logging.SetMinimumLevel(LogLevel.Information);
+        });
 
         builder.ConfigureServices(services =>
         {

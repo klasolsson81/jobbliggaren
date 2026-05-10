@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
+import { getMyProfile } from "@/lib/api/me";
+import { MeProfileForm } from "@/components/me/me-profile-form";
 import {
   Card,
   CardHeader,
@@ -11,9 +13,12 @@ export default async function MigPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const profile = await getMyProfile();
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-h1 font-medium text-text-primary">Min profil</h1>
+
       <Card className="max-w-lg">
         <CardHeader>
           <CardTitle>Kontoinformation</CardTitle>
@@ -39,6 +44,21 @@ export default async function MigPage() {
               </dd>
             </div>
           </dl>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-lg">
+        <CardHeader>
+          <CardTitle>Profil</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {profile ? (
+            <MeProfileForm initialProfile={profile} />
+          ) : (
+            <p className="text-body text-text-secondary" role="alert">
+              Kunde inte hämta din profil. Försök ladda om sidan.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

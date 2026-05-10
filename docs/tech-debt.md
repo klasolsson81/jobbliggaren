@@ -1164,7 +1164,23 @@ failer.
 
 ---
 
-## TD-31: Test för UseHttpsRedirection env-gate (Sec-Major-2 anti-regression)
+## TD-31: Test för UseHttpsRedirection env-gate (Sec-Major-2 anti-regression) ✓ STÄNGD Fas 1 Block A3 (2026-05-10)
+
+**Status:** **STÄNGD** 2026-05-10 via Fas 1 Block A3.
+- 3 integration-tester implementerade i `tests/JobbPilot.Api.IntegrationTests/Configuration/UseHttpsRedirectionGateTests.cs`
+  - Test 1: Production + Alb:HttpsEnabled=false → 200 (UseHttpsRedirection ej registrerad)
+  - Test 2: Production + Alb:HttpsEnabled=true → 307 + Location: https://
+  - Test 3: Development → 307 (default-redirect via dev-cert)
+- Pattern: abstract base + 3 sealed concrete factories (matchar ProductionStartupFactory + TD-37-läxor)
+- `PostConfigure<HttpsRedirectionOptions>(opts => opts.HttpsPort = 443)` löser middleware HTTPS-port-resolution i test-host
+- Verifierat: 557/557 dotnet test PASS (var 554, +3 nya)
+- Reviews: code-reviewer APPROVED, dotnet-architect APPROVED-with-fixes (Mindre 1+3 fixade in-block)
+- Originalbeskrivning bevaras nedan för audit-trail
+
+---
+
+**Originalbeskrivning (TD-31, code-reviewer STEG 13b 2026-05-09):**
+
 **Kategori:** Testing / Security
 **Severity:** Minor
 **Källa:** code-reviewer, STEG 13b-fix-review (2026-05-09)

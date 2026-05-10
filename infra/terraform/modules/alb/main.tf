@@ -91,10 +91,15 @@ resource "aws_lb_listener" "http" {
       redirect {
         port     = "443"
         protocol = "HTTPS"
-        # HTTP_308 (Permanent Redirect) bevarar request-method (POST→POST).
-        # 301 tillåter klienter att downgrad:a POST→GET vilket kan tappa
-        # request-body (security-auditor Sec-Minor STEG 13c).
-        status_code = "HTTP_308"
+        # AWS ALB RedirectActionConfig.StatusCode validerar mot enbart
+        # HTTP_301 | HTTP_302 (hardcoded i AWS-API; ej valideringsbart via
+        # terraform validate). HTTP_308 vore teoretiskt önskvärt för POST-
+        # method-bevarande (security-auditor Sec-Minor STEG 13c) men inte
+        # implementerbart utan Lambda@Edge eller CloudFront-rewrite.
+        # Mitigation Fas 0: HSTS + browser-cache gör att POST-anrop går direkt
+        # till HTTPS efter första GET; den enda 301-redirect klienten ser är
+        # initial GET vilket inte påverkas av method-downgrade.
+        status_code = "HTTP_301"
       }
     }
   }

@@ -1,7 +1,7 @@
 # Current work — JobbPilot
 
-**Status:** STEG 13b KLAR (kod-skriven, ej applied). Container-infra: 5 nya Terraform-moduler (ecr, cloudwatch_logs, iam_ecs, alb, ecs) + Dockerfiles (Api + Worker) + `/api/ready`-endpoint + AlbOptions-record. ADR 0026 (ALB HTTP-only Fas 0, 30d-tidsfönster, 5 triggers, deadline 2026-06-08). Sec-Major-1 + 2 stängda via ADR + UseHttpsRedirection env-gate. Kritisk Redis CS-mismatch fixad (single composed secret). 3 nya TDs (TD-29 readiness Fas 2, TD-30 domänköp deadline 2026-06-08, TD-31 UseHttpsRedirection-test). 4 agent-reviews i `docs/reviews/`. **Inte applied** — kräver `terraform plan` + `terraform apply` med `docker push` mellan ECR-skapning och ECS-service-startup. Total cost vid apply: ~$79/mån (RDS $13 + Redis $8 + NAT $32 + ALB $16 + ECS $7 + ECR/CW $3). Nästa: **operativ apply** (Klas) ELLER **STEG 13c** (Route53 + ACM + HTTPS-flip — kopplad till TD-30/ADR 0026-trigger 1).
-**Senast uppdaterad:** 2026-05-09
+**Status:** STEG 13b APPLIED 2026-05-10. Hela infra-stacken uppe i eu-north-1 (VPC + RDS + Redis + ECR + ALB + ECS + IAM + CW LogGroups + secrets). Api smoke-test PASS via ALB (`http://jobbpilot-dev-alb-1232220213.eu-north-1.elb.amazonaws.com/api/ready` + `/health`). Worker i restart-loop pga PLACEHOLDER DB-creds (förväntat, fixas av STEG 14 DDL+roller). 4 in-flight kod-fixar krävdes: KMS-policy CloudWatch Logs grant (prod-stack), ASCII-only SG-descriptions, Dockerfile noble base-image (.NET 10 GA bytte default OS), placeholder secret-versions med ignore_changes. Spend ~$79/mån löper från ~07:00 ($2.60/dag). ADR 0026 deadline 2026-06-08 (29 dagar). Nästa: **STEG 13c** (Route53 + ACM + HTTPS-flip) ELLER **STEG 14** (GitHub Actions + DDL-init + IAM cleanup). Klas-prio.
+**Senast uppdaterad:** 2026-05-10
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`
 
@@ -9,9 +9,23 @@
 
 ## Aktivt nu
 
-**STEG 13a klar** — kod-implementation. Ingen `terraform apply` körd än (kräver SSO-login som gått ut + budget-höjning + version-verifiering).
+**STEG 13a + 13b APPLIED 2026-05-10.** Full apply-cykel. Se session-logg `docs/sessions/2026-05-10-0730-steg13b-apply.md` för fix-detaljer (KMS-policy CloudWatch Logs grant, ASCII-only SG-descriptions, Dockerfile noble base-image, placeholder secret-versions). Api 1/1 running, Worker restart-loop tills STEG 14 sätter riktiga DB-creds. Total apply-tid 45 min (vs 25-30 min estimat — overhead pga in-flight fixar).
+
+### Apply-state
+
+| Resurs | Identifier |
+|---------|-----------|
+| ALB-DNS | `http://jobbpilot-dev-alb-1232220213.eu-north-1.elb.amazonaws.com` |
+| RDS | `jobbpilot-dev-rds.cj84yieu0qwc.eu-north-1.rds.amazonaws.com:5432` |
+| Redis | `master.jobbpilot-dev-redis.tyzmvb.eun1.cache.amazonaws.com:6379` |
+| ECR API | `710427215829.dkr.ecr.eu-north-1.amazonaws.com/jobbpilot-dev-api:latest` |
+| ECR Worker | `710427215829.dkr.ecr.eu-north-1.amazonaws.com/jobbpilot-dev-worker:latest` |
+| VPC | `vpc-0659b4386bba9dc31` |
+| ECS Cluster | `jobbpilot-dev-cluster` |
 
 ### STEG 13a — Infra-as-code-stack: networking + databas + cache (Alt A2)
+
+### STEG 13a — Infra-as-code-stack: networking + databas + cache (Alt A2) [APPLIED]
 
 **Strategi:** Per A4-sekvens (STEG 12 = A1 kod-pre-launch-gates klar; STEG 13 = A2 Terraform-stack pågår; STEG 14 = A3 GitHub Actions + första deploy + IAM-cleanup). Klas valde sub-uppdelning 13a + 13b efter discovery-rapport som visade STEG 13:s totala scope ≈ 1-3 sessioner.
 

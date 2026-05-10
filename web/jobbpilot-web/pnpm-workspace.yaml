@@ -1,3 +1,9 @@
+# pnpm 9+ kräver packages-fält när pnpm-workspace.yaml existerar.
+# JobbPilot är inte en monorepo — workspace-filen finns bara för
+# ignoredBuiltDependencies-config. `packages: ['.']` deklarerar solo-projekt.
+packages:
+  - .
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver

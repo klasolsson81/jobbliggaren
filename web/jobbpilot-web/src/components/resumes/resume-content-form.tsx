@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,13 +135,34 @@ function toRawPayload(values: FormValues): RawContentPayload {
   };
 }
 
+type FieldError = { path: string | null; message: string };
+
+const ERROR_ID = "content-form-error";
+
+function pathToElementId(path: string): string | null {
+  if (path.startsWith("personalInfo.")) {
+    return `pi-${path.slice("personalInfo.".length)}`;
+  }
+  if (path === "summary") return "summary";
+  const exp = path.match(/^experiences\.(\d+)\.(.+)$/);
+  if (exp) return `exp-${exp[1]}-${exp[2]}`;
+  const edu = path.match(/^educations\.(\d+)\.(.+)$/);
+  if (edu) return `edu-${edu[1]}-${edu[2]}`;
+  const skill = path.match(/^skills\.(\d+)\.(.+)$/);
+  if (skill) {
+    const field = skill[2] === "yearsExperience" ? "years" : skill[2];
+    return `skill-${skill[1]}-${field}`;
+  }
+  return null;
+}
+
 export function ResumeContentForm({
   resumeId,
   initialContent,
 }: ResumeContentFormProps) {
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<FieldError | null>(null);
 
   const { register, control, handleSubmit } = useForm<FormValues>({
     defaultValues: toFormValues(initialContent),
@@ -151,6 +172,20 @@ export function ResumeContentForm({
   const experiences = useFieldArray({ control, name: "experiences" });
   const educations = useFieldArray({ control, name: "educations" });
   const skills = useFieldArray({ control, name: "skills" });
+
+  function fieldA11y(path: string) {
+    return serverError?.path === path
+      ? ({ "aria-invalid": true, "aria-describedby": ERROR_ID } as const)
+      : {};
+  }
+
+  useEffect(() => {
+    if (!serverError?.path) return;
+    const elementId = pathToElementId(serverError.path);
+    if (elementId) {
+      document.getElementById(elementId)?.focus();
+    }
+  }, [serverError]);
 
   function onSubmit(values: FormValues) {
     setServerError(null);
@@ -162,9 +197,9 @@ export function ResumeContentForm({
       const first = parsed.error.issues[0];
       if (first) {
         const path = first.path.join(".");
-        setServerError(path ? `${first.message} (fält: ${path})` : first.message);
+        setServerError({ path: path || null, message: first.message });
       } else {
-        setServerError("Ogiltiga uppgifter.");
+        setServerError({ path: null, message: "Ogiltiga uppgifter." });
       }
       return;
     }
@@ -174,7 +209,7 @@ export function ResumeContentForm({
         parsed.data as ResumeContentDto
       );
       if (!result.success) {
-        setServerError(result.error);
+        setServerError({ path: null, message: result.error });
         return;
       }
       setSavedAt(new Date());
@@ -191,6 +226,7 @@ export function ResumeContentForm({
             <Input
               id="pi-fullName"
               {...register("personalInfo.fullName")}
+              {...fieldA11y("personalInfo.fullName")}
               maxLength={200}
               required
               disabled={isPending}
@@ -202,6 +238,7 @@ export function ResumeContentForm({
               id="pi-email"
               type="email"
               {...register("personalInfo.email")}
+              {...fieldA11y("personalInfo.email")}
               disabled={isPending}
             />
           </div>
@@ -211,6 +248,7 @@ export function ResumeContentForm({
               id="pi-phone"
               type="tel"
               {...register("personalInfo.phone")}
+              {...fieldA11y("personalInfo.phone")}
               disabled={isPending}
             />
           </div>
@@ -219,6 +257,7 @@ export function ResumeContentForm({
             <Input
               id="pi-location"
               {...register("personalInfo.location")}
+              {...fieldA11y("personalInfo.location")}
               disabled={isPending}
             />
           </div>
@@ -233,6 +272,7 @@ export function ResumeContentForm({
         <Textarea
           id="summary"
           {...register("summary")}
+          {...fieldA11y("summary")}
           rows={4}
           maxLength={2000}
           placeholder="Kort sammanfattning av din profil..."
@@ -271,6 +311,7 @@ export function ResumeContentForm({
                   <Input
                     id={`exp-${index}-company`}
                     {...register(`experiences.${index}.company`)}
+                    {...fieldA11y(`experiences.${index}.company`)}
                     maxLength={200}
                     required
                     disabled={isPending}
@@ -281,6 +322,7 @@ export function ResumeContentForm({
                   <Input
                     id={`exp-${index}-role`}
                     {...register(`experiences.${index}.role`)}
+                    {...fieldA11y(`experiences.${index}.role`)}
                     maxLength={200}
                     required
                     disabled={isPending}
@@ -292,6 +334,7 @@ export function ResumeContentForm({
                     id={`exp-${index}-startDate`}
                     type="date"
                     {...register(`experiences.${index}.startDate`)}
+                    {...fieldA11y(`experiences.${index}.startDate`)}
                     required
                     disabled={isPending}
                   />
@@ -304,6 +347,7 @@ export function ResumeContentForm({
                     id={`exp-${index}-endDate`}
                     type="date"
                     {...register(`experiences.${index}.endDate`)}
+                    {...fieldA11y(`experiences.${index}.endDate`)}
                     disabled={isPending}
                   />
                 </div>
@@ -313,6 +357,7 @@ export function ResumeContentForm({
                 <Textarea
                   id={`exp-${index}-description`}
                   {...register(`experiences.${index}.description`)}
+                  {...fieldA11y(`experiences.${index}.description`)}
                   rows={3}
                   maxLength={2000}
                   disabled={isPending}
@@ -366,6 +411,7 @@ export function ResumeContentForm({
                   <Input
                     id={`edu-${index}-institution`}
                     {...register(`educations.${index}.institution`)}
+                    {...fieldA11y(`educations.${index}.institution`)}
                     maxLength={200}
                     required
                     disabled={isPending}
@@ -376,6 +422,7 @@ export function ResumeContentForm({
                   <Input
                     id={`edu-${index}-degree`}
                     {...register(`educations.${index}.degree`)}
+                    {...fieldA11y(`educations.${index}.degree`)}
                     maxLength={200}
                     required
                     disabled={isPending}
@@ -387,6 +434,7 @@ export function ResumeContentForm({
                     id={`edu-${index}-startDate`}
                     type="date"
                     {...register(`educations.${index}.startDate`)}
+                    {...fieldA11y(`educations.${index}.startDate`)}
                     required
                     disabled={isPending}
                   />
@@ -399,6 +447,7 @@ export function ResumeContentForm({
                     id={`edu-${index}-endDate`}
                     type="date"
                     {...register(`educations.${index}.endDate`)}
+                    {...fieldA11y(`educations.${index}.endDate`)}
                     disabled={isPending}
                   />
                 </div>
@@ -450,6 +499,7 @@ export function ResumeContentForm({
                 <Input
                   id={`skill-${index}-name`}
                   {...register(`skills.${index}.name`)}
+                  {...fieldA11y(`skills.${index}.name`)}
                   maxLength={100}
                   required
                   disabled={isPending}
@@ -469,6 +519,7 @@ export function ResumeContentForm({
                       onChange={(e) => ctlField.onChange(e.target.value)}
                       onBlur={ctlField.onBlur}
                       name={ctlField.name}
+                      {...fieldA11y(`skills.${index}.yearsExperience`)}
                       disabled={isPending}
                     />
                   )}
@@ -501,8 +552,12 @@ export function ResumeContentForm({
           </p>
         )}
         {serverError && (
-          <p className="text-body-sm text-danger-600" role="alert">
-            {serverError}
+          <p
+            id={ERROR_ID}
+            className="text-body-sm text-danger-600"
+            role="alert"
+          >
+            {serverError.message}
           </p>
         )}
       </div>

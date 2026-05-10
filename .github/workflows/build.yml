@@ -52,25 +52,15 @@ jobs:
       - name: Build
         run: dotnet build JobbPilot.sln --no-restore -c Release
 
-      # Microsoft.Testing.Platform-runner aktiveras via global.json. Native CLI
-      # exponeras via `--`-separator. `--logger trx` (VSTest-syntax) fungerar
-      # via kompat-shim men är fragile mellan SDK-versioner — använd native
-      # `--report-trx` istället för deterministisk output över tid.
+      # Microsoft.Testing.Platform-runner aktiveras via global.json.
       #
       # .NET 10 SDK 10.0.201 kräver `--solution`-flag specifikt för `dotnet
       # test` när sln-fil inputas (inte för restore/build — där är positional
-      # OK). Annars fail:ar test-step:en med
-      # "Specifying a solution for 'dotnet test' should be via '--solution'".
+      # OK). Default test-output går till stdout — räcker för CI-feedback.
+      # När test-failures behöver djupare analys: lägg till MTPlatform-native
+      # `-- --report-trx`-flagga, men håll det enkelt för Fas 0.
       - name: Test
-        run: dotnet test --solution JobbPilot.sln --no-build -c Release -- --report-trx --report-trx-filename TestResults.trx --results-directory TestResults
-
-      - name: Upload test results on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-backend
-          path: TestResults/
-          retention-days: 7
+        run: dotnet test --solution JobbPilot.sln --no-build -c Release
 
   frontend:
     name: frontend (Next.js 16)
@@ -101,12 +91,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
 
-      # --ignore-workspace: web/jobbpilot-web/pnpm-workspace.yaml saknar
-      # `packages:`-fält (innehåller bara `ignoredBuiltDependencies`-config för
-      # sharp/unrs-resolver). pnpm 9 kräver packages-fält om workspace.yaml
-      # finns. CI kör solo-projektet utan workspace-traversal.
       - name: Install
-        run: pnpm install --frozen-lockfile --ignore-workspace
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint

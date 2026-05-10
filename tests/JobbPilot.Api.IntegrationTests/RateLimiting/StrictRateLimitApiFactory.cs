@@ -82,9 +82,13 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         _postgresCs = _postgres.GetConnectionString();
         _redisCs = _redis.GetConnectionString();
 
-        // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access så Program.cs läser
-        // rätt värde (samma rationale som ApiFactory).
+        // ASPNETCORE_ENVIRONMENT + ConnectionStrings sätts FÖRE Services-access
+        // (samma rationale som ApiFactory — IConnectionMultiplexer registreras
+        // med string captured vid registration-time, ConfigureServices replacar
+        // bara IDistributedCache + DbContexts).
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+        Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
+        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
 
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
@@ -104,6 +108,8 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
     public new async ValueTask DisposeAsync()
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
+        Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
+        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
 

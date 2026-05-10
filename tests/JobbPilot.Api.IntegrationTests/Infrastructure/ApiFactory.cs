@@ -118,6 +118,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // ForwardedHeadersConfig.EnsureSafeForEnvironment med tom KnownNetworks.
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
 
+        // ConnectionStrings sätts FÖRE Services-access. ConfigureServices replacer
+        // bara IDistributedCache + DbContexts; IConnectionMultiplexer (Infrastructure
+        // DI line ~131) registreras med string captured vid registration-time.
+        // Lokalt på Windows funkar default localhost:6379 via Docker Compose;
+        // på Linux-CI utan default Redis kraschar IConnectionMultiplexer.Connect()
+        // vid första request → 500 på alla auth-endpoints.
+        Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
+        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+
         // JWT key paths are read at service-registration time in Program.cs via
         // builder.Configuration. Setting env vars here (before Services is accessed, which
         // triggers Program.cs to run) makes them available to WebApplication.CreateBuilder().
@@ -145,6 +154,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public new async ValueTask DisposeAsync()
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
+        Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
+        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);

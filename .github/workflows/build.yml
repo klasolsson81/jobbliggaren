@@ -1,0 +1,123 @@
+# Build + test pipeline (STEG 14a, BUILD.md §15.3).
+#
+# Kör på push till main + alla PRs. Inga AWS-anrop, inga deploys — ren CI-
+# validering. Deploy hanteras separat via deploy-dev.yml (tag-trigger).
+#
+# Backend + frontend körs som parallella jobs för snabb fail-fast.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Ren read-only — inga federation-tokens behövs i build-workflowen.
+permissions:
+  contents: read
+
+# Avbryt äldre runs vid ny push på samma ref (sparar minutes på dependabot-PRs).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (.NET 10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # global.json låser till 10.0.200 (rollForward latestPatch). setup-dotnet
+      # respekterar global.json om version inte angivs explicit.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore JobbPilot.sln
+
+      - name: Build
+        run: dotnet build JobbPilot.sln --no-restore -c Release
+
+      # Microsoft.Testing.Platform-runner aktiveras via global.json. Native CLI
+      # exponeras via `--`-separator. `--logger trx` (VSTest-syntax) fungerar
+      # via kompat-shim men är fragile mellan SDK-versioner — använd native
+      # `--report-trx` istället för deterministisk output över tid.
+      - name: Test
+        run: dotnet test JobbPilot.sln --no-build -c Release -- --report-trx --report-trx-filename TestResults.trx --results-directory TestResults
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-backend
+          path: TestResults/
+          retention-days: 7
+
+  frontend:
+    name: frontend (Next.js 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web/jobbpilot-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      # Next.js 16 kräver Node >=20.18. Använd 22 LTS för långt support-fönster.
+      # När .nvmrc införs i web/jobbpilot-web: byt till `node-version-file`.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Test (Vitest)
+        run: pnpm test
+
+  # Aggregat-job som kraschar hela CI om något barn-job failed. Gör branch-
+  # protection-rules enkla att konfigurera (bara "ci" som required check
+  # istället för en check per matrix-cell).
+  ci:
+    name: ci
+    needs: [backend, frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all jobs passed
+        run: |
+          if [[ "${{ needs.backend.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          echo "All jobs passed"

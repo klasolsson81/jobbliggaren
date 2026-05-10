@@ -66,3 +66,18 @@ module "bedrock_model_access" {
   eu_inference_profile_ids = var.eu_inference_profile_ids
   tags                     = var.common_tags
 }
+
+# ---------------------------------------------------------------------------
+# Route53 — apex hosted zone (jobbpilot.se). Bor i baseline som global delad
+# resurs (likt KMS). Dev/staging/prod-stacks gor `data "aws_route53_zone"`-
+# lookup. Domän registreras separat hos svensk registrar; efter zone-skapning
+# pekas registrar's NS-records på output `route53_name_servers`. Se ADR 0026
+# trigger 1 + TD-30. Kostnad: $0.50/mån + $0.40 per miljon queries.
+# ---------------------------------------------------------------------------
+
+module "route53" {
+  source = "../../modules/route53"
+
+  domain_name = var.domain_name
+  tags        = var.common_tags
+}

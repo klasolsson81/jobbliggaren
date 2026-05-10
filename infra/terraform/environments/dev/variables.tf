@@ -138,7 +138,23 @@ variable "alb_https_enabled" {
 }
 
 variable "alb_acm_certificate_arn" {
-  description = "ACM-cert-ARN för HTTPS-listener. Sätts efter domän-registrering (TD-30) + ACM-utfärdande. När detta sätts → flippa alb_https_enabled = true samtidigt."
+  description = "ACM-cert-ARN för HTTPS-listener. Sätts efter domän-registrering (TD-30) + ACM-utfärdande. När detta sätts → flippa alb_https_enabled = true samtidigt. Värdet hämtas från output `acm_dev_certificate_arn` post-validering."
   type        = string
   default     = null
+}
+
+# ---------------------------------------------------------------------------
+# STEG 13c — DNS + TLS (ADR 0026 trigger 1 / TD-30)
+# ---------------------------------------------------------------------------
+
+variable "apex_domain_name" {
+  description = "Apex-domän vars hosted zone bor i prod/baseline. Dev-stack lookar upp via `data \"aws_route53_zone\"`. Måste matcha `domain_name` i prod-stack."
+  type        = string
+  default     = "jobbpilot.se"
+}
+
+variable "dev_subdomain" {
+  description = "Subdomän under apex för dev-miljön. Resulterar i FQDN `<subdomain>.<apex>` (ex: dev.jobbpilot.se)."
+  type        = string
+  default     = "dev"
 }

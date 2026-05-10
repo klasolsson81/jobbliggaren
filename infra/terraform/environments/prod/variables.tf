@@ -48,3 +48,19 @@ variable "domain_name" {
   type        = string
   default     = "jobbpilot.se"
 }
+
+# ---------------------------------------------------------------------------
+# GitHub OIDC-federation (STEG 14a, BUILD.md §15.3)
+# ---------------------------------------------------------------------------
+
+variable "github_owner" {
+  description = "GitHub-owner (user eller org) som äger jobbpilot-repot. Case-sensitivt — måste matcha exakt mot GitHub-handle."
+  type        = string
+  default     = "klasolsson81"
+}
+
+variable "github_repo" {
+  description = "GitHub-repo-namn utan owner-prefix. Case-sensitivt."
+  type        = string
+  default     = "jobbpilot"
+}

@@ -48,3 +48,17 @@ output "route53_name_servers" {
   description = "4 NS-records — kopiera till registrar för delegering till AWS."
   value       = module.route53.name_servers
 }
+
+# ---------------------------------------------------------------------------
+# GitHub OIDC (STEG 14a)
+# ---------------------------------------------------------------------------
+
+output "github_oidc_provider_arn" {
+  description = "OIDC-providerns ARN. Delas av alla framtida deploy-roller (staging/prod)."
+  value       = module.github_oidc.oidc_provider_arn
+}
+
+output "github_actions_deploy_dev_role_arn" {
+  description = "ARN för dev-deploy-rollen. Sätts som GitHub Actions Secret AWS_DEPLOY_ROLE_ARN via `gh secret set AWS_DEPLOY_ROLE_ARN -R <owner>/<repo>` efter apply."
+  value       = module.github_oidc.deploy_dev_role_arn
+}

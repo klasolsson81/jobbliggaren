@@ -81,3 +81,31 @@ module "route53" {
   domain_name = var.domain_name
   tags        = var.common_tags
 }
+
+# ---------------------------------------------------------------------------
+# GitHub OIDC-federation (STEG 14a, BUILD.md §15.3).
+#
+# Delad resurs (likt KMS/Route53). En OIDC-provider per AWS-konto + GitHub.
+# Dev-deploy-roll skapas här, scope:ad till v*-dev-tags + main-branch + PRs.
+# Staging/prod-roller läggs till när respektive miljö-stack existerar (least-
+# privilege per miljö, separata sub-claim-mönster, separata blast-radius vid
+# token-kompromiss).
+#
+# Output `github_actions_deploy_dev_role_arn` registreras manuellt som
+# GitHub Actions Secret `AWS_DEPLOY_ROLE_ARN` via `gh secret set` efter apply.
+# ---------------------------------------------------------------------------
+
+module "github_oidc" {
+  source = "../../modules/github_oidc"
+
+  name_prefix  = "jobbpilot"
+  account_id   = var.account_id
+  aws_region   = var.aws_region
+  github_owner = var.github_owner
+  github_repo  = var.github_repo
+
+  # dev_name_prefix default "jobbpilot-dev" matchar environments/dev/var.name_prefix
+  # dev_tag_pattern default "v*-dev"
+
+  tags = var.common_tags
+}

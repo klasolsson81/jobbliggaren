@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         builder.ConfigureServices(services =>
         {
+            // TD-37 debug: IStartupFilter injicerar exception-middleware FÖRST i
+            // pipelinen så 500-orsaker echar till stderr (synligt i CI-stdout).
+            // Tas bort när root cause är identifierat och fixat.
+            services.AddSingleton<IStartupFilter, ExceptionDetailStartupFilter>();
+
             // Replace AppDbContext
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
@@ -137,5 +143,39 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
         await base.DisposeAsync();
+    }
+}
+
+/// <summary>
+/// TD-37 debug: echar exception details + 5xx-statuscodes till stderr så
+/// root cause syns i CI-output. Pipelinens första middleware (via IStartupFilter
+/// → körs FÖRE Program.cs:s exception-handler på line 76-102).
+/// </summary>
+internal sealed class ExceptionDetailStartupFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+    {
+        return app =>
+        {
+            app.Use(async (ctx, mw) =>
+            {
+                try
+                {
+                    await mw(ctx);
+                    if (ctx.Response.StatusCode >= 500)
+                    {
+                        await Console.Error.WriteLineAsync(
+                            $"[TEST-HOST 5xx] {ctx.Request.Method} {ctx.Request.Path} -> {ctx.Response.StatusCode}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await Console.Error.WriteLineAsync(
+                        $"[TEST-HOST EXCEPTION] {ctx.Request.Method} {ctx.Request.Path}\n{ex}");
+                    throw;
+                }
+            });
+            next(app);
+        };
     }
 }

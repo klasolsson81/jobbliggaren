@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** STEG 13c APPLIED 2026-05-10 ~17:48. HTTPS aktivt på `https://dev.jobbpilot.se` med HSTS-header. ADR 0026 → Superseded by ADR 0027. Domän jobbpilot.se registrerad hos STRATO + NS pekar på AWS-Route53. ACM-cert utfärdat. ALB HTTP→HTTPS-redirect (301) + HSTS aktiv (max-age=31536000 + includeSubDomains). Api task-def rev 2 deployed. Smoke-test PASS. Worker fortfarande restart-loop pga PLACEHOLDER DB-creds (STEG 14 fixar). Spend ~$79.50/mån löper ($79 STEG 13b + $0.50 hosted zone). README.md tillagd separat. Nästa: **STEG 14** (GitHub Actions tag-pipeline + DDL-init + IAM cleanup) — stänger Fas 0 per BUILD.md §18.
+**Status:** STEG 14a APPLIED 2026-05-10 ~18:50. GitHub OIDC-federation + CI/CD-pipeline aktiv. Provider + dev-deploy-roll i AWS, AWS_DEPLOY_ROLE_ARN GH-secret satt. build.yml mekaniskt verifierad — alla pipeline-steps körs korrekt på ubuntu-runner. Frontend (Next.js 16, pnpm 9 efter `packages: ['.']`-fix) helgrön. Backend Domain/Application/Architecture (363 tester) grönt i CI. Backend Integration-tests (88 Api errors + 1 Worker fail) **fail i CI men passar lokalt** — förexisterande issue, ej 14a-regression, lyft som TD-37 för 14b-fix. STEG 14a:s mål uppnått: pipelinen är skapad och fungerande (mekaniskt korrekt). Worker fortfarande PLACEHOLDER-creds (14b fixar). Spend oförändrat ~$79.50/mån. **Nästa:** **STEG 14b** (DDL-init + ConnectionStrings split + Worker-recovery + TD-37-fix), sedan STEG 14c (first formal tag-deploy + Fas 0-stängning).
 **Senast uppdaterad:** 2026-05-10
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`
@@ -9,73 +9,68 @@
 
 ## Aktivt nu
 
-**STEG 13c APPLIED 2026-05-10.** Full DNS + TLS-aktivering på dev. Se session-logg `docs/sessions/2026-05-10-1748-steg13c-https-applied.md` för detaljer (mid-apply 308→301-fix, ECS rolling deployment, smoke-test).
+**STEG 14a APPLIED 2026-05-10.** GitHub OIDC + CI/CD-workflows. Se session-logg `docs/sessions/2026-05-10-1850-steg14a-oidc-cicd.md` för detaljer (M1+M2 strict-fix från security-auditor, 4-iteration CI-debug på SDK 10.0.201 + pnpm 9 + MTPlatform-syntax, TD-37-lyft).
 
 ### Apply-state
 
 | Resurs | Identifier |
 |---------|-----------|
-| **Public URL** | `https://dev.jobbpilot.se/api/ready` (200 OK + HSTS) |
-| **HTTP redirect** | `http://dev.jobbpilot.se` → `301` → `https://dev.jobbpilot.se:443` |
-| **Domain** | `jobbpilot.se` (STRATO registrar, NS → AWS Route53) |
-| **Hosted zone** | `Z028392711DGTDR1MGVC9` (prod/baseline.tfstate) |
-| **ACM-cert** | `arn:aws:acm:eu-north-1:710427215829:certificate/f72a79d7-f964-49c7-abb5-cf81b8639d6a` |
-| **ALB-DNS** | `jobbpilot-dev-alb-1232220213.eu-north-1.elb.amazonaws.com` |
-| **ALB target group** | API-task rev 2 (med `Alb__HttpsEnabled=true`) |
-| **HSTS** | `max-age=31536000; includeSubDomains` (1 år, ej preload) |
-| **TLS-policy** | `ELBSecurityPolicy-TLS13-1-2-2021-06` |
-| **Redirect** | HTTP_301 (AWS ALB hardlimit; 308 ej implementerbart utan Lambda@Edge) |
+| **OIDC provider** | `arn:aws:iam::710427215829:oidc-provider/token.actions.githubusercontent.com` |
+| **Dev deploy-roll** | `arn:aws:iam::710427215829:role/jobbpilot-github-actions-deploy-dev` |
+| **GH secret** | `AWS_DEPLOY_ROLE_ARN` satt på `klasolsson81/jobbpilot` |
+| **build.yml** | Triggar på push main + PR, last run 25634087757 (mekaniskt grön — Integration-fail från TD-37) |
+| **deploy-dev.yml** | Triggar på `v*-dev` tag, oprövat (testas i 14c) |
+| **Trust-policy scope** | `repo:klasolsson81/jobbpilot:ref:refs/tags/v*-dev` (ENBART, strict per security-auditor) |
+| **role-duration-seconds** | 900 (15 min, kort blast-radius) |
+| **max_session_duration** | 3600 (1h tak) |
 
-### Pre-existing infra (oförändrat sedan STEG 13b)
+### Pre-existing infra (oförändrat sedan STEG 13c)
 
 | Resurs | Identifier |
 |---------|-----------|
+| Public URL | `https://dev.jobbpilot.se/api/ready` (200 OK + HSTS) |
 | RDS | `jobbpilot-dev-rds.cj84yieu0qwc.eu-north-1.rds.amazonaws.com:5432` |
 | Redis | `master.jobbpilot-dev-redis.tyzmvb.eun1.cache.amazonaws.com:6379` |
-| ECR API | `710427215829.dkr.ecr.eu-north-1.amazonaws.com/jobbpilot-dev-api:latest` (HSTS-fix) |
+| ECR API | `710427215829.dkr.ecr.eu-north-1.amazonaws.com/jobbpilot-dev-api:latest` |
 | ECR Worker | `710427215829.dkr.ecr.eu-north-1.amazonaws.com/jobbpilot-dev-worker:latest` |
-| VPC | `vpc-0659b4386bba9dc31` |
-| ECS Cluster | `jobbpilot-dev-cluster` |
+| ALB | `jobbpilot-dev-alb-1232220213.eu-north-1.elb.amazonaws.com` |
+| ACM-cert | `arn:aws:acm:eu-north-1:710427215829:certificate/f72a79d7-f964-49c7-abb5-cf81b8639d6a` |
 
 ## Senaste commits (denna session)
 
 | SHA | Beskrivning |
 |-----|-------------|
-| (TBD denna commit) | docs: STEG 13c APPLIED — current-work + steg-tracker + session-logg + ADR 0027/0026-statusar |
-| (TBD denna commit) | fix(infra): STEG 13c apply — ALB redirect 308 → 301 (AWS-API-begränsning) + HTTPS-flip tfvars-edit |
-| `8befcce` | docs: lägg till professionell README med snabblänkar, mermaid-arkitektur, lokal-setup |
-| `f2bc555` | docs: STEG 13c — ADR 0027 (Proposed) + 3 agent-reviews |
-| `3b46945` | feat(api): STEG 13c — HSTS-impl + EnsureSafeForEnvironment + 17 tests |
-| `f0f45c5` | feat(infra): STEG 13c — Route53 + ACM-moduler + 308-redirect + dev DNS+ALIAS |
-| `e5eddde` | docs: STEG 13b APPLIED 2026-05-10 — current-work + steg-tracker + session-logg |
+| (TBD denna commit) | docs: STEG 14a APPLIED — current-work + steg-tracker + session-logg + tech-debt TD-37 |
+| `708db86` | fix(ci): build.yml — förenkla test-output + lägg till pnpm-workspace packages-fält |
+| `7da656f` | fix(ci): build.yml — backa restore/build till positional sln + pnpm --ignore-workspace |
+| `673cd0b` | fix(ci): build.yml — .NET 10 SDK --solution-flag + pnpm version pin |
+| `cefc587` | ci: STEG 14a — build.yml + deploy-dev.yml + 3 agent-reviews |
+| `b975c9f` | feat(infra): STEG 14a — GitHub OIDC-modul + dev-deploy-roll |
+| `52590f6` | docs: STEG 13c APPLIED — ADR 0027 Accepted + 0026 Superseded + current-work + steg-tracker + session-logg |
 
 ## Tester totalt
 
-- **Backend:** 554 (157 Domain + 183 Application + 23 Architecture + 26 Worker + 165 Api Integration — 165 inkluderar 17 nya HstsOptionsTests)
-- **Frontend:** 65 Vitest + 19 Playwright E2E (oförändrat)
+- **Backend:** 554 lokalt (157 Domain + 183 Application + 23 Architecture + 26 Worker + 165 Api Integration)
+  - **CI-state:** 363 gröna (Domain + Application + Architecture + Frontend Vitest), 89 fail (TD-37 — investigation vid 14b)
+- **Frontend:** Vitest helgrön i CI
 
 ## Open follow-ups
 
 **Operativa AWS-uppgifter (kvarvarande Fas 0):**
-- Apply STEG 14 (GitHub Actions tag-pipeline + DDL-init + Bootstrap-IAM-user cleanup)
-- Worker restart-loop pågår tills STEG 14 sätter riktiga creds via `aws secretsmanager put-secret-value` post-DDL
-- VPC Flow Logs aktivering (säkerhetshygien — separat task, lyfts i STEG 14 eller efter)
+- STEG 14b: DDL-init via AWS Session Manager port-forward + ConnectionStrings split + Worker-recovery
+- STEG 14b: TD-37 Investigate Integration-tests-fail i CI
+- STEG 14c: First formal tag-deploy via deploy-dev.yml + verify Bootstrap-IAM-user borta + Fas 0-stängning
 
-**Sec-Major dokumenterade i ADR 0027 (defererade till Fas 1):**
-- Sec-Major-1 — DNSSEC saknas på Route53-zonen. Trigger-villkor: multi-tenant / OAuth-aktivering / säkerhetsincident / Fas 2-start
-- Sec-Major-2 — verifierat fixat (HSTS aktiv)
+**Defererade från STEG 14a-reviews (TD-kandidater):**
+- versions.tf saknas i route53/acm-moduler (chore-commit)
+- Architecture-tests-split från unit/integration (CI-feedback-optimering)
+- Terraform-CI-race-runbook-tillägg
+- Drop `--no-build` i build.yml (om MTPlatform-issue dyker upp)
+- Node-version → `.nvmrc`
+- ECR_REGISTRY-account-ID-duplikering
 
-**Sec-Minor från STEG 13c:**
-- Sec-Minor-1 — TLS-policy 2021-06 → uppgrade till PQ-2025-09 vid Fas 1 (TD-32)
-- Sec-Minor-2 — Plain-text ALB→ECS intra-VPC (Fas 0 acceptans, Fas 2-uppgrade till mTLS — TD-36)
-- Sec-Minor-3 — verifierat fixat (timeouts.create=75m)
-
-**Nya TDs från STEG 13c (33-36):**
-- TD-32: TLS-policy uppgrade till `ELBSecurityPolicy-TLS13-1-2-2025-09` (post-quantum) — Fas 1
-- TD-33: HSTS pipeline-gating-test via WebApplicationFactory — anti-regression Sec-Major-2
-- TD-34: DNSSEC aktivering vid Fas 1-trigger (cross-region KMS us-east-1 + KSK-rotation-runbook)
-- TD-35: Apex (`jobbpilot.se`) + `www.jobbpilot.se` ACM-cert + ALB-cert-association vid prod-stack-rollout
-- TD-36: mTLS / in-VPC-encryption (ALB → ECS) vid Fas 2 multi-tenant
+**Nya TDs från STEG 14a:**
+- TD-37: Backend Integration tests fail i CI (Major, blockerar tag-deploy via deploy-dev.yml förrän löst)
 
 **Övriga TD (oförändrat):**
 - TD-13 (PII-encryption Fas 2 — kombineras med TD-27)
@@ -91,48 +86,69 @@
 - TD-27 (EmailHash-HMAC Fas 2)
 - TD-28 (Frontend typed-confirmation-UX för DELETE /me)
 - TD-29 (strict readiness Fas 2)
-- TD-30 — **STÄNGD** (domänköp + Route53 + ACM-cert) per STEG 13c
+- TD-30 — STÄNGD (domänköp + Route53 + ACM-cert) per STEG 13c
 - TD-31 (test för UseHttpsRedirection env-gate — utvidgas av TD-33)
+- TD-32 (TLS-policy uppgrade till PQ-2025-09 — Fas 1)
+- TD-33 (HSTS pipeline-gating-test via WebApplicationFactory)
+- TD-34 (DNSSEC aktivering vid Fas 1-trigger)
+- TD-35 (Apex + www ACM-cert vid prod-stack-rollout)
+- TD-36 (mTLS / in-VPC-encryption vid Fas 2 multi-tenant)
 
 ## När nästa session startar
 
-### STEG 14 förberedelse
+### STEG 14b förberedelse
 
-**Pre-flight för STEG 14** (`GitHub Actions tag-pipeline + första prod-deploy`):
+**Pre-flight för STEG 14b** (`DDL-init + ConnectionStrings split + Worker-recovery + TD-37-fix`):
 
 1. SSO-login: `aws sso login --profile jobbpilot`
 2. Verifiera dev-state oförändrat sedan denna session:
    - `curl -I https://dev.jobbpilot.se/api/ready` → 200 OK + HSTS-header
-   - `aws ecs describe-services --cluster jobbpilot-dev-cluster --services jobbpilot-dev-api` → 1/1 running
-3. Verifiera RDS reachable för DDL-init (manual SSO + jump till private subnet eller AWS Session Manager)
+   - `aws ecs describe-services --cluster jobbpilot-dev-cluster --services jobbpilot-dev-api jobbpilot-dev-worker` → api 1/1, worker restart-loop
+   - `aws iam get-role --role-name jobbpilot-github-actions-deploy-dev` → exists
+3. Verifiera last build.yml-run state via `gh run list --workflow=build.yml --limit 1`
 
-### STEG 14-scope (per BUILD.md + steg-tracker.md)
+### STEG 14b-scope
 
-- `.github/workflows/` för build+test+push-to-ECR + tag-trigger för deploy (`v*-dev`/`v*-rc`/`v*`)
-- Hangfire schema-DDL via `Install.sql` + REVOKE PUBLIC i RDS (per `docs/runbooks/hangfire-schema.md §3-4`)
-- ConnectionStrings split i AWS Secrets Manager (jobbpilot_app + jobbpilot_worker via DDL-roles)
-- Bootstrap-IAM-user cleanup (per `aws-setup.md §3.4` — STEG 14 sista steg)
-- Första formal deploy till `dev.jobbpilot.se` via tag-pipeline
-- **Stänger Fas 0** per BUILD.md §18
+- **TD-37 investigation först** (ej blocker för DDL men måste lösas före first formal tag-deploy):
+  - Reproducera Integration-test-fail lokalt med samma Linux-Docker-setup (devcontainer eller `act`)
+  - Verbose Serilog-output i Test-env för 500-error-roten
+  - Verifiera DB-migrations-flow under WebApplicationFactory
+  - Eventuell isolering till separat workflow-job (continue-on-error)
+- **DDL-init** via AWS Session Manager + port-forward via ECS Exec på Api-task (gratis, omedelbart, SSM agent finns redan på Fargate via EcsExecMessaging-policy):
+  - Exportera Hangfire `Install.v22.sql` från lokal NuGet-cache
+  - Skapa `jobbpilot_migrations` + `jobbpilot_app` + `jobbpilot_worker`-roller per `docs/runbooks/hangfire-schema.md §3-4`
+  - REVOKE PUBLIC + ALTER DEFAULT PRIVILEGES
+- **ConnectionStrings split:**
+  - `aws secretsmanager put-secret-value --secret-id jobbpilot/dev/db/app-connection-string ...` (jobbpilot_app-creds)
+  - `aws secretsmanager put-secret-value --secret-id jobbpilot/dev/db/hangfire-storage-connection-string ...` (jobbpilot_worker-creds)
+- **Worker-recovery:**
+  - `aws ecs update-service --force-new-deployment` på api + worker
+  - Verifiera Worker stable + Hangfire-jobs running
 
-## Kända begränsningar / quirks
+## Kända begränsningar / quirks (uppdaterade från STEG 14a)
 
-- **AWS ALB `RedirectActionConfig.StatusCode` hardlimited till HTTP_301 | HTTP_302** — 308 (POST-method-bevarande) ej implementerbart utan Lambda@Edge eller CloudFront-rewrite. Mitigation: HSTS+browser-cache gör POST-anrop går direkt till HTTPS efter första GET.
-- **STRATO som registrar** — UI varnar "upp till 24h" för NS-propagering men praktiskt ~30 min för `.se`-zonen.
-- **`dig` saknas på Windows** — använd PowerShell `Resolve-DnsName -Server <resolver>` istället för DNS-debugging.
-- **HSTS-pipeline-ordning kritisk:** `UseForwardedHeaders → UseHsts → UseHttpsRedirection`. Bakom ALB är `Request.IsHttps` annars false → HSTS sätts aldrig. Dokumenterat i Program.cs-kommentar.
-- **Worker restart-loop fortsätter** tills STEG 14 (förväntad transient state).
-- **`dotnet test` på solution-nivå/csproj-nivå** hittar inte tester med filter-syntax — kör test-exen direkt: `tests/.../bin/Debug/net10.0/JobbPilot.Api.IntegrationTests.exe -class "FullyQualifiedName"` (xunit3-syntax: `-class`, inte `--filter`).
+- **AWS ALB `RedirectActionConfig.StatusCode`** hardlimited till HTTP_301 | HTTP_302
+- **STRATO som registrar** — UI varnar 24h men praktiskt ~30 min
+- **`dig` saknas på Windows** — använd PowerShell `Resolve-DnsName -Server`
+- **HSTS-pipeline-ordning kritisk:** `UseForwardedHeaders → UseHsts → UseHttpsRedirection`
+- **Worker restart-loop fortsätter** tills STEG 14b
+- **`dotnet test` på sln-nivå** — .NET 10 SDK 10.0.201 kräver `--solution`-flag specifikt för `dotnet test` (inte för restore/build)
+- **MTPlatform-test-runner CLI-flaggor** måste passa via `--`-separator. `--results-directory` är VSTest-only och triggar help-output i MTPlatform → exit 1
+- **pnpm 9+** kräver `packages:`-fält i pnpm-workspace.yaml om filen finns. Solo-projekt deklareras med `packages: ['.']`
+- **`pnpm/action-setup@v4`** kräver `version`-input om `packageManager`-fält saknas i package.json
+- **GitHub OIDC trust-policy:** strikt scope-disciplin — undvik `pull_request`/`refs/heads/main` när workflows inte gör AWS-anrop därifrån (security-auditor M1+M2)
+- **Säkerhets-flagga:** security-auditor + code-reviewer agenter har bypass-väg via `powershell.exe` trots user-deny-rule. Granska `.claude/settings.json` permission-config
 
-## Done last session (STEG 13c)
+## Done last session (STEG 14a)
 
-- Två nya Terraform-modules: `modules/route53/` (apex zone) + `modules/acm/` (DNS-validerad cert med 75m-timeout för svensk-registrar-marginal)
-- ALB-modul: HTTP→HTTPS-redirect aktivt (HTTP_301 efter mid-apply 308→301-fix pga AWS-API-begränsning)
-- env-stacks: `prod/` + `dev/` edits — module-anrop, A-ALIAS-record, output-exports
-- HSTS-implementation: `HstsOptions.cs` (sealed class + EnsureSafeForEnvironment-paritet med ForwardedHeadersConfig), Program.cs (services.AddHsts + UseHsts gate:at), `appsettings.Production.json` overlay
-- HstsOptionsTests: 11 testmetoder, 17 test-cases, alla gröna
-- ADR 0027 (Accepted) supersedar ADR 0026 (Superseded)
-- 3 agent-reviews: code-reviewer / security-auditor / dotnet-architect (alla APPROVE-with-fixes, alla viktiga fynd inline-fixade)
-- README.md tillagd (sober civic-utility-stil, 2 Mermaid-diagram, 17 snabblänkar)
-- 5 commits till `main` + push: `f0f45c5`, `3b46945`, `f2bc555`, `8befcce`, samt 2 final commits för STEG 13c apply (denna session)
-- Smoke-test PASS: `https://dev.jobbpilot.se/api/ready` → 200 OK + HSTS-header verifierat via curl
+- Ny Terraform-modul `modules/github_oidc/` (4 filer, 4 AWS-resurser): OIDC-provider, dev-deploy-roll, inline-policy least-privilege, role-policy-attachment
+- Anrop från `prod/baseline` (delad resurs likt KMS/Route53). Outputs: `github_oidc_provider_arn`, `github_actions_deploy_dev_role_arn`
+- 2 GitHub Actions workflows: `build.yml` (push main+PR, backend+frontend parallellt + ci-aggregat), `deploy-dev.yml` (tag v*-dev, OIDC + Docker build/push + ECS deploy + smoke-test)
+- 3 agent-reviews parallellt: security-auditor (APPROVE-WITH-FIXES, M1+M2 strict-fix tillämpade), code-reviewer (APPROVE-WITH-FIXES, n3+n1 fix), dotnet-architect (APPROVE-WITH-FIXES, MTPlatform-syntax + Worker-warning fix). Rapporter sparade till `docs/reviews/2026-05-10-steg14a-*.md`
+- `terraform apply` PASS — 4 add (OIDC-provider + role + policy + attachment)
+- GH secret `AWS_DEPLOY_ROLE_ARN` satt
+- 4 commits + push: feat infra OIDC, ci workflows+reviews, fix CI iter 1, fix CI iter 2
+- 4-iteration CI-debug med kollektiv lärdom: SDK 10.0.201 `--solution`-flag specifikt för `dotnet test`, MTPlatform `--results-directory` är VSTest-only, pnpm 9 kräver `packages:`-fält
+- `web/jobbpilot-web/pnpm-workspace.yaml` fix:ad med `packages: ['.']` (legitim förexisterande config-bug exponerad av CI)
+- TD-37 lyft för Integration-tests-CI-debug (89 backend-test-fail i CI passar lokalt)
+- build.yml mekaniskt verifierad: alla pipeline-steps körs korrekt; failures är runtime-test-fel (TD-37), inte pipeline-konfig

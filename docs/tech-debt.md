@@ -1064,6 +1064,46 @@ HTTP-only, HTTPS adderas senare via samma modul).
 
 ---
 
+## TD-37: Backend Integration tests fail i CI (förexisterande, upptäckt i STEG 14a)
+**Kategori:** Testing / CI/CD
+**Severity:** Major (blockerar tag-deploy via deploy-dev.yml förrän löst)
+**Källa:** STEG 14a build.yml första-run, 2026-05-10 (run 25634087757)
+
+Lokalt passerar alla 554 backend-tester (157 Domain + 183 Application + 23 Architecture
++ 26 Worker + 165 Api Integration). I CI på ubuntu-latest-runner med Testcontainers:
+
+- `JobbPilot.Worker.IntegrationTests`: 1 fail (`AuditLogRetentionJobIntegrationTests.
+  DropPartitionsOlderThan_DropsOldPartitionsSkipsDefaultAndRecent`)
+- `JobbPilot.Api.IntegrationTests`: 88 errors (alla Auth/Applications-tester får
+  `500 Internal Server Error` på `/auth/register`-endpoint)
+
+Domain + Application + Architecture-tester gröna i CI. Frontend (Vitest) helgrön.
+
+**Hypoteser:**
+- Testcontainers Postgres 18 startar OK (logg verifierar `pg_isready` succeeds), men
+  något i miljön gör att API:t kraschar runtime under register-flow
+- DB-migrations kanske kör annorlunda i CI (path-eller permission-känsligt?)
+- WebApplicationFactory + Linux-runner konfig-mismatch
+- TZ/locale-skillnad (Europe/Stockholm lokalt, UTC i CI)
+- xunit.v3 mtp-v2 collection-isolation buggar i parallell-körning
+
+**Konsekvens:**
+- `build.yml` är permanent röd på backend-job tills löst
+- `deploy-dev.yml` körs OK (tag-trigger oberoende av build-status), men en pre-deploy
+  branch-protection-required-check skulle blockera deploys
+
+**Föreslagen åtgärd (vid 14b eller 14c):**
+1. Reproducera lokalt med samma Linux-Docker-setup (devcontainer eller `act`)
+2. Lägg till verbose Serilog-output i Test-env för 500-error-roten
+3. Verifiera att DB-migrations kör mellan WebApplicationFactory-instanser
+4. Eventuellt isolera Integration-tests till separat workflow-job (continue-on-error
+   eller manuell trigger) tills root cause hittats
+
+**Beroenden:** Inga 14a-blockare. STEG 14a stängs med pipeline mekaniskt verifierad
+men Integration-tests defererat. 14b kan adressera detta före first formal tag-deploy.
+
+---
+
 ## TD-31: Test för UseHttpsRedirection env-gate (Sec-Major-2 anti-regression)
 **Kategori:** Testing / Security
 **Severity:** Minor

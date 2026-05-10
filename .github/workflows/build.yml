@@ -59,7 +59,19 @@ jobs:
       # OK). Default test-output går till stdout — räcker för CI-feedback.
       # När test-failures behöver djupare analys: lägg till MTPlatform-native
       # `-- --report-trx`-flagga, men håll det enkelt för Fas 0.
+      #
+      # ASPNETCORE_ENVIRONMENT=Development tvingar test-host till dev-env oavsett
+      # runner-default. Production-env tripper ForwardedHeadersConfig.EnsureSafe-
+      # ForEnvironment (Sec-Major-1, STEG 12) eftersom test-fixturer inte har
+      # proxy-CIDR:er. Production-startup-pipeline verifieras i isolation av
+      # ProductionStartupSmokeTests som override:ar till "Production" + populerad
+      # KnownNetworks via Environment.SetEnvironmentVariable inom sin egen factory.
+      # Försök att sätta env-var inom ApiFactory.InitializeAsync hade ingen effekt
+      # på Linux-runner (.NET 10 / WebApplicationFactory-quirk) — runner-level
+      # env-var är ground truth.
       - name: Test
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
         run: dotnet test --solution JobbPilot.sln --no-build -c Release
 
   frontend:

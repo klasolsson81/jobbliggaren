@@ -7,8 +7,12 @@ terraform {
   }
 }
 
+data "aws_region" "current" {}
+
 # Key policy som tillåter kontots root (via IAM) att administrera; övriga
 # behörigheter delas ut per konsument via IAM-policies mot key-ARN.
+# CloudWatch Logs måste få explicit Service-principal-grant per
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
 data "aws_iam_policy_document" "key_policy" {
   statement {
     sid       = "EnableIAMUserPermissions"
@@ -19,6 +23,30 @@ data "aws_iam_policy_document" "key_policy" {
     principals {
       type        = "AWS"
       identifiers = ["arn:aws:iam::${var.account_id}:root"]
+    }
+  }
+
+  statement {
+    sid    = "AllowCloudWatchLogsEncryption"
+    effect = "Allow"
+    actions = [
+      "kms:Encrypt*",
+      "kms:Decrypt*",
+      "kms:ReEncrypt*",
+      "kms:GenerateDataKey*",
+      "kms:Describe*",
+    ]
+    resources = ["*"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["logs.${data.aws_region.current.name}.amazonaws.com"]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "kms:EncryptionContext:aws:logs:arn"
+      values   = ["arn:aws:logs:${data.aws_region.current.name}:${var.account_id}:log-group:*"]
     }
   }
 }

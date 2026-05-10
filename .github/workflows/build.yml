@@ -47,17 +47,19 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore JobbPilot.sln
+        run: dotnet restore --solution JobbPilot.sln
 
       - name: Build
-        run: dotnet build JobbPilot.sln --no-restore -c Release
+        run: dotnet build --solution JobbPilot.sln --no-restore -c Release
 
       # Microsoft.Testing.Platform-runner aktiveras via global.json. Native CLI
       # exponeras via `--`-separator. `--logger trx` (VSTest-syntax) fungerar
       # via kompat-shim men är fragile mellan SDK-versioner — använd native
       # `--report-trx` istället för deterministisk output över tid.
+      #
+      # .NET 10 SDK kräver `--solution`-flag för sln-input (inte positional).
       - name: Test
-        run: dotnet test JobbPilot.sln --no-build -c Release -- --report-trx --report-trx-filename TestResults.trx --results-directory TestResults
+        run: dotnet test --solution JobbPilot.sln --no-build -c Release -- --report-trx --report-trx-filename TestResults.trx --results-directory TestResults
 
       - name: Upload test results on failure
         if: failure()
@@ -78,9 +80,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # pnpm-version pinnad — pnpm-lock.yaml är lockfileVersion 9.0 (pnpm 9.x).
+      # När ./web/jobbpilot-web/package.json får `"packageManager": "pnpm@..."`-
+      # fält kan version-pinnen härifrån tas bort (action läser då därifrån).
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 9
           run_install: false
 
       # Next.js 16 kräver Node >=20.18. Använd 22 LTS för långt support-fönster.

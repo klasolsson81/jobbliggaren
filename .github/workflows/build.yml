@@ -47,17 +47,20 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore --solution JobbPilot.sln
+        run: dotnet restore JobbPilot.sln
 
       - name: Build
-        run: dotnet build --solution JobbPilot.sln --no-restore -c Release
+        run: dotnet build JobbPilot.sln --no-restore -c Release
 
       # Microsoft.Testing.Platform-runner aktiveras via global.json. Native CLI
       # exponeras via `--`-separator. `--logger trx` (VSTest-syntax) fungerar
       # via kompat-shim men är fragile mellan SDK-versioner — använd native
       # `--report-trx` istället för deterministisk output över tid.
       #
-      # .NET 10 SDK kräver `--solution`-flag för sln-input (inte positional).
+      # .NET 10 SDK 10.0.201 kräver `--solution`-flag specifikt för `dotnet
+      # test` när sln-fil inputas (inte för restore/build — där är positional
+      # OK). Annars fail:ar test-step:en med
+      # "Specifying a solution for 'dotnet test' should be via '--solution'".
       - name: Test
         run: dotnet test --solution JobbPilot.sln --no-build -c Release -- --report-trx --report-trx-filename TestResults.trx --results-directory TestResults
 
@@ -98,8 +101,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
 
+      # --ignore-workspace: web/jobbpilot-web/pnpm-workspace.yaml saknar
+      # `packages:`-fält (innehåller bara `ignoredBuiltDependencies`-config för
+      # sharp/unrs-resolver). pnpm 9 kräver packages-fält om workspace.yaml
+      # finns. CI kör solo-projektet utan workspace-traversal.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Lint
         run: pnpm lint

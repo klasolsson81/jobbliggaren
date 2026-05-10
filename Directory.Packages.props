@@ -41,6 +41,15 @@
     <PackageVersion Include="Hangfire.Core" Version="1.8.23" />
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
+    <!-- JobbPilot.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
+         (Application använder bara DbSet<T>-abstraktionen via EF Core). AWSSDK.SecretsManager
+         används av Migrate för att hämta master-creds + skriva final connection-strings.
+         Microsoft.Extensions.Logging.Console för stdout → CloudWatch. -->
+    <!-- Npgsql 10.0.2 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1
+         (kräver Npgsql >= 10.0.2). Direkt-referens från JobbPilot.Migrate. -->
+    <PackageVersion Include="Npgsql" Version="10.0.2" />
+    <PackageVersion Include="AWSSDK.SecretsManager" Version="4.0.4.20" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.7" />
     <!-- Transitiv CVE-pinning. Hangfire (och NetArchTest.Rules) drar in Newtonsoft.Json 11.0.1
          vilket är sårbar mot CVE-2024-21907 (GHSA-5crp-9r3c-p9vr — DoS via StackOverflow vid
          djupt nestade JSON). Vi använder inte Newtonsoft direkt — pinningen sker bara via

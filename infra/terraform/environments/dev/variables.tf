@@ -83,6 +83,12 @@ variable "worker_image_tag" {
   default     = "latest"
 }
 
+variable "migrate_image_tag" {
+  description = "Image-tag för Migrate one-shot DDL-init (STEG 14b). Tom = task-def skapas inte. Sätts efter docker push av migrate-image."
+  type        = string
+  default     = ""
+}
+
 variable "api_cpu" {
   description = "Fargate CPU för Api. Lean dev = 512 (0.5 vCPU)."
   type        = number

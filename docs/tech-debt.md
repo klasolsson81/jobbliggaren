@@ -1064,6 +1064,33 @@ HTTP-only, HTTPS adderas senare via samma modul).
 
 ---
 
+## TD-38: Trust Server Certificate=true persisteras i app/worker connection-strings
+**Kategori:** Security / TLS
+**Severity:** Minor (dev), eskaleras till Major innan staging/prod
+**Källa:** security-auditor STEG 14b Sec-Minor-4 (2026-05-10)
+
+`JobbPilot.Migrate/Program.cs:BuildConnectionString` använder
+`SSL Mode=Require;Trust Server Certificate=true` för alla connection-strings.
+Det är OK för Migrate själv (dev-RDS-cert är AWS-internal CA inte i container-
+truststore), men samma helper bygger `appCs` och `hangfireCs` som skrivs
+PERMANENT till Secrets Manager. Api + Worker får därmed `Trust=true` för all
+framtid → MITM-yta inom VPC ("encrypted but not authenticated" TLS).
+
+I dev-VPC med ECS-SG-only-ingress till RDS-SG är angripsytan nära noll. I
+staging/prod blir det Sec-Major.
+
+**Föreslagen åtgärd (Fas 1):**
+1. Lägg in RDS-CA-bundle (eu-rds-ca-2019.pem eller global-bundle.pem) i
+   container-truststores (Api/Worker Dockerfile via `update-ca-certificates`)
+2. Splitta `BuildConnectionString` i två varianter:
+   - Migrate själv: `Trust=true` OK (dev-fas)
+   - Persisterade app/worker-CS: `Trust=false` med RDS-CA-validering
+3. Re-run Migrate post-trust-flip → secrets uppdateras med strikt TLS
+
+**Beroenden:** Inga 14b-blockare. Adresseras innan Fas 1-staging-rollout.
+
+---
+
 ## TD-37: Backend Integration tests fail i CI (förexisterande, upptäckt i STEG 14a)
 **Kategori:** Testing / CI/CD
 **Severity:** Major (blockerar tag-deploy via deploy-dev.yml förrän löst)

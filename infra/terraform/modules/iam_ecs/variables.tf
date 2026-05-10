@@ -23,6 +23,26 @@ variable "secret_arns" {
   type        = list(string)
 }
 
+# ---------------------------------------------------------------------------
+# Migrate-task secret-yta (STEG 14b). Separat från `secret_arns` eftersom
+# migrate-rollen behöver:
+#   1. GetSecretValue på master-secret (RDS-managerad creds-secret)
+#   2. PutSecretValue + GetSecretValue på app + hangfire connection-string-secrets
+# Övriga task-roller (api/worker) ska INTE ha PutSecretValue-yta.
+# ---------------------------------------------------------------------------
+
+variable "migrate_master_secret_arn" {
+  description = "ARN för RDS-master-secret (AWS-managerad). Migrate-rollen läser denna för superuser-creds. Tom sträng = migrate-roll skapas inte."
+  type        = string
+  default     = ""
+}
+
+variable "migrate_writable_secret_arns" {
+  description = "ARNs för secrets där migrate-rollen får skriva final connection-strings (app + hangfire). Tom lista = migrate-roll skapas inte."
+  type        = list(string)
+  default     = []
+}
+
 variable "kms_key_arn" {
   description = "Master-KMS-key-ARN. Används för Secrets Manager-decrypt + KMS-encrypted log-decrypt."
   type        = string

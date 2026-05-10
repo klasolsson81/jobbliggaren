@@ -14,3 +14,11 @@
 # ---------------------------------------------------------------------------
 alb_https_enabled       = true
 alb_acm_certificate_arn = "arn:aws:acm:eu-north-1:710427215829:certificate/f72a79d7-f964-49c7-abb5-cf81b8639d6a"
+
+# ---------------------------------------------------------------------------
+# STEG 14b — Migrate one-shot DDL-init 2026-05-10
+#
+# Image pushad till ECR med tag 14b-<git-sha>. Sätter migrate_image_tag
+# aktiverar count = 1 i modules/ecs/aws_ecs_task_definition.migrate.
+# ---------------------------------------------------------------------------
+migrate_image_tag = "14b-9113bed-fix3"

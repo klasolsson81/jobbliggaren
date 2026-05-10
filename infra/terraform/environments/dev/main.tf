@@ -143,12 +143,12 @@ data "aws_iam_policy" "bedrock_invoke" {
   name = "JobbPilotBedrockInvoke"
 }
 
-# ECR repos — separata för api + worker
+# ECR repos — api + worker + migrate (STEG 14b one-shot DDL-image)
 module "ecr" {
   source = "../../modules/ecr"
 
   name_prefix      = var.name_prefix
-  repository_names = ["api", "worker"]
+  repository_names = ["api", "worker", "migrate"]
   kms_key_id       = data.aws_kms_alias.master.target_key_arn
 
   tags = var.common_tags
@@ -159,14 +159,14 @@ module "cloudwatch_logs" {
   source = "../../modules/cloudwatch_logs"
 
   name_prefix       = var.name_prefix
-  log_group_names   = ["api", "worker", "ecs-exec"]
+  log_group_names   = ["api", "worker", "ecs-exec", "migrate"]
   retention_in_days = 30
   kms_key_id        = data.aws_kms_alias.master.target_key_arn
 
   tags = var.common_tags
 }
 
-# IAM-roller för ECS — execution + task-role-api + task-role-worker
+# IAM-roller för ECS — execution + task-role-api + task-role-worker + task-role-migrate (STEG 14b)
 module "iam_ecs" {
   source = "../../modules/iam_ecs"
 
@@ -183,6 +183,14 @@ module "iam_ecs" {
   ]
   kms_key_arn               = data.aws_kms_alias.master.target_key_arn
   bedrock_invoke_policy_arn = data.aws_iam_policy.bedrock_invoke.arn
+
+  # Migrate-roll (STEG 14b) — separat blast-radius från api/worker. PutSecretValue
+  # bara på app + hangfire-connection-secrets; GetSecretValue på master-secret.
+  migrate_master_secret_arn = module.rds.master_user_secret_arn
+  migrate_writable_secret_arns = [
+    aws_secretsmanager_secret.db_app_connection.arn,
+    aws_secretsmanager_secret.db_hangfire_connection.arn,
+  ]
 
   tags = var.common_tags
 }
@@ -275,6 +283,29 @@ module "ecs" {
   # (Host.CreateApplicationBuilder).
   worker_environment = {
     "DOTNET_ENVIRONMENT" = "Production"
+  }
+
+  # ---------------------------------------------------------------------------
+  # Migrate one-shot task-def (STEG 14b). Skapas bara om migrate_image_uri
+  # sätts i tfvars (default tom = task-def skapas inte). Build + push av
+  # image-flow:
+  #   docker build -f src/JobbPilot.Migrate/Dockerfile -t ${ECR}/jobbpilot-dev-migrate:<sha> .
+  #   docker push ${ECR}/jobbpilot-dev-migrate:<sha>
+  #   tfvars-edit: migrate_image_tag = "<sha>"
+  # Run-task: aws ecs run-task --task-definition jobbpilot-dev-migrate
+  # ---------------------------------------------------------------------------
+  migrate_image_uri      = var.migrate_image_tag != "" ? "${module.ecr.repository_urls["migrate"]}:${var.migrate_image_tag}" : ""
+  task_migrate_role_arn  = module.iam_ecs.task_migrate_role_arn
+  migrate_log_group_name = module.cloudwatch_logs.log_group_names["migrate"]
+
+  migrate_environment = {
+    "AWS_REGION"                       = var.aws_region
+    "MIGRATE_DB_HOST"                  = module.rds.address
+    "MIGRATE_DB_PORT"                  = tostring(module.rds.port)
+    "MIGRATE_DB_NAME"                  = "jobbpilot"
+    "MIGRATE_MASTER_SECRET_ARN"        = module.rds.master_user_secret_arn
+    "MIGRATE_APP_CONN_SECRET_ARN"      = aws_secretsmanager_secret.db_app_connection.arn
+    "MIGRATE_HANGFIRE_CONN_SECRET_ARN" = aws_secretsmanager_secret.db_hangfire_connection.arn
   }
 
   tags = var.common_tags

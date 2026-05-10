@@ -266,3 +266,111 @@ resource "aws_iam_role_policy_attachment" "task_worker" {
   role       = aws_iam_role.task_worker.name
   policy_arn = aws_iam_policy.task_worker.arn
 }
+
+# ---------------------------------------------------------------------------
+# Task-role-migrate — one-shot DDL-init console (STEG 14b).
+#
+# Skapas bara om var.migrate_master_secret_arn != "" (count-pattern) — håller
+# IaC backwards-compatibel om migrate-rollen inte behövs i miljön.
+#
+# Permissions:
+#   1. GetSecretValue på master-secret (för Postgres superuser-creds)
+#   2. GetSecretValue + PutSecretValue på app + hangfire connection-string-secrets
+#      (slutliga connection-strings skrivs av Migrate post-DDL)
+#   3. KmsDecrypt (för Secrets Manager-encrypted secrets)
+#   4. ECS Exec (för debug om Migrate failer)
+#
+# INGEN Bedrock, INGEN Postgres-network-yta utöver via Secrets-injection
+# (Migrate använder samma SG-yta som task_worker via task-def-config).
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "task_migrate" {
+  count = var.migrate_master_secret_arn != "" ? 1 : 0
+
+  name               = "${var.name_prefix}-ecs-task-migrate"
+  description        = "Task-role för Migrate one-shot DDL-init (STEG 14b). PutSecretValue på app+hangfire connection-strings, GetSecretValue på master."
+  assume_role_policy = data.aws_iam_policy_document.assume_role_ecs_tasks.json
+
+  tags = merge(var.tags, {
+    Purpose = "ecs-task-migrate"
+    Service = "migrate"
+  })
+}
+
+data "aws_iam_policy_document" "task_migrate" {
+  count = var.migrate_master_secret_arn != "" ? 1 : 0
+
+  # Master-secret läses för Postgres superuser-creds (Phase A + C i Migrate).
+  statement {
+    sid    = "MasterSecretRead"
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+    ]
+    resources = [var.migrate_master_secret_arn]
+  }
+
+  # App + Hangfire connection-string secrets — Migrate skriver final values
+  # post-DDL. GetSecretValue inkluderat för ev. read-back / re-run-detektering.
+  statement {
+    sid    = "WritableConnectionSecrets"
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:PutSecretValue",
+    ]
+    resources = var.migrate_writable_secret_arns
+  }
+
+  # KMS Decrypt + GenerateDataKey för Secrets Manager-encrypted secrets. Båda
+  # behövs vid PutSecretValue mot KMS-encrypted secret: GenerateDataKey
+  # genererar ny data-key för envelope-encryption av nya secret-versionen,
+  # Decrypt läser ut existerande versioner. Verifierat empiriskt 2026-05-10:
+  # security-auditor Sec-Minor-5 motbevisad — utan GenerateDataKey failer
+  # PutSecretValue med "Access to KMS is not allowed".
+  # ViaService-condition begränsar yta till bara Secrets Manager-flödet.
+  statement {
+    sid       = "KmsDecryptForSecrets"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["secretsmanager.${data.aws_region.current.name}.amazonaws.com"]
+    }
+  }
+
+  # ECS Exec för debug om Migrate-task failer mid-run (sällan, men cheap-yta).
+  statement {
+    sid    = "EcsExecMessaging"
+    effect = "Allow"
+    actions = [
+      "ssmmessages:CreateControlChannel",
+      "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel",
+      "ssmmessages:OpenDataChannel",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "task_migrate" {
+  count = var.migrate_master_secret_arn != "" ? 1 : 0
+
+  name        = "${var.name_prefix}-ecs-task-migrate"
+  description = "Permissions för Migrate one-shot DDL-task: master-secret read, app+hangfire-secret write, KMS decrypt."
+  policy      = data.aws_iam_policy_document.task_migrate[0].json
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_migrate" {
+  count = var.migrate_master_secret_arn != "" ? 1 : 0
+
+  role       = aws_iam_role.task_migrate[0].name
+  policy_arn = aws_iam_policy.task_migrate[0].arn
+}

@@ -169,6 +169,53 @@ variable "worker_max_capacity" {
   default     = 4
 }
 
+# ---------------------------------------------------------------------------
+# Migrate one-shot task-def (STEG 14b). Skapas bara om migrate_image_uri sätts.
+# Inga services/desired_count — task körs via `aws ecs run-task` engångs.
+# ---------------------------------------------------------------------------
+
+variable "migrate_image_uri" {
+  description = "Full ECR image-URI för Migrate one-shot DDL-init. Tom sträng = task-def skapas inte."
+  type        = string
+  default     = ""
+}
+
+variable "task_migrate_role_arn" {
+  description = "Task-role för Migrate (PutSecretValue på app+hangfire-secret + GetSecretValue på master). Tom sträng = task-def skapas inte."
+  type        = string
+  default     = ""
+}
+
+variable "migrate_log_group_name" {
+  description = "CloudWatch LogGroup-namn för Migrate-container."
+  type        = string
+  default     = ""
+}
+
+variable "migrate_environment" {
+  description = "Map av klartext-env-vars för Migrate (host/port/db/region/secret-arns)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "migrate_secrets" {
+  description = "Map av env-var-namn till Secrets Manager-ARN för Migrate. Vanligtvis tomt — Migrate läser secrets via SDK direkt."
+  type        = map(string)
+  default     = {}
+}
+
+variable "migrate_cpu" {
+  description = "Fargate CPU-units för Migrate. One-shot, lägsta nivån räcker."
+  type        = number
+  default     = 256
+}
+
+variable "migrate_memory" {
+  description = "Fargate memory MB för Migrate."
+  type        = number
+  default     = 512
+}
+
 variable "tags" {
   description = "Common tags."
   type        = map(string)

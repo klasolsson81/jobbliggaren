@@ -153,3 +153,29 @@ output "dev_url_https" {
   description = "HTTPS-URL till Api-via-ALB. Fungerar först efter alb_https_enabled flippats."
   value       = "https://${var.dev_subdomain}.${var.apex_domain_name}"
 }
+
+# ---------------------------------------------------------------------------
+# STEG 14b — Migrate one-shot DDL-init
+# ---------------------------------------------------------------------------
+
+output "ecr_migrate_repository_url" {
+  description = "ECR-repo-URL för Migrate. Används vid `docker push` av migrate-image."
+  value       = module.ecr.repository_urls["migrate"]
+}
+
+output "ecs_task_migrate_role_arn" {
+  description = "Task-role för Migrate (PutSecretValue på app+hangfire-secret + GetSecretValue på master). Tom om migrate-rollen ej skapats."
+  value       = module.iam_ecs.task_migrate_role_arn
+}
+
+output "migrate_run_task_command" {
+  description = "Färdigt aws ecs run-task-kommando för Migrate-task. Operatör copy-paste:ar utan att slå upp subnets/SG manuellt. Kräver att migrate_image_tag är satt + Phase 2-apply kört."
+  value = module.ecs.migrate_task_definition_family != "" ? format(
+    "aws ecs run-task --cluster %s --task-definition %s --launch-type FARGATE --network-configuration 'awsvpcConfiguration={subnets=[%s],securityGroups=[%s],assignPublicIp=DISABLED}' --region %s --profile jobbpilot",
+    module.ecs.cluster_name,
+    module.ecs.migrate_task_definition_family,
+    join(",", module.network.private_subnet_ids),
+    module.network.ecs_security_group_id,
+    var.aws_region
+  ) : "Migrate-task-def ej skapad — sätt migrate_image_tag i tfvars och apply."
+}

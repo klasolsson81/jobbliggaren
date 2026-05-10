@@ -103,6 +103,68 @@ resource "aws_ecs_task_definition" "api" {
 # ECS det via container exit code).
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Task-def: Migrate one-shot (STEG 14b)
+#
+# Körs via `aws ecs run-task` engångs vid Fas 0-stängning + future schema-
+# mutationer. Inga services, ingen autoscaling, inga portMappings. Container
+# exitar med code 0 efter Phase A-D klart (se src/JobbPilot.Migrate/).
+#
+# Skapas bara om migrate_image_uri != "" (count-pattern) — håller IaC
+# backwards-compatibel.
+# ---------------------------------------------------------------------------
+
+resource "aws_ecs_task_definition" "migrate" {
+  count = var.migrate_image_uri != "" ? 1 : 0
+
+  family                   = "${var.name_prefix}-migrate"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.migrate_cpu
+  memory                   = var.migrate_memory
+
+  execution_role_arn = var.execution_role_arn
+  task_role_arn      = var.task_migrate_role_arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "migrate"
+      image     = var.migrate_image_uri
+      essential = true
+
+      # Inga portMappings — Migrate är HTTP-fri (one-shot console).
+
+      environment = [
+        for k, v in var.migrate_environment : { name = k, value = v }
+      ]
+
+      secrets = [
+        for k, arn in var.migrate_secrets : { name = k, valueFrom = arn }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = var.migrate_log_group_name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "migrate"
+        }
+      }
+
+      readonlyRootFilesystem = false
+      privileged             = false
+
+      # Inga healthCheck — one-shot exitar deterministiskt.
+      stopTimeout = 30
+    }
+  ])
+
+  tags = merge(var.tags, {
+    Name    = "${var.name_prefix}-migrate-taskdef"
+    Service = "migrate"
+  })
+}
+
 resource "aws_ecs_task_definition" "worker" {
   family                   = "${var.name_prefix}-worker"
   network_mode             = "awsvpc"

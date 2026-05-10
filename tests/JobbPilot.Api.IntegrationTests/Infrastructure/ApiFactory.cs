@@ -41,11 +41,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // service-registration-tid (innan ConfigureWebHost-services körs).
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Tvinga Development-env explicit. Production-env tripper
+        // Tvinga Development-env. Production-env tripper
         // ForwardedHeadersConfig.EnsureSafeForEnvironment (Sec-Major-1, STEG 12)
         // när KnownNetworks är tom — by design fail-loud i prod, men test-fixturen
         // har inga proxy-CIDR:er. Production-startup verifieras isolerat av
         // ProductionStartupSmokeTests.
+        //
+        // OBS: builder.UseEnvironment() här är otillräckligt för minimal API +
+        // WebApplicationFactory eftersom WebApplication.CreateBuilder() i
+        // Program.cs läser ASPNETCORE_ENVIRONMENT INNAN denna callback körs.
+        // Verklig env-override sker via env-var i InitializeAsync nedan.
         builder.UseEnvironment("Development");
 
         builder.ConfigureServices(services =>
@@ -86,6 +91,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         _postgresCs = _postgres.GetConnectionString();
         _redisCs = _redis.GetConnectionString();
 
+        // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access så WebApplication.
+        // CreateBuilder() i Program.cs läser rätt värde. UseEnvironment() i
+        // ConfigureWebHost är ej effektivt för minimal API (callback körs efter
+        // builder är byggd). Tvingar Development för att undvika fail-loud
+        // ForwardedHeadersConfig.EnsureSafeForEnvironment med tom KnownNetworks.
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+
         // JWT key paths are read at service-registration time in Program.cs via
         // builder.Configuration. Setting env vars here (before Services is accessed, which
         // triggers Program.cs to run) makes them available to WebApplication.CreateBuilder().
@@ -112,6 +124,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public new async ValueTask DisposeAsync()
     {
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);

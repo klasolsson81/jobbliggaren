@@ -51,6 +51,26 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddJobbPilotRateLimiting(builder.Configuration);
 
+// HSTS-config bindas vid service-registrering så ASP.NET Cores AddHsts läser
+// rätt värden. UseHsts() i pipelinen nedan gate:as på Environment + HttpsEnabled
+// (samma rationale som UseHttpsRedirection). Header sätts bara på HTTPS-svar.
+var hstsConfig = builder.Configuration.GetSection(HstsOptions.SectionName).Get<HstsOptions>() ?? new HstsOptions();
+
+// Production-defense per allow-list (paritet med ForwardedHeadersConfig STEG 12).
+// Gate:at på albOptions.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
+// HSTS-config inte vara obligatorisk; men om HttpsEnabled flippas måste
+// MaxAgeDays>=365 + Preload-krav uppfyllas (annars tyst regression).
+var albConfig = builder.Configuration.GetSection(AlbOptions.SectionName).Get<AlbOptions>() ?? new AlbOptions();
+if (albConfig.HttpsEnabled)
+    hstsConfig.EnsureSafeForEnvironment(builder.Environment.EnvironmentName);
+
+builder.Services.AddHsts(o =>
+{
+    o.MaxAge = TimeSpan.FromDays(hstsConfig.MaxAgeDays);
+    o.IncludeSubDomains = hstsConfig.IncludeSubDomains;
+    o.Preload = hstsConfig.Preload;
+});
+
 var app = builder.Build();
 
 app.Use(async (ctx, next) =>
@@ -118,6 +138,20 @@ app.UseForwardedHeaders(forwardedOptions);
 // sätts av Terraform när var.alb_https_enabled = true; default false fram till ADR 0026-trigger).
 // Development-miljö behåller redirect (dotnet run använder dev-cert via Kestrel + IIS Express).
 var albOptions = builder.Configuration.GetSection(AlbOptions.SectionName).Get<AlbOptions>() ?? new AlbOptions();
+
+// HSTS FÖRE HttpsRedirection så att HSTS-headern sätts på alla HTTPS-svar
+// (inklusive 307-redirect-svaret). Skip i Development för att undvika
+// browser-HTTPS-lock på localhost (HSTS-policy persistar i `MaxAgeDays`
+// dagar även efter dev-cert roterats — bryter `dotnet run` framtida sessioner).
+//
+// Förutsätter att UseForwardedHeaders körts före (rad ~112) — annars är
+// Request.IsHttps false bakom ALB och HSTS-headern sätts aldrig på response
+// (dotnet-architect Viktigt-fynd, ASP.NET Core 10 docs).
+if (!builder.Environment.IsDevelopment() && albOptions.HttpsEnabled)
+{
+    app.UseHsts();
+}
+
 if (builder.Environment.IsDevelopment() || albOptions.HttpsEnabled)
 {
     app.UseHttpsRedirection();

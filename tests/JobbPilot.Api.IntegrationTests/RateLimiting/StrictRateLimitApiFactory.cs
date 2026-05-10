@@ -82,6 +82,10 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         _postgresCs = _postgres.GetConnectionString();
         _redisCs = _redis.GetConnectionString();
 
+        // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access så Program.cs läser
+        // rätt värde (samma rationale som ApiFactory).
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
 
@@ -99,6 +103,10 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
 
     public new async ValueTask DisposeAsync()
     {
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
+        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
+        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
+
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
 

@@ -80,6 +80,12 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         _postgresCs = _postgres.GetConnectionString();
         _redisCs = _redis.GetConnectionString();
 
+        // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access. UseEnvironment() i
+        // ConfigureWebHost är otillräckligt för minimal API. Production-mode
+        // är HELA poängen med denna fixture — verifiera Program.cs-startup-pipeline
+        // i prod-läge med populerad config.
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
+
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
 
@@ -102,6 +108,7 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
 
     public new async ValueTask DisposeAsync()
     {
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);

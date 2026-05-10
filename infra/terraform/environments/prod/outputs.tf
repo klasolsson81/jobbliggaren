@@ -29,3 +29,22 @@ output "secret_arns" {
 output "bedrock_invoke_policy_arn" {
   value = module.bedrock_model_access.bedrock_invoke_policy_arn
 }
+
+# ---------------------------------------------------------------------------
+# Route53 — apex hosted zone (delad resurs)
+# ---------------------------------------------------------------------------
+
+output "route53_zone_id" {
+  description = "Hosted-zone-ID för apex-domänen. Konsumeras av dev/staging/prod-stacks via `data \"aws_route53_zone\"`-lookup."
+  value       = module.route53.zone_id
+}
+
+output "route53_domain_name" {
+  description = "Apex-domän (utan trailing dot)."
+  value       = module.route53.domain_name
+}
+
+output "route53_name_servers" {
+  description = "4 NS-records — kopiera till registrar för delegering till AWS."
+  value       = module.route53.name_servers
+}

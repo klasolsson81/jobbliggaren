@@ -89,9 +89,12 @@ resource "aws_lb_listener" "http" {
     content {
       type = "redirect"
       redirect {
-        port        = "443"
-        protocol    = "HTTPS"
-        status_code = "HTTP_301"
+        port     = "443"
+        protocol = "HTTPS"
+        # HTTP_308 (Permanent Redirect) bevarar request-method (POST→POST).
+        # 301 tillåter klienter att downgrad:a POST→GET vilket kan tappa
+        # request-body (security-auditor Sec-Minor STEG 13c).
+        status_code = "HTTP_308"
       }
     }
   }

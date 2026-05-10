@@ -134,3 +134,22 @@ output "ecs_task_api_role_arn" {
 output "ecs_task_worker_role_arn" {
   value = module.iam_ecs.task_worker_role_arn
 }
+
+# ---------------------------------------------------------------------------
+# STEG 13c — DNS + TLS
+# ---------------------------------------------------------------------------
+
+output "dev_fqdn" {
+  description = "Full DNS-namn för dev-miljöns Api (ALIAS → ALB)."
+  value       = "${var.dev_subdomain}.${var.apex_domain_name}"
+}
+
+output "acm_dev_certificate_arn" {
+  description = "Validerad ACM-cert-ARN för dev.<apex>. Kopiera till terraform.tfvars som alb_acm_certificate_arn samtidigt som alb_https_enabled flippas till true."
+  value       = module.acm_dev.certificate_arn
+}
+
+output "dev_url_https" {
+  description = "HTTPS-URL till Api-via-ALB. Fungerar först efter alb_https_enabled flippats."
+  value       = "https://${var.dev_subdomain}.${var.apex_domain_name}"
+}

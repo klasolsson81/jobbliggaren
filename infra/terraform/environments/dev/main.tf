@@ -279,3 +279,58 @@ module "ecs" {
 
   tags = var.common_tags
 }
+
+# ---------------------------------------------------------------------------
+# STEG 13c — DNS + TLS (ADR 0026 trigger 1 / TD-30)
+#
+# Hosted zone bor i prod/baseline (delad resurs). Dev-stack lookar upp via
+# data-source. ACM-cert utfärdas i eu-north-1 (samma region som ALB) med
+# DNS-validering via Route53-CNAME. ALIAS-record dev.jobbpilot.se → ALB.
+#
+# Pre-apply-checklista (dev-stack):
+#   1. prod/baseline-stack appliad (zone existerar)
+#   2. Registrar pekar NS-records på AWS-NS (output `route53_name_servers`)
+#   3. Verifiera global propagering INNAN dev-apply:
+#        dig NS jobbpilot.se +short
+#        → ska returnera 4 ns-*.awsdns-*.* (inte registrar-default-NS)
+#      Om annorlunda → vänta 30-60 min till och re-kontrollera. Apply utan
+#      propagerad NS → ACM-validation hänger till timeout (60 min, höjt
+#      från default 45 i modules/acm/main.tf).
+#
+# Apply-flöde:
+#   1. terraform apply (denna stack) — skapar ACM-cert + validation +
+#      A-ALIAS-record. Validering 5-30 min normalt.
+#   2. När `acm_dev.certificate_arn` finns: edit terraform.tfvars med
+#      alb_https_enabled=true + alb_acm_certificate_arn=<output>
+#   3. terraform apply igen — flippar HTTP-listenern till HTTPS-redirect
+#   4. Smoke-test https://dev.jobbpilot.se/api/ready
+#   5. Skapa ADR 0027 supersession av ADR 0026
+# ---------------------------------------------------------------------------
+
+data "aws_route53_zone" "apex" {
+  name         = var.apex_domain_name
+  private_zone = false
+}
+
+module "acm_dev" {
+  source = "../../modules/acm"
+
+  domain_name     = "${var.dev_subdomain}.${var.apex_domain_name}"
+  route53_zone_id = data.aws_route53_zone.apex.zone_id
+
+  tags = var.common_tags
+}
+
+# A-ALIAS-record dev.jobbpilot.se → ALB. ALIAS = AWS-specifik (gratis,
+# automatic-update om ALB byter IP, healthcheck-aware).
+resource "aws_route53_record" "dev_alb_alias" {
+  zone_id = data.aws_route53_zone.apex.zone_id
+  name    = "${var.dev_subdomain}.${var.apex_domain_name}"
+  type    = "A"
+
+  alias {
+    name                   = module.alb.alb_dns_name
+    zone_id                = module.alb.alb_zone_id
+    evaluate_target_health = true
+  }
+}

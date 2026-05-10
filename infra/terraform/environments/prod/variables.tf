@@ -42,3 +42,9 @@ variable "common_tags" {
     Owner       = "klas"
   }
 }
+
+variable "domain_name" {
+  description = "Apex-domän som registreras hos svensk registrar och delegeras till AWS Route53. STEG 13c (TD-30, ADR 0026 trigger 1)."
+  type        = string
+  default     = "jobbpilot.se"
+}

@@ -10,7 +10,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.3-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![AWS](https://img.shields.io/badge/AWS-eu--north--1-FF9900?logo=amazonwebservices&logoColor=white)](https://aws.amazon.com/)
-[![Status](https://img.shields.io/badge/status-pre--MVP-yellow)](docs/steg-tracker.md)
+[![Status](https://img.shields.io/badge/status-Fas%201-blue)](docs/steg-tracker.md)
+[![dev](https://img.shields.io/badge/dev-live-success)](https://dev.jobbpilot.se/api/ready)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#licens)
 
 ---
@@ -478,7 +479,7 @@ Detaljer: [`BUILD.md §13`](BUILD.md), [`docs/decisions/0024-*`](docs/decisions/
 
 ## Status och roadmap
 
-Aktuell status: **Pre-MVP, Fas 0 (infra-buildout)**.
+Aktuell status: **Fas 1 (Core Domain)** — Fas 0 stängd 2026-05-10.
 
 Långsiktig planering följer en STEG-progression dokumenterad i [`docs/steg-tracker.md`](docs/steg-tracker.md). Aktuell session-state alltid i [`docs/current-work.md`](docs/current-work.md).
 
@@ -486,11 +487,13 @@ Långsiktig planering följer en STEG-progression dokumenterad i [`docs/steg-tra
 
 | Fas | Innehåll | Status |
 |-----|----------|--------|
-| **Fas 0** | AWS-infrastruktur, container-pipeline, DNS + TLS | Pågår |
-| **Fas 1** | Auth, kärn-CRUD, dashboard, JobTech-integration, basal AI | Planerad |
+| **Fas 0** | AWS-infrastruktur, container-pipeline, DNS + TLS, CI/CD | **Klar 2026-05-10** |
+| **Fas 1** | Auth, kärn-CRUD, dashboard, JobTech-integration, basal AI | Pågående |
 | **Fas 2** | Multi-tenant, OAuth, Gmail-sync, kalender | Planerad |
 | **Fas 3** | Admin-yta, BYOK-onboarding, kostnadstak | Planerad |
 | **Fas 4** | Public launch, betalning, internationell expansion | Framtid |
+
+Live dev-miljö: [`https://dev.jobbpilot.se/api/ready`](https://dev.jobbpilot.se/api/ready) — auto-deploy via tag `v*-dev` på `main`.
 
 Arkitektur-beslut historieförs som **ADRs** under [`docs/decisions/`](docs/decisions/) — index i [`docs/decisions/README.md`](docs/decisions/README.md).
 

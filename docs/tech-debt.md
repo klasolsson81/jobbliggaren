@@ -1091,12 +1091,15 @@ staging/prod blir det Sec-Major.
 
 ---
 
-## TD-37: Backend Integration tests fail i CI (förexisterande, upptäckt i STEG 14a)
+## TD-37: Backend Integration tests fail i CI — STÄNGD per STEG 14c (2026-05-10)
 **Kategori:** Testing / CI/CD
-**Severity:** Major (blockerar tag-deploy via deploy-dev.yml förrän löst)
+**Severity:** Major (blockerade tag-deploy via deploy-dev.yml förrän löst)
 **Källa:** STEG 14a build.yml första-run, 2026-05-10 (run 25634087757)
+**Stängd:** 2026-05-10 ~21:55 — Backend CI 554/554 grön (run 25637996682)
 
-Lokalt passerar alla 554 backend-tester (157 Domain + 183 Application + 23 Architecture
+### Symptom (originalt)
+
+Lokalt passerade alla 554 backend-tester (157 Domain + 183 Application + 23 Architecture
 + 26 Worker + 165 Api Integration). I CI på ubuntu-latest-runner med Testcontainers:
 
 - `JobbPilot.Worker.IntegrationTests`: 1 fail (`AuditLogRetentionJobIntegrationTests.
@@ -1104,30 +1107,47 @@ Lokalt passerar alla 554 backend-tester (157 Domain + 183 Application + 23 Archi
 - `JobbPilot.Api.IntegrationTests`: 88 errors (alla Auth/Applications-tester får
   `500 Internal Server Error` på `/auth/register`-endpoint)
 
-Domain + Application + Architecture-tester gröna i CI. Frontend (Vitest) helgrön.
+### Root cause (identifierat via debug-middleware i STEG 14c)
 
-**Hypoteser:**
-- Testcontainers Postgres 18 startar OK (logg verifierar `pg_isready` succeeds), men
-  något i miljön gör att API:t kraschar runtime under register-flow
-- DB-migrations kanske kör annorlunda i CI (path-eller permission-känsligt?)
-- WebApplicationFactory + Linux-runner konfig-mismatch
-- TZ/locale-skillnad (Europe/Stockholm lokalt, UTC i CI)
-- xunit.v3 mtp-v2 collection-isolation buggar i parallell-körning
+**Api 88-fail:** `StackExchange.Redis.RedisConnectionException: not possible to connect
+to redis server(s)` vid `JobbPilot.Infrastructure.DependencyInjection.AddIdentityAndSessions`
+line 131. ApiFactory.ConfigureServices replacar `IDistributedCache` men INTE
+`IConnectionMultiplexer` — den registreras separat med string captured vid
+registration-time (`services.AddSingleton<IConnectionMultiplexer>(_ =>
+ConnectionMultiplexer.Connect(redisConnectionString))`). Lokalt på Windows funkar
+default `localhost:6379` via Docker Compose; på Linux-CI utan default Redis kraschar
+`Connect()` vid första request → 500 på alla auth-endpoints.
 
-**Konsekvens:**
-- `build.yml` är permanent röd på backend-job tills löst
-- `deploy-dev.yml` körs OK (tag-trigger oberoende av build-status), men en pre-deploy
-  branch-protection-required-check skulle blockera deploys
+**Worker 1-fail:** Test-ordering-fragilitet. `RunAsync_EndToEnd_EnsuresNextDayAndDropsOld`
+använder retention-cutoff = fixed-clock(2030-03-15) - 90d = ~2029-12-15. Om den körs
+FÖRE `DropPartitionsOlderThan_DropsOldPartitionsSkipsDefaultAndRecent`, droppas alla
+migration-bootstrap-partitions (2026-05-XX < 2029-12-15) → fragil `tomorrow`-assert
+failer.
 
-**Föreslagen åtgärd (vid 14b eller 14c):**
-1. Reproducera lokalt med samma Linux-Docker-setup (devcontainer eller `act`)
-2. Lägg till verbose Serilog-output i Test-env för 500-error-roten
-3. Verifiera att DB-migrations kör mellan WebApplicationFactory-instanser
-4. Eventuellt isolera Integration-tests till separat workflow-job (continue-on-error
-   eller manuell trigger) tills root cause hittats
+### Fix (commits 3b71fa5 → 8215658)
 
-**Beroenden:** Inga 14a-blockare. STEG 14a stängs med pipeline mekaniskt verifierad
-men Integration-tests defererat. 14b kan adressera detta före first formal tag-deploy.
+- **`ConnectionStrings__Redis` env-var i ApiFactory + StrictRateLimitApiFactory.InitializeAsync**
+  FÖRE Services-access (samma pattern som ProductionStartupFactory hade redan)
+- **`ConnectionStrings__Postgres`** för konsistens
+- **Self-managed recent-partition i Worker-test** istället för bootstrap-litande
+- **Rate-limit-test-merge** — slå ihop 2 separat tester som delade rate-limit-budget
+  via samma factory-instans (1-minuts window återställs inte mellan tester)
+- **`ProductionStartupSmokeTests`** — ny regression-skydd för Production-env-pipeline
+  (UseEnvironment("Production") + populerad KnownNetworks via env-var)
+- **`build.yml` `ASPNETCORE_ENVIRONMENT=Development`** som runner-level säkerhet
+
+### Lärdomar (för Fas 1+)
+
+- **`IWebHostBuilder.UseEnvironment()` är otillräckligt för minimal API + WebApplicationFactory**
+  — `WebApplication.CreateBuilder()` läser ASPNETCORE_ENVIRONMENT INNAN ConfigureWebHost-callback
+  körs. Verklig env-override sker via env-var i process FÖRE Services-access.
+- **`IConnectionMultiplexer` kräver SEPARAT replace** utöver `IDistributedCache` —
+  två olika DI-registreringar i Infrastructure DI.
+- **Debug-middleware/console-logger snabbare path till root cause** än hypotes-jakt —
+  IStartupFilter + AddSimpleConsole på Information-level exponerade exception-stack-trace
+  i CI-stdout efter ~5 commits av blinda env-fix-försök.
+- **Test-isolation viktig regression-skydd** — `ProductionStartupSmokeTests` säkerställer
+  att framtida env-gated checks inte tyst breaker prod-pipelinen.
 
 ---
 

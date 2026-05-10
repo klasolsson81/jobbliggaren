@@ -108,6 +108,30 @@ resource "aws_secretsmanager_secret" "db_hangfire_connection" {
   })
 }
 
+# Placeholder-versioner så ECS-execution-role kan hämta AWSCURRENT-label vid task-startup.
+# STEG 14 skriver över via `aws secretsmanager put-secret-value` efter DDL — lifecycle
+# ignorerar secret_string så Terraform inte vill rolla tillbaka post-STEG 14.
+# Application kommer krascha vid första query (PLACEHOLDER-creds existerar inte), task
+# restartar i loop tills STEG 14 sätter riktiga värden. Detta är förväntad transient
+# state mellan STEG 13b-apply och STEG 14-DDL.
+resource "aws_secretsmanager_secret_version" "db_app_connection_placeholder" {
+  secret_id     = aws_secretsmanager_secret.db_app_connection.id
+  secret_string = "Host=${module.rds.address};Port=${module.rds.port};Database=jobbpilot;Username=PLACEHOLDER_SET_BY_STEG_14;Password=PLACEHOLDER_SET_BY_STEG_14;SSL Mode=Require;Trust Server Certificate=true"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "db_hangfire_connection_placeholder" {
+  secret_id     = aws_secretsmanager_secret.db_hangfire_connection.id
+  secret_string = "Host=${module.rds.address};Port=${module.rds.port};Database=jobbpilot;Username=PLACEHOLDER_SET_BY_STEG_14;Password=PLACEHOLDER_SET_BY_STEG_14;SSL Mode=Require;Trust Server Certificate=true"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
 # ---------------------------------------------------------------------------
 # STEG 13b — container-infra
 #

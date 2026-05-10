@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: build + publish
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0-bookworm-slim AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
 COPY global.json Directory.Build.props Directory.Packages.props JobbPilot.sln ./
@@ -34,7 +34,7 @@ RUN dotnet publish src/JobbPilot.Worker/JobbPilot.Worker.csproj \
 # (mindre image, ~80 MB sparat per image, mindre attack-yta).
 # Worker startar ingen HTTP-server (ADR 0023) trots aspnet-runtime.
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-bookworm-slim AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
 WORKDIR /app
 COPY --from=build /app/publish .

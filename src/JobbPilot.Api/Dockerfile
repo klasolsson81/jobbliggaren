@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: build + publish
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0-bookworm-slim AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
 # Centralt versions-filer + sln (kopieras först för bättre layer-cache).
@@ -41,7 +41,7 @@ RUN dotnet publish src/JobbPilot.Api/JobbPilot.Api.csproj \
 #   - Lokal `docker run` kan testas via `curl` från host istället
 # Mindre image-storlek + mindre attack-yta.
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-bookworm-slim AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
 WORKDIR /app
 COPY --from=build /app/publish .

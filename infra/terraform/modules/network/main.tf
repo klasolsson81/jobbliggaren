@@ -146,10 +146,10 @@ resource "aws_route_table_association" "private" {
 # Security groups
 # ---------------------------------------------------------------------------
 
-# ALB — internet-facing, accepterar HTTPS från 0.0.0.0/0 + HTTP för redirect.
+# ALB — internet-facing, accepterar HTTPS from 0.0.0.0/0 + HTTP för redirect.
 resource "aws_security_group" "alb" {
   name        = "${var.name_prefix}-alb"
-  description = "ALB ingress (80/443 från internet)."
+  description = "ALB ingress (80/443 from internet)."
   vpc_id      = aws_vpc.this.id
 
   tags = merge(var.tags, {
@@ -159,7 +159,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_vpc_security_group_ingress_rule" "alb_https" {
   security_group_id = aws_security_group.alb.id
-  description       = "HTTPS från internet"
+  description       = "HTTPS from internet"
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
@@ -168,7 +168,7 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https" {
 
 resource "aws_vpc_security_group_ingress_rule" "alb_http" {
   security_group_id = aws_security_group.alb.id
-  description       = "HTTP från internet (redirect till HTTPS i ALB-listener)"
+  description       = "HTTP from internet (redirect till HTTPS i ALB-listener)"
   ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
@@ -182,10 +182,10 @@ resource "aws_vpc_security_group_egress_rule" "alb_egress" {
   cidr_ipv4         = var.vpc_cidr
 }
 
-# ECS — accepterar bara från ALB-SG.
+# ECS — accepterar bara from ALB-SG.
 resource "aws_security_group" "ecs" {
   name        = "${var.name_prefix}-ecs"
-  description = "ECS Fargate tasks (Api + Worker). Ingress från ALB-SG."
+  description = "ECS Fargate tasks (Api + Worker). Ingress from ALB-SG."
   vpc_id      = aws_vpc.this.id
 
   tags = merge(var.tags, {
@@ -195,7 +195,7 @@ resource "aws_security_group" "ecs" {
 
 resource "aws_vpc_security_group_ingress_rule" "ecs_from_alb" {
   security_group_id            = aws_security_group.ecs.id
-  description                  = "Trafik från ALB"
+  description                  = "Trafik from ALB"
   ip_protocol                  = "tcp"
   from_port                    = 8080
   to_port                      = 8080
@@ -212,10 +212,10 @@ resource "aws_vpc_security_group_egress_rule" "ecs_egress_all" {
   cidr_ipv4         = "0.0.0.0/0"
 }
 
-# RDS — accepterar 5432 bara från ECS-SG.
+# RDS — accepterar 5432 bara from ECS-SG.
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds"
-  description = "RDS Postgres. Ingress 5432 från ECS-SG."
+  description = "RDS Postgres. Ingress 5432 from ECS-SG."
   vpc_id      = aws_vpc.this.id
 
   tags = merge(var.tags, {
@@ -225,17 +225,17 @@ resource "aws_security_group" "rds" {
 
 resource "aws_vpc_security_group_ingress_rule" "rds_from_ecs" {
   security_group_id            = aws_security_group.rds.id
-  description                  = "Postgres från ECS-tasks"
+  description                  = "Postgres from ECS-tasks"
   ip_protocol                  = "tcp"
   from_port                    = 5432
   to_port                      = 5432
   referenced_security_group_id = aws_security_group.ecs.id
 }
 
-# Redis — accepterar 6379 bara från ECS-SG.
+# Redis — accepterar 6379 bara from ECS-SG.
 resource "aws_security_group" "redis" {
   name        = "${var.name_prefix}-redis"
-  description = "ElastiCache. Ingress 6379 från ECS-SG."
+  description = "ElastiCache. Ingress 6379 from ECS-SG."
   vpc_id      = aws_vpc.this.id
 
   tags = merge(var.tags, {
@@ -245,19 +245,19 @@ resource "aws_security_group" "redis" {
 
 resource "aws_vpc_security_group_ingress_rule" "redis_from_ecs" {
   security_group_id            = aws_security_group.redis.id
-  description                  = "Redis/Valkey från ECS-tasks"
+  description                  = "Redis/Valkey from ECS-tasks"
   ip_protocol                  = "tcp"
   from_port                    = 6379
   to_port                      = 6379
   referenced_security_group_id = aws_security_group.ecs.id
 }
 
-# VPC Endpoints — accepterar 443 bara från ECS-SG.
+# VPC Endpoints — accepterar 443 bara from ECS-SG.
 resource "aws_security_group" "vpc_endpoints" {
   count = var.enable_interface_endpoints ? 1 : 0
 
   name        = "${var.name_prefix}-vpce"
-  description = "Interface VPC Endpoints. Ingress 443 från ECS-SG."
+  description = "Interface VPC Endpoints. Ingress 443 from ECS-SG."
   vpc_id      = aws_vpc.this.id
 
   tags = merge(var.tags, {
@@ -269,7 +269,7 @@ resource "aws_vpc_security_group_ingress_rule" "vpce_from_ecs" {
   count = var.enable_interface_endpoints ? 1 : 0
 
   security_group_id            = aws_security_group.vpc_endpoints[0].id
-  description                  = "HTTPS från ECS till VPC endpoints"
+  description                  = "HTTPS from ECS till VPC endpoints"
   ip_protocol                  = "tcp"
   from_port                    = 443
   to_port                      = 443

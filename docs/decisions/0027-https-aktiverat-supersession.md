@@ -1,7 +1,7 @@
 # ADR 0027 — HTTPS aktiverat på dev-ALB; ADR 0026 supersedas
 
 **Datum:** 2026-05-10
-**Status:** Proposed (sätts till Accepted när HTTPS smoke-test PASS verifierats)
+**Status:** Accepted (HTTPS smoke-test PASS verifierat 2026-05-10 17:48)
 **Kontext:** STEG 13c — Route53 + ACM + ALB HTTPS-flip för dev.jobbpilot.se. ADR 0026 trigger 1 (domän registrerad + ACM-cert utfärdat) aktiverad.
 **Beslutsfattare:** Klas Olsson
 **Supersedes:** [ADR 0026](./0026-alb-http-only-fas0.md)
@@ -92,25 +92,27 @@ ALB terminerar TLS; trafik mellan ALB och ECS-task är HTTP (port 8080) inom VPC
 
 ## Implementations-status
 
-Klart 2026-05-10 ~AFK-tid (autonomt):
+Allt klart 2026-05-10:
+
 - ✅ Route53 hosted zone skapad i prod/baseline (`Z028392711DGTDR1MGVC9`)
-- ✅ Domän `jobbpilot.se` registrerad hos svensk registrar (Klas)
+- ✅ Domän `jobbpilot.se` registrerad hos STRATO + NS pekade på AWS-Route53
 - ✅ HSTS-implementation i Api/Program.cs + HstsOptions.cs + EnsureSafeForEnvironment
 - ✅ HSTS-tester (165/165 integration-tests gröna inkl. 17 nya)
-- ✅ ALB-redirect 301 → 308 i `modules/alb/main.tf`
+- ✅ ALB-redirect HTTP→HTTPS aktiv. **Status_code = HTTP_301** (AWS ALB
+  RedirectActionConfig hardlimited till 301/302 — 308 ej implementerbart utan
+  Lambda@Edge eller CloudFront-rewrite). Mitigation: HSTS+browser-cache gör
+  POST-anrop går direkt till HTTPS efter första GET; 301 påverkar bara
+  initial GET som inte berörs av method-downgrade.
 - ✅ Api Docker-image rebuilt + pushed till ECR med HSTS-fix
-- ✅ Pre-apply checks: dotnet format ren, terraform fmt + validate gröna
-
-Pending (Klas-driven post-AFK):
-- ⏳ Registrar NS-edit → AWS Route53 NS-records (4 st, dokumenterade i sammanställning)
-- ⏳ DNS-prop verifiering via `dig NS jobbpilot.se +short`
-- ⏳ `terraform apply` dev → ACM-cert + Route53-validation-CNAME + A-ALIAS
-- ⏳ Edit `dev/terraform.tfvars` med `alb_https_enabled=true` + `alb_acm_certificate_arn=<arn>`
-- ⏳ `terraform apply` dev → ALB HTTPS-flip + ECS task-def replace (HSTS aktiveras via env-var)
-- ⏳ Smoke-test `https://dev.jobbpilot.se/api/ready` PASS
-- ⏳ HSTS-header verifierad via `curl -I` (Strict-Transport-Security: max-age=31536000; includeSubDomains)
-- ⏳ Status: Proposed → Accepted (efter smoke-test PASS)
-- ⏳ ADR 0026 Status: Accepted → **Superseded by ADR 0027**
+- ✅ ACM-cert utfärdat: `arn:aws:acm:eu-north-1:710427215829:certificate/f72a79d7-f964-49c7-abb5-cf81b8639d6a`
+- ✅ A-ALIAS `dev.jobbpilot.se → ALB` aktiv
+- ✅ `terraform apply` HTTPS-flip: 4 added, 1 changed, 0 destroyed
+- ✅ ECS rolling deployment COMPLETED efter ~120s
+- ✅ Smoke-test `https://dev.jobbpilot.se/api/ready` → `200 OK`
+- ✅ HSTS-header verifierad: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- ✅ HTTP→HTTPS redirect verifierad: `301 Moved Permanently → https://dev.jobbpilot.se:443/api/ready` (via awselb/2.0)
+- ✅ Status: Proposed → **Accepted** (denna ADR)
+- ✅ ADR 0026 Status: Accepted → **Superseded by ADR 0027**
 
 ## Validering
 

@@ -1,7 +1,7 @@
 # ADR 0026 — ALB HTTP-only acceptance under Fas 0 (tidsfönster + triggers för upphörande)
 
 **Datum:** 2026-05-09
-**Status:** Accepted
+**Status:** Superseded by [ADR 0027](./0027-https-aktiverat-supersession.md) (2026-05-10, trigger 1 aktiverad — domän registrerad + ACM-cert utfärdat)
 **Kontext:** STEG 13b — security-auditor Sec-Major-1 över ALB-modulen i `infra/terraform/modules/alb/`. ALB lyssnar initialt på HTTP port 80 utan TLS-encryption.
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0017 (frontend auth pattern — opaque session-id i Redis), ADR 0018 (cookie + CSRF strategy), ADR 0024 D7 (logg-retention 30d), ADR 0025 (ECS egress acceptance Fas 0), BUILD.md §15.1 (Route 53 → CloudFront → ALB → ECS-spec), `docs/runbooks/aws-setup.md`, `docs/reviews/2026-05-09-steg13b-security.md` (Sec-Major-1)

@@ -1237,6 +1237,63 @@ formuläret krävs idag — bevakning räcker.
 
 ---
 
+## TD-41: Select-komponent-konvention — native vs shadcn Radix
+
+**Kategori:** UI / Component-konvention
+**Fas:** 1 (beslutas innan A3)
+**Prioritet:** Medium
+**Källa:** design-review Fas 1 Block A2 2026-05-10 (Major M1+M2)
+
+`MeProfileForm` använder native `<select>` med Tailwind-styling kopierad
+inline från `Input.tsx` (~110 tecken). Samtidigt finns en fullskalig
+shadcn/Radix-baserad `Select` redan installerad i `components/ui/select.tsx`
+(193 rader). Inkonsekvens mellan formulär.
+
+**Risk:**
+- **Drift-risk:** När `Input.tsx`-tokens uppdateras driftar inline-stilen
+  i select-elementet
+- **Konsistens-risk:** Andra formulär (login/register/resume-content) använder
+  Input + Textarea, men nästa form med dropdown blir ännu en native-implementation
+  om mönstret inte fastställs
+
+**Föreslagen åtgärd:** beslut Klas/design — antingen
+- (a) Behåll native för 2-opt-listor, lyft inline-stilen till
+  `ui/native-select.tsx`-primitiv. Lägg kommentar i `MeProfileForm` om
+  varför native valdes.
+- (b) Migrera `MeProfileForm` till shadcn `Select` (kräver Controller från RHF).
+  Etablera "shadcn Select är default"-konvention.
+
+Beslut behöver tas innan A3 så framtida formulär följer en linje.
+
+---
+
+## TD-42: Touch-target projektbrett under WCAG 2.5.5 (44×44 px)
+
+**Kategori:** Accessibility / WCAG 2.1 AAA
+**Fas:** 1 a11y-pass-completion
+**Prioritet:** Medium
+**Källa:** design-review Fas 1 Block A2 2026-05-10 (Minor Mi1)
+
+WCAG 2.5.5 (Target Size, AAA) rekommenderar 44×44 px för interaktiva
+element. JobbPilot:s default är `h-8` (32px) på Input/Button + `size-4`
+(16px) på checkboxes. Detta är **inte WCAG 2.1 AA-blocker** (2.5.5 är AAA),
+men under modern usability-baseline (Apple HIG, Material Design, GOV.UK).
+
+**Berörda komponenter:**
+- `web/jobbpilot-web/src/components/ui/input.tsx` — `h-8`
+- `web/jobbpilot-web/src/components/ui/button.tsx` — default size `h-8`
+- `web/jobbpilot-web/src/components/ui/select.tsx` — `data-[size=default]:h-8`
+- `web/jobbpilot-web/src/components/me/me-profile-form.tsx` — checkboxes `size-4`
+
+**Föreslagen åtgärd:** projektbrett pass (separat block, inte in-block-fix)
+för att höja default till `h-9` (36px) eller `h-10` (40px). Kompromiss
+mellan civic-utility-densitet och touch-target-rekommendation. Checkboxes
+behöver större hit-area (gap + padding runt så hela rad-klick triggar).
+
+Inte A2-introducerad regression — befintligt mönster.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

@@ -20,7 +20,7 @@ export function ApplicationCard({ application }: ApplicationCardProps) {
           {application.id.slice(0, 8)}
         </span>
       </div>
-      <span className="text-body-sm text-text-tertiary">{updatedAt}</span>
+      <span className="text-body-sm text-text-secondary">{updatedAt}</span>
     </Link>
   );
 }

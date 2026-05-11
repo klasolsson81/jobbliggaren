@@ -17,7 +17,7 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         role="status"
       >
         <p className="text-body text-text-secondary">Inga poster matchar filtret</p>
-        <p className="mt-1 text-body-sm text-text-tertiary">
+        <p className="mt-1 text-body-sm text-text-secondary">
           Justera filterkriterierna eller rensa för att visa hela loggen.
         </p>
       </div>
@@ -60,7 +60,7 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
               </td>
               <td className="px-3 py-2 font-mono text-xs">
                 {entry.userId ? shortId(entry.userId) : (
-                  <span className="text-text-tertiary">system</span>
+                  <span className="text-text-secondary">system</span>
                 )}
               </td>
               <td className="px-3 py-2">{entry.eventType}</td>

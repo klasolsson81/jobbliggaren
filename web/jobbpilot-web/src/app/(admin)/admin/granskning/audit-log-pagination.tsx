@@ -41,7 +41,7 @@ export function AuditLogPagination({
         ) : (
           <span
             aria-disabled="true"
-            className="rounded-md border border-border bg-surface-secondary px-3 py-1.5 text-text-tertiary"
+            className="rounded-md border border-border bg-surface-secondary px-3 py-1.5 text-text-secondary"
           >
             ← Föregående
           </span>
@@ -57,7 +57,7 @@ export function AuditLogPagination({
         ) : (
           <span
             aria-disabled="true"
-            className="rounded-md border border-border bg-surface-secondary px-3 py-1.5 text-text-tertiary"
+            className="rounded-md border border-border bg-surface-secondary px-3 py-1.5 text-text-secondary"
           >
             Nästa →
           </span>

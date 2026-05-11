@@ -33,7 +33,7 @@ export default async function CvDetailPage({ params }: Props) {
           CV
         </Link>
         <span className="text-text-tertiary">/</span>
-        <span className="text-body-sm text-text-tertiary">{resume.name}</span>
+        <span className="text-body-sm text-text-secondary">{resume.name}</span>
       </div>
 
       <div className="flex items-start justify-between gap-4">

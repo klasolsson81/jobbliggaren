@@ -29,7 +29,7 @@ export default async function CvListPage() {
       {sorted.length === 0 ? (
         <div className="rounded-md border border-border bg-surface-secondary px-6 py-10 text-center">
           <p className="text-body text-text-secondary">Inga CV ännu</p>
-          <p className="mt-1 text-body-sm text-text-tertiary">
+          <p className="mt-1 text-body-sm text-text-secondary">
             Skapa ditt första CV för att komma igång.
           </p>
         </div>

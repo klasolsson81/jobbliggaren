@@ -21,7 +21,7 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           {resume.versionCount} {resume.versionCount === 1 ? "version" : "versioner"}
         </span>
       </div>
-      <span className="text-body-sm text-text-tertiary">{updatedAt}</span>
+      <span className="text-body-sm text-text-secondary">{updatedAt}</span>
     </Link>
   );
 }

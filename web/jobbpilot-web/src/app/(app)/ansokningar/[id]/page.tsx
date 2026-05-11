@@ -40,7 +40,7 @@ export default async function AnsokningDetailPage({ params }: Props) {
           Ansökningar
         </Link>
         <span className="text-text-tertiary">/</span>
-        <span className="text-body-sm text-text-tertiary font-mono">{id.slice(0, 8)}</span>
+        <span className="text-body-sm text-text-secondary font-mono">{id.slice(0, 8)}</span>
       </div>
 
       <div className="flex items-start justify-between">
@@ -123,7 +123,7 @@ export default async function AnsokningDetailPage({ params }: Props) {
                 className="rounded-md border border-border bg-card px-4 py-3"
               >
                 <p className="text-body text-text-primary">{note.content}</p>
-                <p className="mt-1 text-body-sm text-text-tertiary">
+                <p className="mt-1 text-body-sm text-text-secondary">
                   {new Date(note.createdAt).toLocaleDateString("sv-SE")}
                 </p>
               </div>

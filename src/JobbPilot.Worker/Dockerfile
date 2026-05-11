@@ -36,6 +36,12 @@ RUN dotnet publish src/JobbPilot.Worker/JobbPilot.Worker.csproj \
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
+# RDS CA-bundle för TLS-validering mot Postgres (TD-38).
+# global-bundle.pem täcker alla AWS-regions för portability dev→staging→prod.
+# Persisterade CS:er (skrivna av Migrate till Secrets Manager) använder
+# SSL Mode=VerifyFull;Root Certificate=/etc/ssl/certs/rds-global-bundle.pem.
+COPY infra/certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
+
 WORKDIR /app
 COPY --from=build /app/publish .
 

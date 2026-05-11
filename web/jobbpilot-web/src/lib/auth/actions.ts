@@ -4,6 +4,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { deleteSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import {
+  registrationValidationErrorSchema,
+  sessionResponseSchema,
+} from "@/lib/dto/auth";
+import { parseResponse } from "@/lib/dto/_helpers";
 
 function safeRedirectPath(raw: string | null): string {
   if (
@@ -50,7 +55,11 @@ export async function loginAction(
       return { error: "Ett oväntat fel uppstod. Försök igen." };
     }
 
-    const data = (await res.json()) as { sessionId: string };
+    const data = await parseResponse(
+      res,
+      sessionResponseSchema,
+      "POST /api/v1/auth/login"
+    );
     sessionId = data.sessionId;
   } catch {
     return { error: "Kunde inte nå servern. Försök igen." };
@@ -83,17 +92,29 @@ export async function registerAction(
     });
 
     if (res.status === 400) {
-      const data = (await res.json()) as { errors?: Record<string, string[]> };
-      const firstError = data.errors
-        ? Object.values(data.errors).flat()[0]
-        : null;
-      return { error: firstError ?? "Registreringen misslyckades." };
+      try {
+        const errorBody = await parseResponse(
+          res,
+          registrationValidationErrorSchema,
+          "POST /api/v1/auth/register (400)"
+        );
+        const firstError = errorBody.errors
+          ? Object.values(errorBody.errors).flat()[0]
+          : null;
+        return { error: firstError ?? "Registreringen misslyckades." };
+      } catch {
+        return { error: "Registreringen misslyckades." };
+      }
     }
     if (!res.ok) {
       return { error: "Ett oväntat fel uppstod. Försök igen." };
     }
 
-    const data = (await res.json()) as { sessionId: string };
+    const data = await parseResponse(
+      res,
+      sessionResponseSchema,
+      "POST /api/v1/auth/register"
+    );
     sessionId = data.sessionId;
   } catch {
     return { error: "Kunde inte nå servern. Försök igen." };

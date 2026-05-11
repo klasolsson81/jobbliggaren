@@ -1995,6 +1995,70 @@ XML-doc:en är ärlig om vad evidence-spåret faktiskt är.
 
 ---
 
+## TD-7: Zod runtime-validering för DTOs från backend — STÄNGD 2026-05-11
+**Status:** STÄNGD 2026-05-11 — ADR 0020 + Zod-DTO-schemas levererade.
+**Kategori:** Type safety / Architecture
+**Severity:** Major (latent)
+**Källa:** security-auditor 2026-05-07 Turn 2 (Major 1: `roles?` shape-skew)
+**Fas:** 1
+
+ADR 0020 (`docs/decisions/0020-frontend-dto-validation-with-zod.md`)
+dokumenterar Anti-Corruption-Layer-mönstret vid HTTP-gränsen med Zod som
+verktyg. Implementation:
+
+- `lib/dto/_helpers.ts` — `parseResponse<T>` + `pagedResult<T>` + `pagedResultWithTotalPages<T>`
+- `lib/dto/{me,applications,resumes,admin}.ts` — Zod-schemas per domän, typer härledda via `z.infer`
+- 6 unchecked `as`-casts ersatta i `lib/auth/session.ts`, `lib/api/me.ts`, `lib/api/applications.ts`, `lib/api/resumes.ts`, `lib/api/admin.ts`
+- `lib/types/*.ts` blir tunna re-exports (bakåtkompatibla för konsumenter)
+- `lib/types/paged.ts` raderad — `isPagedResult` ersatt av Zod-pagineringsschema
+- 51 nya unit-tests (helper + 4 domän-schemafiler), 18 test-filer / 205 tests grönt
+
+**Faktisk CC-tid:** ~3h (discovery + ADR + helper + 4 schemas + refactor + tester).
+
+**CTO-triage 2026-05-11:** senior-cto-advisor valde Variant A mot Variant B
+(OpenAPI-codegen) och Variant C (hand-rullade guards). Motiveringar i ADR 0020
+§ Avvisade alternativ.
+
+**0 in-block-fix-defekter.** Lint grönt (0 errors, 2 pre-existing warnings utanför scope).
+
+---
+
+## TD-62: OpenAPI-codegen som supersession av manuella Zod-DTO-schemas (Fas 2+)
+**Kategori:** Architecture / Tooling
+**Severity:** Minor
+**Fas:** 2+ (när backend OpenAPI-export etableras)
+**Källa:** senior-cto-advisor-triage 2026-05-11 i TD-7-stängning (variant B-lyft)
+
+ADR 0020 accepterar manuella Zod-schemas i `lib/dto/*.ts` som Fas 1-lösning.
+Variant B (OpenAPI-codegen från backend-spec) är arkitekturellt överlägsen
+men kräver infrastruktur som inte finns:
+
+- Backend `/openapi/v1.json` är inte etablerad som versionerad artefakt
+- CI-pipeline för codegen (`openapi-zod-client` eller motsvarande) saknas
+- Generated-files-policy + commit-strategi inte beslutad
+- BUILD.md placerar `docs/api/openapi.yaml` "post-Fas 0"
+
+**Risk i Fas 1:** noll (manuella schemas fungerar, refactor löste original-buggen).
+
+**Risk vid Fas 2+ tillväxt:** Medium-Minor. Varje ny endpoint kräver manuellt
+Zod-schema → backend-shape kan drifta från frontend-schema utan att tsc fångar
+det. Mitigerat av schema-tester (happy + mismatch) men beror på discipline.
+
+**Föreslagen åtgärd vid Fas 2+:**
+
+1. Etablera backend OpenAPI-export som versionerad artefakt (egen ADR)
+2. Bygga CI-pipeline för `lib/dto/generated/*.ts` (codegen-tool TBD)
+3. Migrera `lib/dto/*.ts` till generated — single source of truth = backend
+4. ADR-supersession av ADR 0020 (manuella schemas → generated)
+
+**Beroenden:** Backend OpenAPI-export-pipeline + CI-step + generated-files-
+policy. Trigger = Fas 2 JobTech-integration när endpoint-ytan växer markant.
+
+**Trigger:** Fas 2-uppstart eller ADR 0005 (go-to-market) ger volym-incentiv
+för pipeline-etablering.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

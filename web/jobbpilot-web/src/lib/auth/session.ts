@@ -2,6 +2,8 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
+import { currentUserSchema, type CurrentUserDto } from "@/lib/dto/me";
+import { parseResponse } from "@/lib/dto/_helpers";
 
 export const SESSION_COOKIE_NAME = "__Host-jobbpilot_session";
 const MAX_AGE = 14 * 24 * 60 * 60; // 14 days in seconds
@@ -19,11 +21,7 @@ export async function getSessionId(): Promise<string | null> {
   return cookieStore.get(SESSION_COOKIE_NAME)?.value ?? null;
 }
 
-export type CurrentUser = {
-  userId: string;
-  email: string;
-  roles: readonly string[];
-};
+export type CurrentUser = CurrentUserDto;
 
 export const getServerSession = cache(
   async (): Promise<CurrentUser | null> => {
@@ -36,9 +34,9 @@ export const getServerSession = cache(
         cache: "no-store",
       });
       if (!res.ok) return null;
-      const data: CurrentUser = await res.json();
-      return data;
+      return await parseResponse(res, currentUserSchema, "GET /api/v1/me");
     } catch {
+      // Network errors and DtoParseError both map to "no session"
       return null;
     }
   }

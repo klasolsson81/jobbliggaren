@@ -9,9 +9,10 @@ export default async function CvListPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const resumes = await getResumes();
+  const result = await getResumes();
+  const items = result?.items ?? [];
   // API returnerar redan sorterat på senast uppdaterad — denna sortering är defensiv.
-  const sorted = [...resumes].sort(
+  const sorted = [...items].sort(
     (a, b) =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );

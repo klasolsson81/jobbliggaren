@@ -14,6 +14,17 @@ function authHeaders(sessionId: string): HeadersInit {
   };
 }
 
+function isPagedApplications(value: unknown): value is GetApplicationsResult {
+  if (value === null || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    Array.isArray(v.items) &&
+    typeof v.totalCount === "number" &&
+    typeof v.page === "number" &&
+    typeof v.pageSize === "number"
+  );
+}
+
 export async function getPipeline(): Promise<PipelineGroupDto[]> {
   const sessionId = await getSessionId();
   if (!sessionId) return [];
@@ -45,7 +56,11 @@ export async function getApplications(
     { headers: authHeaders(sessionId), cache: "no-store" }
   );
   if (!res.ok) return null;
-  return res.json();
+
+  // Lättviktig runtime-validering — `res.json()` är effektivt unknown och
+  // CLAUDE.md §4.1 förbjuder any. Skydd mot kontrakts-skew (TD-55-lärdom).
+  const payload: unknown = await res.json();
+  return isPagedApplications(payload) ? payload : null;
 }
 
 export async function getApplicationById(

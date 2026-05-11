@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   updateMyProfileSchema,
   type UpdateMyProfileInput,
@@ -37,7 +44,7 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [serverError, setServerError] = useState<FieldError | null>(null);
 
-  const { register, handleSubmit } = useForm<FormValues>({
+  const { register, handleSubmit, control } = useForm<FormValues>({
     defaultValues: {
       displayName: initialProfile.displayName,
       language: normalizeLanguage(initialProfile.language),
@@ -108,16 +115,30 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="me-language">Språk</Label>
-        <select
-          id="me-language"
-          {...register("language")}
-          {...fieldA11y("language")}
-          disabled={isPending}
-          className="h-9 rounded-sm border border-input bg-transparent px-2.5 py-1 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm"
-        >
-          <option value="sv">Svenska</option>
-          <option value="en">Engelska</option>
-        </select>
+        <Controller
+          control={control}
+          name="language"
+          render={({ field }) => (
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              disabled={isPending}
+            >
+              <SelectTrigger
+                id="me-language"
+                ref={field.ref}
+                className="w-full"
+                {...fieldA11y("language")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sv">Svenska</SelectItem>
+                <SelectItem value="en">Engelska</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
 
       <fieldset className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">

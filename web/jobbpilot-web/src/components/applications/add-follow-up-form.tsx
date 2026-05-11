@@ -2,6 +2,7 @@
 
 import { useActionState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -36,8 +37,8 @@ export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="follow-up-channel">Kanal</Label>
-          <Select name="channel" required>
-            <SelectTrigger id="follow-up-channel">
+          <Select name="channel" required disabled={isPending}>
+            <SelectTrigger id="follow-up-channel" className="w-full">
               <SelectValue placeholder="Välj kanal" />
             </SelectTrigger>
             <SelectContent>
@@ -51,13 +52,12 @@ export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="follow-up-date">Datum</Label>
-          <input
+          <Input
             id="follow-up-date"
             name="scheduledAt"
             type="datetime-local"
             required
             disabled={isPending}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
           />
         </div>
       </div>

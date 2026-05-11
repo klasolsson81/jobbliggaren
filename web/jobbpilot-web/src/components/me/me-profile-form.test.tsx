@@ -38,7 +38,9 @@ describe("MeProfileForm", () => {
     render(<MeProfileForm initialProfile={makeProfile()} />);
 
     expect(screen.getByLabelText("Visningsnamn")).toHaveValue("Anna Andersson");
-    expect(screen.getByLabelText("Språk")).toHaveValue("sv");
+    // shadcn Select (Radix) renderar trigger som combobox-knapp med SelectValue
+    // som text-nod, inte native <select>. Verifierar därför text-innehåll.
+    expect(screen.getByLabelText("Språk")).toHaveTextContent("Svenska");
     expect(screen.getByLabelText("E-postnotifieringar")).toBeChecked();
     expect(screen.getByLabelText("Veckosammanfattning")).not.toBeChecked();
   });
@@ -109,27 +111,11 @@ describe("MeProfileForm", () => {
     expect(updateMyProfileActionMock).not.toHaveBeenCalled();
   });
 
-  it("TD-15 path-routing: schema-fail on language focuses the language select", async () => {
-    // Verifies pathToElementId("language") → "me-language" actually runs and
-    // routes focus correctly. Without this, only the displayName branch of
-    // pathToElementId is exercised — a rename of any other mapping is silent.
-    const user = userEvent.setup();
-    render(<MeProfileForm initialProfile={makeProfile()} />);
-
-    const langSelect = screen.getByLabelText("Språk") as HTMLSelectElement;
-    // Bypass z.enum(['sv','en']) by injecting a fake option, then selecting it.
-    const fakeOption = document.createElement("option");
-    fakeOption.value = "fr";
-    fakeOption.textContent = "Franska";
-    langSelect.appendChild(fakeOption);
-    await user.selectOptions(langSelect, "fr");
-
-    await user.click(screen.getByRole("button", { name: "Spara profil" }));
-
-    await waitFor(() => {
-      expect(langSelect).toHaveAttribute("aria-invalid", "true");
-    });
-    expect(langSelect).toHaveFocus();
-    expect(updateMyProfileActionMock).not.toHaveBeenCalled();
-  });
+  // TD-15 path-routing för `language`-fältet är inte längre möjlig att trigga
+  // via UI efter Batch B (TD-41 — shadcn Select). Radix Select renderar inte
+  // native <select>, så `appendChild fake option`-bypass fungerar inte och
+  // trigger:n exponerar endast giltiga z.enum-värden ("sv" | "en") som
+  // valbara items. pathToElementId("language") → "me-language" testas direkt
+  // i `lib/forms/me-path-routing.test.ts`; UI-integrationen av displayName-
+  // path:en (test ovan) bevisar att effekten kör korrekt.
 });

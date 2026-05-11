@@ -1291,3 +1291,106 @@ Motivering: DRY-by-component-encapsulation > DRY-by-string-sharing (Fowler 2018,
 **Tester:** ingår i Batch B-svit (Vitest 226/226 + tsc grön).
 
 ---
+
+## TD-1: Skip-link saknas i (app)-layout ✓ STÄNGD 2026-05-11
+**Kategori:** Accessibility (WCAG 2.4.1 Bypass Blocks)
+**Severity:** Minor
+**Fas:** 1 a11y-pass-completion
+**Källa:** design-reviewer, 2026-05-07 (Turn 2)
+**Status:** **STÄNGD 2026-05-11 (Batch C)** — skip-link implementerad.
+
+`src/app/(app)/layout.tsx` saknade "Skip to main content"-länk.
+Tangentbordsanvändare tvingades tabba igenom hela headern på varje sida.
+
+**Leverans (Batch C):**
+
+1. **Skip-link tillagd som första element** i `<div>`-container:
+   ```tsx
+   <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring">
+     Hoppa till huvudinnehåll
+   </a>
+   ```
+2. **`<main>` taggad** med `id="main" tabIndex={-1} className="... focus:outline-none"`. `tabIndex={-1}` gör targeten programmatiskt fokuserbar (för anchor-navigation) utan att förorena tab-ordningen. `focus:outline-none` undertrycker visuell ring på main-elementet — skip-länkens egen fokusring räcker som visuell signal.
+
+**Standardmönster:** följer GOV.UK Design System skip-link-recipe.
+
+**Reviews:**
+- code-reviewer: Approved (0 Blocker / 0 Major / 1 FYI om JSDoc-dokumentation).
+- design-reviewer: Approved. WCAG 2.4.1 + 2.4.7 uppfyllda. Kontrast >12:1 (AAA-nivå). Token-disciplin verifierad mot `globals.css`.
+
+**Tester:** ingår i Batch C-svit (Vitest 226/226 + tsc grön).
+
+---
+
+## TD-2: CardTitle renderas utan heading-tag ✓ STÄNGD 2026-05-11
+**Kategori:** Accessibility (heading-hierarki)
+**Severity:** Minor
+**Fas:** 1 a11y-pass-completion
+**Källa:** design-reviewer, 2026-05-07 (Turn 2)
+**Status:** **STÄNGD 2026-05-11 (Batch C)** — CardTitle default `<h3>` + `asChild` via Slot.Root.
+
+Shadcn `CardTitle` renderade default som `<div>`. Heading-trädet på /mig
+blev därmed `<h1>` ("Min profil") följt av `<div>` ("Kontoinformation") —
+bröt h1→h2-hierarki som skärmläsare förlitar sig på (WCAG 1.3.1).
+
+**Leverans (Batch C):**
+
+1. **`ui/card.tsx` CardTitle** ändrad från `<div>` till `<h3>` default + `asChild` prop via `Slot.Root` från `radix-ui` (samma mönster som `button.tsx`):
+   ```tsx
+   function CardTitle({ className, asChild = false, ...props }: ComponentProps<"h3"> & { asChild?: boolean }) {
+     const Comp = asChild ? Slot.Root : "h3"
+     return <Comp data-slot="card-title" className={cn(...)} {...props} />
+   }
+   ```
+2. **`mig/page.tsx` consumers** uppdaterade — två CardTitles direkt under h1 lyfta till h2 via `<CardTitle asChild><h2>...</h2></CardTitle>`. Slot.Root mergear klass+props ner i child-elementet.
+3. **`(marketing)/page.tsx` consumer** lämnad oförändrad — Card ligger under h2-section, default `<h3>` är korrekt nesting (h1→h2→h3).
+
+**Heading-hierarki efter Batch C:**
+- /mig: h1 ("Min profil") → h2 ("Kontoinformation") + h2 ("Profil") ✓
+- /(marketing): h1 ("JobbPilot") → h2 ("Designsystem") → h3 ("Civic-utility i praktiken") ✓
+
+**Reviews:**
+- code-reviewer: Approved. Pattern-fidelity mot `button.tsx` exakt. TS-strikthet ökad (h3 vs div).
+- design-reviewer: Approved. Ingen visuell ändring (semantisk lyftning). 1177/Digg/GOV.UK-disciplin på heading-hierarki.
+
+**Tester:** ingår i Batch C-svit (Vitest 226/226 + tsc grön).
+
+---
+
+## TD-40: Path-equality i `fieldA11y` — saknar regression-bevakning ✓ STÄNGD 2026-05-11 (retroaktivt)
+**Kategori:** Accessibility / Robustness
+**Severity:** Minor
+**Fas:** 1 a11y-pass-completion (samma som TD-1, TD-2)
+**Källa:** design-review Fas 1 Block A1 2026-05-10 (Minor m1)
+**Status:** **STÄNGD 2026-05-11 (Batch C) — retroaktivt.** Regression-test redan implementerat före TD-allokering.
+
+`ResumeContentForm.fieldA11y` använder strikt `serverError?.path === path`-jämförelse.
+Schemat i `resume-schemas.ts` lägger idag alla `.refine()`-fel på barn-path
+(t.ex. `experiences.0.endDate`), så strikt match fungerar för dagens output.
+
+**Risk om refine framtida pekar på array-rot eller tomt path:** felet hamnar
+på toppnivå-`<p>` utan `aria-invalid`-flaggat fält. Skärmläsare hör då
+felmeddelandet via `role="alert"` men kan inte navigera till specifik fält.
+
+**Discovery-fynd (Batch C):** `src/lib/actions/resume-schemas.test.ts:275-364`
+innehåller redan en testsvit "resumeContentSchema – refine() leaf-path
+regression (TD-40)" med 3 tester:
+
+1. `experiences refine pekar på leaf-path 'experiences.0.endDate' → pathToElementId mappar non-null`
+2. `educations refine pekar på leaf-path 'educations.0.endDate' → pathToElementId mappar non-null`
+3. `refine path bevarar array-index → pathToElementId mappar rätt fält för icke-0-index`
+
+**Designkvalitet:** Path-baserad assertion (`path.join(".") === "experiences.0.endDate"`)
+istället för message-string. Skyddar invarianten utan att rödna vid framtida
+copy-tweaks. Cross-validation mot `pathToElementId()` låser kontraktet
+schemas ↔ path-routing ↔ DOM-id. Test-författare-kommentar på rad 290-291
+dokumenterar valet.
+
+**Lärdom (analog med TD-30):** TD-allokering måste alltid prefacas med
+discovery — implementationen kan redan ha landat utan att TD-listan
+uppdaterats. Per CLAUDE.md §9.7 — stäng retroaktivt så aktiv-listan inte
+ljuger om verkligheten.
+
+**Reviews:** code-reviewer + design-reviewer Approved Batch C. Inga ändringar krävdes — bevakning bedömd tillräcklig.
+
+---

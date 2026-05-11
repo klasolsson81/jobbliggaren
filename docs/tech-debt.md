@@ -19,15 +19,12 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
-| TD-1 | Skip-link saknas i (app)-layout | Minor | 1 | A11y (WCAG 2.4.1) |
-| TD-2 | CardTitle renderas utan heading-tag | Minor | 1 | A11y (heading-hierarki) |
 | TD-3 | Tom-state-copy "Inga roller tilldelade" saknar next-action | Minor | 1 | UX |
 | TD-4 | userId visas i UI utan tydligt användarbehov | Minor | 1 | UX/Privacy |
 | TD-5 | Redundant getServerSession-anrop på /mig | Minor | 1 | Code hygiene |
 | TD-6 | Logout-backend-call utan fel-loggning | Minor | 1 | Observability |
 | TD-12 | Saknad integration-test för cross-user isolation | Minor | 1 | Säkerhet/Test |
 | TD-28 | Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me | Minor | 1 | UX/Säkerhet |
-| TD-40 | Path-equality i `fieldA11y` — saknar regression-bevakning | Minor | 1 | A11y/Robusthet |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -156,38 +153,6 @@ för cost-cap-design när AI-features designas.
 
 ## Minor — Fas 1
 
-## TD-1: Skip-link saknas i (app)-layout
-**Kategori:** Accessibility (WCAG 2.4.1 Bypass Blocks)
-**Severity:** Minor
-**Källa:** design-reviewer, 2026-05-07 (Turn 2)
-
-`src/app/(app)/layout.tsx` har `<header>` och `<main>` men ingen
-"Skip to main content"-länk. Tangentbordsanvändare måste tabba
-igenom hela headern på varje sida.
-
-**Föreslagen åtgärd:** Lägg till `<a href="#main">Hoppa till
-huvudinnehåll</a>` som första element i layout-body, dolt visuellt
-men synligt vid tangentbordsfokus (`sr-only focus:not-sr-only`).
-Tagga `<main id="main">`.
-
----
-
-## TD-2: CardTitle renderas utan heading-tag
-**Kategori:** Accessibility (heading-hierarki)
-**Severity:** Minor
-**Källa:** design-reviewer, 2026-05-07 (Turn 2)
-
-Shadcn `CardTitle` renderar default som `<div>`. Heading-trädet på
-/mig blir därmed `<h1>` ("Min profil") följt av `<div>`
-("Kontoinformation") — bryter h1→h2-hierarki som skärmläsare
-förlitar sig på.
-
-**Föreslagen åtgärd:** Passa `as="h2"`-prop om shadcn-versionen
-stödjer det, annars wrap manuellt med `<h2>` eller customize
-CardTitle-komponenten centralt.
-
----
-
 ## TD-3: Tom-state-copy "Inga roller tilldelade" saknar next-action
 **Kategori:** UX
 **Severity:** Minor
@@ -307,29 +272,6 @@ kan radera konto.
 
 **Beroenden:** Frontend STEG-7b mönster (Server Actions + Zod). Inga
 backend-ändringar krävs.
-
-
----
-
-## TD-40: Path-equality i `fieldA11y` — saknar regression-bevakning vid parent-path-refines
-
-**Kategori:** Accessibility / Robustness
-**Fas:** 1 a11y-pass-completion (samma som TD-1, TD-2)
-**Prioritet:** Låg
-**Källa:** design-review Fas 1 Block A1 2026-05-10 (Minor m1)
-
-`ResumeContentForm.fieldA11y` använder strikt `serverError?.path === path`-jämförelse.
-Schemat i `resume-schemas.ts` lägger idag alla `.refine()`-fel på barn-path
-(t.ex. `experiences.0.endDate`), så strikt match fungerar för dagens output.
-
-**Risk:** om framtida `.refine()` på `z.object()` lämnar path tomt eller
-pekar på array-rot (`experiences.0` utan fält-suffix), hamnar felet på
-toppnivå-`<p>` utan `aria-invalid`-flaggat fält. Skärmläsare hör då
-felmeddelandet via `role="alert"` men kan inte navigera till specifik fält.
-
-**Föreslagen åtgärd:** lägg till regression-test som validerar att alla
-`.refine()` i `resume-schemas.ts` pekar på leaf-path. Ingen kodändring i
-formuläret krävs idag — bevakning räcker.
 
 
 ---
@@ -1004,6 +946,9 @@ ADR-cross-references och granskningsbevis.
 | TD-11 | Hårdkodad E2E-lösenord och testemail på produktionsdomän | 2026-05-11 | Batch A (`0560718`) |
 | TD-41 | Select-komponent-konvention — native vs shadcn Radix | 2026-05-11 | Batch B |
 | TD-57 | Native form-controls divergerar från Input-primitive | 2026-05-11 | Batch B |
+| TD-1 | Skip-link saknas i (app)-layout | 2026-05-11 | Batch C |
+| TD-2 | CardTitle renderas utan heading-tag | 2026-05-11 | Batch C |
+| TD-40 | Path-equality i `fieldA11y` — saknar regression-bevakning | 2026-05-11 (retroaktivt) | Batch C |
 
 ---
 

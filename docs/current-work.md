@@ -1,98 +1,102 @@
 # Current work — JobbPilot
 
-**Status:** **ARCH-AUDIT FAS 1 DISCOVERY LEVERERAD 2026-05-11 ~12:15.** Retrospektiv arkitekturell audit av STEG 1–14 + Fas 1 Block A + Fas 1 Milestone via dotnet-architect-agenten. **Verdict: clean — 0 Blocker / 0 Major / 4 Minor / 3 Nit.** Ingen kod-ändring, ingen TD lyft. **Väntar Klas-review av rapporten innan Fas 2-djup beslutas.** Rapport: `docs/reviews/2026-05-11-arch-audit-discovery.md`.
+**Status:** **FAS 2 POLISH-BLOCK LEVERERAD 2026-05-11 ~16:30 — väntar Klas-diff-granskning innan push.** 5 audit-fynd fixade in-block (N-1 + N-3 + H-4 + N-2 + H-3), 4 TDs lyfta (TD-58/59/60/61). Backend 594 → 607. Inget pushed ännu — 4 commits redo per Conventional Commits.
 **Senast uppdaterad:** 2026-05-11
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`
 
 ---
 
-## Aktivt nu — Arch-audit Fas 1 Discovery
+## Aktivt nu — Fas 2 Polish-block (pending push)
 
-**Stationär-CC-session 2026-05-11 ~12:15 — Två-fas-approach Fas 1 levererad.** Klas valde efter Fas 1-stängning att kör en retrospektiv arkitekturell audit (STEG 1-14 + Fas 1 Block A + Milestone) eftersom CTO-rollen formaliserades först 2026-05-11 vid admin-audit-stängningen. Hypotesen: tidiga STEG saknar CTO-decision-maker-validering och kunde innehålla shortcuts eller SOLID/DRY/SoC-brott som inte triggade dotnet-architect-trösklar.
+**Stationär-CC-session 2026-05-11 ~16:30 — arch-audit-fynd-fix.** Klas valde Alt 2 (polish-block) efter audit Fas 1 Discovery levererad 2026-05-11 ~12:15. Audit klassade 0 Blocker / 0 Major / 4 Minor / 3 Nit. Klas-val: kör 5 in-block-fix i en session.
 
-**Resultat:** ingen significant rotting. dotnet-architect-agenten verifierade Clean Arch-isolering, DDD-invariant-skydd, CQRS-pipeline-disciplin, SOLID/DRY/SoC-status över 6 src-projekt + 24 architecture-tester. CLAUDE.md §5.1 anti-pattern-katalogen gav **noll Grep-träffar** i `src/`.
-
-### Audit-leverans
+### Block-leverans
 
 | Block | Scope | Output | Status |
 |-------|-------|--------|--------|
-| Discovery | dotnet-architect läste ADRs + spot-check kod + arch-tester | Rapport `docs/reviews/2026-05-11-arch-audit-discovery.md` | ✓ |
-| Klassning | 22 STEG-rader klassade grön/gul/röd | I rapport §2 | ✓ |
-| Hot spots | 4 Minor + 3 Nit dokumenterade med fil-ref + scope-rek | I rapport §3 | ✓ |
-| Strukturella spärrar | 14 mekanismer som fångar regressions dokumenterade | I rapport §4 | ✓ |
-| Fas 2-rek | In-block-fix-ordning + TD-deferral-lista + accept-lista | I rapport §5 | ✓ |
+| A | N-1 events + N-3 DomainException + H-4 paging-rename | Domain-events + Domain.Common.DomainException + Page-konvention | ✓ Klart |
+| B | N-2 IdempotentAdminRoleSeeder env-gate | IHostEnvironment-gated catch + 5 unit-tests + prod-bubble anti-regression | ✓ Klart |
+| C | H-3 role-fetch → IClaimsTransformation | SessionRoleClaimsTransformation + sentinel-claim + arch-test allowlist | ✓ Klart |
+| D | TDs + docs + commits | TD-58/59/60/61 + session-logg + steg-tracker | ✓ Klart (pending push) |
 
-### Hot spots (utan brådska — alla "förbättring")
+### CTO-beslut tagna (3 entydiga)
 
-**Minor (4):**
-- **H-1:** `IAccountHardDeleter` blandar 3 ansvar (ISP-split, defer till Fas 6 admin-impersonation)
-- **H-2:** "Resolve JobSeekerId from user"-duplikat i ~13 handlers (ICurrentJobSeeker-port, defer till impersonation)
-- **H-3:** SessionAuthenticationHandler gör role-fetch (move till IClaimsTransformation, ~1h)
-- **H-4:** Paging-property-namn inkonsistens (`Page` vs `PageNumber`, ~30min rename)
+- **N-1 Riktning A** (events uppåt): Evans 2003 + Vernon 2013 kap. 8 + Martin 2017 kap. 13 CCP. Domain events är historiska fakta; frånvaro av subscriber idag är inte argument mot raise. GDPR-cascade-bevis kräver event-trail.
+- **N-3 Alt A** (DomainException i Domain.Common): CLAUDE.md §2.1 dependency rule + Martin 2017 kap. 8 OCP. Alt B (Application-placering) bryter dep-rule; Alt C (per-aggregate) bryter OCP; Alt D (lämna) bryter §3.4 + §5.1.
+- **N-2 Alt A** (env-gate): CLAUDE.md §3.4 fail-loud + Twelve-Factor §10 dev/prod parity + Martin 2017 kap. 13 CCP. Alt B (fixture-refactor) bryter 4h-regel; Alt C (log-level) bevarar fail-silent.
 
-**Nit (3):**
-- **N-1:** `Application.SoftDelete` raisar inget domain event (medan `Resume.SoftDelete` gör det) — välj riktning
-- **N-2:** `IdempotentAdminRoleSeeder` catch:ar `42P01` även i prod (potential safety-net-svaghet)
-- **N-3:** `Resume.MasterVersion` kastar `InvalidOperationException` istället för `DomainException`
+### Agent-review-leverans
 
-### Strukturella spärrar som FUNGERAT (motvikt mot "allt är problem"-bias)
+**3 Major fixade in-block** per CLAUDE.md §9.6 (kvalitet > tempo):
 
-24 arch-tester + ADR-disciplin + agent-reviews-pipeline har låst minst 14 distinkta läckage-vektorer — Domain-isolering hermetisk, IL-skannad Trust=true-läckage, Worker-HTTP-isolering, pipeline-ordning single-source-of-truth, audit-bypass-port konsument-allowlist, soft-delete query-filter med medveten IgnoreQueryFilters-användning, xmin concurrency-token. **CTO:s frånvaro under STEG 1–11 har inte gett synlig kvalitets-regression** — disciplinen från arch-tester + agent-reviews + ADR-flöde har täckt CTO-rollen retroaktivt.
+1. **Block B security-auditor Major:** test-fixture-removal-blindzon. Fix: separat `ProdSeederBubbleFactory` som BEHÅLLER seedern + skipar Identity-migration → bevisar 42P01-bubbling i Production E2E (inte bara predicate-funktionen isolerat).
+2. **Block C security-auditor Major:** `CancellationToken.None` på `GetRolesAsync` = resurs-läckage-risk. Fix: inject `IHttpContextAccessor` + använd `HttpContext?.RequestAborted`.
+3. **Block C dotnet-architect Minor (uppgraderad till Major in-block):** `HasClaim(Role)`-idempotency-guard otillförlitlig vid mid-session-promotion. Fix: sentinel-claim `jobbpilot:roles_resolved` sätts post-fetch.
 
-### Audit-metod-not
+Alla Minor fixade in-block per 4h-regel (test-naming, XML-doc-remarks, defensiv cast, kommentar-justering, arch-test för IClaimsTransformation-allowlist).
 
-dotnet-architect-agentens tool-config var read-only (saknar `Write`/`Edit`) — rapporten levererades verbatim i agent-output och materialiserades till disk av parent-CC. Discovery-uppdraget (read-only granskning av kod + ADRs + session-loggar) är fullt utfört. CC-tid totalt: ~65 minuter discovery + rapport-syntes.
+### TDs lyfta (4)
 
-### Förbud denna session (alla hållna)
+| ID | Område | Defer-fas | Scope |
+|----|--------|-----------|-------|
+| TD-58 | H-1 IAccountHardDeleter ISP-split | Fas 6 admin-impersonation | ~2h |
+| TD-59 | H-2 ICurrentJobSeeker user→JobSeekerId-port | Fas 6 impersonation | ~2-3h |
+| TD-60 | ADR auth-pipeline-ordning + IClaimsTransformation-disciplin | Docs-pass | ~45 min |
+| TD-61 | Audit-trail-evidence-test för seeder | Observability-pass / Fas 6 | ~1h |
 
-- **INGA kod-ändringar** ✓
-- **INGA TDs lyfts** ✓
-- **INTE påbörja Fas 2 utan Klas-GO** ✓ (väntar)
-- Ändra inte BUILD.md / CLAUDE.md / DESIGN.md ✓
+**Aktiva TDs efter denna session:** TD-39, TD-41, TD-51, TD-52, TD-53, TD-56, TD-57, **TD-58, TD-59, TD-60, TD-61**.
 
-### Nya commits (denna session)
+### Tester (full svit grön — pending push)
 
-| SHA | Beskrivning |
-|-----|-------------|
-| (pending) | docs(reviews): arch-audit Fas 1 discovery — rapport + session-logg + current-work |
+- Domain.UnitTests: **163** (+6 från Block A)
+- Application.UnitTests: **201** (+5 från Block B)
+- Architecture.Tests: **32** (+1 från Block C)
+- Migrate.UnitTests: **6**
+- Api.IntegrationTests: **179** (+1 från Block B prod-bubble-test)
+- Worker.IntegrationTests: **26**
+- **Total: 607** (+13 från Block A+B+C)
 
----
+### Pending commits (4, väntar Klas-diff-granskning)
 
-## När nästa session startar — Klas:s val för Fas 2-djup
+| Commit | Scope | Filer (huvudsakliga) |
+|--------|-------|-----------------------|
+| 1 | `refactor(domain): N-1 + N-3 + H-4 — domain event-konsistens + DomainException + paging-rename` | Domain + Application/Queries + Api/Program.cs catch + tester (Block A) |
+| 2 | `fix(infra): N-2 — IdempotentAdminRoleSeeder prod-gate-hardening` | Infrastructure/Identity + csproj InternalsVisibleTo + tester (Block B) |
+| 3 | `refactor(auth): H-3 — SoC-split role-fetch till IClaimsTransformation` | Infrastructure/Auth + DI + arch-test (Block C) |
+| 4 | `docs: Fas 2 polish-block session-end — TD-58/59/60/61 + session-logg + steg-tracker` | docs/tech-debt + docs/current-work + docs/steg-tracker + docs/sessions (Block D) |
 
-Audit-rapporten är klar att läsa. Klas:s beslut avgör Fas 2-scope:
-
-### Alternativ 1 — Hoppa över Fas 2 (rek om Klas vill fortsätta features)
-
-Inga Blocker/Major finns. Discipline är intakt. Defer H-1 + H-2 till Fas 6 (naturlig fix-tid), defer Minor/Nit som TDs eller acceptera.
-
-Fortsätt med Fas 2 (JobTech Integration, ADR 0005-blockad) eller Fas 1 features.
-
-### Alternativ 2 — Polish-block (~3h CC-tid)
-
-Kör in-block-fixes i ordning: N-1 + H-4 + N-3 + N-2 + H-3. Får 100% clean före Fas 2-feature-arbete.
-
-### Alternativ 3 — Split polish (~1.25h + ~2h)
-
-- Sub-block A: N-1 + H-4 + N-3 (~1.25h, kosmetiska + DDD-konsistens)
-- Sub-block B: N-2 + H-3 (~2h, prod-safety-net + SoC-refactor)
-
-### Alternativ 4 — TDs först
-
-Lyft H-3 + H-4 + N-1/N-2/N-3 som TDs i `docs/tech-debt.md` om Klas vill ha dem dokumenterade utan att fixa nu. Defer för senare batch.
-
-**Min rek:** Klas läser rapporten själv och bestämmer. Audit-uppdraget var discovery — Fas 2-beslut tillhör Klas.
+**OBS:** `ConnectionStringLeakageTests.cs` har en harmlös `dotnet format`-driven reindentation av nested foreach. Inkluderas i Block A-commit som format-disciplin (inga semantiska ändringar).
 
 ---
 
-## Föregående session-summary (referens) — VÄG E TDs-cleanup
+## När nästa session startar
 
-**Stationär-CC-session 2026-05-11 ~15:30 (föregående dag):** Väg E TDs-cleanup. TD-40 (test) + TD-49 (docs) stängda. Inget produktionskod-touch — test-only + docs-only. Backend 594/594 + Frontend 150 → 153.
+Klas reviewar diff per CLAUDE.md §6.3 punkt 4 (manuell diff-granskning). Vid GO: 4 commits + push.
 
-**Stängda TDs totalt:** TD-15, TD-31, TD-38, TD-40, TD-42, TD-43, TD-44, TD-45, TD-46, TD-47, TD-48, TD-49, TD-50, TD-54, TD-55.
+Sedan optionell väg:
 
-**Aktiva TDs (oförändrat efter denna audit — discovery lyfter ingenting):** TD-39, TD-41, TD-51, TD-52, TD-53, TD-56, TD-57.
+- **Väg A:** TD-60 (auth-pipeline-ADR) som dedikerat docs-pass (~45 min)
+- **Väg B:** TD-61 (audit-trail-evidence-test) som observability-pass (~1h)
+- **Väg C:** Fortsätt feature-arbete — Fas 2 JobTech-integration (blockerad till ADR 0005) eller annan icke-blockerad Fas 1-feature
+- **Väg D:** Pausa, ny session
+
+Inga aktiva TDs blockerar Väg C. Polish-block levererar "100% clean" före Fas 2-feature-arbete.
+
+---
+
+## Föregående session-summary (referens) — Arch-audit Fas 1 Discovery
+
+**Stationär-CC-session 2026-05-11 ~12:15:** dotnet-architect-agenten verifierade Clean Arch-isolering, DDD-invariant-skydd, CQRS-pipeline-disciplin, SOLID/DRY/SoC-status över 6 src-projekt + 24 architecture-tester. CLAUDE.md §5.1 anti-pattern-katalogen gav noll Grep-träffar i `src/`. 22 STEG-rader klassade grön/gul. 4 Minor + 3 Nit dokumenterade med fil-ref + scope-rek. Rapport: `docs/reviews/2026-05-11-arch-audit-discovery.md`.
+
+**Audit-fynd som denna polish-block adresserade:**
+- N-1 ✓ stängd (events uppåt på Application + JobSeeker SoftDelete)
+- N-3 ✓ stängd (DomainException + Resume.MasterVersion-guard)
+- H-4 ✓ stängd (PageNumber → Page i 2 queries)
+- N-2 ✓ stängd (env-gate på 42P01-catch)
+- H-3 ✓ stängd (IClaimsTransformation SoC-split)
+- H-1 → TD-58 (Fas 6 admin-impersonation)
+- H-2 → TD-59 (Fas 6 impersonation)
 
 ---
 
@@ -107,20 +111,13 @@ Lyft H-3 + H-4 + N-1/N-2/N-3 som TDs i `docs/tech-debt.md` om Klas vill ha dem d
 
 ---
 
-## Tester (full svit grön)
-
-- **Backend:** 594/594 (ingen backend-touch i denna session)
-- **Frontend Vitest:** 153/153 (ingen frontend-touch i denna session)
-
----
-
 ## Workflow-disciplin (oförändrad)
 
 Per CLAUDE.md §9.2 + §9.6:
 
-1. Discovery först — alltid (denna session ÄR discovery)
-2. Multi-approach-val → senior-cto-advisor auto-invokeras (entydigt → direkt impl)
-3. STOPP-rapport till Klas innan implementation om CTO osäker / fas-strategiskt
-4. Agent-reviews parallellt vid relevant scope
-5. In-block-fix-default per 4h-regel
+1. Discovery först
+2. Multi-approach-val → senior-cto-advisor auto-invokeras (3 CTO-beslut denna session: N-1 Riktning A, N-3 Alt A, N-2 Alt A — alla entydigt motiverade mot källor)
+3. STOPP-rapport till Klas innan implementation om CTO osäker / fas-strategiskt (denna session: Klas gav "kör utan stanna" så block-flödet körde sammanhängande)
+4. Agent-reviews parallellt vid relevant scope (5 reviews denna session: dotnet-architect×2, code-reviewer×2, security-auditor×2)
+5. In-block-fix-default per 4h-regel (3 Major fixade in-block)
 6. Commit + push efter Klas-diff-granskning (direct-push till main per ADR 0019)

@@ -1814,6 +1814,133 @@ lyftas in i nästa a11y-pass eller paras med eventuell datepicker-introduktion.
 
 ---
 
+## TD-58: `IAccountHardDeleter` blandar 3 ansvar (ISP-split)
+**Kategori:** Architecture / SOLID (ISP)
+**Severity:** Minor
+**Fas:** 6 admin-impersonation
+**Källa:** arch-audit `docs/reviews/2026-05-11-arch-audit-discovery.md` §H-1
+
+Porten `IAccountHardDeleter` exponerar 3 operationer av olika natur:
+`CleanupIdentityOrphansAsync` (idempotency-städ-loop),
+`GetAccountsReadyForHardDeleteAsync` (read-side query) och
+`HardDeleteAccountAsync` (transactional cross-context mutation).
+
+`HardDeleteAccountsJob` är enda konsumenten idag → ISP-skadan teoretisk men
+porten blockerar framtida återbruk (admin-vy som vill köra
+`CleanupIdentityOrphans` standalone får hela porten på köpet).
+
+**Föreslagen åtgärd:** Split i `IIdentityOrphanCleaner` +
+`IExpiredAccountReader` + `IAccountHardDeleter`. Arch-test uppdateras
+till tre separata konsumentlistor.
+
+**Scope:** ~2h CC-tid (kriterium 3). Defereras till Fas 6 admin-impersonation
+eftersom admin-yta då naturligt introducerar andra konsumenter — splittas
+opportunistiskt när Fas 6 öppnar admin-purge-knapp.
+
+**Trigger:** Fas 6 admin-impersonation eller annan admin-feature som behöver
+en av del-portarna standalone.
+
+---
+
+## TD-59: `ICurrentJobSeeker`-port för user→JobSeekerId-resolution
+**Kategori:** Architecture / DRY + SoC
+**Severity:** Minor
+**Fas:** 6 admin-impersonation (eller tidigare om scope tillåter)
+**Källa:** arch-audit `docs/reviews/2026-05-11-arch-audit-discovery.md` §H-2
+
+Identisk uppslagslogik (user → JobSeekerId) i 13 handlers:
+
+```csharp
+if (!currentUser.UserId.HasValue)
+    throw new UnauthorizedException(); // eller return Failure(...)
+
+var jobSeekerId = await db.JobSeekers
+    .AsNoTracking()
+    .Where(js => js.UserId == currentUser.UserId.Value)
+    .Select(js => js.Id)
+    .FirstOrDefaultAsync(cancellationToken);
+```
+
+Sömlösa subtila skillnader: vissa kastar `UnauthorizedException`, andra
+returnerar `Result.Failure<T>(...)`. `CreateApplicationCommandHandler` saknar
+dessutom `.AsNoTracking()`. Inte Clean Arch-brott men klassiskt DRY-läckage
+som biter vid impersonation-retrofit.
+
+**Föreslagen åtgärd:** Introducera `ICurrentJobSeeker`-port (Application-lager)
+som omsluter user→JobSeekerId-resolutionen + lyfter felhanterings-policyn till
+en plats. Infrastructure-impl wrappar `IAppDbContext` + `ICurrentUser`.
+Handlers krymper till 1 rad:
+`var jobSeekerId = await currentJobSeeker.RequireIdAsync(ct);`
+
+**Scope:** ~2-3h CC-tid (kriterium 3). Defereras till impersonation-feature
+där JobSeekerId-resolutionen naturligt behöver utvidgas med
+`ImpersonatedJobSeekerId`-claim.
+
+**Trigger:** Fas 6 admin-impersonation eller dedikerad refactor-batch.
+
+**Berörda filer (13):** `CreateApplicationCommandHandler`,
+`AddNoteCommandHandler`, `TransitionToCommandHandler`,
+`AddFollowUpCommandHandler`, `GetPipelineQueryHandler`,
+`GetApplicationsQueryHandler`, `GetApplicationByIdQueryHandler`,
+`CreateResumeCommandHandler`, `RenameResumeCommandHandler`,
+`DeleteResumeCommandHandler`, `DeleteResumeVersionCommandHandler`,
+`UpdateMasterContentCommandHandler`, `GetResumesQueryHandler`.
+
+---
+
+## TD-60: ADR för auth-pipeline-ordning + `IClaimsTransformation`-disciplin
+**Kategori:** Documentation / Architecture
+**Severity:** Minor
+**Fas:** 1.5 polish / framtida auth-changes
+**Källa:** dotnet-architect-review 2026-05-11 Block C Minor (c+d), H-3 SoC-split
+
+Block C införde `SessionRoleClaimsTransformation` och `ClaimsTransformationAllowlistTests`
+låser konsument-listan strukturellt. Men auth-pipeline-ordning
+(Authentication → IClaimsTransformation → Authorization) är ASP.NET-implicit
+— inte dokumenterad single source of truth.
+
+Future-Klas eller annan agent som rör auth-stacken har ingen ADR att läsa.
+
+**Föreslagen åtgärd:** Ny ADR-rad som dokumenterar:
+1. Pipeline-ordning + extension-punkter (Auth-handler → IClaimsTransformation → Auth-policy)
+2. Var nya security-kritiska claims läggs till (transformation vs handler)
+3. Per-request-fetch vs cache-modell (CTO A1-beslut 2026-05-11)
+4. Konsument-allowlist-mönstret (arch-test som låsning)
+
+**Scope:** ~45 min CC-tid — pure docs, ingen kod. Defereras till nästa
+auth-ändring eller dedikerat docs-pass.
+
+**Trigger:** Nästa auth-relaterad ändring (impersonation, federerat IdP,
+session-cache-introduktion) eller manuellt vid docs-städning.
+
+---
+
+## TD-61: Audit-trail-evidence-test för `IdempotentAdminRoleSeeder`
+**Kategori:** Testing / Observability
+**Severity:** Minor
+**Fas:** 1.5 polish / Fas 6
+**Källa:** security-auditor 2026-05-11 Block B Minor 2
+
+Seederns XML-doc (rad 19-22) hävdar: "operationer går via samma
+Identity-pipeline som /auth/register, vilket gör seeding observerbar via samma
+audit-log som admin-vyn själv granskar". Inget verifierar att audit-händelse
+faktiskt skapas vid bootstrap-tilldelning.
+
+Om audit-log-write hänger på ett separat Mediator-event utanför
+`UserManager.AddToRoleAsync`, sker första Admin-tilldelningen utan audit-spår.
+
+**Föreslagen åtgärd:** Integration-test som efter `EnsureUserIsAdminAsync` läser
+audit-loggen och asserterar att en `AuditLogEntry` finns med relevant
+operation-typ för Admin-role-add.
+
+**Scope:** ~1h CC-tid (kriterium 3). Defereras till Fas 6 admin-impersonation
+eller dedikerat observability-pass där audit-evidence-tester gör en bredare
+sweep.
+
+**Trigger:** Fas 6 admin-impersonation eller GDPR-audit-evidence-pass.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

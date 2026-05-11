@@ -23,6 +23,22 @@ export async function getSessionId(): Promise<string | null> {
 
 export type CurrentUser = CurrentUserDto;
 
+/**
+ * Hämtar den inloggade användaren för aktuell request.
+ *
+ * Wrappad i `React.cache()` — flera anrop inom samma request (t.ex.
+ * `(app)/layout.tsx` + en page-fil) träffar samma cache och utför endast
+ * **ett** backend-anrop. Detta är intentional pattern, inte duplicering:
+ * varje (app)-sida anropar `getServerSession()` direkt för att verifiera
+ * session + härleda user-data, oberoende av layout. Layout-prop-passing
+ * via Server Component-context-trick avvisades (TD-5 CTO-triage 2026-05-11)
+ * för att bevara SoC mellan layout (skal) och page (innehåll), och för
+ * konsistens med övriga 7 (app)-sidor som använder samma pattern.
+ *
+ * Returnerar `null` vid avsaknad av session-cookie, backend-fel eller
+ * DTO-parsningsfel — alla mappas till "ingen session" så middleware/page
+ * kan redirecta till `/logga-in`.
+ */
 export const getServerSession = cache(
   async (): Promise<CurrentUser | null> => {
     const sessionId = await getSessionId();

@@ -1,94 +1,101 @@
 # Current work — JobbPilot
 
-**Status:** **TD-7 + TD-53a + TD-53b STÄNGDA OCH PUSHED 2026-05-11 — ADR 0030 frontend-migration KLAR.** Hela frontend-API-ytan på `ApiResult<T>`-kind-union (7 endpoints, 5+ konsumenter). Dubbel ACL etablerad: ADR 0020 shape-validering (Zod) + ADR 0030 outcome-semantik (kind-union).
+**Status:** **Batch A STÄNGD OCH PUSHED 2026-05-11 — TD-10 + TD-11 stängda + TD-30 retroaktivt arkiverad.** Fas 1-rensning påbörjad enligt batching-plan (6 batches). Två nya TDs lyfta (TD-63 ActionResult kind-union för writes, TD-64 i18n omnibus).
 **Senast uppdaterad:** 2026-05-11
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
-**Tech debt:** `docs/tech-debt.md`
-**Policy-skift denna session:** CLAUDE.md §9.6 — 4h-regel ersatt av fas-regel + CTO-auto-follow-disciplin
+**Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 
 ---
 
-## Aktivt nu — ADR 0030-migration KLAR, väntar Klas-prioritering för Fas 1-stängning
+## Aktivt nu — Batch A klar, väntar Klas-prioritering för Batch B
 
-Stationär-CC-session 2026-05-11 ~16:00–20:00. Fyra arbets-block:
+Stationär-CC-session 2026-05-11 ~20:00–21:00. Tre arbets-block:
 
-1. **TD-7 STÄNGD** (commit `76f758a`) — Zod-DTO-validering vid HTTP-gränsen + ADR 0020
-2. **TD-53a STÄNGD** (commit `7e90b36`) — `ApiResult<T>`-kind-union detail-endpoints + ADR 0030
-3. **TD-53b STÄNGD** (commit `aac9b2f`) — `ApiResult<T>`-kind-union list-endpoints + admin.ts
-4. **CLAUDE.md §9.6 policy-skift** — 4h-regel ersatt av fas-regel
+1. **Plan-leverans:** TD-batching-plan för Fas 1-rensning — 6 batches (A–F) + parallell-spår TD-30
+2. **Batch A STÄNGD** (commit `0560718`) — TD-10 + TD-11 frontend-säkerhet
+3. **TD-30 retroaktivt arkiverad** — Klas-discovery: jobbpilot.se redan köpt + ACM-cert validerat 2026-05-10 + ADR 0027 supersession finns. TD-30 stod kvar i aktiv-listan trots leverans.
 
-### TD-53b-leverans
+### Batch A-leverans (commit `0560718`)
 
-- **4 endpoints refactorade** till `Promise<ApiResult<T>>` med explicit return-type:
-  `getPipeline`, `getApplications`, `getResumes`, `getAuditLog`
-- **Lokala `AuditLogResponse`-typen raderad** från `admin.ts` (ad-hoc-union ersatt med generisk `ApiResult`)
-- **3 konsumenter:** `ansokningar/page.tsx`, `cv/page.tsx`, `admin/granskning/page.tsx`
-- **`responseToResult` används unconditionally** — grep `parseResponse` i `lib/api/` = 0 träffar
-- **Reviews:**
-  - senior-cto-advisor: Variant A för `getApplications` (refactora ändå trots inga konsumenter, ADR-trohet + CCP per Martin 2017), Variant Y för test-scope (helper redan testad, DRY i test-kod, tsc + assertNever statisk exhaustiveness per Fowler 2012)
-  - code-reviewer: 0 Blocker/Major, 4 Minor (informativa), 1 Nit
-  - design-reviewer: 1 Major (`role="alert"`-borttagning admin ErrorBlock, konsekvens med TD-53a-policy) + 1 Minor (kommentar om dead notFound-case) fixade in-block
+**TD-10 (Major, GDPR Art. 5(1)(f)):** PII-läckage via `body?.detail` / `body?.title` borttagen från 10 Server-Action-sites i `applications.ts` / `me.ts` / `resumes.ts`. Ny helper `_action-error.ts` mappar HTTP-status → svensk text utan att läsa body. Säkerhetsinvariant verifierad: `res.json` anropas aldrig på error-path.
 
-### Policy-skift denna session
+**TD-11 (Major, test-isolation):** E2E-helper härdad — `TEST_USER_PASSWORD` env-var, test-domän `@e2e.jobbpilot.test` (RFC 6761 reserverad TLD, non-resolvable), `assertSafeBaseURL`-guard via URL-hostname-parse på både `loginAs` och `ensureTestUser`.
 
-Klas-direktiv 2026-05-11: TD-bloat = problem. Fixa allt som hör till nuvarande fas innan Fas 2.
-
-**CLAUDE.md §9.6 uppdaterad:**
-
-- **Ingen tidsbegränsning per touch.** 4h-regeln borttagen — utlöste TD-bloat genom tidströskel-utlyftningar
-- **Fas-regel:** TD lyfts ENDAST om fyndet hör till annan fas eller saknad funktion-dependency
-- **CTO-auto-follow:** CC går direkt till implementation efter CTO-beslut. Klas-STOPP endast vid strategiska frågor (fas-skifte, ADR-amendment, deploy)
-- **CC rekommenderar inte vid multi-approach** — Variant A/B/C-val går till senior-cto-advisor
+**Reviews:**
+- senior-cto-advisor: Variant B (central helper) över A (per-action) / C (kind-union för writes). Motivering: DRY + SoC + OCP + ADR 0030-symmetri. Variant C lyfts som TD-63.
+- code-reviewer: 0 Blocker / 0 Major / 2 Minor / 3 Nit. Minor-1 (URL-substring-bypass) + Nit-1 (DRY 409+422) + Nit-2 (doc-precision) fixade in-block.
+- security-auditor: Approved. GDPR-veto passerad utan blocker. TD-10 + TD-11 stängningskriterier uppfyllda.
 
 ### Tester (full svit grön)
 
 | Suite | Antal | Diff |
 |-------|-------|------|
-| Frontend vitest | **217** | oförändrat (TD-53b Variant Y) |
-| Domain.UnitTests | 163 | oförändrat |
-| Application.UnitTests | 204 | oförändrat |
+| Frontend vitest | **227** | +10 (TD-10 helper-tester) |
+| tsc --noEmit | grön | — |
 | Architecture.Tests | 32 | oförändrat |
 
 ### Pushed commits denna session
 
 | Commit | Scope |
 |--------|-------|
-| `76f758a` | `feat(web): TD-7 — Zod-DTO-validering vid HTTP-gränsen + ADR 0020` |
-| `7e90b36` | `feat(web): TD-53a — ApiResult<T>-kind-union för detail-endpoints + ADR 0030` |
-| `aac9b2f` | `feat(web): TD-53b — ApiResult<T>-kind-union för list-endpoints + admin.ts` |
+| `0560718` | `feat(web): Batch A — TD-10 + TD-11 frontend-säkerhet (GDPR Art. 5(1)(f) + test-isolation)` |
+
+### Nya TDs lyfta
+
+- **TD-63** (Minor, Fas 2+): ActionResult kind-union för writes (ADR 0030-symmetri). Variant C-defererad från TD-10 CTO-triage.
+- **TD-64** (Minor, Trigger): i18n-migration av inline svenska error-strängar (omnibus).
+
+### TD-30 retroaktiv arkivering
+
+Klas-discovery 2026-05-11: jobbpilot.se redan registrerad, ACM-cert validerat 2026-05-10 (`f72a79d7-...`), STEG 13c HTTPS-flip levererad, ADR 0027 supersession av ADR 0026 dokumenterad. TD-30 stod kvar i aktiv-listan som "Major Nu" trots att alla 8 operativa steg är utförda. Stängd retroaktivt + flyttad till `tech-debt-archive.md`.
+
+**Lärdom:** TD-livscykel-disciplinen (CLAUDE.md §9.7 etablerad 2026-05-11) ska tillämpas redan vid leverans-commit — annars hopar sig "de facto stängda" TDs i aktiv-listan och översiktstabellens sanningshalt bryts.
 
 ---
 
 ## När nästa session startar
 
-ADR 0030-migration KLAR. Inget specifikt TD-block väntar — sessionen behöver
-Klas-prioritering för nästa fokus.
+Batch A klar. Återstående Fas 1-batches per TD-batching-plan:
 
-### Föreslagna nästa-steg
+### Batch B (Major + Minor): TD-41 + TD-57 — UI-konvention native vs shadcn
 
-**Alternativ A: TD-genomgång inför Fas 2-stängning**
+**Blockerar:** Klas-beslut behövs. Tre varianter:
+- (a) Behåll native, lyft inline-stilen till `ui/native-select.tsx`-primitiv (DRY-fix)
+- (b) Migrera till shadcn `Select` med RHF Controller (full konsistens)
+- (c) Hybrid: shadcn för >2-opt, native för 2-opt (kräver dokumenterad gräns)
 
-Per nya CLAUDE.md §9.6 fas-regel: alla Fas 1-TDs ska fixas innan Fas 2.
-Aktiva TDs som inte blockerar nu: TD-39, TD-41, TD-51, TD-52, TD-56, TD-57,
-TD-58, TD-59, TD-62. Behöver kategoriseras (Fas 1 vs Fas 2+) och de som
-hör till Fas 1 ska prioriteras för stängning.
+Efter Klas-beslut: senior-cto-advisor motiverar val → CC implementerar.
 
-**Alternativ B: STEG-progression**
+### Batch C (Minor cluster): TD-1 + TD-2 + TD-40 — a11y-pass Fas 1
 
-`docs/steg-tracker.md` är single source of truth — nästa STEG enligt
-fas-plan i BUILD.md.
+Mekanisk, ~0,5 CC-session. Skip-link + CardTitle heading + path-equality regression-test.
 
-**Alternativ C: Specifik feature-touch**
+### Batch D (Minor cluster): TD-3 + TD-4 + TD-5 — UX-pass /mig
 
-Klas pekar på BUILD.md-feature som ska byggas.
+Samma fil. ~0,5 CC-session. Behöver design-beslut för TD-3 (stum vs guidance) + TD-4 (ta bort vs omformulera label).
+
+### Batch E (Minor): TD-6 + TD-28 — me-flöde säkerhet + observability
+
+~1 CC-session. TD-28 är största post (typed-confirm + re-auth-Server-Action + tester).
+
+### Batch F (Minor solo): TD-12 — backend cross-user isolation test
+
+~0,5 CC-session. Fristående.
+
+### Öppna frågor från plan-leverans (kvarstår)
+
+- **Q1 ADR 0027-luckor (TD-32–TD-36):** allokera retroaktivt / amenda ADR 0027 / lämna som-är?
+- **Q2 TD-22/TD-17 operativa apply:** flytta tillbaka till aktiva / runbook-uppgift / ny operativ-TD?
+
+Hanteras vid nästa session-start eller vid första naturliga touch.
 
 ---
 
 ## Föregående session-summary (referens)
 
-**2026-05-11 ~16:00–19:00:** TD-7 + TD-53a stängda och pushade. ADR 0020 (Zod-DTO-validering vid HTTP-gränsen) + ADR 0030 (ApiResult kind-union) etablerade. 11 unchecked `as Dto`-casts borta. 3 detail-endpoints på kind-union.
+**2026-05-11 ~16:00–20:00:** TD-7 + TD-53a + TD-53b stängda. ADR 0020 (Zod-DTO-validering) + ADR 0030 (ApiResult kind-union) etablerade. CLAUDE.md §9.6 policy-skift (4h-regel → fas-regel + CTO-auto-follow) + §9.7 TD-livscykel.
 
-**2026-05-11 ~19:00:** TD-61 audit-trail-evidence-test för `IdempotentAdminRoleSeeder` stängd. Commit `47f8deb`.
+**2026-05-11 ~20:00–21:00:** Batch A (TD-10 + TD-11) stängd + pushed. TD-30 retroaktivt arkiverad. TD-63 + TD-64 lyfta.
 
 ---
 
@@ -97,23 +104,17 @@ Klas pekar på BUILD.md-feature som ska byggas.
 | Resurs | Identifier |
 |---------|-----------|
 | Public URL | `https://dev.jobbpilot.se/api/ready` |
-| API task-def | `jobbpilot-dev-api` (post-TD-38 apply) |
-| Worker task-def | `jobbpilot-dev-worker` (post-TD-38 apply) |
+| API task-def | `jobbpilot-dev-api` |
+| Worker task-def | `jobbpilot-dev-worker` |
 | Tag (senaste) | `v0.1.2-dev` på SHA `7cde3c7` |
 
 ---
 
-## Workflow-disciplin (uppdaterad denna session)
+## Workflow-disciplin (CLAUDE.md §9.6 + §9.7)
 
-Per CLAUDE.md §9.2 + §9.6 (uppdaterad 2026-05-11):
-
-1. Discovery först (denna session: kartlagt 4 endpoints + 3 konsumenter)
-2. Multi-approach-val → senior-cto-advisor auto-invokeras (denna session:
-   TD-53b Variant A på `getApplications`, Variant Y på test-scope)
-3. **CC går direkt till implementation efter CTO-beslut** — ingen extra
-   Klas-GO om motiveringen är entydig mot principer
-4. Agent-reviews parallellt vid relevant scope (denna session: code-reviewer +
-   design-reviewer)
-5. **In-block-fix-default per fas-regel** — TD lyfts ENDAST om fyndet hör
-   till annan fas eller kräver saknad funktion-dependency (4h-regel borttagen)
-6. Commit + push efter Klas-diff-granskning (direct-push till main per ADR 0019)
+1. Discovery först
+2. Multi-approach-val → senior-cto-advisor auto-invokeras (denna session: TD-10 Variant B beslut)
+3. **CC går direkt till implementation efter CTO-beslut** — Klas-STOPP endast vid strategiska frågor
+4. Agent-reviews parallellt vid relevant scope (denna session: code-reviewer + security-auditor)
+5. **In-block-fix-default per fas-regel** — reviews-fynd fixades in-block (assertSafeBaseURL URL-parse, DRY 409+422)
+6. TD-livscykel: nya TDs läggs i `tech-debt.md` med korrekt Severity × Fas-placering. Stängda flyttas till `tech-debt-archive.md` med full kropp + stängningsbevis. **Lärdom TD-30:** flytta i samma commit som leveransen.

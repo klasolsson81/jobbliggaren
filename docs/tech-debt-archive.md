@@ -1124,3 +1124,104 @@ impersonation-ADR-arbete — inte en defekt i nuvarande system så länge
 XML-doc:en är ärlig om vad evidence-spåret faktiskt är.
 
 ---
+
+## TD-30: Domänköp + Route53 + ACM-cert ✓ STÄNGD STEG 13c (2026-05-10), retroaktivt arkiverad 2026-05-11
+**Kategori:** Infra / Security
+**Severity:** Major (tidsbundet — hard deadline 2026-06-08)
+**Källa:** security-auditor STEG 13b Sec-Major-1 + ADR 0026
+**Status:** **STÄNGD 2026-05-10** via STEG 13c HTTPS-flip. ADR 0027 (`docs/decisions/0027-https-aktiverat-supersession.md`) superseder ADR 0026. Retroaktivt arkiverad 2026-05-11 (Klas-discovery: TD-30 stod kvar som öppen Major Nu trots att kod + infra + ADR var levererat).
+
+ADR 0026 accepterade ALB HTTP-only under Fas 0 med tidsfönster 30 dagar
+(deadline 2026-06-08) och 5 triggers för supersession. Trigger 1
+(domän + ACM-cert) blev levererad innan deadline.
+
+**Stängningsbevis (verifierat 2026-05-11):**
+- `infra/terraform/environments/dev/terraform.tfvars` rad 15: `alb_https_enabled = true`
+- `infra/terraform/environments/dev/terraform.tfvars` rad 16: `alb_acm_certificate_arn = "arn:aws:acm:eu-north-1:710427215829:certificate/f72a79d7-f964-49c7-abb5-cf81b8639d6a"`
+- ACM-cert validerat 2026-05-10 via Route53 DNS-validation
+- 16 terraform-filer refererar `jobbpilot.se` / `route53` / `acm` (modules + envs)
+- ADR 0027 dokumenterad supersession av ADR 0026
+
+**Original-spec (operativa steg):**
+
+1. Registrera `jobbpilot.se` ✓ (Klas, hos svensk registrar)
+2. Skapa Route53 hosted zone i AWS ✓ (modules/route53)
+3. Begär ACM-cert via DNS-validering ✓ (modules/acm, cert f72a79d7-...)
+4. Skapa A-ALIAS-record `dev.jobbpilot.se → ALB-DNS` ✓
+5. Sätt `alb_https_enabled = true` + `alb_acm_certificate_arn` i tfvars ✓
+6. `terraform apply` — ALB konverterar HTTP → HTTPS-redirect ✓
+7. Skriv supersession-ADR ✓ (ADR 0027)
+8. Update `current-work.md` + `steg-tracker.md` ✓ (STEG 13c-session-log)
+
+**Lärdom:** TD-livscykel-disciplinen (CLAUDE.md §9.7) etablerades 2026-05-11
+efter denna miss. Framtida STEG-stängningar som löser en TD ska flytta
+TD-blocket till arkivet i samma commit som leveransen — annars hopar sig
+"de facto stängda" TDs i aktiv-listan och bryter översiktstabellens
+sanningshalt.
+
+---
+
+## TD-10: PII-läckage via `body?.detail` i Server Actions ✓ STÄNGD 2026-05-11
+**Kategori:** Säkerhet (GDPR Art. 5(1)(f))
+**Severity:** Major
+**Fas:** 1
+**Källa:** Security audit 2026-05-08 (Major 1)
+**Status:** **STÄNGD 2026-05-11 (commit `0560718`)** via Batch A — säkerhet-hard frontend. Variant B (central helper) implementerad per CTO-beslut 2026-05-11.
+
+Server Actions i `src/lib/actions/applications.ts`, `me.ts`, `resumes.ts`
+exponerade `body?.detail` (samt `body?.title` i `me.ts` + `resumes.ts`) direkt
+till UI-lagret över 10 error-sites. ASP.NET ProblemDetails kunde innehålla
+stacktraces, SQL-felmeddelanden eller annan intern info → bröt GDPR Art. 5(1)(f)
+integritet och konfidentialitet.
+
+**Leverans (Batch A):**
+
+- **NY:** `src/lib/actions/_action-error.ts` — `mapActionError(res: Response, fallback: string): string` sync helper, status→svensk text, läser ALDRIG body
+- **NY:** `src/lib/actions/_action-error.test.ts` — 10 vitest cases inkl. säkerhetsinvariant `expect(res.json).not.toHaveBeenCalled()`
+- **ÄNDRAD:** `applications.ts` (4 sites), `me.ts` (1 site), `resumes.ts` (5 sites) — alla `body?.detail`/`body?.title`-mönster borttagna
+- **Säkerhetsinvariant:** body läses ALDRIG på error-path i action-layern
+- **Whitelist:** 401/403/404/409/422/429 → fasta svenska strängar. Övriga statuskoder → per-action svensk fallback.
+
+**CTO-beslut (senior-cto-advisor 2026-05-11):** Variant B över A/C.
+Motivering: DRY (Hunt/Thomas 1999), SoC (Dijkstra 1974), OCP (Martin 2017
+kap. 8), säkerhets-granskbarhet på ett ställe (OWASP ASVS V8.2), ADR 0030-
+symmetri. Body kastas helt — "secure by default" invariant.
+
+**Reviews:**
+- code-reviewer: 0 Blocker / 0 Major / 2 Minor / 3 Nit. Minor-1 (substring-bypass i `assertSafeBaseURL`) + Nit-1 (DRY för 409+422) + Nit-2 (doc-precision) fixade in-block.
+- security-auditor: Approved. GDPR-veto passerad utan blocker. TD-10 stängningskriterier uppfyllda — invariant verifierad i kod + test, inga kvarvarande call-sites.
+
+**Tester:** Vitest 217 → 227 (+10 nya). tsc --noEmit grön.
+
+**Defererade TDs lyfta i samma session:**
+- TD-63: ActionResult kind-union för writes (ADR 0030-symmetri, Variant C-defererad)
+- TD-64: i18n-migration av inline svenska error-strängar (omnibus)
+
+---
+
+## TD-11: Hårdkodad E2E-lösenord och testemail på produktionsdomän ✓ STÄNGD 2026-05-11
+**Kategori:** Säkerhet (test-isolation)
+**Severity:** Major
+**Fas:** 1
+**Källa:** Security audit 2026-05-08 (Major 3)
+**Status:** **STÄNGD 2026-05-11 (commit `0560718`)** via Batch A — säkerhet-hard frontend.
+
+`tests/e2e/helpers/auth.ts` innehöll hårdkodat lösenord (`E2eTestPass123!`)
+och genererade testmail på `@jobbpilot.se` (produktionsdomän). E2E-testkonton
+kunde hamna i produktionsdatabasen om CI/dev råkade peka mot prod.
+
+**Leverans (Batch A):**
+
+1. **Lösenord:** `TEST_USER_PASSWORD` env-var med dev-fallback `E2eTestPass123!Dev`
+2. **Test-domän:** `@jobbpilot.se` → `@e2e.jobbpilot.test` (RFC 6761 reserverad TLD, garanterad non-resolvable)
+3. **`assertSafeBaseURL`-guard:** URL-hostname-parse (inte substring-match) med whitelist `localhost / 127.0.0.1 / *.staging.jobbpilot.se / *.dev.jobbpilot.se`. Anropas i både `loginAs` (efter `page.goto`) och `ensureTestUser` (på `baseURL`-argument).
+
+**Reviews:**
+- security-auditor: Approved för Fas 1. `.test`-TLD är RFC-grundat val, hostname-parse eliminerar substring-bypass (`localhost.evil.com` etc.). Dev-fallback acceptabel — `assertSafeBaseURL` förhindrar att fallback når prod.
+- code-reviewer: Minor-1 (URL-parse-omskrivning) fixad in-block samma commit.
+
+**Restanmärkning (Nit, ej blocker):** `ensureTestUser` läser fortfarande
+`body?.title` på 400 för Duplicate-detection. Test-helper-kod, ingen GDPR-
+implikation (test-konton är e2e-genererade). OK att lämna.
+
+---

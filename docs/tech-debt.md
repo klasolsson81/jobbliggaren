@@ -17,9 +17,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 
 | ID | Titel | Severity | Fas | Kategori |
 |---|---|---|---|---|
-| TD-30 | Domänköp + Route53 + ACM-cert (deadline 2026-06-08) | **Major (tidsbundet)** | **Nu** | Infra/Security |
-| TD-10 | PII-läckage via `body?.detail` i Server Actions | **Major** | 1 | Säkerhet |
-| TD-11 | Hårdkodad E2E-lösenord och testemail på produktionsdomän | **Major** | 1 | Säkerhet |
 | TD-41 | Select-komponent-konvention — native vs shadcn Radix | **Major** | 1 | UI/Component |
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
@@ -41,6 +38,8 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-29 | Strict readiness-probe — separera liveness från readiness | Minor | 2 | Observability |
 | TD-56 | ListJobAdsQuery full paginering (Fas 2 JobTech-integration) | Minor | 2 | Architecture |
 | TD-62 | OpenAPI-codegen som supersession av manuella Zod-DTO-schemas | Minor | 2+ | Architecture/Tooling |
+| TD-63 | ActionResult kind-union för writes (ADR 0030-symmetri) | Minor | 2+ | Architecture |
+| TD-64 | i18n-migration av inline svenska error-strängar | Minor | Trigger | i18n |
 | TD-14 | DeleteResumeVersion: VersionInUse-check inaktiv | Minor | 4 (AI) | Säkerhet/Data integrity |
 | TD-51 | Admin-läs-aktioner ska audit-loggas (GDPR Art. 30) | Minor | 6 | GDPR compliance |
 | TD-52 | Admin-endpoint saknar dedikerad rate-limit-policy | Minor | 6 | Säkerhet |
@@ -69,105 +68,10 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 Tidsbunden eller akut. Bör vara tom när möjligt — om sektionen växer signalerar
 det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-block).
 
-## TD-30: Domänköp + Route53 + ACM-cert (kopplad till ADR 0026-trigger)
-**Kategori:** Infra / Security
-**Severity:** Major (tidsbundet — hard deadline 2026-06-08)
-**Källa:** security-auditor STEG 13b Sec-Major-1 + ADR 0026
-
-ADR 0026 accepterar ALB HTTP-only under Fas 0 med tidsfönster 30 dagar
-(deadline **2026-06-08**) och 5 triggers för supersession. Trigger 1
-(domän + ACM-cert) är aktivitet som måste utföras före deadline för att
-undvika tvångs-trigger 3 (tidsgräns).
-
-**Operativa steg när Klas är redo:**
-
-1. Registrera `jobbpilot.se` (eller alternativ domän) hos svensk registrar
-   (~80 kr/år hos t.ex. Loopia/Binero/Glesys). Cirka 1 timme + DNS-
-   propagering.
-2. Skapa Route53 hosted zone i AWS:
-   ```hcl
-   resource "aws_route53_zone" "this" {
-     name = "jobbpilot.se"
-   }
-   ```
-   Delegera från registrar till AWS NS-records (4 nameservers från
-   `aws_route53_zone.this.name_servers`).
-3. Begär ACM-cert via DNS-validering:
-   ```hcl
-   resource "aws_acm_certificate" "this" {
-     domain_name       = "dev.jobbpilot.se"
-     validation_method = "DNS"
-   }
-   ```
-4. Skapa A-ALIAS-record `dev.jobbpilot.se → ALB-DNS`.
-5. I `environments/dev/terraform.tfvars`:
-   ```hcl
-   alb_https_enabled       = true
-   alb_acm_certificate_arn = "arn:aws:acm:..."
-   ```
-6. `terraform apply` — ALB konverterar HTTP-listenern till
-   HTTPS-redirect via dynamic-block (befintlig modul-kod).
-7. Skriv supersession-ADR (ADR 0027 eller liknande) som flippar
-   ADR 0026:s status → Superseded.
-8. Update `current-work.md` + `steg-tracker.md`.
-
-**Konsekvens om INTE adresserat innan 2026-06-08:**
-- ADR 0026 trigger 3 (tidsgräns) aktiveras automatiskt → krav på
-  ny ADR med uttryckligen förlängt fönster ELLER `terraform destroy`
-  på alb + ecs-modulerna (dev tas ner).
-
-**Beroenden:** Klas väljer registrar + domän + betalar. Inga tekniska
-hinder. Kan göras parallellt med STEG 13b-apply (ALB skapas först
-HTTP-only, HTTPS adderas senare via samma modul).
+*(Sektionen tom 2026-05-11 — TD-30 stängd, ADR 0026 superseded av ADR 0027.)*
 
 
 ## Major — Fas 1
-
-## TD-10: PII-läckage via `body?.detail` i Server Actions
-
-**Kategori:** Säkerhet  
-**Fas:** 0 (nu, web)  
-**Prioritet:** Hög  
-**Källa:** Security audit 2026-05-08 (Major 1, öppen)
-
-Server Actions i `src/lib/actions/applications.ts` exponerar `body?.detail`
-direkt till UI-lagret. Beroende på hur backend formaterar feldetaljer kan
-känslig intern information (stacktraces, SQL-felmeddelanden, användardata)
-läcka till klientens felmeddelande.
-
-**Risk:** PII eller interna systemdetaljer visas för användaren — bryter GDPR
-Art. 5(1)(f) om integritet och konfidentialitet.
-
-**Föreslagen åtgärd:** Ersätt `body?.detail ?? "Okänt fel."` med ett
-whitelistat-felmeddelande. Tillåt bara förväntade HTTP-statuskoder att
-mappas till specifika svenska felmeddelanden — allt annat returnerar
-ett generiskt "Något gick fel. Försök igen." utan interna detaljer.
-
-
----
-
-## TD-11: Hårdkodad E2E-lösenord och testemail på produktionsdomän
-
-**Kategori:** Säkerhet  
-**Fas:** 0 (nu, web/e2e)  
-**Prioritet:** Medium  
-**Källa:** Security audit 2026-05-08 (Major 3, öppen)
-
-`tests/e2e/helpers/auth.ts` innehåller hårdkodat lösenord `TestPassword123!`
-och genererar testmail på `@jobbpilot.se` (produktionsdomän). E2E-testkonton
-skapas mot produktionsdatabasen vid pipeline-körning om miljövariabler inte
-separeras tydligt.
-
-**Risk:** Testanvändare hamnar i produktionsdatabasen om E2E körs mot fel
-miljö; lösenordet är läsbart i klartext i repot.
-
-**Föreslagen åtgärd:** (1) Flytta lösenord till `TEST_USER_PASSWORD`
-miljövariabel i `.env.test`. (2) Ändra testdomain till `@test.jobbpilot.internal`
-eller liknande non-resolvable domän. (3) Lägg guard i `ensureTestUser` som
-validerar att `PLAYWRIGHT_BASE_URL` innehåller `localhost` eller `staging`.
-
-
----
 
 ## TD-41: Select-komponent-konvention — native vs shadcn Radix
 
@@ -788,6 +692,91 @@ policy. Trigger = Fas 2 JobTech-integration när endpoint-ytan växer markant.
 för pipeline-etablering.
 
 
+---
+
+## TD-63: ActionResult kind-union för writes (ADR 0030-symmetri)
+**Kategori:** Architecture / Frontend
+**Severity:** Minor
+**Fas:** 2+ (efter Fas 1-stängning eller naturlig konsument-touch)
+**Källa:** TD-10 CTO-triage 2026-05-11 — Variant C-scope separerat från säkerhets-fix
+
+ADR 0030 etablerade `ApiResult<T>` kind-union för read-endpoints. Server
+Actions (writes) använder fortfarande egen `ActionResult = { success: true } | { success: false; error: string }`. CTO-beslut 2026-05-11 valde Variant B
+(central error-helper) för TD-10 över Variant C (kind-union för writes) eftersom
+C kräver konsument-rework i 8+ komponenter och bryter commit-SRP för
+säkerhets-TD.
+
+**Föreslagen åtgärd:**
+
+1. Migrera `ActionResult` → discriminated kind-union:
+   ```ts
+   type ActionResult =
+     | { kind: "ok" }
+     | { kind: "validation"; fieldErrors?: Record<string, string> }
+     | { kind: "unauthorized" }
+     | { kind: "forbidden" }
+     | { kind: "conflict" }
+     | { kind: "error"; message: string };
+   ```
+2. Uppdatera konsumenter (RHF + `useActionState` i 8+ komponenter) till
+   exhaustive switch via `assertNever`.
+3. Speglar `ApiResult<T>` för symmetri reads/writes.
+4. Backend börjar exponera `ValidationProblemDetails.errors` → kan mappas
+   till `fieldErrors` (typed disambiguation).
+
+**Risk i Fas 1:** noll (TD-10 säkerhets-fix levererad utan kind-union).
+
+**Risk vid Fas 2+:** Minor (arch-konsistens mellan reads/writes; konsumenter
+kan inte typed-diskriminera unauthorized/conflict/validation utan att parsa
+error-strängar — fragil).
+
+**Scope:** ~5h CC-tid (kriterium 3). 8+ konsument-touch.
+
+**Trigger:** (a) Backend börjar exponera fält-nivå validation errors, (b) 3:e
+konsument efterfrågar typad disambiguation, eller (c) naturlig komponent-touch
+som ändå rör flera action-call-sites. Föreslås parallellt med eventuell
+i18n-migration (TD-64) för att samla error-stränghantering på ett ställe.
+
+**Beroenden:** Ingen blockerare — kan göras opportunistiskt.
+
+
+---
+
+## TD-64: i18n-migration av inline svenska error-strängar
+**Kategori:** i18n / `next-intl`
+**Severity:** Minor
+**Fas:** Efter MVP / Trigger
+**Källa:** TD-10 CTO-triage 2026-05-11 — i18n-readiness skjuten
+
+`_action-error.ts` + action-files innehåller idag inline svenska
+fallback-strängar. CLAUDE.md §5.2 säger `next-intl` med `messages/sv.json`
+är slutläget — men befintliga inline-svenska är redan spridda över hela
+actions-lagret + komponent-trädet. Att lyfta enbart de 11 error-strängarna
+från denna touch skulle skapa inkonsekvens (dessa 11 i messages, resten
+inline).
+
+**Föreslagen åtgärd:** helhets-omnibus-migration när minst en av triggers
+infaller:
+
+1. Andra språk på roadmap
+2. Klas/test-användare upptäcker inkonsekvens
+3. Komponent-bibliotek refactoreras ändå
+4. Naturligt nästa stora frontend-pass (kan kombineras med TD-63
+   kind-union-migration för att samla error-hantering på ett ställe)
+
+Scope inkluderar: alla `_action-error.ts`-strängar, action-fallback-strängar,
+komponent-strängar, formulär-validation-strängar. Inte bara error-paths.
+
+**Risk i Fas 1:** noll (svenska-only, inga externa språk).
+
+**Scope:** stort omnibus-pass — egen ADR för i18n-strategy (namespace-design,
+message-key-konvention, fallback-policy) före implementation.
+
+**Trigger:** se ovan.
+
+**Beroenden:** Egen i18n-strategy-ADR.
+
+
 ## Minor — Fas 3+
 
 ## TD-14: DeleteResumeVersion: VersionInUse-check är inaktiv tills Application får ResumeVersionId
@@ -1076,6 +1065,9 @@ ADR-cross-references och granskningsbevis.
 | TD-55 | PagedResult + ApplicationsQuery hardening | 2026-05-11 | Väg C Block A (`c2f539e` + `0b0886d` + `5784120`) |
 | TD-60 | ADR för auth-pipeline-ordning + IClaimsTransformation | 2026-05-11 | ADR 0029 |
 | TD-61 | Audit-trail-evidence-test för IdempotentAdminRoleSeeder | 2026-05-11 | Väg B (`47f8deb`) |
+| TD-30 | Domänköp + Route53 + ACM-cert | 2026-05-10 (retroaktivt stängd 2026-05-11) | STEG 13c + ADR 0027 |
+| TD-10 | PII-läckage via `body?.detail` i Server Actions | 2026-05-11 | Batch A (`0560718`) |
+| TD-11 | Hårdkodad E2E-lösenord och testemail på produktionsdomän | 2026-05-11 | Batch A (`0560718`) |
 
 ---
 

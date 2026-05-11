@@ -5,6 +5,7 @@ import {
   resumeContentSchema,
   updateMasterContentSchema,
 } from "./resume-schemas";
+import { pathToElementId } from "@/lib/forms/resume-path-routing";
 
 const VALID_GUID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -268,6 +269,97 @@ describe("resumeContentSchema – skills", () => {
       skills: [{ name: "Cobol", yearsExperience: 70 }],
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("resumeContentSchema – refine() leaf-path regression (TD-40)", () => {
+  // Bevakning: om någon i framtiden tar bort `path: ["endDate"]` från refines
+  // i experienceSchema/educationSchema, eller skriver ny `.refine()` på en
+  // z.object() utan explicit leaf-path, hamnar serverError på array-rot eller
+  // toppnivå → ResumeContentForm.fieldA11y missar att flagga rätt fält +
+  // pathToElementId returnerar null → ingen focus-flytt vid validerings-fel.
+  // Testen kontraktslåser kompatibiliteten resume-schemas ↔ resume-path-routing.
+
+  const baseContent = () => ({
+    personalInfo: { fullName: "Anna Andersson" },
+    experiences: [],
+    educations: [],
+    skills: [],
+  });
+
+  // Hittar issue via path-prefix (inte message-string) så framtida copy-tweaks
+  // inte rödnar regression-bevakningen. Path är invarianten vi skyddar.
+  const findIssueAtPath = (
+    issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey> }>,
+    path: string
+  ) => issues.find((i) => i.path.join(".") === path);
+
+  it("experiences refine pekar på leaf-path 'experiences.0.endDate' → pathToElementId mappar non-null", () => {
+    const result = resumeContentSchema.safeParse({
+      ...baseContent(),
+      experiences: [
+        {
+          company: "Acme",
+          role: "Dev",
+          startDate: "2025-06-01",
+          endDate: "2024-01-01",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    expect(findIssueAtPath(result.error.issues, "experiences.0.endDate")).toBeDefined();
+    expect(pathToElementId("experiences.0.endDate")).toBe("exp-0-endDate");
+  });
+
+  it("educations refine pekar på leaf-path 'educations.0.endDate' → pathToElementId mappar non-null", () => {
+    const result = resumeContentSchema.safeParse({
+      ...baseContent(),
+      educations: [
+        {
+          institution: "KTH",
+          degree: "Civ.ing.",
+          startDate: "2023-06-15",
+          endDate: "2018-09-01",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    expect(findIssueAtPath(result.error.issues, "educations.0.endDate")).toBeDefined();
+    expect(pathToElementId("educations.0.endDate")).toBe("edu-0-endDate");
+  });
+
+  it("refine path bevarar array-index → pathToElementId mappar rätt fält för icke-0-index", () => {
+    const result = resumeContentSchema.safeParse({
+      ...baseContent(),
+      experiences: [
+        // Index 0 — valid (ska inte trigga refine)
+        {
+          company: "Valid",
+          role: "Dev",
+          startDate: "2020-01-01",
+          endDate: "2021-01-01",
+        },
+        // Index 1 — invalid (triggerar refine)
+        {
+          company: "Bad",
+          role: "Dev",
+          startDate: "2025-06-01",
+          endDate: "2024-01-01",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    expect(findIssueAtPath(result.error.issues, "experiences.1.endDate")).toBeDefined();
+    expect(pathToElementId("experiences.1.endDate")).toBe("exp-1-endDate");
   });
 });
 

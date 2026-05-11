@@ -77,6 +77,8 @@ documentation, place it according to this map:
 | `docs/reviews/` | Code review reports (auto-generated) | `pre-commit-YYYY-MM-DD-*.md` |
 | `docs/test-reports/` | Test coverage outputs | `coverage-YYYY-MM-DD.xml` |
 | `docs/api/` | OpenAPI exports (post-Fas 0) | `openapi.yaml` |
+| `docs/tech-debt.md` | Aktiva TDs i Severity × Fas-matris | (en fil — se §9.7) |
+| `docs/tech-debt-archive.md` | Stängda TDs i kronologisk ordning (full kropp) | (en fil — se §9.7) |
 
 **Top-level files** (repo root, not under docs/):
 
@@ -472,6 +474,73 @@ att skjuta upp arbete som genuint inte hör till nu.
    svar om beslutet är sådant som Klas behöver godkänna.
 6. Klas har alltid sista ordet — CTO argumenterar tydligt så Klas-override är
    medveten, inte gissning
+
+### 9.7 TD-livscykel — var och hur TDs skrivs
+
+Tech debt-listan splittades 2026-05-11 i två filer per senior-cto-advisor-
+triage (Severity × Fas-matris för aktiva, kronologiskt arkiv för stängda).
+**Kommentar:** TD-IDs är monotoniskt växande och **återanvänds aldrig**, även
+om hopp finns i numreringen (t.ex. TD-32 till TD-36 i ADR 0027-luckorna).
+
+**Filer:**
+
+- `docs/tech-debt.md` — aktiva TDs i **Severity × Fas-matris**
+- `docs/tech-debt-archive.md` — stängda TDs i **kronologisk stäng-datum-ordning** (full kropp bevarad)
+
+**När du lyfter en ny TD:**
+
+1. **Verifiera först att den faktiskt ska lyftas** (CLAUDE.md §9.6 fas-regel).
+   Default = fixa in-block. TD lyfts ENDAST om annan fas eller saknad
+   funktion-dependency.
+2. **Allokera nästa TD-ID** = max(befintliga TD-IDs i båda filer) + 1. Greppa
+   `TD-[0-9]+` i `docs/tech-debt.md` + `docs/tech-debt-archive.md`.
+3. **Skriv TD-blocket i `tech-debt.md`** under rätt Severity × Fas-sektion.
+   Använd `## TD-N: <titel>` (h2 med kolon, inte h3). Fält som ska finnas:
+   `**Kategori:**`, `**Severity:**`, `**Fas:**`, `**Källa:**`, beskrivning,
+   `**Föreslagen åtgärd:**`, ev. `**Beroenden:**` och `**Trigger:**`.
+4. **Uppdatera översiktstabellen** överst i `tech-debt.md` med ny rad
+   (ID | Titel | Severity | Fas | Kategori). Numerisk ID-ordning bevaras
+   ej i översiktstabellen — sortering är Severity → Fas → ID.
+5. **Cross-refs:** om TD refereras från ADR eller session-log, säkerställ
+   att referensen finns i någon av de två filerna.
+
+**När du stänger en TD:**
+
+1. **Flytta hela TD-blocket från `tech-debt.md` till `tech-debt-archive.md`.**
+   Bevara full kropp + lägg till stängningsnotat (datum, commit/STEG-referens,
+   leverans-anteckningar, reviews). Strippa INTE till "bara namn + titel" —
+   stängda TDs är granskningstrail (Fowler 2018, Ford/Parsons/Kua 2017).
+2. **Placera i kronologisk ordning** i arkivet (äldsta först — nya stängningar
+   appende sist).
+3. **Ta bort från `tech-debt.md`:s Severity × Fas-sektion** + från
+   översiktstabellen.
+4. **Lägg till rad i "Stängda TDs"-tabellen** i slutet av `tech-debt.md`:
+   `| TD-N | Titel | Stängd YYYY-MM-DD | commit/STEG |`.
+
+**När du ersätter en TD (split/merge):**
+
+- Originalt TD-block markeras `~~Titel~~ — ERSATT YYYY-MM-DD av TD-Na + TD-Nb`
+  och flyttas till arkivet med kort förklaring av split-skälet.
+- Nya TD-poster (t.ex. TD-Na, TD-Nb) får egna fullständiga block i
+  `tech-debt.md` med `**Källa:** TD-N split per senior-cto-advisor-triage YYYY-MM-DD`.
+
+**Severity-klassificering:**
+
+- **Major:** säkerhetsblocker, tidsbundet, eller kritiskt för fas-stängning
+- **Minor:** allt annat (a11y/UX-polish, code-hygiene, defensive refactors,
+  framtida feature-arbete)
+- Vid tveksamhet: invokera senior-cto-advisor.
+
+**Fas-klassificering:**
+
+- **Fas Nu** = tidsbundet eller akut (bör vara tom när möjligt)
+- **Fas 1** = nuvarande fas, ska fixas innan fas-stängning
+- **Fas 2 / 3+** = framtida fas där feature/dependency saknas idag
+- **Efter MVP / Trigger** = adresseras vid faktisk användarsignal,
+  skala-tröskel eller opportunistisk touch
+
+**Ej kategorisera som Minor — Fas Nu.** Om en TD passar där: fixa in-block
+istället, lyft inte.
 
 ## 10. Svenska-relaterat
 

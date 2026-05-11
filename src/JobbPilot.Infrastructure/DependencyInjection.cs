@@ -161,6 +161,12 @@ public static class DependencyInjection
         services.AddScoped<ISessionStore, RedisSessionStore>();
         services.AddScoped<IUserAccountService, UserAccountService>();
 
+        // H-3 SoC-split (arch-audit 2026-05-11): role-fetch flyttad från
+        // SessionAuthenticationHandler till IClaimsTransformation. Körs efter auth,
+        // före authorization-policy-utvärdering. Per-request-fetch bibehållen.
+        services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation,
+            SessionRoleClaimsTransformation>();
+
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<IAuthAuditLogger, AuthAuditLogger>();

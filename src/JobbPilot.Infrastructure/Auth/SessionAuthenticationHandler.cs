@@ -20,13 +20,19 @@ namespace JobbPilot.Infrastructure.Auth;
 ///
 /// Scheme name "Bearer" reflects wire-format (RFC 6750), not token type.
 /// Renamed to "Session" in Fas 1 when JWT classes are removed (ADR 0017).
+///
+/// <para>
+/// H-3 SoC-split (arch-audit 2026-05-11): role-resolution flyttad till
+/// <see cref="SessionRoleClaimsTransformation"/>. Auth-handler:n hanterar bara
+/// session-id-parse + Redis-lookup + identity-konstruktion. Roller appliceras
+/// post-authentication via IClaimsTransformation-extension-punkten.
+/// </para>
 /// </summary>
-public sealed partial class SessionAuthenticationHandler(
+public sealed class SessionAuthenticationHandler(
     IOptionsMonitor<SessionAuthenticationSchemeOptions> options,
     ILoggerFactory logger,
     UrlEncoder encoder,
-    ISessionStore sessionStore,
-    IUserAccountService userAccountService)
+    ISessionStore sessionStore)
     : AuthenticationHandler<SessionAuthenticationSchemeOptions>(options, logger, encoder)
 {
     private const int MinSessionIdLength = 16;
@@ -73,29 +79,9 @@ public sealed partial class SessionAuthenticationHandler(
             new("session_id_prefix", session.Id.ToString()), // 6-char prefix + "…", never raw value
         };
 
-        // Per-request roll-fetch (senior-cto-advisor-beslut 2026-05-11, A1 över A2).
-        // Roll-revoke verkar omedelbart — ingen session-cache (CTO Regel 1: security-first).
-        // Kostnad: 1 DB-query per autentiserat request. UserManager har request-scope-cache
-        // (samma request kostar bara en query oavsett hur många GetRolesAsync-anrop).
-        // Om volym blir verifierat problem: lokal cache i SessionAuthenticationHandler
-        // med kort TTL kan införas — utan att röra Session-kontraktet.
-        //
-        // Sec-Minor-2 (security-auditor 2026-05-11): role-fetch-fel ska INTE bubbla
-        // till exception-middleware (→ 500). Fail som AuthenticateResult.Fail → 401
-        // för att hålla felet inom auth-protokollet och inte avslöja infra-state.
-        IReadOnlyList<string> roles;
-        try
-        {
-            roles = await userAccountService.GetRolesAsync(session.UserId, Context.RequestAborted);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            LogRoleResolutionFailed(Logger, ex, session.Id.ToString());
-            return AuthenticateResult.Fail("Role resolution failed");
-        }
-
-        foreach (var role in roles)
-            claims.Add(new Claim(ClaimTypes.Role, role));
+        // Roll-claims appliceras post-authentication av SessionRoleClaimsTransformation
+        // (H-3 SoC-split). Per-request-fetch-modellen bibehållen — roll-revoke verkar
+        // omedelbart utan session-cache (senior-cto-advisor 2026-05-11 A1).
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);
@@ -106,8 +92,4 @@ public sealed partial class SessionAuthenticationHandler(
 
         return AuthenticateResult.Success(ticket);
     }
-
-    [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
-        Message = "Role resolution failed for session {SessionPrefix}")]
-    private static partial void LogRoleResolutionFailed(ILogger logger, Exception ex, string sessionPrefix);
 }

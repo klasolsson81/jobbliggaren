@@ -2,6 +2,7 @@ using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.Auth.Commands.Login;
 using JobbPilot.Application.Auth.Commands.Logout;
 using JobbPilot.Application.Auth.Commands.Register;
+using JobbPilot.Application.Auth.Queries.VerifyCredentials;
 using JobbPilot.Domain.Common;
 using Mediator;
 
@@ -52,6 +53,20 @@ public static class AuthEndpoints
             return Results.NoContent();
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthLoosePolicy);
+
+        // Re-autentisering före destruktiv operation (TD-28 / OWASP ASVS V6.2.5).
+        // Validerar lösenord för aktuell session-användare utan att skapa eller
+        // ändra sessioner. Klienten skickar endast { password } — email tas från
+        // claim. Rate-limit AuthWrite (20/min per IP) — samma riskprofil som login.
+        group.MapPost("/verify", async (
+            VerifyCredentialsQuery query, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(query, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : ToErrorResult(result.Error);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
     }
 
     private static IResult ToErrorResult(DomainError error) => error.Code switch

@@ -1,3 +1,5 @@
+using System.Reflection;
+using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobSeekers;
 using JobbPilot.Domain.Resumes;
 using JobbPilot.Domain.Resumes.Events;
@@ -578,10 +580,59 @@ public class ResumeTests
         resume.Versions.ShouldContain(master);
     }
 
+    [Fact]
+    public void MasterVersion_WhenNoActiveMaster_ThrowsDomainException()
+    {
+        // N-3: invariant-brott simulerat via EF-rehydrering-scenario (0 aktiva
+        // Master-versioner). Backing-fältet manipuleras via reflection eftersom
+        // domain-API:t inte tillåter Master-deletion — invarianten skyddas just
+        // av detta property.
+        var resume = CreateValidResume();
+        ClearVersions(resume);
+
+        var ex = Should.Throw<DomainException>(() => _ = resume.MasterVersion);
+        ex.Code.ShouldBe("Resume.MasterInvariantBroken");
+    }
+
+    [Fact]
+    public void MasterVersion_WhenMultipleActiveMasters_ThrowsDomainException()
+    {
+        // N-3: invariant-brott simulerat via EF-rehydrering-scenario (2 aktiva
+        // Master-versioner) — db-corruption-skydd.
+        var resume = CreateValidResume();
+        DuplicateMaster(resume);
+
+        var ex = Should.Throw<DomainException>(() => _ = resume.MasterVersion);
+        ex.Code.ShouldBe("Resume.MasterInvariantBroken");
+    }
+
     // ---------------------------------------------------------------
     // Hjälpmetoder
     // ---------------------------------------------------------------
 
     private static Resume CreateValidResume() =>
         Resume.Create(ValidJobSeekerId, ValidName, ValidFullName, Clock).Value;
+
+    // Reflection-helpers används bara för att simulera EF-rehydrering med
+    // inkonsistent state — invarianten skyddas av domain-API:t, så det finns ingen
+    // legitim väg att nå "0 Masters" eller "2 Masters" via public surface. Om
+    // backing-fältet `_versions` renamas: uppdatera fält-strängen här.
+    private static void ClearVersions(Resume resume)
+    {
+        var field = typeof(Resume).GetField("_versions",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var list = (System.Collections.IList)field!.GetValue(resume)!;
+        list.Clear();
+    }
+
+    private static void DuplicateMaster(Resume resume)
+    {
+        var field = typeof(Resume).GetField("_versions",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var list = (System.Collections.IList)field!.GetValue(resume)!;
+        // Lägger samma referens igen — tillräckligt för LINQ-Where-count att
+        // räkna 2 aktiva Masters. Semantiskt: simulerar att db-row förekommer
+        // dubblerat efter korrupt rehydrering.
+        list.Add(list[0]!);
+    }
 }

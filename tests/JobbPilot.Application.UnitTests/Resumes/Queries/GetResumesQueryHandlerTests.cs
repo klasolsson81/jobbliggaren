@@ -125,9 +125,9 @@ public class GetResumesQueryHandlerTests
 
         var handler = new GetResumesQueryHandler(db, _currentUser);
 
-        var page1 = await handler.Handle(new GetResumesQuery(PageNumber: 1, PageSize: 2), CancellationToken.None);
-        var page2 = await handler.Handle(new GetResumesQuery(PageNumber: 2, PageSize: 2), CancellationToken.None);
-        var page3 = await handler.Handle(new GetResumesQuery(PageNumber: 3, PageSize: 2), CancellationToken.None);
+        var page1 = await handler.Handle(new GetResumesQuery(Page: 1, PageSize: 2), CancellationToken.None);
+        var page2 = await handler.Handle(new GetResumesQuery(Page: 2, PageSize: 2), CancellationToken.None);
+        var page3 = await handler.Handle(new GetResumesQuery(Page: 3, PageSize: 2), CancellationToken.None);
 
         page1.Items.Count.ShouldBe(2);
         page2.Items.Count.ShouldBe(2);

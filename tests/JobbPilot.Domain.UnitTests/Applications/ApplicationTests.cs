@@ -472,6 +472,33 @@ public class ApplicationTests
         application.Notes.ShouldAllBe(n => n.DeletedAt.HasValue);
     }
 
+    [Fact]
+    public void SoftDelete_WhenActive_RaisesApplicationDeletedDomainEvent()
+    {
+        var application = CreateValidApplication();
+        application.ClearDomainEvents();
+
+        application.SoftDelete(Clock);
+
+        var evt = application.DomainEvents.ShouldHaveSingleItem()
+            .ShouldBeOfType<ApplicationDeletedDomainEvent>();
+        evt.ApplicationId.ShouldBe(application.Id);
+        evt.JobSeekerId.ShouldBe(application.JobSeekerId);
+        evt.OccurredAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void SoftDelete_WhenAlreadyDeleted_IsIdempotentAndDoesNotRaiseEvent()
+    {
+        var application = CreateValidApplication();
+        application.SoftDelete(Clock);
+        application.ClearDomainEvents();
+
+        application.SoftDelete(Clock);
+
+        application.DomainEvents.ShouldBeEmpty();
+    }
+
     // ---------------------------------------------------------------
     // LastStatusChangeAt + GhostedThresholdDays (Fas 9.1)
     // ---------------------------------------------------------------

@@ -5,6 +5,6 @@ using Mediator;
 namespace JobbPilot.Application.Applications.Queries.GetApplications;
 
 public sealed record GetApplicationsQuery(
-    int PageNumber = 1,
+    int Page = 1,
     int PageSize = 20,
     string? Status = null) : IQuery<PagedResult<ApplicationDto>>, IAuthenticatedRequest;

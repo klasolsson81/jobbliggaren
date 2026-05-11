@@ -40,7 +40,7 @@ public sealed class GetApplicationsQueryHandler(IAppDbContext db, ICurrentUser c
 
         var apps = await baseQuery
             .OrderByDescending(a => a.UpdatedAt)
-            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
 
@@ -52,9 +52,9 @@ public sealed class GetApplicationsQueryHandler(IAppDbContext db, ICurrentUser c
             a.CreatedAt,
             a.UpdatedAt)).ToList();
 
-        return new PagedResult<ApplicationDto>(items, totalCount, query.PageNumber, query.PageSize);
+        return new PagedResult<ApplicationDto>(items, totalCount, query.Page, query.PageSize);
     }
 
     private static PagedResult<ApplicationDto> Empty(GetApplicationsQuery query) =>
-        new(Array.Empty<ApplicationDto>(), 0, query.PageNumber, query.PageSize);
+        new(Array.Empty<ApplicationDto>(), 0, query.Page, query.PageSize);
 }

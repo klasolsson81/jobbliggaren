@@ -75,6 +75,33 @@ public class JobSeekerTests
     }
 
     [Fact]
+    public void SoftDelete_WhenActive_RaisesJobSeekerDeletedDomainEvent()
+    {
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        seeker.ClearDomainEvents();
+
+        seeker.SoftDelete(Clock);
+
+        seeker.DeletedAt.ShouldBe(Clock.UtcNow);
+        var evt = seeker.DomainEvents.ShouldHaveSingleItem()
+            .ShouldBeOfType<JobSeekerDeletedDomainEvent>();
+        evt.JobSeekerId.ShouldBe(seeker.Id);
+        evt.OccurredAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void SoftDelete_WhenAlreadyDeleted_IsIdempotentAndDoesNotRaiseEvent()
+    {
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        seeker.SoftDelete(Clock);
+        seeker.ClearDomainEvents();
+
+        seeker.SoftDelete(Clock);
+
+        seeker.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Register_CreatesDefaultPreferences()
     {
         var result = JobSeeker.Register(ValidUserId, "Klas", Clock);

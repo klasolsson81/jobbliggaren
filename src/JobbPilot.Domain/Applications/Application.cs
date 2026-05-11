@@ -128,9 +128,12 @@ public sealed class Application : AggregateRoot<ApplicationId>
 
     public void SoftDelete(IDateTimeProvider clock)
     {
+        if (DeletedAt.HasValue) return;
+
         DeletedAt = clock.UtcNow;
         foreach (var followUp in _followUps) followUp.SoftDelete(clock);
         foreach (var note in _notes) note.SoftDelete(clock);
+        RaiseDomainEvent(new ApplicationDeletedDomainEvent(Id, JobSeekerId, clock.UtcNow));
     }
 
     private bool IsClosedForActivity() =>

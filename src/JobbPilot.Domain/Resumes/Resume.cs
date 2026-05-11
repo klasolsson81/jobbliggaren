@@ -21,10 +21,30 @@ public sealed class Resume : AggregateRoot<ResumeId>
     public IReadOnlyList<ResumeVersion> Versions => _versions.AsReadOnly();
 
     /// <summary>
-    /// Returnerar Master-versionen. Kastar om invarianten "exakt en aktiv Master" bryts.
+    /// Returnerar Master-versionen. Kastar <see cref="DomainException"/> om invarianten
+    /// "exakt en aktiv Master" bryts (audit-trail-kontextuell signal istället för
+    /// generic <c>InvalidOperationException</c> från <c>Single()</c>).
     /// </summary>
-    public ResumeVersion MasterVersion =>
-        _versions.Single(v => v.Kind == ResumeVersionKind.Master && v.DeletedAt is null);
+    public ResumeVersion MasterVersion
+    {
+        get
+        {
+            var masters = _versions
+                .Where(v => v.Kind == ResumeVersionKind.Master && v.DeletedAt is null)
+                .ToList();
+
+            return masters.Count switch
+            {
+                1 => masters[0],
+                0 => throw new DomainException(
+                    "Resume.MasterInvariantBroken",
+                    $"Resume {Id} saknar aktiv Master-version."),
+                _ => throw new DomainException(
+                    "Resume.MasterInvariantBroken",
+                    $"Resume {Id} har {masters.Count} aktiva Master-versioner, exakt 1 förväntat."),
+            };
+        }
+    }
 
     // EF Core constructor
     private Resume() { }

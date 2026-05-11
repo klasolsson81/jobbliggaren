@@ -5,5 +5,5 @@ using Mediator;
 namespace JobbPilot.Application.Resumes.Queries.GetResumes;
 
 public sealed record GetResumesQuery(
-    int PageNumber = 1,
+    int Page = 1,
     int PageSize = 20) : IQuery<PagedResult<ResumeListItemDto>>, IAuthenticatedRequest;

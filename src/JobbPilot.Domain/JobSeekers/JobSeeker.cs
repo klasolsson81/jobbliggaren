@@ -74,6 +74,11 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         UpdatedAt = clock.UtcNow;
     }
 
-    public void SoftDelete(IDateTimeProvider clock) =>
+    public void SoftDelete(IDateTimeProvider clock)
+    {
+        if (DeletedAt.HasValue) return;
+
         DeletedAt = clock.UtcNow;
+        RaiseDomainEvent(new JobSeekerDeletedDomainEvent(Id, clock.UtcNow));
+    }
 }

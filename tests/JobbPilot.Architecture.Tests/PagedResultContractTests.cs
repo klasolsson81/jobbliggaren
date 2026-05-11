@@ -8,12 +8,17 @@ using Shouldly;
 namespace JobbPilot.Architecture.Tests;
 
 /// <summary>
-/// Lock-in för PagedResult&lt;T&gt;-kontraktet (TD-55 retro-fit).
+/// Lock-in för PagedResult&lt;T&gt;-kontraktet (TD-55 retro-fit, H-4 hardening 2026-05-11).
 ///
-/// När en query har paged-semantik (PageNumber + PageSize properties på record:n)
+/// När en query har paged-semantik (<c>Page</c> + <c>PageSize</c> properties på record:n)
 /// MÅSTE den returnera <see cref="PagedResult{T}"/> — inte <c>IReadOnlyList&lt;T&gt;</c>.
 /// Regression-skydd mot framtida re-introduktion av "bare array"-return från
 /// paginerade queries (vilket var en frontend typ-skew som TD-55 stängde).
+///
+/// Kanonisk paging-property är <c>Page</c> (matchar <see cref="PagedResult{T}.Page"/>).
+/// H-4 (arch-audit 2026-05-11) renamade <c>PageNumber</c> → <c>Page</c> i alla queries
+/// — heuristiken accepterar inte längre legacy-namnet, så regression till blandad
+/// konvention bryter testet.
 ///
 /// ListJobAdsQuery är explicit exkluderad — den är opaginerad idag och får
 /// hard-cap via <c>.Take(MaxItems)</c> i handler. Full paginering defererad
@@ -67,11 +72,10 @@ public class PagedResultContractTests
     private static bool HasPagedSemantics(Type type)
     {
         var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        // Accepts både `Page` (admin-query) och `PageNumber` (övriga) — wire-shape:n
-        // är "page" via System.Text.Json camelCase, så bägge namnen är legitima
-        // i Application-lagret. Heuristiken matchar båda så audit-query också täcks.
-        var hasPage = properties.Any(p =>
-            (p.Name == "PageNumber" || p.Name == "Page") && p.PropertyType == typeof(int));
+        // Kanonisk paging-property är `Page` (H-4 hardening 2026-05-11). Legacy-namnet
+        // `PageNumber` accepteras inte — alla queries renamade till `Page` så heuristiken
+        // är strikt och fångar regression till blandad konvention.
+        var hasPage = properties.Any(p => p.Name == "Page" && p.PropertyType == typeof(int));
         var hasPageSize = properties.Any(p => p.Name == "PageSize" && p.PropertyType == typeof(int));
         return hasPage && hasPageSize;
     }

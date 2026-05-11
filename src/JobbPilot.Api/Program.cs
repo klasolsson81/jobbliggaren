@@ -7,6 +7,7 @@ using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Authorization;
 using JobbPilot.Application.Common.Behaviors;
 using JobbPilot.Application.Common.Exceptions;
+using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Sessions;
@@ -106,6 +107,15 @@ app.Use(async (ctx, next) =>
     {
         ctx.Response.StatusCode = 404;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    catch (DomainException ex)
+    {
+        // Invariant-brott i Domain-lagret — t.ex. EF-rehydrering ger aggregate i
+        // inkonsistent state (Resume.MasterVersion saknar/duplicerar Master). 400
+        // signalerar att request inte kan fullföljas mot nuvarande domänstate.
+        // Per CLAUDE.md §3.4.
+        ctx.Response.StatusCode = 400;
+        await ctx.Response.WriteAsJsonAsync(new { code = ex.Code, error = ex.Message });
     }
     catch (SessionStoreUnavailableException ex)
     {

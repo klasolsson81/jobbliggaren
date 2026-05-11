@@ -147,7 +147,7 @@ public class GetApplicationsQueryHandlerTests
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 
         var result = await handler.Handle(
-            new GetApplicationsQuery(PageNumber: 1, PageSize: 2),
+            new GetApplicationsQuery(Page: 1, PageSize: 2),
             CancellationToken.None);
 
         result.Items.Count.ShouldBe(2);

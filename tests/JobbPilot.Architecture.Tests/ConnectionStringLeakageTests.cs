@@ -82,21 +82,21 @@ public class ConnectionStringLeakageTests
 
         var hasTrustTrue = false;
         foreach (var module in assembly.Modules)
-        foreach (var type in module.GetTypes())
-        foreach (var method in type.Methods)
-        {
-            if (!method.HasBody)
-                continue;
-            foreach (var instruction in method.Body.Instructions)
-            {
-                if (instruction.OpCode == OpCodes.Ldstr
-                    && instruction.Operand is string s
-                    && s.Contains(ForbiddenSubstring, StringComparison.OrdinalIgnoreCase))
+            foreach (var type in module.GetTypes())
+                foreach (var method in type.Methods)
                 {
-                    hasTrustTrue = true;
+                    if (!method.HasBody)
+                        continue;
+                    foreach (var instruction in method.Body.Instructions)
+                    {
+                        if (instruction.OpCode == OpCodes.Ldstr
+                            && instruction.Operand is string s
+                            && s.Contains(ForbiddenSubstring, StringComparison.OrdinalIgnoreCase))
+                        {
+                            hasTrustTrue = true;
+                        }
+                    }
                 }
-            }
-        }
 
         hasTrustTrue.ShouldBeTrue(
             "Migrate-assembly förväntas innehålla Trust=true (ForMigrate by design). " +

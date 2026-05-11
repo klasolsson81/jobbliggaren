@@ -32,7 +32,7 @@ public sealed class GetResumesQueryHandler(IAppDbContext db, ICurrentUser curren
 
         var resumes = await baseQuery
             .OrderByDescending(r => r.UpdatedAt)
-            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .Select(r => new ResumeListItemDto(
                 r.Id.Value,
@@ -42,9 +42,9 @@ public sealed class GetResumesQueryHandler(IAppDbContext db, ICurrentUser curren
                 r.UpdatedAt))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<ResumeListItemDto>(resumes, totalCount, query.PageNumber, query.PageSize);
+        return new PagedResult<ResumeListItemDto>(resumes, totalCount, query.Page, query.PageSize);
     }
 
     private static PagedResult<ResumeListItemDto> Empty(GetResumesQuery query) =>
-        new(Array.Empty<ResumeListItemDto>(), 0, query.PageNumber, query.PageSize);
+        new(Array.Empty<ResumeListItemDto>(), 0, query.Page, query.PageSize);
 }

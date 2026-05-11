@@ -1310,12 +1310,31 @@ Inte A2-introducerad regression — befintligt mönster.
 
 ---
 
-## TD-43: Komponent-test-strategi för forms (Vitest + RTL + user-event)
+## TD-43: Komponent-test-strategi för forms (Vitest + RTL + user-event) — **STÄNGD 2026-05-11**
 
 **Kategori:** Testing / Quality Baseline
 **Fas:** 1 (eget block efter A4) eller parallell session med A4
 **Prioritet:** Medium-hög (kvalitets-baseline, inte feature-blocker)
 **Källa:** Off-topic-fråga från Klas under Fas 1 Block A3 (2026-05-10)
+**Stängd:** 2026-05-11 — komponent-test-baseline etablerad (15 nya tester över 3 forms)
+
+### Stängningsnotis
+
+Implementation parallell med A4 (TD-38). Levererat:
+
+- `@testing-library/jest-dom@^6.9.1` adderat som devDep
+- `src/test/setup.ts` uppdaterad med `jest-dom/vitest`-import
+- 3 testfiler:
+  - `src/components/forms/LoginForm.test.tsx` (4 tests)
+  - `src/components/me/me-profile-form.test.tsx` (6 tests, inkl. path-routing)
+  - `src/components/resumes/resume-content-form.test.tsx` (7 tests, inkl. array-path-routing)
+- 90/90 Vitest PASS (75 → 90, +15)
+
+Reviews:
+- code-reviewer: Mergeklar, 0 Blockers, 0 Större. Rapport `docs/reviews/2026-05-10-td43-code-reviewer.md`
+- design-reviewer: Approved, 0 Blockers, 2 Större (S1+S2) — adresserade innan commit. Rapport `docs/reviews/2026-05-10-td43-design-reviewer.md`
+
+Follow-ups: TD-45 (LoginForm focus-flytt vid `state.error`), TD-46 (`pathToElementId` export för isolated unit-test).
 
 JobbPilot:s test-pyramid har idag två lager: **Unit** (Vitest + Zod-schemas)
 och **E2E** (Playwright happy-paths). Mellanlagret — komponent-tests för
@@ -1385,6 +1404,58 @@ asserterar att HSTS-header **inte** sätts (anti-regression åt andra hållet).
 
 **Beroenden:** Inga blockare. ~30 raders extension till TD-31:s testfil.
 Kan köras parallellt med TD-43 (frontend) eller A4 (infra).
+
+---
+
+## TD-45: LoginForm focus-flytt vid `state.error` (a11y-uppgradering)
+
+**Kategori:** A11y / UX
+**Severity:** Minor
+**Fas:** 1 eller 2 (opportunistisk, bake in vid LoginForm-touch)
+**Källa:** design-reviewer M1, TD-43-review (2026-05-11)
+
+`LoginForm.tsx` använder `useActionState` + server-action med en medvetet
+generisk `state.error` ("Inloggningen misslyckades. Kontrollera e-post och
+lösenord.") — säkerhetspraxis så vi inte avslöjar vilket fält som var fel.
+Det gör att TD-15-pattern (path-baserad focus-flytt) inte passar in.
+
+**Problem:** Vid `state.error` flyttas inte fokus alls. `role="alert"` annonseras
+av screen reader, men keyboard-användare som scrollat förbi felmeddelandet
+förlorar visuell kontext.
+
+**Föreslagen åtgärd:** Vid `state.error` flytta fokus till antingen
+error-elementet (`<p role="alert">`) eller email-fältet. Inte path-baserat
+— bara en singelpunkt-fokus. ~10 rader `useEffect` + ref.
+
+**Beroenden:** Inga. Touch på LoginForm.tsx + LoginForm.test.tsx (lägg till
+ett test som verifierar focus-flytt vid error-render).
+
+---
+
+## TD-46: Exportera `pathToElementId` för isolated unit-test
+
+**Kategori:** Testing / Architecture
+**Severity:** Minor
+**Fas:** 1 eller 2 (opportunistisk, bake in vid form-refactor)
+**Källa:** code-reviewer M3, TD-43-review (2026-05-11)
+
+`pathToElementId` lever idag som privat function i `me-profile-form.tsx` och
+`resume-content-form.tsx`. TD-43-test:erna täcker den via komponent-tests
+(submit → fail → focus), men en isolated unit-test skulle:
+
+- Täcka alla branches (path → id-mappning) utan att kämpa mot jsdom-quirks
+  (HTML5-constraint-validation på `type="email"`/`type="date"` blockerar
+  submit utan `removeAttribute('required')`-tricks)
+- Vara billigare att köra (ingen render, ingen user-event)
+- Göra path-routing-konventionen tydligare som första-klass-API
+
+**Föreslagen åtgärd:** Extrahera `pathToElementId` till
+`src/lib/forms/path-routing.ts` (eller motsv.) med named export, skriv
+parametriserade unit-tests. Komponent-tester kan då fokusera på
+flödet (submit → state-uppdatering → DOM-reaktion), inte path-detaljer.
+
+**Beroenden:** Inga blockare. Touch på 2 form-filer + 1 ny utility-fil + 1 ny
+testfil. ~50 rader netto.
 
 ---
 

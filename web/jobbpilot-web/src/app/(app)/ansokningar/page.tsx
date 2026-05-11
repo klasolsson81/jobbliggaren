@@ -37,7 +37,7 @@ export default async function AnsokningarPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-h1 font-medium text-text-primary">Ansökningar</h1>
-        <Button asChild size="sm">
+        <Button asChild>
           <Link href="/ansokningar/ny">Ny ansökan</Link>
         </Button>
       </div>

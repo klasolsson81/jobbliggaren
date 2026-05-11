@@ -43,7 +43,7 @@ export default function NyAnsokningPage() {
           <Button type="submit" disabled={isPending}>
             Skapa ansökan
           </Button>
-          <Button asChild variant="ghost" size="sm">
+          <Button asChild variant="ghost">
             <Link href="/ansokningar">Avbryt</Link>
           </Button>
         </div>

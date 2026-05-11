@@ -21,7 +21,7 @@ export default async function CvListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-h1 font-medium text-text-primary">CV</h1>
-        <Button asChild size="sm">
+        <Button asChild>
           <Link href="/cv/ny">Nytt CV</Link>
         </Button>
       </div>

@@ -28,6 +28,7 @@ public class PagedResultContractTests
             .GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         || (t.IsValueType && !t.IsEnum))
+            .Where(IsMediatorQuery)
             .Where(HasPagedSemantics)
             .ToList();
 
@@ -59,12 +60,20 @@ public class PagedResultContractTests
             "GetResumesQuery måste returnera PagedResult<ResumeListItemDto>.");
     }
 
+    private static bool IsMediatorQuery(Type type) =>
+        type.GetInterfaces().Any(i =>
+            i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IQuery<>));
+
     private static bool HasPagedSemantics(Type type)
     {
         var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        var hasPageNumber = properties.Any(p => p.Name == "PageNumber" && p.PropertyType == typeof(int));
+        // Accepts både `Page` (admin-query) och `PageNumber` (övriga) — wire-shape:n
+        // är "page" via System.Text.Json camelCase, så bägge namnen är legitima
+        // i Application-lagret. Heuristiken matchar båda så audit-query också täcks.
+        var hasPage = properties.Any(p =>
+            (p.Name == "PageNumber" || p.Name == "Page") && p.PropertyType == typeof(int));
         var hasPageSize = properties.Any(p => p.Name == "PageSize" && p.PropertyType == typeof(int));
-        return hasPageNumber && hasPageSize;
+        return hasPage && hasPageSize;
     }
 
     private static bool ReturnsPagedResult(Type queryType)

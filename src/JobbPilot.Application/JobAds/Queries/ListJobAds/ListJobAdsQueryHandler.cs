@@ -9,7 +9,8 @@ public sealed class ListJobAdsQueryHandler(IAppDbContext db)
 {
     // Defense-in-depth: hard cap mot DoS-vektor när JobAds-tabellen växer. Full
     // PagedResult<T>-retro-fit defererad till Fas 2 (JobTech-integration), då
-    // query-params och URL-kontrakt designas mot JobTech-API:t. Se TD-NY.
+    // query-params och URL-kontrakt designas mot JobTech-API:t. Se TD-56.
+    // TODO(Fas 2): ersätts av PagedResult-retro-fit + IOptions<JobAdOptions>.
     private const int MaxItems = 500;
 
     public async ValueTask<IReadOnlyList<JobAdDto>> Handle(

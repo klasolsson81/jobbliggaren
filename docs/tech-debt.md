@@ -1399,39 +1399,19 @@ det är ren frontend-touch (ingen Migrate/Docker/Secrets Manager-koppling).
 
 ---
 
-## TD-44: HSTS-header-anti-regression-test (Sec-Major-2 follow-up)
+## TD-44: HSTS-header-anti-regression-test (Sec-Major-2 follow-up) — **STÄNGD 2026-05-11**
 
 **Kategori:** Testing / Security
 **Severity:** Minor
-**Fas:** 1 (lämplig parning med TD-43-block eller standalone)
+**Fas:** 1
 **Källa:** dotnet-architect Mindre 4, Fas 1 Block A3 review (2026-05-10)
-
-`UseHttpsRedirectionGateTests` (TD-31, stängd 2026-05-10) verifierar
-`UseHttpsRedirection`-gate men **inte** HSTS-header-aktivering. `Program.cs:150–153`
-sätter HSTS via samma env-gate-mönster (`!IsDevelopment() && albOptions.HttpsEnabled`)
-— samma regression-yta, separat middleware.
-
-**Risk:** Om HSTS-gate tas bort i produktion (och appens HTTPS-läge senare
-flippas av) skulle Strict-Transport-Security-headern fortfarande sättas →
-browser-cache:ar HTTPS-only-policy → users kan inte återgå till HTTP. Det är
-inte produktions-blockare just nu (`HttpsEnabled=true` per STEG 13c) men
-anti-regression-skydd saknas.
-
-**Föreslagen åtgärd:** Utöka existing `HttpsRedirectionEnabledProductionFactory`-
-test (eller addera ny) som asserterar:
-
-```csharp
-response.Headers.Should().Contain("Strict-Transport-Security");
-response.Headers.GetValues("Strict-Transport-Security").First()
-    .ShouldContain("max-age=31536000")
-    .ShouldContain("includeSubDomains");
-```
-
-Alternativt: ny test i samma fil för `HttpsRedirectionDisabled` som
-asserterar att HSTS-header **inte** sätts (anti-regression åt andra hållet).
-
-**Beroenden:** Inga blockare. ~30 raders extension till TD-31:s testfil.
-Kan köras parallellt med TD-43 (frontend) eller A4 (infra).
+**Status:** STÄNGD 2026-05-11 — 3 nya `[Fact]`-tester utökar `UseHttpsRedirectionGateTests`
+för att täcka `UseHsts()`-gaten med samma fixture-arv (Disabled-Production /
+Enabled-Production / Development). Pattern: skicka `Host: dev.jobbpilot.se` per
+HSTS-test-request → ASP.NET-default `HstsOptions.ExcludedHosts` (localhost-skydd)
+bevaras intakt, vi simulerar verklig prod-DNS-trafik istället för att override
+Microsoft-defense (dotnet-architect Major-fynd). 6/6 grön i HttpsRedirectionGate-
+suiten. Minor 2 (HstsOptions.EnsureSafeForEnvironment-unit-test) lyft som TD-49.
 
 ---
 
@@ -1547,6 +1527,40 @@ efter Trust-substrings.
 
 **Pre-staging:** önskvärt att ha innan staging-promotion så TLS-postur är
 mekaniskt låst.
+
+---
+
+## TD-49: Unit-test för `HstsOptions.EnsureSafeForEnvironment` prod-defense
+
+**Kategori:** Testing / Security
+**Severity:** Minor
+**Fas:** 1 (opportunistiskt)
+**Källa:** dotnet-architect Minor 2, Fas 1 Block A3 TD-44 review (2026-05-11)
+
+`HstsOptions.EnsureSafeForEnvironment(environmentName)` (Api/Configuration/HstsOptions.cs:66)
+kastar `InvalidOperationException` om `MaxAgeDays < 365` utanför Development/Test,
+eller om `Preload=true` utan `MaxAgeDays>=365 + IncludeSubDomains=true`. Det är
+symmetri-pattern med `ForwardedHeadersConfig.EnsureSafeForEnvironment` (fail-loud
+vid uppstart för säkerhets-regression).
+
+**Risk:** Defense-without-test = tyst regression möjlig (defense tas bort →
+ingen test failar → prod startas tyst med MaxAge<365).
+
+**Föreslagen åtgärd:** Unit-test som verifierar:
+1. `EnsureSafeForEnvironment("Production")` med `MaxAgeDays=364` → throws
+2. `EnsureSafeForEnvironment("Production")` med `MaxAgeDays=365` → ok
+3. `EnsureSafeForEnvironment("Development")` med `MaxAgeDays=0` → ok (Dev/Test undantag)
+4. `Preload=true + MaxAgeDays=364` → throws
+5. `Preload=true + IncludeSubDomains=false` → throws
+6. `EnsureSafeForEnvironment("")` → throws (ArgumentException)
+
+**Implementation-blocker:** Inget `JobbPilot.Api.UnitTests`-projekt existerar
+idag. Alternativ: lägg testen i `JobbPilot.Api.IntegrationTests` med vanlig
+unit-style (inget Testcontainers), eller skapa nytt unit-test-projekt.
+
+**Beroenden:** Inga. ~6 rader test per fall, ~60 rader totalt. Kan paras med
+liknande test för `ForwardedHeadersConfig.EnsureSafeForEnvironment` om det
+också saknar dedikerad test-coverage.
 
 ---
 

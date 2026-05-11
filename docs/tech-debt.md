@@ -1544,37 +1544,42 @@ mekaniskt låst.
 
 ---
 
-## TD-49: Unit-test för `HstsOptions.EnsureSafeForEnvironment` prod-defense
+## TD-49: ~~Unit-test för `HstsOptions.EnsureSafeForEnvironment` prod-defense~~ — STÄNGD 2026-05-11 (redan implementerad pre-TD-skapande)
 
 **Kategori:** Testing / Security
 **Severity:** Minor
 **Fas:** 1 (opportunistiskt)
 **Källa:** dotnet-architect Minor 2, Fas 1 Block A3 TD-44 review (2026-05-11)
+**Status:** **STÄNGD 2026-05-11 (Väg E TDs-cleanup).** Stationär-CC-session discovery
+fann att `tests/JobbPilot.Api.IntegrationTests/Configuration/HstsOptionsTests.cs`
+redan existerar (143 rader, skapad vid STEG 13c HSTS-implementation 2026-05-10)
+och täcker samtliga 6 TD-49-cases via xUnit Theory/Fact + Shouldly. Ingen
+ny kod-touch behövs. **Discovery-fel vid TD-49-skapande:** dotnet-architect-review
+kollade efter `JobbPilot.Api.UnitTests/`-projekt (existerar inte) men missade
+att `JobbPilot.Api.IntegrationTests/Configuration/` redan har unit-style tester
+(samma pattern som `ForwardedHeadersConfigTests` + `RateLimitingOptionsTests`).
 
-`HstsOptions.EnsureSafeForEnvironment(environmentName)` (Api/Configuration/HstsOptions.cs:66)
-kastar `InvalidOperationException` om `MaxAgeDays < 365` utanför Development/Test,
-eller om `Preload=true` utan `MaxAgeDays>=365 + IncludeSubDomains=true`. Det är
-symmetri-pattern med `ForwardedHeadersConfig.EnsureSafeForEnvironment` (fail-loud
-vid uppstart för säkerhets-regression).
+**Befintlig täckning (HstsOptionsTests.cs):**
 
-**Risk:** Defense-without-test = tyst regression möjlig (defense tas bort →
-ingen test failar → prod startas tyst med MaxAge<365).
+| TD-49-case | Befintlig test |
+|---|---|
+| 1. Production MaxAge<365 → throws | `FailsLoud_OnLowMaxAgeDays_OutsideDevTest` (Theory: Production/Staging/PROD/Demo, MaxAgeDays=30) |
+| 2. Production MaxAge=365 → ok | `AcceptsSpecCompliantDefaults_InProduction` (defaults=365) |
+| 3. Development MaxAge=0 → ok | `AllowsAnyConfig_InDevOrTest` (Theory: Development/development/Test/test, MaxAge=0+!IncludeSubDomains+Preload) |
+| 4. Preload+MaxAge<365 → throws | Implicit (case 1-branchen kastar först oavsett Preload — defensiv duplikering i koden) |
+| 5. Preload+!IncludeSubDomains → throws | `FailsLoud_OnPreloadWithoutIncludeSubDomains` |
+| 6. Empty env-name → throws | `ThrowsArgumentException_OnEmptyEnvironmentName` (Theory: ""/" "/null) |
 
-**Föreslagen åtgärd:** Unit-test som verifierar:
-1. `EnsureSafeForEnvironment("Production")` med `MaxAgeDays=364` → throws
-2. `EnsureSafeForEnvironment("Production")` med `MaxAgeDays=365` → ok
-3. `EnsureSafeForEnvironment("Development")` med `MaxAgeDays=0` → ok (Dev/Test undantag)
-4. `Preload=true + MaxAgeDays=364` → throws
-5. `Preload=true + IncludeSubDomains=false` → throws
-6. `EnsureSafeForEnvironment("")` → throws (ArgumentException)
+Plus två extra-bonus-cases (`Defaults_MatchHstsSpecRecommendation`,
+`BindsFromConfiguration_ProductionOverlay`, `AcceptsValidPreloadConfig`).
 
-**Implementation-blocker:** Inget `JobbPilot.Api.UnitTests`-projekt existerar
-idag. Alternativ: lägg testen i `JobbPilot.Api.IntegrationTests` med vanlig
-unit-style (inget Testcontainers), eller skapa nytt unit-test-projekt.
+**Lärdom:** TD-skapande ska verifiera test-existens via grep + Glob över ALLA
+test-projekt, inte anta projekt-namn. Pattern (test-fil bredvid Configuration-klass
+i IntegrationTests-projekt) är etablerat sedan STEG 12.
 
-**Beroenden:** Inga. ~6 rader test per fall, ~60 rader totalt. Kan paras med
-liknande test för `ForwardedHeadersConfig.EnsureSafeForEnvironment` om det
-också saknar dedikerad test-coverage.
+**Implementation-historik:** `HstsOptionsTests.cs` skapades 2026-05-10 vid
+STEG 13c (HSTS-implementation, security-auditor Sec-Major-2 + dotnet-architect
+Viktigt-fynd 5). Audit-trail i `docs/sessions/2026-05-10-*-steg13c-*.md`.
 
 ---
 

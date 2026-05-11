@@ -6,6 +6,14 @@ import { env } from "@/lib/env";
 export const SESSION_COOKIE_NAME = "__Host-jobbpilot_session";
 const MAX_AGE = 14 * 24 * 60 * 60; // 14 days in seconds
 
+// Roll-konstanter speglar backend `Roles`-class (JobbPilot.Application.Common.Authorization).
+// Magic-string-anti-pattern undvikt på säkerhetskritisk åtkomstkontroll.
+export const ROLES = {
+  Admin: "Admin",
+} as const;
+
+export type Role = (typeof ROLES)[keyof typeof ROLES];
+
 export async function getSessionId(): Promise<string | null> {
   const cookieStore = await cookies();
   return cookieStore.get(SESSION_COOKIE_NAME)?.value ?? null;

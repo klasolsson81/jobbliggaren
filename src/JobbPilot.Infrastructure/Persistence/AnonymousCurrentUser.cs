@@ -9,4 +9,6 @@ public sealed class AnonymousCurrentUser : ICurrentUser
     public string? Jti => null;
     public string? Email => null;
     public SessionId? SessionId => null;
+
+    public bool IsInRole(string role) => false;
 }

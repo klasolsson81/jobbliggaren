@@ -38,6 +38,31 @@ public class DomainLayerTests
     }
 
     [Fact]
+    public void Application_should_not_depend_on_AspNetCore()
+    {
+        // Application ska vara HTTP-agnostisk. ICurrentUser, IRequestContextProvider,
+        // ICorrelationIdProvider är abstraktioner — implementationerna i Infrastructure
+        // får bero på Microsoft.AspNetCore.Http, men Application-portarna får aldrig.
+        // Bryts kontrakt = ASP.NET-pipeline-koncept läcker in i use-case-lagret
+        // (senior-cto-advisor 2026-05-11 Viktigt #2).
+        var result = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
+            .ShouldNot()
+            .HaveDependencyOnAny(
+                "Microsoft.AspNetCore",
+                "Microsoft.AspNetCore.Http",
+                "Microsoft.AspNetCore.Authentication",
+                "Microsoft.AspNetCore.Authorization",
+                "Microsoft.AspNetCore.Identity",
+                "JobbPilot.Api",
+                "JobbPilot.Worker")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            $"Application läcker mot ASP.NET / Api / Worker: " +
+            $"{string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    [Fact]
     public void Application_should_not_depend_on_EFCore_database_providers()
     {
         // Application MÅ bero på Microsoft.EntityFrameworkCore (kärnabstraktioner som

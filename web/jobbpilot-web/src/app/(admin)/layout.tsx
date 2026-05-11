@@ -4,47 +4,37 @@ import { getServerSession, ROLES } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 
-export default async function AppLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const user = await getServerSession();
-  // Middleware blocks unauthenticated requests via cookie presence, but the
-  // session can still be invalid/expired on the backend even with a cookie.
   if (!user) redirect("/logga-in");
+
+  // Roll-check (CTO A1-beslut 2026-05-11): roller kommer färska per request
+  // via SessionAuthenticationHandler → /api/v1/me. Non-Admin redirectas till
+  // start-yta. Vi 404:ar inte avsiktligt (security through obscurity är inte
+  // civic-utility-värde — en uppriktig redirect är rakare).
+  if (!user.roles.includes(ROLES.Admin)) redirect("/");
 
   return (
     <div className="min-h-full flex flex-col bg-background">
       <header className="border-b border-border bg-surface-secondary">
-        <div className="mx-auto max-w-4xl px-6 h-14 flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
           <Link
             href="/"
             className="text-body font-medium text-text-primary hover:text-brand-600"
           >
             JobbPilot
           </Link>
-          <nav aria-label="Huvudnavigation" className="flex items-center gap-1">
+          <nav aria-label="Admin-navigation" className="flex items-center gap-1">
             <Link
-              href="/ansokningar"
+              href="/admin/granskning"
               className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
             >
-              Ansökningar
+              Granskning
             </Link>
-            <Link
-              href="/cv"
-              className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
-            >
-              CV
-            </Link>
-            {user.roles.includes(ROLES.Admin) && (
-              <Link
-                href="/admin/granskning"
-                className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
-              >
-                Granskning
-              </Link>
-            )}
           </nav>
           <div className="flex items-center gap-4">
             <span className="text-body-sm text-text-secondary">{user.email}</span>
@@ -56,7 +46,7 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="flex-1 mx-auto w-full max-w-4xl px-6 py-8">
+      <main className="flex-1 mx-auto w-full max-w-6xl px-6 py-8">
         {children}
       </main>
     </div>

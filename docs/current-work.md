@@ -1,13 +1,64 @@
 # Current work — JobbPilot
 
-**Status:** **STEG 14c APPLIED 2026-05-10 ~21:55. FAS 0 STÄNGD.** TD-37 root cause identifierat och fixat (ConnectionStrings__Redis env-var saknades i ApiFactory + StrictRateLimitApiFactory → IConnectionMultiplexer.Connect() failade på Linux-CI utan default Redis). Backend CI grön (554/554). First formal tag-deploy `v0.1.0-dev` PASS via deploy-dev.yml end-to-end (OIDC + ECR + ECS + smoke). IAM-policy `ecs:DescribeTaskDefinition` separerad till egen statement med `Resource: *` (AWS API loggar request som `*` oavsett ARN-format). Bootstrap-IAM-user verifierat tom (`aws iam list-users → []`). Worker + API stable, smoke-test 200 + HSTS aktiv. Spend ~$79.65/mån. **Nästa:** **Fas 1** (Core Domain — auth-flöde + kärn-CRUD-polish, BUILD.md §18).
-**Senast uppdaterad:** 2026-05-10
+**Status:** **FAS 1 BLOCK A — KOD-FAS KOMPLETT 2026-05-11.** Alla fyra sub-block (A1-A4) + parallell TD-43 implementerade och pushade. Kod-pipeline grön: backend 563/563 PASS, frontend 75/75 Vitest + 3 nya komponent-tester (TD-43). **TD-15 + TD-31 + TD-43 stängda.** TD-39/40/41/42/44/45/46/47/48 lyfta som follow-ups. **Apply-fas A4 (TD-38 TLS-hardening) väntar Klas-GO** — terraform + Migrate-task re-run + force-redeploy per runbook `docs/runbooks/td-38-tls-apply.md`. **Nästa beslut:** apply A4 eller starta Block B.
+**Senast uppdaterad:** 2026-05-11
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`
 
 ---
 
 ## Aktivt nu
+
+**FAS 1 BLOCK A — kod-fas komplett 2026-05-11.** Fem sub-block (A1+A2+A3+A4+TD-43) implementerade och pushade. Apply-fas A4 väntar.
+
+### Block A sub-block-summary
+
+| Sub-block | Scope | Status | Commits |
+|-----------|-------|--------|---------|
+| A1 | TD-15 Resume-formulär aria-invalid + focus-flytt | ✓ Stängd | 267e120 + 4df70c2 |
+| A2 | JobSeeker profil-edit-yta (Vitest 75/75) | ✓ Klar | cc585a7 + d55b460 |
+| A3 | TD-31 UseHttpsRedirection env-gate-test | ✓ Stängd | 1221240 + b4e9199 |
+| TD-43 (parallell CC) | Komponent-tests för LoginForm + MeProfileForm + ResumeContentForm | ✓ Stängd | 6b2b0ca + 01cc656 |
+| A4 | TD-38 TLS-hardening (kod-fas) | ✓ Kod, ⏳ Apply | ebb7550 + 48ebe0e |
+
+### Lyfta follow-up-TDs
+
+- **TD-39:** Error-summary-mönster för stora formulär (A1 m2)
+- **TD-40:** Path-equality regression-bevakning (A1 m1)
+- **TD-41:** Select-komponent-konvention native vs shadcn (A2 M1+M2)
+- **TD-42:** Touch-target projektbrett <44px (A2 Mi1)
+- **TD-44:** HSTS-header-anti-regression-test (A3 dotnet-architect Mi4)
+- **TD-45:** LoginForm focus-flytt vid state.error (TD-43 a11y-follow-up)
+- **TD-46:** Exportera pathToElementId för isolated unit-test (TD-43)
+- **TD-47:** RDS CA-bundle-rotation-bevakning (A4 security S-Minor-1)
+- **TD-48:** Architecture-test för Trust=true-läckage (A4 dotnet-architect Mi2)
+
+### A4 apply-fas (väntar Klas-GO)
+
+Runbook: `docs/runbooks/td-38-tls-apply.md` (8-pkt security-auditor-checklist).
+
+Steg vid apply:
+1. Verifiera bundle-integritet mot AWS upstream
+2. Skapa tag `v0.1.1-dev` → deploy-dev.yml triggar build/push
+3. Bundle-smoke-test inuti container
+4. Re-run Migrate-task → Secrets uppdateras med VerifyFull-CS
+5. Verifiera Secrets-innehåll (assertion: ingen `Trust=true` kvar)
+6. Force-new-deployment Api + Worker
+7. Bevaka CloudWatch för Npgsql-handshake-errors
+8. Smoke-test + TD-38-stängning
+
+### Pre-existing infra (oförändrat från STEG 14c)
+
+| Resurs | Identifier |
+|---------|-----------|
+| Public URL | `https://dev.jobbpilot.se/api/ready` (200 OK + HSTS) |
+| API task-def | `jobbpilot-dev-api:3` |
+| Worker task-def | `jobbpilot-dev-worker:2` |
+| Tag (senaste) | `v0.1.0-dev` på SHA `8215658` |
+
+---
+
+## Historik före Block A (referens)
 
 **STEG 14c APPLIED 2026-05-10 — Fas 0 stängd.** Tre block kompletta:
 

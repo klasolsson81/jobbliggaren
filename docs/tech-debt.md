@@ -1459,6 +1459,69 @@ testfil. ~50 rader netto.
 
 ---
 
+## TD-47: RDS CA-bundle-rotation-bevakning (cron-diff mot AWS upstream)
+
+**Kategori:** Operations / Security
+**Fas:** 1 (eller pre-staging) — operativ skuld, inte feature-blocker
+**Prioritet:** Låg-medium
+**Källa:** security-auditor S-Minor-1, Fas 1 Block A4 review (2026-05-11)
+
+`infra/certs/rds-global-bundle.pem` committat 2026-05-11 (TD-38). Bundle:n är
+nuvarande G1 (täcker eu-north-1 fram till 2061/2121), men AWS kan introducera
+`G2`/`rds-ca-2029-bundle` och rotera RDS-instans-certs till nyare CA *innan*
+vår bundle uppdateras. Resultat: `SSL Mode=VerifyFull` failar → Api/Worker
+tappar DB-anslutning hårt.
+
+**Risk-fönster:** Lågt på kort sikt (AWS har inte annonserat G2), men ingen
+strukturell bevakning finns. CA-rotationer historiskt: 2015 → 2019 → 2024.
+
+**Föreslagen åtgärd:**
+
+1. **Cron-job (GitHub Actions schedule):** kvartalsvis (eller månadsvis) job
+   som hashar `infra/certs/rds-global-bundle.pem` lokalt och jämför mot
+   `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`.
+   Diff → öppna issue + Slack-notifiering (när Slack finns).
+2. **Manuell rotation-procedur:** dokumentera i
+   `docs/runbooks/td-38-tls-apply.md` så bundle-update + re-image + re-deploy
+   går smärtfritt vid faktisk rotation.
+
+**Beroenden:** GitHub Actions schedule-trigger (befintlig infrastruktur).
+Inga blockare. Adresseras opportunistiskt eller pre-staging.
+
+---
+
+## TD-48: Architecture-test för `Trust Server Certificate=true`-läckage
+
+**Kategori:** Testing / Security
+**Severity:** Minor
+**Fas:** 1 (pre-staging önskvärt)
+**Källa:** dotnet-architect Mindre 2, Fas 1 Block A4 review (2026-05-11)
+
+`ConnectionStringFactory` (TD-38) har unit-test som verifierar att
+`ForPersisted` inte innehåller `Trust Server Certificate=true`. Det är
+regression-skydd för *factory:n själv*, men inte för Api/Worker-assemblies
+som helhet.
+
+**Risk:** Om en framtida refactor lägger till en hardkodad CS med `Trust=true`
+i `Infrastructure/Persistence/AppDbContext.cs` eller en `IOptions<>`-binder,
+fångar inte vår unit-test det.
+
+**Föreslagen åtgärd:** Architecture-test som scannar `JobbPilot.Api` +
+`JobbPilot.Worker` + `JobbPilot.Infrastructure` assemblies efter
+string-konstant `"Trust Server Certificate=true"`. Migrate exkluderas
+(`ConnectionStringFactory.ForMigrate` har Trust=true by design).
+
+**Implementation-detalj:** NetArchTest scannar typ-strukturer, inte
+string-konstanter — behöver kompletteras med `Mono.Cecil` eller liknande
+IL-introspektor för string-table-scan. Alternativt: enkel reflection-baserad
+test som listar `internal const` + `static readonly string`-fält och letar
+efter Trust-substrings.
+
+**Pre-staging:** önskvärt att ha innan staging-promotion så TLS-postur är
+mekaniskt låst.
+
+---
+
 ## Adresseringsstrategi
 
 - Items i kategorierna a11y, UX och observability adresseras

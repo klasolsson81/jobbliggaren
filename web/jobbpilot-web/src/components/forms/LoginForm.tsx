@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,15 @@ export function LoginForm() {
     loginAction,
     null
   );
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  // TD-45 a11y: vid generic server-error (medvetet vag av säkerhetsskäl, inte
+  // path-baserad som TD-15) flytta fokus till email-fältet. Screen reader läser
+  // role="alert" automatiskt; focus-flytt ger keyboard-användare visuell anchor
+  // + nästa recovery-action (skriva om credentials).
+  useEffect(() => {
+    if (state?.error) emailInputRef.current?.focus();
+  }, [state?.error]);
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
@@ -22,6 +31,7 @@ export function LoginForm() {
           E-postadress
         </label>
         <Input
+          ref={emailInputRef}
           id="email"
           name="email"
           type="email"

@@ -75,4 +75,25 @@ describe("LoginForm", () => {
     expect(screen.getByLabelText("E-postadress")).toBeRequired();
     expect(screen.getByLabelText("Lösenord")).toBeRequired();
   });
+
+  it("flyttar focus till email-fältet när action returnerar { error } (TD-45)", async () => {
+    loginActionMock.mockResolvedValueOnce({
+      error: "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
+    });
+
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "fel");
+    await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+    // Vänta på att error renderas så useEffect-cykeln för focus-flytt hinner köras.
+    await screen.findByRole("alert");
+
+    // Screen reader läser role="alert" automatiskt. Focus-flytt är för
+    // keyboard-användare som scrollat förbi felmeddelandet — visuell anchor +
+    // direkt recovery-action (skriva om credentials).
+    expect(screen.getByLabelText("E-postadress")).toHaveFocus();
+  });
 });

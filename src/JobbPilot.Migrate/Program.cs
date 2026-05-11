@@ -104,7 +104,7 @@ try
     MigrateLog.GeneratedPwds(log, fpMig, fpApp, fpWrk);
 
     MigrateLog.PhaseAStart(log);
-    await using (var masterConn = new NpgsqlConnection(BuildConnectionString(dbHost, dbPort, dbName, masterCredsA.Username, masterCredsA.Password)))
+    await using (var masterConn = new NpgsqlConnection(ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCredsA.Username, masterCredsA.Password)))
     {
         await masterConn.OpenAsync(cts.Token);
         await ExecutePhaseAAsync(masterConn, dbName, pwdMigrations, pwdApp, pwdWorker, log, cts.Token);
@@ -114,7 +114,7 @@ try
     // Phase B — jobbpilot_migrations: PostgreSqlObjectsInstaller.Install
     // -----------------------------------------------------------------------
     MigrateLog.PhaseBStart(log);
-    var migrationsConnString = BuildConnectionString(dbHost, dbPort, dbName, Roles.Migrations, pwdMigrations);
+    var migrationsConnString = ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, Roles.Migrations, pwdMigrations);
     await using (var migrationsConn = new NpgsqlConnection(migrationsConnString))
     {
         await migrationsConn.OpenAsync(cts.Token);
@@ -135,7 +135,7 @@ try
     var masterCredsC = await FetchMasterCredsAsync(secretsClient, masterSecretArn, cts.Token);
     MigrateLog.MasterCredsLoaded(log, masterCredsC.Username, "Phase C");
 
-    await using (var masterConn = new NpgsqlConnection(BuildConnectionString(dbHost, dbPort, dbName, masterCredsC.Username, masterCredsC.Password)))
+    await using (var masterConn = new NpgsqlConnection(ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCredsC.Username, masterCredsC.Password)))
     {
         await masterConn.OpenAsync(cts.Token);
         await ExecutePhaseCAsync(masterConn, log, cts.Token);
@@ -145,8 +145,11 @@ try
     // Phase D — Secrets Manager: PutSecretValue × 2
     // -----------------------------------------------------------------------
     MigrateLog.PhaseDStart(log);
-    var appCs = BuildConnectionString(dbHost, dbPort, dbName, Roles.App, pwdApp);
-    var hangfireCs = BuildConnectionString(dbHost, dbPort, dbName, Roles.Worker, pwdWorker);
+    // Persisterade CS:er → Trust=false + VerifyFull + Root Certificate (TD-38).
+    // Api/Worker-containers har RDS-CA-bundle på /etc/ssl/certs/rds-global-bundle.pem
+    // (se Api/Worker Dockerfile COPY-direktiv).
+    var appCs = ConnectionStringFactory.ForPersisted(dbHost, dbPort, dbName, Roles.App, pwdApp);
+    var hangfireCs = ConnectionStringFactory.ForPersisted(dbHost, dbPort, dbName, Roles.Worker, pwdWorker);
 
     await secretsClient.PutSecretValueAsync(new PutSecretValueRequest
     {
@@ -178,10 +181,6 @@ catch (Exception ex)
 static string RequiredEnv(string name) =>
     Environment.GetEnvironmentVariable(name)
     ?? throw new InvalidOperationException($"Saknad env-var: {name}");
-
-static string BuildConnectionString(string host, int port, string db, string user, string pwd) =>
-    string.Create(CultureInfo.InvariantCulture,
-        $"Host={host};Port={port};Database={db};Username={user};Password={pwd};SSL Mode=Require;Trust Server Certificate=true");
 
 static string GenerateRandomPassword(int length)
 {

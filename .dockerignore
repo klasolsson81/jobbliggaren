@@ -43,6 +43,12 @@ appsettings.Local.json
 # Terraform — separat lifecycle
 infra/
 
+# Undantag: RDS CA-bundle behöver finnas i build-context för Api/Worker
+# Dockerfile-COPY (TD-38). Negationer måste komma EFTER `infra/` och `*.pem`
+# exkluderingarna ovan för att Docker BuildKit ska tolka dem korrekt.
+!infra/certs/
+!infra/certs/*.pem
+
 # Docs — onödigt i image
 docs/
 *.md

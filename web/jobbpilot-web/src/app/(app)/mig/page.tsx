@@ -4,6 +4,7 @@ import { getMyProfile } from "@/lib/api/me";
 import { assertNever, type ApiResult } from "@/lib/dto/_helpers";
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import { MeProfileForm } from "@/components/me/me-profile-form";
+import { DeleteAccountSection } from "@/components/me/delete-account-section";
 import {
   Card,
   CardHeader,
@@ -57,6 +58,10 @@ export default async function MigPage() {
         </CardHeader>
         <CardContent>{renderProfile(profileResult)}</CardContent>
       </Card>
+
+      <div className="max-w-lg">
+        <DeleteAccountSection currentEmail={user.email} />
+      </div>
     </div>
   );
 }

@@ -130,13 +130,25 @@ export async function logoutAction(): Promise<void> {
 
   if (sessionId) {
     try {
-      await fetch(`${env.BACKEND_URL}/api/v1/auth/logout`, {
+      const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/logout`, {
         method: "POST",
         headers: { Authorization: `Bearer ${sessionId}` },
         cache: "no-store",
       });
-    } catch {
-      // Always delete the local cookie even if backend is unreachable
+      // Best-effort logout: backend-session försvinner via Redis-TTL (14d) om
+      // anropet failar. Strukturerad warning så vi kan upptäcka systematiska
+      // fel (TD-6) — ingen PII loggad (session-id är pseudonym).
+      if (!res.ok) {
+        console.error("logout.backend_call_failed", {
+          event: "logout",
+          status: res.status,
+        });
+      }
+    } catch (cause) {
+      console.error("logout.backend_call_failed", {
+        event: "logout",
+        cause: cause instanceof Error ? cause.message : String(cause),
+      });
     }
   }
 

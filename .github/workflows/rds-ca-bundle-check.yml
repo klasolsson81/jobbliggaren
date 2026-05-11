@@ -1,0 +1,132 @@
+# TD-47 — Cron-jobb som upptäcker AWS RDS CA-bundle-rotation.
+#
+# Bakgrund: infra/certs/rds-global-bundle.pem är committat in i repo:t per
+# TD-38 så Api/Worker Docker-images kan validera RDS-cert via SSL Mode=VerifyFull
+# (ADR 0024 / TD-38-runbook). AWS uppdaterar bundle:n vid CA-rotationer
+# (historiskt 2015 → 2019 → 2024) och nästa förväntade är G2-rotation någon
+# gång före 2061-CA:s utgång. Utan denna check skulle vår container fortsätta
+# köra med stale bundle tills VerifyFull fail:ar mot ett certifikat utfärdat
+# av nya G2-CA → DB-anslutning tappas hårt.
+#
+# Strategi: månatlig hash-jämförelse mot AWS upstream-URL. Vid diff öppnar
+# vi ett GitHub-issue så Klas kan följa manuell rotation-procedur i
+# docs/runbooks/td-38-tls-apply.md §"RDS CA-bundle-rotation".
+#
+# Manuell trigger via workflow_dispatch så jobbet kan köras on-demand vid
+# misstänkt rotation (t.ex. efter AWS-annonsering).
+
+name: rds-ca-bundle-check
+
+on:
+  schedule:
+    # Första dagen varje månad kl 03:00 UTC. AWS-annonseringar kommer
+    # typiskt med 12+ månaders varsel så månatlig kadens räcker. Kvartalsvis
+    # hade också gått, men månadsvis ger snabbare upptäckt vid oannonserad
+    # rotation utan kostnad (Actions-minuter försumbara för en hash-diff).
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: rds-ca-bundle-check
+  cancel-in-progress: false
+
+jobs:
+  diff:
+    name: diff bundle mot AWS upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download AWS upstream bundle
+        run: |
+          curl -fsSL \
+            https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+            -o /tmp/aws-bundle-upstream.pem
+          ls -la /tmp/aws-bundle-upstream.pem
+
+      - name: Compare hashes
+        id: compare
+        run: |
+          LOCAL_HASH=$(sha256sum infra/certs/rds-global-bundle.pem | awk '{print $1}')
+          UPSTREAM_HASH=$(sha256sum /tmp/aws-bundle-upstream.pem | awk '{print $1}')
+          echo "Local: $LOCAL_HASH"
+          echo "Upstream: $UPSTREAM_HASH"
+          {
+            echo "local_hash=$LOCAL_HASH"
+            echo "upstream_hash=$UPSTREAM_HASH"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL_HASH" = "$UPSTREAM_HASH" ]; then
+            echo "bundle_diff=false" >> "$GITHUB_OUTPUT"
+            echo "Bundle matchar AWS upstream — ingen rotation upptäckt."
+          else
+            echo "bundle_diff=true" >> "$GITHUB_OUTPUT"
+            echo "DIFF DETECTED — AWS bundle har roterat. Manuell rotation krävs."
+          fi
+
+      - name: Open issue on diff
+        if: steps.compare.outputs.bundle_diff == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const localHash = '${{ steps.compare.outputs.local_hash }}';
+            const upstreamHash = '${{ steps.compare.outputs.upstream_hash }}';
+            const title = 'RDS CA-bundle-rotation upptäckt — manuell uppdatering krävs';
+            const body = [
+              '## TD-47 trigger: AWS RDS CA-bundle har roterat',
+              '',
+              '`infra/certs/rds-global-bundle.pem` är ur synk mot AWS upstream.',
+              '',
+              `- **Lokal hash:** \`${localHash}\``,
+              `- **Upstream hash:** \`${upstreamHash}\``,
+              `- **Detekterad:** ${new Date().toISOString()}`,
+              '',
+              '### Åtgärd (manuell rotation)',
+              '',
+              'Följ `docs/runbooks/td-38-tls-apply.md` §"RDS CA-bundle-rotation":',
+              '',
+              '1. Download ny bundle:',
+              '   ```bash',
+              '   curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \\',
+              '     -o infra/certs/rds-global-bundle.pem',
+              '   ```',
+              '2. Granska diff: `git diff infra/certs/rds-global-bundle.pem` —',
+              '   verifiera att förändringar är expected (nya CAs tillagda, inte borttagna).',
+              '3. Commit + push.',
+              '4. Skapa tag `v0.1.X-dev` → deploy-dev.yml triggar nya images.',
+              '5. Re-run Migrate-task (runbook §4-5).',
+              '6. Force-new-deployment Api + Worker.',
+              '7. Bevaka CloudWatch för Npgsql-handshake-errors.',
+              '',
+              '**Risk vid ignorering:** när AWS roterar enskilda RDS-instance-certs',
+              'till nya CA failar `SSL Mode=VerifyFull` → Api/Worker tappar DB-',
+              'anslutning hårt utan deploy-möjlighet (chicken-and-egg).',
+              '',
+              '_Skapad automatiskt av rds-ca-bundle-check.yml._',
+            ].join('\n');
+
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'td-47,security',
+            });
+
+            if (existing.some(i => i.title === title)) {
+              console.log('Ett öppet issue för TD-47-rotation finns redan — skippar.');
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['td-47', 'security'],
+            });
+            console.log('TD-47-rotation-issue skapat.');

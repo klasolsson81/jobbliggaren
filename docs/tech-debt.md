@@ -1077,7 +1077,35 @@ HTTP-only, HTTPS adderas senare via samma modul).
 
 ---
 
-## TD-38: Trust Server Certificate=true persisteras i app/worker connection-strings
+## TD-38: Trust Server Certificate=true persisteras i app/worker connection-strings ✓ STÄNGD Fas 1 Block A4 (2026-05-11)
+
+**Status:** **STÄNGD KOMPLETT** 2026-05-11 via Fas 1 Block A4 (kod-fas + apply).
+
+**Kod-fas (commit `ebb7550` + `7cde3c7`):**
+- `ConnectionStringFactory.ForMigrate` (Trust=true, bootstrap-only) + `ForPersisted` (VerifyFull + Root Certificate)
+- RDS global CA-bundle (`infra/certs/rds-global-bundle.pem`) COPY:ad till `/etc/ssl/certs/` i Api/Worker Dockerfiles
+- 6 unit-tester i `JobbPilot.Migrate.UnitTests` verifierar anti-regression
+- `deploy-dev.yml` uppdaterad att även bygga + registrera Migrate task-def
+- `github_oidc/main.tf` uppdaterad med Migrate-ECR + Migrate-task-role i IAM-policy
+
+**Apply-fas (2026-05-11):**
+1. ✓ Bundle integritet verifierad mot AWS upstream (diff = 0)
+2. ✓ terraform apply mot prod/baseline (IAM-policy update)
+3. ✓ Tag `v0.1.2-dev` → deploy-dev.yml end-to-end PASS (api + worker + migrate images byggda)
+4. ✓ Migrate-task re-runad (revision 5) → exit 0
+5. ✓ Secrets Manager uppdaterad: `SSL Mode=VerifyFull;Root Certificate=/etc/ssl/certs/rds-global-bundle.pem` — INGEN `Trust=true` kvar
+6. ✓ Api + Worker force-new-deployment → båda 1/1 stable
+7. ✓ Smoke-test `https://dev.jobbpilot.se/api/ready` → 200 + HSTS-header
+8. ✓ Inga Npgsql TLS/handshake-errors i CloudWatch
+
+**Reviews:** security-auditor APPROVED + Apply-fas-checklist (8 pkt), code-reviewer Changes Requested (B1 + Major fixade in-block), dotnet-architect APPROVED-with-fixes (Mindre 1+3 fixade in-block).
+
+**TLS-postur post-stängning:** Api + Worker → RDS validerar både CA-signature och hostname-match. MITM-yta inom VPC eliminerad. GDPR Art. 32 defense-in-depth.
+
+**Originalbeskrivning bevaras nedan för audit-trail:**
+
+---
+
 **Kategori:** Security / TLS
 **Severity:** Minor (dev), eskaleras till Major innan staging/prod
 **Källa:** security-auditor STEG 14b Sec-Minor-4 (2026-05-10)

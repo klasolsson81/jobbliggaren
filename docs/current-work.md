@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** **FAS 1 BLOCK A — KOD-FAS KOMPLETT 2026-05-11.** Alla fyra sub-block (A1-A4) + parallell TD-43 implementerade och pushade. Kod-pipeline grön: backend 563/563 PASS, frontend 75/75 Vitest + 3 nya komponent-tester (TD-43). **TD-15 + TD-31 + TD-43 stängda.** TD-39/40/41/42/44/45/46/47/48 lyfta som follow-ups. **Apply-fas A4 (TD-38 TLS-hardening) väntar Klas-GO** — terraform + Migrate-task re-run + force-redeploy per runbook `docs/runbooks/td-38-tls-apply.md`. **Nästa beslut:** apply A4 eller starta Block B.
+**Status:** **FAS 1 BLOCK A KOMPLETT (kod + apply) 2026-05-11.** A1+A2+A3+A4 + parallell TD-43 fullt klara. **A4 (TD-38 TLS-hardening) APPLIED:** Secrets Manager uppdaterad till `SSL Mode=VerifyFull + Root Certificate`, Api/Worker stable 1/1 med strikt TLS-validering mot RDS, smoke-test 200+HSTS. **Stängda TDs:** TD-15, TD-31, TD-38, TD-43. TD-39/40/41/42/44/45/46/47/48 lyfta som follow-ups. **Apply-iter:** initial v0.1.1-dev avslöjade deploy-dev.yml-gap (Migrate-image byggdes inte) → fix via Alt C (uppdaterad workflow + IAM-policy för Migrate-resurser) + v0.1.2-dev → end-to-end PASS. **Nästa:** Block B (Application Management / Dashboard / JobTech-förstudie) eller TDs-cleanup.
 **Senast uppdaterad:** 2026-05-11
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`

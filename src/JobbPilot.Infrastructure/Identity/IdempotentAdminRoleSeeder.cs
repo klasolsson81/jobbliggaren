@@ -16,10 +16,23 @@ namespace JobbPilot.Infrastructure.Identity;
 ///
 /// Idempotent: säker att köra vid varje startup. Använder
 /// <see cref="RoleManager{TRole}"/> och <see cref="UserManager{TUser}"/> så
-/// Identity:s egna check-och-insert-flöden hanterar race-conditions och
-/// audit-trail (operationer går via samma Identity-pipeline som
-/// /auth/register, vilket gör seeding observerbar via samma audit-log
-/// som admin-vyn själv granskar).
+/// Identity:s egna check-och-insert-flöden hanterar race-conditions.
+///
+/// Observability (TD-61 korrigering 2026-05-11 efter CTO Alt A): bootstrap-
+/// aktivitet observeras via strukturerad logg — Admin-role-add emit:ar
+/// EventId=2 ("Admin-rollen tilldelad till user {UserId} vid bootstrap.")
+/// via <see cref="LogAdminAssigned"/> till ILogger, som routas till Seq
+/// (dev) eller CloudWatch Logs (staging/prod) via Serilog-konfigurationen
+/// i <c>JobbPilot.Api</c>. Seedern populerar INTE <c>audit_log</c>-tabellen
+/// — admin-vyn (<c>GetAuditLogEntriesQueryHandler</c>) läser AuditLogEntries
+/// skrivna av <c>AuditBehavior</c> via Mediator-commands markerade med
+/// <c>IAuditableCommand</c> (ADR 0022). Bootstrap är en
+/// <see cref="IHostedService"/> utanför Mediator-pipelinen, så dess
+/// role-assignment hör inte hemma i samma tabell utan dedikerad
+/// audit-skrivnings-port. Sådan port är kandidat för Fas 6 admin-
+/// impersonation-ADR — inte aktuellt i Fas 1.
+///
+/// Audit-evidence verifieras av <c>IdempotentAdminRoleSeederAuditEvidenceTests</c>.
 ///
 /// Senior-cto-advisor-beslut 2026-05-11: B1 över B2 — IaC-konsistens med
 /// STEG 13/14 (Terraform + Migrate-task). Twelve-Factor §III/V.

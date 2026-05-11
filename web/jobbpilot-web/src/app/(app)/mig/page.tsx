@@ -27,7 +27,9 @@ export default async function MigPage() {
 
       <Card className="max-w-lg">
         <CardHeader>
-          <CardTitle>Kontoinformation</CardTitle>
+          <CardTitle asChild>
+            <h2>Kontoinformation</h2>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="flex flex-col gap-4">
@@ -55,7 +57,9 @@ export default async function MigPage() {
 
       <Card className="max-w-lg">
         <CardHeader>
-          <CardTitle>Profil</CardTitle>
+          <CardTitle asChild>
+            <h2>Profil</h2>
+          </CardTitle>
         </CardHeader>
         <CardContent>{renderProfile(profileResult)}</CardContent>
       </Card>

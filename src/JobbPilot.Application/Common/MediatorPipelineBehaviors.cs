@@ -16,6 +16,7 @@ namespace JobbPilot.Application.Common;
 /// <item><see cref="LoggingBehavior{TMessage,TResponse}"/></item>
 /// <item><see cref="ValidationBehavior{TMessage,TResponse}"/></item>
 /// <item><see cref="AuthorizationBehavior{TMessage,TResponse}"/></item>
+/// <item><see cref="AdminAuthorizationBehavior{TMessage,TResponse}"/> — defense-in-depth för IAdminRequest</item>
 /// <item><see cref="UnitOfWorkBehavior{TMessage,TResponse}"/></item>
 /// <item><see cref="AuditBehavior{TMessage,TResponse}"/> — innerst, atomisk persistens via UoW</item>
 /// </list>
@@ -27,6 +28,7 @@ public static class MediatorPipelineBehaviors
         typeof(LoggingBehavior<,>),
         typeof(ValidationBehavior<,>),
         typeof(AuthorizationBehavior<,>),
+        typeof(AdminAuthorizationBehavior<,>),
         typeof(UnitOfWorkBehavior<,>),
         typeof(AuditBehavior<,>),
     ];

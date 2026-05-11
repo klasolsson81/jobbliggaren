@@ -146,6 +146,12 @@ public static class DependencyInjection
 
         services.Configure<SessionStoreOptions>(configuration.GetSection(SessionStoreOptions.SectionName));
 
+        // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
+        // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.
+        // Senior-cto-advisor-beslut 2026-05-11 (B1 — IaC over manual psql-script).
+        services.Configure<AdminBootstrapOptions>(configuration.GetSection(AdminBootstrapOptions.SectionName));
+        services.AddHostedService<IdempotentAdminRoleSeeder>();
+
 #pragma warning disable JOBBPILOT0001 // JWT-klasser bevaras för RefreshCommandHandler tills Fas 1, ADR 0017
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();

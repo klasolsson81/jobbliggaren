@@ -30,4 +30,6 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
 
     public SessionId? SessionId =>
         httpContextAccessor.HttpContext?.Items["SessionId"] is SessionId sid ? sid : null;
+
+    public bool IsInRole(string role) => Principal?.IsInRole(role) == true;
 }

@@ -4,6 +4,7 @@ using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.Common;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Auditing;
+using JobbPilot.Application.Common.Authorization;
 using JobbPilot.Application.Common.Behaviors;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Infrastructure;
@@ -48,7 +49,14 @@ builder.Services.AddAuthentication(options =>
     })
     .AddScheme<SessionAuthenticationSchemeOptions, SessionAuthenticationHandler>("Bearer", _ => { });
 
-builder.Services.AddAuthorization();
+// Admin-policy: HTTP-lager-gate för admin-endpoints (defense-in-depth tillsammans
+// med AdminAuthorizationBehavior i Mediator-pipelinen). RequireRole konsulterar
+// ClaimTypes.Role-claims som SessionAuthenticationHandler emit:ar per request
+// (senior-cto-advisor-beslut 2026-05-11, A1 — security-first per Microsoft Learn).
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthorizationPolicies.Admin, policy => policy.RequireRole(Roles.Admin));
+});
 builder.Services.AddJobbPilotRateLimiting(builder.Configuration);
 
 // HSTS-config bindas vid service-registrering så ASP.NET Cores AddHsts läser
@@ -87,6 +95,11 @@ app.Use(async (ctx, next) =>
     catch (UnauthorizedException ex)
     {
         ctx.Response.StatusCode = 401;
+        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    catch (ForbiddenException ex)
+    {
+        ctx.Response.StatusCode = 403;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
     catch (NotFoundException ex)
@@ -176,6 +189,7 @@ app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapApplicationsEndpoints();
 app.MapResumesEndpoints();
+app.MapAdminEndpoints();
 
 var jobAds = app.MapGroup("/api/v1/job-ads").WithTags("JobAds");
 

@@ -75,11 +75,14 @@ public class WorkerLayerTests
     {
         // Pipeline-ordning per ADR 0008 + ADR 0022. Ändringar måste vara medvetna
         // och uppdatera detta test (samt eventuellt ADR 0008/0022).
+        // AdminAuthorizationBehavior tillagd 2026-05-11 (defense-in-depth för
+        // IAdminRequest, parallell med HTTP-lager-policy RequireRole("Admin")).
         var expected = new[]
         {
             typeof(LoggingBehavior<,>),
             typeof(ValidationBehavior<,>),
             typeof(AuthorizationBehavior<,>),
+            typeof(AdminAuthorizationBehavior<,>),
             typeof(UnitOfWorkBehavior<,>),
             typeof(AuditBehavior<,>),
         };

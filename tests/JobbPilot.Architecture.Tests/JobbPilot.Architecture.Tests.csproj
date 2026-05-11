@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Mono.Cecil" />
     <PackageReference Include="NetArchTest.Rules" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit.v3.mtp-v2" />
@@ -26,6 +27,7 @@
     <ProjectReference Include="..\..\src\JobbPilot.Infrastructure\JobbPilot.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\JobbPilot.Api\JobbPilot.Api.csproj" />
     <ProjectReference Include="..\..\src\JobbPilot.Worker\JobbPilot.Worker.csproj" />
+    <ProjectReference Include="..\..\src\JobbPilot.Migrate\JobbPilot.Migrate.csproj" />
   </ItemGroup>
 
 </Project>

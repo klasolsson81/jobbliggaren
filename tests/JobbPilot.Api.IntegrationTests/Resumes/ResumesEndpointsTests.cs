@@ -128,7 +128,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_resumes_with_auth_returns_200_with_array()
+    public async Task GET_resumes_with_auth_returns_200_with_paged_result()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -137,7 +137,11 @@ public class ResumesEndpointsTests(ApiFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.ValueKind.ShouldBe(JsonValueKind.Array);
+        json.ValueKind.ShouldBe(JsonValueKind.Object);
+        json.GetProperty("items").ValueKind.ShouldBe(JsonValueKind.Array);
+        json.GetProperty("totalCount").ValueKind.ShouldBe(JsonValueKind.Number);
+        json.GetProperty("page").GetInt32().ShouldBe(1);
+        json.GetProperty("pageSize").GetInt32().ShouldBe(20);
     }
 
     [Fact]
@@ -153,8 +157,9 @@ public class ResumesEndpointsTests(ApiFactory factory)
         var list = await _client.GetAsync("/api/v1/resumes", ct);
         list.StatusCode.ShouldBe(HttpStatusCode.OK);
         var listJson = await list.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var items = listJson.GetProperty("items");
 
-        var found = listJson.EnumerateArray().Any(r =>
+        var found = items.EnumerateArray().Any(r =>
             r.GetProperty("id").GetString() == id &&
             r.GetProperty("name").GetString() == "CV-A");
         found.ShouldBeTrue();
@@ -510,6 +515,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
         var list = await _client.GetAsync("/api/v1/resumes", ct);
         list.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await list.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("items")
             .EnumerateArray().Any(r => r.GetProperty("id").GetString() == id).ShouldBeTrue();
 
         // 3. Hämta detalj

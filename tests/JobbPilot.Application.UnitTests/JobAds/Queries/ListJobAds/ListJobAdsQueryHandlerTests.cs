@@ -47,4 +47,23 @@ public class ListJobAdsQueryHandlerTests
 
         result.ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task Handle_WithMoreThanMaxItems_CapsResultAt500()
+    {
+        // Regression-skydd för defense-in-depth hard cap mot DoS-vektor.
+        // Full paginering defererad till Fas 2 JobTech-integration.
+        await using var db = TestAppDbContextFactory.Create();
+        var baseTime = FakeDateTimeProvider.Default.UtcNow;
+        for (var i = 0; i < 501; i++)
+        {
+            db.JobAds.Add(CreateJobAd($"Ad {i}", baseTime.AddMinutes(-i)));
+        }
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListJobAdsQueryHandler(db);
+        var result = await handler.Handle(new ListJobAdsQuery(), CancellationToken.None);
+
+        result.Count.ShouldBe(500);
+    }
 }

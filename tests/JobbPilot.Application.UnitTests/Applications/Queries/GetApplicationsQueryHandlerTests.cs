@@ -48,7 +48,7 @@ public class GetApplicationsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenUserIdIsNull_ReturnsEmptyList()
+    public async Task Handle_WhenUserIdIsNull_ReturnsEmptyPagedResult()
     {
         var db = TestAppDbContextFactory.Create();
         var currentUser = Substitute.For<ICurrentUser>();
@@ -58,18 +58,22 @@ public class GetApplicationsQueryHandlerTests
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
-        result.ShouldBeEmpty();
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
+        result.Page.ShouldBe(1);
+        result.PageSize.ShouldBe(20);
     }
 
     [Fact]
-    public async Task Handle_WhenJobSeekerNotFound_ReturnsEmptyList()
+    public async Task Handle_WhenJobSeekerNotFound_ReturnsEmptyPagedResult()
     {
         var db = TestAppDbContextFactory.Create();
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
-        result.ShouldBeEmpty();
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
     }
 
     [Fact]
@@ -82,7 +86,8 @@ public class GetApplicationsQueryHandlerTests
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
-        result.Count.ShouldBe(3);
+        result.Items.Count.ShouldBe(3);
+        result.TotalCount.ShouldBe(3);
     }
 
     [Fact]
@@ -95,8 +100,9 @@ public class GetApplicationsQueryHandlerTests
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Draft"), CancellationToken.None);
 
-        result.Count.ShouldBe(2);
-        result.ShouldAllBe(a => a.Status == "Draft");
+        result.Items.Count.ShouldBe(2);
+        result.TotalCount.ShouldBe(2);
+        result.Items.ShouldAllBe(a => a.Status == "Draft");
     }
 
     [Fact]
@@ -109,8 +115,9 @@ public class GetApplicationsQueryHandlerTests
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Submitted"), CancellationToken.None);
 
-        result.Count.ShouldBe(1);
-        result.ShouldAllBe(a => a.Status == "Submitted");
+        result.Items.Count.ShouldBe(1);
+        result.TotalCount.ShouldBe(1);
+        result.Items.ShouldAllBe(a => a.Status == "Submitted");
     }
 
     [Fact]
@@ -126,6 +133,25 @@ public class GetApplicationsQueryHandlerTests
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
-        result.Count.ShouldBe(1);
+        result.Items.Count.ShouldBe(1);
+        result.TotalCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_TotalCount_IsIndependentOfPageSize()
+    {
+        // Regression-skydd: TotalCount ska vara total efter filter, inte page-storlek.
+        var db = TestAppDbContextFactory.Create();
+        await SeedAsync(db, _userId, draftCount: 5);
+
+        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+
+        var result = await handler.Handle(
+            new GetApplicationsQuery(PageNumber: 1, PageSize: 2),
+            CancellationToken.None);
+
+        result.Items.Count.ShouldBe(2);
+        result.TotalCount.ShouldBe(5);
+        result.TotalPages.ShouldBe(3);
     }
 }

@@ -41,7 +41,7 @@ public class GetResumesQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenUserIdIsNull_ReturnsEmptyList()
+    public async Task Handle_WhenUserIdIsNull_ReturnsEmptyPagedResult()
     {
         var db = TestAppDbContextFactory.Create();
         var currentUser = Substitute.For<ICurrentUser>();
@@ -51,11 +51,14 @@ public class GetResumesQueryHandlerTests
 
         var result = await handler.Handle(new GetResumesQuery(), CancellationToken.None);
 
-        result.ShouldBeEmpty();
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
+        result.Page.ShouldBe(1);
+        result.PageSize.ShouldBe(20);
     }
 
     [Fact]
-    public async Task Handle_WhenJobSeekerNotFound_ReturnsEmptyList()
+    public async Task Handle_WhenJobSeekerNotFound_ReturnsEmptyPagedResult()
     {
         var db = TestAppDbContextFactory.Create();
 
@@ -63,7 +66,8 @@ public class GetResumesQueryHandlerTests
 
         var result = await handler.Handle(new GetResumesQuery(), CancellationToken.None);
 
-        result.ShouldBeEmpty();
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
     }
 
     [Fact]
@@ -80,8 +84,9 @@ public class GetResumesQueryHandlerTests
 
         var result = await handler.Handle(new GetResumesQuery(), CancellationToken.None);
 
-        result.Count.ShouldBe(1);
-        result[0].Name.ShouldBe("Mitt CV");
+        result.Items.Count.ShouldBe(1);
+        result.TotalCount.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Mitt CV");
     }
 
     [Fact]
@@ -99,9 +104,10 @@ public class GetResumesQueryHandlerTests
 
         var result = await handler.Handle(new GetResumesQuery(), CancellationToken.None);
 
-        result.Count.ShouldBe(2);
-        result[0].Name.ShouldBe("Nyare CV");
-        result[1].Name.ShouldBe("Äldre CV");
+        result.Items.Count.ShouldBe(2);
+        result.TotalCount.ShouldBe(2);
+        result.Items[0].Name.ShouldBe("Nyare CV");
+        result.Items[1].Name.ShouldBe("Äldre CV");
     }
 
     [Fact]
@@ -123,9 +129,15 @@ public class GetResumesQueryHandlerTests
         var page2 = await handler.Handle(new GetResumesQuery(PageNumber: 2, PageSize: 2), CancellationToken.None);
         var page3 = await handler.Handle(new GetResumesQuery(PageNumber: 3, PageSize: 2), CancellationToken.None);
 
-        page1.Count.ShouldBe(2);
-        page2.Count.ShouldBe(2);
-        page3.Count.ShouldBe(1);
+        page1.Items.Count.ShouldBe(2);
+        page2.Items.Count.ShouldBe(2);
+        page3.Items.Count.ShouldBe(1);
+
+        // TotalCount är independent of page-size — regression-skydd för PagedResult-kontraktet.
+        page1.TotalCount.ShouldBe(5);
+        page2.TotalCount.ShouldBe(5);
+        page3.TotalCount.ShouldBe(5);
+        page1.TotalPages.ShouldBe(3);
     }
 
     // Note: ett tidigare test "Handle_VersionCountIncludesOnlyNonDeletedVersions" togs bort —

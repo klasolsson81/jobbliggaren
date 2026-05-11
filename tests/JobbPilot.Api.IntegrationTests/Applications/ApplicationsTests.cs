@@ -32,7 +32,7 @@ public class ApplicationsTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_applications_with_auth_returns_200_with_array()
+    public async Task GET_applications_with_auth_returns_200_with_paged_result()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -41,7 +41,11 @@ public class ApplicationsTests(ApiFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.ValueKind.ShouldBe(JsonValueKind.Array);
+        json.ValueKind.ShouldBe(JsonValueKind.Object);
+        json.GetProperty("items").ValueKind.ShouldBe(JsonValueKind.Array);
+        json.GetProperty("totalCount").ValueKind.ShouldBe(JsonValueKind.Number);
+        json.GetProperty("page").GetInt32().ShouldBe(1);
+        json.GetProperty("pageSize").GetInt32().ShouldBe(20);
     }
 
     [Fact]
@@ -73,9 +77,11 @@ public class ApplicationsTests(ApiFactory factory)
         var listResponse = await _client.GetAsync("/api/v1/applications", ct);
         listResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var listJson = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
-        listJson.ValueKind.ShouldBe(JsonValueKind.Array);
+        listJson.ValueKind.ShouldBe(JsonValueKind.Object);
+        var items = listJson.GetProperty("items");
+        items.ValueKind.ShouldBe(JsonValueKind.Array);
 
-        var found = listJson.EnumerateArray().Any(a =>
+        var found = items.EnumerateArray().Any(a =>
             a.GetProperty("id").GetString() == id &&
             a.GetProperty("status").GetString() == "Draft");
         found.ShouldBeTrue();

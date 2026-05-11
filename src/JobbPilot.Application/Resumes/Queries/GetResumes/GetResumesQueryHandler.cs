@@ -1,3 +1,4 @@
+using JobbPilot.Application.Common;
 using JobbPilot.Application.Common.Abstractions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -5,13 +6,13 @@ using Microsoft.EntityFrameworkCore;
 namespace JobbPilot.Application.Resumes.Queries.GetResumes;
 
 public sealed class GetResumesQueryHandler(IAppDbContext db, ICurrentUser currentUser)
-    : IQueryHandler<GetResumesQuery, IReadOnlyList<ResumeListItemDto>>
+    : IQueryHandler<GetResumesQuery, PagedResult<ResumeListItemDto>>
 {
-    public async ValueTask<IReadOnlyList<ResumeListItemDto>> Handle(
+    public async ValueTask<PagedResult<ResumeListItemDto>> Handle(
         GetResumesQuery query, CancellationToken cancellationToken)
     {
         if (!currentUser.UserId.HasValue)
-            return [];
+            return Empty(query);
 
         var jobSeekerId = await db.JobSeekers
             .AsNoTracking()
@@ -20,11 +21,16 @@ public sealed class GetResumesQueryHandler(IAppDbContext db, ICurrentUser curren
             .FirstOrDefaultAsync(cancellationToken);
 
         if (jobSeekerId == default)
-            return [];
+            return Empty(query);
 
-        var resumes = await db.Resumes
+        var baseQuery = db.Resumes
             .AsNoTracking()
-            .Where(r => r.JobSeekerId == jobSeekerId)
+            .Where(r => r.JobSeekerId == jobSeekerId);
+
+        // Separat count-query per CLAUDE.md §3.6.
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+        var resumes = await baseQuery
             .OrderByDescending(r => r.UpdatedAt)
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
@@ -36,6 +42,9 @@ public sealed class GetResumesQueryHandler(IAppDbContext db, ICurrentUser curren
                 r.UpdatedAt))
             .ToListAsync(cancellationToken);
 
-        return resumes;
+        return new PagedResult<ResumeListItemDto>(resumes, totalCount, query.PageNumber, query.PageSize);
     }
+
+    private static PagedResult<ResumeListItemDto> Empty(GetResumesQuery query) =>
+        new(Array.Empty<ResumeListItemDto>(), 0, query.PageNumber, query.PageSize);
 }

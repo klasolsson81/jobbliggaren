@@ -7,17 +7,11 @@ import {
   type AuditLogFilter,
   type AuditLogPagedResult,
 } from "@/lib/dto/admin";
-import { parseResponse } from "@/lib/dto/_helpers";
-
-export type AuditLogResponse =
-  | { kind: "ok"; data: AuditLogPagedResult }
-  | { kind: "forbidden" }
-  | { kind: "unauthorized" }
-  | { kind: "error" };
+import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 
 export async function getAuditLog(
   filter: AuditLogFilter = {}
-): Promise<AuditLogResponse> {
+): Promise<ApiResult<AuditLogPagedResult>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 
@@ -40,17 +34,11 @@ export async function getAuditLog(
       headers: { Authorization: `Bearer ${sessionId}` },
       cache: "no-store",
     });
-
-    if (res.status === 401) return { kind: "unauthorized" };
-    if (res.status === 403) return { kind: "forbidden" };
-    if (!res.ok) return { kind: "error" };
-
-    const data = await parseResponse(
+    return await responseToResult(
       res,
       auditLogPagedResultSchema,
       "GET /api/v1/admin/audit-log"
     );
-    return { kind: "ok", data };
   } catch {
     return { kind: "error" };
   }

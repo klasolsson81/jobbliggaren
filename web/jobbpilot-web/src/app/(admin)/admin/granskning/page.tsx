@@ -81,8 +81,14 @@ export default async function GranskningPage({ searchParams }: PageProps) {
   );
 }
 
-function ErrorBlock({ kind }: { kind: "forbidden" | "unauthorized" | "error" }) {
-  const messages = {
+type ErrorKind = "forbidden" | "unauthorized" | "notFound" | "error";
+
+function ErrorBlock({ kind }: { kind: ErrorKind }) {
+  // notFound och error har identisk copy — list-endpointen kan aldrig
+  // runtime-faktiskt returnera 404 (responseToResult sätter inte
+  // includeNotFound), men ApiResult-typen kräver case för exhaustiveness
+  // (ADR 0030 §3).
+  const messages: Record<ErrorKind, { title: string; body: string }> = {
     forbidden: {
       title: "Saknar behörighet",
       body: "Din session saknar Admin-rollen. Kontakta systemansvarig om du behöver åtkomst.",
@@ -91,18 +97,19 @@ function ErrorBlock({ kind }: { kind: "forbidden" | "unauthorized" | "error" }) 
       title: "Inte inloggad",
       body: "Logga in och försök igen.",
     },
+    notFound: {
+      title: "Kunde inte ladda granskningsloggen",
+      body: "Försök igen om en stund. Om felet kvarstår — kontakta drift.",
+    },
     error: {
       title: "Kunde inte ladda granskningsloggen",
       body: "Försök igen om en stund. Om felet kvarstår — kontakta drift.",
     },
-  } as const;
+  };
 
   const m = messages[kind];
   return (
-    <div
-      role="alert"
-      className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700"
-    >
+    <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
       <p className="text-body font-medium">{m.title}</p>
       <p className="mt-1 text-body-sm">{m.body}</p>
     </div>

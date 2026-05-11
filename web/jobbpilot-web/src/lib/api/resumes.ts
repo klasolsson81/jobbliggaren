@@ -8,7 +8,6 @@ import {
   type ResumeDetailDto,
 } from "@/lib/dto/resumes";
 import {
-  parseResponse,
   responseToResult,
   type ApiResult,
 } from "@/lib/dto/_helpers";
@@ -23,9 +22,9 @@ function authHeaders(sessionId: string): HeadersInit {
 export async function getResumes(
   page = 1,
   pageSize = 20
-): Promise<GetResumesResult | null> {
+): Promise<ApiResult<GetResumesResult>> {
   const sessionId = await getSessionId();
-  if (!sessionId) return null;
+  if (!sessionId) return { kind: "unauthorized" };
 
   const params = new URLSearchParams({
     page: String(page),
@@ -37,14 +36,13 @@ export async function getResumes(
       headers: authHeaders(sessionId),
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    return await parseResponse(
+    return await responseToResult(
       res,
       getResumesResultSchema,
       "GET /api/v1/resumes"
     );
   } catch {
-    return null;
+    return { kind: "error" };
   }
 }
 

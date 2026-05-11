@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
+import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationCard } from "@/components/applications/application-card";
 import { getStatusLabel } from "@/lib/applications/status";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,30 @@ export default async function AnsokningarPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const groups = await getPipeline();
+  const result = await getPipeline();
+  switch (result.kind) {
+    case "ok":
+      break;
+    case "unauthorized":
+      redirect("/logga-in");
+    case "notFound":
+    case "forbidden":
+    case "error":
+      return (
+        <div className="flex flex-col gap-4">
+          <h1 className="text-h1 font-medium text-text-primary">
+            Kunde inte ladda ansökningar
+          </h1>
+          <p className="text-body text-text-secondary">
+            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
+          </p>
+        </div>
+      );
+    default:
+      return assertNever(result);
+  }
+
+  const groups = result.data;
   const nonEmpty = groups.filter((g) => g.count > 0);
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 

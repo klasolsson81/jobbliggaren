@@ -40,6 +40,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0026 | ALB HTTP-only acceptance under Fas 0 (tidsfönster 30d + 5 triggers) | Superseded by 0027 | 2026-05-09 | [0026-alb-http-only-fas0.md](./0026-alb-http-only-fas0.md) |
 | 0027 | HTTPS aktiverat på dev-ALB; ADR 0026 supersedas | Accepted | 2026-05-10 | [0027-https-aktiverat-supersession.md](./0027-https-aktiverat-supersession.md) |
 | 0028 | Admin authorization via marker-interface + HTTP-policy defense-in-depth | Accepted | 2026-05-11 | [0028-admin-authorization-marker-interface-defense-in-depth.md](./0028-admin-authorization-marker-interface-defense-in-depth.md) |
+| 0029 | HTTP-auth-pipeline och `IClaimsTransformation`-disciplin | Accepted | 2026-05-11 | [0029-auth-pipeline-and-claims-transformation.md](./0029-auth-pipeline-and-claims-transformation.md) |
 
 ## Planerade ADRs
 

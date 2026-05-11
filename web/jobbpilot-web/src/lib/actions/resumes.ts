@@ -12,6 +12,7 @@ import {
 import type { ResumeContentDto } from "@/lib/types/resumes";
 import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
+import { mapActionError } from "./_action-error";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -53,13 +54,9 @@ export async function createResumeAction(
     });
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        detail?: string;
-        title?: string;
-      } | null;
       return {
         success: false,
-        error: body?.detail ?? body?.title ?? "Kunde inte skapa CV:t.",
+        error: mapActionError(res, "Kunde inte skapa CV:t."),
       };
     }
 
@@ -107,13 +104,9 @@ export async function renameResumeAction(
     );
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        detail?: string;
-        title?: string;
-      } | null;
       return {
         success: false,
-        error: body?.detail ?? body?.title ?? "Kunde inte byta namn.",
+        error: mapActionError(res, "Kunde inte byta namn."),
       };
     }
   } catch {
@@ -152,13 +145,9 @@ export async function updateMasterContentAction(
     );
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        detail?: string;
-        title?: string;
-      } | null;
       return {
         success: false,
-        error: body?.detail ?? body?.title ?? "Kunde inte spara CV:t.",
+        error: mapActionError(res, "Kunde inte spara CV:t."),
       };
     }
   } catch {
@@ -188,13 +177,9 @@ export async function deleteResumeAction(
     });
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        detail?: string;
-        title?: string;
-      } | null;
       return {
         success: false,
-        error: body?.detail ?? body?.title ?? "Kunde inte radera CV:t.",
+        error: mapActionError(res, "Kunde inte radera CV:t."),
       };
     }
   } catch {
@@ -227,14 +212,9 @@ export async function deleteResumeVersionAction(
     );
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        detail?: string;
-        title?: string;
-      } | null;
       return {
         success: false,
-        error:
-          body?.detail ?? body?.title ?? "Kunde inte radera versionen.",
+        error: mapActionError(res, "Kunde inte radera versionen."),
       };
     }
   } catch {

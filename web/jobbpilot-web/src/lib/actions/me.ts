@@ -7,6 +7,7 @@ import {
   updateMyProfileSchema,
   type UpdateMyProfileInput,
 } from "./me-schemas";
+import { mapActionError } from "./_action-error";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -42,14 +43,9 @@ export async function updateMyProfileAction(
     });
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        detail?: string;
-        title?: string;
-      } | null;
       return {
         success: false,
-        error:
-          body?.detail ?? body?.title ?? "Kunde inte uppdatera profilen.",
+        error: mapActionError(res, "Kunde inte uppdatera profilen."),
       };
     }
   } catch {

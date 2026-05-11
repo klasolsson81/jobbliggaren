@@ -12,6 +12,7 @@ import {
 } from "./application-schemas";
 import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
+import { mapActionError } from "./_action-error";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -46,8 +47,7 @@ export async function createApplicationAction(
     });
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-      return { success: false, error: body?.detail ?? "Kunde inte spara ansökan." };
+      return { success: false, error: mapActionError(res, "Kunde inte spara ansökan.") };
     }
 
     const data = await parseResponse(
@@ -88,8 +88,7 @@ export async function transitionStatusAction(
     );
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-      return { success: false, error: body?.detail ?? "Statusbytet misslyckades." };
+      return { success: false, error: mapActionError(res, "Statusbytet misslyckades.") };
     }
   } catch {
     return { success: false, error: "Kunde inte nå servern. Försök igen." };
@@ -133,8 +132,7 @@ export async function addFollowUpAction(
     );
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-      return { success: false, error: body?.detail ?? "Kunde inte spara uppföljningen." };
+      return { success: false, error: mapActionError(res, "Kunde inte spara uppföljningen.") };
     }
   } catch {
     return { success: false, error: "Kunde inte nå servern. Försök igen." };
@@ -171,8 +169,7 @@ export async function addNoteAction(
     );
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-      return { success: false, error: body?.detail ?? "Kunde inte spara noteringen." };
+      return { success: false, error: mapActionError(res, "Kunde inte spara noteringen.") };
     }
   } catch {
     return { success: false, error: "Kunde inte nå servern. Försök igen." };

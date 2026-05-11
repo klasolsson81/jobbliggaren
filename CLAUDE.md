@@ -432,19 +432,24 @@ Externa fakta uppdateras konstant. Training data är out-of-date i veckor till m
 
 **Rapportering:** vid web-search-baserade beslut — bifoga URL + datum i STOPP-rapporten så Klas kan följa upp källan.
 
-### 9.6 In-scope-fix vs TD-skapande (4-timmarsregeln)
+### 9.6 In-scope-fix vs TD-skapande (fas-regeln)
 
 När agent-review eller egen analys identifierar ett fynd: lyft **inte** som TD
 som default. Default = **fixa in-block**.
 
-TD lyfts ENDAST om ett av tre kriterier uppfyllt:
+TD lyfts ENDAST om ett av två kriterier uppfyllt:
 
 1. **Annan fas:** fyndet hör till fas där feature/dependency ännu inte finns
-   (t.ex. "BYOK-onboarding fas 3" innan BYOK-domän skapad)
+   (t.ex. "BYOK-onboarding fas 3" innan BYOK-domän skapad). TDs som faktiskt
+   tillhör nuvarande fas ska fixas innan fas-stängning, inte skjutas vidare.
 2. **Saknad funktion-dependency:** scope kräver kod/projekt som inte existerar
    (t.ex. "JobbPilot.Api.UnitTests-projekt finns inte" — TD-49)
-3. **Scope > 4 timmar CC-tid:** fyndet kräver mer än halv arbetsdag CC-arbete
-   i samma touch — skulle skapa scope creep utöver originaluppdraget
+
+**Ingen tidsbegränsning per touch.** Tidigare 4h-regel borttagen 2026-05-11
+efter Klas-direktiv: TD-bloat skapas av tidströskel-utlyftningar som sedan
+återkommer i nästa session. Scope per touch begränsas av fas-tillhörighet,
+inte CC-tid. Stora fynd inom rätt fas fixas i samma batch eller i naturlig
+split-batch — inte som TD.
 
 Vid tveksamhet: in-scope-fix vinner. JobbPilots policy: kvalitet > tempo.
 
@@ -456,11 +461,16 @@ att skjuta upp arbete som genuint inte hör till nu.
 
 1. CC eller annan agent identifierar ett fynd
 2. Default = fixa in-block (samma commit-batch som originaluppdraget)
-3. Om CC är osäker om 4h-regeln gäller: invokera `senior-cto-advisor` för
-   avgörande
+3. Vid multi-approach-val, fynd-triage (in-block-fix vs TD), eller annan
+   beslutspunkt: invokera `senior-cto-advisor` för avgörande. CC ger **inte**
+   egen rekommendation — CTO är decision-maker.
 4. CTO citerar branschens källor (Robert Martin, Eric Evans, GoF, Fowler,
-   Microsoft Learn) vid kvalitets-tradeoffs
-5. Klas har sista ordet — CTO argumenterar tydligt så Klas-override är
+   Beck, Microsoft Learn) vid kvalitets-tradeoffs
+5. **CC följer CTO-beslutet automatiskt utan extra Klas-GO** när motiveringen
+   är entydig mot principer. Klas-STOPP triggas endast vid större strategiska
+   frågor (t.ex. fas-skifte, ADR-amendment, deploy-beslut). CTO flaggar i sitt
+   svar om beslutet är sådant som Klas behöver godkänna.
+6. Klas har alltid sista ordet — CTO argumenterar tydligt så Klas-override är
    medveten, inte gissning
 
 ## 10. Svenska-relaterat

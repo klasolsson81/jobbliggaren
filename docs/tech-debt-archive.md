@@ -1225,3 +1225,69 @@ kunde hamna i produktionsdatabasen om CI/dev råkade peka mot prod.
 implikation (test-konton är e2e-genererade). OK att lämna.
 
 ---
+
+## TD-41: Select-komponent-konvention — native vs shadcn Radix ✓ STÄNGD 2026-05-11
+**Kategori:** UI / Component-konvention
+**Severity:** Major
+**Fas:** 1 (beslutas innan A3)
+**Källa:** design-review Fas 1 Block A2 2026-05-10 (Major M1+M2)
+**Status:** **STÄNGD 2026-05-11 (Batch B)** — shadcn-first-konvention etablerad.
+
+`MeProfileForm` använde native `<select>` med Tailwind-styling kopierad
+inline från `Input.tsx` (~110 tecken). Samtidigt fanns en fullskalig
+shadcn/Radix-baserad `Select` redan installerad i `components/ui/select.tsx`
+(193 rader). Inkonsekvens mellan formulär: `add-follow-up-form.tsx` använde
+redan shadcn Select för `channel`-fältet, men `me-profile-form.tsx` använde
+native för `language`.
+
+**Leverans (Batch B):**
+
+1. **`me-profile-form.tsx:111-141`** — native `<select name="language">` ersatt med shadcn `Select` wrapped i RHF `Controller`. `SelectTrigger` har `id="me-language"` (bevarad path-routing-target), `ref={field.ref}` (RHF-fokus-management), `className="w-full"` (matchar Input-bredd), `{...fieldA11y("language")}` (aria-invalid/describedby bevarade). `SelectValue` utan placeholder eftersom Controller alltid har värdet `"sv"` eller `"en"` (defaultValues + z.enum).
+2. **Test-justering** — `me-profile-form.test.tsx` test 1 anpassad för Radix trigger-rendering (`.toHaveTextContent("Svenska")` istället för `.toHaveValue("sv")`). Test 5 ("TD-15 path-routing: language") borttaget — UI-vägen att trigga `path="language"`-fel är arkitektoniskt omöjlig med shadcn Select (endast giltiga `z.enum`-items kan väljas). `pathToElementId("language") → "me-language"` täcks redan av `lib/forms/me-path-routing.test.ts`.
+
+**CTO-beslut (senior-cto-advisor 2026-05-11):** Unified beslut för TD-41 + TD-57 — "shadcn-first med Input-primitive som default". Variant (b) över (a) för TD-41.
+Motivering: DRY (Hunt/Thomas 1999), SRP (Martin 2017 kap. 7), Component Cohesion CCP/REP (Martin 2017 kap. 13), Konsekvens (NN/g Heuristic #4), A11y WCAG 4.1.2 + 2.1.1. Variant (a) "native-select-primitiv" avvisad — skapar parallell komponent-hierarki och bryter "one obvious way".
+
+**Framtida konvention (etablerad):**
+- Text/number/datetime-local/email/etc. → `Input`-primitive
+- Single-select dropdown → shadcn `Select` med `Controller`
+- Multi-select/combobox/autocomplete → shadcn-pendang (vid behov)
+- Native `<select>`/`<input>` med inline-styling som duplicerar Input-primitive → **anti-pattern**
+
+**Reviews:**
+- code-reviewer: 0 Blocker / 0 Major / 0 Minor / 1 Nit (FYI om SelectTrigger-id-coupling). Approved.
+- design-reviewer: 1 Major (SelectTrigger för `channel` saknade `w-full` — pre-existing i `add-follow-up-form.tsx`) + 1 Minor (`disabled={isPending}` saknades) fixade in-block i samma batch per §9.6.
+
+**Tester:** Vitest 227 → 226 (−1 test 5; +0 nya). tsc --noEmit grön.
+
+---
+
+## TD-57: Native form-controls divergerar från Input-primitive ✓ STÄNGD 2026-05-11
+**Kategori:** Architecture / Consistency
+**Severity:** Minor (cosmetic + a11y-attribute-gap)
+**Fas:** 1 a11y-pass-completion
+**Källa:** design-reviewer + code-reviewer Fas 1.5 a11y-pass 2026-05-11 (TD-42 M3 / Minor 1)
+**Status:** **STÄNGD 2026-05-11 (Batch B)** — Input-primitive-konvention etablerad för native input-types.
+
+Native `<input type="datetime-local">` i `add-follow-up-form.tsx:54-61`
+hade EGEN inline-styling (`rounded-md`, `py-2`, `text-sm`) som divergerade
+från `Input.tsx`-primitive (`rounded-sm`, `py-1`, `text-base md:text-sm`).
+Saknade också `aria-invalid:`-styling, `dark:`-styling och `disabled:bg-input/50`.
+
+`audit-log-filter.tsx:30-45` använde redan `<Input type="datetime-local" />`
+korrekt — den var den etablerade konventionen som inte följdes i
+`add-follow-up-form.tsx`.
+
+**Leverans (Batch B):**
+
+1. **`add-follow-up-form.tsx:55-61`** — native `<input type="datetime-local">` med inline-styling (90 tecken) ersatt med `<Input type="datetime-local" id="follow-up-date" name="scheduledAt" required disabled={isPending} />`. FormData-kontraktet (`scheduledAt`-name) bevarat.
+2. **DRY-vinst:** 90 tecken inline-Tailwind borttagna — Input-primitive bär stilen.
+
+**CTO-beslut (senior-cto-advisor 2026-05-11):** Variant C ("ersätt native med Input-primitive") över A (`inputBaseClasses`-helper) / B (NativeInput-wrapper).
+Motivering: DRY-by-component-encapsulation > DRY-by-string-sharing (Fowler 2018, *Refactoring* kap. 6). Variant A avvisad — string-share-pattern är svagare än component-encapsulation. Variant B avvisad — wrapper-runt-native-imiterar-Input är "Middle Man"-anti-pattern (Fowler 2018) eftersom Input-primitive redan ÄR wrappern.
+
+**Reviews:** Adresserade samtidigt med TD-41 (CTO-beslut unified). Se TD-41 review-block ovan.
+
+**Tester:** ingår i Batch B-svit (Vitest 226/226 + tsc grön).
+
+---

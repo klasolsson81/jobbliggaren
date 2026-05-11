@@ -17,7 +17,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 
 | ID | Titel | Severity | Fas | Kategori |
 |---|---|---|---|---|
-| TD-41 | Select-komponent-konvention — native vs shadcn Radix | **Major** | 1 | UI/Component |
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
 | TD-1 | Skip-link saknas i (app)-layout | Minor | 1 | A11y (WCAG 2.4.1) |
@@ -29,7 +28,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-12 | Saknad integration-test för cross-user isolation | Minor | 1 | Säkerhet/Test |
 | TD-28 | Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me | Minor | 1 | UX/Säkerhet |
 | TD-40 | Path-equality i `fieldA11y` — saknar regression-bevakning | Minor | 1 | A11y/Robusthet |
-| TD-57 | Native form-controls divergerar från Input-primitive | Minor | 1 | Architecture/Consistency |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -73,33 +71,7 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 
 ## Major — Fas 1
 
-## TD-41: Select-komponent-konvention — native vs shadcn Radix
-
-**Kategori:** UI / Component-konvention
-**Fas:** 1 (beslutas innan A3)
-**Prioritet:** Medium
-**Källa:** design-review Fas 1 Block A2 2026-05-10 (Major M1+M2)
-
-`MeProfileForm` använder native `<select>` med Tailwind-styling kopierad
-inline från `Input.tsx` (~110 tecken). Samtidigt finns en fullskalig
-shadcn/Radix-baserad `Select` redan installerad i `components/ui/select.tsx`
-(193 rader). Inkonsekvens mellan formulär.
-
-**Risk:**
-- **Drift-risk:** När `Input.tsx`-tokens uppdateras driftar inline-stilen
-  i select-elementet
-- **Konsistens-risk:** Andra formulär (login/register/resume-content) använder
-  Input + Textarea, men nästa form med dropdown blir ännu en native-implementation
-  om mönstret inte fastställs
-
-**Föreslagen åtgärd:** beslut Klas/design — antingen
-- (a) Behåll native för 2-opt-listor, lyft inline-stilen till
-  `ui/native-select.tsx`-primitiv. Lägg kommentar i `MeProfileForm` om
-  varför native valdes.
-- (b) Migrera `MeProfileForm` till shadcn `Select` (kräver Controller från RHF).
-  Etablera "shadcn Select är default"-konvention.
-
-Beslut behöver tas innan A3 så framtida formulär följer en linje.
+*(Sektionen tom 2026-05-11 — TD-41 stängd i Batch B per CTO-beslut shadcn-first.)*
 
 
 ## Major — Fas 2
@@ -361,44 +333,6 @@ formuläret krävs idag — bevakning räcker.
 
 
 ---
-
-## TD-57: Native form-controls divergerar från Input-primitive
-**Kategori:** Architecture / Consistency
-**Severity:** Minor (cosmetic + a11y-attribute-gap)
-**Fas:** 1 a11y-pass-completion
-**Källa:** design-reviewer + code-reviewer Fas 1.5 a11y-pass 2026-05-11 (TD-42 M3 / Minor 1)
-
-Native form-controls (datetime-local i `add-follow-up-form.tsx:60` + native
-language-select i `me-profile-form.tsx:116`) styled manuellt och saknar
-Input-primitive-defaults:
-
-| Attribut | Input-primitive | Native form-controls |
-|---|---|---|
-| `rounded-*` | `rounded-sm` | `rounded-md` |
-| `py-*` | `py-1` | `py-2` |
-| `text-*` | `text-base md:text-sm` | `text-sm` eller `text-base` |
-| `aria-invalid-styling` | ✓ | saknas |
-| `dark-mode-styling` | ✓ | saknas |
-| `disabled bg-färg` | `disabled:bg-input/50` | saknas |
-
-Höjden alignar nu (h-9 via TD-42), men övriga defaults divergerar.
-Pre-existing inkonsekvens som blev synlig när skill-doc:en blev
-auktoritativ för field-height.
-
-**Föreslagen åtgärd (kräver design-beslut):**
-1. **Variant A:** Lyft `inputBaseClasses` till `lib/forms/input-base.ts`
-   och referera från native-element via `cn(inputBaseClasses, ...)`
-2. **Variant B:** Skapa wrapper-komponenter `<NativeInput>` / `<NativeSelect>`
-   som inheritar Input.tsx-klasser
-3. **Variant C:** Ersätt native med shadcn-pendang (Input type="datetime-local"
-   där möjligt, shadcn Select där meningsfullt — kräver eventuellt 3rd-party
-   datepicker)
-
-**Scope:** ~2-3h CC-tid (kriterium 3: ej >4h men kräver design-beslut). Kan
-lyftas in i nästa a11y-pass eller paras med eventuell datepicker-introduktion.
-
-**Trigger:** Nästa a11y-pass eller designgenomgång av form-system.
-
 
 ## Minor — Fas 2
 
@@ -1068,6 +1002,8 @@ ADR-cross-references och granskningsbevis.
 | TD-30 | Domänköp + Route53 + ACM-cert | 2026-05-10 (retroaktivt stängd 2026-05-11) | STEG 13c + ADR 0027 |
 | TD-10 | PII-läckage via `body?.detail` i Server Actions | 2026-05-11 | Batch A (`0560718`) |
 | TD-11 | Hårdkodad E2E-lösenord och testemail på produktionsdomän | 2026-05-11 | Batch A (`0560718`) |
+| TD-41 | Select-komponent-konvention — native vs shadcn Radix | 2026-05-11 | Batch B |
+| TD-57 | Native form-controls divergerar från Input-primitive | 2026-05-11 | Batch B |
 
 ---
 

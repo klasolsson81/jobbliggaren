@@ -34,23 +34,17 @@ export default async function MigPage() {
         <CardContent>
           <dl className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <dt className="text-body-sm text-text-secondary">Användar-id</dt>
-              <dd className="text-body text-text-primary font-mono">
-                {user.userId}
-              </dd>
-            </div>
-            <div className="flex flex-col gap-1">
               <dt className="text-body-sm text-text-secondary">E-postadress</dt>
               <dd className="text-body text-text-primary">{user.email}</dd>
             </div>
-            <div className="flex flex-col gap-1">
-              <dt className="text-body-sm text-text-secondary">Roller</dt>
-              <dd className="text-body text-text-primary">
-                {user.roles && user.roles.length > 0
-                  ? user.roles.join(", ")
-                  : "Inga roller"}
-              </dd>
-            </div>
+            {user.roles && user.roles.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <dt className="text-body-sm text-text-secondary">Roller</dt>
+                <dd className="text-body text-text-primary">
+                  {user.roles.join(", ")}
+                </dd>
+              </div>
+            )}
           </dl>
         </CardContent>
       </Card>

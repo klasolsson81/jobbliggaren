@@ -106,8 +106,9 @@ resource "aws_iam_role" "deploy_dev" {
 # ---------------------------------------------------------------------------
 
 locals {
-  ecr_api_arn    = "arn:aws:ecr:${var.aws_region}:${var.account_id}:repository/${var.dev_name_prefix}-api"
-  ecr_worker_arn = "arn:aws:ecr:${var.aws_region}:${var.account_id}:repository/${var.dev_name_prefix}-worker"
+  ecr_api_arn     = "arn:aws:ecr:${var.aws_region}:${var.account_id}:repository/${var.dev_name_prefix}-api"
+  ecr_worker_arn  = "arn:aws:ecr:${var.aws_region}:${var.account_id}:repository/${var.dev_name_prefix}-worker"
+  ecr_migrate_arn = "arn:aws:ecr:${var.aws_region}:${var.account_id}:repository/${var.dev_name_prefix}-migrate"
 
   ecs_cluster_arn = "arn:aws:ecs:${var.aws_region}:${var.account_id}:cluster/${var.dev_name_prefix}-cluster"
   ecs_api_service_arn    = "arn:aws:ecs:${var.aws_region}:${var.account_id}:service/${var.dev_name_prefix}-cluster/${var.dev_name_prefix}-api"
@@ -115,9 +116,10 @@ locals {
   ecs_api_taskdef_arn    = "arn:aws:ecs:${var.aws_region}:${var.account_id}:task-definition/${var.dev_name_prefix}-api:*"
   ecs_worker_taskdef_arn = "arn:aws:ecs:${var.aws_region}:${var.account_id}:task-definition/${var.dev_name_prefix}-worker:*"
 
-  iam_execution_role_arn   = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-execution"
-  iam_task_api_role_arn    = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-task-api"
-  iam_task_worker_role_arn = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-task-worker"
+  iam_execution_role_arn    = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-execution"
+  iam_task_api_role_arn     = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-task-api"
+  iam_task_worker_role_arn  = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-task-worker"
+  iam_task_migrate_role_arn = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-task-migrate"
 
   logs_group_arn_pattern = "arn:aws:logs:${var.aws_region}:${var.account_id}:log-group:/aws/ecs/${var.dev_name_prefix}/*"
 }
@@ -146,7 +148,7 @@ data "aws_iam_policy_document" "deploy_dev" {
       "ecr:CompleteLayerUpload",
       "ecr:PutImage",
     ]
-    resources = [local.ecr_api_arn, local.ecr_worker_arn]
+    resources = [local.ecr_api_arn, local.ecr_worker_arn, local.ecr_migrate_arn]
   }
 
   # ECS service + task — resource-scoped read.
@@ -215,6 +217,7 @@ data "aws_iam_policy_document" "deploy_dev" {
       local.iam_execution_role_arn,
       local.iam_task_api_role_arn,
       local.iam_task_worker_role_arn,
+      local.iam_task_migrate_role_arn,
     ]
 
     condition {

@@ -49,10 +49,12 @@ env:
   ECS_SERVICE_WORKER: jobbpilot-dev-worker
   TASK_FAMILY_API: jobbpilot-dev-api
   TASK_FAMILY_WORKER: jobbpilot-dev-worker
+  TASK_FAMILY_MIGRATE: jobbpilot-dev-migrate
   # Container-namn matchar ECS task-def container-definitions.name.
-  # Sätts till "api" / "worker" i modules/ecs/main.tf (inte name_prefix:ade).
+  # Sätts till "api" / "worker" / "migrate" i modules/ecs/main.tf (inte name_prefix:ade).
   CONTAINER_NAME_API: api
   CONTAINER_NAME_WORKER: worker
+  CONTAINER_NAME_MIGRATE: migrate
   SMOKE_URL: https://dev.jobbpilot.se/api/ready
 
 jobs:
@@ -126,6 +128,24 @@ jobs:
           cache-from: type=gha,scope=worker
           cache-to: type=gha,mode=max,scope=worker
 
+      # Migrate-image byggs vid varje deploy så att en re-körd Migrate-task
+      # (one-shot, manuell via `aws ecs run-task`) alltid får senaste connection-
+      # string-logik och Dockerfile-state. Migrate är inte en service — workflow
+      # bara registerar ny task-def-revision; faktiskt körning görs manuellt
+      # vid TD-38 TLS-rotation, schema-mutation eller secret-rotation
+      # (se docs/runbooks/td-38-tls-apply.md).
+      - name: Build + push Migrate image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/JobbPilot.Migrate/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/jobbpilot-dev-migrate:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/jobbpilot-dev-migrate:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=migrate
+          cache-to: type=gha,mode=max,scope=migrate
+
       # ------------------------------------------------------------------
       # Update task-defs + services
       #
@@ -191,6 +211,40 @@ jobs:
           echo "::warning::Worker-deploy verifierar inte runtime-stability i 14a (PLACEHOLDER-creds). 14b sätter creds + aktiverar wait-for-service-stability."
 
       # ------------------------------------------------------------------
+      # Migrate task-def — register only (ingen service, ingen auto-run).
+      # Workflow uppdaterar revision-pekaren till ny image; faktisk run-task
+      # görs manuellt vid TLS-rotation eller schema-mutation (TD-38, TD-47).
+      # ------------------------------------------------------------------
+
+      - name: Fetch current Migrate task-def
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$TASK_FAMILY_MIGRATE" \
+            --query 'taskDefinition' \
+            --output json > task-def-migrate.json
+
+      - name: Render Migrate task-def
+        id: render-migrate
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def-migrate.json
+          container-name: ${{ env.CONTAINER_NAME_MIGRATE }}
+          image: ${{ env.ECR_REGISTRY }}/jobbpilot-dev-migrate:${{ github.sha }}
+
+      # Migrate har ingen service → amazon-ecs-deploy-task-definition fungerar inte
+      # (kräver service-name). Använd aws ecs register-task-definition direkt.
+      # Run-task triggas manuellt via docs/runbooks/td-38-tls-apply.md.
+      - name: Register Migrate task-def
+        id: register-migrate
+        run: |
+          MIGRATE_TASK_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "file://${{ steps.render-migrate.outputs.task-definition }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "migrate-task-def-arn=$MIGRATE_TASK_ARN" >> "$GITHUB_OUTPUT"
+          echo "Migrate task-def registered: $MIGRATE_TASK_ARN"
+
+      # ------------------------------------------------------------------
       # Smoke-test
       # ------------------------------------------------------------------
 
@@ -234,4 +288,5 @@ jobs:
           echo "- **SHA:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **API image:** \`$ECR_REGISTRY/jobbpilot-dev-api:${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Worker image:** \`$ECR_REGISTRY/jobbpilot-dev-worker:${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Migrate image:** \`$ECR_REGISTRY/jobbpilot-dev-migrate:${{ github.sha }}\` (register-only, run manually)" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Smoke-URL:** $SMOKE_URL" >> "$GITHUB_STEP_SUMMARY"

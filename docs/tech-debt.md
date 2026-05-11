@@ -1415,28 +1415,20 @@ suiten. Minor 2 (HstsOptions.EnsureSafeForEnvironment-unit-test) lyft som TD-49.
 
 ---
 
-## TD-45: LoginForm focus-flytt vid `state.error` (a11y-uppgradering)
+## TD-45: LoginForm focus-flytt vid `state.error` (a11y-uppgradering) — **STÄNGD 2026-05-11**
 
 **Kategori:** A11y / UX
 **Severity:** Minor
-**Fas:** 1 eller 2 (opportunistisk, bake in vid LoginForm-touch)
+**Fas:** 1
 **Källa:** design-reviewer M1, TD-43-review (2026-05-11)
-
-`LoginForm.tsx` använder `useActionState` + server-action med en medvetet
-generisk `state.error` ("Inloggningen misslyckades. Kontrollera e-post och
-lösenord.") — säkerhetspraxis så vi inte avslöjar vilket fält som var fel.
-Det gör att TD-15-pattern (path-baserad focus-flytt) inte passar in.
-
-**Problem:** Vid `state.error` flyttas inte fokus alls. `role="alert"` annonseras
-av screen reader, men keyboard-användare som scrollat förbi felmeddelandet
-förlorar visuell kontext.
-
-**Föreslagen åtgärd:** Vid `state.error` flytta fokus till antingen
-error-elementet (`<p role="alert">`) eller email-fältet. Inte path-baserat
-— bara en singelpunkt-fokus. ~10 rader `useEffect` + ref.
-
-**Beroenden:** Inga. Touch på LoginForm.tsx + LoginForm.test.tsx (lägg till
-ett test som verifierar focus-flytt vid error-render).
+**Status:** STÄNGD 2026-05-11 — Variant A implementerad: focus flyttas till email-
+fältet (inte till `<p role="alert">`) via `useRef<HTMLInputElement>` + `useEffect`
+på `state?.error`. Pattern-skillnad mot TD-15: singelpunkt-fokus (inte path-baserad)
+eftersom LoginForm:s error är medvetet generisk av säkerhetsskäl. Screen reader läser
+`role="alert"` automatiskt — focus-flytt ger keyboard-användare visuell anchor +
+direkt recovery-action. code-reviewer + design-reviewer APPROVED (0 Blocker / 0 Major).
+Vitest 5/5 grön. design-reviewer noterade ärvt touch-target-problem på `Input` h-8
+(32px) → spårat i TD-42 (inte regression i TD-45).
 
 ---
 

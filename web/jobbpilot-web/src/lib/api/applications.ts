@@ -9,7 +9,11 @@ import {
   type GetApplicationsResult,
   type PipelineGroupDto,
 } from "@/lib/dto/applications";
-import { parseResponse } from "@/lib/dto/_helpers";
+import {
+  parseResponse,
+  responseToResult,
+  type ApiResult,
+} from "@/lib/dto/_helpers";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -70,23 +74,22 @@ export async function getApplications(
 
 export async function getApplicationById(
   id: string
-): Promise<ApplicationDetailDto | null> {
+): Promise<ApiResult<ApplicationDetailDto>> {
   const sessionId = await getSessionId();
-  if (!sessionId) return null;
+  if (!sessionId) return { kind: "unauthorized" };
 
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/applications/${id}`, {
       headers: authHeaders(sessionId),
       cache: "no-store",
     });
-    if (res.status === 404) return null;
-    if (!res.ok) return null;
-    return await parseResponse(
+    return await responseToResult(
       res,
       applicationDetailDtoSchema,
-      `GET /api/v1/applications/${id}`
+      `GET /api/v1/applications/${id}`,
+      { includeNotFound: true }
     );
   } catch {
-    return null;
+    return { kind: "error" };
   }
 }

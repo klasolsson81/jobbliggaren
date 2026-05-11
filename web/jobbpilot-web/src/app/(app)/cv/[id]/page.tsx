@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getResumeById } from "@/lib/api/resumes";
+import { assertNever } from "@/lib/dto/_helpers";
 import { findMasterVersion, emptyContent } from "@/lib/resumes/content-utils";
+import { Button } from "@/components/ui/button";
 import { ResumeContentForm } from "@/components/resumes/resume-content-form";
 import { RenameResumeForm } from "@/components/resumes/rename-resume-form";
 import { DeleteResumeDialog } from "@/components/resumes/delete-resume-dialog";
@@ -16,9 +18,37 @@ export default async function CvDetailPage({ params }: Props) {
   if (!user) redirect("/logga-in");
 
   const { id } = await params;
-  const resume = await getResumeById(id);
-  if (!resume) notFound();
+  const result = await getResumeById(id);
+  switch (result.kind) {
+    case "ok":
+      break;
+    case "unauthorized":
+      redirect("/logga-in");
+    case "notFound":
+      notFound();
+    case "forbidden":
+    case "error":
+      return (
+        <div className="flex flex-col gap-4">
+          <h1 className="text-h1 font-medium text-text-primary">
+            Kunde inte ladda CV
+          </h1>
+          <p className="text-body text-text-secondary">
+            Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka
+            till CV-listan.
+          </p>
+          <div>
+            <Button asChild variant="outline">
+              <Link href="/cv">Tillbaka till CV</Link>
+            </Button>
+          </div>
+        </div>
+      );
+    default:
+      return assertNever(result);
+  }
 
+  const resume = result.data;
   const updatedAt = new Date(resume.updatedAt).toLocaleDateString("sv-SE");
   const master = findMasterVersion(resume);
   const initialContent = master?.content ?? emptyContent();

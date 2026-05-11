@@ -99,3 +99,61 @@ export function pagedResultWithTotalPages<T extends z.ZodType>(item: T) {
     totalPages: z.number().int().nonnegative(),
   });
 }
+
+/**
+ * Generisk discriminated union för frontend API-resultat. Se ADR 0030.
+ *
+ * Varje variant motsvarar en distinkt UI-state och en distinkt user-action.
+ * `notFound` är endast applicabel på detail-endpoints (id-baserade GETs).
+ */
+export type ApiResult<T> =
+  | { kind: "ok"; data: T }
+  | { kind: "unauthorized" }
+  | { kind: "forbidden" }
+  | { kind: "notFound" }
+  | { kind: "error" };
+
+/**
+ * Mappar `Response` + status-koder + DtoParseError till `ApiResult<T>`.
+ *
+ * - 200/2xx + valid shape → `{ kind: "ok", data }`
+ * - 401 → `{ kind: "unauthorized" }`
+ * - 403 → `{ kind: "forbidden" }`
+ * - 404 + `includeNotFound: true` → `{ kind: "notFound" }`
+ *   (list-endpoints ska låta 404 bli `error` — `notFound` saknar semantik där)
+ * - Övriga !res.ok / network / JSON-fel / shape-mismatch → `{ kind: "error" }`
+ *
+ * Strukturerad fel-logging görs av underliggande `parseResponse` —
+ * `responseToResult` är endast outcome-mapping-skikt.
+ */
+export async function responseToResult<T>(
+  res: Response,
+  schema: z.ZodType<T>,
+  context: string,
+  options?: { includeNotFound?: boolean }
+): Promise<ApiResult<T>> {
+  if (res.status === 401) return { kind: "unauthorized" };
+  if (res.status === 403) return { kind: "forbidden" };
+  if (res.status === 404 && options?.includeNotFound) {
+    return { kind: "notFound" };
+  }
+  if (!res.ok) return { kind: "error" };
+
+  try {
+    const data = await parseResponse(res, schema, context);
+    return { kind: "ok", data };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Exhaustiveness-helper för switch-statements över ApiResult-kinds.
+ * Glömd `case` blir TypeScript-fel vid `assertNever(result)` i `default`,
+ * inte runtime-skyltning. Se ADR 0030 §4.
+ */
+export function assertNever(value: never): never {
+  throw new Error(
+    `Unreachable: unhandled discriminator value ${JSON.stringify(value)}`
+  );
+}

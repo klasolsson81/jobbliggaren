@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
+import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationStatusBadge } from "@/components/applications/application-status-badge";
+import { Button } from "@/components/ui/button";
 import { TransitionForm } from "@/components/applications/transition-form";
 import { AddNoteForm } from "@/components/applications/add-note-form";
 import { AddFollowUpForm } from "@/components/applications/add-follow-up-form";
@@ -17,9 +19,37 @@ export default async function AnsokningDetailPage({ params }: Props) {
   if (!user) redirect("/logga-in");
 
   const { id } = await params;
-  const application = await getApplicationById(id);
-  if (!application) notFound();
+  const result = await getApplicationById(id);
+  switch (result.kind) {
+    case "ok":
+      break;
+    case "unauthorized":
+      redirect("/logga-in");
+    case "notFound":
+      notFound();
+    case "forbidden":
+    case "error":
+      return (
+        <div className="flex flex-col gap-4">
+          <h1 className="text-h1 font-medium text-text-primary">
+            Kunde inte ladda ansökan
+          </h1>
+          <p className="text-body text-text-secondary">
+            Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka
+            till ansökningslistan.
+          </p>
+          <div>
+            <Button asChild variant="outline">
+              <Link href="/ansokningar">Tillbaka till ansökningar</Link>
+            </Button>
+          </div>
+        </div>
+      );
+    default:
+      return assertNever(result);
+  }
 
+  const application = result.data;
   const createdAt = new Date(application.createdAt).toLocaleDateString("sv-SE");
   const updatedAt = new Date(application.updatedAt).toLocaleDateString("sv-SE");
 

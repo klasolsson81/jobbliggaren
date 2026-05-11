@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getMyProfile } from "@/lib/api/me";
+import { assertNever, type ApiResult } from "@/lib/dto/_helpers";
+import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import { MeProfileForm } from "@/components/me/me-profile-form";
 import {
   Card,
@@ -13,7 +15,11 @@ export default async function MigPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const profile = await getMyProfile();
+  // unauthorized hanteras tidigt så `renderProfile` får en smalare typ;
+  // detail-pages använder switch-inom-pattern eftersom de saknar
+  // partial-render-yta. Båda är legitima konventioner per ADR 0030.
+  const profileResult = await getMyProfile();
+  if (profileResult.kind === "unauthorized") redirect("/logga-in");
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,7 +46,7 @@ export default async function MigPage() {
               <dd className="text-body text-text-primary">
                 {user.roles && user.roles.length > 0
                   ? user.roles.join(", ")
-                  : "Inga roller tilldelade"}
+                  : "Inga roller"}
               </dd>
             </div>
           </dl>
@@ -51,16 +57,36 @@ export default async function MigPage() {
         <CardHeader>
           <CardTitle>Profil</CardTitle>
         </CardHeader>
-        <CardContent>
-          {profile ? (
-            <MeProfileForm initialProfile={profile} />
-          ) : (
-            <p className="text-body text-text-secondary" role="alert">
-              Kunde inte hämta din profil. Försök ladda om sidan.
-            </p>
-          )}
-        </CardContent>
+        <CardContent>{renderProfile(profileResult)}</CardContent>
       </Card>
     </div>
   );
+}
+
+function renderProfile(
+  result: Exclude<ApiResult<JobSeekerProfileDto>, { kind: "unauthorized" }>
+) {
+  switch (result.kind) {
+    case "ok":
+      return <MeProfileForm initialProfile={result.data} />;
+    case "notFound":
+      // Profil-rad finns inte ännu (nytt konto innan onboarding) — legitimt
+      // tillstånd, inte fel. Egen copy enligt copy-skill empty-state-pattern.
+      return (
+        <p className="text-body text-text-secondary">
+          Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att
+          komma igång.
+        </p>
+      );
+    case "forbidden":
+    case "error":
+      return (
+        <p className="text-body text-text-secondary">
+          Profilen kunde inte hämtas just nu. Försök ladda om sidan om en
+          stund.
+        </p>
+      );
+    default:
+      return assertNever(result);
+  }
 }

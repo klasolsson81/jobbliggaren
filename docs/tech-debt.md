@@ -1651,33 +1651,75 @@ eller om en admin-session kompromitteras bör en separat `AdminLoosePolicy`
 
 ---
 
-## TD-53: Frontend API-resultatformat — kind-union vs `T | null` standardisering
-**Kategori:** Code consistency / Frontend
-**Severity:** Minor
-**Källa:** code-reviewer, 2026-05-11 (Fas 1-stängning admin-audit)
+## TD-53: ~~Frontend API-resultatformat — kind-union vs `T | null` standardisering~~ — ERSATT 2026-05-11 av TD-53a + TD-53b
+**Status:** Ersatt 2026-05-11 — scope-split per CTO-triage (CLAUDE.md §9.6 kriterium 3).
 
-Nya `web/jobbpilot-web/src/lib/api/admin.ts` använder diskriminerat union:
+Original TD-53 (scope >4h) split:
+- **TD-53a** — Helper + ADR 0030 + 3 endpoints (`getMyProfile`, `getApplicationById`, `getResumeById`) + konsumenter
+- **TD-53b** — 3 list-endpoints (`getPipeline`, `getApplications`, `getResumes`) + konsumenter
+
+CTO-beslut 2026-05-11: Variant A (full kind-union) över Variant C (hybrid).
+Motivering: CCP (Martin 2017 kap. 14), OCP (kap. 8), Anti-Corruption Layer
+för outcome-semantik (Evans 2003 kap. 14), primitive-obsession på `null`
+som komprimerar 4 betydelser. `getServerSession()` undantaget — `null` är
+där legitim domän-semantik ("ingen session"), inte fel-komprimering.
+
+---
+
+## TD-53a: Frontend kind-union — Helper + ADR 0030 + detail/profile-endpoints
+**Kategori:** Code consistency / Frontend / Architecture
+**Severity:** Minor (arkitektur-städ, ej bug-trycker)
+**Fas:** 1
+**Källa:** TD-53 split per senior-cto-advisor-triage 2026-05-11
+
+Etablerar `responseToResult<T>`-helper i `lib/dto/_helpers.ts` som mappar
+HTTP-status + DtoParseError till diskriminerat union:
+
 ```ts
-type AuditLogResponse =
-  | { kind: "ok"; data: AuditLogPagedResult }
-  | { kind: "forbidden" }
-  | { kind: "unauthorized" }
-  | { kind: "error" };
+type ApiResult<T> =
+  | { kind: "ok"; data: T }
+  | { kind: "unauthorized" }   // 401 — ingen session
+  | { kind: "forbidden" }      // 403 — Admin krävs
+  | { kind: "notFound" }       // 404 — endast detail-endpoints
+  | { kind: "error" };         // network / shape-fel / 500
 ```
 
-Befintliga `lib/api/applications.ts` och `lib/api/me.ts` använder `T | null`
-som blandar auth-fel + backend-nere + tomt-resultat. Detta gör att UI:t inte
-kan skilja mellan "Du saknar behörighet" och "Backend nere" — vilket är två
-helt olika user-actions.
+Refactor av 3 endpoints i samma batch:
+- `getMyProfile()` — 3 lägen: ok / unauthorized / error
+- `getApplicationById(id)` — 4 lägen: ok / unauthorized / notFound / error
+- `getResumeById(id)` — 4 lägen: ok / unauthorized / notFound / error
 
-**Föreslagen åtgärd:**
-1. Beslut: standardisera på kind-union (rekommenderat) eller `T | null`
-2. Om kind-union: refactor `applications.ts` + `me.ts` + alla konsumenter
-3. Eventuellt: skapa ADR som dokumenterar pattern-valet
-4. Eventuell: invokera senior-cto-advisor för formell pattern-validering
+Konsumenter uppdateras: `app/(app)/mig/page.tsx`,
+`app/(app)/ansokningar/[id]/page.tsx`, `app/(app)/cv/[id]/page.tsx` —
+`switch (result.kind)` med exhaustive UI-states.
 
-**Scope:** > 4h CC-tid (kriterium 3 i 4-timmarsregeln). Refactor över flera
-api-moduler + alla konsumenter + tests.
+ADR 0030 dokumenterar pattern, helper-API, `getServerSession`-undantag,
+exhaustiveness-rationale via `never`-typ.
+
+**Scope:** ~4h CC-tid (inom 4h-regeln). TD-53b separat batch.
+
+**Trigger:** Direkt fortsättning på TD-53-split.
+
+---
+
+## TD-53b: Frontend kind-union — list-endpoints
+**Kategori:** Code consistency / Frontend
+**Severity:** Minor
+**Fas:** 1
+**Källa:** TD-53 split per senior-cto-advisor-triage 2026-05-11
+
+Färdigställer kind-union-konsistens på list-endpoints:
+- `getPipeline()` — refactor från `PipelineGroupDto[]` (tom-fallback) till `ApiResult<PipelineGroupDto[]>`
+- `getApplications(page, pageSize, status?)` — refactor från `T | null`
+- `getResumes(page, pageSize)` — refactor från `T | null`
+
+Konsumenter: `app/(app)/ansokningar/page.tsx`, `app/(app)/cv/page.tsx`.
+
+**Scope:** ~4-6h CC-tid. Lyfts efter TD-53a är pushed.
+
+**Beroenden:** TD-53a (helper + ADR 0030) måste vara klart först.
+
+**Trigger:** Efter TD-53a-stängning.
 
 ---
 

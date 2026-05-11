@@ -7,26 +7,25 @@ import {
   jobSeekerProfileSchema,
   type JobSeekerProfileDto,
 } from "@/lib/dto/me";
-import { parseResponse } from "@/lib/dto/_helpers";
+import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 
 export const getMyProfile = cache(
-  async (): Promise<JobSeekerProfileDto | null> => {
+  async (): Promise<ApiResult<JobSeekerProfileDto>> => {
     const sessionId = await getSessionId();
-    if (!sessionId) return null;
+    if (!sessionId) return { kind: "unauthorized" };
 
     try {
       const res = await fetch(`${env.BACKEND_URL}/api/v1/me/profile`, {
         headers: { Authorization: `Bearer ${sessionId}` },
         cache: "no-store",
       });
-      if (!res.ok) return null;
-      return await parseResponse(
+      return await responseToResult(
         res,
         jobSeekerProfileSchema,
         "GET /api/v1/me/profile"
       );
     } catch {
-      return null;
+      return { kind: "error" };
     }
   }
 );

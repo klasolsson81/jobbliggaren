@@ -7,7 +7,11 @@ import {
   type GetResumesResult,
   type ResumeDetailDto,
 } from "@/lib/dto/resumes";
-import { parseResponse } from "@/lib/dto/_helpers";
+import {
+  parseResponse,
+  responseToResult,
+  type ApiResult,
+} from "@/lib/dto/_helpers";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -46,23 +50,22 @@ export async function getResumes(
 
 export async function getResumeById(
   id: string
-): Promise<ResumeDetailDto | null> {
+): Promise<ApiResult<ResumeDetailDto>> {
   const sessionId = await getSessionId();
-  if (!sessionId) return null;
+  if (!sessionId) return { kind: "unauthorized" };
 
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes/${id}`, {
       headers: authHeaders(sessionId),
       cache: "no-store",
     });
-    if (res.status === 404) return null;
-    if (!res.ok) return null;
-    return await parseResponse(
+    return await responseToResult(
       res,
       resumeDetailDtoSchema,
-      `GET /api/v1/resumes/${id}`
+      `GET /api/v1/resumes/${id}`,
+      { includeNotFound: true }
     );
   } catch {
-    return null;
+    return { kind: "error" };
   }
 }

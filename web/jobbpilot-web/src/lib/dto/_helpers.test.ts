@@ -2,9 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 import {
   DtoParseError,
+  assertNever,
   pagedResult,
   pagedResultWithTotalPages,
   parseResponse,
+  responseToResult,
+  type ApiResult,
 } from "./_helpers";
 
 const sampleSchema = z.object({
@@ -181,5 +184,119 @@ describe("pagedResultWithTotalPages", () => {
       pageSize: 20,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("responseToResult", () => {
+  const schema = z.object({ id: z.string() });
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  function mkResponse(
+    body: unknown,
+    status = 200,
+    bodyType: "json" | "raw" = "json"
+  ): Response {
+    const init = { status, headers: { "Content-Type": "application/json" } };
+    if (bodyType === "raw") {
+      return new Response(body as string, init);
+    }
+    return new Response(JSON.stringify(body), init);
+  }
+
+  it("returns { kind: 'ok', data } on 200 + valid shape", async () => {
+    const res = mkResponse({ id: "abc" });
+    const result = await responseToResult(res, schema, "test");
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") expect(result.data).toEqual({ id: "abc" });
+  });
+
+  it("returns { kind: 'unauthorized' } on 401", async () => {
+    const res = mkResponse(null, 401);
+    const result = await responseToResult(res, schema, "test");
+    expect(result).toEqual({ kind: "unauthorized" });
+  });
+
+  it("returns { kind: 'forbidden' } on 403", async () => {
+    const res = mkResponse(null, 403);
+    const result = await responseToResult(res, schema, "test");
+    expect(result).toEqual({ kind: "forbidden" });
+  });
+
+  it("returns { kind: 'notFound' } on 404 when includeNotFound: true", async () => {
+    const res = mkResponse(null, 404);
+    const result = await responseToResult(res, schema, "test", {
+      includeNotFound: true,
+    });
+    expect(result).toEqual({ kind: "notFound" });
+  });
+
+  it("returns { kind: 'error' } on 404 when includeNotFound omitted", async () => {
+    const res = mkResponse(null, 404);
+    const result = await responseToResult(res, schema, "test");
+    expect(result).toEqual({ kind: "error" });
+  });
+
+  it("returns { kind: 'error' } on 500", async () => {
+    const res = mkResponse(null, 500);
+    const result = await responseToResult(res, schema, "test");
+    expect(result).toEqual({ kind: "error" });
+  });
+
+  it("returns { kind: 'error' } on shape mismatch", async () => {
+    const res = mkResponse({ id: 123 });
+    const result = await responseToResult(res, schema, "test");
+    expect(result).toEqual({ kind: "error" });
+  });
+
+  it("returns { kind: 'error' } on invalid JSON body", async () => {
+    const res = mkResponse("not-json", 200, "raw");
+    const result = await responseToResult(res, schema, "test");
+    expect(result).toEqual({ kind: "error" });
+  });
+
+  it("prioritizes 401 over notFound option", async () => {
+    const res = mkResponse(null, 401);
+    const result = await responseToResult(res, schema, "test", {
+      includeNotFound: true,
+    });
+    expect(result).toEqual({ kind: "unauthorized" });
+  });
+});
+
+describe("assertNever", () => {
+  it("throws when called (runtime safety net)", () => {
+    expect(() => assertNever("unexpected" as never)).toThrow();
+  });
+
+  it("supports exhaustive switch over ApiResult kinds", () => {
+    function render<T>(result: ApiResult<T>): string {
+      switch (result.kind) {
+        case "ok":
+          return "ok";
+        case "unauthorized":
+          return "unauthorized";
+        case "forbidden":
+          return "forbidden";
+        case "notFound":
+          return "notFound";
+        case "error":
+          return "error";
+        default:
+          return assertNever(result);
+      }
+    }
+    expect(render<string>({ kind: "ok", data: "x" })).toBe("ok");
+    expect(render<string>({ kind: "unauthorized" })).toBe("unauthorized");
+    expect(render<string>({ kind: "forbidden" })).toBe("forbidden");
+    expect(render<string>({ kind: "notFound" })).toBe("notFound");
+    expect(render<string>({ kind: "error" })).toBe("error");
   });
 });

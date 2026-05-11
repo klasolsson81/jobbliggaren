@@ -1511,3 +1511,89 @@ knowledge piece), SoC (Dijkstra 1974), KISS, konsistens (Fowler 2018,
 **Tester:** ingår i Batch D-svit.
 
 ---
+
+## TD-6: Logout-backend-call utan fel-loggning ✓ STÄNGD 2026-05-11
+**Kategori:** Observability
+**Severity:** Minor
+**Fas:** 1
+**Källa:** security-auditor, 2026-05-07 (Turn 2)
+**Status:** **STÄNGD 2026-05-11 (Batch E)** — strukturerad console.error med `!res.ok`-täckning.
+
+`logoutAction` anropar backend `/auth/logout`. Vid network/500-fel raderades
+cookien lokalt och användaren redirectades — men felet swallow:ades tyst.
+Backend-session kvarstod tills Redis-TTL (14d).
+
+**Leverans (Batch E):** `web/jobbpilot-web/src/lib/auth/actions.ts` — strukturerad
+`console.error("logout.backend_call_failed", { event, status?, cause? })` på
+både network-exception (`catch`) och HTTP-fail (`!res.ok`). PII (session-id,
+email, IP) loggas inte — bara event + status + cause.message. Best-effort
+semantik bevarad (cookien tas alltid bort lokalt).
+
+**CTO-beslut (senior-cto-advisor 2026-05-11):** strukturerad console.error +
+`!res.ok`-täckning. Motivering: YAGNI (frontend-logger-infrastruktur saknas
+för enbart 1 call-site), Twelve-Factor §XI (logs som event-streams), Ford
+2017 kap. 6 "Operability" (halv täckning är observability-teater). Variant
+"retry-mekanism" avvisad — logout idempotent på klientsidan, Redis-TTL tar
+hand om backend.
+
+**Reviews:**
+- code-reviewer: Approved. Strukturerad event/context-pattern, ingen PII.
+- security-auditor: Approved. PII-fri logging verifierad.
+
+**Tester:** ingår i Batch E-svit. Inga regressioner i befintliga tester.
+
+---
+
+## TD-28: Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me ✓ STÄNGD 2026-05-11
+**Kategori:** UX / Säkerhet (defense-in-depth)
+**Severity:** Minor
+**Fas:** 1 (frontend + backend-utökning)
+**Källa:** TD-21 ursprungs-Major-2 punkt 3+4 (defererad från STEG 11)
+**Status:** **STÄNGD 2026-05-11 (Batch E)** — fullstack leverans per Klas-Alt1-godkännande.
+
+Backend-rate-limit (1 req/60s per UserId, TD-21) var hard ceiling, men UX:en
+på frontend saknade defense-in-depth: typed-confirmation + re-auth innan
+DELETE /me. Impulsivt klick kunde radera konto utan friktion.
+
+**Leverans (Batch E) — Fullstack:**
+
+**Backend:**
+1. **`src/JobbPilot.Application/Auth/Queries/VerifyCredentials/`** — Ny `VerifyCredentialsQuery`, handler + validator. `IQuery<Result>` med `IAuthenticatedRequest`. Hämtar email via `IUserAccountService.GetEmailAsync(userId)` (SessionAuthenticationHandler sätter inte email-claim). Validerar credentials via befintlig `ValidateCredentialsAsync(email, password)`. Defense-in-depth userId-match. Alla failure-paths returnerar `Auth.InvalidCredentials` (oracle-skydd).
+2. **`POST /api/v1/auth/verify`** i AuthEndpoints — RequireAuthorization + RequireRateLimiting(AuthWritePolicy 20/min/IP). Returnerar 204 vid success, 401 vid fail. INGEN session-mutation.
+3. **5 unit-tester** (VerifyCredentialsQueryHandlerTests) — happy path, wrong password, userId-mismatch, no userId, no email.
+4. **4 integration-tester** (VerifyCredentialsTests) — 204 valid, 401 wrong password, 401 utan auth, säkerhetsinvariant "verify ändrar inte session".
+
+**Frontend:**
+1. **`deleteMyAccountSchema`** i me-schemas.ts — Zod-validering av confirmEmail + password.
+2. **`deleteAccountAction(input, currentEmail)`** i me.ts — server action: validera schema → server-trusted email-match (case-insensitive, trim) → POST /auth/verify (re-auth) → DELETE /me → deleteSessionCookie + redirect till /logga-in.
+3. **`<DeleteAccountDialog>`** client component — Radix Dialog + RHF, typed-confirmation = användarens egen e-postadress (GitHub/Stripe-mönster), submit disabled tills email-match + password ifyllt. `aria-invalid` + `role="alert"` + `aria-describedby` för a11y. `autocomplete="off"` på email-fält förhindrar auto-fill-bypass.
+4. **`<DeleteAccountSection>`** server component — "Farligt område"-rubrik under separator, beskrivande text, trigger-knapp (destructive variant).
+5. **Integration i `mig/page.tsx`** — DeleteAccountSection sist på sidan.
+6. **8 Vitest-tester** för DeleteAccountDialog — render, disable-states, email-case-insensitivity, mismatch-disable, action-anrop, server-error-display, PII-safety (verifierar att password/email inte läcker till console).
+
+**CTO-beslut (senior-cto-advisor 2026-05-11 + Klas-Alt1):**
+- **Re-auth via ny endpoint** (variant b) över återanvänd /auth/login eller lösenord-i-DELETE-body. Motivering: SRP (Martin 2017 kap. 7), ISP (kap. 10), command-cohesion (Evans 2003).
+- **Typed-confirmation = email** (variant b) över magiskt ord "RADERA". Motivering: GitHub/Stripe-pattern, friktion = avsedd.
+- **"Farligt område"-section** (variant b) över egen Card sist eller separat sida. Motivering: signalerar gravitet utan att gömma funktionen.
+- **Modal via Radix Dialog** över separat sida. Motivering: focus-trap + escape-handling out-of-the-box (WCAG 2.1.2 + 2.4.3).
+- **Vitest in-scope, Playwright E2E lyft som TD-65.** Motivering: E2E-auth-fixtures behöver verifieras separat.
+
+Klas valde Alt 1 (utöka Batch E till fullstack) över Alt 2 (split-batch).
+
+**Reviews:**
+- code-reviewer: Approved. 0 Blocker / 0 Major / 5 Minor (dokumentations-natur, 2 fixade in-block). "Säkerhetsinvariant `POST_verify_does_not_create_or_change_session` exemplarisk." "PII-safety-test exakt rätt nivå."
+- security-auditor: Approved. 0 Blocker / 0 Major / 0 Minor. "GDPR Art. 17-implementation defense-in-depth korrekt, PII-hygien vattentät på båda lager."
+
+**TD-65 lyft:** Playwright E2E för delete-account-flow. Trigger: fixture-status-verifiering innan Fas 1-stängning.
+
+**Tester:** Backend +9 (5 unit + 4 integration). Frontend Vitest 226 → 234 (+8). Architecture 32/32 oförändrat. tsc grön. dotnet format ren.
+
+**Säkerhetskonsekvens:** Användare kan inte längre radera konto med impulsivt klick — kräver:
+1. Lokal email-match-validation (UX-friktion)
+2. Server-trusted email-jämförelse (auktoritativ)
+3. Re-auth via POST /auth/verify (lösenordsverifiering)
+4. Endast efter steg 3 → DELETE /me + cookie-cleanup + redirect
+
+Kombo-attack (verify → delete) skyddad av två separata rate-limits (AuthWrite 20/min/IP + AccountDeletion 1/60s/UserId).
+
+---

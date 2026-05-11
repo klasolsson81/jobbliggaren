@@ -19,9 +19,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
-| TD-6 | Logout-backend-call utan fel-loggning | Minor | 1 | Observability |
 | TD-12 | Saknad integration-test för cross-user isolation | Minor | 1 | Säkerhet/Test |
-| TD-28 | Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me | Minor | 1 | UX/Säkerhet |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -41,6 +39,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-18 | Stale-detektering: utökning till intervju-states | Minor | Trigger | UX/Domain |
 | TD-20 | `AuditPartitionMaintainer.DropPartitionsOlderThanAsync` defensiv refactor | Minor | Opportunistiskt | Code quality |
 | TD-39 | Error-summary-mönster för stora formulär | Minor | Trigger | A11y/UX |
+| TD-65 | Playwright E2E för delete-account-flow | Minor | 1 (innan fas-stängning) | Test/E2E |
 
 ---
 
@@ -150,22 +149,6 @@ för cost-cap-design när AI-features designas.
 
 ## Minor — Fas 1
 
-## TD-6: Logout-backend-call utan fel-loggning
-**Kategori:** Observability
-**Severity:** Minor
-**Källa:** security-auditor, 2026-05-07 (Turn 2)
-
-`logoutAction` anropar backend `/auth/logout`. Om anropet misslyckas
-(network, 500) raderas cookien lokalt och användaren redirectas —
-men backend-session blir kvar i Redis tills TTL.
-
-**Föreslagen åtgärd:** Lägg till strukturerad loggning vid logout-fel.
-Övervägning för Fas 1: ska klienten retry:a, eller är "best-effort
-logout"-semantik acceptabel? Beslut beror på threat-model.
-
-
----
-
 ## TD-12: Saknad integration-test för cross-user isolation
 
 **Kategori:** Säkerhet / Test  
@@ -184,43 +167,6 @@ det inte av testerna förrän manuellt verifierat.
 **Föreslagen åtgärd:** Lägg till ett integration-test i `ApplicationsTests.cs`:
 två separata användare registreras, user A skapar en ansökan, user B försöker
 `GET /{id}` och `POST /{id}/transition` — förväntat utfall: 404 resp. 404.
-
-
----
-
-## TD-28: Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me
-
-**Kategori:** UX / Säkerhet (defense-in-depth)
-**Fas:** 1 (frontend)
-**Prioritet:** Medium
-**Källa:** TD-21 ursprungs-Major-2 punkt 3+4 (defererad från STEG 11)
-
-Backend-rate-limit (1 req/60s per user) är hard ceiling, men UX:en på frontend
-ska göra ett misstag — eller en kompromettera-session-attacker — verkligen
-medvetet. Två kompletterande UX-skydd:
-
-1. **Typed-confirmation:** modal som kräver att användaren skriver ordet
-   "RADERA" (eller email-adress) innan submit-knappen aktiveras. Civic-
-   utility-ton enligt DESIGN.md — ingen rosa text, ingen "Hoppsan!"
-2. **Re-auth-prompt:** lösenordsfält som måste fyllas i innan DELETE /me-
-   anropet skickas. Backend kan validera via `IUserAccountService.ValidateCredentialsAsync`.
-   Skyddar mot kompromettera-session-radera-konto-attack (angripare med
-   stulen cookie kan inte radera utan lösenord).
-
-**Risk i Fas 1 (utan TD-28):** låg — backend-rate-limit räcker som hard
-floor. Men UX:en idag är "klicka, ångra dig, för sent" → impulsivt klick
-kan radera konto.
-
-**Föreslagen åtgärd:**
-1. Komponent `<DeleteAccountModal>` i `src/components/me/` med RHF + Zod
-   typed-confirmation
-2. Server Action `deleteAccountAction` i `src/lib/actions/me.ts` som tar
-   email + lösenord, validerar credentials via `/auth/login`-anrop först,
-   sen DELETE /me
-3. Tester: Vitest + Playwright E2E för knapp-aktivering + 429-respons-mappning
-
-**Beroenden:** Frontend STEG-7b mönster (Server Actions + Zod). Inga
-backend-ändringar krävs.
 
 
 ---
@@ -832,6 +778,42 @@ regression).
 
 ---
 
+## TD-65: Playwright E2E för delete-account-flow
+**Kategori:** Test / E2E
+**Severity:** Minor
+**Fas:** 1 (innan fas-stängning) eller Fas 2 om E2E-auth-fixture-infrastruktur saknas
+**Källa:** Batch E split per senior-cto-advisor-triage 2026-05-11 (TD-28 leverans)
+
+Batch E levererade TD-28 med Vitest-coverage för `DeleteAccountDialog`-komponenten
+(8 tester) och .NET integration-tester för `POST /api/v1/auth/verify` (4 tester).
+Full E2E-flow (login → /mig → modal → typed-confirm → password → success →
+redirect till /logga-in) kräver Playwright med authed-fixture.
+
+**Risk i Fas 1:** låg — komponenttester + backend-integration-tester täcker
+viktigaste invarianter. E2E-värde är regression-skydd vid framtida refactor
+över hela kedjan.
+
+**Föreslagen åtgärd:**
+
+1. Verifiera Playwright auth-fixture-status i `web/jobbpilot-web/tests/e2e/`.
+   Om auth-fixture saknas → bygg den först.
+2. Skriv E2E-spec `delete-account.spec.ts`:
+   - Register + login som testanvändare
+   - Navigera till /mig
+   - Öppna delete-modal
+   - Verifiera typed-confirmation-disabling med fel email
+   - Skriv rätt email + lösenord
+   - Verifiera redirect till /logga-in efter delete
+   - Verifiera att gamla session-cookien inte längre fungerar
+3. Säkerhetsinvariant: testet får inte logga lösenord eller email på error-path.
+
+**Scope:** ~1-2h CC-tid när auth-fixtures finns. Om fixtures saknas → större
+scope (egen TD-split).
+
+**Trigger:** innan Fas 1-stängning eller naturlig touch på me-flow.
+
+---
+
 ## TD-39: Error-summary-mönster för stora formulär (Resume + framtida)
 
 **Kategori:** Accessibility / UX
@@ -901,6 +883,8 @@ ADR-cross-references och granskningsbevis.
 | TD-3 | Tom-state-copy "Inga roller tilldelade" saknar next-action | 2026-05-11 | Batch D |
 | TD-4 | userId visas i UI utan tydligt användarbehov | 2026-05-11 | Batch D |
 | TD-5 | Redundant getServerSession-anrop på /mig | 2026-05-11 | Batch D |
+| TD-6 | Logout-backend-call utan fel-loggning | 2026-05-11 | Batch E |
+| TD-28 | Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me | 2026-05-11 | Batch E (fullstack) |
 
 ---
 

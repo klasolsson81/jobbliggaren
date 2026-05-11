@@ -37,7 +37,9 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0023 | Worker-pipeline-aktivering + Hangfire-infrastruktur | Accepted | 2026-05-08 | [0023-worker-pipeline-hangfire.md](./0023-worker-pipeline-hangfire.md) |
 | 0024 | Audit-retention via PostgreSQL native partitioning + GDPR Art. 17-cascade-orchestration | Accepted | 2026-05-08 | [0024-audit-retention-and-art17-cascade.md](./0024-audit-retention-and-art17-cascade.md) |
 | 0025 | ECS task egress accepterad som 0.0.0.0/0 under Fas 0 | Accepted | 2026-05-09 | [0025-ecs-egress-acceptance-fas0.md](./0025-ecs-egress-acceptance-fas0.md) |
-| 0026 | ALB HTTP-only acceptance under Fas 0 (tidsfönster 30d + 5 triggers) | Accepted | 2026-05-09 | [0026-alb-http-only-fas0.md](./0026-alb-http-only-fas0.md) |
+| 0026 | ALB HTTP-only acceptance under Fas 0 (tidsfönster 30d + 5 triggers) | Superseded by 0027 | 2026-05-09 | [0026-alb-http-only-fas0.md](./0026-alb-http-only-fas0.md) |
+| 0027 | HTTPS aktiverat på dev-ALB; ADR 0026 supersedas | Accepted | 2026-05-10 | [0027-https-aktiverat-supersession.md](./0027-https-aktiverat-supersession.md) |
+| 0028 | Admin authorization via marker-interface + HTTP-policy defense-in-depth | Accepted | 2026-05-11 | [0028-admin-authorization-marker-interface-defense-in-depth.md](./0028-admin-authorization-marker-interface-defense-in-depth.md) |
 
 ## Planerade ADRs
 

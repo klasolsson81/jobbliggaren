@@ -32,6 +32,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0017 | Frontend Authentication Pattern (Custom, Cookie-Based) | Accepted | 2026-05-06 | [0017-frontend-auth-pattern.md](./0017-frontend-auth-pattern.md) |
 | 0018 | Cookie and CSRF Strategy for Frontend Auth | Accepted | 2026-05-06 | [0018-cookie-and-csrf-strategy.md](./0018-cookie-and-csrf-strategy.md) |
 | 0019 | Solo direct-push till main | Accepted | 2026-05-07 | [0019-solo-direct-push-to-main.md](./0019-solo-direct-push-to-main.md) |
+| 0020 | Frontend-DTO-validering vid HTTP-gränsen med Zod | Accepted | 2026-05-11 | [0020-frontend-dto-validation-with-zod.md](./0020-frontend-dto-validation-with-zod.md) |
 | 0021 | Master-version-strategi för Resume-aggregat (Fas 1) | Accepted | 2026-05-08 | [0021-resume-master-mutation-strategy.md](./0021-resume-master-mutation-strategy.md) |
 | 0022 | Audit log-strategi: pipeline-behavior + marker-interface | Accepted | 2026-05-08 | [0022-audit-log-pipeline-behavior.md](./0022-audit-log-pipeline-behavior.md) |
 | 0023 | Worker-pipeline-aktivering + Hangfire-infrastruktur | Accepted | 2026-05-08 | [0023-worker-pipeline-hangfire.md](./0023-worker-pipeline-hangfire.md) |

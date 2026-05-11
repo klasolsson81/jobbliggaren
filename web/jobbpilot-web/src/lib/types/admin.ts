@@ -1,30 +1,7 @@
-export interface AuditLogEntryDto {
-  id: string;
-  occurredAt: string;
-  correlationId: string;
-  userId: string | null;
-  impersonatedBy: string | null;
-  eventType: string;
-  aggregateType: string;
-  aggregateId: string;
-  ipAddress: string | null;
-  userAgent: string | null;
-}
-
-export interface AuditLogPagedResult {
-  items: AuditLogEntryDto[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-export interface AuditLogFilter {
-  page?: number;
-  pageSize?: number;
-  from?: string;
-  to?: string;
-  userId?: string;
-  eventType?: string;
-  aggregateType?: string;
-}
+// Re-export från lib/dto/admin.ts. Zod-schemat är single source of truth
+// per ADR 0020. Nya konsumenter bör importera från `@/lib/dto/admin`.
+export type {
+  AuditLogEntryDto,
+  AuditLogPagedResult,
+  AuditLogFilter,
+} from "@/lib/dto/admin";

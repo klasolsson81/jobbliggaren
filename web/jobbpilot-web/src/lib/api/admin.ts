@@ -2,7 +2,12 @@ import "server-only";
 
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
-import type { AuditLogFilter, AuditLogPagedResult } from "@/lib/types/admin";
+import {
+  auditLogPagedResultSchema,
+  type AuditLogFilter,
+  type AuditLogPagedResult,
+} from "@/lib/dto/admin";
+import { parseResponse } from "@/lib/dto/_helpers";
 
 export type AuditLogResponse =
   | { kind: "ok"; data: AuditLogPagedResult }
@@ -40,7 +45,11 @@ export async function getAuditLog(
     if (res.status === 403) return { kind: "forbidden" };
     if (!res.ok) return { kind: "error" };
 
-    const data = (await res.json()) as AuditLogPagedResult;
+    const data = await parseResponse(
+      res,
+      auditLogPagedResultSchema,
+      "GET /api/v1/admin/audit-log"
+    );
     return { kind: "ok", data };
   } catch {
     return { kind: "error" };

@@ -10,6 +10,8 @@ import {
   addFollowUpSchema,
   addNoteSchema,
 } from "./application-schemas";
+import { createdResourceSchema } from "@/lib/dto/common";
+import { parseResponse } from "@/lib/dto/_helpers";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -48,7 +50,11 @@ export async function createApplicationAction(
       return { success: false, error: body?.detail ?? "Kunde inte spara ansökan." };
     }
 
-    const data = (await res.json()) as { id: string };
+    const data = await parseResponse(
+      res,
+      createdResourceSchema,
+      "POST /api/v1/applications"
+    );
     applicationId = data.id;
   } catch {
     return { success: false, error: "Kunde inte nå servern. Försök igen." };

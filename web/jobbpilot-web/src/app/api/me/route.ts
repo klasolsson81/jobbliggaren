@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import type { CurrentUser } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import { currentUserSchema } from "@/lib/dto/me";
+import { parseResponse } from "@/lib/dto/_helpers";
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -21,9 +22,14 @@ export async function GET() {
       return NextResponse.json(null, { status: res.status });
     }
 
-    const user = (await res.json()) as CurrentUser;
+    const user = await parseResponse(
+      res,
+      currentUserSchema,
+      "GET /api/v1/me (proxy)"
+    );
     return NextResponse.json(user);
   } catch {
+    // DtoParseError + network errors both surface as 503 upstream-unavailable
     return NextResponse.json(null, { status: 503 });
   }
 }

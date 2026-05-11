@@ -10,6 +10,8 @@ import {
   updateMasterContentSchema,
 } from "./resume-schemas";
 import type { ResumeContentDto } from "@/lib/types/resumes";
+import { createdResourceSchema } from "@/lib/dto/common";
+import { parseResponse } from "@/lib/dto/_helpers";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -61,7 +63,11 @@ export async function createResumeAction(
       };
     }
 
-    const data = (await res.json()) as { id: string };
+    const data = await parseResponse(
+      res,
+      createdResourceSchema,
+      "POST /api/v1/resumes"
+    );
     resumeId = data.id;
   } catch {
     return { success: false, error: "Kunde inte nå servern. Försök igen." };

@@ -1,12 +1,13 @@
 import "server-only";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
-import { isPagedResult } from "@/lib/types/paged";
-import type {
-  GetResumesResult,
-  ResumeDetailDto,
-  ResumeListItemDto,
-} from "@/lib/types/resumes";
+import {
+  getResumesResultSchema,
+  resumeDetailDtoSchema,
+  type GetResumesResult,
+  type ResumeDetailDto,
+} from "@/lib/dto/resumes";
+import { parseResponse } from "@/lib/dto/_helpers";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -27,14 +28,20 @@ export async function getResumes(
     pageSize: String(pageSize),
   });
 
-  const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes?${params}`, {
-    headers: authHeaders(sessionId),
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-
-  const payload: unknown = await res.json();
-  return isPagedResult<ResumeListItemDto>(payload) ? payload : null;
+  try {
+    const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes?${params}`, {
+      headers: authHeaders(sessionId),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return await parseResponse(
+      res,
+      getResumesResultSchema,
+      "GET /api/v1/resumes"
+    );
+  } catch {
+    return null;
+  }
 }
 
 export async function getResumeById(
@@ -43,11 +50,19 @@ export async function getResumeById(
   const sessionId = await getSessionId();
   if (!sessionId) return null;
 
-  const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes/${id}`, {
-    headers: authHeaders(sessionId),
-    cache: "no-store",
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes/${id}`, {
+      headers: authHeaders(sessionId),
+      cache: "no-store",
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    return await parseResponse(
+      res,
+      resumeDetailDtoSchema,
+      `GET /api/v1/resumes/${id}`
+    );
+  } catch {
+    return null;
+  }
 }

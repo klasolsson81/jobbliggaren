@@ -55,6 +55,13 @@ export interface ResumeListItemDto {
   updatedAt: string;
 }
 
+export interface GetResumesResult {
+  items: ResumeListItemDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface ResumeDetailDto {
   id: string;
   name: string;

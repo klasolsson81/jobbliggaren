@@ -377,6 +377,10 @@ En feature är "klar" när:
 - Påbörja ny session-fas baserat på "logiskt nästa steg från ADR-läsning" — sessionsbyten är strategiska transitioner och kräver explicit GO från Klas
 
 **Du ska invocera (vid relevant scope, innan STOPP-rapport till Klas):**
+- **senior-cto-advisor** — multi-approach-val (Variant A/B/C), agent-review-fynd
+  som ska bli in-block-fix vs TD, TD-skapande-validering. Decision-maker, inte
+  advisor. Klas-STOPP behövs inte om CTO:s val är entydigt motiverat mot
+  principer (CC går direkt till implementation efter CTO-beslut). Se §9.6.
 - **security-auditor** — kod som rör PII, auth, secrets eller external integrations
 - **code-reviewer + dotnet-architect** — större kodändringar (>5 filer eller arkitekturella val)
 - **db-migration-writer** — nya migrations
@@ -427,6 +431,37 @@ Externa fakta uppdateras konstant. Training data är out-of-date i veckor till m
 **Källprioritering:** officiella docs och release-notes > paketregistry > tredje-parts-blogg. Verifiera datum på källan.
 
 **Rapportering:** vid web-search-baserade beslut — bifoga URL + datum i STOPP-rapporten så Klas kan följa upp källan.
+
+### 9.6 In-scope-fix vs TD-skapande (4-timmarsregeln)
+
+När agent-review eller egen analys identifierar ett fynd: lyft **inte** som TD
+som default. Default = **fixa in-block**.
+
+TD lyfts ENDAST om ett av tre kriterier uppfyllt:
+
+1. **Annan fas:** fyndet hör till fas där feature/dependency ännu inte finns
+   (t.ex. "BYOK-onboarding fas 3" innan BYOK-domän skapad)
+2. **Saknad funktion-dependency:** scope kräver kod/projekt som inte existerar
+   (t.ex. "JobbPilot.Api.UnitTests-projekt finns inte" — TD-49)
+3. **Scope > 4 timmar CC-tid:** fyndet kräver mer än halv arbetsdag CC-arbete
+   i samma touch — skulle skapa scope creep utöver originaluppdraget
+
+Vid tveksamhet: in-scope-fix vinner. JobbPilots policy: kvalitet > tempo.
+
+**Anti-pattern:** "spara TD så scope inte växer" — vi måste ändå fixa det förr
+eller senare. TD-listan är inte ett dumpning-ställe — det är ett verktyg för
+att skjuta upp arbete som genuint inte hör till nu.
+
+**Beslutsflöde:**
+
+1. CC eller annan agent identifierar ett fynd
+2. Default = fixa in-block (samma commit-batch som originaluppdraget)
+3. Om CC är osäker om 4h-regeln gäller: invokera `senior-cto-advisor` för
+   avgörande
+4. CTO citerar branschens källor (Robert Martin, Eric Evans, GoF, Fowler,
+   Microsoft Learn) vid kvalitets-tradeoffs
+5. Klas har sista ordet — CTO argumenterar tydligt så Klas-override är
+   medveten, inte gissning
 
 ## 10. Svenska-relaterat
 

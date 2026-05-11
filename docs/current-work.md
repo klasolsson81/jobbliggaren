@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** **FAS 1 BLOCK A KOMPLETT (kod + apply) 2026-05-11.** A1+A2+A3+A4 + parallell TD-43 fullt klara. **A4 (TD-38 TLS-hardening) APPLIED:** Secrets Manager uppdaterad till `SSL Mode=VerifyFull + Root Certificate`, Api/Worker stable 1/1 med strikt TLS-validering mot RDS, smoke-test 200+HSTS. **Stängda TDs:** TD-15, TD-31, TD-38, TD-43. TD-39/40/41/42/44/45/46/47/48 lyfta som follow-ups. **Apply-iter:** initial v0.1.1-dev avslöjade deploy-dev.yml-gap (Migrate-image byggdes inte) → fix via Alt C (uppdaterad workflow + IAM-policy för Migrate-resurser) + v0.1.2-dev → end-to-end PASS. **Nästa:** Block B (Application Management / Dashboard / JobTech-förstudie) eller TDs-cleanup.
+**Status:** **FAS 1 BLOCK A + 3 follow-up-TDs KOMPLETT 2026-05-11.** Block A (A1+A2+A3+A4+TD-43) klart sedan tidigare. **Laptop-CC-session 2026-05-11 0540→0940 stängde TD-44 + TD-45 + TD-46.** Infra-tillägg: ny `senior-cto-advisor`-agent (decision-maker vid multi-approach) + CLAUDE.md §9.6 (4-timmarsregel för in-scope-fix vs TD-skapande). **Stängda TDs totalt:** TD-15, TD-31, TD-38, TD-43, TD-44, TD-45, TD-46. **Aktiva TDs:** TD-39/40/41/42/47/48/49. **Nästa:** Block B (Application Management / Dashboard / JobTech-förstudie) eller fortsatt TDs-cleanup.
 **Senast uppdaterad:** 2026-05-11
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md`
@@ -9,9 +9,18 @@
 
 ## Aktivt nu
 
-**FAS 1 BLOCK A — kod-fas komplett 2026-05-11.** Fem sub-block (A1+A2+A3+A4+TD-43) implementerade och pushade. Apply-fas A4 väntar.
+**Laptop-CC-session 2026-05-11 0540→0940 — TDs-cleanup KLAR.** 3 TDs stängda (TD-44/45/46) + 1 infra-tillägg (senior-cto-advisor + 4h-policy). 4 commits, alla pushade till `main`. HEAD = `09ef399`.
 
-### Block A sub-block-summary
+### TDs-cleanup-session-summary
+
+| Steg | Scope | Status | Commits |
+|------|-------|--------|---------|
+| TD-44 | HSTS-header anti-regression-test (3 nya `[Fact]`) | ✓ Stängd | `b742e50` |
+| TD-45 | LoginForm focus-flytt vid `state.error` (a11y) | ✓ Stängd | `994bd1a` |
+| TD-46 | Extrahera `pathToElementId` per-domän (Approach B) | ✓ Stängd | `c505be2` |
+| Infra | `senior-cto-advisor`-agent + CLAUDE.md §9.6 (4h-regel) | ✓ Klar | `09ef399` |
+
+### Block A sub-block-summary (referens, oförändrat)
 
 | Sub-block | Scope | Status | Commits |
 |-----------|-------|--------|---------|
@@ -19,19 +28,27 @@
 | A2 | JobSeeker profil-edit-yta (Vitest 75/75) | ✓ Klar | cc585a7 + d55b460 |
 | A3 | TD-31 UseHttpsRedirection env-gate-test | ✓ Stängd | 1221240 + b4e9199 |
 | TD-43 (parallell CC) | Komponent-tests för LoginForm + MeProfileForm + ResumeContentForm | ✓ Stängd | 6b2b0ca + 01cc656 |
-| A4 | TD-38 TLS-hardening (kod-fas) | ✓ Kod, ⏳ Apply | ebb7550 + 48ebe0e |
+| A4 | TD-38 TLS-hardening (kod + apply) | ✓ Stängd | ebb7550 + 48ebe0e + apply |
 
-### Lyfta follow-up-TDs
+### Aktiva TDs (oförändrat sedan tidigare, plus TD-49 ny)
 
 - **TD-39:** Error-summary-mönster för stora formulär (A1 m2)
 - **TD-40:** Path-equality regression-bevakning (A1 m1)
 - **TD-41:** Select-komponent-konvention native vs shadcn (A2 M1+M2)
 - **TD-42:** Touch-target projektbrett <44px (A2 Mi1)
-- **TD-44:** HSTS-header-anti-regression-test (A3 dotnet-architect Mi4)
-- **TD-45:** LoginForm focus-flytt vid state.error (TD-43 a11y-follow-up)
-- **TD-46:** Exportera pathToElementId för isolated unit-test (TD-43)
 - **TD-47:** RDS CA-bundle-rotation-bevakning (A4 security S-Minor-1)
 - **TD-48:** Architecture-test för Trust=true-läckage (A4 dotnet-architect Mi2)
+- **TD-49:** Unit-test för HstsOptions.EnsureSafeForEnvironment (TD-44 architect Minor 2) — blockerad: `JobbPilot.Api.UnitTests`-projekt finns inte
+- **TD-44/45/46 — STÄNGDA 2026-05-11**
+
+### Nya commits (denna laptop-session)
+
+| SHA | Beskrivning |
+|-----|-------------|
+| `09ef399` | chore(claude): senior-cto-advisor + 4h-TD-policy |
+| `c505be2` | refactor(web): TD-46 — extrahera pathToElementId till lib/forms/ (per-domän) |
+| `994bd1a` | feat(web): TD-45 — LoginForm focus-flytt vid state.error (a11y) |
+| `b742e50` | test(api): TD-44 — HSTS-header anti-regression-test |
 
 ### A4 apply-fas (väntar Klas-GO)
 

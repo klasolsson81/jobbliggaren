@@ -21,4 +21,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="JobbPilot.Application.UnitTests" />
+    <InternalsVisibleTo Include="JobbPilot.Api.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

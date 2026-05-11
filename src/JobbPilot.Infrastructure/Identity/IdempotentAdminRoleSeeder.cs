@@ -27,6 +27,7 @@ namespace JobbPilot.Infrastructure.Identity;
 internal sealed partial class IdempotentAdminRoleSeeder(
     IServiceScopeFactory scopeFactory,
     IOptions<AdminBootstrapOptions> options,
+    IHostEnvironment hostEnvironment,
     ILogger<IdempotentAdminRoleSeeder> logger)
     : IHostedService
 {
@@ -47,7 +48,7 @@ internal sealed partial class IdempotentAdminRoleSeeder(
             if (!string.IsNullOrWhiteSpace(_options.InitialAdminEmail))
                 await EnsureUserIsAdminAsync(userManager, _options.InitialAdminEmail, cancellationToken);
         }
-        catch (PostgresException ex) when (ex.SqlState == "42P01")
+        catch (PostgresException ex) when (ex.SqlState == "42P01" && IsSchemaInitGracePeriod(hostEnvironment))
         {
             // 42P01 = undefined_table. Identity-tabellerna finns inte ännu.
             // I prod-pipeline kör JobbPilot.Migrate (en separat ECS-task) DDL
@@ -56,9 +57,24 @@ internal sealed partial class IdempotentAdminRoleSeeder(
             // körs (Migrate-anrop sker via Services-property som SJÄLV triggar
             // host-start → catch-22). Log warning och hoppa över seeding;
             // tester som kräver Admin-roll skapar den explicit per-test.
+            //
+            // N-2 hardening (arch-audit 2026-05-11): catch:en är gated på
+            // Development/Test-environment. I prod bubblar 42P01 → host start
+            // failer → ECS deployment_circuit_breaker triggar rollback. Detta
+            // är fail-loud (CLAUDE.md §3.4 + §5.1) — Migrate-task-failure
+            // ska larma, inte sluka tyst.
             LogSchemaMissing(logger);
         }
     }
+
+    /// <summary>
+    /// True om vi tolereras starta utan Identity-schema (Development eller Test).
+    /// Production/Staging: undefined-table-fel måste bubbla per CLAUDE.md §3.4.
+    /// Internal static för direkt unit-test mot gate-logiken utan att resolva
+    /// hela seeder-DI-grafen.
+    /// </summary>
+    internal static bool IsSchemaInitGracePeriod(IHostEnvironment env) =>
+        env.IsDevelopment() || env.IsEnvironment("Test");
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

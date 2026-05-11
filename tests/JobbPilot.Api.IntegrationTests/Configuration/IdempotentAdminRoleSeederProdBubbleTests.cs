@@ -1,4 +1,3 @@
-using System.Net;
 using System.Security.Cryptography;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
@@ -8,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
@@ -15,13 +15,29 @@ using Testcontainers.Redis;
 namespace JobbPilot.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// Verifierar att <c>Program.cs</c> startar i Production-env utan att tippa över
-/// när env-gated config är populerad. Komplement till de övriga integration-
-/// testerna som tvingar Development-env via fixtures (TD-37 fix). Skyddar mot
-/// regression där en ny env-gated check (HSTS, ForwardedHeaders, etc.) tyst
-/// bara körs i Development och därmed bryter Production-deploy först i CI.
+/// N-2 anti-regression (security-auditor 2026-05-11 Major 1): bevisar att
+/// <c>IdempotentAdminRoleSeeder</c> faktiskt bubblar 42P01 i Production-env
+/// när Identity-schemat saknas — inte bara att <c>IsSchemaInitGracePeriod</c>-
+/// predicate:n returnerar false isolerat. Komplement till
+/// <c>IdempotentAdminRoleSeederTests</c> i Application.UnitTests.
+///
+/// <para>
+/// Fixturen KÖR seedern (skiljer från <see cref="ProductionStartupFactory"/>
+/// och <see cref="HttpsRedirectionGateFactoryBase"/> som plockar bort den).
+/// AppDbContext migreras men AppIdentityDbContext lämnas otomigrerad — så
+/// 42P01 trigger:as när seedern accessar Identity-tabellerna.
+/// </para>
+///
+/// <para>
+/// Förväntat beteende: <c>Services.CreateScope()</c> triggar host-start →
+/// <c>IdempotentAdminRoleSeeder.StartAsync</c> körs → <c>RoleManager</c>-query
+/// kastar <see cref="PostgresException"/> SqlState=42P01 → gate-villkoret
+/// <c>IsSchemaInitGracePeriod</c> returnerar false i Production → exception
+/// bubblar genom <c>IHost.StartAsync</c> → ECS deployment_circuit_breaker
+/// triggar rollback. Test asserterar PostgresException-typ + 42P01-SqlState.
+/// </para>
 /// </summary>
-public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
@@ -32,11 +48,11 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
 
-    public ProductionStartupFactory()
+    public ProdSeederBubbleFactory()
     {
         var rsa = RSA.Create(2048);
-        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-prodsmoke-private-{Guid.NewGuid()}.pem");
-        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-prodsmoke-public-{Guid.NewGuid()}.pem");
+        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-prodseederbubble-private-{Guid.NewGuid()}.pem");
+        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-prodseederbubble-public-{Guid.NewGuid()}.pem");
         File.WriteAllText(_privateKeyPath, rsa.ExportRSAPrivateKeyPem());
         File.WriteAllText(_publicKeyPath, rsa.ExportSubjectPublicKeyInfoPem());
     }
@@ -71,16 +87,8 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
                 opts.InstanceName = "jobbpilot:";
             });
 
-            // N-2 hardening (2026-05-11): IdempotentAdminRoleSeeder bubblar 42P01
-            // i Production-env (CLAUDE.md §3.4 fail-loud). Test-fixturen kör
-            // Services.CreateScope FÖRE MigrateAsync (catch-22) så seedern måste
-            // tas bort här. Prod-defensen verifieras separat via
-            // IdempotentAdminRoleSeederTests.IsSchemaInitGracePeriod_GatesOnEnvironmentName.
-            var seederDescriptors = services
-                .Where(d => d.ImplementationType == typeof(IdempotentAdminRoleSeeder))
-                .ToList();
-            foreach (var d in seederDescriptors)
-                services.Remove(d);
+            // OBS: medveten frånvaro av seeder-removal — seedern SKA köra
+            // i denna fixture för att bevisa 42P01-bubbling i Production.
         });
     }
 
@@ -91,30 +99,13 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         _postgresCs = _postgres.GetConnectionString();
         _redisCs = _redis.GetConnectionString();
 
-        // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access. UseEnvironment() i
-        // ConfigureWebHost är otillräckligt för minimal API. Production-mode
-        // är HELA poängen med denna fixture — verifiera Program.cs-startup-pipeline
-        // i prod-läge med populerad config.
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
-
-        // Production-defense per ForwardedHeadersConfig.EnsureSafeForEnvironment:
-        // KnownNetworks får inte vara tom när Environment != Development/Test.
-        // Loopback-CIDR är tillräckligt för smoke-startup (test-host gör direkt-anrop).
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", "127.0.0.1/32");
-
-        // Production-env kräver explicit ConnectionStrings:Postgres + Redis (Development
-        // tolererar saknad). ApiFactory replacer DbContext + IDistributedCache via
-        // ConfigureServices, men AddInfrastructure läser CS:erna direkt vid registrerings-
-        // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
-
-        using var scope = Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().Database.MigrateAsync();
+        Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", "365");
     }
 
     public new async ValueTask DisposeAsync()
@@ -125,30 +116,61 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
+
+        GC.SuppressFinalize(this);
 
         await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
         await base.DisposeAsync();
     }
 }
 
-[CollectionDefinition("ProductionStartup")]
-public sealed class ProductionStartupFixtureGroup : ICollectionFixture<ProductionStartupFactory>;
-
-[Collection("ProductionStartup")]
-public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
+public class IdempotentAdminRoleSeederProdBubbleTests : IAsyncLifetime
 {
-    private readonly HttpClient _client = factory.CreateClient();
+    private readonly ProdSeederBubbleFactory _factory = new();
+
+    public ValueTask InitializeAsync() => _factory.InitializeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        await _factory.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
 
     [Fact]
-    public async Task GET_api_ready_returns_200_in_Production_env()
+    public void Host_start_throws_PostgresException_42P01_when_Identity_schema_missing_in_Production()
     {
-        var ct = TestContext.Current.CancellationToken;
+        // Services-property-access triggar host-start → IdempotentAdminRoleSeeder.StartAsync
+        // körs som IHostedService → kastar PostgresException(42P01) (Identity-schemat saknas)
+        // → gate-villkoret IsSchemaInitGracePeriod returnerar false i Production →
+        // exception bubblar → host-start failer.
+        //
+        // WebApplicationFactory wrappar inre exceptions från StartAsync — fångar därför
+        // generic Exception och borrar ner till första PostgresException(42P01) i kedjan.
+        var ex = Should.Throw<Exception>(() =>
+        {
+            using var scope = _factory.Services.CreateScope();
+        });
 
-        var response = await _client.GetAsync("/api/ready", ct);
+        var postgresEx = ExtractInnermost<PostgresException>(ex);
+        postgresEx.ShouldNotBeNull(
+            "Host-start ska kasta exception som innehåller PostgresException i kedjan.");
+        postgresEx.SqlState.ShouldBe(
+            "42P01",
+            "PostgresException ska ha SqlState 42P01 (undefined_table — Identity-schema saknas).");
+    }
 
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    private static T? ExtractInnermost<T>(Exception ex) where T : Exception
+    {
+        Exception? current = ex;
+        while (current is not null)
+        {
+            if (current is T match) return match;
+            current = current.InnerException;
+        }
+        return null;
     }
 }

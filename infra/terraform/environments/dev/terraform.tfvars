@@ -22,3 +22,13 @@ alb_acm_certificate_arn = "arn:aws:acm:eu-north-1:710427215829:certificate/f72a7
 # aktiverar count = 1 i modules/ecs/aws_ecs_task_definition.migrate.
 # ---------------------------------------------------------------------------
 migrate_image_tag = "14b-9113bed-fix3"
+
+# ---------------------------------------------------------------------------
+# TD-68 — Security anomaly detection (ADR 0031)
+#
+# secops_alert_email lämnas tom så ingen SNS-subscription skapas vid first apply
+# (subscription-confirmation kräver manuell opt-in via AWS-mail oavsett).
+# När redo: sätt email här + kör `terraform apply`, sen confirma AWS-mail.
+# ---------------------------------------------------------------------------
+secops_alert_email            = ""
+failed_access_alarm_threshold = 50

@@ -164,3 +164,19 @@ variable "dev_subdomain" {
   type        = string
   default     = "dev"
 }
+
+# ---------------------------------------------------------------------------
+# TD-68 — Security anomaly detection (ADR 0031)
+# ---------------------------------------------------------------------------
+
+variable "secops_alert_email" {
+  description = "Email-adress för SNS-subscription av secops-anomaly-alarms. Tom sträng = ingen subscription skapas (konfigurera manuellt via console eller separat tf-changeset). Subscription-confirmation kräver opt-in via AWS-mail."
+  type        = string
+  default     = ""
+}
+
+variable "failed_access_alarm_threshold" {
+  description = "Threshold för failed_access_attempt-events per period (TD-68 / ADR 0031). Dev-default 50 är högt eftersom utveckling triggar via integration-tester. Prod sänker detta."
+  type        = number
+  default     = 50
+}

@@ -166,6 +166,22 @@ module "cloudwatch_logs" {
   tags = var.common_tags
 }
 
+# CloudWatch security-alarms — TD-68 / ADR 0031
+# Metric filter + SNS-alarm för failed_access_attempt-events.
+# Konsumerar api-log-gruppen där IFailedAccessLogger skriver via ILogger-pipeline.
+module "cloudwatch_security_alarms" {
+  source = "../../modules/cloudwatch_security_alarms"
+
+  name_prefix          = var.name_prefix
+  log_group_name       = module.cloudwatch_logs.log_group_names["api"]
+  kms_key_id           = data.aws_kms_alias.master.target_key_arn
+  alert_email          = var.secops_alert_email
+  alarm_threshold      = var.failed_access_alarm_threshold
+  alarm_period_seconds = 60
+
+  tags = var.common_tags
+}
+
 # IAM-roller för ECS — execution + task-role-api + task-role-worker + task-role-migrate (STEG 14b)
 module "iam_ecs" {
   source = "../../modules/iam_ecs"

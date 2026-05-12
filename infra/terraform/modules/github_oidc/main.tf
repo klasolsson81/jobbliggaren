@@ -158,6 +158,9 @@ data "aws_iam_policy_document" "deploy_dev" {
   }
 
   # ECS service + task — resource-scoped read.
+  # ADR 0033 amendment 2026-05-12 — ecs:DescribeTasks behöver task-ARN-pattern
+  # för deploy-dev.yml's `aws ecs wait tasks-stopped` mot Migrate-task. Task-ARNs
+  # är runtime-allokerade, så pattern * är industri-standard scope för describe-yta.
   statement {
     sid    = "EcsReadOurCluster"
     effect = "Allow"
@@ -171,6 +174,7 @@ data "aws_iam_policy_document" "deploy_dev" {
       local.ecs_cluster_arn,
       local.ecs_api_service_arn,
       local.ecs_worker_service_arn,
+      local.ecs_task_arn_pattern,
     ]
   }
 

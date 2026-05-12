@@ -1825,3 +1825,55 @@ kap. 4), risk-asymmetri (~30 min nu vs produktions-blockering i Fas 2).
 EventId 2502 unikt i repot (verifierat mot 1-5, 1001-1003, 2001, 4001, 999).
 
 ---
+
+## TD-68: CloudWatch security-alarms för failed_access_attempt-events ✓ STÄNGD 2026-05-12
+**Kategori:** Observability / Infrastructure (Terraform)
+**Severity:** Minor
+**Fas:** 1
+**Källa:** TD-67-leverans 2026-05-12 (ADR 0031 — anomaly-detection-skiktet)
+**Status:** **STÄNGD 2026-05-12 (commit `70ca42b` + dev-apply genomförd).** Prod-invokation defereras till prod-ECS-stack-leverans (utan blocker — ny inkrementell leverans när prod-stack landar).
+
+ADR 0031 etablerade `IFailedAccessLogger`-strategin (TD-67). CloudWatch-
+aggregat (metric filter + SNS-alarm) levererades som separat Terraform-
+batch med dedikerad apply-disciplin per CLAUDE.md §9.2.
+
+**Leverans (commit `70ca42b`):**
+
+Modul `infra/terraform/modules/cloudwatch_security_alarms/`:
+- `aws_cloudwatch_log_metric_filter` — unquoted substring-pattern `event_name=failed_access_attempt` mot api-log-gruppen. Pre-apply-verifierat via `aws logs test-metric-filter` (1 av 3 sample-events matchade — endast riktiga events, inga false-positives).
+- `aws_sns_topic` `jobbpilot-dev-secops-anomaly` — KMS-encrypted (master-key).
+- `aws_sns_topic_policy` — least-privilege: Service `cloudwatch.amazonaws.com` + `AWS:SourceAccount` + `AWS:SourceArn` (`${name_prefix}-*`). Defense-in-depth mot alarm-suppression-attack.
+- `aws_cloudwatch_metric_alarm` failed-access — Sum-statistic, threshold 50/60s, `treat_missing_data=notBreaching`.
+- `aws_cloudwatch_metric_alarm` log-pipeline-health — `IncomingLogEvents <= 0` över 15 min, `treat_missing_data=breaching`. Säkerhets-komplement: detekterar bruten log-pipeline (pipeline-fel gör anomaly-detection bevisbart icke-funktionell).
+- `aws_sns_topic_subscription` (conditional på `alert_email != ""` — default tom, Klas opt-in manuellt vid behov).
+
+Dev-env-invokation. Prod-invokation defereras tills prod-ECS-stack levereras (prod har inte `cloudwatch_logs`-modul än).
+
+Runbook: `docs/runbooks/failed-access-anomaly.md` — klassificering vid alarm-trigger (BOLA-singel HIGH, distributed MEDIUM, false-positive LOW), respons-flöden per scenario, pre/post-apply-verifiering, SNS-rotation-procedur, GDPR Art. 33 risk-bedömning + IMY-notification-flöde, severity-klassificeringstabell.
+
+**Reviews (3 rundor):**
+- security-auditor #1: 2 Major + 6 Minor.
+- security-auditor #2 (efter M1+M2+Minor 7 fix): Approved, 4 Minor kvar.
+- security-auditor #3 (efter alla Minor + runbook): Approved, kosmetisk IMY-namnrättning fixad in-block.
+
+Fixar in-block (alla per CLAUDE.md §9.6 + Klas-direktiv "ordentligt"):
+- **M1**: filter-pattern `quoted` → `unquoted` (quoted=token-match missade termen mitt i text-message → tyst säkerhetshål).
+- **M2**: explicit `aws_sns_topic_policy` med Service-principal + SourceAccount + SourceArn.
+- **Minor 1**: KMS master-key blast-radius dokumenterad.
+- **Minor 2**: threshold-tuning-recommendations per env (dev 50, prod initial 20, tuned 10).
+- **Minor 3**: separat log-pipeline-health-alarm (IncomingLogEvents).
+- **Minor 4**: runbook skapad.
+- **Minor 7**: SourceArn-condition på SNS-topic-policy.
+- **Kosmetisk**: IMY-namn + Art. 33 risk-bedömning i runbook.
+
+**Apply-verifiering 2026-05-12:**
+- `terraform plan -target=module.cloudwatch_security_alarms`: 5 to add, 0 change, 0 destroy.
+- Klas-GO för apply.
+- `terraform apply td68.tfplan` genomfört. State innehåller 5 resources + data.
+- `aws cloudwatch describe-alarms` bekräftar båda alarm i `INSUFFICIENT_DATA`-state (förväntat — växlar till `OK` vid första data-punkt).
+
+**CTO-beslut (senior-cto-advisor 2026-05-12):** in-block-fix per §9.6 + separat batch från TD-25 ("ordentligt" = rigorös batch i taget med full review-cykel). Klas-STOPP-punkter respekterade: före kod-commit, före plan, före apply.
+
+**Säkerhetsinvariant:** BOLA-enumeration-attack (OWASP API1:2023) nu detekterbar i dev-trafik. Per-user-drill-down via CloudWatch Insights-query i runbook. Log-pipeline-health-alarm säkrar att detection-kedjan är funktionell (skyddar mot "tyst pipeline gör anomaly-detection osynlig").
+
+---

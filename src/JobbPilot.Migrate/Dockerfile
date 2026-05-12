@@ -43,6 +43,13 @@ RUN dotnet publish src/JobbPilot.Migrate/JobbPilot.Migrate.csproj \
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
+# RDS CA-bundle för TLS-validering mot Postgres (TD-38). Phase E använder
+# persisted CS från Secrets Manager (jobbpilot_app-creds) som har
+# SSL Mode=VerifyFull;Root Certificate=/etc/ssl/certs/rds-global-bundle.pem
+# per ConnectionStringFactory.ForPersisted. Bundle delas med Api/Worker
+# (samma COPY-pattern i deras Dockerfiles).
+COPY infra/certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
+
 WORKDIR /app
 COPY --from=build /app/publish .
 

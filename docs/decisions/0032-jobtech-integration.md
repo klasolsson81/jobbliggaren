@@ -1,9 +1,9 @@
 # ADR 0032 — JobTech-integration: resilience-stack, dedup-strategi, sync-flöde
 
 **Datum:** 2026-05-12
-**Status:** Proposed (kräver Klas-GO innan P8a-kod startar)
+**Status:** Accepted 2026-05-12 (Klas-GO mottaget)
 **Kontext:** F2-P8 JobTech/Platsbanken-integration (BUILD.md §9.1)
-**Beslutsfattare:** senior-cto-advisor 2026-05-12 (decision) + Klas Olsson (godkännande pending)
+**Beslutsfattare:** senior-cto-advisor 2026-05-12 (decision) + Klas Olsson (godkänd 2026-05-12)
 **Relaterad:** ADR 0005 (go-to-market, JobAd auth-gated), ADR 0022 (audit log-pipeline), ADR 0024 (audit retention), ADR 0023 (Hangfire-infrastruktur), BUILD.md §3.1 (HTTP-stack), §9.1 (JobTech-integration), §16 (job_ads-schema), TD-56 (stängd P7), TD-70 (search/filter, kommande)
 
 ## Kontext

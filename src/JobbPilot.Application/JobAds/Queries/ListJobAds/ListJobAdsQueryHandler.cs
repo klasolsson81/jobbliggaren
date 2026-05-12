@@ -1,25 +1,27 @@
+using JobbPilot.Application.Common;
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobbPilot.Application.JobAds.Queries.ListJobAds;
 
 public sealed class ListJobAdsQueryHandler(IAppDbContext db)
-    : IQueryHandler<ListJobAdsQuery, IReadOnlyList<JobAdDto>>
+    : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
 {
-    // Defense-in-depth: hard cap mot DoS-vektor när JobAds-tabellen växer. Full
-    // PagedResult<T>-retro-fit defererad till Fas 2 (JobTech-integration), då
-    // query-params och URL-kontrakt designas mot JobTech-API:t. Se TD-56.
-    // TODO(Fas 2): ersätts av PagedResult-retro-fit + IOptions<JobAdOptions>.
-    private const int MaxItems = 500;
-
-    public async ValueTask<IReadOnlyList<JobAdDto>> Handle(
+    public async ValueTask<PagedResult<JobAdDto>> Handle(
         ListJobAdsQuery query, CancellationToken cancellationToken)
     {
-        return await db.JobAds
-            .AsNoTracking()
-            .OrderByDescending(j => j.PublishedAt)
-            .Take(MaxItems)
+        var baseQuery = db.JobAds.AsNoTracking();
+
+        // Separat count-query per CLAUDE.md §3.6.
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+        var ordered = ApplySort(baseQuery, query.SortBy);
+
+        var items = await ordered
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
             .Select(j => new JobAdDto(
                 j.Id.Value,
                 j.Title,
@@ -32,5 +34,23 @@ public sealed class ListJobAdsQueryHandler(IAppDbContext db)
                 j.ExpiresAt,
                 j.CreatedAt))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<JobAdDto>(items, totalCount, query.Page, query.PageSize);
     }
+
+    private static IQueryable<JobAd> ApplySort(IQueryable<JobAd> source, JobAdSortBy sortBy) =>
+        sortBy switch
+        {
+            JobAdSortBy.PublishedAtAsc => source.OrderBy(j => j.PublishedAt).ThenBy(j => j.Id),
+            JobAdSortBy.ExpiresAtDesc =>
+                // NULL-ExpiresAt sorteras sist (har inget slut-datum = pågående).
+                source.OrderBy(j => j.ExpiresAt == null)
+                      .ThenByDescending(j => j.ExpiresAt)
+                      .ThenBy(j => j.Id),
+            JobAdSortBy.ExpiresAtAsc =>
+                source.OrderBy(j => j.ExpiresAt == null)
+                      .ThenBy(j => j.ExpiresAt)
+                      .ThenBy(j => j.Id),
+            _ => source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id),
+        };
 }

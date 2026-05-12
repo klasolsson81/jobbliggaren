@@ -253,31 +253,7 @@ app.MapInvitationsEndpoints();
 app.MapWaitlistEndpoints();
 app.MapAdminInvitationsEndpoints();
 app.MapAdminWaitlistEndpoints();
-
-var jobAds = app.MapGroup("/api/v1/job-ads").WithTags("JobAds");
-
-jobAds.MapGet("/", async (IMediator mediator, CancellationToken ct) =>
-    Results.Ok(await mediator.Send(new JobbPilot.Application.JobAds.Queries.ListJobAds.ListJobAdsQuery(), ct)));
-
-jobAds.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
-{
-    var result = await mediator.Send(new JobbPilot.Application.JobAds.Queries.GetJobAd.GetJobAdQuery(id), ct);
-    return result is null ? Results.NotFound() : Results.Ok(result);
-});
-
-jobAds.MapPost("/", async (
-    JobbPilot.Application.JobAds.Commands.CreateJobAd.CreateJobAdCommand command,
-    IMediator mediator,
-    CancellationToken ct) =>
-{
-    var result = await mediator.Send(command, ct);
-    return result.IsSuccess
-        ? Results.Created($"/api/v1/job-ads/{result.Value}", new { id = result.Value })
-        : Results.Problem(
-            title: result.Error.Code,
-            detail: result.Error.Message,
-            statusCode: 400);
-});
+app.MapJobAdsEndpoints();
 
 app.Run();
 

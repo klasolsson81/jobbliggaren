@@ -1,6 +1,7 @@
 using System.Reflection;
 using JobbPilot.Application.Applications.Queries.GetApplications;
 using JobbPilot.Application.Common;
+using JobbPilot.Application.JobAds.Queries.ListJobAds;
 using JobbPilot.Application.Resumes.Queries.GetResumes;
 using Mediator;
 using Shouldly;
@@ -8,7 +9,8 @@ using Shouldly;
 namespace JobbPilot.Architecture.Tests;
 
 /// <summary>
-/// Lock-in för PagedResult&lt;T&gt;-kontraktet (TD-55 retro-fit, H-4 hardening 2026-05-11).
+/// Lock-in för PagedResult&lt;T&gt;-kontraktet (TD-55 retro-fit, H-4 hardening 2026-05-11,
+/// F2-P7 utvidgad 2026-05-12 — TD-56 stängd, ListJobAdsQuery är nu paginerad).
 ///
 /// När en query har paged-semantik (<c>Page</c> + <c>PageSize</c> properties på record:n)
 /// MÅSTE den returnera <see cref="PagedResult{T}"/> — inte <c>IReadOnlyList&lt;T&gt;</c>.
@@ -19,10 +21,6 @@ namespace JobbPilot.Architecture.Tests;
 /// H-4 (arch-audit 2026-05-11) renamade <c>PageNumber</c> → <c>Page</c> i alla queries
 /// — heuristiken accepterar inte längre legacy-namnet, så regression till blandad
 /// konvention bryter testet.
-///
-/// ListJobAdsQuery är explicit exkluderad — den är opaginerad idag och får
-/// hard-cap via <c>.Take(MaxItems)</c> i handler. Full paginering defererad
-/// till Fas 2 JobTech-integration.
 /// </summary>
 public class PagedResultContractTests
 {
@@ -63,6 +61,14 @@ public class PagedResultContractTests
     {
         ReturnsPagedResult(typeof(GetResumesQuery)).ShouldBeTrue(
             "GetResumesQuery måste returnera PagedResult<ResumeListItemDto>.");
+    }
+
+    [Fact]
+    public void ListJobAdsQuery_returns_PagedResult()
+    {
+        // F2-P7 (TD-56 stängd 2026-05-12). Tidigare opaginerad, nu paginerad.
+        ReturnsPagedResult(typeof(ListJobAdsQuery)).ShouldBeTrue(
+            "ListJobAdsQuery måste returnera PagedResult<JobAdDto>.");
     }
 
     private static bool IsMediatorQuery(Type type) =>

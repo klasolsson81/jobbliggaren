@@ -1,13 +1,38 @@
 # Current work — JobbPilot
 
-**Status:** **Fas 1-rensning komplett 2026-05-12. Fas 1 Minor-sektionen TOM. Nästa session: Fas 2-kickoff med ADR 0005-design.**
+**Status:** **Fas 2-kickoff 2026-05-12 — ADR 0005 Accepted (Alternativ C + invitations/waitlist amendment). Nästa arbete: F2-P0a (Invitation + WaitlistEntry aggregates).**
 **Senast uppdaterad:** 2026-05-12
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 
 ---
 
-## Aktivt nu — Fas 1 fullt stängd, Fas 2-prereqs väntar
+## Aktivt nu — Fas 2 startad, F2-P0 (invitations + waitlist) först
+
+**2026-05-12 Fas 2-kickoff:** senior-cto-advisor invokerad för ADR 0005-
+designval. CTO-beslut: Alternativ C (invite-only public beta med hård cap) +
+amendment för invitations + waitlist (Klas inputs efter Runda 1). Klas-GO
+mottagen. ADR 0005 flippad PROPOSED → ACCEPTED.
+
+**Granskningstrail:** `docs/reviews/2026-05-12-fas2-cto-adr0005.md` (båda
+CTO-rundor verbatim).
+
+### F2-P0 impl-plan (sub-batches, ~15-20h CC-tid)
+
+| Batch | Innehåll | Status |
+|---|---|---|
+| F2-P0a | Invitation + WaitlistEntry aggregates + tests | Nästa |
+| F2-P0b | EF mappings + migration | Planerad |
+| F2-P0c | 5 commands + validators + tests | Planerad |
+| F2-P0d | `IEmailSender` + `SesEmailSender` + svenska templates | Planerad |
+| F2-P0e | API-endpoints + 3 rate-limit-policies + kill-switch | Planerad |
+| F2-P0f | `/vantelista`-publik sida (Next.js RSC) | Planerad |
+
+Efter F2-P0: F2-P1 (`registrations_open` feature-flag) → F2-P3 (Budget
+Actions terraform) → F2-P4 (runbook) → F2-P6 (readiness-probe) → JobTech-
+integration startar.
+
+### Tidigare session — Fas 1-rensning komplett
 
 Lång CC-session 2026-05-11 ~21:00 → 2026-05-12 ~08:00. Levererade hela
 Fas 1-rensningens återstående batches (B–F) plus disciplinretur + TD-67 +

@@ -17,7 +17,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0002 | Explicit modell-versioner för agenter | Accepted | 2026-04-18 | [0002-explicit-model-versions.md](./0002-explicit-model-versions.md) |
 | 0003 | Design as skills (arkitektur) | Accepted | 2026-04-18 | [0003-design-as-skills.md](./0003-design-as-skills.md) |
 | 0004 | GitHub Flow över GitFlow | Superseded by 0019 | 2026-04-18 | [0004-github-flow.md](./0004-github-flow.md) |
-| 0005 | Go-to-market + monetarisering (Fas 2-prereq) | Proposed | 2026-04-18 | [0005-go-to-market-strategy.md](./0005-go-to-market-strategy.md) |
+| 0005 | Go-to-market + monetarisering (Fas 2-prereq) — Alternativ C + invitations/waitlist | Accepted | 2026-05-12 | [0005-go-to-market-strategy.md](./0005-go-to-market-strategy.md) |
 | 0006 | Claude Code hooks — kända begränsningar | Accepted | 2026-04-18 | [0006-claude-code-hooks-known-limitations.md](./0006-claude-code-hooks-known-limitations.md) |
 | 0007 | Branch protection för main (Fas 0) | Accepted | 2026-04-18 | [0007-branch-protection-fas0.md](./0007-branch-protection-fas0.md) |
 | 0008 | Pipeline behavior order (Logging→Validation→Auth→UoW) | Accepted | 2026-04-19 | [0008-pipeline-behavior-order.md](./0008-pipeline-behavior-order.md) |

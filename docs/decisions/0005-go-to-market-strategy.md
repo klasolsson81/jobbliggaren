@@ -1,7 +1,7 @@
 # ADR 0005 — Go-to-market-strategi och kostnadskontroll
 
 **Datum:** 2026-04-18
-**Status:** PROPOSED (beslut skjuts till innan Fas 2 public launch)
+**Status:** ACCEPTED 2026-05-12 (med amendment 2026-05-12: invitations + waitlist)
 
 ## Kontext
 
@@ -68,18 +68,153 @@ antals-tak. Befintliga users fortsätter.
 | Kräver | Feature-flag-system + waitlist-sida |
 | Skala-risk | Låg |
 
-## Beslut (att fattas)
+## Beslut (2026-05-12)
 
-Beslutet fattas baserat på:
+**Alternativ C — Invite-only public beta med hård cap** är vald väg framåt.
+A avvisad (skadar reverse-pivot-möjligheter + domain-restriction-kod som ej
+återanvänds). B avvisad bestämt (YAGNI mot oprövad intäkt, bryter
+civic-utility-identiteten, regulatorisk friktion inkompatibel med
+studentstatus).
 
-1. Hur väl MVP fungerar efter 2–3 veckors klass-testning (Fas 7)
-2. Klas appetit för Stripe/moms-komplexitet
-3. Hur mycket tid Klas har kvar för JobbPilot efter LIA-sökning
-4. Om credits eller annan finansiering finns tillgänglig för Fas 2+
+CV-värde är **inte** beslutsaxel — Klas planerar private repo efter MVP.
+Public under dev är endast för att Claude Code ska kunna jobba mot repot.
 
-**Målsättning:** Beslut fattas och dokumenteras här senast när Fas 1 MVP är
-funktionell och minst 10 klasskamrater har testat i intern beta (BUILD.md §18
-Fas 7-milstolpe).
+**Nyckel-mekanik:**
+
+- **JobAd-listning/sökning är auth-gated** i Fas 2-start. Anonym publik
+  yta kan låsas upp senare via separat ADR efter mätning av JobTech-
+  proxy-kostnad och bot-trafik.
+- **`registrations_open`-flagga** bor i `appsettings.json` + AWS Secrets
+  Manager override per BUILD.md §13.2. Application-lager-port
+  (`IFeatureFlags`) + Infrastructure-impl mot `IOptionsMonitor<T>`.
+  Default `false` — emergency kill-switch som blockerar både
+  invitation-redemption och waitlist-signup (semantik utvidgad per
+  amendment nedan).
+- **Rate-limit-policies** ovanpå befintliga tre (AccountDeletion,
+  AuthWrite, AuthLoose) — konkret uppsättning definierad i amendment.
+- **Budget Actions $50/mån** auto-disablar `JobbPilotBedrockInvoke`-
+  IAM-policy + stoppar ECS-services. Bedrock-disable behövs nu trots
+  att Fas 4 är långt borta — credentialed bot-trafik mot framtida AI-yta
+  är enda realistiska blowout-vektorn.
+
+**Reversibilitet bevarad i båda riktningar:**
+
+- C → stängd klassapp: `registrations_open=false` permanent + waitlist-
+  copy uppdateras (<1 dag)
+- C → public freemium: öppna flaggan, ta bort cap, lägg till Stripe i
+  separat ADR (~2-3 veckors arbete)
+- C → anonym publik JobAd-katalog: ta bort `.RequireAuthorization()`,
+  lägg till IP-baserad rate-limit, mät bot-trafik (~1 vecka)
+
+**Fas 4-koppling (TD-26 AI-kostnadstak):**
+
+Kostnadsskyddsmönstret från Fas 2 ärvs direkt:
+- Ny `AiInvocationPolicy` (per UserId) läggs till på samma sätt som
+  JobAd-policy idag
+- `IAiOperation`-pipeline-behavior för token-tracking + per-user
+  spend-cap (TD-26-design)
+- Budget Actions-tröskeln höjs vid Fas 4 (per revision-historik
+  2026-05-09)
+- Bedrock-IAM-auto-disable-mekaniken är redan på plats
+
+Detta är arkitekturell symmetri, inte överlapp.
+
+**Decision-maker:** senior-cto-advisor 2026-05-12.
+**Godkänd av:** Klas Olsson 2026-05-12.
+**Granskningstrail:** `docs/reviews/2026-05-12-fas2-cto-adr0005.md`.
+
+---
+
+## Amendment 2026-05-12 — Invitations + waitlist
+
+Klas-input efter huvudbeslutet: registreringsflödet ska gå via två
+parallella vägar:
+
+1. **Magic-link-invitation** — Klas skickar direktlänk till valda personer
+2. **Waitlist + manuell approval** — anonyma besökare skriver upp sig på
+   `/vantelista`, Klas väljer från listan, godkända får email med
+   fortsatt-registrering-länk (samma magic-link-mekanik)
+
+CTO-beslut: accepterat scope-tillägg i Fas 2-prereqs med snitt mot Fas 6.
+
+### Scope-snitt
+
+| Del | Fas |
+|---|---|
+| Backend: Invitation-domän + Waitlist-domän + endpoints + email | **Fas 2 (nu)** |
+| Frontend: `/vantelista`-publik signup-sida | **Fas 2 (nu)** |
+| Admin-UI för waitlist + invitations | **Fas 6 (admin-panel-fasen)** |
+
+Klas använder Postman/curl/Bruno mot admin-endpoints under Fas 2–5.
+YAGNI för 20 användare på 20 veckor (~1 invite/vecka). Admin-UI byggs
+ovanpå samma endpoints i Fas 6 — inget bortkastat arbete.
+
+### Domänmodell — två separata aggregates
+
+**`Invitation`** (aggregate root): `Email`, `Origin` (DirectInvite |
+WaitlistApproved), `TokenHash` (HMAC-SHA256, plaintext bara i email),
+`ExpiresAt` (7 dagar default), `Status` (Pending | Redeemed | Expired |
+Revoked), audit-fält. Events: Issued, Redeemed, Expired, Revoked.
+
+**`WaitlistEntry`** (separat aggregate): `Email`, `RequestedAt`, `Status`
+(Pending | Approved | Rejected), `ApprovedAt`, `ApprovedByAdminId`,
+`ResultingInvitationId` (sätts vid Approved). Events: Requested, Approved,
+Rejected.
+
+Båda vägarna konvergerar på samma `POST /api/v1/auth/redeem-invitation`-
+endpoint. `WaitlistEntry.Approve()` skapar `Invitation` idempotent.
+
+Motivering: Evans 2003 kap. 6 + Vernon 2013 kap. 10 — olika livscykler,
+olika invarianter, olika consistency boundaries kräver separata aggregates.
+
+### Token-mekanism — dedikerad opaque token
+
+32 bytes URL-safe base64 plaintext (skickas bara i email) +
+HMAC-SHA256-hash lagrad i DB. Single-use via optimistic concurrency
+(RowVersion). 7 dagars expiry, konfigurerbar.
+
+**Avvisat:** JWT (deprecated per ADR 0017/0018) + återanvänd session-token
+(annan livscykel, SRP-brott). Referens: OWASP ASVS V3.7.
+
+### Email-infrastruktur
+
+`IEmailSender` i Application + `SesEmailSender` i Infrastructure.
+AWS SES (eu-north-1) redan dokumenterad subprocessor (BUILD.md §13.4) —
+ingen ny ADR. Svenska email-templates per design-skills.
+
+### Rate-limit-policies — tre nya
+
+| Endpoint | Policy | Limit | Nyckel |
+|---|---|---|---|
+| `POST /api/v1/auth/redeem-invitation` | `InvitationRedeemPolicy` | 5/h | per IP + per token |
+| `POST /api/v1/waitlist` | `WaitlistSignupPolicy` | 3/24h | per IP |
+| `POST /api/v1/admin/invitations` | `AuthWritePolicy` (befintlig) | 20/min | per IP |
+
+### Admin-endpoints (Postman/curl-baserade under Fas 2–5)
+
+- `POST /api/v1/admin/invitations` — utfärdar Invitation, skickar email
+- `GET /api/v1/admin/invitations?status=Pending`
+- `POST /api/v1/admin/invitations/{id}/revoke`
+- `GET /api/v1/admin/waitlist?status=Pending`
+- `POST /api/v1/admin/waitlist/{id}/approve` — skapar Invitation, skickar email
+- `POST /api/v1/admin/waitlist/{id}/reject`
+
+Skyddade av `[Authorize(Roles = "SuperAdmin")]` (BUILD.md §11.4).
+
+### Impl-plan — F2-P0 läggs in före F2-P1
+
+| Batch | Innehåll |
+|---|---|
+| F2-P0a | Invitation + WaitlistEntry aggregates + tests (>80% coverage) |
+| F2-P0b | EF mappings + migration (`invitations`, `waitlist_entries`) |
+| F2-P0c | 5 commands (Issue/Redeem/RequestWaitlist/Approve/Reject) + validators + tests |
+| F2-P0d | `IEmailSender` + `SesEmailSender` + svenska email-templates |
+| F2-P0e | API-endpoints (admin + public) + rate-limit-policies + kill-switch-gate |
+| F2-P0f | `/vantelista`-publik sida (Next.js RSC + form action) |
+
+Total F2-P0-tillkomst: ~15-20h CC-tid över 6 sub-batches. Inom Fas 2:s
+2-veckors-budget. Befintliga F2-P1 till F2-P6 (feature-flag, budget actions,
+runbook, readiness-probe) levereras efter P0.
 
 ## Obligatoriska kostnadsskydd innan Fas 2 oavsett val
 
@@ -130,6 +265,12 @@ direkta kontroll — även för Alternativ A (stängd klassapp):
 
 ## Revision-historik
 
+- **2026-05-12 (Fas 2-kickoff):** ADR flippad PROPOSED → ACCEPTED. Alternativ C
+  vald (invite-only public beta med hård cap). Amendment 2026-05-12 lägger till
+  invitations + waitlist-flöde (två aggregates, opaque tokens, SES, admin-CLI
+  under Fas 2–5). F2-P0 (sub-batches a–f) införs som Fas 2-prereq före F2-P1.
+  Decision-maker: senior-cto-advisor. Klas-GO: 2026-05-12.
+  Granskningstrail: `docs/reviews/2026-05-12-fas2-cto-adr0005.md`.
 - **2026-05-09 (STEG 13a):** Tröskel sänkt $80 → $50 efter cost-policy-skärpning.
   Lean-dev-defaults (RDS t4g.micro Single-AZ, Redis t4g.micro × 1, Interface
   VPC Endpoints av) gjorde dev-baseline ~$53/mån — $80-tröskeln gav för tunn

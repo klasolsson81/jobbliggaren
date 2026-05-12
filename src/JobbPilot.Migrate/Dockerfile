@@ -3,6 +3,11 @@
 #
 # Image-strategi: minimal runtime (dotnet/runtime:10.0, ej aspnet) — Migrate har
 # inget HTTP-bagage. Sparar ~80 MB jämfört med worker-image.
+#
+# Project-dependencies (ADR 0033 amendment 2026-05-12 — Phase E EF Core MigrateAsync):
+#   JobbPilot.Migrate -> JobbPilot.Infrastructure -> JobbPilot.Application -> JobbPilot.Domain
+# Alla csproj + källfiler för transitiva refs måste kopieras till build-context för
+# `dotnet restore` + `dotnet publish` ska lyckas.
 
 # ---------------------------------------------------------------------------
 # Stage 1: build + publish
@@ -10,14 +15,18 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
-# Migrate har inga ProjectReferences — sln-context onödig (architect Mindre-3:
-# "ändring i sln triggar full rebuild").
-COPY global.json Directory.Build.props Directory.Packages.props ./
+COPY global.json Directory.Build.props Directory.Packages.props JobbPilot.sln ./
 
+COPY src/JobbPilot.Domain/JobbPilot.Domain.csproj src/JobbPilot.Domain/
+COPY src/JobbPilot.Application/JobbPilot.Application.csproj src/JobbPilot.Application/
+COPY src/JobbPilot.Infrastructure/JobbPilot.Infrastructure.csproj src/JobbPilot.Infrastructure/
 COPY src/JobbPilot.Migrate/JobbPilot.Migrate.csproj src/JobbPilot.Migrate/
 
 RUN dotnet restore src/JobbPilot.Migrate/JobbPilot.Migrate.csproj
 
+COPY src/JobbPilot.Domain/ src/JobbPilot.Domain/
+COPY src/JobbPilot.Application/ src/JobbPilot.Application/
+COPY src/JobbPilot.Infrastructure/ src/JobbPilot.Infrastructure/
 COPY src/JobbPilot.Migrate/ src/JobbPilot.Migrate/
 
 RUN dotnet publish src/JobbPilot.Migrate/JobbPilot.Migrate.csproj \

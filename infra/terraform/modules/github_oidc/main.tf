@@ -161,6 +161,10 @@ data "aws_iam_policy_document" "deploy_dev" {
   # ADR 0033 amendment 2026-05-12 — ecs:DescribeTasks behöver task-ARN-pattern
   # för deploy-dev.yml's `aws ecs wait tasks-stopped` mot Migrate-task. Task-ARNs
   # är runtime-allokerade, så pattern * är industri-standard scope för describe-yta.
+  # Cluster-condition lagd 2026-05-12 (security-auditor Sec-Minor-1) som
+  # defense-in-depth — symmetri mot EcsRunMigrateTaskInDevCluster-statement.
+  # Task-ARN-pathen innehåller redan cluster-namnet, men explicit condition
+  # skyddar mot framtida AWS-API-ändring där cluster checkas separat.
   statement {
     sid    = "EcsReadOurCluster"
     effect = "Allow"
@@ -176,6 +180,12 @@ data "aws_iam_policy_document" "deploy_dev" {
       local.ecs_worker_service_arn,
       local.ecs_task_arn_pattern,
     ]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = [local.ecs_cluster_arn]
+    }
   }
 
   # ecs:DescribeTaskDefinition stödjer inte resource-level permissions —

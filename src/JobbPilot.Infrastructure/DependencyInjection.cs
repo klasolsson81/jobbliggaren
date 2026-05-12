@@ -7,7 +7,9 @@ using JobbPilot.Application.Auth.Jobs.HardDeleteAccounts;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Auditing;
 using JobbPilot.Infrastructure.Auth.Sessions;
+using JobbPilot.Infrastructure.Email;
 using JobbPilot.Infrastructure.Identity;
+using JobbPilot.Infrastructure.Invitations;
 using JobbPilot.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +35,38 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddIdentityAndSessions(configuration);
         services.AddHttpAuditing();
+        services.AddInvitationsAndEmail(configuration);
+        return services;
+    }
+
+    /// <summary>
+    /// F2-P0d (ADR 0005 amendment 2026-05-12). Registrerar
+    /// <see cref="IInvitationTokenGenerator"/> (HMAC-SHA256) +
+    /// <see cref="IEmailSender"/> (Console default; Ses framtida TD-69).
+    /// Bindas inte i Worker — invitation-utskick sker bara från Api-pipeline.
+    /// </summary>
+    public static IServiceCollection AddInvitationsAndEmail(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<InvitationTokenOptions>(
+            configuration.GetSection(InvitationTokenOptions.SectionName));
+        services.Configure<EmailOptions>(
+            configuration.GetSection(EmailOptions.SectionName));
+
+        services.AddSingleton<IInvitationTokenGenerator, InvitationTokenGenerator>();
+
+        var emailProvider = configuration[$"{EmailOptions.SectionName}:Provider"] ?? "Console";
+        if (string.Equals(emailProvider, "Console", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Email:Provider='{emailProvider}' stöds inte än. SesEmailSender lyft som TD-69.");
+        }
+
         return services;
     }
 

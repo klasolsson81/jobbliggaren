@@ -38,12 +38,18 @@ public sealed class ListJobAdsQueryHandler(IAppDbContext db)
         return new PagedResult<JobAdDto>(items, totalCount, query.Page, query.PageSize);
     }
 
+    // Alla enum-värden explicit listade + throw på unnamed (CS8524-disciplin).
+    // ListJobAdsQueryValidator.IsInEnum() skyddar mot invalid values innan
+    // handler, så throw är defense-in-depth — exception når inte runtime.
+    // Vid framtida JobAdSortBy-tillägg: case missas → ArgumentOutOfRangeException
+    // → integration-test fail (fail-fast extension-discipline).
     private static IQueryable<JobAd> ApplySort(IQueryable<JobAd> source, JobAdSortBy sortBy) =>
         sortBy switch
         {
+            JobAdSortBy.PublishedAtDesc => source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id),
             JobAdSortBy.PublishedAtAsc => source.OrderBy(j => j.PublishedAt).ThenBy(j => j.Id),
+            // NULL-ExpiresAt sorteras sist (har inget slut-datum = pågående).
             JobAdSortBy.ExpiresAtDesc =>
-                // NULL-ExpiresAt sorteras sist (har inget slut-datum = pågående).
                 source.OrderBy(j => j.ExpiresAt == null)
                       .ThenByDescending(j => j.ExpiresAt)
                       .ThenBy(j => j.Id),
@@ -51,6 +57,7 @@ public sealed class ListJobAdsQueryHandler(IAppDbContext db)
                 source.OrderBy(j => j.ExpiresAt == null)
                       .ThenBy(j => j.ExpiresAt)
                       .ThenBy(j => j.Id),
-            _ => source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(sortBy), sortBy, "Unknown JobAdSortBy — validator should reject."),
         };
 }

@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using JobbPilot.Api.IntegrationTests.Helpers;
 using JobbPilot.Api.IntegrationTests.Infrastructure;
 using Shouldly;
 
@@ -11,10 +13,27 @@ public class ListJobAdsTests(ApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 
+    private async Task AuthenticateAsync(CancellationToken ct)
+    {
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+    }
+
     [Fact]
-    public async Task GET_job_ads_returns_200_with_paged_result_shape()
+    public async Task GET_job_ads_without_auth_returns_401()
     {
         var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.GetAsync("/api/v1/job-ads", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GET_job_ads_with_auth_returns_200_with_paged_result_shape()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
 
         var response = await _client.GetAsync("/api/v1/job-ads", ct);
 
@@ -33,6 +52,7 @@ public class ListJobAdsTests(ApiFactory factory)
     public async Task GET_job_ads_honors_pagination_query_params()
     {
         var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
 
         var response = await _client.GetAsync("/api/v1/job-ads?page=2&pageSize=5", ct);
 
@@ -46,6 +66,7 @@ public class ListJobAdsTests(ApiFactory factory)
     public async Task GET_job_ads_with_invalid_page_returns_400()
     {
         var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
 
         var response = await _client.GetAsync("/api/v1/job-ads?page=0", ct);
 
@@ -56,6 +77,7 @@ public class ListJobAdsTests(ApiFactory factory)
     public async Task GET_job_ads_with_invalid_pageSize_returns_400()
     {
         var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
 
         var response = await _client.GetAsync("/api/v1/job-ads?pageSize=500", ct);
 

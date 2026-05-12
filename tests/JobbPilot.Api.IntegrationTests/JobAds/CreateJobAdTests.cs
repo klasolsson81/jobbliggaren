@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using JobbPilot.Api.IntegrationTests.Helpers;
 using JobbPilot.Api.IntegrationTests.Infrastructure;
 using Shouldly;
 
@@ -11,10 +13,29 @@ public class CreateJobAdTests(ApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 
+    private async Task AuthenticateAsync(CancellationToken ct)
+    {
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+    }
+
+    [Fact]
+    public async Task POST_job_ad_without_auth_returns_401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var command = new { title = "x", companyName = "y", description = "z", url = "https://example.com", source = "Manual", publishedAt = DateTimeOffset.UtcNow, expiresAt = (DateTimeOffset?)null };
+
+        var response = await _client.PostAsJsonAsync("/api/v1/job-ads", command, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
     [Fact]
     public async Task POST_then_GET_returns_created_job_ad_with_active_status()
     {
         var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
         var command = new
         {
             title = "Senior Backend Engineer",

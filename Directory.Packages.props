@@ -75,5 +75,22 @@
          CVE-warningen som annars failar build under TreatWarningsAsErrors. 13.0.3 är senaste
          stabila version och första post-fix release-linje. -->
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+    <!-- F2-P8b JobTech-integration (ADR 0032). Refit för JobSearch (klassisk REST/JSON,
+         BUILD.md §3.1). Microsoft.Extensions.Http.Resilience för retry+CB+rate-limit
+         (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly).
+         WireMock.Net.xUnit för integration-tester av JobTech-shape + resilience-fallbacks
+         (transient 503, rate-limit 429, polymorft event-schema). -->
+    <PackageVersion Include="Refit" Version="10.1.6" />
+    <PackageVersion Include="Refit.HttpClientFactory" Version="10.1.6" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.5.0" />
+    <PackageVersion Include="WireMock.Net" Version="1.25.0" />
+    <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
+         OpenTelemetry.Exporter.OpenTelemetryProtocol 1.14.0 vilka är sårbara mot
+         CVE-2026-40894 (GHSA-g94r-2vxg-569j, GHSA-4625-4j76-fww9, GHSA-mr8r-92fq-pj8p,
+         GHSA-q834-8qmm-v933 — excessive memory allocation vid propagation-header-
+         parsing). Fix från 1.15.3 (web-verifierat 2026-05-12). Pinnas via
+         CentralPackageTransitivePinningEnabled (Directory.Build.props). -->
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
+using System.Threading.RateLimiting;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Auditing;
+using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure.Auditing;
 using JobbPilot.Application.Auth.Jobs.HardDeleteAccounts;
@@ -11,13 +13,18 @@ using JobbPilot.Infrastructure.Email;
 using JobbPilot.Infrastructure.FeatureFlags;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Invitations;
+using JobbPilot.Infrastructure.JobSources.Platsbanken;
 using JobbPilot.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Polly;
+using Polly.RateLimiting;
+using Refit;
 using StackExchange.Redis;
 
 namespace JobbPilot.Infrastructure;
@@ -37,7 +44,117 @@ public static class DependencyInjection
         services.AddIdentityAndSessions(configuration);
         services.AddHttpAuditing();
         services.AddInvitationsAndEmail(configuration);
+        services.AddJobSources(configuration);
         return services;
+    }
+
+    /// <summary>
+    /// F2-P8b (ADR 0032). Registrerar Refit-baserad <c>IJobTechSearchClient</c>,
+    /// typed <c>IJobTechStreamClient</c>, <see cref="JobTechPayloadSanitizer"/>
+    /// (singleton), och <see cref="PlatsbankenJobSource"/> som
+    /// <see cref="IJobSource"/>. Resilience-pipelinen (retry+CB) appliceras på
+    /// Search-klienten via Microsoft.Extensions.Http.Resilience; Stream-klienten
+    /// får custom pipeline (RateLimiter → Retry → CB) per dotnet-architect
+    /// 2026-05-12: JobStream:s hårda 1-req/min-gräns kräver proaktiv throttling.
+    /// </summary>
+    public static IServiceCollection AddJobSources(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<JobTechOptions>()
+            .Bind(configuration.GetSection(JobTechOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // JobSearch (Refit) — klassisk REST/JSON. Standard resilience-pipeline
+        // (retry+CB+timeout) räcker här eftersom JobSearch saknar publicerad
+        // rate-limit (429 endast vid abuse).
+        services.AddRefitClient<IJobTechSearchClient>()
+            .ConfigureHttpClient((sp, client) =>
+            {
+                var options = sp.GetRequiredService<IOptions<JobTechOptions>>().Value;
+                client.BaseAddress = new Uri(options.JobSearchBaseUrl);
+                ApplyApiKey(client, options);
+            })
+            .AddStandardResilienceHandler(o =>
+            {
+                o.Retry.MaxRetryAttempts = 3;
+                o.Retry.BackoffType = DelayBackoffType.Exponential;
+                o.CircuitBreaker.MinimumThroughput = 5;
+                o.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(5);
+            });
+
+        // JobStream (typed) — NDJSON snapshot + stream. Custom resilience-pipeline
+        // med RateLimiter FÖRE retry så 429 inte eskaleras inom samma minut.
+        // ADR 0032 §1 + JobTech 1-req/min-gräns (web-verifierat 2026-05-12).
+        services.AddHttpClient<IJobTechStreamClient, JobTechStreamClient>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<JobTechOptions>>().Value;
+            client.BaseAddress = new Uri(options.JobStreamBaseUrl);
+            ApplyApiKey(client, options);
+            // Snapshot kan vara ~50-100 MB; HttpClient default 100s räcker vid normal
+            // hastighet men höjs för säkerhets skull.
+            client.Timeout = TimeSpan.FromMinutes(5);
+            // sec-Min-3: DoS-skydd mot ondskefullt stor respons (10 GB OOM-attack).
+            // 500 MB cap är 5-10× förväntad snapshot-storlek per JobTech-docs.
+            client.MaxResponseContentBufferSize = 500_000_000;
+        })
+        .AddResilienceHandler("jobstream", builder =>
+        {
+            // Rate-limiter FÖRE retry så retries räknas mot samma 1-req/min-fönster
+            // (annars eskaleras 429 vid första försök). Polly v8 wrappar
+            // System.Threading.RateLimiting.RateLimiter direkt — async hela vägen.
+            builder.AddRateLimiter(_streamRateLimiter);
+            builder.AddRetry(new HttpRetryStrategyOptions
+            {
+                MaxRetryAttempts = 3,
+                BackoffType = DelayBackoffType.Exponential,
+            });
+            builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+            {
+                MinimumThroughput = 5,
+                BreakDuration = TimeSpan.FromMinutes(5),
+            });
+        });
+
+        services.AddScoped<IJobSource, PlatsbankenJobSource>();
+
+        return services;
+    }
+
+    // Process-wide rate-limiter för JobStream (1 req/min, ingen queue). FixedWindow
+    // är rätt val per dotnet-architect 2026-05-12 — vi accepterar att burst-anrop
+    // misslyckas direkt (QueueLimit=0), bättre än att queueras och eskalera till
+    // JobTech:s 429.
+    //
+    // TESTBARHETSNOT (code-reviewer 2026-05-12 Min-3): static-livscykel betyder att
+    // alla tester som använder hela DI-stacken delar samma limiter över hela test-
+    // körningen. Resilience-tester (JobTechStreamResilienceTests) bygger därför
+    // egen DI-container UTAN denna limiter — de testar bara retry/CB-pipelinen.
+    // P8c-Hangfire-jobben kommer dela samma limiter i prod, vilket är den
+    // önskade semantiken. IDisposable-warning vid host-shutdown är accepterad
+    // bagatell — limitern lever app-lifetime.
+    private static readonly FixedWindowRateLimiter _streamRateLimiter = new(
+        new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 1,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        });
+
+    private static void ApplyApiKey(HttpClient client, JobTechOptions options)
+    {
+        // SECURITY-NOTE (security-auditor 2026-05-12 Min-2): api-key skickas via
+        // DefaultRequestHeaders.TryAddWithoutValidation. Microsoft.Extensions.Http
+        // EventSource-tracing kan teoretiskt logga request-headers vid aktiverad
+        // diagnostik — vi aktiverar den inte i prod (Serilog enrichers strippar
+        // headers redan). JobTech-api-key ger högre rate-limit på publikt
+        // data — låg blast-radius om läckt.
+        if (!string.IsNullOrWhiteSpace(options.ApiKey))
+            client.DefaultRequestHeaders.TryAddWithoutValidation("api-key", options.ApiKey);
+
+        client.DefaultRequestHeaders.TryAddWithoutValidation("accept", "application/json");
     }
 
     /// <summary>

@@ -19,7 +19,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
-| TD-66 | Cross-user-isolation-tester för Resume- och JobSeeker-aggregaten | Minor | 1 | Säkerhet/Test |
 | TD-67 | Audit-trail för failed cross-user-access-attempts | Minor | 1 (eller 2) | GDPR/Observability |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
@@ -40,7 +39,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-18 | Stale-detektering: utökning till intervju-states | Minor | Trigger | UX/Domain |
 | TD-20 | `AuditPartitionMaintainer.DropPartitionsOlderThanAsync` defensiv refactor | Minor | Opportunistiskt | Code quality |
 | TD-39 | Error-summary-mönster för stora formulär | Minor | Trigger | A11y/UX |
-| TD-65 | Playwright E2E för delete-account-flow | Minor | 1 (innan fas-stängning) | Test/E2E |
 
 ---
 
@@ -149,44 +147,6 @@ för cost-cap-design när AI-features designas.
 
 
 ## Minor — Fas 1
-
-## TD-66: Cross-user-isolation-tester för Resume- och JobSeeker-aggregaten
-**Kategori:** Säkerhet / Test
-**Severity:** Minor
-**Fas:** 1
-**Källa:** security-auditor Batch F-review 2026-05-12 (TD-12-leverans-utvidgning)
-
-Batch F levererade `ApplicationsCrossUserIsolationTests.cs` som täcker
-Application-aggregatets cross-user-isolation. Motsvarande täckning saknas
-för Resume- och JobSeeker-aggregaten:
-
-- `Resume` har sub-resources (versioner, master-content) som filtreras på
-  JobSeekerId — saknar integration-test som verifierar isolation
-- `JobSeeker` profile-endpoints (`GET /me/profile`, `PATCH /me/profile`)
-  filtreras via `ICurrentUser.UserId` — saknar test
-
-**Risk i Fas 1:** låg (samma pattern som Application — `a.JobSeekerId ==
-jobSeekerId`-filter används konsekvent), men test-coverage är ojämn.
-
-**Föreslagen åtgärd:** Spegla pattern från
-`ApplicationsCrossUserIsolationTests`:
-
-1. `ResumesCrossUserIsolationTests.cs`:
-   - User B GET /resumes/{A-id} → 404
-   - User B PATCH /resumes/{A-id}/content → 404
-   - User B DELETE /resumes/{A-id} → 404
-   - User B DELETE /resumes/{A-id}/versions/{vid} → 404
-   - User B GET /resumes (list) inkluderar inte A:s
-2. `JobSeekerProfileCrossUserIsolationTests.cs`:
-   - User B kan inte mutera A:s profil via PATCH /me/profile (default-pattern
-     säkert eftersom claim styr; testet bevakar invariant)
-
-**Scope:** ~1-2h CC-tid. Mekaniskt mot etablerat pattern.
-
-**Beroenden:** Ingen — kan adresseras opportunistiskt eller som dedikerad batch.
-
-
----
 
 ## TD-67: Audit-trail för failed cross-user-access-attempts (GDPR Art. 32)
 **Kategori:** GDPR / Observability / Anomaly-detection
@@ -836,42 +796,6 @@ regression).
 
 ---
 
-## TD-65: Playwright E2E för delete-account-flow
-**Kategori:** Test / E2E
-**Severity:** Minor
-**Fas:** 1 (innan fas-stängning) eller Fas 2 om E2E-auth-fixture-infrastruktur saknas
-**Källa:** Batch E split per senior-cto-advisor-triage 2026-05-11 (TD-28 leverans)
-
-Batch E levererade TD-28 med Vitest-coverage för `DeleteAccountDialog`-komponenten
-(8 tester) och .NET integration-tester för `POST /api/v1/auth/verify` (4 tester).
-Full E2E-flow (login → /mig → modal → typed-confirm → password → success →
-redirect till /logga-in) kräver Playwright med authed-fixture.
-
-**Risk i Fas 1:** låg — komponenttester + backend-integration-tester täcker
-viktigaste invarianter. E2E-värde är regression-skydd vid framtida refactor
-över hela kedjan.
-
-**Föreslagen åtgärd:**
-
-1. Verifiera Playwright auth-fixture-status i `web/jobbpilot-web/tests/e2e/`.
-   Om auth-fixture saknas → bygg den först.
-2. Skriv E2E-spec `delete-account.spec.ts`:
-   - Register + login som testanvändare
-   - Navigera till /mig
-   - Öppna delete-modal
-   - Verifiera typed-confirmation-disabling med fel email
-   - Skriv rätt email + lösenord
-   - Verifiera redirect till /logga-in efter delete
-   - Verifiera att gamla session-cookien inte längre fungerar
-3. Säkerhetsinvariant: testet får inte logga lösenord eller email på error-path.
-
-**Scope:** ~1-2h CC-tid när auth-fixtures finns. Om fixtures saknas → större
-scope (egen TD-split).
-
-**Trigger:** innan Fas 1-stängning eller naturlig touch på me-flow.
-
----
-
 ## TD-39: Error-summary-mönster för stora formulär (Resume + framtida)
 
 **Kategori:** Accessibility / UX
@@ -944,6 +868,8 @@ ADR-cross-references och granskningsbevis.
 | TD-6 | Logout-backend-call utan fel-loggning | 2026-05-11 | Batch E |
 | TD-28 | Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me | 2026-05-11 | Batch E (fullstack) |
 | TD-12 | Saknad integration-test för cross-user isolation | 2026-05-12 | Batch F |
+| TD-65 | Playwright E2E för delete-account-flow | 2026-05-12 | disciplinretur |
+| TD-66 | Cross-user-isolation-tester för Resume + JobSeeker | 2026-05-12 | disciplinretur |
 
 ---
 

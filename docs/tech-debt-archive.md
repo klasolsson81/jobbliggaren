@@ -1638,3 +1638,97 @@ hade det inte fångats av testerna förrän manuellt verifierat.
 - TD-67: Audit-trail för failed cross-user-access-attempts (GDPR Art. 32 anomaly-detection)
 
 ---
+
+## TD-65: Playwright E2E för delete-account-flow ✓ STÄNGD 2026-05-12
+**Kategori:** Test / E2E
+**Severity:** Minor
+**Fas:** 1
+**Källa:** Batch E split per senior-cto-advisor-triage 2026-05-11
+**Status:** **STÄNGD 2026-05-12 (disciplinretur)** — Playwright auth-fixtures fanns redan, in-block-fix per §9.6.
+
+Batch E levererade TD-28 med Vitest-coverage för `DeleteAccountDialog`-komponenten
+(8 tester) och .NET integration-tester för `POST /api/v1/auth/verify` (4 tester).
+Full E2E-flow var lyft som TD-65 — men på falsk premiss att Playwright auth-
+fixtures saknades. Discovery 2026-05-12 visade att `loginAs` + `ensureTestUser`
+finns i `tests/e2e/helpers/auth.ts` — TD borde fixats in-block i Batch E.
+
+**Klas-feedback 2026-05-12:** "Varför lyftes hela tiden nya TDs utan att fixa
+dom direkt?" — disciplinmiss erkänd, lärdom sparad
+(`memory/feedback_td_lifting_discipline.md`).
+
+**Leverans (disciplinretur):**
+
+1. `web/jobbpilot-web/tests/e2e/helpers/auth.ts` — exporterat `TEST_PASSWORD`
+   + `testEmail` (var privata) för återanvändning i delete-spec.
+2. `web/jobbpilot-web/tests/e2e/delete-account.spec.ts` — 3 Playwright-tester:
+   - Modal öppnas + submit-disabled-states (email-match required)
+   - Happy path: typed-confirmation + password → POST /auth/verify + DELETE /me
+     → redirect /logga-in. **Inkluderar direkt backend-call med fångad
+     session-token efter delete → verifierar 401** (ADR 0024 D4
+     Redis-session-revoke + GDPR Art. 17).
+   - Fel lösenord → 401 → form-error visad utan session-mutation
+
+Varje test skapar egen runId (destruktiv operation).
+
+**Reviews:**
+- code-reviewer: 0 Blocker / 0 Major / 3 Minor (1 fixad in-block — explicit
+  HttpStatusCode, 2 noteringar). Approved.
+- security-auditor: 1 Major (Redis-session-revoke explicit verification) fixad
+  in-block. "Cookie-stöld-scenario nu täckt." Approved.
+
+**Tester:** 3 E2E-tester (ej körda i CI — kräver lokal dev-stack med
+`BACKEND_URL`-injection). tsc grön.
+
+---
+
+## TD-66: Cross-user-isolation-tester för Resume- och JobSeeker-aggregaten ✓ STÄNGD 2026-05-12
+**Kategori:** Säkerhet / Test
+**Severity:** Minor
+**Fas:** 1
+**Källa:** security-auditor Batch F-review 2026-05-12 (TD-12-leverans-utvidgning)
+**Status:** **STÄNGD 2026-05-12 (disciplinretur)** — mekaniskt pattern-spegling, in-block-fix per §9.6.
+
+Batch F levererade ApplicationsCrossUserIsolationTests men lyfte TD-66 för
+parallell täckning av Resume + JobSeeker. **Klas-feedback:** disciplinmiss
+— mekaniskt scope i samma fas borde fixats in-block.
+
+**Leverans (disciplinretur):**
+
+1. `tests/JobbPilot.Api.IntegrationTests/Resumes/ResumesCrossUserIsolationTests.cs`
+   — 7 integration-tester:
+   - GET /resumes/{A-id} från B → 404
+   - PATCH /resumes/{A-id} från B → 404
+   - PUT /resumes/{A-id}/master från B → 404
+   - DELETE /resumes/{A-id}/versions/{fakeVid} från B → 404 (enumeration-skydd
+     med slumpat versionId)
+   - DELETE /resumes/{A-id} från B → 404
+   - GET /resumes (PagedResult-list) från B → A:s resume inte i items
+   - State-intact: A:s resume orörd efter B:s alla attack-försök
+
+2. `tests/JobbPilot.Api.IntegrationTests/Me/MeProfileCrossUserIsolationTests.cs`
+   — 3 integration-tester:
+   - PATCH /me/profile från B muterar B:s profil, A:s orörd
+   - Defense-in-depth: PATCH från B med extra `userId`/`jobSeekerId`-fält i
+     payload (potentiell ID-injection) påverkar inte A:s profil
+   - GET /me returnerar caller-userId (sanity)
+
+Täckning per 2026-05-12: hela `/api/v1/resumes`-yta + `/api/v1/me` + `/api/v1/me/profile`.
+
+**404-policy:** alla cross-user-anrop returnerar 404 (samma som ApplicationsCross
+UserIsolationTests). Enumeration-attack-skydd per OWASP API1:2023 BOLA.
+
+**Reviews:**
+- code-reviewer: 0 Blocker / 0 Major / 3 Minor (1 fixad in-block, 1 skippad
+  pattern-konsekvens med MeTests.cs, 1 noterad). Approved.
+- security-auditor: 0 Blocker / 1 Major fixad in-block (Redis-session-revoke
+  i TD-65), 3 Minor varav 2 fixade in-block (version-delete-test + state-
+  intact-test för Me + scope-doc), 1 noterad. Approved.
+
+**Tester:** 7/7 Resume + 3/3 Me integration-tester gröna. Inga ändringar i
+production-kod.
+
+**Lärdom (sparad i `memory/feedback_td_lifting_discipline.md`):**
+TD-lyftningar måste pressas mot §9.6-kriterier — "scope-disciplin per batch"
+eller "+1-2h CC-tid" är INTE legitima skäl. Default = in-block-fix.
+
+---

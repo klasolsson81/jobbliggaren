@@ -1,8 +1,10 @@
 # JobbPilot.Migrate Dockerfile — one-shot DDL-init console-app (STEG 14b).
 # Build context: repo root (`docker build -f src/JobbPilot.Migrate/Dockerfile .`).
 #
-# Image-strategi: minimal runtime (dotnet/runtime:10.0, ej aspnet) — Migrate har
-# inget HTTP-bagage. Sparar ~80 MB jämfört med worker-image.
+# Image-strategi: aspnet:10.0-noble runtime (ej minimal runtime) sedan F2-P8a.5
+# ADR 0033 — JobbPilot.Infrastructure har transitiva ASP.NET-deps (Mediator/
+# Hangfire/EF pipeline-behaviors). Tidigare runtime:10.0 (minimal) gav exit 150
+# "Microsoft.AspNetCore.App not found". Samma image-bas som Worker.
 #
 # Project-dependencies (ADR 0033 amendment 2026-05-12 — Phase E EF Core MigrateAsync):
 #   JobbPilot.Migrate -> JobbPilot.Infrastructure -> JobbPilot.Application -> JobbPilot.Domain
@@ -36,9 +38,10 @@ RUN dotnet publish src/JobbPilot.Migrate/JobbPilot.Migrate.csproj \
     /p:UseAppHost=false
 
 # ---------------------------------------------------------------------------
-# Stage 2: runtime — minimal .NET 10 (ej aspnet, ingen HTTP-server)
+# Stage 2: runtime — aspnet:10.0-noble (krävs av Infrastructure-projektets
+# transitiva ASP.NET-deps trots att Migrate själv är HTTP-fri console-app).
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
 WORKDIR /app
 COPY --from=build /app/publish .

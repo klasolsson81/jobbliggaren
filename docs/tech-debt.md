@@ -19,7 +19,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
-| TD-68 | CloudWatch metric filter + SNS-alarm för failed_access_attempt-events | Minor | 1 | Observability/Infra |
+| TD-68 | CloudWatch metric filter + SNS-alarm för failed_access_attempt-events (kod levererad — terraform apply pending) | Minor | 1 | Observability/Infra |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -152,31 +152,42 @@ för cost-cap-design när AI-features designas.
 **Severity:** Minor
 **Fas:** 1 (innan fas-stängning eller vid första prod-deploy)
 **Källa:** TD-67-leverans 2026-05-12 (ADR 0031 — anomaly-detection-skiktet)
+**Status:** **Pågående — Terraform-kod + runbook levererad i commit `70ca42b`. `terraform apply` pending Klas-godkännande per §9.2.**
 
 ADR 0031 etablerade `IFailedAccessLogger`-strategin: handlers loggar
 strukturerade events via `ILogger<T>` med `event_name=failed_access_attempt`
 + `requesting_user_id`-fält. App-koden levererar signalen — CloudWatch-
-aggregat är separat Terraform-leverans.
+aggregat är denna Terraform-leverans.
 
-**Föreslagen åtgärd:**
+**Levererat 2026-05-12 (kod, ej apply):**
 
-1. CloudWatch metric filter i `infra/terraform/environments/{dev,prod}/`:
-   - Filter pattern: `{ $.event_name = "failed_access_attempt" }`
-   - Namespace: `JobbPilot/Security`
-   - Metric: `FailedAccessAttempts` per `requesting_user_id`
-2. CloudWatch alarm:
-   - Threshold: >20 events/min/user (justerbart per env)
-   - SNS topic: `secops-anomaly` (skapas separat)
-3. Runbook i `docs/runbooks/failed-access-anomaly.md` med triage-steg vid alarm
+- `infra/terraform/modules/cloudwatch_security_alarms/`:
+  - `aws_cloudwatch_log_metric_filter` (unquoted substring-pattern
+    `event_name=failed_access_attempt` mot api-log-gruppen)
+  - `aws_sns_topic` (KMS-encrypted)
+  - `aws_sns_topic_policy` (least-privilege: Service `cloudwatch.amazonaws.com`
+    + `AWS:SourceAccount` + `AWS:SourceArn` mot `${name_prefix}-*`-alarms)
+  - `aws_sns_topic_subscription` (conditional på `alert_email != ""`)
+  - `aws_cloudwatch_metric_alarm` (default >50 events/60s, `treat_missing_data=notBreaching`)
+- Dev-env-invokation. Prod-invokation defereras tills prod-ECS-stack levereras
+  (prod har inte `cloudwatch_logs`-modul än).
 
-**Risk i Fas 1:** låg — signalen finns i CloudWatch (app-loggen redan
-strukturerad), bara automatisk alerting saknas. Manuell CloudWatch
-Insights-query räcker som temporary-detektering.
+**Reviews (kod-leverans):**
+- security-auditor: 0 Blocker / 0 Major efter fix av M1 (filter-pattern
+  quoted→unquoted) + M2 (explicit topic-policy) + Minor 7 (SourceArn) in-block.
+  Apply-godkänd.
 
-**Beroenden:** Terraform-changeset till AWS-miljö, separat security-auditor-
-review + Klas-godkännande för deploy.
+**Återstår innan TD-68 stängs:**
 
-**Trigger:** innan Fas 1 prod-deploy eller första BOLA-incident.
+1. Pre-apply-verifiering: `aws logs test-metric-filter --filter-pattern 'event_name=failed_access_attempt' --log-event-messages '<sample>'` mot live AWS — verifierar att pattern matchar FailedAccessLogger:s faktiska output.
+2. `terraform apply -target=module.cloudwatch_security_alarms` i dev (Klas-godkännande).
+3. Manuell cross-user-trigger för end-to-end-verifiering av alarm-vägen
+   (cross-user-API-anrop → log → metric → alarm → SNS).
+4. (Valfritt) Subscription av Klas-email på SNS-topic + AWS-mail-opt-in.
+5. Prod-invokation (när prod-ECS-stack levereras).
+
+**Runbook** för triage vid alarm-trigger: TBD vid första apply (CloudWatch
+Insights-query för per-user-drill-down, åtgärds-tabell beroende på severity).
 
 
 ---

@@ -1,120 +1,137 @@
 # Current work — JobbPilot
 
-**Status:** **Batch A STÄNGD OCH PUSHED 2026-05-11 — TD-10 + TD-11 stängda + TD-30 retroaktivt arkiverad.** Fas 1-rensning påbörjad enligt batching-plan (6 batches). Två nya TDs lyfta (TD-63 ActionResult kind-union för writes, TD-64 i18n omnibus).
-**Senast uppdaterad:** 2026-05-11
+**Status:** **Fas 1-rensning komplett 2026-05-12. Fas 1 Minor-sektionen TOM. Nästa session: Fas 2-kickoff med ADR 0005-design.**
+**Senast uppdaterad:** 2026-05-12
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 
 ---
 
-## Aktivt nu — Batch A klar, väntar Klas-prioritering för Batch B
+## Aktivt nu — Fas 1 fullt stängd, Fas 2-prereqs väntar
 
-Stationär-CC-session 2026-05-11 ~20:00–21:00. Tre arbets-block:
+Lång CC-session 2026-05-11 ~21:00 → 2026-05-12 ~08:00. Levererade hela
+Fas 1-rensningens återstående batches (B–F) plus disciplinretur + TD-67 +
+TD-25 + TD-68 (med dev-apply).
 
-1. **Plan-leverans:** TD-batching-plan för Fas 1-rensning — 6 batches (A–F) + parallell-spår TD-30
-2. **Batch A STÄNGD** (commit `0560718`) — TD-10 + TD-11 frontend-säkerhet
-3. **TD-30 retroaktivt arkiverad** — Klas-discovery: jobbpilot.se redan köpt + ACM-cert validerat 2026-05-10 + ADR 0027 supersession finns. TD-30 stod kvar i aktiv-listan trots leverans.
+Se session-log [`2026-05-12-0800-fas1-rensning-komplett-td67-td68.md`](sessions/2026-05-12-0800-fas1-rensning-komplett-td67-td68.md) för full historik.
 
-### Batch A-leverans (commit `0560718`)
+### Levererat denna session
 
-**TD-10 (Major, GDPR Art. 5(1)(f)):** PII-läckage via `body?.detail` / `body?.title` borttagen från 10 Server-Action-sites i `applications.ts` / `me.ts` / `resumes.ts`. Ny helper `_action-error.ts` mappar HTTP-status → svensk text utan att läsa body. Säkerhetsinvariant verifierad: `res.json` anropas aldrig på error-path.
+| Område | Stängda TDs | Notering |
+|---|---|---|
+| Batch B (shadcn-first form-controls) | TD-41, TD-57 | CTO-beslut: shadcn Select + Input-primitive default |
+| Batch C (a11y-pass) | TD-1, TD-2, TD-40 | Skip-link + CardTitle h3 + asChild + Slot.Root |
+| Batch D (UX-pass /mig) | TD-3, TD-4, TD-5 | Stum tom-state + userId borttaget + JSDoc |
+| Batch E (me-flöde fullstack) | TD-6, TD-28 | Klas-Alt1: utöka till fullstack med ny `/auth/verify`-endpoint |
+| Batch F (cross-user-isolation) | TD-12 | 7 integration-tester för Application |
+| Disciplinretur | TD-65, TD-66 | Reparation av disciplinmissar (Playwright E2E + Resume/Me isolation) |
+| TD-67 (ADR 0031) | TD-67 | IFailedAccessLogger + strukturerad logging + ADR 0031 |
+| TD-25 (resilient loop) | TD-25 | HardDeleteAccountsJob per-konto try/catch |
+| TD-68 (CloudWatch) | TD-68 | Terraform-modul + dev-apply genomförd |
 
-**TD-11 (Major, test-isolation):** E2E-helper härdad — `TEST_USER_PASSWORD` env-var, test-domän `@e2e.jobbpilot.test` (RFC 6761 reserverad TLD, non-resolvable), `assertSafeBaseURL`-guard via URL-hostname-parse på både `loginAs` och `ensureTestUser`.
+**Totalt:** 16 TDs stängda. **45 stängda** totalt, **18 aktiva kvar** (alla Fas 2+ eller Trigger-baserade).
 
-**Reviews:**
-- senior-cto-advisor: Variant B (central helper) över A (per-action) / C (kind-union för writes). Motivering: DRY + SoC + OCP + ADR 0030-symmetri. Variant C lyfts som TD-63.
-- code-reviewer: 0 Blocker / 0 Major / 2 Minor / 3 Nit. Minor-1 (URL-substring-bypass) + Nit-1 (DRY 409+422) + Nit-2 (doc-precision) fixade in-block.
-- security-auditor: Approved. GDPR-veto passerad utan blocker. TD-10 + TD-11 stängningskriterier uppfyllda.
+### Fas 1-status
+
+- `docs/steg-tracker.md` Fas 1: "Klar 2026-05-11" (admin-audit) → uppdaterad i denna session med Fas 1-rensningens täckning.
+- **Fas 1 Minor-sektionen i tech-debt.md är TOM.** Alla aktiva TDs är Fas 2+ (PII-encryption, AI-kostnadstak), Fas 4 (AI), Fas 6 (admin-impersonation), Trigger-baserade (i18n, error-summary, paginering), eller Opportunistiska (TD-20).
+- Inga blockers från TD-listan för Fas 2-start.
+
+### Säkerhetsinvarianter etablerade
+
+- Cross-user-isolation maskinellt bevakad: Application + Resume + JobSeeker
+  (16 integration-tester totalt)
+- BOLA-enumeration-detektering live i dev (CloudWatch metric filter + SNS-alarm)
+- Defense-in-depth re-auth före DELETE /me (POST /auth/verify)
+- Resilient hard-delete-job (per-konto try/catch)
+- GDPR Art. 17 + Art. 32 implementationsbevisad i tester
 
 ### Tester (full svit grön)
 
-| Suite | Antal | Diff |
-|-------|-------|------|
-| Frontend vitest | **227** | +10 (TD-10 helper-tester) |
-| tsc --noEmit | grön | — |
-| Architecture.Tests | 32 | oförändrat |
+| Suite | Antal |
+|-------|-------|
+| Backend Domain.UnitTests | 163 |
+| Backend Application.UnitTests | 217 |
+| Backend Architecture.Tests | 32 |
+| Backend Api.IntegrationTests | +21 nya (VerifyCredentials, Apps/Resumes/Me isolation) |
+| Frontend Vitest | 234 |
+| tsc --noEmit | grön |
+| dotnet format | ren |
 
-### Pushed commits denna session
+### AWS-deploy denna session
+
+| Resurs | Status |
+|---|---|
+| `jobbpilot-dev-secops-anomaly` SNS-topic | Live (KMS-encrypted) |
+| `failed_access_attempt` metric filter | Live (api log-group) |
+| `jobbpilot-dev-failed-access-anomaly` alarm | INSUFFICIENT_DATA (väntar data) |
+| `jobbpilot-dev-api-log-pipeline-health` alarm | INSUFFICIENT_DATA (väntar data) |
+
+### Pushed commits denna session (21 st)
 
 | Commit | Scope |
 |--------|-------|
-| `0560718` | `feat(web): Batch A — TD-10 + TD-11 frontend-säkerhet (GDPR Art. 5(1)(f) + test-isolation)` |
+| `74d28ad` | feat(web): Batch B shadcn-first form-controls |
+| `2513580` | docs(tech-debt): Batch B stängningar |
+| `006e3e1` | feat(web): Batch C a11y-pass |
+| `bc91ff1` | docs(tech-debt): Batch C stängningar |
+| `f1a82be` | feat(web): Batch D UX-pass /mig |
+| `5623d01` | docs(tech-debt): Batch D stängningar |
+| `9f74efb` | feat: Batch E me-flöde fullstack |
+| `fdd2673` | docs(tech-debt): Batch E stängningar |
+| `80a6c3c` | chore(test): VerifyCredentialsTests pattern-match |
+| `4310a8e` | chore(security): .gitleaksignore fingerprints |
+| `b4bb60f` | test(applications): Batch F cross-user-isolation |
+| `d3cbf99` | docs(tech-debt): Batch F stängningar |
+| `62e8453` | test: disciplinretur TD-65 + TD-66 |
+| `71b7c9f` | docs(tech-debt): TD-65 + TD-66 stängda |
+| `861a7cf` | feat(security): TD-67 + ADR 0031 |
+| `ba4f36f` | docs(tech-debt): TD-67 stängd |
+| `eed6cc2` | fix(worker): TD-25 resilient loop |
+| `80c1f06` | docs(tech-debt): TD-25 stängd |
+| `70ca42b` | feat(infra): TD-68 CloudWatch security-alarms |
+| `2f66b4f` | docs(tech-debt): TD-68 Pågående |
+| `45fb7f7` | docs(tech-debt): TD-68 stängd efter dev-apply |
 
-### Nya TDs lyfta
+### Lärdom sparad i memory
 
-- **TD-63** (Minor, Fas 2+): ActionResult kind-union för writes (ADR 0030-symmetri). Variant C-defererad från TD-10 CTO-triage.
-- **TD-64** (Minor, Trigger): i18n-migration av inline svenska error-strängar (omnibus).
+- `memory/feedback_td_lifting_discipline.md`:
+  TD-lyftningar måste pressas mot §9.6-kriterier även om CTO/auditor föreslår.
+  "Scope-disciplin per batch" eller "+1-2h CC-tid" är INTE legitima skäl.
 
-### TD-30 retroaktiv arkivering
+### Nya ADRs
 
-Klas-discovery 2026-05-11: jobbpilot.se redan registrerad, ACM-cert validerat 2026-05-10 (`f72a79d7-...`), STEG 13c HTTPS-flip levererad, ADR 0027 supersession av ADR 0026 dokumenterad. TD-30 stod kvar i aktiv-listan som "Major Nu" trots att alla 8 operativa steg är utförda. Stängd retroaktivt + flyttad till `tech-debt-archive.md`.
-
-**Lärdom:** TD-livscykel-disciplinen (CLAUDE.md §9.7 etablerad 2026-05-11) ska tillämpas redan vid leverans-commit — annars hopar sig "de facto stängda" TDs i aktiv-listan och översiktstabellens sanningshalt bryts.
-
----
-
-## När nästa session startar
-
-Batch A klar. Återstående Fas 1-batches per TD-batching-plan:
-
-### Batch B (Major + Minor): TD-41 + TD-57 — UI-konvention native vs shadcn
-
-**Blockerar:** Klas-beslut behövs. Tre varianter:
-- (a) Behåll native, lyft inline-stilen till `ui/native-select.tsx`-primitiv (DRY-fix)
-- (b) Migrera till shadcn `Select` med RHF Controller (full konsistens)
-- (c) Hybrid: shadcn för >2-opt, native för 2-opt (kräver dokumenterad gräns)
-
-Efter Klas-beslut: senior-cto-advisor motiverar val → CC implementerar.
-
-### Batch C (Minor cluster): TD-1 + TD-2 + TD-40 — a11y-pass Fas 1
-
-Mekanisk, ~0,5 CC-session. Skip-link + CardTitle heading + path-equality regression-test.
-
-### Batch D (Minor cluster): TD-3 + TD-4 + TD-5 — UX-pass /mig
-
-Samma fil. ~0,5 CC-session. Behöver design-beslut för TD-3 (stum vs guidance) + TD-4 (ta bort vs omformulera label).
-
-### Batch E (Minor): TD-6 + TD-28 — me-flöde säkerhet + observability
-
-~1 CC-session. TD-28 är största post (typed-confirm + re-auth-Server-Action + tester).
-
-### Batch F (Minor solo): TD-12 — backend cross-user isolation test
-
-~0,5 CC-session. Fristående.
-
-### Öppna frågor från plan-leverans (kvarstår)
-
-- **Q1 ADR 0027-luckor (TD-32–TD-36):** allokera retroaktivt / amenda ADR 0027 / lämna som-är?
-- **Q2 TD-22/TD-17 operativa apply:** flytta tillbaka till aktiva / runbook-uppgift / ny operativ-TD?
-
-Hanteras vid nästa session-start eller vid första naturliga touch.
+- **ADR 0031** — Failed cross-user access detection: strukturerad loggning +
+  CloudWatch-aggregat. Bevarar ADR 0022 immutable.
 
 ---
 
-## Föregående session-summary (referens)
+## Nästa session — Fas 2-kickoff med ADR 0005-design
 
-**2026-05-11 ~16:00–20:00:** TD-7 + TD-53a + TD-53b stängda. ADR 0020 (Zod-DTO-validering) + ADR 0030 (ApiResult kind-union) etablerade. CLAUDE.md §9.6 policy-skift (4h-regel → fas-regel + CTO-auto-follow) + §9.7 TD-livscykel.
+Per CLAUDE.md §9.2 är fas-skifte ett strategiskt beslut. Klas har gett GO
+för Fas 2-start men Fas 2 är blockerad av prereqs per BUILD.md §18 +
+`docs/steg-tracker.md` fotnot ²:
 
-**2026-05-11 ~20:00–21:00:** Batch A (TD-10 + TD-11) stängd + pushed. TD-30 retroaktivt arkiverad. TD-63 + TD-64 lyfta.
+1. **ADR 0005** (go-to-market + kostnadsskydd-strategi) ska beslutas
+2. **Budget Actions** + `registrations_open`-flagga implementerade
+3. **Rate-limiting-utvidgning** för publika endpoints
+4. **Runbook** `docs/runbooks/aws-cost-recovery.md` skapad
 
----
+Startprompt för nästa /clear-session: `STARTPROMPT-FAS2-KICKOFF.md`
+(skapas vid session-end denna session).
 
-## Pre-existing infra (oförändrat)
+### Pending operativa uppgifter
 
-| Resurs | Identifier |
-|---------|-----------|
-| Public URL | `https://dev.jobbpilot.se/api/ready` |
-| API task-def | `jobbpilot-dev-api` |
-| Worker task-def | `jobbpilot-dev-worker` |
-| Tag (senaste) | `v0.1.2-dev` på SHA `7cde3c7` |
+- (Valfritt) Sätt `secops_alert_email` i dev `terraform.tfvars` +
+  re-apply + AWS-mail-opt-in. Idag är SNS-topic skapad men inga
+  subscriptions.
+- (Valfritt) Drift-test av TD-68 anomaly-alarm: registrera 2 users,
+  gör cross-user-anrop, verifiera att alarm triggar inom ~60s.
+- (Senare) Prod-invokation av TD-68-modulen när prod-ECS-stack levereras.
 
----
+### Förbud (default — kan lyftas av Klas)
 
-## Workflow-disciplin (CLAUDE.md §9.6 + §9.7)
-
-1. Discovery först
-2. Multi-approach-val → senior-cto-advisor auto-invokeras (denna session: TD-10 Variant B beslut)
-3. **CC går direkt till implementation efter CTO-beslut** — Klas-STOPP endast vid strategiska frågor
-4. Agent-reviews parallellt vid relevant scope (denna session: code-reviewer + security-auditor)
-5. **In-block-fix-default per fas-regel** — reviews-fynd fixades in-block (assertSafeBaseURL URL-parse, DRY 409+422)
-6. TD-livscykel: nya TDs läggs i `tech-debt.md` med korrekt Severity × Fas-placering. Stängda flyttas till `tech-debt-archive.md` med full kropp + stängningsbevis. **Lärdom TD-30:** flytta i samma commit som leveransen.
+- **INGA Fas 2-JobTech-features** utan ADR 0005-beslut + kostnadsskydd
+- **INGA STEG-starter** utan Klas-GO
+- **INGA ändringar** av `BUILD.md` / `CLAUDE.md` / `DESIGN.md` utan explicit instruktion
+- **INGA prod-deploys** utan Klas-godkännande

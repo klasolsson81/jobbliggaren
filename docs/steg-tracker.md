@@ -1,7 +1,7 @@
 # JobbPilot — STEG-tracker
 
-> **Version:** 1.19
-> **Senast uppdaterad:** 2026-05-11 ~20:00 (**VÄG B TD-61 STÄNGD.** Stationär-CC-session efter Väg A ADR 0029 pushad (`f4a1569`) levererade audit-trail-evidence-test för `IdempotentAdminRoleSeeder` + XML-doc-korrigering. Discovery avslöjade att TD-61:s ursprungspremiss var provably false — seedern skriver INTE till `AuditLogEntries`-tabellen (ADR 0022 §Kontext rad 11 bekräftar: IAuthAuditLogger skriver bara strukturerad logg). senior-cto-advisor valde Alt A (korrigera XML-doc + test mot ILogger-sink) över Alt B (audit-port-erosion) eller Alt C (defer). 3 testfall i `IdempotentAdminRoleSeederAuditEvidenceTests` (happy path EventId=2 / idempotens EventId=3 / saknad user EventId=4). 2 agent-reviews APPROVED (code-reviewer 3 Minor + 1 Nit, dotnet-architect 2 Minor + 1 Nit) med M-1 (PascalCase test-namn) + M-2 (non-generic CapturingLogger) in-block-fixade per 4h-regel. TD-61 stängd. 0 nya TDs lyfta. Backend 612 → 615 grönt. Scope: ~2h (vs original 1h — discovery + CTO-triage utvidgning). Pending: 1 commit + push efter Klas-diff-granskning.)
+> **Version:** 1.20
+> **Senast uppdaterad:** 2026-05-12 ~08:00 (**Fas 1-rensning komplett.** Lång CC-session 2026-05-11 21:00 → 2026-05-12 08:00 levererade Fas 1-rensningens batches B–F (TD-1, TD-2, TD-3, TD-4, TD-5, TD-6, TD-12, TD-28, TD-40, TD-41, TD-57), disciplinretur av TD-65 + TD-66, samt TD-67 (ADR 0031 — failed-access-detection) + TD-25 (HardDeleteAccountsJob resilient loop) + TD-68 (CloudWatch security-alarms med dev-apply). 16 TDs stängda. Fas 1 Minor-sektionen är TOM. Aktiva TDs är Fas 2+/Trigger/Opportunistiska. Klas-feedback om TD-lyftnings-disciplin sparad i memory. 21 commits pushade. Lärdom: TD-listan är inte ett dumpning-ställe — §9.6-kriterier (annan fas / saknad funktion-dependency) ska pressas även när CTO/auditor föreslår lyft.)
 > **Roll:** permanent översikt över STEG- och fas-progression.
 
 Kompletteras av:
@@ -26,7 +26,7 @@ Mellan-arbete (upptakter, cleanup-passningar, disciplin-uppgraderingar) är inte
 | Fas | Namn | Tidsuppskattning | Milstolpe | Status |
 |-----|------|------------------|-----------|--------|
 | Fas 0 | Foundation | ~2 v | Registrera + logga in på dev.jobbpilot.se | **Klar 2026-05-10** ¹ |
-| Fas 1 | Core Domain | ~3 v | CV manuellt + "fake" ansökningar i admin-audit | **Klar 2026-05-11** ³ |
+| Fas 1 | Core Domain | ~3 v | CV manuellt + "fake" ansökningar i admin-audit | **Klar 2026-05-11** ³ + **rensad 2026-05-12** ⁴ |
 | Fas 2 | JobTech Integration | ~2 v | Söka jobb på Platsbanken via appen, spara sökningar | Planerad² |
 | Fas 3 | Application Management | ~2 v | Fullständig ansökningshantering (utan AI) | Planerad |
 | Fas 4 | AI Layer | ~3-4 v | Alla AI-features end-to-end + 14 dagar dogfood | Planerad |
@@ -43,6 +43,8 @@ Mellan-arbete (upptakter, cleanup-passningar, disciplin-uppgraderingar) är inte
 ² Fas 2 är blockerad till ADR 0005 (go-to-market) är beslutad och kostnadsskydd implementerat (Budget Actions, `registrations_open`-flagga, rate limiting, runbook `docs/runbooks/aws-cost-recovery.md`) per BUILD.md §18.
 
 ³ Fas 1 fullt klar 2026-05-11. Milestonestängning levererad i stationär-CC-session: admin-roll-infrastruktur (per-request claims A1 + IdempotentAdminRoleSeeder B1) + GET /api/v1/admin/audit-log + frontend `/admin/granskning` med Server Components + zero client-JS för core-flöde. 5 parallella agent-reviews APPROVED (code-reviewer + security-auditor + dotnet-architect + design-reviewer × 2 frontiers). CTO-triage med 12 in-block-fixar applicerade per 4-timmarsregeln + 6 nya TDs (TD-50 till TD-55) + ADR 0028 (admin-authorization defense-in-depth, marker-interface + HTTP-policy dubbel-gate).
+
+⁴ Fas 1-rensning komplett 2026-05-12 (lång CC-session 2026-05-11 21:00 → 2026-05-12 08:00). Levererade Fas 1-rensningens batches B–F: TD-1 + TD-2 (a11y), TD-3 + TD-4 + TD-5 (UX-pass /mig), TD-6 + TD-28 (me-flöde fullstack med ny `/auth/verify`-endpoint per Klas-Alt1), TD-12 (cross-user-isolation, 7 tester), TD-40 (retroaktivt), TD-41 + TD-57 (shadcn-first form-controls). Disciplinretur: TD-65 (Playwright E2E) + TD-66 (Resume/JobSeeker cross-user-isolation) stängda efter Klas-feedback om TD-lyftnings-disciplin. Plus TD-25 (HardDeleteAccountsJob resilient loop), TD-67 (failed-access-detection via IFailedAccessLogger + ADR 0031), TD-68 (CloudWatch security-alarms — Terraform-modul + dev-apply genomförd, jobbpilot-dev-secops-anomaly SNS-topic + 2 alarms live). 16 TDs stängda. Fas 1 Minor-sektionen i tech-debt.md är TOM. Lärdom sparad i memory: TD-lyftningar måste pressas mot §9.6-kriterier — "scope-disciplin per batch" eller "+1-2h CC-tid" är inte legitima skäl.
 
 ## 3. STEG-historik
 

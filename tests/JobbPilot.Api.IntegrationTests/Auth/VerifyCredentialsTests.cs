@@ -21,7 +21,7 @@ public class VerifyCredentialsTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"verify-{Guid.NewGuid()}@example.com";
-        const string password = "T3stlosen123456";
+        var password = "T3stlosen123456";
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
             _client, email, password, ct: ct);
 
@@ -75,7 +75,7 @@ public class VerifyCredentialsTests(ApiFactory factory)
         // session-id:n ska fortfarande fungera efter verify.
         var ct = TestContext.Current.CancellationToken;
         var email = $"verify-noop-{Guid.NewGuid()}@example.com";
-        const string password = "T3stlosen123456";
+        var password = "T3stlosen123456";
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
             _client, email, password, ct: ct);
 

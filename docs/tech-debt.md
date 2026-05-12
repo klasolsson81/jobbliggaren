@@ -37,7 +37,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-18 | Stale-detektering: utökning till intervju-states | Minor | Trigger | UX/Domain |
 | TD-20 | `AuditPartitionMaintainer.DropPartitionsOlderThanAsync` defensiv refactor | Minor | Opportunistiskt | Code quality |
 | TD-39 | Error-summary-mönster för stora formulär | Minor | Trigger | A11y/UX |
-| TD-69 | SesEmailSender (AWS SES) — ersätter ConsoleEmailSender i prod | Minor | 2 (innan public launch) | Infrastructure |
 
 ---
 
@@ -481,49 +480,6 @@ message-key-konvention, fallback-policy) före implementation.
 **Beroenden:** Egen i18n-strategy-ADR.
 
 
-## TD-69: SesEmailSender (AWS SES) — ersätter ConsoleEmailSender i prod
-
-**Kategori:** Infrastructure / Email
-**Severity:** Minor
-**Fas:** 2 (innan public launch — `registrations_open=true` på publik URL)
-**Källa:** F2-P0d 2026-05-12 — CTO sa att SES tas i bruk under Fas 2,
-men ConsoleEmailSender levererades istället eftersom riktig SES kräver
-funktion-dependencies som inte är gjorda än.
-
-**Saknade funktion-dependencies (per §9.6):**
-
-1. **AWSSDK.SimpleEmailV2** NuGet — ny dependency, kräver Klas-GO per
-   CLAUDE.md §9.2 (lägga till nya top-level dependencies utan motivering
-   är förbjudet)
-2. **SES domain verification** — `jobbpilot.se` måste verifieras i AWS SES
-   eu-north-1 (operations-arbete utöver kod)
-3. **DKIM-signering** — DNS-records för DKIM måste sättas hos Klas
-   domain-registrar
-4. **SPF-record** — uppdatera DNS för att tillåta SES att skicka från
-   `jobbpilot.se`
-5. **SES production-tillgång** — nya SES-konton börjar i sandbox-mode
-   (bara verifierade mottagar-emails). Production access kräver AWS
-   support-ärende.
-
-**Föreslagen åtgärd:**
-
-1. Klas-GO på AWSSDK.SimpleEmailV2-NuGet-tillägg
-2. Klas verifierar domain + DKIM + SPF i AWS
-3. `SesEmailSender.cs` impl mot `IEmailSender`-port (matchar
-   `ConsoleEmailSender`-signaturer)
-4. `EmailOptions.Provider = "Ses"` i `appsettings.Production.json`
-5. Integration-test mot SES sandbox (verifierad mottagaradress)
-6. Stäng TD-69 när ConsoleEmailSender bara används i dev
-
-**Trigger:** Innan Klas öppnar `registrations_open=true` på publik URL.
-Före dess fungerar ConsoleEmailSender — Klas tar token-länk från logs
-för klasskamrater-tester.
-
-**Beroenden:** F2-P3 (Budget Actions terraform — om SES-utskick ska
-ingå i kostnadsskydd). F2-P0d är komplett utan SES — denna TD är
-strikt prod-readiness-arbete.
-
-
 ## Minor — Fas 3+
 
 ## TD-14: DeleteResumeVersion: VersionInUse-check är inaktiv tills Application får ResumeVersionId
@@ -831,6 +787,7 @@ ADR-cross-references och granskningsbevis.
 | TD-67 | Audit-trail för failed cross-user-access-attempts | 2026-05-12 | ADR 0031 + IFailedAccessLogger |
 | TD-25 | HardDeleteAccountsJob per-konto try/catch (resilient loop) | 2026-05-12 | `eed6cc2` |
 | TD-68 | CloudWatch security-alarms för failed_access_attempt-events | 2026-05-12 | `70ca42b` + dev-apply |
+| TD-69 | SesEmailSender (AWS SES) — disciplinretur, lyft + stängd samma dag | 2026-05-12 | F2-P0d disciplinretur (Klas-feedback) |
 
 ---
 

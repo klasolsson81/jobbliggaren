@@ -61,10 +61,18 @@ public static class DependencyInjection
         {
             services.AddSingleton<IEmailSender, ConsoleEmailSender>();
         }
+        else if (string.Equals(emailProvider, "Ses", StringComparison.OrdinalIgnoreCase))
+        {
+            var region = configuration[$"{EmailOptions.SectionName}:AwsRegion"] ?? "eu-north-1";
+            services.AddSingleton<Amazon.SimpleEmailV2.IAmazonSimpleEmailServiceV2>(
+                _ => new Amazon.SimpleEmailV2.AmazonSimpleEmailServiceV2Client(
+                    Amazon.RegionEndpoint.GetBySystemName(region)));
+            services.AddSingleton<IEmailSender, Email.SesEmailSender>();
+        }
         else
         {
             throw new InvalidOperationException(
-                $"Email:Provider='{emailProvider}' stöds inte än. SesEmailSender lyft som TD-69.");
+                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console' eller 'Ses'.");
         }
 
         return services;

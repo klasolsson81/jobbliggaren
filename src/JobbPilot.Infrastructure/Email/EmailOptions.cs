@@ -6,9 +6,8 @@ public sealed class EmailOptions
 
     /// <summary>
     /// Provider-val: "Console" (loggar email till applikationslogg, dev/MVP)
-    /// eller "Ses" (AWS SES, prod — kräver SesEmailSender-impl och AWSSDK.
-    /// Lyft som TD efter F2-P0d eftersom SES domain-verification + DKIM-setup
-    /// är operations-side, ej fas 2-prereq).
+    /// eller "Ses" (AWS SES v2, eu-north-1). Sandbox-mode i Ses kräver att
+    /// mottagar-emails är verifierade i AWS-konsolen innan första utskick.
     /// </summary>
     public string Provider { get; init; } = "Console";
 
@@ -21,4 +20,9 @@ public sealed class EmailOptions
     /// <c>{BaseUrl}/registrera?token={plaintext}</c>.
     /// </summary>
     public string BaseUrl { get; init; } = "http://localhost:3000";
+
+    /// <summary>
+    /// AWS-region för SES-klienten. Default eu-north-1 (Stockholm).
+    /// </summary>
+    public string AwsRegion { get; init; } = "eu-north-1";
 }

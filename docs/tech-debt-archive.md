@@ -1877,3 +1877,47 @@ Fixar in-block (alla per CLAUDE.md §9.6 + Klas-direktiv "ordentligt"):
 **Säkerhetsinvariant:** BOLA-enumeration-attack (OWASP API1:2023) nu detekterbar i dev-trafik. Per-user-drill-down via CloudWatch Insights-query i runbook. Log-pipeline-health-alarm säkrar att detection-kedjan är funktionell (skyddar mot "tyst pipeline gör anomaly-detection osynlig").
 
 ---
+
+
+## TD-69: SesEmailSender (AWS SES) — ersätter ConsoleEmailSender i prod
+
+**Stängd:** 2026-05-12 (samma dag den lyftes — disciplinretur)
+**Kategori:** Infrastructure / Email
+**Severity:** Minor
+**Fas:** 2
+
+**Kort historik:** TD-69 lyftes initialt i F2-P0d 2026-05-12 med motiveringen
+att AWSSDK.SimpleEmailV2-NuGet kräver Klas-GO + SES domain verification är
+operations-side. Klas påpekade omedelbart att detta inte var legitim TD-lyft
+per CLAUDE.md §9.6 + memory `feedback_td_lifting_discipline.md`:
+
+1. NuGet-GO är en mikrostop (§9.2), inte "saknad funktion-dependency"
+2. SES sandbox-mode räcker för klasskamrat-tester — domain verification kan
+   skjutas till innan public launch men inte blockera kod-impl
+
+**Disciplinretur 2026-05-12:**
+
+- Klas gav GO på AWSSDK.SimpleEmailV2 4.0.5.8 + AWSSDK.Core 4.0.6.1
+  (transitiv CVE-pinning för GHSA-9cvc-h2w8-phrp)
+- `SesEmailSender.cs` impl mot `IAmazonSimpleEmailServiceV2`
+- `EmailOptions.Provider="Ses"` aktiverar SES-binding i DI
+- `EmailOptions.AwsRegion` default `eu-north-1`
+- `ConsoleEmailSender` bibehållen som dev-/test-default
+
+**Vad TD-69 lämnar kvar (operations, ej kod):**
+
+Klas verifierar manuellt i AWS-konsolen innan första utskick:
+- SES domain verification (eller individuella mottagar-emails i sandbox)
+- DKIM-DNS-records hos domain-registrar
+- SPF-record för `jobbpilot.se`
+- Production access-ansökan innan `registrations_open=true` på publik URL
+
+Detta är operations-arbete som Klas gör runt sin egen tid — inte CC-scope.
+
+**Källa:** F2-P0d disciplinretur 2026-05-12 efter Klas-feedback om
+TD-lyftnings-disciplin. Memory `feedback_td_lifting_discipline.md` validerad
+i praktiken: TD-lyftningar måste pressas hårt mot §9.6 — "NuGet kräver GO"
+är inte funktion-dependency, det är bara Klas-stopp.
+
+**Lärdom:** Vid framtida TD-lyft som motiveras av "kräver Klas-GO för X" —
+fråga Klas direkt om X istället för att lyfta TD. Default = in-block-fix.

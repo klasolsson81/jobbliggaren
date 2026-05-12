@@ -19,10 +19,13 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
+| TD-73 | JobTech raw_payload PII-stripping + retention | **Major** | 2 (P8b-gating) | GDPR/Privacy |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
 | TD-27 | EmailHash → HMAC med roterande nyckel | Minor | 2 | Säkerhet/GDPR |
+| TD-74 | Strikta DML-GRANTs på public + identity istället för GRANT ALL | Minor | 2 (opportunistisk) | Säkerhet/Least Privilege |
+| TD-72 | Auto-trigga Migrate bootstrap-mode i deploy-dev.yml | Minor | Trigger | Operations/CI-CD |
 | TD-62 | OpenAPI-codegen som supersession av manuella Zod-DTO-schemas | Minor | 2+ | Architecture/Tooling |
 | TD-63 | ActionResult kind-union för writes (ADR 0030-symmetri) | Minor | 2+ | Architecture |
 | TD-64 | i18n-migration av inline svenska error-strängar | Minor | Trigger | i18n |
@@ -79,6 +82,7 @@ Berörda kolumner:
 - `application_notes.content` (TEXT)
 - `follow_ups.note` (TEXT)
 - `resume_versions.content` (JSONB) — innehåller `PersonalInfo`, `Experiences`, `Educations`, `Skills`
+- `job_ads.raw_payload` (JSONB) — JobTech-payload kan innehålla rekryterar-PII (namn, email, telefon, firmatecknare). Tillagd 2026-05-12 efter security-auditor F2-P8a-aggregat-review Sec-Major-1. Cross-ref: `JobAdConfiguration.cs:25` + ADR 0032 §8-amendment 2026-05-12.
 
 **Risk:** vid backup-läckage, snapshot-export eller intern obehörig DB-access exponeras PII
 i klartext. RDS-disk-encryption skyddar bara mot fysisk stöld av disk.
@@ -662,6 +666,112 @@ finns. Kräver multi-path state, ankarlänkar, fokus-strategi.
 
 **Föreslagen åtgärd:** vid faktisk friktion-rapport — implementera error summary
 ovanför submit-knappen, behåll per-fält `aria-invalid` (TD-15-arvet).
+
+
+---
+
+## TD-72: Auto-trigga JobbPilot.Migrate bootstrap-mode i deploy-dev.yml vid Identity-schema-change
+**Kategori:** Operations / CI-CD
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** dotnet-architect F2-P8a-aggregat-review 2026-05-12 + senior-cto-advisor rond 4 2026-05-12
+
+ADR 0033 amendment 2026-05-12 auto-triggar `schema`-mode i deploy-dev.yml.
+`bootstrap`-mode (ADR 0034 — Identity-context via master-creds) körs INTE
+automatiskt — ADR 0034 §"Out of scope" markerar detta som TD-72-kandidat.
+Risk: F2-P0b-mönstret upprepar sig nästa gång Identity-schema-migration
+levereras (Identity-schema-change är planerad event ~0-1×/år men cadence-
+asymmetri vs AppDb gör mekanisk garanti över-försäkring).
+
+**Trigger för fix:** ett av:
+1. Planerad Identity-schema-migration läggs på roadmap → fixa TD-72 i samma
+   batch som migrationen
+2. F2-P0b-mönstret återupprepar sig (Identity-schema-change glöms vid
+   deploy) → fixa retroaktivt + post-mortem
+
+**Föreslagen åtgärd:** Implementera Variant A från F2-P8a-aggregat-review:
+- Ny GitHub Actions-step i `deploy-dev.yml` efter "Run Migrate schema-task"
+- IAM-utbyggnad i `modules/github_oidc/main.tf` (utvidga RunMigrate-statement
+  med bootstrap-task-def-ARN eller verifiera täckning)
+- ADR 0034-amendment dokumenterar pipeline-skifte
+
+**Severity-motivering Minor:** trigger-baserad utan tidsbundenhet. Identity-
+schema är stabil i Fas 2 (no planerad change). Fas-stängning gating inte på
+detta.
+
+**Beroenden:** Inga — kan implementeras isolerat när trigger uppfyllt.
+
+
+---
+
+## TD-73: JobTech raw_payload PII-stripping + retention
+**Kategori:** GDPR / Privacy
+**Severity:** Major
+**Fas:** 2 (gating P8c production schedule)
+**Källa:** security-auditor F2-P8a-aggregat-review Sec-Major-1 2026-05-12
+
+`raw_payload` (jsonb på `job_ads`) lagrar oavkortat JobTech-svar som kan
+innehålla rekryterar-PII (namn, email, telefon, firmatecknare för enskild
+firma). GDPR Art. 5/17/30-implikationer:
+
+1. **Art. 30 record of processing** — JobTech som datakälla för PII är inte
+   listat i processing-register. `JobAdsSyncedDomainEvent` loggar aggregat
+   (counts), inte PII-bevarad rad-nivå.
+2. **Art. 5(1)(c) data-minimering** — `raw_payload` är medvetet maximalt —
+   motsatsen till minimering. Legitimt intresse "debug/replay" kräver
+   dokumenterad balansering mot data-subject-rätten.
+3. **Art. 5(1)(e) lagrings-begränsning** — ingen retention-period definierad
+   för `raw_payload`. ADR 0024 täcker `audit_log`-retention men inte
+   `job_ads.raw_payload`. `JobAd.Archive()` ändrar bara Status, inte purge.
+4. **Art. 17 right to erasure** — om en rekryterare begär radering kommer
+   `raw_payload`-kolumnen behöva traverseras med jsonb-query för PII-
+   extraktion. Idag finns ingen mekanism.
+
+**Severity Major** — tidsbundet till P8c production schedule. Innan dess
+har ingen PII faktiskt importerats; JobTech-anslutning sker P8b/P8c.
+
+**Föreslagen åtgärd:**
+1. Stripa kända PII-keys före persistering (allowlist eller PII-blocklist på
+   JobTech-schema-keys) i `JobTechAdUpsert`-handler (P8b).
+2. Definierad retention för `raw_payload` (förslag: 30 dagar efter publish,
+   null:as via Hangfire-job).
+3. Processing-register-entry för JobTech som PII-källa.
+4. Implementera right-to-erasure-stöd via jsonb-query mot `raw_payload`.
+
+**Trigger:** P8b-start (innan första riktiga JobTech-anslutning).
+
+**Beroenden:** ADR 0032 §8-amendment 2026-05-12 (PII-stripping-pipeline-spec),
+processing-register-dokumentation. TD-13 PII-encryption om envelope-yta
+ska täcka raw_payload (cross-ref redan i TD-13).
+
+
+---
+
+## TD-74: Strikta DML-GRANTs på public + identity istället för GRANT ALL
+**Kategori:** Säkerhet / Least Privilege
+**Severity:** Minor
+**Fas:** 2 (opportunistisk vid nästa Phase A-touch)
+**Källa:** security-auditor F2-P8a-aggregat-review Sec-Minor-2 2026-05-12
+
+`jobbpilot_app` får `GRANT ALL ON ALL TABLES` på `public` + `identity`-
+schema. `ALL` inkluderar: SELECT, INSERT, UPDATE, DELETE, **TRUNCATE,
+REFERENCES, TRIGGER**. För runtime är TRUNCATE (mass-delete utan WHERE) +
+TRIGGER (DDL-yta) onödigt. Phase C `hangfire.*` till worker använder redan
+korrekt strikt `GRANT SELECT, INSERT, UPDATE, DELETE`.
+
+**Saltzer/Schroeder 1975:** strictare scope = mindre blast-radius vid
+SQL-injection eller credential-läckage.
+
+**Föreslagen åtgärd:** Ersätt `GRANT ALL` med `GRANT SELECT, INSERT, UPDATE,
+DELETE` + `GRANT USAGE, SELECT, UPDATE ON SEQUENCES` i `Program.cs`
+Phase A + Phase Bootstrap (rad ~448 + ~340). Kräver Phase A re-run vid
+nästa creds-rotation eller bootstrap-fas. Sekvenser separat hantering.
+
+**Severity-motivering Minor:** defense-in-depth-refactor utan tidsbundenhet.
+TRUNCATE/TRIGGER-yta är teoretisk attack-surface, inte exploit-väg idag.
+
+**Trigger:** nästa Phase A-touch (creds-rotation eller schema-bootstrap-
+mutation).
 
 
 ---

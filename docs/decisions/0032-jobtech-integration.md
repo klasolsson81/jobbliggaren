@@ -360,3 +360,73 @@ Mellan dessa STOPP: CC kör non-stop med PR-rapport efter varje push per memory 
 - **Anonym publik JobAd-katalog** — ADR 0005 kräver separat ADR efter mätning av JobTech-proxy-kostnad och bot-trafik.
 - **JobAd "Räkna om Deep match"-funktion** (BUILD.md §10.x) — Fas 4 (AI).
 - **EURES + andra `JobSource`-värden** — endast Platsbanken i denna batch (`JobSource.Platsbanken` redan etablerad i domain).
+
+---
+
+## Amendment 2026-05-12 — §8 PII-stripping + retention för raw_payload
+
+**Datum:** 2026-05-12
+**Källa:** security-auditor F2-P8a-aggregat-review Sec-Major-1 (post-hoc audit av c5aa089)
+**Trigger:** TD-73 lyft som Fas 2 Major (P8c-gating)
+
+### Kontext för amendment
+
+Ursprungs-ADR §8 säger "PII-fri externtrafik" — det stämmer för **utgående** trafik (search-params är publik metadata). Audit identifierade att **inkommande** trafik inte täcktes — JobTech-API kan returnera rekryterar-PII (namn, email, telefon, firmatecknare för enskild firma) i payload-body. `raw_payload` (jsonb på `job_ads`) lagrar oavkortat → JobbPilot blir data controller per GDPR Art. 4(1) så snart payload persisteras.
+
+### Beslut
+
+§8 utvidgas att täcka **både** utgående och inkommande PII-yta. Två nya krav levereras i P8b (innan P8c production schedule):
+
+**1. PII-stripping vid ingest (P8b-leverans)**
+
+`JobTechAdUpsert`-handler (P8b) får en `JobTechPayloadSanitizer` som strippar kända PII-keys före persistering. Implementation: allowlist över JobTech-schema-keys vi vill bevara, eller blocklist över kända PII-keys (`employer.contact_email`, `employer.contact_name`, etc.). Allowlist-approach föredragen (Saltzer/Schroeder default-deny).
+
+Pseudo-kod:
+```csharp
+public sealed class JobTechPayloadSanitizer
+{
+    private static readonly HashSet<string> AllowedKeys = new(StringComparer.Ordinal)
+    {
+        "id", "headline", "description", "occupation", "workplace_address",
+        "employment_type", "duration", "working_hours_type", "publication_date",
+        "last_publication_date", "removed", "removed_date",
+        // workplace_address.municipality OK, employer.contact_email INTE OK
+        // Slut-lista designas under P8b.
+    };
+
+    public string SanitizeForStorage(string rawJson) =>
+        // Iterera jsonb-nodes, behåll bara AllowedKeys, returnera serialized.
+}
+```
+
+**2. Retention-policy för raw_payload (P8c-leverans eller separat batch)**
+
+`raw_payload` null:as via Hangfire-job 30 dagar efter `job_ads.published_at`. Job-spec:
+- `PurgeStaleRawPayloadsJob` (Hangfire daglig cron 03:00)
+- `UPDATE job_ads SET raw_payload = NULL WHERE published_at < now() - interval '30 days' AND raw_payload IS NOT NULL`
+- Audit-event `RawPayloadPurgedDomainEvent(count, cutoff)` skrivs till `audit_log`
+
+30-dagars-fönster motiverat: debug/replay-värdet är högst under första veckorna efter publish; därefter är annonsen historisk. Konfigurerbar via `IOptions<JobTechSyncOptions>.RawPayloadRetentionDays`.
+
+**3. Processing-register-entry**
+
+JobTech som PII-datakälla läggs till i `docs/runbooks/gdpr-processing-register.md` (skapas om saknas) per GDPR Art. 30: datakategori (publicerad annons-metadata + rekryterar-kontaktinfo), syfte (matchning + visning), rättslig grund (legitimt intresse — JobTech har redan publicerat), lagringstid (30 dagar för raw_payload, indefinitively för sanitized fields).
+
+**4. Right-to-erasure-stöd**
+
+Om en rekryterare begär radering — implementeras som del av `DeleteAccountCommand`-mönstret (ADR 0024 cascade) men för "rekryterar-PII" specifikt: jsonb-query mot `raw_payload` med rekryterar-identifier, sanitera matchande rader. Detaljer designas i TD-73-batch.
+
+### Konsekvenser av amendment
+
+- **PII-stripping minskar debug-värdet av raw_payload** — acceptabelt eftersom rekryterar-namn/email sällan är debug-relevant; SSYK-kod, workplace, headline är primära debug-fält och bevarade i allowlist.
+- **Sanitizer-yta blir P8b-blocking** — P8c production-schedule gating på att sanitizer + retention-job är levererade och verifierade.
+
+### Krav för stängning av TD-73
+
+- [ ] `JobTechPayloadSanitizer` implementerad + unit-tester
+- [ ] AllowedKeys-lista verifierad mot JobTech-API-spec (web-search 2026-05-12 + JobTech-docs)
+- [ ] `PurgeStaleRawPayloadsJob` Hangfire-job implementerad + integration-test
+- [ ] `RawPayloadPurgedDomainEvent` audit-wire
+- [ ] `docs/runbooks/gdpr-processing-register.md` skapad eller utökad med JobTech-entry
+- [ ] ADR 0024 cross-ref för right-to-erasure-cascade till raw_payload
+- [ ] Security-auditor verify-pass innan P8c-deploy

@@ -1,13 +1,90 @@
 # Current work — JobbPilot
 
-**Status:** **F2-P0 (invitations + waitlist-flow) komplett 2026-05-12 ~10:30. Hela invitation-flödet live: domain + EF + commands + email + endpoints + kill-switch + /vantelista-sida. Nästa: F2-P3 (Budget Actions terraform) → F2-P4 (runbook) → F2-P6 (readiness-probe) → JobTech-features.**
-**Senast uppdaterad:** 2026-05-12 (session-end efter F2-P0)
+**Status:** **F2-P3 (Budget Actions terraform) komplett 2026-05-12 ~11:30. JobbPilotBedrockDeny + APPLY_IAM_POLICY Budget Action live i AWS dev (STANDBY). ADR 0005 second amendment (ECS-stop → manuell runbook) accepterad. Nästa: F2-P4 (runbook-utbyggnad) → F2-P6 (readiness-probe) → JobTech-features.**
+**Senast uppdaterad:** 2026-05-12 (session-end efter F2-P3)
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 
 ---
 
-## Aktivt nu — F2-P0 komplett, F2-P3/P4/P6 nästa
+## Aktivt nu — F2-P3 komplett, F2-P4/P6 nästa
+
+**2026-05-12 fortsatt session** (~10:30–11:30) levererade F2-P3 Budget Actions
+terraform-modul live mot AWS dev. Per ADR 0005 second amendment 2026-05-12
+(ECS-stop som automatisk Budget Action skippad pga AWS-API-begränsning —
+sekundärskydd via manuell runbook F2-P4).
+
+### Levererat F2-P3-batch
+
+| Commit | Innehåll |
+|---|---|
+| `0d66fe5` | feat(infra): terraform-modul `modules/budget_actions/` + iam_ecs-output + dev-wire |
+| `ce3e013` | docs(adr): ADR 0005 second amendment + aws-cost-recovery runbook-stub |
+| `f7bd9fc` | fix(infra): disciplinretur — em-dash i IAM-role description (AWS IAM regex avvisade U+2014) |
+
+**AWS dev-state efter apply:**
+- `aws_iam_policy.bedrock_deny` — `JobbPilotBedrockDeny` v1 (deny-overlay)
+- `aws_iam_role.budget_action` — `jobbpilot-dev-budget-action-role` (least-priv Attach/DetachRolePolicy lockad till JobbPilotBedrockDeny + PolicyARN-condition)
+- `aws_sns_topic.cost_anomaly` — `jobbpilot-dev-cost-anomaly` (KMS-encrypted via master-key)
+- `aws_sns_topic_policy.cost_anomaly` — locked-down till budgets.amazonaws.com
+- `aws_budgets_budget_action.attach_bedrock_deny` — `0115c684-4ede-4702-a4a7-fc69529da7bf`, APPLY_IAM_POLICY, 100% ACTUAL, AUTOMATIC, **STANDBY**
+
+### CTO-konvergens (tre ronder)
+
+F2-P3 designval krävde tre senior-cto-advisor-ronder pga successivt verifierade AWS-API-begränsningar:
+
+1. **Rond 1** (`a314494fb60370436`): A4/B1/**C1**/D2/E1/F1 — Hybrid + APPLY_IAM_POLICY + SNS→Lambda + dedikerad topic + 80/100% + AUTOMATIC
+2. **Rond 2** (`ad162f50dacbd0a0a`): C1' (Path γ) — SSM Automation Document istället för Lambda, efter discovery att Budget Actions saknar INVOKE_LAMBDA action_type
+3. **Rond 3** (`a37fedf646b292a84`): **Väg III** — skippa ECS-stop som automatisk Budget Action, manuell via F2-P4-runbook. Efter web-search-verifiering att `RUN_SSM_DOCUMENT` Budget Action endast stödjer `STOP_EC2_INSTANCES`/`STOP_RDS_INSTANCES` — inga custom SSM-documents för Fargate
+
+### Beslut-rationalet (rond 3)
+
+- ECS Fargate ~$30/mån **fast kostnad** — inte skenrisk
+- Bedrock-invocation är enda blowout-vektorn (täckt av primärskydd via APPLY_IAM_POLICY)
+- Att bygga indirekta workarounds (SNS→Lambda via duplicerade budgetar) bryter proportionalitets-principen (Ford/Parsons/Kua 2017 — Fitness Functions)
+- Manuell ECS-stop via runbook är industri-default för dev-miljöer (12-Factor §IX Disposability)
+
+### Disciplinmissar fångade + fixade
+
+1. **Em-dash (U+2014) i IAM-role description** → AWS IAM CreateRole ValidationError → fixad in-block med ASCII-bindestreck. 3 av 6 resurser skapades innan fel; re-apply efter fix kompletterade resterande utan problem.
+
+### TD-status
+
+- Nuvarande aktiva: 18 (oförändrat — ingen TD lyft, allt fixat in-block)
+- F2-P4-runbook-utbyggnad är **egen batch**, inte TD
+
+### API-yta + säkerhetsinvarianter
+
+**Primärskydd (automatisk):**
+- Budget Action triggar vid 100% ACTUAL av jobbpilot-monthly $50-budget
+- Bifogar JobbPilotBedrockDeny på api-task-role via APPLY_IAM_POLICY
+- Explicit Deny vinner över Allow per IAM-eval-logik — blockerar all `bedrock:Invoke*` / `Converse*`
+- Reversibel: Budget Action auto-detachar vid budget-cycle-reset
+
+**Sekundärskydd (manuell):**
+- F2-P4-runbook `docs/runbooks/aws-cost-recovery.md` med manuell ECS scale-down + återställnings-procedur
+- Stub-version levererad i F2-P3; full utbyggnad i F2-P4
+
+### Vad återstår av Fas 2-prereqs
+
+| Batch | Innehåll | Status |
+|---|---|---|
+| ~~F2-P1~~ | `registrations_open`-flagga | ✓ F2-P0e |
+| ~~F2-P2~~ | Rate-limit-policies | ✓ F2-P0e |
+| ~~F2-P3~~ | Budget Actions terraform + dev-apply | ✓ **F2-P3 idag** |
+| **F2-P4** | Runbook `aws-cost-recovery.md` full utbyggnad | Stub klar — full TODO-lista i runbook |
+| **F2-P6** | TD-29 readiness-probe-split (`/api/live` + `/api/ready` med DB+Redis-check) | Kvar |
+
+Efter F2-P4 + F2-P6 → Fas 2 JobTech-features får startas (P7 paginering + P8 JobTech-integration).
+
+### Pending operativt (Klas)
+
+- (Valfritt) Sätt `cost_anomaly_alert_email` i `terraform.tfvars` + re-apply + AWS-mail-opt-in. Idag är SNS-topic skapad men inga subscriptions.
+- (Senare) Drift-reconcile på `module.ecs.aws_ecs_service.api/worker` (task-def revisions :5 → :2 / :4 → :1) och `module.rds.aws_db_parameter_group` (rds.force_ssl apply_method) — undveks via `-target=module.budget_actions` vid F2-P3-apply.
+
+---
+
+## Tidigare session — F2-P0 komplett
 
 **2026-05-12 lång session** (förmiddagen, ~08:00–10:30) levererade hela F2-P0
 invitations/waitlist-batch (sub-batches a–f) per ADR 0005 amendment 2026-05-12.

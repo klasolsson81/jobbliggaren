@@ -23,7 +23,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
 | TD-27 | EmailHash → HMAC med roterande nyckel | Minor | 2 | Säkerhet/GDPR |
-| TD-29 | Strict readiness-probe — separera liveness från readiness | Minor | 2 | Observability |
 | TD-56 | ListJobAdsQuery full paginering (Fas 2 JobTech-integration) | Minor | 2 | Architecture |
 | TD-62 | OpenAPI-codegen som supersession av manuella Zod-DTO-schemas | Minor | 2+ | Architecture/Tooling |
 | TD-63 | ActionResult kind-union för writes (ADR 0030-symmetri) | Minor | 2+ | Architecture |
@@ -291,46 +290,6 @@ korrelations-fönster).
    är etablerat (Fas 4+)
 
 **Beroenden:** TD-13 (KMS-integration). Bör adresseras tillsammans.
-
----
-
-## TD-29: Strict readiness-probe vid Fas 2 — separera liveness från readiness
-**Kategori:** Observability / Deployment hygiene
-**Severity:** Minor
-**Källa:** dotnet-architect, STEG 13b review (2026-05-09)
-
-`/api/ready`-endpoint i `src/JobbPilot.Api/Program.cs:128` returnerar 200 OK
-utan DB/Redis-ping → namnet "ready" är missvisande. Det är liveness, inte
-readiness i Kubernetes-konventions-mening. Konsekvens: ALB target-group
-registrerar tasken som "healthy" innan `AppDbContext` är användbar — under
-EF Core cold-start kan första requests få 500.
-
-För Fas 0/MVP räcker liveness (BUILD.md §15.4 säger inte explicit "readiness
-inkluderar DB"). Vid Fas 2 trafikvolym behövs strict readiness annars dyker
-rolling-deploys 503:or under den ~10-30 sekunders DbContext-warmup-fönstret.
-
-**Föreslagen åtgärd:**
-```csharp
-builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>("postgres", tags: ["ready"])
-    .AddRedis(redisCs, "redis", tags: ["ready"]);
-
-app.MapHealthChecks("/api/live", new HealthCheckOptions {
-    Predicate = _ => false  // bara process-status
-});
-app.MapHealthChecks("/api/ready", new HealthCheckOptions {
-    Predicate = check => check.Tags.Contains("ready")
-});
-```
-
-ALB target-group ska peka på `/api/ready`. ECS task-def kan optionellt få
-`/api/live` som container-level liveness (men Fargate respekterar inte
-Docker HEALTHCHECK ändå — så bara ALB-check är auktoritativ).
-
-**Beroenden:** Fas 2 trafikvolym + frontend rolling-deploy-känslighet.
-Adresseras i Fas 2 prereq-stängning (samma round som ADR 0005:s
-go-to-market-beslut + rate-limiting-utvidgning).
-
 
 ---
 
@@ -788,6 +747,7 @@ ADR-cross-references och granskningsbevis.
 | TD-25 | HardDeleteAccountsJob per-konto try/catch (resilient loop) | 2026-05-12 | `eed6cc2` |
 | TD-68 | CloudWatch security-alarms för failed_access_attempt-events | 2026-05-12 | `70ca42b` + dev-apply |
 | TD-69 | SesEmailSender (AWS SES) — disciplinretur, lyft + stängd samma dag | 2026-05-12 | F2-P0d disciplinretur (Klas-feedback) |
+| TD-29 | Strict readiness-probe — separera liveness från readiness | 2026-05-12 | F2-P6 (6 nya integration-tester) |
 
 ---
 

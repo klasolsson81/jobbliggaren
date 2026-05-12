@@ -1921,3 +1921,84 @@ i praktiken: TD-lyftningar måste pressas hårt mot §9.6 — "NuGet kräver GO"
 
 **Lärdom:** Vid framtida TD-lyft som motiveras av "kräver Klas-GO för X" —
 fråga Klas direkt om X istället för att lyfta TD. Default = in-block-fix.
+
+---
+
+## TD-29: Strict readiness-probe — separera liveness från readiness
+
+**Kategori:** Observability / Deployment hygiene
+**Severity:** Minor
+**Fas:** 2
+**Källa:** dotnet-architect, STEG 13b review (2026-05-09)
+**Stängd:** 2026-05-12 (F2-P6)
+**Stängning-commit:** kommande F2-P6-commit i denna session
+
+### Ursprungsbeskrivning
+
+`/api/ready`-endpoint i `src/JobbPilot.Api/Program.cs:128` returnerade 200 OK
+utan DB/Redis-ping → namnet "ready" var missvisande. Det var liveness, inte
+readiness i Kubernetes-konventions-mening. Konsekvens: ALB target-group
+registrerade tasken som "healthy" innan `AppDbContext` var användbar — under
+EF Core cold-start kunde första requests få 500.
+
+För Fas 0/MVP räckte liveness (BUILD.md §15.4 säger inte explicit "readiness
+inkluderar DB"). Vid Fas 2 trafikvolym behövdes strict readiness annars
+dyker rolling-deploys 503:or under den ~10-30 sekunders DbContext-warmup-fönstret.
+
+### Leverans 2026-05-12 (F2-P6)
+
+**Kod:**
+
+- `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore` 10.0.7
+  lagt till i `Directory.Packages.props` (Microsoft-paket, inte third-party)
+- `src/JobbPilot.Api/HealthChecks/RedisHealthCheck.cs` — custom IHealthCheck
+  via IConnectionMultiplexer.IsConnected + PingAsync (10 rader). Undviker
+  Xabaril-dep eftersom semantiken är trivial.
+- `src/JobbPilot.Api/Program.cs` — `AddHealthChecks()` med
+  `.AddDbContextCheck<AppDbContext>("postgres", tags: ["ready"])` +
+  `.AddCheck<RedisHealthCheck>("redis", tags: ["ready"])`
+- `MapHealthChecks("/api/live", Predicate _ => false)` — bara process-status
+- `MapHealthChecks("/api/ready", Predicate Tags.Contains("ready"))` —
+  DB + Redis-ping
+- Legacy `/health` och `MapGet /api/ready` borttagna
+
+**Tester (6 nya integration-tester):**
+
+`tests/JobbPilot.Api.IntegrationTests/HealthChecks/HealthCheckEndpointsTests.cs`:
+
+1. `ApiLive_ReturnsHealthy_WhenProcessIsUp` — 200 OK på /api/live
+2. `ApiReady_ReturnsHealthy_WhenDatabaseAndRedisAreReachable` — 200 OK med
+   Testcontainers Postgres + Redis aktiva
+3. `ApiLive_DoesNotEvaluateRegisteredChecks` — anti-regression: predicate
+   _ => false så svaret kommer under 500ms (ingen DB-roundtrip)
+4. `ApiReady_IsAnonymouslyAccessible` — anti-regression mot framtida
+   RequireAuthorization-glömska
+5. `ApiLive_IsAnonymouslyAccessible` — samma disciplin
+6. `LegacyHealthEndpoint_IsRemoved` — anti-regression mot oavsiktlig
+   återinförande av /health
+
+**Test-suite:** 217 → 223 (+6) Api.IntegrationTests gröna.
+
+### ALB-konsekvens
+
+ALB target-group health-check-path är redan `/api/ready` (BUILD.md §15.4 +
+`modules/alb/variables.tf` default). Ingen Terraform-ändring krävs.
+
+Under rolling-deploys av denna ändring fortsätter gamla tasks köra med stale
+/api/ready (200 alltid) → minst en healthy task hela tiden. Nya tasks får
+inte trafik förrän DbContext + Redis-multiplexer initierats (typiskt 10-30s)
+— exakt det önskade beteendet TD-29 motiverade.
+
+### Beslut: ingen Xabaril-dep
+
+Föreslagen åtgärd i ursprungs-TDn använde Xabaril `.AddRedis(redisCs, ...)`.
+Bytte till custom RedisHealthCheck eftersom:
+
+- Semantiken är 10 rader kod (IsConnected + PingAsync)
+- Third-party-paket-yta minimerad
+- Konsistent med STEG 13b-mönster "use platform features, not familiar tools"
+- Microsoft AddDbContextCheck är official Microsoft, inte third-party
+
+**Lärdom:** TD-foreslagen-åtgärd är inte alltid optimal — discovery + verifikation
+mot CLAUDE.md-principer (anti-pattern §5: "Generiska 'Service'-suffix") kan
+peka på enklare lösning.

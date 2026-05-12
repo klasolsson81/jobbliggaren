@@ -1,5 +1,6 @@
 using JobbPilot.Api.Configuration;
 using JobbPilot.Api.Endpoints;
+using JobbPilot.Api.HealthChecks;
 using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.Common;
 using JobbPilot.Application.Common.Abstractions;
@@ -11,7 +12,9 @@ using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Sessions;
+using JobbPilot.Infrastructure.Persistence;
 using Mediator;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.DependencyInjection;
 using ValidationException = JobbPilot.Application.Common.Exceptions.ValidationException;
@@ -59,6 +62,30 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthorizationPolicies.Admin, policy => policy.RequireRole(Roles.Admin));
 });
 builder.Services.AddJobbPilotRateLimiting(builder.Configuration);
+
+// Health checks — TD-29 / F2-P6 strict readiness-probe.
+//
+// `/api/live`: predicate _ => false → ingen check körs → 200 om processen är upp.
+//              Bara liveness, för container-level orchestration (även om Fargate
+//              ignorerar Docker HEALTHCHECK så ALB är auktoritativ).
+//
+// `/api/ready`: predicate c => c.Tags.Contains("ready") → DbContext + Redis-PING.
+//               Returnerar 503 under cold-start tills BÅDE Postgres + Redis svarar.
+//               ALB target-group pekar på denna (BUILD.md §15.4, modules/alb/variables.tf
+//               health_check_path default "/api/ready") → tasks får INGEN trafik förrän
+//               DB-pool + Redis-multiplexer är initierade.
+//
+// Per ADR 0005-amendment-trohet: ECS Fargate ~$30/mån fast kostnad är inte
+// kostnadsskydd-relevant, men strict readiness förhindrar 503-spikes vid
+// rolling-deploys under Fas 2 trafikvolym (TD-29 ursprungs-motivering från
+// dotnet-architect STEG 13b 2026-05-09).
+//
+// AddDbContextCheck<AppDbContext> är Microsoft-paket (inte Xabaril) — pingar
+// via `Database.CanConnectAsync()`. RedisHealthCheck är custom (Api/HealthChecks/)
+// — undviker third-party-dep, semantiken är två linjer (IsConnected + PingAsync).
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("postgres", tags: ["ready"])
+    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"]);
 
 // HSTS-config bindas vid service-registrering så ASP.NET Cores AddHsts läser
 // rätt värden. UseHsts() i pipelinen nedan gate:as på Environment + HttpsEnabled
@@ -194,14 +221,28 @@ app.UseAuthorization();
 // partitionering (account-deletion-policy använder claim "sub").
 app.UseRateLimiter();
 
-// /health är legacy-alias; /api/ready är spec'd path per BUILD.md §15.4 (ALB target-group).
+// Health endpoints — TD-29 stängd 2026-05-12 (F2-P6).
 //
-// TODO TD-29: /api/ready är idag liveness, inte readiness — namnet ljuger. Returnerar 200 OK
-// utan DB/Redis-ping → ALB target-group registrerar tasken som "healthy" innan DbContext är
-// användbar. För Fas 0/MVP räcker liveness; vid Fas 2 trafikvolym behövs strict readiness via
-// AddHealthChecks().AddDbContextCheck<AppDbContext>().AddRedis(...).
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "JobbPilot.Api" }));
-app.MapGet("/api/ready", () => Results.Ok(new { status = "ready", service = "JobbPilot.Api" }));
+// /api/live: liveness (process up). Predicate _ => false = inga registered checks
+//             evalueras → alltid 200 så länge ASP.NET-pipelinen kör. Container-
+//             orchestration kan peka hit (även om Fargate ignorerar Docker
+//             HEALTHCHECK).
+//
+// /api/ready: strict readiness. DbContext-check + Redis-PING via "ready"-tag.
+//             ALB target-group pekar hit (modules/alb/variables.tf
+//             health_check_path default "/api/ready"). Returnerar 503 tills
+//             BÅDE Postgres + Redis svarar.
+//
+// Response: default HealthCheckResponseWriter skriver "Healthy" / "Unhealthy"
+// som text. ALB kollar bara HTTP-status; manuella smoke-tests får text-body.
+app.MapHealthChecks("/api/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+});
+app.MapHealthChecks("/api/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+});
 
 app.MapAuthEndpoints();
 app.MapMeEndpoints();

@@ -1597,3 +1597,44 @@ Klas valde Alt 1 (utöka Batch E till fullstack) över Alt 2 (split-batch).
 Kombo-attack (verify → delete) skyddad av två separata rate-limits (AuthWrite 20/min/IP + AccountDeletion 1/60s/UserId).
 
 ---
+
+## TD-12: Saknad integration-test för cross-user isolation ✓ STÄNGD 2026-05-12
+**Kategori:** Säkerhet / Test
+**Severity:** Minor
+**Fas:** 1
+**Källa:** STEG 5 discovery 2026-05-08
+**Status:** **STÄNGD 2026-05-12 (Batch F)** — 7 integration-tester för Application-aggregat-isolation.
+
+Queries och commands för Application-aggregatet filtrerar korrekt på
+`a.JobSeekerId == jobSeekerId` — user A kan inte se eller mutera user B:s
+ansökningar. Men detta beteende saknade ett integration-test som verifierade
+det explicit. Om filtret tagits bort eller refaktorerats bort i framtiden
+hade det inte fångats av testerna förrän manuellt verifierat.
+
+**Leverans (Batch F):** Ny fil `tests/JobbPilot.Api.IntegrationTests/Applications/ApplicationsCrossUserIsolationTests.cs` med 7 tester:
+
+1. `User_B_GET_application_owned_by_user_A_returns_404` — TD-spec primärt scenario
+2. `User_B_POST_transition_on_user_A_application_returns_404` — TD-spec primärt scenario
+3. `User_B_GET_applications_list_does_not_include_user_A_applications` — list-filter-isolation
+4. `User_B_GET_pipeline_does_not_include_user_A_applications` — pipeline-filter-isolation (strikt array-length-assert)
+5. `User_B_POST_follow_up_on_user_A_application_returns_404` — sub-resource-isolation
+6. `User_B_POST_note_on_user_A_application_returns_404` — sub-resource-isolation
+7. `User_A_data_intact_after_user_B_attempted_cross_access` — defense-in-depth: cross-user-attack ger inga sidoeffekter på A:s data
+
+**404-policy (säkerhetsmässig motivering):** alla cross-user-anrop returnerar 404 (inte 403). 403 skulle bekräfta existens av annan users resurs → enumeration-attack-yta. 404 är samma respons som "okänt id" — ingen information-läcka.
+
+**Scope-utökning från TD-spec:** TD-12-spec specificerade 2 tester (GET + transition). Faktisk leverans täcker hela attack-ytan (6 endpoints + defense-in-depth state-test). Motivering per §5.4 + §9.6: cross-user-isolation är säkerhetskritisk invariant — smal täckning ger falsk trygghet.
+
+**Pattern-fidelity:** matchar `ApplicationsTests.cs` (samma collection, AuthTestHelpers, factory.CreateClient). Skillnad: två separata HttpClient-instanser med olika Authorization-header — korrekt för multi-user-test.
+
+**Reviews:**
+- code-reviewer: 0 Blocker / 0 Major / 2 Minor (båda fixade in-block: stärkt pipeline-array-length-assert + borttagen oanvänd SessionId-tuple-element). Approved.
+- security-auditor: 0 Blocker / 0 Major. "Defense-in-depth-test (test 7) är ovanligt välkonstruerad — fångar check-then-act bugs." Approved. Föreslår 2 nya TDs för parallell täckning (lyfts som TD-66 + TD-67).
+
+**Tester:** 7/7 integration-tester gröna (10s körtid via Testcontainers). Inga ändringar i production-kod.
+
+**Nya TDs lyfta:**
+- TD-66: Cross-user-isolation-tester för Resume- och JobSeeker-aggregaten (parallell täckning för andra user-data-aggregates)
+- TD-67: Audit-trail för failed cross-user-access-attempts (GDPR Art. 32 anomaly-detection)
+
+---

@@ -19,7 +19,8 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
-| TD-12 | Saknad integration-test för cross-user isolation | Minor | 1 | Säkerhet/Test |
+| TD-66 | Cross-user-isolation-tester för Resume- och JobSeeker-aggregaten | Minor | 1 | Säkerhet/Test |
+| TD-67 | Audit-trail för failed cross-user-access-attempts | Minor | 1 (eller 2) | GDPR/Observability |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -149,24 +150,81 @@ för cost-cap-design när AI-features designas.
 
 ## Minor — Fas 1
 
-## TD-12: Saknad integration-test för cross-user isolation
+## TD-66: Cross-user-isolation-tester för Resume- och JobSeeker-aggregaten
+**Kategori:** Säkerhet / Test
+**Severity:** Minor
+**Fas:** 1
+**Källa:** security-auditor Batch F-review 2026-05-12 (TD-12-leverans-utvidgning)
 
-**Kategori:** Säkerhet / Test  
-**Fas:** 0 (backend)  
-**Prioritet:** Medium  
-**Källa:** STEG 5 discovery 2026-05-08
+Batch F levererade `ApplicationsCrossUserIsolationTests.cs` som täcker
+Application-aggregatets cross-user-isolation. Motsvarande täckning saknas
+för Resume- och JobSeeker-aggregaten:
 
-Queries och commands för Application-aggregatet filtrerar korrekt på
-`a.JobSeekerId == jobSeekerId` — user A kan inte se eller mutera user B:s
-ansökningar. Men detta beteende saknar ett integration-test som verifierar
-det explicit.
+- `Resume` har sub-resources (versioner, master-content) som filtreras på
+  JobSeekerId — saknar integration-test som verifierar isolation
+- `JobSeeker` profile-endpoints (`GET /me/profile`, `PATCH /me/profile`)
+  filtreras via `ICurrentUser.UserId` — saknar test
 
-**Risk:** Om filtret tas bort eller refaktoreras bort i framtiden fångas
-det inte av testerna förrän manuellt verifierat.
+**Risk i Fas 1:** låg (samma pattern som Application — `a.JobSeekerId ==
+jobSeekerId`-filter används konsekvent), men test-coverage är ojämn.
 
-**Föreslagen åtgärd:** Lägg till ett integration-test i `ApplicationsTests.cs`:
-två separata användare registreras, user A skapar en ansökan, user B försöker
-`GET /{id}` och `POST /{id}/transition` — förväntat utfall: 404 resp. 404.
+**Föreslagen åtgärd:** Spegla pattern från
+`ApplicationsCrossUserIsolationTests`:
+
+1. `ResumesCrossUserIsolationTests.cs`:
+   - User B GET /resumes/{A-id} → 404
+   - User B PATCH /resumes/{A-id}/content → 404
+   - User B DELETE /resumes/{A-id} → 404
+   - User B DELETE /resumes/{A-id}/versions/{vid} → 404
+   - User B GET /resumes (list) inkluderar inte A:s
+2. `JobSeekerProfileCrossUserIsolationTests.cs`:
+   - User B kan inte mutera A:s profil via PATCH /me/profile (default-pattern
+     säkert eftersom claim styr; testet bevakar invariant)
+
+**Scope:** ~1-2h CC-tid. Mekaniskt mot etablerat pattern.
+
+**Beroenden:** Ingen — kan adresseras opportunistiskt eller som dedikerad batch.
+
+
+---
+
+## TD-67: Audit-trail för failed cross-user-access-attempts (GDPR Art. 32)
+**Kategori:** GDPR / Observability / Anomaly-detection
+**Severity:** Minor
+**Fas:** 1 (eller 2 om prioritering pekar mot kommande SIEM-integration)
+**Källa:** security-auditor Batch F-review 2026-05-12
+
+ADR 0022 etablerade audit-log pipeline behavior för success-mutationer.
+Failed authorization-attempts (404 från ownership-filter — cross-user-access
+mot annan users resurs) loggas idag inte i audit-tabellen — bara via standard
+request-logg i CloudWatch.
+
+**Risk:** Klassisk BOLA-enumeration-attack (OWASP API1:2023) genererar
+upprepade 404 från en user mot andra users IDs. Utan audit-aggregat är
+detta mönster osynligt för anomaly-detection.
+
+**Föreslagen åtgärd:** Strukturerat audit-event för failed ownership-check:
+
+```
+event_type: "Authorization.CrossUserAccessDenied"
+fields: { user_id, attempted_resource_id, endpoint, timestamp }
+```
+
+Implementations-alternativ:
+1. Pipeline-behavior som fångar `NotFoundException` när orsaken är
+   ownership-mismatch (kräver särskiljning från "okänt id")
+2. Middleware-hook på 404-respons från specifika endpoint-grupper
+3. Inline-loggning i query-/command-handlers där ownership-check sker
+
+**Risk i Fas 1:** låg (request-loggen finns, GDPR Art. 32 uppfylls
+formellt), men förstärkt incident-respons är good practice när användarbasen
+växer.
+
+**Beroenden:** ADR 0022-pattern. Egen ADR för "failed access audit"-strategi
+rekommenderas innan implementation.
+
+**Trigger:** Fas 1-stängning eller första rapporterade BOLA-attempt-incident
+i prod.
 
 
 ---
@@ -885,6 +943,7 @@ ADR-cross-references och granskningsbevis.
 | TD-5 | Redundant getServerSession-anrop på /mig | 2026-05-11 | Batch D |
 | TD-6 | Logout-backend-call utan fel-loggning | 2026-05-11 | Batch E |
 | TD-28 | Frontend typed-confirmation-UX + re-auth-prompt på DELETE /me | 2026-05-11 | Batch E (fullstack) |
+| TD-12 | Saknad integration-test för cross-user isolation | 2026-05-12 | Batch F |
 
 ---
 

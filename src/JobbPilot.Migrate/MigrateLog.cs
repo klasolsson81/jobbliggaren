@@ -61,4 +61,37 @@ internal static partial class MigrateLog
     [LoggerMessage(EventId = 999, Level = LogLevel.Error,
         Message = "Migrate FAILED")]
     public static partial void MigrateFailed(ILogger logger, Exception ex);
+
+    // ADR 0033 — Phase E (EF Core MigrateAsync) + CLI-dispatch
+    [LoggerMessage(EventId = 60, Level = LogLevel.Information,
+        Message = "Phase E: EF Core Database.MigrateAsync mot AppDbContext (jobbpilot_app-creds)")]
+    public static partial void PhaseEStart(ILogger logger);
+
+    [LoggerMessage(EventId = 61, Level = LogLevel.Information,
+        Message = "Pending migrations: {Count}")]
+    public static partial void PendingMigrationsCount(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 62, Level = LogLevel.Information,
+        Message = "  -> {Migration}")]
+    public static partial void PendingMigrationItem(ILogger logger, string migration);
+
+    [LoggerMessage(EventId = 63, Level = LogLevel.Information,
+        Message = "Phase E COMPLETE — applied {Count} migration(s)")]
+    public static partial void PhaseEComplete(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 64, Level = LogLevel.Information,
+        Message = "Phase E: no pending migrations — schema is up-to-date")]
+    public static partial void PhaseENoPending(ILogger logger);
+
+    [LoggerMessage(EventId = 200, Level = LogLevel.Information,
+        Message = "Mode: init (Phase A-D — engångs-init eller creds-rotation)")]
+    public static partial void ModeInit(ILogger logger);
+
+    [LoggerMessage(EventId = 201, Level = LogLevel.Information,
+        Message = "Mode: schema (Phase E — EF Core MigrateAsync)")]
+    public static partial void ModeSchema(ILogger logger);
+
+    [LoggerMessage(EventId = 202, Level = LogLevel.Error,
+        Message = "Usage: JobbPilot.Migrate <init|schema>")]
+    public static partial void UsageError(ILogger logger);
 }

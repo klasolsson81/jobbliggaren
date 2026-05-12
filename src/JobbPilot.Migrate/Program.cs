@@ -1,7 +1,13 @@
-// JobbPilot.Migrate — one-shot DDL-init för Hangfire-schema + 3 Postgres-roller.
-// Körs som ECS task vid STEG 14b (Fas 0-stängning) och vid framtida schema-mutationer.
+// JobbPilot.Migrate — one-shot ECS-task för schema-arbete mot AWS RDS.
 //
-// Flow per docs/runbooks/hangfire-schema.md §3-4:
+// CLI-dispatch (ADR 0033 — JobbPilot.Migrate CLI-mode-dispatch):
+//
+//   JobbPilot.Migrate init     -> Phase A-D (engångs-init eller creds-rotation)
+//   JobbPilot.Migrate schema   -> Phase E (EF Core Database.MigrateAsync)
+//
+// Saknad arg eller okänd arg -> exit 1 med usage-text.
+//
+// Phase A-D (init-mode) per docs/runbooks/hangfire-schema.md §3-4:
 //   Phase A (master-creds):
 //     - REVOKE PUBLIC från databasen + hangfire-schema (default-skydd)
 //     - Generera 3 random-pwds (32 char alpha-num, ~190 bits entropy)
@@ -20,6 +26,12 @@
 //     - PutSecretValue → jobbpilot/dev/db/app-connection-string (jobbpilot_app-creds)
 //     - PutSecretValue → jobbpilot/dev/db/hangfire-storage-connection-string (jobbpilot_worker-creds)
 //
+// Phase E (schema-mode) per ADR 0033:
+//   - Hämta jobbpilot_app-CS från Secrets Manager (MIGRATE_APP_CONN_SECRET_ARN)
+//   - Bygg AppDbContext via DbContextOptionsBuilder + UseNpgsql + UseSnakeCaseNamingConvention
+//   - GetPendingMigrationsAsync -> logga pending
+//   - Database.MigrateAsync (idempotent — re-run efter completed är no-op)
+//
 // Inga klartext-pwds i loggning — bara SHA256-truncate-fingerprints (0% pwd-bytes synliga).
 // Idempotens: alla CREATE ROLE använder DO-block. Re-run efter delvis fail: säker.
 // CancellationToken propageras genom hela kedjan (Console.CancelKeyPress → CTS → AWS SDK).
@@ -32,7 +44,9 @@ using System.Text.Json.Serialization;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using Hangfire.PostgreSql;
+using JobbPilot.Infrastructure.Persistence;
 using JobbPilot.Migrate;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -69,11 +83,38 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
     }
 };
 
+// ADR 0033 — CLI-dispatch. Default-less. Saknad/okänd arg -> exit 1.
+var mode = args.Length == 1 ? args[0] : null;
+
 try
 {
-    // -----------------------------------------------------------------------
-    // Konfig från env-vars (injiceras via ECS task-def secrets/env-blocks).
-    // -----------------------------------------------------------------------
+    return mode switch
+    {
+        "init" => await RunInitAsync(log, cts.Token),
+        "schema" => await RunSchemaAsync(log, cts.Token),
+        _ => UsageError(log),
+    };
+}
+catch (Exception ex)
+{
+    MigrateLog.MigrateFailed(log, ex);
+    return 1;
+}
+
+// ===========================================================================
+// Mode-dispatch helpers (ADR 0033)
+// ===========================================================================
+
+static int UsageError(ILogger log)
+{
+    MigrateLog.UsageError(log);
+    return 1;
+}
+
+static async Task<int> RunInitAsync(ILogger log, CancellationToken ct)
+{
+    MigrateLog.ModeInit(log);
+
     var masterSecretArn = RequiredEnv("MIGRATE_MASTER_SECRET_ARN");
     var dbHost = RequiredEnv("MIGRATE_DB_HOST");
     var dbPort = int.Parse(RequiredEnv("MIGRATE_DB_PORT"), CultureInfo.InvariantCulture);
@@ -90,7 +131,7 @@ try
     // -----------------------------------------------------------------------
     // Phase A — master: REVOKE PUBLIC + CREATE ROLE × 3 + GRANTs + CREATE SCHEMA
     // -----------------------------------------------------------------------
-    var masterCredsA = await FetchMasterCredsAsync(secretsClient, masterSecretArn, cts.Token);
+    var masterCredsA = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
     MigrateLog.MasterCredsLoaded(log, masterCredsA.Username, "Phase A");
 
     var pwdMigrations = GenerateRandomPassword(32);
@@ -106,8 +147,8 @@ try
     MigrateLog.PhaseAStart(log);
     await using (var masterConn = new NpgsqlConnection(ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCredsA.Username, masterCredsA.Password)))
     {
-        await masterConn.OpenAsync(cts.Token);
-        await ExecutePhaseAAsync(masterConn, dbName, pwdMigrations, pwdApp, pwdWorker, log, cts.Token);
+        await masterConn.OpenAsync(ct);
+        await ExecutePhaseAAsync(masterConn, dbName, pwdMigrations, pwdApp, pwdWorker, log, ct);
     }
 
     // -----------------------------------------------------------------------
@@ -117,7 +158,7 @@ try
     var migrationsConnString = ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, Roles.Migrations, pwdMigrations);
     await using (var migrationsConn = new NpgsqlConnection(migrationsConnString))
     {
-        await migrationsConn.OpenAsync(cts.Token);
+        await migrationsConn.OpenAsync(ct);
         // Officiell Hangfire 1.21.1 schema-install. Idempotent (tål re-run).
         // Skriver ~13 tabeller + sequences + functions till hangfire-schema.
         // Per dotnet-architect: synchron är OK i console-context (inte CLAUDE.md §3.5-brott
@@ -132,13 +173,13 @@ try
     // mid-flow (Phase B kan ta 60-120s).
     // -----------------------------------------------------------------------
     MigrateLog.PhaseCStart(log);
-    var masterCredsC = await FetchMasterCredsAsync(secretsClient, masterSecretArn, cts.Token);
+    var masterCredsC = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
     MigrateLog.MasterCredsLoaded(log, masterCredsC.Username, "Phase C");
 
     await using (var masterConn = new NpgsqlConnection(ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCredsC.Username, masterCredsC.Password)))
     {
-        await masterConn.OpenAsync(cts.Token);
-        await ExecutePhaseCAsync(masterConn, log, cts.Token);
+        await masterConn.OpenAsync(ct);
+        await ExecutePhaseCAsync(masterConn, log, ct);
     }
 
     // -----------------------------------------------------------------------
@@ -155,27 +196,71 @@ try
     {
         SecretId = appConnSecretArn,
         SecretString = appCs,
-    }, cts.Token);
+    }, ct);
     MigrateLog.WroteAppConnSecret(log, appConnSecretArn);
 
     await secretsClient.PutSecretValueAsync(new PutSecretValueRequest
     {
         SecretId = hangfireConnSecretArn,
         SecretString = hangfireCs,
-    }, cts.Token);
+    }, ct);
     MigrateLog.WroteHangfireConnSecret(log, hangfireConnSecretArn);
 
     MigrateLog.MigrateComplete(log);
     return 0;
 }
-catch (Exception ex)
+
+// ADR 0033 — Phase E. Ansluter med jobbpilot_app-creds från Secrets Manager,
+// bygger AppDbContext programmatiskt, kör Database.MigrateAsync. Idempotent.
+static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
 {
-    MigrateLog.MigrateFailed(log, ex);
-    return 1;
+    MigrateLog.ModeSchema(log);
+
+    var appConnSecretArn = RequiredEnv("MIGRATE_APP_CONN_SECRET_ARN");
+    var awsRegion = RequiredEnv("AWS_REGION");
+
+    var secretsClient = new AmazonSecretsManagerClient(
+        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
+
+    var appCsResponse = await secretsClient.GetSecretValueAsync(
+        new GetSecretValueRequest { SecretId = appConnSecretArn }, ct);
+    if (string.IsNullOrWhiteSpace(appCsResponse.SecretString))
+    {
+        throw new InvalidOperationException(
+            $"App connection-string secret är tom: {appConnSecretArn}");
+    }
+
+    MigrateLog.PhaseEStart(log);
+
+    var options = new DbContextOptionsBuilder<AppDbContext>()
+        .UseNpgsql(appCsResponse.SecretString, npgsql =>
+            npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
+        .UseSnakeCaseNamingConvention()
+        .Options;
+
+    await using var dbContext = new AppDbContext(options);
+
+    var pending = (await dbContext.Database.GetPendingMigrationsAsync(ct)).ToList();
+    MigrateLog.PendingMigrationsCount(log, pending.Count);
+
+    if (pending.Count == 0)
+    {
+        MigrateLog.PhaseENoPending(log);
+        return 0;
+    }
+
+    foreach (var migration in pending)
+    {
+        MigrateLog.PendingMigrationItem(log, migration);
+    }
+
+    await dbContext.Database.MigrateAsync(ct);
+    MigrateLog.PhaseEComplete(log, pending.Count);
+    return 0;
 }
 
 // ===========================================================================
-// Helpers
+// Helpers (delas mellan init- och schema-modes)
 // ===========================================================================
 
 static string RequiredEnv(string name) =>

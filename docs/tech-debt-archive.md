@@ -1732,3 +1732,45 @@ TD-lyftningar måste pressas mot §9.6-kriterier — "scope-disciplin per batch"
 eller "+1-2h CC-tid" är INTE legitima skäl. Default = in-block-fix.
 
 ---
+
+## TD-67: Audit-trail för failed cross-user-access-attempts ✓ STÄNGD 2026-05-12
+**Kategori:** GDPR / Observability / Anomaly-detection
+**Severity:** Minor
+**Fas:** 1
+**Källa:** security-auditor Batch F-review 2026-05-12
+**Status:** **STÄNGD 2026-05-12** via ADR 0031 — strukturerad logging + IFailedAccessLogger-port. CloudWatch-aggregat lyft som TD-68 (separat Terraform-leverans).
+
+ADR 0022 etablerade audit-log pipeline behavior för success-mutationer.
+Failed authorization-attempts (404 från ownership-filter — cross-user-access
+mot annan users resurs) loggades inte — utan audit-aggregat var
+BOLA-enumeration-attack (OWASP API1:2023) osynlig för anomaly-detection.
+
+**Leverans (2026-05-12):**
+
+1. **ADR 0031** — Failed cross-user access detection: strukturerad loggning + CloudWatch-aggregat. Hybrid F-strategi (ej audit_log-rad — ops-signal via ILogger). Bevarar ADR 0022 immutable.
+
+2. **`IFailedAccessLogger`-port** (`Application/Common/Auditing/`) — `LogCrossUserAttempt(aggregateType, requestedAggregateId, requestingUserId, operation)`.
+
+3. **`FailedAccessLogger`-impl** (`Infrastructure/Auditing/`) — `ILogger<T>`-baserad med `LoggerMessage`-source-gen. Strukturerade fält: `event_name=failed_access_attempt`, `aggregate_type`, `requested_aggregate_id`, `requesting_user_id`, `operation`. EventId 4001, LogLevel Warning.
+
+4. **9 handlers modifierade** med inline-pattern:
+   - Application: `GetApplicationByIdQueryHandler`, `TransitionToCommandHandler`, `AddFollowUpCommandHandler`, `AddNoteCommandHandler`
+   - Resume: `GetResumeByIdQueryHandler`, `RenameResumeCommandHandler`, `UpdateMasterContentCommandHandler`, `DeleteResumeCommandHandler`, `DeleteResumeVersionCommandHandler`
+
+   Pattern: vid ownership-mismatch (FirstOrDefault returnerar null) — gör extra existens-query (`AnyAsync` utan user-filter). Om aggregat finns men ägs av annan → logger anropas. Okänt id loggas INTE.
+
+5. **Unit-tester** — befintliga 9 test-filer uppdaterade med `IFailedAccessLogger`-stub. 4 nya fokus-tester (1 query + 1 command × 2 fall: ownership-mismatch loggar, okänt id loggar inte).
+
+6. **DI-registrering** — `IFailedAccessLogger` som singleton i `AddPersistence` (stateless wrapper).
+
+7. **TD-68 lyft** — CloudWatch metric filter + SNS-alarm. Kriterium 2 (saknad Terraform-infrastruktur).
+
+**CTO-beslut (senior-cto-advisor 2026-05-12):** Hybrid F + IFailedAccessLogger-port. Motivering: SoC (audit_log = compliance, failed-access = ops-signal — olika livscykler, olika konsumenter), ADR-immutabilitet (0022 bevaras), YAGNI (CloudWatch metric filter > inline-throttling), Clean Arch (säkerhets-logik i Application där informationen finns, inte i Api-middleware), GDPR Art. 32 proportionalitet (failed-access är inte "behandling" i Art. 5(2)-mening).
+
+**Avvisade alternativ:** Alt A (utöka AuditBehavior — bryter ADR 0022 + differentierings-problem), Alt B (ny pipeline-behavior — samma problem), Alt C (domain event — saknar dispatcher, ej domän-händelse), Alt D (middleware — vet inte varför 404 → noise), Alt E (inline utan port — bryter testbarhet).
+
+**Reviews:** (genomförs vid commit av denna batch).
+
+**Tester:** 213 Application UnitTests gröna (+4 nya för logger-bevakning). Befintliga cross-user-integration-tester (TD-12, TD-66) bevakar fortsatt 404-beteende utan API-respons-skillnad.
+
+---

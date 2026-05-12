@@ -19,7 +19,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
-| TD-67 | Audit-trail för failed cross-user-access-attempts | Minor | 1 (eller 2) | GDPR/Observability |
+| TD-68 | CloudWatch metric filter + SNS-alarm för failed_access_attempt-events | Minor | 1 | Observability/Infra |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -148,43 +148,36 @@ för cost-cap-design när AI-features designas.
 
 ## Minor — Fas 1
 
-## TD-67: Audit-trail för failed cross-user-access-attempts (GDPR Art. 32)
-**Kategori:** GDPR / Observability / Anomaly-detection
+## TD-68: CloudWatch metric filter + SNS-alarm för failed_access_attempt-events
+**Kategori:** Observability / Infrastructure (Terraform)
 **Severity:** Minor
-**Fas:** 1 (eller 2 om prioritering pekar mot kommande SIEM-integration)
-**Källa:** security-auditor Batch F-review 2026-05-12
+**Fas:** 1 (innan fas-stängning eller vid första prod-deploy)
+**Källa:** TD-67-leverans 2026-05-12 (ADR 0031 — anomaly-detection-skiktet)
 
-ADR 0022 etablerade audit-log pipeline behavior för success-mutationer.
-Failed authorization-attempts (404 från ownership-filter — cross-user-access
-mot annan users resurs) loggas idag inte i audit-tabellen — bara via standard
-request-logg i CloudWatch.
+ADR 0031 etablerade `IFailedAccessLogger`-strategin: handlers loggar
+strukturerade events via `ILogger<T>` med `event_name=failed_access_attempt`
++ `requesting_user_id`-fält. App-koden levererar signalen — CloudWatch-
+aggregat är separat Terraform-leverans.
 
-**Risk:** Klassisk BOLA-enumeration-attack (OWASP API1:2023) genererar
-upprepade 404 från en user mot andra users IDs. Utan audit-aggregat är
-detta mönster osynligt för anomaly-detection.
+**Föreslagen åtgärd:**
 
-**Föreslagen åtgärd:** Strukturerat audit-event för failed ownership-check:
+1. CloudWatch metric filter i `infra/terraform/environments/{dev,prod}/`:
+   - Filter pattern: `{ $.event_name = "failed_access_attempt" }`
+   - Namespace: `JobbPilot/Security`
+   - Metric: `FailedAccessAttempts` per `requesting_user_id`
+2. CloudWatch alarm:
+   - Threshold: >20 events/min/user (justerbart per env)
+   - SNS topic: `secops-anomaly` (skapas separat)
+3. Runbook i `docs/runbooks/failed-access-anomaly.md` med triage-steg vid alarm
 
-```
-event_type: "Authorization.CrossUserAccessDenied"
-fields: { user_id, attempted_resource_id, endpoint, timestamp }
-```
+**Risk i Fas 1:** låg — signalen finns i CloudWatch (app-loggen redan
+strukturerad), bara automatisk alerting saknas. Manuell CloudWatch
+Insights-query räcker som temporary-detektering.
 
-Implementations-alternativ:
-1. Pipeline-behavior som fångar `NotFoundException` när orsaken är
-   ownership-mismatch (kräver särskiljning från "okänt id")
-2. Middleware-hook på 404-respons från specifika endpoint-grupper
-3. Inline-loggning i query-/command-handlers där ownership-check sker
+**Beroenden:** Terraform-changeset till AWS-miljö, separat security-auditor-
+review + Klas-godkännande för deploy.
 
-**Risk i Fas 1:** låg (request-loggen finns, GDPR Art. 32 uppfylls
-formellt), men förstärkt incident-respons är good practice när användarbasen
-växer.
-
-**Beroenden:** ADR 0022-pattern. Egen ADR för "failed access audit"-strategi
-rekommenderas innan implementation.
-
-**Trigger:** Fas 1-stängning eller första rapporterade BOLA-attempt-incident
-i prod.
+**Trigger:** innan Fas 1 prod-deploy eller första BOLA-incident.
 
 
 ---
@@ -870,6 +863,7 @@ ADR-cross-references och granskningsbevis.
 | TD-12 | Saknad integration-test för cross-user isolation | 2026-05-12 | Batch F |
 | TD-65 | Playwright E2E för delete-account-flow | 2026-05-12 | disciplinretur |
 | TD-66 | Cross-user-isolation-tester för Resume + JobSeeker | 2026-05-12 | disciplinretur |
+| TD-67 | Audit-trail för failed cross-user-access-attempts | 2026-05-12 | ADR 0031 + IFailedAccessLogger |
 
 ---
 

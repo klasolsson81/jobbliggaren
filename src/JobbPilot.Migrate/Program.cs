@@ -44,6 +44,7 @@ using System.Text.Json.Serialization;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using Hangfire.PostgreSql;
+using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
 using JobbPilot.Migrate;
 using Microsoft.EntityFrameworkCore;
@@ -84,6 +85,8 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
 };
 
 // ADR 0033 — CLI-dispatch. Default-less. Saknad/okänd arg -> exit 1.
+// ADR 0034 amendment 2026-05-12 — `bootstrap`-mode för Identity-context-deploy
+// (master-creds, separate från `schema` som kör AppDbContext med jobbpilot_app).
 var mode = args.Length == 1 ? args[0] : null;
 
 try
@@ -91,6 +94,7 @@ try
     return mode switch
     {
         "init" => await RunInitAsync(log, cts.Token),
+        "bootstrap" => await RunBootstrapAsync(log, cts.Token),
         "schema" => await RunSchemaAsync(log, cts.Token),
         _ => UsageError(log),
     };
@@ -259,8 +263,103 @@ static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
     return 0;
 }
 
+// ADR 0034 — Phase Bootstrap. Ansluter med master-creds, skapar identity-schema
+// + grantar jobbpilot_app DML/DDL på identity, applicerar Identity-migrations
+// (AppIdentityDbContext) med master-creds. Engångs eller vid Identity-schema-
+// ändring (sällsynt). Schema-mode kvarstår oförändrad (AppDbContext only).
+// TD-71 — efter permanent A5-deploy revoke CREATE ON DATABASE från jobbpilot_app.
+static async Task<int> RunBootstrapAsync(ILogger log, CancellationToken ct)
+{
+    MigrateLog.ModeBootstrap(log);
+
+    var masterSecretArn = RequiredEnv("MIGRATE_MASTER_SECRET_ARN");
+    var dbHost = RequiredEnv("MIGRATE_DB_HOST");
+    var dbPort = int.Parse(RequiredEnv("MIGRATE_DB_PORT"), CultureInfo.InvariantCulture);
+    var dbName = RequiredEnv("MIGRATE_DB_NAME");
+    var awsRegion = RequiredEnv("AWS_REGION");
+
+    MigrateLog.StartingMigrate(log, dbHost, dbPort, dbName, awsRegion);
+
+    var secretsClient = new AmazonSecretsManagerClient(
+        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
+
+    var masterCreds = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
+    MigrateLog.MasterCredsLoaded(log, masterCreds.Username, "Bootstrap");
+
+    // Step 1: SQL via master-creds — skapa identity-schema + GRANTs.
+    // Idempotent (CREATE SCHEMA IF NOT EXISTS, GRANT är no-op om redan satta).
+    MigrateLog.BootstrapStep1Start(log);
+    await using (var masterConn = new NpgsqlConnection(
+        ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCreds.Username, masterCreds.Password)))
+    {
+        await masterConn.OpenAsync(ct);
+        await ExecuteBootstrapSchemaAsync(masterConn, dbName, log, ct);
+    }
+
+    // Step 2: Applicera Identity-migrations med master-creds (har CREATE ON DATABASE,
+    // kan köra MigrateAsync utan Npgsql #1770-permission-fel).
+    MigrateLog.BootstrapStep2Start(log);
+
+    var masterCs = ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName,
+        masterCreds.Username, masterCreds.Password);
+
+    var options = new DbContextOptionsBuilder<AppIdentityDbContext>()
+        .UseNpgsql(masterCs, npgsql =>
+            npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName))
+        .Options;
+
+    await using var identityContext = new AppIdentityDbContext(options);
+
+    var pending = (await identityContext.Database.GetPendingMigrationsAsync(ct)).ToList();
+    MigrateLog.PendingMigrationsCount(log, pending.Count);
+
+    if (pending.Count > 0)
+    {
+        foreach (var migration in pending)
+        {
+            MigrateLog.PendingMigrationItem(log, migration);
+        }
+        await identityContext.Database.MigrateAsync(ct);
+        MigrateLog.BootstrapStep2Complete(log, pending.Count);
+    }
+    else
+    {
+        MigrateLog.BootstrapStep2NoPending(log);
+    }
+
+    MigrateLog.BootstrapComplete(log);
+    return 0;
+}
+
+static async Task ExecuteBootstrapSchemaAsync(NpgsqlConnection conn, string dbName, ILogger log, CancellationToken ct)
+{
+    ValidateIdentifier(dbName);
+
+    // 1. Skapa identity-schema ägt av jobbpilot_migrations (samma pattern som hangfire).
+    await ExecuteAsync(conn,
+        $"CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION {Roles.Migrations};",
+        log, "CREATE SCHEMA identity AUTHORIZATION migrations", ct);
+
+    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA identity FROM PUBLIC;",
+        log, "Revoke PUBLIC från identity", ct);
+
+    // 2. GRANT jobbpilot_app full DML+DDL på identity (samma pattern som public).
+    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA identity TO {Roles.App};",
+        log, "GRANT USAGE/CREATE på identity till app", ct);
+    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA identity TO {Roles.App};",
+        log, "GRANT ALL på identity-tabeller till app", ct);
+    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA identity TO {Roles.App};",
+        log, "GRANT ALL på identity-sequences till app", ct);
+    await ExecuteAsync(conn,
+        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON TABLES TO {Roles.App};",
+        log, "DEFAULT PRIVILEGES identity-tabeller -> app", ct);
+    await ExecuteAsync(conn,
+        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON SEQUENCES TO {Roles.App};",
+        log, "DEFAULT PRIVILEGES identity-sequences -> app", ct);
+}
+
 // ===========================================================================
-// Helpers (delas mellan init- och schema-modes)
+// Helpers (delas mellan init-, bootstrap- och schema-modes)
 // ===========================================================================
 
 static string RequiredEnv(string name) =>
@@ -365,6 +464,27 @@ static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, strin
     await ExecuteAsync(conn,
         $"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO {Roles.App};",
         log, "DEFAULT PRIVILEGES public-sequences -> app", ct);
+
+    // ADR 0034 — identity-schema för AppIdentityDbContext (HasDefaultSchema("identity")).
+    // Skapas i init så nästa init-körning garanterar att schemat finns med korrekta
+    // GRANTs. Identity-migrations appliceras separat via `bootstrap`-mode med master-creds.
+    await ExecuteAsync(conn,
+        $"CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION {Roles.Migrations};",
+        log, "CREATE SCHEMA identity (ADR 0034)", ct);
+    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA identity FROM PUBLIC;",
+        log, "Revoke PUBLIC från identity", ct);
+    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA identity TO {Roles.App};",
+        log, "GRANT USAGE/CREATE på identity till app", ct);
+    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA identity TO {Roles.App};",
+        log, "GRANT ALL på identity-tabeller till app", ct);
+    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA identity TO {Roles.App};",
+        log, "GRANT ALL på identity-sequences till app", ct);
+    await ExecuteAsync(conn,
+        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON TABLES TO {Roles.App};",
+        log, "DEFAULT PRIVILEGES identity-tabeller -> app", ct);
+    await ExecuteAsync(conn,
+        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON SEQUENCES TO {Roles.App};",
+        log, "DEFAULT PRIVILEGES identity-sequences -> app", ct);
 }
 
 static async Task ExecutePhaseCAsync(NpgsqlConnection conn, ILogger log, CancellationToken ct)

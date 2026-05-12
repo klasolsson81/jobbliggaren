@@ -46,6 +46,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0031 | Failed cross-user access detection: strukturerad loggning + CloudWatch-aggregat | Accepted | 2026-05-12 | [0031-failed-access-detection.md](./0031-failed-access-detection.md) |
 | 0032 | JobTech-integration: resilience-stack, dedup-strategi, sync-flöde | Accepted | 2026-05-12 | [0032-jobtech-integration.md](./0032-jobtech-integration.md) |
 | 0033 | JobbPilot.Migrate CLI-mode-dispatch (init vs schema) | Accepted | 2026-05-12 | [0033-migrate-cli-mode-dispatch.md](./0033-migrate-cli-mode-dispatch.md) |
+| 0034 | DB-role privilege-separation: runtime vs migration-time creds | Accepted | 2026-05-12 | [0034-db-role-privilege-separation.md](./0034-db-role-privilege-separation.md) |
 
 ## Planerade ADRs
 

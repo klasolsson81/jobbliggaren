@@ -92,6 +92,31 @@ internal static partial class MigrateLog
     public static partial void ModeSchema(ILogger logger);
 
     [LoggerMessage(EventId = 202, Level = LogLevel.Error,
-        Message = "Usage: JobbPilot.Migrate <init|schema>")]
+        Message = "Usage: JobbPilot.Migrate <init|bootstrap|schema>")]
     public static partial void UsageError(ILogger logger);
+
+    // ADR 0034 — Bootstrap-mode (Identity-context via master-creds)
+    [LoggerMessage(EventId = 203, Level = LogLevel.Information,
+        Message = "Mode: bootstrap (Identity-context via master-creds — ADR 0034)")]
+    public static partial void ModeBootstrap(ILogger logger);
+
+    [LoggerMessage(EventId = 70, Level = LogLevel.Information,
+        Message = "Bootstrap Step 1: CREATE SCHEMA identity + GRANTs på identity till jobbpilot_app")]
+    public static partial void BootstrapStep1Start(ILogger logger);
+
+    [LoggerMessage(EventId = 71, Level = LogLevel.Information,
+        Message = "Bootstrap Step 2: EF Core Database.MigrateAsync mot AppIdentityDbContext (master-creds)")]
+    public static partial void BootstrapStep2Start(ILogger logger);
+
+    [LoggerMessage(EventId = 72, Level = LogLevel.Information,
+        Message = "Bootstrap Step 2 COMPLETE — applied {Count} Identity-migration(s)")]
+    public static partial void BootstrapStep2Complete(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 73, Level = LogLevel.Information,
+        Message = "Bootstrap Step 2: no pending Identity-migrations")]
+    public static partial void BootstrapStep2NoPending(ILogger logger);
+
+    [LoggerMessage(EventId = 74, Level = LogLevel.Information,
+        Message = "Bootstrap COMPLETE — identity-schema klar + Identity-migrations applied")]
+    public static partial void BootstrapComplete(ILogger logger);
 }

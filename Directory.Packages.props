@@ -35,6 +35,12 @@
     <!-- Auth + JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />
+    <!-- Health checks — TD-29 / F2-P6 strict readiness-probe.
+         Microsoft.Extensions.Diagnostics.HealthChecks.* är Microsoft-paket (inte Xabaril).
+         AddDbContextCheck<T> pingar DbContext via SELECT 1, returnerar Healthy/Unhealthy.
+         Redis-check skrivs som custom IHealthCheck via IConnectionMultiplexer.IsConnected
+         — undviker third-party Xabaril-dep, ~10 rader kod. -->
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.7" />
     <!-- Redis -->
     <PackageVersion Include="StackExchange.Redis" Version="2.12.14" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.7" />

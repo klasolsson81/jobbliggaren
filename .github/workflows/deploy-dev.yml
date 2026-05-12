@@ -231,7 +231,7 @@ jobs:
             --task-definition "${{ steps.register-migrate.outputs.migrate-task-def-arn }}" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=${{ steps.net-config.outputs.subnets }},securityGroups=${{ steps.net-config.outputs.security-groups }},assignPublicIp=DISABLED}" \
-            --overrides '{"containerOverrides":[{"name":"'"$CONTAINER_NAME_MIGRATE"'","command":["dotnet","JobbPilot.Migrate.dll","schema"]}]}' \
+            --overrides '{"containerOverrides":[{"name":"'"$CONTAINER_NAME_MIGRATE"'","command":["schema"]}]}' \
             --started-by "deploy-dev-${{ steps.tag.outputs.tag }}" \
             --query 'tasks[0].taskArn' \
             --output text)

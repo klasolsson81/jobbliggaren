@@ -43,6 +43,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0028 | Admin authorization via marker-interface + HTTP-policy defense-in-depth | Accepted | 2026-05-11 | [0028-admin-authorization-marker-interface-defense-in-depth.md](./0028-admin-authorization-marker-interface-defense-in-depth.md) |
 | 0029 | HTTP-auth-pipeline och `IClaimsTransformation`-disciplin | Accepted | 2026-05-11 | [0029-auth-pipeline-and-claims-transformation.md](./0029-auth-pipeline-and-claims-transformation.md) |
 | 0030 | Frontend API result kind-union convention | Accepted | 2026-05-11 | [0030-frontend-api-result-kind-union.md](./0030-frontend-api-result-kind-union.md) |
+| 0031 | Failed cross-user access detection: strukturerad loggning + CloudWatch-aggregat | Accepted | 2026-05-12 | [0031-failed-access-detection.md](./0031-failed-access-detection.md) |
 
 ## Planerade ADRs
 

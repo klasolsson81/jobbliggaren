@@ -72,6 +72,11 @@ public static class DependencyInjection
         // den men ingen kostnad finns att ha den tillgänglig.
         services.AddSingleton<IIpAnonymizer, IpAnonymizer>();
 
+        // Failed-access-logger (ADR 0031 / TD-67). Strukturerad ILogger-wrapper —
+        // stateless, singleton. Konsumeras av Application-handlers vid
+        // ownership-mismatch för CloudWatch-baserad anomaly-detection (TD-68).
+        services.AddSingleton<IFailedAccessLogger, FailedAccessLogger>();
+
         return services;
     }
 

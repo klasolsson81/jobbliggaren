@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Domain.Applications;
 using JobbPilot.Domain.Common;
@@ -10,7 +11,8 @@ namespace JobbPilot.Application.Applications.Commands.TransitionTo;
 public sealed class TransitionToCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IFailedAccessLogger failedAccessLogger)
     : ICommandHandler<TransitionToCommand, Result>
 {
     public async ValueTask<Result> Handle(
@@ -30,7 +32,17 @@ public sealed class TransitionToCommandHandler(
             .FirstOrDefaultAsync(a => a.Id == appId && a.JobSeekerId == jobSeekerId, cancellationToken);
 
         if (app is null)
+        {
+            var exists = await db.Applications
+                .AsNoTracking()
+                .AnyAsync(a => a.Id == appId, cancellationToken);
+            if (exists)
+            {
+                failedAccessLogger.LogCrossUserAttempt(
+                    "Application", appId.Value, currentUser.UserId.Value, "TransitionTo");
+            }
             throw new NotFoundException("Ansökan hittades inte.");
+        }
 
         var target = ApplicationStatus.FromName(command.TargetStatus);
         return app.TransitionTo(target, clock);

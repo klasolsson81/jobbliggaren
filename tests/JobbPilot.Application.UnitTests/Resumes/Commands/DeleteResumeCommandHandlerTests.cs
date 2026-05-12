@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.Resumes.Commands.DeleteResume;
 using JobbPilot.Application.UnitTests.Common;
@@ -38,7 +39,7 @@ public class DeleteResumeCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new DeleteResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeCommand(resume.Id.Value);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -61,7 +62,7 @@ public class DeleteResumeCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new DeleteResumeCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeCommand(Guid.NewGuid());
 
         await Should.ThrowAsync<UnauthorizedException>(
@@ -76,7 +77,7 @@ public class DeleteResumeCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new DeleteResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeCommand(Guid.NewGuid());
 
         await Should.ThrowAsync<NotFoundException>(
@@ -94,7 +95,7 @@ public class DeleteResumeCommandHandlerTests
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new DeleteResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeCommand(resume.Id.Value);
 
         await Should.ThrowAsync<NotFoundException>(

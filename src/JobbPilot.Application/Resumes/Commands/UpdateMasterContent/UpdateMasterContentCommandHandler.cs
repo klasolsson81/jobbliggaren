@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.Resumes.Queries;
 using JobbPilot.Domain.Common;
@@ -11,7 +12,8 @@ namespace JobbPilot.Application.Resumes.Commands.UpdateMasterContent;
 public sealed class UpdateMasterContentCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IFailedAccessLogger failedAccessLogger)
     : ICommandHandler<UpdateMasterContentCommand, Result>
 {
     public async ValueTask<Result> Handle(
@@ -32,7 +34,17 @@ public sealed class UpdateMasterContentCommandHandler(
             .FirstOrDefaultAsync(r => r.Id == resumeId && r.JobSeekerId == jobSeekerId, cancellationToken);
 
         if (resume is null)
+        {
+            var exists = await db.Resumes
+                .AsNoTracking()
+                .AnyAsync(r => r.Id == resumeId, cancellationToken);
+            if (exists)
+            {
+                failedAccessLogger.LogCrossUserAttempt(
+                    "Resume", resumeId.Value, currentUser.UserId.Value, "UpdateMasterContent");
+            }
             throw new NotFoundException("CV hittades inte.");
+        }
 
         var content = MapToDomain(command.Content);
         return resume.UpdateMasterContent(content, clock);

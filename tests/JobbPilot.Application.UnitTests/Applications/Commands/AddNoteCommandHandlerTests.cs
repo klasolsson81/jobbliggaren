@@ -1,4 +1,5 @@
 using JobbPilot.Application.Applications.Commands.AddNote;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.UnitTests.Common;
@@ -38,7 +39,7 @@ public class AddNoteCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedAsync(db, _userId);
 
-        var handler = new AddNoteCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new AddNoteCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new AddNoteCommand(app.Id.Value, "Verkar intressant bolag.");
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -55,7 +56,7 @@ public class AddNoteCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new AddNoteCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new AddNoteCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new AddNoteCommand(Guid.NewGuid(), "En anteckning.");
 
         await Should.ThrowAsync<NotFoundException>(
@@ -69,7 +70,7 @@ public class AddNoteCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new AddNoteCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
+        var handler = new AddNoteCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new AddNoteCommand(Guid.NewGuid(), "En anteckning.");
 
         await Should.ThrowAsync<UnauthorizedException>(

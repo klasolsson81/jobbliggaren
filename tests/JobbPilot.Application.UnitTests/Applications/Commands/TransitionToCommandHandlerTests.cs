@@ -1,4 +1,5 @@
 using JobbPilot.Application.Applications.Commands.TransitionTo;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.UnitTests.Common;
@@ -39,7 +40,7 @@ public class TransitionToCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedAsync(db, _userId);
 
-        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new TransitionToCommand(app.Id.Value, "Submitted");
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -53,7 +54,7 @@ public class TransitionToCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedAsync(db, _userId);
 
-        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new TransitionToCommand(app.Id.Value, "Submitted");
 
         await handler.Handle(command, CancellationToken.None);
@@ -70,11 +71,58 @@ public class TransitionToCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new TransitionToCommand(Guid.NewGuid(), "Submitted");
 
         await Should.ThrowAsync<NotFoundException>(
             () => handler.Handle(command, CancellationToken.None).AsTask());
+    }
+
+    [Fact]
+    public async Task Handle_WhenApplicationBelongsToOtherUser_LogsFailedAccessAttempt()
+    {
+        // TD-67 / ADR 0031: ownership-mismatch loggas via IFailedAccessLogger.
+        var db = TestAppDbContextFactory.Create();
+        var otherUserId = Guid.NewGuid();
+        var (_, otherApp) = await SeedAsync(db, otherUserId);
+
+        // Egen JobSeeker för current user (annars filtreras inte ut korrekt)
+        var ownSeeker = JobSeeker.Register(_userId, "Current User", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(ownSeeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
+        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, failedAccessLogger);
+        var command = new TransitionToCommand(otherApp.Id.Value, "Submitted");
+
+        await Should.ThrowAsync<NotFoundException>(
+            () => handler.Handle(command, CancellationToken.None).AsTask());
+
+        failedAccessLogger.Received(1).LogCrossUserAttempt(
+            "Application",
+            otherApp.Id.Value,
+            _userId,
+            "TransitionTo");
+    }
+
+    [Fact]
+    public async Task Handle_WhenApplicationIdUnknown_DoesNotLogFailedAccessAttempt()
+    {
+        // TD-67 / ADR 0031: okänt id är INTE cross-user-attempt — ska inte logga.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
+        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, failedAccessLogger);
+        var command = new TransitionToCommand(Guid.NewGuid(), "Submitted");
+
+        await Should.ThrowAsync<NotFoundException>(
+            () => handler.Handle(command, CancellationToken.None).AsTask());
+
+        failedAccessLogger.DidNotReceive().LogCrossUserAttempt(
+            Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>());
     }
 
     [Fact]
@@ -83,7 +131,7 @@ public class TransitionToCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedAsync(db, _userId);
 
-        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new TransitionToCommand(app.Id.Value, "Accepted");
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -99,7 +147,7 @@ public class TransitionToCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new TransitionToCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
+        var handler = new TransitionToCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new TransitionToCommand(Guid.NewGuid(), "Submitted");
 
         await Should.ThrowAsync<UnauthorizedException>(

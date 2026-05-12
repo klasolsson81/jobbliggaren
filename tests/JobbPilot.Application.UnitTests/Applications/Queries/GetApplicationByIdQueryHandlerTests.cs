@@ -1,4 +1,5 @@
 using JobbPilot.Application.Applications.Queries.GetApplicationById;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.Applications;
@@ -39,7 +40,7 @@ public class GetApplicationByIdQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedAsync(db, _userId, "Mitt personliga brev.");
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -61,7 +62,7 @@ public class GetApplicationByIdQueryHandlerTests
             FakeDateTimeProvider.Default);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -78,7 +79,7 @@ public class GetApplicationByIdQueryHandlerTests
         app.AddNote("Bra arbetsgivare.", FakeDateTimeProvider.Default);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -95,7 +96,7 @@ public class GetApplicationByIdQueryHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -109,11 +110,55 @@ public class GetApplicationByIdQueryHandlerTests
         var otherUserId = Guid.NewGuid();
         var (_, otherApp) = await SeedAsync(db, otherUserId);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(otherApp.Id.Value), CancellationToken.None);
 
         result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenApplicationBelongsToOtherUser_LogsFailedAccessAttempt()
+    {
+        // TD-67 / ADR 0031: ownership-mismatch loggas via IFailedAccessLogger.
+        // Båda users måste ha JobSeeker-rad — annars returnerar handler null
+        // via "jobSeekerId == default"-tidig-return innan ownership-checken.
+        var db = TestAppDbContextFactory.Create();
+        var otherUserId = Guid.NewGuid();
+        var (_, otherApp) = await SeedAsync(db, otherUserId);
+
+        var ownSeeker = JobSeeker.Register(_userId, "Current User", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(ownSeeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, failedAccessLogger);
+
+        await handler.Handle(new GetApplicationByIdQuery(otherApp.Id.Value), CancellationToken.None);
+
+        failedAccessLogger.Received(1).LogCrossUserAttempt(
+            "Application",
+            otherApp.Id.Value,
+            _userId,
+            "GetApplicationById");
+    }
+
+    [Fact]
+    public async Task Handle_WhenApplicationIdUnknown_DoesNotLogFailedAccessAttempt()
+    {
+        // TD-67 / ADR 0031: okänt id är INTE cross-user-attempt — ska inte logga.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, failedAccessLogger);
+
+        await handler.Handle(new GetApplicationByIdQuery(Guid.NewGuid()), CancellationToken.None);
+
+        failedAccessLogger.DidNotReceive().LogCrossUserAttempt(
+            Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>());
     }
 
     [Fact]
@@ -125,7 +170,7 @@ public class GetApplicationByIdQueryHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new GetApplicationByIdQueryHandler(db, currentUser);
+        var handler = new GetApplicationByIdQueryHandler(db, currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 

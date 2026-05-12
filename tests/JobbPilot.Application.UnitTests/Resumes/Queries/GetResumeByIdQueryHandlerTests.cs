@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Resumes.Queries.GetResumeById;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.JobSeekers;
@@ -39,7 +40,7 @@ public class GetResumeByIdQueryHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new GetResumeByIdQueryHandler(db, currentUser);
+        var handler = new GetResumeByIdQueryHandler(db, currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetResumeByIdQuery(resume.Id.Value), CancellationToken.None);
 
@@ -51,7 +52,7 @@ public class GetResumeByIdQueryHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
 
-        var handler = new GetResumeByIdQueryHandler(db, _currentUser);
+        var handler = new GetResumeByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetResumeByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -66,7 +67,7 @@ public class GetResumeByIdQueryHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetResumeByIdQueryHandler(db, _currentUser);
+        var handler = new GetResumeByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetResumeByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -83,7 +84,7 @@ public class GetResumeByIdQueryHandlerTests
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetResumeByIdQueryHandler(db, _currentUser);
+        var handler = new GetResumeByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetResumeByIdQuery(otherResume.Id.Value), CancellationToken.None);
 
@@ -96,7 +97,7 @@ public class GetResumeByIdQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new GetResumeByIdQueryHandler(db, _currentUser);
+        var handler = new GetResumeByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
         var result = await handler.Handle(new GetResumeByIdQuery(resume.Id.Value), CancellationToken.None);
 

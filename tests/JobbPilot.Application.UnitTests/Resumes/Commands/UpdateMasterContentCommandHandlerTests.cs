@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.Resumes.Commands.UpdateMasterContent;
 using JobbPilot.Application.Resumes.Queries;
@@ -47,7 +48,7 @@ public class UpdateMasterContentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new UpdateMasterContentCommand(
             resume.Id.Value,
             BuildContent(summary: "En kort sammanfattning."));
@@ -65,7 +66,7 @@ public class UpdateMasterContentCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new UpdateMasterContentCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
+        var handler = new UpdateMasterContentCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new UpdateMasterContentCommand(Guid.NewGuid(), BuildContent());
 
         await Should.ThrowAsync<UnauthorizedException>(
@@ -80,7 +81,7 @@ public class UpdateMasterContentCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new UpdateMasterContentCommand(Guid.NewGuid(), BuildContent());
 
         await Should.ThrowAsync<NotFoundException>(
@@ -98,7 +99,7 @@ public class UpdateMasterContentCommandHandlerTests
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new UpdateMasterContentCommand(resume.Id.Value, BuildContent());
 
         await Should.ThrowAsync<NotFoundException>(
@@ -111,7 +112,7 @@ public class UpdateMasterContentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         // Domain ValidateContent kontrollerar PersonalInfo.FullName.
         var command = new UpdateMasterContentCommand(resume.Id.Value, BuildContent(fullName: "   "));
 

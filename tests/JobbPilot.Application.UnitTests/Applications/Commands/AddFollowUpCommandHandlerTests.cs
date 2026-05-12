@@ -1,4 +1,5 @@
 using JobbPilot.Application.Applications.Commands.AddFollowUp;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.UnitTests.Common;
@@ -59,7 +60,7 @@ public class AddFollowUpCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedDraftAsync(db, _userId);
 
-        var handler = new AddFollowUpCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new AddFollowUpCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new AddFollowUpCommand(
             app.Id.Value,
             "Email",
@@ -80,7 +81,7 @@ public class AddFollowUpCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new AddFollowUpCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new AddFollowUpCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new AddFollowUpCommand(
             Guid.NewGuid(),
             "Email",
@@ -97,7 +98,7 @@ public class AddFollowUpCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedAcceptedAsync(db, _userId);
 
-        var handler = new AddFollowUpCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new AddFollowUpCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new AddFollowUpCommand(
             app.Id.Value,
             "Email",
@@ -117,7 +118,7 @@ public class AddFollowUpCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new AddFollowUpCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
+        var handler = new AddFollowUpCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new AddFollowUpCommand(
             Guid.NewGuid(),
             "Email",

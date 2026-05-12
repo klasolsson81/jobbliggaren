@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.Resumes.Commands.DeleteResumeVersion;
 using JobbPilot.Application.UnitTests.Common;
@@ -39,7 +40,7 @@ public class DeleteResumeVersionCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new DeleteResumeVersionCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeVersionCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeVersionCommand(Guid.NewGuid(), Guid.NewGuid());
 
         await Should.ThrowAsync<UnauthorizedException>(
@@ -54,7 +55,7 @@ public class DeleteResumeVersionCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeVersionCommand(Guid.NewGuid(), Guid.NewGuid());
 
         await Should.ThrowAsync<NotFoundException>(
@@ -72,7 +73,7 @@ public class DeleteResumeVersionCommandHandlerTests
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeVersionCommand(
             otherResume.Id.Value,
             otherResume.MasterVersion.Id.Value);
@@ -87,7 +88,7 @@ public class DeleteResumeVersionCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeVersionCommand(
             resume.Id.Value,
             resume.MasterVersion.Id.Value);
@@ -104,7 +105,7 @@ public class DeleteResumeVersionCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new DeleteResumeVersionCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new DeleteResumeVersionCommand(resume.Id.Value, Guid.NewGuid());
 
         var result = await handler.Handle(command, CancellationToken.None);

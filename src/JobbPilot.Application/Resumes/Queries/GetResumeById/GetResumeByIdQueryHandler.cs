@@ -1,11 +1,15 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Domain.Resumes;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobbPilot.Application.Resumes.Queries.GetResumeById;
 
-public sealed class GetResumeByIdQueryHandler(IAppDbContext db, ICurrentUser currentUser)
+public sealed class GetResumeByIdQueryHandler(
+    IAppDbContext db,
+    ICurrentUser currentUser,
+    IFailedAccessLogger failedAccessLogger)
     : IQueryHandler<GetResumeByIdQuery, ResumeDetailDto?>
 {
     public async ValueTask<ResumeDetailDto?> Handle(
@@ -30,6 +34,19 @@ public sealed class GetResumeByIdQueryHandler(IAppDbContext db, ICurrentUser cur
             .Where(r => r.Id == resumeId && r.JobSeekerId == jobSeekerId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return resume?.ToDetailDto();
+        if (resume is null)
+        {
+            var exists = await db.Resumes
+                .AsNoTracking()
+                .AnyAsync(r => r.Id == resumeId, cancellationToken);
+            if (exists)
+            {
+                failedAccessLogger.LogCrossUserAttempt(
+                    "Resume", resumeId.Value, currentUser.UserId.Value, "GetResumeById");
+            }
+            return null;
+        }
+
+        return resume.ToDetailDto();
     }
 }

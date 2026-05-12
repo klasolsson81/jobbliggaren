@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Domain.Applications;
 using JobbPilot.Domain.Common;
@@ -10,7 +11,8 @@ namespace JobbPilot.Application.Applications.Commands.AddFollowUp;
 public sealed class AddFollowUpCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IFailedAccessLogger failedAccessLogger)
     : ICommandHandler<AddFollowUpCommand, Result<Guid>>
 {
     public async ValueTask<Result<Guid>> Handle(
@@ -30,7 +32,17 @@ public sealed class AddFollowUpCommandHandler(
             .FirstOrDefaultAsync(a => a.Id == appId && a.JobSeekerId == jobSeekerId, cancellationToken);
 
         if (app is null)
+        {
+            var exists = await db.Applications
+                .AsNoTracking()
+                .AnyAsync(a => a.Id == appId, cancellationToken);
+            if (exists)
+            {
+                failedAccessLogger.LogCrossUserAttempt(
+                    "Application", appId.Value, currentUser.UserId.Value, "AddFollowUp");
+            }
             throw new NotFoundException("Ansökan hittades inte.");
+        }
 
         var channel = FollowUpChannel.FromName(command.Channel);
         var result = app.AddFollowUp(channel, command.ScheduledAt, command.Note, clock);

@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.Resumes.Commands.RenameResume;
 using JobbPilot.Application.UnitTests.Common;
@@ -39,7 +40,7 @@ public class RenameResumeCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new RenameResumeCommand(resume.Id.Value, "Nytt namn");
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -58,7 +59,7 @@ public class RenameResumeCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new RenameResumeCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
+        var handler = new RenameResumeCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new RenameResumeCommand(Guid.NewGuid(), "Nytt namn");
 
         await Should.ThrowAsync<UnauthorizedException>(
@@ -73,7 +74,7 @@ public class RenameResumeCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new RenameResumeCommand(Guid.NewGuid(), "Nytt namn");
 
         await Should.ThrowAsync<NotFoundException>(
@@ -92,7 +93,7 @@ public class RenameResumeCommandHandlerTests
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new RenameResumeCommand(resume.Id.Value, "Nytt namn");
 
         await Should.ThrowAsync<NotFoundException>(
@@ -105,7 +106,7 @@ public class RenameResumeCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var handler = new RenameResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
         var command = new RenameResumeCommand(resume.Id.Value, "   ");
 
         var result = await handler.Handle(command, CancellationToken.None);

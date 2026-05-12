@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Domain.Common;
 using JobbPilot.Domain.Resumes;
@@ -10,7 +11,8 @@ namespace JobbPilot.Application.Resumes.Commands.DeleteResumeVersion;
 public sealed class DeleteResumeVersionCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IFailedAccessLogger failedAccessLogger)
     : ICommandHandler<DeleteResumeVersionCommand, Result>
 {
     public async ValueTask<Result> Handle(
@@ -31,7 +33,17 @@ public sealed class DeleteResumeVersionCommandHandler(
             .FirstOrDefaultAsync(r => r.Id == resumeId && r.JobSeekerId == jobSeekerId, cancellationToken);
 
         if (resume is null)
+        {
+            var exists = await db.Resumes
+                .AsNoTracking()
+                .AnyAsync(r => r.Id == resumeId, cancellationToken);
+            if (exists)
+            {
+                failedAccessLogger.LogCrossUserAttempt(
+                    "Resume", resumeId.Value, currentUser.UserId.Value, "DeleteResumeVersion");
+            }
             throw new NotFoundException("CV hittades inte.");
+        }
 
         // TODO(Fas 4): När Application-aggregatet får ResumeVersionId-fält ska denna
         // fråga slå upp om versionen är refererad av en icke-terminal Application

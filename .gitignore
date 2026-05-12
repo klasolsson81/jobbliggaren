@@ -64,3 +64,9 @@ override.tf.json
 
 # Precompact-rapporter är temporära debug-artefakter
 docs/sessions/precompact-*.md
+
+# Startprompt-filer för CC-sessioner (temporära handoffs mellan sessioner)
+STARTPROMPT-*.md
+
+# Terraform plan/apply-outputs — kan innehålla känsliga värden från state/secrets
+infra/terraform/**/*.out

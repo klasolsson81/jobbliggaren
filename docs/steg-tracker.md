@@ -40,7 +40,7 @@ Mellan-arbete (upptakter, cleanup-passningar, disciplin-uppgraderingar) är inte
 
 ¹ Fas 0 fullt klar 2026-05-10 efter STEG 14c. Alla milstolpar uppfyllda: Clean Arch-solution + Identity + Next.js + design system + AWS-infrastruktur (VPC/RDS/Redis/ALB/ECS/ECR) + Container-pipeline + DNS + TLS (HTTPS aktiverat med HSTS) + GitHub OIDC-baserad CI/CD + first formal tag-deploy `v0.1.0-dev` end-to-end PASS + Bootstrap-IAM-user raderad. Live på `https://dev.jobbpilot.se/api/ready`.
 
-² Fas 2 är blockerad till ADR 0005 (go-to-market) är beslutad och kostnadsskydd implementerat (Budget Actions, `registrations_open`-flagga, rate limiting, runbook `docs/runbooks/aws-cost-recovery.md`) per BUILD.md §18.
+² Fas 2 är blockerad till ADR 0005 (go-to-market) är beslutad och kostnadsskydd implementerat (Budget Actions, `registrations_open`-flagga, rate limiting, runbook `docs/runbooks/aws-cost-recovery.md`) per BUILD.md §18. **Alla prereqs avklarade 2026-05-12** (F2-P0 invitations + F2-P1 feature-flag + F2-P2 rate-limits + F2-P3 Budget Actions + F2-P4 cost-recovery-runbook + F2-P6 readiness-probe-split / TD-29 stängd). JobTech-features (P7 paginering + P8 integration) får startas.
 
 ³ Fas 1 fullt klar 2026-05-11. Milestonestängning levererad i stationär-CC-session: admin-roll-infrastruktur (per-request claims A1 + IdempotentAdminRoleSeeder B1) + GET /api/v1/admin/audit-log + frontend `/admin/granskning` med Server Components + zero client-JS för core-flöde. 5 parallella agent-reviews APPROVED (code-reviewer + security-auditor + dotnet-architect + design-reviewer × 2 frontiers). CTO-triage med 12 in-block-fixar applicerade per 4-timmarsregeln + 6 nya TDs (TD-50 till TD-55) + ADR 0028 (admin-authorization defense-in-depth, marker-interface + HTTP-policy dubbel-gate).
 

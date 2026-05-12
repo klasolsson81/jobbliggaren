@@ -45,6 +45,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0030 | Frontend API result kind-union convention | Accepted | 2026-05-11 | [0030-frontend-api-result-kind-union.md](./0030-frontend-api-result-kind-union.md) |
 | 0031 | Failed cross-user access detection: strukturerad loggning + CloudWatch-aggregat | Accepted | 2026-05-12 | [0031-failed-access-detection.md](./0031-failed-access-detection.md) |
 | 0032 | JobTech-integration: resilience-stack, dedup-strategi, sync-flöde | Accepted | 2026-05-12 | [0032-jobtech-integration.md](./0032-jobtech-integration.md) |
+| 0033 | JobbPilot.Migrate CLI-mode-dispatch (init vs schema) | Accepted | 2026-05-12 | [0033-migrate-cli-mode-dispatch.md](./0033-migrate-cli-mode-dispatch.md) |
 
 ## Planerade ADRs
 

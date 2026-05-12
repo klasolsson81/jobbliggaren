@@ -17,4 +17,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Phase E (ADR 0033) — EF Core MigrateAsync mot AppDbContext -->
+    <ProjectReference Include="..\JobbPilot.Infrastructure\JobbPilot.Infrastructure.csproj" />
+  </ItemGroup>
+
 </Project>

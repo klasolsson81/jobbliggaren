@@ -22,6 +22,10 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         builder.Property(j => j.DeletedAt);
 
         // ADR 0032 §4 — raw_payload som jsonb för debug/replay-artefakter.
+        // PII-yta: JobTech-payload kan innehålla rekryterar-PII (namn, email,
+        // telefon, firmatecknare). Encryption-at-rest täcks av AWS RDS KMS;
+        // envelope encryption (app-side) skjuts till TD-13 (Fas 2 Major).
+        // PII-stripping vid ingest dokumenterad i ADR 0032 §8-amendment 2026-05-12.
         builder.Property(j => j.RawPayload).HasColumnType("jsonb");
 
         builder.OwnsOne(j => j.Company, company =>

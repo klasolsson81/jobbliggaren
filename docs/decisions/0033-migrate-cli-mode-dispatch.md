@@ -146,9 +146,67 @@ Default-less dispatch eliminerar surprise-mode. Saknad arg → exit 1 med usage 
 
 ## Out of scope (denna ADR)
 
-- **Auto-invoke `schema`-mode i deploy-dev.yml** — TD-70-kandidat.
+- ~~Auto-invoke `schema`-mode i deploy-dev.yml — TD-70-kandidat.~~ **Levererad via amendment 2026-05-12 (samma dag) — se nedan.**
 - **Migration-rollback-procedur** — EF Core stöder inte automatisk rollback. Manuell `dotnet ef migrations remove` lokalt + ny revert-migration. Dokumenteras i `aws-rds-migration-apply.md`.
 - **Prod-RDS-migrations** — samma mekanism, men prod-task-def är separat. Levereras vid första prod-deploy.
+
+---
+
+## Amendment 2026-05-12 — Auto-trigga `schema`-mode i `deploy-dev.yml`
+
+**Datum:** 2026-05-12 (samma dag som ursprungs-ADR)
+**Status:** Accepted (Klas-GO "GO enligt CTO rek" 2026-05-12)
+**Decision-maker:** senior-cto-advisor 2026-05-12 (rond 3) + Klas Olsson
+
+### Kontext för amendment
+
+Klas-direktiv 2026-05-12: "Så mycket som möjligt automatiskt." Manuell `aws ecs run-task` per runbook (originalt ADR-beslut) byggde på operatör-disciplin. Samma session upptäckte att F2-P0b-migrationen är aldrig applicerad mot dev-RDS — exempel på samma class of failure som memory `feedback_di_with_handlers_same_commit` adresserar ("CI fångar broken state, lokal disciplin räcker inte").
+
+### Beslut (Variant A)
+
+`deploy-dev.yml` auto-triggar `JobbPilot.Migrate schema`-task som GitHub Actions-steg **mellan ECR-push och Api/Worker-deploy**:
+
+1. Bygg + push api/worker/migrate-images
+2. Register Migrate task-def med ny image
+3. **Run Migrate schema-task** (Phase E, EF Core `MigrateAsync`) — block tills exit = 0
+4. Deploy Api service (wait-for-stability)
+5. Deploy Worker service (no-wait)
+6. Smoke-test
+
+Network-config (subnet + SG) hämtas runtime via `aws ecs describe-services --services jobbpilot-dev-api` — Migrate och Api delar awsvpcConfiguration. Inget terraform-output eller SSM Parameter Store behövs.
+
+### Motivering (CTO rond 3)
+
+- **12-Factor §V Build/Release/Run:** Schema-migration är release-stage, inte run-stage. Variant A placerar den exakt mellan build-complete och process-start.
+- **Fitness function** "schema-applied-before-Api-starts" blir mekanisk garanti via CI-fail. Variant B/C lägger det på mänsklig disciplin = bevisat otillräckligt.
+- **SRP per pipeline:** `deploy-dev.yml` har en change-reason ("vad händer vid `v*-dev`-tag"). Schema-apply hör till samma change-reason.
+- **YAGNI:** `workflow_dispatch` (rad 24-29) täcker ad-hoc manuell trigger utan tag — separat PowerShell-script vore duplicering.
+
+### IAM-utbyggnad
+
+`modules/github_oidc/main.tf` får ny `EcsRunMigrateTaskInDevCluster`-statement:
+- Actions: `ecs:RunTask`, `ecs:StopTask`
+- Resources: Migrate-task-def-ARN + task-ARN-pattern
+- Condition: `ArnEquals` på `ecs:cluster` = `jobbpilot-dev-cluster`
+
+Least-privilege bevarat — RunTask kan bara trigga Migrate-task-def i dev-cluster, inte Api/Worker-task-defs och inte andra clusters.
+
+### Konsekvenser av amendment
+
+- **Deploy-tid ökar med ~30-60s** vid varje tag-push även när no pending migrations (idempotency-check är billig — `GetPendingMigrationsAsync` returnerar tom lista).
+- **Deploy fail:ar om migration fail:ar** — önskat beteende. Api startar inte med inkonsistent schema.
+- **`docs/runbooks/aws-rds-migration-apply.md`** uppdateras: manuell procedur blir nu **fallback** (vid `workflow_dispatch`-trigger eller direct `aws ecs run-task` vid debug).
+- **TD-70-kandidaten stängs samtidigt som amendment levereras** — den var aldrig lyft som TD i `docs/tech-debt.md`.
+
+### Pre-deploy Klas-action
+
+`terraform apply` mot dev-stacken krävs för IAM-uppdateringen **innan** första `v0.2.0-dev`-tag-push. Annars failar workflow-step "Run Migrate schema-task" med `AccessDeniedException` på `ecs:RunTask`.
+
+### Avvisade alternativ (kort)
+
+- **Variant B (manuell script):** Discipline-baserad failure-mode bevisat otillräcklig.
+- **Variant C (hybrid):** YAGNI — `workflow_dispatch` täcker ad-hoc-behovet.
+- **Variant D (post-deploy schema):** 12-Factor §V-brott — Api startar med gammalt schema.
 
 ## Referenser
 

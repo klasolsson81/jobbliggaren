@@ -115,6 +115,12 @@ locals {
   ecs_worker_service_arn = "arn:aws:ecs:${var.aws_region}:${var.account_id}:service/${var.dev_name_prefix}-cluster/${var.dev_name_prefix}-worker"
   ecs_api_taskdef_arn    = "arn:aws:ecs:${var.aws_region}:${var.account_id}:task-definition/${var.dev_name_prefix}-api:*"
   ecs_worker_taskdef_arn = "arn:aws:ecs:${var.aws_region}:${var.account_id}:task-definition/${var.dev_name_prefix}-worker:*"
+  # ADR 0033 amendment 2026-05-12 — RunTask scope för Migrate schema-mode-task
+  # i deploy-dev.yml (Phase E auto-apply). Task-def-ARN matchar alla revisions.
+  ecs_migrate_taskdef_arn = "arn:aws:ecs:${var.aws_region}:${var.account_id}:task-definition/${var.dev_name_prefix}-migrate:*"
+  # Run-task body refererar task med "*" eftersom task-ARN är runtime-genererad.
+  # Scope:as via cluster-condition i policy:n (se EcsRunMigrateTask-statement).
+  ecs_task_arn_pattern    = "arn:aws:ecs:${var.aws_region}:${var.account_id}:task/${var.dev_name_prefix}-cluster/*"
 
   iam_execution_role_arn    = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-execution"
   iam_task_api_role_arn     = "arn:aws:iam::${var.account_id}:role/${var.dev_name_prefix}-ecs-task-api"
@@ -203,6 +209,27 @@ data "aws_iam_policy_document" "deploy_dev" {
       local.ecs_api_service_arn,
       local.ecs_worker_service_arn,
     ]
+  }
+
+  # ADR 0033 amendment 2026-05-12 — deploy-dev.yml auto-triggar Migrate
+  # schema-mode-task (Phase E EF Core MigrateAsync) mellan ECR-push och
+  # Api-deploy. ecs:RunTask scopas till Migrate-task-def + cluster-condition;
+  # ecs:StopTask för cleanup om workflow avbryts (concurrency-grupp eller
+  # GH cancel).
+  statement {
+    sid    = "EcsRunMigrateTaskInDevCluster"
+    effect = "Allow"
+    actions = [
+      "ecs:RunTask",
+      "ecs:StopTask",
+    ]
+    resources = [local.ecs_migrate_taskdef_arn, local.ecs_task_arn_pattern]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = [local.ecs_cluster_arn]
+    }
   }
 
   # PassRole begränsar VILKA IAM-roller deploy-rollen kan koppla till en

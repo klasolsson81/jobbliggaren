@@ -10,9 +10,25 @@
 - `JobbPilot.Migrate schema` → Phase E (EF Core `Database.MigrateAsync`)
 - Saknad arg → exit 1 (default-less)
 
+## Standard-flöde: automatiserat via `deploy-dev.yml`
+
+**Per [ADR 0033 amendment 2026-05-12](../decisions/0033-migrate-cli-mode-dispatch.md#amendment-2026-05-12--auto-trigga-schema-mode-i-deploy-devyml):**
+`schema`-mode auto-triggas i deploy-dev.yml mellan ECR-push och Api-deploy vid varje `v*-dev`-tag eller `workflow_dispatch`-trigger. Manuell `aws ecs run-task` (§2 nedan) är **fallback** för debug eller out-of-band-apply utan ny deploy.
+
+**Standardflöde:**
+
+```powershell
+git tag -a v0.2.0-dev -m "<beskrivning>"
+git push origin v0.2.0-dev
+# Observera deploy-dev workflow-run i GitHub Actions UI:
+#   Step "Run Migrate schema-task (Phase E)" loggar pending + applied.
+```
+
+Vid fail på schema-step: hela deploy avbryts (Api uppdateras inte). Felsökning per §4 nedan.
+
 ---
 
-## 1. Förutsättningar
+## 1. Förutsättningar (manuell fallback-procedur §2)
 
 - [ ] Dev-RDS är initierad (Phase A-D körd vid F2-P0a → roller + secrets finns)
 - [ ] EF-migration är committad och pushad till `main` (commit-SHA noteras)

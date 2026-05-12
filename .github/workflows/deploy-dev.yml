@@ -6,15 +6,17 @@
 # tag-mönster (v*-rc*, v* utan suffix) hanteras av framtida deploy-staging.yml
 # / deploy-prod.yml när respektive miljö-stack existerar.
 #
-# Pipeline:
+# Pipeline (ADR 0033 amendment 2026-05-12 — Variant A schema-auto-apply):
 #   1. OIDC assume → kortlivad AWS-session via dev-deploy-rollen
-#   2. Bygg + push api-image till ECR (taggar: $GITHUB_SHA + $GITHUB_REF_NAME)
-#   3. Bygg + push worker-image likt ovan
-#   4. Render task-defs med nya image-URIs och register nya revisions
-#   5. UpdateService på api + worker
-#   6. Wait for api-stability (60% av timeout) + smoke-test https://dev.jobbpilot.se
-#   7. Worker-stability accepteras inte fail:a workflowen tills 14b sätter creds
-#      (PLACEHOLDER-creds gör Worker till restart-loop tills DDL kör).
+#   2. Bygg + push api/worker/migrate-images till ECR
+#   3. Register Migrate task-def med ny image-URI
+#   4. Run Migrate schema-task (Phase E EF Core MigrateAsync) — block tills exit
+#      = 0; fail-block hela deploy om migration fail:ar (12-Factor §V Build/
+#      Release/Run + fitness function "schema-before-code"). Idempotent — no-op
+#      vid inga pending migrations.
+#   5. Render + Deploy Api task-def + service (wait-for-stability)
+#   6. Render + Deploy Worker task-def + service (no-wait under STEG 14a)
+#   7. Smoke-test https://dev.jobbpilot.se
 name: deploy-dev
 
 on:
@@ -154,7 +156,114 @@ jobs:
       # — Terraform äger task-def-skapande, GitHub Actions muterar bara
       # image-fältet vid deploy. Detta håller IaC som single source of truth
       # för CPU/memory/secrets/env och låter pipelinen vara image-only.
+      #
+      # Ordning (ADR 0033 amendment 2026-05-12):
+      #   1. Migrate task-def register (ny image)
+      #   2. Run Migrate schema-task (Phase E) — block tills exit 0
+      #   3. Api deploy
+      #   4. Worker deploy
       # ------------------------------------------------------------------
+
+      # ------------------------------------------------------------------
+      # Migrate task-def — register + auto-run schema-mode (Phase E).
+      # Workflow uppdaterar revision-pekaren till ny image; sedan triggas
+      # Phase E EF Core MigrateAsync mot dev-RDS. Idempotent — no-op vid
+      # inga pending migrations. 'init'-mode (Phase A-D, creds-rotation)
+      # körs aldrig automatiskt — manuell trigger via runbook
+      # docs/runbooks/aws-rds-migration-apply.md §5.
+      # ------------------------------------------------------------------
+
+      - name: Fetch current Migrate task-def
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$TASK_FAMILY_MIGRATE" \
+            --query 'taskDefinition' \
+            --output json > task-def-migrate.json
+
+      - name: Render Migrate task-def
+        id: render-migrate
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def-migrate.json
+          container-name: ${{ env.CONTAINER_NAME_MIGRATE }}
+          image: ${{ env.ECR_REGISTRY }}/jobbpilot-dev-migrate:${{ github.sha }}
+
+      # Migrate har ingen service → amazon-ecs-deploy-task-definition fungerar inte
+      # (kräver service-name). Använd aws ecs register-task-definition direkt.
+      - name: Register Migrate task-def
+        id: register-migrate
+        run: |
+          MIGRATE_TASK_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "file://${{ steps.render-migrate.outputs.task-definition }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "migrate-task-def-arn=$MIGRATE_TASK_ARN" >> "$GITHUB_OUTPUT"
+          echo "Migrate task-def registered: $MIGRATE_TASK_ARN"
+
+      # ADR 0033 amendment 2026-05-12 — auto-trigga Phase E (EF Core MigrateAsync)
+      # mellan ECR-push och Api-deploy. Network-config (subnet + SG) hämtas från
+      # Api-service eftersom Migrate och Api delar awsvpcConfiguration (samma
+      # private subnet, samma ECS-task-SG). Inget terraform-state-läsning behövs
+      # i CI — ECS API är single source of truth.
+      - name: Resolve Migrate network-config from API service
+        id: net-config
+        run: |
+          NET_JSON=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE_API" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration' \
+            --output json)
+          SUBNETS=$(echo "$NET_JSON" | jq -c '.subnets')
+          SECURITY_GROUPS=$(echo "$NET_JSON" | jq -c '.securityGroups')
+          echo "subnets=$SUBNETS" >> "$GITHUB_OUTPUT"
+          echo "security-groups=$SECURITY_GROUPS" >> "$GITHUB_OUTPUT"
+          echo "Resolved subnets: $SUBNETS"
+          echo "Resolved security-groups: $SECURITY_GROUPS"
+
+      - name: Run Migrate schema-task (Phase E)
+        id: run-migrate
+        run: |
+          set -e
+          echo "::group::Starting Migrate schema-task (Phase E)"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --task-definition "${{ steps.register-migrate.outputs.migrate-task-def-arn }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=${{ steps.net-config.outputs.subnets }},securityGroups=${{ steps.net-config.outputs.security-groups }},assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"'"$CONTAINER_NAME_MIGRATE"'","command":["dotnet","JobbPilot.Migrate.dll","schema"]}]}' \
+            --started-by "deploy-dev-${{ steps.tag.outputs.tag }}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "Started task: $TASK_ARN"
+          echo "task-arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
+          echo "::endgroup::"
+
+          echo "::group::Waiting for schema-task to stop"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+          echo "::endgroup::"
+
+          echo "::group::Checking exit-code"
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          STOPPED_REASON=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' \
+            --output text)
+          echo "Exit-code: $EXIT_CODE"
+          echo "Stopped-reason: $STOPPED_REASON"
+
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "::error::Migrate schema-task FAILED (exit=$EXIT_CODE). Check CloudWatch logs: /ecs/jobbpilot-dev-migrate"
+            exit 1
+          fi
+          echo "Migrate schema-task COMPLETE (Phase E)"
+          echo "::endgroup::"
 
       - name: Fetch current API task-def
         run: |
@@ -211,40 +320,6 @@ jobs:
           echo "::warning::Worker-deploy verifierar inte runtime-stability i 14a (PLACEHOLDER-creds). 14b sätter creds + aktiverar wait-for-service-stability."
 
       # ------------------------------------------------------------------
-      # Migrate task-def — register only (ingen service, ingen auto-run).
-      # Workflow uppdaterar revision-pekaren till ny image; faktisk run-task
-      # görs manuellt vid TLS-rotation eller schema-mutation (TD-38, TD-47).
-      # ------------------------------------------------------------------
-
-      - name: Fetch current Migrate task-def
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition "$TASK_FAMILY_MIGRATE" \
-            --query 'taskDefinition' \
-            --output json > task-def-migrate.json
-
-      - name: Render Migrate task-def
-        id: render-migrate
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-def-migrate.json
-          container-name: ${{ env.CONTAINER_NAME_MIGRATE }}
-          image: ${{ env.ECR_REGISTRY }}/jobbpilot-dev-migrate:${{ github.sha }}
-
-      # Migrate har ingen service → amazon-ecs-deploy-task-definition fungerar inte
-      # (kräver service-name). Använd aws ecs register-task-definition direkt.
-      # Run-task triggas manuellt via docs/runbooks/td-38-tls-apply.md.
-      - name: Register Migrate task-def
-        id: register-migrate
-        run: |
-          MIGRATE_TASK_ARN=$(aws ecs register-task-definition \
-            --cli-input-json "file://${{ steps.render-migrate.outputs.task-definition }}" \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          echo "migrate-task-def-arn=$MIGRATE_TASK_ARN" >> "$GITHUB_OUTPUT"
-          echo "Migrate task-def registered: $MIGRATE_TASK_ARN"
-
-      # ------------------------------------------------------------------
       # Smoke-test
       # ------------------------------------------------------------------
 
@@ -288,5 +363,5 @@ jobs:
           echo "- **SHA:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **API image:** \`$ECR_REGISTRY/jobbpilot-dev-api:${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Worker image:** \`$ECR_REGISTRY/jobbpilot-dev-worker:${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Migrate image:** \`$ECR_REGISTRY/jobbpilot-dev-migrate:${{ github.sha }}\` (register-only, run manually)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Migrate image:** \`$ECR_REGISTRY/jobbpilot-dev-migrate:${{ github.sha }}\` (schema-mode auto-applied, ADR 0033)" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Smoke-URL:** $SMOKE_URL" >> "$GITHUB_STEP_SUMMARY"

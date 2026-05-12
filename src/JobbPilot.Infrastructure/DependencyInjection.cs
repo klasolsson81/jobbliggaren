@@ -8,6 +8,7 @@ using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Auditing;
 using JobbPilot.Infrastructure.Auth.Sessions;
 using JobbPilot.Infrastructure.Email;
+using JobbPilot.Infrastructure.FeatureFlags;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Invitations;
 using JobbPilot.Infrastructure.Persistence;
@@ -53,8 +54,11 @@ public static class DependencyInjection
             configuration.GetSection(InvitationTokenOptions.SectionName));
         services.Configure<EmailOptions>(
             configuration.GetSection(EmailOptions.SectionName));
+        services.Configure<FeatureFlagsOptions>(
+            configuration.GetSection(FeatureFlagsOptions.SectionName));
 
         services.AddSingleton<IInvitationTokenGenerator, InvitationTokenGenerator>();
+        services.AddSingleton<IFeatureFlags, OptionsFeatureFlags>();
 
         var emailProvider = configuration[$"{EmailOptions.SectionName}:Provider"] ?? "Console";
         if (string.Equals(emailProvider, "Console", StringComparison.OrdinalIgnoreCase))

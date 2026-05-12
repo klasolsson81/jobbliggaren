@@ -125,6 +125,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", "60");
+
+        // Default öppen registrering i integration-tester. Kill-switch testas
+        // isolerat av ClosedRegistrationsApiFactory.
+        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", "true");
 
         using var scope = Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
@@ -142,6 +150,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);

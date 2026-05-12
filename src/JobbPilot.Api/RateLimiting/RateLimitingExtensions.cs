@@ -21,6 +21,8 @@ public static partial class RateLimitingExtensions
     public const string AccountDeletionPolicy = "account-deletion";
     public const string AuthWritePolicy = "auth-write";
     public const string AuthLoosePolicy = "auth-loose";
+    public const string InvitationRedeemPolicy = "invitation-redeem";
+    public const string WaitlistSignupPolicy = "waitlist-signup";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -106,6 +108,36 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.AuthLoose.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.AuthLoose.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: IP. Stoppar brute-force mot invitation-token-hash +
+            // enumeration. 5/timme räcker eftersom legitim användare bara löser
+            // in en gång. Per ADR 0005 amendment 2026-05-12.
+            options.AddPolicy(InvitationRedeemPolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.InvitationRedeem.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.InvitationRedeem.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: IP. Anonym waitlist-signup-endpoint kräver spam-skydd.
+            // 3/24h räcker — legitim användare skriver upp sig en gång. Per
+            // ADR 0005 amendment 2026-05-12.
+            options.AddPolicy(WaitlistSignupPolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.WaitlistSignup.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.WaitlistSignup.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

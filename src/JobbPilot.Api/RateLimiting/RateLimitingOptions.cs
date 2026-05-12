@@ -44,6 +44,29 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// /auth/redeem-invitation — partitionerat per IP. Stoppar brute-force
+    /// mot token-hash + enumeration-attacker. Per ADR 0005 amendment
+    /// 2026-05-12: 5/timme räcker eftersom legitim användare bara redeems
+    /// en gång; angripare som testar massa tokens fångas tidigt.
+    /// </summary>
+    public PolicyOptions InvitationRedeem { get; init; } = new()
+    {
+        PermitLimit = 5,
+        WindowSeconds = 3600,
+    };
+
+    /// <summary>
+    /// /waitlist (publik anonym signup) — partitionerat per IP. Skyddar mot
+    /// spam-signups. 3/24h räcker — legitim användare skriver upp sig en gång.
+    /// Per ADR 0005 amendment 2026-05-12.
+    /// </summary>
+    public PolicyOptions WaitlistSignup { get; init; } = new()
+    {
+        PermitLimit = 3,
+        WindowSeconds = 86400,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

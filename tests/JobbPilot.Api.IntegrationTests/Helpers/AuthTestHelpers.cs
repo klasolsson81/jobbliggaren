@@ -6,13 +6,19 @@ namespace JobbPilot.Api.IntegrationTests.Helpers;
 public static class AuthTestHelpers
 {
     /// <summary>
+    /// Default test-lösenord för integration-tester. Inte ett riktigt secret —
+    /// gitleaks-fingerprint redan ignored för denna fil.
+    /// </summary>
+    public const string DefaultTestPassword = "T3stlosen123456";
+
+    /// <summary>
     /// Registrerar en ny user och returnerar raw session-id för Authorization: Bearer-header.
     /// Varje anrop skapar en unik e-post (Guid-suffix) för att undvika konflikter.
     /// </summary>
     public static async Task<string> RegisterAndGetSessionIdAsync(
         HttpClient client,
         string? email = null,
-        string password = "T3stlosen123456",
+        string password = DefaultTestPassword,
         string displayName = "Test User",
         CancellationToken ct = default)
     {
@@ -36,7 +42,7 @@ public static class AuthTestHelpers
     public static async Task<string> LoginAndGetSessionIdAsync(
         HttpClient client,
         string email,
-        string password = "T3stlosen123456",
+        string password = DefaultTestPassword,
         CancellationToken ct = default)
     {
         var response = await client.PostAsJsonAsync(

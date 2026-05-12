@@ -1,13 +1,93 @@
 # Current work — JobbPilot
 
-**Status:** **Fas 2-kickoff 2026-05-12 — ADR 0005 Accepted (Alternativ C + invitations/waitlist amendment). Nästa arbete: F2-P0a (Invitation + WaitlistEntry aggregates).**
-**Senast uppdaterad:** 2026-05-12
+**Status:** **F2-P0 (invitations + waitlist-flow) komplett 2026-05-12 ~10:30. Hela invitation-flödet live: domain + EF + commands + email + endpoints + kill-switch + /vantelista-sida. Nästa: F2-P3 (Budget Actions terraform) → F2-P4 (runbook) → F2-P6 (readiness-probe) → JobTech-features.**
+**Senast uppdaterad:** 2026-05-12 (session-end efter F2-P0)
 **Långsiktig bana:** `docs/steg-tracker.md` — single source of truth för STEG/fas-progression
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 
 ---
 
-## Aktivt nu — Fas 2 startad, F2-P0 (invitations + waitlist) först
+## Aktivt nu — F2-P0 komplett, F2-P3/P4/P6 nästa
+
+**2026-05-12 lång session** (förmiddagen, ~08:00–10:30) levererade hela F2-P0
+invitations/waitlist-batch (sub-batches a–f) per ADR 0005 amendment 2026-05-12.
+
+### Levererat denna session
+
+| Batch | Commit | Innehåll |
+|---|---|---|
+| ADR | `6f0b89d` | ADR 0005 → Accepted + invitations/waitlist amendment + CTO-rapport |
+| F2-P0a | `cbe4163` | Domain: Invitation + WaitlistEntry aggregates (39 nya tester) |
+| F2-P0b | `0c58438` | EF mappings + migration (invitations, waitlist_entries) |
+| F2-P0c | `ebdf1f1` | Application: 5 commands + handlers + validators (24 tester) |
+| F2-P0d | `bcc114d` | ConsoleEmailSender + InvitationTokenGenerator (8 tester) |
+| F2-P0d (disciplinretur) | `34398d1` | AWSSDK.SimpleEmailV2 + SesEmailSender, TD-69 stängd |
+| F2-P0e | `64b7e2a` | 4 endpoints + 2 rate-limits + kill-switch + IFeatureFlags (12 integration-tester) |
+| F2-P0e (gitleaks) | `6d2dcf3` | Fingerprint för DefaultTestPassword |
+| Security | `74b152e` | `.gitignore` för STARTPROMPT + terraform .out |
+| F2-P0f | `b5666d1` | `/vantelista` Next.js publik signup-sida (5 tester) |
+
+**Total testsuite:** Domain 202 (+39), Application 249 (+32), Architecture 32,
+Api.IntegrationTests 217 (+12), Web Vitest 239 (+5). +88 nya tester.
+
+### API-yta live
+
+**Public (anonym):**
+- `POST /api/v1/waitlist` — anonym signup, rate-limit 3/24h/IP, kill-switch
+- `POST /api/v1/auth/redeem-invitation` — token-redemption, rate-limit 5/h/IP, kill-switch
+
+**Admin (SuperAdmin via Postman/curl tills Fas 6 UI):**
+- `POST/GET /api/v1/admin/invitations` + `POST /{id}/revoke`
+- `GET /api/v1/admin/waitlist` + `POST /{id}/approve` + `POST /{id}/reject`
+
+**Frontend:** `/vantelista` (civic-utility-copy, server action, GDPR-notis)
+
+### Säkerhetsinvarianter etablerade
+
+- Kill-switch `FeatureFlags.RegistrationsOpen=false` → 503 på båda public endpoints
+- HMAC-SHA256 opaque token (32 bytes random + server-secret) + single-use via xmin
+- Email kommer från Invitation, inte command body (skydd mot token-stöld)
+- Rate-limits per IP på alla publika endpoints
+- Partial unique index på waitlist_entries.email WHERE status='Pending'
+- Admin-endpoints skyddade av `[Authorize(Roles=SuperAdmin)]` + AdminAuthorizationBehavior
+
+### Disciplinmissar fångade + fixade
+
+1. **TD-69** felaktigt lyft för SES → Klas fångade → disciplinretur, stängd samma dag
+2. **DI splittad från handlers** i F2-P0c → CI fångade → fix-forward i F2-P0d
+3. **`git add -A`** med STARTPROMPT + `secrets.out` → Klas fångade INNAN push → soft-reset + `.gitignore`-fix
+
+### Memory uppdaterat
+
+- `feedback_nonstop_with_pr_reports.md` — non-stop med PR-rapporter
+- `feedback_di_with_handlers_same_commit.md` — DI + handlers samma commit
+
+### TD-status
+
+- **TD-69** (SesEmailSender) — stängd samma dag (disciplinretur)
+- Nuvarande aktiva: 18 (oförändrat sedan F2-kickoff)
+
+### Vad återstår av Fas 2-prereqs
+
+| Batch | Innehåll | Status |
+|---|---|---|
+| ~~F2-P1~~ | `registrations_open`-flagga | ✓ levererad i P0e |
+| ~~F2-P2~~ | Rate-limit-policies | ✓ levererad i P0e |
+| **F2-P3** | Terraform Budget Actions $50/mån + Bedrock-IAM-auto-disable + ECS-stop + dev-apply | Kvar |
+| **F2-P4** | Runbook `docs/runbooks/aws-cost-recovery.md` | Kvar |
+| **F2-P6** | TD-29 readiness-probe-split (`/api/live` + `/api/ready` med DB+Redis-check) | Kvar |
+
+Efter dessa → Fas 2 JobTech-features får startas (P7 paginering + P8 JobTech-integration).
+
+### Pending operativt (Klas)
+
+- Verifiera mottagar-emails i AWS SES-konsolen för klasskamrater (sandbox-mode)
+- DKIM + SPF DNS innan public launch
+- `terraform apply` av Budget Actions efter F2-P3-leverans
+
+---
+
+## Tidigare session — Fas 2-kickoff med ADR 0005-design
 
 **2026-05-12 Fas 2-kickoff:** senior-cto-advisor invokerad för ADR 0005-
 designval. CTO-beslut: Alternativ C (invite-only public beta med hård cap) +

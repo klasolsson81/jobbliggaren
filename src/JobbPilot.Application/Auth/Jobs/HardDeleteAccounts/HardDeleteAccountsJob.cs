@@ -53,26 +53,44 @@ public sealed partial class HardDeleteAccountsJob(
 
         if (jobSeekerIds.Count == 0)
         {
-            LogComplete(logger, 0);
+            LogComplete(logger, 0, 0);
             return;
         }
 
         // Steg 2 — Per-account hard-delete. Per-id loop matchar audit-paritet-
         // mönstret från DetectGhostedApplicationsJob (ADR 0023): isolering per
-        // konto, en failure rullar inte tillbaka andra. Idempotent — om ett
-        // konto failer plockas det upp av nästa cron.
+        // konto, en failure rullar inte tillbaka andra.
+        //
+        // TD-25: per-konto try/catch så ett enskilt fel (korrupt data, transient
+        // DB-fel, Identity-API-fel) inte blockerar efterföljande konton i samma
+        // körning. Misslyckade konton plockas upp av nästa cron-körning (jobbet
+        // är idempotent). OperationCanceledException re-throw:as så
+        // shutdown-cancel inte sväljs.
         var processed = 0;
+        var failed = 0;
         foreach (var jobSeekerId in jobSeekerIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await hardDeleter.HardDeleteAccountAsync(jobSeekerId, cancellationToken);
-            processed++;
+            try
+            {
+                await hardDeleter.HardDeleteAccountAsync(jobSeekerId, cancellationToken);
+                processed++;
 
-            if (processed % ProgressLogEvery == 0)
-                LogProgress(logger, processed, jobSeekerIds.Count);
+                if (processed % ProgressLogEvery == 0)
+                    LogProgress(logger, processed, jobSeekerIds.Count);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                LogAccountFailed(logger, jobSeekerId, ex);
+            }
         }
 
-        LogComplete(logger, processed);
+        LogComplete(logger, processed, failed);
     }
 
     [LoggerMessage(Level = LogLevel.Information,
@@ -88,6 +106,10 @@ public sealed partial class HardDeleteAccountsJob(
     private static partial void LogProgress(ILogger logger, int processed, int total);
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "HardDeleteAccountsJob: klart — {Processed} konton hard-deletade")]
-    private static partial void LogComplete(ILogger logger, int processed);
+        Message = "HardDeleteAccountsJob: klart — {Processed} konton hard-deletade ({Failed} misslyckades och plockas upp av nästa cron)")]
+    private static partial void LogComplete(ILogger logger, int processed, int failed);
+
+    [LoggerMessage(EventId = 2502, Level = LogLevel.Error,
+        Message = "HardDeleteAccountsJob: hard-delete misslyckades för JobSeekerId={JobSeekerId} — fortsätter med nästa konto, denna plockas upp av nästa cron")]
+    private static partial void LogAccountFailed(ILogger logger, Guid jobSeekerId, Exception exception);
 }

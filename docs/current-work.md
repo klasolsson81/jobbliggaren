@@ -1,9 +1,9 @@
 # Current work — JobbPilot
 
-**Status:** **v0.2-prod-tag-readiness-rond KLAR 2026-05-13. Audit-wire smoke-test VERIFIERAD live (3 INSERTs i `audit_log` från SystemEventAuditor efter v0.2.4-dev — 08:21/08:30/08:40 UTC). `docs/runbooks/v0.2-prod-launch-checklist.md` skapad. senior-cto-advisor 5 beslut: v0.2 = första prod-deploy-tag (Q1c-tolkning); 2 in-block-fix-alarms + RDS-backup-bump FÖRE tag-push; TD-77 + TD-78 lyfta som Fas 8. PENDING KLAS-GO för 3 leveranser.**
-**Senast uppdaterad:** 2026-05-13 (v0.2-prod-tag-readiness-rond + CTO-decision)
-**HEAD:** `6914990` (oförändrad sedan TD-73-batch — denna session: docs-only)
-**Deploy:** `v0.2.4-dev` live på `https://dev.jobbpilot.se/api/ready` (200 OK)
+**Status:** **A3-batch (ADR 0036) APPLYAD på dev 2026-05-13. v0.2-prod-launch-checklist §9.1+§9.2+§9.3 LEVERERADE. 3 CloudWatch-alarms live (jobtech-sync, auditor-write, worker-log-pipeline-health) i OK-state. RDS backup retention 7d→14d (1m21s modify, ingen disruption). ADR 0036 + Worker LoggerMessage event_name=-konvention + cloudwatch_ops_alarms-modul levererade. TD-79 lyft för deploy-pipeline-Terraform-coexistens (Fas 2 pipeline-hygien). `v0.2`-tag används INTE denna fas — prod-stack-session defererad till Fas 7-förberedelse.**
+**Senast uppdaterad:** 2026-05-13 (A3 apply LIVE-verifierad)
+**HEAD:** `896dcf1` + docs-uppdateringar pending
+**Deploy:** `v0.2.4-dev` live på `https://dev.jobbpilot.se/api/ready` (200 OK) + 3 nya CloudWatch-alarms i OK-state
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 **Prod-checklist:** `docs/runbooks/v0.2-prod-launch-checklist.md`

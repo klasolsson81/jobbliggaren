@@ -38,6 +38,14 @@ internal sealed class JobTechHit
     [JsonPropertyName("employer")]
     public JobTechEmployer? Employer { get; set; }
 
+    // v2-shape (web-verifierat 2026-05-13 mot riktig JobStream 2.1.1).
+    // Top-level URL till annonsen på arbetsformedlingen.se/platsbanken.
+    // Ersätter v1:s source_links[0].url.
+    [JsonPropertyName("webpage_url")]
+    public string? WebpageUrl { get; set; }
+
+    // v1-bakåtkompatibilitet: source_links används inte i v2 men hålls för
+    // defensiv deserialisering om legacy JobTech-deployment återaktiveras.
     [JsonPropertyName("source_links")]
     public List<JobTechSourceLink>? SourceLinks { get; set; }
 

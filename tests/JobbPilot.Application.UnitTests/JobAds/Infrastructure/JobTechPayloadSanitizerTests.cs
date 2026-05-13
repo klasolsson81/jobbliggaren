@@ -157,4 +157,91 @@ public class JobTechPayloadSanitizerTests
         sanitized.ShouldNotContain("application_details");
         sanitized.ShouldNotContain("mailto:");
     }
+
+    [Fact]
+    public void SanitizeForStorage_V2Shape_PreservesPublicV2Fields()
+    {
+        // v2-shape per JobStream 2.1.1 (web-verifierat 2026-05-13 mot riktig API).
+        // Publika v2-fields ska bevaras.
+        const string rawJson = """
+        {
+            "id": "31032467",
+            "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/31032467",
+            "logo_url": "https://arbetsformedlingen.se/rest/employer-logo-api/api/v1/arbetsplatser/82482499/logotyper/logo.png",
+            "number_of_vacancies": 1,
+            "source_type": "VIA_ANNONSERA",
+            "timestamp": 1778640565676,
+            "identified_language": "sv",
+            "description": {
+                "text": "Job desc",
+                "text_formatted": "<p>Job desc</p>"
+            }
+        }
+        """;
+
+        var sanitized = JobTechPayloadSanitizer.SanitizeForStorage(rawJson);
+
+        sanitized.ShouldContain("webpage_url");
+        sanitized.ShouldContain("logo_url");
+        sanitized.ShouldContain("number_of_vacancies");
+        sanitized.ShouldContain("source_type");
+        sanitized.ShouldContain("text_formatted");
+        sanitized.ShouldContain("identified_language");
+    }
+
+    [Fact]
+    public void SanitizeForStorage_V2Shape_StripsEmployerPII()
+    {
+        // v2-svar har faktiskt employer.phone_number + employer.email — verifierat
+        // i prod-data 2026-05-13. Default-deny ska droppa båda eftersom de inte
+        // är i allowlist.
+        const string rawJson = """
+        {
+            "id": "1",
+            "employer": {
+                "phone_number": "+46701234567",
+                "email": "rekryterare@acme.se",
+                "url": "www.acme.se",
+                "organization_number": "5564932167",
+                "name": "Acme AB",
+                "workplace": "ACME AB"
+            }
+        }
+        """;
+
+        var sanitized = JobTechPayloadSanitizer.SanitizeForStorage(rawJson);
+
+        sanitized.ShouldNotContain("+46701234567");
+        sanitized.ShouldNotContain("rekryterare@acme.se");
+        sanitized.ShouldNotContain("phone_number");
+        sanitized.ShouldNotContain("\"email\"");
+        sanitized.ShouldContain("organization_number");
+        sanitized.ShouldContain("Acme AB");
+    }
+
+    [Fact]
+    public void SanitizeForStorage_V2Shape_BlocksApplicationDetailsEmail()
+    {
+        // v2-svar har application_details.email + application_details.reference
+        // + application_details.information. Hela noden droppas av default-deny.
+        const string rawJson = """
+        {
+            "id": "1",
+            "application_details": {
+                "information": "Skicka CV till anneli",
+                "reference": "Kock",
+                "email": "anneli@eksjostadshotell.se",
+                "via_af": false,
+                "url": null,
+                "other": null
+            }
+        }
+        """;
+
+        var sanitized = JobTechPayloadSanitizer.SanitizeForStorage(rawJson);
+
+        sanitized.ShouldNotContain("application_details");
+        sanitized.ShouldNotContain("anneli@eksjostadshotell.se");
+        sanitized.ShouldNotContain("Skicka CV till anneli");
+    }
 }

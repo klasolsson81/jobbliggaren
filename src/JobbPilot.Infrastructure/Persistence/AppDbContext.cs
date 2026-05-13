@@ -21,6 +21,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
 
+    public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(

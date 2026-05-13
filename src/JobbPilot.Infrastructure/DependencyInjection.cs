@@ -66,6 +66,15 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // Application-ägt retention-kontrakt (JobSourceRetentionOptions) binds
+        // mot samma section som JobTechOptions så Application-jobben
+        // (PurgeStaleRawPayloadsJob) inte behöver bero på Infrastructure-typen.
+        // RawPayloadRetentionDays-keyn matchar mellan typerna (default 30).
+        services.AddOptions<JobSourceRetentionOptions>()
+            .Bind(configuration.GetSection(JobTechOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         // JobSearch (Refit) — klassisk REST/JSON. Standard resilience-pipeline
         // (retry+CB+timeout) räcker här eftersom JobSearch saknar publicerad
         // rate-limit (429 endast vid abuse).
@@ -118,6 +127,16 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
+
+        // F2-P8c: Application-orchestrator-jobb. Stream + Purge konsumeras
+        // exklusivt av Hangfire (ActivatorUtilities löser konstruktor utan
+        // DI-registrering), men Snapshot-jobbet konsumeras även av
+        // SyncPlatsbankenSnapshotCommandHandler (admin-trigger) via Mediator →
+        // måste vara DI-registrerad. Stream + Purge registreras för symmetri
+        // + test-discoverability via IServiceProvider.GetService.
+        services.AddScoped<JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenStreamJob>();
+        services.AddScoped<JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenSnapshotJob>();
+        services.AddScoped<JobbPilot.Application.JobAds.Jobs.PurgeRawPayloads.PurgeStaleRawPayloadsJob>();
 
         return services;
     }
@@ -220,6 +239,11 @@ public static class DependencyInjection
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+
+        // Provider-specifik DbUpdateException-analys (ADR 0032 §5). Singleton —
+        // stateless. Konsumeras av UpsertExternalJobAdCommandHandler för
+        // Postgres 23505-detection utan att Application får Npgsql-beroende.
+        services.AddSingleton<IDbExceptionInspector, DbExceptionInspector>();
 
         // Audit-bypass-portar (ADR 0024 D1+D3). Båda anropas från Worker
         // (AuditLogRetentionJob + HardDeleteAccountsJob) — registreras därför här

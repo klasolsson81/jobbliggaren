@@ -17,8 +17,9 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
-// Persistence-modul (DbContext, IAppDbContext, IDateTimeProvider) — utan HTTP-bagage,
-// utan Identity. Worker-kontextens DI-yta är medvetet minimerad per ADR 0023 / STEG 9.
+// Persistence-modul (DbContext, IAppDbContext, IDateTimeProvider, IDbExceptionInspector)
+// — utan HTTP-bagage, utan Identity. Worker-kontextens DI-yta är medvetet minimerad
+// per ADR 0023 / STEG 9.
 builder.Services.AddPersistence(builder.Configuration);
 
 // HTTP-fri Identity-modul för Worker (per ADR 0024 D6 / STEG 10b). UserManager +
@@ -26,6 +27,16 @@ builder.Services.AddPersistence(builder.Configuration);
 // porten för Identity-DELETE och orphan-cleanup). AddIdentityCore<>() utelämnar
 // AuthenticationScheme/Cookies/SignInManager — håller Worker HTTP-fri.
 builder.Services.AddCoreIdentityForWorker(builder.Configuration);
+
+// JobTech-integration (F2-P8c). Refit + IJobTechStreamClient + PlatsbankenJobSource
+// som IJobSource. Resilience-pipelinen (rate-limiter, retry, CB) registreras via
+// Microsoft.Extensions.Http.Resilience. Outgoing HTTP är OK i Worker — ADR 0023
+// förbjuder ASP.NET Core HTTP-server-bagage, inte System.Net.Http-utgående trafik.
+builder.Services.AddJobSources(builder.Configuration);
+
+// Worker-wrapper för DisableConcurrentExecution-attribut på stream-jobbet
+// (CTO-rond 2026-05-13 punkt 8 — defense-in-depth mot framtida skalning).
+builder.Services.AddScoped<JobbPilot.Worker.Hosting.SyncPlatsbankenStreamWorker>();
 
 builder.Services.AddApplication();
 

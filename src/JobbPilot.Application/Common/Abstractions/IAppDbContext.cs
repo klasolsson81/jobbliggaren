@@ -23,4 +23,14 @@ public interface IAppDbContext
     DbSet<Invitation> Invitations { get; }
     DbSet<WaitlistEntry> WaitlistEntries { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Detacha en tracked entity från change-tracker. Använd när
+    /// <see cref="SaveChangesAsync"/> kastat <c>DbUpdateException</c> men
+    /// handler vill fortsätta scope:t med annan entity (t.ex. upsert-retry
+    /// efter UNIQUE-violation per ADR 0032 §5). Bryter INTE Clean Arch —
+    /// EF-tracking är en infrastructure-concern men port-yta håller
+    /// implementationen leverantörs-agnostisk.
+    /// </summary>
+    void Detach(object entity);
 }

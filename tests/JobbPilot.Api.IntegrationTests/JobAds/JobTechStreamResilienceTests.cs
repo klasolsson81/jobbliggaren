@@ -35,7 +35,8 @@ public class JobTechStreamResilienceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = WireMockServer.Start();
-        var snapshotJson = """[{"id":"hit-1","headline":"Dev","description":{"text":"d"},"employer":{"name":"X"},"source_links":[{"url":"https://e/1"}],"publication_date":"2026-05-12T10:00:00Z"}]""";
+        // v2-shape: webpage_url på top-level (web-verifierat 2026-05-13).
+        var snapshotJson = """[{"id":"hit-1","headline":"Dev","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/1","publication_date":"2026-05-12T10:00:00Z"}]""";
 
         // Stateful stub: 2× 503, sedan 200. Polly retry (3 attempts) ska nå 200.
         server
@@ -73,6 +74,7 @@ public class JobTechStreamResilienceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = WireMockServer.Start();
+        // v2-shape: webpage_url på top-level + removal-event utan extra fields.
         var streamJson = """
         [
             {
@@ -80,7 +82,7 @@ public class JobTechStreamResilienceTests
                 "headline": "New Job",
                 "description": { "text": "desc" },
                 "employer": { "name": "Acme" },
-                "source_links": [{ "url": "https://e/1" }],
+                "webpage_url": "https://e/1",
                 "publication_date": "2026-05-12T10:00:00Z"
             },
             {

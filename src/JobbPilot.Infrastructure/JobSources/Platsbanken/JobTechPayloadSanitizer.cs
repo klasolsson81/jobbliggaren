@@ -25,13 +25,18 @@ public static class JobTechPayloadSanitizer
     /// </summary>
     private static readonly HashSet<string> AllowedKeys = new(StringComparer.Ordinal)
     {
-        // Identifierare + status
-        "id", "external_id", "removed", "removed_date",
+        // Identifierare + status (v1 + v2)
+        "id", "external_id", "original_id", "removed", "removed_date",
+        "source_type", "timestamp", "identified_language",
 
-        // Annons-innehåll (description är object med "text"-key, conditions också nested)
-        "headline", "description", "description_html", "description_text", "text",
+        // Annons-innehåll (description är object med text-keys, conditions också nested)
+        "headline", "description", "description_html", "description_text",
+        "text", "text_formatted",
+        "company_information", "needs", "requirements",
         "publication_date", "last_publication_date", "experience_required",
-        "conditions", "abilities",
+        "conditions", "abilities", "number_of_vacancies", "access",
+        "access_to_own_car", "driving_license_required", "driving_license",
+        "logo_url",
 
         // Klassifikation
         "occupation", "occupation_group", "occupation_field", "occupation_address",
@@ -42,22 +47,24 @@ public static class JobTechPayloadSanitizer
         "workplace_address", "country", "country_code", "country_concept_id",
         "region", "region_code", "region_concept_id",
         "municipality", "municipality_code", "municipality_concept_id",
-        "street_address", "postcode", "city",
+        "street_address", "postcode", "city", "coordinates",
 
-        // Anställningsform + ansökan
+        // Anställningsform + ansökan (application_details är PII-tung — droppas
+        // som top-level key; specifikt email/phone/information droppas defense-in-depth)
         "employment_type", "duration", "working_hours_type", "scope_of_work",
         "min", "max", "salary", "salary_type", "salary_description",
         "application_deadline",
 
         // Krav
         "must_have", "nice_to_have", "skills", "languages", "work_experiences",
-        "education", "education_level", "education_field",
+        "education", "education_level", "education_field", "weight",
 
-        // Företag (publika namn OK, kontakt-PII INTE OK)
+        // Företag (publika namn + org-nummer OK; phone_number, email, contact_email
+        // är PII och INTE i listan → droppas av default-deny)
         "employer", "name", "organization_number", "workplace",
 
-        // URL till själva annonsen (publik)
-        "source_links", "url",
+        // URLer till själva annonsen (publika)
+        "webpage_url", "source_links", "url",
     };
 
     /// <summary>

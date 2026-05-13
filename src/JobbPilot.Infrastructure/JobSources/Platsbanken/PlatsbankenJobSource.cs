@@ -88,7 +88,11 @@ internal sealed partial class PlatsbankenJobSource(
         // sec-Min-1: filtrera bort mailto:-länkar (application_details.url-fallback
         // kan vara `mailto:rekryterare@acme.se?subject=Job` — det är PII vi inte vill
         // persistera i job_ads.url-kolumnen).
-        var url = FirstNonMailtoUrl(hit.SourceLinks, hit.ApplicationDetails?.Url);
+        //
+        // v2-prioritering: webpage_url är top-level i v2 (web-verifierat 2026-05-13).
+        // source_links är v1-fallback om legacy JobTech återaktiveras. application_details.url
+        // är sista fallback (sällan satt — kan vara mailto).
+        var url = FirstNonMailtoUrl(hit.WebpageUrl, hit.SourceLinks, hit.ApplicationDetails?.Url);
         var company = hit.Employer?.Name?.Trim();
         var publishedAt = hit.PublicationDate.Value;
         var expiresAt = hit.LastPublicationDate;
@@ -122,25 +126,34 @@ internal sealed partial class PlatsbankenJobSource(
     }
 
     private static string? FirstNonMailtoUrl(
+        string? webpageUrl,
         IReadOnlyList<JobTechSourceLink>? sourceLinks,
         string? applicationDetailsUrl)
     {
+        // v2-prioritet: webpage_url först.
+        if (IsValidNonMailto(webpageUrl))
+            return webpageUrl;
+
+        // v1-fallback: source_links[0].url.
         if (sourceLinks is not null)
         {
             foreach (var link in sourceLinks)
             {
-                if (!string.IsNullOrWhiteSpace(link.Url)
-                    && !link.Url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
+                if (IsValidNonMailto(link.Url))
                     return link.Url;
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(applicationDetailsUrl)
-            && !applicationDetailsUrl.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
+        // Sista fallback: application_details.url (kan vara mailto i prod-data).
+        if (IsValidNonMailto(applicationDetailsUrl))
             return applicationDetailsUrl;
 
         return null;
     }
+
+    private static bool IsValidNonMailto(string? url) =>
+        !string.IsNullOrWhiteSpace(url)
+        && !url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase);
 
     [LoggerMessage(EventId = 5001, Level = LogLevel.Information,
         Message = "Platsbanken snapshot fetch startad.")]

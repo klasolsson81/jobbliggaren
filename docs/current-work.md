@@ -1,9 +1,9 @@
 # Current work — JobbPilot
 
-**Status:** **D+A-session KOMPLETT 2026-05-13. TD-79 STÄNGD (Del D — `lifecycle.ignore_changes = [task_definition]` applied). TD-70 STÄNGD (Del A — F2-P9 search/filter-yta `?ssyk&?region&?q` levererad med Postgres generated columns + ListReadPolicy rate-limit). Full svit grön 915 backend-tester (+45 nya). 2 commits — Del D pushed `94ec84a`, Del A pending push. Klas-GO behövs för v0.2.5-dev tag-push (deploy-dev.yml automigrate).**
-**Senast uppdaterad:** 2026-05-13 (D+A-session komplett, både TD-79 + TD-70 stängda)
-**HEAD:** `94ec84a` (Del D pushed) + Del-A-commit pending
-**Deploy:** `v0.2.4-dev` fortsatt live; v0.2.5-dev tag-push pending Klas-GO
+**Status:** **D+A-session KOMPLETT + DEPLOYAD 2026-05-13. TD-79 STÄNGD (Del D — `lifecycle.ignore_changes = [task_definition]`). TD-70 STÄNGD (Del A — F2-P9 search/filter-yta `?ssyk&?region&?q` med Postgres generated columns + ListReadPolicy rate-limit). 915 backend-tester gröna (+45). 2 commits + 1 tag pushed (`v0.2.5-dev`), deploy success 7m, migration F2P9JobAdSearchColumns applied via Phase E. Live på dev.**
+**Senast uppdaterad:** 2026-05-13 (D+A komplett, v0.2.5-dev live)
+**HEAD:** `d4294b6` + `v0.2.5-dev` tag
+**Deploy:** `v0.2.5-dev` LIVE — API task-def `:15`, Worker `:9`, `https://dev.jobbpilot.se/api/ready` 200 OK
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 **Prod-checklist:** `docs/runbooks/v0.2-prod-launch-checklist.md`
@@ -16,7 +16,8 @@
 
 | Commit | Innehåll |
 |---|---|
-| (pending push) | feat(jobads): F2-P9 search/filter-yta ?ssyk&?region&?q + ListReadPolicy rate-limit (TD-70) |
+| `d4294b6` | feat(jobads): F2-P9 search/filter-yta ?ssyk&?region&?q + ListReadPolicy rate-limit (TD-70) |
+| Tag `v0.2.5-dev` | Triggered deploy run 25797979739 — 7m success, Phase E migration applied |
 
 **Endpoint:** `GET /api/v1/job-ads?ssyk=<concept-id>&region=<concept-id>&q=<text>` (auth-gated + rate-limited 60/min per UserId)
 

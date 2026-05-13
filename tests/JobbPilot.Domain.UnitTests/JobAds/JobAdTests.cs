@@ -222,4 +222,70 @@ public class JobAdTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.RawPayloadRequired");
     }
+
+    // TD-80 — URL scheme-whitelist (http/https only). Defense-in-depth mot
+    // XSS via `javascript:`/`data:`/`vbscript:`/`file:`-schemes som
+    // `Uri.TryCreate(UriKind.Absolute)` tidigare accepterade.
+    // Source: security-auditor F2-P10 frontend-review 2026-05-13.
+
+    [Theory]
+    [InlineData("https://jobs.klarna.com/job/123")]
+    [InlineData("http://jobs.klarna.com/job/123")]
+    [InlineData("HTTPS://jobs.klarna.com/job/123")] // case-insensitive accept
+    [InlineData("HTTP://jobs.klarna.com/job/123")]
+    public void Create_WithHttpOrHttpsUrl_ReturnsSuccess(string url)
+    {
+        var (title, company, desc, _, source, publishedAt) = ValidParams();
+        var result = JobAd.Create(title, company, desc, url, source, publishedAt, null, Clock);
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(document.cookie)")]
+    [InlineData("JAVASCRIPT:alert(1)")] // case-insensitive reject
+    [InlineData("data:text/html,<script>alert(1)</script>")]
+    [InlineData("vbscript:msgbox(1)")]
+    [InlineData("file:///etc/passwd")]
+    [InlineData("ftp://attacker.example.com/")]
+    [InlineData("gopher://example.com/")]
+    public void Create_WithNonHttpScheme_ReturnsUrlInvalid(string url)
+    {
+        var (title, company, desc, _, source, publishedAt) = ValidParams();
+        var result = JobAd.Create(title, company, desc, url, source, publishedAt, null, Clock);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobAd.UrlInvalid");
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,xss")]
+    [InlineData("vbscript:msgbox(1)")]
+    [InlineData("file:///c/windows/system32/")]
+    public void Import_WithNonHttpScheme_ReturnsUrlInvalid(string url)
+    {
+        var (title, company, desc, _, _, publishedAt) = ValidParams();
+        var external = ValidExternalRef();
+        var result = JobAd.Import(title, company, desc, url, external, "{}", publishedAt, null, Clock);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobAd.UrlInvalid");
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,xss")]
+    public void UpdateFromSource_WithNonHttpScheme_ReturnsUrlInvalid(string maliciousUrl)
+    {
+        var (title, company, desc, url, _, publishedAt) = ValidParams();
+        var external = ValidExternalRef();
+        var jobAd = JobAd.Import(title, company, desc, url, external,
+            "{\"v\":1}", publishedAt, null, Clock).Value;
+
+        var result = jobAd.UpdateFromSource(
+            "Updated", "Updated desc", maliciousUrl, "{\"v\":2}", null);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobAd.UrlInvalid");
+        // Original URL bevarad — handler avbröts före mutation.
+        jobAd.Url.ShouldBe(url);
+    }
 }

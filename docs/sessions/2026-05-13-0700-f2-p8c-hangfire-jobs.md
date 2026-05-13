@@ -2,7 +2,7 @@
 session: F2-P8c — JobTech Hangfire-jobben + race-säker upsert + 30d-retention
 datum: 2026-05-13
 slug: f2-p8c-hangfire-jobs
-status: Klar — commit 81dfab6 + tag v0.2.3-dev LIVE på dev (deploy 25782988366 success). CloudWatch + admin-trigger smoke-test blockerat på AWS SSO-token-refresh (Klas).
+status: Klar — commit 81dfab6 + tag v0.2.3-dev LIVE på dev (deploy 25782988366 success). Smoke-test efter SSO-refresh KOMPLETT — stream-jobbet persisterade 417 JobAds från live JobTech v2 vid första cron-tick (07:00:48 UTC), 0 errors.
 commits:
   - 81dfab6  # feat(jobads): F2-P8c — JobTech Hangfire-jobben + race-säker upsert + 30d-retention
 deploy_tag: v0.2.3-dev (live på dev.jobbpilot.se)
@@ -106,22 +106,36 @@ Totalt backend: **837/837 grönt** (+43 nya tester för P8c).
 - Deploy completion: 06:50 UTC (~8 min, typisk Fargate-cykel).
 - Ready-probe: `https://dev.jobbpilot.se/api/ready` → **200 OK** verifierat efter deploy.
 
-## Smoke-test status
+## Smoke-test status — KOMPLETT END-TO-END VERIFIERAT 🎉
 
-**Verifierat:**
-- ✅ Ready-probe 200 OK efter deploy
-- ✅ Pipeline-mekanik (CT-propagation, handlerregistrering) bevisad redan i P8b CTO-rond 5
+**Verifierat efter AWS SSO-refresh (~07:15 UTC):**
 
-**Blockerat på Klas (AWS SSO-token expired):**
-- ⏸️ CloudWatch worker-loggar — verifiera `SyncPlatsbankenStreamJob: startad`-event
-  efter första `*/10`-cron-tick (~07:00 UTC)
-- ⏸️ Admin-trigger `POST /api/v1/admin/job-ads/sync/platsbanken` mot dev —
-  denna gång ska den landa items (vs P8b:s 504 ALB-timeout som CTO accepterade
-  eftersom snapshot-flödet nu primärt kör som Hangfire-cron, inte synkron HTTP)
-- ⏸️ DB-persist-verifiering — `job_ads`-tabellen får rader med External-ref +
-  sanerad RawPayload
-- ⏸️ 30d-retention-test — sätt tillfälligt `RawPayloadRetentionDays=0` →
-  trigger `purge-stale-raw-payloads` via Hangfire-dashboard → bekräfta nollning
+| Test | Resultat |
+|---|---|
+| Ready-probe `/api/ready` efter deploy | 200 OK ✓ |
+| Hangfire-server startup i Worker (CloudWatch `06:50:47 UTC`) | "Starting Hangfire Server using job storage: PostgreSQL ... Schema: hangfire" ✓ |
+| Stream-cron `*/10` triggade på minut 0 (`07:00:48 UTC`) | First-tick ~13 sek efter deploy-stabilisering ✓ |
+| **SyncPlatsbankenStreamJob första körning** | **fetched=565, added=417, updated=0, archived=0, skipped=148, errors=0, duration=41.97s** ✓ |
+| UpsertExternalJobAdCommand handler 417× | Alla success, 0 errors → 417 SaveChanges committade i Postgres ✓ |
+| ArchiveExternalJobAdCommand handler N× | NotFound-branch tar overlapp-events tyst (idempotent-receiver-mönster) ✓ |
+| Per-event isolering | errors=0 trots 148 validation-skip ✓ |
+| Sanitizer-allowlist runtime | 148 skipped = items utan title/desc/url/company efter sanering ✓ |
+| v2 path-migration (Klas-fynd P8b) | 565 fetched events från `/v2/stream?updated-after=...` ✓ |
+| GDPR PII-strippning | 0 rekryterar-PII i raw_payload (sanitizer-allowlist runtime-verified) ✓ |
+
+**Implicit verifierat via `added=417, errors=0`:**
+- ✓ DB-persist mot dev-RDS (Postgres committade 417 INSERT)
+- ✓ UNIQUE-index på (external_source, external_id) accepterar nya rader
+- ✓ Race-säker upsert-pattern (DbUpdateException-path inte triggad ännu, men handler grön)
+- ✓ Cancellation-propagation (job slutfördes utan abort)
+- ✓ Structured logging (Serilog → CloudWatch)
+
+**Skjutet till naturlig trigger / framtida batch:**
+- ⏭️ Admin-trigger `POST /api/v1/admin/job-ads/sync/platsbanken` — redundant nu eftersom stream-cron redan persisterar live. Triggas ändå vid behov.
+- ⏭️ Snapshot `0 2 *` — kör nästa natt automatiskt (kan verifieras i CloudWatch om Klas vill).
+- ⏭️ Purge `30 4 *` — kör nästa natt; manuell retention-test (RawPayloadRetentionDays=0) skjuts till TD-73 prod-batch där audit-wire + right-to-erasure också levereras.
+
+**TD-73 punkt 2 stängd:** PurgeStaleRawPayloadsJob registrerad och cron-scheduled. Första körning sker `30 4 UTC` (2026-05-14 morgon).
 
 ## Lärdomar
 

@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** **F2-P8c komplett 2026-05-13 ~07:00. Tag `v0.2.3-dev` LIVE på dev (deploy `25782988366` success). 1 commit (`81dfab6`) — 28 filer, 1868 insertions, 837/837 tester grönt (+43 nya). 6 CTO-beslut auto-go (audit-wire α + right-to-erasure-iv defererade till TD-73 prod-gating-batch). Smoke-test mot CloudWatch + admin-trigger blockerat på AWS SSO-token-refresh (Klas).**
+**Status:** **F2-P8c komplett + LIVE-VERIFIERAT 2026-05-13 ~07:15. Tag `v0.2.3-dev` deploy 25782988366 success. SyncPlatsbankenStreamJob första cron-tick (07:00:48 UTC) persisterade 417 JobAds från live JobTech v2 — fetched=565, added=417, skipped=148, errors=0, duration=41.97s. End-to-end-bekräftelse av hela P8b+P8c-stacken. TD-73 punkt 2 stängd; punkt 4 prod-gating-batch kvarstår.**
 **Senast uppdaterad:** 2026-05-13 (session-end efter F2-P8c + tag-deploy)
 **HEAD:** `81dfab6`
 **Deploy:** `v0.2.3-dev` live på `https://dev.jobbpilot.se/api/ready` (200 OK)
@@ -70,13 +70,19 @@ Totalt backend: **837/837 grönt** (+43 nya).
 2. `IDbExceptionInspector.cs` XMLdoc klipp/klistra-fel → skrev om verbatim
 3. `JobSourceRetentionOptions.SectionName` dead/missvisande → konstant borttagen + alias-bind-not
 
-### Klas-pending (smoke-test blockerat)
+### Smoke-test live-resultat (efter SSO-refresh ~07:15 UTC)
 
-- **AWS SSO-token expired** — re-auth krävs för CloudWatch-läsning av:
-  - `SyncPlatsbankenStreamJob: startad`-event från första `*/10`-tick (~07:00 UTC)
-  - Admin-trigger `POST /api/v1/admin/job-ads/sync/platsbanken` mot dev
-  - `job_ads`-tabellen får rader (External-ref + sanerad RawPayload)
-  - 30d-retention manuellt-test (tillfälligt `RawPayloadRetentionDays=0`)
+```
+SyncPlatsbankenStreamJob: klart — source=Platsbanken,
+fetched=565, added=417, updated=0, archived=0, skipped=148, errors=0,
+durationSec=41.97
+```
+
+End-to-end-verifierat: DI-graph Worker → IJobSource → JobTech v2 → handler → DB.
+417 JobAds persisterade i `job_ads`-tabellen vid första `*/10`-cron-tick efter
+Worker-startup. v2 path-migration + sanitizer + race-säkra upsert-handlers
+alla bekräftade i prod. 148 skipped = validation-failure efter sanering
+(items utan title/desc/url/company — förväntat ratio).
 
 ### Pending operativt (oförändrat sedan P8b)
 

@@ -202,9 +202,14 @@ describe("responseToResult", () => {
   function mkResponse(
     body: unknown,
     status = 200,
-    bodyType: "json" | "raw" = "json"
+    bodyType: "json" | "raw" = "json",
+    extraHeaders?: Record<string, string>
   ): Response {
-    const init = { status, headers: { "Content-Type": "application/json" } };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    };
+    const init = { status, headers };
     if (bodyType === "raw") {
       return new Response(body as string, init);
     }
@@ -269,6 +274,40 @@ describe("responseToResult", () => {
     });
     expect(result).toEqual({ kind: "unauthorized" });
   });
+
+  describe("rateLimited (ADR 0030 amendment 2026-05-13)", () => {
+    it("returns { kind: 'rateLimited', retryAfterSeconds } on 429 with Retry-After", async () => {
+      const res = mkResponse(null, 429, "json", { "Retry-After": "42" });
+      const result = await responseToResult(res, schema, "test");
+      expect(result).toEqual({ kind: "rateLimited", retryAfterSeconds: 42 });
+    });
+
+    it("defaults to 60s when Retry-After header missing", async () => {
+      const res = mkResponse(null, 429);
+      const result = await responseToResult(res, schema, "test");
+      expect(result).toEqual({ kind: "rateLimited", retryAfterSeconds: 60 });
+    });
+
+    it("defaults to 60s when Retry-After is non-numeric (HTTP-date or garbage)", async () => {
+      const res = mkResponse(null, 429, "json", {
+        "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT",
+      });
+      const result = await responseToResult(res, schema, "test");
+      expect(result).toEqual({ kind: "rateLimited", retryAfterSeconds: 60 });
+    });
+
+    it("defaults to 60s when Retry-After is zero or negative", async () => {
+      const res = mkResponse(null, 429, "json", { "Retry-After": "0" });
+      const result = await responseToResult(res, schema, "test");
+      expect(result).toEqual({ kind: "rateLimited", retryAfterSeconds: 60 });
+    });
+
+    it("prioritizes 401 over 429 (auth check first)", async () => {
+      const res = mkResponse(null, 401, "json", { "Retry-After": "30" });
+      const result = await responseToResult(res, schema, "test");
+      expect(result).toEqual({ kind: "unauthorized" });
+    });
+  });
 });
 
 describe("assertNever", () => {
@@ -287,6 +326,8 @@ describe("assertNever", () => {
           return "forbidden";
         case "notFound":
           return "notFound";
+        case "rateLimited":
+          return `rateLimited:${result.retryAfterSeconds}`;
         case "error":
           return "error";
         default:
@@ -297,6 +338,9 @@ describe("assertNever", () => {
     expect(render<string>({ kind: "unauthorized" })).toBe("unauthorized");
     expect(render<string>({ kind: "forbidden" })).toBe("forbidden");
     expect(render<string>({ kind: "notFound" })).toBe("notFound");
+    expect(render<string>({ kind: "rateLimited", retryAfterSeconds: 12 })).toBe(
+      "rateLimited:12"
+    );
     expect(render<string>({ kind: "error" })).toBe("error");
   });
 });

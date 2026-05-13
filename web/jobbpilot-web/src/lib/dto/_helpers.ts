@@ -101,17 +101,39 @@ export function pagedResultWithTotalPages<T extends z.ZodType>(item: T) {
 }
 
 /**
- * Generisk discriminated union för frontend API-resultat. Se ADR 0030.
+ * Generisk discriminated union för frontend API-resultat. Se ADR 0030
+ * (+ amendment 2026-05-13 — `rateLimited`).
  *
  * Varje variant motsvarar en distinkt UI-state och en distinkt user-action.
  * `notFound` är endast applicabel på detail-endpoints (id-baserade GETs).
+ * `rateLimited` triggas av backend `ListReadPolicy` (HTTP 429); konsumenter
+ * renderar `retryAfterSeconds` direkt i civic-utility-copy.
  */
 export type ApiResult<T> =
   | { kind: "ok"; data: T }
   | { kind: "unauthorized" }
   | { kind: "forbidden" }
   | { kind: "notFound" }
+  | { kind: "rateLimited"; retryAfterSeconds: number }
   | { kind: "error" };
+
+/**
+ * Default retry-window om backend skickar 429 utan parsbar `Retry-After`-header.
+ * Matchar `ListReadPolicy.Window` (60s) per F2-P9 TD-70-leverans 2026-05-13.
+ */
+const DEFAULT_RETRY_AFTER_SECONDS = 60;
+
+function parseRetryAfter(headerValue: string | null): number {
+  if (!headerValue) return DEFAULT_RETRY_AFTER_SECONDS;
+  // RFC 9110 §10.2.3 stödjer både "<seconds>" och HTTP-date. Backend skickar
+  // sekund-format via ASP.NET Core rate-limiting middleware. HTTP-date faller
+  // till default-fallback (minimal yta tills behovet uppstår).
+  const seconds = Number.parseInt(headerValue.trim(), 10);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return DEFAULT_RETRY_AFTER_SECONDS;
+  }
+  return seconds;
+}
 
 /**
  * Mappar `Response` + status-koder + DtoParseError till `ApiResult<T>`.
@@ -136,6 +158,12 @@ export async function responseToResult<T>(
   if (res.status === 403) return { kind: "forbidden" };
   if (res.status === 404 && options?.includeNotFound) {
     return { kind: "notFound" };
+  }
+  if (res.status === 429) {
+    return {
+      kind: "rateLimited",
+      retryAfterSeconds: parseRetryAfter(res.headers.get("Retry-After")),
+    };
   }
   if (!res.ok) return { kind: "error" };
 

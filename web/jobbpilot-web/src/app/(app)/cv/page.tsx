@@ -16,6 +16,18 @@ export default async function CvListPage() {
       break;
     case "unauthorized":
       redirect("/logga-in");
+    case "rateLimited":
+      return (
+        <div className="flex flex-col gap-4">
+          <h1 className="text-h1 font-medium text-text-primary">
+            För många förfrågningar
+          </h1>
+          <p className="text-body text-text-secondary">
+            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
+            {result.retryAfterSeconds} sekunder.
+          </p>
+        </div>
+      );
     case "notFound":
     case "forbidden":
     case "error":

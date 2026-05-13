@@ -81,6 +81,13 @@ function renderProfile(
           komma igång.
         </p>
       );
+    case "rateLimited":
+      return (
+        <p className="text-body text-text-secondary">
+          För många förfrågningar. Försök igen om {result.retryAfterSeconds}{" "}
+          sekunder.
+        </p>
+      );
     case "forbidden":
     case "error":
       return (

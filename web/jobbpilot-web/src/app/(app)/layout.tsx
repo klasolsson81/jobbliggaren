@@ -32,6 +32,12 @@ export default async function AppLayout({
           </Link>
           <nav aria-label="Huvudnavigation" className="flex items-center gap-1">
             <Link
+              href="/jobb"
+              className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
+            >
+              Jobb
+            </Link>
+            <Link
               href="/ansokningar"
               className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
             >

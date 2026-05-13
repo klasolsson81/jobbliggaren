@@ -74,6 +74,8 @@ export default async function GranskningPage({ searchParams }: PageProps) {
             buildHref={(targetPage) => buildPageHref(params, targetPage)}
           />
         </>
+      ) : result.kind === "rateLimited" ? (
+        <ErrorBlock kind="rateLimited" retryAfterSeconds={result.retryAfterSeconds} />
       ) : (
         <ErrorBlock kind={result.kind} />
       )}
@@ -81,9 +83,15 @@ export default async function GranskningPage({ searchParams }: PageProps) {
   );
 }
 
-type ErrorKind = "forbidden" | "unauthorized" | "notFound" | "error";
+type ErrorKind = "forbidden" | "unauthorized" | "notFound" | "rateLimited" | "error";
 
-function ErrorBlock({ kind }: { kind: ErrorKind }) {
+function ErrorBlock({
+  kind,
+  retryAfterSeconds,
+}: {
+  kind: ErrorKind;
+  retryAfterSeconds?: number;
+}) {
   // notFound och error har identisk copy — list-endpointen kan aldrig
   // runtime-faktiskt returnera 404 (responseToResult sätter inte
   // includeNotFound), men ApiResult-typen kräver case för exhaustiveness
@@ -100,6 +108,12 @@ function ErrorBlock({ kind }: { kind: ErrorKind }) {
     notFound: {
       title: "Kunde inte ladda granskningsloggen",
       body: "Försök igen om en stund. Om felet kvarstår — kontakta drift.",
+    },
+    rateLimited: {
+      title: "För många förfrågningar",
+      body: `Du har gjort för många förfrågningar på kort tid. Försök igen om ${
+        retryAfterSeconds ?? 60
+      } sekunder.`,
     },
     error: {
       title: "Kunde inte ladda granskningsloggen",

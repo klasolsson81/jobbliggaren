@@ -1,0 +1,52 @@
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { JobAdList } from "./job-ad-list";
+import type { JobAdDto } from "@/lib/dto/job-ads";
+
+const sampleAd = (id: string, title: string): JobAdDto => ({
+  id,
+  title,
+  companyName: "Acme AB",
+  description: "Beskrivning av tjänsten.",
+  url: "https://example.com/jobb/" + id,
+  source: "Platsbanken",
+  status: "Active",
+  publishedAt: "2026-05-13T08:00:00Z",
+  expiresAt: null,
+  createdAt: "2026-05-13T08:01:00Z",
+});
+
+describe("JobAdList", () => {
+  it("renders empty-state with civic-utility message when list is empty", () => {
+    render(<JobAdList jobAds={[]} />);
+    expect(screen.getByText("Inga jobb hittades")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Justera filtren eller töm sökrutan/)
+    ).toBeInTheDocument();
+  });
+
+  it("empty-state does not duplicate live-region (page.tsx owns it)", () => {
+    const { container } = render(<JobAdList jobAds={[]} />);
+    expect(container.querySelector("[aria-live]")).toBeNull();
+    expect(container.querySelector("[role='status']")).toBeNull();
+  });
+
+  it("renders a list with one item per job ad", () => {
+    const ads = [
+      sampleAd("a1", "Backend-utvecklare"),
+      sampleAd("a2", "Frontend-utvecklare"),
+    ];
+    render(<JobAdList jobAds={ads} />);
+    expect(
+      screen.getByRole("heading", { name: "Backend-utvecklare" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Frontend-utvecklare" })
+    ).toBeInTheDocument();
+  });
+
+  it("uses a labelled list element for screen reader navigation", () => {
+    render(<JobAdList jobAds={[sampleAd("a1", "Job A")]} />);
+    expect(screen.getByRole("list", { name: "Jobbannonser" })).toBeInTheDocument();
+  });
+});

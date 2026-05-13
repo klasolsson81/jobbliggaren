@@ -203,3 +203,53 @@ bra svar. **Avvisad.**
 - Tillstånds-helpers per `kind` (komponenter som `<ApiStateRenderer>`) — UI-detalj utanför ACL
 - Globala error-toast vid `kind: "error"` — observability/UX-policy separat
 - Retry-policy per `kind` — TanStack Query-domän (Fas 2+)
+
+---
+
+## Amendment 2026-05-13 — `rateLimited` förstklassig variant
+
+**Datum:** 2026-05-13
+**Källa:** F2-P10 frontend `/jobb`-katalog (CTO-rond Q1)
+**Trigger:** Backend `ListReadPolicy` (60/min per UserId, etablerad i F2-P9 TD-70-leverans 2026-05-13) returnerar HTTP 429 + `Retry-After`-header. Konsumenter behöver kunna rendera civic-utility-svenska-meddelande med konkret retry-tid.
+
+### Beslut
+
+`ApiResult<T>` utvidgas med variant `{ kind: "rateLimited"; retryAfterSeconds: number }`:
+
+```ts
+export type ApiResult<T> =
+  | { kind: "ok"; data: T }
+  | { kind: "unauthorized" }
+  | { kind: "forbidden" }
+  | { kind: "notFound" }
+  | { kind: "rateLimited"; retryAfterSeconds: number }
+  | { kind: "error" };
+```
+
+`responseToResult<T>` mappar HTTP 429 → `{ kind: "rateLimited", retryAfterSeconds }`. Värdet läses från `Retry-After`-header (RFC 9110 §10.2.3). Om header saknas eller är ogiltigt format defaultar till 60 sekunder (matchar `ListReadPolicy.Window`).
+
+Backend skickar idag `Retry-After: <seconds>`-format (via ASP.NET Core rate-limiting middleware). HTTP-date-format (alternativ per RFC 9110) parsas inte — minimal yta. Om backend någonsin börjar skicka HTTP-date, mappas det till default-fallback (60s) tills schema utvidgas.
+
+### Motivering
+
+- **CCP/REP (Martin 2017 kap. 13–14):** Rate-limit är cross-cutting HTTP-protokoll-concern, inte per-domän. `ListReadPolicy` appliceras redan på `/api/v1/job-ads` GET-routes och kommer rimligen appliceras på fler list-endpoints. Common-closure för alla read-endpoints.
+- **OCP (Martin 2017 kap. 8):** ADR 0030 §5 etablerar `assertNever` som typsystem-mekanism för exhaustivitet — när ny variant adderas tvingas konsumenter medvetet hantera den. Ny `rateLimited`-case är *önskat arbete* per call-site, inte kostnad.
+- **DRY (Hunt/Thomas 1999):** Retry-After-extraction-logik är samma kunskap för alla rate-limited endpoints.
+- **Saltzer/Schroeder (1975) Economy of Mechanism:** ETT API-resultat-shape > parallella per-domän-shapes.
+
+### Konsekvenser
+
+- 5 befintliga konsument-pages (`ansokningar`, `ansokningar/[id]`, `cv`, `cv/[id]`, `mig`, `admin/granskning`) uppdaterade med `case "rateLimited"`-branch + civic-utility-svenska-meddelande.
+- Konsumenter renderar `result.retryAfterSeconds` direkt i copy: "Du har gjort för många sökningar. Försök igen om N sekunder."
+- `assertNever` i existerande switches fångar glömda cases vid typsystem-tid.
+
+### Avvisade alternativ (rond 2026-05-13)
+
+- **Lokal `JobAdsApiResult<T>` med rateLimited-variant lokalt** — bryter CCP/REP. Avvisad redan i original-ADR §6 (Variant C hybrid), Q1-B är samma anti-pattern under annat namn.
+- **Mappa 429 → `kind: "error"`** — förlorar Retry-After-info. Bryter F2-P10-krav på konkret retry-tid i UI-copy.
+
+### Referenser
+
+- RFC 9110 §10.2.3 (Retry-After-header)
+- ListReadPolicy (F2-P9 TD-70-leverans 2026-05-13, `JobbPilot.Api.RateLimiting`)
+- senior-cto-advisor 2026-05-13 (F2-P10 multi-approach Q1-A)

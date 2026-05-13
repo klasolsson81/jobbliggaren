@@ -1,16 +1,57 @@
 # Current work — JobbPilot
 
-**Status:** **F2-P10 frontend `/jobb`-katalog UI KOMPLETT (lokal) 2026-05-13. ADR 0030 mini-amendment (rateLimited-variant) + 5 konsument-pages migrerade + ny `/jobb`-route med JobAdFilters/JobAdList/JobAdPagination. 313/313 vitest-tester gröna (+29 nya), tsc clean, lint 0 errors. Security-auditor Blocker (XSS via `javascript:`-URL) fixad in-block via Zod-refine; TD-80 lyft för BE-Domain-tightening. Vercel-deploy är Klas-op (ej i denna session).**
-**Senast uppdaterad:** 2026-05-13 (F2-P10 frontend komplett, lokal)
-**HEAD:** `19ca82c` (D+A-session) — F2-P10-commit pushas härnäst
-**Deploy:** `v0.2.5-dev` LIVE på dev (backend orörd denna session — ren frontend-leverans)
+**Status:** **F2-P10 + TD-80 KOMPLETT 2026-05-13. F2-P10 frontend `/jobb`-katalog UI live lokalt (commit 70e1505). TD-80 (JobAd.Url scheme-whitelist) STÄNGD via Domain.ValidateCore + 17 nya unit-tester. Defense-in-depth uppfylld FE (Zod-refine) + BE (Domain-invariant). 932 backend-tester gröna + 313 frontend-tester gröna. Vercel-deploy är Klas-op (ej i denna session).**
+**Senast uppdaterad:** 2026-05-13 (F2-P10 + TD-80 komplett)
+**HEAD:** `70e1505` (F2-P10) — TD-80-commit pushas härnäst
+**Deploy:** `v0.2.5-dev` LIVE på dev (TD-80 backend-fix väntar nästa Fas 2-batch eller v0.2-prod-tag — inte tag-pushed denna session)
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva, +TD-80) + `docs/tech-debt-archive.md` (stängda)
 **Prod-checklist:** `docs/runbooks/v0.2-prod-launch-checklist.md`
 
 ---
 
-## Aktivt nu — F2-P10 frontend `/jobb`-katalog UI KOMPLETT
+## Aktivt nu — TD-80 STÄNGD (JobAd.Url scheme-whitelist)
+
+### Levererat
+
+| Område | Innehåll |
+|---|---|
+| `JobAd.cs` ValidateCore | Whitelist via `Uri.UriSchemeHttp`/`UriSchemeHttps`-konstanter (default-deny per Saltzer/Schroeder + OWASP A01:2021). Skydd genom alla 3 entry-points (Create/Import/UpdateFromSource) som delar `ValidateCore` |
+| Tester FIRST (TDD) | 17 nya unit-tester (4 Theory-metoder med 13 InlineData-cases): http/https/uppercase positive + javascript/JAVASCRIPT/data/vbscript/file/ftp/gopher negative + UpdateFromSource state-bevarande post-fail |
+| `UpsertExternalJobAdCommandHandler` | Ingen ändring krävdes — befintlig `Skipped`-flow (rad 53-57 + LogSkippedValidation) hanterar Import-failure rent. Worker sync-jobb propagerar `skipped++` i metrics |
+
+### CTO-rond — skippad
+
+Beslutet entydigt mot Saltzer/Schroeder 1975 default-deny + OWASP A01:2021 whitelist-rekommendation. Ingen multi-approach-fråga (whitelist > blacklist är etablerad princip; `Uri.UriSchemeHttp`-konstanter är idiomatisk .NET-form).
+
+### Reviewers INLINE
+
+| Reviewer | Verdict |
+|---|---|
+| security-auditor (re-audit av egen Blocker) | Approved 0/0/0 — defense-in-depth komplett, alla 3 entry-points skyddade, persistens säker via Worker `Skipped`-flow |
+| code-reviewer | Approved 0/0/0 — typsäkra konstanter, korrekt nullable-flow, [Theory]+[InlineData] DRY, state-bevarande post-fail verifierat |
+
+### Backend full svit grön
+
+| Suite | Pre | Post | Delta |
+|---|---|---|---|
+| Domain.UnitTests | 225 | **242** | +17 |
+| Application.UnitTests | 354 | 354 | 0 |
+| Architecture.Tests | 50 | 50 | 0 |
+| Api.IntegrationTests | 254 | 254 | 0 |
+| Worker.IntegrationTests | 26 | 26 | 0 |
+| Migrate.UnitTests | 6 | 6 | 0 |
+| **Totalt** | **915** | **932** | **+17 grönt** |
+
+### TD-status
+
+- **TD-80** Major Fas 2 → **STÄNGD 2026-05-13** (flyttad till `tech-debt-archive.md`). Defense-in-depth FE Zod-refine (commit 70e1505) + BE Domain `ValidateCore`-whitelist.
+
+Aktiva: 21 (TD-13 Major Fas 2 + TD-26 Major Fas 4; resten Minor). **0 Major Fas Nu, 0 Major Fas 1.**
+
+---
+
+## Tidigare aktivitet — F2-P10 frontend `/jobb`-katalog UI KOMPLETT
 
 ### Levererat (frontend-only batch)
 

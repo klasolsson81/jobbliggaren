@@ -168,9 +168,19 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         if (string.IsNullOrWhiteSpace(description))
             return Result.Failure(
                 DomainError.Validation("JobAd.DescriptionRequired", "Beskrivning är obligatorisk."));
-        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out _))
+        // TD-80 — scheme-whitelist (http/https only). `Uri.TryCreate(UriKind.Absolute)`
+        // accepterar `javascript:`/`data:`/`vbscript:`/`file:` som vid render i
+        // `<a href={url}>` blir XSS-vektor i autentiserad session (cookie-stöld
+        // → GDPR Art. 32). Saltzer/Schroeder 1975 default-deny + OWASP A01:2021
+        // (Broken Access Control) — whitelist > blacklist. Source: security-
+        // auditor F2-P10 frontend-review 2026-05-13.
+        if (string.IsNullOrWhiteSpace(url)
+            || !Uri.TryCreate(url, UriKind.Absolute, out var parsedUri)
+            || (parsedUri.Scheme != Uri.UriSchemeHttp
+                && parsedUri.Scheme != Uri.UriSchemeHttps))
             return Result.Failure(
-                DomainError.Validation("JobAd.UrlInvalid", "URL måste vara en giltig absolut URL."));
+                DomainError.Validation("JobAd.UrlInvalid",
+                    "URL måste vara en giltig http(s)-URL."));
         if (expiresAt.HasValue && expiresAt.Value <= publishedAt)
             return Result.Failure(
                 DomainError.Validation("JobAd.InvalidDates", "ExpiresAt måste vara efter PublishedAt."));

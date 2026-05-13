@@ -2273,3 +2273,80 @@ Utöka `GET /api/v1/job-ads` (auth-gated per ADR 0005) med:
 **Operativ konsekvens:** v0.2-prod-tag är inte längre gated på TD-70. JobAd-katalog har search/filter-yta för end-users (frontend integrering i v0.2.x-patch).
 
 
+
+---
+
+## TD-80: JobAd.Url scheme-whitelist (http/https) i Domain.ValidateInputs ✓ STÄNGD 2026-05-13
+**Kategori:** Säkerhet / XSS-defense
+**Severity:** Major
+**Fas:** 2
+**Källa:** security-auditor F2-P10 frontend-review 2026-05-13 (Blocker → split: FE in-block, BE TD per §9.6 punkt 1 "annan fas")
+**Stängd:** 2026-05-13 — backend Domain-tightening i samma CC-session som F2-P10 (Klas-GO efter TD-80-rek)
+
+`JobAd.ValidateInputs` (`src/JobbPilot.Domain/JobAds/JobAd.cs:171`) använde
+`Uri.TryCreate(url, UriKind.Absolute, out _)` som accepterar:
+
+- `javascript:alert(1)` → XSS vid render i autentiserad session
+- `data:text/html,<script>...</script>` → XSS
+- `vbscript:msgbox(1)` → legacy XSS (IE-rester)
+- `file:///etc/passwd` → path-disclosure-yta
+- `ftp:`/`gopher:` → exfiltrations-vektorer
+
+Vid render via `<a href={jobAd.url}>` blir klick = JS-exekvering i
+autentiserad session-kontext (cookies, fetches mot `/api/v1/*`). Cookie-stöld
+är GDPR Art. 32-överträdelse (säker behandling).
+
+**FE-mitigering vid F2-P10 (commit 70e1505):** `jobAdDtoSchema.url` har Zod
+refine `/^https?:\/\//i.test(u)` — DTO-parse misslyckas vid icke-http(s) →
+`kind: "error"` → ingen render. Defense-in-depth FE-side.
+
+**BE-fix (denna stängning):** `ValidateCore` utvidgad till:
+
+```csharp
+if (string.IsNullOrWhiteSpace(url)
+    || !Uri.TryCreate(url, UriKind.Absolute, out var parsedUri)
+    || (parsedUri.Scheme != Uri.UriSchemeHttp
+        && parsedUri.Scheme != Uri.UriSchemeHttps))
+    return Result.Failure(
+        DomainError.Validation("JobAd.UrlInvalid",
+            "URL måste vara en giltig http(s)-URL."));
+```
+
+`Uri.UriSchemeHttp`/`UriSchemeHttps`-konstanter (typsäkert + case-insensitive
+via Uri-klassens normalisering). Whitelist (default-deny) > blacklist per
+Saltzer/Schroeder 1975 + OWASP A01:2021. Same `JobAd.UrlInvalid`-error-code
+(API-bakåtkompatibilitet).
+
+**Skydd genom alla 3 entry-points:** `Create` (Manual admin-flöde), `Import`
+(JobTech upsert-flöde), `UpdateFromSource` (JobTech Stream-update). Alla delar
+`ValidateCore`. `UpsertExternalJobAdCommandHandler` hanterar Import-failure
+via befintlig `Skipped`-outcome + `LogSkippedValidation` — ingen schadlig URL
+persisteras från JobTech-payload.
+
+**Migrations:** Ingen schema-ändring krävs. Domain-validering är vid persist,
+inte vid load — befintliga rader påverkas inte. Risk för existing rader med
+non-http(s) URL bedömd noll: backend `Manual`-källa har strikt CreateJobAd-
+form i admin (skulle ha krävts att admin medvetet skrev javascript:); JobTech
+har aldrig observerats returnera non-http(s) URLs i payload.
+
+**Tester (TDD, FIRST):** 4 nya `[Theory]`-metoder med 13 InlineData-cases:
+- `Create_WithHttpOrHttpsUrl_ReturnsSuccess` (4 cases — http/https + uppercase)
+- `Create_WithNonHttpScheme_ReturnsUrlInvalid` (7 cases — javascript/JAVASCRIPT/data/vbscript/file/ftp/gopher)
+- `Import_WithNonHttpScheme_ReturnsUrlInvalid` (4 cases — primär palett)
+- `UpdateFromSource_WithNonHttpScheme_ReturnsUrlInvalid` (2 cases + bevarar original-URL post-fail)
+
+**Backend full svit grön:** Domain 242 (+17) + Application 354 + Architecture
+50 + Api Integration 254 + Worker Integration 26 + Migrate 6 = **932 grönt**.
+
+**Reviewers INLINE:** security-auditor (re-audit av egen Blocker), code-reviewer.
+
+**Cross-refs:**
+- security-auditor F2-P10 frontend-review 2026-05-13 (lyfte TD-80)
+- F2-P10 commit `70e1505` (FE Zod-refine + TD-80-lyft)
+- ADR 0032 §4 (JobAd.Import + UpdateFromSource)
+- OWASP A01:2021 Broken Access Control / Saltzer-Schroeder 1975 default-deny
+
+**Operativ konsekvens:** v0.2-prod-tag är inte längre gated på TD-80. Defense-
+in-depth uppfylld FE + BE. Fas 2 Major-sektionen krymper till TD-13 (PII-
+encryption, kvarstår per CTO-decision Q5 i D+A-session 2026-05-13 — defer Fas
+2-stängning per EDPB CEF 2025).

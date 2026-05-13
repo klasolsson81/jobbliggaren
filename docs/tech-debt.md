@@ -19,13 +19,14 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
-| TD-73 | JobTech raw_payload PII-stripping + retention | **Major** | 2 (P8b-gating) | GDPR/Privacy |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
 | TD-27 | EmailHash → HMAC med roterande nyckel | Minor | 2 | Säkerhet/GDPR |
 | TD-74 | Strikta DML-GRANTs på public + identity istället för GRANT ALL | Minor | 2 (opportunistisk) | Säkerhet/Least Privilege |
 | TD-72 | Auto-trigga Migrate bootstrap-mode i deploy-dev.yml | Minor | Trigger | Operations/CI-CD |
+| TD-75 | Name-baserad rekryterar-PII-radering (multi-path jsonb + full-text) | Minor | Trigger | GDPR/Privacy |
+| TD-76 | GIN-index på raw_payload jsonb (latens-trigger) | Minor | Trigger | Performance |
 | TD-62 | OpenAPI-codegen som supersession av manuella Zod-DTO-schemas | Minor | 2+ | Architecture/Tooling |
 | TD-63 | ActionResult kind-union för writes (ADR 0030-symmetri) | Minor | 2+ | Architecture |
 | TD-64 | i18n-migration av inline svenska error-strängar | Minor | Trigger | i18n |
@@ -704,88 +705,85 @@ detta.
 
 ---
 
-## TD-73: JobTech raw_payload PII-stripping + retention
+## TD-75: Name-baserad rekryterar-PII-radering (multi-path jsonb + full-text)
 **Kategori:** GDPR / Privacy
-**Severity:** Major
-**Fas:** 2 (gating P8c production schedule)
-**Källa:** security-auditor F2-P8a-aggregat-review Sec-Major-1 2026-05-12
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** TD-73 prod-gating-batch CTO-decision 2026-05-13 (R-Risk2 — Email-only nu, Name som TD)
 
-`raw_payload` (jsonb på `job_ads`) lagrar oavkortat JobTech-svar som kan
-innehålla rekryterar-PII (namn, email, telefon, firmatecknare för enskild
-firma). GDPR Art. 5/17/30-implikationer:
+TD-73 prod-gating-batch levererade Email-baserad rekryterar-PII-radering
+(`RedactRecruiterPiiCommand` med `RecruiterIdentifierType.Email`) per ADR 0032
+§8 amendment 2026-05-13. Name-baserad sökning är defererad eftersom den kräver:
 
-1. **Art. 30 record of processing** — JobTech som datakälla för PII är inte
-   listat i processing-register. `JobAdsSyncedDomainEvent` loggar aggregat
-   (counts), inte PII-bevarad rad-nivå.
-2. **Art. 5(1)(c) data-minimering** — `raw_payload` är medvetet maximalt —
-   motsatsen till minimering. Legitimt intresse "debug/replay" kräver
-   dokumenterad balansering mot data-subject-rätten.
-3. **Art. 5(1)(e) lagrings-begränsning** — ingen retention-period definierad
-   för `raw_payload`. ADR 0024 täcker `audit_log`-retention men inte
-   `job_ads.raw_payload`. `JobAd.Archive()` ändrar bara Status, inte purge.
-4. **Art. 17 right to erasure** — om en rekryterare begär radering kommer
-   `raw_payload`-kolumnen behöva traverseras med jsonb-query för PII-
-   extraktion. Idag finns ingen mekanism.
+1. **Multi-path jsonb-sökning** — namn kan stå i `employer.contact_name`,
+   `recruiter.name`, eller fritext i `description.text`. Email-flödet har
+   en strikt path; Name behöver disjunktion över flera paths.
+2. **Full-text-search på `description.text`** — fritext-rester av rekryterar-namn
+   kan bara hittas via Postgres `tsvector` + GIN-index för rimlig latens.
+3. **False-positive-hantering** — vanliga namn ger många träffar; manuell
+   granskning av kandidater behövs innan radering.
 
-**Severity Major** — tidsbundet till P8c production schedule. Innan dess
-har ingen PII faktiskt importerats; JobTech-anslutning sker P8b/P8c.
+GDPR Art. 17 säger inte explicit att rekryterare måste kunna identifieras
+*via namn* — email är primär identifier. Manuell DB-procedur dokumenterad i
+`docs/runbooks/recruiter-pii-erasure.md` täcker edge-case tills auto-flödet
+levereras.
+
+**Trigger för fix:** första faktiska Name-baserade radering-begäran från en
+rekryterare som inte kan tillhandahålla e-post.
 
 **Föreslagen åtgärd:**
-1. ✅ **LEVERERAD i F2-P8b (commit `8c09191`, 2026-05-13)** — `JobTechPayloadSanitizer`
-   pure static allowlist (default-deny per Saltzer/Schroeder 1975) i
-   `Infrastructure/JobSources/Platsbanken/`. 8 unit-tester verifierar att
-   kontakt-PII (`employer.contact_email`, `contact_name`, `phone_number`,
-   `application_details.url` med mailto-PII) strippas + publika fält
-   (`occupation`, `workplace_address`, `description.text`, `salary`,
-   `application_deadline`) bevaras. Sanering körs i `PlatsbankenJobSource.TryConvertToImportItem`
-   innan items lämnar Infrastructure. Architecture-test verifierar att
-   Application aldrig ser osanerad payload.
-2. ✅ **LEVERERAD i F2-P8c (2026-05-13)** — `PurgeStaleRawPayloadsJob` (Hangfire
-   recurring `30 4 * * *` UTC) null:ar `raw_payload` via EF Core 10
-   `ExecuteUpdateAsync` (CLAUDE.md §3.6 OK — LINQ-genererad SQL).
-   `JobSourceRetentionOptions.RawPayloadRetentionDays` (Application-port, binds
-   mot samma section som `JobTechOptions`, default 30). Count + cutoff
-   strukturerat loggat via Serilog → CloudWatch interim tills audit-wire (se
-   punkt 4 nedan).
-3. ✅ **LEVERERAD i F2-P8b (commit `8c09191`, 2026-05-13)** — `docs/runbooks/gdpr-processing-register.md`
-   skapad med JobTech-entry (datakategori + rättslig grund Art. 6(1)(f) +
-   retention 30d + sub-processor + PII-stripping-trail).
-4. **KVAR till separat batch innan Fas 2 prod-tag** (CTO-rond 2026-05-13 punkt
-   5+7). Two-pronged scope grupperad till en batch:
-   - **(a) Audit-wire för system-events:** `ISystemEventAuditor`-port (Application)
-     + `audit_log.payload` jsonb-kolumn aktiveras + `JobAdsSyncedDomainEvent` +
-     `RawPayloadPurgedDomainEvent`. Kräver ADR 0022-amendment (payload-aktivering
-     från Fas 4 → Fas 2 för system-events) + ADR 0032-amendment (§8 audit-mekanism-spec).
-   - **(b) Right-to-erasure för rekryterar-PII:** admin-endpoint
-     `POST /api/v1/admin/job-ads/redact-recruiter-pii` med jsonb-query +
-     `ExecuteUpdateAsync`. Eventuell GIN-index-migration på relevanta
-     `raw_payload`-keys om query-volym kräver. GDPR Art. 17-täckning för
-     rekryterar-PII i raw_payload.
 
-   **Gating:** v0.2-prod-tag får INTE släppas utan att (a) + (b) levererat. Per
-   30d-retention via punkt 2 är PII-fönstret minimerat → faktisk volym för (b)
-   är liten. Architects argument: bunta (a) + (b) i en ADR-amendment-batch
-   istället för två.
+1. Utöka `RedactRecruiterPiiCommand`-handler med Name-branch — slå upp över
+   flera jsonb-paths via `EF.Functions.JsonContains` med disjunktion.
+2. Lägg till full-text-search-stöd för `description.text` via `tsvector`-kolumn
+   + GIN-index (separat EF-migration).
+3. Utvidga unit + integration-tester för Name-flöde.
+4. Uppdatera `docs/runbooks/recruiter-pii-erasure.md` med auto-flödes-procedur.
 
-**Trigger:** ~~P8b-start~~ → ~~P8c-start~~ → trigger för kvar-batch (a+b) är Fas 2
-prod-tag-förberedelse (eller dedikerad TD-73-batch om scope tillåter tidigare).
+**Beroenden:** Inga blockerare; auto-flöde kan implementeras isolerat när
+trigger uppfyllt.
 
-**Beroenden:** ADR 0032 §8-amendment 2026-05-12 (PII-stripping-pipeline-spec),
-processing-register-dokumentation (✅ skapad), `PurgeStaleRawPayloadsJob` (✅
-levererad). TD-13 PII-encryption om envelope-yta ska täcka raw_payload (cross-ref
-redan i TD-13).
 
-**P8b-leverans-trail (2026-05-13):**
-- `src/JobbPilot.Infrastructure/JobSources/Platsbanken/JobTechPayloadSanitizer.cs`
-- `tests/JobbPilot.Application.UnitTests/JobAds/Infrastructure/JobTechPayloadSanitizerTests.cs`
-- `docs/runbooks/gdpr-processing-register.md`
-- security-auditor F2-P8b GO med villkor (alla Major in-block-fixade)
+---
 
-**P8c-leverans-trail (2026-05-13):**
-- `src/JobbPilot.Application/JobAds/Jobs/PurgeRawPayloads/PurgeStaleRawPayloadsJob.cs`
-- `src/JobbPilot.Application/JobAds/Abstractions/JobSourceRetentionOptions.cs`
-- `src/JobbPilot.Worker/Hosting/RecurringJobRegistrar.cs` — cron `30 4 * * *`
-- senior-cto-advisor 2026-05-13 (punkt 2+4 prod-gating-grupperat)
+## TD-76: GIN-index på raw_payload jsonb (latens-trigger)
+**Kategori:** Performance
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** TD-73 prod-gating-batch CTO-decision 2026-05-13 (Q5 — YAGNI, defer index)
+
+TD-73 prod-gating-batch levererade `RedactRecruiterPiiCommand`-endpoint som
+söker `job_ads.raw_payload` via `EF.Functions.JsonContains` mot probe-jsonb.
+CTO-decision Q5=B (defer GIN-index) motiverat med:
+
+- Admin-endpoint är låg-frekvens (manuell trigger vid faktisk radering-request)
+- Sekunder för seq-scan på ~5–10k rader är acceptabel latens för operations-handling
+- GIN-index på `jsonb_path_ops` har reell daglig write-overhead på
+  stream-cron-tick (~5–15k INSERTs/dygn netto efter UpdateFromSource)
+- Cost-benefit är entydigt mot index vid F2-volym (Knuth 1974 — premature optimization)
+
+**Trigger för fix:** ett av:
+
+1. `POST /api/v1/admin/job-ads/redact-recruiter-pii` överstiger 5s response
+   (mätbar via CloudWatch latens-metrik)
+2. Stream-INSERT-volym växer 10× från P8c-baseline (~5–15k INSERTs/dygn → ~50–150k)
+3. Search/filter-yta i Fas 2+ utvidgar `raw_payload`-läs-frekvens markant
+
+**Föreslagen åtgärd:**
+
+```sql
+CREATE INDEX CONCURRENTLY ix_job_ads_raw_payload_gin
+ON job_ads USING GIN (raw_payload jsonb_path_ops);
+```
+
+`jsonb_path_ops` är mer performant för `@>`/`@?`/`@@`-operatorer än default
+`jsonb_ops` (web-verifierat 2026-05-13). `CONCURRENTLY` undviker write-lock
+under index-bygge.
+
+EF-migration: ny migration med raw SQL (EF Core 10 har ingen native GIN-stöd).
+EXPLAIN ANALYZE-verifiering före och efter (mätbar speedup på admin-endpoint).
+
+**Beroenden:** Inga blockerare; opportunistisk vid trigger.
 
 
 ---
@@ -875,6 +873,7 @@ ADR-cross-references och granskningsbevis.
 | TD-69 | SesEmailSender (AWS SES) — disciplinretur, lyft + stängd samma dag | 2026-05-12 | F2-P0d disciplinretur (Klas-feedback) |
 | TD-29 | Strict readiness-probe — separera liveness från readiness | 2026-05-12 | F2-P6 (6 nya integration-tester) |
 | TD-56 | ListJobAdsQuery full paginering | 2026-05-12 | F2-P7 (TD-56 stängd, +9 unit + +3 integration-tester) |
+| TD-73 | JobTech raw_payload PII-stripping + retention + audit-wire + right-to-erasure | 2026-05-13 | TD-73 prod-gating-batch (ADR 0035 + ADR 0032 amendment 2026-05-13) |
 
 ---
 

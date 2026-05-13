@@ -1,3 +1,4 @@
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.ArchiveExternalJobAd;
 using JobbPilot.Application.JobAds.Commands.UpsertExternalJobAd;
@@ -42,6 +43,7 @@ public sealed partial class SyncPlatsbankenStreamJob(
     IJobSource jobSource,
     IMediator mediator,
     IDateTimeProvider clock,
+    ISystemEventAuditor auditor,
     ILogger<SyncPlatsbankenStreamJob> logger)
 {
     // 5 min overlap utöver 10-min cron-cykel. Upserts är idempotenta via UNIQUE-index.
@@ -49,6 +51,9 @@ public sealed partial class SyncPlatsbankenStreamJob(
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        // Per-run-Guid för audit-rad — bevarar AggregateId-invarianten (non-Empty)
+        // och länkar framtida started+completed-events i samma run (ADR 0035 §2).
+        var runId = Guid.NewGuid();
         var startedAt = clock.UtcNow;
         var since = startedAt - OverlapWindow;
 
@@ -119,6 +124,41 @@ public sealed partial class SyncPlatsbankenStreamJob(
             var completedAt = clock.UtcNow;
             LogCompleted(logger, jobSource.Source.Value, fetched, added, updated,
                 archived, skipped, errors, (completedAt - startedAt).TotalSeconds);
+
+            // Audit-wire α (ADR 0035 + ADR 0032 §8 amendment 2026-05-13).
+            // SystemEventAuditor är idempotent vid Hangfire-retry via per-runId-
+            // lookup. Try/catch här bevarar originalexception (Cwalina/Abrams
+            // 2008 §7.5 — "finally" får inte maska try-blockets exception).
+            // Audit-failure loggas Critical inom auditor:n, exception svaljs
+            // här för att inte skugga sync-failure. Hangfire-retry kör om hela
+            // jobbet vid sync-fel; idempotens-checken hindrar duplicate audit.
+            try
+            {
+                await auditor.RecordAsync(new JobAdsSynced(
+                    AggregateId: runId,
+                    OccurredAt: completedAt,
+                    Source: jobSource.Source.Value,
+                    JobType: "stream",
+                    Fetched: fetched,
+                    Added: added,
+                    Updated: updated,
+                    Archived: archived,
+                    Skipped: skipped,
+                    Errors: errors,
+                    StartedAt: startedAt,
+                    CompletedAt: completedAt), cancellationToken);
+            }
+#pragma warning disable CA1031 // medvetet swallow för att inte maska originalexception (Cwalina/Abrams §7.5)
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Audit-failure har redan Critical-loggats inom SystemEventAuditor.
+                // Svälj här (med CA1031-suppression) för att inte maska
+                // originalexception från try-blocket. CA2219 förbjuder throw från
+                // finally — semantiken är: sync-failure (try) bubblar med korrekt
+                // stack-trace; audit-failure noteras i Critical-log men maskar inte
+                // sync-felet.
+            }
+#pragma warning restore CA1031
         }
     }
 

@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Jobs.PurgeRawPayloads;
 using JobbPilot.Application.UnitTests.Common;
@@ -25,11 +26,13 @@ public class PurgeStaleRawPayloadsJobTests
 
     private static PurgeStaleRawPayloadsJob CreateJob(
         IAppDbContext db,
-        int retentionDays) =>
+        int retentionDays,
+        ISystemEventAuditor? auditor = null) =>
         new(
             db,
             new FakeDateTimeProvider(Now),
             Options.Create(new JobSourceRetentionOptions { RawPayloadRetentionDays = retentionDays }),
+            auditor ?? Substitute.For<ISystemEventAuditor>(),
             NullLogger<PurgeStaleRawPayloadsJob>.Instance);
 
     [Fact]
@@ -70,6 +73,7 @@ public class PurgeStaleRawPayloadsJobTests
             db,
             new FakeDateTimeProvider(Now),
             Options.Create(new JobSourceRetentionOptions { RawPayloadRetentionDays = 30 }),
+            Substitute.For<ISystemEventAuditor>(),
             NullLogger<PurgeStaleRawPayloadsJob>.Instance);
 
         // InMemory-provider stöder inte ExecuteUpdateAsync — vi förväntar oss

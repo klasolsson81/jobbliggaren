@@ -1,4 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Domain.Common;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,7 @@ public sealed partial class PurgeStaleRawPayloadsJob(
     IAppDbContext db,
     IDateTimeProvider clock,
     IOptions<JobSourceRetentionOptions> optionsAccessor,
+    ISystemEventAuditor auditor,
     ILogger<PurgeStaleRawPayloadsJob> logger)
 {
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -46,7 +48,10 @@ public sealed partial class PurgeStaleRawPayloadsJob(
             return;
         }
 
-        var cutoff = clock.UtcNow.AddDays(-retentionDays);
+        // Per-run-Guid för audit-rad (ADR 0035 §2).
+        var runId = Guid.NewGuid();
+        var startedAt = clock.UtcNow;
+        var cutoff = startedAt.AddDays(-retentionDays);
 
         var rowsAffected = await db.JobAds
             .Where(j => j.RawPayload != null && j.PublishedAt < cutoff)
@@ -55,6 +60,16 @@ public sealed partial class PurgeStaleRawPayloadsJob(
                 cancellationToken);
 
         LogPurged(logger, rowsAffected, cutoff, retentionDays);
+
+        // Audit-wire α (ADR 0035 + ADR 0032 §8 amendment 2026-05-13).
+        // Skriv alltid audit-rad — även vid rowsAffected=0 är det relevant
+        // accountability-information (GDPR Art. 30 "behandlingsaktivitet har körts").
+        await auditor.RecordAsync(new RawPayloadPurged(
+            AggregateId: runId,
+            OccurredAt: clock.UtcNow,
+            RowsAffected: rowsAffected,
+            Cutoff: cutoff,
+            RetentionDays: retentionDays), cancellationToken);
     }
 
     [LoggerMessage(EventId = 5501, Level = LogLevel.Information,

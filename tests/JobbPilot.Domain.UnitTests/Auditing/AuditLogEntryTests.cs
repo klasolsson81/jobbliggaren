@@ -211,4 +211,96 @@ public class AuditLogEntryTests
 
         a.ShouldNotBe(b);
     }
+
+    // ---------------------------------------------------------------
+    // ADR 0035 — CreateSystemEvent-factory
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void CreateSystemEvent_WithValidArgs_SetsAllSystemDefaults()
+    {
+        var entry = AuditLogEntry.CreateSystemEvent(
+            occurredAt: OccurredAt,
+            correlationId: CorrelationId,
+            eventType: "System.JobAdsSynced",
+            aggregateType: "System.JobAdSync",
+            aggregateId: AggregateId,
+            payload: "{\"fetched\":42}");
+
+        entry.OccurredAt.ShouldBe(OccurredAt);
+        entry.CorrelationId.ShouldBe(CorrelationId);
+        entry.EventType.ShouldBe("System.JobAdsSynced");
+        entry.AggregateType.ShouldBe("System.JobAdSync");
+        entry.AggregateId.ShouldBe(AggregateId);
+        entry.Payload.ShouldBe("{\"fetched\":42}");
+        // System har ingen request-context per design — alla user-fält är null.
+        entry.UserId.ShouldBeNull();
+        entry.IpAddress.ShouldBeNull();
+        entry.UserAgent.ShouldBeNull();
+        entry.ImpersonatedBy.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CreateSystemEvent_WithNullPayload_AllowsNull()
+    {
+        var entry = AuditLogEntry.CreateSystemEvent(
+            occurredAt: OccurredAt,
+            correlationId: CorrelationId,
+            eventType: "System.JobAdsSynced",
+            aggregateType: "System.JobAdSync",
+            aggregateId: AggregateId,
+            payload: null);
+
+        entry.Payload.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CreateSystemEvent_WhenAggregateIdIsEmpty_ThrowsBevarsInvariant()
+    {
+        var act = () => AuditLogEntry.CreateSystemEvent(
+            occurredAt: OccurredAt,
+            correlationId: CorrelationId,
+            eventType: "System.JobAdsSynced",
+            aggregateType: "System.JobAdSync",
+            aggregateId: Guid.Empty,
+            payload: null);
+
+        var ex = act.ShouldThrow<ArgumentException>();
+        ex.ParamName.ShouldBe("aggregateId");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CreateSystemEvent_WhenEventTypeIsNullOrWhitespace_Throws(string? eventType)
+    {
+        var act = () => AuditLogEntry.CreateSystemEvent(
+            occurredAt: OccurredAt,
+            correlationId: CorrelationId,
+            eventType: eventType!,
+            aggregateType: "System.JobAdSync",
+            aggregateId: AggregateId,
+            payload: null);
+
+        act.ShouldThrow<ArgumentException>();
+    }
+
+    [Fact]
+    public void Create_CommandAudit_LeavesPayloadNullForFas2()
+    {
+        // ADR 0022: command-audit-payload är reserverat för Fas 4 (PII-saner-krav).
+        // Create-factoryn ska därför inte sätta Payload — bara CreateSystemEvent gör det.
+        var entry = AuditLogEntry.Create(
+            occurredAt: OccurredAt,
+            correlationId: CorrelationId,
+            userId: UserId,
+            eventType: "Application.Created",
+            aggregateType: "Application",
+            aggregateId: AggregateId,
+            ipAddress: null,
+            userAgent: null);
+
+        entry.Payload.ShouldBeNull();
+    }
 }

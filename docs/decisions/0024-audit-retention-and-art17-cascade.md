@@ -451,3 +451,28 @@ Implementation splittas i STEG 10a (retention) + STEG 10b (DELETE /me + cascade 
 - **Fas 6** — när admin-restore-endpointen införs: bekräfta att 30-dagars-fönstret är rätt + lägg till audit-rad `Account.Restored` (separat marker-interface utvärderas)
 
 ADR 0022 kompletteras implicit av denna ADR — Art. 17-policyn är nu implementerad, inte deferrerad. PK på `audit_log` ändras från `(id)` till `(id, occurred_at)` enligt delbeslut 2 — schema-spec i ADR 0022 uppdateras retroaktivt.
+
+---
+
+## Cross-ref-amendment 2026-05-13 — right-to-erasure-cascade för rekryterar-PII i raw_payload
+
+**Datum:** 2026-05-13
+**Källa:** TD-73 prod-gating-batch (CTO-rond 2026-05-13)
+**Trigger:** TD-73 amendment-batch (ADR 0032 §8 punkt 4)
+
+### Cross-ref
+
+Denna ADR (0024) etablerar Art. 17-cascade-mönstret för **user-ägd data** (JobSeeker + Application + Resume soft-delete → hard-delete via `HardDeleteAccountsJob`, audit-anonymisering via `IAuditTrailEraser`).
+
+För **rekryterar-PII i `job_ads.raw_payload`** (icke-användar-data där JobbPilot ändå är data controller per GDPR Art. 4(1) så snart payload persisteras) implementeras Art. 17 separat per [ADR 0032 §8 amendment 2026-05-13](./0032-jobtech-integration.md#amendment-2026-05-13--%C2%A78-punkt-4-implementeras-audit-wire-%CE%B1-via-adr-0035--right-to-erasure-email-only):
+
+- `RedactRecruiterPiiCommand` admin-endpoint (Email-only nu, Name som TD-75)
+- Total null-out av matchande `raw_payload` via `ExecuteUpdateAsync`
+- En aggregerad audit-rad per request via befintlig `AuditBehavior` (`Admin.RecruiterPiiRedacted`)
+- 30d-retention via `PurgeStaleRawPayloadsJob` minimerar fönstret
+
+`IAuditTrailEraser`-mönstret från D3 (audit-bypass-port) återanvänds **inte** för rekryterar-PII-erasure — `RedactRecruiterPiiCommand` går via Mediator-pipeline (det är en `IAuditableCommand`). System-event-audit-mönstret från [ADR 0035](./0035-system-event-audit-pipeline.md) (`ISystemEventAuditor` bypass-port) är parallell till `IAuditTrailEraser` men för system-jobb, inte erasure-flöden.
+
+### Aktiveringspolicy
+
+`ApplicationUser`-anonymisering kvarstår oförändrat i ADR 0024 D3 + D6. Rekryterar-erasure kvarstår oberoende av kontoraderings-flödet eftersom rekryterare inte har JobbPilot-konton i Fas 2.

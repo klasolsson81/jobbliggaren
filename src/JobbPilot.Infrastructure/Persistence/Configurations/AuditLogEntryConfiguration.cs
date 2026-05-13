@@ -49,6 +49,13 @@ public sealed class AuditLogEntryConfiguration : IEntityTypeConfiguration<AuditL
         builder.Property(a => a.IpAddress).HasMaxLength(45);   // IPv6 max
         builder.Property(a => a.UserAgent).HasMaxLength(256);  // matchar AuthAuditLogger-truncation
 
+        // ADR 0035 — payload jsonb-kolumn aktiveras för Fas 2 system-events.
+        // ADR 0022 reserverade kolumnen för Fas 4 (command-audit-payload med
+        // PII-saner-krav); system-event-payload (counts + tidsstämplar) har
+        // ingen PII och kan aktiveras tidigare. Nullable — command-audit-rader
+        // skriver fortfarande null tills Fas 4-spec landar.
+        builder.Property(a => a.Payload).HasColumnType("jsonb");
+
         // BUILD.md §7.2: audit_log (occurred_at DESC) — senaste först för admin-vy och retention
         builder.HasIndex(a => a.OccurredAt)
             .IsDescending()

@@ -2071,3 +2071,59 @@ JobTech-mapping görs i P8 via Refit-attributes.
 - `tests/JobbPilot.Application.UnitTests/JobAds/Queries/ListJobAds/` — 2 test-filer
 - `tests/JobbPilot.Api.IntegrationTests/JobAds/ListJobAdsTests.cs`
 - `tests/JobbPilot.Architecture.Tests/PagedResultContractTests.cs` (uppdaterad)
+
+
+---
+
+## TD-73: JobTech raw_payload PII-stripping + retention ✓ STÄNGD 2026-05-13 (TD-73 prod-gating-batch)
+**Kategori:** GDPR / Privacy
+**Severity:** Major
+**Fas:** 2 (P8b/P8c/prod-gating)
+**Källa:** security-auditor F2-P8a-aggregat-review Sec-Major-1 (2026-05-12)
+**Stängd:** 2026-05-13 — TD-73 prod-gating-batch (ADR 0035 + ADR 0032 amendment 2026-05-13)
+
+### Bakgrund
+`raw_payload` (jsonb på `job_ads`) lagrade ursprungligen oavkortat JobTech-svar inkl rekryterar-PII (namn, email, telefon, firmatecknare). GDPR Art. 5/17/30-implikationer adresserade i fyra etapper (P8b + P8c + prod-gating-batch).
+
+### Leverans-stäger
+
+- **Punkt 1 — PII-stripping vid ingest** (F2-P8b, 2026-05-13, commit `8c09191`)
+  - `JobTechPayloadSanitizer` pure static allowlist (default-deny per Saltzer/Schroeder 1975)
+  - 8 unit-tester verifierar att kontakt-PII strippas + publika fält bevaras
+  - Sanering körs i `PlatsbankenJobSource.TryConvertToImportItem`
+  - Architecture-test verifierar att Application aldrig ser osanerad payload
+
+- **Punkt 2 — 30-dagars retention** (F2-P8c, 2026-05-13, commit `81dfab6`)
+  - `PurgeStaleRawPayloadsJob` Hangfire recurring `30 4 * * *` UTC
+  - `JobSourceRetentionOptions.RawPayloadRetentionDays` (Application-port, default 30, bind mot JobTech-section)
+  - `ExecuteUpdateAsync` (CLAUDE.md §3.6 — LINQ-genererad SQL)
+
+- **Punkt 3 — Processing-register-entry** (F2-P8b, 2026-05-13, commit `8c09191`)
+  - `docs/runbooks/gdpr-processing-register.md` skapad
+  - JobTech-entry med rättslig grund (Art. 6(1)(f)) + retention + sub-processor
+
+- **Punkt 4 — Audit-wire α + right-to-erasure** (TD-73 prod-gating-batch, 2026-05-13)
+  - **Audit-wire (a):** `ISystemEventAuditor`-port (Application/Common/Auditing) + `SystemAuditEvent`-hierarki (`JobAdsSynced`, `RawPayloadPurged`). `audit_log.payload` jsonb-kolumn aktiverad. Per-run-Guid AggregateId (CTO Q1=A). Idempotens-skydd via `(EventType, AggregateId)`-lookup. Arch-test mirror:ar IAuditTrailEraser-pattern. ADR 0035 etablerar mönstret. EF-migration `AddAuditLogPayload`.
+  - **Right-to-erasure (b):** `RedactRecruiterPiiCommand` (Email-only) + admin-endpoint `POST /api/v1/admin/job-ads/redact-recruiter-pii`. Total null-out via `ExecuteUpdateAsync(SetProperty(j => j.RawPayload, _ => null))` (CTO Q2=A). En aggregerad audit-rad per request (CTO Q3=B, ADR 0024 D4-precedens). Name-typ defererad till TD-75. GIN-index defererad till TD-76.
+  - **ADR-leverans:** Ny ADR 0035 + amendment till ADR 0032 §8 + cross-ref-amendment ADR 0024. Inget ADR 0022-amendment (ISystemEventAuditor parallell till pipeline-behavior, inte utvidgning).
+  - **Runbooks:** `docs/runbooks/recruiter-pii-erasure.md` (auto-flöde Email + manuell-flöde Name).
+  - **Reviewers INLINE:** dotnet-architect (design-skiss) + senior-cto-advisor (13 beslut entydigt mot principer — Martin/Evans/Fowler/Beck/Saltzer-Schroeder/GDPR). INGET Klas-STOPP behövdes per CLAUDE.md §9.6 punkt 5.
+
+### Resultat-trail
+- ADRs: 0035 (ny), 0032 amendment 2026-05-13 (§8 punkt 4 levererad), 0024 cross-ref-amendment 2026-05-13
+- Domain: `AuditLogEntry.Payload` + `CreateSystemEvent`-factory (bevarar Guid.Empty-invariant)
+- Application ports: `ISystemEventAuditor`, `IRecruiterPiiPurger`, `SystemAuditEvent`-hierarki, `RedactRecruiterPiiCommand`
+- Infrastructure: `SystemEventAuditor`, `RecruiterPiiPurger`, EF-migration `AddAuditLogPayload`
+- Audit-wire i alla 3 Hangfire-jobben (Stream, Snapshot, Purge)
+- Admin-endpoint `POST /api/v1/admin/job-ads/redact-recruiter-pii`
+- Architecture-tester: ISystemEventAuditor + IRecruiterPiiPurger konsumentlistor (4 nya)
+- Unit-tester: Domain (+7), Application (+16)
+- Integration-tester: Api +6 (audit-paritet + redact end-to-end mot riktig Postgres)
+- Total backend: 837 → 870 (+33 nya)
+
+### Cross-ref för follow-ups
+- TD-75: Name-baserad rekryterar-PII-radering (trigger: första faktiska Name-begäran)
+- TD-76: GIN-index på raw_payload (trigger: latens-trigger eller volym-skifte)
+
+### Operativ konsekvens
+v0.2-prod-tag är inte längre gated på TD-73. Sanitizer + retention + audit-wire + right-to-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.

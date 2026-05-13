@@ -1,3 +1,4 @@
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.SyncPlatsbankenSnapshot;
 using JobbPilot.Application.JobAds.Commands.UpsertExternalJobAd;
@@ -104,6 +105,7 @@ public class SyncPlatsbankenSnapshotCommandHandlerTests
 
         var job = new SyncPlatsbankenSnapshotJob(
             jobSource, mediator, FakeDateTimeProvider.Default,
+            Substitute.For<ISystemEventAuditor>(),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
 
         return new SyncPlatsbankenSnapshotCommandHandler(job);

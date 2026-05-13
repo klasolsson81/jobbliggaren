@@ -13,6 +13,7 @@ using JobbPilot.Infrastructure.Email;
 using JobbPilot.Infrastructure.FeatureFlags;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Invitations;
+using JobbPilot.Infrastructure.JobSources;
 using JobbPilot.Infrastructure.JobSources.Platsbanken;
 using JobbPilot.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -127,6 +128,11 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
+
+        // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
+        // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
+        // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).
+        services.AddScoped<IRecruiterPiiPurger, RecruiterPiiPurger>();
 
         // F2-P8c: Application-orchestrator-jobb. Stream + Purge konsumeras
         // exklusivt av Hangfire (ActivatorUtilities löser konstruktor utan
@@ -251,6 +257,12 @@ public static class DependencyInjection
         // följer IAppDbContext-livscykeln.
         services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
         services.AddScoped<IAuditTrailEraser, AuditTrailEraser>();
+
+        // ISystemEventAuditor (ADR 0035) — bypass-port för audit-rader från
+        // system-jobben (SyncPlatsbankenStreamJob/SnapshotJob/PurgeStaleRawPayloadsJob).
+        // Scoped följer IAppDbContext-livscykeln; per Hangfire-scope ger varje
+        // job-execution fresh DbContext + auditor-instans.
+        services.AddScoped<ISystemEventAuditor, SystemEventAuditor>();
 
         // IP-anonymisering (ADR 0024 D7). Stateless BCL-baserad helper —
         // singleton. Konsumeras av RequestContextProvider (audit-pipeline) och

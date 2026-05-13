@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.ArchiveExternalJobAd;
 using JobbPilot.Application.JobAds.Commands.UpsertExternalJobAd;
@@ -42,10 +43,12 @@ public class SyncPlatsbankenStreamJobTests
     private static SyncPlatsbankenStreamJob CreateJob(
         IJobSource jobSource,
         IMediator mediator,
-        FakeDateTimeProvider? clock = null) =>
+        FakeDateTimeProvider? clock = null,
+        ISystemEventAuditor? auditor = null) =>
         new(
             jobSource, mediator,
             clock ?? new FakeDateTimeProvider(Now),
+            auditor ?? Substitute.For<ISystemEventAuditor>(),
             NullLogger<SyncPlatsbankenStreamJob>.Instance);
 
     private static IJobSource StubJobSource(params JobAdChange[] changes)

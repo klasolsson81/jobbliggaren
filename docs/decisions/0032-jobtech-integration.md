@@ -486,3 +486,64 @@ default oavsett om JobTech kräver auth eller är öppen.
 - TD-70 search/filter-utbyggnad (Fas 2 senare) kan utnyttja v2:s
   `occupation-concept-id` + `location-concept-id` direkt på Stream-endpoint
   istället för att bygga ovanpå JobSearch.
+
+---
+
+## Amendment 2026-05-13 — §8 punkt 4 implementeras: audit-wire α via ADR 0035 + right-to-erasure Email-only
+
+**Datum:** 2026-05-13
+**Källa:** TD-73 prod-gating-batch (CTO-rond 2026-05-13 punkt 5 + 7)
+**Trigger:** prod-gating innan v0.2-prod-tag
+
+### Kontext för amendment
+
+§8 amendment 2026-05-12 punkt 4 ("Right-to-erasure-stöd") och den parallella audit-wire-frågan (`JobAdsSyncedDomainEvent`) deferrades till TD-73 prod-gating-batch. Denna amendment specificerar implementations-mekaniken efter senior-cto-advisor-decision 2026-05-13.
+
+### Beslut
+
+#### Audit-wire α — ersätter `JobAdsSyncedDomainEvent`-spec med `ISystemEventAuditor`
+
+Original §8 specade ett `JobAdsSyncedDomainEvent` som skulle skrivas till `audit_log` via befintlig pipeline (ADR 0022). Den specifikationen var ofullständig: jobben är inte `IRequest`/`ICommand` och passerar inte `AuditBehavior`. Domain-event-dispatcher saknas i JobbPilot (ADR 0022 alt C-deferral).
+
+**Ny mekanism per [ADR 0035](./0035-system-event-audit-pipeline.md):** `ISystemEventAuditor`-port (Application/Common/Auditing) konsumeras direkt av jobben i finally-block efter completion. `SystemAuditEvent.JobAdsSynced` (counts + tidsstämplar) och `SystemAuditEvent.RawPayloadPurged` (rowsAffected + cutoff + retentionDays) serialiseras till `audit_log.payload` jsonb-kolumnen.
+
+`audit_log.payload`-kolumnen aktiveras för Fas 2 system-events via ny EF-migration. ADR 0022:s Fas 4-deferral av `payload` gällde command-audit (CV-text, PII-saner-behov) — system-event-payload har ingen PII, bara counts. Tidig aktivering har ingen GDPR-impact.
+
+#### Right-to-erasure — Email-only nu, Name som ny TD
+
+**Implementerad mekanism:**
+
+- `RedactRecruiterPiiCommand(Identifier, RecruiterIdentifierType)` i Application/JobAds/Commands/RedactRecruiterPii.
+- `IAdminRequest` + `IAuditableCommand<Result<int>>` (audit-rad `Admin.RecruiterPiiRedacted` per request, payload `{ identifier, type, rowsAffected }`).
+- Handler söker matchande JobAds via `EF.Functions.JsonContains` (säkrare än `.Contains()` mot EF Core 10 Issue #3745) och null:ar `raw_payload` via `ExecuteUpdateAsync(SetProperty(j => j.RawPayload, _ => null))`.
+- En aggregerad audit-rad per request (CTO Q3=B, ADR 0024 D4-precedens — "användaren begärde *en* handling").
+- Admin-endpoint `POST /api/v1/admin/job-ads/redact-recruiter-pii` med `AuthorizationPolicies.Admin`.
+
+**Total null-out vs surgical jsonb_set:** CTO Q2 = total null-out. Skäl: GDPR Art. 5(1)(c) data-minimisation > debug-värde. 30d-retention via `PurgeStaleRawPayloadsJob` null:ar ändå hela `raw_payload` efter 30 dagar — surgical redaction räddar non-PII i max 30 dagar för en handfull rader. KISS + Saltzer/Schroeder default-deny.
+
+**Name-baserad sökning defererad till TD-75** (ny TD allokerad 2026-05-13): Name-matching kräver multi-path jsonb-search + ev. full-text på `description.text`. YAGNI tills faktisk request finns. Email är primär rekryterar-identifier i JobTech-payloads. `RecruiterIdentifierType.Name` returnerar `Result.Failure(DomainError.Validation("RedactRecruiterPii.NameNotSupportedYet", ...))` med dokumenterad trigger i `docs/runbooks/recruiter-pii-erasure.md`.
+
+**GIN-index på raw_payload defererad till TD-76** (ny TD): seq-scan på ~5–10k rader är acceptabel latens för admin one-off (sekunder). GIN-index har reell write-overhead på stream-cron (~80k operations/dygn). YAGNI tills faktisk latens-trigger eller volym-skifte.
+
+### Krav för stängning av TD-73
+
+- [x] `JobTechPayloadSanitizer` implementerad + unit-tester (F2-P8b 2026-05-13, commit `8c09191`)
+- [x] AllowedKeys-lista verifierad mot JobTech-API-spec (web-search 2026-05-12 + JobTech-docs)
+- [x] `PurgeStaleRawPayloadsJob` Hangfire-job implementerad + integration-test (F2-P8c 2026-05-13, commit `81dfab6`)
+- [x] `RawPayloadPurgedDomainEvent` audit-wire (TD-73 prod-batch 2026-05-13 — ersatt av `SystemAuditEvent.RawPayloadPurged` per ADR 0035)
+- [x] `docs/runbooks/gdpr-processing-register.md` skapad eller utökad med JobTech-entry (F2-P8b 2026-05-13)
+- [x] ADR 0024 cross-ref för right-to-erasure-cascade till raw_payload (TD-73 prod-batch 2026-05-13)
+- [x] Security-auditor verify-pass innan v0.2-prod-tag (TD-73 prod-batch 2026-05-13)
+
+### Operativa konsekvenser
+
+- v0.2-prod-tag är inte längre gated på TD-73. PurgeStaleRawPayloadsJob + audit-wire + Email-only-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.
+- Name-baserad erasure hanteras manuellt via runbook (`docs/runbooks/recruiter-pii-erasure.md`) tills TD-75 levereras.
+
+### Referenser
+
+- [ADR 0035](./0035-system-event-audit-pipeline.md) — System-event audit-pipeline (`ISystemEventAuditor`)
+- [ADR 0024 §"Cross-ref-amendment 2026-05-13"](./0024-audit-retention-and-art17-cascade.md) — right-to-erasure-cascade-completion
+- `docs/runbooks/recruiter-pii-erasure.md` — operativ procedur
+- `docs/runbooks/gdpr-processing-register.md` — JobTech-entry
+- senior-cto-advisor 2026-05-13 (TD-73-batch, 13 beslut entydigt mot principer)

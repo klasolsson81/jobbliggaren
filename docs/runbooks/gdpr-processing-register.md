@@ -6,7 +6,7 @@
 > **Underhåll:** uppdatera vid varje ny PII-källa, ändrad retention, eller
 > ny sub-processor. Cross-ref från ADRs som introducerar processing.
 >
-> **Senast granskad:** 2026-05-12 (P8b-leverans, sec-Maj-2)
+> **Senast granskad:** 2026-05-13 (TD-73 prod-gating-batch, ADR 0035 + ADR 0032 amendment 2026-05-13)
 
 ---
 
@@ -30,7 +30,7 @@
 
 - `job_ads.raw_payload`: **30 dagar** efter `published_at` (ADR 0032 §8-amendment, konfigurerbar via `JobTechOptions.RawPayloadRetentionDays`). Null:as via `PurgeStaleRawPayloadsJob` (P8c-leverans).
 - `job_ads.title/description/url/company/external_*`: Bevaras "indefinitively" som arbetsmarknad-historik. Annonsen `Archive`:as när JobTech rapporterar removal-event (status → Archived, ingen radering).
-- `JobAdsSyncedDomainEvent` audit-events: 18 månader per ADR 0024 audit-retention.
+- `audit_log` system-events (`System.JobAdsSynced`, `System.RawPayloadPurged`, `Admin.RecruiterPiiRedacted`): 90 dagar per ADR 0024 audit-retention (partition-DROP). Payload jsonb-kolumn aktiverad för Fas 2 system-events per ADR 0035.
 
 **Sub-processors:**
 
@@ -39,13 +39,13 @@
 
 **Right-to-erasure (Art. 17):**
 
-Vid rekryterar-begäran:
+Vid rekryterar-begäran (per ADR 0032 §8 amendment 2026-05-13 + ADR 0035):
 
-1. Identifiera rekryterar via fri-text-sökning över `job_ads.description` (jsonb-query mot eventuellt fritext-indexerade fält).
-2. Manuell granskning + sanering av specifika rader.
-3. Audit-event `JobAdRedactedDomainEvent` skrivs.
+- **Email-baserad** (primär): admin-endpoint `POST /api/v1/admin/job-ads/redact-recruiter-pii` med body `{ identifier, type: "Email" }`. Söker `raw_payload` via `EF.Functions.JsonContains` mot probe `{"employer":{"contact_email":"<email>"}}` och null:ar matchande rows via `ExecuteUpdateAsync` (total null-out — CTO Q2). En aggregerad audit-rad per request (`Admin.RecruiterPiiRedacted`) per ADR 0024 D4-precedens. Detaljerad procedur: [`recruiter-pii-erasure.md`](./recruiter-pii-erasure.md).
+- **Name-baserad** (defererad till TD-75): manuell procedur via DB-admin tills auto-flödet levereras. Trigger för TD-75-fix: första faktiska name-baserade begäran.
+- **Audit-trail:** Email-flödet via `IAuditableCommand` → aggregerad audit-rad. System-events (sync-runs + purge-runs) via `ISystemEventAuditor` per ADR 0035.
 
-Implementation: planerad som TD-73-stängningsdelpunkt (P8c eller separat batch).
+Implementation: **levererad i TD-73 prod-gating-batch 2026-05-13** (commit-cykel kring tag `v0.2.4-dev`).
 
 **PII-stripping-trail:**
 

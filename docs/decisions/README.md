@@ -47,6 +47,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0032 | JobTech-integration: resilience-stack, dedup-strategi, sync-flöde (amended 2026-05-12 §8 PII-stripping + amended 2026-05-13 JobStream v2 path-migration) | Accepted | 2026-05-12 | [0032-jobtech-integration.md](./0032-jobtech-integration.md) |
 | 0033 | JobbPilot.Migrate CLI-mode-dispatch (init vs schema) | Accepted | 2026-05-12 | [0033-migrate-cli-mode-dispatch.md](./0033-migrate-cli-mode-dispatch.md) |
 | 0034 | DB-role privilege-separation: runtime vs migration-time creds | Accepted | 2026-05-12 | [0034-db-role-privilege-separation.md](./0034-db-role-privilege-separation.md) |
+| 0035 | System-event audit-pipeline (bypass-port parallell till IAuditTrailEraser) | Accepted | 2026-05-13 | [0035-system-event-audit-pipeline.md](./0035-system-event-audit-pipeline.md) |
 
 ## Planerade ADRs
 

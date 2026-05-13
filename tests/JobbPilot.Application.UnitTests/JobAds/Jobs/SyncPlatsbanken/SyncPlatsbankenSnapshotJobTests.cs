@@ -1,3 +1,4 @@
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.UpsertExternalJobAd;
 using JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken;
@@ -47,9 +48,11 @@ public class SyncPlatsbankenSnapshotJobTests
 
     private static SyncPlatsbankenSnapshotJob CreateJob(
         IJobSource jobSource,
-        IMediator mediator) =>
+        IMediator mediator,
+        ISystemEventAuditor? auditor = null) =>
         new(
             jobSource, mediator, new FakeDateTimeProvider(Now),
+            auditor ?? Substitute.For<ISystemEventAuditor>(),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
 
     [Fact]

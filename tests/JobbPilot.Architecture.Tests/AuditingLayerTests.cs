@@ -27,6 +27,12 @@ public class AuditingLayerTests
     private const string IpAnonymizerFqn =
         "JobbPilot.Application.Common.Auditing.IIpAnonymizer";
 
+    private const string SystemEventAuditorFqn =
+        "JobbPilot.Application.Common.Auditing.ISystemEventAuditor";
+
+    private const string RecruiterPiiPurgerFqn =
+        "JobbPilot.Application.JobAds.Abstractions.IRecruiterPiiPurger";
+
     [Fact]
     public void IAuditPartitionMaintainer_in_Application_should_only_be_referenced_by_AuditLogRetentionJob()
     {
@@ -177,6 +183,101 @@ public class AuditingLayerTests
     // Inte audit-bypass-port — porten kan användas brett. Men eftersom maskningen
     // är gemensam yta mellan audit-pipelinen och app-loggen vill vi låsa
     // konsument-listan så framtida tredje konsument går genom medveten review.
+
+    // ─── ISystemEventAuditor (ADR 0035 — system-event audit-pipeline) ───
+    //
+    // Bypass-port parallell till IAuditTrailEraser. Konsumeras direkt av
+    // Hangfire-jobben som inte passerar Mediator-pipelinen och därmed inte
+    // fångas av AuditBehavior. Konsumentlistan låst för att förhindra
+    // bypass-spridning till command-handlers.
+
+    [Fact]
+    public void ISystemEventAuditor_in_Application_should_only_be_referenced_by_system_jobs()
+    {
+        var consumers = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
+            .That()
+            .HaveDependencyOn(SystemEventAuditorFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        var allowed = new[]
+        {
+            "SyncPlatsbankenStreamJob",
+            "SyncPlatsbankenSnapshotJob",
+            "PurgeStaleRawPayloadsJob"
+        };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"ISystemEventAuditor får endast konsumeras av system-jobben " +
+            $"(SyncPlatsbankenStreamJob, SyncPlatsbankenSnapshotJob, " +
+            $"PurgeStaleRawPayloadsJob) per ADR 0035. Otillåtna: " +
+            $"{string.Join(", ", unauthorized)}");
+    }
+
+    [Fact]
+    public void ISystemEventAuditor_in_Infrastructure_should_only_be_referenced_by_impl_or_DI()
+    {
+        var consumers = Types.InAssembly(typeof(AppDbContext).Assembly)
+            .That()
+            .HaveDependencyOn(SystemEventAuditorFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        var allowed = new[] { "SystemEventAuditor", "DependencyInjection" };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"ISystemEventAuditor i Infrastructure får endast konsumeras av " +
+            $"SystemEventAuditor (impl) eller DependencyInjection (registrering). " +
+            $"Otillåtna: {string.Join(", ", unauthorized)}");
+    }
+
+    // ─── IRecruiterPiiPurger (ADR 0032 §8 amendment 2026-05-13 — GDPR Art. 17) ───
+    //
+    // Postgres-specifik jsonb-sökning kapslas i Infrastructure för att hålla
+    // Application Npgsql-fri. Konsumentlista låst för att förhindra direkt
+    // PII-purge utanför admin-endpoint-flödet.
+
+    [Fact]
+    public void IRecruiterPiiPurger_in_Application_should_only_be_referenced_by_RedactRecruiterPiiCommandHandler()
+    {
+        var consumers = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
+            .That()
+            .HaveDependencyOn(RecruiterPiiPurgerFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        var allowed = new[] { "RedactRecruiterPiiCommandHandler" };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"IRecruiterPiiPurger får endast konsumeras av " +
+            $"RedactRecruiterPiiCommandHandler. Otillåtna: " +
+            $"{string.Join(", ", unauthorized)}");
+    }
+
+    [Fact]
+    public void IRecruiterPiiPurger_in_Infrastructure_should_only_be_referenced_by_impl_or_DI()
+    {
+        var consumers = Types.InAssembly(typeof(AppDbContext).Assembly)
+            .That()
+            .HaveDependencyOn(RecruiterPiiPurgerFqn)
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToList();
+
+        var allowed = new[] { "RecruiterPiiPurger", "DependencyInjection" };
+        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
+
+        unauthorized.ShouldBeEmpty(
+            $"IRecruiterPiiPurger i Infrastructure får endast konsumeras av " +
+            $"RecruiterPiiPurger (impl) eller DependencyInjection (registrering). " +
+            $"Otillåtna: {string.Join(", ", unauthorized)}");
+    }
 
     [Fact]
     public void IIpAnonymizer_in_Infrastructure_should_only_be_referenced_by_known_consumers()

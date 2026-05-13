@@ -1,3 +1,4 @@
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.UpsertExternalJobAd;
 using JobbPilot.Domain.Common;
@@ -24,10 +25,13 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
     IJobSource jobSource,
     IMediator mediator,
     IDateTimeProvider clock,
+    ISystemEventAuditor auditor,
     ILogger<SyncPlatsbankenSnapshotJob> logger)
 {
     public async Task<SyncCounts> RunAsync(CancellationToken cancellationToken)
     {
+        // Per-run-Guid för audit-rad (ADR 0035 §2).
+        var runId = Guid.NewGuid();
         var startedAt = clock.UtcNow;
         LogStarted(logger, jobSource.Source.Value);
 
@@ -75,6 +79,24 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
         LogCompleted(logger, jobSource.Source.Value, counts.Fetched, counts.Added,
             counts.Updated, counts.Skipped, counts.Errors,
             (completedAt - startedAt).TotalSeconds);
+
+        // Audit-wire α (ADR 0035 + ADR 0032 §8 amendment 2026-05-13).
+        // En audit-rad per snapshot-run oavsett om trigger är admin-curl
+        // eller nattlig cron (M3 — SyncPlatsbankenSnapshotCommand har inte
+        // IAuditableCommand-marker).
+        await auditor.RecordAsync(new JobAdsSynced(
+            AggregateId: runId,
+            OccurredAt: completedAt,
+            Source: jobSource.Source.Value,
+            JobType: "snapshot",
+            Fetched: counts.Fetched,
+            Added: counts.Added,
+            Updated: counts.Updated,
+            Archived: 0,  // snapshot rör inte archive-flödet
+            Skipped: counts.Skipped,
+            Errors: counts.Errors,
+            StartedAt: startedAt,
+            CompletedAt: completedAt), cancellationToken);
 
         return counts;
     }

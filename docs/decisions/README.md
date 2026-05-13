@@ -48,6 +48,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0033 | JobbPilot.Migrate CLI-mode-dispatch (init vs schema) | Accepted | 2026-05-12 | [0033-migrate-cli-mode-dispatch.md](./0033-migrate-cli-mode-dispatch.md) |
 | 0034 | DB-role privilege-separation: runtime vs migration-time creds | Accepted | 2026-05-12 | [0034-db-role-privilege-separation.md](./0034-db-role-privilege-separation.md) |
 | 0035 | System-event audit-pipeline (bypass-port parallell till IAuditTrailEraser) | Accepted | 2026-05-13 | [0035-system-event-audit-pipeline.md](./0035-system-event-audit-pipeline.md) |
+| 0036 | Prod-stack deferred + cloudwatch_ops_alarms-modul (v0.2-prod-launch-checklist-leverans) | Accepted | 2026-05-13 | [0036-prod-stack-deferred-and-ops-alarms.md](./0036-prod-stack-deferred-and-ops-alarms.md) |
 
 ## Planerade ADRs
 

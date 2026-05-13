@@ -171,7 +171,9 @@ public sealed partial class SyncPlatsbankenStreamJob(
     private static partial void LogCompleted(ILogger logger, string source, int fetched,
         int added, int updated, int archived, int skipped, int errors, double durationSec);
 
+    // event_name=-konvention per ADR 0031 (FailedAccessLogger) + ADR 0036
+    // (cloudwatch_ops_alarms-modul matchar metric filter mot detta prefix).
     [LoggerMessage(EventId = 5303, Level = LogLevel.Warning,
-        Message = "SyncPlatsbankenStreamJob: event-failure ExternalId={ExternalId} — räknas i ErrorCount, fortsätter med nästa.")]
+        Message = "event_name=job_event_failure job_name=SyncPlatsbankenStreamJob external_id={ExternalId} — räknas i ErrorCount, fortsätter med nästa.")]
     private static partial void LogEventFailed(ILogger logger, Exception exception, string externalId);
 }

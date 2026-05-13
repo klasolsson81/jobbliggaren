@@ -731,18 +731,36 @@ firma). GDPR Art. 5/17/30-implikationer:
 har ingen PII faktiskt importerats; JobTech-anslutning sker P8b/P8c.
 
 **Föreslagen åtgärd:**
-1. Stripa kända PII-keys före persistering (allowlist eller PII-blocklist på
-   JobTech-schema-keys) i `JobTechAdUpsert`-handler (P8b).
-2. Definierad retention för `raw_payload` (förslag: 30 dagar efter publish,
-   null:as via Hangfire-job).
-3. Processing-register-entry för JobTech som PII-källa.
-4. Implementera right-to-erasure-stöd via jsonb-query mot `raw_payload`.
+1. ✅ **LEVERERAD i F2-P8b (commit `8c09191`, 2026-05-13)** — `JobTechPayloadSanitizer`
+   pure static allowlist (default-deny per Saltzer/Schroeder 1975) i
+   `Infrastructure/JobSources/Platsbanken/`. 8 unit-tester verifierar att
+   kontakt-PII (`employer.contact_email`, `contact_name`, `phone_number`,
+   `application_details.url` med mailto-PII) strippas + publika fält
+   (`occupation`, `workplace_address`, `description.text`, `salary`,
+   `application_deadline`) bevaras. Sanering körs i `PlatsbankenJobSource.TryConvertToImportItem`
+   innan items lämnar Infrastructure. Architecture-test verifierar att
+   Application aldrig ser osanerad payload.
+2. **KVAR till P8c.** Retention för `raw_payload` (30 dagar efter publish via
+   `PurgeStaleRawPayloadsJob` Hangfire-cron). `JobTechOptions.RawPayloadRetentionDays`
+   default 30 redan etablerad i F2-P8b. `RawPayloadPurgedDomainEvent` audit-wire.
+3. ✅ **LEVERERAD i F2-P8b (commit `8c09191`, 2026-05-13)** — `docs/runbooks/gdpr-processing-register.md`
+   skapad med JobTech-entry (datakategori + rättslig grund Art. 6(1)(f) +
+   retention 30d + sub-processor + PII-stripping-trail).
+4. **KVAR till P8c eller separat batch.** Right-to-erasure-stöd via jsonb-query
+   mot `raw_payload`. Implementeras som del av `DeleteAccountCommand`-mönster
+   (ADR 0024 cascade) men för rekryterar-PII-identifier.
 
-**Trigger:** P8b-start (innan första riktiga JobTech-anslutning).
+**Trigger:** ~~P8b-start~~ → kvar-arbete triggas av P8c-start (Hangfire-jobben).
 
 **Beroenden:** ADR 0032 §8-amendment 2026-05-12 (PII-stripping-pipeline-spec),
-processing-register-dokumentation. TD-13 PII-encryption om envelope-yta
-ska täcka raw_payload (cross-ref redan i TD-13).
+processing-register-dokumentation (✅ skapad). TD-13 PII-encryption om
+envelope-yta ska täcka raw_payload (cross-ref redan i TD-13).
+
+**P8b-leverans-trail (2026-05-13):**
+- `src/JobbPilot.Infrastructure/JobSources/Platsbanken/JobTechPayloadSanitizer.cs`
+- `tests/JobbPilot.Application.UnitTests/JobAds/Infrastructure/JobTechPayloadSanitizerTests.cs`
+- `docs/runbooks/gdpr-processing-register.md`
+- security-auditor F2-P8b GO med villkor (alla Major in-block-fixade)
 
 
 ---

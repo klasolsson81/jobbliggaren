@@ -1,127 +1,124 @@
 # Current work — JobbPilot
 
-**Status:** **F2-P7 + P8a + P8a.5 + bootstrap komplett 2026-05-12 ~21:10. Dev-deploy GRÖN på `v0.2.1-dev` (`https://dev.jobbpilot.se/api/ready` returnerar 200). 17 commits, 3 nya ADRs (0032/0033/0034), 1 stängd TD (TD-56), 3 nya TDs (72/73/74), 4 parallella post-hoc reviewers + 4 CTO-ronder. Nästa: F2-P8b (Infrastructure — Refit + Resilience + admin-trigger-endpoint).**
-**Senast uppdaterad:** 2026-05-12 (session-end efter F2-P7 + P8a + bootstrap + aggregate-review)
-**HEAD:** `24a7135` (tag `v0.2.1-dev` på samma SHA, deployad)
+**Status:** **F2-P8b komplett 2026-05-13 ~06:00. Commit `8c09191` pushad till `main`. Tag-push `v0.2.2-dev` VÄNTAR Klas-GO per CTO-rond 1 (resilience-verifiering mot dev). 1 commit, 24 filer, 1703 insertions. 3 agent-ronder (architect INNAN kod + code-reviewer/security-auditor INNAN commit) per CLAUDE.md §9.2 inline-discipline. TD-73 punkt 1 + 3 levererade (sanitizer + processing-register). Nästa: F2-P8c (Hangfire-jobben).**
+**Senast uppdaterad:** 2026-05-13 (session-end efter F2-P8b)
+**HEAD:** `8c09191` (icke-deployad — tag-push väntar Klas-GO)
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 
 ---
 
-## Aktivt nu — F2-P8a komplett, P8b nästa
+## Aktivt nu — F2-P8b komplett, tag-push väntar Klas-GO
 
-### Levererat denna session (17 commits)
+### Levererat denna session (1 commit)
 
 | Commit | Innehåll |
 |---|---|
-| `0fc4b76` | feat(jobads): F2-P7 — JobAd-paginering med PagedResult (TD-56 stängd) |
-| `6bdce04` | docs(adr): ADR 0032 utkast — JobTech-integration |
-| `06ee2b3` | docs(adr): ADR 0032 → Accepted |
-| `c5aa089` | feat(jobads): F2-P8a — ExternalReference VO + JobAd.Import + EF migration |
-| `4bb91d8` | feat(migrate): F2-P8a.5 — CLI-mode-dispatch + Phase E (ADR 0033) |
-| `ff136ad` | feat(deploy): F2-P8a.5c — auto-trigga schema-task i deploy-dev.yml |
-| `0fe0ce6` | fix(migrate): Dockerfile Infrastructure-projekt-context |
-| `ad7988f` | fix(infra): ecs:DescribeTasks task-ARN-pattern |
-| `f69308f` | fix(migrate): Dockerfile aspnet-runtime |
-| `daab6ec` | fix(deploy): containerOverrides.command mode-arg |
-| `2c9232a` | fix(migrate): Dockerfile RDS-CA-bundle |
-| `b1f50bf` | feat(migrate): F2-P8a.5e bootstrap-mode + ADR 0034 |
-| `e228b7f` | refactor(infra): MigrationsOptionsFactory single source of truth (DRY) |
-| `baf901b` | fix(api): F2-P7 auth-gate + sort-default-explicit (review-fynd) |
-| `acc6ff3` | fix(migrate): Bootstrap re-fetch + extract types + password-local |
-| `bef983c` | fix(infra): EcsReadOurCluster cluster-condition |
-| `24a7135` | docs(tech-debt+adr): TD-13 utökas + TD-72/73/74 + ADR 0032 §8-amendment |
+| `8c09191` | feat(jobads): F2-P8b — JobTech Infrastructure + admin-trigger-endpoint |
 
 ### Granskningstrail
 
-- `docs/reviews/2026-05-12-f2-p7-p8-cto.md` — CTO-rond 1 (P7+P8 designval)
-- `docs/reviews/2026-05-12-f2-p7-p8a-aggregate.md` — 4 parallella reviewers + CTO-rond 4
-- `docs/sessions/2026-05-12-2110-f2-p7-p8a-bootstrap-aggregate-review.md` — session-log
+- `docs/sessions/2026-05-13-0600-f2-p8b-jobtech-infra.md` — session-log
+- Agent-rapporter inline (code-reviewer + security-auditor + dotnet-architect)
+- Tidigare session: `docs/sessions/2026-05-12-2110-f2-p7-p8a-bootstrap-aggregate-review.md`
+- `docs/reviews/2026-05-12-f2-p7-p8a-aggregate.md` — F2-P8a aggregate-review (lyfts in i denna session)
+
+### Leveranser
+
+| Område | Innehåll |
+|---|---|
+| **Application port** | `IJobSource` + `JobAdSnapshot`/`JobAdChange`/`JobAdUpsert`/`JobAdRemoval` (LSP-diskriminerad union) + `JobAdImportItem` |
+| **Infrastructure clients** | Refit-baserad `IJobTechSearchClient` (internal) + typed `IJobTechStreamClient` + `JobTechStreamClient` (NDJSON streaming + snapshot) |
+| **Sanering** | `JobTechPayloadSanitizer` pure static allowlist, default-deny per Saltzer/Schroeder 1975, recursive sanering (TD-73 punkt 1) |
+| **DI** | `AddJobSources`: Standard resilience (Search) + custom Polly-pipeline (Stream: RateLimiter → Retry → CB), process-statisk `FixedWindowRateLimiter(1, 1 min)` |
+| **Application command** | `SyncPlatsbankenSnapshotCommand` (IAdminRequest) + handler (bulk-fetch + in-memory split — race-skydd via DbUpdateException är P8c-scope per ADR 0032 §5) |
+| **Api-endpoint** | `POST /api/v1/admin/job-ads/sync/platsbanken` (AuthorizationPolicies.Admin) |
+| **GDPR-docs** | `docs/runbooks/gdpr-processing-register.md` skapad med JobTech-entry (TD-73 punkt 3) |
 
 ### ADRs
 
-- **ADR 0032** Accepted — JobTech-integration (+ §8-amendment för PII-stripping)
-- **ADR 0033** Accepted — Migrate CLI-mode-dispatch (+ amendment för auto-trigga)
-- **ADR 0034** Accepted — DB-role privilege-separation (Saltzer/Schroeder)
+- **ADR 0032** Accepted — JobTech-integration (P8a + P8b § levererade. §8-amendment punkt 1 + 3 levererade. Punkt 2 + 4 kvarstår för P8c)
+- **ADR 0033** Accepted — Migrate CLI-mode-dispatch (oförändrat)
+- **ADR 0034** Accepted — DB-role privilege-separation (oförändrat)
 
 ### TD-status
 
-- **TD-56** stängd (paginering)
-- **TD-72** (Minor, Trigger) — bootstrap auto-trigga vid Identity-schema-change
-- **TD-73** (Major, Fas 2 P8c-gating) — JobTech raw_payload PII-stripping + retention
-- **TD-74** (Minor, Fas 2 opportunistic) — strikta DML-GRANTs istället för GRANT ALL
-- **TD-13** utökas — `job_ads.raw_payload` tillagd i berörda-kolumner-listan
+- **TD-73** Major → progress note tillagt (punkt 1 + 3 levererade; punkt 2 + 4 kvarstår, trigger flyttat till P8c-start)
+- **TD-72** Minor — bootstrap auto-trigga (oförändrat)
+- **TD-74** Minor — strikta DML-GRANTs (oförändrat)
 
-Aktiva: 16 → 18 (TD-56 stängd, TD-72/73/74 lyfta).
+Aktiva oförändrade: 18.
 
-### AWS dev-state efter session
+### Reviewers INLINE (disciplin-fix från F2-P8a)
 
-- 10 EF-migrations applicerade på public-schema (InitialCreate till Fas2P8aJobAdExternalReference)
-- 2 Identity-migrations applicerade på identity-schema (InitialIdentity, AddAuthProviderToUser)
-- identity-schema skapad med jobbpilot_app GRANT USAGE/CREATE/ALL on tables
-- API + Worker live på `v0.2.1-dev`, smoke-test `HTTP 200` mot `/api/ready`
-- IAM policy `jobbpilot-github-actions-deploy-dev` version 5 (med `EcsRunMigrateTaskInDevCluster` + `EcsReadOurCluster.cluster-condition`)
+| Reviewer | Tidpunkt | Verdict |
+|---|---|---|
+| dotnet-architect | INNAN kod | Design-skiss approved. IJobSource → per-aggregate Application port. JobStream kräver separat RateLimiter (Polly custom pipeline) — implementerat |
+| code-reviewer | EFTER impl, INNAN commit | GO med villkor. 0 Blocker, 1 Major (ADR-acknowledged P8c-scope), 4 Minor — alla in-block-fixade |
+| security-auditor | EFTER impl, INNAN commit | APPROVED med villkor. 0 Critical, 0 GDPR-Blocker, 2 Major + 3 Minor — alla in-block-fixade |
+
+CTO-advisor inte invokerad — architect gav entydiga svar (per `feedback_cto_decides_multi_approach`).
 
 ### Tester (full svit grön)
 
-- Domain.UnitTests: 202 → **218** (+16)
-- Application.UnitTests: 249 → **258** (+9)
-- Architecture.Tests: 32 → **33** (+1 ListJobAdsQuery_returns_PagedResult)
-- Api.IntegrationTests: ~226+ (uppdaterade för auth-gate)
+- Domain.UnitTests: 218 (oförändrat)
+- Application.UnitTests: 258 → **270** (+12: sanitizer 8 + handler 4)
+- Architecture.Tests: 33 → **37** (+4: JobSourceLayerTests)
+- Api.IntegrationTests: 226+ → **234** (+6: admin auth/flow + WireMock resilience)
 - Migrate.UnitTests: 6 (oförändrat)
 
-### Sessions disciplinmissar fångade + fixade
+Totalt backend: ~765 tester gröna.
 
-1. Migrate-Dockerfile saknade transitiva Project-references → fixat
-2. IAM `ecs:DescribeTasks` saknade task-ARN-pattern → fixat
-3. Dockerfile runtime-image saknade ASP.NET-framework → fixat
-4. `containerOverrides.command` skickade hela kedjan istället för bara mode-arg → fixat
-5. Migrate-Dockerfile saknade RDS-CA-bundle → fixat
-6. Original copy-paste-fix för Identity-options-skew → DRY-refactor till `MigrationsOptionsFactory` (Klas-discipline-feedback)
-7. Reviewers inte invokerade inline → post-hoc audit + 4 fix-commits
+### Disciplinmissar fångade + fixade
 
-### Lärdomar
+1. NU1902 CVE — OpenTelemetry 1.14.0 → 1.15.3 (CentralPackageTransitivePinning)
+2. CA1848/CA1873 LoggerMessage warnings → `[LoggerMessage]` source-gen
+3. CA1822 Sanitizer-instance → pure static class + DI-borttagning
+4. CA1305 DateTime.ToString → CultureInfo.InvariantCulture
+5. CA1859 SanitizeObject return-type → JsonObject
+6. xUnit1051 CancellationToken → TestContext.Current.CancellationToken
+7. Sanitizer-test allowlist saknade `text` (nested description) → lagt till
 
-- **Web-search räddade scope** vid två tillfällen (Npgsql #1770 + AWS OIDC thumbprint)
-- **CTO-disciplin** vid multi-approach-val gav 4 separata CTO-ronder med tydliga beslut
-- **DRY > copy-paste** — Klas fångade `MigrationsOptionsFactory`-extraktion innan spaghetti-fix
-- **Auto-trigga schema-mode i CI** fångade F2-P0b-glömskan mekaniskt
-- **Bootstrap-mode-design** bevarar least-privilege permanent (ingen `CREATE ON DATABASE` på `jobbpilot_app`)
+### Klas-STOPP-flagga (CTO-rond 1 2026-05-12)
 
----
+Admin-endpoint exponerar synkron JobTech-call → verifiera resilience-config mot dev INNAN tag-push.
 
-## Nästa session — F2-P8b
+**Steg som väntar Klas-GO:**
 
-Per ADR 0032 leverans-plan: P8b — Infrastructure-leverans.
+1. Skapa tag `v0.2.2-dev` på commit `8c09191`
+2. Smoke-test admin-endpoint mot dev — POST `/api/v1/admin/job-ads/sync/platsbanken`
+3. Verifiera counts + att job_ads-tabellen får nya rader med External-ref + sanerad RawPayload
 
-### Scope
+### Pending operativt för Klas
 
-- `IJobTechSearchClient` via **Refit** (klassisk REST/JSON, BUILD.md §9.1)
-- `IJobTechStreamClient` typed-client (NDJSON long-polling + polymorft event-schema)
-- `PlatsbankenJobSource : IJobSource`
-- `Microsoft.Extensions.Http.Resilience` + `AddStandardResilienceHandler` (Polly v8, BUILD.md §9.1 semantik: 3 retry expo + CB 5/5min)
-- `JobTechOptions` (appsettings-binding) + `IOptions<T>`-pattern
-- Admin-trigger-endpoint `POST /api/v1/admin/job-ads/sync/platsbanken` (synkron snapshot för smoke-test)
-- WireMock-baserade integration-tester
-- **TD-73-arbete (blockerar P8c):** `JobTechPayloadSanitizer` + allowlist-design + 30d retention via Hangfire-job
-
-### Klas-STOPP-flagga (CTO-rond 1)
-
-Admin-endpoint exponerar synkron JobTech-call → verifiera resilience-config mot dev innan tag-push.
-
-### Pending operativt
-
-- (Inga blockerande från denna session) — dev-deploy är grön
-- TD-72 trigger om Identity-schema-migration läggs på roadmap för Fas 2-end
-- Bootstrap-task manuellt körd 2026-05-12 (engångs eller vid Identity-schema-change)
+- **JobTech-API-key registrering** på apirequest.jobtechdev.se — krävs INNAN admin-trigger fungerar mot riktig JobTech
+- (Valfritt) cost_anomaly_alert_email + SES email-verifiering
 
 ---
 
-## Tidigare session — F2-P3 + P4 + P6 komplett
+## Nästa session — F2-P8c (Hangfire)
 
-Föregående session (eftermiddag 2026-05-12) levererade Budget Actions
-terraform-modul (F2-P3), cost-recovery-runbook full utbyggnad (F2-P4),
-strict readiness-probe-split (F2-P6, TD-29 stängd). Alla Fas 2-prereqs
-avklarade.
+Per ADR 0032 §9 leverans-plan:
 
-Se session-log `docs/sessions/2026-05-12-1330-fas2-p3-p4-p6-prereqs-komplett.md`.
+- `SyncPlatsbankenStreamJob` (`*/10 * * * *`) — inkrementell update via `IJobSource.StreamChangesAsync`
+- `SyncPlatsbankenSnapshotJob` (`0 2 * * *`) — nattlig backfill
+- `UpsertExternalJobAdCommand` med `DbUpdateException`-catch-pattern (ADR 0032 §5)
+- Removal-handling via `JobAd.Archive` (ADR 0032 §6)
+- `JobAdsSyncedDomainEvent` audit-wire (ADR 0032 §8)
+- `PurgeStaleRawPayloadsJob` (`0 3 * * *`, 30d retention) — TD-73 punkt 2
+- `RawPayloadPurgedDomainEvent` audit-wire
+- TD-73 punkt 4 (right-to-erasure-cascade)
+
+Klas-STOPP-flagga: production-schedule = deploy-gränsande.
+
+---
+
+## Tidigare session — F2-P7 + P8a + bootstrap + aggregate-review
+
+Föregående session 2026-05-12 kväll levererade F2-P7 (JobAd-paginering, TD-56
+stängd) + F2-P8a (ExternalReference VO + JobAd.Import + EF migration) + F2-P8a.5
+(JobbPilot.Migrate CLI-mode-dispatch + Phase E bootstrap) + 4 post-hoc reviewers
++ 4 CTO-ronder. 17 commits, 3 nya ADRs (0032/0033/0034), 1 stängd TD (TD-56),
+3 nya TDs (72/73/74). Dev-deploy `v0.2.1-dev` grön.
+
+Se session-log `docs/sessions/2026-05-12-2110-f2-p7-p8a-bootstrap-aggregate-review.md`.

@@ -62,3 +62,31 @@ output "github_actions_deploy_dev_role_arn" {
   description = "ARN för dev-deploy-rollen. Sätts som GitHub Actions Secret AWS_DEPLOY_ROLE_ARN via `gh secret set AWS_DEPLOY_ROLE_ARN -R <owner>/<repo>` efter apply."
   value       = module.github_oidc.deploy_dev_role_arn
 }
+
+# ---------------------------------------------------------------------------
+# Vercel DNS (frontend-host) — verifiera mot Vercel Domains-vy efter apply
+# ---------------------------------------------------------------------------
+
+output "vercel_dns_records" {
+  description = "Vercel DNS-records för jobbpilot.se + www. Verifiera mot Vercel Domains-vy att 'Invalid Configuration' försvinner efter DNS-propagering (5-30 min)."
+  value = {
+    apex_a = {
+      name  = aws_route53_record.vercel_apex.name
+      type  = aws_route53_record.vercel_apex.type
+      value = aws_route53_record.vercel_apex.records
+      ttl   = aws_route53_record.vercel_apex.ttl
+    }
+    www_cname = {
+      name  = aws_route53_record.vercel_www.name
+      type  = aws_route53_record.vercel_www.type
+      value = aws_route53_record.vercel_www.records
+      ttl   = aws_route53_record.vercel_www.ttl
+    }
+    apex_caa = {
+      name  = aws_route53_record.caa.name
+      type  = aws_route53_record.caa.type
+      value = aws_route53_record.caa.records
+      ttl   = aws_route53_record.caa.ttl
+    }
+  }
+}

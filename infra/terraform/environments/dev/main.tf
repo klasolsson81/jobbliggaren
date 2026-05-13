@@ -182,6 +182,24 @@ module "cloudwatch_security_alarms" {
   tags = var.common_tags
 }
 
+# CloudWatch ops-alarms — ADR 0036 (v0.2-prod-launch-checklist §9.1+§9.2).
+# Metric filters + SNS-alarms för:
+#   - event_name=job_event_failure (SyncPlatsbankenStreamJob.LogEventFailed, EventId 5303)
+#   - event_name=audit_write_failure (SystemEventAuditor.LogAuditFailure, EventId 5602)
+#   - worker-log-pipeline-health (cohesion-paritet med secops-modul)
+# BUILD.md §14.4 ("JobTech sync misslyckas 3 gånger i rad") + ADR 0035 §6 alarm-wire.
+module "cloudwatch_ops_alarms" {
+  source = "../../modules/cloudwatch_ops_alarms"
+
+  name_prefix           = var.name_prefix
+  worker_log_group_name = module.cloudwatch_logs.log_group_names["worker"]
+  api_log_group_name    = module.cloudwatch_logs.log_group_names["api"]
+  kms_key_id            = data.aws_kms_alias.master.target_key_arn
+  alert_email           = var.ops_alert_email
+
+  tags = var.common_tags
+}
+
 # Budget Actions — F2-P3 / ADR 0005 second amendment 2026-05-12
 # Vid $50/mån-threshold-breach (100% ACTUAL) bifogas JobbPilotBedrockDeny
 # på api-task-role → blockerar all Bedrock-invocation via explicit Deny.

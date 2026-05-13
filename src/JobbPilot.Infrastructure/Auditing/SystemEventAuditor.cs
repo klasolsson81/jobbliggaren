@@ -80,7 +80,9 @@ public sealed partial class SystemEventAuditor(
         Message = "SystemEventAuditor: idempotent skip — audit-rad redan finns för EventType={EventType}, AggregateId={AggregateId}.")]
     private static partial void LogIdempotentSkip(ILogger logger, string eventType, Guid aggregateId);
 
+    // event_name=-konvention per ADR 0031 (FailedAccessLogger) + ADR 0036
+    // (cloudwatch_ops_alarms-modul matchar metric filter mot detta prefix).
     [LoggerMessage(EventId = 5602, Level = LogLevel.Critical,
-        Message = "SystemEventAuditor: kunde inte skriva audit-rad för EventType={EventType}, AggregateId={AggregateId}. GDPR Art. 30 record-of-processing kan vara påverkat.")]
+        Message = "event_name=audit_write_failure event_type={EventType} aggregate_id={AggregateId} — GDPR Art. 30 record-of-processing kan vara påverkat.")]
     private static partial void LogAuditFailure(ILogger logger, Exception exception, string eventType, Guid aggregateId);
 }

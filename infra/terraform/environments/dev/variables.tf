@@ -202,3 +202,13 @@ variable "failed_access_alarm_threshold" {
   type        = number
   default     = 50
 }
+
+# ---------------------------------------------------------------------------
+# ADR 0036 — Ops anomaly detection (cohesion-pendant till ADR 0031/TD-68)
+# ---------------------------------------------------------------------------
+
+variable "ops_alert_email" {
+  description = "Email-adress för SNS-subscription av ops-anomaly-alarms (jobtech-sync-failures, auditor-write-failures, worker-log-pipeline-health). Separat variabel från secops_alert_email per ISP (Martin 2017 kap. 10) — ops-on-call och security-on-call är distinkta triage-flöden. Kan vara samma adress i dev-tfvars utan att låsa designen. Tom sträng = ingen subscription skapas."
+  type        = string
+  default     = ""
+}

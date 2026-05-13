@@ -1,22 +1,38 @@
 # Current work — JobbPilot
 
-**Status:** **A3-batch (ADR 0036) APPLYAD på dev 2026-05-13. v0.2-prod-launch-checklist §9.1+§9.2+§9.3 LEVERERADE. 3 CloudWatch-alarms live (jobtech-sync, auditor-write, worker-log-pipeline-health) i OK-state. RDS backup retention 7d→14d (1m21s modify, ingen disruption). ADR 0036 + Worker LoggerMessage event_name=-konvention + cloudwatch_ops_alarms-modul levererade. TD-79 lyft för deploy-pipeline-Terraform-coexistens (Fas 2 pipeline-hygien). `v0.2`-tag används INTE denna fas — prod-stack-session defererad till Fas 7-förberedelse.**
-**Senast uppdaterad:** 2026-05-13 (A3 apply LIVE-verifierad)
-**HEAD:** `896dcf1` + docs-uppdateringar pending
-**Deploy:** `v0.2.4-dev` live på `https://dev.jobbpilot.se/api/ready` (200 OK) + 3 nya CloudWatch-alarms i OK-state
+**Status:** **D+A-session pågående 2026-05-13. Del D LEVERERAD: TD-79 STÄNGD — `lifecycle.ignore_changes = [task_definition]` på `api`+`worker` ECS-services applied; post-apply-plan visar 0 task-def-service-drift; worker fortfarande på `:8` (NOT rolled back :8→:1). Bonus: AdminBootstrap-env-var-ägarskap löst som biverkan (Terraform äger task-def-content, CI/CD äger revision). Del A (F2-P9 search/filter, TD-70) pågår.**
+**Senast uppdaterad:** 2026-05-13 (Del D apply LIVE-verifierad, TD-79 stängd)
+**HEAD:** `5a32962` + Del-D-commit pending push
+**Deploy:** `v0.2.4-dev` live på `https://dev.jobbpilot.se/api/ready` (200 OK) + 3 CloudWatch-alarms i OK-state + ECS-services orörda av apply
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 **Prod-checklist:** `docs/runbooks/v0.2-prod-launch-checklist.md`
 
 ---
 
-## Aktivt nu — v0.2-prod-tag-readiness, pending Klas-GO för in-block-fix-batch
+## Aktivt nu — D+A-session (TD-79 + F2-P9 TD-70)
 
-### Levererat denna session (docs-only, 1 commit kommande)
+### Levererat Del D (TD-79 pipeline-hygien)
 
 | Commit | Innehåll |
 |---|---|
-| (pending push) | docs: v0.2-prod-launch-checklist + TD-77 + TD-78 + session-log |
+| (pending push) | chore(infra): lifecycle.ignore_changes=[task_definition] på ECS api+worker services (TD-79) |
+
+**Plan-output post-fix:**
+
+| Resurs | Pre-fix plan | Post-fix plan |
+|---|---|---|
+| `aws_ecs_service.api.task_definition` | ~ update | ❌ no-op |
+| `aws_ecs_service.worker.task_definition` | ~ :8 → :1 (rollback) | ❌ no-op |
+| `aws_ecs_task_definition.api` | -/+ replace | ✓ apply genomförd (revision :13 ny, service ignorerar) |
+| `aws_db_parameter_group.this` | ~ apply_method cosmetic | ~ kvarstår (pre-existing, ej TD-79-scope) |
+
+**Live-state efter apply:**
+- `jobbpilot-dev-api`: TaskDef `:13` (CI/CD-ägd revision behållen)
+- `jobbpilot-dev-worker`: TaskDef `:8` (NOT rolled back to `:1`)
+- `https://dev.jobbpilot.se/api/ready` → HTTP 200 OK
+- 3 CloudWatch-alarms fortsatt i OK-state
+- AdminBootstrap__InitialAdminEmail nu Terraform-ägd i task-def-content (env-var-ägarskap löst)
 
 ### CTO-rond 2026-05-13 (v0.2-prod-tag-readiness) — 5 beslut
 

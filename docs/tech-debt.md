@@ -29,7 +29,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-76 | GIN-index på raw_payload jsonb (latens-trigger) | Minor | Trigger | Performance |
 | TD-77 | Backend 5xx-rate-alarm (1% över 5 min) | Minor | 8 (Klass-launch) | Observability/SLA |
 | TD-78 | DB CPU > 80% i 10 min-alarm | Minor | 8 (Klass-launch) | Observability/Capacity |
-| TD-79 | ECS-service.task_definition strukturell drift mellan Terraform och deploy-dev.yml | Minor | 2 (pipeline-hygien) | Infra/IaC-hygien |
 | TD-62 | OpenAPI-codegen som supersession av manuella Zod-DTO-schemas | Minor | 2+ | Architecture/Tooling |
 | TD-63 | ActionResult kind-union för writes (ADR 0030-symmetri) | Minor | 2+ | Architecture |
 | TD-64 | i18n-migration av inline svenska error-strängar | Minor | Trigger | i18n |
@@ -877,85 +876,6 @@ EXPLAIN ANALYZE-verifiering före och efter (mätbar speedup på admin-endpoint)
 
 ---
 
-## TD-79: ECS-service.task_definition strukturell drift mellan Terraform och deploy-dev.yml
-**Kategori:** Infra / IaC-hygien
-**Severity:** Minor (operativt — drift är synlig och förutsägbar, ingen säkerhets-/data-risk)
-**Fas:** 2 (pipeline-hygien — separat ops-pillar från observability)
-**Källa:** senior-cto-advisor 2026-05-13 rond 4 (terraform plan-discovery under A3-apply per ADR 0036)
-
-`deploy-dev.yml` (GitHub Actions, tag-baserad deploy per BUILD.md §15.3)
-uppdaterar `ECS-service.task_definition` via `aws ecs update-service
---task-definition :NEWREV` utanför Terraform vid varje `v*-dev`-tag.
-Resultat: state-divergens växer per deploy.
-
-**Verifierat i plan-output 2026-05-13 (HEAD `896dcf1`):**
-
-- `module.ecs.aws_ecs_service.worker.task_definition: :8 → :1` (Terraform vill
-  rolla tillbaka till initial deploy-version)
-- `module.ecs.aws_ecs_task_definition.api` MUST BE REPLACED (cosmetic JSON-
-  cleanup + AdminBootstrap-env-var-synk)
-
-Worker-rollback :8 → :1 är **potentiellt destruktivt** — skulle förlora
-live-verifierade features (TD-73 audit-wire, ADR 0035 system-events, JobTech
-v2-integration) tills nästa GitHub Actions-deploy.
-
-**Risk i Fas 2:** Mellan-hög vid framtida `terraform apply` mot dev/prod-env.
-Mitigerat genom targeted apply-mönster (ADR 0036 A3-leverans) men det är
-arbete varje gång drift identifieras.
-
-**Föreslagen åtgärd:**
-
-Lägg till `lifecycle { ignore_changes = [task_definition] }` på:
-
-```hcl
-# infra/terraform/modules/ecs/main.tf (eller env-konsumption)
-resource "aws_ecs_service" "api" {
-  # ...
-  lifecycle {
-    ignore_changes = [task_definition]
-  }
-}
-
-resource "aws_ecs_service" "worker" {
-  # ...
-  lifecycle {
-    ignore_changes = [task_definition]
-  }
-}
-```
-
-Detta är HashiCorp officiellt rekommenderat pattern för Terraform + CI/CD-
-pipeline-coexistens
-([dokumentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle)):
-Terraform sätter `task_definition` vid initial create; CI/CD-pipeline äger
-uppdateringen därefter.
-
-**Verifiering före apply:**
-
-1. Verifiera att initial deploy fortsatt fungerar (Terraform sätter
-   `task_definition` vid create, ignore_changes hindrar inte create)
-2. Kontrollera att outputs som beror på task_definition (om några) inte
-   bryter
-3. Uppdatera `deploy-dev.yml` om det förutsätter Terraform-state-koppling
-   (inget tyder på det idag)
-
-**Beroenden:** Inga. Targeted refactor av två lifecycle-block + ev.
-verifiering att `deploy-dev.yml`-flödet är oförändrat.
-
-**Scope-uppskattning:** ~1-2h CC-tid (lifecycle-block + smoketest + commit).
-
-**Trigger:** Nästa `terraform plan`-cykel där drift skapar friktion, eller
-opportunistiskt vid annan infra-touch. Bör fixas innan Fas 7-prod-stack-
-session — där har vi inte targeted-apply-luxen för en clean första deploy.
-
-**Cross-refs:**
-
-- ADR 0036 (A3-apply 2026-05-13 — drift first observed)
-- senior-cto-advisor 2026-05-13 rond 4 Q3 (TD-lyftning godkänd mot §9.6)
-- HashiCorp `lifecycle.ignore_changes`-pattern
-
----
-
 ## TD-74: Strikta DML-GRANTs på public + identity istället för GRANT ALL
 **Kategori:** Säkerhet / Least Privilege
 **Severity:** Minor
@@ -1042,6 +962,7 @@ ADR-cross-references och granskningsbevis.
 | TD-29 | Strict readiness-probe — separera liveness från readiness | 2026-05-12 | F2-P6 (6 nya integration-tester) |
 | TD-56 | ListJobAdsQuery full paginering | 2026-05-12 | F2-P7 (TD-56 stängd, +9 unit + +3 integration-tester) |
 | TD-73 | JobTech raw_payload PII-stripping + retention + audit-wire + right-to-erasure | 2026-05-13 | TD-73 prod-gating-batch (ADR 0035 + ADR 0032 amendment 2026-05-13) |
+| TD-79 | ECS-service.task_definition strukturell drift mellan Terraform och deploy-dev.yml | 2026-05-13 | D+A-session (`lifecycle.ignore_changes` på api+worker services) |
 
 ---
 

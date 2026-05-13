@@ -267,7 +267,12 @@ resource "aws_ecs_service" "api" {
   lifecycle {
     # Auto-scaling kan ändra desired_count efter initial deploy. Ignorera
     # drift så Terraform inte tar tillbaka skalnings-beslut.
-    ignore_changes = [desired_count]
+    #
+    # task_definition ägs av deploy-dev.yml (`aws ecs update-service
+    # --task-definition :NEWREV`) per BUILD.md §15.3. Terraform sätter
+    # initial revision vid create; CI/CD-pipeline äger uppdateringen
+    # därefter. Pattern verifierat mot HashiCorp officiella docs (TD-79).
+    ignore_changes = [desired_count, task_definition]
   }
 }
 
@@ -309,7 +314,8 @@ resource "aws_ecs_service" "worker" {
   })
 
   lifecycle {
-    ignore_changes = [desired_count]
+    # Se api-service lifecycle ovan för motivering. Samma pattern (TD-79).
+    ignore_changes = [desired_count, task_definition]
   }
 }
 

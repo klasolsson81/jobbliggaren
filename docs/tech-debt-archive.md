@@ -2127,3 +2127,69 @@ JobTech-mapping görs i P8 via Refit-attributes.
 
 ### Operativ konsekvens
 v0.2-prod-tag är inte längre gated på TD-73. Sanitizer + retention + audit-wire + right-to-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.
+
+---
+
+## TD-79: ECS-service.task_definition strukturell drift mellan Terraform och deploy-dev.yml ✓ STÄNGD 2026-05-13
+
+**Kategori:** Infra / IaC-hygien
+**Severity:** Minor (operativt — drift är synlig och förutsägbar, ingen säkerhets-/data-risk)
+**Fas:** 2 (pipeline-hygien — separat ops-pillar från observability)
+**Källa:** senior-cto-advisor 2026-05-13 rond 4 (terraform plan-discovery under A3-apply per ADR 0036)
+**Stängd:** 2026-05-13 — D+A-session, in-block-fix per CLAUDE.md §9.6
+
+`deploy-dev.yml` (GitHub Actions, tag-baserad deploy per BUILD.md §15.3)
+uppdaterar `ECS-service.task_definition` via `aws ecs update-service
+--task-definition :NEWREV` utanför Terraform vid varje `v*-dev`-tag.
+Resultat: state-divergens växer per deploy.
+
+**Verifierat i plan-output 2026-05-13 (HEAD `896dcf1`):**
+
+- `module.ecs.aws_ecs_service.worker.task_definition: :8 → :1` (Terraform vill
+  rolla tillbaka till initial deploy-version)
+- `module.ecs.aws_ecs_task_definition.api` MUST BE REPLACED (cosmetic JSON-
+  cleanup + AdminBootstrap-env-var-synk)
+
+Worker-rollback :8 → :1 var **potentiellt destruktivt** — skulle ha förlorat
+live-verifierade features (TD-73 audit-wire, ADR 0035 system-events, JobTech
+v2-integration) tills nästa GitHub Actions-deploy.
+
+**Leverans (TD-79-fix):**
+
+`lifecycle { ignore_changes = [desired_count, task_definition] }` tillagt på:
+
+- `module.ecs.aws_ecs_service.api`
+- `module.ecs.aws_ecs_service.worker`
+
+Pattern verifierat mot HashiCorp officiella docs ([aws_ecs_service registry](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_service)
++ [lifecycle meta-argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle)).
+Terraform sätter `task_definition` vid initial create; CI/CD-pipeline äger
+uppdateringen därefter.
+
+**Post-apply-verifiering (2026-05-13):**
+
+| Resurs | Pre-fix plan | Post-fix plan |
+|---|---|---|
+| `aws_ecs_service.api.task_definition` | ~ update | ❌ no-op |
+| `aws_ecs_service.worker.task_definition` | ~ :8 → :1 (rollback) | ❌ no-op |
+| `aws_ecs_task_definition.api` | -/+ replace (cosmetic + env-var) | ✓ apply genomförd (revision :13 ny, service ignorerar) |
+| `aws_db_parameter_group.this` | ~ apply_method cosmetic | ~ kvarstår (pre-existing, ej TD-79-scope) |
+
+**Live-state efter apply:**
+- `jobbpilot-dev-api`: TaskDef `:13` (CI/CD-ägd revision behållen)
+- `jobbpilot-dev-worker`: TaskDef `:8` (NOT rolled back to `:1` — bevis att TD-79-fix fungerar)
+- `https://dev.jobbpilot.se/api/ready` → HTTP 200 OK efter apply
+- 3 CloudWatch-alarms fortsatt OK-state
+
+**Bonus-effekt — AdminBootstrap-env-var-ägarskap löst:**
+Task-def-resursen replaceras (ny revision skapas av Terraform med
+`AdminBootstrap__InitialAdminEmail` synkad in) men service ignorerar
+`task_definition` → Terraform äger task-def-content, CI/CD äger
+revision-deployment. Pending operativt punkt borta.
+
+**Cross-refs:**
+
+- ADR 0036 (A3-apply 2026-05-13 — drift first observed)
+- senior-cto-advisor 2026-05-13 rond 4 Q3 (TD-lyftning godkänd mot §9.6)
+- HashiCorp `lifecycle.ignore_changes`-pattern
+

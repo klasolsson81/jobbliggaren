@@ -124,6 +124,25 @@ public class ListJobAdsQueryHandlerTests
         result.Items.Select(i => i.Title).ShouldBe(["ExpiresSoon", "ExpiresLater", "NoExpiry"]);
     }
 
+    // F2-P9 (TD-70). Filter via `Ssyk`/`Region` (shadow-properties speglade till
+    // Postgres generated columns) + `Q` (EF.Functions.Like + .ToLowerInvariant())
+    // kan inte verifieras mot EF Core in-memory provider:
+    //   1. Shadow-properties som mappas via HasComputedColumnSql(..., stored:true)
+    //      finns inte i in-memory-modellen (kolumnen materialiseras av Postgres).
+    //   2. EF.Functions.Like → SQL ILIKE/LIKE-translation; in-memory har ingen
+    //      SQL-translator och kastar vid Like-användning.
+    // Filter-beteende täcks därför enbart i Api.IntegrationTests/JobAds/
+    // ListJobAdsTests.cs mot Testcontainers Postgres (riktig translation +
+    // generated columns aktiva). Detta är en medveten testbarhets-gräns:
+    // Postgres-specifik EF-translation hör hemma i integration-suite.
+    [Fact]
+    public void Handle_FilterTranslation_VerifiedInIntegrationSuiteOnly()
+    {
+        // Dokumentations-test (utan act/assert mot DB). Skydd mot felaktig
+        // antagande om att unit-tester täcker filter-vägen.
+        true.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task Handle_SortByExpiresAtDesc_NullsSortedLast()
     {

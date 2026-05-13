@@ -129,6 +129,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", "60");
 
         // Default öppen registrering i integration-tester. Kill-switch testas
         // isolerat av ClosedRegistrationsApiFactory.
@@ -154,6 +156,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);

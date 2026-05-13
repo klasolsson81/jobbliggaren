@@ -1,22 +1,36 @@
 # Current work — JobbPilot
 
-**Status:** **D+A-session pågående 2026-05-13. Del D LEVERERAD: TD-79 STÄNGD — `lifecycle.ignore_changes = [task_definition]` på `api`+`worker` ECS-services applied; post-apply-plan visar 0 task-def-service-drift; worker fortfarande på `:8` (NOT rolled back :8→:1). Bonus: AdminBootstrap-env-var-ägarskap löst som biverkan (Terraform äger task-def-content, CI/CD äger revision). Del A (F2-P9 search/filter, TD-70) pågår.**
-**Senast uppdaterad:** 2026-05-13 (Del D apply LIVE-verifierad, TD-79 stängd)
-**HEAD:** `5a32962` + Del-D-commit pending push
-**Deploy:** `v0.2.4-dev` live på `https://dev.jobbpilot.se/api/ready` (200 OK) + 3 CloudWatch-alarms i OK-state + ECS-services orörda av apply
+**Status:** **D+A-session KOMPLETT 2026-05-13. TD-79 STÄNGD (Del D — `lifecycle.ignore_changes = [task_definition]` applied). TD-70 STÄNGD (Del A — F2-P9 search/filter-yta `?ssyk&?region&?q` levererad med Postgres generated columns + ListReadPolicy rate-limit). Full svit grön 915 backend-tester (+45 nya). 2 commits — Del D pushed `94ec84a`, Del A pending push. Klas-GO behövs för v0.2.5-dev tag-push (deploy-dev.yml automigrate).**
+**Senast uppdaterad:** 2026-05-13 (D+A-session komplett, både TD-79 + TD-70 stängda)
+**HEAD:** `94ec84a` (Del D pushed) + Del-A-commit pending
+**Deploy:** `v0.2.4-dev` fortsatt live; v0.2.5-dev tag-push pending Klas-GO
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva) + `docs/tech-debt-archive.md` (stängda)
 **Prod-checklist:** `docs/runbooks/v0.2-prod-launch-checklist.md`
 
 ---
 
-## Aktivt nu — D+A-session (TD-79 + F2-P9 TD-70)
+## Aktivt nu — D+A-session KOMPLETT (TD-79 + TD-70 stängda)
+
+### Levererat Del A (TD-70 — F2-P9 search/filter)
+
+| Commit | Innehåll |
+|---|---|
+| (pending push) | feat(jobads): F2-P9 search/filter-yta ?ssyk&?region&?q + ListReadPolicy rate-limit (TD-70) |
+
+**Endpoint:** `GET /api/v1/job-ads?ssyk=<concept-id>&region=<concept-id>&q=<text>` (auth-gated + rate-limited 60/min per UserId)
+
+**CTO-rond:** 11 entydiga beslut (Q1-Q11) + 1 follow-up-triage av security-auditor Major (in-block-rate-limit-fix).
+
+**Reviewers:** dotnet-architect → senior-cto-advisor → db-migration-writer → test-writer → security-auditor (Major: rate-limit → CTO-triage in-block) → senior-cto-advisor (rond 2) → code-reviewer APPROVED 0/0/2/2.
+
+**Tests:** Domain 225 + Application **354** (+31) + Architecture 50 + Api **254** (+14) + Worker 26 + Migrate 6 = **915 grönt (+45 nya)**.
 
 ### Levererat Del D (TD-79 pipeline-hygien)
 
 | Commit | Innehåll |
 |---|---|
-| (pending push) | chore(infra): lifecycle.ignore_changes=[task_definition] på ECS api+worker services (TD-79) |
+| `94ec84a` | chore(infra): lifecycle.ignore_changes=[task_definition] på ECS api+worker services (TD-79) |
 
 **Plan-output post-fix:**
 

@@ -64,6 +64,21 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
                 .HasDatabaseName("ix_job_ads_external_source_external_id");
         });
 
+        // F2-P9 (TD-70, CTO-rond 2026-05-13 Q2-C): shadow properties som speglar
+        // Postgres generated columns. Värdena härleds STORED från raw_payload
+        // av PostgreSQL → drift omöjlig, ingen Domain-koppling till JobTech-
+        // taxonomi (Evans 2003 §14 Anti-Corruption Layer). Indexes (partial,
+        // WHERE … IS NOT NULL) skapas i migration F2P9JobAdSearchColumns.
+        // LINQ-referens: EF.Property<string?>(j, "SsykConceptId") /
+        // EF.Property<string?>(j, "RegionConceptId").
+        builder.Property<string?>("SsykConceptId")
+            .HasColumnName("ssyk_concept_id")
+            .HasComputedColumnSql("raw_payload->'occupation'->>'concept_id'", stored: true);
+
+        builder.Property<string?>("RegionConceptId")
+            .HasColumnName("region_concept_id")
+            .HasComputedColumnSql("raw_payload->'workplace_address'->>'region_concept_id'", stored: true);
+
         builder.HasQueryFilter(j => j.DeletedAt == null);
 
         builder.Ignore(j => j.DomainEvents);

@@ -2193,3 +2193,83 @@ revision-deployment. Pending operativt punkt borta.
 - senior-cto-advisor 2026-05-13 rond 4 Q3 (TD-lyftning godkänd mot §9.6)
 - HashiCorp `lifecycle.ignore_changes`-pattern
 
+---
+
+## TD-70: Search/filter-yta för JobAd-katalog (`?ssyk&?region&?q`) ✓ STÄNGD 2026-05-13
+
+**Kategori:** Feature / API
+**Severity:** Major (Fas 2 — userfacing search)
+**Källa:** TD-56 stängning + ADR 0032 "Out of scope" 2026-05-12 (search/filter separat efter P7+P8)
+**Stängd:** 2026-05-13 — F2-P9 D+A-batch
+
+Utöka `GET /api/v1/job-ads` (auth-gated per ADR 0005) med:
+- `?ssyk=<concept-id>` — JobTech occupation-concept-id filter
+- `?region=<concept-id>` — JobTech location-concept-id filter
+- `?q=<text>` — fritext-sökning på title+description
+- Befintliga `?page`, `?pageSize`, `?sortBy` bibehållna
+
+**Leverans (F2-P9):**
+
+| Område | Innehåll |
+|---|---|
+| **CTO-rond (Q1-Q11)** | senior-cto-advisor 11 entydiga beslut mot principer (Beck YAGNI, Evans ACL, Martin REP, Knuth, OWASP API4:2023). 0 Klas-STOPP behövdes. |
+| **Domain** | Oförändrad — Q1=B raw `string?` filter-params, ingen JobTech-taxonomi i Domain (Evans 2003 §14 ACL) |
+| **Migration** | `F2P9JobAdSearchColumns` (`20260513111555_*`) — Postgres generated columns `ssyk_concept_id` + `region_concept_id` STORED + partial B-tree-index. Drift omöjlig (read-only). |
+| **EF-config** | `JobAdConfiguration` shadow-properties via `HasComputedColumnSql(..., stored: true)` |
+| **Application** | `ListJobAdsQuery` utvidgad med `Ssyk/Region/Q` (Q4=A optional params, OCP), validator regex `^[A-Za-z0-9_-]{1,32}$` + Q `MinLength(2).MaxLength(100)`, handler-filter via `EF.Property<string?>(j, "SsykConceptId")` + `EF.Functions.Like(.ToLower(), pattern)` |
+| **Endpoint** | `RequireRateLimiting(ListReadPolicy)` på GET-routes (per CTO post-CTO-triage av security-auditor Major-fynd) |
+| **Rate-limiting** | Ny `ListReadPolicy` (60/min per UserId-claim) — generisk för list/search-yta (Martin 2017 §13 REP). Skydd mot multi-query-DoS från komprometterat konto (OWASP API4:2023). |
+| **Tester** | Validator: 31 nya cases (regex + length + null-bypass). Handler: 1 doc-test (filter testas integration-side). Integration: 13 filter-tester + 1 429-rate-limit-test mot dedikerad `ListReadRateLimitApiFactory` |
+
+**Reviewers INLINE (CLAUDE.md §9.2):**
+
+| Reviewer | Tidpunkt | Verdict |
+|---|---|---|
+| dotnet-architect | INNAN kod | Design-skiss, ~10 multi-approach → CTO |
+| senior-cto-advisor | EFTER architect | 11 beslut entydigt mot principer. 0 Klas-STOPP |
+| db-migration-writer | UNDER impl | Migration genererad (raw SQL → snapshot-sync till EF-fluent) |
+| test-writer | EFTER impl | 31 validator + 13 integration + 1 doc-test |
+| security-auditor | EFTER tests | APPROVED-WITH-CONDITIONS — 1 Major (rate-limit) → CTO-triage → in-block-fix |
+| senior-cto-advisor (rond 2) | Triage auditor-Major | In-block-fix entydigt mot CLAUDE.md §9.6, OWASP API4. 0 Klas-STOPP. |
+| code-reviewer | EFTER impl, INNAN commit | APPROVED. 0/0/2/2 (Minor: doc-test pattern, validation-meddelande svensk-format). Approve som-är. |
+
+**Tester (full svit grön):**
+
+- Domain.UnitTests: 225 (oförändrat)
+- Application.UnitTests: 323 → **354** (+31)
+- Architecture.Tests: 50 (oförändrat)
+- Api.IntegrationTests: 240 → **254** (+14: 13 filter + 1 rate-limit)
+- Worker.IntegrationTests: 26 (oförändrat)
+- Migrate.UnitTests: 6 (oförändrat)
+
+**Totalt backend: 870 → 915 grönt (+45 nya).**
+
+**Web-search-källor (CLAUDE.md §9.5, verifierade 2026-05-13):**
+
+- [JobTech JobSearch API v2](https://jobtechdev.se/en/components/jobsearch) — `occupation-concept-id`, `location-concept-id` hierarkiska taxonomi-strängar
+- [Npgsql EF Core Full Text Search](https://www.npgsql.org/efcore/mapping/full-text-search.html) — `ToTsVector("swedish", ...).Matches(...)` för framtida tsvector-migration
+- [PostgreSQL Generated Columns §5.3](https://www.postgresql.org/docs/current/ddl-generated-columns.html) — STORED-typ + indexerbar
+- [Microsoft Learn — EF Core Computed Columns](https://learn.microsoft.com/en-us/ef/core/modeling/generated-properties) — `HasComputedColumnSql(stored: true)`
+- [OWASP API Security Top 10 2023 — API4](https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/) — search/list-endpoints + wildcard-matching DoS
+
+**TD-trigger-kandidater (lyfts EJ — CC pressade mot §9.6 vid CTO-rond):**
+
+- Micro-ADR-amendment 0032 §10 "Derived columns från raw_payload" (om pattern återanvänds)
+- tsvector + GIN för fulltext-search (trigger: Fas 3 UX-research för stemming ELLER prod-latens >100ms)
+- `JobAdSearchIndex` CQRS read-model (trigger: >50k rader eller skriv/läs-skalning divergerar)
+- DTO-utvidgning med Ssyk/Region per rad (trigger: UX visar behov)
+- JobTech v2 proxy hybrid-search (Fas 3 dual-source-UX)
+- Micro-ADR "när krävs Application-port för EF.Functions?" (om TD-73-precedens vs Q6-A behöver formaliseras)
+
+**Cross-refs:**
+
+- ADR 0032 (JobTech-integration + "Out of scope" TD-70-källa)
+- ADR 0005 (auth-gated JobAd-katalog)
+- TD-56 (paginering — föregående batch, F2-P7)
+- senior-cto-advisor 2026-05-13 (Q1-Q11 + rate-limit-triage)
+- security-auditor 2026-05-13 (Major + CTO-triage)
+- OWASP API4:2023 Unrestricted Resource Consumption
+
+**Operativ konsekvens:** v0.2-prod-tag är inte längre gated på TD-70. JobAd-katalog har search/filter-yta för end-users (frontend integrering i v0.2.x-patch).
+
+

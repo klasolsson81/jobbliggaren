@@ -13,16 +13,16 @@ using Testcontainers.Redis;
 namespace JobbPilot.Api.IntegrationTests.RateLimiting;
 
 /// <summary>
-/// Custom factory som <strong>inte</strong> override:ar rate-limit-policies via
-/// env-vars (TD-21 Sec-Major-2). Används för att verifiera att 429-respons
-/// faktiskt returneras vid PermitLimit-överskridning. Reguljär <c>ApiFactory</c>
-/// höjer IP-policies till 10 000/min så övriga tester inte krockar — denna
-/// factory använder default-värden (20/min auth-write, 30/min auth-loose).
+/// Dedikerad factory för ListReadRateLimitTests. Behöver:
+/// - Aggressiv ListRead (3/60s) för test-snabbhet
+/// - Höjd AuthWrite (10000/min) så registrerings-flödet inte krockar med
+///   StrictRateLimitApiFactory:s AuthWriteRateLimitTests-budget
 ///
-/// Egen Postgres + Redis Testcontainer-instans → ~16 s cold-start. Acceptabelt
-/// för en isolerad rate-limit-test-suite.
+/// Egen Postgres + Redis Testcontainer (cold-start ~16s) — acceptabelt för
+/// isolerad test-flöde. Per CTO-rond 2026-05-13 F2-P9 + security-auditor
+/// Major-fynd.
 /// </summary>
-public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
@@ -33,18 +33,17 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
 
-    public StrictRateLimitApiFactory()
+    public ListReadRateLimitApiFactory()
     {
         var rsa = RSA.Create(2048);
-        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-strict-rl-private-{Guid.NewGuid()}.pem");
-        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-strict-rl-public-{Guid.NewGuid()}.pem");
+        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-listread-rl-private-{Guid.NewGuid()}.pem");
+        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbpilot-listread-rl-public-{Guid.NewGuid()}.pem");
         File.WriteAllText(_privateKeyPath, rsa.ExportRSAPrivateKeyPem());
         File.WriteAllText(_publicKeyPath, rsa.ExportSubjectPublicKeyInfoPem());
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Tvinga Development-env explicit (samma rationale som ApiFactory).
         builder.UseEnvironment("Development");
 
         builder.ConfigureServices(services =>
@@ -82,10 +81,6 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         _postgresCs = _postgres.GetConnectionString();
         _redisCs = _redis.GetConnectionString();
 
-        // ASPNETCORE_ENVIRONMENT + ConnectionStrings sätts FÖRE Services-access
-        // (samma rationale som ApiFactory — IConnectionMultiplexer registreras
-        // med string captured vid registration-time, ConfigureServices replacar
-        // bara IDistributedCache + DbContexts).
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
@@ -93,14 +88,16 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
 
-        // VIKTIGT: clear:a ev. ApiFactory-overlays som lever i samma process —
-        // strikt-factoryn ska se default-värden i RateLimitingOptions.
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__WindowSeconds", null);
-        Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
+        // AuthWrite höjs så registration-flödet inte rate-limit:as (delade
+        // 127.0.0.1-bucket med övriga tester).
+        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", "60");
+        // ListRead aggressiv för test-snabbhet (default 60/min skulle kräva
+        // 61+ sequential requests).
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", "3");
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", "60");
+
+        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", "true");
 
         using var scope = Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
@@ -114,6 +111,11 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
+        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
@@ -123,5 +125,5 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
     }
 }
 
-[CollectionDefinition("StrictRateLimit")]
-public sealed class StrictRateLimitFixtureGroup : ICollectionFixture<StrictRateLimitApiFactory>;
+[CollectionDefinition("ListReadRateLimit")]
+public sealed class ListReadRateLimitFixtureGroup : ICollectionFixture<ListReadRateLimitApiFactory>;

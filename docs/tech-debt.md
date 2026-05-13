@@ -963,6 +963,7 @@ ADR-cross-references och granskningsbevis.
 | TD-56 | ListJobAdsQuery full paginering | 2026-05-12 | F2-P7 (TD-56 stängd, +9 unit + +3 integration-tester) |
 | TD-73 | JobTech raw_payload PII-stripping + retention + audit-wire + right-to-erasure | 2026-05-13 | TD-73 prod-gating-batch (ADR 0035 + ADR 0032 amendment 2026-05-13) |
 | TD-79 | ECS-service.task_definition strukturell drift mellan Terraform och deploy-dev.yml | 2026-05-13 | D+A-session (`lifecycle.ignore_changes` på api+worker services) |
+| TD-70 | Search/filter-yta för JobAd-katalog (?ssyk&?region&?q) | 2026-05-13 | F2-P9 D+A-session (generated columns + ListReadPolicy rate-limit) |
 
 ---
 

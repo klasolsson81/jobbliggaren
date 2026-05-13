@@ -23,6 +23,7 @@ public static partial class RateLimitingExtensions
     public const string AuthLoosePolicy = "auth-loose";
     public const string InvitationRedeemPolicy = "invitation-redeem";
     public const string WaitlistSignupPolicy = "waitlist-signup";
+    public const string ListReadPolicy = "list-read";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -138,6 +139,29 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.WaitlistSignup.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.WaitlistSignup.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Skyddar list/search-endpoints med
+            // wildcard-LIKE-mönster mot multi-query-DoS från komprometterat
+            // konto. Auth-gated → anonym fångas av RequireAuthorization
+            // (NoLimiter bypass). Per CTO-rond 2026-05-13 F2-P9 + OWASP API4:2023
+            // "Unrestricted Resource Consumption". Generisk policy — återanvänds
+            // på framtida list/search-endpoints (applications, resumes, etc.)
+            // per Martin 2017 §13 REP. 60/min är 6-20x över legit power-user-
+            // värde (3-10 req/min vid scroll+filter), revisit-trigger Fas 7+.
+            options.AddPolicy(ListReadPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-list-read");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.ListRead.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.ListRead.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

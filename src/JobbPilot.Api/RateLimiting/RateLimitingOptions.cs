@@ -67,6 +67,21 @@ public sealed class RateLimitingOptions
         WindowSeconds = 86400,
     };
 
+    /// <summary>
+    /// List/search-endpoints (GET /api/v1/job-ads med ?ssyk/?region/?q) —
+    /// partitionerat per UserId (claim "sub"). Skyddar mot multi-query-DoS
+    /// från komprometterat konto via wildcard-LIKE-pattern (CWE-400, OWASP
+    /// API4:2023 "Unrestricted Resource Consumption"). 60/min ger 6-20x
+    /// headroom över normal scroll/filter-användning (3-10 req/min) utan
+    /// att öppna sequential-scan-attack-fönster. Per CTO-rond 2026-05-13
+    /// F2-P9. Kalibrering utan prod-mätdata — revisit-trigger Fas 7+.
+    /// </summary>
+    public PolicyOptions ListRead { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

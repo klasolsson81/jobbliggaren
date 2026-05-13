@@ -43,11 +43,15 @@ JobbPilot är en svensk jobbansökningshanterare byggd som en **civic utility** 
    - YAML frontmatter (session, datum, slug, status, commits)
    - Body covers: goals, what was completed per step, decisions, commits, next session
 4. Commit docs-uppdateringar separat från feature-commits (inte bundlade) och pusha
-5. **Endast vid session-end:** Generera startprompt för nästa session — ett copy-paste-klart kodblock med:
-   - Förväntat HEAD (SHA)
-   - Vilka filer att läsa vid session-start
-   - Första uppgiften / nästa STEG i klartext
-   Klas klipper prompten direkt in i ny `/clear`-session utan att behöva webb-Claude.
+5. **Endast vid session-end:** Generera startprompt för nästa session enligt
+   strukturen i [`docs/runbooks/session-start-template.md`](./docs/runbooks/session-start-template.md).
+   - **Levereras alltid som copy-paste-block i chatten — aldrig som ny fil i repot** (håller repot rent från engångs-prompter)
+   - Self-contained: antar ny `/clear`-session utan tidigare kontext
+   - Måste innehålla alla 12 obligatoriska sektioner från templaten:
+     hälsning + förkrav + mandatory reads + memory + uppdrag + **discovery/web-search-targets** + Klas-STOPP-flaggor + disciplin (CTO/architect/reviewers INLINE) + förbud + pending operativt + förväntat sluttillstånd + avslutning
+   - Faktiska värden, inte placeholders: verifierad HEAD-SHA, datum, versions-nummer, fil-paths
+   - Innan leverans: kör templatens CC-checklist
+   - **Trigger för uppdatering av template:** om CC eller Klas upptäcker att en startprompt glömt en kritisk regel (t.ex. agent-invocation, memory-läsning), uppdatera templaten i samma session
 
 **Trigger:** STEG-completion (även när sessionen fortsätter med nästa STEG). Att synka docs först vid session-end gör att pushed state ljuger om verkligheten under sessionens gång — om context tappas eller ny session startas innan session-end-rutinen körs vet nästa Claude inte vad som faktiskt är klart.
 

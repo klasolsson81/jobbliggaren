@@ -39,20 +39,20 @@ public class JobTechStreamResilienceTests
 
         // Stateful stub: 2× 503, sedan 200. Polly retry (3 attempts) ska nå 200.
         server
-            .Given(Request.Create().WithPath("/snapshot").UsingGet())
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
             .InScenario("transient-503")
             .WillSetStateTo("after-first-503")
             .RespondWith(Response.Create().WithStatusCode(503));
 
         server
-            .Given(Request.Create().WithPath("/snapshot").UsingGet())
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
             .InScenario("transient-503")
             .WhenStateIs("after-first-503")
             .WillSetStateTo("after-second-503")
             .RespondWith(Response.Create().WithStatusCode(503));
 
         server
-            .Given(Request.Create().WithPath("/snapshot").UsingGet())
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
             .InScenario("transient-503")
             .WhenStateIs("after-second-503")
             .RespondWith(Response.Create()
@@ -92,7 +92,7 @@ public class JobTechStreamResilienceTests
         """;
 
         server
-            .Given(Request.Create().WithPath("/stream").UsingGet())
+            .Given(Request.Create().WithPath("/v2/stream").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")

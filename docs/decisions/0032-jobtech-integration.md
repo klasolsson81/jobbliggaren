@@ -423,10 +423,66 @@ Om en rekryterare begär radering — implementeras som del av `DeleteAccountCom
 
 ### Krav för stängning av TD-73
 
-- [ ] `JobTechPayloadSanitizer` implementerad + unit-tester
-- [ ] AllowedKeys-lista verifierad mot JobTech-API-spec (web-search 2026-05-12 + JobTech-docs)
-- [ ] `PurgeStaleRawPayloadsJob` Hangfire-job implementerad + integration-test
-- [ ] `RawPayloadPurgedDomainEvent` audit-wire
-- [ ] `docs/runbooks/gdpr-processing-register.md` skapad eller utökad med JobTech-entry
-- [ ] ADR 0024 cross-ref för right-to-erasure-cascade till raw_payload
+- [x] `JobTechPayloadSanitizer` implementerad + unit-tester (F2-P8b 2026-05-13, commit `8c09191`)
+- [x] AllowedKeys-lista verifierad mot JobTech-API-spec (web-search 2026-05-12 + JobTech-docs)
+- [ ] `PurgeStaleRawPayloadsJob` Hangfire-job implementerad + integration-test (kvar för P8c)
+- [ ] `RawPayloadPurgedDomainEvent` audit-wire (kvar för P8c)
+- [x] `docs/runbooks/gdpr-processing-register.md` skapad eller utökad med JobTech-entry (F2-P8b 2026-05-13)
+- [ ] ADR 0024 cross-ref för right-to-erasure-cascade till raw_payload (kvar för P8c eller separat batch)
 - [ ] Security-auditor verify-pass innan P8c-deploy
+
+---
+
+## Amendment 2026-05-13 — JobStream v2 path-migration
+
+**Datum:** 2026-05-13
+**Källa:** Klas direkt observation av JobStream Swagger UI (`jobstream.api.jobtechdev.se` visar version 2.1.1)
+**Trigger:** F2-P8b post-commit verifiering — Klas såg att v1-endpoints är deprecated i swagger
+
+### Kontext för amendment
+
+Original-ADR §2 + §3 antog v1-endpoints (`/snapshot`, `/stream?date=ISO8601`)
+baserat på web-search 2026-05-12. Faktisk JobStream-deployment är på v2 sedan en
+icke-publicerad migration. v1-paths är genomstrukna (deprecated) i swagger.
+
+### Beslut
+
+JobTechStreamClient riktar mot **v2-endpoints** istället för v1:
+
+| v1 (deprecated) | v2 (aktuell) |
+|---|---|
+| `GET /snapshot` | `GET /v2/snapshot` |
+| `GET /stream?date=YYYY-MM-DDTHH:MM:SSZ` | `GET /v2/stream?updated-after=YYYY-MM-DDTHH:MM:SS` |
+
+**Skillnader att notera:**
+
+1. **Query-param-namn:** `date` → `updated-after`
+2. **Datum-format:** swagger anger `YYYY-MM-DDTHH:MM:SS` utan timezone-suffix.
+   UTC implicit. Min impl dropper `Z`-suffixet jämfört med v1.
+3. **Extra valbara v2-query-params:** `updated-before` (default "nu"),
+   `occupation-concept-id[]` (yrkeskod-filter), `location-concept-id[]`
+   (geo-filter). Inte använda i F2-P8b — kan exponeras via TD-70 search/filter
+   när tillämpligt.
+4. **Response-format:** v2 stöder både `application/json` (JSON-array, samma
+   shape som v1) och `application/jsonl` (NDJSON). Min impl deserialiserar
+   som JSON-array via `JsonSerializer.DeserializeAsync<List<JobTechHit>>` +
+   `DeserializeAsyncEnumerable<JobTechHit>` — defaultar till
+   `application/json`, vilket fungerar med v2.
+
+**Auth:** v2-swagger nämner ingen api-key. Min impl skickar `api-key`-header
+om värdet finns i `JobTechOptions.ApiKey`; utelämnar headern om tomt. Säker
+default oavsett om JobTech kräver auth eller är öppen.
+
+### Implementations-trail
+
+- `src/JobbPilot.Infrastructure/JobSources/Platsbanken/JobTechStreamClient.cs`
+- `tests/JobbPilot.Api.IntegrationTests/JobAds/JobTechStreamResilienceTests.cs` (WireMock-stubs uppdaterade)
+
+### Operativa konsekvenser
+
+- F2-P8b-deploy mot `v0.2.2-dev` kan ske trots osäkerhet om api-key-kanal
+  (`apirequest.jobtechdev.se` ger DNS-fel 2026-05-13). v2-endpoints är publika
+  i swagger utan dokumenterad auth.
+- TD-70 search/filter-utbyggnad (Fas 2 senare) kan utnyttja v2:s
+  `occupation-concept-id` + `location-concept-id` direkt på Stream-endpoint
+  istället för att bygga ovanpå JobSearch.

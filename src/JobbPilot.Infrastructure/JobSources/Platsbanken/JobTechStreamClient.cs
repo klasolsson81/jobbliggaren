@@ -18,11 +18,12 @@ internal sealed class JobTechStreamClient(HttpClient httpClient) : IJobTechStrea
 
     public async Task<IReadOnlyList<JobTechHit>> FetchSnapshotAsync(CancellationToken cancellationToken)
     {
-        // /snapshot returnerar en JSON-array över alla öppna annonser.
+        // /v2/snapshot returnerar en JSON-array över alla öppna annonser
+        // (web-verifierat 2026-05-13 mot JobStream 2.1.1 swagger).
         // Streamen är typiskt ~50-100 MB komprimerad — vi deserialiserar via
         // Stream istället för string för att undvika OOM på worker-noden.
         using var response = await httpClient.GetAsync(
-            "/snapshot",
+            "/v2/snapshot",
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
 
@@ -40,11 +41,12 @@ internal sealed class JobTechStreamClient(HttpClient httpClient) : IJobTechStrea
         DateTimeOffset since,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        // /stream?date=ISO8601 returnerar en JSON-array av events. Polymorft
-        // schema diskrimineras via <c>removed: true</c>-flaggan. ISO-8601 med
-        // explicit Z för UTC (JobTech docs 2026-05-12).
-        var dateParam = since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-        var url = $"/stream?date={Uri.EscapeDataString(dateParam)}";
+        // /v2/stream?updated-after=YYYY-MM-DDTHH:MM:SS returnerar en JSON-array
+        // av events. Polymorft schema diskrimineras via <c>removed: true</c>-
+        // flaggan (web-verifierat 2026-05-13 mot JobStream 2.1.1 swagger).
+        // Format YYYY-MM-DDTHH:MM:SS (utan Z) per swagger-spec — UTC implicit.
+        var dateParam = since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+        var url = $"/v2/stream?updated-after={Uri.EscapeDataString(dateParam)}";
 
         using var response = await httpClient.GetAsync(
             url,

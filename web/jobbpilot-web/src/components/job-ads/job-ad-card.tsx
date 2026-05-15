@@ -24,10 +24,10 @@ export function JobAdCard({ jobAd }: JobAdCardProps) {
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
 
   return (
-    <article className="flex flex-col gap-3 rounded-md border border-border bg-card px-4 py-4 text-sm">
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h3 className="font-heading text-base leading-snug font-medium text-text-primary">
+    <article className="flex flex-col gap-2 border-b border-border-default px-1 py-4 text-sm last:border-b-0">
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h3 className="text-[15px] leading-snug font-medium tracking-[-0.005em] text-text-primary">
             {jobAd.title}
           </h3>
           <p className="text-body-sm text-text-secondary">{jobAd.companyName}</p>
@@ -35,24 +35,24 @@ export function JobAdCard({ jobAd }: JobAdCardProps) {
         <JobAdStatusBadge status={jobAd.status} />
       </header>
 
-      <p className="text-body text-text-secondary">
+      <p className="max-w-[68ch] text-body-sm text-text-secondary">
         {truncateDescription(jobAd.description)}
       </p>
 
-      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-body-sm text-text-secondary">
-        <div className="flex gap-1">
+      <dl className="font-mono mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[11.5px] text-text-tertiary">
+        <div className="flex gap-1.5">
           <dt>Publicerad:</dt>
-          <dd>{publishedAt}</dd>
+          <dd className="text-text-secondary">{publishedAt}</dd>
         </div>
         {expiresAt && (
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             <dt>Sista ansökningsdag:</dt>
-            <dd>{expiresAt}</dd>
+            <dd className="text-text-secondary">{expiresAt}</dd>
           </div>
         )}
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           <dt>Källa:</dt>
-          <dd>{getJobSourceLabel(jobAd.source)}</dd>
+          <dd className="text-text-secondary">{getJobSourceLabel(jobAd.source)}</dd>
         </div>
       </dl>
 
@@ -62,7 +62,7 @@ export function JobAdCard({ jobAd }: JobAdCardProps) {
             href={jobAd.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-brand-700 underline underline-offset-2 hover:text-brand-600"
+            className="text-brand-700 underline underline-offset-[3px] hover:text-brand-600"
           >
             Läs hela annonsen
           </a>

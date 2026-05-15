@@ -70,34 +70,37 @@ export default async function AnsokningarPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-h1 font-medium text-text-primary">Ansökningar</h1>
+    <div className="flex flex-col">
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="jp-h1">Ansökningar</h1>
+          <p className="jp-lede">
+            Pipeline över alla ansökningar. Klicka på en rad för detaljer.
+          </p>
+        </div>
         <Button asChild>
           <Link href="/ansokningar/ny">Ny ansökan</Link>
         </Button>
       </div>
 
       {total === 0 ? (
-        <div className="rounded-md border border-border bg-surface-secondary px-6 py-10 text-center">
-          <p className="text-body text-text-secondary">Inga ansökningar</p>
+        <div className="mt-7 border-y border-border-default px-1 py-12 text-center">
+          <p className="text-body text-text-primary">Inga ansökningar</p>
           <p className="mt-1 text-body-sm text-text-secondary">
             Skapa din första ansökan för att komma igång.
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-8">
+        <div className="mt-8 flex flex-col gap-8">
           {sorted.map((group) => (
             <section key={group.status} aria-label={getStatusLabel(group.status)}>
-              <div className="mb-3 flex items-center gap-2">
-                <h2 className="text-h3 font-medium text-text-primary">
-                  {getStatusLabel(group.status)}
-                </h2>
-                <span className="inline-flex items-center rounded-pill bg-surface-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary">
+              <div className="mb-2 flex items-baseline gap-3 border-b border-border-strong pb-2">
+                <h2 className="jp-h2">{getStatusLabel(group.status)}</h2>
+                <span className="font-mono text-[11px] font-medium text-text-tertiary">
                   {group.count}
                 </span>
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col border-t border-border-default">
                 {group.applications.map((app) => (
                   <ApplicationCard key={app.id} application={app} />
                 ))}

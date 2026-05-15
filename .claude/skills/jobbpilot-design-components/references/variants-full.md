@@ -9,40 +9,44 @@ Token names reference `jobbpilot-design-tokens`. Hex values in `tokens-full.md`.
 
 ## Button
 
+Civic spec (matches `.jp-btn`): `border-radius: 4px` (`var(--jp-r-md)`),
+`transition: background/border/color 80ms linear`, `letter-spacing: -0.005em`,
+font weight 500 sans.
+
 ### Sizes
 
 | Size | Height | Padding | Font |
 |---|---|---|---|
-| `sm` | 32px (`h-8`) | `px-3 py-1.5` | `text-body-sm` (13px) |
-| `md` | 36px (`h-9`) | `px-4 py-2` | `text-body` (14px) — **default** |
-| `lg` | 44px (`h-11`) | `px-5 py-2.5` | `text-body-lg` (16px) |
+| `sm` | 28px (`.jp-btn--sm`) | `px-2.5` | 12.5px |
+| `md` | **32px** (default) | `px-3` | 13px — **default** |
+
+(No 36/44px variants in the `.jp-*` system — touch bumps are handled via
+hit-area padding, see a11y skill.)
 
 ### Variant states
 
 **primary**
 | State | Classes |
 |---|---|
-| Default | `bg-brand-600 text-white border border-brand-600` |
-| Hover | `bg-brand-700 border-brand-700` |
-| Active | `bg-brand-900` |
+| Default | `bg-brand-600` + white text (dark text `#0F172A` in dark mode) |
+| Hover | `bg-brand-700` |
 | Disabled | `opacity-50 cursor-not-allowed` |
-| Focus | `ring-2 ring-brand-600 ring-offset-2` |
-| Loading | `disabled` + spinner, preserve width |
+| Focus | global `*:focus-visible` ring (2px `--jp-focus`, offset 2px) |
+| Loading | `disabled` + label → "Sparar…", preserve width |
 
 **secondary**
 | State | Classes |
 |---|---|
-| Default | `bg-surface-secondary text-text-primary border border-border-default` |
-| Hover | `bg-surface-tertiary border-border-strong` |
+| Default | `bg-surface-primary text-text-primary border border-border-default` |
+| Hover | `bg-surface-secondary border-border-strong` |
 | Disabled | `opacity-50 cursor-not-allowed` |
-| Focus | `ring-2 ring-brand-600 ring-offset-2` |
+| Focus | global focus-visible ring |
 
 **ghost**
 | State | Classes |
 |---|---|
-| Default | `bg-transparent text-text-primary` |
-| Hover | `bg-surface-secondary` |
-| Disabled | `opacity-50 cursor-not-allowed` |
+| Default | `bg-transparent text-text-secondary` |
+| Hover | `bg-surface-tertiary text-text-primary` |
 
 **destructive**
 | State | Classes |
@@ -63,14 +67,17 @@ Token names reference `jobbpilot-design-tokens`. Hex values in `tokens-full.md`.
 
 ## Input / Textarea / Select
 
+Civic spec (matches `.jp-input` / `.jp-select`): height **32px**,
+`border-radius: 4px` (`var(--jp-r-md)`), `bg-surface-primary` (white in light),
+font 13px.
+
 ### States
 
 | State | Border | Other |
 |---|---|---|
-| Default | `border-border-default` | — |
-| Hover | `border-border-strong` | — |
-| Focus | `border-brand-600 ring-2 ring-brand-100` | — |
-| Error | `border-danger-600` | Error message below in `text-danger-700 text-body-sm` |
+| Default | `border-border-default` (slate-200) | — |
+| Focus | `border-brand-600` | `box-shadow: 0 0 0 3px var(--jp-brand-50)` (3px brand-50 ring) |
+| Error | `border-danger-600` | Error message below in `text-danger-700` (12.5px) |
 | Disabled | `opacity-50 cursor-not-allowed bg-surface-tertiary` | — |
 | Read-only | `bg-surface-secondary border-border-default` | — |
 
@@ -254,3 +261,114 @@ No shimmer. Use to approximate the shape of loading content:
 | Danger | `border-danger-600` left accent | XCircle | `text-danger-700` |
 
 Structure: `rounded-md p-4 border`. Left-accent variant: add `border-l-4`.
+
+---
+
+## Civic-utility patterns (`.jp-*`)
+
+Verbatim from `globals.css` / `JobbPilotNEWDESIGN/jobbpilot.css`. All colors via
+`--jp-*`, so light/dark follow automatically.
+
+### `.jp-table--flat` (print-ledger)
+
+```
+table:        width:100%; border-collapse:collapse; font-size:13px
+thead th:     mono 10.5px, letter-spacing 0.14em, UPPERCASE,
+              color text-secondary, weight 600, padding 12px 12px 10px,
+              border-top 2px border-strong, border-bottom 1px border-strong
+tbody td:     padding 14px 12px, border-bottom 1px border (hairline),
+              color text-primary, vertical-align middle
+tbody tr:hover td:   bg surface-tertiary
+last row td:  border-bottom 2px border-strong (thicker bottom rule)
+```
+
+NO zebra. NO celled/per-cell borders. Hairlines between rows only; the frame is
+the 2px top/bottom rule.
+
+### `.jp-attention` (row feed, no box)
+
+```
+container:  margin-top 28px; border-top 1px border
+row:        flex; gap 16px; padding 18px 4px; border-bottom 1px border
+dot:        8px circle, margin-top 8px (status color)
+text:       flex 1; 15px; line-height 1.55; max-width 68ch
+link:       brand-700 underlined (brand-600 in dark), thicker underline on hover
+dismiss:    22px ghost button, opacity 0 → 1 on row hover
+```
+
+No card, no shadow — hairlines only. Text capped at 68ch (newspaper column).
+
+### `.jp-pipeline` / `.jp-col` / `.jp-appRow` (kanban as ledger)
+
+```
+pipeline:   grid repeat(4, minmax(0,1fr)); gap 0; border-top 1px border
+col:        transparent; border-right 1px border-STRONG (column divider,
+            stronger than row hairlines); min-height 360px
+col:last-child:  no right border
+col__head:  flex; padding 12px 14px 10px; border-bottom 1px border;
+            title 12.5px/500, count mono 11px text-tertiary
+appRow:     padding 12px 14px; border-bottom 1px hairline; transparent
+appRow:hover:    bg surface-tertiary + inset 2px 0 border-strong
+.jp-appCard:     display:none  (legacy — floating cards removed)
+```
+
+NO floating cards. Columns are visually separated by `--jp-border-strong`.
+
+### `.jp-statusDot` (default in tables)
+
+```
+inline-flex; gap 8px; 13px; color text-primary; weight 400
+dot: 6px circle, color per modifier
+modifiers: --brand --info --success --warning --danger --neutral
+```
+
+No background, no border — lowest visual weight. First choice in table status
+columns.
+
+### `.jp-pill` (entity accent)
+
+```
+inline-flex; gap 6px; height 22px; padding 0 8px 0 7px; rounded-pill
+font 11.5px/500; 6px dot
+--info:    info-600 text on info-50 bg
+--brand:   brand-700 on brand-50
+--success: success-700 on success-50
+--warning: warning-700 on warning-50
+--danger:  danger-700 on danger-50
+--neutral: text-secondary on surface-secondary, border-hairline
+```
+
+Use when status is an entity's headline at one point — not for dense table
+columns (use `.jp-statusDot` there).
+
+### `.jp-match` (score bar)
+
+```
+inline-flex; gap 8px; mono 11.5px; color text-secondary
+bar:  72px × 6px; bg surface-tertiary; border-radius 2px
+fill: brand-600   (default, score ≥ 75)
+fill--mid:  info-600    (50–74)
+fill--low:  warning-600 (< 50)
+```
+
+### `.jp-filterBar` (flat, no chrome box)
+
+```
+grid 1.4fr 1fr 1fr 1fr auto; gap 16px; align-items end; padding 18px 0
+background transparent; border 0
+border-top 1px border; border-bottom 1px border; border-radius 0
+field: flex column gap 6px; label 12px/500 text-secondary;
+       hint mono 10.5px text-tertiary
+```
+
+### `.jp-banner` (3px brand left border)
+
+```
+flex; gap 12px; padding 14px 16px
+bg brand-50; border 1px brand-100; border-left 3px brand-600
+border-radius var(--jp-r-md) (4px)
+title 13.5px/500 text-primary; text 12.5px text-secondary
+cta brand-700 underlined
+```
+
+Use sparingly — one non-blocking notice, not a decoration.

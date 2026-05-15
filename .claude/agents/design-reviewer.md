@@ -25,12 +25,24 @@ code. You report; nextjs-ui-engineer repairs.
 
 Before every review, read:
 - `DESIGN.md` — primary authority
+- `.claude/skills/jobbpilot-design-*` — canonical specs (tokens, principles,
+  components, a11y, copy). These detail what DESIGN.md summarizes.
+- `C:\DOTNET-UTB\JobbPilotNEWDESIGN\Screenshots\*` — v2 visual reference
+  (lightmode/darkmode UI + landing). The implementation must match these.
 - `CLAUDE.md §1` — identity and tone (relevant to copy and design decisions)
 - `BUILD.md §6` — frontend stack versions
 - The diff being reviewed
 - `web/jobbpilot-web/components/ui/` — existing shadcn components for
   consistency comparison
-- `tailwind.config.ts` or `globals.css` `@theme` block — token definitions
+- `globals.css` — `@theme`/`@theme inline` + `--jp-*` token definitions
+  (light + `[data-theme="dark"]`)
+
+**Dark mode is a requirement, not optional.** Every reviewed change must be
+validated in BOTH light and dark (`data-theme="dark"` on `<html>`) — toggle
+and check contrast in each. A change that only works in light is blocked.
+
+**Civic-utility nav check:** active sidebar nav must be a 4px brand-blå
+left-border with transparent background — NOT a background-highlight pill.
 
 ---
 

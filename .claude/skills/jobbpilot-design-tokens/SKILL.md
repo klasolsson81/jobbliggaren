@@ -20,61 +20,71 @@ description: >
 
 ## Usage rules
 
-1. **Never hardcode hex values** outside `globals.css` `@theme` block
+1. **Never hardcode hex values** — the canonical palette is `--jp-*` defined
+   once in `globals.css` `:root {}` (light) + `[data-theme="dark"] {}` (dark)
 2. **Never use Tailwind palette defaults** — `bg-slate-*`, `text-zinc-*`,
    `bg-gray-*` are all forbidden; use semantic token names
-3. **Always use semantic names** — `bg-background`, `text-foreground`,
-   `border-border`, not `bg-white`, `text-black`
+3. **Always use semantic names** — `bg-surface-primary`, `text-text-primary`,
+   `border-border-default`, not `bg-white`, `text-black`, `bg-slate-50`
 4. **Radius > 6px is forbidden** in app UI (except `rounded-pill` for badges)
 5. **No shadows larger than `shadow-md`** — depth comes from borders, not shadows
+6. **v2 is slate-based** (cool neutral, paper metaphor) and **dark mode is
+   supported** — never hardcode a light-only color; let the `--jp-*` token
+   shift per theme
 
 ---
 
 ## Core color tokens
 
+v2 is **slate-based** with myndighetsblå as the single accent. Every token
+carries a light value (`:root`) and a dark value (`[data-theme="dark"]`) — the
+semantic Tailwind utility resolves the current theme automatically. Token
+tables below carry exact v2 hex; in prose use the token name, not raw hex.
+
 ### Surfaces
 
-| Tailwind class | Token | Use |
-|---|---|---|
-| `bg-surface-primary` | `--color-surface-primary` | Main content background |
-| `bg-surface-secondary` | `--color-surface-secondary` | Panels, sidebar, table head |
-| `bg-surface-tertiary` | `--color-surface-tertiary` | Hover states |
+| Tailwind class | Token | Light | Dark | Use |
+|---|---|---|---|---|
+| `bg-surface-primary` | `--jp-surface-primary` | `#FFFFFF` | `#020617` | Canvas, kort, modal. "Papper". |
+| `bg-surface-secondary` | `--jp-surface-secondary` | `#F8FAFC` | `#0F172A` | Sidebar, topbar (chrome). |
+| `bg-surface-tertiary` | `--jp-surface-tertiary` | `#F1F5F9` | `#1E293B` | Hover på rader. |
+| `bg-surface-sunken` | `--jp-surface-sunken` | `#F1F5F9` | `#000000` | Dim/footer. Mörkare än canvas i båda lägen. |
 
 ### Text
 
-| Tailwind class | Token | Use |
-|---|---|---|
-| `text-text-primary` | `--color-text-primary` | Body text |
-| `text-text-secondary` | `--color-text-secondary` | Help text, timestamps |
-| `text-text-tertiary` | `--color-text-tertiary` | Disabled, placeholder |
+| Tailwind class | Token | Light | Dark | Use |
+|---|---|---|---|---|
+| `text-text-primary` | `--jp-text-primary` | `#0F172A` | `#F8FAFC` | Brödtext, rubriker |
+| `text-text-secondary` | `--jp-text-secondary` | `#475569` | `#94A3B8` | Lede, metadata |
+| `text-text-tertiary` | `--jp-text-tertiary` | `#94A3B8` | `#64748B` | Hintar, ID:n (decorative — fails body contrast on white) |
 
 ### Brand (myndighetsblå)
 
-| Tailwind class | Use |
-|---|---|
-| `bg-brand-600` / `text-brand-600` | **PRIMARY** — buttons, links, focus ring |
-| `bg-brand-700` | Hover on primary elements |
-| `bg-brand-50` | Tinted background (selected rows, active nav items) |
+| Tailwind class | Token | Light | Dark | Use |
+|---|---|---|---|---|
+| `bg-brand-600` / `text-brand-600` | `--jp-brand-600` | `#0B5CAD` | `#60A5FA` | **PRIMARY** — buttons, links, focus ring |
+| `bg-brand-700` | `--jp-brand-700` | `#094B8C` | `#BFDBFE` | Hover on primary, link text |
+| `bg-brand-50` | `--jp-brand-50` | `#EAF2FB` | `#1E3A5F` | Tinted bg (selected rows, active nav) |
 
-Full brand palette (50–900) → `references/tokens-full.md`
+Full brand palette (50–900) light+dark → `references/tokens-full.md`
 
 ### Borders
 
-| Tailwind class | Use |
-|---|---|
-| `border-border-default` | All dividers, input borders |
-| `border-border-strong` | Hover, secondary focus |
+| Tailwind class | Token | Light | Dark | Use |
+|---|---|---|---|---|
+| `border-border-default` | `--jp-border` | `#E2E8F0` | `#1E293B` | Decorative hairlines. **Standardvalet.** |
+| `border-border-strong` | `--jp-border-strong` | `#CBD5E1` | `#334155` | Information-bearing dividers (kanban-kolumner, tabellhuvud) — 3:1 vs canvas |
 
-### Status colors (600 = text/icon, 50 = background)
+### Status colors (600 = text/icon, 50 = background, 700 = pill text)
 
-| Status | Text class | Background class |
+| Status | Token 600 (light/dark) | Token 50 (light/dark) |
 |---|---|---|
-| Success | `text-success-600` | `bg-success-50` |
-| Warning | `text-warning-600` | `bg-warning-50` |
-| Danger | `text-danger-600` | `bg-danger-50` |
-| Info | `text-info-600` | `bg-info-50` |
+| Success | `#059669` / `#4ADE80` | `#ECFDF5` / `#052E1A` |
+| Warning | `#D97706` / `#FBBF24` | `#FFFBEB` / `#2A1D05` |
+| Danger | `#DC2626` / `#F87171` | `#FEF2F2` / `#2E1014` |
+| Info | `#475569` / `#94A3B8` | `#F1F5F9` / `#1E293B` |
 
-Full status palette including 700 hover variants → `references/tokens-full.md`
+Full status palette incl. 700 variants light+dark → `references/tokens-full.md`
 
 ### Focus ring
 
@@ -82,28 +92,37 @@ Applied globally via CSS — do not set manually per component:
 
 ```css
 *:focus-visible {
-  outline: 2px solid var(--focus-ring);      /* brand-600 */
+  outline: 2px solid var(--jp-focus);   /* #0B5CAD light, #60A5FA dark */
   outline-offset: 2px;
+  border-radius: var(--jp-r-sm);
 }
 ```
 
 ---
 
-## Typography scale (core 6)
+## Typography scale
 
-| Class | Size | Weight | Use |
-|---|---|---|---|
-| `text-h1` | 28px / lh 36px | 500 | Page header per view |
-| `text-h2` | 22px / lh 28px | 500 | Section headers |
-| `text-h3` | 18px / lh 24px | 500 | Panel/card headers |
-| `text-body` | 14px / lh 22px | 400 | **Default everywhere in app UI** |
-| `text-body-sm` | 13px / lh 20px | 400 | Secondary info, timestamps |
-| `text-label` | 13px / lh 18px | 500 | Form labels |
+Global text-tracking `-0.005em` on `body` (optisk täthet, set in globals.css).
 
-Full scale (display, h4, body-lg, caption, mono) → `references/tokens-full.md`
+| Role | Size | Weight | Line-height | Letter-spacing | Use |
+|---|---|---|---|---|---|
+| Display H1 | 56px | 600 | 1.05 | -0.025em | Landing hero **only** |
+| H1 | 28px | 600 | 1.2 | -0.02em | Page header per view |
+| H2 | 20px | 600 | 1.3 | -0.015em | Section headers |
+| H3 | 18px | 500 | 1.3 | -0.01em | Panel/card headers |
+| Lede | 16px | 400 | 1.55 | 0 | Intro paragraph |
+| Body | 14px | 400 | 1.55 | -0.005em | **Default everywhere in app UI** |
+| Small | 12.5px | 400 | 1.5 | 0 | Secondary info, timestamps |
+| Mono caps | 10.5px | 500 | 1.4 | 0.08em + UPPER | Kickers, kolumnhuvuden |
+| Mono inline | 11.5px | 500 | 1.4 | 0 | IDs, datum, tid, räknare |
 
-**Font:** Hanken Grotesk via `next/font/google` (400, 500, 600). Never use
-`text-xl`, `text-2xl` etc. — always use the semantic token class.
+Full Tailwind `@theme` scale (`text-display`/`h1`/…/`mono`) →
+`references/tokens-full.md`
+
+**Fonts via `next/font/google`:** Hanken Grotesk → `--font-sans` (400/500/600);
+JetBrains Mono → `--font-mono`. Never Inter/Roboto/Arial/system-ui as primary;
+never mono for body, headings, or button text. Never `text-xl`/`text-2xl` —
+always the semantic token class.
 
 ---
 
@@ -121,47 +140,64 @@ Use Tailwind spacing utilities — all values are multiples of 4px:
 
 ---
 
+## Density multiplier
+
+Set via `[data-density]` on `<html>`. Multiplies layout rhythm tokens:
+
+| Mode | `--jp-density` |
+|---|---|
+| `compact` | 0.85 |
+| `standard` | 1.0 (default) |
+| `luftig` | 1.18 |
+
+Affects: `--jp-row-h` = `calc(36px * density)`, `--jp-section-y` =
+`calc(28px * density)`, `--jp-pad-x` = `calc(28px * density)`. Never hardcode
+padding/row-height where density applies — read the token.
+
+---
+
 ## Radius
 
-| Class | Value | Use |
-|---|---|---|
-| `rounded-sm` | 2px | Inputs, small chips |
-| `rounded-md` | 4px | **DEFAULT** — buttons, cards, panels |
-| `rounded-lg` | 6px | Larger surfaces |
-| `rounded-pill` | 9999px | **Badges and pills ONLY** |
+| Class | Token | Value | Use |
+|---|---|---|---|
+| `rounded-sm` | `--jp-r-sm` | 2px | Inputs, badges, pill counters |
+| `rounded-md` | `--jp-r-md` | 4px | **DEFAULT** — buttons, panels, search |
+| `rounded-lg` | `--jp-r-lg` | 6px | Larger panels, dropdowns |
+| `rounded-pill` | `--jp-r-pill` | 9999px | **Status dots and pills ONLY** |
 
-`rounded-xl` (12px) and above are forbidden in app UI.
+`rounded-xl` (12px) and above are forbidden in app UI. No 8/10/12px radii.
 
 ---
 
 ## Common patterns
 
 ```tsx
-// Primary button
-className="bg-brand-600 text-white hover:bg-brand-700 rounded-md px-4 py-2 text-body"
+// Primary button (height 32px, radius 4px, transition 80ms)
+className="bg-brand-600 text-white hover:bg-brand-700 rounded-md h-8 px-3 text-[13px]"
 
-// Card / Panel
+// Card / Panel — depth from border, never shadow
 className="bg-surface-primary border border-border-default rounded-md p-4"
 
-// Form input
-className="bg-surface-primary border border-border-default rounded-sm px-3 h-9 text-body focus:border-brand-600"
+// Form input (32px, slate-200 border, brand-600 focus + 3px brand-50 ring)
+className="bg-surface-primary border border-border-default rounded-md px-2.5 h-8 text-[13px] focus:border-brand-600"
 
-// Status badge
-className="bg-success-50 text-success-700 rounded-pill px-2 py-0.5 text-xs font-medium"
+// Status pill (700 text on 50 bg)
+className="bg-success-50 text-success-700 rounded-pill px-2 py-0.5 text-[11.5px] font-medium"
 
-// Table header cell
-className="bg-surface-secondary text-text-secondary text-label px-3 h-9"
+// Information-bearing divider (kanban column / table head) — strong, 3:1
+className="border-border-strong"
 
 // Muted helper text
-className="text-text-secondary text-body-sm mt-1"
+className="text-text-secondary text-[12.5px] mt-1"
 ```
 
 ---
 
 ## When this skill is not enough
 
-- All 40+ tokens with exact hex values → `references/tokens-full.md`
-- Contrast ratios per text/background pair → `references/contrast-table.md`
-- Dark mode tokens (v2 roadmap, not active) → `references/dark-mode.md`
-- Complete `@theme {}` CSS block ready to paste into `globals.css` →
+- All tokens with exact light+dark hex values → `references/tokens-full.md`
+- Contrast ratios per pair, light **and** dark → `references/contrast-table.md`
+- Dark mode (v2, SUPPORTED — mechanism, deltas, no-flash) →
+  `references/dark-mode.md`
+- v2 `--jp-*` + `@theme inline` structure as in `globals.css` →
   `references/theme-block.md`

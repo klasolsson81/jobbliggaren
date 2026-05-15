@@ -24,9 +24,21 @@ Server Action's return shape needs to match a backend command, consult
 Before starting any significant component work, read:
 
 - `DESIGN.md` — authoritative for colors, spacing, typography, component patterns
+- `.claude/skills/jobbpilot-design-tokens` — slate tokens (light + dark),
+  density system, `--jp-*` palette
+- `.claude/skills/jobbpilot-design-principles` — the seven civic-utility rules
+  + anti-pattern catalog
+- `.claude/skills/jobbpilot-design-components` — `.jp-*` component patterns
+  (table--flat, attention, pipeline, statusDot/pill, match, filterBar, banner)
+- `.claude/skills/jobbpilot-design-a11y` — contrast, hit-targets, 68ch
+- `.claude/skills/jobbpilot-design-copy` — Swedish tone + microcopy
 - `BUILD.md` §3 — frontend stack (versions, libraries)
 - `web/jobbpilot-web/components/ui/` — existing shadcn components already
   installed; do not recreate what exists
+
+**Dark mode is implemented in parallel — never as an afterthought.** Every
+component must resolve correctly via the `--jp-*` tokens in both light and
+`[data-theme="dark"]`. Use token vars, never hardcoded hex.
 
 ---
 

@@ -53,23 +53,29 @@ export default async function CvListPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-h1 font-medium text-text-primary">CV</h1>
+    <div className="flex flex-col">
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="jp-h1">CV</h1>
+          <p className="jp-lede">
+            Hantera dina CV-varianter. AI-stöd hjälper dig anpassa innehållet
+            per ansökan — du behåller alltid kontrollen.
+          </p>
+        </div>
         <Button asChild>
           <Link href="/cv/ny">Nytt CV</Link>
         </Button>
       </div>
 
       {sorted.length === 0 ? (
-        <div className="rounded-md border border-border bg-surface-secondary px-6 py-10 text-center">
-          <p className="text-body text-text-secondary">Inga CV ännu</p>
+        <div className="mt-7 border-y border-border-default px-1 py-12 text-center">
+          <p className="text-body text-text-primary">Inga CV ännu</p>
           <p className="mt-1 text-body-sm text-text-secondary">
             Skapa ditt första CV för att komma igång.
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="mt-8 flex flex-col border-t border-border-default">
           {sorted.map((resume) => (
             <ResumeCard key={resume.id} resume={resume} />
           ))}

@@ -53,14 +53,21 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const result = await getJobAds({ page, pageSize, sortBy, ssyk, region, q });
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-h1 font-medium text-text-primary">Jobb</h1>
+    <div className="flex flex-col">
+      <div>
+        <h1 className="jp-h1">Jobb</h1>
+        <p className="jp-lede">
+          Sök bland aktiva annonser från Platsbanken. Filtrera, jämför och spara.
+        </p>
       </div>
 
-      <JobAdFilters initial={filtersInitial} />
+      <div className="mt-7">
+        <JobAdFilters initial={filtersInitial} />
+      </div>
 
-      {renderResult(result, params, pageSize)}
+      <div className="mt-6 flex flex-col gap-2.5">
+        {renderResult(result, params, pageSize)}
+      </div>
     </div>
   );
 }
@@ -75,13 +82,13 @@ function renderResult(
       return (
         <>
           <p
-            className="text-body-sm text-text-secondary"
+            className="font-mono text-body-sm text-text-secondary"
             role="status"
             aria-live="polite"
           >
             {result.data.totalCount === 0
               ? "Inga träffar"
-              : `${result.data.totalCount} träffar`}
+              : `${result.data.totalCount.toLocaleString("sv-SE")} träffar`}
           </p>
           <JobAdList jobAds={result.data.items} />
           <JobAdPagination

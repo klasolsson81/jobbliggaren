@@ -11,17 +11,20 @@ export function ResumeCard({ resume }: ResumeCardProps) {
   return (
     <Link
       href={`/cv/${resume.id}`}
-      className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-3 text-sm hover:bg-surface-secondary transition-colors"
+      className="flex items-center justify-between border-b border-border-default px-3 py-4 text-sm transition-colors duration-75 last:border-b-0 hover:bg-surface-tertiary"
     >
       <div className="flex items-center gap-3">
-        <span className="text-body font-medium text-text-primary">
+        <span className="text-[15px] font-medium tracking-[-0.005em] text-text-primary">
           {resume.name}
         </span>
-        <span className="inline-flex items-center rounded-pill bg-surface-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary">
-          {resume.versionCount} {resume.versionCount === 1 ? "version" : "versioner"}
+        <span className="jp-pill jp-pill--neutral">
+          {resume.versionCount}{" "}
+          {resume.versionCount === 1 ? "version" : "versioner"}
         </span>
       </div>
-      <span className="text-body-sm text-text-secondary">{updatedAt}</span>
+      <span className="font-mono text-[11.5px] text-text-secondary">
+        {updatedAt}
+      </span>
     </Link>
   );
 }

@@ -1,118 +1,184 @@
-# JobbPilot — Full Token Reference
+# JobbPilot — Full Token Reference (v2, slate-baserad)
 
-All CSS custom properties defined in `globals.css` `:root {}`. These are the
-authoritative values. The `@theme {}` block maps them into Tailwind — see
-`theme-block.md`.
+All CSS custom properties defined in `globals.css`. The canonical palette is
+`--jp-*` defined once in `:root {}` (light) and overridden in
+`[data-theme="dark"]`. The `@theme inline {}` block bridges them into Tailwind
+semantic utilities (`bg-surface-primary` etc.) — see `theme-block.md`. These
+`--jp-*` hex values are authoritative; they match `JobbPilotNEWDESIGN/TOKENS.md`.
+
+> Light is default. Dark mode is **supported** (civic slate scale, no
+> decorative hue) via `data-theme="dark"` on `<html>` — see `dark-mode.md`.
 
 ---
 
 ## Surface tokens
 
-| Token | Hex | Tailwind class |
-|---|---|---|
-| `--color-surface-primary` | `#FFFFFF` | `bg-surface-primary` |
-| `--color-surface-secondary` | `#F7F7F5` | `bg-surface-secondary` |
-| `--color-surface-tertiary` | `#EDECE7` | `bg-surface-tertiary` |
-| `--color-surface-inverse` | `#1A1A1A` | `bg-surface-inverse` |
+| Token | Light | Dark | Tailwind class | Use |
+|---|---|---|---|---|
+| `--jp-surface-primary` | `#FFFFFF` | `#020617` | `bg-surface-primary` | Canvas, kort, modal. "Papper". |
+| `--jp-surface-secondary` | `#F8FAFC` | `#0F172A` | `bg-surface-secondary` | Sidebar + topbar (chrome). |
+| `--jp-surface-tertiary` | `#F1F5F9` | `#1E293B` | `bg-surface-tertiary` | Hover på rader. |
+| `--jp-surface-sunken` | `#F1F5F9` | `#000000` | `bg-surface-sunken` | Dim innehåll, datum-chips, footer. Mörkare än canvas i båda lägen. |
+| `--jp-surface-inverse` | `#0F172A` | `#F8FAFC` | `bg-surface-inverse` | Inverterad yta. |
 
 ## Text tokens
 
-| Token | Hex | Tailwind class |
-|---|---|---|
-| `--color-text-primary` | `#1A1A1A` | `text-text-primary` |
-| `--color-text-secondary` | `#5A5A5A` | `text-text-secondary` |
-| `--color-text-tertiary` | `#8A8A85` | `text-text-tertiary` |
-| `--color-text-inverse` | `#FFFFFF` | `text-text-inverse` |
+| Token | Light | Dark | Tailwind class | Use |
+|---|---|---|---|---|
+| `--jp-text-primary` | `#0F172A` | `#F8FAFC` | `text-text-primary` | Brödtext, rubriker. |
+| `--jp-text-secondary` | `#475569` | `#94A3B8` | `text-text-secondary` | Lede, etiketter, metadata. |
+| `--jp-text-tertiary` | `#94A3B8` | `#64748B` | `text-text-tertiary` | Hintar, ID:n, dimmade datum. |
+| `--jp-text-inverse` | `#FFFFFF` | `#0F172A` | `text-text-inverse` | Text på inverterad bakgrund. |
 
 ## Brand palette (myndighetsblå)
 
-| Token | Hex | Tailwind class | Note |
+| Token | Light | Dark | Tailwind class | Note |
+|---|---|---|---|---|
+| `--jp-brand-50` | `#EAF2FB` | `#1E3A5F` | `bg-brand-50` | Selektions-bg, "idag" i kalender. |
+| `--jp-brand-100` | `#C8DDF1` | `#1E40AF` | `bg-brand-100` | Avatar-bg. |
+| `--jp-brand-300` | `#6BA1DC` | `#60A5FA` | `bg-brand-300` | Disabled brand-state. |
+| `--jp-brand-500` | `#1F6EB8` | `#3B82F6` | `bg-brand-500` | Mellanton (sällan). |
+| `--jp-brand-600` | `#0B5CAD` | `#60A5FA` | `bg-brand-600` | **PRIMARY** — åtgärd, aktiv flik, selektions-prick. |
+| `--jp-brand-700` | `#094B8C` | `#BFDBFE` | `bg-brand-700` | Hover på primärknapp, länkfärg. |
+| `--jp-brand-900` | `#062F57` | `#062F57` | `bg-brand-900` | Mörkaste skiftning (sällan). |
+
+I dark läser selektion som "dimmed blue" (`brand-50`) medan action är ljusare
+(`brand-600` = blue-400). Knapptext på primary i dark är mörk (`#0F172A`).
+
+## Status: success (grön)
+
+| Token | Light | Dark | Tailwind class |
 |---|---|---|---|
-| `--color-brand-50` | `#EAF2FB` | `bg-brand-50` | Tinted backgrounds |
-| `--color-brand-100` | `#C8DDF1` | `bg-brand-100` | Hover tints |
-| `--color-brand-300` | `#6BA1DC` | `bg-brand-300` | Decorative only |
-| `--color-brand-500` | `#1F6EB8` | `bg-brand-500` | — |
-| `--color-brand-600` | `#0B5CAD` | `bg-brand-600` | **PRIMARY** — links, buttons, focus |
-| `--color-brand-700` | `#094B8C` | `bg-brand-700` | Hover on primary |
-| `--color-brand-900` | `#062F57` | `bg-brand-900` | Dark brand accents |
-
-## Status: success (green)
-
-| Token | Hex | Tailwind class |
-|---|---|---|
-| `--color-success-50` | `#E8F3EC` | `bg-success-50` |
-| `--color-success-600` | `#0F7A2E` | `text-success-600` |
-| `--color-success-700` | `#0B5E24` | `text-success-700` |
+| `--jp-success-50` | `#ECFDF5` | `#052E1A` | `bg-success-50` |
+| `--jp-success-600` | `#059669` | `#4ADE80` | `text-success-600` |
+| `--jp-success-700` | `#047857` | `#86EFAC` | `text-success-700` |
 
 ## Status: warning (amber)
 
-| Token | Hex | Tailwind class |
-|---|---|---|
-| `--color-warning-50` | `#FAF2DE` | `bg-warning-50` |
-| `--color-warning-600` | `#946200` | `text-warning-600` |
-| `--color-warning-700` | `#734D00` | `text-warning-700` |
+| Token | Light | Dark | Tailwind class |
+|---|---|---|---|
+| `--jp-warning-50` | `#FFFBEB` | `#2A1D05` | `bg-warning-50` |
+| `--jp-warning-600` | `#D97706` | `#FBBF24` | `text-warning-600` |
+| `--jp-warning-700` | `#B45309` | `#FDE68A` | `text-warning-700` |
 
-## Status: danger (red)
+## Status: danger (röd)
 
-| Token | Hex | Tailwind class |
-|---|---|---|
-| `--color-danger-50` | `#FBEBEB` | `bg-danger-50` |
-| `--color-danger-600` | `#B42121` | `text-danger-600` |
-| `--color-danger-700` | `#8C1919` | `text-danger-700` |
+| Token | Light | Dark | Tailwind class |
+|---|---|---|---|
+| `--jp-danger-50` | `#FEF2F2` | `#2E1014` | `bg-danger-50` |
+| `--jp-danger-600` | `#DC2626` | `#F87171` | `text-danger-600` |
+| `--jp-danger-700` | `#B91C1C` | `#FECACA` | `text-danger-700` |
 
-## Status: info (neutral blue-grey)
+## Status: info (neutral slate)
 
-| Token | Hex | Tailwind class |
-|---|---|---|
-| `--color-info-50` | `#EEF1F5` | `bg-info-50` |
-| `--color-info-600` | `#4A5A7A` | `text-info-600` |
-| `--color-info-700` | `#384560` | `text-info-700` |
+| Token | Light | Dark | Tailwind class |
+|---|---|---|---|
+| `--jp-info-50` | `#F1F5F9` | `#1E293B` | `bg-info-50` |
+| `--jp-info-600` | `#475569` | `#94A3B8` | `text-info-600` |
+| `--jp-info-700` | `#334155` | `#CBD5E1` | `text-info-700` |
 
 ## Border tokens
 
-| Token | Hex | Tailwind class |
-|---|---|---|
-| `--color-border-default` | `#D8D6D0` | `border-border-default` |
-| `--color-border-strong` | `#B8B6B0` | `border-border-strong` |
-| `--color-border-brand` | `var(--color-brand-600)` | `border-border-brand` |
+| Token | Light | Dark | Tailwind class | Use |
+|---|---|---|---|---|
+| `--jp-border` | `#E2E8F0` | `#1E293B` | `border-border-default` | Hairlines. Standardvalet (dekorativa avgränsare). |
+| `--jp-border-strong` | `#CBD5E1` | `#334155` | `border-border-strong` | Tabellhuvud, kanban-kolumner — informationsbärande, klarar 3:1 mot canvas. |
+| `--jp-border-soft` | `#F1F5F9` | `#1E293B` | — | Mjukaste avgränsare. |
+| `--jp-border-hairline` | `#E2E8F0` | `#1E293B` | — | Alias för `--jp-border`. |
+| `--jp-border-brand` | `var(--jp-brand-600)` | — | `border-border-brand` | Brand-kant (banner, selektion). |
 
 ## Focus ring
 
-| Token | Value |
-|---|---|
-| `--focus-ring` | `var(--color-brand-600)` |
-| `--focus-ring-offset` | `#FFFFFF` |
-
-## Shadows
-
-| Token | Value | Note |
+| Token | Light | Dark |
 |---|---|---|
-| `--shadow-sm` | `0 1px 2px rgba(0,0,0,0.04)` | Cards |
-| `--shadow-md` | `0 2px 4px rgba(0,0,0,0.06)` | Dropdowns, modals |
+| `--jp-focus` | `#0B5CAD` | `#60A5FA` |
+| `--color-focus-ring-offset` | `var(--jp-surface-primary)` | `var(--jp-surface-primary)` |
 
-No larger shadows. `shadow-lg`, `shadow-xl`, `shadow-2xl` are forbidden.
+## Shadows (endast två — använd sparsamt)
 
-## Radius tokens
-
-| Token | Value | Tailwind | Use |
+| Token | Light | Dark | Note |
 |---|---|---|---|
-| `--radius-sm` | `2px` | `rounded-sm` | Inputs, chips |
-| `--radius-md` | `4px` | `rounded-md` | **DEFAULT** |
-| `--radius-lg` | `6px` | `rounded-lg` | Larger surfaces |
-| `--radius-pill` | `999px` | `rounded-pill` | Badges only |
+| `--jp-shadow-sm` | `0 1px 2px rgba(0,0,0,0.04)` | `0 1px 2px rgba(0,0,0,0.6)` | Popovers. |
+| `--jp-shadow-md` | `0 2px 4px rgba(0,0,0,0.06)` | `0 2px 4px rgba(0,0,0,0.7)` | Dropdowns. |
 
-## Full typography scale
+Aldrig drop-shadows på cards eller knappar. `shadow-lg`/`xl`/`2xl` förbjudna.
+Djup skapas via border/hairline.
 
-| Role | Size | Line-height | Weight | Tailwind class |
-|---|---|---|---|---|
-| `display` | 36px | 44px | 500 | `text-display` |
-| `h1` | 28px | 36px | 500 | `text-h1` |
-| `h2` | 22px | 28px | 500 | `text-h2` |
-| `h3` | 18px | 24px | 500 | `text-h3` |
-| `h4` | 16px | 22px | 500 | `text-h4` |
-| `body-lg` | 16px | 24px | 400 | `text-body-lg` |
-| `body` | 14px | 22px | 400 | `text-body` |
-| `body-sm` | 13px | 20px | 400 | `text-body-sm` |
-| `caption` | 12px | 16px | 400 | `text-caption` |
-| `label` | 13px | 18px | 500 | `text-label` |
-| `mono` | 13px | 18px | 400 | `text-mono` |
+## Radius tokens (strikt civic)
+
+| Token | Värde | Tailwind | Use |
+|---|---|---|---|
+| `--jp-r-sm` | `2px` | `rounded-sm` | Inputs, badges, pill-räknare. |
+| `--jp-r-md` | `4px` | `rounded-md` | **DEFAULT** — knappar, panels, sökruta. |
+| `--jp-r-lg` | `6px` | `rounded-lg` | Större paneler, dropdowns. |
+| `--jp-r-pill` | `9999px` | `rounded-pill` | Endast statusprickar och pills. |
+
+Radier > 6px förbjudna (pill undantaget). Inga 8/10/12px.
+
+## Typografi-familjer
+
+| Token | Värde |
+|---|---|
+| `--jp-font-sans` | `var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif` |
+| `--jp-font-mono` | `var(--font-mono), "SF Mono", Menlo, Consolas, monospace` |
+
+`--font-sans` (Hanken Grotesk) och `--font-mono` (JetBrains Mono) injiceras via
+`next/font/google` som CSS-variabler. Aldrig Inter/Roboto/Arial/system-ui som
+primär font; aldrig mono för brödtext.
+
+## Full typografi-skala
+
+Global text-tracking `-0.005em` på `body` (optisk täthet).
+
+| Roll | Storlek | Vikt | Line-height | Letter-spacing | Färg |
+|---|---|---|---|---|---|
+| Display H1 | 56px | 600 | 1.05 | -0.025em | `--jp-text-primary` |
+| H1 | 28px | 600 | 1.2 | -0.02em | `--jp-text-primary` |
+| H2 | 20px | 600 | 1.3 | -0.015em | `--jp-text-primary` |
+| H3 | 18px | 500 | 1.3 | -0.01em | `--jp-text-primary` |
+| Lede | 16px | 400 | 1.55 | 0 | `--jp-text-secondary` |
+| Body | 14px | 400 | 1.55 | -0.005em (global) | `--jp-text-primary` |
+| Small | 12.5px | 400 | 1.5 | 0 | `--jp-text-secondary` |
+| Mono caps | 10.5px | 500 | 1.4 | 0.08em + UPPERCASE | `--jp-text-tertiary` |
+| Mono inline | 11.5px | 500 | 1.4 | 0 | `--jp-text-primary` / `--jp-text-tertiary` |
+
+Tailwind `@theme`-skala (för `text-*`-utilities): `--text-display` 56px,
+`--text-h1` 28px, `--text-h2` 20px, `--text-h3` 18px, `--text-h4` 16px,
+`--text-body-lg` 16px, `--text-body` 14px, `--text-body-sm` 13px,
+`--text-caption` 12px, `--text-label` 13px, `--text-mono` 13px.
+
+Display 56px/600 endast landing hero. Mono caps 10.5px/500/0.08em UPPERCASE för
+kickers och kolumnhuvuden (`UPPDATERAD · MAJ 2026`). Aldrig all caps i sans.
+
+## Spacing (4px-grid)
+
+| Värde | Användning |
+|---|---|
+| 4px | Tight stacking, dot + label |
+| 8px | Inline gap, ikon till text |
+| 12px | Mellan formelement, inom rad |
+| 16px | Stat-värde till label, mellan tabellrader |
+| 24px | Mellan sektionsblock, panel-padding |
+| 28px | Sidpadding (`--jp-pad-x`) |
+| 48px | Mellan major sections |
+| 64px | Mellan fristående kapitel (designsystem-sidan) |
+
+## Density-multiplikator
+
+Sätts via `[data-density]` på app-roten (`<html>`):
+
+| Mode | `--jp-density` |
+|---|---|
+| `compact` | `0.85` |
+| `standard` | `1` (default) |
+| `luftig` | `1.18` |
+
+Påverkar:
+- `--jp-row-h` = `calc(36px * var(--jp-density))`
+- `--jp-section-y` = `calc(28px * var(--jp-density))`
+- `--jp-pad-x` = `calc(28px * var(--jp-density))`
+
+Standard radhöjd i flat ledger ~36px (density 1.0). Vertical-align top på
+celler med två rader (företag + tjänst). Padding 12–14px vertikalt, 0
+horisontalt (cellgränser är hairlines). Hårdkoda aldrig padding där density
+gäller.

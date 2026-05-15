@@ -92,7 +92,7 @@ export function JobAdFilters({ initial }: JobAdFiltersProps) {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="flex flex-col gap-4 rounded-md border border-border bg-surface-secondary px-5 py-5"
+      className="flex flex-col gap-4 border-y border-border-default px-1 py-4.5"
       aria-label="Filtrera jobbannonser"
     >
       <div className="grid gap-4 md:grid-cols-2">
@@ -132,7 +132,7 @@ export function JobAdFilters({ initial }: JobAdFiltersProps) {
           </label>
           <select
             id="filter-sort"
-            className="h-9 rounded-md border border-border bg-card px-3 text-body text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="h-8 rounded-md border border-border-default bg-surface-primary px-2.5 text-body-sm text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
             {...register("sortBy")}
           >
             {SORT_OPTIONS.map((opt) => (

@@ -1,16 +1,37 @@
 # Current work — JobbPilot
 
-**Status:** **VERCEL-DEPLOY LIVE 2026-05-14 00:50 — https://www.jobbpilot.se end-to-end fungerande. F2-P10 frontend `/jobb`-katalog renderar 3391 jobbannonser från Platsbanken via dev-backend. Alla auth-gated routes (mig, ansökningar, cv, admin/granskning) verifierade live. Root cause för 4h debugging: `framework: null` i Vercel project settings (löst via vercel.json `framework=nextjs`). 3 misslyckade hypoteser innan CTO-godkänd diagnos via `vercel pull` avslöjade verklig orsak. Lärande sparat i session-log + memory-kandidat.**
-**Senast uppdaterad:** 2026-05-14 00:50 (Vercel LIVE)
-**HEAD:** `fcfe710` (vercel.json framework=nextjs LÖSNINGEN) + 3 efterföljande commits från debug-iterationer behållna
-**Deploy:** `v0.2.5-dev` LIVE på dev-backend, frontend LIVE på Vercel (www.jobbpilot.se → dev.jobbpilot.se)
+**Status:** **UI-REFACTOR DESIGNSYSTEM v2 LEVERERAD 2026-05-16 — civic-utility slate-palett + dark mode (`data-theme`, no-flash, prefers-color-scheme auto), Shell Variant B (sektionerad sidebar, 4px brand-vänsterkant, ADMIN rollgejtad), civic landing, nya `.jp-*`-primitiv. DESIGN.md + 5 skills + 2 agenter → v2. ADR 0037 (Klas-GO). design-reviewer 2 Blockers + 3 Majors åtgärdade in-block. tsc/lint/313 vitest/next build gröna. Ej deployad (tag-push kräver Klas-GO). Öppen punkt: `.jp-h1`/display font-weight-drift jobbpilot.css(500/36px) vs tokens-spec(600/56px) — Klas-auktoritetsbeslut kvarstår.**
+**Senast uppdaterad:** 2026-05-16 (UI-refactor v2 levererad)
+**HEAD:** `261ea12` (feat designsystem v2) + docs-sync-commit
+**Deploy:** `v0.2.5-dev` LIVE på dev-backend, frontend LIVE på Vercel (www.jobbpilot.se → dev.jobbpilot.se) — v2-frontend ej deployad än
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva, +TD-80) + `docs/tech-debt-archive.md` (stängda)
 **Prod-checklist:** `docs/runbooks/v0.2-prod-launch-checklist.md`
 
 ---
 
-## Aktivt nu — VERCEL-DEPLOY LIVE (frontend mot dev-backend)
+## Aktivt nu — UI-refactor designsystem v2 (levererad 2026-05-16)
+
+Se `docs/sessions/2026-05-16-ui-refactor-designsystem-v2.md` för full retrospektiv.
+
+| Steg | Innehåll | Status |
+|---|---|---|
+| 1 | Token-migrering: slate `--jp-*` (light+dark), `@custom-variant`, `@theme inline`, JetBrains Mono, density, full `.jp-*`-utilities | ✅ |
+| 2 | DESIGN.md v2 (Klas-GO) + 5 skills + 2 agenter | ✅ |
+| 3 | ThemeProvider Variant A (CTO) — no-flash, `useSyncExternalStore`, noll deps | ✅ |
+| 4 | Shell Variant B — sektionerad sidebar, ADMIN rollgejtad (beslut A) | ✅ |
+| 5 | Civic landing (`(marketing)/page.tsx`) | ✅ |
+| 6 | Primitiv: status-dot/pill/match-bar, delad theme-toggle, shadcn-align | ✅ |
+| 7 | Ledger-restyle /jobb /ansokningar /cv /mig /admin/granskning | ✅ |
+| 8 | ADR 0037 + docs + commit `261ea12` + push | ✅ |
+
+**Öppen punkt (Klas):** `.jp-h1`/`.jp-h2`/display font-weight + display-storlek-drift — `jobbpilot.css` (verbatim-implementerad, 500/36px) vs `tokens-full.md`/DESIGN.md §4 (600/56px). Kräver auktoritetsbeslut innan v2 stängs; ej blockerande.
+
+**Pending före v2-deploy:** visuell browser-QA light+dark (`pnpm dev`); ev. Vercel-deploy (tag-push = Klas-GO).
+
+---
+
+## Arkiv — Vercel-deploy 2026-05-14
 
 ### Levererat (5 commits, 1 Klas-cleanup)
 

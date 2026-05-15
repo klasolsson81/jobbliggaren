@@ -30,7 +30,7 @@ Referenser som **inte** ska kännas:
 
 | ✅ Ja | ❌ Nej |
 |-------|--------|
-| Ljus bakgrund default | Dark mode default |
+| Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
 | Myndighetsblå primärfärg | Neon, lila, cyan-accenter |
 | Rak svensk copy | Emojis, utropstecken, "Let's go!" |
 | Tabeller och listor | Kort-layouter överallt |
@@ -61,25 +61,31 @@ Filosofi-sammanfattningar finns i denna fil. Fullständiga specer med tokens, va
 
 ## 3. Färgsystem (sammanfattning)
 
-Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens — fler färger skapar kognitiv belastning.
+Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens — fler färger skapar kognitiv belastning. v2 är **slate-baserad** (kall neutral, papper-metafor).
 
-- **Primärblå (myndighetsblå):** brand-600 `#0B5CAD` — knappar, länkar, fokusring
-- **Neutral grå-skala:** fyra ytor (primary → tertiary → inverse), tre text-nivåer
-- **Statusfärger:** success grön, warning amber, danger röd, info grå-blå — alltid i 50/600/700-varianter
-- **Borders:** border-default `#D8D6D0`, border-strong `#B8B6B0`
-- **Skuggor:** bara shadow-sm och shadow-md — djup skapas via border, inte shadow
+- **Primärblå (myndighetsblå):** brand-600 `#0B5CAD` — knappar, länkar, fokusring, aktiv selektion
+- **Neutral slate-skala:** surfaces `#FFFFFF` / `#F8FAFC` / `#F1F5F9`, text `#0F172A` / `#475569` / `#94A3B8`
+- **Statusfärger:** success grön, warning amber, danger röd, info slate — alltid i 50/600/700-varianter, endast för status (aldrig dekoration)
+- **Borders:** border-default `#E2E8F0` (slate-200, dekorativa hairlines), border-strong `#CBD5E1` (slate-300, informationsbärande dividers — klarar 3:1 mot vit canvas)
+- **Skuggor:** bara shadow-sm och shadow-md (popovers/dropdowns) — djup skapas via border/hairline, aldrig på cards/knappar
 - WCAG AA-kontrast obligatoriskt på alla färgpar. brand-600 på vit = 6.1:1.
 
-Exakta tokens och hex-värden, kontrast-tabell, dark-mode-stance och deploy-ready `@theme`-block → **jobbpilot-design-tokens**.
+### Dark-mode-stance
+
+Dark mode **stöds** (designsystem v2, Klas-GO 2026-05-16 + ADR — ersätter Fas 0-borttagningen som skedde pga shadcn-presetens oklch indigo-violetter). v2 använder en **civic slate-skala utan dekorativ hue** (`data-theme="dark"` på `<html>`). Light är default; `prefers-color-scheme: dark` honoreras **automatiskt och utan flash** (inline pre-paint-script), manuell toggle överrider och persisteras i localStorage. Sunken-ytor är mörkare än canvas i båda lägen (samma papper-metafor). Light och dark valideras parallellt — aldrig dark som efterhandstillägg.
+
+Exakta tokens och hex-värden (light+dark), kontrast-tabell, density-system och deploy-ready `@theme`/`--jp-*`-block → **jobbpilot-design-tokens**.
 
 ---
 
 ## 4. Typografi (sammanfattning)
 
-- **Primär:** Hanken Grotesk (Google Fonts, open source) — weight 400, 500, 600
-- **Monospace:** JetBrains Mono — för IDs, org-nummer, tabellvärden
-- **7 roller för app-UI:** h1 (28px), h2 (22px), h3 (18px), h4 (16px/500), body (14px default), body-sm (13px), label (13px/500)
-- Aldrig all caps. Aldrig letter-spacing-justeringar.
+- **Primär:** Hanken Grotesk (`next/font/google`, variabel `--font-sans`) — weight 400, 500, 600
+- **Monospace:** JetBrains Mono (`next/font/google`, variabel `--font-mono`) — för IDs, SSYK-koder, datum, tid, versioner, mono caps-labels, pill-räknare. Aldrig brödtext/rubriker/knapptext.
+- **App-UI-roller:** h1 (28px), h2 (20px), h3 (18px), body (14px default), body-sm (13px), label (13px/500)
+- **Display (v2 landing):** 56px / 600 / line-height 1.05 / letter-spacing −0.025em — endast landing hero
+- **Mono caps:** 10.5px / 500 / letter-spacing 0.08–0.16em / UPPERCASE — kickers, kolumnhuvuden (`UPPDATERAD · MAJ 2026`)
+- Global text-tracking −0.005em (optisk täthet). Aldrig all caps i sans. Aldrig letter-spacing-justeringar i brödtext.
 - Italic bara i citat och referenser, aldrig för emfas i body.
 
 Komplett skala, line-heights och Tailwind-mappning → **jobbpilot-design-tokens**.
@@ -88,11 +94,12 @@ Komplett skala, line-heights och Tailwind-mappning → **jobbpilot-design-tokens
 
 ## 5. Spacing och layout (sammanfattning)
 
-- **4px-baserad skala.** Default padding: p-4 (16px). Default gap: gap-4 (16px).
-- **Border-radius:** sm 2px (inputs), md 4px (default — knappar, cards), lg 6px (panels), pill 9999px (badges only).
-- **App shell:** vänster sidebar 240px (collapsed 60px), max-width 1280px på innehåll.
-- **Formulär:** max-width 640px, labels ovanför inputs.
-- Desktop-first i v1 — vyer ska fungera på mobil men är inte optimerade.
+- **4px-baserad skala.** Vanliga värden: 8, 12, 16, 24, 28, 48, 64.
+- **Border-radius:** sm 2px (inputs/badges), md 4px (default — knappar, panels, sökruta), lg 6px (större paneler/dropdowns), pill 9999px (endast statusprickar/pills). Inga andra radier — inga 8/10/12px.
+- **Density-system:** `[data-density]` på `<html>` — `compact` 0.85 / `standard` 1.0 (default) / `luftig` 1.18. Multiplicerar `--jp-row-h` (36px), `--jp-section-y` (28px), `--jp-pad-x` (28px). Hårdkoda aldrig padding där density gäller.
+- **App shell (Variant B):** vänster sidebar 240px med `border-right` hairline, topbar 56px, innehåll max-width 1080px.
+- **Formulär:** max-width 640px, labels alltid ovanför inputs.
+- Desktop-first — touch (≤768px) bumpar hit-targets till 44px, ledger-tabeller stackas (utvecklaransvar).
 
 ---
 
@@ -104,11 +111,22 @@ Använda i v1: Button, Card, Input, Textarea, Select, Badge, Dialog, Toast, Tabl
 
 Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 
+**Civic-utility patterns (v2, `.jp-*`-systemet i globals.css):**
+- `.jp-table--flat` — ledger-tabell. Ingen zebra-stripe, inga inramade celler, hairlines mellan rader, fetare topp/botten-linje
+- `.jp-attention` — rad-baserad feed (Översikt). Prick + text (max 68ch) + dismiss, hairlines, ingen låda
+- `.jp-pipeline` — kanban som ledger-rader, kolumner åtskilda av `border-strong`, INGA floating cards
+- `.jp-statusDot` (förstaval i tabeller — prick + text, ingen bg) vs `.jp-pill` (accent vid entitet — färgad 50-bg + prick + text)
+- `.jp-match` — progress-bar 6px: brand ≥75, info 50–74, warning <50
+- `.jp-filterBar` — flat rad mellan två hairlines, fält i naturlig bredd, ingen chrome-box
+- `.jp-banner` — info-banner med 3px brand-vänsterkant, används sparsamt
+- Knappar: höjd 32px (sm 28px), radius 4px, transition 80ms, max EN `--primary` per skärm
+
 Regler:
 - En primary button per form — aldrig två primärknappar sida vid sida
 - Destructive actions kräver alltid bekräftelse-dialog
 - Icon-only buttons kräver `aria-label`
 - Loading state: ersätt label med "Sparar…", behåll bredd, sätt `disabled`
+- Inga stats-kort runt enstaka värden — visa siffran direkt i rad/tabell ovanför listan
 
 Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-components**.
 

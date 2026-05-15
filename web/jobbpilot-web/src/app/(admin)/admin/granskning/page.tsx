@@ -48,8 +48,8 @@ export default async function GranskningPage({ searchParams }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-h1 font-medium text-text-primary">Granskning</h1>
-        <p className="mt-1 text-body text-text-secondary">
+        <h1 className="jp-h1">Granskning</h1>
+        <p className="jp-lede">
           Granskningslogg över alla skrivande operationer. Senaste posten först.
         </p>
       </div>

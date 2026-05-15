@@ -2,69 +2,206 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Dark mode: attribut-baserad (data-theme="dark" på <html>) — INTE .dark-klass. */
+/* Verifierad Tailwind v4-syntax (web-search 2026-05-16). Matchar ThemeProvider  */
+/* + ThemeScript som sätter/tar bort attributet. Re-introducerad i designsystem  */
+/* v2 med Klas-godkännande 2026-05-16 + ADR (ersätter Fas 0-borttagningen — den  */
+/* skedde pga shadcn nova-presetens oklch indigo-violetter; v2 använder en       */
+/* civic slate-skala utan dekorativ hue).                                        */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ============================================================
+   Kanonisk palett — JobbPilot v2 civic-utility tokens (--jp-*)
+   Definieras EN gång. Tailwind @theme inline + shadcn-bridgen
+   refererar dessa, så light/dark följer med automatiskt.
+   Källa: JobbPilotNEWDESIGN/jobbpilot.css + TOKENS.md.
+   ============================================================ */
+:root {
+  /* Surfaces (slate-baserat ljust läge — PAPER-metafor) */
+  --jp-surface-primary:   #FFFFFF;
+  --jp-surface-secondary: #F8FAFC;
+  --jp-surface-tertiary:  #F1F5F9;
+  --jp-surface-sunken:    #F1F5F9;
+  --jp-surface-inverse:   #0F172A;
+
+  /* Text */
+  --jp-text-primary:      #0F172A;
+  --jp-text-secondary:    #475569;
+  --jp-text-tertiary:     #94A3B8;
+  --jp-text-inverse:      #FFFFFF;
+
+  /* Brand (myndighetsblå) */
+  --jp-brand-50:  #EAF2FB;
+  --jp-brand-100: #C8DDF1;
+  --jp-brand-300: #6BA1DC;
+  --jp-brand-500: #1F6EB8;
+  --jp-brand-600: #0B5CAD;
+  --jp-brand-700: #094B8C;
+  --jp-brand-900: #062F57;
+
+  /* Status */
+  --jp-success-50:  #ECFDF5;
+  --jp-success-500: #10B981;
+  --jp-success-600: #059669;
+  --jp-success-700: #047857;
+  --jp-warning-50:  #FFFBEB;
+  --jp-warning-500: #F59E0B;
+  --jp-warning-600: #D97706;
+  --jp-warning-700: #B45309;
+  --jp-danger-50:   #FEF2F2;
+  --jp-danger-500:  #EF4444;
+  --jp-danger-600:  #DC2626;
+  --jp-danger-700:  #B91C1C;
+  --jp-info-50:     #F1F5F9;
+  --jp-info-500:    #64748B;
+  --jp-info-600:    #475569;
+  --jp-info-700:    #334155;
+
+  /* Borders */
+  --jp-border:          #E2E8F0;
+  --jp-border-strong:   #CBD5E1;
+  --jp-border-soft:     #F1F5F9;
+  --jp-border-hairline: #E2E8F0;
+
+  /* Focus */
+  --jp-focus: #0B5CAD;
+
+  /* Radius (strikt civic) */
+  --jp-r-sm:   2px;
+  --jp-r-md:   4px;
+  --jp-r-lg:   6px;
+  --jp-r-pill: 9999px;
+
+  /* Typografi — font-familjer kommer från next/font (--font-sans/--font-mono) */
+  --jp-font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
+
+  /* Density-multiplikator — sätts via [data-density] på <html> */
+  --jp-density:   1;
+  --jp-row-h:     calc(36px * var(--jp-density));
+  --jp-section-y: calc(28px * var(--jp-density));
+  --jp-pad-x:     calc(28px * var(--jp-density));
+
+  /* Skuggor — bara två (popovers/dropdowns), aldrig på cards/knappar */
+  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+[data-density="compact"]  { --jp-density: 0.85; }
+[data-density="standard"] { --jp-density: 1;    }
+[data-density="luftig"]   { --jp-density: 1.18; }
+
+/* ── Dark mode (civic slate-skala, vit text — ingen dekorativ hue) ── */
+[data-theme="dark"] {
+  --jp-surface-primary:   #020617;  /* slate-950 — canvas */
+  --jp-surface-secondary: #0F172A;  /* slate-900 — chrome ovanpå canvas */
+  --jp-surface-tertiary:  #1E293B;  /* slate-800 — hover (lyft) */
+  --jp-surface-sunken:    #000000;  /* pitch-black — sunken, MÖRKARE än canvas */
+  --jp-surface-inverse:   #F8FAFC;
+
+  --jp-text-primary:      #F8FAFC;
+  --jp-text-secondary:    #94A3B8;
+  --jp-text-tertiary:     #64748B;
+  --jp-text-inverse:      #0F172A;
+
+  --jp-brand-50:  #1E3A5F;          /* dim selection bg */
+  --jp-brand-100: #1E40AF;
+  --jp-brand-300: #60A5FA;
+  --jp-brand-500: #3B82F6;
+  --jp-brand-600: #60A5FA;          /* blue-400 — primary i dark */
+  --jp-brand-700: #BFDBFE;          /* blue-200 — text på selektion */
+  --jp-brand-900: #062F57;
+
+  --jp-success-50:  #052E1A;
+  --jp-success-500: #10B981;
+  --jp-success-600: #4ADE80;
+  --jp-success-700: #86EFAC;
+  --jp-warning-50:  #2A1D05;
+  --jp-warning-500: #F59E0B;
+  --jp-warning-600: #FBBF24;
+  --jp-warning-700: #FDE68A;
+  --jp-danger-50:   #2E1014;
+  --jp-danger-500:  #EF4444;
+  --jp-danger-600:  #F87171;
+  --jp-danger-700:  #FECACA;
+  --jp-info-50:     #1E293B;
+  --jp-info-500:    #64748B;
+  --jp-info-600:    #94A3B8;
+  --jp-info-700:    #CBD5E1;
+
+  --jp-border:          #1E293B;
+  --jp-border-strong:   #334155;
+  --jp-border-soft:     #1E293B;
+  --jp-border-hairline: #1E293B;
+
+  --jp-focus: #60A5FA;
+
+  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.7);
+}
+
+/* ── Tailwind @theme inline — utilities (bg-surface-primary m.fl.) ──── */
+/* inline = utility använder var() vid runtime → light/dark följer med.  */
+@theme inline {
+  /* Surfaces */
+  --color-surface-primary:   var(--jp-surface-primary);
+  --color-surface-secondary: var(--jp-surface-secondary);
+  --color-surface-tertiary:  var(--jp-surface-tertiary);
+  --color-surface-sunken:    var(--jp-surface-sunken);
+  --color-surface-inverse:   var(--jp-surface-inverse);
+
+  /* Text */
+  --color-text-primary:   var(--jp-text-primary);
+  --color-text-secondary: var(--jp-text-secondary);
+  --color-text-tertiary:  var(--jp-text-tertiary);
+  --color-text-inverse:   var(--jp-text-inverse);
+
+  /* Brand */
+  --color-brand-50:  var(--jp-brand-50);
+  --color-brand-100: var(--jp-brand-100);
+  --color-brand-300: var(--jp-brand-300);
+  --color-brand-500: var(--jp-brand-500);
+  --color-brand-600: var(--jp-brand-600);
+  --color-brand-700: var(--jp-brand-700);
+  --color-brand-900: var(--jp-brand-900);
+
+  /* Status */
+  --color-success-50:  var(--jp-success-50);
+  --color-success-600: var(--jp-success-600);
+  --color-success-700: var(--jp-success-700);
+  --color-warning-50:  var(--jp-warning-50);
+  --color-warning-600: var(--jp-warning-600);
+  --color-warning-700: var(--jp-warning-700);
+  --color-danger-50:   var(--jp-danger-50);
+  --color-danger-600:  var(--jp-danger-600);
+  --color-danger-700:  var(--jp-danger-700);
+  --color-info-50:     var(--jp-info-50);
+  --color-info-600:    var(--jp-info-600);
+  --color-info-700:    var(--jp-info-700);
+
+  /* Borders */
+  --color-border-default: var(--jp-border);
+  --color-border-strong:  var(--jp-border-strong);
+  --color-border-brand:   var(--jp-brand-600);
+
+  /* Focus */
+  --color-focus-ring:        var(--jp-focus);
+  --color-focus-ring-offset: var(--jp-surface-primary);
+
+  /* Typografi-familjer */
+  --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
+}
 
 @theme {
-  /* ── Surfaces ──────────────────────────────────── */
-  --color-surface-primary:   #FFFFFF;
-  --color-surface-secondary: #F7F7F5;
-  --color-surface-tertiary:  #EDECE7;
-  --color-surface-inverse:   #1A1A1A;
-
-  /* ── Text ──────────────────────────────────────── */
-  --color-text-primary:      #1A1A1A;
-  --color-text-secondary:    #5A5A5A;
-  --color-text-tertiary:     #8A8A85;
-  --color-text-inverse:      #FFFFFF;
-
-  /* ── Brand (myndighetsblå) ─────────────────────── */
-  --color-brand-50:          #EAF2FB;
-  --color-brand-100:         #C8DDF1;
-  --color-brand-300:         #6BA1DC;
-  --color-brand-500:         #1F6EB8;
-  --color-brand-600:         #0B5CAD;
-  --color-brand-700:         #094B8C;
-  --color-brand-900:         #062F57;
-
-  /* ── Status: success ───────────────────────────── */
-  --color-success-50:        #E8F3EC;
-  --color-success-600:       #0F7A2E;
-  --color-success-700:       #0B5E24;
-
-  /* ── Status: warning ───────────────────────────── */
-  --color-warning-50:        #FAF2DE;
-  --color-warning-600:       #946200;
-  --color-warning-700:       #734D00;
-
-  /* ── Status: danger ────────────────────────────── */
-  --color-danger-50:         #FBEBEB;
-  --color-danger-600:        #B42121;
-  --color-danger-700:        #8C1919;
-
-  /* ── Status: info ──────────────────────────────── */
-  --color-info-50:           #EEF1F5;
-  --color-info-600:          #4A5A7A;
-  --color-info-700:          #384560;
-
-  /* ── Borders ───────────────────────────────────── */
-  --color-border-default:    #D8D6D0;
-  --color-border-strong:     #B8B6B0;
-  --color-border-brand:      #0B5CAD;
-
-  /* ── Focus ─────────────────────────────────────── */
-  --color-focus-ring:        #0B5CAD;
-  --color-focus-ring-offset: #FFFFFF;
-
   /* ── Shadows ───────────────────────────────────── */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
 
-  /* ── Typography ────────────────────────────────── */
-  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
-
-  --text-display:  36px;
+  /* ── Typography scale ──────────────────────────── */
+  --text-display:  56px;   /* landing hero (v2) */
   --text-h1:       28px;
-  --text-h2:       22px;
+  --text-h2:       20px;
   --text-h3:       18px;
   --text-h4:       16px;
   --text-body-lg:  16px;
@@ -77,20 +214,21 @@
 
 /* ── Base styles ──────────────────────────────────── */
 body {
-  background-color: var(--color-surface-primary);
-  color: var(--color-text-primary);
-  font-family: var(--font-sans);
+  background-color: var(--jp-surface-primary);
+  color: var(--jp-text-primary);
+  font-family: var(--jp-font-sans);
   font-size: 14px;
   line-height: 1.55;
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Global focus ring ────────────────────────────── */
 *:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
+  outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--jp-r-sm);
 }
 
 /* ── Reduced motion ───────────────────────────────── */
@@ -102,12 +240,9 @@ body {
   }
 }
 
-/* ── shadcn/ui bridge: maps bg-* classes to :root vars ── */
-/* Placed AFTER body styles. @theme inline uses var() so it resolves   */
-/* at runtime — :root values below drive what shadcn components get.   */
+/* ── shadcn/ui bridge ──────────────────────────────── */
 @theme inline {
   --font-heading:                       var(--font-sans);
-  --font-sans:                          var(--font-sans);
   --color-background:                   var(--background);
   --color-foreground:                   var(--foreground);
   --color-card:                         var(--card);
@@ -139,10 +274,7 @@ body {
   --color-sidebar-accent-foreground:    var(--sidebar-accent-foreground);
   --color-sidebar-border:               var(--sidebar-border);
   --color-sidebar-ring:                 var(--sidebar-ring);
-  /* Radius: civic fixed values — NOT shadcn's calc(var(--radius) * n).  */
-  /* Placed here to override any earlier @theme radius entries.           */
-  /* --radius-xl clamped to 6px (= lg) — no shadcn component may exceed  */
-  /* civic max of 6px by using rounded-xl. Pill remains exception.        */
+  /* Radius: civic fixed values — clamped to 6px max (pill undantaget). */
   --radius-sm:   2px;
   --radius-md:   4px;
   --radius-lg:   6px;
@@ -150,48 +282,49 @@ body {
   --radius-pill: 9999px;
 }
 
-/* ── :root — civic color values for shadcn components ── */
+/* shadcn light-värden (slate v2) — bryggas mot --jp-* där det matchar */
 :root {
-  --background:                 #FFFFFF;          /* surface-primary */
-  --foreground:                 #1A1A1A;          /* text-primary */
-  --card:                       #FFFFFF;          /* surface-primary */
-  --card-foreground:            #1A1A1A;
-  --popover:                    #FFFFFF;
-  --popover-foreground:         #1A1A1A;
-  --primary:                    #0B5CAD;          /* brand-600 */
+  --background:                 var(--jp-surface-primary);
+  --foreground:                 var(--jp-text-primary);
+  --card:                       var(--jp-surface-primary);
+  --card-foreground:            var(--jp-text-primary);
+  --popover:                    var(--jp-surface-primary);
+  --popover-foreground:         var(--jp-text-primary);
+  --primary:                    var(--jp-brand-600);
   --primary-foreground:         #FFFFFF;
-  --secondary:                  #F7F7F5;          /* surface-secondary */
-  --secondary-foreground:       #1A1A1A;
-  --muted:                      #EDECE7;          /* surface-tertiary */
-  --muted-foreground:           #5A5A5A;          /* text-secondary */
-  --accent:                     #F7F7F5;          /* surface-secondary */
-  --accent-foreground:          #1A1A1A;
-  --destructive:                #B42121;          /* danger-600 */
-  --border:                     #D8D6D0;          /* border-default */
-  --input:                      #D8D6D0;          /* border-default */
-  --ring:                       #0B5CAD;          /* brand-600 */
-  --radius:                     0.25rem;          /* 4px base — NOT used for our radius-sm/md/lg */
-  /* chart: brand palette */
-  --chart-1:                    #0B5CAD;
-  --chart-2:                    #1F6EB8;
-  --chart-3:                    #6BA1DC;
-  --chart-4:                    #C8DDF1;
-  --chart-5:                    #EAF2FB;
-  /* sidebar */
-  --sidebar:                    #F7F7F5;
-  --sidebar-foreground:         #1A1A1A;
-  --sidebar-primary:            #0B5CAD;
+  --secondary:                  var(--jp-surface-secondary);
+  --secondary-foreground:       var(--jp-text-primary);
+  --muted:                      var(--jp-surface-tertiary);
+  --muted-foreground:           var(--jp-text-secondary);
+  --accent:                     var(--jp-surface-secondary);
+  --accent-foreground:          var(--jp-text-primary);
+  --destructive:                var(--jp-danger-600);
+  --border:                     var(--jp-border);
+  --input:                      var(--jp-border);
+  --ring:                       var(--jp-brand-600);
+  --radius:                     0.25rem;
+  --chart-1:                    var(--jp-brand-600);
+  --chart-2:                    var(--jp-brand-500);
+  --chart-3:                    var(--jp-brand-300);
+  --chart-4:                    var(--jp-brand-100);
+  --chart-5:                    var(--jp-brand-50);
+  --sidebar:                    var(--jp-surface-secondary);
+  --sidebar-foreground:         var(--jp-text-primary);
+  --sidebar-primary:            var(--jp-brand-600);
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent:             #EDECE7;
-  --sidebar-accent-foreground:  #1A1A1A;
-  --sidebar-border:             #D8D6D0;
-  --sidebar-ring:               #0B5CAD;
+  --sidebar-accent:             var(--jp-surface-tertiary);
+  --sidebar-accent-foreground:  var(--jp-text-primary);
+  --sidebar-border:             var(--jp-border);
+  --sidebar-ring:               var(--jp-brand-600);
 }
 
-/* Dark mode: removed in Fas 0 — shadcn nova-preset generated oklch values   */
-/* including oklch(0.488 0.243 264.376) (indigo-violet) which violates        */
-/* CLAUDE.md §5.2. Dark mode will be specified in a future ADR with civic     */
-/* neutral-scale values (no hue). Do NOT re-add without Klas approval + ADR.  */
+/* shadcn dark-värden: ärvs automatiskt — alla bryggor refererar --jp-*    */
+/* som redan skiftar i [data-theme="dark"]. --primary-foreground sätts dock */
+/* explicit (mörk text på ljusblå primary i dark, matchar .jp-btn--primary).*/
+[data-theme="dark"] {
+  --primary-foreground:         #0F172A;
+  --sidebar-primary-foreground: #0F172A;
+}
 
 @layer base {
   * {
@@ -204,3 +337,834 @@ body {
     @apply font-sans;
   }
 }
+
+/* ============================================================
+   .jp-* utility-system — civic-utility komponent-primitiv.
+   Verbatim från JobbPilotNEWDESIGN/jobbpilot.css (Variant B vald).
+   Light/dark följer --jp-* automatiskt. Shell-varianter A/C kvar
+   för referens men endast B implementeras i appen.
+   ============================================================ */
+
+/* ── App shell ─────────────────────────────────────────────── */
+.jp-app {
+  font-family: var(--jp-font-sans);
+  background: var(--jp-surface-primary);
+  color: var(--jp-text-primary);
+  font-size: 14px;
+  line-height: 1.55;
+  height: 100%;
+  display: grid;
+  grid-template-columns: var(--jp-sidebar-w, 240px) 1fr;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.jp-app[data-sidebar="rail"]    { --jp-sidebar-w: 64px;  }
+.jp-app[data-sidebar="default"] { --jp-sidebar-w: 240px; }
+
+.jp-app *:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+  border-radius: var(--jp-r-sm);
+}
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+.jp-sidebar {
+  background: var(--jp-surface-secondary);
+  border-right: 1px solid var(--jp-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.jp-sidebar__brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 18px 18px 14px;
+}
+.jp-sidebar__wordmark {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--jp-text-primary);
+}
+.jp-sidebar__tag {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  color: var(--jp-text-tertiary);
+  letter-spacing: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--jp-border-hairline);
+  border-radius: var(--jp-r-sm);
+}
+
+.jp-sidebar__search { padding: 0 12px 8px; }
+.jp-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  background: var(--jp-surface-primary);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  cursor: text;
+}
+.jp-search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--jp-text-primary);
+}
+.jp-search input::placeholder { color: var(--jp-text-tertiary); }
+.jp-search__kbd {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  color: var(--jp-text-tertiary);
+  border: 1px solid var(--jp-border-hairline);
+  padding: 0 4px;
+  border-radius: var(--jp-r-sm);
+}
+
+.jp-nav {
+  flex: 1;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+.jp-nav__section { margin-top: 14px; }
+.jp-nav__section:first-child { margin-top: 4px; }
+
+.jp-nav__label {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--jp-text-tertiary);
+  text-transform: uppercase;
+  padding: 6px 12px 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-nav__label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--jp-border-hairline);
+}
+
+.jp-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 14px;
+  height: calc(var(--jp-row-h) * 0.95);
+  border-radius: var(--jp-r-md);
+  color: var(--jp-text-secondary);
+  font-size: 13.5px;
+  font-weight: 400;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 80ms linear, color 80ms linear;
+}
+.jp-nav__item:hover {
+  background: var(--jp-surface-tertiary);
+  color: var(--jp-text-primary);
+}
+.jp-nav__item[aria-current="page"] {
+  background: var(--jp-brand-50);
+  color: var(--jp-brand-700);
+  font-weight: 500;
+}
+.jp-nav__item__icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+  opacity: 0.85;
+}
+.jp-nav__item__count {
+  margin-left: auto;
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  color: var(--jp-text-tertiary);
+  letter-spacing: 0;
+}
+.jp-nav__item[aria-current="page"] .jp-nav__item__count { color: var(--jp-brand-600); }
+
+/* Variant B (vald): active = transparent bg + 4px brand-vänsterkant + bolder */
+.jp-app[data-shell="B"] .jp-nav__item {
+  border-radius: 0;
+  padding-left: 14px;
+  border-left: 4px solid transparent;
+}
+.jp-app[data-shell="B"] .jp-nav__item:hover { background: var(--jp-surface-tertiary); }
+.jp-app[data-shell="B"] .jp-nav__item[aria-current="page"] {
+  background: transparent;
+  border-left: 4px solid var(--jp-brand-600);
+  color: var(--jp-brand-700);
+  font-weight: 600;
+}
+[data-theme="dark"] .jp-app[data-shell="B"] .jp-nav__item[aria-current="page"] {
+  color: var(--jp-brand-600);
+}
+
+/* ── Sidebar user ──────────────────────────────────────────── */
+.jp-sidebar__user {
+  border-top: 1px solid var(--jp-border-hairline);
+  padding: 12px 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.jp-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-brand-100);
+  color: var(--jp-brand-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  flex: 0 0 auto;
+}
+.jp-sidebar__user__info { min-width: 0; flex: 1; }
+.jp-sidebar__user__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-sidebar__user__email {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  color: var(--jp-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-iconbtn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--jp-r-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--jp-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 80ms linear, color 80ms linear;
+}
+.jp-iconbtn:hover {
+  background: var(--jp-surface-tertiary);
+  color: var(--jp-text-primary);
+}
+
+/* ── Main area ─────────────────────────────────────────────── */
+.jp-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--jp-surface-primary);
+}
+
+.jp-topbar {
+  height: 56px;
+  flex: 0 0 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--jp-pad-x);
+  border-bottom: 1px solid var(--jp-border);
+  background: var(--jp-surface-primary);
+}
+.jp-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--jp-text-tertiary);
+}
+.jp-crumbs__sep { color: var(--jp-text-tertiary); opacity: 0.7; }
+.jp-crumbs__current { color: var(--jp-text-secondary); }
+
+.jp-topbar__actions { display: flex; align-items: center; gap: 8px; }
+
+.jp-pageScroll { flex: 1; overflow: auto; min-height: 0; }
+.jp-page {
+  padding: calc(var(--jp-section-y) * 1.2) var(--jp-pad-x) calc(var(--jp-section-y) * 2);
+  max-width: 1080px;
+  margin: 0;
+}
+.jp-page--wide { max-width: none; }
+
+/* ── Headings ─────────────────────────────────────────────── */
+.jp-h1 {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--jp-text-primary);
+  line-height: 1.2;
+  margin: 0;
+}
+.jp-h1--display {
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+.jp-h2 {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--jp-text-primary);
+  margin: 0;
+}
+.jp-h3 {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--jp-text-primary);
+  margin: 0;
+}
+.jp-lede {
+  color: var(--jp-text-secondary);
+  font-size: 15px;
+  max-width: 60ch;
+  margin: 8px 0 0;
+  line-height: 1.55;
+}
+.jp-mono {
+  font-family: var(--jp-font-mono);
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0;
+}
+
+/* ── Section header ────────────────────────────────────────── */
+.jp-sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--jp-border-hairline);
+  margin: var(--jp-section-y) 0 16px;
+}
+.jp-sectionHeader__title { display: flex; align-items: baseline; gap: 10px; }
+.jp-sectionHeader__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--jp-text-tertiary);
+  font-weight: 500;
+}
+.jp-sectionHeader__action {
+  font-size: 12.5px;
+  color: var(--jp-brand-600);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.jp-sectionHeader__action:hover { color: var(--jp-brand-700); }
+
+/* ── Aktuellt-feed (attention list, ingen låda) ────────────── */
+.jp-attention {
+  margin-top: 28px;
+  border-top: 1px solid var(--jp-border);
+}
+.jp-attention__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 4px;
+  border-bottom: 1px solid var(--jp-border);
+  position: relative;
+}
+.jp-attention__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  flex: 0 0 auto;
+  margin-top: 8px;
+}
+.jp-attention__text {
+  flex: 1;
+  font-size: 15px;
+  color: var(--jp-text-primary);
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  max-width: 68ch;
+}
+.jp-attention__link {
+  color: var(--jp-brand-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.jp-attention__link:hover {
+  color: var(--jp-brand-600);
+  text-decoration-thickness: 2px;
+}
+[data-theme="dark"] .jp-attention__link { color: var(--jp-brand-600); }
+[data-theme="dark"] .jp-attention__link:hover { color: var(--jp-brand-700); }
+.jp-attention__dismiss {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--jp-r-md);
+  color: var(--jp-text-tertiary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 80ms linear, background 80ms linear, color 80ms linear;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.jp-attention__row:hover .jp-attention__dismiss { opacity: 1; }
+.jp-attention__dismiss:hover {
+  background: var(--jp-surface-tertiary);
+  color: var(--jp-text-primary);
+}
+.jp-attention__footer {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--jp-text-tertiary);
+}
+
+/* ── Cards / list ──────────────────────────────────────────── */
+.jp-card {
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface-secondary);
+  padding: 16px 18px;
+}
+.jp-listCard {
+  border: 1px solid var(--jp-border-hairline);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface-secondary);
+  overflow: hidden;
+}
+.jp-listCard--flat {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  border-top: 1px solid var(--jp-border);
+}
+.jp-listCard--flat .jp-listRow:last-child { border-bottom: 1px solid var(--jp-border); }
+.jp-listCard--flat .jp-listRow:hover { background: var(--jp-surface-tertiary); }
+.jp-listRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--jp-border-hairline);
+  cursor: pointer;
+  transition: background 80ms linear;
+}
+.jp-listRow:last-child { border-bottom: 0; }
+.jp-listRow:hover { background: var(--jp-surface-sunken); }
+.jp-listRow--selected { background: var(--jp-brand-50); }
+
+/* Job row */
+.jp-jobRow__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.jp-jobRow__title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--jp-text-primary);
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+.jp-jobRow__meta {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--jp-text-secondary);
+}
+.jp-jobRow__meta__sep { color: var(--jp-border); }
+.jp-jobRow__excerpt {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--jp-text-secondary);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.jp-jobRow__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--jp-border-hairline);
+}
+.jp-jobRow__dates {
+  display: flex;
+  gap: 18px;
+  font-size: 11.5px;
+  color: var(--jp-text-tertiary);
+}
+.jp-jobRow__dates b {
+  font-family: var(--jp-font-mono);
+  font-weight: 400;
+  color: var(--jp-text-secondary);
+  margin-left: 4px;
+}
+
+/* ── Status dot (ledger-stil, ingen pill-bg) ───────────────── */
+.jp-statusDot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--jp-text-primary);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.jp-statusDot__d {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--jp-r-pill);
+  flex: 0 0 auto;
+}
+.jp-statusDot--brand    .jp-statusDot__d { background: var(--jp-brand-600); }
+.jp-statusDot--info     .jp-statusDot__d { background: var(--jp-info-600); }
+.jp-statusDot--success  .jp-statusDot__d { background: var(--jp-success-600); }
+.jp-statusDot--warning  .jp-statusDot__d { background: var(--jp-warning-600); }
+.jp-statusDot--danger   .jp-statusDot__d { background: var(--jp-danger-600); }
+.jp-statusDot--neutral  .jp-statusDot__d { background: var(--jp-text-tertiary); }
+
+/* ── Status pill ───────────────────────────────────────────── */
+.jp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 7px;
+  border-radius: var(--jp-r-pill);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--jp-border-hairline);
+  background: var(--jp-surface-primary);
+  color: var(--jp-text-secondary);
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+.jp-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--jp-r-pill);
+  background: currentColor;
+  flex: 0 0 auto;
+}
+.jp-pill--neutral  { color: var(--jp-text-secondary); background: var(--jp-surface-secondary); }
+.jp-pill--info     { color: var(--jp-info-600);    background: var(--jp-info-50);    border-color: transparent; }
+.jp-pill--brand    { color: var(--jp-brand-700);   background: var(--jp-brand-50);   border-color: transparent; }
+.jp-pill--success  { color: var(--jp-success-700); background: var(--jp-success-50); border-color: transparent; }
+.jp-pill--warning  { color: var(--jp-warning-700); background: var(--jp-warning-50); border-color: transparent; }
+.jp-pill--danger   { color: var(--jp-danger-700);  background: var(--jp-danger-50);  border-color: transparent; }
+
+/* ── Match-bar ─────────────────────────────────────────────── */
+.jp-match {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  color: var(--jp-text-secondary);
+}
+.jp-match__bar {
+  width: 72px;
+  height: 6px;
+  background: var(--jp-surface-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.jp-match__fill {
+  height: 100%;
+  background: var(--jp-brand-600);
+  border-radius: 2px;
+}
+.jp-match__fill--low { background: var(--jp-warning-600); }
+.jp-match__fill--mid { background: var(--jp-info-600); }
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.jp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--jp-r-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: background 80ms linear, border-color 80ms linear, color 80ms linear;
+  letter-spacing: -0.005em;
+}
+.jp-btn--primary { background: var(--jp-brand-600); color: #fff; }
+.jp-btn--primary:hover { background: var(--jp-brand-700); }
+[data-theme="dark"] .jp-btn--primary { color: #0F172A; }
+.jp-btn--secondary {
+  background: var(--jp-surface-primary);
+  border-color: var(--jp-border);
+  color: var(--jp-text-primary);
+}
+.jp-btn--secondary:hover { background: var(--jp-surface-secondary); border-color: var(--jp-border-strong); }
+.jp-btn--ghost { background: transparent; color: var(--jp-text-secondary); }
+.jp-btn--ghost:hover { background: var(--jp-surface-tertiary); color: var(--jp-text-primary); }
+.jp-btn--sm { height: 28px; padding: 0 10px; font-size: 12.5px; }
+
+/* ── Filter bar (flat, civic-utility) ──────────────────────── */
+.jp-filterBar {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
+  gap: 16px;
+  align-items: end;
+  padding: 18px 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--jp-border);
+  border-bottom: 1px solid var(--jp-border);
+  border-radius: 0;
+}
+.jp-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.jp-field__label { font-size: 12px; color: var(--jp-text-secondary); font-weight: 500; }
+.jp-field__hint {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  color: var(--jp-text-tertiary);
+}
+.jp-input, .jp-select {
+  height: 32px;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface-primary);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--jp-text-primary);
+  outline: 0;
+  min-width: 0;
+}
+.jp-input::placeholder { color: var(--jp-text-tertiary); }
+.jp-input:focus, .jp-select:focus {
+  border-color: var(--jp-brand-600);
+  box-shadow: 0 0 0 3px var(--jp-brand-50);
+}
+
+/* ── Tabs ──────────────────────────────────────────────────── */
+.jp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--jp-border-hairline);
+}
+.jp-tab {
+  position: relative;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--jp-text-secondary);
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-tab:hover { color: var(--jp-text-primary); }
+.jp-tab[aria-selected="true"] { color: var(--jp-text-primary); font-weight: 500; }
+.jp-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--jp-brand-600);
+}
+.jp-tab__count {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  color: var(--jp-text-tertiary);
+  background: var(--jp-surface-secondary);
+  padding: 1px 6px;
+  border-radius: var(--jp-r-pill);
+}
+
+/* ── Pipeline / kanban: ledger-stil ────────────────────────── */
+.jp-pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--jp-border);
+}
+.jp-col {
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--jp-border-strong);
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 360px;
+}
+.jp-col:last-child { border-right: 0; }
+.jp-col__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--jp-border);
+}
+.jp-col__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--jp-text-primary);
+}
+.jp-col__count {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  color: var(--jp-text-tertiary);
+  font-weight: 500;
+}
+.jp-col__body { flex: 1; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.jp-appRow {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--jp-border-hairline);
+  cursor: pointer;
+  transition: background 80ms linear;
+  background: transparent;
+}
+.jp-appRow:hover { background: var(--jp-surface-tertiary); box-shadow: inset 2px 0 0 var(--jp-border-strong); }
+.jp-appRow__id {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  color: var(--jp-text-tertiary);
+  letter-spacing: 0.04em;
+}
+.jp-appRow__title { font-size: 13.5px; font-weight: 500; color: var(--jp-text-primary); margin-top: 1px; }
+.jp-appRow__company { font-size: 12px; color: var(--jp-text-secondary); margin-top: 2px; }
+.jp-appRow__date {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  color: var(--jp-text-tertiary);
+  margin-top: 8px;
+}
+.jp-appRow__date b { color: var(--jp-text-secondary); font-weight: 400; margin-left: 4px; }
+
+/* ── Table (print-ledger) ──────────────────────────────────── */
+.jp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jp-table thead th {
+  text-align: left;
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--jp-text-secondary);
+  font-weight: 600;
+  padding: 12px 12px 10px;
+  border-top: 2px solid var(--jp-border-strong);
+  border-bottom: 1px solid var(--jp-border-strong);
+}
+.jp-table tbody td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--jp-border);
+  color: var(--jp-text-primary);
+  vertical-align: middle;
+}
+.jp-table tbody tr:hover td { background: var(--jp-surface-tertiary); }
+.jp-table tbody tr:last-child td { border-bottom: 2px solid var(--jp-border-strong); }
+
+/* ── Banner ────────────────────────────────────────────────── */
+.jp-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--jp-brand-50);
+  border: 1px solid var(--jp-brand-100);
+  border-left: 3px solid var(--jp-brand-600);
+  border-radius: var(--jp-r-md);
+}
+.jp-banner__body { flex: 1; }
+.jp-banner__title { font-weight: 500; color: var(--jp-text-primary); font-size: 13.5px; }
+.jp-banner__text { font-size: 12.5px; color: var(--jp-text-secondary); margin-top: 2px; }
+.jp-banner__cta {
+  color: var(--jp-brand-700);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Page hero ─────────────────────────────────────────────── */
+.jp-hero { padding-top: 4px; }
+.jp-hero__date {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--jp-text-tertiary);
+  text-transform: uppercase;
+}
+.jp-hero__h { margin-top: 4px; }
+
+/* ── Layout helpers ────────────────────────────────────────── */
+.jp-grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+.jp-grid2--3to2 { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; }
+.jp-divider { height: 1px; background: var(--jp-border-hairline); margin: 16px 0; }
+.jp-row { display: flex; align-items: center; gap: 8px; }
+.jp-stack { display: flex; flex-direction: column; }
+.jp-spacer { flex: 1; }
+.jp-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0 0;
+}
+.jp-pagination__info {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  color: var(--jp-text-tertiary);
+}
+.jp-pagination__buttons { display: flex; gap: 4px; }

@@ -29,16 +29,48 @@ shadcn is the single source of UI primitives.
 
 ---
 
-## Core components (v1)
+## Civic-utility patterns (v2, `.jp-*` system)
+
+v2 ships a `.jp-*` utility system in `globals.css` (verbatim from
+`JobbPilotNEWDESIGN/jobbpilot.css`, Variant B). These are the canonical
+civic-utility primitives — prefer them over re-styled shadcn for ledger/feed
+layouts. Light/dark follow the `--jp-*` tokens automatically.
+
+| Pattern | What it is | When |
+|---|---|---|
+| `.jp-table--flat` | Print-ledger table. **NO zebra**, **NO celled borders**, hairlines between rows, thicker (2px) top/bottom rule, mono uppercase header. | Default for data lists. |
+| `.jp-attention` | Row-based feed: 8px dot + text (`max-width: 68ch`) + hover dismiss. Hairlines top/between, **no box**. | Översikt / "Aktuellt" feed. |
+| `.jp-pipeline` | Kanban as ledger rows. Columns separated by `--jp-border-strong` (stronger than row hairlines), **NO floating cards** (`.jp-appCard` is `display:none`). Rows are `.jp-appRow`. | Application pipeline. |
+| `.jp-statusDot` | Dot + text, **no background**. `--brand`/`--info`/`--success`/`--warning`/`--danger`/`--neutral`. | **First choice in tables** for status. |
+| `.jp-pill` | Pill: colored `*-50` bg + 6px dot + `*-700` text, `rounded-pill`. | Status **at an entity** (accent moment), not in dense table columns. |
+| `.jp-match` | 6px progress bar: brand fill ≥75, `--mid` (info) 50–74, `--low` (warning) <50. | Match-score. |
+| `.jp-filterBar` | Flat grid between two hairlines, fields at natural width, **no chrome box**. | Filter rows. |
+| `.jp-banner` | Brand-50 bg + 3px `brand-600` left border. Use sparingly. | Non-blocking info notice. |
+
+**`.jp-statusDot` vs `.jp-pill`:** the dot is the default in tables (lowest
+visual weight, no fill — rule 2/3). Use the pill only when status is the
+entity's headline at a single point (e.g. a detail header), where a small
+colored accent is warranted. Never both for the same datum.
+
+---
+
+## Core components (v1, shadcn-based)
 
 ### Button
 
+Spec (matches `.jp-btn`): height **32px**, sm **28px**; `border-radius: 4px`
+(`var(--jp-r-md)`); `transition: 80ms linear`; font 13px/500 sans;
+`letter-spacing: -0.005em`.
+
 Variants:
-- `primary` — `bg-brand-600`, default CTA (Spara, Skicka, Ansök)
-- `secondary` — border + `bg-background`, sekundära actions
-- `ghost` — transparent, minor actions (Avbryt, Stäng)
-- `destructive` — `bg-danger-600`, destructive CTA (Radera, Avsluta)
-- `link` — text-only, inline text links (Läs mer)
+- `primary` — `bg-brand-600` white text (dark text in dark mode), hover
+  `bg-brand-700`. Default CTA (Spara, Skicka, Ansök).
+- `secondary` — `bg-surface-primary` + `border-border-default`, hover bg
+  `surface-secondary` + `border-border-strong`. Sekundära actions.
+- `ghost` — transparent, `text-text-secondary`, hover bg `surface-tertiary`.
+  Minor actions (Avbryt, Stäng).
+- `destructive` — `bg-danger-600`, destructive CTA (Radera, Avsluta).
+- `link` — text-only, inline text links (Läs mer).
 
 Rules:
 - One primary button per form — never two side-by-side
@@ -65,6 +97,10 @@ Two flavors:
 ### Table
 
 Default pattern for data lists (preferred over card grids for app data).
+Use `.jp-table--flat` (the base `.jp-table` already is the ledger style):
+**no zebra-stripes, no celled/inramade borders**, hairlines between rows,
+2px `border-strong` top and bottom rule, mono uppercase header in
+`text-text-secondary`.
 
 Features in v1:
 - Sortable columns (click header, arrow indicator)
@@ -72,19 +108,26 @@ Features in v1:
 - Row click opens detail view
 - Skeleton loading state (full row skeletons, not spinner)
 - Empty state inline when no rows
+- Status column uses `.jp-statusDot` (dot + text, no bg) — not a filled pill
 
 Not in v1: column resize, column reorder, inline editing.
 
 ### Input / Textarea / Select
 
-- Height: 36px (`h-9`) default, 32px (`h-8`) for dense contexts
-- Border: `border-border-default`, focus: `border-brand-600` + subtle ring
-- Radius: `rounded-sm` (2px) — inputs are tighter than buttons
-- Font: `text-body` (14px)
+Spec (matches `.jp-input` / `.jp-select`):
+- Height: **32px**
+- Border: `border-border-default` (slate-200), `border-radius: 4px`
+  (`var(--jp-r-md)`)
+- Background: `bg-surface-primary` (white in light — distinct from the
+  slate-50 chrome)
+- Focus: `border-brand-600` + `box-shadow: 0 0 0 3px var(--jp-brand-50)`
+  (3px brand-50 ring)
+- Font: 13px
 - Placeholder: `text-text-tertiary`
 - Error state: `border-danger-600`, error message below in `text-danger-700`
 
-Always pair with a `<label>` — never placeholder-only inputs.
+Always pair with a `<label>` — never placeholder-only inputs. No floating
+labels (label sits above the field).
 
 ### Form (shadcn Form wrapper)
 

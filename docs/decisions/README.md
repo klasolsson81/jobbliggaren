@@ -49,6 +49,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0034 | DB-role privilege-separation: runtime vs migration-time creds | Accepted | 2026-05-12 | [0034-db-role-privilege-separation.md](./0034-db-role-privilege-separation.md) |
 | 0035 | System-event audit-pipeline (bypass-port parallell till IAuditTrailEraser) | Accepted | 2026-05-13 | [0035-system-event-audit-pipeline.md](./0035-system-event-audit-pipeline.md) |
 | 0036 | Prod-stack deferred + cloudwatch_ops_alarms-modul (v0.2-prod-launch-checklist-leverans) | Accepted | 2026-05-13 | [0036-prod-stack-deferred-and-ops-alarms.md](./0036-prod-stack-deferred-and-ops-alarms.md) |
+| 0037 | Designsystem v2: civic slate-skala + dark mode (ersätter Fas 0-borttagning) | Accepted | 2026-05-16 | [0037-design-system-v2-slate-dark-mode.md](./0037-design-system-v2-slate-dark-mode.md) |
 
 ## Planerade ADRs
 

@@ -12,15 +12,17 @@ export function ApplicationCard({ application }: ApplicationCardProps) {
   return (
     <Link
       href={`/ansokningar/${application.id}`}
-      className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-3 text-sm hover:bg-surface-secondary transition-colors"
+      className="flex items-center justify-between border-b border-border-default px-3 py-3 text-sm transition-colors duration-75 last:border-b-0 hover:bg-surface-tertiary"
     >
       <div className="flex items-center gap-3">
         <ApplicationStatusBadge status={application.status} />
-        <span className="text-body text-text-secondary font-mono text-xs">
+        <span className="font-mono text-[11.5px] text-text-secondary">
           {application.id.slice(0, 8)}
         </span>
       </div>
-      <span className="text-body-sm text-text-secondary">{updatedAt}</span>
+      <span className="font-mono text-[11.5px] text-text-secondary">
+        {updatedAt}
+      </span>
     </Link>
   );
 }

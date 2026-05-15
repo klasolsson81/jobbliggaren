@@ -24,7 +24,7 @@ export default async function MigPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-h1 font-medium text-text-primary">Min profil</h1>
+      <h1 className="jp-h1">Min profil</h1>
 
       <Card className="max-w-lg">
         <CardHeader>

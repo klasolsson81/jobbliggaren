@@ -51,9 +51,16 @@ Never use:
 | Peppning | "Vi håller tummarna", "Lycka till på resan" |
 | Versal Du | "Du kan hitta jobb här" (archaiserande) |
 | Vag feedback | "Något gick fel", "Försök igen", "Okänt fel" |
+| Stats-kort-rubriker | "Du har 3 aktiva ansökningar" som inramad kort-rubrik |
 
 Utropstecken är acceptabelt i error-meddelanden när de förstärker brådska —
 men sparsamt och aldrig i success/info-copy.
+
+**Inga stats-kort-rubriker.** Skriv inte en mening som inramad rubrik ovanför
+en lista bara för att räkna något ("Du har X aktiva ansökningar"). Visa siffran
+direkt i raden eller tabellhuvudet ovanför listan, i mono — t.ex.
+`3 391 träffar · uppdaterad 14:32`. Detta är en copy-konsekvens av
+civic-utility-regeln "information är design" (se `jobbpilot-design-principles`).
 
 ---
 

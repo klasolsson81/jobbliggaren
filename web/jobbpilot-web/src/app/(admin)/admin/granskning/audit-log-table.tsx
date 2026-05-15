@@ -13,10 +13,12 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
   if (entries.length === 0) {
     return (
       <div
-        className="rounded-md border border-border bg-surface-secondary px-6 py-10 text-center"
+        className="border-y border-border-default px-1 py-12 text-center"
         role="status"
       >
-        <p className="text-body text-text-secondary">Inga poster matchar filtret</p>
+        <p className="text-body text-text-primary">
+          Inga poster matchar filtret
+        </p>
         <p className="mt-1 text-body-sm text-text-secondary">
           Justera filterkriterierna eller rensa för att visa hela loggen.
         </p>
@@ -25,56 +27,44 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
-      <table className="w-full text-body-sm" aria-label="Granskningsposter">
+    <div className="overflow-x-auto">
+      <table className="jp-table w-full" aria-label="Granskningsposter">
         <caption className="sr-only">
           Granskningsposter sorterade efter tidpunkt, senaste först.
         </caption>
-        <thead className="bg-surface-secondary">
-          <tr className="text-left text-text-secondary">
-            <th scope="col" className="px-3 py-2 font-medium">
-              Tidpunkt
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Användare
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Händelse
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Aggregat
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              IP
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Klient
-            </th>
+        <thead>
+          <tr>
+            <th scope="col">Tidpunkt</th>
+            <th scope="col">Användare</th>
+            <th scope="col">Händelse</th>
+            <th scope="col">Aggregat</th>
+            <th scope="col">IP</th>
+            <th scope="col">Klient</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody>
           {entries.map((entry) => (
             <tr key={entry.id} className="text-text-primary">
-              <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">
+              <td className="whitespace-nowrap font-mono text-[11.5px] text-text-secondary">
                 {formatDateTime(entry.occurredAt)}
               </td>
-              <td className="px-3 py-2 font-mono text-xs">
+              <td className="font-mono text-[11.5px] text-text-secondary">
                 {entry.userId ? shortId(entry.userId) : (
                   <span className="text-text-secondary">system</span>
                 )}
               </td>
-              <td className="px-3 py-2">{entry.eventType}</td>
-              <td className="px-3 py-2">
+              <td className="">{entry.eventType}</td>
+              <td className="">
                 <span>{entry.aggregateType}</span>
                 <span className="text-text-tertiary"> · </span>
                 <span className="font-mono text-xs">{shortId(entry.aggregateId)}</span>
               </td>
-              <td className="px-3 py-2 font-mono text-xs">
+              <td className="font-mono text-[11.5px] text-text-secondary">
                 {entry.ipAddress ?? (
                   <span className="text-text-tertiary">—</span>
                 )}
               </td>
-              <td className="px-3 py-2 max-w-xs truncate text-text-secondary" title={entry.userAgent ?? undefined}>
+              <td className="max-w-xs truncate text-text-secondary" title={entry.userAgent ?? undefined}>
                 {entry.userAgent ?? (
                   <span className="text-text-tertiary">—</span>
                 )}

@@ -12,8 +12,8 @@ export function JobAdList({ jobAds }: JobAdListProps) {
     // announcement (design-reviewer F2-P10 Minor 2). Empty-state-texten är
     // statiskt DOM-innehåll som läses upp vid navigation.
     return (
-      <div className="rounded-md border border-border bg-surface-secondary px-6 py-10 text-center">
-        <p className="text-body text-text-secondary">Inga jobb hittades</p>
+      <div className="border-y border-border-default px-1 py-12 text-center">
+        <p className="text-body text-text-primary">Inga jobb hittades</p>
         <p className="mt-1 text-body-sm text-text-secondary">
           Justera filtren eller töm sökrutan för att se fler annonser.
         </p>
@@ -22,7 +22,10 @@ export function JobAdList({ jobAds }: JobAdListProps) {
   }
 
   return (
-    <ul className="flex flex-col gap-3" aria-label="Jobbannonser">
+    <ul
+      className="flex flex-col border-t border-border-default"
+      aria-label="Jobbannonser"
+    >
       {jobAds.map((jobAd) => (
         <li key={jobAd.id}>
           <JobAdCard jobAd={jobAd} />

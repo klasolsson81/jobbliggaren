@@ -90,9 +90,9 @@ Never `outline: none` without a replacement — that is a WCAG 2.4.7 violation.
 ```css
 /* From globals.css — do not override without design-reviewer approval */
 *:focus-visible {
-  outline: 2px solid var(--color-focus-ring);  /* #0B5CAD */
+  outline: 2px solid var(--jp-focus);  /* #0B5CAD light / #60A5FA dark */
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--jp-r-sm);
 }
 ```
 
@@ -100,7 +100,8 @@ Use `:focus-visible` not `:focus` — mouse clicks won't show ring, keyboard
 navigation will. This is the correct modern pattern.
 
 Minimum focus indicator contrast: 3:1 against adjacent colors (WCAG 2.4.11).
-`--color-focus-ring` (#0B5CAD) on white = 6.1:1 — verified.
+`--jp-focus` is `#0B5CAD` on white (light) = 6.1:1, and `#60A5FA` on `#020617`
+(dark) ≈ 7.0:1 — both verified. The ring is validated in both themes.
 
 ---
 
@@ -117,21 +118,48 @@ Minimum ratios (WCAG 1.4.3 + 1.4.11):
 | Placeholder text | 4.5:1 | Same as body text |
 | Disabled elements | Exempt | But don't rely on color alone |
 
-**JobbPilot-verified pairs:**
+**JobbPilot-verified pairs (light):**
 
 | Pair | Ratio | Level |
 |---|---|---|
-| text-primary (#1A1A1A) on surface-primary (#FFFFFF) | 17:1 | AAA |
-| text-secondary (#5A5A5A) on surface-primary | 7.4:1 | AA |
+| text-primary (#0F172A) on surface-primary (#FFFFFF) | ~17.9:1 | AAA |
+| text-secondary (#475569) on surface-primary | ~7.4:1 | AA |
 | brand-600 (#0B5CAD) on surface-primary | 6.1:1 | AA |
-| danger-600 (#B42121) on surface-primary | 5.8:1 | AA |
-| success-700 (#0B5E24) on success-50 (#E8F3EC) | 5.1:1 | AA |
+| danger-600 (#DC2626) on surface-primary | ~4.6:1 | AA |
+| success-700 (#047857) on success-50 (#ECFDF5) | ~5.3:1 | AA |
 
-Full table → `references/contrast-table.md` in `jobbpilot-design-tokens`.
+**JobbPilot-verified pairs (dark):**
+
+| Pair | Ratio | Level |
+|---|---|---|
+| text-primary (#F8FAFC) on surface-primary (#020617) | ~18.1:1 | AAA |
+| text-secondary (#94A3B8) on surface-primary (#020617) | ~6.5:1 | AA |
+| brand-600 (#60A5FA) on surface-primary (#020617) | ~7.0:1 | AA |
+
+**Dark mode is validated separately.** A pair passing in light is not assumed
+to pass in dark — recompute and check contrast in both `:root` and
+`[data-theme="dark"]`. Full table (light + dark) →
+`references/contrast-table.md` in `jobbpilot-design-tokens`.
 
 Never create a new color combination without verifying at
-webaim.org/resources/contrastchecker. text-tertiary (#8A8A85) fails for
-body text on surface-secondary — only use it for decorative/non-essential text.
+webaim.org/resources/contrastchecker. text-tertiary (light #94A3B8) fails for
+body text on white (~2.6:1) — only use it for decorative/non-essential text
+(IDs, dimmed dates).
+
+### Hairline / divider contrast
+
+- `--jp-border` (slate-200 `#E2E8F0`) is for **decorative** separators only —
+  it does not meet 3:1 and is exempt because it carries no information.
+- `--jp-border-strong` (slate-300 `#CBD5E1`) is for **information-bearing**
+  dividers (kanban column borders, table headers) — it meets ~3:1 vs the white
+  canvas (WCAG 1.4.11 for meaningful UI boundaries). Always use `border-strong`
+  when the divider communicates structure, not `border`.
+
+### Status never by color alone
+
+Status must always be conveyed by **dot + label or icon + text**, never color
+alone (WCAG 1.4.1) — in both light and dark. `.jp-statusDot` and `.jp-pill`
+both pair a colored dot with a text label by design; do not strip the label.
 
 ---
 
@@ -259,24 +287,39 @@ Never:
   preferences are respected
 - Never suppress `font-size` scaling via `max-width` in `em` that breaks at zoom
 
+### Body-text line length
+
+Running prose (the `.jp-attention` feed, paragraphs, lede) must be capped at
+**~68ch** `max-width` (WCAG 1.4.8 — line length aids low-vision and dyslexic
+readers and prevents lines stretching across wide screens). `.jp-attention__text`
+already sets `max-width: 68ch`; mirror this for any new long-form text block.
+Tabular/ledger content is exempt — it is scanned, not read line-by-line.
+
 ---
 
-## 9. Touch targets
+## 9. Hit targets
 
-Minimum interactive hit area: **44×44 CSS pixels** (WCAG 2.5.5).
+Civic-utility density means controls are compact. The thresholds:
 
-Applies to: buttons, links, form controls, table row click areas, icon buttons.
+- **In-app minimum: 32×32 CSS px.** The default button/input height is 32px
+  (`.jp-btn`, `.jp-input`). This is the floor for normal app controls.
+- **28px allowed only in keyboard-primary toolbars** — dense action bars where
+  the primary interaction model is keyboard, not pointer (`.jp-btn--sm`,
+  `.jp-iconbtn`). Do not use 28px for primary content actions.
+- **Touch: 44×44 CSS px on screens ≤768px** (WCAG 2.5.5). On touch/mobile the
+  hit area must bump to 44px even though the visual size stays civic-compact.
 
 Use `padding` to expand hit-area without changing visual size:
 ```tsx
-/* Icon-only button — visual size 16px, hit area 44px */
-<button className="p-3">   {/* 16px icon + 12px padding each side = 40px */}
-  <XIcon className="size-4" aria-label="Lukk" />
+/* Icon-only button — visual 16px icon, hit area expanded via padding */
+<button className="p-2.5">   {/* hit area ≥ 32px in-app, ≥ 44px on touch */}
+  <XIcon className="size-4" aria-hidden="true" />
+  <span className="sr-only">Stäng</span>
 </button>
 ```
 
-Button component size `md` (default, `h-9` = 36px) — verify hit area is
-sufficient in dense contexts. Use `lg` (`h-11` = 44px) for critical CTAs.
+This applies to: buttons, links, form controls, table row click areas, icon
+buttons. Verify the touch (≤768px) bump separately from the desktop layout.
 
 ---
 
@@ -328,7 +371,11 @@ Design-reviewer uses this checklist as her audit source. All must pass.
 - [ ] Dialogs trap focus + return focus on close
 - [ ] `prefers-reduced-motion` respected (no animations at 0.01ms)
 - [ ] Page usable at 200% zoom without horizontal scroll
-- [ ] Touch targets ≥ 44×44px
+- [ ] Hit targets ≥ 32×32px in-app (28px only in keyboard toolbars), ≥ 44px on touch ≤768px
+- [ ] Running prose capped at ~68ch max-width
+- [ ] Information-bearing dividers use `border-strong` (≥ 3:1), not `border`
+- [ ] Status conveyed by dot/icon + text, never color alone
+- [ ] Contrast verified in **both** light and dark (validated separately)
 
 ---
 

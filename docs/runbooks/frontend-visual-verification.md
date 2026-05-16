@@ -56,11 +56,71 @@ Vid tvekan: kör loopen — den är billig.
 | Nivå | Sidor | Verifiering |
 |------|-------|-------------|
 | Publika | `/`, `/logga-in`, `/registrera`, `/vantelista` | Alltid i batchen (ingen backend krävs) |
-| Auth-gated | `/jobb`, `/ansokningar`, `/cv`, `/mig`, `/admin/granskning` | Deferras till **live-deploy mot dev-backend** efter Klas tag-push. Noteras i STOPP-rapporten som "visuell verifiering pending live-deploy" om batchen rör en auth-gated yta. |
+| Auth-gated | `/jobb`, `/ansokningar`, `/cv`, `/mig`, `/admin/granskning`, `/sokningar`, `/sokningar/[id]` | Verifieras vid **live-deploy mot dev-backend** efter Klas tag-push, via `visual-verify.ts` **auth-läge** (opt-in). Om creds saknas i sessionen: noteras i STOPP-rapporten som "visuell verifiering pending live-deploy" om batchen rör en auth-gated yta. |
 
 Mock-session används **inte** — det verifierar inte sann render (tomma
 data-states, layout-skew från riktig data missas). Ingen Docker-up tvingas i
 ren frontend-batch (YAGNI).
+
+### Auth-läge (opt-in) — env-kontrakt
+
+`visual-verify.ts` capturerar auth-gated sidor när alla tre sätts (annars
+oförändrat publikt default):
+
+| Env | Innebörd |
+|-----|----------|
+| `VISUAL_BASE_URL` | Live-frontend, **måste vara https** (`__Host-`-cookien avvisas av Chromium på http) — auth-gated verifieras därför mot live-deploy, inte lokal http. T.ex. `https://www.jobbpilot.se` |
+| `VISUAL_BACKEND_URL` | Live-backend för direkt login + fixture-API, t.ex. `https://dev.jobbpilot.se` |
+| `VISUAL_AUTH_EMAIL` / `VISUAL_AUTH_PW` | Dev JobSeeker-creds — **endast via env, aldrig i repo/kod** (CLAUDE.md §5.4) |
+
+Login sker via direkt backend-call (robustare än formulärdrivning). Den
+opaka session-cookien injiceras enbart i Playwright-context (in-memory) och
+persisteras **aldrig** till disk — ingen `storageState`-fil (eliminerar
+§5.4-risken vid källan i stället för att gitignore:a den). En temporär
+fixture-sökning skapas via API för att capurera populerade lista-/detalj-/
+dialog-tillstånd och raderas i teardown.
+
+> **Beslut:** senior-cto-advisor 2026-05-16 (Variant A — utöka det befintliga
+> verktyget; Variant B/C avvisade på DRY/CCP vs YAGNI/§5.4). Entydigt mot
+> principer — ingen separat Klas-GO för approach; dev-creds är den enda
+> Klas-beroende inputen.
+
+### Dev-test-konto — plats, återanvändning, livscykel
+
+Ett **dedikerat syntetiskt dev-test-JobSeeker-konto** används för auth-läget,
+återanvändbart över faser (senior-cto-advisor-beslut 2026-05-16, **Variant C**
+— creds utanför repo-trädet; Klas-GO 2026-05-16).
+
+- **Cred-plats:** `%USERPROFILE%\.jobbpilot\dev-test-creds.env`
+  (Windows: `C:\Users\zebac\.jobbpilot\dev-test-creds.env`). **Utanför
+  repo-trädet** — noll repo-yta för creds, kan per konstruktion inte fångas
+  av felaktig `git add` / bruten `.gitignore` (§5.4, defense-in-depth). Denna
+  runbook och MEMORY.md innehåller **endast pekare till path:en, aldrig
+  creds:en själva.**
+- **Återanvändningsprotokoll (framtida CC):** source:a filen till env före
+  `pnpm visual-verify`. PowerShell:
+  ```powershell
+  Get-Content $env:USERPROFILE\.jobbpilot\dev-test-creds.env |
+    ForEach-Object { if ($_ -match '^export (\w+)=(.*)$') {
+      [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) } }
+  ```
+  (Git-bash: `source ~/.jobbpilot/dev-test-creds.env`.) Sätt även
+  `VISUAL_BASE_URL` (https live-frontend) per körning.
+- **Konto-livscykel:** syntetiskt verifieringskonto, ägt av dev-processen,
+  ej kopplat till fysisk person, **ingen PII** utöver syntetisk e-post.
+  Skapat via direkt `/api/v1/auth/register` (se observation nedan). Lösenord
+  roteras vid misstänkt exponering (ingen schemalagd rotation för
+  dev-fixture). Kontot + dev-DB-raden raderas när dev-miljön rivs eller
+  verktyget avvecklas. Ingen produktionsdata berörs.
+- **Observation (ADR 0005-efterlevnad):** kontot skapades via direkt
+  `/api/v1/auth/register`, som **inte** är `RegistrationsOpen`-flag-gejtat
+  (kill-switchen täcker endast waitlist/invitation-flöden). Inkonsistens mot
+  ADR 0005-kostnadsskyddsmönstret — triageras separat i en auth-fokuserad
+  touch (senior-cto-advisor 2026-05-16: ej formell TD nu, ej denna touch's
+  fas-scope).
+- **Future-watch:** behövs creds delas mellan maskiner / köras i CI /
+  auto-roteras → migrera till AWS Secrets Manager (Variant D). Lyfts ej som
+  TD nu (YAGNI — kravet finns inte).
 
 ## Vem gör vad
 

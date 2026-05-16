@@ -1,7 +1,7 @@
 # ADR 0039 — SavedSearch-aggregat: SearchCriteria-VO, query-baserad run-semantik och Fas 2/5-gränsdragning
 
 **Datum:** 2026-05-16
-**Status:** Accepted 2026-05-16 (Klas-GO 2026-05-16; senior-cto-advisor-beslut 2026-05-16, dotnet-architect-design samma datum)
+**Status:** Accepted 2026-05-16 (Klas-GO 2026-05-16; senior-cto-advisor-beslut 2026-05-16, dotnet-architect-design samma datum) — *Beslut 3 delvis superseded 2026-05-16 av ADR 0042 (Ssyk/Region single→multi; SortBy-i-VO hålls)*
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0005 (go-to-market — JobAd/sök auth-gated, JobSeeker-scoped), ADR 0009 (ingen Repository — direkt `IAppDbContext`), ADR 0011 (strongly-typed IDs), ADR 0032 (JobTech-integration — `ListJobAds` ssyk/region/q-yta som `SearchCriteria` speglar), CLAUDE.md §2.3 (CQRS), §9.6 (in-block vs TD/fas-regeln), BUILD.md §5.1/§9.x/§16/§18 (Fas 2-milstolpe)
 
@@ -27,6 +27,9 @@ Sök-logiken som `run` ska återanvända (`ApplyFilters`/`ApplySort` i `ListJobA
 **Beslut 2 — Run är en Query, inte en Command. `last_run_at`-skrivlogik skjuts till Fas 5.** `RunSavedSearchQuery` returnerar `PagedResult<JobAdDto>` utan skriv-sidoeffekt. `last_run_at`-kolumnen skapas i Fas 2-migrationen (schema-stabil per BUILD §16) men sätts inte i Fas 2. "Senast körd" får domän-betydelse först när Fas 5:s notification-jobb kör sökningen schemalagt. Avvisat: command som returnerar read-model (Alt 1 — bryter §2.3) och fire-and-forget MarkRun (Alt 2 — race, klient-ansvar för domän-bokföring).
 
 **Beslut 3 — `SortBy` ingår i `SearchCriteria`-VO:t.** En sparad sökning är en reproducerbar fråga; sortering determinerar första-sida-resultatet under paginering och är därför del av användarens avsikt och VO:ts strukturella likhet (Evans 2003 kap. 5; Vernon 2013 kap. 6). `SearchCriteria(string? Ssyk, string? Region, string? Q, JobAdSortBy SortBy)`. `Page`/`PageSize` exkluderas (runtime-pagination, ej del av sökningens identitet). VO:t har en `Create`-factory → `Result<SearchCriteria>` som trimmar strängar (tom/whitespace → null) och kräver minst ett av Ssyk/Region/Q non-null (`SortBy` ensamt är inget filter).
+
+> **Beslut 3 — DELVIS SUPERSEDED 2026-05-16 av ADR 0042.**
+> `Ssyk`/`Region` ändras `string?` → `IReadOnlyList<string>` (multi-värde — genuint Fas 2-produktbehov: OR-bevakning över yrken/regioner). ADR 0042 Beslut B låser fyra nya invarianter (sorterad+distinct-normalisering för record-equality, maxantal-cap, generaliserad tom-invariant, jsonb-bakåtkompat). **`SortBy`-i-VO:t-delen av Beslut 3 hålls oförändrad** — kärnresonemanget (sortering är del av användarens avsikt och VO-likhet) står kvar; endast Ssyk/Region single→multi superseras. ADR-immutabilitet: ovanstående brödtext är medvetet orörd; detta är ett additivt supersession-notat (Nygard 2011, samma mönster som ADR 0026→0027 / 0037→0038). Se [`0042-search-surface-information-architecture.md`](./0042-search-surface-information-architecture.md).
 
 **Beslut 4 — `notification_enabled` lagras, ingen dispatch.** `bool NotificationEnabled` default `false` (opt-in, speglar `Preferences.WeeklySummary = false`), satt via `SetNotification(bool, IDateTimeProvider)`. Ingen Hangfire, inget dispatch-event, ingen utskickskod i Fas 2. All notification-dispatch är Fas 5.
 

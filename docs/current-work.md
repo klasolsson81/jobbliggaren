@@ -418,11 +418,31 @@ Aktiva: 19 (TD-13 + TD-26 Major; resten Minor). **0 Major Fas Nu, 0 Major Fas 2 
 
 ---
 
-## Nästa session — Klas-val
+## Nästa session — LÅST PLAN (Klas-GO för session-start = strategisk transition)
 
-1. **v0.2-prod-tag-förberedelse:** TD-73 stängd; samla prod-launch-checklist (CloudWatch-alarms, retention-jobb-verifiering, ev. backup-strategi). Inga aktiva Major-blockare kvar i Fas 2.
-2. **F2-P9 search/filter-yta** (TD-70): GET `/api/v1/job-ads` med `?ssyk=...&region=...&q=...` per JobTech v2 `occupation-concept-id` + `location-concept-id`.
-3. **Frontend-deploy** till Vercel + JobAd-katalog UI.
+**Samlad session: ingestion payload-trunkerings-fix + F2 sök-yta-omdesign (Klas designbrief vs Platsbanken).** Klas §9.6 p.6-override av CTO-split: B (taxonomi-multiselect) + C (live-typeahead) ingår denna session. senior-cto-advisor (agentId a4318f13a645293cb) + dotnet-architect (a64f2ee9d89379046) plan-design klar. Fortfarande Fas 2 (ej Fas 3). **Fas 2 stängs vid B–E komplett** (Klas-val 2026-05-16 — en samlad stängning när hela sök-visionen live).
+
+**6 linjära commit-batchar, reviewer-pass + STOPP per batch (samlad session ≠ samlad commit-batch):**
+
+| # | Batch | ADR / grind |
+|---|---|---|
+| 0 | Discovery — verifiera ingestion-rotorsak (CloudWatch byte-offset-varians vs Polly/Timeout-hypotes) + kartlägg sök-kod | Discovery-rapport till Klas, ingen kod |
+| 1 | Ingestion-fix (A1/A2/A3 in-session CTO efter Batch 0) | ADR 0032-amendment **STOPP** + deploy + **cron-grön (EventId 5402, korpus ~40k+) hård F2-DoD-gate** |
+| 2 | ADR-batch, noll kod | ADR 0042 Accepted + ADR 0039 Beslut 3 superseded **STOPP** |
+| 3 | B: `SearchCriteria` single→multi (VO collection-equality + maxantal-invariant + jsonb-datakompat) | architect+test-writer+code-reviewer + **security-auditor BLOCKING** + grön svit |
+| 4 | E ("Ny"-tag, `Since`+`IsNew`) sedan D (relevans-sort) | code-reviewer + grön svit |
+| 5 | C: typeahead (C1 lokal `job_ads` ILIKE-prefix) | **security-auditor BLOCKING** + db-migration-writer index→**Klas-STOPP** + grön svit |
+| 6 | Frontend B–E (kollaps-filter A, multi-select, typeahead, sort, IsNew-badge) | design-reviewer VETO + Klas visuell verifiering |
+
+**Låsta CTO-multi-approach-beslut:** C-källa = **C1** (lokal `job_ads` ILIKE-prefix; C2 JobTech-taxonomi-API avvisat). D-relevans = **D2** (ILIKE-heuristik; D1 tsvector = framtida skala-trigger, dokumenteras i ADR 0042 ej TD). Ingestion **A1/A2/A3 = in-session CTO-rond efter Batch 0-discovery** (A1 frikoppla hämtning/persistens via Infrastructure-buffrad NDJSON = default om timeout-rivning bekräftas).
+
+**ADR-väg:** ingestion → ADR 0032-amendment (samma streaming-beslutsdomän). Sök-IA → **ny ADR 0042**. `SearchCriteria` single→multi → **supersession av ADR 0039 Beslut 3**, beslutet skrivs i ADR 0042 (ej egen ADR 0043). ADR 0039 Beslut 1 (delad JobAdSearch) hålls. ADR 0040 (F = CV-matchning "bra match") **hårt OUT**, ej ens visuell placeholder, endast korsrefererad.
+
+**7 Klas-STOPP:** (1) ingestion-rotorsak+A-variant, (2) ADR 0032-amendment Accepted, (3) ingestion deploy+cron-grön, (4) ADR 0042+0039-supersession Accepted, (5) varje DB-migration (B jsonb om ändrad, C1-index, ev. `CREATE EXTENSION pg_trgm`), (6) security-auditor BLOCKING Batch 3+5, (7) frontend deploy+visuell verifiering. **BUILD.md §18 orörd** (ADR 0042 = beslutskälla).
+
+**Förkrav-blockare innan Batch 1-kod:** ingestion-fix måste vara deployad + cron-verifierad (korpus ~40k+) INNAN B rör samma data-yta — B:s dedupe/identitet kräver riktig korpus, ej 5 380-stympad.
+
+Se startprompt-block i chatten (2026-05-16, ingestion-verify-session-end) + `docs/sessions/2026-05-16-1450-f2-ingestion-verify-red.md`.
 
 ---
 

@@ -304,7 +304,7 @@ korrelations-fönster).
 ## TD-82: Översikt/Dashboard-sida (post-login-landningsvy)
 **Kategori:** Frontend / Feature
 **Severity:** Minor
-**Fas:** 2 (Klas kan override:a mot roadmap)
+**Fas:** 2 (Klas-bekräftad 2026-05-16)
 **Källa:** senior-cto-advisor 2026-05-16 (UI-refactor v2-iteration, Beslut 3)
 
 Designsystem v2 / referensdesignen (`pages.jsx → DashboardPage`) har en

@@ -75,6 +75,51 @@ public class JobTechStreamResilienceTests
     }
 
     [Fact]
+    public async Task FetchSnapshotAsync_WhenResponseTruncatedMidStream_DoesNotThrowUncaught_YieldsParsedPrefix()
+    {
+        // REGRESSIONSTEST för rotorsaken (Batch 0 2026-05-16, CloudWatch-evidens):
+        // /v2/snapshot >364 MB singel-GET termineras icke-deterministiskt
+        // mid-stream → System.Text.Json "reached end of data" kastades OFÅNGAT
+        // vid enumeration (PlatsbankenJobSource saknade try/catch runt
+        // await foreach) → propagerade till SyncPlatsbankenSnapshotJob (vars
+        // try/catch bara omslöt per-item-upsert) → Hangfire.AutomaticRetry-storm
+        // (60 starts / 0 completes). Efter fix: enumeration-boundary-catch i
+        // PlatsbankenJobSource ska hantera trunkering gracefully — yielda
+        // parsad prefix (idempotent persisterad via UNIQUE-index), avsluta
+        // strömmen, ALDRIG kasta ofångat. CTO MA 3.1 Variant A 2026-05-16.
+        var ct = TestContext.Current.CancellationToken;
+        using var server = WireMockServer.Start();
+
+        // Giltig JSON-array-prefix (hit-1 komplett) som sedan kapas mitt i
+        // hit-2 — exakt trunkerings-shape som JobTech-droppen producerar.
+        var truncatedBody =
+            """[{"id":"hit-1","headline":"Dev","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/1","publication_date":"2026-05-12T10:00:00Z"},{"id":"hit-2","headline":"Dev2","desc""";
+
+        server
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(truncatedBody));
+
+        var jobSource = BuildJobSource(server.Url!);
+
+        var items = new List<JobAdImportItem>();
+        // Får INTE kasta ofångat (rotorsaken). Bounded retry uttömd → graceful
+        // end. WireMock returnerar samma trunkerade svar varje försök.
+        var enumeration = async () =>
+        {
+            await foreach (var item in jobSource.FetchSnapshotAsync(ct))
+                items.Add(item);
+        };
+
+        await enumeration.ShouldNotThrowAsync();
+        // Prefixen som hann parsas före trunkeringen ska ha yieldats
+        // (persisteras idempotent av konsumenten via UNIQUE-index).
+        items.ShouldContain(i => i.ExternalId == "hit-1");
+    }
+
+    [Fact]
     public async Task StreamChangesAsync_ParsesPolymorphicUpsertAndRemovalEvents()
     {
         var ct = TestContext.Current.CancellationToken;

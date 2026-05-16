@@ -21,6 +21,17 @@ internal sealed partial class PlatsbankenJobSource(
 {
     public JobSource Source => JobSource.Platsbanken;
 
+    // Bounded retry av snapshot-fetch vid mid-stream-trunkering. JobTechs
+    // /v2/snapshot (~300 MB+ singel-GET, parameterlös, ingen resume —
+    // web-verifierat 2026-05-16) termineras icke-deterministiskt mitt i
+    // strömmen (Batch 0 CloudWatch-evidens: trunkering vid 21–364 MB,
+    // 87–442 s). Eftersom droppen är icke-deterministisk kan ett senare
+    // försök leverera mer/hela; 3 försök kapar kostnaden (~3 min vid
+    // JobTech 1 req/min) — resten fylls av hybrid stream-katch-up + nästa
+    // cron (CTO A2→hybrid 2026-05-16, ADR 0032-amendment). Redan-yieldade
+    // items är idempotenta dubbletter via UNIQUE-index (ADR 0032 §5).
+    private const int MaxSnapshotAttempts = 3;
+
     public async IAsyncEnumerable<JobAdImportItem> FetchSnapshotAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -29,25 +40,77 @@ internal sealed partial class PlatsbankenJobSource(
         var converted = 0;
         var total = 0;
 
-        // Strömmar per hit — ~300 MB-snapshot materialiseras aldrig (root-cause-
-        // fix 2026-05-16). Konsumenten (SyncPlatsbankenSnapshotJob) kör en
-        // child-scope per yieldat item så EF change-tracker inte ackumulerar.
-        await foreach (var hit in streamClient.FetchSnapshotAsync(cancellationToken))
+        for (var attempt = 1; attempt <= MaxSnapshotAttempts; attempt++)
         {
-            total++;
+            // Färsk GET per försök — strömmar per hit, ~300 MB materialiseras
+            // aldrig (streaming-fix 2026-05-16). Konsumenten
+            // (SyncPlatsbankenSnapshotJob) kör child-scope per yieldat item.
+            await using var enumerator = streamClient
+                .FetchSnapshotAsync(cancellationToken)
+                .GetAsyncEnumerator(cancellationToken);
 
-            if (hit.Removed == true)
-                continue; // Snapshot innehåller bara aktiva; defensive skip.
+            var truncated = false;
 
-            var item = TryConvertToImportItem(hit);
-            if (item is null)
-                continue;
+            while (true)
+            {
+                bool moved;
+                try
+                {
+                    moved = await enumerator.MoveNextAsync();
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // Cancellation propagerar alltid — aldrig svald.
+                }
+                catch (Exception ex)
+                    when (ex is JsonException or IOException or HttpRequestException)
+                {
+                    // ROTORSAKS-FIX (Batch 0 2026-05-16): mid-stream-trunkering
+                    // fångas vid ENUMERATION-boundary. Detta är skilt från
+                    // per-item-upsert-catchen i SyncPlatsbankenSnapshotJob —
+                    // slå ALDRIG ihop dem (ADR 0032 §5-clarification: ofångad
+                    // enumeration var hela storm-mekanismen, 60 starts/0
+                    // completes). Ofångad här = Hangfire.AutomaticRetry-loop.
+                    truncated = true;
+                    if (attempt < MaxSnapshotAttempts)
+                        LogSnapshotTruncatedRetrying(logger, ex, attempt, total);
+                    else
+                        LogSnapshotTruncatedGivingUp(logger, ex, attempt, converted, total);
+                    break;
+                }
 
-            converted++;
-            yield return item;
+                if (!moved)
+                {
+                    // Strömmen slut utan trunkering = fullständig snapshot.
+                    LogSnapshotCompleted(logger, converted, total);
+                    yield break;
+                }
+
+                var hit = enumerator.Current;
+                total++;
+
+                if (hit.Removed == true)
+                    continue; // Snapshot innehåller bara aktiva; defensive skip.
+
+                var item = TryConvertToImportItem(hit);
+                if (item is null)
+                    continue;
+
+                converted++;
+                yield return item;
+            }
+
+            if (truncated && attempt >= MaxSnapshotAttempts)
+            {
+                // Bounded retry uttömd → avsluta GRACEFULLT (ingen ofångad
+                // exception → ingen retry-storm). Parsad prefix är redan
+                // idempotent persisterad; hybrid stream-katch-up + nästa
+                // cron fyller resten (CTO 2026-05-16).
+                LogSnapshotCompleted(logger, converted, total);
+                yield break;
+            }
+            // truncated && attempt < Max → ny iteration = färsk GET.
         }
-
-        LogSnapshotCompleted(logger, converted, total);
     }
 
     public async IAsyncEnumerable<JobAdChange> StreamChangesAsync(
@@ -173,4 +236,14 @@ internal sealed partial class PlatsbankenJobSource(
     [LoggerMessage(EventId = 5003, Level = LogLevel.Debug,
         Message = "Platsbanken hit {ExternalId} hoppas över — saknar obligatoriska fält.")]
     private static partial void LogHitSkipped(ILogger logger, string externalId);
+
+    [LoggerMessage(EventId = 5004, Level = LogLevel.Warning,
+        Message = "Platsbanken snapshot trunkerad mid-stream (attempt={Attempt}, parsade={Total} före brott) — gör om hämtning. Redan-yieldade items är idempotenta via UNIQUE-index.")]
+    private static partial void LogSnapshotTruncatedRetrying(
+        ILogger logger, Exception exception, int attempt, int total);
+
+    [LoggerMessage(EventId = 5005, Level = LogLevel.Warning,
+        Message = "Platsbanken snapshot trunkerad mid-stream — bounded retry uttömd efter {Attempt} försök ({ConvertedCount}/{TotalCount} konverterade). Avslutar gracefully; hybrid stream-katch-up + nästa cron fyller resten (ADR 0032-amendment 2026-05-16). Ingen Hangfire-retry-storm.")]
+    private static partial void LogSnapshotTruncatedGivingUp(
+        ILogger logger, Exception exception, int attempt, int convertedCount, int totalCount);
 }

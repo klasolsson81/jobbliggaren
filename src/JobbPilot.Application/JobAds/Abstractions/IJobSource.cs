@@ -19,11 +19,13 @@ public interface IJobSource
     JobSource Source { get; }
 
     /// <summary>
-    /// Hämtar fullständig snapshot av aktiva annonser. Använt av admin-trigger
-    /// (P8b) och nattlig backfill (P8c). Returnerar redan sanitized RawPayload
-    /// per item.
+    /// Strömmar fullständig snapshot av aktiva annonser. Använt av nattlig
+    /// backfill (P8c) och admin-trigger. Returnerar redan sanitized RawPayload
+    /// per item. <see cref="IAsyncEnumerable{T}"/> — snapshot är ~300 MB
+    /// (JobTech /v2/snapshot, web-verifierat 2026-05-16); materialisering till
+    /// lista OOM:ar Fas 2 single-task Fargate (root-cause-fix 2026-05-16).
     /// </summary>
-    Task<JobAdSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<JobAdImportItem> FetchSnapshotAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Hämtar inkrementella ändringar sedan given timestamp. Använt av Hangfire-
@@ -33,13 +35,6 @@ public interface IJobSource
         DateTimeOffset since,
         CancellationToken cancellationToken);
 }
-
-/// <summary>
-/// Resultat av <see cref="IJobSource.FetchSnapshotAsync"/>.
-/// </summary>
-public sealed record JobAdSnapshot(
-    IReadOnlyList<JobAdImportItem> Items,
-    DateTimeOffset FetchedAt);
 
 /// <summary>
 /// Polymorft change-event från <see cref="IJobSource.StreamChangesAsync"/>.

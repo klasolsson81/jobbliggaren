@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.SyncPlatsbankenSnapshot;
@@ -7,6 +8,7 @@ using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobAds;
 using Mediator;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -97,17 +99,48 @@ public class SyncPlatsbankenSnapshotCommandHandlerTests
         var jobSource = Substitute.For<IJobSource>();
         jobSource.Source.Returns(JobSource.Platsbanken);
         jobSource.FetchSnapshotAsync(Arg.Any<CancellationToken>())
-            .Returns(new JobAdSnapshot(items, FakeDateTimeProvider.Default.UtcNow));
+            .Returns(_ => ToAsyncEnumerable(items));
 
         var mediator = Substitute.For<IMediator>();
         mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
             .Returns(upsertResult ?? Result.Success(UpsertOutcome.Added));
 
         var job = new SyncPlatsbankenSnapshotJob(
-            jobSource, mediator, FakeDateTimeProvider.Default,
+            jobSource, new FakeScopeFactory(mediator), FakeDateTimeProvider.Default,
             Substitute.For<ISystemEventAuditor>(),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
 
         return new SyncPlatsbankenSnapshotCommandHandler(job);
+    }
+
+    private static async IAsyncEnumerable<JobAdImportItem> ToAsyncEnumerable(
+        IReadOnlyList<JobAdImportItem> items,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        foreach (var item in items)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return item;
+            await Task.Yield();
+        }
+    }
+
+    /// <summary>
+    /// Konkret fake för DI-scope-kedjan (samma mönster som
+    /// SyncPlatsbankenSnapshotJobTests). <c>CreateAsyncScope()</c>-extensionen
+    /// anropar internt <see cref="IServiceScopeFactory.CreateScope"/>; alla
+    /// scopes löser samma test-mediator.
+    /// </summary>
+    private sealed class FakeScopeFactory(IMediator mediator)
+        : IServiceScopeFactory, IServiceScope, IServiceProvider
+    {
+        public IServiceScope CreateScope() => this;
+
+        public IServiceProvider ServiceProvider => this;
+
+        public object? GetService(Type serviceType) =>
+            serviceType == typeof(IMediator) ? mediator : null;
+
+        public void Dispose() { }
     }
 }

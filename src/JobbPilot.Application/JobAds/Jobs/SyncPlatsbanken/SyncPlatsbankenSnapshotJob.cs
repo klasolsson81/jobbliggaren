@@ -3,6 +3,7 @@ using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.UpsertExternalJobAd;
 using JobbPilot.Domain.Common;
 using Mediator;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken;
@@ -15,15 +16,28 @@ namespace JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken;
 /// UNIQUE-index per ADR 0032 §5).
 ///
 /// <para>
-/// Per CTO-rond 2026-05-13 punkt 3: Snapshot-orchestrator + admin-trigger
-/// delar samma per-item-Mediator-kodväg. <c>SyncPlatsbankenSnapshotCommand</c>
-/// (P8b admin-endpoint) refaktoreras i samma batch att kalla denna job-impl
-/// så vi inte har två sync-flöden.
+/// <b>Child-scope per item (root-cause-fix 2026-05-16, senior-cto-advisor
+/// Variant B):</b> Snapshot:en (~47k items) strömmas och VARJE item upsertas
+/// i en egen DI-scope (<see cref="IServiceScopeFactory.CreateAsyncScope"/>).
+/// Skäl: hela loopen körde tidigare i en enda scope → ett scoped
+/// <c>IAppDbContext</c> vars change-tracker ackumulerade över alla items.
+/// <c>UnitOfWorkBehavior</c> kör en SaveChanges efter varje
+/// <c>mediator.Send</c> över hela den ackumulerade grafen — när snapshot ⊇
+/// det stream redan infogat (tusentals dubbletter) bröt det
+/// <see cref="UpsertExternalJobAdCommandHandler"/>:s per-command
+/// DbUpdateException-isolering (ADR 0032 §5 antar single-command-scope per
+/// upsert). Resultat: uncaught 23505 → Hangfire-retry-loop, 60 starts /
+/// 0 completes på dev. Child-scope återställer §5:s scope-antagande.
+/// </para>
+///
+/// <para>
+/// Per CTO-rond 2026-05-13 punkt 3 + 2026-05-16: admin-trigger delar samma
+/// recurring-jobb via Hangfire-enqueue (inte längre synkron Mediator-shim).
 /// </para>
 /// </summary>
 public sealed partial class SyncPlatsbankenSnapshotJob(
     IJobSource jobSource,
-    IMediator mediator,
+    IServiceScopeFactory scopeFactory,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
     ILogger<SyncPlatsbankenSnapshotJob> logger)
@@ -35,16 +49,23 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
         var startedAt = clock.UtcNow;
         LogStarted(logger, jobSource.Source.Value);
 
-        var snapshot = await jobSource.FetchSnapshotAsync(cancellationToken);
+        var counts = new SyncCounts();
 
-        var counts = new SyncCounts { Fetched = snapshot.Items.Count };
-
-        foreach (var item in snapshot.Items)
+        // Strömmas per item (IAsyncEnumerable) — hela ~300 MB-snapshot
+        // materialiseras aldrig (root-cause-fix 2026-05-16, del (a)).
+        await foreach (var item in jobSource.FetchSnapshotAsync(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            counts.Fetched++;
 
             try
             {
+                // Egen DI-scope per item → eget IAppDbContext → change-tracker
+                // lever och dör med ETT item. Återställer ADR 0032 §5:s
+                // single-command-scope-antagande vid 47k-batch-skala.
+                await using var itemScope = scopeFactory.CreateAsyncScope();
+                var mediator = itemScope.ServiceProvider.GetRequiredService<IMediator>();
+
                 var cmd = new UpsertExternalJobAdCommand(jobSource.Source, item.ExternalId, item);
                 var result = await mediator.Send(cmd, cancellationToken);
 

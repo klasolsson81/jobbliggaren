@@ -21,26 +21,33 @@ internal sealed partial class PlatsbankenJobSource(
 {
     public JobSource Source => JobSource.Platsbanken;
 
-    public async Task<JobAdSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken)
+    public async IAsyncEnumerable<JobAdImportItem> FetchSnapshotAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         LogSnapshotStarted(logger);
 
-        var hits = await streamClient.FetchSnapshotAsync(cancellationToken);
+        var converted = 0;
+        var total = 0;
 
-        var items = new List<JobAdImportItem>(hits.Count);
-        foreach (var hit in hits)
+        // Strömmar per hit — ~300 MB-snapshot materialiseras aldrig (root-cause-
+        // fix 2026-05-16). Konsumenten (SyncPlatsbankenSnapshotJob) kör en
+        // child-scope per yieldat item så EF change-tracker inte ackumulerar.
+        await foreach (var hit in streamClient.FetchSnapshotAsync(cancellationToken))
         {
+            total++;
+
             if (hit.Removed == true)
                 continue; // Snapshot innehåller bara aktiva; defensive skip.
 
             var item = TryConvertToImportItem(hit);
-            if (item is not null)
-                items.Add(item);
+            if (item is null)
+                continue;
+
+            converted++;
+            yield return item;
         }
 
-        LogSnapshotCompleted(logger, items.Count, hits.Count);
-
-        return new JobAdSnapshot(items, clock.UtcNow);
+        LogSnapshotCompleted(logger, converted, total);
     }
 
     public async IAsyncEnumerable<JobAdChange> StreamChangesAsync(

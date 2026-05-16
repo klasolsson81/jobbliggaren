@@ -9,6 +9,9 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Mediator.Abstractions" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!-- IServiceScopeFactory — snapshot child-scope per item (root-cause-fix
+         2026-05-16). Ren DI-abstraktion, ej EF/ASP.NET → Clean Arch OK. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 
   <PropertyGroup>

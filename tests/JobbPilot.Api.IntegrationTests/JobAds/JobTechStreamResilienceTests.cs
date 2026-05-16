@@ -63,10 +63,15 @@ public class JobTechStreamResilienceTests
 
         var jobSource = BuildJobSource(server.Url!);
 
-        var snapshot = await jobSource.FetchSnapshotAsync(ct);
+        // FetchSnapshotAsync är nu IAsyncEnumerable (root-cause-fix 2026-05-16).
+        // Resilience-beteendet (Polly retry över 2× 503 → 200) verifieras genom
+        // att strömmen kan konsumeras fullständigt och ger förväntat item.
+        var items = new List<JobAdImportItem>();
+        await foreach (var item in jobSource.FetchSnapshotAsync(ct))
+            items.Add(item);
 
-        snapshot.Items.Count.ShouldBe(1);
-        snapshot.Items[0].ExternalId.ShouldBe("hit-1");
+        items.Count.ShouldBe(1);
+        items[0].ExternalId.ShouldBe("hit-1");
     }
 
     [Fact]

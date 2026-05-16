@@ -10,10 +10,12 @@ namespace JobbPilot.Infrastructure.JobSources.Platsbanken;
 internal interface IJobTechStreamClient
 {
     /// <summary>
-    /// Hämtar <c>/snapshot</c> — fullständig lista över aktiva annonser. Använt
-    /// av nattlig backfill (P8c) och admin-trigger (P8b).
+    /// Strömmar <c>/v2/snapshot</c> — fullständig set av aktiva annonser (~300 MB,
+    /// web-verifierat 2026-05-16). <see cref="IAsyncEnumerable{T}"/> via
+    /// <c>DeserializeAsyncEnumerable</c> så hela arrayen aldrig materialiseras
+    /// (root-cause-fix 2026-05-16 — tidigare <c>List&lt;&gt;</c> OOM:ade Fargate).
     /// </summary>
-    Task<IReadOnlyList<JobTechHit>> FetchSnapshotAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<JobTechHit> FetchSnapshotAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Hämtar <c>/stream?date=ISO8601</c> — alla annons-changes sedan timestamp.

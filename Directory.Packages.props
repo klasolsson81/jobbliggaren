@@ -32,6 +32,11 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
     <!-- Worker host -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+    <!-- DI-abstraktion i Application (IServiceScopeFactory för snapshot child-scope,
+         root-cause-fix 2026-05-16). Ren DI-abstraktion (ej EF/ASP.NET) → Clean Arch OK.
+         Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
+         explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
     <!-- Auth + JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />

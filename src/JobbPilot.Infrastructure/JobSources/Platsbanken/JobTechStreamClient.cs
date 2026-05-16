@@ -16,12 +16,15 @@ internal sealed class JobTechStreamClient(HttpClient httpClient) : IJobTechStrea
         PropertyNameCaseInsensitive = true,
     };
 
-    public async Task<IReadOnlyList<JobTechHit>> FetchSnapshotAsync(CancellationToken cancellationToken)
+    public async IAsyncEnumerable<JobTechHit> FetchSnapshotAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // /v2/snapshot returnerar en JSON-array över alla öppna annonser
-        // (web-verifierat 2026-05-13 mot JobStream 2.1.1 swagger).
-        // Streamen är typiskt ~50-100 MB komprimerad — vi deserialiserar via
-        // Stream istället för string för att undvika OOM på worker-noden.
+        // (~300 MB, web-verifierat 2026-05-16 mot JobTech officiell doc).
+        // DeserializeAsyncEnumerable strömmar per element så hela arrayen
+        // aldrig materialiseras till minne — tidigare DeserializeAsync<List<>>
+        // OOM:ade Fas 2 single-task Fargate (root-cause-fix 2026-05-16).
+        // Samma streaming-mönster som StreamChangesAsync nedan.
         using var response = await httpClient.GetAsync(
             "/v2/snapshot",
             HttpCompletionOption.ResponseHeadersRead,
@@ -31,10 +34,14 @@ internal sealed class JobTechStreamClient(HttpClient httpClient) : IJobTechStrea
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
 
-        var hits = await JsonSerializer.DeserializeAsync<List<JobTechHit>>(
-            stream, JsonOptions, cancellationToken);
+        await foreach (var hit in JsonSerializer.DeserializeAsyncEnumerable<JobTechHit>(
+            stream, JsonOptions, cancellationToken))
+        {
+            if (hit is null)
+                continue;
 
-        return hits ?? [];
+            yield return hit;
+        }
     }
 
     public async IAsyncEnumerable<JobTechHit> StreamChangesAsync(

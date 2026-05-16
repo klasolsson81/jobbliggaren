@@ -34,7 +34,13 @@ type NavSection = {
  */
 function buildSections(isAdmin: boolean): NavSection[] {
   const sections: NavSection[] = [
-    { label: "Söka jobb", items: [{ href: "/jobb", label: "Jobb", icon: Briefcase }] },
+    {
+      label: "Söka jobb",
+      items: [
+        { href: "/jobb", label: "Jobb", icon: Briefcase },
+        { href: "/sokningar", label: "Sparade sökningar", icon: Search },
+      ],
+    },
     {
       label: "Mina ansökningar",
       items: [{ href: "/ansokningar", label: "Ansökningar", icon: Inbox }],

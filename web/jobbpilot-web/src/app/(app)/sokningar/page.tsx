@@ -1,0 +1,65 @@
+import { redirect } from "next/navigation";
+import { getServerSession } from "@/lib/auth/session";
+import { getSavedSearches } from "@/lib/api/saved-searches";
+import { assertNever } from "@/lib/dto/_helpers";
+import { SavedSearchList } from "@/components/saved-searches/saved-search-list";
+
+export default async function SokningarPage() {
+  const user = await getServerSession();
+  if (!user) redirect("/logga-in");
+
+  const result = await getSavedSearches();
+
+  return (
+    <div className="flex flex-col">
+      <div>
+        <h1 className="jp-h1">Sparade sökningar</h1>
+        <p className="jp-lede">
+          Sökningar du sparat under Jobb. Kör en sökning igen eller ta bort den
+          du inte längre behöver.
+        </p>
+      </div>
+
+      <div className="mt-7">{renderResult(result)}</div>
+    </div>
+  );
+}
+
+function renderResult(result: Awaited<ReturnType<typeof getSavedSearches>>) {
+  switch (result.kind) {
+    case "ok":
+      return <SavedSearchList savedSearches={result.data} />;
+    case "unauthorized":
+      redirect("/logga-in");
+    case "rateLimited":
+      return (
+        <div
+          role="alert"
+          className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
+        >
+          <p className="text-body font-medium text-warning-700">
+            För många förfrågningar
+          </p>
+          <p className="mt-1 text-body-sm text-warning-700">
+            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
+            {result.retryAfterSeconds} sekunder.
+          </p>
+        </div>
+      );
+    case "notFound":
+    case "forbidden":
+    case "error":
+      return (
+        <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
+          <p className="text-body font-medium">
+            Kunde inte ladda sparade sökningar
+          </p>
+          <p className="mt-1 text-body-sm">
+            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
+          </p>
+        </div>
+      );
+    default:
+      return assertNever(result);
+  }
+}

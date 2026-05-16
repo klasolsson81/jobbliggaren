@@ -10,6 +10,7 @@ import { assertNever } from "@/lib/dto/_helpers";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobAdFilters } from "@/components/job-ads/job-ad-filters";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
+import { SaveSearchButton } from "@/components/saved-searches/save-search-button";
 
 type JobbSearchParams = {
   page?: string;
@@ -63,6 +64,15 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
       <div className="mt-7">
         <JobAdFilters initial={filtersInitial} />
+      </div>
+
+      <div className="mt-4">
+        <SaveSearchButton
+          ssyk={ssyk ?? ""}
+          region={region ?? ""}
+          q={q ?? ""}
+          sortBy={sortBy}
+        />
       </div>
 
       <div className="mt-6 flex flex-col gap-2.5">

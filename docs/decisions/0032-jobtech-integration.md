@@ -602,3 +602,82 @@ dedup-strategi.
 - Robert C. Martin, *Clean Architecture* (2017) kap. 7 (SRP)
 - Microsoft Learn — *Handle concurrency conflicts* (EF Core)
 - senior-cto-advisor 2026-05-16 (Variant B, root-cause-fix)
+
+---
+
+## Amendment 2026-05-16 — §9 admin-trigger avvecklad (X4)
+
+**Datum:** 2026-05-16
+**Källa:** Root-cause-fix F2 jobb-ingestion, Commit 3-design
+**Trigger:** On-disk-verifiering — Hangfire refereras enbart i Worker (ej Infrastructure/Api); admin-endpointen körde snapshot synkront i HTTP-requesten
+**Beslutsfattare:** senior-cto-advisor 2026-05-16 (X4, entydigt mot principer) + Klas Olsson (godkänd 2026-05-16, medvetet val mot X2)
+
+### Kontext
+
+§9 (P8b) specade admin-endpoint `POST /api/v1/admin/job-ads/sync/platsbanken`
+som **synkron snapshot-import för smoke-test** innan Hangfire-schedulering.
+Efter Commit 1 (root-cause-fix 2026-05-16) kör recurring-jobbet
+`sync-platsbanken-snapshot` korrekt i Worker. Den synkrona endpointen kvarstod
+som ALB-timeout-fälla (~47k upserts = tiotals min vs ALB ~60s idle-timeout).
+
+Att göra endpointen async skulle kräva att Hangfire-klientyta sprids till
+Api/Infrastructure (idag Hangfire-fritt — enbart Worker har Hangfire) för en
+funktion som (a) recurring-schedule + (b) Hangfire-dashboardens "Trigger now"
+redan täcker. YAGNI (Beck 1999) + minimera dependency-coupling (Martin 2017
+kap. 14).
+
+### Beslut (X4 — avveckla)
+
+`POST /api/v1/admin/job-ads/sync/platsbanken` returnerar **410 Gone** med
+svensk ProblemDetails som pekar operatören till Hangfire-dashboardens
+recurring-jobb `sync-platsbanken-snapshot` ("Trigger now"). Admin-auth krävs
+fortfarande (gruppen `RequireAuthorization(AuthorizationPolicies.Admin)`).
+Route behålls (i stället för borttagen) så operatörer med äldre runbook får
+tydlig anvisning.
+
+`SyncPlatsbankenSnapshotCommand` + `-CommandHandler` + `-Result` **borttagna**
+(dead code efter X4 — Worker konsumerar `SyncPlatsbankenSnapshotJob` direkt via
+`SyncPlatsbankenSnapshotWorker`-wrappern, inte via Mediator-command). CTO:s
+ursprungliga "behåll command/handler" vilade på felaktig premiss att Worker
+konsumerar command:t; korrigerat → no-dead-code-default (CLAUDE.md §5) gäller.
+
+Ny `SyncPlatsbankenSnapshotWorker` (Worker.Hosting,
+`[DisableConcurrentExecution(3600)]`) — analog med stream-wrappern. Snapshot
+tar tiotals min efter streaming-fixen; utan overlap-skydd kan
+Hangfire-`AutomaticRetry` återskapa loop-symptomen. Recurring-jobb-id
+oförändrat → dashboard-trigger fungerar.
+
+### Avvisade (X1/X2/X3)
+
+- **X1** (Hangfire-klient i Api + impl i Infrastructure): sprider Hangfire.Core
+  till Hangfire-fritt Infrastructure-lager (§9.2-dep) för obehövd kapacitet.
+- **X2** (port i Application + Hangfire-klient + impl i Api composition-root):
+  principiellt korrekt OM async-endpoint behövs — men ingen konsument behöver
+  den efter Commit 1 + dashboard-backfill-valet (YAGNI). Klas-övervägd, avvisad.
+- **X3** (in-process IHostedService/channel utan Hangfire): parallellt
+  jobbsystem, DRY-brott, överlever inte pod-restart.
+
+### Konsekvenser
+
+- Förlorad programmatisk HTTP-snapshot-trigger. Acceptabelt — dashboard +
+  recurring-schedule täcker. Framtida API-trigger (om automation kräver) lyfts
+  som egen TD i rätt fas med faktisk konsument (X2 = färdig ritning då).
+- Initial-backfill efter fix-deploy sker via Hangfire-dashboard "Trigger now"
+  på `sync-platsbanken-snapshot` (Klas-operativt, deploy-gated).
+
+### Implementations-trail
+
+- `src/JobbPilot.Api/Endpoints/AdminJobAdsEndpoints.cs` (410)
+- `src/JobbPilot.Worker/Hosting/SyncPlatsbankenSnapshotWorker.cs` (ny) + `RecurringJobRegistrar.cs` + `Program.cs`
+- Borttagna: `SyncPlatsbankenSnapshotCommand/-CommandHandler/-Result` + handler-test + oanvänd `StubJobSource` (Api-int)
+- `tests/JobbPilot.Architecture.Tests/P8cJobsLayerTests.cs` (`SyncPlatsbankenSnapshotWorker_resides_in_Worker_assembly`)
+- `AdminSyncPlatsbankenTests` (401/403 behållna, funktionstester → 410-assertion)
+
+### Referenser
+
+- Kent Beck, *XP Explained* (1999) — YAGNI
+- Robert C. Martin, *Clean Architecture* (2017) kap. 14 (Component Coupling)
+- Hunt/Thomas, *The Pragmatic Programmer* (1999) — DRY
+- Humble/Farley, *Continuous Delivery* (2010) — operability
+- CLAUDE.md §5 (no dead code), §9.2 (dep-disciplin), §9.6 p.5, §10.3 (svensk copy), §13
+- senior-cto-advisor 2026-05-16 (X4) + Klas-GO 2026-05-16

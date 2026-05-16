@@ -56,6 +56,17 @@ public class P8cJobsLayerTests
     }
 
     [Fact]
+    public void SyncPlatsbankenSnapshotWorker_resides_in_Worker_assembly()
+    {
+        // Snapshot-wrappern (DisableConcurrentExecution(3600), root-cause-fix
+        // 2026-05-16) — samma Clean-Arch-regel som stream-wrappern: Hangfire-
+        // attribut får inte läcka in i Application-lagret.
+        var workerType = typeof(SyncPlatsbankenSnapshotWorker);
+        workerType.Assembly.GetName().Name.ShouldBe("JobbPilot.Worker");
+        workerType.Namespace.ShouldBe("JobbPilot.Worker.Hosting");
+    }
+
+    [Fact]
     public void UpsertExternalJobAdCommand_is_not_IAuditableCommand()
     {
         // Per CTO-rond 2026-05-13 punkt 1: aggregerad audit per job-run, inte

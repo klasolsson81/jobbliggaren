@@ -1,14 +1,16 @@
 using JobbPilot.Application.Common.Authorization;
 using JobbPilot.Application.JobAds.Commands.RedactRecruiterPii;
-using JobbPilot.Application.JobAds.Commands.SyncPlatsbankenSnapshot;
 using Mediator;
 
 namespace JobbPilot.Api.Endpoints;
 
 /// <summary>
-/// Admin-yta för JobAd-källor. F2-P8b (ADR 0032 §9 — admin-trigger för synkron
-/// snapshot-import som smoke-test innan Hangfire-schedulering (P8c)). TD-73
-/// prod-gating-batch (ADR 0032 §8 amendment 2026-05-13) lägger till
+/// Admin-yta för JobAd-källor. Snapshot-trigger-endpointen är avvecklad
+/// (ADR 0032 §9-amendment 2026-05-16, senior-cto-advisor X4): den körde
+/// snapshot synkront i HTTP-requesten (ALB-timeout) och dubblerade
+/// Hangfire-dashboardens "Trigger now". Snapshot körs nu enbart via
+/// recurring-jobbet <c>sync-platsbanken-snapshot</c> i Worker. TD-73
+/// prod-gating-batch (ADR 0032 §8 amendment 2026-05-13) behåller
 /// right-to-erasure-endpoint för rekryterar-PII (GDPR Art. 17).
 /// </summary>
 public static class AdminJobAdsEndpoints
@@ -19,17 +21,20 @@ public static class AdminJobAdsEndpoints
             .WithTags("Admin/JobAds")
             .RequireAuthorization(AuthorizationPolicies.Admin);
 
-        group.MapPost("/sync/platsbanken", async (
-            IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(new SyncPlatsbankenSnapshotCommand(), ct);
-            return result.IsSuccess
-                ? Results.Ok(result.Value)
-                : Results.Problem(
-                    title: result.Error.Code,
-                    detail: result.Error.Message,
-                    statusCode: 400);
-        });
+        // Avvecklad 2026-05-16 (ADR 0032 §9-amendment, senior-cto-advisor X4).
+        // Endpointen körde snapshot synkront i requesten → ALB-timeout vid
+        // ~47k upserts, och dubblerade Hangfire-dashboardens "Trigger now".
+        // Snapshot körs nu enbart via recurring-jobbet sync-platsbanken-stream/
+        // -snapshot i Worker. 410 Gone behålls (i stället för borttagen route)
+        // så operatörer med äldre runbook får tydlig anvisning. Admin-auth
+        // krävs fortfarande (gruppen RequireAuthorization).
+        group.MapPost("/sync/platsbanken", () =>
+            Results.Problem(
+                title: "Endpointen är avvecklad",
+                detail: "Manuell snapshot-trigger sker via Hangfire-dashboarden: "
+                    + "kör recurring-jobbet sync-platsbanken-snapshot med Trigger now. "
+                    + "Snapshot körs annars automatiskt enligt schema (02:00 UTC).",
+                statusCode: StatusCodes.Status410Gone));
 
         // GDPR Art. 17 right-to-erasure för rekryterar-PII i raw_payload
         // (ADR 0032 §8 amendment 2026-05-13). Email-only — Name defererad till

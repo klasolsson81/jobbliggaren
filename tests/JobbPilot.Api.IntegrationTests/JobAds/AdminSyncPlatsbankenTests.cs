@@ -6,18 +6,20 @@ using JobbPilot.Api.IntegrationTests.Helpers;
 using JobbPilot.Api.IntegrationTests.Infrastructure;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Authorization;
-using JobbPilot.Application.JobAds.Abstractions;
-using JobbPilot.Domain.JobAds;
 using JobbPilot.Infrastructure.Identity;
-using JobbPilot.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 
 namespace JobbPilot.Api.IntegrationTests.JobAds;
 
+/// <summary>
+/// Admin snapshot-trigger-endpointen är avvecklad (ADR 0032 §9-amendment
+/// 2026-05-16, senior-cto-advisor X4). Den körde snapshot synkront i requesten
+/// (ALB-timeout) och dubblerade Hangfire-dashboardens "Trigger now". Snapshot
+/// körs nu enbart via recurring-jobbet i Worker. Endpointen returnerar 410 Gone
+/// men kräver fortfarande Admin-auth (gruppen RequireAuthorization).
+/// </summary>
 [Collection("Api")]
 public class AdminSyncPlatsbankenTests(ApiFactory factory)
 {
@@ -50,116 +52,21 @@ public class AdminSyncPlatsbankenTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Admin_triggers_snapshot_sync_updates_existing_via_unique_index()
+    public async Task Admin_request_returns_410_gone_pointing_to_dashboard()
     {
         var ct = TestContext.Current.CancellationToken;
-        var externalId = $"upd-{Guid.NewGuid():N}";
-
-        // Pre-seed JobAd med samma ExternalId genom direct DB-write
-        using (var seedScope = _factory.Services.CreateScope())
-        {
-            var seedDb = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var seedClock = seedScope.ServiceProvider
-                .GetRequiredService<JobbPilot.Domain.Common.IDateTimeProvider>();
-            var existing = JobAd.Import(
-                title: "Old title",
-                company: Company.Create("Old Co").Value,
-                description: "Old desc",
-                url: "https://old.example/1",
-                external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
-                rawPayload: "{\"old\":true}",
-                publishedAt: seedClock.UtcNow.AddDays(-30),
-                expiresAt: seedClock.UtcNow.AddDays(10),
-                clock: seedClock).Value;
-            seedDb.JobAds.Add(existing);
-            await seedDb.SaveChangesAsync(ct);
-        }
-
-        var stubSnapshot = new[]
-        {
-            new JobAdImportItem(
-                ExternalId: externalId,
-                Title: "Updated title",
-                CompanyName: "Updated Co",
-                Description: "Updated desc",
-                Url: "https://updated.example/1",
-                PublishedAt: DateTimeOffset.UtcNow.AddDays(-30),
-                ExpiresAt: DateTimeOffset.UtcNow.AddDays(60),
-                SanitizedRawPayload: "{\"id\":\"" + externalId + "\",\"new\":true}"),
-        };
-
-        using var stubbedFactory = _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IJobSource>();
-                services.AddScoped<IJobSource>(_ => new StubJobSource(
-                    JobSource.Platsbanken, stubSnapshot));
-            });
-        });
-
-        var adminClient = await CreateAdminClientAsync(stubbedFactory.CreateClient(), ct);
-        var response = await adminClient.PostAsync(
-            "/api/v1/admin/job-ads/sync/platsbanken", content: null, ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("addedCount").GetInt32().ShouldBe(0);
-        json.GetProperty("updatedCount").GetInt32().ShouldBe(1);
-
-        using var verifyScope = _factory.Services.CreateScope();
-        var db = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var saved = await db.JobAds
-            .FirstAsync(j => j.External!.ExternalId == externalId, ct);
-        saved.Title.ShouldBe("Updated title");
-        saved.Description.ShouldBe("Updated desc");
-    }
-
-    [Fact]
-    public async Task Admin_triggers_snapshot_sync_and_persists_jobads()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var externalId = $"test-{Guid.NewGuid():N}";
-        var stubSnapshot = new[]
-        {
-            new JobAdImportItem(
-                ExternalId: externalId,
-                Title: "Senior Backend Developer",
-                CompanyName: "Test Company AB",
-                Description: "Test description.",
-                Url: "https://example.com/job/123",
-                PublishedAt: DateTimeOffset.UtcNow.AddDays(-1),
-                ExpiresAt: DateTimeOffset.UtcNow.AddDays(30),
-                SanitizedRawPayload: "{\"id\":\"" + externalId + "\"}"),
-        };
-
-        using var stubbedFactory = _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IJobSource>();
-                services.AddScoped<IJobSource>(_ => new StubJobSource(
-                    JobSource.Platsbanken, stubSnapshot));
-            });
-        });
-
-        var adminClient = await CreateAdminClientAsync(stubbedFactory.CreateClient(), ct);
+        var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
 
         var response = await adminClient.PostAsync(
             "/api/v1/admin/job-ads/sync/platsbanken", content: null, ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.Gone);
 
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("fetchedCount").GetInt32().ShouldBe(1);
-        json.GetProperty("addedCount").GetInt32().ShouldBe(1);
-
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var saved = await db.JobAds
-            .FirstAsync(j => j.External!.ExternalId == externalId, ct);
-        saved.Title.ShouldBe("Senior Backend Developer");
-        saved.External!.Source.ShouldBe(JobSource.Platsbanken);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("status").GetInt32().ShouldBe(410);
+        var detail = problem.GetProperty("detail").GetString();
+        detail.ShouldNotBeNull();
+        detail.ShouldContain("sync-platsbanken-snapshot");
     }
 
     private async Task<HttpClient> CreateAdminClientAsync(HttpClient client, CancellationToken ct)

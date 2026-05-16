@@ -1621,6 +1621,7 @@ Ingen hård deadline, men mjuka milstolpar för att driva framåt:
 - Anti-klyscha-detektor
 - Matchningsscore (Fast + Deep)
 - Företagsresearch-brief
+- Smart CV-baserat filter — AI härleder JobTech-yrkesurval ur ett CV (med användarbekräftelse) och skapar en `SavedSearch`; ett smart filter per CV-spår. Bygger ovanpå Fas 2:s `SavedSearch`-aggregat. Se ADR 0040 (Proposed).
 
 **Milstolpe:** Alla AI-features fungerar end-to-end med BYOK för power users. **Detta är den första riktiga dogfood-checkpointen: 14 dagar daglig användning av Klas.**
 

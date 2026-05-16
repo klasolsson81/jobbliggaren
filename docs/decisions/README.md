@@ -52,6 +52,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0037 | Designsystem v2: civic slate-skala + dark mode (ersätter Fas 0-borttagning) | Accepted | 2026-05-16 | [0037-design-system-v2-slate-dark-mode.md](./0037-design-system-v2-slate-dark-mode.md) |
 | 0038 | Typografi-omkalibrering: GOV.UK-läsbarhetsgolv (delvis supersession av ADR 0037 — typografi/density) | Accepted | 2026-05-16 | [0038-typography-recalibration-govuk-readability-floor.md](./0038-typography-recalibration-govuk-readability-floor.md) |
 | 0039 | SavedSearch-aggregat: SearchCriteria-VO, query-baserad run-semantik och Fas 2/5-gränsdragning | Accepted | 2026-05-16 | [0039-savedsearch-aggregate-and-query-run-semantics.md](./0039-savedsearch-aggregate-and-query-run-semantics.md) |
+| 0040 | Smart CV-härlett filter ovanpå SavedSearch (framtida fas) | Proposed | 2026-05-16 | [0040-smart-cv-derived-saved-search.md](./0040-smart-cv-derived-saved-search.md) |
 
 ## Planerade ADRs
 

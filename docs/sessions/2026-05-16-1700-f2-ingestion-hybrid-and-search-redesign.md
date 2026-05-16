@@ -101,6 +101,28 @@ ADR 0039 Beslut 3 additivt supersession-blockquote (brödtext orörd, Nygard) +
 header partial-flagga. README-index. CC rättade adr-keeper-batch-nr-fel
 (B Batch 4→3 per LÅST PLAN). **Klas-STOPP 4 GO** — Accepted.
 
+## Batch 3 — B SearchCriteria single→multi (KLAR)
+
+architect `aeb84989ef8c96f70` INNAN kod → CTO `a3f867af2b57df564` **Yta A3**
+(property-level HasConversion + System.Text.Json tolerant converter i
+Infrastructure; web-verifierat `OwnsOne().ToJson()`+converter instabilt via
+Npgsql #3129; ingen data-migration, lazy on-read). test-writer
+`ac943915d61d386ed` FÖRST (röda: equality+4 invarianter+jsonb-roundtrip+
+default-deny+regression). Impl: `SearchCriteria` IReadOnlyList Ssyk/Region +
+sorterad+distinct-normalisering + maxantal-cap MaxConceptIds=10 + generaliserad
+tom-invariant + per-element-regex + explicit Equals/GetHashCode (SequenceEqual
+ordinal — SavedSearch jsonb-dedupe-grund). `SearchCriteriaConverters.cs`
+(tolerant default-deny, Domain orört). `JobAdSearch.ApplyCriteria` list→IN(...).
+Validator + alla konsumenter (commands/DTO/endpoints) propagerade. db-migration-
+writer `aef17608f4c9e63d7`: migration `F2SearchCriteriaMultiValue` tom Up/Down
+(A3 no-op — kolumn redan jsonb; Klas-beslut: behåll). security-auditor
+`a7a056bb9566e86fd` **PASS** 0 Crit/High/GDPR (7/7); **M1** (SavedSearch
+Create/Update saknade pre-handler cap-paritet) → **fixad in-block** §9.6
+(speglar ListJobAdsQueryValidator). code-reviewer `a2536dc814ec4e1b7` **GO**
+0 Block/0 Major/1 Minor FYI (test-only). Svit **1069 grön**, build 0/0.
+**STOPP 5 (migration) + STOPP 6 (security-auditor) bundlat → Klas-GO**
+(behåll tom migration; commit GO).
+
 ## Nästa
 
 - Batch 3: B SearchCriteria Ssyk/Region single→multi (test-writer FÖRST/TDD +

@@ -83,6 +83,7 @@ I dark läser selektion som "dimmed blue" (`brand-50`) medan action är ljusare
 |---|---|---|---|---|
 | `--jp-border` | `#E2E8F0` | `#1E293B` | `border-border-default` | Hairlines. Standardvalet (dekorativa avgränsare). |
 | `--jp-border-strong` | `#CBD5E1` | `#334155` | `border-border-strong` | Tabellhuvud, kanban-kolumner — informationsbärande, klarar 3:1 mot canvas. |
+| `--jp-border-modal` | `#E2E8F0` | `#64748B` | `border-border-modal` | Modal/popover-**gräns** (strukturell, ej dekorativ). Dark slate-500 klarar WCAG 1.4.11 ≥3:1 mot dimmad canvas. Light = `--jp-border`-värde (light ej defekt). ADR 0041. |
 | `--jp-border-soft` | `#F1F5F9` | `#1E293B` | — | Mjukaste avgränsare. |
 | `--jp-border-hairline` | `#E2E8F0` | `#1E293B` | — | Alias för `--jp-border`. |
 | `--jp-border-brand` | `var(--jp-brand-600)` | — | `border-border-brand` | Brand-kant (banner, selektion). |

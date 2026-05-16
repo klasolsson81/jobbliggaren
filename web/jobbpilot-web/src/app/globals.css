@@ -62,6 +62,7 @@
   --jp-border-strong:   #CBD5E1;
   --jp-border-soft:     #F1F5F9;
   --jp-border-hairline: #E2E8F0;
+  --jp-border-modal:    #E2E8F0;   /* = light --jp-border (light ej defekt; token-enhetlighet) — ADR 0041 */
 
   /* Focus */
   --jp-focus: #0B5CAD;
@@ -133,6 +134,7 @@
   --jp-border-strong:   #334155;
   --jp-border-soft:     #1E293B;
   --jp-border-hairline: #1E293B;
+  --jp-border-modal:    #64748B;   /* slate-500 (= dark --jp-info-500) — WCAG 1.4.11 ≈3.6:1 mot dimmad canvas — ADR 0041 */
 
   --jp-focus: #60A5FA;
 
@@ -182,6 +184,7 @@
   /* Borders */
   --color-border-default: var(--jp-border);
   --color-border-strong:  var(--jp-border-strong);
+  --color-border-modal:   var(--jp-border-modal);
   --color-border-brand:   var(--jp-brand-600);
 
   /* Focus */

@@ -70,6 +70,7 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 |---|---|---|---|
 | `border` (#1E293B) | `surface-primary` (#020617) | ~1.6:1 | Dekorativ hairline — undantaget |
 | `border-strong` (#334155) | `surface-primary` (#020617) | ~2.6:1 | Informationsbärande — komplettera alltid med text/ikon, aldrig endast färg |
+| `border-modal` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | **Strukturell** modal/popover-gräns — WCAG 1.4.11 ✓ (≥3:1 även mot `bg-black/50`-dimmad canvas). ADR 0041. Light = `#E2E8F0`. |
 
 ## Dark mode — status pairs
 

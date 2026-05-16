@@ -108,6 +108,33 @@ tsc/lint(0 err)/313 vitest/next build gröna.
   (scaffolding-fil — memory `feedback_dont_delete_auto_files`).
 - TD-82 fas-placering (Fas 2 satt — Klas äger roadmap-strategi).
 
+## Iteration 3 — läsbarhets-omkalibrering (ADR 0038, Klas live-test mot Platsbanken)
+
+Klas jämförde /jobb mot Platsbanken side-by-side: v2 för litet/tunt/otydligt.
+Rotorsak: v2-handoffen drev BORT från JobbPilots egen spec (DESIGN.md §1.1
+55-årig målanvändare + GOV.UK-referens + PRINCIPLES r7 mening 2 "luftigt nog
+att läsa" + egen contrast-table som redan dömer text-tertiary).
+
+Web-research: GOV.UK Frontend = 16px brödtextgolv (aldrig under), accessibility
+per British Dyslexia Association. Nielsen/WCAG: beskrivande placeholder-exempel
+= anti-pattern.
+
+**senior-cto-advisor-beslut + Klas full GO → ADR 0038** (delvis supersession av
+0037 — endast typo/density; dark/palett orört):
+- Brödtext 14→16px, lede 17, h1/h2/h3 vikt→600 (stänger 0037:s öppna jp-h1-
+  drift), mono data 13/500 secondary, mono caps 11.5 secondary, text-tertiary
+  ENDAST dekorativt, input 32→44px, knapp 32→40 (sm 36), sök/filter-placeholder-
+  exempel borttagna (auth format-placeholder kvar). Global token-fix (DRY/SPOT),
+  civic-ledger-FORMEN orörd.
+
+Kedja: adr-keeper (ADR 0038) → general-purpose (skills+PRINCIPLES+README) →
+DESIGN.md §4/§6 (spec-guard-token, Klas-GO) → nextjs-ui-engineer (globals.css+
+shadcn+placeholder) → visual-verify → design-reviewer mot screenshots: vetade
+1 blocker (tertiary-on-info) → fixad (genuina brott → secondary; legitim
+secondary INTE plattad — #475569 7.4:1 är designens mellantier) → re-review
+**✓ Approved 0 blockers**. tsc/lint(0)/313 vitest gröna. Klas slutgodkände
+diff+screenshots före push.
+
 ## Nästa session
 
 - Klas-beslut om `.jp-h1`/display font-weight-auktoritet (jobbpilot.css vs

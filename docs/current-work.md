@@ -1,9 +1,10 @@
 # Current work — JobbPilot
 
 **Status:** **UI-REFACTOR DESIGNSYSTEM v2 LEVERERAD 2026-05-16 — civic-utility slate-palett + dark mode (`data-theme`, no-flash, prefers-color-scheme auto), Shell Variant B (sektionerad sidebar, 4px brand-vänsterkant, ADMIN rollgejtad), civic landing, nya `.jp-*`-primitiv. DESIGN.md + 5 skills + 2 agenter → v2. ADR 0037 (Klas-GO). design-reviewer 2 Blockers + 3 Majors åtgärdade in-block. tsc/lint/313 vitest/next build gröna. Ej deployad (tag-push kräver Klas-GO). Öppen punkt: `.jp-h1`/display font-weight-drift jobbpilot.css(500/36px) vs tokens-spec(600/56px) — Klas-auktoritetsbeslut kvarstår.**
-**Iteration 2 (Klas-feedback):** broad-screen-centrering + dubbel-login + jobb-rad-separation + post-login-redirect fixade. NY rutin: `docs/runbooks/frontend-visual-verification.md` + `pnpm visual-verify` (Playwright 1280/1920/3440 × light/dark, self-cleaning, design-reviewer mot bilderna). TD-82 (Översikt, Minor Fas 2) lyft. Klas-GO kvarstår: AGENTS.md-rad + TD-82-fas.
-**Senast uppdaterad:** 2026-05-16 (UI-refactor v2 + iteration 2)
-**HEAD:** `261ea12`/`661e72d` + iteration-2-commits
+**Iteration 2:** broad-screen-centrering + dubbel-login + jobb-separation + post-login-redirect + visual-verify-rutin + TD-82.
+**Iteration 3 (ADR 0038 — läsbarhets-omkalibrering):** Klas live-jämförde mot Platsbanken → v2 för litet/tunt. CTO+Klas-GO: GOV.UK-läsbarhetsgolv (brödtext 16px, lede 17, h1/h2/h3 vikt 600, mono data 13/secondary, input 44px, knapp 40, placeholder-exempel borttagna, text-tertiary endast dekorativt). Global token-fix, civic-ledger-form orörd. ADR 0038 (delvis supersession 0037, stänger jp-h1-driften). design-reviewer mot screenshots: ✓ approved 0 blockers.
+**Senast uppdaterad:** 2026-05-16 (UI-refactor v2 + iter 2 + iter 3 ADR 0038)
+**HEAD:** `261ea12`/`661e72d`/`b97cda2`/`bc5b712`/`2d8effd` + iter-3-commits
 **Deploy:** `v0.2.5-dev` LIVE på dev-backend, frontend LIVE på Vercel (www.jobbpilot.se → dev.jobbpilot.se) — v2-frontend ej deployad än
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva, +TD-80) + `docs/tech-debt-archive.md` (stängda)

@@ -83,9 +83,29 @@ förkastad ren A2; bevaras som framtida skala-trigger, ej TD — §9.6/§9.7).
 - §9 X4 410 + `JobType:"snapshot"`-literal + ADR 0036-metric oförändrade
   (MA 2.1=A).
 
+## STOPP 3 — deploy + gate-def-konflikt löst
+
+`v0.2.9-dev` tag-pushad (CC på Klas-GO), deploy run `25970027351` in_progress.
+**Gate-def-konflikt:** LÅST PLAN sa "Batch 3 ej innan korpus ~40k+"; accepterad
+ADR 0032-amendment sa "~40k+ tar dygn". Klas-beslut 2026-05-16: **grön =
+storm-borta + korpus-tillväxt-trajektoria** (ej literal ~40k+) → Batch 2–6
+non-stop, ~40k+ konvergerar i bakgrunden. Worker-rescale (om paus kördes) =
+Klas AWS-op. Cron-grön verifieras async.
+
+## Batch 2 — ADR 0042 + 0039-supersession (noll kod, parallellt m/ deploy)
+
+adr-keeper `ad3fa8dc6d921d8a3`: ADR 0042 (sök-yta-IA A–F: A kollaps-filter,
+B SearchCriteria single→multi + 4 DDD-invarianter, C C1-typeahead, D D2-ILIKE
++ D1-skala-trigger-ej-TD, E Since/IsNew runtime-ej-VO, F CV-out korsref 0040).
+ADR 0039 Beslut 3 additivt supersession-blockquote (brödtext orörd, Nygard) +
+header partial-flagga. README-index. CC rättade adr-keeper-batch-nr-fel
+(B Batch 4→3 per LÅST PLAN). **Klas-STOPP 4 GO** — Accepted.
+
 ## Nästa
 
-- Tag-push `v0.2.x-dev` (Klas-op) → **STOPP 3 cron-grön** (hård F2-DoD-gate;
-  Batch 3 startar EJ innan grön).
-- Batch 2 (ADR 0042 + ADR 0039 Beslut 3-supersession, STOPP 4) → Batch 3–6.
+- Batch 3: B SearchCriteria Ssyk/Region single→multi (test-writer FÖRST/TDD +
+  dotnet-architect INNAN kod + security-auditor BLOCKING maxantal-cap +
+  code-reviewer; db-migration-writer om jsonb-shape → STOPP 5).
+- Batch 4 (E+D) → Batch 5 (C, STOPP 5/6) → Batch 6 (frontend, STOPP 7).
 - Fas 2 formell stängning vid B–E komplett (samlad).
+- Async: cron-grön-verifiering (storm-borta + korpus-tillväxt).

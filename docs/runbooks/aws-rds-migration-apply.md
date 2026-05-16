@@ -117,7 +117,7 @@ Exit-code 0 = success. Annat exit-code → se §4 Felhantering.
 ### 2.5 Verifiera CloudWatch-loggar
 
 ```powershell
-aws logs tail /ecs/jobbpilot-dev-migrate --since 10m --follow
+aws logs tail /aws/ecs/jobbpilot-dev/migrate --since 10m --follow
 ```
 
 Sökmönster i loggarna:

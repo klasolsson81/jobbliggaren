@@ -73,7 +73,6 @@ async function main(): Promise<void> {
   }
 
   await browser.close();
-  // eslint-disable-next-line no-console
   console.log(
     `[visual-verify] ${count} screenshots → ${outDir}\n` +
       `[visual-verify] Raderas automatiskt vid nästa körning. ` +
@@ -82,7 +81,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error("[visual-verify] FEL:", err);
   process.exit(1);
 });

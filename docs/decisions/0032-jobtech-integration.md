@@ -659,11 +659,23 @@ oförändrat → dashboard-trigger fungerar.
 
 ### Konsekvenser
 
-- Förlorad programmatisk HTTP-snapshot-trigger. Acceptabelt — dashboard +
+- Förlorad programmatisk HTTP-snapshot-trigger. Acceptabelt —
   recurring-schedule täcker. Framtida API-trigger (om automation kräver) lyfts
   som egen TD i rätt fas med faktisk konsument (X2 = färdig ritning då).
-- Initial-backfill efter fix-deploy sker via Hangfire-dashboard "Trigger now"
-  på `sync-platsbanken-snapshot` (Klas-operativt, deploy-gated).
+- Initial-backfill efter fix-deploy sker via recurring-cron (02:00 UTC) eller
+  AWS-operatörsåtgärd (Klas-operativt, deploy-gated).
+
+### Korrigering 2026-05-16 — ingen Hangfire-dashboard exponerad
+
+Detta amendment (och CTO-resonemanget bakom X4) antog att en Hangfire-dashboard
+är driftsatt som operatörens ad-hoc-trigger-väg. **On-disk-verifiering: Worker
+är headless — inget `UseHangfireDashboard`/`MapHangfireDashboard` finns.** X4-
+beslutet (avveckla endpointen) står oförändrat och stärks (ingen dashboard
+heller → ännu mindre skäl att bygga async-HTTP-yta). Operativ konsekvens:
+manuell ad-hoc-snapshot kräver AWS-operatörsåtgärd (ECS exec eller Hangfire-
+radinsert); steady-state täcks av recurring-cron 02:00 UTC. 410-copy +
+endpoint-doc korrigerade att inte hänvisa till en icke-exponerad dashboard.
+Saknad operatörs-yta (jobb-status/retry/manuell trigger) lyft som **TD-83**.
 
 ### Implementations-trail
 

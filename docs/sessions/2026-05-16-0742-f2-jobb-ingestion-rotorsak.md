@@ -99,12 +99,23 @@ hård rejection. Förlegad kommentar uppdaterad (code-reviewer Min-1).
 - 929 tester gröna (−4 netto: borttagen dead-code-test + 2 funktionstester,
   +410-test +arch-test). code-reviewer Commit 3: 0 Blockers/Majors i X4-logiken.
 
-## Kvarstår — Klas-operativt (ej kod)
+## Deploy + dashboard-korrigering
 
-1. **Dev-deploy** av `d454d23` (tag-push `v0.2.x-dev` = Klas-GO).
-2. **Initial-backfill:** Hangfire-dashboard → recurring-jobb
-   `sync-platsbanken-snapshot` → "Trigger now" (eller vänta cron 02:00 UTC).
-3. **CC verifierar** efter trigger: CloudWatch `SyncPlatsbankenSnapshotJob:
-   klart` (EventId 5402, fetched/added/skipped) + dev-DB `job_ads`-count →
-   storleksordning ~40k+ (Platsbanken-direkt minus valideringsfilter ~26%).
-4. Därefter åter till övrigt Fas 2-arbete.
+- **Deployad:** Klas pushade tag `v0.2.6-dev` (5c90b6e) → deploy-run
+  `25956939801` **success**, `/api/ready` 200, endpoint 401 unauth (auth ok).
+- **Dashboard-fynd:** Worker är headless — inget `UseHangfireDashboard`.
+  410-copyn jag skrev hänvisade felaktigt till dashboard. Korrigerad
+  (commit code + ADR 0032 §9 Korrigering 2026-05-16). Ingen manuell
+  trigger-väg finns (admin-endpoint 410, ingen dashboard) → ad-hoc kräver
+  AWS-handpåläggning. **TD-83** lyft (operatörs-yta, Minor/Trigger).
+- Cadence Klas-GO: oförändrat */10 + 0 2.
+
+## Kvarstår
+
+1. **Cron 02:00 UTC inatt** kör snapshot automatiskt mot fixad+deployad kod
+   (ingen manuell trigger — Klas valde vänta, ingen dashboard ändå).
+2. **CC verifierar imorgon** (efter 02:00 UTC, AWS SSO aktiv): CloudWatch
+   `SyncPlatsbankenSnapshotJob: klart` (EventId 5402 — första completionen
+   någonsin) + dev-DB `job_ads`-count → ~40k+ (Platsbanken-direkt minus
+   valideringsfilter ~26%).
+3. Därefter åter till övrigt Fas 2-arbete.

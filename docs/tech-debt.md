@@ -31,6 +31,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-77 | Backend 5xx-rate-alarm (1% över 5 min) | Minor | 8 (Klass-launch) | Observability/SLA |
 | TD-78 | DB CPU > 80% i 10 min-alarm | Minor | 8 (Klass-launch) | Observability/Capacity |
 | TD-81 | middleware.ts → proxy.ts (Next.js 17-uppgradering) | Minor | Trigger | Frontend/Compatibility |
+| TD-83 | Operatörs-yta för Hangfire-jobb (status/retry/manuell trigger) | Minor | Trigger | Operations/Observability |
 | TD-62 | OpenAPI-codegen som supersession av manuella Zod-DTO-schemas | Minor | 2+ | Architecture/Tooling |
 | TD-63 | ActionResult kind-union för writes (ADR 0030-symmetri) | Minor | 2+ | Architecture |
 | TD-64 | i18n-migration av inline svenska error-strängar | Minor | Trigger | i18n |
@@ -975,6 +976,39 @@ TRUNCATE/TRIGGER-yta är teoretisk attack-surface, inte exploit-väg idag.
 
 **Trigger:** nästa Phase A-touch (creds-rotation eller schema-bootstrap-
 mutation).
+
+
+---
+
+## TD-83: Operatörs-yta för Hangfire-jobb (status/retry/manuell trigger)
+
+**Kategori:** Operations/Observability
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** F2 jobb-ingestion root-cause-fix 2026-05-16 (ADR 0032 §9-amendment X4 + Korrigering 2026-05-16)
+
+Worker är headless — ingen Hangfire-dashboard exponeras
+(`UseHangfireDashboard`/`MapHangfireDashboard` saknas i `Program.cs`).
+Konsekvens: ingen yta för operatör att se jobb-status, retry-historik eller
+köra ett recurring-jobb ad-hoc ("Trigger now"). Vid behov av manuell
+snapshot-körning (t.ex. efter deploy innan nästa 02:00-cron) krävs
+AWS-handpåläggning (ECS exec in i Worker-containern eller manuell rad-insert i
+`hangfire`-schemat). admin-HTTP-endpointen är avvecklad (410, ADR 0032 §9 X4).
+
+Idag tillräckligt: recurring-cron 02:00 UTC + CloudWatch-loggar (EventId
+5401/5402) ger steady-state-observability. Gapet bränner först vid faktiskt
+operatörsbehov (incident-felsökning, ad-hoc-backfill, retry av hängt jobb).
+
+**Föreslagen åtgärd:** exponera Hangfire-dashboard bakom auth — kräver eget
+beslut om (a) var den exponeras (separat Worker-webhost? Api-mountad?),
+(b) auth-modell (Admin-policy / IP-allowlist / AWS-internal), (c) säkerhet
+(dashboarden visar job-args + stack-traces, potentiell PII — jfr
+`docs/runbooks/hangfire-schema.md`). Egen ADR vid leverans.
+
+**Beroenden:** ADR 0023 (Hangfire-infra), `docs/runbooks/hangfire-schema.md`.
+
+**Trigger:** första faktiska operatörsbehov av jobb-status/retry/ad-hoc-trigger
+(incident eller manuell backfill), eller Fas 8 (Klass-launch — drift-mognad).
 
 
 ---

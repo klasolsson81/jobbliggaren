@@ -157,11 +157,34 @@ security-auditor `a7cbb04ead2c402e4` **PASS** 8/8 0 Crit/High/GDPR (rate-limit
 PII). code-reviewer `a06d038db1e7121b0` **GO** 0/0/1 Minor FYI. Svit **1083
 grön**, build 0/0. **STOPP 5+6 GO** → commit.
 
-## Nästa
+## Batch 6 — frontend B–E (KLAR, committad 5110b45)
 
-- Batch 3: B SearchCriteria Ssyk/Region single→multi (test-writer FÖRST/TDD +
-  dotnet-architect INNAN kod + security-auditor BLOCKING maxantal-cap +
-  code-reviewer; db-migration-writer om jsonb-shape → STOPP 5).
-- Batch 4 (E+D) → Batch 5 (C, STOPP 5/6) → Batch 6 (frontend, STOPP 7).
-- Fas 2 formell stängning vid B–E komplett (samlad).
-- Async: cron-grön-verifiering (storm-borta + korpus-tillväxt).
+nextjs-ui-engineer `ae8c96441b94d87ca`. A disclosure-kollaps-filteryta
+(resultat-först, civic regel 3/7; sökfält+typeahead alltid synligt, taxonomi/
+sort bakom aria-expanded-disclosure). B multi-select-chips (max 10, URL-driven
+repeated query-params, ersätter concept-id-fritext). C live-typeahead — CTO
+`a377901ce353b58e7` **Variant A** (self-contained debounce-hook ≥300ms/min 2/
+AbortController; EJ TanStack — YAGNI+§9.1+§9.2; §4.3 reglerar mutations/pollar
+ej typeahead-read; CC-auto-följ). In-block: abort-on-unmount + header-CTO-ref.
+D snabbsortering inkl Relevance (disabled+förklarande copy utan söktext). E
+Ny-badge (isNew, fast rullande 7-dygnsfönster, civic pill, ingen extra UI-
+kontroll). **F HÅRT OUT** (ingen impl/placeholder/copy/tag). vitest 357/357,
+tsc clean, lint 0 err/3 pre-existing. i18n: ingen messages/sv.json/next-intl i
+repot (discovery-verifierat) → literala svenska strängar = on-disk-konvention
+(§9.1); promptens messages/sv.json-krav ej applicerbart.
+
+## Nästa — STOPP 7 + Fas 2 formell stängning
+
+- **STOPP 7 (bundlat):** backend tag-push `v0.2.10-dev` (Batch 1–5 +
+  migrations F2SearchCriteriaMultiValue [no-op] + F2SuggestTitlePrefixIndex
+  [index], STOPP-5-godkända) + frontend Vercel (main-push auto) → auth-gated
+  `pnpm visual-verify` mot FULL korpus → design-reviewer VETO mot bilderna →
+  Klas approve + since-fönster-bekräftelse (fast 7d vs användarstyrt).
+- **Fas 2 FORMELL STÄNGNING** vid B–E live-verifierat (steg-tracker Fas 2 →
+  "Klar 2026-05-16", current-work + docs-keeper).
+- Session-end: ADR 0042 impl-notat (adr-keeper — index-val Variant A),
+  cluster-namn-drift-fix (`jobbpilot-dev`→`jobbpilot-dev-cluster` i
+  aws-rds-migration-apply.md + paus-procedur-erratum), cron-grön-followup
+  (snapshot-graceful @02:00 UTC + korpus-trajektoria).
+- Async kvar: cron-grön-verifiering (storm-borta CONFIRMED; snapshot-graceful
+  + korpus-tillväxt verifieras vid/efter 02:00 UTC).

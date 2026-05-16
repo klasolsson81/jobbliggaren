@@ -14,6 +14,7 @@ const baseAd: JobAdDto = {
   publishedAt: "2026-05-13T08:00:00Z",
   expiresAt: "2026-06-13T08:00:00Z",
   createdAt: "2026-05-13T08:01:00Z",
+  isNew: false,
 };
 
 describe("JobAdCard", () => {
@@ -50,5 +51,15 @@ describe("JobAdCard", () => {
     render(<JobAdCard jobAd={baseAd} />);
     expect(screen.getByText("Källa:")).toBeInTheDocument();
     expect(screen.getByText("Platsbanken")).toBeInTheDocument();
+  });
+
+  it("does not render the Ny badge when isNew is false (ADR 0042 Beslut E)", () => {
+    render(<JobAdCard jobAd={baseAd} />);
+    expect(screen.queryByText("Ny")).not.toBeInTheDocument();
+  });
+
+  it("renders the Ny badge when isNew is true", () => {
+    render(<JobAdCard jobAd={{ ...baseAd, isNew: true }} />);
+    expect(screen.getByText("Ny")).toBeInTheDocument();
   });
 });

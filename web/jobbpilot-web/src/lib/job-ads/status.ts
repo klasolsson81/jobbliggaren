@@ -43,6 +43,8 @@ export const JOB_AD_SORT_LABELS: Record<JobAdSortBy, string> = {
   PublishedAtAsc: "Äldst först",
   ExpiresAtDesc: "Sist sista ansökningsdag",
   ExpiresAtAsc: "Tidigast sista ansökningsdag",
+  // ADR 0042 Beslut D — endast valbar med söktext (se JobAdFilters).
+  Relevance: "Mest relevant",
 };
 
 export function getJobAdSortLabel(sortBy: JobAdSortBy): string {

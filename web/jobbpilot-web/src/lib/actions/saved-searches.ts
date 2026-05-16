@@ -36,10 +36,12 @@ export async function createSavedSearchAction(
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
   const sortByRaw = jobAdSortBySchema.safeParse(formData.get("sortBy"));
+  // ADR 0042 Beslut B — ssyk/region är multi: flera formData-värden under
+  // samma nyckel (FormData.getAll). Tom lista = inget filter.
   const parsed = createSavedSearchSchema.safeParse({
     name: formData.get("name") ?? "",
-    ssyk: (formData.get("ssyk") as string | null) ?? "",
-    region: (formData.get("region") as string | null) ?? "",
+    ssyk: formData.getAll("ssyk").map(String).filter((v) => v !== ""),
+    region: formData.getAll("region").map(String).filter((v) => v !== ""),
     q: (formData.get("q") as string | null) ?? "",
     sortBy: sortByRaw.success ? sortByRaw.data : "PublishedAtDesc",
   });
@@ -50,10 +52,12 @@ export async function createSavedSearchAction(
     };
   }
 
+  // null = ej angivet (backend SearchCriteria.Create normaliserar
+  // null → tom lista; tom lista = inget filter, ADR 0042 Beslut B.3).
   const body = {
     name: parsed.data.name,
-    ssyk: parsed.data.ssyk === "" ? null : parsed.data.ssyk,
-    region: parsed.data.region === "" ? null : parsed.data.region,
+    ssyk: parsed.data.ssyk.length === 0 ? null : parsed.data.ssyk,
+    region: parsed.data.region.length === 0 ? null : parsed.data.region,
     q: parsed.data.q === "" ? null : parsed.data.q,
     sortBy: sortByToIndex(parsed.data.sortBy),
     notificationEnabled: false,

@@ -11,8 +11,9 @@ import {
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 
 interface SaveSearchButtonProps {
-  ssyk: string;
-  region: string;
+  // ADR 0042 Beslut B — ssyk/region är multi (arrays).
+  ssyk: ReadonlyArray<string>;
+  region: ReadonlyArray<string>;
   q: string;
   sortBy: JobAdSortBy;
 }
@@ -50,7 +51,7 @@ export function SaveSearchButton({
     null
   );
 
-  const hasCriteria = ssyk !== "" || region !== "" || q !== "";
+  const hasCriteria = ssyk.length > 0 || region.length > 0 || q !== "";
 
   if (!open) {
     return (
@@ -86,8 +87,13 @@ export function SaveSearchButton({
       className="flex flex-col gap-2 border border-border-default rounded-md p-4"
       aria-label="Spara nuvarande sökning"
     >
-      <input type="hidden" name="ssyk" value={ssyk} />
-      <input type="hidden" name="region" value={region} />
+      {/* Ett dolt fält per element — Server Action läser via getAll() */}
+      {ssyk.map((v) => (
+        <input key={`ssyk-${v}`} type="hidden" name="ssyk" value={v} />
+      ))}
+      {region.map((v) => (
+        <input key={`region-${v}`} type="hidden" name="region" value={v} />
+      ))}
       <input type="hidden" name="q" value={q} />
       <input type="hidden" name="sortBy" value={sortBy} />
 

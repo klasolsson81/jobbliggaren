@@ -7,11 +7,14 @@ import { jobAdSortBySchema, type JobAdSortBy } from "./job-ads";
 // SERIALISERAR SortBy som heltal (0-3) i SavedSearchDto och DESERIALISERAR
 // body-enum som heltal. Index = enum-ordinal nedan. Schemat accepterar även
 // strängnamn (robust om ett globalt converter läggs till i framtiden).
+// Index = backend `JobAdSortBy` enum-ordinal (PublishedAtDesc=0 …
+// Relevance=4, ADR 0042 Beslut D). Måste hållas i exakt enum-ordning.
 export const SAVED_SEARCH_SORT_ORDER: readonly JobAdSortBy[] = [
   "PublishedAtDesc",
   "PublishedAtAsc",
   "ExpiresAtDesc",
   "ExpiresAtAsc",
+  "Relevance",
 ];
 
 export function sortByToIndex(sortBy: JobAdSortBy): number {
@@ -34,14 +37,15 @@ const sortByFromWire = z
     return z.NEVER;
   });
 
-// Backend SavedSearchDto: Id, Name, Ssyk?, Region?, Q?, SortBy(int),
-// NotificationEnabled, LastRunAt?, CreatedAt, UpdatedAt. Datum är ISO 8601
-// på wire (ADR 0020 §6).
+// Backend SavedSearchDto (ADR 0042 Beslut B): Id, Name, Ssyk[], Region[],
+// Q?, SortBy(int), NotificationEnabled, LastRunAt?, CreatedAt, UpdatedAt.
+// Ssyk/Region är nu IReadOnlyList (aldrig null från VO:t — tom lista =
+// inget filter). Datum är ISO 8601 på wire (ADR 0020 §6).
 export const savedSearchDtoSchema = z.object({
   id: z.string(),
   name: z.string(),
-  ssyk: z.string().nullable(),
-  region: z.string().nullable(),
+  ssyk: z.array(z.string()),
+  region: z.array(z.string()),
   q: z.string().nullable(),
   sortBy: sortByFromWire,
   notificationEnabled: z.boolean(),
@@ -65,6 +69,19 @@ const conceptIdPattern = /^[A-Za-z0-9_-]{1,32}$/;
 
 export const NAME_MAX_LENGTH = 120;
 
+// ADR 0042 Beslut B — Ssyk/Region är nu arrays. Per-element-regex +
+// maxantal-cap speglar CreateSavedSearchCommandValidator + SearchCriteria
+// (Domain = sanningskälla; detta = defense-in-depth).
+export const MAX_CONCEPT_IDS = 10;
+
+const conceptIdListSchema = z
+  .array(z.string())
+  .max(MAX_CONCEPT_IDS, `Max ${MAX_CONCEPT_IDS} val per lista.`)
+  .refine((list) => list.every((v) => conceptIdPattern.test(v)), {
+    message:
+      "Varje kod måste vara 1–32 tecken (bokstäver, siffror, _ eller -).",
+  });
+
 export const createSavedSearchSchema = z
   .object({
     name: z
@@ -72,18 +89,8 @@ export const createSavedSearchSchema = z
       .trim()
       .min(1, "Namn är obligatoriskt.")
       .max(NAME_MAX_LENGTH, `Namn får vara max ${NAME_MAX_LENGTH} tecken.`),
-    ssyk: z
-      .string()
-      .refine((v) => v === "" || conceptIdPattern.test(v), {
-        message:
-          "SSYK-koden måste vara 1–32 tecken (bokstäver, siffror, _ eller -).",
-      }),
-    region: z
-      .string()
-      .refine((v) => v === "" || conceptIdPattern.test(v), {
-        message:
-          "Regionkoden måste vara 1–32 tecken (bokstäver, siffror, _ eller -).",
-      }),
+    ssyk: conceptIdListSchema,
+    region: conceptIdListSchema,
     q: z
       .string()
       .refine((v) => v === "" || (v.length >= 2 && v.length <= 100), {
@@ -91,11 +98,12 @@ export const createSavedSearchSchema = z
       }),
     sortBy: jobAdSortBySchema,
   })
+  // Tom-invariant (ADR 0042 Beslut B.3): minst en icke-tom lista ELLER q.
   .refine(
-    (v) => v.ssyk !== "" || v.region !== "" || v.q !== "",
+    (v) => v.ssyk.length > 0 || v.region.length > 0 || v.q !== "",
     {
       message:
-        "Minst ett sökkriterium (sökord, SSYK-kod eller region) måste anges för att spara sökningen.",
+        "Minst ett sökkriterium (sökord, yrkesområde eller region) måste anges för att spara sökningen.",
       path: ["name"],
     }
   );

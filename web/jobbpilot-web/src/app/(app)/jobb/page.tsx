@@ -12,22 +12,40 @@ import { JobAdFilters } from "@/components/job-ads/job-ad-filters";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { SaveSearchButton } from "@/components/saved-searches/save-search-button";
 
+// searchParams-värden kan vara string | string[] | undefined. ssyk/region
+// är upprepade query-params (ADR 0042 Beslut B) → string[] vid flera värden.
 type JobbSearchParams = {
   page?: string;
   pageSize?: string;
   sortBy?: string;
-  ssyk?: string;
-  region?: string;
+  ssyk?: string | string[];
+  region?: string | string[];
   q?: string;
 };
 
 interface PageProps {
   // Next.js 16 App Router: searchParams är Promise (verifierat mot
-  // node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/page.md)
+  // node_modules/next/dist/docs/.../page#searchparams-optional).
   searchParams: Promise<JobbSearchParams>;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
+
+// ADR 0042 Beslut E — "ny sedan"-fönster. Designval: ett fast, rullande
+// 7-dygnsfönster (server-styrt, ingen extra UI-kontroll). Civic-utility:
+// håll enkelt — "Ny" betyder "publicerad senaste 7 dygnen", inget
+// användaren behöver konfigurera. (Användarstyrt fönster är en medveten
+// icke-leverans här; kan adderas senare utan kontraktsändring.)
+const NEW_WINDOW_DAYS = 7;
+
+// Beräknas i en helper (ej direkt i Server Component-kroppen) — React
+// Compiler-lintregeln flaggar `Date.now()` i render-kroppen som oren.
+// Server Component körs per request så fönstret är färskt vid varje load.
+function newWindowSince(): string {
+  return new Date(
+    Date.now() - NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+}
 
 export default async function JobbPage({ searchParams }: PageProps) {
   const user = await getServerSession();
@@ -40,18 +58,35 @@ export default async function JobbPage({ searchParams }: PageProps) {
     100
   );
   const sortBy = parseSortBy(params.sortBy);
-  const ssyk = emptyToUndefined(params.ssyk);
-  const region = emptyToUndefined(params.region);
+  const ssyk = toStringList(params.ssyk);
+  const region = toStringList(params.region);
   const q = emptyToUndefined(params.q);
 
+  const since = newWindowSince();
+
   const filtersInitial: JobAdFiltersValues = {
-    ssyk: ssyk ?? "",
-    region: region ?? "",
+    ssyk,
+    region,
     q: q ?? "",
     sortBy,
   };
 
-  const result = await getJobAds({ page, pageSize, sortBy, ssyk, region, q });
+  // Disclosure-räknare (Beslut A): antal aktiva taxonomi-/sort-filter.
+  // Sökordet räknas inte — det är den alltid-synliga primära ytan.
+  const activeFilterCount =
+    ssyk.length +
+    region.length +
+    (sortBy !== "PublishedAtDesc" ? 1 : 0);
+
+  const result = await getJobAds({
+    page,
+    pageSize,
+    sortBy,
+    ssyk,
+    region,
+    q,
+    since,
+  });
 
   return (
     <div className="flex flex-col">
@@ -63,13 +98,16 @@ export default async function JobbPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-7">
-        <JobAdFilters initial={filtersInitial} />
+        <JobAdFilters
+          initial={filtersInitial}
+          activeFilterCount={activeFilterCount}
+        />
       </div>
 
       <div className="mt-4">
         <SaveSearchButton
-          ssyk={ssyk ?? ""}
-          region={region ?? ""}
+          ssyk={ssyk}
+          region={region}
           q={q ?? ""}
           sortBy={sortBy}
         />
@@ -132,7 +170,6 @@ function renderResult(
     // aldrig runtime-faktiskt returnera 404 (responseToResult sätter inte
     // includeNotFound) och job-ads endpoint är endast auth-gated (forbidden
     // exponeras inte idag) — alla tre faller till samma "tekniskt fel"-copy.
-    // Same pattern som granskning/page.tsx (admin/audit-log).
     case "notFound":
     case "forbidden":
     case "error":
@@ -165,6 +202,13 @@ function emptyToUndefined(s: string | undefined): string | undefined {
   return s && s.trim().length > 0 ? s.trim() : undefined;
 }
 
+// Normaliserar string | string[] | undefined → string[] (tomma värden bort).
+function toStringList(raw: string | string[] | undefined): string[] {
+  if (raw === undefined) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map((v) => v.trim()).filter((v) => v.length > 0);
+}
+
 function buildPageHref(
   params: JobbSearchParams,
   targetPage: number,
@@ -178,8 +222,8 @@ function buildPageHref(
   if (params.sortBy && params.sortBy !== "PublishedAtDesc") {
     url.set("sortBy", params.sortBy);
   }
-  if (params.ssyk) url.set("ssyk", params.ssyk);
-  if (params.region) url.set("region", params.region);
+  for (const v of toStringList(params.ssyk)) url.append("ssyk", v);
+  for (const v of toStringList(params.region)) url.append("region", v);
   if (params.q) url.set("q", params.q);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";

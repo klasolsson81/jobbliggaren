@@ -14,8 +14,8 @@ vi.mock("@/lib/actions/saved-searches", () => ({
 const sample = (id: string, name: string): SavedSearchDto => ({
   id,
   name,
-  ssyk: "MVqp_eS8_kDZ",
-  region: null,
+  ssyk: ["MVqp_eS8_kDZ"],
+  region: [],
   q: "java",
   sortBy: "PublishedAtDesc",
   notificationEnabled: false,

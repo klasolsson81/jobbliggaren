@@ -11,10 +11,11 @@ interface SavedSearchListProps {
 }
 
 function criteriaSummary(s: SavedSearchDto): string {
+  // ADR 0042 Beslut B — ssyk/region är arrays (flera värden = OR-bevakning).
   const parts: string[] = [];
   if (s.q) parts.push(`sökord "${s.q}"`);
-  if (s.ssyk) parts.push(`SSYK ${s.ssyk}`);
-  if (s.region) parts.push(`region ${s.region}`);
+  if (s.ssyk.length > 0) parts.push(`yrkesområde ${s.ssyk.join(", ")}`);
+  if (s.region.length > 0) parts.push(`region ${s.region.join(", ")}`);
   // parts kan aldrig bli tomt: backend SearchCriteria-invarianten garanterar
   // minst ett kriterium, och sorteringsetiketten läggs alltid till sist.
   parts.push(getJobAdSortLabel(s.sortBy).toLowerCase());

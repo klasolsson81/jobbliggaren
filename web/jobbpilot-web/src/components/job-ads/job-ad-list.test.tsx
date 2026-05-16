@@ -14,6 +14,7 @@ const sampleAd = (id: string, title: string): JobAdDto => ({
   publishedAt: "2026-05-13T08:00:00Z",
   expiresAt: null,
   createdAt: "2026-05-13T08:01:00Z",
+  isNew: false,
 });
 
 describe("JobAdList", () => {

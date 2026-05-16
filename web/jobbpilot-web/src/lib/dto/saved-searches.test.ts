@@ -6,11 +6,12 @@ import {
   SAVED_SEARCH_SORT_ORDER,
 } from "./saved-searches";
 
+// ADR 0042 Beslut B — ssyk/region är arrays på wire (aldrig null från VO).
 const wireBase = {
   id: "11111111-1111-1111-1111-111111111111",
   name: "Java i Stockholm",
-  ssyk: "MVqp_eS8_kDZ",
-  region: "CifL_Rzy_Mku",
+  ssyk: ["MVqp_eS8_kDZ"],
+  region: ["CifL_Rzy_Mku"],
   q: "java",
   notificationEnabled: false,
   lastRunAt: null,
@@ -38,23 +39,39 @@ describe("savedSearchDtoSchema", () => {
     ).toThrow();
   });
 
-  it("accepts null criteria fields (only sort set is still a valid stored row)", () => {
+  it("accepts empty criteria arrays + null q (only sort set is still valid)", () => {
     const parsed = savedSearchDtoSchema.parse({
       ...wireBase,
-      ssyk: null,
-      region: null,
+      ssyk: [],
+      region: [],
       q: null,
       sortBy: 0,
     });
-    expect(parsed.ssyk).toBeNull();
+    expect(parsed.ssyk).toEqual([]);
+    expect(parsed.region).toEqual([]);
+  });
+
+  it("parses Relevance numeric sortBy index 4 (ADR 0042 Beslut D)", () => {
+    const parsed = savedSearchDtoSchema.parse({ ...wireBase, sortBy: 4 });
+    expect(parsed.sortBy).toBe("Relevance");
+  });
+
+  it("accepts multiple ssyk/region values (OR-bevakning)", () => {
+    const parsed = savedSearchDtoSchema.parse({
+      ...wireBase,
+      ssyk: ["a1", "b2"],
+      region: ["r1", "r2"],
+      sortBy: 0,
+    });
+    expect(parsed.ssyk).toEqual(["a1", "b2"]);
   });
 });
 
 describe("createSavedSearchSchema", () => {
   const ok = {
     name: "Min sökning",
-    ssyk: "",
-    region: "",
+    ssyk: [] as string[],
+    region: [] as string[],
     q: "java",
     sortBy: "PublishedAtDesc" as const,
   };
@@ -76,12 +93,22 @@ describe("createSavedSearchSchema", () => {
     expect(r.success).toBe(false);
   });
 
+  it("accepts multiple ssyk/region values (ADR 0042 Beslut B OR-bevakning)", () => {
+    const r = createSavedSearchSchema.safeParse({
+      ...ok,
+      q: "",
+      ssyk: ["MVqp_eS8_kDZ", "CifL_Rzy_Mku"],
+      region: ["a1"],
+    });
+    expect(r.success).toBe(true);
+  });
+
   it("rejects empty criteria (no ssyk/region/q) — mirrors backend SearchCriteria invariant", () => {
     const r = createSavedSearchSchema.safeParse({
       ...ok,
       q: "",
-      ssyk: "",
-      region: "",
+      ssyk: [],
+      region: [],
     });
     expect(r.success).toBe(false);
   });
@@ -90,8 +117,14 @@ describe("createSavedSearchSchema", () => {
     const r = createSavedSearchSchema.safeParse({
       ...ok,
       q: "",
-      ssyk: "inv alid!",
+      ssyk: ["inv alid!"],
     });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects more than 10 ssyk values (cap mirrors backend)", () => {
+    const eleven = Array.from({ length: 11 }, (_, i) => `code${i}`);
+    const r = createSavedSearchSchema.safeParse({ ...ok, ssyk: eleven });
     expect(r.success).toBe(false);
   });
 

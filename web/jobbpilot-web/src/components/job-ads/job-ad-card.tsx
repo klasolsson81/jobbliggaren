@@ -27,9 +27,19 @@ export function JobAdCard({ jobAd }: JobAdCardProps) {
     <article className="flex flex-col gap-2 border-b border-border-strong px-3 py-6 text-sm transition-colors duration-75 last:border-b-0 hover:bg-surface-tertiary hover:[box-shadow:inset_3px_0_0_var(--jp-brand-600)]">
       <header className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h3 className="text-[15px] leading-snug font-medium tracking-[-0.005em] text-text-primary">
-            {jobAd.title}
-          </h3>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="text-[15px] leading-snug font-medium tracking-[-0.005em] text-text-primary">
+              {jobAd.title}
+            </h3>
+            {/* ADR 0042 Beslut E — "Ny"-badge. Civic-utility pill-mönster
+                (text + färg, ingen emoji), brand-accent som signalerar
+                "ny sedan ditt fönster". isNew===false döljer helt. */}
+            {jobAd.isNew && (
+              <span className="inline-flex items-center rounded-pill bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                Ny
+              </span>
+            )}
+          </div>
           <p className="text-body-sm text-text-secondary">{jobAd.companyName}</p>
         </div>
         <JobAdStatusBadge status={jobAd.status} />

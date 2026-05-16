@@ -19,6 +19,7 @@ const baseJobAd = {
   publishedAt: "2026-05-13T08:00:00Z",
   expiresAt: "2026-06-13T08:00:00Z",
   createdAt: "2026-05-13T08:01:00Z",
+  isNew: false,
 };
 
 describe("jobAdStatusSchema", () => {
@@ -46,12 +47,13 @@ describe("jobSourceSchema", () => {
 });
 
 describe("jobAdSortBySchema", () => {
-  it("accepts the four sort-by values", () => {
+  it("accepts the five sort-by values (incl. Relevance, ADR 0042 Beslut D)", () => {
     for (const v of [
       "PublishedAtDesc",
       "PublishedAtAsc",
       "ExpiresAtDesc",
       "ExpiresAtAsc",
+      "Relevance",
     ]) {
       expect(jobAdSortBySchema.safeParse(v).success).toBe(true);
     }
@@ -71,6 +73,18 @@ describe("jobAdDtoSchema", () => {
     expect(
       jobAdDtoSchema.safeParse({ ...baseJobAd, expiresAt: null }).success
     ).toBe(true);
+  });
+
+  it("accepts isNew true (ADR 0042 Beslut E)", () => {
+    expect(
+      jobAdDtoSchema.safeParse({ ...baseJobAd, isNew: true }).success
+    ).toBe(true);
+  });
+
+  it("rejects missing isNew (kontrakt kräver fältet)", () => {
+    const partial: Partial<typeof baseJobAd> = { ...baseJobAd };
+    delete partial.isNew;
+    expect(jobAdDtoSchema.safeParse(partial).success).toBe(false);
   });
 
   it("rejects unknown status value", () => {
@@ -179,29 +193,52 @@ describe("listJobAdsResultSchema", () => {
   });
 });
 
-describe("jobAdFiltersSchema", () => {
-  const valid = { ssyk: "", region: "", q: "", sortBy: "PublishedAtDesc" };
+describe("jobAdFiltersSchema (ADR 0042 Beslut B multi + D Relevance)", () => {
+  const valid = {
+    ssyk: [] as string[],
+    region: [] as string[],
+    q: "",
+    sortBy: "PublishedAtDesc",
+  };
 
   it("accepts all-empty filter (default state)", () => {
     expect(jobAdFiltersSchema.safeParse(valid).success).toBe(true);
   });
 
-  it("accepts JobTech-style concept-id (1-32 chars)", () => {
+  it("accepts multiple JobTech-style concept-ids (OR-bevakning)", () => {
     expect(
-      jobAdFiltersSchema.safeParse({ ...valid, ssyk: "MVqp_eS8_kDZ" }).success
+      jobAdFiltersSchema.safeParse({
+        ...valid,
+        ssyk: ["MVqp_eS8_kDZ", "CifL_Rzy_Mku"],
+      }).success
     ).toBe(true);
   });
 
-  it("rejects ssyk with invalid characters", () => {
+  it("rejects a concept-id with invalid characters", () => {
     expect(
-      jobAdFiltersSchema.safeParse({ ...valid, ssyk: "ssyk!hack" }).success
+      jobAdFiltersSchema.safeParse({ ...valid, ssyk: ["ssyk!hack"] }).success
     ).toBe(false);
   });
 
-  it("rejects ssyk longer than 32 chars", () => {
+  it("rejects a concept-id longer than 32 chars", () => {
     expect(
-      jobAdFiltersSchema.safeParse({ ...valid, ssyk: "a".repeat(33) }).success
+      jobAdFiltersSchema.safeParse({ ...valid, ssyk: ["a".repeat(33)] })
+        .success
     ).toBe(false);
+  });
+
+  it("rejects more than 10 ssyk values (mirrors SearchCriteria.MaxConceptIds)", () => {
+    const eleven = Array.from({ length: 11 }, (_, i) => `code${i}`);
+    expect(
+      jobAdFiltersSchema.safeParse({ ...valid, ssyk: eleven }).success
+    ).toBe(false);
+  });
+
+  it("accepts exactly 10 ssyk values (cap boundary)", () => {
+    const ten = Array.from({ length: 10 }, (_, i) => `code${i}`);
+    expect(
+      jobAdFiltersSchema.safeParse({ ...valid, ssyk: ten }).success
+    ).toBe(true);
   });
 
   it("rejects q shorter than 2 chars (matches backend validator)", () => {
@@ -229,5 +266,22 @@ describe("jobAdFiltersSchema", () => {
     expect(
       jobAdFiltersSchema.safeParse({ ...valid, sortBy: "Bogus" }).success
     ).toBe(false);
+  });
+
+  it("rejects Relevance without a search term (Beslut D fail-fast)", () => {
+    expect(
+      jobAdFiltersSchema.safeParse({ ...valid, sortBy: "Relevance", q: "" })
+        .success
+    ).toBe(false);
+  });
+
+  it("accepts Relevance with a >=2 char search term", () => {
+    expect(
+      jobAdFiltersSchema.safeParse({
+        ...valid,
+        sortBy: "Relevance",
+        q: "java",
+      }).success
+    ).toBe(true);
   });
 });

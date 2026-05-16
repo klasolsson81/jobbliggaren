@@ -138,6 +138,25 @@ ValidatorTests (invariant ×2+2) + ListJobAdsMultiFilterTests (Relevance-ordning
 FYI (pre-existing LIKE-wildcard-konvention, ej regression/in-block §9.6). Svit
 **1074 grön**, build 0/0. Ingen Klas-STOPP (plan). Non-stop → Batch 5.
 
+## Batch 5 — C typeahead C1 (KLAR)
+
+architect `acb691cd15766291f` INNAN kod → CTO `afba3c7659c086817`: **Variant A**
+btree functional partial-index `lower(title) text_pattern_ops WHERE
+status='Active' AND deleted_at IS NULL` (ingen extension → ingen pg_trgm-
+STOPP); **dedikerad SuggestPolicy** per-user FixedWindow 30/10s IOptions-bound
+(least common mechanism, ej ListRead-återanvändning); Active-only-filter
+bekräftat; LIKE-escape in-block §9.6. Impl: `SuggestJobAdTermsQuery`+Handler+
+Validator+`LikePattern` (escape `\`→`\\` först sedan `%`/`_`; explicit 3-arg
+`EF.Functions.Like(...,ESCAPE '\')` — implicit-default-bugg fångad av
+integrationstest, fixad). Endpoint `GET /job-ads/suggest` auth-gated. Migration
+`F2SuggestTitlePrefixIndex` (db-migration-writer `a33a51afa440702a9`, raw-SQL
+F2P9-mönster, snapshot oförändrad). Tester: validator-unit (6) + integration
+riktig Postgres (3: case-insensitiv/Distinct/Take-cap/escape-left-anchor).
+security-auditor `a7cbb04ead2c402e4` **PASS** 8/8 0 Crit/High/GDPR (rate-limit
+30/10s BEKRÄFTAT BLOCKING-mandat; Title=publik annons-metadata ADR 0032 §8 ej
+PII). code-reviewer `a06d038db1e7121b0` **GO** 0/0/1 Minor FYI. Svit **1083
+grön**, build 0/0. **STOPP 5+6 GO** → commit.
+
 ## Nästa
 
 - Batch 3: B SearchCriteria Ssyk/Region single→multi (test-writer FÖRST/TDD +

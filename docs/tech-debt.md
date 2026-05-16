@@ -32,6 +32,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-78 | DB CPU > 80% i 10 min-alarm | Minor | 8 (Klass-launch) | Observability/Capacity |
 | TD-81 | middleware.ts → proxy.ts (Next.js 17-uppgradering) | Minor | Trigger | Frontend/Compatibility |
 | TD-83 | Operatörs-yta för Hangfire-jobb (status/retry/manuell trigger) | Minor | Trigger | Operations/Observability |
+| TD-84 | Mutationsendpoints mappar NotFound → 400 istället för 404 (projekt-brett) | Minor | Trigger | API-kontrakt/REST-semantik |
 | TD-62 | OpenAPI-codegen som supersession av manuella Zod-DTO-schemas | Minor | 2+ | Architecture/Tooling |
 | TD-63 | ActionResult kind-union för writes (ADR 0030-symmetri) | Minor | 2+ | Architecture |
 | TD-64 | i18n-migration av inline svenska error-strängar | Minor | Trigger | i18n |
@@ -1010,6 +1011,47 @@ beslut om (a) var den exponeras (separat Worker-webhost? Api-mountad?),
 **Trigger:** första faktiska operatörsbehov av jobb-status/retry/ad-hoc-trigger
 (incident eller manuell backfill), eller Fas 8 (Klass-launch — drift-mognad).
 
+---
+
+## TD-84: Mutationsendpoints mappar DomainError.NotFound → 400 istället för 404 (projekt-brett)
+
+**Kategori:** API-kontrakt / REST-semantik
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** senior-cto-advisor-triage 2026-05-16, F2 Saved Searches OBSERVATION 1 (test-writer), omklassificerad Major→Minor efter ADR 0031-verifiering
+
+13 mutationsendpoints (PATCH/DELETE/POST-mutationer) över 4 filer
+(`ResumesEndpoints.cs`, `ApplicationsEndpoints.cs`, `MeEndpoints.cs`,
+`SavedSearchesEndpoints.cs`) mappar **alla** `Result`-fel — inklusive
+`DomainError.NotFound` — till `Results.Problem(statusCode: 400)`. En saknad
+eller (per ADR 0031:s oskiljbarhetsprincip) icke-ägd resurs bör enligt
+REST-semantik (Fielding 2000 §6.5.3; RFC 9110 §15.5.5) returnera 404, inte
+400 (400 = felaktig request-syntax/semantik).
+
+**Ingen säkerhetsläcka:** ADR 0031-skyddet är verifierat intakt — cross-tenant
+OCH okänt-id returnerar BÅDA samma `DomainError.NotFound` → identisk
+400-body; `IFailedAccessLogger` loggar internt utan att differentiera
+klientsvaret. Detta är enbart en REST-korrekthetsfråga, ej differentiell
+informationsläcka (därför Minor, ej Major).
+
+SavedSearches speglar medvetet det rådande projekt-mönstret (CLAUDE.md §9.1) —
+att ensam-fixa SavedSearches→404 vore lager-inkonsistens + DRY/SPOT-brott
+(två konkurrerande mappnings-konventioner). Korrekt åtgärd är cross-cutting,
+ej F2-fas-specifik (CLAUDE.md §9.6 — lyfts som TD, ej in-block).
+
+**Föreslagen åtgärd:** Inför delad `Result.ToHttpResult()`-extension i
+Api-lagret som mappar `DomainError.NotFound`→404, övriga→400. Applicera på
+alla 13 mutationsendpoints. Uppdatera berörda integrationstester 400→404 +
+ta bort kvarvarande inline-OBSERVATION-kommentarer (F2 Saved Searches
+cross-user-isolationstester asserterar nuvarande 400 spårbart).
+**Kräver egen ADR** — ändrat publikt API-kontrakt över 4 domäner; om externa
+konsumenter förlitar sig på 400 är åtgärden ett breaking change (Klas-yta).
+
+**Beroenden:** ADR 0031 (oskiljbarhet — får ej brytas av åtgärden).
+
+**Trigger:** opportunistisk touch av ett delat Result→IResult-mappnings-lager,
+eller när OpenAPI-export (`docs/api/`, post-Fas 0) gör kontraktet externt
+synligt.
 
 ---
 

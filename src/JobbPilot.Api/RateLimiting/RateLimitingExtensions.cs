@@ -24,6 +24,7 @@ public static partial class RateLimitingExtensions
     public const string InvitationRedeemPolicy = "invitation-redeem";
     public const string WaitlistSignupPolicy = "waitlist-signup";
     public const string ListReadPolicy = "list-read";
+    public const string SuggestPolicy = "suggest";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -162,6 +163,28 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.ListRead.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.ListRead.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Dedikerad typeahead-policy
+            // (ej ListRead-återanvändning) — typeahead = 1 req/keystroke,
+            // least common mechanism (Saltzer/Schroeder): strypning av
+            // typeahead får inte svälta användarens parallella list/detalj-
+            // queries. Auth-gated → anonym fångas av RequireAuthorization
+            // (NoLimiter bypass). senior-cto-advisor 2026-05-16 (ADR 0042
+            // Beslut C, Batch 5). Parametrar IOptions-bundna (§5.1).
+            options.AddPolicy(SuggestPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-suggest");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.Suggest.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.Suggest.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

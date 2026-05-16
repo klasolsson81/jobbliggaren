@@ -231,6 +231,11 @@ JobAds/Queries/
   ListJobAdsQuery.cs
   ListJobAdsQueryHandler.cs
   ListJobAdsQueryValidator.cs
+ SuggestJobAdTerms/
+  LikePattern.cs
+  SuggestJobAdTermsQuery.cs
+  SuggestJobAdTermsQueryHandler.cs
+  SuggestJobAdTermsQueryValidator.cs
 JobSeekers/Commands/UpdateMyProfile/
  UpdateMyProfileCommand.cs
  UpdateMyProfileCommandHandler.cs

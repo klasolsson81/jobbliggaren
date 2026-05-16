@@ -2,6 +2,7 @@ using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.JobAds.Commands.CreateJobAd;
 using JobbPilot.Application.JobAds.Queries.GetJobAd;
 using JobbPilot.Application.JobAds.Queries.ListJobAds;
+using JobbPilot.Application.JobAds.Queries.SuggestJobAdTerms;
 using JobbPilot.Domain.JobAds;
 using Mediator;
 
@@ -41,6 +42,21 @@ public static class JobAdsEndpoints
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
+
+        // ADR 0042 Beslut C — typeahead C1 (lokal job_ads.Title ILIKE-prefix).
+        // Egen SuggestPolicy (typeahead = 1 req/keystroke; least common
+        // mechanism). Auth-gated via gruppen. DoS-floor (min prefix ≥2 +
+        // Limit-cap) i ListJobAds/SuggestJobAdTermsQueryValidator.
+        group.MapGet("/suggest", async (
+            IMediator mediator,
+            string prefix,
+            int limit = 10,
+            CancellationToken ct = default) =>
+        {
+            var result = await mediator.Send(new SuggestJobAdTermsQuery(prefix, limit), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.SuggestPolicy);
 
         group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {

@@ -82,6 +82,22 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// GET /job-ads/suggest (typeahead) — partitionerat per UserId (claim
+    /// "sub"). Egen policy (ej ListRead-återanvändning) eftersom typeahead
+    /// är strukturellt högre frekvens (1 req/keystroke) — least common
+    /// mechanism (Saltzer/Schroeder): dela inte skyddsbudget mellan ytor
+    /// med olika legitim-frekvensprofil. 30/10s ≈ 3 req/s headroom för
+    /// debouncad (≥300ms) typeahead, kapar odebouncad/script-flod inom 1s.
+    /// senior-cto-advisor 2026-05-16 (ADR 0042 Beslut C, Batch 5) —
+    /// riktvärde, security-auditor verifierar/justerar (BLOCKING).
+    /// </summary>
+    public PolicyOptions Suggest { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 10,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

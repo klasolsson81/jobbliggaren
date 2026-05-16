@@ -123,6 +123,21 @@ Create/Update saknade pre-handler cap-paritet) → **fixad in-block** §9.6
 **STOPP 5 (migration) + STOPP 6 (security-auditor) bundlat → Klas-GO**
 (behåll tom migration; commit GO).
 
+## Batch 4 — E (Since/IsNew) + D (relevans D2) (KLAR)
+
+Inga reviewers utöver code-reviewer per plan (ingen extern-input-yta/migration).
+E: `ListJobAdsQuery.Since` (DateTimeOffset?) + `JobAdDto.IsNew` (runtime-kontext,
+EJ i SearchCriteria — analog Page/PageSize; RunSavedSearch/GetJobAd IsNew=false).
+D: `JobAdSortBy.Relevance=4`, D2 ILIKE-heuristik (titel exakt 3/prefix 2/
+contains 1/0 → PublishedAt desc) via EF.Functions.Like+ToLower (provider-
+agnostiskt, ej Npgsql ILike — Clean Arch); `ApplySort(source,sortBy,q)`-signatur
+(SPOT, båda konsumenter); invariant Relevance-kräver-q i SearchCriteria.Create
++ ListJobAdsQueryValidator. Tester: SearchCriteriaTests/ListJobAdsQuery
+ValidatorTests (invariant ×2+2) + ListJobAdsMultiFilterTests (Relevance-ordning
++ IsNew, riktig Postgres). code-reviewer `a87dc6553605f8f0d` **GO** 0/0/1 Minor
+FYI (pre-existing LIKE-wildcard-konvention, ej regression/in-block §9.6). Svit
+**1074 grön**, build 0/0. Ingen Klas-STOPP (plan). Non-stop → Batch 5.
+
 ## Nästa
 
 - Batch 3: B SearchCriteria Ssyk/Region single→multi (test-writer FÖRST/TDD +

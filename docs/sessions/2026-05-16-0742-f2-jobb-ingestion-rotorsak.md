@@ -2,10 +2,12 @@
 session: F2 jobb-ingestion rotorsak + fix (Commit 1+2)
 datum: 2026-05-16
 slug: f2-jobb-ingestion-rotorsak
-status: Commit 1+2 pushed (70a7c54). Commit 3 + backfill + cadence + ADR 0032-amendment PENDING Klas-GO.
+status: Kodkomplett — Commit 1+2+3 + docs pushed (HEAD d454d23). ADR 0032 §5+§9 Klas-GO. Cadence Klas-GO (oförändrat). Kvarstår Klas-operativt: dev-deploy + dashboard-backfill + CC korpus-verifiering.
 commits:
-  - 347b238  # fix(jobads): rotorsak F2 jobb-ingestion — snapshot child-scope + IAsyncEnumerable-streaming
-  - 70a7c54  # fix(jobads): rate-limiter bounded queue — stream/snapshot serialiseras vid 02:00
+  - 347b238  # fix(jobads): rotorsak — snapshot child-scope + IAsyncEnumerable-streaming
+  - 70a7c54  # fix(jobads): rate-limiter bounded queue
+  - ce3d8d8  # docs(adr): ADR 0032 §5-clarification
+  - d454d23  # fix(jobads): Commit 3 — avveckla admin-trigger 410 (ADR 0032 §9 X4)
 ---
 
 # F2 jobb-ingestion — rotorsak + fix
@@ -82,9 +84,27 @@ hård rejection. Förlegad kommentar uppdaterad (code-reviewer Min-1).
 4. **Cadence-beslut** — CTO-rek behåll oförändrat; verifiera empiriskt efter
    första lyckade snapshot-run att korpus → ~47k.
 
-## Nästa session / fortsättning
+## Commit 3 + ADR + cadence (Klas-GO mottaget, levererat)
 
-Efter Klas-GO: applicera ADR 0032-clarification + §9-amendment (verbatim),
-implementera Commit 3 (test-writer + code-reviewer inline), deploy + backfill-
-trigger (Klas), verifiera dev-korpus → ~47k storleksordning, cadence-beslut.
-Därefter åter till övrigt Fas 2-arbete.
+- **CTO korrigerad:** Hangfire finns enbart i Worker (ej Infra/Api) → arkitektens
+  Commit 3-design (Infra-impl) bröts. senior-cto-advisor **X4**: avveckla
+  admin-endpoint → 410 + Hangfire-dashboard-hänvisning. Klas-GO (mot X2).
+- Commit 3 `d454d23`: endpoint 410, dead-code borttaget
+  (Command/Handler/Result + handler-test + oanvänd StubJobSource — CTO:s
+  behåll-direktiv vilade på felaktig premiss, korrigerad → §5 no-dead-code),
+  ny `SyncPlatsbankenSnapshotWorker` `[DisableConcurrentExecution(3600)]`,
+  ADR 0032 §9-amendment, `.gitignore` *.csproj.lscache (code-reviewer Major).
+- ADR 0032 §5-clarification `ce3d8d8` (Klas-GO).
+- Cadence: Klas-GO behåll */10 + 0 2 oförändrat (CTO-rek), verifiera empiriskt.
+- 929 tester gröna (−4 netto: borttagen dead-code-test + 2 funktionstester,
+  +410-test +arch-test). code-reviewer Commit 3: 0 Blockers/Majors i X4-logiken.
+
+## Kvarstår — Klas-operativt (ej kod)
+
+1. **Dev-deploy** av `d454d23` (tag-push `v0.2.x-dev` = Klas-GO).
+2. **Initial-backfill:** Hangfire-dashboard → recurring-jobb
+   `sync-platsbanken-snapshot` → "Trigger now" (eller vänta cron 02:00 UTC).
+3. **CC verifierar** efter trigger: CloudWatch `SyncPlatsbankenSnapshotJob:
+   klart` (EventId 5402, fetched/added/skipped) + dev-DB `job_ads`-count →
+   storleksordning ~40k+ (Platsbanken-direkt minus valideringsfilter ~26%).
+4. Därefter åter till övrigt Fas 2-arbete.

@@ -693,3 +693,68 @@ Saknad operatörs-yta (jobb-status/retry/manuell trigger) lyft som **TD-83**.
 - Humble/Farley, *Continuous Delivery* (2010) — operability
 - CLAUDE.md §5 (no dead code), §9.2 (dep-disciplin), §9.6 p.5, §10.3 (svensk copy), §13
 - senior-cto-advisor 2026-05-16 (X4) + Klas-GO 2026-05-16
+
+---
+
+## Amendment 2026-05-16 — snapshot-trunkerings-resiliens (hybrid; A2 förkastad efter web-verify)
+
+**Datum:** 2026-05-16
+**Källa:** Batch 0 root-cause-discovery (CloudWatch `/aws/ecs/jobbpilot-dev/worker`, dev `v0.2.8-dev`, 48h) + JobTech GettingStarted-doc web-verify 2026-05-16
+**Trigger:** `SyncPlatsbankenSnapshotJob` 60 starts / 0 completes — `/v2/snapshot` (>364 MB singel-GET) termineras icke-deterministiskt mid-stream → ofångad `System.Text.Json.JsonException` ("reached end of data") → `Hangfire.AutomaticRetry`-storm; korpus fast på stream-ackumulerade ~5 380 (mål ~40k+)
+**Beslutsfattare:** senior-cto-advisor 2026-05-16 (agentId `ad8564aafc29be5a0`, hybrid efter web-verify; A2-omvägning + MA 1.1/2.1/3.1/4.1) + dotnet-architect 2026-05-16 (agentId `a6a02546f13bd5236`, design-skiss INNAN kod) + Klas Olsson (godkänd 2026-05-16)
+**Status:** Accepted 2026-05-16 (Klas-GO 2026-05-16; amendment-text CC-draftad från CTO/architect-underlaget — medvetet Klas-val mot CLAUDE.md §9.4 verbatim-text-källa, dokumenterat här)
+
+### Kontext för amendment
+
+Root-cause-fixen 2026-05-16 (§5-clarification, child-scope per item, commits `347b238`/`70a7c54`) adresserade 23505-ackumulering men **inte** payload-trunkering. Batch 0-discovery (CloudWatch Logs Insights, verbatim):
+
+| START (UTC) | TRUNC | Delta | BytePos |
+|---|---|---|---|
+| 2026-05-15 10:57:56 | 10:59:22 | 1m27s | ~21 MB |
+| 2026-05-16 02:07:05 | 02:09:12 | 2m07s | ~41 MB |
+| 2026-05-16 02:11:51 | 02:17:41 | 5m49s | ~151 MB |
+| 2026-05-16 03:04:02 | 03:11:24 | 7m22s | ~364 MB |
+| 2026-05-16 03:53:45 | 03:59:00 | 5m16s | ~144 MB |
+
+Ingen `[5402] KLART` förekommer. Hypoteser **motbevisade** av evidensen: `HttpClient.Timeout=5min` (trunkering icke-deterministiskt 87–442 s, ingen tidsvägg vid 300 s), `MaxResponseContentBufferSize=500MB` (364 MB < cap; `ResponseHeadersRead`+`ReadAsStreamAsync`+`DeserializeAsyncEnumerable` bypassar buffer-cap — streaming-fixen v0.2.6-dev fungerar), Polly-pipeline (`AddResilienceHandler("jobstream")` completar vid headers-read; body-trunkering når den aldrig). **Verifierad rotorsak:** upstream/mellanled-anslutningen termineras icke-deterministiskt mitt i en >364 MB singel-GET JSON-array — partiell transfer, ingen resume.
+
+Web-verify (`raw.githubusercontent.com/Jobtechdev-content/Jobstream-content/develop/GettingStartedJobStreamSE.md`, hämtad 2026-05-16): `/snapshot` ~300 MB+ parameterlös singel-GET utan paginering/resume/jsonl-negotiation; rate-limit "one request per minute" (granularitet per api-key/IP/global **ospecificerad**); JobTechs **egen dokumenterade full-korpus-pattern är `/snapshot`-först + repeterade `/stream`-anrop** — ingen dokumenterad stream-only-backfill; stream-retention-djup ospecificerat.
+
+### Beslut
+
+Ursprunglig sessionsinriktning **A2** (eliminera snapshot, bygg korpus stream-only-katch-up) **förkastas** — premissen rev av web-verify (ingen dokumenterad stream-only-backfill; stream-retention-djup okänt → att bygga cold-start på overifierat externt beteende bryter CLAUDE.md §9.5 + Humble/Farley operability). Ersätts av **hybrid**:
+
+1. **§3 förtydligas (ej supersederas):** primär bootstrap förblir `/v2/snapshot` (JobTechs dokumenterade mönster); stream `*/10` + snapshot `02:00` behålls **oförändrat mönster**. Hybrid bevarar §3.
+2. **Snapshot-läsningen görs trunkerings-tålig (MA 3.1 Variant A):** `PlatsbankenJobSource.FetchSnapshotAsync` får enumeration-boundary-catch av `JsonException`/`IOException`/`HttpRequestException` — **fysiskt skild** från per-item-upsert-catchen i `SyncPlatsbankenSnapshotJob` (§5-clarification: ofångad enumeration var hela storm-mekanismen — slå aldrig ihop). Bounded retry `MaxSnapshotAttempts=3` (färsk GET per försök; re-yieldad prefix idempotent via UNIQUE-index per §5). Uttömd retry → graceful `yield break` (ingen ofångad exception → ingen `Hangfire.AutomaticRetry`-storm). LoggerMessage EventId 5004/5005.
+3. **MA 1.1 = stateless katch-up:** ingen cursor-tabell. Idempotens via UNIQUE-index gör re-walk korrekt (§5 + Fowler 2002 "Idempotent Receiver"); konsistent med stream-jobbets befintliga overlap-window-mönster (§3).
+4. **MA 2.1 = behåll snapshot-job/wrapper/recurring-id `sync-platsbanken-snapshot`, ändra bara internals.** Namnet "snapshot" förblir sant under hybrid. `JobType:"snapshot"`-audit-literal + ADR 0036 metric-filter + §9 X4 410-text **oförändrade**.
+5. **MA 4.1 = delad process-wide `_streamRateLimiter`** (web: rate-limit-granularitet ospecificerad → separat client-side-limiter ger 429-storm). Ingen DI-ändring.
+6. **Drift = recurring inkrementell konvergens, ingen `DisableConcurrentExecution`-timeout-höjning** (Klas-GO 2026-05-16). Korpus konvergerar mot ~40k+ över flera dygn via dagliga best-effort-snapshot-runs (varje run upp till 3 attempts; icke-deterministisk trunkering ⟹ olika prefix-längd per run; unionen växer) + stream `*/10`. 3600 s loop-skydd bevaras orört (höjning vore att försvaga skyddet mot exakt root-cause-symptomet).
+
+### Konvergens-risk (medvetet accepterad)
+
+Om `/v2/snapshot` returnerar items i **stabil ordning** kan bounded retry inom samma run re-läsa samma prefix. Konvergens vilar därför på att trunkerings-byte-positionen varierar **mellan dygn** (empiriskt: 21–364 MB observerat; full >364 MB → vissa runs levererar majoriteten) + att stream `*/10` löpande adderar nya annonser. Konvergens till ~40k+ tar **dygn, ej timmar** (Klas-godkänt 2026-05-16: korrekthet > tempo, CLAUDE.md §9.6). STOPP 3-verifiering (cron-grön) mäter därför `[5402] KLART`/graceful-end + korpus-**tillväxt över tid**, ej omedelbar ~40k. Om konvergens uteblir över rimligt antal dygn: framtida trigger för windowed-stream-katch-up (`updated-after`+`updated-before-date`, architect-skiss bevarad) — dokumenteras som skala-trigger, ej TD (CLAUDE.md §9.6/§9.7).
+
+### Avvisade
+
+- **A2 (stream-only-katch-up, snapshot eliminerad):** premiss rev av web-verify; ingen dokumenterad stream-only-backfill, stream-retention-djup okänt (§9.5).
+- **MA 1.1 Variant B (cursor-tabell):** ny migration + bryter "ingen cursor"-mönstret (§3); idempotens gör re-walk korrekt → YAGNI (Beck 1999).
+- **MA 2.1 Variant B/C (döp om/eliminera snapshot-job):** blast-radius (audit-literal, ADR 0036-metric, recurring-id-byte) utan funktionsvinst när namnet är sant under hybrid.
+- **MA 3.1 Variant B (förlita på Hangfire-retry):** stall-risk vid konsekvent trunkerande fönster, re-walkar allt. **Variant C (retry i `JobTechStreamClient`):** bryter §2:s explicit motiverade wire-only-SRP.
+- **MA 4.1 Variant B (separat limiter):** 429-storm under konservativt global/IP-antagande (§9.5). **Variant C (sekvensera):** onödigt koordinations-state; delad limiter sekvenserar redan.
+- **Drift: timeout-höjning / one-shot-bootstrap:** försvagar loop-skyddet resp. special-infrastruktur (Ford/Parsons/Kua 2017).
+
+### Implementations-trail
+
+- `src/JobbPilot.Infrastructure/JobSources/Platsbanken/PlatsbankenJobSource.cs` (resilient enumeration, `MaxSnapshotAttempts=3`, EventId 5004/5005)
+- `tests/JobbPilot.Api.IntegrationTests/JobAds/JobTechStreamResilienceTests.cs` (regressionstest `FetchSnapshotAsync_WhenResponseTruncatedMidStream_DoesNotThrowUncaught_YieldsParsedPrefix`)
+- Oförändrade (verifierade): `IJobSource`/`IJobTechStreamClient`-kontrakt (§2 ACL bevarad), `SyncPlatsbankenSnapshotJob` per-item-catch (§5), `RecurringJobRegistrar`/Worker-wrappers, `_streamRateLimiter` (§ DI)
+- Svit grön: Domain 293 / Application 398 / Architecture 51 / Api.Integration 269 (+1) / Worker 26 / Migrate 6 = 1043; build 0/0; code-reviewer GO 0 Block/0 Major
+
+### Referenser
+
+- senior-cto-advisor 2026-05-16 (`ad8564aafc29be5a0`, hybrid + MA-triage) + dotnet-architect 2026-05-16 (`a6a02546f13bd5236`) + code-reviewer 2026-05-16 (`ab3fefc83d7e4f22a`, GO)
+- [JobTech GettingStartedJobStreamSE.md](https://raw.githubusercontent.com/Jobtechdev-content/Jobstream-content/develop/GettingStartedJobStreamSE.md) — hämtad 2026-05-16 (snapshot-först-pattern, 1 req/min, retention ospecificerad)
+- Fowler, *PoEAA* (2002) — "Idempotent Receiver"; Beck, *XP* (1999) — YAGNI; Humble/Farley, *Continuous Delivery* (2010) — operability; Ford/Parsons/Kua, *Building Evolutionary Architectures* (2017)
+- CLAUDE.md §9.4 (verbatim-text-källa — medvetet Klas-override), §9.5 (verifiera externa fakta), §9.6 (in-block vs TD/skala-trigger)
+- ADR 0032 §2 (wire-only-SRP), §3 (overlap-window — förtydligad), §5 (dedup + 2026-05-16-clarification), §9 X4 (410 — oförändrad); ADR 0036 (ops-alarms)

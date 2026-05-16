@@ -44,7 +44,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0029 | HTTP-auth-pipeline och `IClaimsTransformation`-disciplin | Accepted | 2026-05-11 | [0029-auth-pipeline-and-claims-transformation.md](./0029-auth-pipeline-and-claims-transformation.md) |
 | 0030 | Frontend API result kind-union convention | Accepted | 2026-05-11 | [0030-frontend-api-result-kind-union.md](./0030-frontend-api-result-kind-union.md) |
 | 0031 | Failed cross-user access detection: strukturerad loggning + CloudWatch-aggregat | Accepted | 2026-05-12 | [0031-failed-access-detection.md](./0031-failed-access-detection.md) |
-| 0032 | JobTech-integration: resilience-stack, dedup-strategi, sync-flöde (amended 2026-05-12 §8 PII-stripping + amended 2026-05-13 JobStream v2 path-migration) | Accepted | 2026-05-12 | [0032-jobtech-integration.md](./0032-jobtech-integration.md) |
+| 0032 | JobTech-integration: resilience-stack, dedup-strategi, sync-flöde (amended 2026-05-12 §8 PII-stripping + 2026-05-13 v2 path + 2026-05-16 §5 child-scope + §9 X4 admin-410 + 2026-05-16 snapshot-trunkerings-resiliens/hybrid) | Accepted | 2026-05-12 | [0032-jobtech-integration.md](./0032-jobtech-integration.md) |
 | 0033 | JobbPilot.Migrate CLI-mode-dispatch (init vs schema) | Accepted | 2026-05-12 | [0033-migrate-cli-mode-dispatch.md](./0033-migrate-cli-mode-dispatch.md) |
 | 0034 | DB-role privilege-separation: runtime vs migration-time creds | Accepted | 2026-05-12 | [0034-db-role-privilege-separation.md](./0034-db-role-privilege-separation.md) |
 | 0035 | System-event audit-pipeline (bypass-port parallell till IAuditTrailEraser) | Accepted | 2026-05-13 | [0035-system-event-audit-pipeline.md](./0035-system-event-audit-pipeline.md) |

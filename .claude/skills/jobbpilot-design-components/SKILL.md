@@ -58,9 +58,10 @@ colored accent is warranted. Never both for the same datum.
 
 ### Button
 
-Spec (matches `.jp-btn`): height **32px**, sm **28px**; `border-radius: 4px`
-(`var(--jp-r-md)`); `transition: 80ms linear`; font 13px/500 sans;
-`letter-spacing: -0.005em`.
+Spec (matches `.jp-btn`, recalibrated per ADR 0038): height **40px**, sm
+**36px**; `border-radius: 4px` (`var(--jp-r-md)`); `transition: 80ms linear`;
+font 16px/500 sans; `letter-spacing: -0.005em`. Toolbar-knappar kvarstår som
+dokumenterat undantag (28px).
 
 Variants:
 - `primary` — `bg-brand-600` white text (dark text in dark mode), hover
@@ -114,20 +115,26 @@ Not in v1: column resize, column reorder, inline editing.
 
 ### Input / Textarea / Select
 
-Spec (matches `.jp-input` / `.jp-select`):
-- Height: **32px**
+Spec (matches `.jp-input` / `.jp-select`, recalibrated per ADR 0038):
+- Height: **44px**, sm **40px**
 - Border: `border-border-default` (slate-200), `border-radius: 4px`
   (`var(--jp-r-md)`)
 - Background: `bg-surface-primary` (white in light — distinct from the
   slate-50 chrome)
 - Focus: `border-brand-600` + `box-shadow: 0 0 0 3px var(--jp-brand-50)`
   (3px brand-50 ring)
-- Font: 13px
-- Placeholder: `text-text-tertiary`
+- Font: 16px
+- Placeholder: `text-text-tertiary` (placeholder är dekorativt — får aldrig
+  bära information; label ovanför + hint nedanför bär betydelsen)
 - Error state: `border-danger-600`, error message below in `text-danger-700`
 
 Always pair with a `<label>` — never placeholder-only inputs. No floating
 labels (label sits above the field).
+
+**Inga beskrivande placeholder-exempel i sök-/filterfält** (ADR 0038) — label
+ovanför och hint nedanför kvarstår som informationsbärarna. Auth-formulärens
+format-placeholders (`din.email@exempel.se`) behålls: de visar ett
+syntaxmönster med stark label-kontext, inte fält-instruktion.
 
 ### Form (shadcn Form wrapper)
 

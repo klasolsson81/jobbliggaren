@@ -82,9 +82,12 @@ Exakta tokens och hex-värden (light+dark), kontrast-tabell, density-system och 
 
 - **Primär:** Hanken Grotesk (`next/font/google`, variabel `--font-sans`) — weight 400, 500, 600
 - **Monospace:** JetBrains Mono (`next/font/google`, variabel `--font-mono`) — för IDs, SSYK-koder, datum, tid, versioner, mono caps-labels, pill-räknare. Aldrig brödtext/rubriker/knapptext.
-- **App-UI-roller:** h1 (28px), h2 (20px), h3 (18px), body (14px default), body-sm (13px), label (13px/500)
+- **App-UI-roller (ADR 0038 — GOV.UK-läsbarhetsgolv):** body **16px/400** (golv — aldrig informationsbärande text < 16px), body-sm/small **14px** (min), lede **17px/400**, h3 **18px/600**, h2 **20px/600**, h1 **28px/600**
 - **Display (v2 landing):** 56px / 600 / line-height 1.05 / letter-spacing −0.025em — endast landing hero
-- **Mono caps:** 10.5px / 500 / letter-spacing 0.08–0.16em / UPPERCASE — kickers, kolumnhuvuden (`UPPDATERAD · MAJ 2026`)
+- **Mono inline (data — datum, ID, räknare):** 13px/500, färg `text-secondary`/`text-primary` (aldrig `text-tertiary`)
+- **Mono caps (labels):** 11.5px / 500 / letter-spacing 0.08–0.16em / UPPERCASE, färg `text-secondary` — kickers, kolumnhuvuden (`UPPDATERAD · MAJ 2026`)
+- **`text-tertiary` är endast dekorativt** (≈2.6:1 — separatorer, inaktiva ikoner). Informationsbärande text alltid `text-secondary` (7.4:1) eller `text-primary`.
+- Civic-ledger-*formen* (flata tabeller, hairlines, mono-IDs, inga cards) är oförändrad — ADR 0038 omkalibrerar endast skala/färg/fältstorlek (handoffen drev under §1.1-målanvändarens läsbarhetsbehov).
 - Global text-tracking −0.005em (optisk täthet). Aldrig all caps i sans. Aldrig letter-spacing-justeringar i brödtext.
 - Italic bara i citat och referenser, aldrig för emfas i body.
 
@@ -119,7 +122,8 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 - `.jp-match` — progress-bar 6px: brand ≥75, info 50–74, warning <50
 - `.jp-filterBar` — flat rad mellan två hairlines, fält i naturlig bredd, ingen chrome-box
 - `.jp-banner` — info-banner med 3px brand-vänsterkant, används sparsamt
-- Knappar: höjd 32px (sm 28px), radius 4px, transition 80ms, max EN `--primary` per skärm
+- Knappar: höjd **40px (sm 36px)**, radius 4px, transition 80ms, max EN `--primary` per skärm (ADR 0038)
+- Inputs/Select: höjd **44px (sm 40px)**, label alltid ovanför, hint under. **Inga beskrivande placeholder-exempel i sök/filter-fält** (Nielsen/WCAG-anti-pattern). Format-placeholder i auth-formulär OK (`namn@exempel.se` = syntax, ej exempelinnehåll)
 
 Regler:
 - En primary button per form — aldrig två primärknappar sida vid sida

@@ -96,7 +96,7 @@ export default async function AnsokningarPage() {
             <section key={group.status} aria-label={getStatusLabel(group.status)}>
               <div className="mb-2 flex items-baseline gap-3 border-b border-border-strong pb-2">
                 <h2 className="jp-h2">{getStatusLabel(group.status)}</h2>
-                <span className="font-mono text-[11px] font-medium text-text-tertiary">
+                <span className="font-mono text-[13px] font-medium text-text-secondary">
                   {group.count}
                 </span>
               </div>

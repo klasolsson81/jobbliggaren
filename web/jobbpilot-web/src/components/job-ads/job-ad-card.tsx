@@ -39,7 +39,7 @@ export function JobAdCard({ jobAd }: JobAdCardProps) {
         {truncateDescription(jobAd.description)}
       </p>
 
-      <dl className="font-mono mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[11.5px] text-text-tertiary">
+      <dl className="font-mono mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-text-secondary">
         <div className="flex gap-1.5">
           <dt>Publicerad:</dt>
           <dd className="text-text-secondary">{publishedAt}</dd>

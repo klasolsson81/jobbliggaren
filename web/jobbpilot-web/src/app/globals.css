@@ -204,11 +204,11 @@
   --text-h2:       20px;
   --text-h3:       18px;
   --text-h4:       16px;
-  --text-body-lg:  16px;
-  --text-body:     14px;
-  --text-body-sm:  13px;
-  --text-caption:  12px;
-  --text-label:    13px;
+  --text-body-lg:  17px;
+  --text-body:     16px;
+  --text-body-sm:  14px;
+  --text-caption:  13px;
+  --text-label:    14px;
   --text-mono:     13px;
 }
 
@@ -217,7 +217,7 @@ body {
   background-color: var(--jp-surface-primary);
   color: var(--jp-text-primary);
   font-family: var(--jp-font-sans);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.55;
   letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
@@ -350,7 +350,7 @@ body {
   font-family: var(--jp-font-sans);
   background: var(--jp-surface-primary);
   color: var(--jp-text-primary);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.55;
   height: 100%;
   display: grid;
@@ -391,8 +391,8 @@ body {
 }
 .jp-sidebar__tag {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 11.5px;
+  color: var(--jp-text-secondary);
   letter-spacing: 0;
   padding: 1px 5px;
   border: 1px solid var(--jp-border-hairline);
@@ -404,13 +404,13 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 30px;
+  height: 40px;
   padding: 0 8px 0 10px;
   background: var(--jp-surface-primary);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
-  color: var(--jp-text-tertiary);
-  font-size: 13px;
+  color: var(--jp-text-secondary);
+  font-size: 16px;
   cursor: text;
 }
 .jp-search input {
@@ -419,14 +419,14 @@ body {
   background: transparent;
   outline: 0;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--jp-text-primary);
 }
 .jp-search input::placeholder { color: var(--jp-text-tertiary); }
 .jp-search__kbd {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 11.5px;
+  color: var(--jp-text-secondary);
   border: 1px solid var(--jp-border-hairline);
   padding: 0 4px;
   border-radius: var(--jp-r-sm);
@@ -445,10 +445,10 @@ body {
 
 .jp-nav__label {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 500;
   letter-spacing: 0.12em;
-  color: var(--jp-text-tertiary);
+  color: var(--jp-text-secondary);
   text-transform: uppercase;
   padding: 6px 12px 6px;
   display: flex;
@@ -471,7 +471,7 @@ body {
   height: calc(var(--jp-row-h) * 0.95);
   border-radius: var(--jp-r-md);
   color: var(--jp-text-secondary);
-  font-size: 13.5px;
+  font-size: 16px;
   font-weight: 400;
   text-decoration: none;
   cursor: pointer;
@@ -497,8 +497,9 @@ body {
 .jp-nav__item__count {
   margin-left: auto;
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
   letter-spacing: 0;
 }
 .jp-nav__item[aria-current="page"] .jp-nav__item__count { color: var(--jp-brand-600); }
@@ -544,7 +545,7 @@ body {
 }
 .jp-sidebar__user__info { min-width: 0; flex: 1; }
 .jp-sidebar__user__name {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--jp-text-primary);
   overflow: hidden;
@@ -553,15 +554,16 @@ body {
 }
 .jp-sidebar__user__email {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .jp-iconbtn {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--jp-r-md);
   border: 1px solid transparent;
   background: transparent;
@@ -600,8 +602,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 16px;
+  color: var(--jp-text-secondary);
 }
 .jp-crumbs__sep { color: var(--jp-text-tertiary); opacity: 0.7; }
 .jp-crumbs__current { color: var(--jp-text-secondary); }
@@ -619,7 +621,7 @@ body {
 /* ── Headings ─────────────────────────────────────────────── */
 .jp-h1 {
   font-size: 28px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--jp-text-primary);
   line-height: 1.2;
@@ -627,26 +629,26 @@ body {
 }
 .jp-h1--display {
   font-size: 36px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 1.15;
 }
 .jp-h2 {
-  font-size: 18px;
-  font-weight: 500;
+  font-size: 20px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--jp-text-primary);
   margin: 0;
 }
 .jp-h3 {
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--jp-text-primary);
   margin: 0;
 }
 .jp-lede {
   color: var(--jp-text-secondary);
-  font-size: 15px;
+  font-size: 17px;
   max-width: 60ch;
   margin: 8px 0 0;
   line-height: 1.55;
@@ -670,14 +672,14 @@ body {
 .jp-sectionHeader__title { display: flex; align-items: baseline; gap: 10px; }
 .jp-sectionHeader__kicker {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--jp-text-tertiary);
+  color: var(--jp-text-secondary);
   font-weight: 500;
 }
 .jp-sectionHeader__action {
-  font-size: 12.5px;
+  font-size: 16px;
   color: var(--jp-brand-600);
   text-decoration: none;
   display: inline-flex;
@@ -708,7 +710,7 @@ body {
 }
 .jp-attention__text {
   flex: 1;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--jp-text-primary);
   line-height: 1.55;
   letter-spacing: -0.005em;
@@ -751,8 +753,8 @@ body {
 }
 .jp-attention__footer {
   margin-top: 14px;
-  font-size: 12.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 16px;
+  color: var(--jp-text-secondary);
 }
 
 /* ── Cards / list ──────────────────────────────────────────── */
@@ -796,7 +798,7 @@ body {
   gap: 16px;
 }
 .jp-jobRow__title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--jp-text-primary);
   letter-spacing: -0.005em;
@@ -808,13 +810,13 @@ body {
   flex-wrap: wrap;
   gap: 6px 14px;
   align-items: center;
-  font-size: 12.5px;
+  font-size: 16px;
   color: var(--jp-text-secondary);
 }
 .jp-jobRow__meta__sep { color: var(--jp-border); }
 .jp-jobRow__excerpt {
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--jp-text-secondary);
   line-height: 1.55;
   display: -webkit-box;
@@ -834,12 +836,13 @@ body {
 .jp-jobRow__dates {
   display: flex;
   gap: 18px;
-  font-size: 11.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 16px;
+  color: var(--jp-text-secondary);
 }
 .jp-jobRow__dates b {
   font-family: var(--jp-font-mono);
-  font-weight: 400;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--jp-text-secondary);
   margin-left: 4px;
 }
@@ -849,7 +852,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--jp-text-primary);
   font-weight: 400;
   white-space: nowrap;
@@ -875,7 +878,7 @@ body {
   height: 22px;
   padding: 0 8px 0 7px;
   border-radius: var(--jp-r-pill);
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 500;
   border: 1px solid var(--jp-border-hairline);
   background: var(--jp-surface-primary);
@@ -903,7 +906,8 @@ body {
   align-items: center;
   gap: 8px;
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--jp-text-secondary);
 }
 .jp-match__bar {
@@ -928,11 +932,11 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 32px;
+  height: 40px;
   padding: 0 12px;
   border-radius: var(--jp-r-md);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
@@ -951,7 +955,7 @@ body {
 .jp-btn--secondary:hover { background: var(--jp-surface-secondary); border-color: var(--jp-border-strong); }
 .jp-btn--ghost { background: transparent; color: var(--jp-text-secondary); }
 .jp-btn--ghost:hover { background: var(--jp-surface-tertiary); color: var(--jp-text-primary); }
-.jp-btn--sm { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.jp-btn--sm { height: 36px; padding: 0 10px; font-size: 16px; }
 
 /* ── Filter bar (flat, civic-utility) ──────────────────────── */
 .jp-filterBar {
@@ -967,20 +971,20 @@ body {
   border-radius: 0;
 }
 .jp-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.jp-field__label { font-size: 12px; color: var(--jp-text-secondary); font-weight: 500; }
+.jp-field__label { font-size: 16px; color: var(--jp-text-secondary); font-weight: 500; }
 .jp-field__hint {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  color: var(--jp-text-secondary);
 }
 .jp-input, .jp-select {
-  height: 32px;
+  height: 44px;
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
   background: var(--jp-surface-primary);
   padding: 0 10px;
   font: inherit;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--jp-text-primary);
   outline: 0;
   min-width: 0;
@@ -1001,7 +1005,7 @@ body {
 .jp-tab {
   position: relative;
   padding: 10px 14px;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--jp-text-secondary);
   cursor: pointer;
   border: 0;
@@ -1024,8 +1028,9 @@ body {
 }
 .jp-tab__count {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
   background: var(--jp-surface-secondary);
   padding: 1px 6px;
   border-radius: var(--jp-r-pill);
@@ -1059,14 +1064,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--jp-text-primary);
 }
 .jp-col__count {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  color: var(--jp-text-secondary);
   font-weight: 500;
 }
 .jp-col__body { flex: 1; padding: 0; display: flex; flex-direction: column; gap: 0; }
@@ -1080,26 +1085,28 @@ body {
 .jp-appRow:hover { background: var(--jp-surface-tertiary); box-shadow: inset 2px 0 0 var(--jp-border-strong); }
 .jp-appRow__id {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
   letter-spacing: 0.04em;
 }
-.jp-appRow__title { font-size: 13.5px; font-weight: 500; color: var(--jp-text-primary); margin-top: 1px; }
-.jp-appRow__company { font-size: 12px; color: var(--jp-text-secondary); margin-top: 2px; }
+.jp-appRow__title { font-size: 16px; font-weight: 500; color: var(--jp-text-primary); margin-top: 1px; }
+.jp-appRow__company { font-size: 16px; color: var(--jp-text-secondary); margin-top: 2px; }
 .jp-appRow__date {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
   margin-top: 8px;
 }
-.jp-appRow__date b { color: var(--jp-text-secondary); font-weight: 400; margin-left: 4px; }
+.jp-appRow__date b { color: var(--jp-text-secondary); font-weight: 500; margin-left: 4px; }
 
 /* ── Table (print-ledger) ──────────────────────────────────── */
-.jp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jp-table { width: 100%; border-collapse: collapse; font-size: 16px; }
 .jp-table thead th {
   text-align: left;
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--jp-text-secondary);
@@ -1129,11 +1136,11 @@ body {
   border-radius: var(--jp-r-md);
 }
 .jp-banner__body { flex: 1; }
-.jp-banner__title { font-weight: 500; color: var(--jp-text-primary); font-size: 13.5px; }
-.jp-banner__text { font-size: 12.5px; color: var(--jp-text-secondary); margin-top: 2px; }
+.jp-banner__title { font-weight: 600; color: var(--jp-text-primary); font-size: 16px; }
+.jp-banner__text { font-size: 16px; color: var(--jp-text-secondary); margin-top: 2px; }
 .jp-banner__cta {
   color: var(--jp-brand-700);
-  font-size: 12.5px;
+  font-size: 16px;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1144,7 +1151,7 @@ body {
   font-family: var(--jp-font-mono);
   font-size: 11.5px;
   letter-spacing: 0.06em;
-  color: var(--jp-text-tertiary);
+  color: var(--jp-text-secondary);
   text-transform: uppercase;
 }
 .jp-hero__h { margin-top: 4px; }
@@ -1164,7 +1171,8 @@ body {
 }
 .jp-pagination__info {
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
-  color: var(--jp-text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
 }
 .jp-pagination__buttons { display: flex; gap: 4px; }

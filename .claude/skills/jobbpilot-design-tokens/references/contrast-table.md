@@ -17,8 +17,8 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 | Text token | Background token | Ratio | WCAG | Notes |
 |---|---|---|---|---|
 | `text-primary` (#0F172A) | `surface-primary` (#FFFFFF) | ~17.9:1 | AAA ✓ | Body text, rubriker |
-| `text-secondary` (#475569) | `surface-primary` (#FFFFFF) | ~7.4:1 | AA ✓ | Lede, metadata |
-| `text-tertiary` (#94A3B8) | `surface-primary` (#FFFFFF) | ~2.6:1 | ✗ body | **Decorative only** — ID:n, dimmade datum, aldrig brödtext |
+| `text-secondary` (#475569) | `surface-primary` (#FFFFFF) | ~7.4:1 | AA ✓ | Lede, metadata, **mono caps-labels**, mono inline-data (ADR 0038) |
+| `text-tertiary` (#94A3B8) | `surface-primary` (#FFFFFF) | ~2.6:1 | ✗ body | **Dekorativt endast** — aldrig informationsbärande text, aldrig mono data/labels (ADR 0038) |
 | `brand-600` (#0B5CAD) | `surface-primary` (#FFFFFF) | 6.1:1 | AA ✓ | Länkar, primärknappar, fokusring |
 | `brand-700` (#094B8C) | `surface-primary` (#FFFFFF) | ~8.2:1 | AA ✓ | Hover, länktext |
 | `text-inverse` (#FFFFFF) | `brand-600` (#0B5CAD) | 6.1:1 | AA ✓ | Vit text på primärknapp |
@@ -57,8 +57,8 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 | Text token | Background token | Ratio | WCAG | Notes |
 |---|---|---|---|---|
 | `text-primary` (#F8FAFC) | `surface-primary` (#020617) | ~18.1:1 | AAA ✓ | Body text, rubriker |
-| `text-secondary` (#94A3B8) | `surface-primary` (#020617) | ~6.5:1 | AA ✓ | Lede, metadata |
-| `text-tertiary` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | ✗ body / ✓ large | Decorative / large only |
+| `text-secondary` (#94A3B8) | `surface-primary` (#020617) | ~6.5:1 | AA ✓ | Lede, metadata, **mono caps-labels**, mono inline-data (ADR 0038) |
+| `text-tertiary` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | ✗ body / ✓ large | **Dekorativt endast** — aldrig mono data/labels (ADR 0038) |
 | `brand-600` (#60A5FA) | `surface-primary` (#020617) | ~7.0:1 | AA ✓ | Länkar, primary (action) |
 | `text-inverse` (#0F172A) | `brand-600` (#60A5FA) | ~7.0:1 | AA ✓ | Mörk text på ljusblå primary |
 | `text-primary` (#F8FAFC) | `surface-secondary` (#0F172A) | ~16.0:1 | AAA ✓ | Text på sidebar |
@@ -86,8 +86,8 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 | Text | Background | Issue |
 |---|---|---|
-| `text-tertiary` (light #94A3B8) | `surface-primary` (#FFFFFF) | ~2.6:1 — fails body. Decorative/non-essential only. |
-| `text-tertiary` (light #94A3B8) | `surface-secondary` (#F8FAFC) | < 2.5:1 — fails. Caption/decorative only. |
+| `text-tertiary` (light #94A3B8) | `surface-primary` (#FFFFFF) | ~2.6:1 — fails body. Dekorativt endast — aldrig mono inline-data/caps-labels (ADR 0038). |
+| `text-tertiary` (light #94A3B8) | `surface-secondary` (#F8FAFC) | < 2.5:1 — fails. Dekorativt endast. |
 | Any `brand-*` < 600 (light) | white | < 3:1 — not enough contrast for text/UI |
 | `border` (default hairline) | as an information-bearing divider | < 3:1 — use `border-strong` when the divider carries meaning |
 

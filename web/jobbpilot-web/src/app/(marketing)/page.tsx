@@ -125,7 +125,7 @@ export default function LandingPage() {
         >
           {/* Vänster: copy + features */}
           <div className="min-w-0">
-            <div className="font-mono mb-7 text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
+            <div className="font-mono mb-7 text-[11.5px] font-medium uppercase tracking-[0.12em] text-text-secondary">
               Version 2 · Maj 2026
             </div>
             <h1 className="m-0 max-w-160 text-[clamp(40px,5vw,56px)] font-semibold leading-[1.05] tracking-tight">
@@ -191,7 +191,7 @@ export default function LandingPage() {
                 {mode === "login" ? <LoginForm /> : <RegisterForm />}
               </Suspense>
 
-              <div className="font-mono flex items-center gap-3 text-[10.5px] uppercase tracking-[0.12em] text-text-tertiary">
+              <div className="font-mono flex items-center gap-3 text-[11.5px] uppercase tracking-[0.12em] text-text-secondary">
                 <span className="h-px flex-1 bg-border-default" />
                 {mode === "login" ? "eller logga in med" : "eller fortsätt med"}
                 <span className="h-px flex-1 bg-border-default" />
@@ -218,7 +218,7 @@ export default function LandingPage() {
               </div>
 
               {mode === "register" && (
-                <p className="text-[11.5px] leading-relaxed text-text-tertiary">
+                <p className="text-body-sm leading-relaxed text-text-secondary">
                   Genom att skapa konto godkänner du våra användarvillkor och
                   vår datapolicy. JobbPilot säljer aldrig din data.
                 </p>
@@ -257,7 +257,7 @@ export default function LandingPage() {
               </span>
             ))}
           </nav>
-          <div className="font-mono flex items-center gap-3.5 text-[11px] text-text-tertiary">
+          <div className="font-mono flex items-center gap-3.5 text-[13px] text-text-secondary">
             <span className="inline-flex items-center gap-1.5">
               <span
                 aria-hidden="true"

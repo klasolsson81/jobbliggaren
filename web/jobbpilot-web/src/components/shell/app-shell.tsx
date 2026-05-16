@@ -123,7 +123,7 @@ function NotificationsBell() {
           className="absolute right-0 top-[calc(100%+6px)] z-20 w-64 rounded-sm border border-border-default bg-surface-primary"
           style={{ boxShadow: "var(--jp-shadow-md)" }}
         >
-          <div className="font-mono border-b border-border-default px-3.5 py-2.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-text-tertiary">
+          <div className="font-mono border-b border-border-default px-3.5 py-2.5 text-[11.5px] font-medium uppercase tracking-[0.08em] text-text-secondary">
             Aviseringar
           </div>
           <p className="px-3.5 py-4 text-body-sm text-text-secondary">

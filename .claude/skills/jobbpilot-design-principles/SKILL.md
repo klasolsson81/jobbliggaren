@@ -136,9 +136,17 @@ utropstecken (utom i felmeddelanden där de signalerar verklig urgency). Tonen
 
 Tätt nog att skanna, luftigt nog att läsa. Använd
 `--jp-density`-multiplikatorn (`compact`/`standard`/`luftig`) hellre än att
-hårdkoda padding. Riktlinjer: hit-targets minst 32px (28px för sm-knappar i
-toolbars); tabellrader minst 36px höga; stats-värden 28+px; text-tracking
--0.005em globalt för optisk täthet.
+hårdkoda padding. Riktlinjer: tabellrader minst 36px höga; stats-värden 28+px;
+text-tracking -0.005em globalt för optisk täthet.
+
+**Förtydligande (ADR 0038):** "respekt" betyder läsbarhetsgolv för §1.1-
+målanvändaren (55-åringen i Alingsås). Densitet (regel 7 mening 1, "tätt nog
+att skanna") är **underordnad** läsbarhet (mening 2, "luftigt nog att läsa")
+när de står i konflikt. Brödtextgolv 16px (GOV.UK-linjerat — skillens egen
+först-rankade referens), hit-target/input-golv 44px (knappar 40px). Bloomberg-
+tätheten gäller tabell-**tonen**, aldrig som ett brödtext-fontgolv. Toolbar-
+knappar kvarstår som dokumenterat undantag (28px) — men inputs/knappar i
+innehållsytor är 44/40. Cross-ref ADR 0038.
 
 ---
 
@@ -225,7 +233,7 @@ Innan en PR lämnas, gå igenom:
 12. ✓ Informationsbärande dividers (kolumngränser) använder `--jp-border-strong`, inte `--jp-border`?
 13. ✓ Status-information har både färg OCH textetikett (aldrig endast färg)?
 14. ✓ Brödtext har `max-width` runt 68ch så rader inte sträcks ut på breda skärmar?
-15. ✓ Hit-targets minst 32×32px (28px endast i toolbars)?
+15. ✓ Brödtext minst 16px och hit-targets/inputs minst 44px (knappar 40px; 28px endast för toolbar-knappar)? (ADR 0038)
 
 ---
 

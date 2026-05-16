@@ -107,7 +107,6 @@ export function JobAdFilters({ initial }: JobAdFiltersProps) {
             id="filter-q"
             type="search"
             inputMode="search"
-            placeholder="t.ex. backend, sjuksköterska"
             aria-invalid={errors.q ? true : undefined}
             aria-describedby={errors.q ? "filter-q-error" : undefined}
             {...register("q")}
@@ -132,7 +131,7 @@ export function JobAdFilters({ initial }: JobAdFiltersProps) {
           </label>
           <select
             id="filter-sort"
-            className="h-8 rounded-md border border-border-default bg-surface-primary px-2.5 text-body-sm text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="h-11 rounded-md border border-border-default bg-surface-primary px-2.5 text-body text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
             {...register("sortBy")}
           >
             {SORT_OPTIONS.map((opt) => (
@@ -153,7 +152,6 @@ export function JobAdFilters({ initial }: JobAdFiltersProps) {
           <Input
             id="filter-ssyk"
             type="text"
-            placeholder="JobTech occupation-concept-id"
             aria-invalid={errors.ssyk ? true : undefined}
             aria-describedby={
               errors.ssyk ? "filter-ssyk-error" : "filter-ssyk-hint"
@@ -185,7 +183,6 @@ export function JobAdFilters({ initial }: JobAdFiltersProps) {
           <Input
             id="filter-region"
             type="text"
-            placeholder="JobTech location-concept-id"
             aria-invalid={errors.region ? true : undefined}
             aria-describedby={
               errors.region ? "filter-region-error" : "filter-region-hint"

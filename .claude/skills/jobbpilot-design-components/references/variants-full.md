@@ -17,11 +17,12 @@ font weight 500 sans.
 
 | Size | Height | Padding | Font |
 |---|---|---|---|
-| `sm` | 28px (`.jp-btn--sm`) | `px-2.5` | 12.5px |
-| `md` | **32px** (default) | `px-3` | 13px — **default** |
+| `sm` | 36px | `px-2.5` | 14px |
+| `md` | **40px** (default) | `px-3` | 16px — **default** |
 
-(No 36/44px variants in the `.jp-*` system — touch bumps are handled via
-hit-area padding, see a11y skill.)
+(Recalibrated per ADR 0038. Toolbar-knappar kvarstår som dokumenterat
+undantag, 28px — touch bumps i toolbars hanteras via hit-area padding, se
+a11y-skillen.)
 
 ### Variant states
 
@@ -67,9 +68,12 @@ hit-area padding, see a11y skill.)
 
 ## Input / Textarea / Select
 
-Civic spec (matches `.jp-input` / `.jp-select`): height **32px**,
-`border-radius: 4px` (`var(--jp-r-md)`), `bg-surface-primary` (white in light),
-font 13px.
+Civic spec (matches `.jp-input` / `.jp-select`, recalibrated per ADR 0038):
+height **44px**, sm **40px**, `border-radius: 4px` (`var(--jp-r-md)`),
+`bg-surface-primary` (white in light), font 16px. Beskrivande
+placeholder-exempel i sök-/filterfält tas bort — label ovanför och hint
+nedanför bär informationen. Auth-formulärens format-placeholders
+(`din.email@exempel.se`) behålls (syntaxmönster med stark label-kontext).
 
 ### States
 
@@ -77,14 +81,14 @@ font 13px.
 |---|---|---|
 | Default | `border-border-default` (slate-200) | — |
 | Focus | `border-brand-600` | `box-shadow: 0 0 0 3px var(--jp-brand-50)` (3px brand-50 ring) |
-| Error | `border-danger-600` | Error message below in `text-danger-700` (12.5px) |
+| Error | `border-danger-600` | Error message below in `text-danger-700` (14px) |
 | Disabled | `opacity-50 cursor-not-allowed bg-surface-tertiary` | — |
 | Read-only | `bg-surface-secondary border-border-default` | — |
 
 ### Label
 
 ```
-font-size: text-label (13px, weight 500)
+font-size: text-label (14px, weight 500)
 margin-bottom: mb-1.5 (6px)
 color: text-text-primary
 ```
@@ -94,7 +98,7 @@ Required indicator: asterisk `*` after label text in `text-danger-600`.
 ### Help text
 
 ```
-font-size: text-body-sm (13px)
+font-size: text-body-sm (14px)
 margin-top: mt-1 (4px)
 color: text-text-secondary
 ```
@@ -272,8 +276,8 @@ Verbatim from `globals.css` / `JobbPilotNEWDESIGN/jobbpilot.css`. All colors via
 ### `.jp-table--flat` (print-ledger)
 
 ```
-table:        width:100%; border-collapse:collapse; font-size:13px
-thead th:     mono 10.5px, letter-spacing 0.14em, UPPERCASE,
+table:        width:100%; border-collapse:collapse; font-size:16px
+thead th:     mono 11.5px, letter-spacing 0.14em, UPPERCASE,
               color text-secondary, weight 600, padding 12px 12px 10px,
               border-top 2px border-strong, border-bottom 1px border-strong
 tbody td:     padding 14px 12px, border-bottom 1px border (hairline),
@@ -291,7 +295,7 @@ the 2px top/bottom rule.
 container:  margin-top 28px; border-top 1px border
 row:        flex; gap 16px; padding 18px 4px; border-bottom 1px border
 dot:        8px circle, margin-top 8px (status color)
-text:       flex 1; 15px; line-height 1.55; max-width 68ch
+text:       flex 1; 16px; line-height 1.55; max-width 68ch
 link:       brand-700 underlined (brand-600 in dark), thicker underline on hover
 dismiss:    22px ghost button, opacity 0 → 1 on row hover
 ```
@@ -306,7 +310,8 @@ col:        transparent; border-right 1px border-STRONG (column divider,
             stronger than row hairlines); min-height 360px
 col:last-child:  no right border
 col__head:  flex; padding 12px 14px 10px; border-bottom 1px border;
-            title 12.5px/500, count mono 11px text-tertiary
+            title 14px/500, count mono 13px text-secondary (ADR 0038 — mono
+            inline-data är aldrig tertiary)
 appRow:     padding 12px 14px; border-bottom 1px hairline; transparent
 appRow:hover:    bg surface-tertiary + inset 2px 0 border-strong
 .jp-appCard:     display:none  (legacy — floating cards removed)
@@ -317,7 +322,7 @@ NO floating cards. Columns are visually separated by `--jp-border-strong`.
 ### `.jp-statusDot` (default in tables)
 
 ```
-inline-flex; gap 8px; 13px; color text-primary; weight 400
+inline-flex; gap 8px; 16px; color text-primary; weight 400
 dot: 6px circle, color per modifier
 modifiers: --brand --info --success --warning --danger --neutral
 ```
@@ -344,7 +349,7 @@ columns (use `.jp-statusDot` there).
 ### `.jp-match` (score bar)
 
 ```
-inline-flex; gap 8px; mono 11.5px; color text-secondary
+inline-flex; gap 8px; mono 13px; color text-secondary
 bar:  72px × 6px; bg surface-tertiary; border-radius 2px
 fill: brand-600   (default, score ≥ 75)
 fill--mid:  info-600    (50–74)
@@ -357,8 +362,10 @@ fill--low:  warning-600 (< 50)
 grid 1.4fr 1fr 1fr 1fr auto; gap 16px; align-items end; padding 18px 0
 background transparent; border 0
 border-top 1px border; border-bottom 1px border; border-radius 0
-field: flex column gap 6px; label 12px/500 text-secondary;
-       hint mono 10.5px text-tertiary
+field: flex column gap 6px; label 14px/500 text-secondary;
+       hint mono 13px text-secondary (ADR 0038 — informationsbärande
+       hint är aldrig tertiary). Inga beskrivande placeholder-exempel
+       i sök-/filterfält — label + hint bär informationen.
 ```
 
 ### `.jp-banner` (3px brand left border)
@@ -367,7 +374,7 @@ field: flex column gap 6px; label 12px/500 text-secondary;
 flex; gap 12px; padding 14px 16px
 bg brand-50; border 1px brand-100; border-left 3px brand-600
 border-radius var(--jp-r-md) (4px)
-title 13.5px/500 text-primary; text 12.5px text-secondary
+title 16px/500 text-primary; text 14px text-secondary
 cta brand-700 underlined
 ```
 

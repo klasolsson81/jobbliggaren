@@ -26,8 +26,8 @@ semantic utilities (`bg-surface-primary` etc.) — see `theme-block.md`. These
 | Token | Light | Dark | Tailwind class | Use |
 |---|---|---|---|---|
 | `--jp-text-primary` | `#0F172A` | `#F8FAFC` | `text-text-primary` | Brödtext, rubriker. |
-| `--jp-text-secondary` | `#475569` | `#94A3B8` | `text-text-secondary` | Lede, etiketter, metadata. |
-| `--jp-text-tertiary` | `#94A3B8` | `#64748B` | `text-text-tertiary` | Hintar, ID:n, dimmade datum. |
+| `--jp-text-secondary` | `#475569` | `#94A3B8` | `text-text-secondary` | Lede, etiketter, metadata, mono caps-labels, all informationsbärande sekundärtext. |
+| `--jp-text-tertiary` | `#94A3B8` | `#64748B` | `text-text-tertiary` | **DEKORATIVT ENDAST** — fails body contrast på vit (~2.6:1). Aldrig informationsbärande text, aldrig mono data/labels (se `contrast-table.md`). |
 | `--jp-text-inverse` | `#FFFFFF` | `#0F172A` | `text-text-inverse` | Text på inverterad bakgrund. |
 
 ## Brand palette (myndighetsblå)
@@ -135,20 +135,29 @@ Global text-tracking `-0.005em` på `body` (optisk täthet).
 | Display H1 | 56px | 600 | 1.05 | -0.025em | `--jp-text-primary` |
 | H1 | 28px | 600 | 1.2 | -0.02em | `--jp-text-primary` |
 | H2 | 20px | 600 | 1.3 | -0.015em | `--jp-text-primary` |
-| H3 | 18px | 500 | 1.3 | -0.01em | `--jp-text-primary` |
-| Lede | 16px | 400 | 1.55 | 0 | `--jp-text-secondary` |
-| Body | 14px | 400 | 1.55 | -0.005em (global) | `--jp-text-primary` |
-| Small | 12.5px | 400 | 1.5 | 0 | `--jp-text-secondary` |
-| Mono caps | 10.5px | 500 | 1.4 | 0.08em + UPPERCASE | `--jp-text-tertiary` |
-| Mono inline | 11.5px | 500 | 1.4 | 0 | `--jp-text-primary` / `--jp-text-tertiary` |
+| H3 | 18px | 600 | 1.3 | -0.01em | `--jp-text-primary` |
+| Lede | 17px | 400 | 1.55 | 0 | `--jp-text-secondary` |
+| Body | 16px | 400 | 1.55 | -0.005em (global) | `--jp-text-primary` |
+| Small | 14px | 400 | 1.5 | 0 | `--jp-text-secondary` |
+| Mono caps | 11.5px | 500 | 1.4 | 0.08em + UPPERCASE | `--jp-text-secondary` (ALDRIG tertiary) |
+| Mono inline | 13px | 500 | 1.4 | 0 | `--jp-text-secondary` / `--jp-text-primary` (aldrig tertiary) |
 
 Tailwind `@theme`-skala (för `text-*`-utilities): `--text-display` 56px,
-`--text-h1` 28px, `--text-h2` 20px, `--text-h3` 18px, `--text-h4` 16px,
-`--text-body-lg` 16px, `--text-body` 14px, `--text-body-sm` 13px,
-`--text-caption` 12px, `--text-label` 13px, `--text-mono` 13px.
+`--text-h1` 28px, `--text-h2` 20px, `--text-h3` 18px, `--text-h4` 17px,
+`--text-body-lg` 17px, `--text-body` 16px, `--text-body-sm` 14px,
+`--text-caption` 13px, `--text-label` 14px, `--text-mono` 13px.
 
-Display 56px/600 endast landing hero. Mono caps 10.5px/500/0.08em UPPERCASE för
-kickers och kolumnhuvuden (`UPPDATERAD · MAJ 2026`). Aldrig all caps i sans.
+Display 56px/600 endast landing hero. Mono caps 11.5px/500/0.08em UPPERCASE för
+kickers och kolumnhuvuden (`UPPDATERAD · MAJ 2026`), på `--jp-text-secondary` —
+aldrig `--jp-text-tertiary`. Mono inline-data (datum, ID:n, räknare som
+användaren läser) 13px/500 på `--jp-text-secondary` eller `--jp-text-primary`.
+Aldrig all caps i sans.
+
+> **Omkalibrerad per ADR 0038** (GOV.UK-läsbarhetsgolv) — supersederar v2-
+> handoffens täthet för typografi/fältstorlek. Civic-ledger-formen (flata
+> tabeller, hairlines, mono-ID:n, inga cards) är oförändrad — endast
+> skala/färg/fältstorlek är omkalibrerad. `--jp-text-tertiary` är dekorativt
+> endast (se `contrast-table.md`).
 
 ## Spacing (4px-grid)
 
@@ -182,3 +191,14 @@ Standard radhöjd i flat ledger ~36px (density 1.0). Vertical-align top på
 celler med två rader (företag + tjänst). Padding 12–14px vertikalt, 0
 horisontalt (cellgränser är hairlines). Hårdkoda aldrig padding där density
 gäller.
+
+## Komponent-fältstorlek (ADR 0038)
+
+| Komponent | Höjd | sm-variant |
+|---|---|---|
+| Input / Textarea / Select | 44px | 40px |
+| Button | 40px | 36px |
+
+Radius oförändrad (4px, `--jp-r-md`), transition oförändrad (80ms linear).
+Toolbar-knappar kvarstår som dokumenterat undantag (28px) — men inputs/knappar
+i innehållsytor är 44/40. Civic-ledger-formen är oförändrad.

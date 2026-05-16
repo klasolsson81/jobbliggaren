@@ -70,3 +70,6 @@ STARTPROMPT-*.md
 
 # Terraform plan/apply-outputs — kan innehålla känsliga värden från state/secrets
 infra/terraform/**/*.out
+
+# Visual Studio language-service cache (IDE-artefakt, ej källkod)
+*.csproj.lscache

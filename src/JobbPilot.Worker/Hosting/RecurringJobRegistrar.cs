@@ -3,7 +3,6 @@ using JobbPilot.Application.Applications.Jobs.GhostedDetection;
 using JobbPilot.Application.Auth.Jobs.HardDeleteAccounts;
 using JobbPilot.Application.Common.Auditing.Jobs.AuditLogRetention;
 using JobbPilot.Application.JobAds.Jobs.PurgeRawPayloads;
-using JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken;
 using Microsoft.Extensions.Hosting;
 
 namespace JobbPilot.Worker.Hosting;
@@ -42,10 +41,10 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             job => job.RunAsync(CancellationToken.None),
             "*/10 * * * *");  // Var 10:e min, overlap-window 15 min, DisableConcurrentExecution-skyddad
 
-        manager.AddOrUpdate<SyncPlatsbankenSnapshotJob>(
+        manager.AddOrUpdate<SyncPlatsbankenSnapshotWorker>(
             "sync-platsbanken-snapshot",
             job => job.RunAsync(CancellationToken.None),
-            Cron.Daily(2));  // 02:00 UTC — daglig fullbackfill
+            Cron.Daily(2));  // 02:00 UTC — daglig fullbackfill, DisableConcurrentExecution(3600)-skyddad
 
         manager.AddOrUpdate<AuditLogRetentionJob>(
             "audit-log-retention",

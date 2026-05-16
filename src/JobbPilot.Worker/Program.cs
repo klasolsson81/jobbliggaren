@@ -34,9 +34,11 @@ builder.Services.AddCoreIdentityForWorker(builder.Configuration);
 // förbjuder ASP.NET Core HTTP-server-bagage, inte System.Net.Http-utgående trafik.
 builder.Services.AddJobSources(builder.Configuration);
 
-// Worker-wrapper för DisableConcurrentExecution-attribut på stream-jobbet
-// (CTO-rond 2026-05-13 punkt 8 — defense-in-depth mot framtida skalning).
+// Worker-wrappers för DisableConcurrentExecution-attribut på stream- + snapshot-
+// jobben (CTO-rond 2026-05-13 punkt 8 + root-cause-fix 2026-05-16 — snapshot
+// tar tiotals min efter streaming-fixen, måste skyddas mot AutomaticRetry-overlap).
 builder.Services.AddScoped<JobbPilot.Worker.Hosting.SyncPlatsbankenStreamWorker>();
+builder.Services.AddScoped<JobbPilot.Worker.Hosting.SyncPlatsbankenSnapshotWorker>();
 
 builder.Services.AddApplication();
 

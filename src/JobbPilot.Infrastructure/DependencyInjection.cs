@@ -134,11 +134,12 @@ public static class DependencyInjection
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).
         services.AddScoped<IRecruiterPiiPurger, RecruiterPiiPurger>();
 
-        // F2-P8c: Application-orchestrator-jobb. Stream + Purge konsumeras
-        // exklusivt av Hangfire (ActivatorUtilities löser konstruktor utan
-        // DI-registrering), men Snapshot-jobbet konsumeras även av
-        // SyncPlatsbankenSnapshotCommandHandler (admin-trigger) via Mediator →
-        // måste vara DI-registrerad. Stream + Purge registreras för symmetri
+        // F2-P8c: Application-orchestrator-jobb. Konsumeras av Hangfire via
+        // Worker-wrappers (SyncPlatsbankenStream/SnapshotWorker —
+        // DisableConcurrentExecution) som löser jobbet ur DI-scope. Snapshot
+        // konsumerades tidigare även av admin-trigger via Mediator, men den
+        // endpointen är avvecklad (ADR 0032 §9-amendment 2026-05-16, X4) →
+        // jobben är nu Hangfire-only. Registreras scoped för wrapper-resolution
         // + test-discoverability via IServiceProvider.GetService.
         services.AddScoped<JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenStreamJob>();
         services.AddScoped<JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenSnapshotJob>();

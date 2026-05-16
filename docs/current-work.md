@@ -1,38 +1,42 @@
 # Current work — JobbPilot
 
-**Status:** **F2 SAVED SEARCHES LEVERERAD END-TO-END 2026-05-16 (HEAD `d602968`). Sista oimplementerade Fas 2-leverabeln — Fas 2-milstolpen "söka jobb på Platsbanken + spara sökningar" är FUNKTIONELLT KLAR (modulo ingestion-live-verifiering = separat spår + auth-gated visuell verifiering = pending live-deploy). ADR 0039 (Accepted, Klas-GO): SavedSearch AR + SearchCriteria VO + 6 endpoints JobSeeker-scoped + JobAdSearch delad SPOT-modul (Beslut 1) + run=query/last_run_at→Fas 5 (Beslut 2) + SortBy-i-VO (Beslut 3) + notification lagra-ej-dispatch→Fas 5 (Beslut 4). Klas mid-session-input "smart CV-filter" → ADR 0040 (Proposed, Fas 4+) + BUILD.md §18-backlog (CTO-vägd, gatear ej kod). Backend: 113 tester, Domain 293/App 398/Arch 51/Integration 268 gröna, build 0/0. Frontend: SaveSearchButton(/jobb) + /sokningar + /sokningar/[id] + DeleteSavedSearchDialog, 334 vitest/tsc 0/lint 0. dotnet-architect+CTO(×3) INNAN kod; code-reviewer 0 Block/0 Maj, security-auditor 0 Crit/High/Med, design-reviewer approved (Blocker+2 Minor in-block, re-review OK). OBSERVATION 1→TD-84 (CTO Alt B, projekt-brett, ingen ADR 0031-läcka). Commits: `b82e7cf` ADR 0039, `ae7a521` ADR 0040+BUILD, `b18074f` backend, `717dbd9` TD-84, `d602968` frontend — alla pushade. PENDING: visuell verifiering auth-gated → live-deploy (tag-push=Klas-GO); F2 ingestion-cron-verifiering = separat lokal session (AWS SSO).**
+**Status:** **F2 SAVED SEARCHES LIVE-VERIFIERAD + a11y ADR 0041 LEVERERAD 2026-05-16 (HEAD `64a6bf8`, deployad `v0.2.7-dev`+`v0.2.8-dev`/Vercel). Auth-gated visuell verifiering KLAR — denna sessions huvudleverans. Deploy `v0.2.7-dev` @ `29cd4ae` (migration `F2SavedSearches` applicerad, CloudWatch EventId 63, /api/ready 200). `visual-verify.ts` utökat med opt-in auth-läge (senior-cto-advisor Variant A): direkt backend-login, `__Host-`-cookie in-memory (aldrig disk, §5.4-risk eliminerad vid källan), temp-fixture-sökning, 3 vp × light/dark. Dedikerat dev-test-konto skapat (Variant C cred-plats `%USERPROFILE%\.jobbpilot\dev-test-creds.env`, utanför repot; runbook+MEMORY-pekare, aldrig creds). design-reviewer→nextjs-ui-engineer auktoritativ token-math→**WCAG 1.4.11 a11y-Blocker bekräftad** i delad `ui/dialog.tsx` (dark dialogyta=dimmad canvas, kant 1.35:1<3:1). senior-cto-advisor Alt 2 + Klas-GO: **ADR 0041 (Accepted)** — nytt semantiskt token `--jp-border-modal` (light `#E2E8F0`/dark `#64748B`=slate-500, ≈3.6:1) + `ui/dialog.tsx` `border-border`→`border-border-modal`. Deployad (Vercel main-push `64a6bf8` + backend `v0.2.8-dev`), live-verifierad: serverad CSS har tokenet, **design-reviewer re-review 0/0/0, Blocker RESOLVED, noll regression**, Klas slutgodkände bilderna. security-auditor PASS (0 Crit/High/Med, 2 Low informativa). Rök-test live grönt: login→create 201→list→**run 200 (paged, totalCount=137 för "utvecklare")**→scoping okänt-id 404 (ADR 0031)→delete 204→borttagen 404. Commits `12fc9e6` (a11y/ADR 0041) + `64a6bf8` (visual-verify auth-läge) pushade; docs-commit denna session. **FAS 2 FORMELL STÄNGNING PAUSAD** — gaten "(a) ingestion-cron verifierad" tillhör separat lokal session (Klas-beslut; EventId 5402 + ~40k+ korpus). `run`=137 träffar visar data finns men full cron/korpus-verifiering är separat spår. ADR 0005-observation: dev-test-kontot skapat via icke-flag-gejtat `/api/v1/auth/register` (kill-switch täcker bara waitlist/invite) — dokumenterad i runbook, CTO+auditor: ej formell TD, triageras i auth-fokuserad touch.**
+
+**(Föregående) F2 SAVED SEARCHES LEVERERAD END-TO-END 2026-05-16 (HEAD `d602968`). Sista oimplementerade Fas 2-leverabeln — Fas 2-milstolpen "söka jobb på Platsbanken + spara sökningar" är FUNKTIONELLT KLAR (modulo ingestion-live-verifiering = separat spår + auth-gated visuell verifiering = pending live-deploy). ADR 0039 (Accepted, Klas-GO): SavedSearch AR + SearchCriteria VO + 6 endpoints JobSeeker-scoped + JobAdSearch delad SPOT-modul (Beslut 1) + run=query/last_run_at→Fas 5 (Beslut 2) + SortBy-i-VO (Beslut 3) + notification lagra-ej-dispatch→Fas 5 (Beslut 4). Klas mid-session-input "smart CV-filter" → ADR 0040 (Proposed, Fas 4+) + BUILD.md §18-backlog (CTO-vägd, gatear ej kod). Backend: 113 tester, Domain 293/App 398/Arch 51/Integration 268 gröna, build 0/0. Frontend: SaveSearchButton(/jobb) + /sokningar + /sokningar/[id] + DeleteSavedSearchDialog, 334 vitest/tsc 0/lint 0. dotnet-architect+CTO(×3) INNAN kod; code-reviewer 0 Block/0 Maj, security-auditor 0 Crit/High/Med, design-reviewer approved (Blocker+2 Minor in-block, re-review OK). OBSERVATION 1→TD-84 (CTO Alt B, projekt-brett, ingen ADR 0031-läcka). Commits: `b82e7cf` ADR 0039, `ae7a521` ADR 0040+BUILD, `b18074f` backend, `717dbd9` TD-84, `d602968` frontend — alla pushade. PENDING: visuell verifiering auth-gated → live-deploy (tag-push=Klas-GO); F2 ingestion-cron-verifiering = separat lokal session (AWS SSO).**
 
 **(Föregående) F2 JOBB-INGESTION ROTORSAK FIXAD + KODKOMPLETT — Commit 1+2+3 + docs pushed 2026-05-16 (HEAD `d454d23`). Snapshot-jobbet 60 starts/0 completes på dev (CloudWatch) pga uncaught Npgsql 23505: hela ~47k-loopen i EN DI-scope → ackumulerad EF-tracker + UnitOfWorkBehavior-SaveChanges bröt ADR 0032 §5 per-command-isolering vid dubbletter. Korpus ~5k av ~47k. Fix: child-scope per item (CTO Variant B, Commit 1 `347b238`) + IAsyncEnumerable-streaming ~300MB OOM-defekt + rate-limiter bounded queue (Commit 2 `70a7c54`) + admin-endpoint avvecklad till 410 (CTO X4, Commit 3 `d454d23`). ADR 0032 §5-clarification + §9-amendment (Klas-GO). 929 tester gröna, build 0/0, code-reviewer 0 Blockers/Majors, CTO+dotnet-architect inline. Cadence: behåll */10 + 0 2 (CTO-rek, Klas-GO). **DEPLOYAD `v0.2.6-dev` (run 25956939801 success, /api/ready 200).** 410-copy korrigerad (ingen Hangfire-dashboard exponerad — Worker headless) + TD-83 lyft (operatörs-yta för Hangfire-jobb, Minor/Trigger). KVARSTÅR: ingen manuell trigger möjlig (ingen dashboard, admin-endpoint 410) → snapshot kör automatiskt via cron **02:00 UTC inatt**; CC verifierar imorgon (CloudWatch EventId 5402 första completionen + `job_ads`-count → ~40k+). HEAD efter copy-fix + docs.**
 **(Föregående) UI-REFACTOR DESIGNSYSTEM v2 LEVERERAD 2026-05-16 — civic-utility slate-palett + dark mode (`data-theme`, no-flash, prefers-color-scheme auto), Shell Variant B (sektionerad sidebar, 4px brand-vänsterkant, ADMIN rollgejtad), civic landing, nya `.jp-*`-primitiv. DESIGN.md + 5 skills + 2 agenter → v2. ADR 0037 (Klas-GO). design-reviewer 2 Blockers + 3 Majors åtgärdade in-block. tsc/lint/313 vitest/next build gröna. Ej deployad (tag-push kräver Klas-GO). Öppen punkt: `.jp-h1`/display font-weight-drift jobbpilot.css(500/36px) vs tokens-spec(600/56px) — Klas-auktoritetsbeslut kvarstår.**
 **Iteration 2:** broad-screen-centrering + dubbel-login + jobb-separation + post-login-redirect + visual-verify-rutin + TD-82.
 **Iteration 3 (ADR 0038 — läsbarhets-omkalibrering):** Klas live-jämförde mot Platsbanken → v2 för litet/tunt. CTO+Klas-GO: GOV.UK-läsbarhetsgolv (brödtext 16px, lede 17, h1/h2/h3 vikt 600, mono data 13/secondary, input 44px, knapp 40, placeholder-exempel borttagna, text-tertiary endast dekorativt). Global token-fix, civic-ledger-form orörd. ADR 0038 (delvis supersession 0037, stänger jp-h1-driften). design-reviewer mot screenshots: ✓ approved 0 blockers.
-**Senast uppdaterad:** 2026-05-16 (UI-refactor v2 + iter 2 + iter 3 ADR 0038)
-**HEAD:** `261ea12`/`661e72d`/`b97cda2`/`bc5b712`/`2d8effd` + iter-3-commits
-**Deploy:** `v0.2.5-dev` LIVE på dev-backend, frontend LIVE på Vercel (www.jobbpilot.se → dev.jobbpilot.se) — v2-frontend ej deployad än
+**Senast uppdaterad:** 2026-05-16 (F2 live-verifiering + auth-gated visuell verifiering + ADR 0041 a11y-fix)
+**HEAD:** `64a6bf8` (a11y `12fc9e6` + visual-verify `64a6bf8`) + docs-commit denna session
+**Deploy:** `v0.2.8-dev` LIVE på dev-backend (`/api/ready` 200), frontend LIVE på Vercel (www.jobbpilot.se → dev.jobbpilot.se) — F2-frontend + a11y-fix (ADR 0041) deployad & live-verifierad
 **Långsiktig bana:** `docs/steg-tracker.md`
 **Tech debt:** `docs/tech-debt.md` (aktiva, +TD-80) + `docs/tech-debt-archive.md` (stängda)
 **Prod-checklist:** `docs/runbooks/v0.2-prod-launch-checklist.md`
 
 ---
 
-## Aktivt nu — UI-refactor designsystem v2 (levererad 2026-05-16)
+## Aktivt nu — F2 live-verifiering + ADR 0041 a11y-fix (levererad 2026-05-16)
 
-Se `docs/sessions/2026-05-16-ui-refactor-designsystem-v2.md` för full retrospektiv.
+Se `docs/sessions/2026-05-16-1430-f2-live-verify-adr0041.md` för full retrospektiv.
 
 | Steg | Innehåll | Status |
 |---|---|---|
-| 1 | Token-migrering: slate `--jp-*` (light+dark), `@custom-variant`, `@theme inline`, JetBrains Mono, density, full `.jp-*`-utilities | ✅ |
-| 2 | DESIGN.md v2 (Klas-GO) + 5 skills + 2 agenter | ✅ |
-| 3 | ThemeProvider Variant A (CTO) — no-flash, `useSyncExternalStore`, noll deps | ✅ |
-| 4 | Shell Variant B — sektionerad sidebar, ADMIN rollgejtad (beslut A) | ✅ |
-| 5 | Civic landing (`(marketing)/page.tsx`) | ✅ |
-| 6 | Primitiv: status-dot/pill/match-bar, delad theme-toggle, shadcn-align | ✅ |
-| 7 | Ledger-restyle /jobb /ansokningar /cv /mig /admin/granskning | ✅ |
-| 8 | ADR 0037 + docs + commit `261ea12` + push | ✅ |
+| 1 | Deploy `v0.2.7-dev` @ `29cd4ae` (Klas-GO) — migration `F2SavedSearches` applicerad (EventId 63), /api/ready 200 | ✅ |
+| 2 | `visual-verify.ts` auth-läge (CTO Variant A) + runbook tre-nivå/env-kontrakt + https-guard | ✅ |
+| 3 | Dedikerat dev-test-konto + cred-persistens Variant C (utanför repot) + runbook+MEMORY-pekare | ✅ |
+| 4 | Auth-gated capture 48 shots × 3 vp × light/dark → design-reviewer | ✅ |
+| 5 | a11y-Blocker (WCAG 1.4.11 dark dialog) → ADR 0041 Alt 2 (Klas-GO) → token + `ui/dialog.tsx` | ✅ |
+| 6 | Deploy a11y-fix (`v0.2.8-dev` + Vercel) → re-capture live → design-reviewer re-review 0/0/0 RESOLVED | ✅ |
+| 7 | security-auditor PASS + rök-test live grönt (create/list/run-137/scoping-404/delete) | ✅ |
+| 8 | Commits `12fc9e6`+`64a6bf8` pushade + DESIGN.md-enradare (Klas approve) + docs | ✅ |
 
-**Öppen punkt (Klas):** `.jp-h1`/`.jp-h2`/display font-weight + display-storlek-drift — `jobbpilot.css` (verbatim-implementerad, 500/36px) vs `tokens-full.md`/DESIGN.md §4 (600/56px). Kräver auktoritetsbeslut innan v2 stängs; ej blockerande.
+**Klas-godkänt:** auth-gated bilderna (`20260516-1424`) slutgodkända; ADR 0041-token-amendment; deploy v0.2.7/v0.2.8-dev; cred-Variant C; DESIGN.md-enradare.
 
-**Pending före v2-deploy:** visuell browser-QA light+dark (`pnpm dev`); ev. Vercel-deploy (tag-push = Klas-GO).
+**Fas 2 formell stängning — PAUSAD (medvetet, Klas-beslut):** gaten "(a) ingestion-cron verifierad" tillhör **separat lokal session** (AWS SSO, CloudWatch EventId 5402 + `job_ads`-korpus ~40k+). Auth-gated visuell verifiering (b) + rök-test (c) = **gröna denna session**. `run`=137 träffar bekräftar att data finns, men full cron/korpus-verifiering görs i det separata spåret innan steg-tracker Fas 2 → "Klar".
+
+**Pending operativt:** F2 ingestion-cron-verifiering (separat session). ADR 0005-observation (dev-test-konto via icke-flag-gejtat /register) triageras i auth-fokuserad touch. ADR 0040 (smart CV-filter) detaljdesign vid Fas 4-start. TD-84 vid opportunistisk touch.
 
 ---
 

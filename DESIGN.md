@@ -66,7 +66,7 @@ Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens
 - **Primärblå (myndighetsblå):** brand-600 `#0B5CAD` — knappar, länkar, fokusring, aktiv selektion
 - **Neutral slate-skala:** surfaces `#FFFFFF` / `#F8FAFC` / `#F1F5F9`, text `#0F172A` / `#475569` / `#94A3B8`
 - **Statusfärger:** success grön, warning amber, danger röd, info slate — alltid i 50/600/700-varianter, endast för status (aldrig dekoration)
-- **Borders:** border-default `#E2E8F0` (slate-200, dekorativa hairlines), border-strong `#CBD5E1` (slate-300, informationsbärande dividers — klarar 3:1 mot vit canvas)
+- **Borders:** border-default `#E2E8F0` (slate-200, dekorativa hairlines), border-strong `#CBD5E1` (slate-300, informationsbärande dividers — klarar 3:1 mot vit canvas), border-modal (light `#E2E8F0` / dark `#64748B` — strukturell modal/popover-gräns, WCAG 1.4.11 ≥3:1 i dark; ADR 0041)
 - **Skuggor:** bara shadow-sm och shadow-md (popovers/dropdowns) — djup skapas via border/hairline, aldrig på cards/knappar
 - WCAG AA-kontrast obligatoriskt på alla färgpar. brand-600 på vit = 6.1:1.
 

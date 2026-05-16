@@ -1,7 +1,7 @@
 # ADR 0041 — Dedikerad modal-border-token för WCAG 1.4.11 i dark mode (partiell komplettering av ADR 0037)
 
 **Datum:** 2026-05-16
-**Status:** Accepted 2026-05-16 (senior-cto-advisor-beslut 2026-05-16; nextjs-ui-engineer auktoritativ token-math 2026-05-16; Klas-GO på inriktning Alt 2 + tokenvärde 2026-05-16; Klas-GO på `globals.css`-token-amendment-diffen 2026-05-16). DESIGN.md-enradaren pending Klas manuell `approve-spec-edit.sh` (harness blockerade CC-självgodkännande av spec-guard-hooken — auktoritativ token-spec ligger i `tokens-full.md`/`contrast-table.md`, redan uppdaterade).
+**Status:** Accepted 2026-05-16 (senior-cto-advisor-beslut 2026-05-16; nextjs-ui-engineer auktoritativ token-math 2026-05-16; Klas-GO på inriktning Alt 2 + tokenvärde + `globals.css`-diff 2026-05-16; live-verifierad design-reviewer 0/0/0 mot deployad fix 2026-05-16; DESIGN.md-enradare applicerad efter Klas `approve-spec-edit.sh` 2026-05-16).
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0037 (designsystem v2 — slate-skala + dark mode; detta **kompletterar**, supersederar ej), ADR 0038 (läsbarhetsgolv — samma princip: tillgänglighet är identitet, inte polish), ADR 0016 (civic design language), ADR 0039 (F2 SavedSearches — `DeleteSavedSearchDialog` ytade defekten), CLAUDE.md §8.6 (a11y i DoD), §9.2/§12/§13 (token-disciplin/amendment-process), DESIGN.md §4/§6
 
@@ -56,7 +56,7 @@ Defekten är **cross-cutting**: `ui/dialog.tsx` är delad primitiv; alla dialoge
 
 ## Implementationsstatus
 
-Accepted 2026-05-16. Applicerat: `globals.css` (`--jp-border-modal` light `#E2E8F0` / dark `#64748B` + `--color-border-modal`-bridge), `ui/dialog.tsx` (`border-border`→`border-border-modal`), `tokens-full.md` + `contrast-table.md` (auktoritativ token-spec). **Undantag:** DESIGN.md-enradaren (index-spegel) pending Klas manuell `approve-spec-edit.sh` — harness-classifern blockerade CC från att själv-konsumera spec-guard-tokenen trots Klas-GO via beslutsfrågan; ej blockerande då DESIGN.md per CLAUDE.md är index, inte källspec. Återstår i samma batch: re-capture (lokal dev-frontend + live dev-backend) + design-reviewer re-review mot dark-dialog-bilderna.
+Accepted 2026-05-16, **fullt levererat och live-verifierat**. Applicerat: `globals.css` (`--jp-border-modal` light `#E2E8F0` / dark `#64748B` + `--color-border-modal`-bridge), `ui/dialog.tsx` (`border-border`→`border-border-modal`), `tokens-full.md` + `contrast-table.md` + DESIGN.md §Färg-enradare (efter Klas `approve-spec-edit.sh`). Deployad via `git push origin main` (Vercel auto-deploy, `64a6bf8`) + backend-tag `v0.2.8-dev`. Live-verifierad: serverad CSS innehåller `--jp-border-modal:#64748b` + `border-border-modal`; design-reviewer re-review mot live-screenshots (`20260516-1424`) = 0 Blockers/0 Major/0 Minor, Blocker RESOLVED, noll regression. Klas slutgodkände bilderna 2026-05-16.
 
 ## Krav på Klas-GO
 

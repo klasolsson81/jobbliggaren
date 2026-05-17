@@ -71,12 +71,12 @@ export default async function JobbPage({ searchParams }: PageProps) {
     sortBy,
   };
 
-  // Disclosure-räknare (Beslut A): antal aktiva taxonomi-/sort-filter.
-  // Sökordet räknas inte — det är den alltid-synliga primära ytan.
-  const activeFilterCount =
-    ssyk.length +
-    region.length +
-    (sortBy !== "PublishedAtDesc" ? 1 : 0);
+  // Disclosure-räknare (Beslut A): antal aktiva taxonomi-filter bakom
+  // disclosuren. Sökordet räknas inte (alltid-synlig primär yta) och
+  // sorteringen räknas inte längre — den flyttades ut till en egen
+  // alltid-synlig kontroll (Klas 2026-05-17), så den är inte "gömd" och
+  // ska inte driva disclosure-räknaren/auto-expand.
+  const activeFilterCount = ssyk.length + region.length;
 
   const result = await getJobAds({
     page,

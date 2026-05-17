@@ -38,8 +38,8 @@ describe("JOB_AD_SORT_LABELS", () => {
   it("has Swedish labels for the four sort options", () => {
     expect(JOB_AD_SORT_LABELS.PublishedAtDesc).toBe("Nyast först");
     expect(JOB_AD_SORT_LABELS.PublishedAtAsc).toBe("Äldst först");
-    expect(JOB_AD_SORT_LABELS.ExpiresAtDesc).toBe("Sist sista ansökningsdag");
-    expect(JOB_AD_SORT_LABELS.ExpiresAtAsc).toBe("Tidigast sista ansökningsdag");
+    expect(JOB_AD_SORT_LABELS.ExpiresAtDesc).toBe("Stänger senare");
+    expect(JOB_AD_SORT_LABELS.ExpiresAtAsc).toBe("Stänger snart");
   });
 });
 

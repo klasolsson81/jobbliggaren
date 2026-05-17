@@ -41,6 +41,24 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D)", () => {
     expect(screen.queryByLabelText("Yrkesområde")).not.toBeInTheDocument();
   });
 
+  it("shows Sortering as its own always-visible control, not inside the Filter disclosure (Klas 2026-05-17)", () => {
+    render(<JobAdFilters initial={initial} activeFilterCount={0} />);
+    // Sortering är synlig direkt — disclosuren är stängd.
+    expect(
+      screen.getByRole("button", { name: /Filter/ })
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByLabelText("Sortering")).toBeInTheDocument();
+    // Taxonomi-fälten ligger kvar bakom disclosuren.
+    expect(screen.queryByLabelText("Yrkesområde")).not.toBeInTheDocument();
+    // Nya, tydligare etiketter (ingen dubbel-"sista").
+    expect(
+      screen.getByRole("option", { name: "Stänger snart" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Stänger senare" })
+    ).toBeInTheDocument();
+  });
+
   it("auto-expands the disclosure when filters are already active", () => {
     render(
       <JobAdFilters
@@ -122,7 +140,8 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D)", () => {
   it("disables the Relevance sort option until a search term is present (Beslut D)", async () => {
     const user = userEvent.setup();
     render(<JobAdFilters initial={initial} activeFilterCount={0} />);
-    await user.click(screen.getByRole("button", { name: /Filter/ }));
+    // Sortering är nu en egen alltid-synlig kontroll (Klas 2026-05-17) —
+    // behöver inte längre öppna Filter-disclosuren för att nå den.
 
     const relevance = screen.getByRole("option", {
       name: "Mest relevant",

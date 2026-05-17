@@ -41,8 +41,11 @@ export function getJobSourceLabel(source: JobSource): string {
 export const JOB_AD_SORT_LABELS: Record<JobAdSortBy, string> = {
   PublishedAtDesc: "Nyast först",
   PublishedAtAsc: "Äldst först",
-  ExpiresAtDesc: "Sist sista ansökningsdag",
-  ExpiresAtAsc: "Tidigast sista ansökningsdag",
+  // Civic-utility-copy (Klas 2026-05-17): dubbelt "sista" var otydligt.
+  // Användar-centrerad, parallell med Nyast/Äldst — visar avsikten
+  // (hinna söka) istället för datumriktningen. Enum oförändrad.
+  ExpiresAtDesc: "Stänger senare",
+  ExpiresAtAsc: "Stänger snart",
   // ADR 0042 Beslut D — endast valbar med söktext (se JobAdFilters).
   Relevance: "Mest relevant",
 };

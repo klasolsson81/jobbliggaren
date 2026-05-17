@@ -1,7 +1,17 @@
 # CI-regression-handoff — TaxonomyReadModel singleton cache-poisoning
 
+> **⚠️ DIAGNOS KORRIGERAD / HANDOFF-HYPOTESEN FALSIFIERAD 2026-05-17 (commit `b3772a3`).**
+> Den ursprungliga diagnosen nedan ("saved-search-batchen gjorde
+> ListSavedSearchesQueryHandler till ny tidig ITaxonomyReadModel-konsument som
+> poisonar singleton-cachen") skrevs av CC #1 enbart via gh-loggar UTAN lokal
+> repro och är **empiriskt motbevisad** av test-coverage-CC:s §9.4-verifiering.
+> **Verklig rotorsak + levererad fix: se sektionen "RÄTTAD DIAGNOS & LÖSNING"
+> sist i dokumentet.** Originaltexten bevaras oförändrad nedan som
+> granskningstrail (CLAUDE.md §9.7-anda — felaktiga diagnoser strippas inte,
+> de markeras och motbevisas).
+
 **Datum:** 2026-05-17
-**Status:** main-CI RÖD (`build`-workflow). Diagnos klar. **Ägare per Klas-beslut: test-coverage-CC** (denna CC rör INTE koden — endast denna handoff). Saved-search-namn-batchen (CC #1) introducerade regressionen; fixen koordineras till test-coverage-CC då den arbetar i samma test-/cache-yta.
+**Status:** ~~main-CI RÖD~~ **LÖST — main-CI GRÖN** (run `25986194273` success, commit `b3772a3`). **Ägare per Klas-beslut: test-coverage-CC** (denna CC rör INTE koden — endast denna handoff). ~~Saved-search-namn-batchen (CC #1) introducerade regressionen~~ → **FALSIFIERAT: saved-search-batchen är icke-kausal (single-variable-revert-isolering)**; fixen koordineras till test-coverage-CC då den arbetar i samma test-/cache-yta.
 
 ## Symptom
 
@@ -60,3 +70,43 @@ gh run view 25984480168 --json conclusion   # success (FÖRE batchen — bevisar
 ## Disciplin
 
 senior-cto-advisor INNAN kod (multi-approach + ADR 0043-beröring). test-writer/test-runner verifierar full svit grön. Ej TD. Endast EN CC i TaxonomyReadModel.cs + Api-integrations-fixturerna samtidigt (koordination — CC #1/saved-search rör inget per Klas-beslut). Klas-STOPP vid ev. ADR 0043-amendment.
+
+---
+
+## RÄTTAD DIAGNOS & LÖSNING (test-coverage-CC, 2026-05-17, commit `b3772a3`)
+
+### Hur originaldiagnosen falsifierades (§9.4)
+
+Originaltexten ovan skrevs utan lokal repro. Verifiering steg för steg:
+
+1. **Failande test reproducerat lokalt** (Release, Testcontainers): `GetTaxonomyEndpointTests.GET_taxonomy_labels_resolves_known_and_unknown_ids_gracefully` — `IndexOutOfRangeException` på `tree.GetProperty("regions")[0]` (tom array).
+2. **Kört GetTaxonomyEndpointTests HELT ENSAM (noll saved-search-tester):** failar IDENTISKT, samma `warn: TaxonomySnapshotSeeder[3]` (LogSchemaMissing). Saved-search-tester behövs alltså INTE för att reproducera → poisoning-by-test-ordning-hypotesen håller inte.
+3. **Single-variable-isolering:** återställde de 3 saved-search-filerna (ListSavedSearchesQueryHandler/GetSavedSearch/SavedSearchDto) till exakt green-commit-versionen (`0a2405c`) vid HEAD, byggde om, körde GetTaxonomyEndpointTests ensam → **failar fortfarande identiskt**. Saved-search-batchen är **icke-kausal**.
+4. **git diff `0a2405c`(grön, run `25984480168`, 1130/1130)..HEAD:** enda src-ändringen är de 3 saved-search-filerna. `ApiFactory.cs`, `GetTaxonomyEndpointTests.cs`, `TaxonomySnapshotSeeder.cs`, `DependencyInjection.cs` BYTE-IDENTISKA. Ingen DI-/infra-/seeder-ändring.
+
+### Verklig rotorsak (web-verifierad .NET 10-semantik)
+
+`ApiFactory.InitializeAsync` (delad `[Collection("Api")]`):
+```
+using var scope = Services.CreateScope();          // (A) triggar EnsureServer → host-start
+await ...AppDbContext.Database.MigrateAsync();      // (B) schema skapas HÄR
+await ...AppIdentityDbContext.Database.MigrateAsync();
+```
+Web-verifierat (MS Learn + dotnet/aspnetcore #60370, .NET 10): `WebApplicationFactory.Services`-access triggar `EnsureServer()` → host startar → ALLA `IHostedService.StartAsync` körs FÖRE request-pipeline, dvs FÖRE (B). `TaxonomySnapshotSeeder` + `IdempotentAdminRoleSeeder` (registrerade IHostedService i ApiFactory; `RemoveStartupSeeders` anropas bara i prod-startup-fixturer) träffar tomt schema → `PostgresException 42P01` → Dev/Test-grace-period-catch → bail UTAN seed. StartAsync körs en gång per host-livstid → `taxonomy_concepts` / Admin-rollen oseeded för HELA collection-livstiden. `TaxonomyReadModel`-singleton cachar den tomma laddningen som auktoritativ → `regions[0]` kastar. **Pre-existerande latent fixtur-defekt**; den historiska grön→röd-flippen = test-ordnings-nondeterminism i delad collection, korrelerad men icke-kausal med saved-search-batchen. **Prod opåverkad:** `JobbPilot.Migrate` kör DDL före Api-trafik (ADR 0043 Beslut B) → seedern bailar aldrig i prod.
+
+### Lösning (senior-cto-advisor Approach D/B — "fix the cause not the symptom")
+
+CTO-beslut (agentId `a90812f7f2e202a6a`): test-fixtur-determinism, **ingen prod-kod**, ingen ADR 0043-amendment, ingen security-auditor (ingen prod-cache-semantik rörd), ingen Klas-STOPP (entydigt mot Beck/Meszaros/Fowler/Martin). Approach A (Scoped) avvisad (löser ej rotorsaken + bryter MAP-3). Approach C (cacha ej tom) avvisad denna touch (rör security-GO:ad prod-cache-semantik, YAGNI — tomt kan ej nå prod; noterad som framtida incident-trigger-revision i ADR 0043, ej TD, ej nu).
+
+**Ändring:** `tests/JobbPilot.Api.IntegrationTests/Infrastructure/ApiFactory.cs` — efter de två `MigrateAsync` körs de två idempotenta seedrarna explicit (riktat `is TaxonomySnapshotSeeder or IdempotentAdminRoleSeeder`, ej bred IHostedService-loop). Båda idempotenta (version-gate + `pg_advisory_xact_lock` resp. `RoleManager` check-and-insert + egen scope) → säkra att re-invoke:a; den tidigare bailade host-körningen är no-op. `src/` orört (verifierat `git diff HEAD --stat -- src/` tomt).
+
+### Verifiering
+
+- `GetTaxonomyEndpointTests` ensam: **7/7** (var 1 failed).
+- Full backend-svit Release som CI (`dotnet test --solution JobbPilot.sln`): **1139/1139, 0 failed**, alla 6 assemblies (Api 2m22s + Worker-integration).
+- code-reviewer GO **0 Blockers / 0 Majors / 2 icke-åtgärdskrävande Minors**.
+- **main `build`-CI GRÖN:** run `25986194273` conclusion=success, commit `b3772a3`.
+
+### Lärdom
+
+Handoff-diagnoser utan lokal repro ska §9.4-verifieras innan de agerar som sanning. Gh-logg-only-diagnos missade att seeder-bailen är ordnings-oberoende och pre-existerande. Single-variable-isolering är billig och avgörande.

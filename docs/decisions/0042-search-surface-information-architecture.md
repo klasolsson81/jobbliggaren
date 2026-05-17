@@ -157,6 +157,7 @@ Beslut E ("Ny"-badge via `ListJobAdsQuery.Since`) konkretiseras: fönstret är *
 
 - ADR 0032-amendment 2026-05-16 (snapshot-trunkerings-resiliens/hybrid) — stream-cron-skrivlasten som motiverar att `pg_trgm` GIN-write-overhead avvisas.
 - ADR 0039 Beslut 3 — partiellt supersederad av ADR 0042 Beslut B (oförändrat av detta notat).
+- **ADR 0043 (Taxonomi-ACL för sök-ytan, 2026-05-17, Proposed):** korsref-notat (additivt, Beslut A–F-brödtext orörd — ADR-immutabilitet). ADR 0043 utvidgar Beslut C:s *datakälla för inmatningsytan* (svenska namn-väljare matas av en lokal taxonomi-snapshot/ACL) och adresserar concept-id-jargong i UI:t. **Beslut B-domänkontraktet (`SearchCriteria.Ssyk/Region` = `IReadOnlyList<string>` concept-id) ändras EJ.** Beslut C:s typeahead-arkitektur (C1, `SuggestPolicy`, debounce-hook) är oförändrad. Rad 21-constraintet ("inget externt taxonomi-API på sök-vägen") är **uppfyllt, inte brutet** av ADR 0043 (lokal snapshot är per definition inte på sök-vägen). Se [`0043-taxonomy-acl-for-search-surface.md`](./0043-taxonomy-acl-for-search-surface.md).
 
 ---
 

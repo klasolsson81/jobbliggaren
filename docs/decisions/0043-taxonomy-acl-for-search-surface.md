@@ -52,6 +52,14 @@ ACL:n materialiseras som en Infrastructure-intern snapshot-entity (`TaxonomyConc
 - **Reverse-lookup-cap:** cappas i `GetTaxonomyTreeQueryValidator` (FluentValidation, FÖRE handler — speglar `SuggestJobAdTermsQueryValidator`) till **`SearchCriteria.MaxConceptIds` (=10) per dimension**, refererad som konstant — **inte** hårdkodad `10`. Motiv: domän-konsekvens/DRY (en sparad sökning kan per domän-invariant aldrig bära fler concept-id än `MaxConceptIds` per dimension; om domänen höjer caps följer query-cap automatiskt), OWASP API4:2023 / CWE-400, complete mediation (Application-gränsen litar inte på klienten). Hela-trädet-hämtningen har ingen användarstyrd `Take`/`Skip` (fast storlek ~21 län + ~290 kommuner + ~30 yrkesområden + några hundra yrken); `kind`-diskriminator är sluten värdemängd, ingen blowup-vektor.
 - **Cache:** **både** HTTP `ETag` + `Cache-Control: private, max-age=<kort>` på endpointen (ETag = hash/version av snapshotten; `private` — endpointen är auth-gated, `public`/shared-proxy på auth-gated svar är en cache-poisoning/cross-user-läckage-vektor; ingen `Vary: Authorization`-fälla) **och** in-memory-cache (`IMemoryCache`) i Infrastructure bakom porten (snapshot läses en gång per process-livstid; invalidering = process-restart vid deploy, eftersom Variant A gör att snapshotten bara ändras vid deploy). Tre billiga, oberoende lager mot resurskonsumtion (ETag = en header, in-memory = en `GetOrCreate`, rate-limit = befintlig mekanism) — proportionerligt, inte over-engineering. security-auditor verifierar de konkreta talen innan commit.
 
+### Beslut E — Sök-yta-granularitet i denna leverans (scope-fork 2026-05-17, CTO Variant A)
+
+Sök-yta-granulariteten i denna leverans är **Län (`region_concept_id`) + Yrke (`ssyk_concept_id` på occupation-name-nivå via Yrkesområde→Yrke GraphQL-hierarki)**. Implementation-discovery (JobAdConfiguration.cs rad 74-80 + F2P9-migration) verifierade att `ssyk_concept_id` är occupation-name-nivå och `region_concept_id` region/län-nivå; ingen `municipality_concept_id`-kolumn finns.
+
+Shadow-prop-filtreringen (`JobAdConfiguration.cs` rad 74-80, `JobAdSearch.ApplyCriteria`) är **oförändrad**. ACL:n är en namn↔concept-id-**översättning ovanpå befintliga shadow-props**, INTE en ny filtrerings-dimension. ADR 0042 rad 21-constraintet och "shadow-prop ORÖRD"-garantin är **uppfyllda och uttryckligen ej brutna**. Ingen municipality/kommun-dimension ingår i denna leverans — kommun-granularitet är ett payload-verifierings-trigger-beslut (se "Konsekvenser / Framtida revision"), inte uppskjutet arbete.
+
+CTO-beslut Variant A (leverera inom låst design nu) — kärnmålet (concept-id ur UI + ACL materialiserad) är fullt uppfyllt på länsnivå; Kommun-vs-Län är en granularitets-axel, inte ett ACL-mål. Verbatim: docs/reviews/2026-05-17-fynd2-taxonomi-acl-cto.md "Scope-fork 2026-05-17 (Kommun-nivå)".
+
 ## Konsekvenser
 
 **Positiva:**
@@ -76,6 +84,15 @@ Variant B revisitas **endast** vid en av dessa signaler (skala-trigger, ej tidsb
 3. **Operationell börda:** manuell regenerering visar sig kräva > en regenerering/månad i praktiken (KISS-antagandet falsifieras empiriskt).
 
 Ingen av dessa skrivs som TD nu (CLAUDE.md §9.6 — ingen saknad funktion-dependency, ingen annan fas; det hör till sök-ytan = Fas 2:s domän och är ett medvetet uppskjutet skala-beslut, inte uppskjutet arbete). Detta är en "övervägt alternativ"-post, samma disciplin som ADR 0042 Beslut D:s tsvector-skala-trigger.
+
+**Payload-verifierings-trigger för Kommun-granularitet (ej TD):**
+
+Platsbankens Län→Kommun-hierarki är **ej levererad** i denna batch eftersom `municipality_concept_id` (a) inte finns som filtrerbar shadow-kolumn och (b) dess existens i Platsbanken `raw_payload->'workplace_address'` är **overifierad**. Kommun-granularitet revisitas **endast** vid båda dessa trigger-villkor:
+
+1. **Payload-bekräftelse:** verifierat via raw_payload-prov-discovery att `municipality_concept_id`-fältet faktiskt finns i Platsbanken-payloaden, OCH
+2. **Användarsignal:** dokumenterad användarsignal om att länsnivå-granularitet är otillräcklig.
+
+Vid trigger: **separat förhandlad batch** (ny `STORED` generated column + partial index + `JobAdSearch.ApplyCriteria`-utökning + migration + ADR 0043-amendment) — **ej autonom** (rör ADR 0032-migrationsyta + ADR 0042 rad 21 + bryter "shadow-prop ORÖRD"-garantin, kräver explicit Klas-GO + diff-granskning). Ej TD (CLAUDE.md §9.6 — overifierad extern datakälle-dependency, ej spårbart kod-arbete; payload-verifierings-trigger i ADR-brödtext är rätt instrument, samma klass som MAP-1 skala-triggern ovan). Verbatim: docs/reviews/2026-05-17-fynd2-taxonomi-acl-cto.md "Scope-fork 2026-05-17 (Kommun-nivå)".
 
 ## Alternativ som övervägdes
 
@@ -102,6 +119,9 @@ Ingen av dessa skrivs som TD nu (CLAUDE.md §9.6 — ingen saknad funktion-depen
 
 ### Beslut D (MAP-3): ingen cache / endast ETag / endast in-memory (avvisat)
 **Emot:** ingen cache — onödig DB-rundtur per picker-render, ingen `304`-snabbväg. Endast ETag — varje cache-miss/ny-klient träffar DB. Endast in-memory — hela trädet skickas i body även när klienten redan har det. Lagren adresserar olika miss-scenarier; komplementära, inte alternativ.
+
+### Beslut E (scope-fork): Variant B — utöka batchen med kommun-shadow-column (avvisat)
+**Emot:** bygger en hel filtrerings-dimension (ny `STORED` generated column + index + `JobAdSearch.ApplyCriteria`-utökning + migration) ovanpå ett fält (`municipality_concept_id`) vars existens i Platsbanken-payloaden är **overifierad** — spekulativ generalitet på obekräftad datagrund (YAGNI/KISS, Beck; Fowler 2018 kap. 3). Maximal blast-radius mot tre avgränsade ADR-ytor (ADR 0042 rad 21 + ADR 0032-migrationsyta + bryter "shadow-prop ORÖRD"-garantin) i en autonom batch. Förgrenad verifiera-sedan-villkorligt-bygg-väg kan ej diff-granskas rent (CLAUDE.md §6.3 punkt 4). Scope creep förklädd som fullständighet. Variant C (stub/blockera) likaledes avvisad — blockering straffar verifierat-färdig civic-vinst för en axel utanför kärnmålet; stub utan data = död persistens-yta. Full motivering: docs/reviews/2026-05-17-fynd2-taxonomi-acl-cto.md "Scope-fork 2026-05-17 (Kommun-nivå)".
 
 ## Relation till andra ADR
 

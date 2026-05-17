@@ -71,10 +71,13 @@ test.describe("Detaljvy (/ansokningar/[id])", () => {
   });
 
   test("visar ansökningens status som Utkast", async ({ page }) => {
-    await expect(page.getByRole("status")).toContainText("Utkast");
+    const statusCard = page.getByRole("region", { name: "Status" });
+    await expect(statusCard).toContainText("Nuvarande status:");
+    await expect(statusCard).toContainText("Utkast");
   });
 
-  test("visar knapp för övergång till Skickad", async ({ page }) => {
+  test("visar övergång till Skickad bakom Ändra status", async ({ page }) => {
+    await page.getByRole("button", { name: "Ändra status" }).click();
     await expect(page.getByRole("button", { name: "Skickad" })).toBeVisible();
   });
 
@@ -95,8 +98,10 @@ test.describe("Statusövergång", () => {
     await page.getByRole("button", { name: "Skapa ansökan" }).click();
     await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
 
+    const statusCard = page.getByRole("region", { name: "Status" });
+    await page.getByRole("button", { name: "Ändra status" }).click();
     await page.getByRole("button", { name: "Skickad" }).click();
-    await expect(page.getByRole("status")).toContainText("Skickad");
+    await expect(statusCard).toContainText("Skickad");
   });
 
   test("destructive transition (Nekad) kräver bekräftelse i dialog", async ({ page }) => {
@@ -104,13 +109,18 @@ test.describe("Statusövergång", () => {
     await page.getByRole("button", { name: "Skapa ansökan" }).click();
     await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
 
+    const statusCard = page.getByRole("region", { name: "Status" });
+    await page.getByRole("button", { name: "Ändra status" }).click();
     await page.getByRole("button", { name: "Skickad" }).click();
-    await expect(page.getByRole("status")).toContainText("Skickad");
+    await expect(statusCard).toContainText("Skickad");
 
+    await page.getByRole("button", { name: "Ändra status" }).click();
     await page.getByRole("button", { name: "Nekad" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByText("Är du säker")).toBeVisible();
-    await page.getByRole("button", { name: "Bekräfta" }).click();
-    await expect(page.getByRole("status")).toContainText("Nekad");
+    await expect(page.getByText("Markera som Nekad?")).toBeVisible();
+    await page
+      .getByRole("button", { name: "Markera som Nekad" })
+      .click();
+    await expect(statusCard).toContainText("Nekad");
   });
 });

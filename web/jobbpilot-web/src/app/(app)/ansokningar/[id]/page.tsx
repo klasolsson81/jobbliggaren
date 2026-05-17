@@ -3,9 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
-import { ApplicationStatusBadge } from "@/components/applications/application-status-badge";
 import { Button } from "@/components/ui/button";
-import { TransitionForm } from "@/components/applications/transition-form";
+import { StatusCard } from "@/components/applications/status-card";
 import { AddNoteForm } from "@/components/applications/add-note-form";
 import { AddFollowUpForm } from "@/components/applications/add-follow-up-form";
 import { RecordFollowUpOutcomeForm } from "@/components/applications/record-follow-up-outcome-form";
@@ -80,37 +79,42 @@ export default async function AnsokningDetailPage({ params }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
+      <nav aria-label="Brödsmulor" className="flex items-center gap-2">
         <Link
           href="/ansokningar"
           className="text-body-sm text-text-secondary hover:text-text-primary"
         >
           Ansökningar
         </Link>
-        <span className="text-text-tertiary">/</span>
-        <span className="text-body-sm text-text-secondary font-mono">{id.slice(0, 8)}</span>
-      </div>
+        <span aria-hidden="true" className="text-text-tertiary">
+          /
+        </span>
+        <span className="text-body-sm font-mono text-text-secondary">
+          {id.slice(0, 8)}
+        </span>
+      </nav>
 
-      <div className="flex items-start justify-between">
-        <div className="flex flex-col gap-2">
-          <ApplicationStatusBadge status={application.status} />
-          <dl className="flex gap-4 text-body-sm text-text-secondary">
-            <div className="flex gap-1">
-              <dt>Skapad:</dt>
-              <dd>{createdAt}</dd>
-            </div>
-            <div className="flex gap-1">
-              <dt>Uppdaterad:</dt>
-              <dd>{updatedAt}</dd>
-            </div>
-          </dl>
-        </div>
-      </div>
+      <StatusCard
+        applicationId={id}
+        currentStatus={application.status}
+        createdAt={createdAt}
+        updatedAt={updatedAt}
+      />
 
       {application.coverLetter && (
-        <section aria-label="Personligt brev">
-          <h2 className="mb-2 text-h3 font-medium text-text-primary">Personligt brev</h2>
-          <div className="rounded-md border border-border bg-surface-secondary px-4 py-3">
+        <section
+          aria-labelledby="cover-letter-title"
+          className="rounded-md border border-border bg-surface-primary"
+        >
+          <div className="border-b border-border px-4 py-3">
+            <h2
+              id="cover-letter-title"
+              className="text-h3 font-medium text-text-primary"
+            >
+              Personligt brev
+            </h2>
+          </div>
+          <div className="px-4 py-4">
             <p className="whitespace-pre-wrap text-body text-text-primary">
               {application.coverLetter}
             </p>
@@ -118,73 +122,128 @@ export default async function AnsokningDetailPage({ params }: Props) {
         </section>
       )}
 
-      <section aria-label="Byt status">
-        <TransitionForm
-          applicationId={id}
-          currentStatus={application.status}
-        />
+      <section
+        aria-labelledby="followups-title"
+        className="rounded-md border border-border bg-surface-primary"
+      >
+        <div className="border-b border-border px-4 py-3">
+          <h2
+            id="followups-title"
+            className="text-h3 font-medium text-text-primary"
+          >
+            Uppföljningar
+          </h2>
+        </div>
+
+        <div className="flex flex-col gap-4 px-4 py-4">
+          {sortedFollowUps.length === 0 ? (
+            <p className="text-body-sm text-text-secondary">
+              Inga uppföljningar registrerade.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {sortedFollowUps.map((fu) => {
+                const recorded = fu.outcome !== "Pending";
+                return (
+                  <li
+                    key={fu.id}
+                    className="rounded-md border border-border px-4 py-3"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <span className="font-medium text-text-primary">
+                        {CHANNEL_LABELS[fu.channel] ?? fu.channel}
+                      </span>
+                      <span className="font-mono text-body-sm text-text-secondary">
+                        {new Date(fu.scheduledAt).toLocaleDateString("sv-SE")}
+                      </span>
+                    </div>
+
+                    <dl className="mt-2 flex flex-col gap-1 text-body-sm">
+                      <div className="flex gap-2">
+                        <dt className="text-text-secondary">Utfall:</dt>
+                        <dd className="text-text-primary">
+                          {FOLLOW_UP_OUTCOME_LABELS[fu.outcome] ?? fu.outcome}
+                          {recorded && fu.outcomeAt && (
+                            <span className="ml-1 font-mono text-text-secondary">
+                              (
+                              {new Date(fu.outcomeAt).toLocaleDateString(
+                                "sv-SE"
+                              )}
+                              )
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                      {fu.note && (
+                        <div className="flex gap-2">
+                          <dt className="text-text-secondary">Anteckning:</dt>
+                          <dd className="text-text-primary">{fu.note}</dd>
+                        </div>
+                      )}
+                    </dl>
+
+                    {fu.outcome === "Pending" && (
+                      <RecordFollowUpOutcomeForm
+                        applicationId={id}
+                        followUpId={fu.id}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="border-t border-border px-4 py-4">
+          <h3 className="mb-3 text-body font-medium text-text-primary">
+            Lägg till uppföljning
+          </h3>
+          <AddFollowUpForm applicationId={id} />
+        </div>
       </section>
 
-      <hr className="border-border" />
+      <section
+        aria-labelledby="notes-title"
+        className="rounded-md border border-border bg-surface-primary"
+      >
+        <div className="border-b border-border px-4 py-3">
+          <h2
+            id="notes-title"
+            className="text-h3 font-medium text-text-primary"
+          >
+            Noteringar
+          </h2>
+        </div>
 
-      <section aria-label="Uppföljningar">
-        <h2 className="mb-4 text-h3 font-medium text-text-primary">Uppföljningar</h2>
-        {sortedFollowUps.length === 0 ? (
-          <p className="text-body-sm text-text-secondary">Inga uppföljningar registrerade.</p>
-        ) : (
-          <div className="mb-4 flex flex-col gap-2">
-            {sortedFollowUps.map((fu) => (
-              <div
-                key={fu.id}
-                className="rounded-md border border-border bg-card px-4 py-3 text-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-text-primary">
-                    {CHANNEL_LABELS[fu.channel] ?? fu.channel}
-                  </span>
-                  <span className="text-body-sm text-text-secondary">
-                    {new Date(fu.scheduledAt).toLocaleDateString("sv-SE")}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center gap-2 text-body-sm text-text-secondary">
-                  <span>{FOLLOW_UP_OUTCOME_LABELS[fu.outcome] ?? fu.outcome}</span>
-                  {fu.note && <span>— {fu.note}</span>}
-                </div>
-                {fu.outcome === "Pending" && (
-                  <RecordFollowUpOutcomeForm
-                    applicationId={id}
-                    followUpId={fu.id}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-        <AddFollowUpForm applicationId={id} />
-      </section>
+        <div className="flex flex-col gap-4 px-4 py-4">
+          {sortedNotes.length === 0 ? (
+            <p className="text-body-sm text-text-secondary">
+              Inga noteringar ännu.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {sortedNotes.map((note) => (
+                <li
+                  key={note.id}
+                  className="rounded-md border border-border px-4 py-3"
+                >
+                  <p className="text-body text-text-primary">{note.content}</p>
+                  <p className="mt-1 font-mono text-body-sm text-text-secondary">
+                    {new Date(note.createdAt).toLocaleDateString("sv-SE")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
-      <hr className="border-border" />
-
-      <section aria-label="Noteringar">
-        <h2 className="mb-4 text-h3 font-medium text-text-primary">Noteringar</h2>
-        {sortedNotes.length === 0 ? (
-          <p className="mb-4 text-body-sm text-text-secondary">Inga noteringar ännu.</p>
-        ) : (
-          <div className="mb-4 flex flex-col gap-2">
-            {sortedNotes.map((note) => (
-              <div
-                key={note.id}
-                className="rounded-md border border-border bg-card px-4 py-3"
-              >
-                <p className="text-body text-text-primary">{note.content}</p>
-                <p className="mt-1 text-body-sm text-text-secondary">
-                  {new Date(note.createdAt).toLocaleDateString("sv-SE")}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-        <AddNoteForm applicationId={id} />
+        <div className="border-t border-border px-4 py-4">
+          <h3 className="mb-3 text-body font-medium text-text-primary">
+            Lägg till notering
+          </h3>
+          <AddNoteForm applicationId={id} />
+        </div>
       </section>
     </div>
   );

@@ -146,6 +146,60 @@ async function deleteFixture(sessionId: string, id: string): Promise<void> {
   }
 }
 
+/**
+ * FAS 3 (RecordFollowUpOutcome): skapar en temporär ansökan med en Pending
+ * follow-up så att `/ansokningar/[id]` renderar `RecordFollowUpOutcomeForm`
+ * (formuläret visas endast när `fu.outcome === "Pending"`). Utan denna fixtur
+ * capurerar verktyget aldrig den yta FAS 3-batchen ändrade — design-reviewer
+ * VETO:ar då på samma grund som Batch 6 (korpus saknar bild av ändrad yta).
+ *
+ * Ingen DELETE-endpoint finns för applications (medvetet, soft-delete-domän,
+ * ej API-exponerad) → teardown är best-effort: den syntetiska fixtur-ansökan
+ * blir kvar i dev-DB på dev-test-kontot (syntetiskt, ingen PII). Konsekvent
+ * med runbookens saved-search-teardown-not.
+ */
+async function createApplicationFixture(sessionId: string): Promise<string> {
+  const auth = {
+    Authorization: `Bearer ${sessionId}`,
+    "Content-Type": "application/json",
+  };
+  const createRes = await fetch(`${BACKEND_URL}/api/v1/applications`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({
+      jobAdId: null,
+      coverLetter: `FAS 3 visuell verifiering (temp ${timestamp()})`,
+    }),
+  });
+  if (!createRes.ok) {
+    throw new Error(
+      `Skapa fixture-ansökan misslyckades (HTTP ${createRes.status}).`,
+    );
+  }
+  const created = (await createRes.json()) as { id?: string };
+  if (!created.id) {
+    throw new Error("Create-svar saknar ansöknings-id.");
+  }
+  const followUpRes = await fetch(
+    `${BACKEND_URL}/api/v1/applications/${created.id}/follow-ups`,
+    {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        channel: "Email",
+        scheduledAt: new Date().toISOString(),
+        note: "Visuell verifiering — väntar svar",
+      }),
+    },
+  );
+  if (!followUpRes.ok) {
+    throw new Error(
+      `Skapa fixture-follow-up misslyckades (HTTP ${followUpRes.status}).`,
+    );
+  }
+  return created.id;
+}
+
 async function shoot(page: Page, outDir: string, name: string): Promise<void> {
   await page.screenshot({ path: join(outDir, `${name}.png`), fullPage: true });
 }
@@ -293,6 +347,7 @@ async function main(): Promise<void> {
 
   let sessionId: string | null = null;
   let fixtureId: string | null = null;
+  let appFixtureId: string | null = null;
 
   if (AUTH_MODE && !BASE_URL.startsWith("https://")) {
     // __Host--prefix kräver en secure (https) origin — Chromium avvisar
@@ -308,7 +363,11 @@ async function main(): Promise<void> {
     console.log("[visual-verify] Auth-läge: login + fixture-setup ...");
     sessionId = await login();
     fixtureId = await createFixture(sessionId);
-    console.log("[visual-verify] Fixture-sökning skapad (raderas i teardown).");
+    appFixtureId = await createApplicationFixture(sessionId);
+    console.log(
+      "[visual-verify] Fixturer skapade (sökning: raderas i teardown; " +
+        "ansökan: best-effort, ingen DELETE-endpoint — se funktions-doc).",
+    );
   } else {
     console.log("[visual-verify] Publikt läge (inga auth-env satta).");
   }
@@ -320,6 +379,12 @@ async function main(): Promise<void> {
         {
           path: `/sokningar/${fixtureId}`,
           name: "sokningar-kor-resultat",
+          auth: true,
+        },
+        { path: "/ansokningar", name: "ansokningar-lista", auth: true },
+        {
+          path: `/ansokningar/${appFixtureId}`,
+          name: "ansokningar-detalj-outcome-form",
           auth: true,
         },
       ]
@@ -406,6 +471,13 @@ async function main(): Promise<void> {
     if (AUTH_MODE && sessionId && fixtureId) {
       await deleteFixture(sessionId, fixtureId);
       console.log("[visual-verify] Fixture-sökning raderad (teardown).");
+    }
+    if (AUTH_MODE && appFixtureId) {
+      console.warn(
+        `[visual-verify] NOT: fixture-ansökan ${appFixtureId} blir kvar i ` +
+          `dev-DB (ingen DELETE-endpoint för applications, soft-delete-domän). ` +
+          `Syntetiskt dev-test-konto, ingen PII — acceptabelt per runbook.`,
+      );
     }
     await browser.close();
   }

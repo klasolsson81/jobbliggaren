@@ -1,0 +1,18 @@
+[
+  {
+    "//": "Page-weight-budget — ADR 0045 Beslut 2 (gate-intent, observe-only Fas 1 via build.yml).",
+    "//civic": "Civic-utility-sida utan tunga assets (DESIGN.md). Budgetar satta stramt — JobbPilot ska vara lätt. Kalibreras mot uppmätt baslinje vid första gröna Lighthouse-runs (CTO: kalibrera mot fakta, ej gissning).",
+    "path": "/*",
+    "resourceSizes": [
+      { "resourceType": "document", "budget": 30 },
+      { "resourceType": "script", "budget": 350 },
+      { "resourceType": "stylesheet", "budget": 75 },
+      { "resourceType": "image", "budget": 200 },
+      { "resourceType": "font", "budget": 120 },
+      { "resourceType": "total", "budget": 800 }
+    ],
+    "resourceCounts": [
+      { "resourceType": "third-party", "budget": 10 }
+    ]
+  }
+]

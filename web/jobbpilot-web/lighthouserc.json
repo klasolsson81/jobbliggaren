@@ -1,0 +1,30 @@
+{
+  "//": "Lighthouse-CI assertions — ADR 0045 Beslut 2 (Core Web Vitals).",
+  "//runs": "numberOfRuns:3 + median — single-run composite-score är dokumenterat flaky (web-verifierat 2026-05-17). Median stabiliserar lab-LCP under tröskeln.",
+  "//gate": "Jobbet är observe-only Fas 1 (build.yml: ej i ci.needs, continue-on-error). Assertion-severity nedan är RATCHET-INTENT, inte Fas-1-blockering. Flip till blockerande = medveten ratchet vid Klas-GO (ADR 0045 Beslut 6).",
+  "ci": {
+    "collect": {
+      "numberOfRuns": 3,
+      "startServerCommand": "pnpm start",
+      "startServerReadyPattern": "Ready in|started server on|Local:",
+      "url": ["http://localhost:3000/"]
+    },
+    "assert": {
+      "budgetsFile": "./budget.json",
+      "assertions": {
+        "//lcp": "Google good < 2,5 s (ADR 0045) — gate-intent (error)",
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500, "aggregationMethod": "median" }],
+        "//cls": "Google good < 0,1 (ADR 0045) — gate-intent (error)",
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1, "aggregationMethod": "median" }],
+        "//inp": "INP är field-metrik; lab approximerar via TBT. ADR 0045: observe-only (warn).",
+        "total-blocking-time": ["warn", { "maxNumericValue": 200, "aggregationMethod": "median" }],
+        "//score": "Composite perf-score: observe-only (loggas, ej assert) — ADR 0045 Beslut 2.",
+        "categories:performance": "off"
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": "./.lighthouseci"
+    }
+  }
+}

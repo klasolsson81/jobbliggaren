@@ -59,6 +59,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0044 | Test-coverage-policy: reproducerbar in-repo-mätning (MTP CodeCoverage + ReportGenerator local tool), first-party-filter och per-lager icke-regression-ratchet-gate (Hangfire-test-approach korsref, ej eget ADR) | Accepted | 2026-05-17 | [0044-test-coverage-policy.md](./0044-test-coverage-policy.md) |
 | 0045 | Performance-budgetar och fitness functions (latens/CWV/Worker-mem + mät-metod + observe-only-ratchet) | Accepted | 2026-05-17 | [0045-performance-budget-and-fitness-functions.md](./0045-performance-budget-and-fitness-functions.md) |
 | 0046 | FAS 3 scope-redefinition: Application Management-backbone byggd i Fas 1 (A+D-scope, B→Fas 5-defer, dokumenterad ADR↔BUILD.md §18 rad 1610-avvikelse) | Proposed | 2026-05-17 | [0046-fas3-scope-redefinition-application-management-backbone-in-fas1.md](./0046-fas3-scope-redefinition-application-management-backbone-in-fas1.md) |
+| 0047 | design-reviewer-mandat utökat: task-completion/flödesbegriplighet utöver estetik/tokens/a11y (Area 5, källförankrad checklista Boeke/GOV.UK/Norman/Krug/Wroblewski; rendered screenshot + interaktionssökväg; ingen ny agent — anti-bloat) | Accepted | 2026-05-17 | [0047-design-reviewer-flow-comprehension-mandate.md](./0047-design-reviewer-flow-comprehension-mandate.md) |
 
 ## Planerade ADRs
 

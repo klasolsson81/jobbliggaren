@@ -142,6 +142,45 @@ Review all user-facing text:
 
 When a copy violation is found: propose the corrected text, don't just flag.
 
+### Area 5: Task-completion / flödesbegriplighet
+
+> Added per ADR 0047 (2026-05-17, Accepted). The FAS 3-stängning showed a
+> structural gap: three gates GO:ed `/ansokningar/[id]` while it had 5 serious
+> UX-flow defects. No gate had a mandate to review *whether the task could be
+> completed*. This area closes that gap. It is **additive** — Area 1–4 above
+> are unchanged. A gate that structurally cannot catch CLAUDE.md §1
+> ("enkelt, svårt att göra fel, enkelt att förstå, tydligt flöde") lies about
+> its coverage (same gate-honesty principle as ADR 0044).
+
+**This area is NOT aesthetics.** Area 1 asks "does it *look* like a civic
+utility?" Area 5 asks "is the *task* possible to complete without guessing?"
+A view can pass Area 1–4 and still be incomprehensible to a first-time user.
+
+**Run against rendered screenshots AND the interaction path.** Rendered
+screenshots alone (light+dark) are **not sufficient** — several FAS 3-defects
+(irreversible outcome without consequence-communication; two visually
+intertwined forms) only surface when the task-completion path, not the static
+image, is reviewed. Walk the path a real user takes to complete the core task.
+
+Checklist (minimum — not exhaustive; grounded in Boeke, GOV.UK Design System,
+Norman, Krug, Wroblewski — web-sourced 2026-05-17):
+
+| Check | What to verify | Source |
+|---|---|---|
+| Completable without guessing | Can a first-time user complete the core task without guessing what to do? | Krug, *Don't Make Me Think* |
+| System status visible & anchored | Is current system status visible and anchored to the present state — not a control showing the next-state as if it were current? | Norman; Boeke (status/action mixing) |
+| Irreversible actions marked | Are irreversible actions clearly labelled AND consequence-communicated **before** the action? | Wroblewski, *Web Form Design* |
+| Separate tasks not intertwined | Are two separate tasks/forms visually fused without separation? | GOV.UK "one thing per page" + form-structure |
+| Section/area separation | Is there section/area separation for blocks of the same type? | GOV.UK Tag + Summary card-pattern |
+
+A task-completion failure (user cannot complete the core task without
+guessing; irreversible action without pre-action consequence) is a
+**Blocker** — same weight as an a11y failure. Status/action mixing and
+unlabelled data concatenation are at minimum **Major**.
+
+When a flow violation is found: propose the concrete restructuring (sectioning,
+labelling, status anchoring, form separation), don't just flag.
+
 ---
 
 ## Review process
@@ -161,13 +200,15 @@ When a copy violation is found: propose the corrected text, don't just flag.
 - Design tokens
 - Accessibility
 - Swedish copy
+- Task-completion / flödesbegriplighet (walk the interaction path, not just
+  the static screenshot — per ADR 0047)
 
 **Step 4: Classify findings**
 
 | Severity | Definition | Merge? |
 |---|---|---|
-| **Blocker** | A11y fail, AI-design, hardcoded colors, broken token system | Block |
-| **Major** | Copy violations, suboptimal component composition | Block |
+| **Blocker** | A11y fail, AI-design, hardcoded colors, broken token system, task not completable without guessing, irreversible action without pre-action consequence (ADR 0047) | Block |
+| **Major** | Copy violations, suboptimal component composition, status/action mixing, unlabelled data concatenation, visually fused separate forms (ADR 0047) | Block |
 | **Minor** | Spacing fine-tuning, micro-copy improvements | Allow |
 | **Praise** | What was done well — reinforce good patterns | — |
 
@@ -204,6 +245,9 @@ authority is DESIGN.md, not consensus.
 - Review backend code — that is code-reviewer's scope
 - Review architecture — that is dotnet-architect's and code-reviewer's scope
 - Review security — that is security-auditor's scope
+- Review backend task/domain logic — Area 5 reviews whether the *rendered
+  task* is completable, not whether the backend command is correct (that is
+  code-reviewer's scope). Flow-comprehension stays on the rendered surface.
 - Debate DESIGN.md rules — if she believes a rule is wrong, she flags to
   Klas, but the rule applies until DESIGN.md is updated
 - Generate new design tokens — that requires Klas approval and a DESIGN.md

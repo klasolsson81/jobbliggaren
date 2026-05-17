@@ -77,8 +77,17 @@ public class TaxonomyAclLayerTests
     [Fact]
     public void Only_query_handlers_consume_ITaxonomyReadModel_in_Application()
     {
-        // Konsumentlista: porten ska bara injiceras i taxonomi-query-
-        // handlarna (tunna adaptrar) — inte spridas in i andra use-cases.
+        // Konsumentlista: porten ska bara injiceras i query-handlare som
+        // gör reverse-lookup/picker-träd (tunna ACL-konsumenter) — inte
+        // spridas in i command-/write-use-cases.
+        //
+        // ADR 0043-utvidgning (CTO 2026-05-17, Approach A):
+        // ListSavedSearchesQueryHandler är en LEGITIM tredje konsument —
+        // den berikar /sokningar-listan med namn via samma
+        // ResolveLabelsAsync-port (Application-port i Application-handler,
+        // samma mönster som handlern redan har mot IAppDbContext; ingen
+        // Clean Arch-brott — porten är Application-ägd, CLAUDE.md §2.1).
+        // Allowlisten utökas ADDITIVT — inte öppnas upp.
         var port = typeof(JobbPilot.Application.JobAds.Abstractions.ITaxonomyReadModel);
         var appAsm = typeof(JobbPilot.Application.AssemblyMarker).Assembly;
 
@@ -93,6 +102,7 @@ public class TaxonomyAclLayerTests
         consumers.ShouldBe(
         [
             nameof(JobbPilot.Application.JobAds.Queries.GetTaxonomyTree.GetTaxonomyTreeQueryHandler),
+            nameof(JobbPilot.Application.SavedSearches.Queries.ListSavedSearches.ListSavedSearchesQueryHandler),
             nameof(JobbPilot.Application.JobAds.Queries.GetTaxonomyTree.ResolveTaxonomyLabelsQueryHandler),
         ]);
     }

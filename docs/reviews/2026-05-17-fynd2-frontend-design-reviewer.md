@@ -185,3 +185,27 @@ Utanför denna granskning per uppdrag (ej flaggat som blocker mot denna diff):
 job-ad-multi-select.tsx/.test.tsx död kod (CC git-rm i batchen);
 saved-search-list.tsx criteriaSummary rå concept-id (ADR 0043 Beslut D
 cap-fråga — Klas/CTO-triage, separat batch).
+
+---
+
+## Post-deploy skärmbilds-granskning
+
+**Status:** APPROVED (renderad-UI-grinden) — Klas kan slutgodkänna bilderna
+**Granskat:** 2026-05-17, LIVE mot https://www.jobbpilot.se (Vercel + dev-backend, v0.2.11-dev)
+**Skärmbilder:** `C:\tmp\jobbpilot-visual\20260517-0849\` (auth-gated, light+dark, vp 1280/3440)
+**Räkning:** 0 Blocker / 0 Major / 2 Minor
+
+### Kärnan (Fynd 2) — GODKÄND i renderad UI
+concept-id HELT borta ur renderad yta (inga MVqp_eS8_kDZ/font-mono). Hierarki begriplig (fieldset-legend "Yrke" → Yrkesområde-select → Yrke-select cascade med text "Välj yrkesområde först"; "Län"-select separat). Hint ren svenska/du-tilltal, inga utrop/emoji/AI-klyscha. Platsbanken-paritet uppnådd. Fynd 1 (Sortering) fortsatt egen kontroll UTANFÖR disclosuren — ingen regression. Civic-utility ren (flat canvas, hairline, ingen gradient/glow/card, en accent, radius ≤6px). Veto-ytan ren.
+
+### Dark mode — GODKÄND (WCAG 1.4.3/1.4.11)
+Djup marinblå surface, god textkontrast, select-borders synliga i mörkt, placeholder läsbar, dark-anpassad accent. Inga kontrastbrott. Ingen AI-creep.
+
+### Regression — GODKÄND
+jobb-spara-sokning (disclosure kollapsad → väljare korrekt dolda, ingen layout-läcka), jobb-typeahead-open (dropdown ren över resultat, nya väljare stör ej z-index/layout), resultatlista intakt.
+
+### Minor (ingen Fynd 2-regression, ingen veto-defekt)
+1. **"SSYK-kod"-jargong i Spara sökning-hjälptext (renderad)** — pre-existerande, separat-scopad saved-search-spår (ADR 0043 Beslut D, Klas/CTO-triage, separat batch). EJ Fynd 2-regression; noteras då nu synlig + krockar visuellt med Fynd 2-budskap. Föreslagen copy när spåret tas: "Lägg till minst ett filter (sökord, yrke eller län)…". Ägare: separat saved-search-batch.
+2. **visual-verify-skript stale** — `jobb-chip-filled`-scenariot `.fill()`:ar concept-id i Yrkesområde-fältet som nu är `<select>`. Skript-staleness ej UI-defekt; chip-filled-renderverif skjuten till nästa körning (kod-review + region-picker.test.tsx täcker chip-namn/dismiss på kod-nivå). Uppföljning: byt scenariot till `selectOption`. Ägare: nextjs-ui-engineer/CC-uppföljning.
+
+**Renderad-UI-grinden: APPROVED. Klas kan slutgodkänna skärmbilderna.**

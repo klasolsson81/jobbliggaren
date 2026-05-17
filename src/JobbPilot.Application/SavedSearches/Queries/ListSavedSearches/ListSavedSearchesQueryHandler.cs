@@ -12,8 +12,9 @@ namespace JobbPilot.Application.SavedSearches.Queries.ListSavedSearches;
 /// resolverar concept-id → namn IN-PROCESS via singleton in-memory-cache
 /// (O(1) dictionary, ingen DB-/HTTP-touch). Detta är INTE /taxonomy/labels-
 /// endpointen → ADR 0043 Beslut D:s reverse-lookup-cap (en HTTP-yta) är
-/// irrelevant här; ingen fan-out, ingen ny DoS-yta. Alla concept-id över
-/// hela listan resolveras i EN port-anropning (distinct) — ej per-sökning.
+/// irrelevant här; ingen fan-out, ingen ny DoS-yta. Per sparad sökning
+/// resolveras Ssyk resp. Region var för sig (matchar test-kontraktet);
+/// taket är invariant-bundet (SearchCriteria.MaxConceptIds), ej aggregering.
 /// VO/jsonb/ADR 0039-kontrakt orört (additiv read-projektion).
 /// </summary>
 public sealed class ListSavedSearchesQueryHandler(

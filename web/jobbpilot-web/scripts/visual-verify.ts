@@ -227,7 +227,12 @@ async function shootJobbInteractiveStates(
     );
   }
 
-  // State 3 — multi-select-chip ifylld (minst ett taxonomi-värde).
+  // State 3 — namn-chip ifylld (ADR 0043: namn-väljare, ej rå concept-id).
+  // Yrkes-väljaren är två native <select> (OccupationPicker): välj först ett
+  // "Yrkesområde", därefter ett "Yrke" → en namn-chip renderas i "Valda
+  // yrken"-listan. Mot live-backend (riktig taxonomi-korpus) — vi väljer
+  // första riktiga <option> (index 1; index 0 = "Välj …"-platshållaren) så
+  // skriptet inte hårdkodar ett concept-id som kan saknas i snapshoten.
   try {
     await page.goto(`${BASE_URL}/jobb`, { waitUntil: "networkidle" });
     const filterToggle = page
@@ -237,16 +242,33 @@ async function shootJobbInteractiveStates(
     if ((await filterToggle.getAttribute("aria-expanded")) !== "true") {
       await filterToggle.click();
     }
-    // "Yrkesområde"-gruppen: label → input → "Lägg till"-knapp. Ett giltigt
-    // concept-id-format (1–32 tecken [A-Za-z0-9_-]) räcker; backend är inte
-    // i loopen för chip-rendering (lokal state).
-    const yrkesField = page.getByLabel("Yrkesområde");
-    await yrkesField.waitFor({ state: "visible", timeout: 5000 });
-    await yrkesField.fill("MVqp_eS8_kDZ");
-    await yrkesField.press("Enter");
-    // Chip renderas med "Ta bort <kod>"-dismiss-knapp (JobAdMultiSelect).
+
+    const fieldSelect = page.getByLabel("Yrkesområde");
+    await fieldSelect.waitFor({ state: "visible", timeout: 5000 });
+    // Första riktiga yrkesområdet (option-index 1 hoppar över platshållaren).
+    await fieldSelect.selectOption({ index: 1 });
+
+    // "Yrke"-väljaren aktiveras när ett yrkesområde valts. Vänta tills den
+    // är enabled och har ett riktigt yrke, välj det → chip renderas.
+    const occSelect = page.getByLabel("Yrke");
+    await occSelect.waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForFunction(
+      (el) => {
+        const s = el as HTMLSelectElement;
+        return !s.disabled && s.options.length > 1;
+      },
+      await occSelect.elementHandle(),
+      { timeout: 5000 },
+    );
+    await occSelect.selectOption({ index: 1 });
+
+    // Chip renderas i "Valda yrken"-listan med en "Ta bort <namn>"-dismiss
+    // (TaxonomyChipList). Vi asserterar på rollen + listans aria-label, inte
+    // ett concept-id — concept-id finns inte längre i UI:t.
     await page
-      .getByRole("button", { name: "Ta bort MVqp_eS8_kDZ" })
+      .getByRole("list", { name: "Valda yrken" })
+      .getByRole("listitem")
+      .first()
       .waitFor({ state: "visible", timeout: 5000 });
     await page.waitForTimeout(200);
     await shoot(page, outDir, `jobb-chip-filled__${theme}__${vpTag}`);

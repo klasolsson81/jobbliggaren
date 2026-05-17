@@ -16,6 +16,8 @@ const sample = (id: string, name: string): SavedSearchDto => ({
   name,
   ssyk: ["MVqp_eS8_kDZ"],
   region: [],
+  ssykLabels: [{ conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" }],
+  regionLabels: [],
   q: "java",
   sortBy: "PublishedAtDesc",
   notificationEnabled: false,
@@ -43,6 +45,54 @@ describe("SavedSearchList", () => {
     expect(screen.getByText(/sökord "java"/)).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Kör" });
     expect(link).toHaveAttribute("href", "/sokningar/s1");
+  });
+
+  it("shows resolved taxonomy NAMES in the summary, never raw concept-id (ADR 0043)", () => {
+    render(
+      <SavedSearchList
+        savedSearches={[
+          {
+            ...sample("s2", "Utvecklare Sthlm"),
+            q: null,
+            ssyk: ["MVqp_eS8_kDZ", "abc_def"],
+            region: ["CifL_Rzy_Mku"],
+            ssykLabels: [
+              { conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" },
+              { conceptId: "abc_def", label: "Mjukvaruarkitekt" },
+            ],
+            regionLabels: [
+              { conceptId: "CifL_Rzy_Mku", label: "Stockholms län" },
+            ],
+          },
+        ]}
+      />
+    );
+    const summary = screen.getByText(/Systemutvecklare, Mjukvaruarkitekt/);
+    expect(summary).toBeInTheDocument();
+    expect(summary).toHaveTextContent("Stockholms län");
+    // Concept-id får aldrig läcka ut i UI:t.
+    expect(summary).not.toHaveTextContent("MVqp_eS8_kDZ");
+    expect(summary).not.toHaveTextContent("CifL_Rzy_Mku");
+    // font-mono borttagen (ADR 0043 — namn, ej kod-typografi).
+    expect(summary).not.toHaveClass("font-mono");
+  });
+
+  it("falls back to raw lists when label lists are missing (older cache)", () => {
+    render(
+      <SavedSearchList
+        savedSearches={[
+          {
+            ...sample("s3", "Fallback"),
+            q: null,
+            ssyk: ["raw_code"],
+            region: [],
+            ssykLabels: [],
+            regionLabels: [],
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText(/raw_code/)).toBeInTheDocument();
   });
 
   it("does not open the confirm dialog until Radera is clicked", () => {

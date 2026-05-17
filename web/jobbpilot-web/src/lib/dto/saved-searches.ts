@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jobAdSortBySchema, type JobAdSortBy } from "./job-ads";
+import { taxonomyLabelSchema } from "./taxonomy";
 
 // Backend `JobAdSortBy` är en C#-enum. Inget globalt JsonStringEnumConverter
 // är registrerat (medvetet, konsistent projektkontrakt — CTO-triage
@@ -41,11 +42,22 @@ const sortByFromWire = z
 // Q?, SortBy(int), NotificationEnabled, LastRunAt?, CreatedAt, UpdatedAt.
 // Ssyk/Region är nu IReadOnlyList (aldrig null från VO:t — tom lista =
 // inget filter). Datum är ISO 8601 på wire (ADR 0020 §6).
+//
+// ADR 0043 Approach A (additivt): ssykLabels/regionLabels är taxonomi-
+// reverse-lookup ({conceptId, label}) som backend resolvar i listan
+// (ListSavedSearches). Stale id → backend "Okänd kod (<id>)" (graceful
+// degradation, aldrig null/throw). Råa ssyk/region (concept-id) är
+// OFÖRÄNDRADE — labels är ett rent UI-presentationslager (ADR 0042
+// Beslut B-domänkontraktet rörs ej). Detalj-endpointen GetSavedSearch
+// returnerar tomma label-listor (CTO-scope: bara listan), därför
+// `.default([])` — schemat är robust om fältet saknas helt på wire.
 export const savedSearchDtoSchema = z.object({
   id: z.string(),
   name: z.string(),
   ssyk: z.array(z.string()),
   region: z.array(z.string()),
+  ssykLabels: z.array(taxonomyLabelSchema).default([]),
+  regionLabels: z.array(taxonomyLabelSchema).default([]),
   q: z.string().nullable(),
   sortBy: sortByFromWire,
   notificationEnabled: z.boolean(),

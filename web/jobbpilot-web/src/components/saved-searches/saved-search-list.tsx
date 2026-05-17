@@ -11,11 +11,28 @@ interface SavedSearchListProps {
 }
 
 function criteriaSummary(s: SavedSearchDto): string {
-  // ADR 0042 Beslut B — ssyk/region är arrays (flera värden = OR-bevakning).
+  // ADR 0043 Approach A — visa svenska NAMN (ssykLabels/regionLabels från
+  // backend reverse-lookup), aldrig råa concept-id. concept-id är borta ur
+  // UI:t (Anticorruption Layer, Evans 2003 kap. 14). Stale id → backend
+  // "Okänd kod (<id>)". Fallback till råa listan om labels saknas (t.ex.
+  // äldre cache-svar) så raden aldrig blir tom mitt i en lista.
   const parts: string[] = [];
   if (s.q) parts.push(`sökord "${s.q}"`);
-  if (s.ssyk.length > 0) parts.push(`yrkesområde ${s.ssyk.join(", ")}`);
-  if (s.region.length > 0) parts.push(`region ${s.region.join(", ")}`);
+
+  // Wire-svar går alltid genom schemat (default []), men defensiv ?? []
+  // håller komponenten robust om en label-lista saknas helt.
+  const ssykNames =
+    (s.ssykLabels ?? []).length > 0
+      ? (s.ssykLabels ?? []).map((l) => l.label)
+      : s.ssyk;
+  if (ssykNames.length > 0) parts.push(ssykNames.join(", "));
+
+  const regionNames =
+    (s.regionLabels ?? []).length > 0
+      ? (s.regionLabels ?? []).map((l) => l.label)
+      : s.region;
+  if (regionNames.length > 0) parts.push(regionNames.join(", "));
+
   // parts kan aldrig bli tomt: backend SearchCriteria-invarianten garanterar
   // minst ett kriterium, och sorteringsetiketten läggs alltid till sist.
   parts.push(getJobAdSortLabel(s.sortBy).toLowerCase());
@@ -29,7 +46,7 @@ function SavedSearchRow({ savedSearch }: { savedSearch: SavedSearchDto }) {
         <span className="text-body font-medium text-text-primary">
           {savedSearch.name}
         </span>
-        <span className="font-mono text-body-sm text-text-secondary">
+        <span className="text-body-sm text-text-secondary">
           {criteriaSummary(savedSearch)}
         </span>
       </div>

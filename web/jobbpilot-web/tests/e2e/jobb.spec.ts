@@ -25,20 +25,38 @@ test.describe("/jobb — auth-gated rendering", () => {
     await expect(page.getByRole("heading", { name: "Jobb" })).toBeVisible();
   });
 
-  test("visar filter-form med alla fält", async ({ page }) => {
+  test("visar sök-ytans alltid-synliga fält + Filter-disclosure", async ({
+    page,
+  }) => {
     await page.goto("/jobb");
+    // ADR 0043 — sökord + sortering är alltid synliga; yrkes-/läns-väljarna
+    // (namn-pickers, ej råa SSYK-koder) ligger bakom Filter-disclosuren.
     await expect(page.getByLabel("Sökord")).toBeVisible();
-    await expect(page.getByLabel("SSYK-kod")).toBeVisible();
-    await expect(page.getByLabel("Region")).toBeVisible();
     await expect(page.getByLabel("Sortering")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Filtrera" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Återställ" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^Filter/ })
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sök" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Återställ" })
+    ).toBeVisible();
+  });
+
+  test("Filter-disclosure exponerar namn-baserade yrkes-/läns-väljare", async ({
+    page,
+  }) => {
+    await page.goto("/jobb");
+    await page.getByRole("button", { name: /^Filter/ }).click();
+    // Civic-utility: väljarna heter Yrkesområde/Yrke/Län — ingen "SSYK-kod".
+    await expect(page.getByLabel("Yrkesområde")).toBeVisible();
+    await expect(page.getByLabel("Yrke")).toBeVisible();
+    await expect(page.getByLabel("Län")).toBeVisible();
   });
 
   test("submit av sökord uppdaterar URL till ?q=...", async ({ page }) => {
     await page.goto("/jobb");
     await page.getByLabel("Sökord").fill("backend");
-    await page.getByRole("button", { name: "Filtrera" }).click();
+    await page.getByRole("button", { name: "Sök" }).click();
     await page.waitForURL(/\/jobb\?q=backend/);
   });
 
@@ -47,7 +65,7 @@ test.describe("/jobb — auth-gated rendering", () => {
   }) => {
     await page.goto("/jobb");
     await page.getByLabel("Sökord").fill("a");
-    await page.getByRole("button", { name: "Filtrera" }).click();
+    await page.getByRole("button", { name: "Sök" }).click();
     await expect(page.getByRole("alert")).toContainText(
       /Söktexten måste vara 2–100 tecken/
     );

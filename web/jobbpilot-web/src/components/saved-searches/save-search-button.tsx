@@ -67,8 +67,8 @@ export function SaveSearchButton({
         </Button>
         {!hasCriteria && (
           <p className="text-body-sm text-text-secondary">
-            Lägg till minst ett filter (sökord, SSYK-kod eller region) för att
-            kunna spara sökningen.
+            Lägg till minst ett filter (sökord, yrke eller län) för att kunna
+            spara sökningen.
           </p>
         )}
         {state?.success && (

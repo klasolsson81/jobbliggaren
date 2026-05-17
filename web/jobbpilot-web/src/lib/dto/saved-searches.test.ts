@@ -65,6 +65,34 @@ describe("savedSearchDtoSchema", () => {
     });
     expect(parsed.ssyk).toEqual(["a1", "b2"]);
   });
+
+  it("parses additive ssykLabels/regionLabels (ADR 0043 Approach A)", () => {
+    const parsed = savedSearchDtoSchema.parse({
+      ...wireBase,
+      sortBy: 0,
+      ssykLabels: [{ conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" }],
+      regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
+    });
+    expect(parsed.ssykLabels).toEqual([
+      { conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" },
+    ]);
+    expect(parsed.regionLabels[0]?.label).toBe("Stockholms län");
+  });
+
+  it("defaults label lists to [] when absent (detalj-endpoint scope)", () => {
+    const parsed = savedSearchDtoSchema.parse({ ...wireBase, sortBy: 0 });
+    expect(parsed.ssykLabels).toEqual([]);
+    expect(parsed.regionLabels).toEqual([]);
+  });
+
+  it("accepts a stale-id label verbatim (backend 'Okänd kod (<id>)')", () => {
+    const parsed = savedSearchDtoSchema.parse({
+      ...wireBase,
+      sortBy: 0,
+      ssykLabels: [{ conceptId: "gone_99", label: "Okänd kod (gone_99)" }],
+    });
+    expect(parsed.ssykLabels[0]?.label).toBe("Okänd kod (gone_99)");
+  });
 });
 
 describe("createSavedSearchSchema", () => {

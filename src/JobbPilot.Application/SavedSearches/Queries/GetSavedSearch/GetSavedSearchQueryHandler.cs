@@ -50,6 +50,13 @@ public sealed class GetSavedSearchQueryHandler(
             return null;
         }
 
+        // ADR 0043 (CTO 2026-05-17, Approach A) — namn-berikningen är scopad
+        // till /sokningar-LISTAN (ListSavedSearchesQueryHandler). Detalj-
+        // vägen (/sokningar/[id]) renderar inga concept-id (visar namn via
+        // körresultat), så SsykLabels/RegionLabels lämnas tomma här — additiva
+        // fält, ingen consumer. Att injicera ITaxonomyReadModel även här vore
+        // scope-creep utanför CTO-beslutet + skulle bryta arch-testets
+        // "exakt 3 ITaxonomyReadModel-konsumenter"-invariant.
         return new SavedSearchDto(
             s.Id.Value,
             s.Name,
@@ -60,6 +67,8 @@ public sealed class GetSavedSearchQueryHandler(
             s.NotificationEnabled,
             s.LastRunAt,
             s.CreatedAt,
-            s.UpdatedAt);
+            s.UpdatedAt,
+            [],
+            []);
     }
 }

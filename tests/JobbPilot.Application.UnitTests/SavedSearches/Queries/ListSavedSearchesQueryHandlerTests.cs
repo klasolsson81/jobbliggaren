@@ -204,8 +204,12 @@ public class ListSavedSearchesQueryHandlerTests
         db.JobSeekers.Add(seeker);
         db.SavedSearches.Add(SavedSearch.Create(
             seeker.Id, "Tom",
+            // q måste vara ≥2 tecken (SearchCriteria-invariant) — "x" fick
+            // Create att faila → .Value kastade (test-arrange-defekt, ej
+            // prodkod). "xy" = giltigt, behåller testintentionen "endast q,
+            // inga concept-id".
             SearchCriteria.Create(
-                null, null, "x", JobAdSortBy.PublishedAtDesc).Value,
+                null, null, "xy", JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value);
         await db.SaveChangesAsync(CancellationToken.None);
 

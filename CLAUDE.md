@@ -134,6 +134,18 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
 - Handlers testbara med fake DbContext + NSubstitute
 - Om du inte kan testa det utan att starta ASP.NET → designen är fel
 
+### 2.5 Performance har en skriven dom, inte bara en mätning
+
+- Performance är en granskningsbar konvention, inte ett engångs-launch-item.
+  Statisk query-hygien (§3.6) är golvet; ADR 0045 ger den körtidsmätta domen.
+- Hot-path-latens, Core Web Vitals och Worker-minne har budgetar (ADR 0045
+  Beslut 1–3). En ändring som regresserar mot budget ska motiveras i
+  STOPP-rapport eller åtgärdas — samma disciplin som sänkt test-coverage (§7).
+- Fitness functions är observe-only Fas 1 (ADR 0045 Beslut 5–6); flip till
+  blockerande gate är en medveten ratchet vid Klas-GO, aldrig en tyst default.
+- `LoggingBehavior` mäter redan latens — perf-regression utan motivering när
+  signalen finns är en disciplinmiss, inte en okänd.
+
 ---
 
 ## 3. C# / .NET-standarder
@@ -389,6 +401,10 @@ En feature är "klar" när:
   principer (CC går direkt till implementation efter CTO-beslut). Se §9.6.
 - **security-auditor** — kod som rör PII, auth, secrets eller external integrations
 - **code-reviewer + dotnet-architect** — större kodändringar (>5 filer eller arkitekturella val)
+- **dotnet-architect (obligatorisk)** — all Terraform-/IaC-scope (modul-ändring,
+  ny resurs, tfvars som rör prod). Kodifierar ADR 0036-precedensen: CTO+architect-
+  tandem bär infra-granskning utan dedikerad infra-agent (medvetet anti-bloat,
+  roster-gap-CTO 2026-05-17 §1.2).
 - **db-migration-writer** — nya migrations
 - **test-writer** — nya domain-typer eller handlers
 

@@ -9,8 +9,10 @@ import {
   type JobAdSortBy,
 } from "@/lib/dto/job-ads";
 import { JOB_AD_SORT_LABELS } from "@/lib/job-ads/status";
+import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { Button } from "@/components/ui/button";
-import { JobAdMultiSelect } from "./job-ad-multi-select";
+import { RegionPicker } from "./region-picker";
+import { OccupationPicker } from "./occupation-picker";
 import { JobAdTypeahead } from "./job-ad-typeahead";
 
 interface JobAdFiltersProps {
@@ -18,6 +20,13 @@ interface JobAdFiltersProps {
   // Antal aktiva taxonomi-/sort-filter (för disclosure-räknaren). Beräknas i
   // page.tsx (Server Component) så disclosuren kan visa "Filter (2)".
   activeFilterCount: number;
+  // ADR 0043 — picker-träd (Län + Yrkesområde→Yrke) hämtas server-side i
+  // page.tsx och passas ned. Null om träd-hämtningen misslyckades — då
+  // degraderar väljarna civilt (tomma listor, sök på sökord fungerar ändå).
+  taxonomy: TaxonomyTree | null;
+  // Reverse-lookup-namn för redan-valda/sparade concept-id (ssyk + region).
+  // conceptId → visningsnamn ("Okänd kod (<id>)" vid stale snapshot).
+  resolvedLabels: ReadonlyMap<string, string>;
 }
 
 const SORT_OPTIONS: ReadonlyArray<JobAdSortBy> = [
@@ -53,7 +62,12 @@ type FieldErrors = Partial<Record<keyof JobAdFiltersValues, string>>;
  * State hålls i useState (kontrollerade fält, ej stort RHF-formulär — speglar
  * codebase-konventionen för raw control utan resolver).
  */
-export function JobAdFilters({ initial, activeFilterCount }: JobAdFiltersProps) {
+export function JobAdFilters({
+  initial,
+  activeFilterCount,
+  taxonomy,
+  resolvedLabels,
+}: JobAdFiltersProps) {
   const router = useRouter();
   const panelId = useId();
   const [isPending, startTransition] = useTransition();
@@ -216,21 +230,28 @@ export function JobAdFilters({ initial, activeFilterCount }: JobAdFiltersProps) 
         </button>
 
         {open && (
-          <div id={panelId} className="flex flex-col gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <JobAdMultiSelect
-                label="Yrkesområde"
-                hint="JobTech-yrkeskod (concept-id), t.ex. MVqp_eS8_kDZ. Lägg till flera för OR-bevakning."
-                values={ssyk}
-                onChange={setSsyk}
-              />
-              <JobAdMultiSelect
-                label="Region"
-                hint="JobTech-region (concept-id), t.ex. CifL_Rzy_Mku. Lägg till flera för OR-bevakning."
-                values={region}
-                onChange={setRegion}
-              />
-            </div>
+          <div id={panelId} className="flex flex-col gap-5">
+            {taxonomy === null && (
+              <p
+                role="status"
+                className="text-body-sm text-text-secondary"
+              >
+                Län- och yrkesval kunde inte laddas just nu. Du kan söka på
+                sökord ändå och försöka igen om en stund.
+              </p>
+            )}
+            <OccupationPicker
+              occupationFields={taxonomy?.occupationFields ?? []}
+              values={ssyk}
+              onChange={setSsyk}
+              resolvedLabels={resolvedLabels}
+            />
+            <RegionPicker
+              regions={taxonomy?.regions ?? []}
+              values={region}
+              onChange={setRegion}
+              resolvedLabels={resolvedLabels}
+            />
           </div>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAds } from "@/lib/api/job-ads";
+import { getTaxonomyTree, resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import {
   jobAdSortBySchema,
   type JobAdSortBy,
@@ -78,15 +79,26 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // ska inte driva disclosure-räknaren/auto-expand.
   const activeFilterCount = ssyk.length + region.length;
 
-  const result = await getJobAds({
-    page,
-    pageSize,
-    sortBy,
-    ssyk,
-    region,
-    q,
-    since,
-  });
+  // ADR 0043 — picker-träd + reverse-lookup för redan-valda concept-id
+  // hämtas server-side (CLAUDE.md §4.3/§5.2 — ingen useEffect-fetch).
+  // Parallellt med listan: oberoende requests, inga inbördes beroenden.
+  const selectedConceptIds = [...ssyk, ...region];
+  const [result, taxonomyResult, labelsResult] = await Promise.all([
+    getJobAds({ page, pageSize, sortBy, ssyk, region, q, since }),
+    getTaxonomyTree(),
+    resolveTaxonomyLabels(selectedConceptIds),
+  ]);
+
+  // Träd-/label-hämtning får aldrig blockera sök-ytan. Misslyckas trädet
+  // degraderar väljarna civilt (tomma listor + informativ rad i
+  // JobAdFilters); reverse-lookup-miss → chip faller till "Okänd kod (<id>)"
+  // i picker-komponenten (ADR 0043 Beslut B graceful degradation).
+  const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
+  const resolvedLabels = new Map<string, string>(
+    labelsResult.kind === "ok"
+      ? labelsResult.data.map((l) => [l.conceptId, l.label] as const)
+      : []
+  );
 
   return (
     <div className="flex flex-col">
@@ -101,6 +113,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
         <JobAdFilters
           initial={filtersInitial}
           activeFilterCount={activeFilterCount}
+          taxonomy={taxonomy}
+          resolvedLabels={resolvedLabels}
         />
       </div>
 

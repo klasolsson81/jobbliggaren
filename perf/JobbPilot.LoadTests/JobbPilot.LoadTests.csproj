@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Load-test-projekt (ADR 0045 Beslut 4). MEDVETET utanför JobbPilot.sln:
+       `dotnet test --solution JobbPilot.sln` (build.yml backend-jobb) +
+       coverage-gaten (ADR 0044, ci.needs) ska INTE plocka upp detta projekt.
+       Körs enbart av det dedikerade observe-only `loadtest`-jobbet i build.yml.
+       Console-app (NBomberRunner.Run), inte ett MTP-testprojekt — ärver därför
+       inte tests/Directory.Build.props CodeCoverage-referensen. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>JobbPilot.LoadTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NBomber" />
+    <PackageReference Include="NBomber.Http" />
+  </ItemGroup>
+
+</Project>

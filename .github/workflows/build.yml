@@ -213,9 +213,182 @@ jobs:
       - name: Test (Vitest)
         run: pnpm test
 
+  # ---------------------------------------------------------------------------
+  # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
+  #
+  # ALLA tre jobben nedan är OBSERVE-ONLY: de ligger MEDVETET UTANFÖR ci.needs
+  # (ci-aggregatet oförändrat: [backend, frontend, coverage]). Coverage-gaten
+  # (ADR 0044) är orörd — dessa är rent additiva. continue-on-error + explicit
+  # exit 0 → de kan aldrig blockera merge Fas 1. Budget-överskridande/CVE-fynd
+  # emitteras som ::warning:: + job-summary, inte som fail.
+  #
+  # Skäl (CTO roster-gap 2026-05-17 + ADR 0045 Beslut 5): "flaky perf-gate
+  # sämre än ingen perf-gate". Delade GitHub-runners = web-verifierat brusig
+  # baslinje. Flip observe-only→blockerande (ci.needs-inläggning) = medveten
+  # ratchet vid Klas-GO efter stabil distribution (ADR 0045 Beslut 6),
+  # ALDRIG en tyst default. Ändra inte detta utan Klas-GO.
+  # ---------------------------------------------------------------------------
+
+  # Lighthouse-CI — Core Web Vitals (ADR 0045 Beslut 2). lighthouserc.json
+  # kör numberOfRuns:3 + median (single-run = flaky). Jobbet sväljer exit-
+  # koden (continue-on-error) → observe-only Fas 1.
+  lighthouse:
+    name: lighthouse (observe-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: web/jobbpilot-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # treosh/lighthouse-ci-action — startServerCommand/assertions/budget
+      # läses ur web/jobbpilot-web/lighthouserc.json (+ budget.json).
+      # Observe-only: jobbets continue-on-error gör att assert-fail aldrig
+      # blockerar CI Fas 1; resultatet finns i artefakt + summary.
+      - name: Lighthouse CI
+        id: lhci
+        continue-on-error: true
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: web/jobbpilot-web/lighthouserc.json
+          uploadArtifacts: true
+
+      - name: Observe-only-not
+        if: always()
+        run: |
+          echo "::notice::Lighthouse-CI observe-only Fas 1 (ADR 0045 Beslut 2/5) — LCP/CLS/page-weight assert-intent, INP/composite observe. Blockerar ej merge; ratchet→blockerande vid Klas-GO (Beslut 6)."
+
+  # Load-test (NBomber) — ADR 0045 Beslut 4. Fas 1: compile-verifierar
+  # baslinje-scaffoldet (perf/JobbPilot.LoadTests, utanför sln). Faktiska
+  # hot-path-scenarier + runtime-exekvering mot ephemeral API skrivs/wiras
+  # av perf-test-writer-agenten (steg 4). Observe-only — exit 0 ovillkorligt.
+  loadtest:
+    name: loadtest (observe-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # Compile-gate för NBomber-scaffoldet (fångar att paket/projekt bygger).
+      # Runtime-load mot ephemeral API = perf-test-writer-agentens utbyggnad.
+      - name: Build load-test project
+        continue-on-error: true
+        run: dotnet build perf/JobbPilot.LoadTests/JobbPilot.LoadTests.csproj -c Release
+
+      - name: Observe-only-not
+        if: always()
+        run: |
+          echo "::notice::Load-test observe-only Fas 1 (ADR 0045 Beslut 4/5). Baslinje-scaffold compile-verifierat. Hot-path-scenarier mot p95-budgetar (Beslut 1) wiras av perf-test-writer-agenten. Blockerar ej merge."
+
+  # Supply-chain audit — ADR 0045 Beslut 4/7. CVE-scan (CI-/Dependabot-formad
+  # per security-auditor.md:292). Fail-signal vid High/Critical men OBSERVE-
+  # ONLY Fas 1 (exit 0). Dependabot öppnar fix-PRs parallellt. security-
+  # auditor behåller manuellt Blocker-veto oförändrat.
+  audit:
+    name: audit (observe-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+
+      - name: Restore (NuGet)
+        run: dotnet restore JobbPilot.sln
+
+      # dotnet list package --vulnerable: High/Critical → ::warning::, exit 0
+      # (observe-only Fas 1, ADR 0045 Beslut 7). Moderate/Low ignoreras
+      # medvetet (transitiv dev-brus utan runtime-exponering pre-launch).
+      - name: NuGet vulnerability scan (observe-only)
+        shell: bash
+        run: |
+          set -uo pipefail
+          out=$(dotnet list JobbPilot.sln package --vulnerable --include-transitive 2>&1 || true)
+          echo "$out"
+          if echo "$out" | grep -Eiq '\b(High|Critical)\b'; then
+            echo "::warning::NuGet High/Critical CVE upptäckt (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR. security-auditor manuellt Blocker-veto kvarstår."
+          else
+            echo "::notice::Inga NuGet High/Critical-CVE:er (Moderate/Low ignoreras medvetet pre-launch)."
+          fi
+
+      - name: Install (pnpm)
+        working-directory: web/jobbpilot-web
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit (observe-only)
+        working-directory: web/jobbpilot-web
+        shell: bash
+        run: |
+          set -uo pipefail
+          if pnpm audit --audit-level=high; then
+            echo "::notice::pnpm audit: inga High/Critical."
+          else
+            echo "::warning::pnpm audit High/Critical (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR."
+          fi
+
   # Aggregat-job som kraschar hela CI om något barn-job failed. Gör branch-
   # protection-rules enkla att konfigurera (bara "ci" som required check
   # istället för en check per matrix-cell).
+  #
+  # ci.needs OFÖRÄNDRAT: [backend, frontend, coverage]. Perf-/audit-jobben
+  # (lighthouse/loadtest/audit) är MEDVETET EJ med — observe-only Fas 1
+  # (ADR 0045 Beslut 5). Lägg INTE till dem här utan Klas-GO (ratchet,
+  # ADR 0045 Beslut 6).
   ci:
     name: ci
     needs: [backend, frontend, coverage]

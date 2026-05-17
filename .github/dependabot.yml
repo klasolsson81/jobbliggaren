@@ -2,18 +2,24 @@
 #
 # Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# Tre ecosystems:
-# - npm (hanterar även pnpm — package.json + pnpm-lock.yaml)
-# - nuget (vilande tills .NET-scaffold landar i Fas 0/1)
-# - github-actions (vilande tills workflows skapas, senare STEG)
+# Ecosystems:
+# - npm root (Husky-anchor) + npm web/jobbpilot-web (faktisk frontend —
+#   pnpm-lock.yaml autodetekteras; pnpm workspace catalogs GA 2025-02)
+# - nuget root (Central Package Management — Directory.Packages.props)
+# - github-actions (CI-workflows + lighthouse-ci-action supply-chain-yta)
 #
 # Strategi: månadsvisa version-updates, grupperade per ecosystem för att minska
 # PR-brus. Security updates körs separat och ignorerar schedule (GitHub-default).
+#
+# CVE-täckning är CI-/Dependabot-formad, INTE agent-formad (security-auditor.md:292
+# delegerar CVE-scan till Dependabot/CI — roster-gap-CTO 2026-05-17 §1.4, ADR 0045
+# Beslut 4/5). Dependabot öppnar PRs; den blockerande severity-domen ligger i
+# audit-jobbet (build.yml), observe-only Fas 1.
 
 version: 2
 
 updates:
-  # Root package.json (Husky-anchor; utökas när web/jobbpilot-web/ scaffoldas)
+  # Root package.json (Husky-anchor — lint-staged/husky-toolchain)
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -34,7 +40,29 @@ updates:
         patterns:
           - "*"
 
-  # NuGet — vilande tills .csproj finns
+  # Frontend — web/jobbpilot-web (Next.js 16 + pnpm; pnpm-lock.yaml
+  # autodetekteras av npm-ekosystemet). Detta är den faktiska app-
+  # dependency-ytan — root-entryn ovan täcker bara Husky-anchorn.
+  - package-ecosystem: "npm"
+    directory: "/web/jobbpilot-web"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "frontend"
+    groups:
+      web-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # NuGet — Central Package Management (Directory.Packages.props i repo-root)
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
@@ -54,7 +82,7 @@ updates:
         patterns:
           - "*"
 
-  # GitHub Actions — vilande tills workflows skapas
+  # GitHub Actions — build.yml/deploy/lighthouse-ci-action supply-chain-yta
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

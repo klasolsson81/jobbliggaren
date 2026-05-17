@@ -9,6 +9,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
 {
     public JobSeekerId JobSeekerId { get; private set; }
     public JobAdId? JobAdId { get; private set; }
+    public ManualPosting? ManualPosting { get; private set; }
     public string? CoverLetter { get; private set; }
     public ApplicationStatus Status { get; private set; } = null!;
     public DateTimeOffset CreatedAt { get; private set; }
@@ -31,10 +32,12 @@ public sealed class Application : AggregateRoot<ApplicationId>
         JobSeekerId jobSeekerId,
         JobAdId? jobAdId,
         string? coverLetter,
+        ManualPosting? manualPosting,
         DateTimeOffset now) : base(id)
     {
         JobSeekerId = jobSeekerId;
         JobAdId = jobAdId;
+        ManualPosting = manualPosting;
         CoverLetter = coverLetter;
         Status = ApplicationStatus.Draft;
         CreatedAt = now;
@@ -47,6 +50,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
         JobSeekerId jobSeekerId,
         JobAdId? jobAdId,
         string? coverLetter,
+        ManualPosting? manualPosting,
         IDateTimeProvider clock)
     {
         if (jobSeekerId == default)
@@ -57,9 +61,19 @@ public sealed class Application : AggregateRoot<ApplicationId>
             return Result.Failure<Application>(
                 DomainError.Validation("Application.CoverLetterTooLong", "Personligt brev får vara max 10 000 tecken."));
 
+        // Aggregat-invariant (ADR 0048 Beslut d / datamodell-architect A3):
+        // en ansökan är ANTINGEN JobAd-kopplad ELLER manuell, aldrig båda.
+        // (null, null) förblir Success — degenererat cover-letter-only-beteende
+        // bevaras (regressionsskydd).
+        if (jobAdId is not null && manualPosting is not null)
+            return Result.Failure<Application>(
+                DomainError.Validation(
+                    "Application.JobAdAndManualMutuallyExclusive",
+                    "En ansökan kan inte vara både kopplad till en annons och manuellt angiven."));
+
         var now = clock.UtcNow;
         var id = ApplicationId.New();
-        var application = new Application(id, jobSeekerId, jobAdId, coverLetter?.Trim(), now);
+        var application = new Application(id, jobSeekerId, jobAdId, coverLetter?.Trim(), manualPosting, now);
         application.RaiseDomainEvent(
             new ApplicationCreatedDomainEvent(id, jobSeekerId, jobAdId, now));
         return Result.Success(application);

@@ -34,7 +34,21 @@ public sealed class CreateApplicationCommandHandler(
             ? (JobAdId?)new JobAdId(command.JobAdId.Value)
             : null;
 
-        var result = DomainApplication.Create(jobSeekerId, jobAdId, command.CoverLetter, clock);
+        ManualPosting? manualPosting = null;
+        if (command.Manual is not null)
+        {
+            var manualResult = ManualPosting.Create(
+                command.Manual.Title,
+                command.Manual.Company,
+                command.Manual.Url,
+                command.Manual.ExpiresAt);
+            if (manualResult.IsFailure)
+                return Result.Failure<Guid>(manualResult.Error);
+            manualPosting = manualResult.Value;
+        }
+
+        var result = DomainApplication.Create(
+            jobSeekerId, jobAdId, command.CoverLetter, manualPosting, clock);
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);
 

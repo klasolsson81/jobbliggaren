@@ -27,7 +27,7 @@ public class TransitionToCommandHandlerTests
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
-        var app = DomainApplication.Create(seeker.Id, null, null, FakeDateTimeProvider.Default).Value;
+        var app = DomainApplication.Create(seeker.Id, null, null, null, FakeDateTimeProvider.Default).Value;
         db.Applications.Add(app);
 
         await db.SaveChangesAsync(CancellationToken.None);

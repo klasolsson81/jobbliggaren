@@ -100,10 +100,10 @@ public class DeleteAccountCommandHandlerTests
 
         // Två ansökningar; en med FollowUp + Note-barn (Application.SoftDelete
         // cascadar internt till FollowUp + ApplicationNote).
-        var app1 = DomainApplication.Create(seeker.Id, null, "Brev 1", Clock).Value;
+        var app1 = DomainApplication.Create(seeker.Id, null, "Brev 1", null, Clock).Value;
         app1.AddFollowUp(FollowUpChannel.Email, Clock.UtcNow.AddDays(3), "Ringa upp", Clock);
         app1.AddNote("Internt anteckning", Clock);
-        var app2 = DomainApplication.Create(seeker.Id, null, null, Clock).Value;
+        var app2 = DomainApplication.Create(seeker.Id, null, null, null, Clock).Value;
 
         // Två CV; vart och ett får en Master-version av factoryn
         // (Resume.SoftDelete cascadar internt till ResumeVersions).

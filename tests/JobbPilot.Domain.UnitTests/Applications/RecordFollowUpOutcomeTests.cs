@@ -27,7 +27,7 @@ public class RecordFollowUpOutcomeTests
     private static Application CreateActiveApplication()
     {
         var jobSeekerId = new JobSeekerId(Guid.NewGuid());
-        return Application.Create(jobSeekerId, null, null, Clock).Value;
+        return Application.Create(jobSeekerId, null, null, null, Clock).Value;
     }
 
     private static FollowUpId AddPendingFollowUp(Application application)

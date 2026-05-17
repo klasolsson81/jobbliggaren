@@ -44,7 +44,7 @@ public class DetectGhostedApplicationsJobIntegrationTests(WorkerTestFixture fixt
         var seeker = JobSeeker.Register(Guid.NewGuid(), "Smoke User", seedClock).Value;
         db.JobSeekers.Add(seeker);
 
-        var app = DomainApplication.Create(seeker.Id, null, null, seedClock).Value;
+        var app = DomainApplication.Create(seeker.Id, null, null, null, seedClock).Value;
 
         if (targetStatus == ApplicationStatus.Submitted ||
             targetStatus == ApplicationStatus.Acknowledged ||

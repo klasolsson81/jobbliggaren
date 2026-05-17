@@ -32,7 +32,7 @@ public class RecordFollowUpOutcomeCommandHandlerTests
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
-        var app = DomainApplication.Create(seeker.Id, null, null, FakeDateTimeProvider.Default).Value;
+        var app = DomainApplication.Create(seeker.Id, null, null, null, FakeDateTimeProvider.Default).Value;
         app.AddFollowUp(FollowUpChannel.Email, FakeDateTimeProvider.Default.UtcNow.AddDays(3), null, FakeDateTimeProvider.Default);
         db.Applications.Add(app);
 

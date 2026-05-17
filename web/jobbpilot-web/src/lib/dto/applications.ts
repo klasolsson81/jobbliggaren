@@ -30,6 +30,20 @@ export const followUpOutcomeSchema = z.enum([
 ]);
 export type FollowUpOutcome = z.infer<typeof followUpOutcomeSchema>;
 
+// ADR 0048 — jobb-metadata-sammanfattning projicerad i read-vägen.
+// Källa: JobAd (kopplad ansökan) eller Application.ManualPosting (manuell).
+// jobAdId null när källan är ManualPosting. publishedAt null för manuell (J1).
+export const jobAdSummaryDtoSchema = z.object({
+  jobAdId: z.string().nullable(),
+  title: z.string(),
+  company: z.string(),
+  url: z.string().nullable(),
+  source: z.string(),
+  publishedAt: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+});
+export type JobAdSummaryDto = z.infer<typeof jobAdSummaryDtoSchema>;
+
 export const applicationDtoSchema = z.object({
   id: z.string(),
   jobSeekerId: z.string(),
@@ -37,6 +51,10 @@ export const applicationDtoSchema = z.object({
   status: applicationStatusSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
+  // nullable + optional: backend skickar alltid jobAd (null|objekt), men
+  // optional ger deploy-skew-resiliens (cachead/äldre svar utan fältet
+  // kraschar ej parse — architect §6 deploy-säkerhets-intent).
+  jobAd: jobAdSummaryDtoSchema.nullable().optional(),
 });
 export type ApplicationDto = z.infer<typeof applicationDtoSchema>;
 

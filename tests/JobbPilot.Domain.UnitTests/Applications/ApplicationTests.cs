@@ -20,7 +20,7 @@ public class ApplicationTests
     [Fact]
     public void Create_WithValidData_ReturnsSuccess()
     {
-        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, Clock);
+        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.JobSeekerId.ShouldBe(ValidJobSeekerId);
@@ -33,7 +33,7 @@ public class ApplicationTests
     [Fact]
     public void Create_WithoutJobAdId_ReturnsSuccess()
     {
-        var result = Application.Create(ValidJobSeekerId, null, null, Clock);
+        var result = Application.Create(ValidJobSeekerId, null, null, null, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.JobAdId.ShouldBeNull();
@@ -42,7 +42,7 @@ public class ApplicationTests
     [Fact]
     public void Create_WithDefaultJobSeekerId_ReturnsFailure()
     {
-        var result = Application.Create(default, ValidJobAdId, null, Clock);
+        var result = Application.Create(default, ValidJobAdId, null, null, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Application.JobSeekerIdRequired");
@@ -53,7 +53,7 @@ public class ApplicationTests
     {
         var coverLetter = new string('A', 10_000);
 
-        var result = Application.Create(ValidJobSeekerId, null, coverLetter, Clock);
+        var result = Application.Create(ValidJobSeekerId, null, coverLetter, null, Clock);
 
         result.IsSuccess.ShouldBeTrue();
     }
@@ -63,7 +63,7 @@ public class ApplicationTests
     {
         var tooLong = new string('A', 10_001);
 
-        var result = Application.Create(ValidJobSeekerId, null, tooLong, Clock);
+        var result = Application.Create(ValidJobSeekerId, null, tooLong, null, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Application.CoverLetterTooLong");
@@ -72,7 +72,7 @@ public class ApplicationTests
     [Fact]
     public void Create_TrimsCoverLetter()
     {
-        var result = Application.Create(ValidJobSeekerId, null, "  Hej  ", Clock);
+        var result = Application.Create(ValidJobSeekerId, null, "  Hej  ", null, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.CoverLetter.ShouldBe("Hej");
@@ -85,7 +85,7 @@ public class ApplicationTests
     [Fact]
     public void Create_WithValidData_RaisesApplicationCreatedDomainEvent()
     {
-        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, Clock);
+        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         var evt = result.Value.DomainEvents.ShouldHaveSingleItem()
@@ -98,7 +98,7 @@ public class ApplicationTests
     [Fact]
     public void Create_WithDefaultJobSeekerId_DoesNotRaiseDomainEvent()
     {
-        var result = Application.Create(default, ValidJobAdId, null, Clock);
+        var result = Application.Create(default, ValidJobAdId, null, null, Clock);
 
         result.IsFailure.ShouldBeTrue();
         // Ingen Application skapas — inget event
@@ -509,7 +509,7 @@ public class ApplicationTests
         var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
         var clock = FakeDateTimeProvider.At(t1);
 
-        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clock);
+        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.LastStatusChangeAt.ShouldBe(t1);
@@ -518,7 +518,7 @@ public class ApplicationTests
     [Fact]
     public void Application_Create_SetsGhostedThresholdDaysToDefault21()
     {
-        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, Clock);
+        var result = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.GhostedThresholdDays.ShouldBe(21);
@@ -531,7 +531,7 @@ public class ApplicationTests
         var t2 = t1.AddMinutes(5);
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
 
         var result = application.TransitionTo(ApplicationStatus.Submitted, clockT2);
 
@@ -546,7 +546,7 @@ public class ApplicationTests
         var t2 = t1.AddMinutes(5);
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
 
         // Draft → Accepted är otillåten övergång
         var result = application.TransitionTo(ApplicationStatus.Accepted, clockT2);
@@ -564,7 +564,7 @@ public class ApplicationTests
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
         var clockT3 = FakeDateTimeProvider.At(t3);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
         application.TransitionTo(ApplicationStatus.Submitted, clockT2);
 
         var result = application.MarkGhosted(clockT3);
@@ -582,7 +582,7 @@ public class ApplicationTests
         var t2 = t1.AddMinutes(5);
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
 
         var result = application.MarkGhosted(clockT2);
 
@@ -598,7 +598,7 @@ public class ApplicationTests
         var t2 = t1.AddMinutes(5);
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
         var scheduledAt = t2.AddDays(3);
 
         var result = application.AddFollowUp(FollowUpChannel.Email, scheduledAt, null, clockT2);
@@ -614,7 +614,7 @@ public class ApplicationTests
         var t2 = t1.AddMinutes(5);
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
 
         var result = application.AddNote("Viktig notering", clockT2);
 
@@ -629,7 +629,7 @@ public class ApplicationTests
         var t2 = t1.AddMinutes(5);
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, clockT1).Value;
+        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
 
         application.SoftDelete(clockT2);
 
@@ -642,7 +642,7 @@ public class ApplicationTests
     // ---------------------------------------------------------------
 
     private static Application CreateValidApplication() =>
-        Application.Create(ValidJobSeekerId, ValidJobAdId, null, Clock).Value;
+        Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, Clock).Value;
 
     /// <summary>
     /// Bygger en Application vars Status är satt till <paramref name="target"/>.
@@ -651,7 +651,7 @@ public class ApplicationTests
     /// </summary>
     private static Application CreateApplicationAtStatus(ApplicationStatus target)
     {
-        var app = Application.Create(ValidJobSeekerId, ValidJobAdId, null, Clock).Value;
+        var app = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, Clock).Value;
 
         // Draft → Submitted
         if (target == ApplicationStatus.Draft) return app;

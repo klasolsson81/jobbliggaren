@@ -18,7 +18,7 @@ public class FollowUpTests
     private static Application CreateActiveApplication()
     {
         var jobSeekerId = new JobbPilot.Domain.JobSeekers.JobSeekerId(Guid.NewGuid());
-        return Application.Create(jobSeekerId, null, null, Clock).Value;
+        return Application.Create(jobSeekerId, null, null, null, Clock).Value;
     }
 
     // ---------------------------------------------------------------

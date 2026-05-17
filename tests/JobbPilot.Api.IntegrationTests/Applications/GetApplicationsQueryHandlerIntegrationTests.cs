@@ -1,44 +1,73 @@
+using JobbPilot.Api.IntegrationTests.Infrastructure;
 using JobbPilot.Application.Applications.Queries.GetApplications;
 using JobbPilot.Application.Common.Abstractions;
-using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.Applications;
+using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobSeekers;
+using JobbPilot.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 
-namespace JobbPilot.Application.UnitTests.Applications.Queries;
+// Alias matchar Application.UnitTests GlobalUsings.cs (Application-typen
+// krockar med JobbPilot.Application-namespacet); integrationsprojektet har
+// ingen global alias, så den deklareras per fil.
+using DomainApplication = JobbPilot.Domain.Applications.Application;
 
-public class GetApplicationsQueryHandlerTests
+namespace JobbPilot.Api.IntegrationTests.Applications;
+
+// Flyttad från JobbPilot.Application.UnitTests (EF InMemory) till Npgsql/
+// Testcontainers per senior-cto-advisor rev2 (B), docs/reviews/
+// 2026-05-17-fas3-stopp3a-divergence-cto-2.md §3/§4. Handlern joinar
+// db.JobAds via converter på en nullable-struct-FK; EF InMemory är ej
+// relationell och kan inte översätta converter + LEFT JOIN — testerna ÄR
+// per definition integrationstester (Fowler/Cohn). Scenarier + assertions
+// bevarade 1:1; provider bytt InMemory → Npgsql. Testnamn bevarade för
+// spårbar täckning (ADR 0044 — ingen coverage-sänkning).
+//
+// Mönster (scope/AppDbContext/IDateTimeProvider) kopierat verbatim från
+// ManualPostingPersistenceTests.cs (redan grön mot Npgsql). User-scoping
+// (ADR 0031) bevaras: varje test seedar unik user via slumpad Guid →
+// query-resultatet är naturligt isolerat per JobSeeker även mot delad
+// Testcontainers-Postgres ([Collection("Api")]). Handlern konstrueras
+// direkt med NSubstitute ICurrentUser — identiskt med unit-sviten, bara
+// mot Npgsql-DbContext (handler-logik oförändrad → auth-semantik 1:1).
+[Collection("Api")]
+public class GetApplicationsQueryHandlerIntegrationTests
 {
+    private readonly ApiFactory _factory;
+
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
 
-    public GetApplicationsQueryHandlerTests()
+    public GetApplicationsQueryHandlerIntegrationTests(ApiFactory factory)
     {
+        _factory = factory;
         _currentUser.UserId.Returns(_userId);
     }
 
     private static async Task<(JobSeeker seeker, List<DomainApplication> apps)> SeedAsync(
-        JobbPilot.Infrastructure.Persistence.AppDbContext db,
+        AppDbContext db,
+        IDateTimeProvider clock,
         Guid userId,
         int draftCount = 1,
         int submittedCount = 0)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", clock).Value;
         db.JobSeekers.Add(seeker);
 
         var apps = new List<DomainApplication>();
         for (var i = 0; i < draftCount; i++)
         {
-            var app = DomainApplication.Create(seeker.Id, null, null, FakeDateTimeProvider.Default).Value;
+            var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
             apps.Add(app);
             db.Applications.Add(app);
         }
 
         for (var i = 0; i < submittedCount; i++)
         {
-            var app = DomainApplication.Create(seeker.Id, null, null, FakeDateTimeProvider.Default).Value;
-            app.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.Default);
+            var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+            app.TransitionTo(ApplicationStatus.Submitted, clock);
             apps.Add(app);
             db.Applications.Add(app);
         }
@@ -50,7 +79,9 @@ public class GetApplicationsQueryHandlerTests
     [Fact]
     public async Task Handle_WhenUserIdIsNull_ReturnsEmptyPagedResult()
     {
-        var db = TestAppDbContextFactory.Create();
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
@@ -67,7 +98,9 @@ public class GetApplicationsQueryHandlerTests
     [Fact]
     public async Task Handle_WhenJobSeekerNotFound_ReturnsEmptyPagedResult()
     {
-        var db = TestAppDbContextFactory.Create();
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
@@ -79,8 +112,11 @@ public class GetApplicationsQueryHandlerTests
     [Fact]
     public async Task Handle_WithNoStatusFilter_ReturnsAllApplications()
     {
-        var db = TestAppDbContextFactory.Create();
-        await SeedAsync(db, _userId, draftCount: 2, submittedCount: 1);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 
@@ -93,8 +129,11 @@ public class GetApplicationsQueryHandlerTests
     [Fact]
     public async Task Handle_WithStatusFilter_ReturnsOnlyMatchingApplications()
     {
-        var db = TestAppDbContextFactory.Create();
-        await SeedAsync(db, _userId, draftCount: 2, submittedCount: 1);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 
@@ -108,8 +147,11 @@ public class GetApplicationsQueryHandlerTests
     [Fact]
     public async Task Handle_WithSubmittedStatusFilter_ExcludesDraftApplications()
     {
-        var db = TestAppDbContextFactory.Create();
-        await SeedAsync(db, _userId, draftCount: 2, submittedCount: 1);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 
@@ -123,11 +165,14 @@ public class GetApplicationsQueryHandlerTests
     [Fact]
     public async Task Handle_DoesNotReturnApplicationsBelongingToOtherJobSeeker()
     {
-        var db = TestAppDbContextFactory.Create();
-        await SeedAsync(db, _userId, draftCount: 1);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        await SeedAsync(db, clock, _userId, draftCount: 1);
 
         var otherUserId = Guid.NewGuid();
-        await SeedAsync(db, otherUserId, draftCount: 3);
+        await SeedAsync(db, clock, otherUserId, draftCount: 3);
 
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 
@@ -141,8 +186,11 @@ public class GetApplicationsQueryHandlerTests
     public async Task Handle_TotalCount_IsIndependentOfPageSize()
     {
         // Regression-skydd: TotalCount ska vara total efter filter, inte page-storlek.
-        var db = TestAppDbContextFactory.Create();
-        await SeedAsync(db, _userId, draftCount: 5);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        await SeedAsync(db, clock, _userId, draftCount: 5);
 
         var handler = new GetApplicationsQueryHandler(db, _currentUser);
 

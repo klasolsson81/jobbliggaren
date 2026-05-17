@@ -6,4 +6,5 @@ public sealed record ApplicationDto(
     Guid? JobAdId,
     string Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    JobAdSummaryDto? JobAd);

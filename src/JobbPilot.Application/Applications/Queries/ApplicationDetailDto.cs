@@ -9,4 +9,5 @@ public sealed record ApplicationDetailDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<FollowUpDto> FollowUps,
-    IReadOnlyList<NoteDto> Notes);
+    IReadOnlyList<NoteDto> Notes,
+    JobAdSummaryDto? JobAd);

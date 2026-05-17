@@ -206,6 +206,50 @@ public class SyncPlatsbankenSnapshotJobTests
     }
 
     [Fact]
+    public async Task RunAsync_WithEmptySnapshot_StillRecordsAuditOnce()
+    {
+        // Branch (e) — empty snapshot ska ändå skriva EXAKT en audit-rad
+        // (GDPR Art. 30 "behandlingsaktivitet har körts" — relevant även
+        // när 0 items processades).
+        var jobSource = StubJobSource();
+        var mediator = Substitute.For<IMediator>();
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator), auditor);
+
+        var counts = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        counts.Fetched.ShouldBe(0);
+        await auditor.Received(1).RecordAsync(
+            Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenMediatorThrowsOperationCanceled_RethrowsWithoutSwallowing()
+    {
+        // Branch (c) — det dedikerade catch (OperationCanceledException) { throw; }
+        // i try-blocket. Skiljer sig från det existerande
+        // PropagatesOperationCanceledException-testet som triggar
+        // ThrowIfCancellationRequested FÖRE try-blocket. Här kastas OCE
+        // mitt i mediator.Send → måste propagera, INTE räknas som Errors
+        // (generic catch får inte svälja den).
+        var jobSource = StubJobSource(ValidItem("a"), ValidItem("b"));
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns<Result<UpsertOutcome>>(_ =>
+                throw new OperationCanceledException("simulerad mid-send-cancel"));
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator), auditor);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => job.RunAsync(TestContext.Current.CancellationToken));
+
+        // OCE-rethrow kortsluter RunAsync → ingen audit-rad, OCE inte
+        // omklassad till Errors av generic catch.
+        await auditor.DidNotReceive().RecordAsync(
+            Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_WhenSnapshotContainsDuplicates_IsolatesPerItemScope_AndCompletes()
     {
         // Root-cause-regression (2026-05-16): tidigare körde hela ~47k-loopen i

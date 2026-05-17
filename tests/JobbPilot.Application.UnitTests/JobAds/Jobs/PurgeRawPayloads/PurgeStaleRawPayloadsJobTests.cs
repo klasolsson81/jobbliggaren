@@ -63,6 +63,26 @@ public class PurgeStaleRawPayloadsJobTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenRetentionDaysIsZero_DoesNotRecordAudit()
+    {
+        // Branch (a) komplettering — invalid retention → early return FÖRE
+        // auditor.RecordAsync. Existerande tester verifierar bara att DbSet
+        // inte rörs; audit-skip är en separat icke-täckt assertion. Ingen
+        // audit-rad får skrivas när jobbet hoppar över pga felaktig config
+        // (annars ljuger GDPR Art. 30-trailen om en behandling som inte skedde).
+        var db = Substitute.For<IAppDbContext>();
+        var jobAdSet = Substitute.For<DbSet<JobAd>>();
+        db.JobAds.Returns(jobAdSet);
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = CreateJob(db, retentionDays: 0, auditor);
+
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        await auditor.DidNotReceive().RecordAsync(
+            Arg.Any<RawPayloadPurged>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_WithValidRetention_AccessesJobAdsDbSet()
     {
         // Med riktig in-memory DB (utan rader) ska jobbet köra utan kast.

@@ -9,4 +9,14 @@
   <PropertyGroup>
     <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
+
+  <!-- MTP code coverage-extension (ADR 0044). En central referens för alla
+       testprojekt (de ärver denna fil). MTP.MSBuild auto-genererar
+       SelfRegisteredExtensions.cs som refererar paketets typer → 'compile'-
+       assets krävs (ingen PrivateAssets/IncludeAssets-restriktion, samma
+       form som xunit.v3.mtp-v2). Version central i Directory.Packages.props
+       (CPM). Testprojekt paketeras aldrig → ingen transitiv läckage-risk. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+  </ItemGroup>
 </Project>

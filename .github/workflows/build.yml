@@ -74,6 +74,59 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
         run: dotnet test --solution JobbPilot.sln --no-build -c Release
 
+  # Coverage-mätning (ADR 0044). PROPOSED — ej blockerande gate.
+  # continue-on-error tas bort + gate-steget aktiveras först efter
+  # senior-cto-advisor-satta tröskelvärden + Klas-GO (CLAUDE.md §9.2 —
+  # CI-gate-aktivering = strategisk transition). Det snabba backend-jobbet
+  # rörs inte (fast fail-feedback bevaras); detta kör parallellt.
+  coverage:
+    name: coverage (.NET 10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Coverage (test + ReportGenerator, first-party-filtrerad)
+        run: bash scripts/coverage.sh
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: artifacts/coverage
+          retention-days: 14
+
+      # GATE-MEKANISM (PROPOSED — ej enforce:ad). Tröskel-VÄRDEN sätts av
+      # senior-cto-advisor i ADR 0044 (per-lager ratchet). Steget existerar
+      # men `exit 0` gör det till en no-op tills Klas-GO; då tas exit 0 +
+      # continue-on-error bort och coverage läggs i ci.needs. jq finns
+      # förinstallerat på ubuntu-runners (ingen ny supply-chain-yta).
+      - name: Coverage gate (PROPOSED — not enforced)
+        if: always()
+        shell: bash
+        run: |
+          line=$(jq -r '.summary.linecoverage' artifacts/coverage/Summary.json)
+          branch=$(jq -r '.summary.branchcoverage' artifacts/coverage/Summary.json)
+          echo "First-party line: ${line}%  branch: ${branch}%"
+          echo "Gate ej aktiverad (ADR 0044 Proposed — väntar CTO-tröskel + Klas-GO)."
+          exit 0
+
   frontend:
     name: frontend (Next.js 16)
     runs-on: ubuntu-latest

@@ -129,6 +129,17 @@ public static class DependencyInjection
 
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
 
+        // ADR 0043 — Taxonomi-ACL (Variant A). Singleton: lat in-memory-cache
+        // av den bounded, oföränderliga snapshot-tabellen (invalideras vid
+        // app-restart efter deploy, samma livscykel som seedern). Seedern är
+        // IHostedService som idempotent + version-medvetet populerar
+        // taxonomy_concepts från embedded taxonomy-snapshot.json vid startup
+        // (speglar IdempotentAdminRoleSeeder). DI i samma commit som port-impl.
+        services.AddSingleton<ITaxonomyReadModel,
+            JobbPilot.Infrastructure.Taxonomy.TaxonomyReadModel>();
+        services.AddHostedService<
+            JobbPilot.Infrastructure.Taxonomy.TaxonomySnapshotSeeder>();
+
         // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
         // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).

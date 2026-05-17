@@ -25,6 +25,7 @@ public static partial class RateLimitingExtensions
     public const string WaitlistSignupPolicy = "waitlist-signup";
     public const string ListReadPolicy = "list-read";
     public const string SuggestPolicy = "suggest";
+    public const string TaxonomyReadPolicy = "taxonomy-read";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -185,6 +186,27 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.Suggest.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.Suggest.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Dedikerad taxonomi-policy
+            // (ADR 0043 MAP-3, senior-cto-advisor 2026-05-17) — least common
+            // mechanism (Saltzer/Schroeder): statisk referensdata-yta delar
+            // inte skyddsbudget med list/suggest. Auth-gated → anonym fångas
+            // av RequireAuthorization (NoLimiter bypass). Parametrar
+            // IOptions-bundna (§5.1). security-auditor BLOCKING verifierar tal.
+            options.AddPolicy(TaxonomyReadPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-taxonomy");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.TaxonomyRead.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.TaxonomyRead.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

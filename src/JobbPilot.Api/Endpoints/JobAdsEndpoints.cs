@@ -1,6 +1,9 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using JobbPilot.Api.RateLimiting;
 using JobbPilot.Application.JobAds.Commands.CreateJobAd;
 using JobbPilot.Application.JobAds.Queries.GetJobAd;
+using JobbPilot.Application.JobAds.Queries.GetTaxonomyTree;
 using JobbPilot.Application.JobAds.Queries.ListJobAds;
 using JobbPilot.Application.JobAds.Queries.SuggestJobAdTerms;
 using JobbPilot.Domain.JobAds;
@@ -58,6 +61,43 @@ public static class JobAdsEndpoints
         })
         .RequireRateLimiting(RateLimitingExtensions.SuggestPolicy);
 
+        // ADR 0043 — picker-träd (Län + Yrkesområde→Yrke). concept-id
+        // försvinner ur UI (Anticorruption Layer). Statisk referensdata →
+        // ETag + Cache-Control: private (auth-gated; ALDRIG public/shared-
+        // proxy — Web Cache Deception, MAP-3). 304 vid If-None-Match-match
+        // så frontend slipper re-hämta ~300 KB per render.
+        group.MapGet("/taxonomy", async (
+            IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            var tree = await mediator.Send(new GetTaxonomyTreeQuery(), ct);
+            var etag = TaxonomyETag(tree);
+
+            http.Response.Headers.CacheControl = "private, max-age=3600";
+            http.Response.Headers.ETag = etag;
+
+            var inm = http.Request.Headers.IfNoneMatch.ToString();
+            if (!string.IsNullOrEmpty(inm) && inm == etag)
+                return Results.StatusCode(StatusCodes.Status304NotModified);
+
+            return Results.Ok(tree);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
+
+        // ADR 0043 — reverse-lookup (concept-id → namn) för redan-sparade
+        // sökningar/valda chips. Okänt id → "Okänd kod (<id>)" (graceful,
+        // aldrig 500). Cap i ResolveTaxonomyLabelsQueryValidator (= domänens
+        // MaxConceptIds ×2). Cache-Control: private (varierar per ids, auth).
+        group.MapGet("/taxonomy/labels", async (
+            IMediator mediator, HttpContext http,
+            string[]? ids = null, CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(
+                new ResolveTaxonomyLabelsQuery(ids ?? []), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
+
         group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetJobAdQuery(id), ct);
@@ -76,5 +116,17 @@ public static class JobAdsEndpoints
                     detail: result.Error.Message,
                     statusCode: 400);
         });
+    }
+
+    // Deterministisk svag ETag = SHA256 över den logiska trädets JSON.
+    // Trädet är invariant per deploy/snapshot-version → samma ETag tills
+    // snapshot regenereras (då innehållet, och därmed hashen, ändras).
+    // Svag (W/) — semantisk likvärdighet, inte byte-för-byte (serialiserings-
+    // option-drift ska inte trigga onödig re-hämtning).
+    private static string TaxonomyETag(TaxonomyTreeDto tree)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(tree);
+        var hash = SHA256.HashData(bytes);
+        return $"W/\"{Convert.ToHexString(hash)[..32]}\"";
     }
 }

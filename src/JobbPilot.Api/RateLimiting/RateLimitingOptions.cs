@@ -98,6 +98,22 @@ public sealed class RateLimitingOptions
         WindowSeconds = 10,
     };
 
+    /// <summary>
+    /// GET /job-ads/taxonomy(+/labels) (ADR 0043 picker-träd + reverse-
+    /// lookup) — partitionerat per UserId (claim "sub"). Egen policy
+    /// (least common mechanism, Saltzer/Schroeder): statisk referensdata
+    /// med ETag + private cache → frontend hämtar sällan; en låg egen
+    /// budget får inte svälta list/suggest-ytan och vice versa. 20/60s
+    /// täcker initial-load + ev. reverse-lookup per sökvy med marginal,
+    /// kapar script-flod. senior-cto-advisor MAP-3 2026-05-17 — riktvärde,
+    /// security-auditor verifierar/justerar (BLOCKING). IOptions-bundet (§5.1).
+    /// </summary>
+    public PolicyOptions TaxonomyRead { get; init; } = new()
+    {
+        PermitLimit = 20,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

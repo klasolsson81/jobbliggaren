@@ -125,16 +125,13 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
                 opts.InstanceName = "jobbpilot:";
             });
 
-            // N-2 hardening (2026-05-11): IdempotentAdminRoleSeeder bubblar 42P01
-            // i Production-env (CLAUDE.md §3.4 fail-loud). Test-fixturen kör
-            // Services.CreateScope FÖRE MigrateAsync (catch-22) så seedern måste
-            // tas bort här. Prod-defensen verifieras separat via
-            // IdempotentAdminRoleSeederTests.IsSchemaInitGracePeriod_GatesOnEnvironmentName.
-            var seederDescriptors = services
-                .Where(d => d.ImplementationType == typeof(IdempotentAdminRoleSeeder))
-                .ToList();
-            foreach (var d in seederDescriptors)
-                services.Remove(d);
+            // N-2 hardening (2026-05-11): prod-seedrar (IdempotentAdminRoleSeeder
+            // + ADR 0043 TaxonomySnapshotSeeder) bubblar 42P01 i Production-env
+            // (CLAUDE.md §3.4 fail-loud). Fixturen kör Services.CreateScope FÖRE
+            // MigrateAsync (catch-22) → seedrarna plockas bort här. Prod-defensen
+            // verifieras separat via *ProdBubbleTests + *.IsSchemaInitGracePeriod.
+            // Delad SPOT (ADR 0043 defekt-triage #3).
+            services.RemoveStartupSeeders();
         });
     }
 

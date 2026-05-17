@@ -38,19 +38,19 @@ Rå cobertura per testprojekt lämnas **oförändrad** i `TestResults/` (audit-t
 
 `JobbPilot.Migrate` exkluderas på assembly-nivå (DDL-init-entrypoint, ingen affärslogik). `Program.cs` filtreras (komposition, otestbar utan host). ReportGenerator honorerar dessutom `[ExcludeFromCodeCoverage]` — attributet appliceras *minimalt* och endast på genuint omätbar ekvivalens-kod (strongly-typed `*Id`-record-structs, SmartEnum-härledd equality, Result-factory-one-liners) som opportunistisk samma-fas-refinement; det är **inte** ett krav för den ärliga siffran (filtren räcker), och sprids inte brett denna touch (CLAUDE.md §9.6 — jaga ej brus).
 
-### 3. Uppmätt first-party-baseline (HEAD `b3772a3`, denna mekanism)
+### 3. Uppmätt first-party-baseline (post-B, HEAD `472dbdb`, denna mekanism)
 
 | Lager | Line | Branch |
 |---|---|---|
 | JobbPilot.Domain | 95.3% | 93.3% |
-| JobbPilot.Application | 96.2% | 88.8% |
+| JobbPilot.Application | 97.7% | 91.1% |
 | JobbPilot.Infrastructure | 84.0% | 71.1% |
 | JobbPilot.Api (efter filter) | 93.7% | 82.9% |
 | JobbPilot.Worker | 30.7% | (få grenar) |
 | JobbPilot.Migrate | exkluderad | — |
-| **Totalt first-party** | **91.5%** | **83.7%** |
+| **Totalt first-party** | **92.1%** | **84.5%** (method 90.2%) |
 
-Detta är den auktoritativa baslinjen framåt (mätt av denna reproducerbara mekanism). Den skiljer sig medvetet från tidigare ad-hoc-siffror (86.6/72.7) eftersom filtret är striktare och ärligare. B-luckorna (DeleteAccount, ListInvitations, Hangfire-grenar) höjer Application ytterligare när de stängs i samma session.
+Detta är den auktoritativa baslinjen framåt (mätt av denna reproducerbara mekanism, 1156 tester gröna). Den skiljer sig medvetet från tidigare ad-hoc-siffror (86.6/72.7) eftersom filtret är striktare och ärligare. Pre-B-baseline var 91.5/83.7 (HEAD `b3772a3`); B1/B2/B3 (denna session) höjde Application 96.2→97.7 line / 88.8→91.1 branch genom att stänga genuina luckor: DeleteAccountCommandHandler 71.8→**100%** (GDPR §5.4), ListInvitationsQueryHandler 0→**100%**, InvitationListItemDto 0→**100%**, AuditLogRetentionJob 93.7→**100%**, SyncPlatsbankenSnapshotJob 94.3→**98.1%**. PurgeStaleRawPayloadsJob kvarstår 73% — det otäckta är `ExecuteUpdateAsync`-provider-bunden path som täcks på Worker.IntegrationTests-nivå (EF InMemory stöder ej ExecuteUpdate), ej en unit-täckbar lucka (medvetet, dokumenterad — CLAUDE.md §9.6 jaga ej brus).
 
 ### 4. Regressions-gate (senior-cto-advisor — icke-regression-ratchet, ej måltavla)
 
@@ -82,9 +82,10 @@ Jobblogiken (`SyncPlatsbankenSnapshotJob`, `AuditLogRetentionJob`, `PurgeStaleRa
 ## Implementationsstatus
 
 **Klart (denna session, CC kör direkt — entydigt mot principer per §9.6):**
-- Mätmekanism: paket + tool-manifest + scripts + .gitignore — verifierad fungerande (1139/1139, first-party Line 91.5% / Branch 83.7%).
+- Mätmekanism: paket + tool-manifest + scripts + .gitignore — verifierad fungerande (1156/1156 post-B, first-party Line 92.1% / Branch 84.5% / Method 90.2%). Commit `2d262ee`.
 - First-party-filter (assembly/class/file) — verifierad.
-- CI-jobb `coverage` PROPOSED (continue-on-error, gate `exit 0`).
+- CI-jobb `coverage` PROPOSED (continue-on-error, gate `exit 0`). Commit `2d262ee`.
+- B1/B2/B3 genuina luckor stängda (commits `6768700`, `472dbdb`): DeleteAccount GDPR ~100% (security-auditor GO 0/0/0), ListInvitations/DTO 0→100%, Hangfire failure/empty/cancel-grenar. CTO Approach (a) bekräftad korrekt (jobben thin/testbara — Gemini extract-to-service onödig).
 - Denna ADR i status **Proposed**.
 
 **Väntar Klas-GO (Klas-STOPP-flagga — strategisk transition, §9.2):**

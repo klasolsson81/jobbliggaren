@@ -1,4 +1,4 @@
-import type { ApplicationStatus } from "@/lib/types/applications";
+import type { ApplicationStatus, FollowUpOutcome } from "@/lib/types/applications";
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   Draft: "Utkast",
@@ -62,9 +62,8 @@ export const CHANNEL_LABELS: Record<string, string> = {
   Other: "Övrigt",
 };
 
-export const FOLLOW_UP_OUTCOME_LABELS: Record<string, string> = {
+export const FOLLOW_UP_OUTCOME_LABELS: Record<FollowUpOutcome, string> = {
   Pending: "Inväntar svar",
-  Positive: "Positivt",
-  Negative: "Negativt",
-  Neutral: "Neutralt",
+  Responded: "Svar mottaget",
+  NoResponse: "Inget svar",
 };

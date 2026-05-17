@@ -135,6 +135,36 @@ public class ApplicationsCrossUserIsolationTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task User_B_POST_follow_up_outcome_on_user_A_application_returns_404()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clientA = await RegisterUserAsync("isolation-a", ct);
+        var clientB = await RegisterUserAsync("isolation-b", ct);
+
+        var applicationId = await CreateApplicationAsync(clientA, ct);
+
+        var followUpResponse = await clientA.PostAsJsonAsync(
+            $"/api/v1/applications/{applicationId}/follow-ups",
+            new
+            {
+                channel = "Email",
+                scheduledAt = DateTimeOffset.UtcNow.AddDays(7).ToString("O"),
+                note = (string?)null
+            },
+            ct);
+        followUpResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var followUpJson = await followUpResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var followUpId = followUpJson.GetProperty("id").GetString()!;
+
+        var response = await clientB.PostAsJsonAsync(
+            $"/api/v1/applications/{applicationId}/follow-ups/{followUpId}/outcome",
+            new { outcome = "Responded" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task User_B_POST_note_on_user_A_application_returns_404()
     {
         var ct = TestContext.Current.CancellationToken;

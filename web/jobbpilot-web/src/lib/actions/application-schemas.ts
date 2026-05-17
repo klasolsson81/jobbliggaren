@@ -37,7 +37,14 @@ export const addNoteSchema = z.object({
     .max(5000, "Notering får vara max 5 000 tecken."),
 });
 
+export const recordFollowUpOutcomeSchema = z.object({
+  applicationId: z.string().regex(GUID_REGEX, "Ogiltigt ansöknings-ID."),
+  followUpId: z.string().regex(GUID_REGEX, "Ogiltigt uppföljnings-ID."),
+  outcome: z.enum(["Responded", "NoResponse"], { error: "Ogiltigt utfall." }),
+});
+
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type TransitionStatusInput = z.infer<typeof transitionStatusSchema>;
 export type AddFollowUpInput = z.infer<typeof addFollowUpSchema>;
 export type AddNoteInput = z.infer<typeof addNoteSchema>;
+export type RecordFollowUpOutcomeInput = z.infer<typeof recordFollowUpOutcomeSchema>;

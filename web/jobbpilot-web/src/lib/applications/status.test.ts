@@ -5,7 +5,9 @@ import {
   isDestructiveTransition,
   STATUS_LABELS,
   ALLOWED_TRANSITIONS,
+  FOLLOW_UP_OUTCOME_LABELS,
 } from "./status";
+import { followUpOutcomeSchema } from "@/lib/dto/applications";
 import type { ApplicationStatus } from "@/lib/types/applications";
 
 const ALL_STATUSES: ApplicationStatus[] = [
@@ -74,5 +76,22 @@ describe("isDestructiveTransition", () => {
 
   it("Accepted is not destructive", () => {
     expect(isDestructiveTransition("Accepted")).toBe(false);
+  });
+});
+
+describe("FOLLOW_UP_OUTCOME_LABELS", () => {
+  it("matches the backend FollowUpOutcome SmartEnum (Pending/Responded/NoResponse)", () => {
+    expect(Object.keys(FOLLOW_UP_OUTCOME_LABELS).sort()).toEqual(
+      [...followUpOutcomeSchema.options].sort()
+    );
+  });
+
+  it("uses civic-utility Swedish copy without exclamation or emoji", () => {
+    expect(FOLLOW_UP_OUTCOME_LABELS.Pending).toBe("Inväntar svar");
+    expect(FOLLOW_UP_OUTCOME_LABELS.Responded).toBe("Svar mottaget");
+    expect(FOLLOW_UP_OUTCOME_LABELS.NoResponse).toBe("Inget svar");
+    for (const label of Object.values(FOLLOW_UP_OUTCOME_LABELS)) {
+      expect(label).not.toMatch(/[!]/);
+    }
   });
 });

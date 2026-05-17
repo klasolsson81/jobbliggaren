@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { TransitionForm } from "@/components/applications/transition-form";
 import { AddNoteForm } from "@/components/applications/add-note-form";
 import { AddFollowUpForm } from "@/components/applications/add-follow-up-form";
+import { RecordFollowUpOutcomeForm } from "@/components/applications/record-follow-up-outcome-form";
 import { CHANNEL_LABELS, FOLLOW_UP_OUTCOME_LABELS } from "@/lib/applications/status";
 
 interface Props {
@@ -149,6 +150,12 @@ export default async function AnsokningDetailPage({ params }: Props) {
                   <span>{FOLLOW_UP_OUTCOME_LABELS[fu.outcome] ?? fu.outcome}</span>
                   {fu.note && <span>— {fu.note}</span>}
                 </div>
+                {fu.outcome === "Pending" && (
+                  <RecordFollowUpOutcomeForm
+                    applicationId={id}
+                    followUpId={fu.id}
+                  />
+                )}
               </div>
             ))}
           </div>

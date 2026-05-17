@@ -115,6 +115,27 @@ public sealed class Application : AggregateRoot<ApplicationId>
         return Result.Success(result.Value.Id);
     }
 
+    public Result RecordFollowUpOutcome(
+        FollowUpId followUpId,
+        FollowUpOutcome outcome,
+        IDateTimeProvider clock)
+    {
+        var followUp = _followUps.FirstOrDefault(
+            f => f.Id == followUpId && f.DeletedAt is null);
+
+        if (followUp is null)
+            return Result.Failure(new DomainError(
+                "Application.FollowUpNotFound", "Uppföljningen hittades inte."));
+
+        var result = followUp.RecordOutcome(outcome, clock);
+        if (result.IsFailure)
+            return Result.Failure(result.Error);
+
+        RaiseDomainEvent(
+            new FollowUpOutcomeRecordedDomainEvent(Id, followUpId, outcome, clock.UtcNow));
+        return Result.Success();
+    }
+
     public Result AddNote(string? content, IDateTimeProvider clock)
     {
         var result = ApplicationNote.Create(content, clock);

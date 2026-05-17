@@ -144,6 +144,8 @@ Se §18 Utvecklingsfaser.
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
 | Test-mocks | NSubstitute | 5.x | Mock-ramverk för Application-tester |
 | Arch-tests | NetArchTest.Rules | 1.x | V1-val; abandoned sedan 2022 — överväg ArchUnitNET vid v2 |
+| Load-test | NBomber | 6.x | MIT; .NET-native, xUnit/MTP-koherent; k6 avvisat (ADR 0045 Beslut 4) |
+| Load-test HTTP | NBomber.Http | 6.x | HTTP-scenario-helpers för API-latens-mätning |
 | Frontend framework | Next.js | 16.2 (App Router) | SSR + ISR |
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |

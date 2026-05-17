@@ -115,7 +115,7 @@ Flip observe-only → blockerande (`ci.needs`-inläggning) sker när perf-mätni
 **Klas-godkänt vid flip:**
 
 - CLAUDE.md §2.5 (perf granskningsbar kärnprincip) + §9.2 dotnet-architect-obligatorisk-rad för Terraform-scope.
-- BUILD.md §3.1: NBomber + NBomber.Http. **BenchmarkDotNet deferrad** (Klas-direktiv — micro-benchmark-spåret skjuts till Fas 7 / dedikerad benchmark-HW).
+- BUILD.md §3.1: NBomber + NBomber.Http. **BenchmarkDotNet deferrad** (Klas-direktiv — micro-benchmark-spåret skjuts till Fas 7 / dedikerad benchmark-HW). **Fysiskt applicerat 2026-05-17** (människa-i-loopen: Klas körde `approve-spec-edit.sh` manuellt, `guard-spec-files` single-use-token konsumerad; auto-mode-klassificerarens block av agent-själv-godkännande bekräftat korrekt säkerhetsbeteende, ej bugg — sista roster-doc-loose-end stängd).
 
 **Pending denna session (roster-doc-sekvens, efter denna flip):**
 

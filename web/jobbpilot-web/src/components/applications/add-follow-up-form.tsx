@@ -78,7 +78,9 @@ export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
         </p>
       </div>
       {state && !state.success && (
-        <p className="text-body-sm text-danger-600">{state.error}</p>
+        <p role="alert" className="text-body-sm text-danger-700">
+          {state.error}
+        </p>
       )}
       <Button type="submit" size="sm" disabled={isPending}>
         Lägg till uppföljning

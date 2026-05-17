@@ -9,6 +9,7 @@ import {
   transitionStatusSchema,
   addFollowUpSchema,
   addNoteSchema,
+  recordFollowUpOutcomeSchema,
 } from "./application-schemas";
 import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
@@ -170,6 +171,45 @@ export async function addNoteAction(
 
     if (!res.ok) {
       return { success: false, error: mapActionError(res, "Kunde inte spara noteringen.") };
+    }
+  } catch {
+    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+  }
+
+  revalidatePath(`/ansokningar/${applicationId}`);
+  return { success: true };
+}
+
+export async function recordFollowUpOutcomeAction(
+  applicationId: string,
+  followUpId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+
+  const parsed = recordFollowUpOutcomeSchema.safeParse({
+    applicationId,
+    followUpId,
+    outcome: formData.get("outcome"),
+  });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
+  }
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/applications/${applicationId}/follow-ups/${followUpId}/outcome`,
+      {
+        method: "POST",
+        headers: authHeaders(sessionId),
+        body: JSON.stringify({ outcome: parsed.data.outcome }),
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) {
+      return { success: false, error: mapActionError(res, "Kunde inte registrera utfallet.") };
     }
   } catch {
     return { success: false, error: "Kunde inte nå servern. Försök igen." };

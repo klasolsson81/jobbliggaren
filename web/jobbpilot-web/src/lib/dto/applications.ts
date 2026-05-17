@@ -25,9 +25,8 @@ export type FollowUpChannel = z.infer<typeof followUpChannelSchema>;
 
 export const followUpOutcomeSchema = z.enum([
   "Pending",
-  "Positive",
-  "Negative",
-  "Neutral",
+  "Responded",
+  "NoResponse",
 ]);
 export type FollowUpOutcome = z.infer<typeof followUpOutcomeSchema>;
 

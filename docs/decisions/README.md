@@ -55,7 +55,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0040 | Smart CV-härlett filter ovanpå SavedSearch (framtida fas) | Proposed | 2026-05-16 | [0040-smart-cv-derived-saved-search.md](./0040-smart-cv-derived-saved-search.md) |
 | 0041 | Dedikerad modal-border-token för WCAG 1.4.11 i dark mode (partiell komplettering av ADR 0037) | Accepted | 2026-05-16 | [0041-dark-modal-border-non-text-contrast.md](./0041-dark-modal-border-non-text-contrast.md) |
 | 0042 | Sök-yta-informationsarkitektur: kollaps-filter, multi-värde-kriterier, typeahead, relevans-sort (Beslut 3 i ADR 0039 delvis superseded; impl-notat 2026-05-17 — Beslut C index=btree functional partial-index (Variant A) / dedikerad SuggestPolicy 30/10s / typeahead self-contained debounce-hook ej TanStack / Beslut B jsonb Yta A3 tolerant converter / Beslut E since fast rullande 7d serverstyrt) | Accepted | 2026-05-16 | [0042-search-surface-information-architecture.md](./0042-search-surface-information-architecture.md) |
-| 0043 | Taxonomi-ACL för sök-ytan (lokal taxonomi-snapshot + Anticorruption Layer; utvidgar ADR 0042 Beslut C-datakälla, domänkontrakt OFÖRÄNDRAT — superseder ingen ADR; additiva korsref-notat i ADR 0042/0039) | Proposed | 2026-05-17 | [0043-taxonomy-acl-for-search-surface.md](./0043-taxonomy-acl-for-search-surface.md) |
+| 0043 | Taxonomi-ACL för sök-ytan (lokal taxonomi-snapshot + Anticorruption Layer; utvidgar ADR 0042 Beslut C-datakälla, domänkontrakt OFÖRÄNDRAT — superseder ingen ADR; additiva korsref-notat i ADR 0042/0039) | Accepted | 2026-05-17 | [0043-taxonomy-acl-for-search-surface.md](./0043-taxonomy-acl-for-search-surface.md) |
 
 ## Planerade ADRs
 

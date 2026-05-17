@@ -119,4 +119,45 @@ Status-flip till Accepted bekräftas av Klas-GO på **STOPP 4** (ADR-accept = Kl
 
 ---
 
-*Referenser: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §5.3, §9.6, §9.7.*
+## Implementerings-notat 2026-05-17 — in-session-beslut Batch 4–5 (additivt, beslut-brödtext orörd)
+
+**Datum:** 2026-05-17
+**Källa:** in-session CTO/architect-beslut + Klas-bekräftelse 2026-05-17 (Fas 2-stängningssession). Notatet är additivt och dokumenterar de implementations-beslut som Beslut C/B/E explicit lämnade till in-session-avgörande — det **ändrar inte** Beslut A–F:s brödtext (ADR-immutabilitet; samma mönster som ADR 0032-amendments + ADR 0032-amendment 2026-05-16 hybrid).
+**Beslutsfattare:** senior-cto-advisor + dotnet-architect (agentId-refererade nedan) + Klas Olsson (bekräftat 2026-05-17)
+**Status:** Oförändrad **Accepted** — notatet dokumenterar implementation av redan låsta beslut, det fattar inga nya arkitekturval.
+
+### Beslut C — index = senior-cto-advisor Variant A (btree functional partial-index)
+
+Beslut C lämnade indexvalet (`text_pattern_ops` btree vs `pg_trgm` GIN) explicit till in-session CTO+architect-avgörande i Batch 5 (ADR-brödtext §47 + tabellrad "Index-val Beslut C"). Avgjort:
+
+- **Valt (senior-cto-advisor agentId `afba3c7659c086817`, Variant A):** btree functional partial-index `lower(title) text_pattern_ops WHERE status = 'Active' AND deleted_at IS NULL`, levererat via migration `F2SuggestTitlePrefixIndex`. Left-anchored prefix-sök (Beslut C-scope) betjänas av `text_pattern_ops`-opclass; partial-predikatet håller indexet litet och linjerat mot den faktiska sök-ytan (aktiva, ej soft-deletade annonser).
+- **Avvisat:** `pg_trgm` GIN. Kräver `CREATE EXTENSION pg_trgm` (DB-yta + migration-vikt), bär write-overhead som står i konflikt med den kontinuerliga stream-cron-skrivlasten (ADR 0032 sync-flöde), och dess infix-/similarity-styrka ligger **utanför** Beslut C:s left-anchored prefix-scope — spekulativ kapacitet (YAGNI, Beck/Fowler). **Ingen extension introduceras.**
+
+### Beslut C — rate-limit: dedikerad `SuggestPolicy`
+
+Beslut C:s DoS-skydd ("rate-limit-policy på endpointen", §47) konkretiseras: en **dedikerad `SuggestPolicy`** per-user FixedWindow 30 förfrågningar / 10 s, IOptions-bunden. Ingen återanvändning av en befintlig `ListRead`-policy — least-common-mechanism-disciplin (separat skyddsyta för en separat, mer keystroke-intensiv endpoint; egen tröskel kan justeras utan att röra list-ytan). security-auditor PASS bekräftade 30/10 s-tröskeln.
+
+### Beslut C — typeahead frontend-datahämtning: self-contained debounce-hook (ej TanStack Query)
+
+Frontend-datahämtningen för typeahead implementeras som en **self-contained debounce-hook** (debounce ≥ 300 ms, minsta prefix 2 tecken, `AbortController` för in-flight-avbryt) — **inte** via TanStack Query.
+
+- **Beslutskälla:** senior-cto-advisor agentId `a377901ce353b58e7`. Rationale: YAGNI + CLAUDE.md §9.1/§9.2 — CLAUDE.md §4.3 reglerar TanStack Query för *mutations och pollar*, inte för en kortlivad keystroke-driven read-suggest. Att lägga query-cache-infrastruktur på en debouncad, abortbar förslags-yta är spekulativ generalisering utan aktuellt behov.
+
+### Beslut B — jsonb-persistens = CTO Yta A3 (property-level HasConversion + tolerant converter)
+
+Beslut B.4 (gammal-rad jsonb-datakompat, ADR-brödtext §39) konkretiseras: multi-värde-`SearchCriteria` persisteras via **property-level `HasConversion`** + en `SearchCriteriaJsonConverter` (System.Text.Json) i Infrastructure med **tolerant default-deny**-beteende.
+
+- **Beslutskälla:** senior-cto-advisor agentId `a3f867af2b57df564`, Yta A3. `OwnsOne().ToJson()` + converter avvisades — web-verifierat instabilt på Npgsql (Npgsql issue #3129). Konvertern läser gamla skalär-formade rader **lazy on-read** (skalär → ett-element-lista) — ingen data-migration. Migration `F2SearchCriteriaMultiValue` är en tom no-op (ingen schema- eller datamigrering krävs; jsonb-kolumnen bär den nya formen utan DDL-ändring).
+
+### Beslut E — since-fönster: fast rullande 7 dygn, serverstyrt
+
+Beslut E ("Ny"-badge via `ListJobAdsQuery.Since`) konkretiseras: fönstret är **fast rullande 7 dygn, serverstyrt, ingen UI-kontroll**. Klas-bekräftat 2026-05-17 (civic-enkelhet — ingen användarinställning, ett förutsägbart serverstyrt fönster i linje med jobbpilot-design-principles regel 3/7).
+
+### Korsreferenser
+
+- ADR 0032-amendment 2026-05-16 (snapshot-trunkerings-resiliens/hybrid) — stream-cron-skrivlasten som motiverar att `pg_trgm` GIN-write-overhead avvisas.
+- ADR 0039 Beslut 3 — partiellt supersederad av ADR 0042 Beslut B (oförändrat av detta notat).
+
+---
+
+*Referenser: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §4.3, §5.3, §9.1, §9.2, §9.6, §9.7.*

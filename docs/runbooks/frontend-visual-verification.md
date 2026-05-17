@@ -121,6 +121,17 @@ Ett **dedikerat syntetiskt dev-test-JobSeeker-konto** används för auth-läget,
 - **Future-watch:** behövs creds delas mellan maskiner / köras i CI /
   auto-roteras → migrera till AWS Secrets Manager (Variant D). Lyfts ej som
   TD nu (YAGNI — kravet finns inte).
+- **Future-watch (observation 2026-05-17):** upprepade automatiska
+  `pnpm visual-verify`-körningar i auth-läge mot live `www.jobbpilot.se` kan
+  trigga **Vercel Attack Challenge Mode**. Playwright får då en
+  "We're verifying your browser"-interstitial i stället för appen → den
+  capturerade korpusen blir ogiltig (interstitial-skärmdump, inte sann
+  render). Mitigering: sprid ut körningarna i tid / pausa Challenge Mode i
+  Vercel-dashboard vid behov av en färsk auth-gated korpus / låt Klas
+  live-verifiera i sin egen browser som runbook-slutsteg (en mänsklig
+  browser challengas inte som upprepad automation). Lyfts ej som TD och
+  ingen ny feature-doc — infra-observation, hanteras vid behov av färsk
+  korpus.
 
 ## Vem gör vad
 

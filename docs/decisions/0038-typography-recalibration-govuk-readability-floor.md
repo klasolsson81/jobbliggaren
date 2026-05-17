@@ -96,3 +96,39 @@ Typografin och fältstorlekarna i designsystem v2 omkalibreras till ett GOV.UK-f
 - Nielsen Norman Group / WCAG — placeholder-exempel som anti-pattern (web-research 2026-05-16)
 - Robert C. Martin, *Clean Architecture*, kap. 13 (Common Closure Principle — DRY/SPOT-grund för global token-scope)
 - senior-cto-advisor 2026-05-16 — golv-värden + global-scope-beslut
+
+---
+
+## Amendment 2026-05-17 — input-placeholder-regel hårdnad (Klas-direktiv)
+
+**Datum:** 2026-05-17
+**Källa:** Klas hård design-direktiv 2026-05-17 (Fas 2-stängningssession)
+**Trigger:** ADR 0038:s ursprungliga delbeslut formulerade placeholder-frågan smalt — "beskrivande placeholder-exempel borttagna **i sök/filter-fält**" med ett behållet auth-format-placeholder-undantag (`din.email@exempel.se`). Klas-direktivet generaliserar och hårdnar formuleringen till en absolut regel över **alla** input-fält.
+**Beslutsfattare:** Klas Olsson (direktiv 2026-05-17 = beslutskälla; CLAUDE.md §9.4 Klas-direktiv-undantag — amendment-text CC-strukturerad från Klas-underlaget, samma mönster som ADR 0032-amendments och ADR 0042 implementerings-notat denna session)
+**Status:** Accepted (Klas-direktiv = beslutskälla). Additivt — Beslut-brödtexten (§41) ändras **inte**; denna sektion generaliserar och ersätter funktionellt det smala fält-scope:t med en absolut regel.
+
+### Kontext för amendment
+
+ADR 0038 §41 löste placeholder-frågan smalt (borttagning i sök/filter-fält, behållet auth-syntaxmönster). Klas live-granskning 2026-05-17 underkände kvarvarande exempel-placeholders som princip-inkonsekvens: ett behållet undantag öppnar för glidning tillbaka mot exempelinnehåll i fält. Civic-utility-referensen (Platsbanken/1177, jobbpilot-design-principles regel 3/7) har **rena inputs utan exempel-placeholders**; hjälp ges som persistent hjälptext, inte som text som försvinner vid fokus.
+
+### Beslut
+
+**Absolut regel:** inga exempel-placeholders i input-fält — varken beskrivande exempel eller syntax-mönster (det tidigare auth-format-undantaget `din.email@exempel.se` upphävs). Inmatningshjälp ges som **persistent hjälptext ovanför eller under fältet**, knuten via `aria-describedby`. Rena inputs (Platsbanken-stil).
+
+**Rationale:**
+
+- **Civic-utility / Platsbanken-stil** (jobbpilot-design-principles regel 3/7): rena fält utan exempelinnehåll signalerar myndighetsverktyg, inte konsumentprodukt.
+- **A11y:** hjälptext via `aria-describedby` är robust (persistent, läses av skärmläsare som komplement till label, försvinner inte vid fokus). Placeholder som hjälpbärare är ett känt anti-pattern (Nielsen Norman / WCAG, redan citerat i ADR 0038 §Kontext) — försvinner vid fokus, läses som ifyllt värde, sänker SR-tydlighet.
+
+**Kodifiering:** regeln är kodifierad i `.claude/skills/jobbpilot-design-components/SKILL.md` och `.claude/skills/jobbpilot-design-copy/SKILL.md` (kanonisk design-spec-yta — DESIGN.md indexerar dessa).
+
+**Dokumenterat undantag:** shadcn-`SelectValue`-komponentens `placeholder`-prop är inte ett input-exempel utan en *tom-tillstånds-etikett* för en select (motsvarar en label för ej-valt tillstånd, inte exempelinnehåll i ett textfält). Detta är ett dokumenterat, avgränsat undantag — inte en lucka i regeln.
+
+### Relation till ADR 0038 Beslut-brödtext
+
+§41:s mening "Beskrivande placeholder-exempel borttagna i sök/filter-fält. Auth-formulärs format-placeholder (`din.email@exempel.se`) behålls — syntax-mönster, ej exempelinnehåll, med stark label-kontext." är **funktionellt upphävd** av detta amendment: det behållna auth-undantaget gäller inte längre, och regeln gäller alla input-fält, inte enbart sök/filter. Brödtexten lämnas orörd per ADR-immutabilitet (Nygard 2011) — läsare måste läsa §41 tillsammans med detta amendment, där amendmentet har företräde.
+
+### Korsreferens
+
+- jobbpilot-design-skills (`.claude/skills/jobbpilot-design-components/SKILL.md`, `.claude/skills/jobbpilot-design-copy/SKILL.md`) — regeln kodifierad där.
+- ADR 0042 implementerings-notat 2026-05-17 (samma session — relaterad design-stängning).

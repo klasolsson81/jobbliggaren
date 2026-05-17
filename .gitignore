@@ -23,6 +23,8 @@ obj/
 TestResults/
 coverage/
 *.coverage
+# In-repo coverage-artefakter (ADR 0044) — aldrig committade
+artifacts/
 
 # Node / Next.js
 node_modules/

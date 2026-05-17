@@ -136,6 +136,14 @@ BUILD.md/CLAUDE.md/DESIGN.md-ändringar.
 - **Lyft inga nya TDs som kan fixas direkt** (Klas-direktiv 2026-05-13)
 - **Non-stop arbete, STOPP bara efter PR** (memory `feedback_nonstop_with_pr_reports`)
 - **Aldrig ta bort auto-skapade filer utan GO** (memory `feedback_dont_delete_auto_files`)
+
+### Parallell-CC-disciplin (intjänad 2026-05-17 — tre process-glidningar i en parallell körning)
+
+- **Worktree-per-parallell-CC obligatoriskt.** Körs flera CC:er samtidigt: varje CC i egen `git worktree` (ej delat working tree). Bevisat: delat träd → CC A `git commit -a` svepte CC B:s ostagade Resume-fix in i fel commit (62c9dc7); isolerad worktree (CC C) hade noll kontaminering. (memory `project_parallel_cc_worktree_isolation`)
+- **`git commit -- <explicita paths>` enda tillåtna form.** `git commit -a` och pathspec-lös `git commit` är **förbjudet** så länge någon parallell CC är aktiv — det var rotorsaken till cross-CC-svepet. Verifiera alltid med `git show --stat HEAD` efter commit. (memory `feedback_pathspec_commit_parallel_cc`)
+- **Sub-agenter får ALDRIG kringgå pre-push-hooks.** Inget `--no-verify`, inget `core.hooksPath=/dev/null`, ingen annan gitleaks/format-bypass. Blockerar en hook: STOPP + rapportera till Klas, kringgå aldrig. (docs-keeper-incident 60f845a; memory `feedback_subagent_hook_bypass_watch`)
+- **docs-keeper auto-pushar INTE under öppen incident/öppen Klas-kvittens.** Vid pågående process-incident: docs-synk hålls tills Klas kvitterat.
+- **§9.2 spec-edits (BUILD/CLAUDE/DESIGN): människan kör `approve-spec-edit.sh`.** Agenten själv-godkänner ALDRIG en spec-edit och själv-beviljar ALDRIG permission i `.claude/settings.json`. Auto-mode-klassificerarens hård-block av detta är **korrekt säkerhetsbeteende, ej bugg** — försök inte kringgå det; be Klas köra approve-scriptet manuellt. (memory `feedback_spec_edit_approve_classifier_block` — notera: tidigare "false-positive"-framing felaktig, korrigerad)
 ```
 
 ### 9. Förbud
@@ -147,6 +155,9 @@ BUILD.md/CLAUDE.md/DESIGN.md-ändringar.
 - INGA BUILD.md/CLAUDE.md/DESIGN.md-ändringar utan explicit instruktion
 - INGA tag-pushes utan Klas-GO
 - INGA infra-config-ändringar (Terraform ALB-timeout, IAM, etc.) utan Klas-GO
+- INGET `git commit -a` / pathspec-lös `git commit` när parallell CC aktiv (cross-CC-svep)
+- INGEN sub-agent-bypass av pre-push-hooks (`--no-verify`, `core.hooksPath`)
+- INGEN agent-själv-edit av `.claude/settings.json`-permissions / agent-config (klassificerar-hård-block är korrekt)
 - {ev. uppgifts-specifika förbud}
 ```
 

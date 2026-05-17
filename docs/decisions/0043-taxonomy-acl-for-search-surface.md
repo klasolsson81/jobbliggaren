@@ -1,7 +1,7 @@
 # ADR 0043 — Taxonomi-ACL för sök-ytan
 
 **Datum:** 2026-05-17
-**Status:** Proposed — beslutsinnehållet är låst (senior-cto-advisor + Klas-GO 2026-05-17); Accepted-flip pending Klas review-GO
+**Status:** Accepted — beslutsinnehållet är låst (senior-cto-advisor + Klas-GO 2026-05-17); Accepted-flip utförd 2026-05-17 på Klas review-GO efter rapport-granskning
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0042 (sök-yta-informationsarkitektur — **Beslut B-domänkontrakt OFÖRÄNDRAT, Beslut C-datakälla utvidgas; rad 21-constraint uppfyllt, inte brutet**), ADR 0039 (SavedSearch-aggregat — `SearchCriteria`-VO + jsonb-dedupe **orört**), ADR 0032 (JobTech-integration — sync-skrivlast-precedens som stöder MAP-1=Variant A), ADR 0009 (ingen Repository; `IAppDbContext` aggregate-per-DbSet-invariant som stöder MAP-2), ADR 0008 (pipeline behavior order — validator-yta för reverse-lookup-cap), CLAUDE.md §1 (civic-utility), §2.1 (lager), §2.3 (CQRS), §3.3 (records/DTO), §5.1 (anti-patterns), §9.6 (in-block vs TD/fas-regeln), §10.3 (rak svenska), jobbpilot-design-principles regel 3/7
 

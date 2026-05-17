@@ -15,7 +15,7 @@ public class MarkGhostedCommandHandlerTests
         var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
-        var app = DomainApplication.Create(seeker.Id, null, null, FakeDateTimeProvider.Default).Value;
+        var app = DomainApplication.Create(seeker.Id, null, null, null, FakeDateTimeProvider.Default).Value;
 
         if (targetStatus == ApplicationStatus.Submitted || targetStatus == ApplicationStatus.Acknowledged)
         {

@@ -28,7 +28,7 @@ public class DetectGhostedApplicationsJobTests
         var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", statusChangeClock).Value;
         db.JobSeekers.Add(seeker);
 
-        var app = DomainApplication.Create(seeker.Id, null, null, statusChangeClock).Value;
+        var app = DomainApplication.Create(seeker.Id, null, null, null, statusChangeClock).Value;
 
         if (targetStatus == ApplicationStatus.Submitted ||
             targetStatus == ApplicationStatus.Acknowledged ||

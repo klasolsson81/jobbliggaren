@@ -33,9 +33,16 @@ type FieldErrors = Partial<Record<keyof JobAdFiltersValues, string>>;
 /**
  * URL-driven sök-yta. ADR 0042:
  * - Beslut A: kollaps-filteryta. Sökfältet (q + typeahead) är alltid synligt
- *   ovanför resultatet (resultat-först, regel 3). Taxonomi-filter + sortering
- *   ligger bakom en disclosure (regel 7, undvik power-tool-täthet) — inte en
- *   alltid-expanderad panel.
+ *   ovanför resultatet (resultat-först, regel 3). Taxonomi-*filter*
+ *   (Yrkesområde/Region) ligger bakom en disclosure (regel 7, undvik
+ *   power-tool-täthet) — inte en alltid-expanderad panel.
+ *   Sortering är INTE ett filter (det smalnar inte av resultatet, det
+ *   ordnar det) → egen alltid-synlig kontroll, separerad från disclosuren
+ *   (Klas produktägar-direktiv 2026-05-17, jämför Platsbankens "Sortera
+ *   efter"). Beslut A låser endast *filter* bakom disclosure; sort-
+ *   placeringen var ett Batch 6-implementationsval, inte ADR-brödtext.
+ *   Den djupare sort-modell-frågan (5→3 Platsbanken-stil) ligger i
+ *   senior-cto-advisor-underlaget (docs/reviews/2026-05-17-soktyta-*).
  * - Beslut B: ssyk/region är multi-select (chips), URL-driven (router.push
  *   med upprepade query-params).
  * - Beslut C: q har live-typeahead; valt förslag tillämpas direkt som sökning.
@@ -141,6 +148,56 @@ export function JobAdFilters({ initial, activeFilterCount }: JobAdFiltersProps) 
         )}
       </div>
 
+      {/* Sortering — egen alltid-synlig kontroll, ej inne i Filter-
+          disclosuren. Sortering ordnar resultatet, filter smalnar av det:
+          två olika saker (Klas 2026-05-17, jämför Platsbankens "Sortera
+          efter"). */}
+      <div className="flex flex-col gap-1.5 border-t border-border-default pt-4">
+        <label
+          htmlFor="filter-sort"
+          className="text-label font-medium text-text-primary"
+        >
+          Sortering
+        </label>
+        <select
+          id="filter-sort"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as JobAdSortBy)}
+          aria-describedby={
+            errors.sortBy ? "filter-sort-error" : "filter-sort-hint"
+          }
+          className="h-11 rounded-md border border-border-default bg-surface-primary px-2.5 text-body text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option
+              key={opt}
+              value={opt}
+              // Beslut D — Relevance kräver söktext. Disablad utan q
+              // så användaren aldrig kan trigga backend-400:n.
+              disabled={opt === "Relevance" && !qReady}
+            >
+              {JOB_AD_SORT_LABELS[opt]}
+            </option>
+          ))}
+        </select>
+        {errors.sortBy ? (
+          <p
+            id="filter-sort-error"
+            role="alert"
+            className="text-body-sm text-danger-700"
+          >
+            {errors.sortBy}
+          </p>
+        ) : (
+          <p
+            id="filter-sort-hint"
+            className="text-body-sm text-text-secondary"
+          >
+            Mest relevant kan väljas när du har ett sökord på minst 2 tecken.
+          </p>
+        )}
+      </div>
+
       <div className="flex flex-col gap-4 border-t border-border-default pt-4">
         <button
           type="button"
@@ -173,53 +230,6 @@ export function JobAdFilters({ initial, activeFilterCount }: JobAdFiltersProps) 
                 values={region}
                 onChange={setRegion}
               />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="filter-sort"
-                className="text-label font-medium text-text-primary"
-              >
-                Sortering
-              </label>
-              <select
-                id="filter-sort"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as JobAdSortBy)}
-                aria-describedby={
-                  errors.sortBy ? "filter-sort-error" : "filter-sort-hint"
-                }
-                className="h-11 rounded-md border border-border-default bg-surface-primary px-2.5 text-body text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-              >
-                {SORT_OPTIONS.map((opt) => (
-                  <option
-                    key={opt}
-                    value={opt}
-                    // Beslut D — Relevance kräver söktext. Disablad utan q
-                    // så användaren aldrig kan trigga backend-400:n.
-                    disabled={opt === "Relevance" && !qReady}
-                  >
-                    {JOB_AD_SORT_LABELS[opt]}
-                  </option>
-                ))}
-              </select>
-              {errors.sortBy ? (
-                <p
-                  id="filter-sort-error"
-                  role="alert"
-                  className="text-body-sm text-danger-700"
-                >
-                  {errors.sortBy}
-                </p>
-              ) : (
-                <p
-                  id="filter-sort-hint"
-                  className="text-body-sm text-text-secondary"
-                >
-                  Mest relevant kan väljas när du har ett sökord på minst 2
-                  tecken.
-                </p>
-              )}
             </div>
           </div>
         )}

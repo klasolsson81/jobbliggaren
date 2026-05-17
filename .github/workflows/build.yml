@@ -74,16 +74,15 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
         run: dotnet test --solution JobbPilot.sln --no-build -c Release
 
-  # Coverage-mätning (ADR 0044). PROPOSED — ej blockerande gate.
-  # continue-on-error tas bort + gate-steget aktiveras först efter
-  # senior-cto-advisor-satta tröskelvärden + Klas-GO (CLAUDE.md §9.2 —
-  # CI-gate-aktivering = strategisk transition). Det snabba backend-jobbet
-  # rörs inte (fast fail-feedback bevaras); detta kör parallellt.
+  # Coverage-mätning + blockerande regressions-gate (ADR 0044, Accepted
+  # 2026-05-17). Per-lager icke-regression-ratchet — golv = floor(uppmätt
+  # baseline − 2.0pp), pinnade av senior-cto-advisor mot baseline @ HEAD
+  # 98b6f17. Det snabba backend-jobbet rörs inte (fast fail-feedback
+  # bevaras); detta kör parallellt och ligger i ci.needs.
   coverage:
     name: coverage (.NET 10)
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,20 +111,66 @@ jobs:
           path: artifacts/coverage
           retention-days: 14
 
-      # GATE-MEKANISM (PROPOSED — ej enforce:ad). Tröskel-VÄRDEN sätts av
-      # senior-cto-advisor i ADR 0044 (per-lager ratchet). Steget existerar
-      # men `exit 0` gör det till en no-op tills Klas-GO; då tas exit 0 +
-      # continue-on-error bort och coverage läggs i ci.needs. jq finns
+      # GATE-MEKANISM (ADR 0044 Accepted — enforce:ad, blockerande via
+      # ci.needs). Per-lager-golv = floor(uppmätt baseline − 2.0pp),
+      # pinnade av senior-cto-advisor 2026-05-17 mot baseline @ HEAD
+      # 98b6f17 (Domain 95.3/93.3, Application 97.7/91.1, Infrastructure
+      # 84.0, Api 93.7). Ratchet: höjs manuellt vid Klas-GO när coverage
+      # stabilt ligger högre — non-regression, ej target (Fowler/Goodhart,
+      # ADR 0044 Beslut 4). Branch-gate endast Domain+Application (de
+      # invariant-bärande lagren, CLAUDE.md §2.4). Worker observe-only
+      # Fas 1; Migrate exkluderad (assembly-filtrerad). Ingen global- eller
+      # method-gate (redundant/Goodhart-yta — CTO-beslut). jq finns
       # förinstallerat på ubuntu-runners (ingen ny supply-chain-yta).
-      - name: Coverage gate (PROPOSED — not enforced)
+      - name: Coverage gate (ADR 0044 — per-lager icke-regression-ratchet)
         if: always()
         shell: bash
         run: |
-          line=$(jq -r '.summary.linecoverage' artifacts/coverage/Summary.json)
-          branch=$(jq -r '.summary.branchcoverage' artifacts/coverage/Summary.json)
-          echo "First-party line: ${line}%  branch: ${branch}%"
-          echo "Gate ej aktiverad (ADR 0044 Proposed — väntar CTO-tröskel + Klas-GO)."
-          exit 0
+          set -euo pipefail
+          summary=artifacts/coverage/Summary.json
+          fail=0
+
+          check() {
+            local asm=$1 metric=$2 floor=$3 val
+            val=$(jq -r --arg a "$asm" --arg m "$metric" \
+              '.coverage.assemblies[] | select(.name==$a) | .[$m]' "$summary")
+            if [[ -z "$val" || "$val" == "null" ]]; then
+              echo "::error::Coverage-gate: assembly '$asm' saknas i Summary.json (metric=$metric) — fail-loud"
+              fail=1
+              return
+            fi
+            if awk "BEGIN{exit !($val < $floor)}"; then
+              echo "::error::Coverage-regression: $asm $metric=$val% < golv $floor%"
+              fail=1
+            else
+              echo "OK   $asm $metric=$val% (golv $floor%)"
+            fi
+          }
+
+          # Line-golv: Domain/Application/Infrastructure/Api.
+          check JobbPilot.Domain         coverage        93
+          check JobbPilot.Application    coverage        95
+          check JobbPilot.Infrastructure coverage        82
+          check JobbPilot.Api            coverage        91
+          # Branch-golv: endast Domain + Application (invariant-bärande).
+          check JobbPilot.Domain         branchcoverage  91
+          check JobbPilot.Application    branchcoverage  89
+
+          # Worker: observe-only Fas 1 (ADR 0044 Beslut 4/5) — log, gejta ej.
+          worker=$(jq -r '.coverage.assemblies[] | select(.name=="JobbPilot.Worker") | .coverage' "$summary")
+          echo "INFO JobbPilot.Worker coverage=${worker}% (observe-only Fas 1 — ingen gate)"
+
+          # Global first-party för trend/audit (ej gejtad — per-lager räcker, ADR Avvisat 5).
+          line=$(jq -r '.summary.linecoverage' "$summary")
+          branch=$(jq -r '.summary.branchcoverage' "$summary")
+          method=$(jq -r '.summary.methodcoverage' "$summary")
+          echo "INFO first-party totalt: line=${line}% branch=${branch}% method=${method}% (trend/audit)"
+
+          if [[ $fail -ne 0 ]]; then
+            echo "Coverage-gate FAILED — se ::error:: ovan (ADR 0044 per-lager-golv)."
+            exit 1
+          fi
+          echo "Coverage-gate PASSED — alla per-lager-golv hållna."
 
   frontend:
     name: frontend (Next.js 16)
@@ -173,14 +218,15 @@ jobs:
   # istället för en check per matrix-cell).
   ci:
     name: ci
-    needs: [backend, frontend]
+    needs: [backend, frontend, coverage]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify all jobs passed
         run: |
           if [[ "${{ needs.backend.result }}" != "success" ]] || \
-             [[ "${{ needs.frontend.result }}" != "success" ]]; then
+             [[ "${{ needs.frontend.result }}" != "success" ]] || \
+             [[ "${{ needs.coverage.result }}" != "success" ]]; then
             echo "One or more jobs failed"
             exit 1
           fi

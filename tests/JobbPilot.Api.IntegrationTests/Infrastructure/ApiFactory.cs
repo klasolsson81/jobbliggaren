@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
+using JobbPilot.Infrastructure.Taxonomy;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 
@@ -139,6 +141,33 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         using var scope = Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().Database.MigrateAsync();
+
+        // Deterministisk seeder-körning EFTER migrations (senior-cto-advisor
+        // 2026-05-17, Approach D/B — fix the cause not the symptom). Bakgrund:
+        // Services-property-access (raden ovan) triggar EnsureServer() → host-
+        // start → ALLA IHostedService.StartAsync körs FÖRE dessa MigrateAsync
+        // (web-verifierad .NET 10-semantik: MS Learn + dotnet/aspnetcore
+        // #60370). TaxonomySnapshotSeeder + IdempotentAdminRoleSeeder träffar
+        // då ett tomt schema → PostgresException 42P01 → seederns Dev/Test-
+        // grace-period-catch → bail UTAN seed. StartAsync körs en gång per
+        // host-livstid → taxonomy_concepts / Admin-rollen förblir oseeded för
+        // hela den delade [Collection("Api")]-livstiden. Det är en latent
+        // fixtur-defekt: fixturen bröt prod-kodens implicita kontrakt "schema
+        // migrerat innan host-tjänster konsumerar det". Prod är opåverkad
+        // (JobbPilot.Migrate kör DDL före Api-trafik, ADR 0043 Beslut B).
+        //
+        // Åtgärd: kör de två idempotenta seedrarna explicit EFTER att schemat
+        // finns. Båda är idempotenta (TaxonomySnapshotSeeder: version-gate +
+        // pg_advisory_xact_lock; IdempotentAdminRoleSeeder: RoleManager check-
+        // and-insert) → säkra att re-invoke:a; den tidigare bailade host-
+        // körningen är en no-op. RIKTAD på exakt dessa två typer (ej bred
+        // GetServices-loop över godtyckliga IHostedService) så ingen annan
+        // host-tjänst re-startas oavsiktligt.
+        foreach (var hosted in Services.GetServices<IHostedService>())
+        {
+            if (hosted is TaxonomySnapshotSeeder or IdempotentAdminRoleSeeder)
+                await hosted.StartAsync(CancellationToken.None);
+        }
     }
 
     public new async ValueTask DisposeAsync()

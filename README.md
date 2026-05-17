@@ -22,6 +22,7 @@
 - [Position och anti-position](#position-och-anti-position)
 - [Funktioner](#funktioner)
 - [Arkitektur](#arkitektur)
+- [Kvalitet, test och coverage](#kvalitet-test-och-coverage)
 - [Tech-stack](#tech-stack)
 - [Komma igång lokalt](#komma-igång-lokalt)
 - [Projekt-struktur](#projekt-struktur)
@@ -184,6 +185,48 @@ flowchart LR
 - `Api` och `Worker` är komposition-rots — de bygger DI-containern
 
 Mer detaljerat: [`BUILD.md §4`](BUILD.md), [`docs/decisions/`](docs/decisions/), [`CLAUDE.md §2`](CLAUDE.md).
+
+---
+
+## Kvalitet, test och coverage
+
+JobbPilot byggs med en uttalad kvalitetsstandard: varje commit ska kunna försvaras i en kodgranskning på Mastercard-nivå. Det är inte en paroll utan en mätbar praxis.
+
+### Test-disciplin
+
+- **Clean Architecture-gränser verifieras maskinellt.** NetArchTest-regler i `JobbPilot.Architecture.Tests` failar bygget om Domain importerar EF Core, om Application känner till Infrastructure, eller om ett aggregat exponerar en publik setter.
+- **Domänlogik testas utan databas.** Aggregat och value objects bär sina invarianter; handlers testas mot fake `IAppDbContext` med NSubstitute. Om något kräver en startad ASP.NET-host för att testas betraktas designen som fel (CLAUDE.md §2.4).
+- **TDD där det bär.** Nya domäntyper och handlers får tester först; produktionskod skrivs för att passera.
+- **Integrationstester mot riktig Postgres.** Testcontainers startar PostgreSQL 18.3 och Valkey per integrations-svit — ingen in-memory-attrapp som döljer provider-skillnader.
+- **Granskningsspärrar utan PR-flöde.** Direct-push till `main` ([ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md)) kompenseras av plan-design, STOPP-disciplin, specialiserade review-agenter med veto-rätt (code-reviewer, security-auditor, dotnet-architect), manuell diff-granskning och pre-push-hooks.
+
+Backend-sviten omfattar **1 156 tester** (Domain, Application, Architecture, Api-integration, Worker, Migrate) — 0 failed.
+
+### Coverage — reproducerbar, ärlig, regressionsskyddad
+
+Coverage mäts av en **versionerad in-repo-mekanism** ([ADR 0044](docs/decisions/0044-test-coverage-policy.md)), inte en maskin-lokal ad-hoc-körning:
+
+- `Microsoft.Testing.Extensions.CodeCoverage` (Microsoft, MTP-native, central via Central Package Management) samlar rå Cobertura per testprojekt — ofiltrerad, audit-trail bevarad.
+- `dotnet-reportgenerator-globaltool` via in-repo tool-manifest producerar den first-party-filtrerade rapporten report-time. Rådatan förstörs aldrig — filtreringen är deklarativ och reversibel.
+- Genererad kod (Mediator source-gen, OpenAPI), entrypoints (`Program.cs`, `JobbPilot.Migrate`) och migrationer filtreras bort så siffran speglar verklig testbar kvalitet, inte nämnar-kosmetik.
+- En kommandorad reproducerar allt: `bash scripts/coverage.sh` (Windows: `scripts/coverage.ps1`).
+
+First-party-resultat (samma mekanism, 1 156 tester gröna):
+
+| Lager | Line | Branch | Method |
+|-------|------|--------|--------|
+| JobbPilot.Domain | 95,3 % | 93,3 % | 91,9 % |
+| JobbPilot.Application | 97,7 % | 91,1 % | 98,1 % |
+| JobbPilot.Infrastructure | 84,0 % | 71,1 % | 80,3 % |
+| JobbPilot.Api (efter filter) | 93,7 % | 82,9 % | 92,3 % |
+| JobbPilot.Worker | 30,7 % | observe-only | 36,8 % |
+| **Totalt first-party** | **92,1 %** | **84,5 %** | **90,2 %** |
+
+Siffrorna är medvetet asymmetriska: Domain och Application bär affärsinvarianter och har hög grentäckning; Worker är en tunn Hangfire-bootstrap vars jobblogik testas i Application-lagret. En global tröskel skulle dölja den asymmetrin — därför gejtar CI per lager.
+
+### Regressions-gate (icke-regression-ratchet)
+
+CI-jobbet `coverage` blockerar `main` om något lager faller under sitt golv. Golvet är `floor(uppmätt baseline − 2,0 pp)` — en absorptionsmarginal mot icke-deterministisk grenmätning som gör gaten trovärdig i stället för falsklarmande. Den är ett regressionsskydd, inte en måltavla (Fowler, Goodharts lag): golvet höjs manuellt när coverage stabilt ligger högre, aldrig automatiskt. Branch gejtas endast för Domain och Application — lagren som bär invarianter. Modell och pinnade golv: [ADR 0044](docs/decisions/0044-test-coverage-policy.md).
 
 ---
 

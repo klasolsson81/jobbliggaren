@@ -58,6 +58,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0043 | Taxonomi-ACL för sök-ytan (lokal taxonomi-snapshot + Anticorruption Layer; utvidgar ADR 0042 Beslut C-datakälla, domänkontrakt OFÖRÄNDRAT — superseder ingen ADR; additiva korsref-notat i ADR 0042/0039) | Accepted | 2026-05-17 | [0043-taxonomy-acl-for-search-surface.md](./0043-taxonomy-acl-for-search-surface.md) |
 | 0044 | Test-coverage-policy: reproducerbar in-repo-mätning (MTP CodeCoverage + ReportGenerator local tool), first-party-filter och per-lager icke-regression-ratchet-gate (Hangfire-test-approach korsref, ej eget ADR) | Accepted | 2026-05-17 | [0044-test-coverage-policy.md](./0044-test-coverage-policy.md) |
 | 0045 | Performance-budgetar och fitness functions (latens/CWV/Worker-mem + mät-metod + observe-only-ratchet) | Accepted | 2026-05-17 | [0045-performance-budget-and-fitness-functions.md](./0045-performance-budget-and-fitness-functions.md) |
+| 0046 | FAS 3 scope-redefinition: Application Management-backbone byggd i Fas 1 (A+D-scope, B→Fas 5-defer, dokumenterad ADR↔BUILD.md §18 rad 1610-avvikelse) | Proposed | 2026-05-17 | [0046-fas3-scope-redefinition-application-management-backbone-in-fas1.md](./0046-fas3-scope-redefinition-application-management-backbone-in-fas1.md) |
 
 ## Planerade ADRs
 

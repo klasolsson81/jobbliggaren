@@ -11,7 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- TD-13 C2: UserDataKeyStore-integrationstester fakar KMS via NSubstitute
+         och refererar Amazon.KeyManagementService-modeller. -->
+    <PackageReference Include="AWSSDK.KeyManagementService" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="NSubstitute" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.v3.mtp-v2" />

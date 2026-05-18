@@ -37,6 +37,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="JobbPilot.Application.UnitTests" />
     <InternalsVisibleTo Include="JobbPilot.Api.IntegrationTests" />
+    <!-- TD-13 C2 Seam 3: ScopedUserDataKeyCache internal zeroing-observerbarhet -->
+    <InternalsVisibleTo Include="JobbPilot.Worker.IntegrationTests" />
   </ItemGroup>
 
 </Project>

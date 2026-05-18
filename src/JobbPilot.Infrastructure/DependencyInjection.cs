@@ -322,6 +322,15 @@ public static class DependencyInjection
         services.AddSingleton<JobbPilot.Application.Common.Security.IDataKeyProvider,
             Security.KmsDataKeyProvider>();
 
+        // TD-13 C2 (ADR 0049 Beslut 1, CTO FRÅGA 2). Scoped: delar scopets
+        // AppDbContext (DeleteDataKeysAsync deltar i hard-delete-transaktionen
+        // C6) + cachen nollar nyckelmaterial vid scope-dispose. UserDataKey
+        // exponeras aldrig via IAppDbContext (arch-test-spärr).
+        services.AddScoped<JobbPilot.Application.Common.Security.IUserDataKeyCache,
+            Security.ScopedUserDataKeyCache>();
+        services.AddScoped<JobbPilot.Application.Common.Security.IUserDataKeyStore,
+            Security.UserDataKeyStore>();
+
         return services;
     }
 

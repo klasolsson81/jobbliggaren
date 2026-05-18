@@ -28,6 +28,15 @@ public sealed class WorkerTestFixture : IAsyncLifetime
     public ServiceProvider Services { get; private set; } = null!;
     public string ConnectionString { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// TD-13 C2 Seam 1 — den delade deterministiska fake-KMS som hela
+    /// <see cref="Services"/>-grafen kör. Scenario 7 mäter cache-memoisering
+    /// mot <see cref="DeterministicFakeKms.DecryptCallCount"/> (Worker-collection
+    /// är seriell ⇒ deterministisk). Scenario 9 (fail-closed) använder INTE
+    /// denna — den direkt-konstruerar store+cache+failing-KMS.
+    /// </summary>
+    public DeterministicFakeKms FakeKms { get; } = new();
+
     public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -37,6 +46,13 @@ public sealed class WorkerTestFixture : IAsyncLifetime
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = ConnectionString,
+                // TD-13 C2 Seam 1: FieldEncryptionOptions.CmkKeyId har
+                // .ValidateOnStart() (fail-closed) — KMS-klienten fakas ändå
+                // (sista-vinner-singleton nedan), men options-validering kräver
+                // ett icke-tomt CMK-id i testkonfigen.
+                ["FieldEncryption:CmkKeyId"] =
+                    "arn:aws:kms:eu-north-1:000000000000:key/td13-test-cmk",
+                ["FieldEncryption:AwsRegion"] = "eu-north-1",
             })
             .Build();
 
@@ -57,6 +73,28 @@ public sealed class WorkerTestFixture : IAsyncLifetime
             options.Assemblies = [typeof(JobbPilot.Application.AssemblyMarker)];
         });
         services.AddMediatorPipelineBehaviors();
+
+        // TD-13 C2 Seam 1 (architect-domen 2026-05-18, Variant A): sista-vinner-
+        // registrering ⇒ hela grafen (KmsDataKeyProvider → UserDataKeyStore →
+        // ScopedUserDataKeyCache) kör den delade deterministiska fake-KMS:en.
+        // Produktkod orörd, ingen prod-override-yta. AddPersistence registrerar
+        // riktig AmazonKeyManagementServiceClient (DI rad 316) — denna
+        // singleton-registrering läggs EFTER och vinner i DI-upplösning.
+        services.AddSingleton<Amazon.KeyManagementService.IAmazonKeyManagementService>(
+            _ => FakeKms.Substitute);
+
+        // TD-13 hotfix Approach D: FieldEncryptionOptionsValidator tar
+        // IHostEnvironment (riktig Worker/Api kör generic host som ger den).
+        // Denna fixture bygger en bar ServiceCollection utan host → registrera
+        // en Test-env explicit (IsProduction/IsStaging = false → validator
+        // loggar warning + Success; CmkKeyId-dummyn ovan gör den Success ändå).
+        services.AddSingleton<Microsoft.Extensions.Hosting.IHostEnvironment>(
+            new Microsoft.Extensions.Hosting.Internal.HostingEnvironment
+            {
+                EnvironmentName = "Test",
+                ApplicationName = "JobbPilot.Worker.IntegrationTests",
+                ContentRootPath = AppContext.BaseDirectory,
+            });
 
         Services = services.BuildServiceProvider();
 

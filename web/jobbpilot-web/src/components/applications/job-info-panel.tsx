@@ -1,0 +1,112 @@
+"use client";
+
+import { useId, useState } from "react";
+import {
+  formatSvDate,
+  getSourceLabel,
+} from "@/lib/applications/status";
+import type { JobAdSummaryDto } from "@/lib/types/applications";
+
+interface JobInfoPanelProps {
+  jobAd: JobAdSummaryDto;
+  coverLetter: string | null;
+}
+
+/**
+ * Read-only TLDR-panel för den kopplade/manuella annonsen (vänster i
+ * split-layout, §3). Renderas bara när jobAd != null — vid null ersätts
+ * positionen av civic-not i page.tsx (L6, single-column). "Publicerad"-
+ * raden utelämnas HELT när publishedAt == null (J1, manuell ansökan —
+ * ingen CreatedAt-som-Publicerad-läcka). Sektionskort: border, aldrig
+ * shadow (regel 1 papper-ej-glas).
+ */
+export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
+  const [open, setOpen] = useState(false);
+  const disclosureId = useId();
+
+  const published = formatSvDate(jobAd.publishedAt);
+  const expires = formatSvDate(jobAd.expiresAt);
+  const sourceLabel = getSourceLabel(jobAd.source);
+
+  return (
+    <section
+      aria-labelledby="job-info-title"
+      className="rounded-md border border-border-default bg-surface-primary"
+    >
+      <div className="border-b border-border-default px-4 py-3">
+        <h2
+          id="job-info-title"
+          className="text-h3 font-semibold text-text-primary"
+        >
+          Om annonsen
+        </h2>
+      </div>
+
+      <div className="px-4 py-4">
+        <dl className="flex flex-col gap-3 text-body-sm">
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-text-secondary">Företag</dt>
+            <dd className="text-text-primary">{jobAd.company}</dd>
+          </div>
+
+          {published && (
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-text-secondary">Publicerad</dt>
+              <dd className="font-mono text-text-primary">{published}</dd>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-text-secondary">Sista ansökningsdag</dt>
+            <dd className="font-mono text-text-primary">{expires ?? "—"}</dd>
+          </div>
+
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-text-secondary">Källa</dt>
+            <dd className="text-text-primary">{sourceLabel}</dd>
+          </div>
+        </dl>
+
+        {jobAd.url && (
+          <p className="mt-4">
+            <a
+              href={jobAd.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Visa annonsen hos ${sourceLabel} (öppnas i ny flik)`}
+              className="text-body-sm text-brand-600 underline-offset-2 hover:underline"
+            >
+              Visa annonsen{" "}
+              <span aria-hidden="true">↗</span>
+            </a>
+          </p>
+        )}
+      </div>
+
+      {coverLetter && (
+        <div className="border-t border-border-default px-4 py-3">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={disclosureId}
+            onClick={() => setOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 rounded-sm py-1 text-left text-body-sm font-medium text-text-primary"
+          >
+            <span>Personligt brev</span>
+            <span aria-hidden="true" className="text-text-secondary">
+              {open ? "Dölj" : "Visa"}
+            </span>
+          </button>
+          {open && (
+            <p
+              id={disclosureId}
+              className="mt-2 max-w-[68ch] whitespace-pre-wrap text-body text-text-primary"
+            >
+              {coverLetter}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

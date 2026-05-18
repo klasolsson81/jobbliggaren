@@ -8,28 +8,117 @@ import {
 
 const VALID_GUID = "550e8400-e29b-41d4-a716-446655440000";
 
+// Manuell ansökan (jobAdId == null): Jobbtitel + Företag obligatoriska.
+// Annonslänk scheme-validerad, Sista ansökningsdag + personligt brev frivilliga.
+// Inget Källa-fält (Source struken — manuell ansökan är implicit Source=Manual).
+const VALID_CREATE = {
+  title: "Backend-utvecklare",
+  company: "Volvo",
+};
+
 describe("createApplicationSchema", () => {
-  it("accepts empty input (coverLetter is optional)", () => {
-    expect(createApplicationSchema.safeParse({}).success).toBe(true);
+  it("accepts a valid minimal application (title + company)", () => {
+    expect(createApplicationSchema.safeParse(VALID_CREATE).success).toBe(true);
   });
 
-  it("accepts valid coverLetter", () => {
-    expect(
-      createApplicationSchema.safeParse({ coverLetter: "Jag söker tjänsten som..." }).success
-    ).toBe(true);
-  });
-
-  it("rejects coverLetter longer than 5000 chars", () => {
+  it("rejects empty title with 'Jobbtitel'-message", () => {
     const result = createApplicationSchema.safeParse({
-      coverLetter: "a".repeat(5001),
+      ...VALID_CREATE,
+      title: "",
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toMatch(/Jobbtitel/);
+    }
   });
 
-  it("accepts coverLetter at exactly 5000 chars", () => {
+  it("rejects whitespace-only title (trim before min)", () => {
     expect(
-      createApplicationSchema.safeParse({ coverLetter: "a".repeat(5000) }).success
+      createApplicationSchema.safeParse({ ...VALID_CREATE, title: "   " })
+        .success
+    ).toBe(false);
+  });
+
+  it("rejects empty company", () => {
+    const result = createApplicationSchema.safeParse({
+      ...VALID_CREATE,
+      company: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toMatch(/Företag/);
+    }
+  });
+
+  it("rejects a url with a non-http(s) scheme (javascript:)", () => {
+    expect(
+      createApplicationSchema.safeParse({
+        ...VALID_CREATE,
+        url: "javascript:alert(1)",
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects a url with a data: scheme", () => {
+    expect(
+      createApplicationSchema.safeParse({
+        ...VALID_CREATE,
+        url: "data:text/html,<script>1</script>",
+      }).success
+    ).toBe(false);
+  });
+
+  it("accepts a valid https url", () => {
+    expect(
+      createApplicationSchema.safeParse({
+        ...VALID_CREATE,
+        url: "https://example.com/jobb/123",
+      }).success
     ).toBe(true);
+  });
+
+  it("accepts an omitted/empty url (frivilligt)", () => {
+    expect(
+      createApplicationSchema.safeParse({ ...VALID_CREATE, url: "" }).success
+    ).toBe(true);
+    expect(createApplicationSchema.safeParse(VALID_CREATE).success).toBe(true);
+  });
+
+  it("treats expiresAt as optional and accepts a valid date", () => {
+    expect(
+      createApplicationSchema.safeParse({ ...VALID_CREATE, expiresAt: "" })
+        .success
+    ).toBe(true);
+    expect(
+      createApplicationSchema.safeParse({
+        ...VALID_CREATE,
+        expiresAt: "2026-06-01",
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects an invalid expiresAt date", () => {
+    expect(
+      createApplicationSchema.safeParse({
+        ...VALID_CREATE,
+        expiresAt: "not-a-date",
+      }).success
+    ).toBe(false);
+  });
+
+  it("keeps coverLetter optional with a 5000-char ceiling", () => {
+    expect(
+      createApplicationSchema.safeParse({
+        ...VALID_CREATE,
+        coverLetter: "a".repeat(5000),
+      }).success
+    ).toBe(true);
+    expect(
+      createApplicationSchema.safeParse({
+        ...VALID_CREATE,
+        coverLetter: "a".repeat(5001),
+      }).success
+    ).toBe(false);
   });
 });
 

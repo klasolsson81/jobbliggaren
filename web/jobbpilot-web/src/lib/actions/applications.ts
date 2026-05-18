@@ -32,18 +32,33 @@ export async function createApplicationAction(
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
   const parsed = createApplicationSchema.safeParse({
+    title: formData.get("title") ?? "",
+    company: formData.get("company") ?? "",
+    url: formData.get("url") ?? "",
+    expiresAt: formData.get("expiresAt") ?? "",
     coverLetter: formData.get("coverLetter") || undefined,
   });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
   }
 
+  // /ansokningar/ny skapar alltid en manuell ansökan (jobAdId == null).
+  // Backend tar `manual: { title, company, url?, expiresAt? }` (ingen
+  // source — manuell ansökan är implicit Source=Manual).
   let applicationId: string;
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/applications`, {
       method: "POST",
       headers: authHeaders(sessionId),
-      body: JSON.stringify({ coverLetter: parsed.data.coverLetter ?? null }),
+      body: JSON.stringify({
+        coverLetter: parsed.data.coverLetter ?? null,
+        manual: {
+          title: parsed.data.title,
+          company: parsed.data.company,
+          url: parsed.data.url ?? null,
+          expiresAt: parsed.data.expiresAt ?? null,
+        },
+      }),
       cache: "no-store",
     });
 

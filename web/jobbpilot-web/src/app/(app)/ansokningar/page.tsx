@@ -4,22 +4,9 @@ import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationRow } from "@/components/applications/application-row";
-import { getStatusLabel } from "@/lib/applications/status";
+import { ApplicationsPipeline } from "@/components/applications/applications-pipeline";
 import { Button } from "@/components/ui/button";
-import type { ApplicationStatus } from "@/lib/types/applications";
-
-const PIPELINE_ORDER: ApplicationStatus[] = [
-  "Draft",
-  "Submitted",
-  "Acknowledged",
-  "InterviewScheduled",
-  "Interviewing",
-  "OfferReceived",
-  "Accepted",
-  "Rejected",
-  "Withdrawn",
-  "Ghosted",
-];
+import type { ApplicationDto } from "@/lib/types/applications";
 
 export default async function AnsokningarPage() {
   const user = await getServerSession();
@@ -61,12 +48,13 @@ export default async function AnsokningarPage() {
   }
 
   const groups = result.data;
-  const nonEmpty = groups.filter((g) => g.count > 0);
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
-  const sorted = [...nonEmpty].sort(
-    (a, b) =>
-      PIPELINE_ORDER.indexOf(a.status) - PIPELINE_ORDER.indexOf(b.status)
+  // ApplicationRow förblir server-renderbar (CTO punkt 4). Den renderas här i
+  // RSC och passas in i client-ön via render-prop — client-ön äger bara
+  // kollaps-state och ankarnav, aldrig rad-utseendet.
+  const renderRow = (application: ApplicationDto) => (
+    <ApplicationRow key={application.id} application={application} />
   );
 
   return (
@@ -91,23 +79,7 @@ export default async function AnsokningarPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-8 flex flex-col gap-8">
-          {sorted.map((group) => (
-            <section key={group.status} aria-label={getStatusLabel(group.status)}>
-              <div className="mb-2 flex items-baseline gap-3 border-b border-border-strong pb-2">
-                <h2 className="jp-h2">{getStatusLabel(group.status)}</h2>
-                <span className="font-mono text-[13px] font-medium text-text-secondary">
-                  {group.count}
-                </span>
-              </div>
-              <div className="flex flex-col border-t border-border-default">
-                {group.applications.map((app) => (
-                  <ApplicationRow key={app.id} application={app} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <ApplicationsPipeline groups={groups} renderRow={renderRow} />
       )}
     </div>
   );

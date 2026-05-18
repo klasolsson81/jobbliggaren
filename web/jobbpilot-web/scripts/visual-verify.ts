@@ -168,10 +168,19 @@ async function deleteFixture(sessionId: string, id: string): Promise<void> {
 interface ApplicationFixtures {
   /** Tillstånd 1 — JobAd-kopplad. null om dev-korpusen saknar träff. */
   jobAdLinked: string | null;
-  /** Tillstånd 2 — ManualPosting (manuell ansökan). */
+  /** Tillstånd 2 — ManualPosting med URL (L5: "Visa annonsen"-länk visas). */
   manual: string;
+  /** Tillstånd 2b — ManualPosting UTAN URL (L5: ingen länk — VETO Block 1). */
+  manualNoUrl: string;
   /** Tillstånd 3 — cover-letter-only fallback + Pending follow-up. */
   fallback: string;
+  /**
+   * Submitted-status — radiogrupp med flera (Acknowledged/Nekad/Återtagen)
+   * varav destruktiva. Draft-fixturerna ger bara 1-övergångs-knappen; §5:s
+   * kärna (shadcn radio-group + L2 destruktiv-Dialog) capurerades aldrig
+   * (Area 5-VETO L2 ej clear:ad).
+   */
+  submitted: string;
 }
 
 /** Plockar ett JobAd-id ur live dev-korpusen för tillstånd-1-fixturen. */
@@ -243,7 +252,7 @@ async function createApplicationFixture(
   ).toISOString();
   const manual = await postApplication(auth, {
     jobAdId: null,
-    coverLetter: `FAS 3 visuell verifiering — manuell (temp ${stamp})`,
+    coverLetter: `FAS 3 visuell verifiering — manuell m. URL (temp ${stamp})`,
     manual: {
       title: "Frontendutvecklare",
       company: "Exempelbolaget AB",
@@ -251,6 +260,46 @@ async function createApplicationFixture(
       expiresAt,
     },
   });
+
+  // Tillstånd 2b — ManualPosting UTAN url → L5: ingen "Visa annonsen"-länk
+  // (Area 5-VETO Block 1: korpusen saknade detta tillstånd, vilket gjorde
+  // länken-med-url till en falsk Block. Båda manuell-varianterna behövs).
+  const manualNoUrl = await postApplication(auth, {
+    jobAdId: null,
+    coverLetter: `FAS 3 visuell verifiering — manuell utan URL (temp ${stamp})`,
+    manual: {
+      title: "Backendutvecklare",
+      company: "Annat Exempelbolag AB",
+      url: null,
+      expiresAt: null,
+    },
+  });
+
+  // Submitted — radiogrupp >1 övergång inkl. destruktiva (L2). Skapa Draft
+  // och transitera Draft→Submitted (Submitted = enda Draft-övergången).
+  const submitted = await postApplication(auth, {
+    jobAdId: null,
+    coverLetter: `FAS 3 visuell verifiering — Submitted/L2 (temp ${stamp})`,
+    manual: {
+      title: "Systemutvecklare",
+      company: "Statusexempel AB",
+      url: null,
+      expiresAt: null,
+    },
+  });
+  const transRes = await fetch(
+    `${BACKEND_URL}/api/v1/applications/${submitted}/transition`,
+    {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ targetStatus: "Submitted" }),
+    },
+  );
+  if (!transRes.ok) {
+    throw new Error(
+      `Transition Draft→Submitted misslyckades (HTTP ${transRes.status}).`,
+    );
+  }
 
   // Tillstånd 3 — cover-letter-only fallback + Pending follow-up
   // (RecordFollowUpOutcomeForm renderas endast när fu.outcome === "Pending").
@@ -276,7 +325,33 @@ async function createApplicationFixture(
     );
   }
 
-  return { jobAdLinked, manual, fallback };
+  return { jobAdLinked, manual, manualNoUrl, fallback, submitted };
+}
+
+/**
+ * Tema appliceras av en pre-paint ThemeScript som sätter `data-theme="dark"`
+ * på <html> (dark) eller tar bort attributet (light) — styrt av Playwrights
+ * colorScheme-emulering. Vissa sidladdningar capturerades i fel tema när
+ * screenshoten fyrade före ThemeScript/hydration (FAS 3 STOPP 3b Area 5-VETO
+ * Major 1: jobad-kopplad__dark renderades light). Vänta deterministiskt tills
+ * upplöst tema = begärt tema innan shoot. Timeout → LOUD varning (aldrig en
+ * tyst fel-tema-bild som passerar review).
+ */
+async function ensureTheme(page: Page, theme: string): Promise<void> {
+  const want = theme === "dark" ? "dark" : null; // light = attribut frånvarande
+  try {
+    await page.waitForFunction(
+      (w) =>
+        (document.documentElement.getAttribute("data-theme") ?? null) === w,
+      want,
+      { timeout: 4000 },
+    );
+  } catch {
+    console.warn(
+      `[visual-verify] VARNING: tema '${theme}' ej applicerat på ` +
+        `${page.url()} inom timeout — skärmbilden kan ha fel tema.`,
+    );
+  }
 }
 
 async function shoot(page: Page, outDir: string, name: string): Promise<void> {
@@ -416,6 +491,58 @@ async function shootJobbInteractiveStates(
   return shot;
 }
 
+/**
+ * FAS 3 STOPP 3b §5/L2 — StatusEditCard destruktiv övergång. Submitted-status
+ * ger radiogrupp [Bekräftad/Nekad/Återtagen]. Capurerar: (1) radiogrupp +
+ * vald destruktiv → inline konsekvenstext, (2) [Spara] → Dialog-bekräftelse
+ * öppen (L2 bindande: destruktiv MÅSTE gå via Dialog, ej inline-istället).
+ * Area 5-VETO L2 var "ej clear:ad" — alla tidigare fixturer var Draft.
+ * Best-effort: en miss fäller ej körningen (loggas så luckan syns).
+ */
+async function shootStatusDestructiveStates(
+  page: Page,
+  outDir: string,
+  theme: string,
+  vpTag: string,
+  submittedAppId: string,
+): Promise<number> {
+  let shot = 0;
+  try {
+    await page.goto(`${BASE_URL}/ansokningar/${submittedAppId}`, {
+      waitUntil: "networkidle",
+    });
+    await ensureTheme(page, theme);
+    // "Nekad" = destruktiv (Rejected). Label kopplad via <label htmlFor>.
+    const nekad = page.getByRole("radio", { name: "Nekad" });
+    await nekad.waitFor({ state: "visible", timeout: 5000 });
+    await nekad.check();
+    // Inline konsekvenstext renderas när destruktivt val gjorts.
+    await page
+      .getByText(/avslutar\s+ansökan/i)
+      .first()
+      .waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForTimeout(150);
+    await shoot(page, outDir, `ansokningar-status-destruktiv-inline__${theme}__${vpTag}`);
+    shot++;
+
+    await page.getByRole("button", { name: "Spara", exact: true }).click();
+    // L2: Dialog-bekräftelse — DialogTitle "Markera som Nekad?".
+    await page
+      .getByRole("dialog")
+      .getByText(/^Markera som Nekad\?$/)
+      .waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForTimeout(600); // overlay/dialog-fade settlar (DESIGN.md §10)
+    await shoot(page, outDir, `ansokningar-status-destruktiv-dialog__${theme}__${vpTag}`);
+    shot++;
+  } catch (err) {
+    console.warn(
+      `[visual-verify] VARNING: status-destruktiv (${theme}/${vpTag}) ` +
+        `kunde inte capureras: ${(err as Error).message}`,
+    );
+  }
+  return shot;
+}
+
 async function main(): Promise<void> {
   // Self-cleaning: radera ALLA tidigare körningar innan ny mapp skapas.
   if (existsSync(ROOT)) {
@@ -445,8 +572,8 @@ async function main(): Promise<void> {
     appFixtures = await createApplicationFixture(sessionId);
     console.log(
       "[visual-verify] Fixturer skapade (sökning: raderas i teardown; " +
-        "3 ansökningar [JobAd-kopplad/manuell/fallback]: best-effort, " +
-        "ingen DELETE-endpoint — se funktions-doc).",
+        "5 ansökningar [JobAd-kopplad/manuell±url/fallback/Submitted]: " +
+        "best-effort, ingen DELETE-endpoint — se funktions-doc).",
     );
   } else {
     console.log("[visual-verify] Publikt läge (inga auth-env satta).");
@@ -478,8 +605,18 @@ async function main(): Promise<void> {
           auth: true,
         },
         {
+          path: `/ansokningar/${appFixtures!.manualNoUrl}`,
+          name: "ansokningar-detalj-manuell-utan-url",
+          auth: true,
+        },
+        {
           path: `/ansokningar/${appFixtures!.fallback}`,
           name: "ansokningar-detalj-fallback-outcome-form",
+          auth: true,
+        },
+        {
+          path: `/ansokningar/${appFixtures!.submitted}`,
+          name: "ansokningar-detalj-submitted-radiogrupp",
           auth: true,
         },
       ]
@@ -496,6 +633,22 @@ async function main(): Promise<void> {
           viewport: { width: vp.w, height: vp.h },
           colorScheme: theme === "dark" ? "dark" : "light",
         });
+
+        // Deterministisk tema-setning (CTO a71bc82bd838fb0ae, FAS 3 STOPP 3b
+        // Area 5-VETO Major 1). ThemeScript läser localStorage["jp-theme"]
+        // FÖRE matchMedia → att sätta den via addInitScript (körs före varje
+        // dokuments scripts) gör temat oberoende av CDP colorScheme-
+        // emuleringen, som bevisat var bräcklig för en route med extern
+        // target=_blank-kontext (jobad-kopplad gav byte-identisk light==dark
+        // över 3 körningar; produktkod verifierat invariant). Meszaros 2007
+        // "Fresh Fixture" — deterministisk setup, ej emuleringsberoende.
+        await context.addInitScript((t: string) => {
+          try {
+            localStorage.setItem("jp-theme", t);
+          } catch {
+            // localStorage blockerat — colorScheme-emuleringen kvarstår fallback
+          }
+        }, theme === "dark" ? "dark" : "light");
 
         if (AUTH_MODE && sessionId) {
           // Host-only Secure-cookie via `url` → uppfyller __Host--prefix.
@@ -517,6 +670,7 @@ async function main(): Promise<void> {
           await page.goto(`${BASE_URL}${target.path}`, {
             waitUntil: "networkidle",
           });
+          await ensureTheme(page, theme);
           await shoot(page, outDir, `${target.name}__${theme}__${vp.tag}`);
           count++;
         }
@@ -533,6 +687,16 @@ async function main(): Promise<void> {
             theme,
             vp.tag,
           );
+          // FAS 3 §5/L2 — destruktiv övergång + Dialog (Area 5-VETO L2).
+          if (appFixtures?.submitted) {
+            count += await shootStatusDestructiveStates(
+              page,
+              outDir,
+              theme,
+              vp.tag,
+              appFixtures.submitted,
+            );
+          }
         }
 
         // Bekräftelse-dialog (DESIGN.md §6) — öppna och capurera öppet
@@ -571,7 +735,9 @@ async function main(): Promise<void> {
       const ids = [
         appFixtures.jobAdLinked,
         appFixtures.manual,
+        appFixtures.manualNoUrl,
         appFixtures.fallback,
+        appFixtures.submitted,
       ]
         .filter(Boolean)
         .join(", ");

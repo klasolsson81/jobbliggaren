@@ -4,7 +4,7 @@
 **Status:** Accepted
 **Kontext:** STEG 10a + 10b — TD-16 stängning (BUILD.md §18 Fas 1, sista Fas 1 prod-deploy-blockare relaterad till audit/GDPR)
 **Beslutsfattare:** Klas Olsson
-**Relaterad:** ADR 0008 (pipeline-ordning), ADR 0009 (no-repository), ADR 0010 (Worker-projekt), ADR 0017 (frontend auth pattern — `ISessionStore`-yta), ADR 0022 (audit log pipeline-behavior — Art. 17-policyn deklareras där, implementeras här), ADR 0023 (Worker-pipeline + Hangfire — orchestratorerna här konsumerar samma chassi), BUILD.md §7.1, §7.2, §7.3, §13.3
+**Relaterad:** ADR 0008 (pipeline-ordning), ADR 0009 (no-repository), ADR 0010 (Worker-projekt), ADR 0017 (frontend auth pattern — `ISessionStore`-yta), ADR 0022 (audit log pipeline-behavior — Art. 17-policyn deklareras där, implementeras här), ADR 0023 (Worker-pipeline + Hangfire — orchestratorerna här konsumerar samma chassi), ADR 0049 (Proposed — TD-13 PII-fält-kryptering: **komplementär**, lägger backup-PII-lagret via crypto-erasure ovanpå denna ADR:s backup-overwrite-story; cross-ref, **EJ amendment** — denna ADR:s text oförändrad), BUILD.md §7.1, §7.2, §7.3, §13.3
 
 ## Kontext
 

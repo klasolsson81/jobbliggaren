@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
-import { ApplicationCard } from "@/components/applications/application-card";
+import { ApplicationRow } from "@/components/applications/application-row";
 import { getStatusLabel } from "@/lib/applications/status";
 import { Button } from "@/components/ui/button";
 import type { ApplicationStatus } from "@/lib/types/applications";
@@ -102,7 +102,7 @@ export default async function AnsokningarPage() {
               </div>
               <div className="flex flex-col border-t border-border-default">
                 {group.applications.map((app) => (
-                  <ApplicationCard key={app.id} application={app} />
+                  <ApplicationRow key={app.id} application={app} />
                 ))}
               </div>
             </section>

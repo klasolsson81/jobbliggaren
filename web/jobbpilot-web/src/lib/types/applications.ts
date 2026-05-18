@@ -4,6 +4,7 @@ export type {
   ApplicationStatus,
   FollowUpChannel,
   FollowUpOutcome,
+  JobAdSummaryDto,
   ApplicationDto,
   FollowUpDto,
   NoteDto,

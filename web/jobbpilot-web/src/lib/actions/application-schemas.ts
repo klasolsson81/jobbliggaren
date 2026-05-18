@@ -8,8 +8,47 @@ const APPLICATION_STATUSES = [
   "Interviewing", "OfferReceived", "Accepted", "Rejected", "Withdrawn", "Ghosted",
 ] as const satisfies readonly ApplicationStatus[];
 
+// Manuell ansökan (jobAdId == null): Jobbtitel + Företag obligatoriska,
+// Annonslänk + Sista ansökningsdag frivilliga. Inget Källa-fält (Source
+// struken — manuell ansökan är implicit Source=Manual, projiceras i
+// read-vägen). coverLetter fortsatt frivillig.
 export const createApplicationSchema = z.object({
-  coverLetter: z.string().max(5000, "Personligt brev får vara max 5 000 tecken.").optional(),
+  title: z
+    .string()
+    .trim()
+    .min(1, "Jobbtitel krävs.")
+    .max(200, "Jobbtitel får vara max 200 tecken."),
+  company: z
+    .string()
+    .trim()
+    .min(1, "Företag krävs.")
+    .max(200, "Företag får vara max 200 tecken."),
+  url: z
+    .union([
+      z
+        .string()
+        .trim()
+        .url("Annonslänken måste vara en giltig webbadress.")
+        .refine(
+          (v) => v.startsWith("http://") || v.startsWith("https://"),
+          "Annonslänken måste börja med http:// eller https://."
+        ),
+      z.literal("").transform(() => undefined),
+    ])
+    .optional(),
+  expiresAt: z
+    .union([
+      z
+        .string()
+        .trim()
+        .refine((v) => !isNaN(Date.parse(v)), "Ogiltigt datum."),
+      z.literal("").transform(() => undefined),
+    ])
+    .optional(),
+  coverLetter: z
+    .string()
+    .max(5000, "Personligt brev får vara max 5 000 tecken.")
+    .optional(),
 });
 
 export const transitionStatusSchema = z.object({

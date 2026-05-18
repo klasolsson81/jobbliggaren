@@ -159,7 +159,7 @@ export default function LandingPage() {
           </div>
 
           {/* Höger: riktig login / register-panel (ingen mellansida) */}
-          <div className="sticky top-18 flex flex-col border border-border-default bg-surface-primary">
+          <div className="sticky top-18 flex flex-col border border-border-structural bg-surface-primary">
             <div className="flex border-b border-border-default">
               {(["login", "register"] as Mode[]).map((m, i) => {
                 const active = mode === m;

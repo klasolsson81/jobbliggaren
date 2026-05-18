@@ -31,7 +31,7 @@ export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
   return (
     <section
       aria-labelledby="job-info-title"
-      className="rounded-md border border-border-default bg-surface-primary"
+      className="rounded-md border border-border-structural bg-surface-primary"
     >
       <div className="border-b border-border-default px-4 py-3">
         <h2

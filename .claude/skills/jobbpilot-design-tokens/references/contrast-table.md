@@ -68,9 +68,10 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 | Token | Against | Ratio | Notes |
 |---|---|---|---|
-| `border` (#1E293B) | `surface-primary` (#020617) | ~1.6:1 | Dekorativ hairline — undantaget |
+| `border` (#1E293B) | `surface-primary` (#020617) | ~1.6:1 | Dekorativ hairline — undantaget **endast** där annan separation bär (rad-bg, yt-shift, inre divider innanför migrerad kant). Är kanten enda boundary (kort/sektion/panel/sidebar) → använd `border-structural`. ADR 0041-amendment |
 | `border-strong` (#334155) | `surface-primary` (#020617) | ~2.6:1 | Informationsbärande — komplettera alltid med text/ikon, aldrig endast färg |
 | `border-modal` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | **Strukturell** modal/popover-gräns — WCAG 1.4.11 ✓ (≥3:1 även mot `bg-black/50`-dimmad canvas). ADR 0041. Light = `#E2E8F0`. |
+| `border-structural` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | **Strukturell** yt-chrome-kant — kort/sektion/panel/sidebar där kanten är enda perceptuella boundary i dark. WCAG 1.4.11 ✓ (≥3:1 även mot dimmad canvas). = `--jp-info-500` / `--jp-border-modal` dark. ADR 0041-amendment 2026-05-18. Light = `#E2E8F0`. |
 
 ## Dark mode — status pairs
 

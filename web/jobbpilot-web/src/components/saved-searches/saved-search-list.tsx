@@ -41,7 +41,7 @@ function criteriaSummary(s: SavedSearchDto): string {
 
 function SavedSearchRow({ savedSearch }: { savedSearch: SavedSearchDto }) {
   return (
-    <li className="flex flex-col gap-2 border-b border-border-default px-1 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-col gap-2 border-b border-border-structural px-1 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-col gap-1">
         <span className="text-body font-medium text-text-primary">
           {savedSearch.name}
@@ -68,7 +68,7 @@ function SavedSearchRow({ savedSearch }: { savedSearch: SavedSearchDto }) {
 export function SavedSearchList({ savedSearches }: SavedSearchListProps) {
   if (savedSearches.length === 0) {
     return (
-      <div className="border-y border-border-default px-1 py-12 text-center">
+      <div className="border-y border-border-structural px-1 py-12 text-center">
         <p className="text-body text-text-primary">
           Du har inga sparade sökningar
         </p>
@@ -82,7 +82,7 @@ export function SavedSearchList({ savedSearches }: SavedSearchListProps) {
 
   return (
     <ul
-      className="flex flex-col border-t border-border-default"
+      className="flex flex-col border-t border-border-structural"
       aria-label="Sparade sökningar"
     >
       {savedSearches.map((s) => (

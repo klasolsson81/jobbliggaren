@@ -63,6 +63,7 @@
   --jp-border-soft:     #F1F5F9;
   --jp-border-hairline: #E2E8F0;
   --jp-border-modal:    #E2E8F0;   /* = light --jp-border (light ej defekt; token-enhetlighet) — ADR 0041 */
+  --jp-border-structural: #E2E8F0; /* = light --jp-border (light ej defekt; token-enhetlighet) — ADR 0041-amendment 2026-05-18 */
 
   /* Focus */
   --jp-focus: #0B5CAD;
@@ -135,6 +136,7 @@
   --jp-border-soft:     #1E293B;
   --jp-border-hairline: #1E293B;
   --jp-border-modal:    #64748B;   /* slate-500 (= dark --jp-info-500) — WCAG 1.4.11 ≈3.6:1 mot dimmad canvas — ADR 0041 */
+  --jp-border-structural: #64748B; /* slate-500 (= dark --jp-info-500 / --jp-border-modal) — WCAG 1.4.11 ≈3.6:1 strukturell yt-chrome-kant — ADR 0041-amendment 2026-05-18 */
 
   --jp-focus: #60A5FA;
 
@@ -185,6 +187,7 @@
   --color-border-default: var(--jp-border);
   --color-border-strong:  var(--jp-border-strong);
   --color-border-modal:   var(--jp-border-modal);
+  --color-border-structural: var(--jp-border-structural);
   --color-border-brand:   var(--jp-brand-600);
 
   /* Focus */
@@ -374,7 +377,7 @@ body {
 /* ── Sidebar ───────────────────────────────────────────────── */
 .jp-sidebar {
   background: var(--jp-surface-secondary);
-  border-right: 1px solid var(--jp-border);
+  border-right: 1px solid var(--jp-border-structural);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -598,7 +601,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--jp-pad-x);
-  border-bottom: 1px solid var(--jp-border);
+  border-bottom: 1px solid var(--jp-border-structural);
   background: var(--jp-surface-primary);
 }
 .jp-crumbs {
@@ -694,14 +697,14 @@ body {
 /* ── Aktuellt-feed (attention list, ingen låda) ────────────── */
 .jp-attention {
   margin-top: 28px;
-  border-top: 1px solid var(--jp-border);
+  border-top: 1px solid var(--jp-border-structural);
 }
 .jp-attention__row {
   display: flex;
   align-items: flex-start;
   gap: 16px;
   padding: 18px 4px;
-  border-bottom: 1px solid var(--jp-border);
+  border-bottom: 1px solid var(--jp-border-structural);
   position: relative;
 }
 .jp-attention__dot {
@@ -762,13 +765,13 @@ body {
 
 /* ── Cards / list ──────────────────────────────────────────── */
 .jp-card {
-  border: 1px solid var(--jp-border);
+  border: 1px solid var(--jp-border-structural);
   border-radius: var(--jp-r-md);
   background: var(--jp-surface-secondary);
   padding: 16px 18px;
 }
 .jp-listCard {
-  border: 1px solid var(--jp-border-hairline);
+  border: 1px solid var(--jp-border-structural);
   border-radius: var(--jp-r-md);
   background: var(--jp-surface-secondary);
   overflow: hidden;
@@ -777,9 +780,9 @@ body {
   border: 0;
   border-radius: 0;
   background: transparent;
-  border-top: 1px solid var(--jp-border);
+  border-top: 1px solid var(--jp-border-structural);
 }
-.jp-listCard--flat .jp-listRow:last-child { border-bottom: 1px solid var(--jp-border); }
+.jp-listCard--flat .jp-listRow:last-child { border-bottom: 1px solid var(--jp-border-structural); }
 .jp-listCard--flat .jp-listRow:hover { background: var(--jp-surface-tertiary); }
 .jp-listRow {
   display: grid;
@@ -969,8 +972,8 @@ body {
   padding: 18px 0;
   background: transparent;
   border: 0;
-  border-top: 1px solid var(--jp-border);
-  border-bottom: 1px solid var(--jp-border);
+  border-top: 1px solid var(--jp-border-structural);
+  border-bottom: 1px solid var(--jp-border-structural);
   border-radius: 0;
 }
 .jp-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -1044,7 +1047,7 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
-  border-top: 1px solid var(--jp-border);
+  border-top: 1px solid var(--jp-border-structural);
 }
 .jp-col {
   background: transparent;

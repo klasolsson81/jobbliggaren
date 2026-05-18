@@ -119,7 +119,7 @@ export default async function AnsokningDetailPage({ params }: Props) {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          <p className="rounded-md border border-border-default bg-surface-primary px-4 py-3 text-body-sm text-text-secondary">
+          <p className="rounded-md border border-border-structural bg-surface-primary px-4 py-3 text-body-sm text-text-secondary">
             Ingen kopplad annons — manuellt skapad ansökan.
           </p>
           <StatusEditCard
@@ -129,7 +129,7 @@ export default async function AnsokningDetailPage({ params }: Props) {
           {application.coverLetter && (
             <section
               aria-labelledby="cover-letter-title"
-              className="rounded-md border border-border-default bg-surface-primary"
+              className="rounded-md border border-border-structural bg-surface-primary"
             >
               <div className="border-b border-border-default px-4 py-3">
                 <h2
@@ -151,7 +151,7 @@ export default async function AnsokningDetailPage({ params }: Props) {
 
       <section
         aria-labelledby="followups-title"
-        className="rounded-md border border-border-default bg-surface-primary"
+        className="rounded-md border border-border-structural bg-surface-primary"
       >
         <div className="border-b border-border-default px-4 py-3">
           <h2
@@ -232,7 +232,7 @@ export default async function AnsokningDetailPage({ params }: Props) {
 
       <section
         aria-labelledby="notes-title"
-        className="rounded-md border border-border-default bg-surface-primary"
+        className="rounded-md border border-border-structural bg-surface-primary"
       >
         <div className="border-b border-border-default px-4 py-3">
           <h2

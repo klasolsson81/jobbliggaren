@@ -60,11 +60,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // Replace AppDbContext
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
-            services.AddDbContext<AppDbContext>(options =>
+            // TD-13 C3 (Mekanik-not 5c): re-AddDbContext måste spegla
+            // produktionens (sp,options).AddInterceptors — annars kör Api-integ
+            // utan kryptering (interceptor-paret auto-discoveras EJ).
+            services.AddDbContext<AppDbContext>((sp, options) =>
                 options
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                    .UseSnakeCaseNamingConvention());
+                    .UseSnakeCaseNamingConvention()
+                    .AddInterceptors(
+                        sp.GetRequiredService<JobbPilot.Infrastructure.Security.FieldEncryptionSaveChangesInterceptor>(),
+                        sp.GetRequiredService<JobbPilot.Infrastructure.Security.FieldDecryptionMaterializationInterceptor>()));
 
             // Replace AppIdentityDbContext
             services.RemoveAll<DbContextOptions<AppIdentityDbContext>>();
@@ -83,6 +89,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 opts.Configuration = _redisCs;
                 opts.InstanceName = "jobbpilot:";
             });
+
+            // TD-13 C3: faka KMS (interceptor-paret anropar GenerateDataKey/
+            // Decrypt vid Application-writes/reads i full Mediator-pipeline).
+            // Annars riktig AWS-KMS med tom CMK → fail. Deterministisk per
+            // owner — round-trip + per-användare-isolering bevaras end-to-end.
+            services.RemoveAll<Amazon.KeyManagementService.IAmazonKeyManagementService>();
+            services.AddSingleton(ApiKmsFake.Create());
         });
     }
 

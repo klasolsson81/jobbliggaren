@@ -50,6 +50,11 @@ public class ManualPostingPersistenceTests(ApiFactory factory)
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var seekerId = await SeedSeekerAsync(db, clock, ct);
+        // TD-13 C3: cover_letter ("Bara brev") krypteras → värm ägar-DEK i
+        // samma scope FÖRE Add (direkt-seed förbi Mediator-prefetch).
+        // Reload-grenen läser tillbaka cover_letter ⇒ läs-scopet (= samma
+        // scope) måste också ha varm DEK; warm:ad ovan räcker.
+        await EncryptionKeyTestSeed.WarmAsync(scope, seekerId, ct);
         var app = JobbPilot.Domain.Applications.Application.Create(seekerId, null, "Bara brev", null, clock).Value;
         db.Applications.Add(app);
         await db.SaveChangesAsync(ct);

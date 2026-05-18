@@ -1,5 +1,6 @@
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Auditing;
+using JobbPilot.Application.Common.Security;
 using JobbPilot.Domain.Common;
 using Mediator;
 
@@ -10,7 +11,8 @@ public sealed record AddFollowUpCommand(
     string Channel,
     DateTimeOffset ScheduledAt,
     string? Note)
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>,
+      IRequiresFieldEncryptionKey
 {
     public string EventType => "Application.FollowUpAdded";
     public string AggregateType => "Application";

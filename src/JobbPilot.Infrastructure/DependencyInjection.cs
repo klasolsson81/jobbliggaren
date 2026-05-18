@@ -255,11 +255,22 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Postgres saknas i konfiguration.");
 
-        services.AddDbContext<AppDbContext>(options =>
+        // TD-13 C3 (ADR 0049 Mekanik-not 5c, architect+Microsoft Learn
+        // 2026-05-18): EF Core auto-discoverar INTE app-DI-interceptorer.
+        // Kanonisk mekanik = SINGLETON-interceptorer (ISingletonInterceptor) +
+        // (sp,options).AddInterceptors(sp.GetRequiredService<...>()). Singleton
+        // → samma instans varje resolution → identisk options-cache-nyckel →
+        // EN intern EF-provider (ingen ManyServiceProvidersCreatedWarning,
+        // prod-reell läcka annars). Scoped state (cache/owner/encryptor) nås
+        // via eventData.Context.GetService<T>() vid invocation, ej ctor.
+        services.AddDbContext<AppDbContext>((sp, options) =>
             options
                 .UseNpgsql(connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .AddInterceptors(
+                    sp.GetRequiredService<Security.FieldEncryptionSaveChangesInterceptor>(),
+                    sp.GetRequiredService<Security.FieldDecryptionMaterializationInterceptor>()));
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
@@ -326,10 +337,24 @@ public static class DependencyInjection
         // AppDbContext (DeleteDataKeysAsync deltar i hard-delete-transaktionen
         // C6) + cachen nollar nyckelmaterial vid scope-dispose. UserDataKey
         // exponeras aldrig via IAppDbContext (arch-test-spärr).
-        services.AddScoped<JobbPilot.Application.Common.Security.IUserDataKeyCache,
-            Security.ScopedUserDataKeyCache>();
+        // C3-justering: registrera konkreta ScopedUserDataKeyCache + låt
+        // IUserDataKeyCache forwarda till SAMMA scoped-instans, så
+        // FieldDecryptionMaterializationInterceptor (injicerar konkreta typen
+        // för synkron internal TryPeekCachedDek, Seam 3) och store delar
+        // cache-instans per scope.
+        services.AddScoped<Security.ScopedUserDataKeyCache>();
+        services.AddScoped<JobbPilot.Application.Common.Security.IUserDataKeyCache>(
+            sp => sp.GetRequiredService<Security.ScopedUserDataKeyCache>());
         services.AddScoped<JobbPilot.Application.Common.Security.IUserDataKeyStore,
             Security.UserDataKeyStore>();
+
+        // TD-13 C3 (Mekanik-not 5c). Interceptor-paret SINGLETON (stateless,
+        // ISingletonInterceptor; scoped state via Context.GetService vid
+        // invocation). ICurrentDataOwner förblir Scoped (request/job-bunden).
+        services.AddSingleton<Security.FieldEncryptionSaveChangesInterceptor>();
+        services.AddSingleton<Security.FieldDecryptionMaterializationInterceptor>();
+        services.AddScoped<JobbPilot.Application.Common.Security.ICurrentDataOwner,
+            Security.CurrentDataOwner>();
 
         return services;
     }

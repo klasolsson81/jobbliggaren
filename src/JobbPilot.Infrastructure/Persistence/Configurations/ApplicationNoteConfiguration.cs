@@ -15,8 +15,10 @@ public sealed class ApplicationNoteConfiguration : IEntityTypeConfiguration<Appl
             .HasConversion(id => id.Value, value => new ApplicationNoteId(value))
             .ValueGeneratedNever();
 
-        // TODO(GDPR): kryptera med KMS-backed value converter innan prod-release
-        builder.Property(n => n.Content).HasMaxLength(5000).IsRequired();
+        // TD-13 (ADR 0049 C3): krypteras via interceptor-paret. HasMaxLength
+        // borttagen (ciphertext > klartext-cap; TEXT obegränsad). IsRequired
+        // behålls — krypterat värde är aldrig null/tomt.
+        builder.Property(n => n.Content).IsRequired();
 
         builder.Property(n => n.CreatedAt).IsRequired();
         builder.Property(n => n.DeletedAt);

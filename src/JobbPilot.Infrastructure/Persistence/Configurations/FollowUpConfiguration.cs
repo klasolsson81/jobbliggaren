@@ -24,8 +24,10 @@ public sealed class FollowUpConfiguration : IEntityTypeConfiguration<FollowUp>
 
         builder.Property(f => f.ScheduledAt).IsRequired();
 
-        // TODO(GDPR): kryptera med KMS-backed value converter innan prod-release
-        builder.Property(f => f.Note).HasMaxLength(2000);
+        // TD-13 (ADR 0049 C3): krypteras via interceptor-paret. HasMaxLength
+        // borttagen (ciphertext > klartext-cap; TEXT obegränsad). Nullable —
+        // null Note förblir null (ej krypterad).
+        builder.Property(f => f.Note);
 
         builder.Property(f => f.Outcome)
             .HasConversion(

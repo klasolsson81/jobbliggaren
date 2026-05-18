@@ -246,6 +246,95 @@ paritet med Mekanik-not 1/2). Klas informeras i STOPP-rapport och kan
 override:a till formell amendment om pipeline-additionen bedöms vara
 besluts-substans.
 
+**Mekanik-not 4 (senior-cto-advisor-triage 2026-05-18, STOPP I batch C3 —
+Approach A, gäller decrypt-on-read interceptor-träffbarhet):** ordalydelsen
+"decrypt-on-read via `IMaterializationInterceptor`" (not 1) bar en
+implementeringsförväntan om *att interceptorn alltid träffar*. EF Core 10:s
+`IMaterializationInterceptor` triggar **endast när shapern producerar en
+entitetsinstans** (Microsoft Learn *Interceptors* / *IMaterializationInterceptor*
+efcore-10.0; dotnet/efcore #33614, #15911). En SQL-projektion av en krypterad
+kolumn rakt till en DTO (`.Select(... new Dto(a.CoverLetter, ...))`)
+materialiserar ingen entitet → interceptorn kringgås → ciphertext når DTO:n
+oläst. Substansen — decrypt-on-read med per-användare-DEK, legacy-tolerans,
+fail-closed — är **oförändrad**. Mekaniken preciseras: read-handlers som rör
+de krypterade kolumnerna **materialiserar entiteten** (ej SQL-projektion av
+det krypterade fältet) så att interceptor-paret (not 1) + prefetch-behavior
+(not 3) faktiskt träffar. Omfång verifierat minimalt: enda berörda handler är
+`GetApplicationByIdQueryHandler` (skrivs om till entitets-materialisering +
+in-memory-map; JobAd förblir projicerad left-join — ADR 0048 cross-aggregat-
+del orörd). `GetResumeByIdQueryHandler` (C4) är redan konform (`Include` +
+in-memory `ToDetailDto()`). `GetApplications`/`GetPipeline` projicerar inga
+krypterade kolumner. En arch-test-spärr (Approach D-komplement) förhindrar
+framtida SQL-projektion av de fyra krypterade kolumnerna. De **fyra substans-
+invarianterna oförändrade**. Mekanik-precisering tvingad av EF Core 10-doktrin
+— **ingen substans-ändring, ingen formell ADR-amendment, ingen Klas-STOPP för
+mekaniken** (CTO entydig, §9.6 p.5; paritet not 1–3). Klas-GO inhämtad
+2026-05-18 på den utökade C3-scopen (handler-materialisering + arch-test;
+not 3 var nödvändig men ej tillräcklig). Klas kan override:a not 4 till
+formell amendment om interceptor-träffbarhet bedöms vara besluts-substans.
+
+**Mekanik-not 5 (dotnet-architect + senior-cto-advisor-triage 2026-05-18,
+STOPP I batch C3 — re-entrancy-fix Approach A + system-scope-passthrough #3
+(iv)):** två mekanik-preciseringar som tillsammans sluter C3:s fyra
+scope-kvadranter. **(a) Re-entrancy (Approach A, reviderar Mekanik-not
+1:s ruling 1):** write-interceptorn fick anropa `IUserDataKeyStore
+.GetOrCreateDataKeyAsync` inifrån `SavingChangesAsync` → `UserDataKeyStore`
+gjorde `db.SaveChangesAsync()` på SAMMA DbContext → EF
+concurrency-detector-deadlock (DbContext icke-re-entrant, Microsoft Learn).
+Precisering: `FieldEncryptionSaveChangesInterceptor` blir en ren synkron
+cache-konsument (speglar decrypt-interceptorn) — anropar aldrig store/KMS;
+DEK värms av `FieldEncryptionKeyPrefetchBehavior` i ett eget pipeline-steg
+före UnitOfWork (write-commands bär `IRequiresFieldEncryptionKey`). Markören
+omdöpt `IRequiresDecryptedFields`→`IRequiresFieldEncryptionKey` (write+read-
+symmetrisk); behavior omdöpt `DecryptionKeyPrefetchBehavior`→
+`FieldEncryptionKeyPrefetchBehavior`. **(b) System-scope-passthrough #3 (iv):**
+`FieldDecryptionMaterializationInterceptor` fyrar på all entitets-
+materialisering; system/Hangfire-vägar (MarkGhosted, AccountHardDeleter)
+materialiserar krypterade aggregat men är medvetet ej `IAuthenticatedRequest`
+(ingen DEK-prefetch möjlig) och läser aldrig plaintext-fältet. Precisering:
+scope-differentierad fail-closed — autentiserad ägar-scope
+(`ICurrentDataOwner.JobSeekerId` satt) + ingen cachad DEK → kasta
+(oförändrat); system-scope (ingen `ICurrentDataOwner`/auth) → lämna
+ciphertext orört, kasta ej (drift får ej krascha; konfidentialitet bevarad —
+ciphertext exponeras aldrig som plaintext; encrypt-interceptorn
+idempotent-skippar re-save). Arch-test spärrar system-commands från att läsa
+krypterade plaintext-fält. De **fyra substans-invarianterna oförändrade**;
+fail-closed-substansen ("returnera ALDRIG klartext-fallback") bokstavligt
+bevarad (passthrough är striktare, ej svagare). Mekanik-precisering tvingad
+av EF Core 10-doktrin + drift-robusthet — **ingen substans-ändring, ingen
+formell ADR-amendment, ingen Klas-STOPP för mekaniken** (architect+CTO
+entydiga, §9.6 p.5; paritet not 1–4). **CTO-flagg:** #3 (iv) rör
+fail-closed-*villkorets* scope-differentiering (närmare substans än not 3/4);
+**Klas kan override:a Mekanik-not 5(b) till formell amendment** om
+scope-differentierad fail-closed bedöms vara besluts-substans — flaggas i
+STOPP V-rapporten (ej Klas-STOPP före STOPP V per Klas-direktiv 2026-05-18).
+
+**Mekanik-not 5c (dotnet-architect-triage 2026-05-18, Microsoft Learn-
+verifierad rev 2026-02-26):** Interceptor-paret auto-discoveras INTE av EF
+Core från application-DI (empiriskt falsifierat: utan `AddInterceptors` kör
+de aldrig → klartext persisteras). Kanonisk EF Core 10-mekanik: **singleton-
+registrerade `ISingletonInterceptor`-implementationer** (`ISaveChangesInterceptor`/
+`IMaterializationInterceptor` ÄR singleton-interceptorer i EF) +
+`(sp,options).AddInterceptors(sp.GetRequiredService<...>())` — stabil
+singleton-instans → identisk options-cache-nyckel → EN intern EF-provider →
+ingen `ManyServiceProvidersCreatedWarning` (en **prod-reell** resursläcka med
+scoped interceptor-instanser, ej test-artefakt; EF default `WarningBehavior
+.Throw`). Scoped state (`IFieldEncryptor`/`ScopedUserDataKeyCache`/
+`ICurrentDataOwner`) nås via `eventData.Context.GetService<T>()` resp.
+`MaterializationInterceptionData.Context.GetService<T>()` vid invocation
+(samma scope som AppDbContext = samma scope som prefetch-behaviorn värmde),
+INTE via konstruktorinjektion. `ICurrentDataOwner` förblir Scoped.
+ApiFactory:s re-AddDbContext speglar `(sp,options).AddInterceptors`.
+Approach A/CTO #3 (iv)-semantiken är oförändrad (interceptorerna förblir rena
+synkrona cache-konsumenter; re-entrancy-fri; scope-differentierad fail-closed
+rad-för-rad bevarad). Ersätter den felaktiga "auto-discovery"-formuleringen i
+tidigare not 1/5 + DI-kommentar. **Ingen substans-ändring** (mekanik-precisering
+tvingad av EF Core 10-doktrin, paritet not 1–5; §9.6 p.5). dotnet-architect
+flaggade detta som potentiell ADR-amendment; per Klas-direktiv 2026-05-18
+(non-stop, CTO/architect-kedja, inga Klas-stopp före STOPP V) appliceras det
+som mekanik-not — **flaggas i STOPP V-rapporten; Klas kan override:a till
+formell amendment**.
+
 ### Beslut 5 — jsonb→text-skifte via expand/contract; aldrig in-place ALTER TYPE
 
 Gäller `resume_versions.content` (raw_payload berörs ej — Beslut 3). Ciphertext

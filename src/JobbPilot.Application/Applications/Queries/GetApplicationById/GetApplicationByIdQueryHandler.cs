@@ -5,6 +5,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace JobbPilot.Application.Applications.Queries.GetApplicationById;
 
+/// <summary>
+/// TD-13 (ADR 0049 Mekanik-not 4, CTO Approach A): Application-aggregatet
+/// MATERIALISERAS (ej SQL-projektion av krypterade fält) så
+/// <c>FieldDecryptionMaterializationInterceptor</c> träffar och dekrypterar
+/// CoverLetter/Notes.Content/FollowUps.Note. JobAd förblir en projicerad
+/// left-join (ADR 0048 cross-aggregat-del oförändrad) — ej krypterad.
+/// <c>FieldEncryptionKeyPrefetchBehavior</c> har värmt ägar-DEK före handlern.
+/// </summary>
 public sealed class GetApplicationByIdQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
@@ -28,59 +36,21 @@ public sealed class GetApplicationByIdQueryHandler(
 
         var applicationId = new JobbPilot.Domain.Applications.ApplicationId(query.Id);
 
-        // ADR 0048: EN LEFT JOIN job_ads via GroupJoin/DefaultIfEmpty,
-        // projektion till ApplicationDetailDto?. JobAd:s query-filter ärvs →
-        // soft-deletad JobAd ger j == null → fallback. IgnoreQueryFilters /
-        // manuellt DeletedAt-predikat FÖRBJUDET (ADR 0048 c). FollowUps/Notes
-        // = Application-ägda collections, subprojiceras (oförändrat innehåll).
-        var dto = await db.Applications
-            .AsNoTracking()
-            .Where(a => a.Id == applicationId && a.JobSeekerId == jobSeekerId)
-            .GroupJoin(db.JobAds, a => a.JobAdId, j => j.Id, (a, ja) => new { a, ja })
-            .SelectMany(x => x.ja.DefaultIfEmpty(), (x, j) => new
-            {
-                x.a,
-                j,
-                // Väg (D): join-härledd FK-Guid, undviker
-                // Nullable<JobAdId>.Value i trädet (InMemory-brott).
-                JobAdGuid = j != null ? (Guid?)j.Id.Value : null
-            })
-            .Select(r => new ApplicationDetailDto(
-                r.a.Id.Value,
-                r.a.JobSeekerId.Value,
-                r.JobAdGuid,
-                r.a.Status.Name,
-                r.a.CoverLetter,
-                r.a.CreatedAt,
-                r.a.UpdatedAt,
-                r.a.FollowUps.Select(f => new FollowUpDto(
-                    f.Id.Value,
-                    f.Channel.Name,
-                    f.ScheduledAt,
-                    f.Note,
-                    f.Outcome.Name,
-                    f.OutcomeAt,
-                    f.CreatedAt)).ToList(),
-                r.a.Notes.Select(n => new NoteDto(
-                    n.Id.Value,
-                    n.Content,
-                    n.CreatedAt)).ToList(),
-                r.j != null
-                    ? new JobAdSummaryDto(
-                        r.j.Id.Value, r.j.Title, r.j.Company.Name, r.j.Url,
-                        r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt)
-                    : r.a.ManualPosting != null
-                        ? new JobAdSummaryDto(
-                            null, r.a.ManualPosting.Title, r.a.ManualPosting.Company,
-                            r.a.ManualPosting.Url, "Manual",
-                            (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt)
-                        : null))
-            .FirstOrDefaultAsync(cancellationToken);
+        // Materialisera aggregatet (interceptorn dekrypterar krypterade fält).
+        // IdentityResolution dedupar Notes/FollowUps utan kartesisk dubblering
+        // (AsSplitQuery är relational-only, ej tillgänglig via IAppDbContext).
+        var app = await db.Applications
+            .AsNoTrackingWithIdentityResolution()
+            .Include(a => a.FollowUps)
+            .Include(a => a.Notes)
+            .FirstOrDefaultAsync(
+                a => a.Id == applicationId && a.JobSeekerId == jobSeekerId,
+                cancellationToken);
 
-        if (dto is null)
+        if (app is null)
         {
-            // Failed-access-detection (ADR 0031 / TD-67): skilj "okänt id" från
-            // "tillhör annan user" för anomaly-loggning. Klient ser identisk 404.
+            // Failed-access-detection (ADR 0031 / TD-67): skilj "okänt id"
+            // från "tillhör annan user". Klient ser identisk 404.
             var exists = await db.Applications
                 .AsNoTracking()
                 .AnyAsync(a => a.Id == applicationId, cancellationToken);
@@ -93,6 +63,39 @@ public sealed class GetApplicationByIdQueryHandler(
             return null;
         }
 
-        return dto;
+        // JobAd-summary: projicerad left-join (ADR 0048, ej krypterat).
+        // JobAd:s globala query-filter ärvs → soft-deletad → null → fallback.
+        JobAdSummaryDto? jobAd = null;
+        if (app.JobAdId is { } jobAdId)
+        {
+            jobAd = await db.JobAds
+                .AsNoTracking()
+                .Where(j => j.Id == jobAdId)
+                .Select(j => new JobAdSummaryDto(
+                    j.Id.Value, j.Title, j.Company.Name, j.Url,
+                    j.Source.Value, j.PublishedAt, j.ExpiresAt))
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        jobAd ??= app.ManualPosting is { } manual
+            ? new JobAdSummaryDto(
+                null, manual.Title, manual.Company, manual.Url, "Manual",
+                (DateTimeOffset?)null, manual.ExpiresAt)
+            : null;
+
+        return new ApplicationDetailDto(
+            app.Id.Value,
+            app.JobSeekerId.Value,
+            app.JobAdId?.Value,
+            app.Status.Name,
+            app.CoverLetter,
+            app.CreatedAt,
+            app.UpdatedAt,
+            [.. app.FollowUps.Select(f => new FollowUpDto(
+                f.Id.Value, f.Channel.Name, f.ScheduledAt, f.Note,
+                f.Outcome.Name, f.OutcomeAt, f.CreatedAt))],
+            [.. app.Notes.Select(n => new NoteDto(
+                n.Id.Value, n.Content, n.CreatedAt))],
+            jobAd);
     }
 }

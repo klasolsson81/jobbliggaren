@@ -1,5 +1,6 @@
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Auditing;
+using JobbPilot.Application.Common.Security;
 using JobbPilot.Domain.Common;
 using Mediator;
 
@@ -9,7 +10,8 @@ public sealed record CreateApplicationCommand(
     Guid? JobAdId,
     string? CoverLetter,
     ManualPostingInput? Manual = null)
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>,
+      IRequiresFieldEncryptionKey
 {
     public string EventType => "Application.Created";
     public string AggregateType => "Application";

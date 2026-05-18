@@ -28,8 +28,11 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
                 id => id == null ? (Guid?)null : id.Value.Value,
                 value => value == null ? (JobAdId?)null : new JobAdId(value.Value));
 
-        // TODO(GDPR): CoverLetter är känsligt innehåll (BUILD.md §13.1) — kryptera kolumnen i Fas 2
-        builder.Property(a => a.CoverLetter).HasMaxLength(10_000);
+        // TD-13 (ADR 0049 C3): krypteras via FieldEncryptionSaveChangesInterceptor
+        // (sentinel v1:+base64). HasMaxLength borttagen — ciphertext överskrider
+        // klartext-cap; TEXT obegränsad i Postgres. Längd-validering hör i
+        // domän/validator, ej kolumn (ApplicationNote.Create-precedens).
+        builder.Property(a => a.CoverLetter);
 
         // ManualPosting — optional owned entity (manuell ansökan utan JobAd).
         // Explicit HasColumnName krävs: global UseSnakeCaseNamingConvention

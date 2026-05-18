@@ -156,6 +156,11 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var seeker = await SeedSeekerAsync(db, clock, _userId);
+        // TD-13 C3: cover_letter ("Bara brev") krypteras → värm ägar-DEK i
+        // samma scope FÖRE Add (direkt-seed förbi Mediator-prefetch). Handlern
+        // anropas i samma scope och läser tillbaka cover_letter ⇒ varm DEK
+        // täcker både write- och läs-vägen här.
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
         var app = DomainApplication.Create(seeker.Id, null, "Bara brev", null, clock).Value;
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -252,6 +257,11 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var seeker = await SeedSeekerAsync(db, clock, _userId);
+        // TD-13 C3: cover_letter ("Bara brev") krypteras → värm ägar-DEK i
+        // samma scope FÖRE Add (direkt-seed förbi Mediator-prefetch). Handlern
+        // anropas i samma scope och läser tillbaka cover_letter ⇒ varm DEK
+        // täcker både write- och läs-vägen här.
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
         var app = DomainApplication.Create(seeker.Id, null, "Bara brev", null, clock).Value;
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -349,6 +359,11 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var seeker = await SeedSeekerAsync(db, clock, _userId);
+        // TD-13 C3: cover_letter ("Bara brev") krypteras → värm ägar-DEK i
+        // samma scope FÖRE Add (direkt-seed förbi Mediator-prefetch). Handlern
+        // anropas i samma scope och läser tillbaka cover_letter ⇒ varm DEK
+        // täcker både write- och läs-vägen här.
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
         var app = DomainApplication.Create(seeker.Id, null, "Bara brev", null, clock).Value;
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);

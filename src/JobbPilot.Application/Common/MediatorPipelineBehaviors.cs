@@ -29,6 +29,10 @@ public static class MediatorPipelineBehaviors
         typeof(ValidationBehavior<,>),
         typeof(AuthorizationBehavior<,>),
         typeof(AdminAuthorizationBehavior<,>),
+        // TD-13 (ADR 0049 Mekanik-not 3/4) — efter auth (ingen KMS-op för ej
+        // auktoriserad principal, §5.4), före UnitOfWork (DEK-cache varm när
+        // handlerns query materialiserar krypterade entiteter).
+        typeof(FieldEncryptionKeyPrefetchBehavior<,>),
         typeof(UnitOfWorkBehavior<,>),
         typeof(AuditBehavior<,>),
     ];

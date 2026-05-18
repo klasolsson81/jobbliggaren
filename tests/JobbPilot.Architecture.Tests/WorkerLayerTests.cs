@@ -83,6 +83,9 @@ public class WorkerLayerTests
             typeof(ValidationBehavior<,>),
             typeof(AuthorizationBehavior<,>),
             typeof(AdminAuthorizationBehavior<,>),
+            // TD-13 (ADR 0049 Mekanik-not 3/4) tillagd 2026-05-18 — DEK-prefetch
+            // efter auth, före UnitOfWork.
+            typeof(FieldEncryptionKeyPrefetchBehavior<,>),
             typeof(UnitOfWorkBehavior<,>),
             typeof(AuditBehavior<,>),
         };

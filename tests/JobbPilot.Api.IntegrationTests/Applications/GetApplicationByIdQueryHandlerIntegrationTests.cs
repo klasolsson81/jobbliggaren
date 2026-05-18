@@ -41,6 +41,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
     }
 
     private static async Task<(JobSeeker seeker, DomainApplication application)> SeedAsync(
+        IServiceScope scope,
         AppDbContext db,
         IDateTimeProvider clock,
         Guid userId,
@@ -48,6 +49,12 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
     {
         var seeker = JobSeeker.Register(userId, "Test User", clock).Value;
         db.JobSeekers.Add(seeker);
+
+        // TD-13 C3: värm ägar-DEK FÖRE krypterade entiteter läggs till
+        // (direkt-seed förbi Mediator → FieldEncryptionKeyPrefetchBehavior
+        // kör ej; speglas av denna helper). WarmAsync gör egen SaveChanges
+        // som flushar pending JobSeeker (ej krypterad) — ofarligt.
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
 
         var app = DomainApplication.Create(seeker.Id, null, coverLetter, null, clock).Value;
         db.Applications.Add(app);
@@ -63,7 +70,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var (_, app) = await SeedAsync(db, clock, _userId, "Mitt personliga brev.");
+        var (_, app) = await SeedAsync(scope, db, clock, _userId, "Mitt personliga brev.");
 
         var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
@@ -82,7 +89,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var (_, app) = await SeedAsync(db, clock, _userId);
+        var (_, app) = await SeedAsync(scope, db, clock, _userId);
         app.AddFollowUp(
             FollowUpChannel.Email,
             clock.UtcNow.AddDays(7),
@@ -106,7 +113,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var (_, app) = await SeedAsync(db, clock, _userId);
+        var (_, app) = await SeedAsync(scope, db, clock, _userId);
         app.AddNote("Bra arbetsgivare.", clock);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -145,7 +152,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var otherUserId = Guid.NewGuid();
-        var (_, otherApp) = await SeedAsync(db, clock, otherUserId);
+        var (_, otherApp) = await SeedAsync(scope, db, clock, otherUserId);
 
         var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
 
@@ -165,7 +172,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var otherUserId = Guid.NewGuid();
-        var (_, otherApp) = await SeedAsync(db, clock, otherUserId);
+        var (_, otherApp) = await SeedAsync(scope, db, clock, otherUserId);
 
         var ownSeeker = JobSeeker.Register(_userId, "Current User", clock).Value;
         db.JobSeekers.Add(ownSeeker);
@@ -211,7 +218,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var (_, app) = await SeedAsync(db, clock, _userId);
+        var (_, app) = await SeedAsync(scope, db, clock, _userId);
 
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);

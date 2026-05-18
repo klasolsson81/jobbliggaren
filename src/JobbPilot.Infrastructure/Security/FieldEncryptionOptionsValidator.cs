@@ -37,12 +37,28 @@ internal sealed partial class FieldEncryptionOptionsValidator(
 {
     public ValidateOptionsResult Validate(string? name, FieldEncryptionOptions options)
     {
+        var isProdOrStaging = environment.IsProduction() || environment.IsStaging();
+
+        // EU-residens-guard (security-auditor C3 Medium 1, ADR 0049 / Area 5
+        // cross-region): PII-DEK:er får aldrig wrappas/unwrappas utanför EU.
+        // En felkonfigurerad icke-eu-region (t.ex. us-east-1 via env-override)
+        // måste hård-faila i Production/Staging — paritet med CmkKeyId-guarden.
+        if (!string.IsNullOrWhiteSpace(options.AwsRegion)
+            && !options.AwsRegion.StartsWith("eu-", StringComparison.OrdinalIgnoreCase)
+            && isProdOrStaging)
+        {
+            return ValidateOptionsResult.Fail(
+                $"FieldEncryption:AwsRegion '{options.AwsRegion}' är inte en " +
+                "EU-region — PII-DEK:er måste stanna i EU (ADR 0049). " +
+                "Obligatoriskt EU i Production/Staging.");
+        }
+
         if (!string.IsNullOrWhiteSpace(options.CmkKeyId))
         {
             return ValidateOptionsResult.Success;
         }
 
-        if (environment.IsProduction() || environment.IsStaging())
+        if (isProdOrStaging)
         {
             return ValidateOptionsResult.Fail(
                 "FieldEncryption:CmkKeyId saknas — KMS-envelope kan inte " +

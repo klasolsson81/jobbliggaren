@@ -1,7 +1,7 @@
 # ADR 0041 — Dedikerad modal-border-token för WCAG 1.4.11 i dark mode (partiell komplettering av ADR 0037)
 
 **Datum:** 2026-05-16
-**Status:** Accepted 2026-05-16 (senior-cto-advisor-beslut 2026-05-16; nextjs-ui-engineer auktoritativ token-math 2026-05-16; Klas-GO på inriktning Alt 2 + tokenvärde + `globals.css`-diff 2026-05-16; live-verifierad design-reviewer 0/0/0 mot deployad fix 2026-05-16; DESIGN.md-enradare applicerad efter Klas `approve-spec-edit.sh` 2026-05-16).
+**Status:** Accepted 2026-05-16 (senior-cto-advisor-beslut 2026-05-16; nextjs-ui-engineer auktoritativ token-math 2026-05-16; Klas-GO på inriktning Alt 2 + tokenvärde + `globals.css`-diff 2026-05-16; live-verifierad design-reviewer 0/0/0 mot deployad fix 2026-05-16; DESIGN.md-enradare applicerad efter Klas `approve-spec-edit.sh` 2026-05-16) — **amended 2026-05-18** (strukturell yt-chrome-kant `--jp-border-structural` inom ADR 0041:s egen deferrade "andra ytor"-verifieringspunkt; Amendment Accepted, IMPLEMENTATION PENDING; se Amendment-sektion).
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0037 (designsystem v2 — slate-skala + dark mode; detta **kompletterar**, supersederar ej), ADR 0038 (läsbarhetsgolv — samma princip: tillgänglighet är identitet, inte polish), ADR 0016 (civic design language), ADR 0039 (F2 SavedSearches — `DeleteSavedSearchDialog` ytade defekten), CLAUDE.md §8.6 (a11y i DoD), §9.2/§12/§13 (token-disciplin/amendment-process), DESIGN.md §4/§6
 
@@ -57,6 +57,61 @@ Defekten är **cross-cutting**: `ui/dialog.tsx` är delad primitiv; alla dialoge
 ## Implementationsstatus
 
 Accepted 2026-05-16, **fullt levererat och live-verifierat**. Applicerat: `globals.css` (`--jp-border-modal` light `#E2E8F0` / dark `#64748B` + `--color-border-modal`-bridge), `ui/dialog.tsx` (`border-border`→`border-border-modal`), `tokens-full.md` + `contrast-table.md` + DESIGN.md §Färg-enradare (efter Klas `approve-spec-edit.sh`). Deployad via `git push origin main` (Vercel auto-deploy, `64a6bf8`) + backend-tag `v0.2.8-dev`. Live-verifierad: serverad CSS innehåller `--jp-border-modal:#64748b` + `border-border-modal`; design-reviewer re-review mot live-screenshots (`20260516-1424`) = 0 Blockers/0 Major/0 Minor, Blocker RESOLVED, noll regression. Klas slutgodkände bilderna 2026-05-16.
+
+---
+
+## Amendment 2026-05-18 — strukturell yt-chrome-kant (`--jp-border-structural`)
+
+> Originalbeslutet ovan (`--jp-border-modal`, levererat 2026-05-16) **lämnas intakt** som historisk trail. Detta amendment-block kompletterar ADR 0041 inom dess **egen utpekade framtida verifieringspunkt** (se Konsekvenser → "andra overlay-/yt-ytor … noteras som framtida verifieringspunkt"). Det är **inte** en ny ADR och **inte** en supersession — det generaliserar ADR 0041:s redan beslutade mönster ("strukturell gräns ≠ dekorativ hårlinje") från `Dialog` till strukturell yt-chrome (kort/sektion/panel/sidebar). (senior-cto-advisor `a6d33dbbd3beb25d0`; design-reviewer `a730cb207f8249886`, `docs/reviews/2026-05-18-dark-border-structural-contrast-design.md`.)
+
+### Kontext (amendment)
+
+Klas live-verifiering under FAS 3 ytade exakt den deferrade verifieringspunkten ovan. Samma rotorsak som modal-defekten, men på strukturell yt-chrome utanför `Dialog`: kort-, sektions-, panel- och sidebar-kanter mot canvas/kort där kanten är den **enda** avgränsande boundaryn mäter ≈ **1.2–1.4:1** i dark mode (`--jp-border` dark `#1E293B` slate-800 mot slate-950-canvas/närliggande yta). WCAG 2.1 SC 1.4.11 kräver ≥3:1 för en UI-komponents visuella gräns där gränsen är den enda separationen. ADR 0041:s ursprungliga scope löste detta **endast** för `Dialog` via `--jp-border-modal`; den explicita deferralen ("andra overlay-/yt-ytor … framtida verifieringspunkt; token finns redo att återanvändas; ej spekulativ migrering nu — YAGNI") är nu aktiverad av faktisk verifiering — inte spekulation.
+
+### Beslut (amendment)
+
+**senior-cto-advisor Approach B — inför en dedikerad semantisk roll-token `--jp-border-structural` för strukturell yt-chrome-gräns; behåll `--jp-border`/`-soft`/`-hairline` dark oförändrade som genuint dekorativa.**
+
+1. **Token (roll-token, ej värde-token — SRP/OCP, Martin):** `--jp-border-structural`. En token = en change-reason. En strukturell yt-gräns och en dekorativ hårlinje är olika ansvar och får inte dela token.
+   - **Dark:** `#64748B` (slate-500). ≈ **3.6:1** mot canvas — marginal över golvet, inte på det (ADR 0038: "designa inte på golvet"). **Inget nytt färgvärde:** `#64748B` är redan dark `--jp-info-500` och är *samma värde som `--jp-border-modal` dark* (ADR 0041 ursprungsbeslut) — palett-låst, koherent (ADR 0037).
+   - **Light:** `#E2E8F0` — **behåll**. design-reviewer-dom (`a730cb207f8249886`): ingen light-defekt; konsekvent med ADR 0038 och ADR 0041:s light-precedent. `#CBD5E1` övervägdes och **avvisades** (ingen defekt att åtgärda, skulle vara design-på-golvet-regression i light).
+2. **Bridge:** `--color-border-structural: var(--jp-border-structural)` i `@theme inline` (speglar `--color-border-modal`/`--color-border-strong`-mönstret) → Tailwind-utility `border-border-structural`.
+3. **Migrerings-princip — strukturell vs dekorativ:**
+   - **Migreras** (~13 logiska poster, design-reviewer-set): strukturell yt-chrome som avgränsar en hel yta mot canvas/intilliggande yta — `globals.css` `.jp-*` (card/listCard/sidebar/topbar/attention/filterBar/pipeline) + komponent-`.tsx` (kort-wrappers, status-edit-card, job-info-panel, saved-search-list).
+   - **FÖRBLIR `--jp-border`** (genuint dekorativt): inre header-/footer-dividers, hairline-/strong-regler, list-rad-hairlinjes med egen bg-separation. Dessa har inte rollen "enda avgränsande boundary för en yta" och 3:1 är inte tillämpligt — att höja dem skulle lägga civic-tyngd överallt utan a11y-vinst.
+
+### Avvisade alternativ (amendment)
+
+- **Approach A (höj alla generella `--jp-border` dark till 3:1):** bryter SRP — tvingar dekorativa hårlinjer till strukturell vikt, lägger civic-tyngd överallt, maximerar visuell regressionsyta utan a11y-motiverat behov för de dekorativa fallen.
+- **Approach C (ljusare yta så kort/canvas separerar utan kant):** ADR 0041 Alt 1-klass — störst regressionsyta (varje yt-interiörs kontrast måste omräknas), löser inte SC 1.4.11 bättre än Approach B.
+
+### Konsekvenser (amendment)
+
+**Positiva:**
+- WCAG 2.1 SC 1.4.11 uppfyllt för strukturell yt-chrome (kort/sektion/panel/sidebar) i dark mode, inte bara `Dialog`.
+- Palett förblir låst och civic — `#64748B` är ett redan sanktionerat dark-värde (= `--jp-info-500` = `--jp-border-modal` dark); inget nytt färgvärde uppfinns.
+- SRP/OCP-koherent: token = en change-reason; dekorativ hårlinje ≠ strukturell gräns blir explicit i token-systemet, generaliserat från ADR 0041:s modal-mönster.
+
+**Negativa + mitigering:**
+- Ytterligare roll-token ökar token-ytan. *Mitigering:* semantiskt namngiven, single-purpose, dokumenteras i contrast-table/tokens-full/DESIGN.md/skill (Klas-spec-edit-gate, separat gate 4); roll-token, inte värde-token.
+- ~13 logiska migrerings-touch-punkter i `globals.css` + komponent-`.tsx`. *Mitigering:* set fryst av design-reviewer (`a730cb207f8249886`); strikt strukturell-vs-dekorativ-kriterium hindrar scope creep; dekorativa ytor explicit oförändrade = noll civic-regression enligt design-reviewer.
+
+### Implementationsstatus (amendment)
+
+**Amendment Accepted 2026-05-18 — IMPLEMENTATION PENDING.** Beslutet (token, värden, bridge, migrerings-princip) är ratificerat (CTO `a6d33dbbd3beb25d0` + design-reviewer `a730cb207f8249886`). **Inget är levererat** — till skillnad från ADR 0041:s ursprungliga "fullt levererat och live-verifierat". Kvarstår, sekventiellt:
+
+1. `globals.css`-token-amendment (`--jp-border-structural` light `#E2E8F0` / dark `#64748B` + `--color-border-structural`-bridge) — kräver Klas explicit `globals.css`-diff-GO (§9.2/§12/§13).
+2. Spec-edits (`contrast-table.md` / `tokens-full.md` / DESIGN.md / `jobbpilot-design-tokens`-skill) — kräver Klas `approve-spec-edit.sh` (separat **gate 4**, ej rörd här).
+3. ~13-posters migrering `border-border` → `border-border-structural` på strukturell yt-chrome (efter token finns).
+4. Visual-verify + Klas dual-display live-verify (laptop + stationär) + `git push`.
+
+Detta amendment-block (gate 3) ändrar **endast** `docs/decisions/0041-*.md` + `docs/decisions/README.md`. `globals.css`, DESIGN.md, `contrast-table.md`, `tokens-full.md` och skills är **orörda** och kvarstår Klas-gated.
+
+### Referenser (amendment)
+
+senior-cto-advisor `a6d33dbbd3beb25d0` (Approach B-beslut, avvisade A/C); design-reviewer `a730cb207f8249886` → `docs/reviews/2026-05-18-dark-border-structural-contrast-design.md` (light-värde-dom `#E2E8F0`, migrerings-set ~13 poster, strukturell-vs-dekorativ-avgränsning, noll civic-regression). WCAG 2.1 SC 1.4.11 Non-text Contrast (Level AA). ADR 0037 (palett-lås), ADR 0038 (designa inte på golvet), ADR 0041 ursprungsbeslut (modal-mönstret som generaliseras). CLAUDE.md §9.2/§9.6/§12/§13.
+
+---
 
 ## Krav på Klas-GO
 

@@ -1,9 +1,9 @@
 # ADR 0046 — FAS 3 scope-redefinition: Application Management-backbone byggd i Fas 1
 
-**Datum:** 2026-05-17
-**Status:** Proposed
+**Datum:** 2026-05-17 (Accepted-flip 2026-05-18)
+**Status:** Accepted — beslutsinnehållet är låst (senior-cto-advisor + Klas-GO 2026-05-17); Accepted-flip utförd 2026-05-18 på explicit Klas-GO vid den handoff-mandaterade FAS 3 Grind 1-STOPP-grinden efter godkänd live-verify av /ansokningar
 **Kontext:** FAS 3-startpromptens arbetspremiss (greenfield TDD-konstruktion av Application-pipeline-state-machine) motbevisades av discovery 2026-05-17 — hela vertikalen byggdes redan under Fas 1. senior-cto-advisor identifierade dessutom en spec-konflikt i startpromptens FAS 3-kärna-påstående mot BUILD.md §18. Denna ADR redefinierar FAS 3-scope och dokumenterar en medveten fas-omallokering utan spec-edit.
-**Beslutsfattare:** senior-cto-advisor (agentId a49fdd7992b3a7a0a — scope-redefinition, B/C/D-triage, spec-konflikt-fynd 2026-05-17); Klas Olsson (godkänd 2026-05-17 — valde "ADR + session-log, ingen spec-edit nu"; Accepted-flip ej gjord, kräver explicit Klas-GO); Claude Code (A-leverans denna session, implementation)
+**Beslutsfattare:** senior-cto-advisor (agentId a49fdd7992b3a7a0a — scope-redefinition, B/C/D-triage, spec-konflikt-fynd 2026-05-17); Klas Olsson (godkänd 2026-05-17 — valde "ADR + session-log, ingen spec-edit nu"; Accepted-flip 2026-05-18); Claude Code (A-leverans, implementation)
 **Relaterad:** ADR 0001 (Clean Architecture med DDD), ADR 0022 (audit log-pipeline + marker-interface), ADR 0031 (failed cross-user access detection / cross-user-scoping), ADR 0032 + ADR 0023 (Hangfire-infrastruktur + Worker-pipeline — Ghosted recurring-jobb), ADR 0044 (test-coverage non-regression-ratchet — DoD-gate-mönster), ADR 0045 (performance-budgetar). Relaterade: BUILD.md §2.3 (kapabilitets-katalog) / §18 (fas-allokering, rad 1607–1613 + 1638–1643), CLAUDE.md §9.6 (in-block-fix vs TD), session-log 2026-05-17 FAS 3.
 
 ---
@@ -29,7 +29,7 @@ senior-cto-advisor (agentId a49fdd7992b3a7a0a) fann en **spec-konflikt** i start
 
 ## Beslut
 
-> Beslut fattat av senior-cto-advisor (agentId a49fdd7992b3a7a0a), Klas-godkänt 2026-05-17. Status **Proposed** — Accepted-flip kräver explicit Klas-GO.
+> Beslut fattat av senior-cto-advisor (agentId a49fdd7992b3a7a0a), Klas-godkänt 2026-05-17. Status **Accepted** — Accepted-flip utförd 2026-05-18 på explicit Klas-GO.
 
 ### Beslut 1 — Redefinierad FAS 3-scope
 
@@ -47,7 +47,7 @@ BUILD.md §18 rad 1610 listar "Påminnelser (Hangfire + notifikations-UI)" nomin
 
 Per BUILD.md rad 1641 (redan spec-allokerad). Detta är **ej** en TD, **ej** denna ADR:s ändring — endast ett förtydligande att startpromptens FAS 3-kärna-påstående var felaktigt. BUILD.md §18 och denna ADR är överens om Fas 6 här.
 
-### Beslut 4 — A levererad denna session
+### Beslut 4 — A levererad (FAS 3-leveranssession 2026-05-17)
 
 Commit 78d3b14, CI grön (run 25998180368):
 
@@ -99,7 +99,7 @@ Gates: dotnet-architect (agentId a1adb06cf1d1e8155), security-auditor GO, code-r
 
 ## Implementation
 
-- **A:** levererad commit 78d3b14, CI grön run 25998180368 (denna session).
+- **A:** levererad commit 78d3b14, CI grön run 25998180368 (FAS 3-leveranssession 2026-05-17).
 - **D:** DoD-verifiering av befintlig 95%-vertikal körs **först** vid Fas 3-stängning — separat Klas-DoD-verifiering.
 - **design-reviewer VETO-villkor kvarstår:** rendered-screenshot-granskning (light+dark) = Fas 3-stängnings-gate (samma mönster som Fas 2), **ej** push-blocker.
 - **Fas 3-stängning:** steg-tracker rad 32 uppdateras vid stängning.

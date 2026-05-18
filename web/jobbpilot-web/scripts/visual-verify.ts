@@ -147,41 +147,119 @@ async function deleteFixture(sessionId: string, id: string): Promise<void> {
 }
 
 /**
- * FAS 3 (RecordFollowUpOutcome): skapar en temporär ansökan med en Pending
- * follow-up så att `/ansokningar/[id]` renderar `RecordFollowUpOutcomeForm`
- * (formuläret visas endast när `fu.outcome === "Pending"`). Utan denna fixtur
- * capurerar verktyget aldrig den yta FAS 3-batchen ändrade — design-reviewer
- * VETO:ar då på samma grund som Batch 6 (korpus saknar bild av ändrad yta).
+ * FAS 3 STOPP 3b (/ansokningar-omarbetning): redesignens kärna är de **tre
+ * jobbidentitets-tillstånden** (ansokningar-redesign-plan.md §7):
+ *
+ *  1. JobAd-kopplad   → list-rad/H1 "{titel} — {företag}", JobInfoPanel.
+ *  2. ManualPosting   → manuell ansökan, Källa=Manuellt, ingen "Publicerad"-rad (J1).
+ *  3. Fallback        → cover-letter-only, "Ansökan #{kort-id}", civic-not.
+ *
+ * Gammal fixtur skapade ENDAST tillstånd 3 ({jobAdId:null, coverLetter}) →
+ * design-reviewer/Klas hade aldrig sett redesignens primärväg (tillstånd 1/2).
+ * Det är exakt Batch-6-VETO-grunden (korpus saknar bild av ändrad yta). Denna
+ * fixtur skapar alla tre + behåller en Pending follow-up på tillstånd 3 så att
+ * `RecordFollowUpOutcomeForm` (FAS 3 Batch 1) fortfarande capureras.
  *
  * Ingen DELETE-endpoint finns för applications (medvetet, soft-delete-domän,
- * ej API-exponerad) → teardown är best-effort: den syntetiska fixtur-ansökan
+ * ej API-exponerad) → teardown är best-effort: de syntetiska fixtur-ansökningarna
  * blir kvar i dev-DB på dev-test-kontot (syntetiskt, ingen PII). Konsekvent
  * med runbookens saved-search-teardown-not.
  */
-async function createApplicationFixture(sessionId: string): Promise<string> {
+interface ApplicationFixtures {
+  /** Tillstånd 1 — JobAd-kopplad. null om dev-korpusen saknar träff. */
+  jobAdLinked: string | null;
+  /** Tillstånd 2 — ManualPosting (manuell ansökan). */
+  manual: string;
+  /** Tillstånd 3 — cover-letter-only fallback + Pending follow-up. */
+  fallback: string;
+}
+
+/** Plockar ett JobAd-id ur live dev-korpusen för tillstånd-1-fixturen. */
+async function firstJobAdId(sessionId: string): Promise<string | null> {
+  const res = await fetch(
+    `${BACKEND_URL}/api/v1/job-ads/?page=1&pageSize=1&q=utvecklare`,
+    { headers: { Authorization: `Bearer ${sessionId}` } },
+  );
+  if (!res.ok) {
+    console.warn(
+      `[visual-verify] VARNING: kunde inte lista job-ads (HTTP ${res.status}) ` +
+        `— tillstånd 1 (JobAd-kopplad) hoppas över.`,
+    );
+    return null;
+  }
+  const data = (await res.json()) as { items?: { id?: string }[] };
+  const id = data.items?.[0]?.id ?? null;
+  if (!id) {
+    console.warn(
+      "[visual-verify] VARNING: dev-korpusen gav ingen job-ad-träff " +
+        "— tillstånd 1 (JobAd-kopplad) hoppas över.",
+    );
+  }
+  return id;
+}
+
+async function postApplication(
+  auth: Record<string, string>,
+  body: Record<string, unknown>,
+): Promise<string> {
+  const res = await fetch(`${BACKEND_URL}/api/v1/applications`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Skapa fixture-ansökan misslyckades (HTTP ${res.status}).`,
+    );
+  }
+  const created = (await res.json()) as { id?: string };
+  if (!created.id) {
+    throw new Error("Create-svar saknar ansöknings-id.");
+  }
+  return created.id;
+}
+
+async function createApplicationFixture(
+  sessionId: string,
+): Promise<ApplicationFixtures> {
   const auth = {
     Authorization: `Bearer ${sessionId}`,
     "Content-Type": "application/json",
   };
-  const createRes = await fetch(`${BACKEND_URL}/api/v1/applications`, {
-    method: "POST",
-    headers: auth,
-    body: JSON.stringify({
-      jobAdId: null,
-      coverLetter: `FAS 3 visuell verifiering (temp ${timestamp()})`,
-    }),
+  const stamp = timestamp();
+
+  // Tillstånd 1 — JobAd-kopplad (om dev-korpusen har en träff).
+  const jobAdId = await firstJobAdId(sessionId);
+  const jobAdLinked = jobAdId
+    ? await postApplication(auth, {
+        jobAdId,
+        coverLetter: `FAS 3 visuell verifiering — JobAd-kopplad (temp ${stamp})`,
+      })
+    : null;
+
+  // Tillstånd 2 — ManualPosting (manuell ansökan, Källa=Manuellt).
+  const expiresAt = new Date(
+    Date.now() + 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const manual = await postApplication(auth, {
+    jobAdId: null,
+    coverLetter: `FAS 3 visuell verifiering — manuell (temp ${stamp})`,
+    manual: {
+      title: "Frontendutvecklare",
+      company: "Exempelbolaget AB",
+      url: "https://example.com/jobb/visuell-verifiering",
+      expiresAt,
+    },
   });
-  if (!createRes.ok) {
-    throw new Error(
-      `Skapa fixture-ansökan misslyckades (HTTP ${createRes.status}).`,
-    );
-  }
-  const created = (await createRes.json()) as { id?: string };
-  if (!created.id) {
-    throw new Error("Create-svar saknar ansöknings-id.");
-  }
+
+  // Tillstånd 3 — cover-letter-only fallback + Pending follow-up
+  // (RecordFollowUpOutcomeForm renderas endast när fu.outcome === "Pending").
+  const fallback = await postApplication(auth, {
+    jobAdId: null,
+    coverLetter: `FAS 3 visuell verifiering — fallback (temp ${stamp})`,
+  });
   const followUpRes = await fetch(
-    `${BACKEND_URL}/api/v1/applications/${created.id}/follow-ups`,
+    `${BACKEND_URL}/api/v1/applications/${fallback}/follow-ups`,
     {
       method: "POST",
       headers: auth,
@@ -197,7 +275,8 @@ async function createApplicationFixture(sessionId: string): Promise<string> {
       `Skapa fixture-follow-up misslyckades (HTTP ${followUpRes.status}).`,
     );
   }
-  return created.id;
+
+  return { jobAdLinked, manual, fallback };
 }
 
 async function shoot(page: Page, outDir: string, name: string): Promise<void> {
@@ -347,7 +426,7 @@ async function main(): Promise<void> {
 
   let sessionId: string | null = null;
   let fixtureId: string | null = null;
-  let appFixtureId: string | null = null;
+  let appFixtures: ApplicationFixtures | null = null;
 
   if (AUTH_MODE && !BASE_URL.startsWith("https://")) {
     // __Host--prefix kräver en secure (https) origin — Chromium avvisar
@@ -363,10 +442,11 @@ async function main(): Promise<void> {
     console.log("[visual-verify] Auth-läge: login + fixture-setup ...");
     sessionId = await login();
     fixtureId = await createFixture(sessionId);
-    appFixtureId = await createApplicationFixture(sessionId);
+    appFixtures = await createApplicationFixture(sessionId);
     console.log(
       "[visual-verify] Fixturer skapade (sökning: raderas i teardown; " +
-        "ansökan: best-effort, ingen DELETE-endpoint — se funktions-doc).",
+        "3 ansökningar [JobAd-kopplad/manuell/fallback]: best-effort, " +
+        "ingen DELETE-endpoint — se funktions-doc).",
     );
   } else {
     console.log("[visual-verify] Publikt läge (inga auth-env satta).");
@@ -382,9 +462,24 @@ async function main(): Promise<void> {
           auth: true,
         },
         { path: "/ansokningar", name: "ansokningar-lista", auth: true },
+        { path: "/ansokningar/ny", name: "ansokningar-ny", auth: true },
+        ...(appFixtures?.jobAdLinked
+          ? [
+              {
+                path: `/ansokningar/${appFixtures.jobAdLinked}`,
+                name: "ansokningar-detalj-jobad-kopplad",
+                auth: true,
+              } as PageTarget,
+            ]
+          : []),
         {
-          path: `/ansokningar/${appFixtureId}`,
-          name: "ansokningar-detalj-outcome-form",
+          path: `/ansokningar/${appFixtures!.manual}`,
+          name: "ansokningar-detalj-manuell",
+          auth: true,
+        },
+        {
+          path: `/ansokningar/${appFixtures!.fallback}`,
+          name: "ansokningar-detalj-fallback-outcome-form",
           auth: true,
         },
       ]
@@ -472,9 +567,16 @@ async function main(): Promise<void> {
       await deleteFixture(sessionId, fixtureId);
       console.log("[visual-verify] Fixture-sökning raderad (teardown).");
     }
-    if (AUTH_MODE && appFixtureId) {
+    if (AUTH_MODE && appFixtures) {
+      const ids = [
+        appFixtures.jobAdLinked,
+        appFixtures.manual,
+        appFixtures.fallback,
+      ]
+        .filter(Boolean)
+        .join(", ");
       console.warn(
-        `[visual-verify] NOT: fixture-ansökan ${appFixtureId} blir kvar i ` +
+        `[visual-verify] NOT: fixture-ansökningar (${ids}) blir kvar i ` +
           `dev-DB (ingen DELETE-endpoint för applications, soft-delete-domän). ` +
           `Syntetiskt dev-test-konto, ingen PII — acceptabelt per runbook.`,
       );

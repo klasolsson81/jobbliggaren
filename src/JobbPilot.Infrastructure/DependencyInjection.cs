@@ -294,6 +294,33 @@ public static class DependencyInjection
         // ownership-mismatch för CloudWatch-baserad anomaly-detection (TD-68).
         services.AddSingleton<IFailedAccessLogger, FailedAccessLogger>();
 
+        // TD-13 (ADR 0049) — KMS-envelope fält-kryptering. Registrerad i
+        // AddPersistence: per-användare-DEK + interceptor-paret (C3) lever på
+        // AppDbContext-livscykeln; måste vara tillgänglig i både Api och
+        // Worker (HardDeleteAccountsJob crypto-erasure, C6). KMS-klient +
+        // KmsEnvelopeEncryptor är stateless/trådsäkra → singleton (samma
+        // mönster som SES-klienten). Fail-closed startup: ADR 0049 Beslut 4 +
+        // FieldEncryptionOptions-doc mandaterar att tom CmkKeyId validerar
+        // bort vid startup (.ValidateOnStart()) — fail-fast, inte runtime-fail
+        // vid första krypto-operationen. Samma ValidateOnStart-precedens som
+        // JobTechOptions. Test-/integrationshostar sätter en dummy CmkKeyId i
+        // testkonfig (KMS-klienten fakas där ändå).
+        services.AddOptions<Security.FieldEncryptionOptions>()
+            .Bind(configuration.GetSection(Security.FieldEncryptionOptions.SectionName))
+            .Validate(
+                o => !string.IsNullOrWhiteSpace(o.CmkKeyId),
+                "FieldEncryption:CmkKeyId saknas — KMS-envelope kan inte initieras (ADR 0049).")
+            .ValidateOnStart();
+        var kmsRegion = configuration[
+            $"{Security.FieldEncryptionOptions.SectionName}:AwsRegion"] ?? "eu-north-1";
+        services.AddSingleton<Amazon.KeyManagementService.IAmazonKeyManagementService>(
+            _ => new Amazon.KeyManagementService.AmazonKeyManagementServiceClient(
+                Amazon.RegionEndpoint.GetBySystemName(kmsRegion)));
+        services.AddSingleton<JobbPilot.Application.Common.Security.IFieldEncryptor,
+            Security.KmsEnvelopeEncryptor>();
+        services.AddSingleton<JobbPilot.Application.Common.Security.IDataKeyProvider,
+            Security.KmsDataKeyProvider>();
+
         return services;
     }
 

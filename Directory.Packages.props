@@ -80,6 +80,9 @@
          (kräver Npgsql >= 10.0.2). Direkt-referens från JobbPilot.Migrate. -->
     <PackageVersion Include="Npgsql" Version="10.0.2" />
     <PackageVersion Include="AWSSDK.SecretsManager" Version="4.0.4.20" />
+    <!-- AWS KMS — TD-13 (ADR 0049) per-användare-DEK envelope encryption.
+         4.0.8.8 kräver AWSSDK.Core >= 4.0.3.12 (vår pin 4.0.6.1 uppfyller). -->
+    <PackageVersion Include="AWSSDK.KeyManagementService" Version="4.0.8.8" />
     <!-- AWS SES v2 — transactional email för invitations/waitlist (F2-P0d, ADR 0005 amendment 2026-05-12) -->
     <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.0.5.8" />
     <!-- Transitiv CVE-pinning: GHSA-9cvc-h2w8-phrp (region-input-validering)

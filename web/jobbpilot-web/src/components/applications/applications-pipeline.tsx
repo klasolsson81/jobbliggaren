@@ -75,7 +75,7 @@ function PipelineSection({ group, rows }: PipelineSectionProps) {
               : `, expandera gruppen ${label}`}
           </span>
         </button>
-        <span className="font-mono text-[13px] font-medium text-text-secondary">
+        <span className="font-mono text-[13px] font-medium tabular-nums text-text-secondary">
           {group.count}
         </span>
       </div>

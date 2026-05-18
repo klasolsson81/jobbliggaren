@@ -221,6 +221,31 @@ meningsfull endast där KMS måste fungera). `.ValidateOnStart()` behålls
 kan override:a till formell amendment om miljö-villkoret bedöms vara
 besluts-substans.
 
+**Mekanik-not 3 (senior-cto-advisor-triage 2026-05-18, STOPP I batch C3 —
+Approach B, gäller decrypt-on-read DEK-anskaffning):** ordalydelsen
+"decrypt-on-read via `IMaterializationInterceptor`" (not 1) var en
+implementeringsförväntan om var radens DEK *anskaffas*, inte besluts-substans.
+EF Core 10:s `IMaterializationInterceptor.InitializedInstance(...)` är
+synkron (ingen async-overload — dotnet/efcore; Microsoft Learn *Interceptors*).
+En ren läs-scope har ingen förcachad DEK → första decrypt kräver async
+KMS-unwrap, omöjlig i synkron `InitializedInstance` utan sync-over-async
+(CLAUDE.md §3.5 — förbjudet, analyzer-enforced). Substansen — decrypt-on-read
+med per-användare-DEK, legacy-tolerans, fail-closed — är **oförändrad**.
+Mekaniken preciseras: en additiv `DecryptionKeyPrefetchBehavior :
+IPipelineBehavior` (pipeline-ordning: efter Authorization, före UnitOfWork)
+förladdar ägar-DEK (ADR 0031 `currentUser → JobSeekerId`) till
+`ScopedUserDataKeyCache` (async, samma scoped-cache som encrypt-on-write —
+CCP-återanvändning) innan handlerns query materialiserar.
+`IMaterializationInterceptor.InitializedInstance` blir då en ren synkron
+cache-hit + symmetrisk AES-Decrypt (noll I/O — ingen §3.5-konflikt). Ingen
+ambient/`AsyncLocal`-state (CLAUDE.md §5.1; scope-bunden, `ZeroMemory` vid
+dispose). De **fyra substans-invarianterna oförändrade**. Mekanik-precisering
+tvingad av EF Core 10-doktrin + §3.5 — **ingen substans-ändring, ingen formell
+ADR-amendment, ingen Klas-STOPP** (CTO entydig mot principer, §9.6 p.5;
+paritet med Mekanik-not 1/2). Klas informeras i STOPP-rapport och kan
+override:a till formell amendment om pipeline-additionen bedöms vara
+besluts-substans.
+
 ### Beslut 5 — jsonb→text-skifte via expand/contract; aldrig in-place ALTER TYPE
 
 Gäller `resume_versions.content` (raw_payload berörs ej — Beslut 3). Ciphertext

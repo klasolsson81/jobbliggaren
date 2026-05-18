@@ -198,6 +198,29 @@ de tre TEXT-kolumnerna; ingen VC-komposition med service-locator — det vore
 klartext-`ResumeContent` bevaras oavsett utfall (annars trasas
 change-tracking).
 
+**Mekanik-not 2 (senior-cto-advisor-triage 2026-05-18, STOPP I batch C2 —
+Approach D, gäller fail-closed-startup):** ordalydelsen ovan + i
+`FieldEncryptionOptions`-doc om att "tom CmkKeyId ska validera bort vid
+startup (.ValidateOnStart())" var en **implementeringsförväntan om mekanism**,
+inte besluts-substans. Substansen är: fält-PII får aldrig
+krypteras/dekrypteras mot saknad/ogiltig CMK (fail-closed). Den invarianten
+är **oförändrad** — `KmsDataKeyProvider`:s runtime-guard (KMS avvisar tom
+KeyId, ingen klartext-fallback) bär den i ALLA miljöer. En global
+`.Validate(Func)` ser per .NET-design inte `IHostEnvironment` och applicerade
+en Production-invariant på ~6 KMS-fakande integ-test-hostar → J3-broken main
+(regression införd i C1 `78958ce`). Omimplementerad via
+`IValidateOptions<FieldEncryptionOptions>` (kanonisk .NET-form, Microsoft
+Learn): hård fail-fast i Production/Staging (där KMS måste fungera — tom CMK
+= deploy-fel), warning utan boot-block i Development/Test (fail-closed
+kvarstår via runtime-guard; boot-checken var alltid redundant defense-in-depth
+meningsfull endast där KMS måste fungera). `.ValidateOnStart()` behålls
+(triggar `IValidateOptions` vid boot — prod-fail-fast 100 % bevarad).
+**Ingen substans-ändring, ingen formell ADR-amendment, ingen Klas-STOPP**
+(CTO entydig mot principer, §9.6 p.5; paritet med Mekanik-not 1:s
+`ValueConverter`→interceptor-precedens). Klas informeras i STOPP-rapport och
+kan override:a till formell amendment om miljö-villkoret bedöms vara
+besluts-substans.
+
 ### Beslut 5 — jsonb→text-skifte via expand/contract; aldrig in-place ALTER TYPE
 
 Gäller `resume_versions.content` (raw_payload berörs ej — Beslut 3). Ciphertext

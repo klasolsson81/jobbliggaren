@@ -151,6 +151,11 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", "127.0.0.1/32");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        // TD-13 (ADR 0049): Production-env hård-validerar FieldEncryption:CmkKeyId
+        // (FieldEncryptionOptionsValidator). Dessa gate-tester booter Production.
+        Environment.SetEnvironmentVariable(
+            "FieldEncryption__CmkKeyId",
+            "arn:aws:kms:eu-north-1:000000000000:key/test-cmk");
         Environment.SetEnvironmentVariable("Alb__HttpsEnabled", HttpsEnabled ? "true" : "false");
 
         // TD-44: deterministisk HSTS-konfig så HSTS-header-asserts inte beror på vilken
@@ -173,6 +178,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable("FieldEncryption__CmkKeyId", null);
         Environment.SetEnvironmentVariable("Alb__HttpsEnabled", null);
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
         Environment.SetEnvironmentVariable("Hsts__IncludeSubDomains", null);

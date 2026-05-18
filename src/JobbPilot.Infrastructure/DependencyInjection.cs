@@ -299,18 +299,19 @@ public static class DependencyInjection
         // AppDbContext-livscykeln; måste vara tillgänglig i både Api och
         // Worker (HardDeleteAccountsJob crypto-erasure, C6). KMS-klient +
         // KmsEnvelopeEncryptor är stateless/trådsäkra → singleton (samma
-        // mönster som SES-klienten). Fail-closed startup: ADR 0049 Beslut 4 +
-        // FieldEncryptionOptions-doc mandaterar att tom CmkKeyId validerar
-        // bort vid startup (.ValidateOnStart()) — fail-fast, inte runtime-fail
-        // vid första krypto-operationen. Samma ValidateOnStart-precedens som
-        // JobTechOptions. Test-/integrationshostar sätter en dummy CmkKeyId i
-        // testkonfig (KMS-klienten fakas där ändå).
+        // mönster som SES-klienten). Fail-closed startup: ADR 0049 Beslut 4
+        // mekanik-not (CTO-triage 2026-05-18 Approach D) — miljö-villkorad
+        // validering via IValidateOptions (.ValidateOnStart() triggar den vid
+        // boot). Hård fail i Production/Staging; warning i Development/Test
+        // (runtime-guard i KmsDataKeyProvider är det faktiska fail-closed-
+        // skyddet i alla miljöer). Löser C1 J3-regression: global .Validate()
+        // bröt ~6 KMS-fakande integ-test-hostar.
         services.AddOptions<Security.FieldEncryptionOptions>()
             .Bind(configuration.GetSection(Security.FieldEncryptionOptions.SectionName))
-            .Validate(
-                o => !string.IsNullOrWhiteSpace(o.CmkKeyId),
-                "FieldEncryption:CmkKeyId saknas — KMS-envelope kan inte initieras (ADR 0049).")
             .ValidateOnStart();
+        services.AddSingleton<
+            Microsoft.Extensions.Options.IValidateOptions<Security.FieldEncryptionOptions>,
+            Security.FieldEncryptionOptionsValidator>();
         var kmsRegion = configuration[
             $"{Security.FieldEncryptionOptions.SectionName}:AwsRegion"] ?? "eu-north-1";
         services.AddSingleton<Amazon.KeyManagementService.IAmazonKeyManagementService>(

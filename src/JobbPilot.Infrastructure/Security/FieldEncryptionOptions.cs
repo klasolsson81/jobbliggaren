@@ -5,7 +5,11 @@ namespace JobbPilot.Infrastructure.Security;
 /// CMK-ARN/-id och region bundna via <c>IOptions</c> + env-var (samma
 /// precedens som <c>JobTechOptions</c>/<c>EmailOptions</c> och
 /// Migrate-mönstret, ADR 0049 Kontext). Fail-closed: tom
-/// <see cref="CmkKeyId"/> ska validera bort vid startup (.ValidateOnStart()).
+/// <see cref="CmkKeyId"/> validerar bort vid startup i Production/Staging
+/// (hård fail); i Development/Test loggas warning och boot tillåts —
+/// runtime-guarden i <c>KmsDataKeyProvider</c> kvarstår fail-closed i alla
+/// miljöer (ADR 0049 Beslut 4 mekanik-not 2026-05-18,
+/// <see cref="FieldEncryptionOptionsValidator"/>).
 /// </summary>
 public sealed class FieldEncryptionOptions
 {
@@ -14,7 +18,8 @@ public sealed class FieldEncryptionOptions
     /// <summary>
     /// KMS CMK-ARN eller key-id som wrappar per-användar-DEK:erna
     /// (<c>GenerateDataKey</c>/<c>Decrypt</c>). Obligatorisk i miljöer som
-    /// kör mot riktig KMS — får inte vara tom (valideras vid startup).
+    /// kör mot riktig KMS — hård startup-validering i Production/Staging,
+    /// warning i Development/Test (se <see cref="FieldEncryptionOptionsValidator"/>).
     /// </summary>
     public string CmkKeyId { get; init; } = string.Empty;
 

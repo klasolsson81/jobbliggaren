@@ -1,16 +1,16 @@
 # ADR 0049 — TD-13 PII-fält-kryptering via KMS-envelope (per-användare-DEK + crypto-erasure)
 
-**Status:** Proposed
+**Status:** Accepted
 **Datum:** 2026-05-18
 **Kontext:** FAS 3.5 STOPP D — pre-FAS-4-blocker (TD-13)
-**Beslutsfattare:** Klas Olsson (Proposed→Accepted-grind); senior-cto-advisor (5 designval, §9.6 decision-maker)
+**Beslutsfattare:** Klas Olsson (Proposed→Accepted-grind, GO 2026-05-18); senior-cto-advisor (5 designval, §9.6 decision-maker)
 **Relaterad:** TD-13 (`docs/tech-debt.md:77-108`); ADR 0009 (ingen Repository — EF-bridge i Infrastructure); ADR 0024 (Art. 17-cascade + backup/retention — **komplementär, ej supersession**); ADR 0032 §8 (JobTech raw_payload sanitizer/PII); ADR 0039 (taxonomi-sök-SPOT); ADR 0042 (sök-yta multi-värde-kriterier). Underlag: `docs/reviews/2026-05-18-td13-design-decisions-cto.md`, `docs/reviews/2026-05-18-td13-pii-encryption-discovery.md`, `docs/reviews/2026-05-18-pre-fas4-audit-validation-cto.md`
 
-> **Utkast-not:** Denna ADR är ett STOPP D-utkast. Status är `Proposed`. Prosan
-> är skriven i presens/futurum (beslut som *föreslås*, ej *fattades*). Flippen
-> `Proposed→Accepted` görs av Klas (Klas-STOPP, ej adr-keeper, ej CC); vid den
-> tidpunkten omformuleras prosan till past-tense och implementation (STOPP I)
-> får startas.
+> **Livscykel-not:** Denna ADR skrevs som STOPP D-utkast och flippades
+> `Proposed→Accepted` av Klas (Klas-GO 2026-05-18; ej adr-keeper, ej CC).
+> Prosan är omformulerad från utkast-presens/futurum till beslutad form;
+> besluts-substansen är oförändrad. Implementation (STOPP I) får startas
+> efter denna flipp.
 
 ---
 
@@ -60,8 +60,8 @@ Berörda kolumner (verifierade on-disk i discovery, HEAD `8474c06`):
   aggregatet).
 
 Denna ADR avgör de fem interna designvalen som senior-cto-advisor fattat
-(§9.6 decision-maker) så att TD-13 blir CC-direkt-implementerbart efter
-Klas:s Proposed→Accepted-grind.
+(§9.6 decision-maker); TD-13 är CC-direkt-implementerbart efter Klas:s
+Proposed→Accepted-grind (GO 2026-05-18).
 
 ---
 
@@ -133,9 +133,9 @@ Alternativ (b) — extrahera ssyk/region till klartext-icke-PII-kolumner +
 ersätta `JsonContains`-Art.17-mekanismen, sedan kryptera raw_payload —
 **avvisas**: negativ ROI (schema-omstrukturering + JsonContains-ersättning +
 SPOT-omskrivning + jsonb→text + migration/test för noll additionell
-GDPR-vinst), scope-creep förklädd till grundlighet. Eftersom (a) väljs entydigt
-utlöses **ingen Klas-STOPP-eskalering** (uppdragets (b)-eskaleringstrigger
-inträffar ej; ingen raw_payload-kodändring sker).
+GDPR-vinst), scope-creep förklädd till grundlighet. Eftersom (a) valdes entydigt
+utlöstes **ingen Klas-STOPP-eskalering** (uppdragets (b)-eskaleringstrigger
+inträffade ej; ingen raw_payload-kodändring sker).
 
 **Motivering:** YAGNI + KISS (Hunt/Thomas 1999; Martin 2017 kap. 22).
 Component cohesion/CRP (Martin 2017 kap. 13): raw_payload är funktionellt
@@ -170,6 +170,34 @@ permanent dual-state; backfill = fitness-funktion
 sentinel-prefixet behövs ändå för key-rotation → ej additiv komplexitet.
 CCP (Martin 2017 kap. 13): återanvänd Hangfire-kohesion.
 
+**Mekanik-not (senior-cto-advisor-triage 2026-05-18, STOPP I — gäller Beslut 4
++ Beslut 5):** ordalydelsen "`ValueConverter`" ovan var en
+implementeringsförväntan, inte besluts-substans. En ren `ValueConverter` är
+statiskt registrerad i `OnModelCreating`, ser endast kolumnvärdet och kan per
+Microsoft Learn — *Value Conversions* (ingen `DbContext`-referens, single-
+column; dotnet/efcore #13947, #31234) **inte** nå radens `JobSeekerId` för
+per-användare-DEK-uppslag (Beslut 1). Ordalydelsen är därmed tekniskt
+ogenomförbar mot Beslut 1. Den implementeras istället via paret
+`FieldEncryptionSaveChangesInterceptor : ISaveChangesInterceptor`
+(encrypt-on-write) + `FieldDecryptionMaterializationInterceptor :
+IMaterializationInterceptor` (decrypt-on-read), som via `ChangeTracker`
+navigerar entitet→`JobSeekerId`→DEK med en scoped cache per `SaveChanges`-enhet
+(ingen ambient/`AsyncLocal`-state — CLAUDE.md §5.1; ingen cross-user-batch-
+läcka). De **fyra substans-invarianterna är oförändrade**: lazy
+encrypt-on-write, sentinel-/versionsprefix, bounded idempotent backfill,
+legacy-tolerans på read-path. Detta är en mekanik-precisering tvingad av
+EF Core-doktrin — **ingen substans-ändring, ingen formell ADR-amendment, ingen
+Klas-STOPP** (CTO entydig mot principer, §9.6 p.5). Konsekvens för Beslut 5
+nedan: JSON-`ValueConverter` bevaras **endast om** den empiriska C4-gaten
+(integrationstest mot Npgsql/Testcontainers, ej InMemory) bekräftar att
+`IMaterializationInterceptor` ser det JSON-serialiserade strängvärdet (efter
+VC på write, före VC på read — ej normativt garanterat i Microsoft Learn). Om
+gaten är röd flyttas JSON-transformen in i interceptor-paret (samma mekanik som
+de tre TEXT-kolumnerna; ingen VC-komposition med service-locator — det vore
+återinförande av det avvisade ambient-state-antimönstret). `ValueComparer` på
+klartext-`ResumeContent` bevaras oavsett utfall (annars trasas
+change-tracking).
+
 ### Beslut 5 — jsonb→text-skifte via expand/contract; aldrig in-place ALTER TYPE
 
 Gäller `resume_versions.content` (raw_payload berörs ej — Beslut 3). Ciphertext
@@ -187,11 +215,12 @@ via parallel-change i fyra steg:
 **Motivering:** expand/contract/parallel-change (Fowler *Refactoring* 2e 2018;
 Ford/Parsons/Kua 2017) — typ-skifte med befintlig data aldrig in-place
 destruktivt; varje steg reverterbart med egen `down()`. DDD: befintlig
-JSON-`ValueConverter` + `ValueComparer` (`ResumeVersionConfiguration.cs:41-59`)
-bevaras — krypto komponeras *runt*
-(`ResumeContent → JSON → ciphertext → content_enc`); comparer:n opererar
-fortsatt på klartext-JSON (annars trasas change-tracking). Idempotent
-(`IF [NOT] EXISTS`, ADR 0024-precedens).
+JSON-`ValueConverter` (`ResumeVersionConfiguration.cs:41-59`) bevaras —
+krypto komponeras *runt* (`ResumeContent → JSON → ciphertext → content_enc`) —
+**villkorat av C4-gaten enligt mekanik-noten under Beslut 4**; om gaten är röd
+äger interceptor-paret JSON+krypto-transformen direkt. `ValueComparer` opererar
+fortsatt på klartext-`ResumeContent` oavsett utfall (annars trasas
+change-tracking). Idempotent (`IF [NOT] EXISTS`, ADR 0024-precedens).
 
 ---
 
@@ -290,15 +319,16 @@ fortsatt på klartext-JSON (annars trasas change-tracking). Idempotent
 
 ## Implementationsstatus
 
-**Planerad — STOPP D-utkast 2026-05-18.**
+**Accepted 2026-05-18; implementation (STOPP I) påbörjad efter Klas-GO.**
 
-Inget av detta är implementerat. Discovery (HEAD `8474c06`) verifierar att
-`AWSSDK.KMS`-paketet, envelope-converter:n, `user_data_keys`-ytan och samtliga
-migrationer **saknas** i kodbasen. De fem berörda EF-configarna bär explicita
-`TODO(GDPR)`-kommentarer som deferrar hit.
+Vid Accepted-flippen var inget av detta implementerat. Discovery (HEAD
+`8474c06`) verifierade att `AWSSDK.KMS`-paketet, envelope-converter:n,
+`user_data_keys`-ytan och samtliga migrationer **saknades** i kodbasen. De
+fem berörda EF-configarna bär explicita `TODO(GDPR)`-kommentarer som
+deferrar hit.
 
-Implementation (STOPP I) får startas **först efter** att Klas godkänt
-`Status: Proposed → Accepted`. Implementation följer de fem besluten ovan i
+Klas godkände `Status: Proposed → Accepted` 2026-05-18; implementation
+(STOPP I) påbörjas därmed och följer de fem besluten ovan i
 split-batch-struktur (prejudikat-domens scope-realism: 1.5–2.5 v CC-tid, med
 jsonb→text-parallel-change + crypto-erasure-restore-runbook som största
 enskilda osäkerheter).

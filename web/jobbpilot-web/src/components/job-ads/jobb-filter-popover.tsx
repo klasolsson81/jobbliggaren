@@ -271,7 +271,17 @@ export function JobbFilterPopover(props: JobbFilterPopoverProps) {
       style={style}
     >
       <div className="jp-popover__body">
-        <div className="jp-popover__col" role="listbox" aria-label={props.leftTitle}>
+        {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-
+            förälderns max-height) — speglar single-column-Ort:s BEVISAT
+            fungerande mekanism. Grid-barn får ingen användbar höjd att
+            scrolla inom från förälderns max-height; constraint måste sitta
+            på scroll-elementet självt (design-reviewer F4 Blocker x2). */}
+        <div
+          className="jp-popover__col"
+          role="listbox"
+          aria-label={props.leftTitle}
+          style={{ maxHeight: "60vh", overflowY: "auto" }}
+        >
           <div className="jp-popover__colhead">
             <span className="jp-popover__title">{props.leftTitle}</span>
             {anySelectedAnywhere && (
@@ -347,7 +357,10 @@ export function JobbFilterPopover(props: JobbFilterPopoverProps) {
           )}
         </div>
 
-        <div className="jp-popover__col">
+        <div
+          className="jp-popover__col"
+          style={{ maxHeight: "60vh", overflowY: "auto" }}
+        >
           <div className="jp-popover__colhead">
             <span className="jp-popover__title">{props.rightTitle}</span>
             {rightAnySelected && (

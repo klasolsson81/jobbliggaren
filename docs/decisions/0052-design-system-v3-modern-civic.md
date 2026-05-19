@@ -152,3 +152,14 @@ Strukturella `.jp-*` portas verbatim; shadcn överlever via bryggan.
   `@theme inline`-brygg-alias, v2-alias-städning i egen grep-verifierad fas.
 - Cross-ref-uppdatering i ADR-index + design-skills sker i refactor-faserna
   (docs-keeper underhåller index efter denna ADR).
+- **Transitionellt shim — `.jp-shell-transitional-container` (F1b+F2, CTO
+  2026-05-19 B1-reparation):** v3-shellen (`.jp-content`) constrainar
+  medvetet ej bredd; v3-sidor wrappar i `.jp-container`/`.jp-page` själva.
+  Tills F3/F5/F6 gett alla `(app)`-sidor egna wrappers wrappar `app-shell`
+  un-refaktorerade sidor i `.jp-shell-transitional-container` (max-width
+  1200 + padding) så de inte renderar edge-to-edge (samma
+  branch-by-abstraction-doktrin som v2-token-alias / v2 `.jp-*`-shim).
+  **Borttagnings-trigger:** när F3/F5/F6 gett alla `(app)`-sidor egna
+  `.jp-container`/`.jp-page` (+ `/jobb`-hero edge-to-edge-opt-out) blir
+  containern dubbel-padding och ska bort — verifieras analogt
+  v2-alias-städningen (grep `jp-shell-transitional-container`).

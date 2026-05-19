@@ -205,15 +205,20 @@ public class AuditingLayerTests
         {
             "SyncPlatsbankenStreamJob",
             "SyncPlatsbankenSnapshotJob",
-            "PurgeStaleRawPayloadsJob"
+            "PurgeStaleRawPayloadsJob",
+            // TD-13 C5 (ADR 0049 Beslut 4) — backfill-jobbet skriver
+            // FieldEncryptionBackfillRun-audit (GDPR Art. 30 accountability),
+            // paritet PurgeStaleRawPayloadsJob. Architect-sanktionerad
+            // audit-wire 2026-05-19 (C5-design Q5). Ratchet-tillägg.
+            "BackfillFieldEncryptionJob"
         };
         var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
 
         unauthorized.ShouldBeEmpty(
             $"ISystemEventAuditor får endast konsumeras av system-jobben " +
             $"(SyncPlatsbankenStreamJob, SyncPlatsbankenSnapshotJob, " +
-            $"PurgeStaleRawPayloadsJob) per ADR 0035. Otillåtna: " +
-            $"{string.Join(", ", unauthorized)}");
+            $"PurgeStaleRawPayloadsJob, BackfillFieldEncryptionJob) per " +
+            $"ADR 0035. Otillåtna: {string.Join(", ", unauthorized)}");
     }
 
     [Fact]

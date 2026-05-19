@@ -156,6 +156,12 @@ public static class DependencyInjection
         services.AddScoped<JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenSnapshotJob>();
         services.AddScoped<JobbPilot.Application.JobAds.Jobs.PurgeRawPayloads.PurgeStaleRawPayloadsJob>();
 
+        // TD-13 C5 (ADR 0049 Beslut 4). Backfill-orchestrator scoped (paritet
+        // PurgeStaleRawPayloadsJob) — DI i samma commit som job/port-impl
+        // (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            JobbPilot.Application.Security.Jobs.BackfillFieldEncryption.BackfillFieldEncryptionJob>();
+
         return services;
     }
 
@@ -347,6 +353,14 @@ public static class DependencyInjection
             sp => sp.GetRequiredService<Security.ScopedUserDataKeyCache>());
         services.AddScoped<JobbPilot.Application.Common.Security.IUserDataKeyStore,
             Security.UserDataKeyStore>();
+
+        // TD-13 C5 (ADR 0049 Beslut 4, architect-låst 2026-05-19). Backfill-
+        // porten äger per-owner fresh DI-scope via IServiceScopeFactory
+        // (cross-user-DEK-isolering, §5.1) → Scoped. DI i samma commit som
+        // port/job-impl (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            JobbPilot.Application.Security.Jobs.BackfillFieldEncryption.IFieldEncryptionBackfiller,
+            Security.FieldEncryptionBackfiller>();
 
         // TD-13 C3 (Mekanik-not 5c). Interceptor-paret SINGLETON (stateless,
         // ISingletonInterceptor; scoped state via Context.GetService vid

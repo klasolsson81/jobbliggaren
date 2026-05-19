@@ -20,7 +20,6 @@ namespace JobbPilot.Infrastructure.Security;
 /// </summary>
 public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
 {
-    private const string CurrentVersionPrefix = "v1:";
     private const int NonceSize = 12;  // AES-GCM standard-nonce
     private const int TagSize = 16;    // AES-GCM auth-tag (128-bit)
     private const int Aes256KeySize = 32;  // DEK = AES-256 (ADR 0049 Beslut 1)
@@ -51,7 +50,7 @@ public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
 
         CryptographicOperations.ZeroMemory(plaintextBytes);
 
-        return CurrentVersionPrefix + Convert.ToBase64String(payload);
+        return FieldEncryptionSentinel.VersionPrefix + Convert.ToBase64String(payload);
     }
 
     public string Decrypt(string sentinelCiphertext, ReadOnlySpan<byte> dek)
@@ -70,7 +69,8 @@ public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
         // Explicit versions-guard (Minor 3, ADR 0049 Beslut 4 crypto-agility):
         // endast v1-layouten (nonce12||ct||tag16) är känd. En framtida v2 med
         // annan layout ska fela tydligt här, inte som auth-tag-mismatch.
-        if (!sentinelCiphertext.StartsWith(CurrentVersionPrefix, StringComparison.Ordinal))
+        if (!sentinelCiphertext.StartsWith(
+                FieldEncryptionSentinel.VersionPrefix, StringComparison.Ordinal))
         {
             throw new CryptographicException(
                 "Okänd sentinel-version — endast v1 stöds av denna decryptor.");

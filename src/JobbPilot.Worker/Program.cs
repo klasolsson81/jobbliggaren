@@ -39,6 +39,9 @@ builder.Services.AddJobSources(builder.Configuration);
 // tar tiotals min efter streaming-fixen, måste skyddas mot AutomaticRetry-overlap).
 builder.Services.AddScoped<JobbPilot.Worker.Hosting.SyncPlatsbankenStreamWorker>();
 builder.Services.AddScoped<JobbPilot.Worker.Hosting.SyncPlatsbankenSnapshotWorker>();
+// TD-13 C5 (ADR 0049 Beslut 4) — DisableConcurrentExecution-wrapper för
+// fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
+builder.Services.AddScoped<JobbPilot.Worker.Hosting.BackfillFieldEncryptionWorker>();
 
 builder.Services.AddApplication();
 

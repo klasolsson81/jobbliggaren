@@ -276,6 +276,21 @@ body {
   border-radius: var(--jp-r-sm);
 }
 
+/* ── Länkar (B5-reparation, CTO 2026-05-19) ──────────
+   v3-källans `a{}`-regel utelämnades i F1b-porten → bara-ankare föll
+   tillbaka på arv. v3 §2.2: länk = navy-700 (#133F73 light / #4F8AD0
+   dark — bright, WCAG AA mot dark canvas). Återinförd här (utanför
+   @layer base — ingen base-reset-konflikt, bara färg).
+   Scopad dark-override för Tailwind-klassade `text-brand-600`-länkar:
+   brand-600 → --jp-navy-800 (#0A2647, medvetet EJ skiftad i dark per
+   ADR 0052 för primärknappen) blev osynlig som länktext på dark canvas
+   (B5). Höjer dem till navy-700 i dark UTAN att röra knapp-tokenen
+   eller F6-auth-filerna (CTO B-SCOPE: ingen F6-läcka). */
+a { color: var(--jp-navy-700); }
+a:hover { color: var(--jp-navy-600); }
+[data-theme="dark"] a.text-brand-600 { color: var(--jp-navy-700); }
+[data-theme="dark"] a.text-brand-600:hover { color: var(--jp-navy-600); }
+
 /* ── Reduced motion ───────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -409,6 +424,22 @@ body {
 .jp-content {
   flex: 1;
   width: 100%;
+}
+/* Transitionell bredd-container (CTO 2026-05-19, B1-reparation). v3-shellen
+   (.jp-content) har medvetet ingen bredd-constraint — v3-sidor wrappar i
+   .jp-container/.jp-page själva (F3/F5/F6). Tills dess wrappar app-shell
+   un-refaktorerade (app)-sidor i denna container så de inte renderar
+   edge-to-edge (branch-by-abstraction, samma doktrin som F1a v2-alias /
+   F1b v2-shim). BORTTAGNINGS-TRIGGER: när F3/F5/F6 gett alla (app)-sidor
+   egna .jp-container/.jp-page (+ /jobb-hero opt-out) — då blir denna
+   dubbel-padding och ska bort (ADR 0052-trail). */
+.jp-shell-transitional-container {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 40px 32px 96px;
+}
+@media (max-width: 720px) {
+  .jp-shell-transitional-container { padding: 32px 20px 64px; }
 }
 .jp-container {
   max-width: 1200px;
@@ -1102,6 +1133,23 @@ body {
 }
 [data-theme="dark"] .jp-input::placeholder,
 [data-theme="dark"] .jp-textarea::placeholder { color: var(--jp-ink-3); }
+
+/* B4/M1-reparation (CTO 2026-05-19): HANDOVER §5.2 "icke-förhandlingsbart:
+   dark input ljus bg #F0F4FB" gäller ALLA inputs, men shadcn-primitiverna
+   (components/ui/{input,textarea,select}) använder Tailwind-semantik
+   (bg-surface-primary + dark:bg-input/30), ej .jp-input. Token-bryggans
+   (F1b) ansvar att täcka konsumenten via data-slot — DIP, fixa
+   abstraktionen ej komponenten. !important krävs för att vinna mot
+   Tailwinds dark:-utility-kaskad; smalt scopat till dark + data-slot. */
+[data-theme="dark"] [data-slot="input"],
+[data-theme="dark"] [data-slot="textarea"],
+[data-theme="dark"] [data-slot="select-trigger"] {
+  background: #F0F4FB !important;
+  color: #0C1A2E !important;
+  border-color: #94A3B8 !important;
+}
+[data-theme="dark"] [data-slot="input"]::placeholder,
+[data-theme="dark"] [data-slot="textarea"]::placeholder { color: var(--jp-ink-3); }
 
 /* ── Job result list ─────────────────────────────── */
 .jp-jobs {

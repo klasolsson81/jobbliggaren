@@ -410,7 +410,11 @@ export function AppShell({
       />
 
       <main id="main" tabIndex={-1} className="jp-content focus:outline-none">
-        {children}
+        {/* Transitionell bredd-container (CTO B1-reparation 2026-05-19):
+            v3-shellen constrainar ej bredd; un-refaktorerade (app)-sidor
+            wrappas här tills F3/F5/F6 ger dem egna .jp-container/.jp-page.
+            Borttagnings-trigger dokumenterad i globals.css + ADR 0052-trail. */}
+        <div className="jp-shell-transitional-container">{children}</div>
       </main>
     </div>
   );

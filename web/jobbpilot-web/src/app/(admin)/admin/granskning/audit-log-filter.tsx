@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -103,7 +104,7 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
           Använd filter
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <a href="/admin/granskning">Rensa</a>
+          <Link href="/admin/granskning">Rensa</Link>
         </Button>
       </div>
     </form>

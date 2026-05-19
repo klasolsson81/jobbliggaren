@@ -33,6 +33,12 @@ gäller endast Beslut A; ACL/domänkontrakt orört).
 
 ### Beslut 1 — Tvåkolumns-popover (Platsbanken-mönster)
 
+> **⚠ Amendad 2026-05-19** — se [Amendment 2026-05-19 — Data-/fas-gating av
+> Ort + Filter](#amendment-2026-05-19--data-fas-gating-av-ort--filter)
+> nedan. Originaltexten nedan står oförändrad; Ort-popovern renderas
+> **enkelkolumns** (Län, ingen kommun) och Filter-pillen är **deferred helt**
+> i F4 — tvåkolumns län→kommun är planerat slutmål, ej aktuell rendering.
+
 Ort / Yrke / Filter renderas som en tvåkolumns-popover, bredd 580px:
 
 - **Vänster:** kategorier (län / yrkesområden).
@@ -56,6 +62,18 @@ automatiskt; korsref ADR 0040 Smart CV-härlett filter / SavedSearch-fas).
 
 Server-side taxonomi-träd per ADR 0043 återanvänds oförändrat (ACL,
 träd-källa, domänkontrakt orört) — endast presentationen är ny.
+
+## Amendment 2026-05-19 — Data-/fas-gating av Ort + Filter
+
+> **Amendment 2026-05-19 (Klas-godkänd, data-/fas-triagead — memory feedback_adr_mechanism_vs_env_phase_triage):** ADR 0055:s tvåkolumns Ort-popover + Filter-popover ärvde v3-prototypens mock-data (data.jsx `komm:[…]` + Filter-grupper). Verifierad domän-verklighet (ADR 0043 Variant A): `TaxonomyTree.regions` är **enkelnivå (Län, ingen kommun)**; `occupationFields→occupations` är tvånivå; backend job-ads-query har endast `q/ssyk/region/sortBy/since` — inga anställningsform/omfattning/arbetsplats/publicerad-params.
+> - **Ort-popover renderas ENKELKOLUMNS** (Län-lista, "Välj alla län", per-kolumn Rensa, leaf-grön aktiv, 580px-chrome, live-spar, ESC/klick-utanför, chips) tills kommun-taxonomi byggs. Tvåkolumns län→kommun är planerat slutmål, EJ aktuell rendering; höger kommun-kolumn läggs additivt med samma skal i framtida fas — ingen ny designomgång.
+> - **Filter-pillen deferred HELT** tills minst en filter-dimension (anställningsform/omfattning/arbetsplats/publicerad) finns som backend-param. Ingen Filter-pill i hero i F4. Tom popover/mock-grupper = teater, bryter no-mock-doktrinen + civic-ton (samma logik som ADR 0053 Beslut 5 match-deferral).
+> - **Yrke-popover (tvåkolumns Yrkesområde→Yrken, "Välj alla yrken"), sort-inline-dropdown i result-toolbar, JobAdFilters-borttagning** byggs exakt per Klas F4-direktiv — ingen konflikt med data.
+> - Senaste sökningar / Sparade annonser-hero-chips förblir deferred (no-mock, ADR 0053-amendment-precedens).
+> - ADR 0042 Beslut B-domänkontrakt (concept-id `string[]` ssyk/region repeated URL-params) OFÖRÄNDRAT. ADR 0043 taxonomi-ACL OFÖRÄNDRAD — endast presentationen byts (disclosure→popover).
+> ADR förblir **Accepted** — amendment, ej supersession; ADR 0055:s supersession av ADR 0042 Beslut A består.
+
+> **Amendment-proveniens:** Klas-godkänd verbatim 2026-05-19 (memory feedback_klas_can_override_adr_verbatim_source). Grundad i F4-discovery-data-verklighet (taxonomy.ts ADR 0043 Variant A + job-ads-query-params) + Klas F4-direktiv. ADR-mekanik-vs-data-/fas-triage (feedback_adr_mechanism_vs_env_phase_triage) → Klas-beslut, ej CC-omdöme.
 
 ## Konsekvenser
 

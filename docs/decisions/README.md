@@ -62,18 +62,20 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0047 | design-reviewer-mandat utökat: task-completion/flödesbegriplighet utöver estetik/tokens/a11y (Area 5, källförankrad checklista Boeke/GOV.UK/Norman/Krug/Wroblewski; rendered screenshot + interaktionssökväg; ingen ny agent — anti-bloat) | Accepted | 2026-05-17 | [0047-design-reviewer-flow-comprehension-mandate.md](./0047-design-reviewer-flow-comprehension-mandate.md) |
 | 0048 | Cross-aggregat-read-join i Application-query-vägen: in-handler left join + DTO-projektion godkänt mönster för enkla samma-DbContext 1:0..1-aggregatlänkar i CQRS-read-vägen (kontrast/avgränsning mot ADR 0043 read-model-port — komplementär, EJ supersession; query-filter-disciplin: ingen IgnoreQueryFilters/manuell DeletedAt; write-side ej vidgad) | Accepted | 2026-05-17 | [0048-cross-aggregate-read-join-in-application-query-path.md](./0048-cross-aggregate-read-join-in-application-query-path.md) |
 | 0049 | TD-13 PII-fält-kryptering via KMS-envelope: per-användare-DEK för de 4 user-ägda kolumnerna + crypto-erasure för Art. 17-backup-täckning (komplementär till ADR 0024 — cross-ref EJ amendment); raw_payload exkluderas medvetet (ADR 0032/0039-load-bearing); hybrid lazy-write + bounded backfill; jsonb→text via expand/contract (interceptor-mekanik per CTO-triage 2026-05-18) — FAS 3.5 | Accepted | 2026-05-18 | [0049-td13-pii-field-encryption-kms-envelope.md](./0049-td13-pii-field-encryption-kms-envelope.md) |
+| 0050 | Deployment-migration: full AWS-exit → Hetzner CX32 + Vercel + Cloudflare (R2-backup-offload); fyller BUILD.md Bilaga B `aws-over-azure`-slotten med moln-exit ej moln-byte; AWS-KMS-rehoming = namngiven migrations-blocker (ADR 0049-cross-ref); ADR 0005-kostnadsskydd relevans-skifte ej supersession; faktisk migration framtida Klas-gatat | Proposed | 2026-05-19 | [0050-deployment-migration-aws-exit-hetzner.md](./0050-deployment-migration-aws-exit-hetzner.md) |
+| 0051 | AI-provider-strategi: Bedrock utgår, Anthropic Direct API för systemnyckel + BYOK; fyller BUILD.md Bilaga B `bedrock-eu-for-system-key`-slotten med inverterad slutsats; US opt-in även systemnyckel (ingen US-default, Art. 25.2); 5 icke-förhandlingsbara GDPR-villkor som Fas-4-grind; decrypt-före-AI = klartext-PII över Atlanten (ADR 0049-cross-ref); möjliggör ren AWS-exit (ADR 0050) | Proposed | 2026-05-19 | [0051-ai-provider-anthropic-direct-bedrock-retired.md](./0051-ai-provider-anthropic-direct-bedrock-retired.md) |
 
 ## Planerade ADRs
 
 BUILD.md Bilaga B listar ADRs som ska skrivas när respektive tekniskt val blir aktuellt:
 
 - `NNNN-postgresql-over-sqlserver.md` — när databasval diskuteras mot andra alternativ
-- `NNNN-aws-over-azure.md` — när moln-val ifrågasätts
-- `NNNN-bedrock-eu-for-system-key.md` — när EU-inference-profile-beslutet formaliseras
+- ~~`NNNN-aws-over-azure.md`~~ — **realiserad 2026-05-19 av [ADR 0050](./0050-deployment-migration-aws-exit-hetzner.md)** med motsatt slutsats: inte ett moln-byte (AWS→Azure) utan en full moln-exit (AWS → Hetzner CX32 + Vercel + Cloudflare). Slotten är därmed besatt; ingen separat `aws-over-azure`-ADR skrivs.
+- ~~`NNNN-bedrock-eu-for-system-key.md`~~ — **realiserad 2026-05-19 av [ADR 0051](./0051-ai-provider-anthropic-direct-bedrock-retired.md)** med inverterad slutsats: EU-inference-profile via Bedrock formaliseras INTE — Bedrock utgår helt, Anthropic Direct API används för både systemnyckel och BYOK (US opt-in, ej EU-residency). Slotten är därmed besatt; ingen separat `bedrock-eu-for-system-key`-ADR skrivs.
 - `NNNN-byok-architecture.md` — BYOK-krypteringsflöde
 - `NNNN-hangfire-background-jobs.md` — när bakgrundsjobb-val görs
 
-Numrering tilldelas löpande när ADR skrivs. BUILD.md Bilaga B är förslag på ordning, inte bindande.
+Numrering tilldelas löpande när ADR skrivs. BUILD.md Bilaga B är förslag på ordning, inte bindande. När en planerad slott realiseras (även med motsatt eller inverterad slutsats) markeras den ovan med korsref till den faktiska ADR:n — kontexten bevaras för spårbarhet, ingen rad raderas.
 
 ## Skapa ny ADR
 

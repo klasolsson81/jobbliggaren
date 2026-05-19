@@ -31,7 +31,7 @@ Mellan-arbete (upptakter, cleanup-passningar, disciplin-uppgraderingar) är inte
 | Fas 1 | Core Domain | ~3 v | CV manuellt + "fake" ansökningar i admin-audit | **Klar 2026-05-11** ³ + **rensad 2026-05-12** ⁴ |
 | Fas 2 | JobTech Integration | ~2 v | Söka jobb på Platsbanken via appen, spara sökningar | **Klar 2026-05-17** ²⁵⁶ |
 | Fas 3 | Application Management | ~2 v | Fullständig ansökningshantering (utan AI) | **Klar 2026-05-18** ⁷ |
-| Fas 4 | AI Layer | ~3-4 v | Alla AI-features end-to-end + 14 dagar dogfood | Planerad |
+| Fas 4 | AI Layer | ~3-4 v | Alla AI-features end-to-end + 14 dagar dogfood | Planerad ⁸ |
 | Fas 5 | Integrationer | ~2 v | Gmail auto-loggar, intervjuer i Google Calendar | Planerad |
 | Fas 6 | Admin & Analytics | ~2 v | Admin-panel komplett | Planerad |
 | Fas 7 | Internal Beta | ~2 v | 3 användare aktivt 14 dagar | Planerad |
@@ -39,6 +39,17 @@ Mellan-arbete (upptakter, cleanup-passningar, disciplin-uppgraderingar) är inte
 | Fas 9+ | Efter klass-launch | — | Mobil, Kanban, intervjuträning, LinkedIn, Stripe, Chrome ext m.m. | Framtid |
 
 **Totalt:** ~20 veckor till klass-launch (mjuk uppskattning, inga hårda deadlines).
+
+⁸ Fas 4 fortsatt **Planerad** (ej statusflytt). Pre-Fas-4-grind tillkom
+2026-05-19 (post-Fas-3 migration-discovery-session): **ADR 0051** (Proposed) —
+Bedrock utgår, Anthropic Direct API (systemnyckel + BYOK), US opt-in även
+systemnyckel; **5 icke-förhandlingsbara GDPR-villkor** (DPIA Art. 35 / SCC+
+Schrems II-TIA+Anthropic-DPA+DPF / versionerad privacy-policy före live /
+Art. 25-opt-in / ADR 0049-decrypt-interaktion) måste vara gröna **innan första
+Fas-4-AI-kodrad**. Relaterat: **ADR 0050** (Proposed) full AWS-exit → Hetzner
+CX32; **KMS-migrations-blocker** (ADR 0049 PII-krypto på AWS KMS måste
+om-hemmas) löses i egen designomgång före faktisk migration. Spåras här +
+`docs/current-work.md`, EJ `tech-debt.md` (greenfield-roadmap, ej debt — §9.6).
 
 ¹ Fas 0 fullt klar 2026-05-10 efter STEG 14c. Alla milstolpar uppfyllda: Clean Arch-solution + Identity + Next.js + design system + AWS-infrastruktur (VPC/RDS/Redis/ALB/ECS/ECR) + Container-pipeline + DNS + TLS (HTTPS aktiverat med HSTS) + GitHub OIDC-baserad CI/CD + first formal tag-deploy `v0.1.0-dev` end-to-end PASS + Bootstrap-IAM-user raderad. Live på `https://dev.jobbpilot.se/api/ready`.
 

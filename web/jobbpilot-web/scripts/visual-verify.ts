@@ -359,21 +359,23 @@ async function shoot(page: Page, outDir: string, name: string): Promise<void> {
 }
 
 /**
- * ADR 0042 Beslut B/C interaktiva states på /jobb. Verktyget tar annars bara
- * sidladdnings-screenshots; design-reviewer VETO:ade Batch 6 för att korpusen
- * saknade bild av disclosure-expanderad / typeahead-öppen / chip-ifylld. Tre
- * extra namngivna shots capureras här, mot live-backend (riktig korpus).
+ * Interaktiva states på /jobb — F4 Platsbanken-popover (ADR 0055 + amendment
+ * 2026-05-19). Verktyget tar annars bara sidladdnings-screenshots;
+ * design-reviewer bindande rendered-veto kräver popover-öppet-tillståndet i
+ * korpus (F4:s centrala leverans). Selektorerna mot v2 JobAdFilters
+ * (disclosure/typeahead/OccupationPicker-select) är BORTTAGNA — de UI:na
+ * existerar inte efter F4 (JobAdFilters + pickers raderade).
  *
- * Robusta selektorer (role/aria/text, inte klass-kedjor):
- *  - Filter-disclosure: knapp med text "Filter" + aria-expanded (JobAdFilters).
- *  - Typeahead: combobox-rollen (JobAdTypeahead Input role="combobox"),
- *    listan har aria-label "Sökförslag".
- *  - Multi-select-chip: "Yrkesområde"-fältet → "Lägg till" → chip med
- *    "Ta bort <kod>"-knapp (JobAdMultiSelect).
+ * Robusta selektorer (role/aria/text):
+ *  - Hero-pill: `<button class="jp-hero-pill">Yrke|Ort</button>` med
+ *    aria-haspopup="dialog" + aria-expanded (jobb-hero-filters).
+ *  - Popover: role="dialog" + aria-label (jobb-filter-popover). Yrke =
+ *    tvåkolumns (vänsterkolumn role="listbox"); Ort = enkelkolumns Län.
  *
- * Gated till 1280 + 3440 (breddspann) per uppdragskrav; körs i light+dark
- * via THEME-loopen. Best-effort: en miss på en state fäller inte hela körningen
- * (defensiv catch → varning), men loggas så design-reviewer ser luckan.
+ * Gated till 1280 + 3440 (breddspann); körs i light+dark via THEME-loopen.
+ * Best-effort: en miss fäller inte hela körningen (defensiv catch → varning,
+ * loggas så design-reviewer ser luckan). Filter-pill capureras INTE —
+ * deferred helt per ADR 0055-amendment (existerar ej i UI).
  */
 async function shootJobbInteractiveStates(
   page: Page,
@@ -383,22 +385,30 @@ async function shootJobbInteractiveStates(
 ): Promise<number> {
   let shot = 0;
 
-  // State 1 — filter-disclosure expanderad.
+  // State 1 — Yrke-popover öppen (tvåkolumns Yrkesområde→Yrken).
+  // Behåller namnet `jobb-filter-expanded` (design-reviewer/manifest
+  // refererar det som popover-öppet-tillståndet).
   try {
     await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
-    const filterToggle = page
-      .getByRole("button", { name: /^Filter/ })
+    const yrkePill = page
+      .getByRole("button", { name: /^Yrke/ })
       .first();
-    await filterToggle.waitFor({ state: "visible", timeout: 5000 });
-    if ((await filterToggle.getAttribute("aria-expanded")) !== "true") {
-      await filterToggle.click();
+    await yrkePill.waitFor({ state: "visible", timeout: 5000 });
+    if ((await yrkePill.getAttribute("aria-expanded")) !== "true") {
+      await yrkePill.click();
     }
-    // Vänta tills taxonomi-fältet (Yrkesområde) faktiskt är i DOM:en —
-    // bevisar att panelen är expanderad, inte bara att klicket gick igenom.
+    // Popovern är role="dialog"; vänster kategorikolumn är role="listbox"
+    // (jobb-filter-popover tvåkolumns) — bevisar att popovern faktiskt
+    // renderat, inte bara att klicket gick igenom.
     await page
-      .getByText("Yrkesområde", { exact: true })
+      .getByRole("dialog")
+      .first()
       .waitFor({ state: "visible", timeout: 5000 });
-    // Disclosure-rotation/expand (DESIGN.md §10, 150ms) settlar.
+    await page
+      .getByRole("listbox")
+      .first()
+      .waitFor({ state: "visible", timeout: 5000 });
+    // Fade/rise-animation (DESIGN.md §10) settlar.
     await page.waitForTimeout(300);
     await shoot(page, outDir, `jobb-filter-expanded__${theme}__${vpTag}`);
     shot++;
@@ -409,81 +419,33 @@ async function shootJobbInteractiveStates(
     );
   }
 
-  // State 2 — typeahead-lista öppen (≥2 tecken mot live-backend).
+  // State 2 — Ort-popover öppen (enkelkolumns Län; ADR 0055-amendment —
+  // ingen kommun-nivå, regions enkelnivå).
   try {
     await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
-    const combo = page.getByRole("combobox").first();
-    await combo.waitFor({ state: "visible", timeout: 5000 });
-    await combo.click();
-    await combo.fill("utv");
-    // Förslagslistan har aria-label "Sökförslag" (JobAdTypeahead <ul>).
-    // Live-backend → debounce (SUGGEST_DEBOUNCE_MS) + nätverk; vänta på
-    // listan, inte en fast timeout.
-    await page
-      .getByRole("listbox")
-      .or(page.locator('ul[aria-label="Sökförslag"]'))
-      .first()
-      .waitFor({ state: "visible", timeout: 8000 });
-    await page.waitForTimeout(200);
-    await shoot(page, outDir, `jobb-typeahead-open__${theme}__${vpTag}`);
-    shot++;
-  } catch (err) {
-    console.warn(
-      `[visual-verify] VARNING: jobb-typeahead-open (${theme}/${vpTag}) ` +
-        `kunde inte capureras (live-backend kan sakna prefix-träff): ` +
-        `${(err as Error).message}`,
-    );
-  }
-
-  // State 3 — namn-chip ifylld (ADR 0043: namn-väljare, ej rå concept-id).
-  // Yrkes-väljaren är två native <select> (OccupationPicker): välj först ett
-  // "Yrkesområde", därefter ett "Yrke" → en namn-chip renderas i "Valda
-  // yrken"-listan. Mot live-backend (riktig taxonomi-korpus) — vi väljer
-  // första riktiga <option> (index 1; index 0 = "Välj …"-platshållaren) så
-  // skriptet inte hårdkodar ett concept-id som kan saknas i snapshoten.
-  try {
-    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
-    const filterToggle = page
-      .getByRole("button", { name: /^Filter/ })
+    const ortPill = page
+      .getByRole("button", { name: /^Ort/ })
       .first();
-    await filterToggle.waitFor({ state: "visible", timeout: 5000 });
-    if ((await filterToggle.getAttribute("aria-expanded")) !== "true") {
-      await filterToggle.click();
+    await ortPill.waitFor({ state: "visible", timeout: 5000 });
+    if ((await ortPill.getAttribute("aria-expanded")) !== "true") {
+      await ortPill.click();
     }
-
-    const fieldSelect = page.getByLabel("Yrkesområde");
-    await fieldSelect.waitFor({ state: "visible", timeout: 5000 });
-    // Första riktiga yrkesområdet (option-index 1 hoppar över platshållaren).
-    await fieldSelect.selectOption({ index: 1 });
-
-    // "Yrke"-väljaren aktiveras när ett yrkesområde valts. Vänta tills den
-    // är enabled och har ett riktigt yrke, välj det → chip renderas.
-    const occSelect = page.getByLabel("Yrke");
-    await occSelect.waitFor({ state: "visible", timeout: 5000 });
-    await page.waitForFunction(
-      (el) => {
-        const s = el as HTMLSelectElement;
-        return !s.disabled && s.options.length > 1;
-      },
-      await occSelect.elementHandle(),
-      { timeout: 5000 },
-    );
-    await occSelect.selectOption({ index: 1 });
-
-    // Chip renderas i "Valda yrken"-listan med en "Ta bort <namn>"-dismiss
-    // (TaxonomyChipList). Vi asserterar på rollen + listans aria-label, inte
-    // ett concept-id — concept-id finns inte längre i UI:t.
     await page
-      .getByRole("list", { name: "Valda yrken" })
-      .getByRole("listitem")
+      .getByRole("dialog")
       .first()
       .waitFor({ state: "visible", timeout: 5000 });
-    await page.waitForTimeout(200);
-    await shoot(page, outDir, `jobb-chip-filled__${theme}__${vpTag}`);
+    // Enkelkolumns Ort: "Välj alla län"-checkitem bevisar Län-listan
+    // renderat (role="checkbox", jobb-filter-popover enkelkolumns).
+    await page
+      .getByRole("checkbox", { name: /Välj alla län/ })
+      .first()
+      .waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForTimeout(300);
+    await shoot(page, outDir, `jobb-ort-popover__${theme}__${vpTag}`);
     shot++;
   } catch (err) {
     console.warn(
-      `[visual-verify] VARNING: jobb-chip-filled (${theme}/${vpTag}) ` +
+      `[visual-verify] VARNING: jobb-ort-popover (${theme}/${vpTag}) ` +
         `kunde inte capureras: ${(err as Error).message}`,
     );
   }

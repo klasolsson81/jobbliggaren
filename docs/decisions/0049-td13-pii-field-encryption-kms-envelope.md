@@ -375,6 +375,50 @@ konstruktionen bedöms vara besluts-substans. C4.2-impl villkorad av mini-
 gate C4.2a (empirisk verifiering av shadow-läsning i `InitializedInstance`
 under `AsNoTracking`, paritet C4.0-disciplin).
 
+**Mekanik-not 6 — implementeringsutfall & reconciliation (2026-05-19, STOPP V;
+CC-utkast med Klas §9.4-undantag, Klas granskar):** C4.2→C6 levererat
+(`89545aa`, full svit grön, security-auditor + code-reviewer GO). Tre
+preciseringar av Not 6:s pre-implementerings-prosa, alla **inom #1c:s fyra
+substans-invarianter** (architect/CTO entydiga, §9.6 p.5 — ingen
+substans-ändring):
+
+1. **C4.2a-gaten GREEN** (Microsoft Learn EF Core 10.0-verifierad):
+   `MaterializationInterceptionData.GetPropertyValue<T>(string)` läser
+   shadow-property under `AsNoTracking` utan ChangeTracker-entry → Form B-read
+   genomförbar som låst.
+2. **`ResumeContentMaterializationProbeTests` raderad** (ej längre "invariant-
+   regressionsvakt" enligt rad 362–364). #1c eliminerade JSON-`ValueConverter`:n
+   (`builder.Ignore(rv => rv.Content)`) → probens load-bearing-premiss
+   (prod-modellen applicerar VC:n; probe-only-context observerar
+   VC↔interceptor-ordning) **föll bort av #1c:s egen låsta design** — ingen VC
+   kvar att regressera mot. #1c:s faktiska read-ordnings-invariant
+   (`GetPropertyValue`-shadow-läsning under `AsNoTracking`) bärs nu empiriskt
+   av `ResumeContentEncryptionTests` (C4.4) mot riktig Postgres +
+   produktions-interceptorerna (starkare skydd än testprojekt-probe mot
+   raderad VC). Subsumering, ej täckningsförlust (senior-cto-advisor 2026-05-19
+   Approach A, paritet C4.2a-gate-retirement). Likaså raderades
+   unit-testet `GetResumeByIdQueryHandlerTests.Handle_WhenResumeExists`
+   (handlern dereffererar Content ovillkorligt via `ToDetailDto`; bare
+   InMemory utan interceptor NRE:ar — subsumerad av
+   `ResumesEndpointsTests.GET_resume_by_id_returns_detail_with_master_version`,
+   Api-integ). §7-coverage ej sänkt (flyttad till rätt lager).
+3. **Dual-shadow-konstruktionen preciserad** (architect 2026-05-19): `ContentEnc`
+   mappas **nullable** (ej `.IsRequired()` — legacy-only-rader har
+   `content_enc IS NULL` tills C5-backfill); legacy `content` mappas som
+   **read-only rå `string`-jsonb-shadow `ContentLegacyJson`** med
+   `PropertySaveBehavior.Ignore` på before+after-save (EF skriver ALDRIG
+   `content` → ingen klartext-write-back under dual-state-fönstret; striktare,
+   ej svagare). Dessutom krävde en ny ResumeVersion-write utan `content`
+   (NOT NULL on-disk) en **expand-fas-migration `ALTER COLUMN content DROP
+   NOT NULL`** (icke-destruktiv metadata-only, Beslut 5 steg 2 — ingen
+   content-drop, ingen ALTER TYPE; drop = Beslut 5 steg 3–4 separat Klas-STOPP).
+
+Dessa tre + Not 5b/5c är **STOPP V-flaggade**: Klas kan override:a
+dual-property-shadow-konstruktionen, den nullable/read-only-precisionen,
+eller `ALTER COLUMN content DROP NOT NULL` till formell ADR-amendment om
+någon bedöms vara besluts-substans snarare än EF Core 10-doktrin-tvingad
+mekanik-precisering. Default (ingen override): mekanik-noter, ingen amendment.
+
 ### Beslut 5 — jsonb→text-skifte via expand/contract; aldrig in-place ALTER TYPE
 
 Gäller `resume_versions.content` (raw_payload berörs ej — Beslut 3). Ciphertext

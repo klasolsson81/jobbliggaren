@@ -64,8 +64,16 @@ ADR 0041 dark-modal-border.)
 
 ### Beslut 5 — Match-score i jobbmodal
 
+> **⚠ AMENDAD 2026-05-19 — se [Amendment 2026-05-19 — Match-presentation Fas-4-gated](#amendment-2026-05-19--match-presentation-fas-4-gated) nedan. Originaltexten nedan bevaras oförändrad; amendment-lagret gäller Fas-tillämpningen (presentation gäller från Fas 4; Fas 3-modalen renderar ingen match-sektion).**
+
 Match-score visas som mono `"92% match"` + 3-nivå-förklaring.
 **Aldrig** en rund procent-cirkel (HANDOVER §0.5 / §5.8).
+
+## Amendment 2026-05-19 — Match-presentation Fas-4-gated
+
+> **Amendment 2026-05-19 (Klas-godkänd, CTO-triagead — memory feedback_adr_mechanism_vs_env_phase_triage):** ADR 0053 Beslut 5:s match-score-presentation (mono "92% match" + 3-nivå-förklaring, aldrig procent-cirkel) gäller **från Fas 4** när CV-vs-annons-match-domänen finns. Real `JobAdDto` (id, title, companyName, description, url, source, status, publishedAt, expiresAt, createdAt, isNew) saknar match/requirements/occupation/location — dessa var v3-prototyp-mock. **Fas 3-jobbmodalen renderar ingen match-sektion, inga requirements, ingen occupation/location.** HANDOVER §0.5/§5.8-vetot ("match-score finns kvar, aldrig cirkel") uppfylls genom **frånvaro, inte mock-data** (Evans DDD — UI får ej hallucinera ett domänbegrepp som inte finns; YAGNI). Footer i Fas 3 = **endast** `Öppna annonsen [url]`. `Spara annons` / `Har ansökt` deferrade till fas där FE-action-bryggan (job-ad → saved-search/application-domän) byggs — ingen disabled-knapp-teater (falsk affordance bryter CLAUDE.md §5.2/civic-ton). **Fas 3-modalens fält-set:** title · companyName · status-pill · description · publicerad / sista ansökningsdag (mono) · annons-ID · footer "Öppna annonsen". Match/requirements/Spara/Har-ansökt = explicit fas-deferral (CLAUDE.md §9.6 saknad-funktion-dependency), **EJ TD** (ofödd Fas-4-domän, ej tech-debt-dumpning per §9.7).
+
+> **Amendment-proveniens:** Klas-godkänd amendment-prosa verbatim 2026-05-19 (memory `feedback_klas_can_override_adr_verbatim_source` — explicit Klas-override av §9.4 webb-Claude-verbatim-konvention). Grundad i senior-cto-advisor F3-plan-design-dom + verifierad data-/fas-verklighet (real `JobAdDto` saknar match/requirements/occupation/location; match-scoring = ofödd Fas-4 AI-domän). ADR förblir **Accepted** — amendment, ej supersession; originalt Beslut 5 + route-only-supersession-paradigmet består.
 
 ## Konsekvenser
 

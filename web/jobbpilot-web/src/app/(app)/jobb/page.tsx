@@ -129,8 +129,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 type="search"
                 defaultValue={q ?? ""}
                 className="jp-hero__input"
-                placeholder="t.ex. backend Stockholm"
-                aria-label="Sökord"
               />
               <button type="submit" className="jp-hero__searchbtn">
                 <Search size={18} aria-hidden="true" /> Sök

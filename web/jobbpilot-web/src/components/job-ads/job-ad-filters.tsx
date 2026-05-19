@@ -13,7 +13,6 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { Button } from "@/components/ui/button";
 import { RegionPicker } from "./region-picker";
 import { OccupationPicker } from "./occupation-picker";
-import { JobAdTypeahead } from "./job-ad-typeahead";
 
 interface JobAdFiltersProps {
   initial: JobAdFiltersValues;
@@ -41,7 +40,8 @@ type FieldErrors = Partial<Record<keyof JobAdFiltersValues, string>>;
 
 /**
  * URL-driven sök-yta. ADR 0042:
- * - Beslut A: kollaps-filteryta. Sökfältet (q + typeahead) är alltid synligt
+ * - Beslut A: kollaps-filteryta. Fritextsökningen (q) ligger i hero-
+ *   formuläret ovanför denna form (F3 B-FIX 2026-05-19), alltid synlig
  *   ovanför resultatet (resultat-först, regel 3). Taxonomi-*filter*
  *   (Yrkesområde/Region) ligger bakom en disclosure (regel 7, undvik
  *   power-tool-täthet) — inte en alltid-expanderad panel.
@@ -54,8 +54,15 @@ type FieldErrors = Partial<Record<keyof JobAdFiltersValues, string>>;
  *   senior-cto-advisor-underlaget (docs/reviews/2026-05-17-soktyta-*).
  * - Beslut B: ssyk/region är multi-select (chips), URL-driven (router.push
  *   med upprepade query-params).
- * - Beslut C: q har live-typeahead; valt förslag tillämpas direkt som sökning.
+ * - Beslut C: q-fritextsökningen ÄGS av hero-formuläret i jobb/page.tsx
+ *   (F3 B-FIX, CTO-beslut Variant A 2026-05-19). Denna form äger INTE
+ *   längre `q` — det fanns två levande auktoritativa q-input-ytor (hero +
+ *   detta typeahead-fält) bundna till samma `q`-searchParam, vilket
+ *   blockerade task-completion (ADR 0047). `q` bärs nu vidare från
+ *   `initial.q` (searchParam-prop) i submit så taxonomi-/sort-ändringar
+ *   inte raderar användarens hero-sökord ur URL:en.
  * - Beslut D: Relevance i sorteringen endast valbar med söktext (≥2 tecken).
+ *   Härleds från `initial.q` (searchParam) — denna form har ingen lokal q.
  *
  * Submit triggar `router.push('/jobb?...')` → Server Component re-render med
  * ny searchParams. Ingen useEffect-fetch för listan (CLAUDE.md §5.2).
@@ -74,12 +81,17 @@ export function JobAdFilters({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [open, setOpen] = useState(activeFilterCount > 0);
 
-  const [q, setQ] = useState(initial.q);
   const [ssyk, setSsyk] = useState<string[]>([...initial.ssyk]);
   const [region, setRegion] = useState<string[]>([...initial.region]);
   const [sortBy, setSortBy] = useState<JobAdSortBy>(initial.sortBy);
 
-  const qReady = q.trim().length >= 2;
+  // F3 B-FIX — q ägs av hero-formuläret (jobb/page.tsx), inte denna form.
+  // Relevance-sort-gaten (ADR 0042 Beslut D, icke-förhandlingsbar invariant)
+  // härleds från searchParam-värdet `initial.q`, inte lokal state: Relevance
+  // får aldrig erbjudas utan en söktext ≥2 tecken (backend 400-skydd
+  // ListJobAdsQueryValidator). Carry-through-värdet för q i submit/reset.
+  const carriedQ = initial.q;
+  const qReady = carriedQ.trim().length >= 2;
 
   function applyValues(values: JobAdFiltersValues) {
     const parsed = jobAdFiltersSchema.safeParse(values);
@@ -99,6 +111,9 @@ export function JobAdFilters({
     const params = new URLSearchParams();
     for (const v of parsed.data.ssyk) params.append("ssyk", v);
     for (const v of parsed.data.region) params.append("region", v);
+    // F3 B-FIX — bär vidare hero-sökordet (initial.q via carriedQ). Denna
+    // form sätter/nollar inte q själv, men får inte radera ett aktivt
+    // hero-sökord ur URL:en när användaren ändrar taxonomi/sortering.
     if (parsed.data.q) params.set("q", parsed.data.q);
     if (parsed.data.sortBy !== "PublishedAtDesc") {
       params.set("sortBy", parsed.data.sortBy);
@@ -113,17 +128,22 @@ export function JobAdFilters({
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    applyValues({ q, ssyk, region, sortBy });
+    applyValues({ q: carriedQ, ssyk, region, sortBy });
   }
 
   function onReset() {
-    setQ("");
+    // F3 B-FIX — Återställ gäller endast filtren denna form äger
+    // (taxonomi + sortering). `q` ägs av hero-formuläret; dess reset hör
+    // till hero, så vi bevarar hero-sökordet i URL:en här (carriedQ).
     setSsyk([]);
     setRegion([]);
     setSortBy("PublishedAtDesc");
     setErrors({});
+    const params = new URLSearchParams();
+    if (carriedQ) params.set("q", carriedQ);
+    const qs = params.toString();
     startTransition(() => {
-      router.push("/jobb");
+      router.push(qs.length > 0 ? `/jobb?${qs}` : "/jobb");
     });
   }
 
@@ -133,40 +153,13 @@ export function JobAdFilters({
       className="flex flex-col gap-4 border-y border-border-default px-1 py-4.5"
       aria-label="Sök och filtrera jobbannonser"
     >
-      <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor="filter-q"
-          className="text-label font-medium text-text-primary"
-        >
-          Sökord
-        </label>
-        <JobAdTypeahead
-          id="filter-q"
-          value={q}
-          onChange={setQ}
-          onSelect={(term) => {
-            setQ(term);
-            applyValues({ q: term, ssyk, region, sortBy });
-          }}
-          ariaInvalid={errors.q ? true : undefined}
-          ariaDescribedBy={errors.q ? "filter-q-error" : undefined}
-        />
-        {errors.q && (
-          <p
-            id="filter-q-error"
-            role="alert"
-            className="text-body-sm text-danger-700"
-          >
-            {errors.q}
-          </p>
-        )}
-      </div>
-
       {/* Sortering — egen alltid-synlig kontroll, ej inne i Filter-
           disclosuren. Sortering ordnar resultatet, filter smalnar av det:
           två olika saker (Klas 2026-05-17, jämför Platsbankens "Sortera
-          efter"). */}
-      <div className="flex flex-col gap-1.5 border-t border-border-default pt-4">
+          efter"). F3 B-FIX: q-fältet (som detta block tidigare separerades
+          från via border-t) ägs nu av hero-formuläret → ingen leading
+          divider här, Sortering är formens första block. */}
+      <div className="flex flex-col gap-1.5">
         <label
           htmlFor="filter-sort"
           className="text-label font-medium text-text-primary"

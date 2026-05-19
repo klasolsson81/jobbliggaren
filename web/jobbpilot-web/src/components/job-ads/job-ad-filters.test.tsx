@@ -61,7 +61,7 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D + ADR 0043 namn-väljare)", () =
 
   // ── IA-regression (ADR 0042 Beslut A) ────────────────────────────────
 
-  it("renders the always-visible search field and a collapsed filter disclosure (Beslut A)", () => {
+  it("renders Sortering + a collapsed filter disclosure and owns NO q text input (F3 B-FIX — q ägs av hero-formuläret)", () => {
     render(
       <JobAdFilters
         initial={initial}
@@ -70,7 +70,11 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D + ADR 0043 namn-väljare)", () =
         resolvedLabels={emptyLabels}
       />
     );
-    expect(screen.getByLabelText("Sökord")).toBeInTheDocument();
+    // F3 B-FIX — det fanns tidigare TVÅ auktoritativa q-input-ytor (hero +
+    // detta typeahead-fält) bundna till samma `q`-searchParam. Denna form
+    // får inte längre rendera något fritext-q-fält (ADR 0047 task-blocker).
+    expect(screen.queryByLabelText("Sökord")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Sortering")).toBeInTheDocument();
     const disclosure = screen.getByRole("button", { name: /Filter/ });
     expect(disclosure).toHaveAttribute("aria-expanded", "false");
     // Taxonomi-väljarna är inte i DOM förrän disclosuren öppnas.
@@ -120,22 +124,27 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D + ADR 0043 namn-väljare)", () =
 
   // ── Sök/Återställ + Beslut B URL-multi-kontrakt ──────────────────────
 
-  it("submits q and pushes URL with the search term", async () => {
+  it("carries the hero search term (initial.q) through a taxonomy/sort submit without dropping it from the URL (F3 B-FIX q-bevarande)", async () => {
     const user = userEvent.setup();
     render(
       <JobAdFilters
-        initial={initial}
+        initial={{ ...initial, q: "backend" }}
         activeFilterCount={0}
         taxonomy={taxonomy}
         resolvedLabels={emptyLabels}
       />
     );
 
-    await user.type(screen.getByLabelText("Sökord"), "backend");
+    await user.click(screen.getByRole("button", { name: /Filter/ }));
+    await user.selectOptions(screen.getByLabelText("Län"), "CifL_Rzy_Mku");
     await user.click(screen.getByRole("button", { name: "Sök" }));
 
+    // q (från initial.q) MÅSTE bevaras i URL:en när användaren filtrerar —
+    // annars förlorar hen sitt hero-sökord vid taxonomi-ändring.
     await waitFor(() =>
-      expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend")
+      expect(pushMock).toHaveBeenCalledWith(
+        "/jobb?region=CifL_Rzy_Mku&q=backend"
+      )
     );
   });
 
@@ -246,28 +255,12 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D + ADR 0043 namn-väljare)", () =
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/jobb"));
   });
 
-  it("rejects q with 1 char and shows error (mirrors backend validator)", async () => {
-    const user = userEvent.setup();
-    render(
-      <JobAdFilters
-        initial={initial}
-        activeFilterCount={0}
-        taxonomy={taxonomy}
-        resolvedLabels={emptyLabels}
-      />
-    );
+  // ── Relevance-sort-gate (ADR 0042 Beslut D — icke-förhandlingsbar) ───
+  // F3 B-FIX: gaten härleds nu från initial.q (searchParam-prop), inte
+  // från lokal q-state (denna form har ingen q-input längre). Invarianten
+  // FÅR EJ regressa: Relevance får aldrig erbjudas utan söktext ≥2 tecken.
 
-    await user.type(screen.getByLabelText("Sökord"), "a");
-    await user.click(screen.getByRole("button", { name: "Sök" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /Söktexten måste vara 2–100 tecken/
-    );
-    expect(pushMock).not.toHaveBeenCalled();
-  });
-
-  it("disables the Relevance sort option until a search term is present (Beslut D)", async () => {
-    const user = userEvent.setup();
+  it("disables Relevance when initial.q is absent (Beslut D — derived from searchParam, no local q)", () => {
     render(
       <JobAdFilters
         initial={initial}
@@ -281,17 +274,64 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D + ADR 0043 namn-väljare)", () =
       name: "Mest relevant",
     }) as HTMLOptionElement;
     expect(relevance.disabled).toBe(true);
-
-    await user.type(screen.getByLabelText("Sökord"), "java");
-    await waitFor(() => expect(relevance.disabled).toBe(false));
   });
 
-  it("Återställ pushes plain /jobb", async () => {
+  it("disables Relevance when initial.q is too short (<2 chars)", () => {
+    render(
+      <JobAdFilters
+        initial={{ ...initial, q: "a" }}
+        activeFilterCount={0}
+        taxonomy={taxonomy}
+        resolvedLabels={emptyLabels}
+      />
+    );
+
+    const relevance = screen.getByRole("option", {
+      name: "Mest relevant",
+    }) as HTMLOptionElement;
+    expect(relevance.disabled).toBe(true);
+  });
+
+  it("enables Relevance when initial.q has a valid search term (≥2 chars)", () => {
+    render(
+      <JobAdFilters
+        initial={{ ...initial, q: "java" }}
+        activeFilterCount={0}
+        taxonomy={taxonomy}
+        resolvedLabels={emptyLabels}
+      />
+    );
+
+    const relevance = screen.getByRole("option", {
+      name: "Mest relevant",
+    }) as HTMLOptionElement;
+    expect(relevance.disabled).toBe(false);
+  });
+
+  it("Återställ rensar taxonomi/sort men BEVARAR hero-sökordet q i URL:en (F3 B-FIX — q ägs av hero)", async () => {
     const user = userEvent.setup();
     render(
       <JobAdFilters
         initial={{ ...initial, q: "backend", ssyk: ["MVqp_eS8_kDZ"] }}
         activeFilterCount={2}
+        taxonomy={taxonomy}
+        resolvedLabels={emptyLabels}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Återställ" }));
+    // Återställ gäller filtren denna form äger; q ägs av hero → bevaras.
+    await waitFor(() =>
+      expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend")
+    );
+  });
+
+  it("Återställ pushes plain /jobb when there is no hero search term", async () => {
+    const user = userEvent.setup();
+    render(
+      <JobAdFilters
+        initial={{ ...initial, ssyk: ["MVqp_eS8_kDZ"] }}
+        activeFilterCount={1}
         taxonomy={taxonomy}
         resolvedLabels={emptyLabels}
       />
@@ -319,11 +359,9 @@ describe("JobAdFilters (ADR 0042 Beslut A/B/C/D + ADR 0043 namn-väljare)", () =
     expect(
       screen.getByText(/Län- och yrkesval kunde inte laddas just nu/)
     ).toBeInTheDocument();
-    // Sök-på-sökord fungerar fortfarande.
-    await user.type(screen.getByLabelText("Sökord"), "data");
+    // Formen fungerar ändå: Sök bär vidare ev. hero-q + sortering utan
+    // att taxonomi-trädet behövs (q-fältet ägs av hero, ej denna form).
     await user.click(screen.getByRole("button", { name: "Sök" }));
-    await waitFor(() =>
-      expect(pushMock).toHaveBeenCalledWith("/jobb?q=data")
-    );
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/jobb"));
   });
 });

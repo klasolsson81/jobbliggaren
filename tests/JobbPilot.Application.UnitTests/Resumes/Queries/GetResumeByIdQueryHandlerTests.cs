@@ -91,21 +91,18 @@ public class GetResumeByIdQueryHandlerTests
         result.ShouldBeNull();
     }
 
-    [Fact]
-    public async Task Handle_WhenResumeExists_ReturnsResumeDetailDtoWithMasterVersion()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var resume = await SeedResumeAsync(db, _userId);
-
-        var handler = new GetResumeByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
-
-        var result = await handler.Handle(new GetResumeByIdQuery(resume.Id.Value), CancellationToken.None);
-
-        result.ShouldNotBeNull();
-        result!.Id.ShouldBe(resume.Id.Value);
-        result.Name.ShouldBe("Mitt CV");
-        result.Versions.Count.ShouldBe(1);
-        result.Versions[0].Kind.ShouldBe("Master");
-        result.Versions[0].Content.PersonalInfo.FullName.ShouldBe("Klas Olsson");
-    }
+    // Handle_WhenResumeExists_ReturnsResumeDetailDtoWithMasterVersion borttagen
+    // (senior-cto-advisor 2026-05-19, Approach C). Efter TD-13 #1c (ADR 0049
+    // Mekanik-not 6) är ResumeVersion.Content EF-Ignore:ad och interceptor-ägd;
+    // GetResumeByIdQueryHandler.Handle anropar ovillkorligt resume.ToDetailDto()
+    // → v.Content.ToDto(). En bare InMemory-AppDbContext utan interceptor-paret
+    // kan per konstruktion inte materialisera Content (InMemory förbjuden för
+    // crypto, ADR 0049 Mekanik-not 4) → handlern NRE:ar före varje assertion.
+    // Resume-found→DTO-shape-invarianten (id/name/versions/kind) är subsumerad
+    // grön av JobbPilot.Api.IntegrationTests.Resumes.ResumesEndpointsTests
+    // .GET_resume_by_id_returns_detail_with_master_version (hela HTTP→handler→
+    // ToDetailDto-vägen mot riktig Postgres + produktions-interceptorerna).
+    // Parity med C4.0-probe / C4.2a-gate-retirement; §7-coverage ej sänkt
+    // (flyttad till korrekt lager). Handler-logiken (userId-null/jobseeker-/
+    // resume-not-found/cross-user) bärs av övriga tester i denna klass.
 }

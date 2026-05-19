@@ -57,3 +57,24 @@ public sealed record RawPayloadPurged(
         AggregateType: "System.RawPayloadPurge",
         AggregateId,
         OccurredAt);
+
+/// <summary>
+/// TD-13 (ADR 0049 Beslut 4 + C5) — audit-event för en fält-krypterings-
+/// backfill-run. GDPR Art. 30 accountability: skrivs alltid (även 0 ägare
+/// processade) — "behandlingsaktivitet har körts". Per-kolumn kvarvarande
+/// legacy efter körningen = fitness-snapshot (ADR 0049 Validering).
+/// </summary>
+public sealed record FieldEncryptionBackfillRun(
+    Guid AggregateId,
+    DateTimeOffset OccurredAt,
+    int OwnersProcessed,
+    int OwnersFailed,
+    long RemainingCoverLetter,
+    long RemainingApplicationNoteContent,
+    long RemainingFollowUpNote,
+    long RemainingResumeVersionContent)
+    : SystemAuditEvent(
+        EventType: "System.FieldEncryptionBackfillRun",
+        AggregateType: "System.FieldEncryptionBackfill",
+        AggregateId,
+        OccurredAt);

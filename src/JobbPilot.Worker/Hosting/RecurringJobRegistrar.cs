@@ -66,6 +66,11 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             job => job.RunAsync(CancellationToken.None),
             "30 4 * * *");  // 04:30 UTC — 30-min padding efter hard-delete (TD-73 punkt 2)
 
+        manager.AddOrUpdate<BackfillFieldEncryptionWorker>(
+            "backfill-field-encryption",
+            job => job.RunAsync(CancellationToken.None),
+            "0 5 * * *");  // 05:00 UTC — 30-min padding efter purge (TD-13 C5, ADR 0049 Beslut 4)
+
         return Task.CompletedTask;
     }
 

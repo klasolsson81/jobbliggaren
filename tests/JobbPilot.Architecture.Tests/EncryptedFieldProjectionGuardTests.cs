@@ -2,6 +2,9 @@ using System.IO;
 using System.Reflection;
 using JobbPilot.Application.Applications.Queries.GetApplicationById;
 using JobbPilot.Application.Common.Security;
+using JobbPilot.Application.Resumes.Commands.CreateResume;
+using JobbPilot.Application.Resumes.Commands.UpdateMasterContent;
+using JobbPilot.Application.Resumes.Queries.GetResumeById;
 using Shouldly;
 
 namespace JobbPilot.Architecture.Tests;
@@ -105,6 +108,125 @@ public class EncryptedFieldProjectionGuardTests
             "ciphertext orört i system-scope ⇒ en läsning ger TYST CIPHERTEXT). " +
             "Referens-mönster: MarkGhostedCommandHandler/AccountHardDeleter rör " +
             "aldrig klartext-fältet. Brott: " + string.Join(", ", violations));
+    }
+
+    /// <summary>
+    /// TD-13 C4.3 (ADR 0049 Mekanik-not 6 #1c). Resume-detalj-/skriv-vägen
+    /// materialiserar/skriver dekrypterad <c>ResumeVersion.Content</c>
+    /// (krypterad text-shadow <c>content_enc</c>) — måste bära markören så
+    /// <c>FieldEncryptionKeyPrefetchBehavior</c> värmer ägar-DEK före
+    /// decrypt-on-read (GetResumeById) resp. encrypt-on-write (CreateResume/
+    /// UpdateMasterContent). Utan markören → ingen prefetch → autentiserad
+    /// scope utan cachad DEK → fail-closed-kast (read) eller
+    /// CryptographicException FÖRE DML (write).
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(GetResumeByIdQuery))]
+    [InlineData(typeof(CreateResumeCommand))]
+    [InlineData(typeof(UpdateMasterContentCommand))]
+    public void ResumeEncryptedHandler_MustCarry_IRequiresFieldEncryptionKey(
+        Type messageType)
+    {
+        typeof(IRequiresFieldEncryptionKey)
+            .IsAssignableFrom(messageType)
+            .ShouldBeTrue(
+                $"{messageType.Name} rör dekrypterad/krypterad " +
+                "ResumeVersion.Content (#1c content_enc) — måste implementera " +
+                "IRequiresFieldEncryptionKey (ADR 0049 Mekanik-not 4/6). Utan " +
+                "markören värmer FieldEncryptionKeyPrefetchBehavior aldrig " +
+                "ägar-DEK och interceptor-paret fail-closed-kastar.");
+    }
+
+    /// <summary>
+    /// TD-13 C4.3 tripwire (ADR 0049 Mekanik-not 5b/6). Resume-handlers som
+    /// materialiserar <c>ResumeVersion</c> men INTE bär
+    /// <see cref="IRequiresFieldEncryptionKey"/> (DeleteResume/
+    /// DeleteResumeVersion/RenameResume — de rör aldrig <c>Content</c>, bara
+    /// soft-delete/rename) får INTE referera <c>.Content</c>. Utan markör
+    /// körs ingen prefetch → <c>ICurrentDataOwner</c> osatt →
+    /// <c>FieldDecryptionMaterializationInterceptor</c> passthrough (Content
+    /// förblir null, ingen kast — paritet system-scope). En läsning av
+    /// <c>Content</c> i en sådan handler vore en NRE-/tyst-null-risk. Samma
+    /// precision-över-bredd-källtextscan som
+    /// <see cref="SystemScopeHandler_MustNotReference_EncryptedProperties"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "src/JobbPilot.Application/Resumes/Commands/DeleteResume/DeleteResumeCommandHandler.cs")]
+    [InlineData(
+        "src/JobbPilot.Application/Resumes/Commands/DeleteResumeVersion/DeleteResumeVersionCommandHandler.cs")]
+    [InlineData(
+        "src/JobbPilot.Application/Resumes/Commands/RenameResume/RenameResumeCommandHandler.cs")]
+    public void UnmarkedResumeHandler_MustNotReference_Content(
+        string handlerRelativePath)
+    {
+        var repoRoot = FindRepoRoot();
+        var handlerPath = Path.Combine(
+            repoRoot, handlerRelativePath.Replace('/', Path.DirectorySeparatorChar));
+
+        File.Exists(handlerPath).ShouldBeTrue(
+            $"arch-test-allowlist pekar på en fil som inte finns: {handlerPath}. " +
+            "Uppdatera allowlisten om handlern flyttats/döpts om.");
+
+        var source = File.ReadAllText(handlerPath);
+
+        source.Contains(".Content", StringComparison.Ordinal)
+            .ShouldBeFalse(
+                $"{handlerRelativePath} materialiserar ResumeVersion men bär " +
+                "INTE IRequiresFieldEncryptionKey (ingen prefetch). " +
+                "FieldDecryptionMaterializationInterceptor lämnar Content null " +
+                "(passthrough) — en .Content-referens ger TYST NULL/NRE. Lägg " +
+                "markören (och läs Content) ELLER rör aldrig Content (ADR 0049 " +
+                "Mekanik-not 5b/6).");
+    }
+
+    /// <summary>
+    /// TD-13 C4.3 (ADR 0049 Mekanik-not 6 #1c) — modell-invariant via
+    /// källtextscan (paritet med husets source-scan-arch-tester). #1c kräver
+    /// att <c>ResumeVersion.Content</c> är EF-<c>Ignore</c>:ad (interceptor-
+    /// paret äger transformen, ingen JSON-ValueConverter — annars återinförs
+    /// C4.0-RÖD) och att <c>ContentJsonOptions</c> är EN delad SPOT i
+    /// <c>EncryptedFieldRegistry</c> (ej duplicerad i konfig:en).
+    /// </summary>
+    [Fact]
+    public void ResumeVersionConfiguration_Honors_Number1c_Invariants()
+    {
+        var repoRoot = FindRepoRoot();
+        var configPath = Path.Combine(repoRoot,
+            "src", "JobbPilot.Infrastructure", "Persistence", "Configurations",
+            "ResumeVersionConfiguration.cs");
+        var registryPath = Path.Combine(repoRoot,
+            "src", "JobbPilot.Infrastructure", "Security",
+            "EncryptedFieldRegistry.cs");
+
+        File.Exists(configPath).ShouldBeTrue(configPath);
+        File.Exists(registryPath).ShouldBeTrue(registryPath);
+
+        var configSrc = File.ReadAllText(configPath);
+        var registrySrc = File.ReadAllText(registryPath);
+
+        configSrc.Contains("builder.Ignore(rv => rv.Content)", StringComparison.Ordinal)
+            .ShouldBeTrue(
+                "#1c kräver builder.Ignore(rv => rv.Content) — Content får ej " +
+                "vara EF-tracked (ValueComparer-frågan upphör, ADR 0049 " +
+                "Mekanik-not 6).");
+
+        configSrc.Contains("ValueConverter<ResumeContent", StringComparison.Ordinal)
+            .ShouldBeFalse(
+                "JSON-ValueConverter:n på Content MÅSTE vara borttagen — en VC " +
+                "kör ConvertFromProvider FÖRE InitializedInstance (C4.0-RÖD " +
+                "bekräftad) och skulle invalidera #1c-mekaniken.");
+
+        configSrc.Contains("new JsonSerializerOptions", StringComparison.Ordinal)
+            .ShouldBeFalse(
+                "ContentJsonOptions får INTE duplikat-instansieras i " +
+                "ResumeVersionConfiguration — SPOT:en bor i " +
+                "EncryptedFieldRegistry (architect 2026-05-19).");
+
+        registrySrc.Contains("ContentJsonOptions", StringComparison.Ordinal)
+            .ShouldBeTrue(
+                "ContentJsonOptions-SPOT förväntas i EncryptedFieldRegistry " +
+                "(delad av Form B-delegater + interceptor-paret).");
     }
 
     private static string FindRepoRoot()

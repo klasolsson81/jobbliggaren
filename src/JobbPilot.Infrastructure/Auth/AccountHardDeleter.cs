@@ -1,5 +1,6 @@
 using JobbPilot.Application.Auth.Jobs.HardDeleteAccounts;
 using JobbPilot.Application.Common.Auditing;
+using JobbPilot.Application.Common.Security;
 using JobbPilot.Domain.JobSeekers;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
@@ -13,9 +14,10 @@ namespace JobbPilot.Infrastructure.Auth;
 /// Korsar AppDbContext (domain-aggregat) och AppIdentityDbContext (via UserManager).
 /// Architecture test verifierar att porten endast anropas av HardDeleteAccountsJob.
 ///
-/// Atomicitet-modell (per ADR 0024 D6 + delbeslut 3-tillägg):
-/// - Domain-delete + audit-anonymisering atomic via explicit BeginTransactionAsync
-///   på AppDbContext (Steg 2 a-g)
+/// Atomicitet-modell (per ADR 0024 D6 + delbeslut 3-tillägg + TD-13 C6):
+/// - Domain-delete + audit-anonymisering + crypto-erasure (per-användare-DEK,
+///   ADR 0049 Beslut 2) atomic via explicit BeginTransactionAsync på
+///   AppDbContext (Steg 2 a-g)
 /// - Identity-DELETE separat boundary efter transactionen committats (Steg 2 h)
 /// - Vid Identity-fail: orphan plockas upp av Steg 0 nästa körning
 ///
@@ -26,7 +28,8 @@ namespace JobbPilot.Infrastructure.Auth;
 public sealed class AccountHardDeleter(
     AppDbContext db,
     UserManager<ApplicationUser> userManager,
-    IAuditTrailEraser auditTrailEraser)
+    IAuditTrailEraser auditTrailEraser,
+    IUserDataKeyStore dataKeyStore)
     : IAccountHardDeleter
 {
     public async Task<int> CleanupIdentityOrphansAsync(CancellationToken cancellationToken)
@@ -122,6 +125,17 @@ public sealed class AccountHardDeleter(
             db.Applications.RemoveRange(applications);
             db.Resumes.RemoveRange(resumes);
             db.JobSeekers.Remove(jobSeeker);
+
+            // Steg 2 e2 — Crypto-erasure (TD-13 ADR 0049 Beslut 2 + C6,
+            // GDPR Art. 17). Kastar användarens per-användare-DEK INOM samma
+            // transaktion → backup-resident ciphertext (cover_letter/
+            // application_notes.content/follow_ups.note/resume_versions.
+            // content_enc) blir omedelbart olesbar. ExecuteDeleteAsync deltar
+            // i den ambienta BeginTransactionAsync-transaktionen (dotnet-
+            // architect-verifierad 2026-05-19, Microsoft Learn): vid rollback
+            // rullas DEK-deletet med aggregat-deletet → ingen partiell
+            // Art. 17-erasure. Idempotent (0 DEK-rader = no-op).
+            await dataKeyStore.DeleteDataKeysAsync(jsId, cancellationToken);
 
             // Steg 2 f — SaveChanges + Steg 2 g — Commit.
             await db.SaveChangesAsync(cancellationToken);

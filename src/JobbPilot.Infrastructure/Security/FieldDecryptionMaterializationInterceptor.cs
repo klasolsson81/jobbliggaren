@@ -34,60 +34,135 @@ public sealed class FieldDecryptionMaterializationInterceptor : IMaterialization
         MaterializationInterceptionData materializationData, object entity)
     {
         var type = entity.GetType();
-        if (!EncryptedFieldRegistry.TryGetEncryptedProperties(type, out var properties))
-            return entity;
 
-        var context = materializationData.Context;
-        var fieldEncryptor = context.GetService<IFieldEncryptor>();
-        var cache = context.GetService<ScopedUserDataKeyCache>();
-        var currentDataOwner = context.GetService<ICurrentDataOwner>();
-
-        JobSeekerId? owner = entity is DomainApplication app
-            ? app.JobSeekerId
-            : currentDataOwner.JobSeekerId;
-
-        foreach (var propertyName in properties)
+        // Form A — C3 TEXT-kolumner: domän-string-property dekrypteras in-place.
+        if (EncryptedFieldRegistry.TryGetEncryptedProperties(type, out var properties))
         {
-            var property = PropertyCache.GetOrAdd(
-                (type, propertyName),
-                key => key.Item1.GetProperty(
-                    key.Item2,
-                    BindingFlags.Public | BindingFlags.Instance)!);
+            var context = materializationData.Context;
+            var fieldEncryptor = context.GetService<IFieldEncryptor>();
+            var cache = context.GetService<ScopedUserDataKeyCache>();
+            var currentDataOwner = context.GetService<ICurrentDataOwner>();
 
-            if (property.GetValue(entity) is not string value
-                || value.Length == 0
-                || !fieldEncryptor.IsEncrypted(value))
-            {
-                // null / tom / legacy-klartext (ingen sentinel) → orört.
-                continue;
-            }
+            JobSeekerId? owner = entity is DomainApplication app
+                ? app.JobSeekerId
+                : currentDataOwner.JobSeekerId;
 
-            if (owner is null || !cache.TryPeekCachedDek(owner.Value, out var dek))
+            foreach (var propertyName in properties)
             {
-                // CTO #3 (iv) 2026-05-18, Mekanik-not 5: scope-differentierad
-                // fail-closed. Autentiserad ägar-scope (prefetch förväntades
-                // ha kört) → kasta (felkonfig-användar-read får ALDRIG tyst
-                // ciphertext). System/Hangfire-scope (ingen ICurrentDataOwner,
-                // ingen auth — t.ex. MarkGhosted/AccountHardDeleter som
-                // materialiserar men aldrig läser plaintext-fältet) → lämna
-                // ciphertext orört, kasta INTE (drift får ej krascha;
-                // konfidentialitet bevarad — ciphertext exponeras aldrig som
-                // plaintext; encrypt-interceptorn idempotent-skippar re-save).
-                // Arch-test spärrar system-commands från att läsa fältet.
-                if (currentDataOwner.JobSeekerId is not null)
+                var property = PropertyCache.GetOrAdd(
+                    (type, propertyName),
+                    key => key.Item1.GetProperty(
+                        key.Item2,
+                        BindingFlags.Public | BindingFlags.Instance)!);
+
+                if (property.GetValue(entity) is not string value
+                    || value.Length == 0
+                    || !fieldEncryptor.IsEncrypted(value))
                 {
-                    throw new CryptographicException(
-                        $"FieldDecryption: ingen cachad DEK för {type.Name}.{propertyName} " +
-                        "— FieldEncryptionKeyPrefetchBehavior måste ha värmt ägar-DEK " +
-                        "(ADR 0049 Mekanik-not 3/4/5).");
+                    // null / tom / legacy-klartext (ingen sentinel) → orört.
+                    continue;
                 }
 
-                continue;
+                if (owner is null || !cache.TryPeekCachedDek(owner.Value, out var dek))
+                {
+                    // CTO #3 (iv) 2026-05-18, Mekanik-not 5: scope-
+                    // differentierad fail-closed. Autentiserad ägar-scope
+                    // (prefetch förväntades ha kört) → kasta (felkonfig-
+                    // användar-read får ALDRIG tyst ciphertext). System/
+                    // Hangfire-scope (ingen ICurrentDataOwner, ingen auth —
+                    // t.ex. MarkGhosted/AccountHardDeleter som materialiserar
+                    // men aldrig läser plaintext-fältet) → lämna ciphertext
+                    // orört, kasta INTE (drift får ej krascha; konfidentialitet
+                    // bevarad; encrypt-interceptorn idempotent-skippar re-save).
+                    // Arch-test spärrar system-commands från att läsa fältet.
+                    if (currentDataOwner.JobSeekerId is not null)
+                    {
+                        throw new CryptographicException(
+                            $"FieldDecryption: ingen cachad DEK för {type.Name}.{propertyName} " +
+                            "— FieldEncryptionKeyPrefetchBehavior måste ha värmt ägar-DEK " +
+                            "(ADR 0049 Mekanik-not 3/4/5).");
+                    }
+
+                    continue;
+                }
+
+                property.SetValue(entity, fieldEncryptor.Decrypt(value, dek));
             }
 
-            property.SetValue(entity, fieldEncryptor.Decrypt(value, dek));
+            return entity;
+        }
+
+        // Form B — C4 #1c (ADR 0049 Mekanik-not 6): krypterad text-shadow
+        // läses via MaterializationInterceptionData.GetPropertyValue (C4.2a-
+        // gate GREEN: fungerar under AsNoTracking — ingen ChangeTracker-entry
+        // krävs). content_enc(sentinel) → decrypt → JSON → VO. Backfill-
+        // fallback (Beslut 5 steg 2): content_enc null/ej-sentinel → legacy
+        // klartext-jsonb (ingen decrypt, ingen DEK, alla scopes).
+        if (EncryptedFieldRegistry.TryGetJsonSerializedFields(type, out var jsonFields))
+        {
+            var context = materializationData.Context;
+            var fieldEncryptor = context.GetService<IFieldEncryptor>();
+            var cache = context.GetService<ScopedUserDataKeyCache>();
+            var currentDataOwner = context.GetService<ICurrentDataOwner>();
+
+            foreach (var field in jsonFields)
+            {
+                var enc = materializationData.GetPropertyValue<string>(field.ShadowProperty);
+
+                if (enc is { Length: > 0 } && fieldEncryptor.IsEncrypted(enc))
+                {
+                    var owner = currentDataOwner.JobSeekerId;
+                    if (owner is null || !cache.TryPeekCachedDek(owner.Value, out var dek))
+                    {
+                        // Scope-differentierad fail-closed (Mekanik-not 5b
+                        // ärvd). ResumeVersion saknar egen JobSeekerId →
+                        // owner == currentDataOwner.JobSeekerId. Autentiserad
+                        // scope utan cachad DEK → kasta. System-scope (ingen
+                        // owner) → passthrough: Content förblir null (aldrig
+                        // ciphertext-exponering; arch-test spärrar system-
+                        // läsning av Content).
+                        if (currentDataOwner.JobSeekerId is not null)
+                        {
+                            throw new CryptographicException(
+                                $"FieldDecryption: ingen cachad DEK för " +
+                                $"{type.Name}.{field.DomainProperty} — " +
+                                "FieldEncryptionKeyPrefetchBehavior måste ha värmt " +
+                                "ägar-DEK (ADR 0049 Mekanik-not 3/4/5/6).");
+                        }
+
+                        continue;
+                    }
+
+                    SetDomainProperty(
+                        type, field, entity, fieldEncryptor.Decrypt(enc, dek));
+                    continue;
+                }
+
+                // Backfill-fallback: legacy klartext-JSON (ingen sentinel) →
+                // ingen decrypt/DEK/owner (lazy-tolerans, Beslut 4/5; alla
+                // scopes inkl. system).
+                var legacy = materializationData.GetPropertyValue<string>(
+                    field.LegacyShadowProperty);
+                if (legacy is { Length: > 0 })
+                {
+                    SetDomainProperty(type, field, entity, legacy);
+                }
+            }
+
+            return entity;
         }
 
         return entity;
+    }
+
+    private static void SetDomainProperty(
+        Type type, JsonSerializedVoField field, object entity, string json)
+    {
+        var property = PropertyCache.GetOrAdd(
+            (type, field.DomainProperty),
+            key => key.Item1.GetProperty(
+                key.Item2,
+                BindingFlags.Public | BindingFlags.Instance)!);
+        property.SetValue(entity, field.FromJson(json));
     }
 }

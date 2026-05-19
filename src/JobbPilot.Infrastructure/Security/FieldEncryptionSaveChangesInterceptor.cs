@@ -1,10 +1,13 @@
 using JobbPilot.Domain.Applications;
 using JobbPilot.Domain.JobSeekers;
+using JobbPilot.Domain.Resumes;
 using JobbPilot.Application.Common.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using System.Collections.Concurrent;
+using System.Reflection;
 using System.Security.Cryptography;
 
 namespace JobbPilot.Infrastructure.Security;
@@ -69,49 +72,124 @@ public sealed class FieldEncryptionSaveChangesInterceptor : SaveChangesIntercept
             if (entry.State is not (EntityState.Added or EntityState.Modified))
                 continue;
 
-            if (!EncryptedFieldRegistry.TryGetEncryptedProperties(
-                    entry.Entity.GetType(), out var properties))
-                continue;
+            var entityType = entry.Entity.GetType();
 
-            JobSeekerId? owner = null;
-
-            foreach (var propertyName in properties)
+            // Form A — C3 TEXT-kolumner: domän-string-property in-place.
+            if (EncryptedFieldRegistry.TryGetEncryptedProperties(
+                    entityType, out var properties))
             {
-                var property = entry.Property(propertyName);
-                if (property.CurrentValue is not string plaintext
-                    || plaintext.Length == 0
-                    || fieldEncryptor.IsEncrypted(plaintext))
+                JobSeekerId? owner = null;
+
+                foreach (var propertyName in properties)
                 {
-                    // null / tom / redan krypterad → idempotent skip.
-                    // (System-jobb som re-sparar ciphertext träffar denna —
-                    //  ingen DEK-lookup, ingen krasch.)
-                    continue;
+                    var property = entry.Property(propertyName);
+                    if (property.CurrentValue is not string plaintext
+                        || plaintext.Length == 0
+                        || fieldEncryptor.IsEncrypted(plaintext))
+                    {
+                        // null / tom / redan krypterad → idempotent skip.
+                        // (System-jobb som re-sparar ciphertext träffar denna
+                        //  — ingen DEK-lookup, ingen krasch.)
+                        continue;
+                    }
+
+                    owner ??= ResolveOwner(entry, context);
+
+                    // Ren synkron cache-hit (FieldEncryptionKeyPrefetchBehavior
+                    // har värmt DEK i sitt eget pipeline-steg före UnitOfWork).
+                    // Fail-closed: plaintext men ingen cachad DEK → kasta FÖRE
+                    // DML (hela SaveChanges rullas). Cachen äger bufferten.
+                    if (!cache.TryPeekCachedDek(owner.Value, out var dek))
+                    {
+                        throw new CryptographicException(
+                            $"FieldEncryption: ingen cachad DEK för " +
+                            $"{entityType.Name}.{propertyName} — " +
+                            "FieldEncryptionKeyPrefetchBehavior måste ha värmt " +
+                            "ägar-DEK före write (ADR 0049 Mekanik-not 3/5).");
+                    }
+
+                    property.CurrentValue = fieldEncryptor.Encrypt(plaintext, dek);
                 }
 
-                owner ??= ResolveOwner(entry, context);
+                continue;
+            }
 
-                // Ren synkron cache-hit (FieldEncryptionKeyPrefetchBehavior
-                // har värmt DEK i sitt eget pipeline-steg före UnitOfWork).
-                // Fail-closed: plaintext men ingen cachad DEK → kasta FÖRE
-                // DML (hela SaveChanges rullas). Cachen äger bufferten.
-                if (!cache.TryPeekCachedDek(owner.Value, out var dek))
+            // Form B — C4 #1c (ADR 0049 Mekanik-not 6): EF-Ignore:ad domän-VO
+            // JSON-serialiseras → krypteras → krypterad text-shadow. Content
+            // läses via reflection (Ignore:ad → ej en EF-property), shadow
+            // skrivs via entry.Property(shadow).CurrentValue.
+            if (EncryptedFieldRegistry.TryGetJsonSerializedFields(
+                    entityType, out var jsonFields))
+            {
+                JobSeekerId? owner = null;
+
+                foreach (var field in jsonFields)
                 {
-                    throw new CryptographicException(
-                        $"FieldEncryption: ingen cachad DEK för " +
-                        $"{entry.Entity.GetType().Name}.{propertyName} — " +
-                        "FieldEncryptionKeyPrefetchBehavior måste ha värmt " +
-                        "ägar-DEK före write (ADR 0049 Mekanik-not 3/5).");
-                }
+                    var domainGetter = DomainPropertyCache.GetOrAdd(
+                        (entityType, field.DomainProperty),
+                        key => key.Item1.GetProperty(
+                            key.Item2,
+                            BindingFlags.Public | BindingFlags.Instance)!);
 
-                property.CurrentValue = fieldEncryptor.Encrypt(plaintext, dek);
+                    if (domainGetter.GetValue(entry.Entity) is not { } vo)
+                    {
+                        // Content aldrig null i legitim skrivväg (domän-
+                        // invariant) men defensiv skip → ingen NRE.
+                        continue;
+                    }
+
+                    owner ??= ResolveOwner(entry, context);
+
+                    // Ren synkron cache-hit (paritet Form A). Fail-closed:
+                    // ingen cachad DEK → kasta FÖRE DML (hela SaveChanges
+                    // rullas; ingen klartext-shadow persisteras).
+                    if (!cache.TryPeekCachedDek(owner.Value, out var dek))
+                    {
+                        throw new CryptographicException(
+                            $"FieldEncryption: ingen cachad DEK för " +
+                            $"{entityType.Name}.{field.DomainProperty} — " +
+                            "FieldEncryptionKeyPrefetchBehavior måste ha värmt " +
+                            "ägar-DEK före write (ADR 0049 Mekanik-not 3/5/6).");
+                    }
+
+                    var json = field.ToJson(vo);
+                    entry.Property(field.ShadowProperty).CurrentValue =
+                        fieldEncryptor.Encrypt(json, dek);
+                }
             }
         }
     }
+
+    private static readonly ConcurrentDictionary<(Type, string), PropertyInfo>
+        DomainPropertyCache = [];
 
     private static JobSeekerId ResolveOwner(EntityEntry entry, DbContext context)
     {
         if (entry.Entity is DomainApplication application)
             return application.JobSeekerId;
+
+        // ResumeVersion (Form B): saknar egen JobSeekerId → skugg-FK
+        // "ResumeId" → spårad aggregatrot Resume → Resume.JobSeekerId
+        // (mönster-paritet med ApplicationNote/FollowUp→Application nedan).
+        // ResumeVersion kan ej persisteras utan spårad Resume (WithOne/
+        // HasForeignKey("ResumeId").IsRequired + internal factory-invariant).
+        if (entry.Entity is ResumeVersion)
+        {
+            var resumeFk = entry.Property("ResumeId").CurrentValue;
+            foreach (var resumeEntry in context.ChangeTracker.Entries<Resume>())
+            {
+                var rid = resumeEntry.Entity.Id;
+                if ((resumeFk is ResumeId rfk && rid == rfk)
+                    || (resumeFk is Guid rg && rid.Value == rg))
+                {
+                    return resumeEntry.Entity.JobSeekerId;
+                }
+            }
+
+            throw new InvalidOperationException(
+                "FieldEncryption: ResumeVersion saknar spårad parent Resume — " +
+                "ägar-DEK kan ej resolvas (aggregat-brott).");
+        }
 
         // Barn (ApplicationNote/FollowUp): skugg-FK → spårad parent.
         // Barn kan ej persisteras utan aggregatrot (internal factory-

@@ -2,15 +2,12 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getTaxonomyTree, resolveTaxonomyLabels } from "@/lib/api/taxonomy";
-import {
-  jobAdSortBySchema,
-  type JobAdSortBy,
-  type JobAdFiltersValues,
-} from "@/lib/dto/job-ads";
+import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
 import { assertNever } from "@/lib/dto/_helpers";
 import { Search } from "lucide-react";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
-import { JobAdFilters } from "@/components/job-ads/job-ad-filters";
+import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
+import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 
 // searchParams-värden kan vara string | string[] | undefined. ssyk/region
@@ -65,20 +62,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
   const since = newWindowSince();
 
-  const filtersInitial: JobAdFiltersValues = {
-    ssyk,
-    region,
-    q: q ?? "",
-    sortBy,
-  };
-
-  // Disclosure-räknare (Beslut A): antal aktiva taxonomi-filter bakom
-  // disclosuren. Sökordet räknas inte (alltid-synlig primär yta) och
-  // sorteringen räknas inte längre — den flyttades ut till en egen
-  // alltid-synlig kontroll (Klas 2026-05-17), så den är inte "gömd" och
-  // ska inte driva disclosure-räknaren/auto-expand.
-  const activeFilterCount = ssyk.length + region.length;
-
   // ADR 0043 — picker-träd + reverse-lookup för redan-valda concept-id
   // hämtas server-side (CLAUDE.md §4.3/§5.2 — ingen useEffect-fetch).
   // Parallellt med listan: oberoende requests, inga inbördes beroenden.
@@ -90,15 +73,20 @@ export default async function JobbPage({ searchParams }: PageProps) {
   ]);
 
   // Träd-/label-hämtning får aldrig blockera sök-ytan. Misslyckas trädet
-  // degraderar väljarna civilt (tomma listor + informativ rad i
-  // JobAdFilters); reverse-lookup-miss → chip faller till "Okänd kod (<id>)"
-  // i picker-komponenten (ADR 0043 Beslut B graceful degradation).
+  // degraderar popovern civilt (tom lista + informativ rad i
+  // JobbFilterPopover); reverse-lookup-miss → chip faller till
+  // "Okänd kod (<id>)" i toolbaren (ADR 0043 Beslut B graceful degradation).
   const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
-  const resolvedLabels = new Map<string, string>(
+  // Plain Record (EJ Map) — passas över RSC→client-gränsen till
+  // JobbResultsToolbar (Map serialiseras inte i RSC-payloaden; verifierat
+  // mot Next-docs server-and-client-components "props passed from a Server
+  // Component to a Client Component").
+  const resolvedLabels: Record<string, string> =
     labelsResult.kind === "ok"
-      ? labelsResult.data.map((l) => [l.conceptId, l.label] as const)
-      : []
-  );
+      ? Object.fromEntries(
+          labelsResult.data.map((l) => [l.conceptId, l.label] as const)
+        )
+      : {};
 
   return (
     <>
@@ -107,9 +95,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
           befintlig searchParams-mekanik/URL-kontrakt utan client-JS:
           aktiva filter (ssyk[]/region[]/sortBy/pageSize) bärs som hidden
           inputs så en ny sökning inte tappar dem; `page` utelämnas medvetet
-          (ny sökterm → sida 1). INGA Ort/Yrke/Filter-pills (= filter-
-          popover = F4) och INGA Senaste/Sparade-chips (ingen recent/saved-
-          data, no-mock-doktrin). */}
+          (ny sökterm → sida 1). Ort/Yrke-pills + popovers = client-island
+          JobbHeroFilters (F4, ADR 0055 + amendment — INGEN Filter-pill,
+          deferred helt). INGA Senaste/Sparade-chips (no-mock-doktrin). */}
       <section className="jp-hero">
         <div className="jp-hero__inner">
           <h1 className="jp-hero__title">Sök bland aktiva annonser</h1>
@@ -152,24 +140,34 @@ export default async function JobbPage({ searchParams }: PageProps) {
               <input type="hidden" name="pageSize" value={params.pageSize} />
             )}
           </form>
+
+          {/* Hero-filter-pills + Platsbanken-popovers (client-island,
+              F4/ADR 0055). Serialiserbara props: taxonomy-träd, valda
+              conceptId string[], q/sortBy/pageSize. Live-commit per klick
+              via router.push (transition) — searchParams ADR 0042
+              Beslut B (upprepade ssyk/region) OFÖRÄNDRAT. */}
+          <JobbHeroFilters
+            taxonomy={taxonomy}
+            initialSsyk={ssyk}
+            initialRegion={region}
+            q={q ?? ""}
+            sortBy={sortBy}
+            pageSize={params.pageSize}
+          />
         </div>
       </section>
 
       <div className="jp-container jp-page">
-        {/* JobAdFilters behålls AS-IS (v2-disclosure) — F4 refaktorerar
-            till Platsbanken-popovers (un-refaktorerat mellantillstånd,
-            branch-by-abstraction). SaveSearchButton borttagen ur /jobb
-            (HANDOVER §9-veto: ingen spara-sökning-knapp här). */}
-        <JobAdFilters
-          initial={filtersInitial}
-          activeFilterCount={activeFilterCount}
-          taxonomy={taxonomy}
-          resolvedLabels={resolvedLabels}
-        />
-
-        <div className="mt-6 flex flex-col gap-2.5">
-          {renderResult(result, params, pageSize)}
-        </div>
+        {renderResult(
+          result,
+          params,
+          pageSize,
+          ssyk,
+          region,
+          resolvedLabels,
+          q ?? "",
+          sortBy
+        )}
       </div>
     </>
   );
@@ -178,30 +176,41 @@ export default async function JobbPage({ searchParams }: PageProps) {
 function renderResult(
   result: Awaited<ReturnType<typeof getJobAds>>,
   params: JobbSearchParams,
-  pageSize: number
+  pageSize: number,
+  ssyk: string[],
+  region: string[],
+  resolvedLabels: Record<string, string>,
+  q: string,
+  sortBy: JobAdSortBy
 ) {
   switch (result.kind) {
     case "ok":
       return (
         <>
-          <p
-            className="font-mono text-body-sm text-text-secondary"
-            role="status"
-            aria-live="polite"
-          >
-            {result.data.totalCount === 0
-              ? "Inga träffar"
-              : `${result.data.totalCount.toLocaleString("sv-SE")} träffar`}
-          </p>
-          <JobAdList jobAds={result.data.items} />
-          <JobAdPagination
-            page={result.data.page}
-            pageSize={result.data.pageSize}
+          {/* Result-toolbar (client-island): N träffar + aktiva chips +
+              sort-dropdown på samma rad (F4/ADR 0055). totalCount kommer
+              från RSC-fetchen; chips/sort live-commit:ar searchParams
+              symmetriskt med hero-pills (buildJobbHref). */}
+          <JobbResultsToolbar
             totalCount={result.data.totalCount}
-            buildHref={(targetPage) =>
-              buildPageHref(params, targetPage, pageSize)
-            }
+            ssyk={ssyk}
+            region={region}
+            resolvedLabels={resolvedLabels}
+            q={q}
+            sortBy={sortBy}
+            pageSize={params.pageSize}
           />
+          <div className="flex flex-col gap-2.5">
+            <JobAdList jobAds={result.data.items} />
+            <JobAdPagination
+              page={result.data.page}
+              pageSize={result.data.pageSize}
+              totalCount={result.data.totalCount}
+              buildHref={(targetPage) =>
+                buildPageHref(params, targetPage, pageSize)
+              }
+            />
+          </div>
         </>
       );
     case "unauthorized":

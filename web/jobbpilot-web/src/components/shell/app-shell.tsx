@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
+import { useDismissable } from "@/lib/hooks/use-dismissable";
 
 /**
  * v3 header-shell (ADR 0054 — header-meny ersätter sektionerad sidebar).
@@ -71,46 +72,6 @@ function initials(email: string): string {
       ? parts[0].charAt(0) + parts[1].charAt(0)
       : local.slice(0, 2);
   return chars.toUpperCase();
-}
-
-/**
- * Outside-click + Escape stänger. Vid stängning återförs fokus till triggern
- * (WCAG 2.4.3) om stängningen skedde via Escape eller utanför-klick.
- */
-function useDismissable(
-  open: boolean,
-  onClose: () => void,
-  triggerRef: React.RefObject<HTMLButtonElement | null>,
-) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (
-        ref.current &&
-        !ref.current.contains(e.target as Node) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
-      ) {
-        onClose();
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, onClose, triggerRef]);
-
-  return ref;
 }
 
 function NotificationsBell() {

@@ -385,7 +385,7 @@ async function shootJobbInteractiveStates(
 
   // State 1 — filter-disclosure expanderad.
   try {
-    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
     const filterToggle = page
       .getByRole("button", { name: /^Filter/ })
       .first();
@@ -411,7 +411,7 @@ async function shootJobbInteractiveStates(
 
   // State 2 — typeahead-lista öppen (≥2 tecken mot live-backend).
   try {
-    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
     const combo = page.getByRole("combobox").first();
     await combo.waitFor({ state: "visible", timeout: 5000 });
     await combo.click();
@@ -442,7 +442,7 @@ async function shootJobbInteractiveStates(
   // första riktiga <option> (index 1; index 0 = "Välj …"-platshållaren) så
   // skriptet inte hårdkodar ett concept-id som kan saknas i snapshoten.
   try {
-    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
     const filterToggle = page
       .getByRole("button", { name: /^Filter/ })
       .first();
@@ -509,7 +509,8 @@ async function shootStatusDestructiveStates(
   let shot = 0;
   try {
     await page.goto(`${BASE_URL}/ansokningar/${submittedAppId}`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
+      timeout: 15_000,
     });
     await ensureTheme(page, theme);
     // "Nekad" = destruktiv (Rejected). Label kopplad via <label htmlFor>.
@@ -625,6 +626,11 @@ async function main(): Promise<void> {
 
   const browser = await chromium.launch();
   let count = 0;
+  // Per-sida-felisolering (CTO Variant C 2026-05-19): en route som
+  // degraderar (t.ex. pollande sida som ej når `load` inom timeout) ska
+  // logga + skippas, inte abortera hela korpusen (Meszaros 2007 — Robust
+  // Fixture; matchar try/catch-mönstret i interaktions-helpers ovan).
+  const skipped: string[] = [];
 
   try {
     for (const theme of THEMES) {
@@ -667,12 +673,22 @@ async function main(): Promise<void> {
 
         const page = await context.newPage();
         for (const target of pages) {
-          await page.goto(`${BASE_URL}${target.path}`, {
-            waitUntil: "networkidle",
-          });
-          await ensureTheme(page, theme);
-          await shoot(page, outDir, `${target.name}__${theme}__${vp.tag}`);
-          count++;
+          const label = `${target.name}__${theme}__${vp.tag}`;
+          try {
+            await page.goto(`${BASE_URL}${target.path}`, {
+              waitUntil: "load",
+              timeout: 15_000,
+            });
+            await ensureTheme(page, theme);
+            await shoot(page, outDir, label);
+            count++;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(
+              `[visual-verify] SKIPPAD ${label} (${target.path}): ${msg}`,
+            );
+            skipped.push(label);
+          }
         }
 
         // ADR 0042 Beslut B/C — interaktiva /jobb-states (disclosure/
@@ -703,7 +719,8 @@ async function main(): Promise<void> {
         // tillstånd. Bara om fixture finns (annars ingen rad att radera).
         if (AUTH_MODE) {
           await page.goto(`${BASE_URL}/sokningar`, {
-            waitUntil: "networkidle",
+            waitUntil: "load",
+            timeout: 15_000,
           });
           const radera = page.getByRole("button", { name: "Radera" }).first();
           if (await radera.isVisible().catch(() => false)) {
@@ -757,6 +774,12 @@ async function main(): Promise<void> {
         ? `Auth-gated sidor capturerade mot ${BASE_URL}.`
         : `Auth-gated sidor: verifieras vid live-deploy (se runbook).`),
   );
+  if (skipped.length > 0) {
+    console.warn(
+      `[visual-verify] ${skipped.length} SKIPPADE (degraderad route, ` +
+        `noteras som lucka för design-reviewer): ${skipped.join(", ")}`,
+    );
+  }
 }
 
 main().catch((err) => {

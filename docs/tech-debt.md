@@ -17,7 +17,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 
 | ID | Titel | Severity | Fas | Kategori |
 |---|---|---|---|---|
-| TD-13 | Encryption av PII-kolumner | **Major** | 2 | Säkerhet/GDPR |
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
@@ -74,40 +73,6 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 
 
 ## Major — Fas 2
-
-## TD-13: Encryption av PII-kolumner (Fas 2)
-
-**Kategori:** Säkerhet / GDPR
-**Fas:** 2 (after Fas 1 milestone)
-**Prioritet:** Hög
-**Källa:** Security audit STEG 7a 2026-05-08 (Major M1) + befintliga TODOs i ApplicationConfiguration
-
-Flera kolumner lagrar PII-känsligt innehåll (BUILD.md §13.1 "Känsligt") som klartext-JSONB/TEXT
-i Postgres. RDS har AES-256 disk-encryption via KMS, men app-side envelope encryption saknas.
-
-Berörda kolumner:
-- `applications.cover_letter` (TEXT)
-- `application_notes.content` (TEXT)
-- `follow_ups.note` (TEXT)
-- `resume_versions.content` (JSONB) — innehåller `PersonalInfo`, `Experiences`, `Educations`, `Skills`
-- `job_ads.raw_payload` (JSONB) — JobTech-payload kan innehålla rekryterar-PII (namn, email, telefon, firmatecknare). Tillagd 2026-05-12 efter security-auditor F2-P8a-aggregat-review Sec-Major-1. Cross-ref: `JobAdConfiguration.cs:25` + ADR 0032 §8-amendment 2026-05-12.
-
-**Risk:** vid backup-läckage, snapshot-export eller intern obehörig DB-access exponeras PII
-i klartext. RDS-disk-encryption skyddar bara mot fysisk stöld av disk.
-
-**Föreslagen åtgärd:** Implementera KMS-backed `ValueConverter<T, string>` med envelope
-encryption (DEK per rad eller per aggregate). Migration är icke-destruktiv (encrypt-on-write,
-decrypt-on-read; befintliga klartext-rader migreras lazy vid nästa write eller via
-back-fill-job). Designval och nyckel-rotationsstrategi får egen ADR i Fas 2.
-
-**Övervägning — cryptographic erasure för Art. 17-tillämpning på backups:**
-Standardpraxis för GDPR Art. 17 är att radera från live-system + dokumentera att RDS
-automated backups (default 7d, max 35d) skrivs över naturligt — bekräftad acceptabel av
-EDPB CEF 2025-rapporten (2026-02). Crypto-erasure-pattern (per-user data encryption key,
-DEK kastas vid kontoradering → backups blir omedelbart olesbara) är ett alternativ som
-kan bakas in i Fas 2-impl. Tradeoff: extra komplexitet i restore-flöden + key-rotation,
-men ger omedelbar Art. 17-täckning av backup-data. ADR i Fas 2 ska ta ställning.
-
 
 ## Major — Fas 3+
 
@@ -1127,6 +1092,7 @@ ADR-cross-references och granskningsbevis.
 | TD-79 | ECS-service.task_definition strukturell drift mellan Terraform och deploy-dev.yml | 2026-05-13 | D+A-session (`lifecycle.ignore_changes` på api+worker services) |
 | TD-70 | Search/filter-yta för JobAd-katalog (?ssyk&?region&?q) | 2026-05-13 | F2-P9 D+A-session (generated columns + ListReadPolicy rate-limit) |
 | TD-80 | JobAd.Url scheme-whitelist (http/https) i Domain.ValidateInputs | 2026-05-13 | TD-80-batch (Domain ValidateCore + 17 nya tester, 932 backend-tester gröna) |
+| TD-13 | Encryption av PII-kolumner | 2026-05-19 | FAS 3.5 (ADR 0049) C1–C6 + KMS-IaC; `c291ad6`/`fca3605` + `v0.2.19-dev`-deploy grön |
 
 ---
 

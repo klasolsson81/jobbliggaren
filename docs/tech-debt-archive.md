@@ -2350,3 +2350,97 @@ har aldrig observerats returnera non-http(s) URLs i payload.
 in-depth uppfylld FE + BE. Fas 2 Major-sektionen krymper till TD-13 (PII-
 encryption, kvarstår per CTO-decision Q5 i D+A-session 2026-05-13 — defer Fas
 2-stängning per EDPB CEF 2025).
+
+---
+
+## TD-13: Encryption av PII-kolumner ✓ STÄNGD 2026-05-19
+
+**Kategori:** Säkerhet / GDPR
+**Fas:** 2 → omklassad FAS 3.5 (pre-FAS-4-blocker, ADR 0049)
+**Prioritet:** Hög
+**Källa:** Security audit STEG 7a 2026-05-08 (Major M1) + befintliga TODOs i ApplicationConfiguration
+
+Flera kolumner lagrar PII-känsligt innehåll (BUILD.md §13.1 "Känsligt") som klartext-JSONB/TEXT
+i Postgres. RDS har AES-256 disk-encryption via KMS, men app-side envelope encryption saknas.
+
+Berörda kolumner:
+- `applications.cover_letter` (TEXT)
+- `application_notes.content` (TEXT)
+- `follow_ups.note` (TEXT)
+- `resume_versions.content` (JSONB) — innehåller `PersonalInfo`, `Experiences`, `Educations`, `Skills`
+- `job_ads.raw_payload` (JSONB) — JobTech-payload kan innehålla rekryterar-PII (namn, email, telefon, firmatecknare). Tillagd 2026-05-12 efter security-auditor F2-P8a-aggregat-review Sec-Major-1. Cross-ref: `JobAdConfiguration.cs:25` + ADR 0032 §8-amendment 2026-05-12.
+
+**Risk:** vid backup-läckage, snapshot-export eller intern obehörig DB-access exponeras PII
+i klartext. RDS-disk-encryption skyddar bara mot fysisk stöld av disk.
+
+**Föreslagen åtgärd:** Implementera KMS-backed `ValueConverter<T, string>` med envelope
+encryption (DEK per rad eller per aggregate). Migration är icke-destruktiv (encrypt-on-write,
+decrypt-on-read; befintliga klartext-rader migreras lazy vid nästa write eller via
+back-fill-job). Designval och nyckel-rotationsstrategi får egen ADR i Fas 2.
+
+**Övervägning — cryptographic erasure för Art. 17-tillämpning på backups:**
+Standardpraxis för GDPR Art. 17 är att radera från live-system + dokumentera att RDS
+automated backups (default 7d, max 35d) skrivs över naturligt — bekräftad acceptabel av
+EDPB CEF 2025-rapporten (2026-02). Crypto-erasure-pattern (per-user data encryption key,
+DEK kastas vid kontoradering → backups blir omedelbart olesbara) är ett alternativ som
+kan bakas in i Fas 2-impl. Tradeoff: extra komplexitet i restore-flöden + key-rotation,
+men ger omedelbar Art. 17-täckning av backup-data. ADR i Fas 2 ska ta ställning.
+
+### Stängningsnotat (2026-05-19)
+
+Levererad som **FAS 3.5** (pre-FAS-4-blocker, ADR 0049 Accepted) i sekvens
+STOPP D → C1 → C2 → C3 (+hotfix) → C4.0/C4.1 → **C4.2/C4.3/C4.4/C5/C6**
+(denna session). Designval-ADR: **ADR 0049** (per-användar-DEK KMS-envelope,
+crypto-erasure, `raw_payload` exkluderad — Beslut 3, hybrid lazy + bounded
+backfill, jsonb→text expand/contract; Mekanik-not 1–6 + reconciliation).
+
+**Levererat:**
+- 4 user-ägda PII-kolumner krypterade app-side via per-användar-DEK AES-256-GCM
+  envelope (`v1:`-sentinel): C3 = 3 TEXT-kolumner (Form A in-place); C4.2 #1c =
+  `resume_versions.content` (Form B — `builder.Ignore(Content)` + krypterad
+  text-shadow `content_enc` + read-only legacy jsonb-shadow + dual-read
+  backfill-fönster; `ALTER COLUMN content DROP NOT NULL` expand-fas).
+  `job_ads.raw_payload` **medvetet exkluderad** (ADR 0049 Beslut 3 — redan
+  saniterad/self-purgande/Art.17-null-out:ad; envelope hade brutit
+  STORED generated columns + taxonomi-sök-SPOT + JsonContains-Art.17).
+- C5 `BackfillFieldEncryptionJob` (Hangfire-chassi, per-owner fresh DI-scope,
+  legacy-on-disk-precision idempotent, fitness `CountRemainingLegacy`).
+- C6 crypto-erasure: `AccountHardDeleter` kastar per-användar-DEK INOM
+  hard-delete-transaktionen (GDPR Art. 17-atomicitet, ExecuteDeleteAsync
+  ambient-tx architect-verifierad).
+- KMS-IaC: dedikerad `aws_kms_key.td13_field`-CMK + ECS-task-roll-grant
+  (`kms:GenerateDataKey`+`Decrypt`, EncryptionContext-villkorad) + task-def-env
+  (architect-designad §9.2, ADR 0036-tandem).
+
+**Gates:** security-auditor **GO** (0 Crit/High/GDPR — fail-closed/cross-user-
+DEK/Art.17-atomicitet verifierade), code-reviewer **GO** (0 Block/Major).
+dotnet-architect ×4 + senior-cto-advisor ×4 + test-writer ×3 (CTO/architect-
+kedja). Full backend-svit grön: Domain 358 / Application 492 / Migrate 6 /
+arch 70 / Worker-integ 68 (inkl. C3 13 + C4.4 8 + C5 9 + C6 4) / Api-integ 344.
+C4.0-probe + C4.2a-gate + 1 unit-test retirerade (CTO Approach A —
+subsumerade av C4.4-integration mot riktig Postgres; §7-coverage ej sänkt).
+
+**Deploy:** `v0.2.19-dev` GRÖN (dev) — API/Worker bootar med KMS-envelope
+aktiv (fail-closed-validator passerar med provisionerad CMK), `/api/ready`
+200, ren KMS-boot (ingen `FieldEncryption`-fail), ECS steady state, taxonomi-
+sök-endpoint frisk (401 auth-gated), SQL-bevis: `ssyk/region_concept_id`
+STORED generated `ALWAYS` + `raw_payload` orörd (ingen taxonomi-sök-
+regression). Live end-to-end skriv→content_enc→läs via dev-test-konto =
+rekommenderad post-stängning-spotcheck (krypto-mekanik redan uttömmande
+integration-verifierad mot riktig Postgres + prod-interceptorer).
+
+**Commits:** `c291ad6` (C4.2-C6 + STOPP I docs), `46a0948` (ADR Not 6-
+reconciliation-utkast — väntar Klas-granskning), `fca3605` (KMS-IaC) +
+dev-targeted-apply (Klas-körd) + `v0.2.19-dev`-deploy.
+
+**Öppna uppföljningar (ej TD-13-blockerande):** ADR 0049 Mekanik-not 6-
+reconciliation-utkast väntar Klas-granskning (Klas kan override:a
+dual-shadow/nullable-ContentEnc/`DROP NOT NULL`/dedikerad-CMK till formell
+amendment). **TD-85** (github_oidc prod-drift + RDS-param-group dev-
+normalisering — separat IaC-triage). Beslut 5 steg 3–4 (cutover-flipp →
+content-drop) = framtida egna Klas-STOPP. prod-paritet KMS-IaC vid framtida
+prod-deploy.
+
+**Reviews:** `docs/reviews/2026-05-19-td13-c456-security-audit.md`,
+`-c456-code-review.md`, `-kms-iac-design-architect.md`,
+`-c4-gate-and-mechanic.md`, `2026-05-18-td13-*`.

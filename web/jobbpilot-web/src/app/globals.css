@@ -258,8 +258,19 @@
 }
 
 /* ── Base styles ──────────────────────────────────── */
+/* Höjd-kedja: .jp-shell { min-height: 100% } behöver upplöst höjd-ancestor
+   annars kollapsar shellen till innehållshöjd och <body>-bakgrunden syns
+   under på korta (app)-sidor (design-reviewer F4 Blocker 2026-05-19). */
+html,
 body {
-  background-color: var(--jp-surface-primary);
+  height: 100%;
+}
+body {
+  /* Sidans BASLAGER = canvas (ej surface-primary/kort-färg). I dark är
+     canvas #0B1525 och surface #1B2B47 — body måste matcha .jp-shell:s
+     canvas så ingen tvåtonad bakgrunds-söm uppstår där shellen slutar
+     (DESIGN.md §3 papper-metafor; design-reviewer F4 Blocker). */
+  background-color: var(--jp-canvas);
   color: var(--jp-text-primary);
   font-family: var(--jp-font-sans);
   font-size: 16px;

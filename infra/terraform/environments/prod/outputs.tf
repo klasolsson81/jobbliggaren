@@ -14,6 +14,14 @@ output "kms_byok_key_alias" {
   value = module.kms.byok_key_alias
 }
 
+output "kms_td13_field_key_arn" {
+  value = module.kms.td13_field_key_arn
+}
+
+output "kms_td13_field_key_alias" {
+  value = module.kms.td13_field_key_alias
+}
+
 output "cloudtrail_name" {
   value = module.cloudtrail.trail_name
 }

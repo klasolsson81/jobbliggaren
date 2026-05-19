@@ -48,6 +48,11 @@ variable "kms_key_arn" {
   type        = string
 }
 
+variable "kms_td13_field_key_arn" {
+  description = "TD-13 field-encryption-CMK-ARN (ADR 0049 Beslut 1). Task-rollerna (api+worker) får GenerateDataKey+Decrypt mot exakt denna ARN för per-användare-DEK-envelope. EncryptionContext-villkorad."
+  type        = string
+}
+
 variable "bedrock_invoke_policy_arn" {
   description = "ARN för baseline JobbPilotBedrockInvoke-policy som task-role-api attachas till."
   type        = string

@@ -161,6 +161,34 @@ data "aws_iam_policy_document" "task_api" {
     }
   }
 
+  # TD-13 (ADR 0049 Beslut 1) — KMS-envelope för per-användare-DEK.
+  # Direkt KMS-anrop (ingen ViaService — skiljt från master-Decrypt ovan).
+  # Resource-scoped till TD-13-CMK; EncryptionContext-villkor binder yta till
+  # td13-field-purpose (owner-AAD bärs per-rad av KMS i appen). Minsta yta:
+  # endast GenerateDataKey+Decrypt (verifierat — ingen Encrypt/DescribeKey i
+  # KmsDataKeyProvider). dotnet-architect 2026-05-19.
+  statement {
+    sid    = "Td13FieldEnvelopeKms"
+    effect = "Allow"
+    actions = [
+      "kms:GenerateDataKey",
+      "kms:Decrypt",
+    ]
+    resources = [var.kms_td13_field_key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:purpose"
+      values   = ["td13-field"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:aggregate"
+      values   = ["jobseeker"]
+    }
+  }
+
   # ECS Exec — möjliggör "aws ecs execute-command" för debug.
   # Replikerar AmazonECSTaskExecutionRolePolicy:s exec-bitar utan att inkludera
   # fulla AWS-managed-policy:n (least-privilege).
@@ -238,6 +266,33 @@ data "aws_iam_policy_document" "task_worker" {
         "rds.${data.aws_region.current.name}.amazonaws.com",
         "elasticache.${data.aws_region.current.name}.amazonaws.com",
       ]
+    }
+  }
+
+  # TD-13 (ADR 0049 Beslut 1) — KMS-envelope för per-användare-DEK (Worker:
+  # HardDeleteAccountsJob crypto-erasure C6 + BackfillFieldEncryptionJob C5).
+  # Direkt KMS-anrop (ingen ViaService); Resource-scoped TD-13-CMK;
+  # EncryptionContext-villkor; minsta yta GenerateDataKey+Decrypt.
+  # dotnet-architect 2026-05-19.
+  statement {
+    sid    = "Td13FieldEnvelopeKms"
+    effect = "Allow"
+    actions = [
+      "kms:GenerateDataKey",
+      "kms:Decrypt",
+    ]
+    resources = [var.kms_td13_field_key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:purpose"
+      values   = ["td13-field"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:aggregate"
+      values   = ["jobseeker"]
     }
   }
 

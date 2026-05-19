@@ -9,6 +9,12 @@ data "aws_kms_alias" "master" {
   name = "alias/jobbpilot-master-key"
 }
 
+# TD-13-field-encryption-CMK (ADR 0049 Beslut 1) — alias skapat av
+# modules/kms i environments/prod/baseline.tfstate (samma mönster som master).
+data "aws_kms_alias" "td13_field" {
+  name = "alias/jobbpilot-td13-field-key"
+}
+
 # ---------------------------------------------------------------------------
 # Networking
 # ---------------------------------------------------------------------------
@@ -240,6 +246,7 @@ module "iam_ecs" {
     module.redis.connection_string_secret_arn,
   ]
   kms_key_arn               = data.aws_kms_alias.master.target_key_arn
+  kms_td13_field_key_arn    = data.aws_kms_alias.td13_field.target_key_arn
   bedrock_invoke_policy_arn = data.aws_iam_policy.bedrock_invoke.arn
 
   # Migrate-roll (STEG 14b) — separat blast-radius från api/worker. PutSecretValue
@@ -342,6 +349,10 @@ module "ecs" {
     "ForwardedHeaders__KnownNetworks__0" = var.vpc_cidr
     "Alb__HttpsEnabled"                  = tostring(var.alb_https_enabled)
     "AdminBootstrap__InitialAdminEmail"  = var.initial_admin_email
+    # TD-13 (ADR 0049) — KMS-envelope. ARN ≠ secret (ger ingen access utan
+    # IAM-grant) → plain env, JobbPilot-konvention. dotnet-architect 2026-05-19.
+    "FieldEncryption__CmkKeyId"  = data.aws_kms_alias.td13_field.target_key_arn
+    "FieldEncryption__AwsRegion" = "eu-north-1"
   }
 
   # Worker har inga Redis-deps; Hangfire + Postgres räcker. DOTNET_ENVIRONMENT
@@ -349,6 +360,11 @@ module "ecs" {
   # (Host.CreateApplicationBuilder).
   worker_environment = {
     "DOTNET_ENVIRONMENT" = "Production"
+    # TD-13 — Worker laddar AddPersistence (C5-backfill + C6 crypto-erasure);
+    # ValidateOnStart hård-failar utan CmkKeyId i Production (samma blocker
+    # som API). Migrate utelämnas medvetet (laddar ej AddPersistence).
+    "FieldEncryption__CmkKeyId"  = data.aws_kms_alias.td13_field.target_key_arn
+    "FieldEncryption__AwsRegion" = "eu-north-1"
   }
 
   # ---------------------------------------------------------------------------

@@ -977,6 +977,13 @@ a:hover { color: var(--jp-navy-600); }
 .jp-popover__col {
   overflow: auto;
   padding: 6px 0;
+  /* min-height:0 krävs för att en grid-item ska kunna krympa under sitt
+     innehåll och låta overflow:auto engagera inom .jp-popover__body:s
+     max-height:60vh. Utan detta (CSS-Grid default min-height:auto) växer
+     kolumnen förbi panelen och flödar ut över hela sidhöjden
+     (design-reviewer F4 Blocker 2026-05-19 — Yrke-popoverns högerkolumn).
+     Ort enkelkolumns har redan explicit maxHeight/overflow-div (referens). */
+  min-height: 0;
 }
 .jp-popover__col:first-child {
   border-right: 1px solid var(--jp-border-soft);

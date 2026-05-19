@@ -2,8 +2,10 @@ import "server-only";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import {
+  jobAdDtoSchema,
   listJobAdsResultSchema,
   suggestJobAdTermsResultSchema,
+  type JobAdDto,
   type ListJobAdsResult,
   type SuggestJobAdTermsResult,
   type JobAdSortBy,
@@ -67,6 +69,39 @@ export async function getJobAds(
       res,
       listJobAdsResultSchema,
       "GET /api/v1/job-ads"
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Hämtar en enskild JobAd via id. Konsumerar
+ * `GET /api/v1/job-ads/{id:guid}` (auth-gated). 404 (annonsen finns inte)
+ * mappas till `{ kind: "notFound" }` — anropas av `/jobb/[id]`-routen som
+ * översätter det till Next `notFound()`. Speglar `getJobAds` Result/fel-
+ * mönster (unauthorized / rateLimited / notFound / error) så konsumenten
+ * får samma uttömmande switch (ADR 0030).
+ *
+ * `includeNotFound: true` krävs — till skillnad från list-endpointen kan
+ * detalj-endpointen runtime-faktiskt returnera 404 (okänt id).
+ */
+export async function getJobAd(
+  id: string
+): Promise<ApiResult<JobAdDto>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/job-ads/${encodeURIComponent(id)}`,
+      { headers: authHeaders(sessionId), cache: "no-store" }
+    );
+    return await responseToResult(
+      res,
+      jobAdDtoSchema,
+      "GET /api/v1/job-ads/{id}",
+      { includeNotFound: true }
     );
   } catch {
     return { kind: "error" };

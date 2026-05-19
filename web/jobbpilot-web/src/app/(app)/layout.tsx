@@ -4,8 +4,12 @@ import { AppShell } from "@/components/shell/app-shell";
 
 export default async function AppLayout({
   children,
+  modal,
 }: {
   children: React.ReactNode;
+  // @modal parallel-route-slot (ADR 0053). Renderas bredvid children;
+  // default.tsx → null när slotten är omatchad (ingen modal aktiv).
+  modal: React.ReactNode;
 }) {
   const user = await getServerSession();
   // Middleware blocks unauthenticated requests via cookie presence, but the
@@ -24,6 +28,7 @@ export default async function AppLayout({
       </a>
       <AppShell email={user.email} isAdmin={isAdmin}>
         {children}
+        {modal}
       </AppShell>
     </>
   );

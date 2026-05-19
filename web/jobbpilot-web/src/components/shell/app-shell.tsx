@@ -45,6 +45,24 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+/**
+ * v3-native routes (CTO D1, Variant B 2026-05-19): sidor som äger sin egen
+ * bredd-layout (edge-to-edge hero + egen .jp-container runt resultatdelen).
+ * Prefix-match, samma idiom som aktiv-route-logiken ovan. För dessa routes
+ * renderas children DIREKT i .jp-content utan .jp-shell-transitional-
+ * container — annars constrainas heron och kan inte gå edge-to-edge.
+ * BORTTAGNINGS-TRIGGER: när alla (app)-sidor refaktorerats till egna
+ * .jp-container/.jp-page tas denna lista + .jp-shell-transitional-
+ * container bort tillsammans (se globals.css-trail, ADR 0052).
+ */
+const V3_NATIVE_ROUTES = ["/jobb"];
+
+function isV3Native(pathname: string): boolean {
+  return V3_NATIVE_ROUTES.some(
+    (r) => pathname === r || pathname.startsWith(r + "/")
+  );
+}
+
 function initials(email: string): string {
   const local = email.split("@")[0] ?? email;
   const parts = local.split(/[._-]+/).filter(Boolean);
@@ -354,6 +372,7 @@ export function AppShell({
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const v3Native = isV3Native(pathname);
 
   return (
     <div className="jp-shell">
@@ -413,8 +432,15 @@ export function AppShell({
         {/* Transitionell bredd-container (CTO B1-reparation 2026-05-19):
             v3-shellen constrainar ej bredd; un-refaktorerade (app)-sidor
             wrappas här tills F3/F5/F6 ger dem egna .jp-container/.jp-page.
-            Borttagnings-trigger dokumenterad i globals.css + ADR 0052-trail. */}
-        <div className="jp-shell-transitional-container">{children}</div>
+            v3-native routes (CTO D1, Variant B) opt-out:ar ur wrappern och
+            äger sin egen .jp-container — heron går då edge-to-edge i
+            .jp-content. Borttagnings-trigger dokumenterad i globals.css +
+            ADR 0052-trail (container + V3_NATIVE_ROUTES tas bort ihop). */}
+        {v3Native ? (
+          children
+        ) : (
+          <div className="jp-shell-transitional-container">{children}</div>
+        )}
       </main>
     </div>
   );

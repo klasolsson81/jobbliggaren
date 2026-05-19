@@ -8,10 +8,10 @@ import {
   type JobAdFiltersValues,
 } from "@/lib/dto/job-ads";
 import { assertNever } from "@/lib/dto/_helpers";
+import { Search } from "lucide-react";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobAdFilters } from "@/components/job-ads/job-ad-filters";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
-import { SaveSearchButton } from "@/components/saved-searches/save-search-button";
 
 // searchParams-värden kan vara string | string[] | undefined. ssyk/region
 // är upprepade query-params (ADR 0042 Beslut B) → string[] vid flera värden.
@@ -101,36 +101,79 @@ export default async function JobbPage({ searchParams }: PageProps) {
   );
 
   return (
-    <div className="flex flex-col">
-      <div>
-        <h1 className="jp-h1">Jobb</h1>
-        <p className="jp-lede">
-          Sök bland aktiva annonser från Platsbanken. Filtrera, jämför och spara.
-        </p>
-      </div>
+    <>
+      {/* v3 navy-hero — edge-to-edge i .jp-content (/jobb är v3-native,
+          app-shell V3_NATIVE_ROUTES opt-out). GET-form mot /jobb behåller
+          befintlig searchParams-mekanik/URL-kontrakt utan client-JS:
+          aktiva filter (ssyk[]/region[]/sortBy/pageSize) bärs som hidden
+          inputs så en ny sökning inte tappar dem; `page` utelämnas medvetet
+          (ny sökterm → sida 1). INGA Ort/Yrke/Filter-pills (= filter-
+          popover = F4) och INGA Senaste/Sparade-chips (ingen recent/saved-
+          data, no-mock-doktrin). */}
+      <section className="jp-hero">
+        <div className="jp-hero__inner">
+          <h1 className="jp-hero__title">Sök bland aktiva annonser</h1>
+          <p className="jp-hero__lede">
+            Sök bland aktiva annonser från Platsbanken. Filtrera och jämför i
+            lugn och ro.
+          </p>
 
-      <div className="mt-7">
+          <form action="/jobb" method="get" className="jp-hero__searchblock">
+            <label htmlFor="jobb-q" className="jp-hero__searchlabels">
+              Sök på ett eller flera ord
+            </label>
+            <div className="jp-hero__searchrow">
+              <input
+                id="jobb-q"
+                name="q"
+                type="search"
+                defaultValue={q ?? ""}
+                className="jp-hero__input"
+                placeholder="t.ex. backend Stockholm"
+                aria-label="Sökord"
+              />
+              <button type="submit" className="jp-hero__searchbtn">
+                <Search size={18} aria-hidden="true" /> Sök
+              </button>
+            </div>
+            {ssyk.map((v) => (
+              <input key={`ssyk-${v}`} type="hidden" name="ssyk" value={v} />
+            ))}
+            {region.map((v) => (
+              <input
+                key={`region-${v}`}
+                type="hidden"
+                name="region"
+                value={v}
+              />
+            ))}
+            {sortBy !== "PublishedAtDesc" && (
+              <input type="hidden" name="sortBy" value={sortBy} />
+            )}
+            {params.pageSize && (
+              <input type="hidden" name="pageSize" value={params.pageSize} />
+            )}
+          </form>
+        </div>
+      </section>
+
+      <div className="jp-container jp-page">
+        {/* JobAdFilters behålls AS-IS (v2-disclosure) — F4 refaktorerar
+            till Platsbanken-popovers (un-refaktorerat mellantillstånd,
+            branch-by-abstraction). SaveSearchButton borttagen ur /jobb
+            (HANDOVER §9-veto: ingen spara-sökning-knapp här). */}
         <JobAdFilters
           initial={filtersInitial}
           activeFilterCount={activeFilterCount}
           taxonomy={taxonomy}
           resolvedLabels={resolvedLabels}
         />
-      </div>
 
-      <div className="mt-4">
-        <SaveSearchButton
-          ssyk={ssyk}
-          region={region}
-          q={q ?? ""}
-          sortBy={sortBy}
-        />
+        <div className="mt-6 flex flex-col gap-2.5">
+          {renderResult(result, params, pageSize)}
+        </div>
       </div>
-
-      <div className="mt-6 flex flex-col gap-2.5">
-        {renderResult(result, params, pageSize)}
-      </div>
-    </div>
+    </>
   );
 }
 

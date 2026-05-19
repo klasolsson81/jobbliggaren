@@ -430,9 +430,11 @@ a:hover { color: var(--jp-navy-600); }
    .jp-container/.jp-page själva (F3/F5/F6). Tills dess wrappar app-shell
    un-refaktorerade (app)-sidor i denna container så de inte renderar
    edge-to-edge (branch-by-abstraction, samma doktrin som F1a v2-alias /
-   F1b v2-shim). BORTTAGNINGS-TRIGGER: när F3/F5/F6 gett alla (app)-sidor
-   egna .jp-container/.jp-page (+ /jobb-hero opt-out) — då blir denna
-   dubbel-padding och ska bort (ADR 0052-trail). */
+   F1b v2-shim). v3-native routes (CTO D1, Variant B 2026-05-19) opt-out:ar
+   redan via app-shell V3_NATIVE_ROUTES-listan så heron går edge-to-edge.
+   BORTTAGNINGS-TRIGGER: när F3/F5/F6 gett alla (app)-sidor egna
+   .jp-container/.jp-page tas denna .jp-shell-transitional-container OCH
+   app-shell V3_NATIVE_ROUTES-listan bort tillsammans (ADR 0052-trail). */
 .jp-shell-transitional-container {
   max-width: 1200px;
   margin-inline: auto;
@@ -1151,13 +1153,24 @@ a:hover { color: var(--jp-navy-600); }
 [data-theme="dark"] [data-slot="input"]::placeholder,
 [data-theme="dark"] [data-slot="textarea"]::placeholder { color: var(--jp-ink-3); }
 
-/* ── Job result list ─────────────────────────────── */
-.jp-jobs {
+/* ── Job/Application result list ──────────────────────
+   jp-job ≡ jp-app: DELAD selektor — HANDOVER §5.3/§9 är
+   ICKE-FÖRHANDLINGSBAR ("Båda måste se identiska ut. Avvik
+   aldrig"; "får ALDRIG drifta isär"). Spec-text + §0-veto >
+   jobbpilot-v3.css-källans separata block (CTO-dom 2026-05-19:
+   källans gap 8≠10 / align start≠center var käll-bugg, ej
+   medveten design). .jp-app__statusbadge (56px) är dokumenterad
+   FUNKTIONELL innehållsskillnad (jobb=match-indikator ↔
+   ansökan=statusbadge), EJ row-mönster-drift — bevarad medvetet.
+   Återinför ALDRIG separata .jp-job/.jp-app-chassi-block. */
+.jp-jobs,
+.jp-applist {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.jp-job {
+.jp-job,
+.jp-app {
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
@@ -1166,11 +1179,16 @@ a:hover { color: var(--jp-navy-600); }
   grid-template-columns: 1fr auto;
   gap: 18px;
   align-items: start;
-  position: relative;
   cursor: pointer;
   transition: border-color 80ms, transform 80ms;
 }
-.jp-job:hover {
+/* position:relative endast jp-job (jobb-specifik __newflag-behållare,
+   ej row-mönster-drift — app-raden har inget absolut-positionerat barn). */
+.jp-job {
+  position: relative;
+}
+.jp-job:hover,
+.jp-app:hover {
   border-color: var(--jp-navy-700);
 }
 .jp-job__newflag {
@@ -1566,26 +1584,10 @@ a:hover { color: var(--jp-navy-600); }
   color: var(--jp-ink-2);
 }
 
-/* ── Application row (mina ansökningar) ─────────── */
-.jp-applist {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.jp-app {
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  padding: 18px 22px;
-  cursor: pointer;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 18px;
-  align-items: center;
-  transition: border-color 80ms;
-}
-.jp-app:hover { border-color: var(--jp-navy-700); }
-
+/* ── Application row (mina ansökningar) ───────────
+   .jp-applist/.jp-app chassi delas med .jp-jobs/.jp-job ovan
+   (HANDOVER §9 — se delad-selektor-kommentaren där). Endast
+   app-specifik statusbadge nedan. */
 .jp-app__statusbadge {
   width: 56px;
   height: 56px;

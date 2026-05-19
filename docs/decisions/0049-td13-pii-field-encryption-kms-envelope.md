@@ -335,6 +335,46 @@ flaggade detta som potentiell ADR-amendment; per Klas-direktiv 2026-05-18
 som mekanik-not — **flaggas i STOPP V-rapporten; Klas kan override:a till
 formell amendment**.
 
+**Mekanik-not 6 (dotnet-architect-triage 2026-05-19, Microsoft Learn-
+verifierad; C4 RÖD-grenens EF-mekanik-korrektion):** C4.0-gaten kördes
+empiriskt (Testcontainers/Npgsql) → **utfall RÖD bekräftat**:
+`ValueConverter.ConvertFromProvider` kör FÖRE
+`IMaterializationInterceptor.InitializedInstance` (normativt per Microsoft
+Learn — InitializedInstance anropas efter att EF satt property-värden). Den
+villkorade RÖD-grenens tidigare pre-spec (Mekanik-not 1 / Beslut 5:
+"`ResumeVersionConfiguration` slutar använda contentConverter; ValueComparer
+bevaras via `.Metadata.SetValueComparer`") visade sig vara **ogiltig EF
+Core 10-mekanik** — en custom CLR-typ (`ResumeContent`-record) mot en
+`text`-kolumn saknar `ProviderClrType` utan `ValueConverter` och kan ej
+mappas; en `ValueComparer` ger ingen store-typ (Microsoft Learn *Value
+Conversions* §Overview/§Limitations; VC kan ej referera DbContext, #12205).
+**Korrigerad låst konstruktion (#1c):** `ResumeVersion.Content`
+`builder.Ignore(rv => rv.Content)` (EF-persisterar den EJ) + en
+string-shadow-property `ContentEnc` → kolumn `content_enc text`.
+Interceptor-paret äger hela transformen på shadow-strängen: write —
+SaveChangesInterceptorn serialiserar `Content`→JSON (delad
+`ContentJsonOptions`), krypterar, sätter `entry.Property("ContentEnc")
+.CurrentValue`; read — MaterializationInterceptorn läser shadow-ciphertext,
+dekrypterar, JSON→`ResumeContent`, sätter `Content` via private-setter-
+reflection (befintlig Form B-väg). `EncryptedFieldRegistry` får en Form B-map
+(`JsonSerializedVoField(DomainProperty, ShadowProperty, ToJson, FromJson)`).
+ValueComparer-frågan **upphör** (Content är ej EF-tracked → ingen comparer
+behövs/kan sättas; change-tracking sker på shadow-strängen). RÖD-ordningen
+är nu en invariant-regressionsvakt (`ResumeContentMaterializationProbeTests`,
+1 [Fact]). Backfill-fönstret (Beslut 5 steg 2): C4.2 mappar BÅDE legacy
+`content jsonb` + `content_enc text` som shadows tills cutover; read väljer
+`content_enc` (om sentinel) annars legacy `content` (klartext-JSON, ingen
+decrypt); ingen `content`-drop i C4.2 (separat cutover/drop = Beslut 5 steg
+3–4, Klas-STOPP). De **fyra substans-invarianterna oförändrade** (lazy
+encrypt-on-write, sentinel-prefix, bounded backfill, legacy-tolerans);
+mekanik-precisering tvingad av EF Core 10-doktrin (paritet not 1–5c, §9.6
+p.5) — **ingen substans-ändring, ingen formell amendment, ingen Klas-STOPP
+för mekaniken** (architect entydig). **Flaggas i STOPP V-rapporten; Klas
+kan override:a till formell amendment** om dual-property-shadow-
+konstruktionen bedöms vara besluts-substans. C4.2-impl villkorad av mini-
+gate C4.2a (empirisk verifiering av shadow-läsning i `InitializedInstance`
+under `AsNoTracking`, paritet C4.0-disciplin).
+
 ### Beslut 5 — jsonb→text-skifte via expand/contract; aldrig in-place ALTER TYPE
 
 Gäller `resume_versions.content` (raw_payload berörs ej — Beslut 3). Ciphertext

@@ -16,132 +16,177 @@
    refererar dessa, så light/dark följer med automatiskt.
    Källa: JobbPilotNEWDESIGN/jobbpilot.css + TOKENS.md.
    ============================================================ */
+/* ────────────────────────────────────────────────────────────
+   v3 KANON (ADR 0052 — designsystem v3 modern civic, navy-palett).
+   Källa: docs/jobbpilot-v3-bundle/jobbpilot-v3.css §2 (light).
+   v2-namnrymden (--jp-surface-primary/-text-primary/-brand-*) finns
+   kvar som tunna ALIAS → v3-kanon (branch-by-abstraction, CTO
+   Beslut 3 / Fowler 2018) så strukturella .jp-*-klasser + Tailwind-
+   @theme-bryggan + shadcn fortsätter resolva. v2-alias städas i
+   egen F-städ-fas efter grep-verifierad nollkonsumtion.
+   ──────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces (slate-baserat ljust läge — PAPER-metafor) */
-  --jp-surface-primary:   #FFFFFF;
-  --jp-surface-secondary: #F8FAFC;
-  --jp-surface-tertiary:  #F1F5F9;
-  --jp-surface-sunken:    #F1F5F9;
-  --jp-surface-inverse:   #0F172A;
+  /* Brand — djup navy (v3-kanon) */
+  --jp-navy-900: #08213F;
+  --jp-navy-800: #0A2647;   /* primärknapp, hero bg */
+  --jp-navy-700: #133F73;   /* länkar, titlar */
+  --jp-navy-600: #1B5396;
+  --jp-navy-500: #2E6CC2;
+  --jp-navy-300: #7FA9DF;
+  --jp-navy-100: #D6E3F4;
+  --jp-navy-50:  #EAF1FA;
 
-  /* Text */
-  --jp-text-primary:      #0F172A;
-  --jp-text-secondary:    #475569;
-  --jp-text-tertiary:     #94A3B8;
-  --jp-text-inverse:      #FFFFFF;
+  /* Surfaces (v3-kanon) */
+  --jp-surface:    #FFFFFF;   /* kort, popovers, modal */
+  --jp-surface-2:  #F4F6FA;   /* page bg under canvas */
+  --jp-surface-3:  #E8EDF4;   /* hover, rader */
+  --jp-canvas:     #F4F6FA;   /* sidans baslager */
 
-  /* Brand (myndighetsblå) */
-  --jp-brand-50:  #EAF2FB;
-  --jp-brand-100: #C8DDF1;
-  --jp-brand-300: #6BA1DC;
-  --jp-brand-500: #1F6EB8;
-  --jp-brand-600: #0B5CAD;
-  --jp-brand-700: #094B8C;
-  --jp-brand-900: #062F57;
+  /* Text (v3-kanon) */
+  --jp-ink-1: #0C1A2E;
+  --jp-ink-2: #455366;
+  --jp-ink-3: #7C8AA0;
+  --jp-ink-inverse: #FFFFFF;
 
-  /* Status */
-  --jp-success-50:  #ECFDF5;
-  --jp-success-500: #10B981;
-  --jp-success-600: #059669;
-  --jp-success-700: #047857;
-  --jp-warning-50:  #FFFBEB;
-  --jp-warning-500: #F59E0B;
-  --jp-warning-600: #D97706;
-  --jp-warning-700: #B45309;
-  --jp-danger-50:   #FEF2F2;
-  --jp-danger-500:  #EF4444;
-  --jp-danger-600:  #DC2626;
-  --jp-danger-700:  #B91C1C;
-  --jp-info-50:     #F1F5F9;
-  --jp-info-500:    #64748B;
-  --jp-info-600:    #475569;
-  --jp-info-700:    #334155;
+  /* Borders (v3-kanon — synliga, inte hairlines) */
+  --jp-border:        #C9D2E0;
+  --jp-border-soft:   #E3E8F0;
+  --jp-border-strong: #97A4B8;
+  --jp-border-input:  #94A3B8;
 
-  /* Borders */
-  --jp-border:          #E2E8F0;
-  --jp-border-strong:   #CBD5E1;
-  --jp-border-soft:     #F1F5F9;
-  --jp-border-hairline: #E2E8F0;
-  --jp-border-modal:    #E2E8F0;   /* = light --jp-border (light ej defekt; token-enhetlighet) — ADR 0041 */
-  --jp-border-structural: #E2E8F0; /* = light --jp-border (light ej defekt; token-enhetlighet) — ADR 0041-amendment 2026-05-18 */
+  /* Status (v3-kanon) */
+  --jp-success:    #16793B;  --jp-success-bg: #DFF3E5;
+  --jp-warning:    #B4540B;  --jp-warning-bg: #FCE9D1;
+  --jp-danger:     #BE1B1B;  --jp-danger-bg:  #FBE0E0;
+  --jp-info:       #1B5396;  --jp-info-bg:    #DEE9F8;
 
-  /* Focus */
-  --jp-focus: #0B5CAD;
+  /* Accenter (v3-kanon) */
+  --jp-leaf-600:  #2C8A3F;   --jp-leaf-50:  #DFF3E5;
+  --jp-coral-600: #DA2A47;   --jp-coral-50: #FCE4E9;
+  --jp-amber-500: #E89A1A;   --jp-amber-50: #FBEBC8;
 
-  /* Radius (strikt civic) */
-  --jp-r-sm:   2px;
-  --jp-r-md:   4px;
-  --jp-r-lg:   6px;
+  /* Hero (alltid samma navy oavsett tema — v3 §2.4 scoped) */
+  --jp-hero-bg:          #0A2647;
+  --jp-hero-ink:         #FFFFFF;
+  --jp-hero-ink-soft:    #BBCCE5;
+  --jp-hero-pill-bg:     #FFFFFF;
+  --jp-hero-pill-ink:    #0C1A2E;
+  --jp-hero-pill-border: #94A3B8;
+
+  /* Focus (v3-kanon) */
+  --jp-focus: #2E6CC2;
+
+  /* Radius (v3-kanon — ADR 0052: 6 rad/kort, 4 inputs, 8 modal, 12 ENDAST hero) */
+  --jp-r-sm:   4px;
+  --jp-r-md:   6px;
+  --jp-r-lg:   8px;
+  --jp-r-xl:  12px;
   --jp-r-pill: 9999px;
 
   /* Typografi — font-familjer kommer från next/font (--font-sans/--font-mono) */
   --jp-font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
 
-  /* Density-multiplikator — sätts via [data-density] på <html> */
+  /* Density-multiplikator — v2-system, behålls (v3 har ingen density men
+     befintliga .jp-*-klasser konsumerar tokens; harmlöst, städas senare) */
   --jp-density:   1;
   --jp-row-h:     calc(36px * var(--jp-density));
   --jp-section-y: calc(28px * var(--jp-density));
   --jp-pad-x:     calc(28px * var(--jp-density));
 
-  /* Skuggor — bara två (popovers/dropdowns), aldrig på cards/knappar */
-  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
+  /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
+  --jp-shadow-card:  0 1px 2px rgba(15, 27, 45, 0.05), 0 1px 0 rgba(15, 27, 45, 0.04);
+  --jp-shadow-pop:   0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
+  --jp-shadow-modal: 0 30px 80px rgba(8, 23, 48, 0.35);
+  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);  /* v2-alias-nivå (bridge/inline) */
+  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);  /* v2-alias-nivå (bridge/inline) */
+
+  /* ── v2-kompat-alias → v3-kanon (städas i F-städ efter nollkonsumtion) ── */
+  --jp-surface-primary:   var(--jp-surface);
+  --jp-surface-secondary: var(--jp-surface-2);
+  --jp-surface-tertiary:  var(--jp-surface-3);
+  --jp-surface-sunken:    var(--jp-surface-2);
+  --jp-surface-inverse:   var(--jp-ink-1);
+  --jp-text-primary:      var(--jp-ink-1);
+  --jp-text-secondary:    var(--jp-ink-2);
+  --jp-text-tertiary:     var(--jp-ink-3);
+  --jp-text-inverse:      var(--jp-ink-inverse);
+  --jp-brand-50:  var(--jp-navy-50);
+  --jp-brand-100: var(--jp-navy-100);
+  --jp-brand-300: var(--jp-navy-300);
+  --jp-brand-500: var(--jp-navy-500);
+  --jp-brand-600: var(--jp-navy-800);   /* primary = navy-800 (ADR 0052, 14:1 på vit) */
+  --jp-brand-700: var(--jp-navy-700);   /* länk/hover */
+  --jp-brand-900: var(--jp-navy-900);
+  --jp-success-50:  var(--jp-success-bg);
+  --jp-success-500: var(--jp-success);
+  --jp-success-600: var(--jp-success);
+  --jp-success-700: var(--jp-success);
+  --jp-warning-50:  var(--jp-warning-bg);
+  --jp-warning-500: var(--jp-warning);
+  --jp-warning-600: var(--jp-warning);
+  --jp-warning-700: var(--jp-warning);
+  --jp-danger-50:   var(--jp-danger-bg);
+  --jp-danger-500:  var(--jp-danger);
+  --jp-danger-600:  var(--jp-danger);
+  --jp-danger-700:  var(--jp-danger);
+  --jp-info-50:     var(--jp-info-bg);
+  --jp-info-500:    var(--jp-info);
+  --jp-info-600:    var(--jp-info);
+  --jp-info-700:    var(--jp-info);
+  --jp-border-hairline: var(--jp-border-soft);
+  --jp-border-modal:      var(--jp-border);  /* ADR 0041-token re-homed på v3-border (skiftar med tema) */
+  --jp-border-structural: var(--jp-border);  /* ADR 0041-amendment-token re-homed på v3-border */
 }
 
 [data-density="compact"]  { --jp-density: 0.85; }
 [data-density="standard"] { --jp-density: 1;    }
 [data-density="luftig"]   { --jp-density: 1.18; }
 
-/* ── Dark mode (civic slate-skala, vit text — ingen dekorativ hue) ── */
+/* ── Dark mode (v3-kanon — mörk navy-grå canvas, ljusa input-fält) ──
+   Källa: jobbpilot-v3.css §2.2. navy-800/-900 omdefinieras INTE i dark
+   (primärknapp förblir djup navy med vit text — ADR 0052, aldrig
+   "ljusblå knapp med mörk text"). v2-alias ärver via :root-aliasen. ── */
 [data-theme="dark"] {
-  --jp-surface-primary:   #020617;  /* slate-950 — canvas */
-  --jp-surface-secondary: #0F172A;  /* slate-900 — chrome ovanpå canvas */
-  --jp-surface-tertiary:  #1E293B;  /* slate-800 — hover (lyft) */
-  --jp-surface-sunken:    #000000;  /* pitch-black — sunken, MÖRKARE än canvas */
-  --jp-surface-inverse:   #F8FAFC;
+  --jp-surface:    #1B2B47;
+  --jp-surface-2:  #142136;
+  --jp-surface-3:  #283C5E;
+  --jp-canvas:     #0B1525;        /* mörk navy-grå, INTE svart */
 
-  --jp-text-primary:      #F8FAFC;
-  --jp-text-secondary:    #94A3B8;
-  --jp-text-tertiary:     #64748B;
-  --jp-text-inverse:      #0F172A;
+  --jp-ink-1: #F4F7FC;
+  --jp-ink-2: #C2CFE2;
+  --jp-ink-3: #8DA0BD;
+  --jp-ink-inverse: #0C1A2E;
 
-  --jp-brand-50:  #1E3A5F;          /* dim selection bg */
-  --jp-brand-100: #1E40AF;
-  --jp-brand-300: #60A5FA;
-  --jp-brand-500: #3B82F6;
-  --jp-brand-600: #60A5FA;          /* blue-400 — primary i dark */
-  --jp-brand-700: #BFDBFE;          /* blue-200 — text på selektion */
-  --jp-brand-900: #062F57;
+  --jp-border:        #44598A;     /* synliga, inte hairlines */
+  --jp-border-soft:   #2C3F65;
+  --jp-border-strong: #6F86A8;
+  --jp-border-input:  #6F86A8;
 
-  --jp-success-50:  #052E1A;
-  --jp-success-500: #10B981;
-  --jp-success-600: #4ADE80;
-  --jp-success-700: #86EFAC;
-  --jp-warning-50:  #2A1D05;
-  --jp-warning-500: #F59E0B;
-  --jp-warning-600: #FBBF24;
-  --jp-warning-700: #FDE68A;
-  --jp-danger-50:   #2E1014;
-  --jp-danger-500:  #EF4444;
-  --jp-danger-600:  #F87171;
-  --jp-danger-700:  #FECACA;
-  --jp-info-50:     #1E293B;
-  --jp-info-500:    #64748B;
-  --jp-info-600:    #94A3B8;
-  --jp-info-700:    #CBD5E1;
+  /* Navy-ramp ljusare i dark (länkar/aktiv) — 800/900 medvetet ej skiftade */
+  --jp-navy-700: #4F8AD0;
+  --jp-navy-600: #6FA4E3;
+  --jp-navy-500: #3D75B8;
+  --jp-navy-300: #2C5894;
+  --jp-navy-100: #1F3866;
+  --jp-navy-50:  #1F3866;
 
-  --jp-border:          #1E293B;
-  --jp-border-strong:   #334155;
-  --jp-border-soft:     #1E293B;
-  --jp-border-hairline: #1E293B;
-  --jp-border-modal:    #64748B;   /* slate-500 (= dark --jp-info-500) — WCAG 1.4.11 ≈3.6:1 mot dimmad canvas — ADR 0041 */
-  --jp-border-structural: #64748B; /* slate-500 (= dark --jp-info-500 / --jp-border-modal) — WCAG 1.4.11 ≈3.6:1 strukturell yt-chrome-kant — ADR 0041-amendment 2026-05-18 */
+  /* Statusfärger — ljusare ramp så de syns mot mörk canvas */
+  --jp-success: #5DD894;  --jp-success-bg: #143E29;
+  --jp-warning: #FBC267;  --jp-warning-bg: #3F2A0B;
+  --jp-danger:  #FB8989;  --jp-danger-bg:  #3F1419;
+  --jp-info:    #8FBEEF;  --jp-info-bg:    #1B3358;
 
-  --jp-focus: #60A5FA;
+  --jp-leaf-600:  #5BCB7B;  --jp-leaf-50:  #143E29;
+  --jp-coral-600: #F47185;  --jp-coral-50: #3A1722;
 
-  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
-  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.7);
+  --jp-focus: #8FBEEF;
+
+  --jp-shadow-card:  0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.4);
+  --jp-shadow-pop:   0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --jp-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.7);
+  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);  /* v2-alias-nivå */
+  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.7);  /* v2-alias-nivå */
 }
 
 /* ── Tailwind @theme inline — utilities (bg-surface-primary m.fl.) ──── */
@@ -280,12 +325,13 @@ body {
   --color-sidebar-accent-foreground:    var(--sidebar-accent-foreground);
   --color-sidebar-border:               var(--sidebar-border);
   --color-sidebar-ring:                 var(--sidebar-ring);
-  /* Radius: civic fixed values — clamped to 6px max (pill undantaget). */
-  --radius-sm:   2px;
-  --radius-md:   4px;
-  --radius-lg:   6px;
-  --radius-xl:   6px;
-  --radius-pill: 9999px;
+  /* Radius: pekar på v3 --jp-r-* (ADR 0052). --radius-xl cappas till
+     --jp-r-lg (8px) — 12px är ENDAST hero (.jp-hero, ej shadcn-primitiv). */
+  --radius-sm:   var(--jp-r-sm);
+  --radius-md:   var(--jp-r-md);
+  --radius-lg:   var(--jp-r-lg);
+  --radius-xl:   var(--jp-r-lg);
+  --radius-pill: var(--jp-r-pill);
 }
 
 /* shadcn light-värden (slate v2) — bryggas mot --jp-* där det matchar */
@@ -325,11 +371,12 @@ body {
 }
 
 /* shadcn dark-värden: ärvs automatiskt — alla bryggor refererar --jp-*    */
-/* som redan skiftar i [data-theme="dark"]. --primary-foreground sätts dock */
-/* explicit (mörk text på ljusblå primary i dark, matchar .jp-btn--primary).*/
+/* som redan skiftar i [data-theme="dark"]. --primary = --jp-brand-600 =   */
+/* alias → --jp-navy-800 (#0A2647, EJ skiftad i dark per ADR 0052) → vit   */
+/* foreground i båda teman, aldrig "ljusblå knapp med mörk text".          */
 [data-theme="dark"] {
-  --primary-foreground:         #0F172A;
-  --sidebar-primary-foreground: #0F172A;
+  --primary-foreground:         #FFFFFF;
+  --sidebar-primary-foreground: #FFFFFF;
 }
 
 @layer base {

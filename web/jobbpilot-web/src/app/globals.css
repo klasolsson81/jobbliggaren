@@ -46,7 +46,12 @@
   --jp-border:        #C9D2E0;
   --jp-border-soft:   #E3E8F0;
   --jp-border-strong: #97A4B8;
-  --jp-border-input:  #94A3B8;
+  /* Klas pre-F6 Prompt 3 (2026-05-20) — vila-kontrasten höjd ett steg
+     från #94A3B8 (~63% lightness) till #7C8AA0 (~55% lightness) så att
+     input-fält syns tydligt mot vit/surface-2 utan att bli dominerande.
+     Fokus-stilen (navy + ring) oförändrad. Samma värde som ink-3 —
+     medveten tonalitet, inte alias (input-border är separat semantik). */
+  --jp-border-input:  #7C8AA0;
 
   /* Status (v3-kanon) */
   --jp-success:    #16793B;  --jp-success-bg: #DFF3E5;
@@ -2118,7 +2123,7 @@ a:hover { color: var(--jp-navy-600); }
   --jp-ink-3: #7C8AA0;
   --jp-border:        #C9D2E0;
   --jp-border-soft:   #E3E8F0;
-  --jp-border-input:  #94A3B8;
+  --jp-border-input:  #7C8AA0;
   --jp-navy-700: #133F73;
   --jp-navy-600: #1B5396;
   --jp-navy-50:  #EAF1FA;
@@ -2176,7 +2181,7 @@ a:hover { color: var(--jp-navy-600); }
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
-.jp-land-auth .jp-input { background: #fff; color: #0C1A2E; border-color: #94A3B8; }
+.jp-land-auth .jp-input { background: #fff; color: #0C1A2E; border-color: #7C8AA0; }
 .jp-land-auth .jp-input::placeholder { color: #7C8AA0; }
 .jp-land-auth a { color: #1B5396; }
 

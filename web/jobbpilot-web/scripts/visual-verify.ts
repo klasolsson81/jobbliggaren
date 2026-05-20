@@ -582,6 +582,7 @@ async function main(): Promise<void> {
         },
         { path: "/ansokningar", name: "ansokningar-lista", auth: true },
         { path: "/ansokningar/ny", name: "ansokningar-ny", auth: true },
+        { path: "/installningar", name: "installningar", auth: true },
         ...(appFixtures?.jobAdLinked
           ? [
               {

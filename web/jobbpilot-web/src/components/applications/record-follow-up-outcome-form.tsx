@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,6 +20,10 @@ import type { FollowUpOutcome } from "@/lib/types/applications";
 interface RecordFollowUpOutcomeFormProps {
   applicationId: string;
   followUpId: string;
+  /** Callas efter lyckad spar — driver disclosure-collapse i parent (Prompt 4). */
+  onSuccess?: () => void;
+  /** Avbryt-knapp som kollapsar disclosure-raden i parent. */
+  onCancel?: () => void;
 }
 
 /**
@@ -32,6 +36,8 @@ interface RecordFollowUpOutcomeFormProps {
 export function RecordFollowUpOutcomeForm({
   applicationId,
   followUpId,
+  onSuccess,
+  onCancel,
 }: RecordFollowUpOutcomeFormProps) {
   const action = recordFollowUpOutcomeAction.bind(
     null,
@@ -45,6 +51,10 @@ export function RecordFollowUpOutcomeForm({
 
   const [outcome, setOutcome] = useState<string>("");
   const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (state?.success) onSuccess?.();
+  }, [state, onSuccess]);
 
   const selectId = `outcome-${followUpId}`;
   const errorId = `outcome-error-${followUpId}`;
@@ -100,7 +110,7 @@ export function RecordFollowUpOutcomeForm({
       </div>
 
       {!confirming ? (
-        <div>
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             size="sm"
@@ -110,6 +120,17 @@ export function RecordFollowUpOutcomeForm({
           >
             Spara utfall
           </Button>
+          {onCancel && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={isPending}
+              onClick={onCancel}
+            >
+              Avbryt
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2 rounded-md border border-border bg-surface-secondary px-3 py-3">

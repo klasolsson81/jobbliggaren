@@ -1,7 +1,6 @@
 import { StatusEditCard } from "@/components/applications/status-edit-card";
-import { AddNoteForm } from "@/components/applications/add-note-form";
-import { AddFollowUpForm } from "@/components/applications/add-follow-up-form";
-import { RecordFollowUpOutcomeForm } from "@/components/applications/record-follow-up-outcome-form";
+import { FollowUpsSection } from "@/components/applications/follow-ups-section";
+import { NotesSection } from "@/components/applications/notes-section";
 import {
   CHANNEL_LABELS,
   FOLLOW_UP_OUTCOME_LABELS,
@@ -84,15 +83,6 @@ export function ApplicationDetail({
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusColor = BADGE_COLOR_VAR[variant];
   const statusLabel = getStatusLabel(application.status);
-
-  const sortedNotes = [...application.notes].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
-  const sortedFollowUps = [...application.followUps].sort(
-    (a, b) =>
-      new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
-  );
 
   // Nästa öppna uppföljning (tidigast schemalagd, ej besvarad) → "Nästa"-
   // raden i status-blocket. REAL fält (followUps[].scheduledAt), ej v3-mock.
@@ -290,105 +280,21 @@ export function ApplicationDetail({
           )}
         </div>
 
-        {/* Uppföljningar — REAL followUps[] */}
-        <div>
-          <div style={SECTION_LABEL_STYLE}>Uppföljningar</div>
-          {sortedFollowUps.length === 0 ? (
-            <p className="text-body-sm text-text-secondary">
-              Inga uppföljningar registrerade.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {sortedFollowUps.map((fu) => {
-                const recorded = fu.outcome !== "Pending";
-                return (
-                  <li
-                    key={fu.id}
-                    className="rounded-md border border-border-default px-4 py-3"
-                  >
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                      <span className="font-medium text-text-primary">
-                        {CHANNEL_LABELS[fu.channel] ?? fu.channel}
-                      </span>
-                      <span className="font-mono text-body-sm text-text-secondary">
-                        {formatSvDate(fu.scheduledAt) ??
-                          new Date(fu.scheduledAt).toLocaleDateString(
-                            "sv-SE"
-                          )}
-                      </span>
-                    </div>
-                    <dl className="mt-2 flex flex-col gap-1 text-body-sm">
-                      <div className="flex gap-2">
-                        <dt className="text-text-secondary">Utfall:</dt>
-                        <dd className="text-text-primary">
-                          {FOLLOW_UP_OUTCOME_LABELS[fu.outcome] ??
-                            fu.outcome}
-                          {recorded && fu.outcomeAt && (
-                            <span className="ml-1 font-mono text-text-secondary">
-                              ({formatSvDate(fu.outcomeAt)})
-                            </span>
-                          )}
-                        </dd>
-                      </div>
-                      {fu.note && (
-                        <div className="flex gap-2">
-                          <dt className="text-text-secondary">
-                            Anteckning:
-                          </dt>
-                          <dd className="text-text-primary">{fu.note}</dd>
-                        </div>
-                      )}
-                    </dl>
-                    {fu.outcome === "Pending" && (
-                      <RecordFollowUpOutcomeForm
-                        applicationId={application.id}
-                        followUpId={fu.id}
-                      />
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <div className="mt-4 border-t border-border-default pt-4">
-            <h3 className="mb-3 text-body font-medium text-text-primary">
-              Lägg till uppföljning
-            </h3>
-            <AddFollowUpForm applicationId={application.id} />
-          </div>
-        </div>
+        {/* Uppföljningar — REAL followUps[] (Prompt 4: disclosure-mönster
+            via client-island FollowUpsSection. State är lokal i client-ön;
+            API-/validerings-logik oförändrad — AddFollowUpForm +
+            RecordFollowUpOutcomeForm är wrappade men i sak orörda). */}
+        <FollowUpsSection
+          applicationId={application.id}
+          followUps={application.followUps}
+        />
 
-        {/* Anteckningar — REAL notes[] */}
-        <div>
-          <div style={SECTION_LABEL_STYLE}>Anteckningar</div>
-          {sortedNotes.length === 0 ? (
-            <p className="text-body-sm text-text-secondary">
-              Inga anteckningar ännu.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {sortedNotes.map((note) => (
-                <li
-                  key={note.id}
-                  className="rounded-md border border-border-default px-4 py-3"
-                >
-                  <p className="text-body text-text-primary">
-                    {note.content}
-                  </p>
-                  <p className="mt-1 font-mono text-body-sm text-text-secondary">
-                    {formatSvDate(note.createdAt)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="mt-4 border-t border-border-default pt-4">
-            <h3 className="mb-3 text-body font-medium text-text-primary">
-              Lägg till anteckning
-            </h3>
-            <AddNoteForm applicationId={application.id} />
-          </div>
-        </div>
+        {/* Anteckningar — REAL notes[] (Prompt 4: speglar disclosure-
+            mönstret från FollowUpsSection). */}
+        <NotesSection
+          applicationId={application.id}
+          notes={application.notes}
+        />
 
         {/* Personligt brev — endast om coverLetter finns */}
         {application.coverLetter && (

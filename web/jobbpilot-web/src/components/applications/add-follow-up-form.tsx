@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 /**
  * Lokal datetime-string i `datetime-local`-input-format (YYYY-MM-DDTHH:mm,
@@ -32,9 +32,17 @@ import { CHANNEL_LABELS } from "@/lib/applications/status";
 
 interface AddFollowUpFormProps {
   applicationId: string;
+  /** Callas efter lyckad spar — driver disclosure-collapse i parent (Prompt 4). */
+  onSuccess?: () => void;
+  /** Renderar Avbryt-knapp jämte Submit; collapse-callback från parent. */
+  onCancel?: () => void;
 }
 
-export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
+export function AddFollowUpForm({
+  applicationId,
+  onSuccess,
+  onCancel,
+}: AddFollowUpFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [defaultScheduledAt] = useState(localDatetimeNow);
 
@@ -47,6 +55,15 @@ export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
     },
     null
   );
+
+  // Trigger:a onSuccess EFTER render (useActionState-state-ändring). useEffect
+  // ger parent kontroll över collapse-timing utan att form-internals behöver
+  // veta något om disclosure-mönstret.
+  useEffect(() => {
+    if (state?.success) {
+      onSuccess?.();
+    }
+  }, [state, onSuccess]);
 
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
@@ -99,9 +116,22 @@ export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
           {state.error}
         </p>
       )}
-      <Button type="submit" size="sm" disabled={isPending}>
-        Lägg till uppföljning
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" size="sm" disabled={isPending}>
+          Lägg till uppföljning
+        </Button>
+        {onCancel && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={isPending}
+            onClick={onCancel}
+          >
+            Avbryt
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

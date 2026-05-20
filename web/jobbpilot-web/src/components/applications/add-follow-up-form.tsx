@@ -1,6 +1,21 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
+
+/**
+ * Lokal datetime-string i `datetime-local`-input-format (YYYY-MM-DDTHH:mm,
+ * lokal tid, ingen Z). Beräknas EN gång på mount för att fylla "Datum"-
+ * fältet med nu-tid som default (Klas-UX 2026-05-20: sparar tid eftersom
+ * uppföljningar oftast schemaläggs nära skapandetidpunkten). Användaren
+ * kan fritt ändra; värdet är ej kontrollerat (defaultValue), så reset
+ * efter lyckad submit återställer till mount-tiden — lätt inaktuell vid
+ * multi-add i samma session, acceptabelt YAGNI.
+ */
+function localDatetimeNow(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +36,7 @@ interface AddFollowUpFormProps {
 
 export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [defaultScheduledAt] = useState(localDatetimeNow);
 
   const action = addFollowUpAction.bind(null, applicationId);
   const [state, formAction, isPending] = useActionState<ActionResult | null, FormData>(
@@ -56,6 +72,7 @@ export function AddFollowUpForm({ applicationId }: AddFollowUpFormProps) {
             id="follow-up-date"
             name="scheduledAt"
             type="datetime-local"
+            defaultValue={defaultScheduledAt}
             required
             disabled={isPending}
           />

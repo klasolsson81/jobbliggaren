@@ -44,16 +44,19 @@ describe("computeFreshnessLabel", () => {
   });
 });
 
-describe("JobTags", () => {
+describe("JobTags (high-water-mark NY-modell)", () => {
+  const RECENT_MS = Date.parse("2026-05-19T12:00:00Z");
+  const OLD_MS = Date.parse("2026-04-01T12:00:00Z");
+
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it("renders NY when showNew=true and not previously read", () => {
+  it("renders NY when showNew=true and never-visited (lastSeen=0)", () => {
     render(
       <JobTags
-        jobAdId="id-1"
         showNew={true}
+        publishedAtMs={RECENT_MS}
         freshnessLabel={null}
         matchScore={undefined}
       />,
@@ -61,11 +64,11 @@ describe("JobTags", () => {
     expect(screen.getByText("Ny")).toBeInTheDocument();
   });
 
-  it("does not render NY when showNew=false", () => {
+  it("does not render NY when showNew=false (server-cap >7d)", () => {
     render(
       <JobTags
-        jobAdId="id-2"
         showNew={false}
+        publishedAtMs={RECENT_MS}
         freshnessLabel={null}
         matchScore={undefined}
       />,
@@ -73,15 +76,43 @@ describe("JobTags", () => {
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
 
-  it("does not render NY when previously marked read in localStorage", () => {
+  it("does not render NY when lastSeen >= publishedAtMs (visited after publish)", () => {
     window.localStorage.setItem(
-      "jp-read-jobads",
-      JSON.stringify({ "id-3": true }),
+      "jp-jobb-last-seen",
+      String(Date.parse("2026-05-20T00:00:00Z")),
     );
     render(
       <JobTags
-        jobAdId="id-3"
         showNew={true}
+        publishedAtMs={RECENT_MS}
+        freshnessLabel={null}
+        matchScore={undefined}
+      />,
+    );
+    expect(screen.queryByText("Ny")).not.toBeInTheDocument();
+  });
+
+  it("renders NY when lastSeen < publishedAtMs (published after last visit)", () => {
+    window.localStorage.setItem(
+      "jp-jobb-last-seen",
+      String(Date.parse("2026-05-15T00:00:00Z")),
+    );
+    render(
+      <JobTags
+        showNew={true}
+        publishedAtMs={RECENT_MS}
+        freshnessLabel={null}
+        matchScore={undefined}
+      />,
+    );
+    expect(screen.getByText("Ny")).toBeInTheDocument();
+  });
+
+  it("server-cap (showNew=false) overrides high-water-mark even when lastSeen=0", () => {
+    render(
+      <JobTags
+        showNew={false}
+        publishedAtMs={OLD_MS}
         freshnessLabel={null}
         matchScore={undefined}
       />,
@@ -92,8 +123,8 @@ describe("JobTags", () => {
   it("renders freshness label when provided", () => {
     render(
       <JobTags
-        jobAdId="id-4"
         showNew={false}
+        publishedAtMs={RECENT_MS}
         freshnessLabel="2 dagar"
         matchScore={undefined}
       />,
@@ -104,8 +135,8 @@ describe("JobTags", () => {
   it("renders 'Bra match' when matchScore >= 75 (Fas 4 placeholder)", () => {
     render(
       <JobTags
-        jobAdId="id-5"
         showNew={false}
+        publishedAtMs={RECENT_MS}
         freshnessLabel={null}
         matchScore={80}
       />,
@@ -116,8 +147,8 @@ describe("JobTags", () => {
   it("does not render 'Bra match' when matchScore below threshold", () => {
     render(
       <JobTags
-        jobAdId="id-6"
         showNew={false}
+        publishedAtMs={RECENT_MS}
         freshnessLabel={null}
         matchScore={74}
       />,
@@ -128,8 +159,8 @@ describe("JobTags", () => {
   it("does not render 'Bra match' when matchScore undefined (Prompt 1 default)", () => {
     render(
       <JobTags
-        jobAdId="id-7"
         showNew={false}
+        publishedAtMs={RECENT_MS}
         freshnessLabel={null}
         matchScore={undefined}
       />,
@@ -140,8 +171,8 @@ describe("JobTags", () => {
   it("renders nothing when all tags are absent (no empty container)", () => {
     const { container } = render(
       <JobTags
-        jobAdId="id-8"
         showNew={false}
+        publishedAtMs={RECENT_MS}
         freshnessLabel={null}
         matchScore={undefined}
       />,
@@ -152,8 +183,8 @@ describe("JobTags", () => {
   it("renders all three tags in order: NY → freshness → match", () => {
     const { container } = render(
       <JobTags
-        jobAdId="id-9"
         showNew={true}
+        publishedAtMs={RECENT_MS}
         freshnessLabel="Idag"
         matchScore={90}
       />,

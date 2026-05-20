@@ -1,6 +1,6 @@
 "use client";
 
-import { useReadJobAds } from "./use-read-job-ads";
+import { useLastSeenJobs } from "./use-last-seen-jobs";
 
 /**
  * Tagg-rad för jobbannons-rad (`.jp-job`). Generisk subkomponent (Klas pre-F6
@@ -13,18 +13,21 @@ import { useReadJobAds } from "./use-read-job-ads";
  * färg-spektrum från befintliga tokens. INGA pills, INGA pastellchips, INGA
  * ikoner i taggar, INGA emoji (CLAUDE.md §5.2 + HANDOVER §0 + Klas verbatim).
  *
- * Klient-komponent p.g.a. NY-taggens localStorage-driven "läst"-state. NY
- * server-snapshot = `showNew` (= `isNew`-flaggan från server, ADR 0042 Beslut E).
- * Vid hydration läses localStorage och NY försvinner om annonsen är markerad
- * läst. Färskhet och match-tröskel beräknas server-side i parent (JobAdCard)
- * och skickas som strängar/numer — undviker hydration-mismatch på datum.
+ * NY-modell (Klas-direktiv 2026-05-20): high-water mark — NY visas på allt
+ * med `publishedAtMs > lastSeen` (tidsstämpel för senaste sid-besök på /jobb).
+ * Server-flagga `showNew` (= backend `isNew`, ≤7d-cap) består som defensivt
+ * golv: även om lastSeen är gammalt visas aldrig NY på annonser äldre än 7d.
+ * Färskhet och match-tröskel beräknas server-side i parent (JobAdCard).
  */
 
 export interface JobTagsProps {
-  /** Stabilt id för läst-state-uppslag i localStorage. */
-  jobAdId: string;
-  /** Server-flagga `isNew` (publishedAt inom 7-dygnsfönstret per ADR 0042 E). */
+  /** Server-cap `isNew` (publishedAt inom 7-dygnsfönstret per ADR 0042 E). */
   showNew: boolean;
+  /**
+   * `publishedAt` som ms sedan epoch (parsed server-side i parent för
+   * hydration-stabilitet). Jämförs med `lastSeen` för att avgöra NY-render.
+   */
+  publishedAtMs: number;
   /**
    * Färskhets-etikett, server-beräknad från `publishedAt`. `null` när äldre än
    * 7 dygn (renderas inte). T.ex. "Idag", "2 dagar", "5 dagar".
@@ -42,14 +45,14 @@ export interface JobTagsProps {
 const MATCH_THRESHOLD = 75;
 
 export function JobTags({
-  jobAdId,
   showNew,
+  publishedAtMs,
   freshnessLabel,
   matchScore,
 }: JobTagsProps) {
-  const { isRead } = useReadJobAds();
+  const lastSeen = useLastSeenJobs();
 
-  const renderNew = showNew && !isRead(jobAdId);
+  const renderNew = showNew && publishedAtMs > lastSeen;
   const renderMatch =
     matchScore !== undefined && matchScore >= MATCH_THRESHOLD;
 

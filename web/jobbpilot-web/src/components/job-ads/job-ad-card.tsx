@@ -1,10 +1,7 @@
-"use client";
-
 import Link from "next/link";
 import { getJobSourceLabel } from "@/lib/job-ads/status";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 import { JobTags, computeFreshnessLabel } from "./job-tags";
-import { useReadJobAds } from "./use-read-job-ads";
 
 interface JobAdCardProps {
   jobAd: JobAdDto;
@@ -26,34 +23,30 @@ function formatDate(iso: string): string {
  * CSS, ingen avvikande markup. Spara-knapp deferred (FE-action-fas).
  *
  * Tagg-system (pre-F6 Prompt 1, 2026-05-20): NY/färskhet/match-placeholder
- * renderas högerjusterat inom `.jp-job__title` h3 via `JobTags` (CTO-dom
- * 2026-05-20, Variant D). Freshness-strängen beräknas server-stil-stabilt
- * (Date.parse — render-deterministisk för en given DTO och nu-tidpunkt).
- *
- * Client-komponent: krävs för NY-taggens localStorage-driven läst-state samt
- * onClick-markering vid navigation. Den initiala HTML-renderingen sker
- * fortfarande server-side (Next App Router) — "use client" ändrar inte att
- * SSR producerar markup, bara att komponenten hydreras klient-side.
+ * renderas högerjusterat inom `.jp-job__title` h3 via `JobTags`-client-island
+ * (CTO-dom 2026-05-20, Variant D). JobAdCard förblir RSC — tagg-island
+ * hydrerar self-contained. NY-modell: high-water mark via lastSeen-timestamp
+ * markerad av `<MarkJobbVisited />`-island på sidnivå (Klas-direktiv
+ * 2026-05-20 — per-annons "läst" gjorde gamla oöppnade annonser röriga).
  */
 export function JobAdCard({ jobAd }: JobAdCardProps) {
   const publishedAt = formatDate(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
-  const { markRead } = useReadJobAds();
+  const publishedAtMs = Date.parse(jobAd.publishedAt);
 
   return (
     <Link
       href={`/jobb/${jobAd.id}`}
       className="jp-job"
       aria-label={`${jobAd.title} – ${jobAd.companyName}`}
-      onClick={() => markRead(jobAd.id)}
     >
       <div className="jp-job__body">
         <h3 className="jp-job__title">
           <span>{jobAd.title}</span>
           <JobTags
-            jobAdId={jobAd.id}
             showNew={jobAd.isNew}
+            publishedAtMs={publishedAtMs}
             freshnessLabel={freshnessLabel}
             // TODO: Fas 4 — koppla mot CV-match-domän + tröskel-beslut
             // Klas (ADR 0053 amendment: match-score är Fas 4-gated). I

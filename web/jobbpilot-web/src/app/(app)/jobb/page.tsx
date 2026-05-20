@@ -9,6 +9,7 @@ import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
+import { MarkJobbVisited } from "@/components/job-ads/mark-jobb-visited";
 
 // searchParams-värden kan vara string | string[] | undefined. ssyk/region
 // är upprepade query-params (ADR 0042 Beslut B) → string[] vid flera värden.
@@ -90,6 +91,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
   return (
     <>
+      {/* MarkJobbVisited — high-water-mark-island som vid mount skriver
+          lastSeen=now till localStorage så NY-taggen visas på allt med
+          publishedAt > lastSeen vid NÄSTA sid-besök (Klas-direktiv
+          2026-05-20). Render-null, ingen visuell yta. */}
+      <MarkJobbVisited />
       {/* v3 navy-hero — edge-to-edge i .jp-content (/jobb är v3-native,
           app-shell V3_NATIVE_ROUTES opt-out). GET-form mot /jobb behåller
           befintlig searchParams-mekanik/URL-kontrakt utan client-JS:

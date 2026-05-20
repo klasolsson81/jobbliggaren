@@ -106,28 +106,34 @@ async function login(): Promise<string> {
  * vid teardown-fel).
  */
 async function createFixture(sessionId: string): Promise<void> {
+  // ADR 0060 Beslut 4 N+1 COUNT-projektion + full-text-q-criteria utan
+  // trigram-index på dev → COUNT/rad >25s, /me/recent-searches kan 504:a.
+  // Visual-verify för F6 P4a fokuserar därför på empty-state + komponent-
+  // chrome (tom hero-chip, tom /sokningar-route). Populerade screenshots
+  // är deferred tills BE perf-fix (separat prompt). Login-rensning först
+  // — så testkontots ev. tidigare auto-fångade sökningar inte hänger
+  // requests under capture.
   const auth = { Authorization: `Bearer ${sessionId}` };
-  // SSYK-baserade sökningar (ingen q) — RecentJobSearches list-handler gör
-  // N+1 COUNT-projektion (ADR 0060 Beslut 4), och full-text-q-criteria
-  // kan bli långsam mot stor JobAds-korpus utan trigram-index på dev.
-  // SSYK + Region är indexerade taxonomi-koder — sub-sekund per COUNT.
-  // Stabila koder från Platsbanken: 1.5 IT, 2.21 Vård.
-  const fixtures = [
-    { ssyk: "1.5", region: "" }, // Data/IT
-    { ssyk: "2.21", region: "" }, // Hälso-/sjukvård
-  ];
-  for (const f of fixtures) {
-    const params = new URLSearchParams({ pageSize: "20" });
-    if (f.ssyk) params.append("ssyk", f.ssyk);
-    if (f.region) params.append("region", f.region);
-    const res = await fetch(`${BACKEND_URL}/api/v1/job-ads?${params}`, {
+  let listRes: Response;
+  try {
+    listRes = await fetch(`${BACKEND_URL}/api/v1/me/recent-searches`, {
+      headers: auth,
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch {
+    console.warn(
+      "[visual-verify] VARNING: kunde inte lista recent-searches för rensning " +
+        "(timeout) — fortsätter ändå; renderar troligen empty/error-state.",
+    );
+    return;
+  }
+  if (!listRes.ok) return;
+  const list = (await listRes.json()) as { id: string }[];
+  for (const item of list) {
+    await fetch(`${BACKEND_URL}/api/v1/me/recent-searches/${item.id}`, {
+      method: "DELETE",
       headers: auth,
     });
-    if (!res.ok) {
-      throw new Error(
-        `Trigger fixture-sökning misslyckades (HTTP ${res.status}, ssyk=${f.ssyk}).`,
-      );
-    }
   }
 }
 
@@ -574,8 +580,9 @@ async function main(): Promise<void> {
     await createFixture(sessionId);
     appFixtures = await createApplicationFixture(sessionId);
     console.log(
-      "[visual-verify] Fixturer skapade (RecentJobSearches: 2 sökningar " +
-        "auto-fångade via /api/v1/job-ads, raderas i teardown; 5 ansökningar " +
+      "[visual-verify] Fixturer skapade (RecentJobSearches: empty-state " +
+        "capture — populerade screenshots deferred tills BE perf-fix för " +
+        "N+1 COUNT-projektion; 5 ansökningar " +
         "[JobAd-kopplad/manuell±url/fallback/Submitted]: best-effort, ingen " +
         "DELETE-endpoint — se funktions-doc).",
     );

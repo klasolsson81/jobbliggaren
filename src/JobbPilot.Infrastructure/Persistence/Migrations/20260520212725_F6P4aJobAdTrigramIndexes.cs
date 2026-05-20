@@ -39,7 +39,14 @@ namespace JobbPilot.Infrastructure.Persistence.Migrations
             // CONCURRENTLY kan ej köras i transaktion. Dev-volym ~51k rader →
             // ACCESS EXCLUSIVE-låset under GIN-bygget är acceptabelt sekund-
             // intervall — backward-compatible med körande Api.
-            migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
+            //
+            // pg_trgm-extension SKAPAS SEPARAT av JobbPilot.Migrate
+            // `ensure-extensions`-mode (master-creds) i deploy-pipeline FÖRE
+            // schema-mode. Grund: jobbpilot_app-rollen saknar CREATE-privilege
+            // på databasen (TD-71 — REVOKE efter A5-deploy). ADR 0033-mönster:
+            // extensions tillhör Phase A-domänen (master-privileged DDL), inte
+            // Phase E (jobbpilot_app DDL). Re-deploy är säker: ensure-extensions
+            // är idempotent (IF NOT EXISTS).
 
             migrationBuilder.Sql(
                 "CREATE INDEX ix_job_ads_title_lower_trgm " +

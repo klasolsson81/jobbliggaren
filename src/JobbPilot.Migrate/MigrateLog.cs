@@ -92,8 +92,21 @@ internal static partial class MigrateLog
     public static partial void ModeSchema(ILogger logger);
 
     [LoggerMessage(EventId = 202, Level = LogLevel.Error,
-        Message = "Usage: JobbPilot.Migrate <init|bootstrap|schema>")]
+        Message = "Usage: JobbPilot.Migrate <init|bootstrap|ensure-extensions|schema>")]
     public static partial void UsageError(ILogger logger);
+
+    // F6 P4 (2026-05-20) — ensure-extensions-mode (master-creds, PG extensions)
+    [LoggerMessage(EventId = 204, Level = LogLevel.Information,
+        Message = "Mode: ensure-extensions (master-creds, CREATE EXTENSION IF NOT EXISTS)")]
+    public static partial void ModeEnsureExtensions(ILogger logger);
+
+    [LoggerMessage(EventId = 80, Level = LogLevel.Information,
+        Message = "EnsureExtensions: säkerställer PostgreSQL extensions (idempotent, master-roll)")]
+    public static partial void EnsureExtensionsStart(ILogger logger);
+
+    [LoggerMessage(EventId = 81, Level = LogLevel.Information,
+        Message = "EnsureExtensions: complete (idempotent — no-op om extensions redan finns)")]
+    public static partial void EnsureExtensionsComplete(ILogger logger);
 
     // ADR 0034 — Bootstrap-mode (Identity-context via master-creds)
     [LoggerMessage(EventId = 203, Level = LogLevel.Information,

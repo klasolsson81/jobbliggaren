@@ -94,6 +94,7 @@ try
     {
         "init" => await RunInitAsync(log, cts.Token),
         "bootstrap" => await RunBootstrapAsync(log, cts.Token),
+        "ensure-extensions" => await RunEnsureExtensionsAsync(log, cts.Token),
         "schema" => await RunSchemaAsync(log, cts.Token),
         _ => UsageError(log),
     };
@@ -324,6 +325,51 @@ static async Task<int> RunBootstrapAsync(ILogger log, CancellationToken ct)
     }
 
     MigrateLog.BootstrapComplete(log);
+    return 0;
+}
+
+// F6 P4 (2026-05-20) — separate mode för PostgreSQL extensions som kräver
+// master-roll. ADR 0033-mönster: extensions tillhör Phase A-domänen (master-
+// privileged DDL), inte Phase E (jobbpilot_app DDL). Per TD-71 har
+// jobbpilot_app inte CREATE-privilege på databasen → kan inte köra
+// CREATE EXTENSION själv. Detta mode är idempotent (CREATE EXTENSION IF NOT
+// EXISTS) och säkert att re-köra vid varje deploy (no-op när extension finns).
+//
+// Triggeras före schema-mode i deploy-dev.yml. Master-creds hämtas på samma
+// sätt som init/bootstrap (FetchMasterCredsAsync via Secrets Manager).
+static async Task<int> RunEnsureExtensionsAsync(ILogger log, CancellationToken ct)
+{
+    MigrateLog.ModeEnsureExtensions(log);
+
+    var masterSecretArn = RequiredEnv("MIGRATE_MASTER_SECRET_ARN");
+    var dbHost = RequiredEnv("MIGRATE_DB_HOST");
+    var dbPort = int.Parse(RequiredEnv("MIGRATE_DB_PORT"), CultureInfo.InvariantCulture);
+    var dbName = RequiredEnv("MIGRATE_DB_NAME");
+    var awsRegion = RequiredEnv("AWS_REGION");
+
+    MigrateLog.StartingMigrate(log, dbHost, dbPort, dbName, awsRegion);
+
+    var secretsClient = new AmazonSecretsManagerClient(
+        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
+
+    var masterCreds = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
+    MigrateLog.MasterCredsLoaded(log, masterCreds.Username, "EnsureExtensions");
+
+    MigrateLog.EnsureExtensionsStart(log);
+    await using (var masterConn = new NpgsqlConnection(
+        ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCreds.Username, masterCreds.Password)))
+    {
+        await masterConn.OpenAsync(ct);
+
+        // ADR 0061 Mekanik-not (F6 P4 2026-05-20) — pg_trgm krävs av
+        // F6P4aJobAdTrigramIndexes-migrationen (GIN-trigram-acceleration på
+        // lower(title)+lower(description)). Trusted extension på AWS RDS PG 16+,
+        // men kräver CREATE-privilege på databasen → master-roll.
+        await ExecuteAsync(masterConn, "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
+            log, "CREATE EXTENSION pg_trgm (idempotent)", ct);
+    }
+
+    MigrateLog.EnsureExtensionsComplete(log);
     return 0;
 }
 

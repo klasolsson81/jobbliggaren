@@ -220,6 +220,55 @@ jobs:
           echo "Resolved subnets: $SUBNETS"
           echo "Resolved security-groups: $SECURITY_GROUPS"
 
+      - name: Run Migrate ensure-extensions-task (master-creds, PG extensions)
+        id: run-ensure-extensions
+        run: |
+          set -e
+          # F6 P4 (2026-05-20) — kör ensure-extensions FÖRE schema. ADR 0033-
+          # mönster: PostgreSQL-extensions kräver master-creds (jobbpilot_app
+          # har inte CREATE-privilege per TD-71). ensure-extensions är idempotent
+          # (CREATE EXTENSION IF NOT EXISTS) — säker att re-köra varje deploy.
+          # Skapar pg_trgm för F6P4aJobAdTrigramIndexes-migrationen.
+          echo "::group::Starting Migrate ensure-extensions-task"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --task-definition "${{ steps.register-migrate.outputs.migrate-task-def-arn }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=${{ steps.net-config.outputs.subnets }},securityGroups=${{ steps.net-config.outputs.security-groups }},assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"'"$CONTAINER_NAME_MIGRATE"'","command":["ensure-extensions"]}]}' \
+            --started-by "deploy-dev-${{ steps.tag.outputs.tag }}-ext" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "Started task: $TASK_ARN"
+          echo "::endgroup::"
+
+          echo "::group::Waiting for ensure-extensions-task to stop"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+          echo "::endgroup::"
+
+          echo "::group::Checking exit-code"
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          STOPPED_REASON=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' \
+            --output text)
+          echo "Exit-code: $EXIT_CODE"
+          echo "Stopped-reason: $STOPPED_REASON"
+
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "::error::Migrate ensure-extensions-task FAILED (exit=$EXIT_CODE). Check CloudWatch logs: /aws/ecs/jobbpilot-dev/migrate"
+            exit 1
+          fi
+          echo "Migrate ensure-extensions-task COMPLETE"
+          echo "::endgroup::"
+
       - name: Run Migrate schema-task (Phase E)
         id: run-migrate
         run: |

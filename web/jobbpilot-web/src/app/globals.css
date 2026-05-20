@@ -2253,6 +2253,36 @@ a:hover { color: var(--jp-navy-600); }
 .jp-land-auth .jp-input { background: #fff; color: #0C1A2E; border-color: #7C8AA0; }
 .jp-land-auth .jp-input::placeholder { color: #7C8AA0; }
 .jp-land-auth a { color: #1B5396; }
+/* Dark-mode scoped overrides — AuthCard renderas ALLTID i ljust läge
+   (HANDOVER §2.4 + ADR 0056 Beslut 3). De delade <LoginForm/>/<RegisterForm/>-
+   komponenterna binder labels/help-text via shadcn-utility-klasser
+   (.text-text-primary/.text-text-secondary/.text-label-) som flippar
+   med `[data-theme="dark"]`-tokens på root. Children-overrides nedan
+   återställer ljus färg inom kort-scopet (selektor-specificity är högre
+   än Tailwind-utility-defaults). */
+[data-theme="dark"] .jp-land-auth,
+[data-theme="dark"] .jp-land-auth label,
+[data-theme="dark"] .jp-land-auth .text-text-primary,
+[data-theme="dark"] .jp-land-auth .text-label {
+  color: #0C1A2E;
+}
+[data-theme="dark"] .jp-land-auth .text-text-secondary,
+[data-theme="dark"] .jp-land-auth .text-body-sm,
+[data-theme="dark"] .jp-land-auth p {
+  color: #455366;
+}
+[data-theme="dark"] .jp-land-auth .text-danger-600,
+[data-theme="dark"] .jp-land-auth .text-danger-700 {
+  color: #BE1B1B;
+}
+[data-theme="dark"] .jp-land-auth input {
+  background: #FFFFFF;
+  color: #0C1A2E;
+  border-color: #7C8AA0;
+}
+[data-theme="dark"] .jp-land-auth input::placeholder {
+  color: #7C8AA0;
+}
 
 /* Sektioner */
 .jp-land-section {

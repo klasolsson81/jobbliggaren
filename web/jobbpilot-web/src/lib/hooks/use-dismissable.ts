@@ -28,11 +28,26 @@ export function useDismissable<
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      // Ignorera klick inuti Radix-portalerade ytor (Select/Popover/Dropdown
+      // /Menu/HoverCard via Popper) — de portaleras till document.body utanför
+      // panel-DOM:en, så ett SelectItem-klick inuti en modal skulle annars
+      // läsas som "klick utanför" och stänga modalen (Klas-rapporterad bug
+      // 2026-05-20: AddFollowUpForm Kanal + RecordFollowUpOutcomeForm Utfall
+      // gick ej att välja — samma rot, alla portalerade dropdowns inuti
+      // modaler påverkades).
+      if (
+        target?.closest?.(
+          '[data-radix-popper-content-wrapper], [data-radix-portal]',
+        )
+      ) {
+        return;
+      }
       if (
         ref.current &&
-        !ref.current.contains(e.target as Node) &&
+        !ref.current.contains(target as Node) &&
         triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
+        !triggerRef.current.contains(target as Node)
       ) {
         onClose();
       }

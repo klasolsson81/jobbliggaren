@@ -164,9 +164,61 @@ EFTER MERGE:
 - [x] ADR dokumenterar 5 DTO-fält som behöver utvidgas
 - [x] CTO-rekommendationer för list/detaljvy-paradigm bevarade för framtida implementation
 - [x] F6-batch-ordning bevarad (Landing ✅ → Inställningar ✅ → CV paus → Sökningar)
-- [ ] Klas levererar backend-DTO-utvidgnings-prompt (separat STEG)
-- [ ] Backend-leverans merge:as till main
-- [ ] F6 P3 frontend återöppnas med komplett scope
+- [x] Klas levererar backend-DTO-utvidgnings-prompt (separat STEG)
+- [x] Backend-leverans merge:as till main (commit 19cde94, tag v0.2.46-dev, ADR 0059)
+- [x] F6 P3 frontend återöppnas med komplett scope
+
+---
+
+## Amendment 2026-05-20 — F6 P3a frontend levererad efter backend-merge
+
+Backend-utvidgning levererades i commit `19cde94` (tag `v0.2.46-dev`) — alla 5 fält wirede:
+`IsPrimary`, `Language` (Ardalis.SmartEnum Sv|En), `LatestRole`, `SectionCount`, `TopSkills`. ADR 0059 (Accepted) dokumenterar denormaliseringsstrategin.
+
+Frontend återupptogs efter Klas-rapport i öppen chat-session och levererade:
+
+**Listvy (`/cv/page.tsx`):**
+- Grid `.jp-cvgrid` med `<ResumeCard />` per CV (refactor av tidigare linjär-list-stil)
+- Hero-header med "+ Nytt CV"-primärknapp (→ `/cv/ny`)
+- `<AnpassaCvBanner />` under grid:en när listan inte är tom
+
+**`ResumeCard`-uppdatering:**
+- jp-cv-mönstret: titel + role-rad + Standard-pill + skill-chips (max 5 från `topSkills`) + meta-rad
+- Meta: "N sektioner" (non-mono override per HANDOVER §3) + "SV"/"EN" (mono) + "Uppd. YYYY-MM-DD" (mono)
+- Actions: Redigera (secondary, ikon Edit) + Förhandsgranska (ghost, ikon Eye, `aria-disabled` — PDF-pipeline FAS-DEFERRAL)
+
+**`AnpassaCvBanner`** (ny komponent):
+- Edit-ikon (INTE Sparkles per HANDOVER §0 punkt 4)
+- Navy-50-bg via token (auto-mappar mörkare navy i dark mode)
+- "Öppna"-knapp `aria-disabled` — AI-anpassnings-flöde FAS-DEFERRAL
+
+**Detaljvy (`/cv/[id]/page.tsx`)** — CTO Val 6D realiserat:
+- Tillbaka-länk + v3-cosmetic-shell (jp-h1/jp-lede)
+- Befintlig `<ResumeContentForm />`-WYSIWYG kvar (working flow)
+- `<RenameResumeForm />` + `<DeleteResumeDialog />` i header
+- Disclosure-Sektioner-kort från Klas-prompt §H **rendras INTE** (Klas-prompt §I säger edit ska vara no-op denna prompt → disclosure utan funktionellt värde + bryter CCP)
+
+**FAS-DEFERRAL bevarade till framtida fas:**
+- WYSIWYG-redigering per sektion (disclosure-paradigm)
+- AI-anpassnings-flöde bakom AnpassaCvBanner
+- PDF-render-pipeline (Förhandsgranska-knapp)
+- Skill-chip-edit
+- Drag-reorder av sektioner
+
+CSS-tillägg i `globals.css`:
+- `.jp-cv__meta__sections` (non-mono override för sektioner-spannet)
+- `.jp-cv__skills` + `.jp-skill-chip` (rektangulära soft-border-chips)
+- `.jp-cv-banner` + `.jp-cv-banner__icon/__text/__title/__body`
+
+Frontend-tester (Vitest + RTL): +10 nya för `<ResumeCard />` (10 testfall för isPrimary/language/sectionCount/topSkills/Redigera/Förhandsgranska-states).
+
+Total backend+frontend efter leverans:
+- Backend: 1386 gröna (per Klas backend-rapport 19cde94)
+- Frontend: 580 gröna (+10 nya för ResumeCard v3)
+
+**Commits i F6 P3 (backend + frontend):**
+- `19cde94` — Backend Resume DTO-utvidgning + ADR 0059
+- (frontend-commit-SHA — fylls i efter push, denna amendment)
 
 ---
 

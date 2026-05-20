@@ -2,8 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { Moon, Sun } from "lucide-react";
-import { Segment } from "@/components/ui/segment";
-import { ToggleRow } from "@/components/ui/toggle-row";
 import { useTheme } from "@/components/theme-provider";
 import {
   updateMyProfileSchema,

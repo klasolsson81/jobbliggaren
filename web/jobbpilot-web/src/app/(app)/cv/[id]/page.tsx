@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getResumeById } from "@/lib/api/resumes";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -13,6 +14,23 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * /cv/[id]-detaljvy (F6 P3a, CTO 2026-05-20 Val 6D + ADR 0058 Beslut 3).
+ *
+ * **Val 6D: behåll existerande WYSIWYG `<ResumeContentForm />` + lägg
+ * v3-cosmetic-shell.** Disclosure-Sektioner-kort-paradigm från Klas-
+ * prompt §H **rendras INTE** denna prompt — Klas-prompt §I säger att
+ * "Redigera"-knappen per sektion ska vara no-op, vilket gör disclosure-
+ * paradigmen funktionellt värdelös. Två paradigm i samma route bryter
+ * CCP (Martin 2017). När disclosure-edit-flödet faktiskt byggs (framtida
+ * prompt) ersätter det WYSIWYG-formen.
+ *
+ * v3-cosmetic-shell-uppdateringar denna prompt:
+ *  - `jp-h1`-typografi (ersätter v2 `text-h1 font-medium`)
+ *  - Tillbaka-länk med ChevronLeft → `/cv`
+ *  - `jp-lede` på Senast-uppdaterad-meta
+ *  - Inga inline-edit-stubs (no-mock)
+ */
 export default async function CvDetailPage({ params }: Props) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
@@ -29,10 +47,8 @@ export default async function CvDetailPage({ params }: Props) {
     case "rateLimited":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="text-h1 font-medium text-text-primary">
-            För många förfrågningar
-          </h1>
-          <p className="text-body text-text-secondary">
+          <h1 className="jp-h1">För många förfrågningar</h1>
+          <p className="jp-lede">
             Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
             {result.retryAfterSeconds} sekunder.
           </p>
@@ -47,10 +63,8 @@ export default async function CvDetailPage({ params }: Props) {
     case "error":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="text-h1 font-medium text-text-primary">
-            Kunde inte ladda CV
-          </h1>
-          <p className="text-body text-text-secondary">
+          <h1 className="jp-h1">Kunde inte ladda CV</h1>
+          <p className="jp-lede">
             Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka
             till CV-listan.
           </p>
@@ -72,33 +86,27 @@ export default async function CvDetailPage({ params }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/cv"
-          className="text-body-sm text-text-secondary hover:text-text-primary"
-        >
-          CV
-        </Link>
-        <span className="text-text-tertiary">/</span>
-        <span className="text-body-sm text-text-secondary">{resume.name}</span>
-      </div>
+      <Link
+        href="/cv"
+        className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
+      >
+        <ChevronLeft size={16} aria-hidden="true" />
+        <span>Tillbaka till CV</span>
+      </Link>
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-h1 font-medium text-text-primary">
-            {resume.name}
-          </h1>
-          <p className="text-body-sm text-text-secondary">
-            Senast uppdaterad: {updatedAt}
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex flex-col gap-2">
+          <h1 className="jp-h1">{resume.name}</h1>
+          <p className="jp-lede">
+            Senast uppdaterad{" "}
+            <span className="font-mono">{updatedAt}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
           <RenameResumeForm resumeId={id} currentName={resume.name} />
           <DeleteResumeDialog resumeId={id} resumeName={resume.name} />
         </div>
-      </div>
-
-      <hr className="border-border" />
+      </header>
 
       <ResumeContentForm resumeId={id} initialContent={initialContent} />
     </div>

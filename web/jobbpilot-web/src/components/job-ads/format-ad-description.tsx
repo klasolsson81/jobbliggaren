@@ -29,7 +29,10 @@ import type { ReactNode } from "react";
  */
 
 const HEADING_MAX_LENGTH = 60;
-const HEADING_TRAILING_TERMINATORS = /[.!?,:;]$/;
+// Kolon (":") inkluderas EJ — "Your responsibilities:" / "Kvalifikationer:"
+// är giltiga rubriker. Punkt/utropstecken/frågetecken/komma indikerar
+// mening eller komma-list, inte rubrik.
+const HEADING_TRAILING_TERMINATORS = /[.!?,]$/;
 const BULLET_PREFIX = /^\s*[-•*]\s+/;
 
 type Block =

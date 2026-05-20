@@ -419,6 +419,35 @@ async function shootJobbInteractiveStates(
     );
   }
 
+  // State 3 — Jobbmodalen öppen (parsa-d annons-text per Prompt 2).
+  // Klickar på första jobb-raden → @modal/(.)jobb/[id] fångar och visar
+  // modal med JobAdDetail-komponenten. Verifierar att formatAdDescription
+  // renderar h3/p/ul-struktur från råtexten.
+  try {
+    await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
+    const firstRow = page.locator(".jp-job").first();
+    await firstRow.waitFor({ state: "visible", timeout: 5000 });
+    await firstRow.click();
+    // Modalen är role="dialog" (ADR 0053). aria-labelledby pekar på
+    // titel-element så name-matchning kan vara ad-titel; använd generisk dialog.
+    await page
+      .getByRole("dialog")
+      .first()
+      .waitFor({ state: "visible", timeout: 5000 });
+    // Vänta in description-elementet (parsad markup).
+    await page
+      .locator("#jp-modal-desc")
+      .waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForTimeout(300);
+    await shoot(page, outDir, `jobb-modal-detalj__${theme}__${vpTag}`);
+    shot++;
+  } catch (err) {
+    console.warn(
+      `[visual-verify] VARNING: jobb-modal-detalj (${theme}/${vpTag}) ` +
+        `kunde inte capureras: ${(err as Error).message}`,
+    );
+  }
+
   // State 2 — Ort-popover öppen (enkelkolumns Län; ADR 0055-amendment —
   // ingen kommun-nivå, regions enkelnivå).
   try {

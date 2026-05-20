@@ -74,12 +74,25 @@ describe("parseAdDescription — heading-detektering", () => {
       "Spännande tjänst!",
       "Är du rätt person?",
       "Saker, ting och annat,",
-      "Tjänsten innebär:",
     ];
     for (const s of samples) {
       const blocks = parseAdDescription(s);
       expect(blocks).toHaveLength(1);
       expect(blocks[0]?.kind).toBe("paragraph");
+    }
+  });
+
+  it("känner igen kort enrads-block med kolon-suffix som heading", () => {
+    // "Your responsibilities:", "Kvalifikationer:", "Tjänsten innebär:" är
+    // alla giltiga rubriker — kolon avslutar rubrik, inte mening.
+    const labels = [
+      "Tjänsten innebär:",
+      "Your responsibilities:",
+      "Kvalifikationer:",
+    ];
+    for (const label of labels) {
+      const blocks = parseAdDescription(`${label}\n\nText efter.`);
+      expect(blocks[0]).toEqual({ kind: "heading", text: label });
     }
   });
 
@@ -125,13 +138,13 @@ describe("parseAdDescription — bullet-list-detektering", () => {
     expect(blocks[0]?.kind).toBe("paragraph");
   });
 
-  it("integration: heading + paragraph + bullet-list", () => {
+  it("integration: heading + heading + bullet-list (kolon avslutar rubrik)", () => {
     const raw =
       "Kvalifikationer\n\nDu har följande kompetenser:\n\n- C# och .NET\n- SQL och relationsdatabaser\n- Erfarenhet av agila metoder";
     const blocks = parseAdDescription(raw);
     expect(blocks).toHaveLength(3);
     expect(blocks[0]?.kind).toBe("heading");
-    expect(blocks[1]?.kind).toBe("paragraph");
+    expect(blocks[1]?.kind).toBe("heading");
     expect(blocks[2]?.kind).toBe("list");
   });
 });

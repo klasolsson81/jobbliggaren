@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { JobTags, computeFreshnessLabel } from "./job-tags";
+import { JobTags } from "./job-tags";
+import { computeFreshnessLabel } from "./freshness";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

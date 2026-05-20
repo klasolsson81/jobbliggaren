@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getJobSourceLabel } from "@/lib/job-ads/status";
 import type { JobAdDto } from "@/lib/dto/job-ads";
-import { JobTags, computeFreshnessLabel } from "./job-tags";
+import { JobTags } from "./job-tags";
+import { computeFreshnessLabel } from "./freshness";
 
 interface JobAdCardProps {
   jobAd: JobAdDto;

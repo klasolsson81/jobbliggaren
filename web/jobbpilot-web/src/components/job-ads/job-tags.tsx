@@ -81,20 +81,3 @@ export function JobTags({
   );
 }
 
-/**
- * Server-side helper — beräknar färskhets-etikett från `publishedAt` (ISO).
- * Returnerar `null` om annonsen är äldre än 7 dygn. Anropas i RSC-parent
- * (JobAdCard) så strängvärdet är stabilt mellan server-render och hydration.
- */
-export function computeFreshnessLabel(
-  publishedAtIso: string,
-  nowMs: number = Date.now(),
-): string | null {
-  const publishedMs = Date.parse(publishedAtIso);
-  if (!Number.isFinite(publishedMs)) return null;
-  const ageDays = Math.floor((nowMs - publishedMs) / (24 * 60 * 60 * 1000));
-  if (ageDays < 0 || ageDays > 7) return null;
-  if (ageDays === 0) return "Idag";
-  if (ageDays === 1) return "1 dag";
-  return `${ageDays} dagar`;
-}

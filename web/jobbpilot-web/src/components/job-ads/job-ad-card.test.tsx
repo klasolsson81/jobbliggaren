@@ -1,8 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdCard } from "./job-ad-card";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 
+// publishedAt avsiktligt > 7 dygn sedan så freshness-taggen INTE renderas i
+// default-tester (skulle annars läggas till h3:s accessible name och bryta
+// `getByRole("heading", { name: "..." })`-assertions).
 const baseAd: JobAdDto = {
   id: "11111111-1111-1111-1111-111111111111",
   title: "Senior Backend Developer",
@@ -11,11 +14,15 @@ const baseAd: JobAdDto = {
   url: "https://example.com/jobb/123",
   source: "Platsbanken",
   status: "Active",
-  publishedAt: "2026-05-13T08:00:00Z",
+  publishedAt: "2026-04-01T08:00:00Z",
   expiresAt: "2026-06-13T08:00:00Z",
-  createdAt: "2026-05-13T08:01:00Z",
+  createdAt: "2026-04-01T08:01:00Z",
   isNew: false,
 };
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 describe("JobAdCard (v3 .jp-job-rad)", () => {
   it("renders title and company", () => {

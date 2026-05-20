@@ -1224,6 +1224,61 @@ a:hover { color: var(--jp-navy-600); }
   margin-right: 8px;
   flex-shrink: 0;
 }
+/* ── Tagg-system (pre-F6 Prompt 1, 2026-05-20) ─────────
+   Generisk rektangulär tagg-rad för rad-komponenter (.jp-job /
+   .jp-app i Prompt 2+). Placeras inom .jp-job__title h3 och
+   högerjusteras via margin-left:auto — utnyttjar h3:s befintliga
+   flex/flex-wrap-kontrakt (CTO-dom 2026-05-20, Variant D). Klas-
+   mandat: civic-utility-stil, INGA pills, INGA pastell-chips,
+   INGA ikoner-i-taggar (HANDOVER §0 / CLAUDE.md §5.2). .jp-tag
+   ärver färgvarianter via .jp-tag--accent (leaf framhävt, NY),
+   .jp-tag--neutral (border-only, färskhet), .jp-tag--brand
+   (navy svag fyll, match). Återanvänds över rad-komponenter. */
+.jp-job-tags {
+  margin-left: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.jp-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--jp-r-sm);
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.jp-tag--accent {
+  background: var(--jp-leaf-50);
+  color: var(--jp-leaf-600);
+  font-weight: 700;
+}
+.jp-tag--neutral {
+  background: transparent;
+  color: var(--jp-ink-2);
+  border-color: var(--jp-border);
+  font-weight: 600;
+}
+.jp-tag--brand {
+  background: var(--jp-navy-50);
+  color: var(--jp-navy-700);
+  font-weight: 600;
+}
+[data-theme="dark"] .jp-tag--neutral {
+  color: var(--jp-ink-2);
+  border-color: var(--jp-border);
+}
+[data-theme="dark"] .jp-tag--brand {
+  background: transparent;
+  color: var(--jp-ink-1);
+  border-color: var(--jp-navy-700);
+}
 .jp-matchchip {
   display: inline-flex;
   align-items: center;

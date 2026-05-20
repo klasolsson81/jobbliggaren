@@ -6,7 +6,7 @@ import type {
   JobAdSummaryDto,
 } from "@/lib/types/applications";
 
-// next/link renderas som <a> i jsdom utan extra mock (Next 15 client Link).
+// next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 
 const jobAd: JobAdSummaryDto = {
   jobAdId: "ad-1",
@@ -33,49 +33,64 @@ function makeApplication(
   };
 }
 
-describe("ApplicationRow", () => {
-  it("renders 'title — company' as primary identity when jobAd is present", () => {
+describe("ApplicationRow (v3 .jp-app)", () => {
+  it("emitterar det DELADE jp-app-radchassit (jp-job≡jp-app, HANDOVER §9)", () => {
     render(<ApplicationRow application={makeApplication()} />);
-
-    expect(
-      screen.getByText("Backend-utvecklare — Volvo")
-    ).toBeInTheDocument();
+    const link = screen.getByRole("link");
+    expect(link).toHaveClass("jp-app");
   });
 
-  it("falls back to 'Ansökan #<first 8 of id>' (mono) when jobAd is null", () => {
+  it("renderar EXAKT 2 grid-barn (body + actions) utan statusbadge (F5 B1, prototyp-exakt)", () => {
+    const { container } = render(
+      <ApplicationRow application={makeApplication()} />
+    );
+    const link = screen.getByRole("link");
+    // Prototyp pages.jsx ApplicationRow = exakt 2 grid-barn:
+    // .jp-job__body + .jp-app__actions. INGEN .jp-app__statusbadge i raden
+    // (den 56px-badgen hör till modalen/detaljen).
+    expect(link.children).toHaveLength(2);
+    expect(link.children[0]).toHaveClass("jp-job__body");
+    expect(link.children[1]).toHaveClass("jp-app__actions");
+    expect(
+      container.querySelector(".jp-app__statusbadge")
+    ).toBeNull();
+  });
+
+  it("renders jobtitel + företag separat när jobAd finns", () => {
+    render(<ApplicationRow application={makeApplication()} />);
+    expect(screen.getByText("Backend-utvecklare")).toBeInTheDocument();
+    expect(screen.getByText("Volvo")).toBeInTheDocument();
+  });
+
+  it("faller tillbaka till mono 'Ansökan #<8>' när jobAd är null", () => {
     render(
       <ApplicationRow
         application={makeApplication({ jobAd: null, jobAdId: null })}
       />
     );
-
     const fallback = screen.getByText("Ansökan #11111111");
     expect(fallback).toBeInTheDocument();
-    expect(fallback).toHaveClass("font-mono");
+    expect(fallback).toHaveClass("jp-mono");
     expect(
-      screen.queryByText("Backend-utvecklare — Volvo")
+      screen.queryByText("Backend-utvecklare")
     ).not.toBeInTheDocument();
   });
 
-  it("renders the status as a StatusDot, not a filled pill", () => {
+  it("renderar status som fylld v3-pill med dot (jp-pill--{variant})", () => {
     render(<ApplicationRow application={makeApplication()} />);
-
-    // StatusDot exponerar etiketten "Skickad"; pill-only-klassen (bg-token)
-    // ska inte finnas på status-elementet. Dot = lägst visuell vikt (§8).
-    const statusEl = screen.getByText("Skickad");
-    expect(statusEl).toBeInTheDocument();
-    expect(statusEl.className).not.toMatch(/rounded-pill/);
+    // Submitted → Brand → "Skickad"
+    const pill = screen.getByText("Skickad").closest(".jp-pill");
+    expect(pill).not.toBeNull();
+    expect(pill).toHaveClass("jp-pill--brand");
   });
 
-  it("renders 'Sök senast <date>' when jobAd.expiresAt is set", () => {
+  it("renderar 'Sök senast <date>' när jobAd.expiresAt finns", () => {
     render(<ApplicationRow application={makeApplication()} />);
-
     expect(screen.getByText(/Sök senast/)).toBeInTheDocument();
-    // sv-SE kort datum för 2026-06-01
     expect(screen.getByText("1 juni 2026")).toBeInTheDocument();
   });
 
-  it("omits the 'Sök senast' line when expiresAt is null", () => {
+  it("utelämnar 'Sök senast'-raden när expiresAt är null", () => {
     render(
       <ApplicationRow
         application={makeApplication({
@@ -83,17 +98,29 @@ describe("ApplicationRow", () => {
         })}
       />
     );
-
     expect(screen.queryByText(/Sök senast/)).not.toBeInTheDocument();
   });
 
-  it("links the whole row to /ansokningar/<id>", () => {
+  it("renderar kort-id (#8) i meta-raden", () => {
     render(<ApplicationRow application={makeApplication()} />);
+    expect(screen.getByText("#11111111")).toBeInTheDocument();
+  });
 
+  it("länkar hela raden till /ansokningar/<id> (intercept → modal)", () => {
+    render(<ApplicationRow application={makeApplication()} />);
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute(
       "href",
       "/ansokningar/11111111-2222-3333-4444-555555555555"
     );
+  });
+
+  it("har en tillgänglig aria-label med titel, företag och status", () => {
+    render(<ApplicationRow application={makeApplication()} />);
+    expect(
+      screen.getByRole("link", {
+        name: "Backend-utvecklare – Volvo – Skickad",
+      })
+    ).toBeInTheDocument();
   });
 });

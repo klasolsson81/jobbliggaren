@@ -1177,9 +1177,10 @@ a:hover { color: var(--jp-navy-600); }
    aldrig"; "får ALDRIG drifta isär"). Spec-text + §0-veto >
    jobbpilot-v3.css-källans separata block (CTO-dom 2026-05-19:
    källans gap 8≠10 / align start≠center var käll-bugg, ej
-   medveten design). .jp-app__statusbadge (56px) är dokumenterad
-   FUNKTIONELL innehållsskillnad (jobb=match-indikator ↔
-   ansökan=statusbadge), EJ row-mönster-drift — bevarad medvetet.
+   medveten design). F5 B1: .jp-app__statusbadge tillhör MODALEN/
+   detaljen, EJ raden — ansökningsraden = exakt 2 grid-barn
+   (body + actions), prototyp-exakt, ingen topologi-avvikelse mot
+   .jp-job. Titel/company/meta är DELADE selektorer (F5 B2 nedan).
    Återinför ALDRIG separata .jp-job/.jp-app-chassi-block. */
 .jp-jobs,
 .jp-applist {
@@ -1260,7 +1261,18 @@ a:hover { color: var(--jp-navy-600); }
   border-color: var(--jp-border);
 }
 .jp-job__body { min-width: 0; }
-.jp-job__title {
+/* jp-job ≡ jp-app titel/company/meta: DELADE selektorer (HANDOVER §9
+   "får ALDRIG drifta isär"). Extension av F4 CTO-domen 2026-05-19
+   (jp-job/jp-app source-divergens = käll-bugg; spec/§0 > källfil;
+   konsolidera till DELAD selektor med jp-job:s värden) från radchassit
+   till radens inre text-element (F5 B2, design-reviewer). jp-job:s
+   line-height/flex på __title är ofarligt på app-rader utan __newflag
+   (ger §9-paritet). Återinför ALDRIG separata .jp-app__title/company/
+   meta/meta-b-block — radens visuella paritet hänger på dessa delade
+   regler. App-specifika element (.jp-app__id-chip, .jp-app__actions)
+   är genuint app-unika och konsolideras EJ. */
+.jp-job__title,
+.jp-app__title {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
@@ -1272,13 +1284,15 @@ a:hover { color: var(--jp-navy-600); }
   flex-wrap: wrap;
   gap: 8px;
 }
-.jp-job__company {
+.jp-job__company,
+.jp-app__company {
   margin-top: 6px;
   font-size: 15px;
   color: var(--jp-ink-1);
   font-weight: 500;
 }
-.jp-job__meta {
+.jp-job__meta,
+.jp-app__meta {
   margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
@@ -1287,7 +1301,8 @@ a:hover { color: var(--jp-navy-600); }
   color: var(--jp-ink-2);
   align-items: center;
 }
-.jp-job__meta b {
+.jp-job__meta b,
+.jp-app__meta b {
   font-family: var(--jp-font-mono);
   font-weight: 500;
   color: var(--jp-ink-1);
@@ -1619,35 +1634,11 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-app__statusbadge svg { width: 24px; height: 24px; }
 
-.jp-app__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--jp-navy-700);
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-}
-.jp-app__company {
-  color: var(--jp-ink-1);
-  font-size: 15px;
-  font-weight: 500;
-  margin-top: 4px;
-}
-.jp-app__meta {
-  display: flex;
-  gap: 6px 16px;
-  font-size: 13.5px;
-  color: var(--jp-ink-2);
-  margin-top: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.jp-app__meta b {
-  font-family: var(--jp-font-mono);
-  font-weight: 500;
-  color: var(--jp-ink-1);
-  margin-left: 4px;
-}
+/* .jp-app__title/company/meta/meta-b: konsoliderade till DELADE
+   .jp-job__*,.jp-app__*-selektorer ovan (F5 B2, HANDOVER §9 /
+   F4 CTO-doktrin 2026-05-19). Separata block borttagna här —
+   återinför dem ALDRIG (skulle drifta isär jp-job≡jp-app). Endast
+   genuint app-unika element (id-chip, actions-layout) nedan. */
 .jp-app__id {
   font-family: var(--jp-font-mono);
   font-size: 12px;

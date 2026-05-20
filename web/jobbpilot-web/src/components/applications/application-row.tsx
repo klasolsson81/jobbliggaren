@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
+import { ChevronRight } from "lucide-react";
 import {
   formatSvDate,
   getStatusLabel,
-  STATUS_BADGE_VARIANT,
-  type BadgeVariant,
+  getStatusPillClass,
 } from "@/lib/applications/status";
 import type { ApplicationDto } from "@/lib/types/applications";
 
@@ -12,29 +11,34 @@ interface ApplicationRowProps {
   application: ApplicationDto;
 }
 
-const DOT_TONE: Record<BadgeVariant, StatusTone> = {
-  Info: "info",
-  Brand: "brand",
-  Success: "success",
-  Warning: "warning",
-  Danger: "danger",
-  Neutral: "neutral",
-};
-
 /**
- * Ledger-rad i ansökningspipelinen (ersätter ApplicationCard — det var
- * aldrig ett kort, det är en rad). Primär identitet = jobtitel — företag;
- * fallback till mono-kort-id när ingen kopplad/manuell annons finns
- * (tillstånd 3, §7). Status som StatusDot (lägst visuell vikt i tät lista,
- * §8 Area 1) — aldrig fylld pill här.
+ * v3 ansökningsrad (`.jp-app`). Emitterar den DELADE `.jp-job,.jp-app`-
+ * selektorn (F4-konsoliderad) → /ansokningar får IDENTISKT radchassi som
+ * /jobb (HANDOVER §5.3/§9, icke-förhandlingsbar). Raden = EXAKT TVÅ
+ * grid-barn (body-div + `.jp-app__actions`), prototyp-exakt (pages.jsx
+ * ApplicationRow). INGEN `.jp-app__statusbadge` i raden — den 56px-
+ * statusbadgen hör till MODALEN/detaljen (ApplicationDetail status-block),
+ * ej raden (F5 B1, design-reviewer). Med statusbadgen borta finns ingen
+ * topologi-avvikelse mot .jp-job: enda kvarvarande jp-app-unika är
+ * `.jp-app__id`-chip + `.jp-app__actions` (jp-job har motsvarande).
+ *
+ * Hela raden är en Link till `/ansokningar/[id]` → vid soft-nav fångar
+ * `@modal/(.)ansokningar/[id]` den och visar modal; hard-nav / delad länk
+ * renderar fullsidan (ADR 0053, speglar F3 JobAdCard exakt). Link (ej
+ * div+onClick) ger tangentbordsnåbarhet och rätt semantik utan extra ARIA
+ * (CLAUDE.md §5.2 / jobbpilot-design-a11y). Förblir Server Component
+ * (server-renderas i page.tsx, passas som serialiserbar slot — F3-mönster).
+ *
+ * Primär identitet = jobtitel; företag separat. Fallback till mono-kort-id
+ * när ingen kopplad/manuell annons finns (tillstånd 3). NEXT-datum =
+ * jobAd.expiresAt (sista ansökningsdag) — REAL fält, ej v3-mock nextDate.
  */
 export function ApplicationRow({ application }: ApplicationRowProps) {
   const { jobAd } = application;
-  const tone = DOT_TONE[STATUS_BADGE_VARIANT[application.status]] ?? "neutral";
 
   const hasIdentity = jobAd != null;
-  const primary = hasIdentity
-    ? `${jobAd.title} — ${jobAd.company}`
+  const title = hasIdentity
+    ? jobAd.title
     : `Ansökan #${application.id.slice(0, 8)}`;
 
   const updatedAt = formatSvDate(application.updatedAt);
@@ -43,38 +47,50 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
   return (
     <Link
       href={`/ansokningar/${application.id}`}
-      className="flex flex-col gap-1 border-b border-border-default px-1 py-3 transition-colors duration-75 last:border-b-0 hover:bg-surface-tertiary"
+      className="jp-app"
+      aria-label={
+        hasIdentity
+          ? `${jobAd.title} – ${jobAd.company} – ${getStatusLabel(application.status)}`
+          : `${title} – ${getStatusLabel(application.status)}`
+      }
     >
-      <span
-        className={
-          hasIdentity
-            ? "text-body font-semibold text-text-primary"
-            : "font-mono text-body font-semibold text-text-primary"
-        }
-      >
-        {primary}
-      </span>
-      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-text-secondary">
-        <StatusDot tone={tone}>{getStatusLabel(application.status)}</StatusDot>
-        {updatedAt && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span>
-              Uppdaterad{" "}
-              <span className="font-mono">{updatedAt}</span>
-            </span>
-          </>
+      <div className="jp-job__body">
+        <h3
+          className={
+            hasIdentity ? "jp-app__title" : "jp-app__title jp-mono"
+          }
+        >
+          {title}
+        </h3>
+        {hasIdentity && (
+          <div className="jp-app__company">{jobAd.company}</div>
         )}
-        {expiresAt && (
-          <>
-            <span aria-hidden="true">·</span>
+        <div className="jp-app__meta">
+          <span className="jp-app__id">#{application.id.slice(0, 8)}</span>
+          {updatedAt && (
             <span>
-              Sök senast{" "}
-              <span className="font-mono">{expiresAt}</span>
+              Uppdaterad <b>{updatedAt}</b>
             </span>
-          </>
-        )}
-      </span>
+          )}
+          {expiresAt && (
+            <span>
+              Sök senast <b>{expiresAt}</b>
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="jp-app__actions">
+        <span className={getStatusPillClass(application.status)}>
+          <span className="jp-pill__dot" aria-hidden="true" />
+          {getStatusLabel(application.status)}
+        </span>
+        <ChevronRight
+          size={20}
+          style={{ color: "var(--jp-ink-3)" }}
+          aria-hidden="true"
+        />
+      </div>
     </Link>
   );
 }

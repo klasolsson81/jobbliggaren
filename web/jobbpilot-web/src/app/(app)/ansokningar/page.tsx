@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Plus } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationRow } from "@/components/applications/application-row";
 import { ApplicationsPipeline } from "@/components/applications/applications-pipeline";
-import { Button } from "@/components/ui/button";
 import type { ApplicationStatus } from "@/lib/types/applications";
 
 export default async function AnsokningarPage() {
@@ -21,27 +21,27 @@ export default async function AnsokningarPage() {
       redirect("/logga-in");
     case "rateLimited":
       return (
-        <div className="flex flex-col gap-4">
-          <h1 className="text-h1 font-medium text-text-primary">
-            För många förfrågningar
-          </h1>
-          <p className="text-body text-text-secondary">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
-          </p>
+        <div className="jp-container jp-page">
+          <div className="jp-page__title-block">
+            <h1 className="jp-page__title">För många förfrågningar</h1>
+            <p className="jp-page__lede">
+              Du har gjort för många förfrågningar på kort tid. Försök igen
+              om {result.retryAfterSeconds} sekunder.
+            </p>
+          </div>
         </div>
       );
     case "notFound":
     case "forbidden":
     case "error":
       return (
-        <div className="flex flex-col gap-4">
-          <h1 className="text-h1 font-medium text-text-primary">
-            Kunde inte ladda ansökningar
-          </h1>
-          <p className="text-body text-text-secondary">
-            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
-          </p>
+        <div className="jp-container jp-page">
+          <div className="jp-page__title-block">
+            <h1 className="jp-page__title">Kunde inte ladda ansökningar</h1>
+            <p className="jp-page__lede">
+              Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
+            </p>
+          </div>
         </div>
       );
     default:
@@ -66,25 +66,32 @@ export default async function AnsokningarPage() {
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-end justify-between">
+    <div className="jp-container jp-page">
+      <div
+        className="jp-page__title-block"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
-          <h1 className="jp-h1">Ansökningar</h1>
-          <p className="jp-lede">
+          <h1 className="jp-page__title">Mina ansökningar</h1>
+          <p className="jp-page__lede">
             Pipeline över alla ansökningar. Klicka på en rad för detaljer.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/ansokningar/ny">Ny ansökan</Link>
-        </Button>
+        <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
+          <Plus size={16} aria-hidden="true" /> Ny ansökan
+        </Link>
       </div>
 
       {total === 0 ? (
-        <div className="mt-7 border-y border-border-default px-1 py-12 text-center">
-          <p className="text-body text-text-primary">Inga ansökningar</p>
-          <p className="mt-1 text-body-sm text-text-secondary">
-            Skapa din första ansökan för att komma igång.
-          </p>
+        <div className="jp-empty">
+          <div className="jp-empty__title">Inga ansökningar</div>
+          Skapa din första ansökan för att komma igång.
         </div>
       ) : (
         <ApplicationsPipeline groups={groups} rowSlots={rowSlots} />

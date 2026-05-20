@@ -43,6 +43,47 @@ export const ALLOWED_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]>
 
 export const DESTRUCTIVE_STATUSES: ApplicationStatus[] = ["Rejected", "Withdrawn"];
 
+/**
+ * Fast pipeline-ordning. Single source of truth — speglar backend-
+ * pipelinens grupp-ordning. Tidigare duplicerad som PIPELINE_ORDER i
+ * applications-pipeline.tsx; centraliserad här så app-row v3, modal,
+ * statusbar och sektioner inte kan drifta isär (CLAUDE.md §9.1 DRY).
+ * Detta är den REALA domän-ordningen — ersätter v3-prototypens
+ * STATUS_ORDER-mock (no-mock-direktiv).
+ */
+export const PIPELINE_ORDER: ApplicationStatus[] = [
+  "Draft",
+  "Submitted",
+  "Acknowledged",
+  "InterviewScheduled",
+  "Interviewing",
+  "OfferReceived",
+  "Accepted",
+  "Rejected",
+  "Withdrawn",
+  "Ghosted",
+];
+
+/**
+ * BadgeVariant → v3 `.jp-pill--{variant}`-suffix. Speglar
+ * STATUS_BADGE_VARIANT-semantiken mot v3 .jp-pill-systemet
+ * (HANDOVER §5.7). Delas av app-row v3 och ansökan-modalen så
+ * status-pill aldrig drifter mellan list och detalj.
+ */
+export const PILL_VARIANT_CLASS: Record<BadgeVariant, string> = {
+  Info: "info",
+  Brand: "brand",
+  Success: "success",
+  Warning: "warning",
+  Danger: "danger",
+  Neutral: "neutral",
+};
+
+export function getStatusPillClass(status: ApplicationStatus): string {
+  const variant = STATUS_BADGE_VARIANT[status];
+  return `jp-pill jp-pill--${PILL_VARIANT_CLASS[variant]}`;
+}
+
 export function getStatusLabel(status: ApplicationStatus): string {
   return STATUS_LABELS[status] ?? status;
 }

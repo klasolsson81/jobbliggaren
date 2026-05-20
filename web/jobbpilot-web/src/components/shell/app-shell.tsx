@@ -48,15 +48,17 @@ function isActive(pathname: string, href: string): boolean {
 
 /**
  * v3-native routes (CTO D1, Variant B 2026-05-19): sidor som äger sin egen
- * bredd-layout (edge-to-edge hero + egen .jp-container runt resultatdelen).
- * Prefix-match, samma idiom som aktiv-route-logiken ovan. För dessa routes
+ * bredd-layout (edge-to-edge hero + egen .jp-container, ELLER — som
+ * /ansokningar efter F5 — egen .jp-container/.jp-page utan hero). Prefix-
+ * match, samma idiom som aktiv-route-logiken ovan. För dessa routes
  * renderas children DIREKT i .jp-content utan .jp-shell-transitional-
- * container — annars constrainas heron och kan inte gå edge-to-edge.
+ * container — annars constrainas heron (edge-to-edge bryts) eller dubbleras
+ * .jp-container (dubbel max-width/padding på sidor som äger sin egen).
  * BORTTAGNINGS-TRIGGER: när alla (app)-sidor refaktorerats till egna
  * .jp-container/.jp-page tas denna lista + .jp-shell-transitional-
  * container bort tillsammans (se globals.css-trail, ADR 0052).
  */
-const V3_NATIVE_ROUTES = ["/jobb"];
+const V3_NATIVE_ROUTES = ["/jobb", "/ansokningar"];
 
 function isV3Native(pathname: string): boolean {
   return V3_NATIVE_ROUTES.some(

@@ -1571,7 +1571,46 @@ a:hover { color: var(--jp-navy-600); }
   font-size: 15.5px;
   line-height: 1.65;
   color: var(--jp-ink-1);
-  white-space: pre-wrap;
+}
+/* ── Annonsbeskrivning — parsad markup (pre-F6 Prompt 2) ─────
+   Genererad av formatAdDescription(). h3 ärver typografi från
+   ANNONSBESKRIVNING-labeln men något större och med markant
+   spacing före (Klas-direktiv). p använder white-space:pre-line
+   så enkla radbrytningar inom stycken bevaras. ul-stilning är
+   civic-utility (disc, modest indrag). INGA nya färgkoder —
+   alla tokens från jobbpilot-v3.css. */
+.jp-ad-desc__h3 {
+  margin: 28px 0 8px 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-ink-2);
+  line-height: 1.3;
+}
+.jp-ad-desc__h3:first-child {
+  margin-top: 0;
+}
+.jp-ad-desc__p {
+  margin: 0 0 14px 0;
+  white-space: pre-line;
+}
+.jp-ad-desc__p:last-child {
+  margin-bottom: 0;
+}
+.jp-ad-desc__list {
+  margin: 0 0 14px 0;
+  padding-left: 22px;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-ad-desc__list:last-child {
+  margin-bottom: 0;
+}
+.jp-ad-desc__list li {
+  padding-left: 2px;
 }
 .jp-modal__foot {
   display: flex;

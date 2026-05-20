@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { getJobAdStatusLabel } from "@/lib/job-ads/status";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
+import { formatAdDescription } from "./format-ad-description";
 
 /**
  * JobAdDetail — ren presentational Server Component (ingen "use client",
@@ -97,7 +98,7 @@ export function JobAdDetail({ jobAd, headless = false }: JobAdDetailProps) {
             Annonsbeskrivning
           </div>
           <div id="jp-modal-desc" className="jp-modal__description">
-            {jobAd.description}
+            {formatAdDescription(jobAd.description)}
           </div>
         </div>
       </div>

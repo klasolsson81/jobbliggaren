@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
 import { LoginForm } from "@/components/forms/LoginForm";
 import { RegisterForm } from "@/components/forms/RegisterForm";
 import { OAuthMark, type OAuthProvider } from "./oauth-mark";
@@ -63,6 +64,24 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
       <Suspense fallback={null}>
         {mode === "login" ? <LoginForm /> : <RegisterForm />}
       </Suspense>
+
+      {mode === "login" && (
+        // TODO: Fas 7 — wire mot riktig glömt-lösenord-route när den finns.
+        // Idag pekar länken mot `/logga-in?reset=1` så befintlig auth-route
+        // kan upptäcka query-paramet (no-op idag, ingen regression).
+        <Link
+          href="/logga-in?reset=1"
+          style={{
+            fontSize: 13.5,
+            alignSelf: "flex-end",
+            textDecoration: "underline",
+            color: "#1B5396",
+            marginTop: -4,
+          }}
+        >
+          Glömt lösenord?
+        </Link>
+      )}
 
       <div
         className="jp-land-auth__sep"

@@ -58,7 +58,7 @@ export async function updateMyProfileAction(
     };
   }
 
-  revalidatePath("/mig");
+  revalidatePath("/installningar");
   return { success: true };
 }
 

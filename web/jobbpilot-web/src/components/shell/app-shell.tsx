@@ -140,7 +140,7 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             <div className="jp-usermenu__email">{email}</div>
           </div>
           <Link
-            href="/mig"
+            href="/installningar"
             className="jp-usermenu__item"
             onClick={() => setOpen(false)}
           >
@@ -296,9 +296,9 @@ function Drawer({
             );
           })}
           <Link
-            href="/mig"
+            href="/installningar"
             className="jp-drawer__item"
-            aria-current={isActive(pathname, "/mig") ? "page" : undefined}
+            aria-current={isActive(pathname, "/installningar") ? "page" : undefined}
             onClick={handleNav}
           >
             <Settings size={18} aria-hidden="true" /> Inställningar

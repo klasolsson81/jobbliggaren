@@ -1,4 +1,3 @@
-import { StatusIcon } from "@/components/applications/status-icon";
 import { StatusEditCard } from "@/components/applications/status-edit-card";
 import { AddNoteForm } from "@/components/applications/add-note-form";
 import { AddFollowUpForm } from "@/components/applications/add-follow-up-form";
@@ -32,14 +31,6 @@ const BADGE_COLOR_VAR: Record<string, string> = {
   warning: "var(--jp-warning)",
   danger: "var(--jp-danger)",
   neutral: "var(--jp-ink-3)",
-};
-const BADGE_BG_VAR: Record<string, string> = {
-  info: "var(--jp-info-bg)",
-  brand: "var(--jp-navy-50)",
-  success: "var(--jp-success-bg)",
-  warning: "var(--jp-warning-bg)",
-  danger: "var(--jp-danger-bg)",
-  neutral: "var(--jp-surface-3)",
 };
 
 const SECTION_LABEL_STYLE: React.CSSProperties = {
@@ -92,7 +83,6 @@ export function ApplicationDetail({
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusColor = BADGE_COLOR_VAR[variant];
-  const statusBg = BADGE_BG_VAR[variant];
   const statusLabel = getStatusLabel(application.status);
 
   const sortedNotes = [...application.notes].sort(
@@ -187,25 +177,17 @@ export function ApplicationDetail({
             (prototyp pages.jsx ApplicationModal: #id EN gång i headern).
             Ingen dubblerad #shortId-body-rad (F5 design-reviewer M1). */}
 
-        {/* Status-block (v3 jp-modal__match-stil) */}
+        {/* Status-block (v3 jp-modal__match-stil). Klas pre-F6 Prompt 3
+            (2026-05-20): cirkulär status-ikon borttagen — såg AI-genererad
+            ut. Status markeras nu med en 4px vänsterkant-stapel i status-
+            färg (civic-utility, dovt). Neutral kort-bg + border (CSS-
+            default) så stapeln blir den enda statusindikatorn. */}
         <div
           className="jp-modal__match"
           style={{
-            borderColor: statusColor,
-            background: statusBg,
+            borderLeft: `4px solid ${statusColor}`,
           }}
         >
-          <span
-            className="jp-modal__match__ring"
-            style={{
-              background: "var(--jp-surface)",
-              color: statusColor,
-              border: `2px solid ${statusColor}`,
-            }}
-            aria-hidden="true"
-          >
-            <StatusIcon status={application.status} size={26} />
-          </span>
           {/* id="jp-modal-desc" OVILLKORLIGT här (status-blocket renderas
               alltid) → ApplicationModalShell aria-describedby dinglar
               aldrig (F5 code-reviewer M1, F3 job-ad-detail.tsx-mönster:

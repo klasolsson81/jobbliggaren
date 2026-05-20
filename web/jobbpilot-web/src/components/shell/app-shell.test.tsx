@@ -73,7 +73,7 @@ describe("AppShell (v3 header-shell)", () => {
     expect(within(menu).getByText("klas.olsson@example.se")).toBeInTheDocument();
     expect(
       within(menu).getByRole("link", { name: /Inställningar/ }),
-    ).toHaveAttribute("href", "/mig");
+    ).toHaveAttribute("href", "/installningar");
     expect(
       within(menu).getByRole("button", { name: /Logga ut/ }),
     ).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("AppShell (v3 header-shell)", () => {
     ).toHaveAttribute("href", "/jobb");
     expect(
       within(drawer).getByRole("link", { name: /Inställningar/ }),
-    ).toHaveAttribute("href", "/mig");
+    ).toHaveAttribute("href", "/installningar");
 
     await user.click(
       within(drawer).getByRole("button", { name: "Stäng meny" }),

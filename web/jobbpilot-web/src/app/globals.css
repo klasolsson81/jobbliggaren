@@ -1686,6 +1686,167 @@ a:hover { color: var(--jp-navy-600); }
   background: var(--jp-surface);
   margin-top: -1px;
 }
+
+/* ── Segment (radiogroup-pill) — F6 Prompt 2 Inställningar ────
+   Aktiv option = navy-800 fyll + vit text i båda lägena (primary-
+   knappens "aldrig inverterad"-regel, HANDOVER §5.1). Disabled =
+   opacity 0.55 + cursor not-allowed. Container är 1px border-input
+   + radius md + overflow hidden så aktiv-pillen får skarpa kanter
+   mot containerns inre. */
+.jp-segment {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--jp-border-input);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface);
+  overflow: hidden;
+  width: fit-content;
+}
+.jp-segment__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background 80ms, color 80ms;
+}
+.jp-segment__opt + .jp-segment__opt {
+  border-left: 1px solid var(--jp-border-input);
+}
+.jp-segment__opt:hover:not([data-active="true"]):not(:disabled) {
+  background: var(--jp-surface-3);
+}
+.jp-segment__opt:focus-visible {
+  outline: 2px solid var(--jp-navy-700);
+  outline-offset: -2px;
+}
+.jp-segment__opt[data-active="true"] {
+  background: var(--jp-navy-800);
+  color: #FFFFFF;
+}
+.jp-segment__opt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.jp-segment__icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── ToggleRow (switch-rad) — F6 Prompt 2 Inställningar ────
+   Hela raden är klickbar via switch-button (rätt target-storlek).
+   Switch = button med track (32px×18px) + thumb (14px) som skiftar
+   position med transform. Civic-utility: ingen drop-shadow, ingen
+   gradient — bara navy-800-fyll vid checked. */
+.jp-togglerow {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+}
+.jp-togglerow + .jp-togglerow {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-togglerow__text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.jp-togglerow__label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  line-height: 1.4;
+}
+.jp-togglerow__desc {
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+  line-height: 1.45;
+}
+.jp-togglerow__switch {
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--jp-surface-3);
+  border: 1px solid var(--jp-border-input);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  transition: background 100ms, border-color 100ms;
+}
+.jp-togglerow__switch:focus-visible {
+  outline: 2px solid var(--jp-navy-700);
+  outline-offset: 2px;
+}
+.jp-togglerow__switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.jp-togglerow__switch[data-checked="true"] {
+  background: var(--jp-navy-800);
+  border-color: var(--jp-navy-800);
+}
+.jp-togglerow__thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--jp-surface);
+  transition: transform 120ms ease;
+}
+.jp-togglerow__switch[data-checked="true"] .jp-togglerow__thumb {
+  transform: translateX(16px);
+  background: #FFFFFF;
+}
+
+/* ── Inställningar-grid + field-block — F6 Prompt 2 ──────────
+   Två kolumner (1fr 1fr) på desktop, en kolumn under 900px.
+   Alla kort staplas inom respektive kolumn med 20px gap. */
+.jp-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.jp-settings-grid__col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .jp-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.jp-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-settings-field + .jp-settings-field {
+  margin-top: 20px;
+}
+.jp-settings-field__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+}
+.jp-settings-field__hint {
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+  margin: 0;
+}
 .jp-modal__foot {
   display: flex;
   gap: 10px;

@@ -15,6 +15,16 @@ function authHeaders(sessionId: string): HeadersInit {
 }
 
 /**
+ * Klient-side timeout för list-anropet. ADR 0060 Beslut 4 accepterar N+1
+ * COUNT-projektion under cap=20. Vid full-text-q-criteria mot stor JobAds-
+ * korpus utan trigram-index kan COUNTs ackumulera till >30s — vi degraderar
+ * /jobb och /sokningar civilt istället för att binda Vercel-funktionen
+ * tills den 504:ar (UX > väntan på data). Backend N+1-optimering = separat
+ * BE-prompt; FE-timeout = defense-in-depth.
+ */
+const LIST_TIMEOUT_MS = 8_000;
+
+/**
  * ADR 0060 — hämtar användarens auto-fångade RecentJobSearches.
  * Konsumerar `GET /api/v1/me/recent-searches` (auth-gated, JobSeeker-scopad,
  * cap=20 rader).
@@ -28,7 +38,11 @@ export async function getRecentSearches(): Promise<
   try {
     const res = await fetch(
       `${env.BACKEND_URL}/api/v1/me/recent-searches`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+      {
+        headers: authHeaders(sessionId),
+        cache: "no-store",
+        signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+      }
     );
     return await responseToResult(
       res,

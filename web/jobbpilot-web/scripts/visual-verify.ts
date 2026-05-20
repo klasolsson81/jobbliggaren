@@ -107,14 +107,25 @@ async function login(): Promise<string> {
  */
 async function createFixture(sessionId: string): Promise<void> {
   const auth = { Authorization: `Bearer ${sessionId}` };
-  for (const q of ["utvecklare", "designer"]) {
-    const res = await fetch(
-      `${BACKEND_URL}/api/v1/job-ads?q=${encodeURIComponent(q)}&pageSize=20`,
-      { headers: auth },
-    );
+  // SSYK-baserade sökningar (ingen q) — RecentJobSearches list-handler gör
+  // N+1 COUNT-projektion (ADR 0060 Beslut 4), och full-text-q-criteria
+  // kan bli långsam mot stor JobAds-korpus utan trigram-index på dev.
+  // SSYK + Region är indexerade taxonomi-koder — sub-sekund per COUNT.
+  // Stabila koder från Platsbanken: 1.5 IT, 2.21 Vård.
+  const fixtures = [
+    { ssyk: "1.5", region: "" }, // Data/IT
+    { ssyk: "2.21", region: "" }, // Hälso-/sjukvård
+  ];
+  for (const f of fixtures) {
+    const params = new URLSearchParams({ pageSize: "20" });
+    if (f.ssyk) params.append("ssyk", f.ssyk);
+    if (f.region) params.append("region", f.region);
+    const res = await fetch(`${BACKEND_URL}/api/v1/job-ads?${params}`, {
+      headers: auth,
+    });
     if (!res.ok) {
       throw new Error(
-        `Trigger fixture-sökning misslyckades (HTTP ${res.status}, q=${q}).`,
+        `Trigger fixture-sökning misslyckades (HTTP ${res.status}, ssyk=${f.ssyk}).`,
       );
     }
   }

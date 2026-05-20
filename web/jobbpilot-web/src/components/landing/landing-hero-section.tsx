@@ -39,10 +39,10 @@ export function LandingHeroSection() {
       <div className="jp-land-hero__inner">
         <div className="jp-land-hero__copy">
           <h1 className="jp-land-hero__title">
-            Verktyg för svenska jobbsökare
+            Håll ordning i ditt jobbsökande
           </h1>
           <p className="jp-land-hero__lede">
-            Skapa professionella CV, sök bland aktiva annonser och följ upp
+            Sök bland aktiva annonser från Platsbanken, skapa CV och brev, och följ upp
             varje ansökan — från utkast till svar.
           </p>
           <div className="jp-land-hero__ctas">

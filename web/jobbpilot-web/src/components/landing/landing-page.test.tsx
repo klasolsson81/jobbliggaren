@@ -31,7 +31,7 @@ describe("LandingPage (F6 Prompt 1, smoke)", () => {
     // Hero
     expect(
       screen.getByRole("heading", {
-        name: "Verktyg för svenska jobbsökare",
+        name: "Håll ordning i ditt jobbsökande",
       }),
     ).toBeInTheDocument();
     // Features

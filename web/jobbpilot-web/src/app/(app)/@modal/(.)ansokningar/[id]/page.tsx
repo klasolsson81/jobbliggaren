@@ -4,7 +4,7 @@ import { getApplicationById } from "@/lib/api/applications";
 import { ApplicationDetail } from "@/components/applications/application-detail";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
 import { WithdrawApplicationButton } from "@/components/applications/withdraw-application-button";
-import { getAllowedTransitions } from "@/lib/applications/status";
+import { formatSvDate, getAllowedTransitions } from "@/lib/applications/status";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -47,9 +47,12 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       const title = hasIdentity
         ? jobAd.title
         : `Ansökan #${shortId}`;
+      // !hasIdentity: titel = "Ansökan #shortId"-fallback; ekas EJ som
+      // subtitle (duplikat). Skapad-datum = informativ metadata istället
+      // (design-reviewer F5 Major #2 2026-05-20).
       const subtitle = hasIdentity
         ? `${jobAd.company} · #${shortId}`
-        : `#${shortId}`;
+        : `Skapad ${formatSvDate(application.createdAt) ?? ""}`.trim();
       const canWithdraw = getAllowedTransitions(
         application.status
       ).includes("Withdrawn");

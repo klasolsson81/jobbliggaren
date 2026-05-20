@@ -170,7 +170,12 @@ export function ApplicationDetail({
                   <span className="jp-mono">#{shortId}</span>
                 </>
               ) : (
-                <span className="jp-mono">#{shortId}</span>
+                /* Titel = "Ansökan #shortId"-fallback. Ekas EJ som subtitle
+                   (duplikat); skapad-datum är informativ metadata istället
+                   (design-reviewer F5 Major #2 2026-05-20). */
+                <>
+                  Skapad <span className="jp-mono">{createdAt}</span>
+                </>
               )}
             </p>
           </div>

@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { JobAdList } from "./job-ad-list";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 
+// publishedAt > 7 dygn så freshness-tagg INTE renderas (skulle annars läggas
+// till h3:s accessible name och bryta `getByRole("heading", { name })`).
 const sampleAd = (id: string, title: string): JobAdDto => ({
   id,
   title,
@@ -11,9 +13,9 @@ const sampleAd = (id: string, title: string): JobAdDto => ({
   url: "https://example.com/jobb/" + id,
   source: "Platsbanken",
   status: "Active",
-  publishedAt: "2026-05-13T08:00:00Z",
+  publishedAt: "2026-04-01T08:00:00Z",
   expiresAt: null,
-  createdAt: "2026-05-13T08:01:00Z",
+  createdAt: "2026-04-01T08:01:00Z",
   isNew: false,
 });
 

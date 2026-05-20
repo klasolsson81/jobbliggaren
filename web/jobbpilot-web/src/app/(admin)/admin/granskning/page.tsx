@@ -107,7 +107,7 @@ function ErrorBlock({
     },
     notFound: {
       title: "Kunde inte ladda granskningsloggen",
-      body: "Försök igen om en stund. Om felet kvarstår — kontakta drift.",
+      body: "Försök igen om en stund. Kontakta drift om felet kvarstår.",
     },
     rateLimited: {
       title: "För många förfrågningar",
@@ -117,7 +117,7 @@ function ErrorBlock({
     },
     error: {
       title: "Kunde inte ladda granskningsloggen",
-      body: "Försök igen om en stund. Om felet kvarstår — kontakta drift.",
+      body: "Försök igen om en stund. Kontakta drift om felet kvarstår.",
     },
   };
 

@@ -11,11 +11,11 @@
 const FEATURES: ReadonlyArray<{ key: string; body: string }> = [
   {
     key: "Sökning",
-    body: "Aktiva platsannonser — just nu från Platsbanken, fler källor planerade. Sortera efter CV-match, nyhet eller deadline.",
+    body: "Aktiva platsannonser från Platsbanken, fler källor planerade. Sortera efter CV-match, nyhet eller deadline.",
   },
   {
     key: "Pipeline",
-    body: "Spåra varje ansökan från utkast till svar — intervjuer, erbjudanden, avslag. Inget tappas mellan stolarna.",
+    body: "Spåra varje ansökan från utkast till svar, genom intervjuer, erbjudanden och avslag. Inget tappas mellan stolarna.",
   },
   {
     key: "CV och brev",
@@ -23,7 +23,7 @@ const FEATURES: ReadonlyArray<{ key: string; body: string }> = [
   },
   {
     key: "Påminnelser",
-    body: "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar — du missar inga deadlines.",
+    body: "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar, så du missar inga deadlines.",
   },
 ];
 

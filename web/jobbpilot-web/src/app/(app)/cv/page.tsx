@@ -59,7 +59,7 @@ export default async function CvListPage() {
           <h1 className="jp-h1">CV</h1>
           <p className="jp-lede">
             Hantera dina CV-varianter. AI-stöd hjälper dig anpassa innehållet
-            per ansökan — du behåller alltid kontrollen.
+            per ansökan, men du behåller alltid kontrollen.
           </p>
         </div>
         <Button asChild>

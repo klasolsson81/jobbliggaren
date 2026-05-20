@@ -163,7 +163,7 @@ export function JobAdTypeahead({
 
       {state.status === "rateLimited" && (
         <p className="text-body-sm text-text-secondary">
-          För många sökningar på kort tid. Förslagen pausas en stund — du
+          För många sökningar på kort tid. Förslagen pausas en stund. Du
           kan fortsätta skriva och söka ändå.
         </p>
       )}

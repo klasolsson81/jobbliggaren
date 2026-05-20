@@ -26,12 +26,14 @@ export function AnpassaCvBanner() {
           Inget skickas vidare. Du godkänner varje ändring.
         </p>
       </div>
+      {/* TODO: F6+ — wire mot CV-anpassnings-flöde när AI-domänen finns.
+          disabled + aria-disabled räcker som no-op utan att kräva
+          "use client" på hela banner-komponenten (RSC-kompatibel). */}
       <button
         type="button"
         className="jp-btn jp-btn--primary jp-btn--sm"
+        disabled
         aria-disabled="true"
-        // TODO: F6+ — wire mot CV-anpassnings-flöde när AI-domänen finns
-        onClick={(e) => e.preventDefault()}
         title="CV-anpassnings-flödet är inte aktiverat ännu"
       >
         <Edit size={14} aria-hidden="true" />

@@ -76,12 +76,14 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           <Edit size={14} aria-hidden="true" />
           <span>Redigera</span>
         </Link>
+        {/* TODO: F6+ — wire mot PDF-render-pipeline. aria-disabled +
+            disabled-attribut räcker som no-op; ingen client-side onClick
+            (skulle kräva "use client"-direktiv på hela kortet). */}
         <button
           type="button"
           className="jp-btn jp-btn--ghost jp-btn--sm"
+          disabled
           aria-disabled="true"
-          // TODO: F6+ — wire mot PDF-render-pipeline när den finns
-          onClick={(e) => e.preventDefault()}
           title="Förhandsgranskning är inte aktiverad ännu"
         >
           <Eye size={14} aria-hidden="true" />

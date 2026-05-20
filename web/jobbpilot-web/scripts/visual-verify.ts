@@ -95,54 +95,55 @@ async function login(): Promise<string> {
   return data.sessionId;
 }
 
-const FIXTURE_NAME = `F2 visuell verifiering (temp ${timestamp()})`;
-
-/** Skapar en temporär sökning så populerade UI-tillstånd kan capureras. */
-async function createFixture(sessionId: string): Promise<string> {
-  const auth = {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-  const createRes = await fetch(`${BACKEND_URL}/api/v1/saved-searches`, {
-    method: "POST",
-    headers: auth,
-    body: JSON.stringify({
-      name: FIXTURE_NAME,
-      ssyk: null,
-      region: null,
-      q: "utvecklare",
-      sortBy: 0, // PublishedAtDesc (projektkontrakt: numeriskt enum-värde)
-      notificationEnabled: false,
-    }),
-  });
-  if (!createRes.ok) {
-    throw new Error(`Skapa fixture-sökning misslyckades (HTTP ${createRes.status}).`);
+/**
+ * ADR 0060: RecentJobSearches fångas automatiskt när ListJobAdsQuery
+ * kör med filter (post-handler-pipeline-behavior). Vi triggar capture
+ * genom att kalla /api/v1/job-ads med ett q-filter. Två separata
+ * sökningar görs så /sokningar-listan har minst två rader.
+ *
+ * Teardown via GET /api/v1/me/recent-searches → DELETE per id, så
+ * dev-DB inte växer monotont. Best-effort (varnar men kraschar inte
+ * vid teardown-fel).
+ */
+async function createFixture(sessionId: string): Promise<void> {
+  const auth = { Authorization: `Bearer ${sessionId}` };
+  for (const q of ["utvecklare", "designer"]) {
+    const res = await fetch(
+      `${BACKEND_URL}/api/v1/job-ads?q=${encodeURIComponent(q)}&pageSize=20`,
+      { headers: auth },
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Trigger fixture-sökning misslyckades (HTTP ${res.status}, q=${q}).`,
+      );
+    }
   }
-  // Lista och hitta fixture-id (create-svaret konsumeras ej av frontend).
-  const listRes = await fetch(`${BACKEND_URL}/api/v1/saved-searches`, {
-    headers: { Authorization: `Bearer ${sessionId}` },
-  });
-  if (!listRes.ok) {
-    throw new Error(`Lista sökningar misslyckades (HTTP ${listRes.status}).`);
-  }
-  const list = (await listRes.json()) as { id: string; name: string }[];
-  const fixture = list.find((s) => s.name === FIXTURE_NAME);
-  if (!fixture) {
-    throw new Error("Fixture-sökning hittades inte i listan efter create.");
-  }
-  return fixture.id;
 }
 
-async function deleteFixture(sessionId: string, id: string): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/api/v1/saved-searches/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${sessionId}` },
+async function deleteFixture(sessionId: string): Promise<void> {
+  const auth = { Authorization: `Bearer ${sessionId}` };
+  const listRes = await fetch(`${BACKEND_URL}/api/v1/me/recent-searches`, {
+    headers: auth,
   });
-  if (!res.ok) {
+  if (!listRes.ok) {
     console.warn(
-      `[visual-verify] VARNING: fixture-teardown misslyckades (HTTP ${res.status}) — ` +
-        `temp-sökning ${id} kan ligga kvar i dev-DB, radera manuellt.`,
+      `[visual-verify] VARNING: fixture-teardown list misslyckades ` +
+        `(HTTP ${listRes.status}) — temp-sökningar kan ligga kvar i dev-DB.`,
     );
+    return;
+  }
+  const list = (await listRes.json()) as { id: string }[];
+  for (const item of list) {
+    const res = await fetch(
+      `${BACKEND_URL}/api/v1/me/recent-searches/${item.id}`,
+      { method: "DELETE", headers: auth },
+    );
+    if (!res.ok) {
+      console.warn(
+        `[visual-verify] VARNING: teardown ${item.id} misslyckades ` +
+          `(HTTP ${res.status}).`,
+      );
+    }
   }
 }
 
@@ -544,7 +545,6 @@ async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true });
 
   let sessionId: string | null = null;
-  let fixtureId: string | null = null;
   let appFixtures: ApplicationFixtures | null = null;
 
   if (AUTH_MODE && !BASE_URL.startsWith("https://")) {
@@ -560,12 +560,13 @@ async function main(): Promise<void> {
   if (AUTH_MODE) {
     console.log("[visual-verify] Auth-läge: login + fixture-setup ...");
     sessionId = await login();
-    fixtureId = await createFixture(sessionId);
+    await createFixture(sessionId);
     appFixtures = await createApplicationFixture(sessionId);
     console.log(
-      "[visual-verify] Fixturer skapade (sökning: raderas i teardown; " +
-        "5 ansökningar [JobAd-kopplad/manuell±url/fallback/Submitted]: " +
-        "best-effort, ingen DELETE-endpoint — se funktions-doc).",
+      "[visual-verify] Fixturer skapade (RecentJobSearches: 2 sökningar " +
+        "auto-fångade via /api/v1/job-ads, raderas i teardown; 5 ansökningar " +
+        "[JobAd-kopplad/manuell±url/fallback/Submitted]: best-effort, ingen " +
+        "DELETE-endpoint — se funktions-doc).",
     );
   } else {
     console.log("[visual-verify] Publikt läge (inga auth-env satta).");
@@ -573,13 +574,8 @@ async function main(): Promise<void> {
 
   const authPages: PageTarget[] = AUTH_MODE
     ? [
-        { path: "/jobb", name: "jobb-spara-sokning", auth: true },
+        { path: "/jobb", name: "jobb-hero-recent-chip", auth: true },
         { path: "/sokningar", name: "sokningar-lista", auth: true },
-        {
-          path: `/sokningar/${fixtureId}`,
-          name: "sokningar-kor-resultat",
-          auth: true,
-        },
         { path: "/ansokningar", name: "ansokningar-lista", auth: true },
         { path: "/ansokningar/ny", name: "ansokningar-ny", auth: true },
         { path: "/installningar", name: "installningar", auth: true },
@@ -708,26 +704,24 @@ async function main(): Promise<void> {
           }
         }
 
-        // Bekräftelse-dialog (DESIGN.md §6) — öppna och capurera öppet
-        // tillstånd. Bara om fixture finns (annars ingen rad att radera).
-        if (AUTH_MODE) {
-          await page.goto(`${BASE_URL}/sokningar`, {
+        // ADR 0060 — Senaste-sökningar-hero-chip-dropdown (öppet tillstånd).
+        // Trigger på /jobb-hero vänster. Gated till breddspannet 1280 + 3440
+        // (samma anledning som shootJobbInteractiveStates).
+        if (AUTH_MODE && (vp.tag === "1280" || vp.tag === "3440")) {
+          await page.goto(`${BASE_URL}/jobb`, {
             waitUntil: "load",
             timeout: 15_000,
           });
-          const radera = page.getByRole("button", { name: "Radera" }).first();
-          if (await radera.isVisible().catch(() => false)) {
-            await radera.click();
-            await page
-              .getByText("Radera sparad sökning?")
-              .waitFor({ state: "visible", timeout: 5000 });
-            // Låt overlay/dialog-fade (DESIGN.md §10, 150ms) settla helt så
-            // screenshoten inte fångar ett mid-transition-tillstånd.
-            await page.waitForTimeout(600);
+          const trigger = page
+            .getByRole("button", { name: /Senaste sökningar/i })
+            .first();
+          if (await trigger.isVisible().catch(() => false)) {
+            await trigger.click();
+            await page.waitForTimeout(200);
             await shoot(
               page,
               outDir,
-              `sokningar-radera-dialog__${theme}__${vp.tag}`,
+              `jobb-hero-recent-chip-open__${theme}__${vp.tag}`,
             );
             count++;
           }
@@ -737,8 +731,8 @@ async function main(): Promise<void> {
       }
     }
   } finally {
-    if (AUTH_MODE && sessionId && fixtureId) {
-      await deleteFixture(sessionId, fixtureId);
+    if (AUTH_MODE && sessionId) {
+      await deleteFixture(sessionId);
       console.log("[visual-verify] Fixture-sökning raderad (teardown).");
     }
     if (AUTH_MODE && appFixtures) {

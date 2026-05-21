@@ -95,6 +95,7 @@ try
         "init" => await RunInitAsync(log, cts.Token),
         "bootstrap" => await RunBootstrapAsync(log, cts.Token),
         "ensure-extensions" => await RunEnsureExtensionsAsync(log, cts.Token),
+        "explain-search" => await RunExplainSearchAsync(log, cts.Token),
         "schema" => await RunSchemaAsync(log, cts.Token),
         _ => UsageError(log),
     };
@@ -371,6 +372,78 @@ static async Task<int> RunEnsureExtensionsAsync(ILogger log, CancellationToken c
 
     MigrateLog.EnsureExtensionsComplete(log);
     return 0;
+}
+
+// F6 P4 (2026-05-21) — diagnostik-mode för sök-perf. Kör EXPLAIN (ANALYZE,
+// BUFFERS) på q-search-filtret (ListJobAds COUNT-väg) för en uppsättning
+// söktermer och loggar query-planen. Syfte: skilja work_mem-lossy-bitmap
+// (billig fix) från fundamental trigram-selektivitet (kräver FTS) — CTO-
+// rond 2026-05-21. Ansluter med app-creds (samma roll/planner-kontext som
+// runtime-queryn). Read-only — ingen schema-/data-ändring. Idempotent.
+// Termer via env-var EXPLAIN_SEARCH_TERMS (komma-separerad); default
+// "lärare,systemutvecklare" (långsam vs snabb referens).
+static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
+{
+    MigrateLog.ModeExplainSearch(log);
+
+    var appConnSecretArn = RequiredEnv("MIGRATE_APP_CONN_SECRET_ARN");
+    var awsRegion = RequiredEnv("AWS_REGION");
+
+    var terms = (Environment.GetEnvironmentVariable("EXPLAIN_SEARCH_TERMS")
+                 ?? "lärare,systemutvecklare")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    var secretsClient = new AmazonSecretsManagerClient(
+        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
+    var appCsResponse = await secretsClient.GetSecretValueAsync(
+        new GetSecretValueRequest { SecretId = appConnSecretArn }, ct);
+    if (string.IsNullOrWhiteSpace(appCsResponse.SecretString))
+        throw new InvalidOperationException($"App connection-string secret är tom: {appConnSecretArn}");
+
+    await using var conn = new NpgsqlConnection(appCsResponse.SecretString);
+    await conn.OpenAsync(ct);
+
+    foreach (var term in terms)
+    {
+        var pattern = "%" + term.ToLowerInvariant() + "%";
+
+        // Speglar JobAdSearch.ApplyCriteria q-filtret + global query filter
+        // (deleted_at IS NULL). COUNT-vägen — representativ för filter-kostnaden.
+        const string countSql =
+            "EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM job_ads "
+            + "WHERE deleted_at IS NULL "
+            + "AND (lower(title) LIKE @p OR lower(description) LIKE @p);";
+        await ExplainAndLogAsync(conn, countSql, term, "COUNT", log, ct);
+
+        // Items-vägen — filter + ORDER BY published_at DESC + LIMIT.
+        const string itemsSql =
+            "EXPLAIN (ANALYZE, BUFFERS) SELECT id FROM job_ads "
+            + "WHERE deleted_at IS NULL "
+            + "AND (lower(title) LIKE @p OR lower(description) LIKE @p) "
+            + "ORDER BY published_at DESC, id LIMIT 5;";
+        await ExplainAndLogAsync(conn, itemsSql, term, "ITEMS", log, ct);
+    }
+
+    return 0;
+}
+
+static async Task ExplainAndLogAsync(
+    NpgsqlConnection conn, string explainSql, string term, string variant,
+    ILogger log, CancellationToken ct)
+{
+    await using var cmd = new NpgsqlCommand(explainSql, conn);
+    cmd.Parameters.Add(new NpgsqlParameter("p", "%" + term.ToLowerInvariant() + "%"));
+    var plan = new StringBuilder();
+    await using (var reader = await cmd.ExecuteReaderAsync(ct))
+    {
+        while (await reader.ReadAsync(ct))
+            plan.AppendLine(reader.GetString(0));
+    }
+    // CA1873-suppress: diagnostik-mode loggar alltid (Information garanterat
+    // aktivt i denna engångskörning) — IsEnabled-guard vore meningslös här.
+#pragma warning disable CA1873
+    MigrateLog.ExplainSearchResult(log, term, variant, plan.ToString());
+#pragma warning restore CA1873
 }
 
 static async Task ExecuteBootstrapSchemaAsync(NpgsqlConnection conn, string dbName, ILogger log, CancellationToken ct)

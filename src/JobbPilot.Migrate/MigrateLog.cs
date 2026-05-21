@@ -108,6 +108,15 @@ internal static partial class MigrateLog
         Message = "EnsureExtensions: complete (idempotent — no-op om extensions redan finns)")]
     public static partial void EnsureExtensionsComplete(ILogger logger);
 
+    // F6 P4 (2026-05-21) — explain-search diagnostik-mode (sök-perf-rotorsak)
+    [LoggerMessage(EventId = 205, Level = LogLevel.Information,
+        Message = "Mode: explain-search (EXPLAIN ANALYZE på q-search-filter — sök-perf-diagnos)")]
+    public static partial void ModeExplainSearch(ILogger logger);
+
+    [LoggerMessage(EventId = 82, Level = LogLevel.Information,
+        Message = "EXPLAIN ANALYZE [term={Term}, variant={Variant}]:\n{Plan}")]
+    public static partial void ExplainSearchResult(ILogger logger, string term, string variant, string plan);
+
     // ADR 0034 — Bootstrap-mode (Identity-context via master-creds)
     [LoggerMessage(EventId = 203, Level = LogLevel.Information,
         Message = "Mode: bootstrap (Identity-context via master-creds — ADR 0034)")]

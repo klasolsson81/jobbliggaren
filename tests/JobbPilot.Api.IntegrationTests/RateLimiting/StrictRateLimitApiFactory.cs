@@ -103,7 +103,10 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
 
         using var scope = Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes (se ApiFactory).
+        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await appDb.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
+        await appDb.Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().Database.MigrateAsync();
     }
 

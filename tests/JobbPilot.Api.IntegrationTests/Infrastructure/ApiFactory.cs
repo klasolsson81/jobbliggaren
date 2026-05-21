@@ -152,7 +152,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", "true");
 
         using var scope = Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes-migrationen. I prod
+        // skapas extensionen av JobbPilot.Migrate `ensure-extensions`-mode
+        // (master-creds, Phase A); test-harnessen replikerar det (Testcontainers
+        // postgres-superuser kan CREATE EXTENSION). Idempotent.
+        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await appDb.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
+        await appDb.Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().Database.MigrateAsync();
 
         // Deterministisk seeder-körning EFTER migrations (senior-cto-advisor

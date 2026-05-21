@@ -101,7 +101,13 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         // Migration — både AppDbContext och AppIdentityDbContext (krävs för
         // AccountHardDeleter-tester som anropar UserManager).
         using var scope = Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes-migrationen. I prod
+        // skapas extensionen av JobbPilot.Migrate `ensure-extensions`-mode
+        // (master-creds, Phase A); test-harnessen replikerar det (Testcontainers
+        // postgres-superuser kan CREATE EXTENSION). Idempotent.
+        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await appDb.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
+        await appDb.Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<JobbPilot.Infrastructure.Identity.AppIdentityDbContext>().Database.MigrateAsync();
     }
 

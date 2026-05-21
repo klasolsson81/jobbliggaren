@@ -111,20 +111,55 @@ Down dropp:ar bara index (`pg_trgm`-extension idempotent additive). Migration ge
 
 Architecture-grindar (`JobSourceLayerTests.JobTech_wire_types_are_internal_to_Infrastructure`) gröna — alla nya sub-POCOs är `internal sealed`.
 
+## Deploy-iteration (2026-05-21, Klas "GO, kör allt")
+
+Fyra deploy-cykler — varje misslyckande gav nästa fix:
+
+| Tag | Resultat | Rotorsak / fix |
+|-----|----------|----------------|
+| `v0.2.51-dev` | Migrate FAILED | `42501 permission denied to create extension pg_trgm` — `jobbpilot_app` saknar CREATE-privilege (TD-71 REVOKE post-A5). |
+| `v0.2.52-dev` | ensure-extensions OK, schema FAILED | Nytt CLI-mode `ensure-extensions` (master-creds, Phase A-mönster) skapar pg_trgm. Schema-task FAILED på `TimeoutException` — GIN-index på description överskred Npgsql command-timeout 30s. |
+| `v0.2.53-dev` | Deploy OK, migration applied | `MigrationsOptionsFactory.BuildAppOptions` CommandTimeout 30s→600s. F6P4a applied (73s). MEN q-search förblev 35-50s. |
+| `v0.2.54-dev` | Deploy OK, perf löst | Partial-index-predikat `WHERE status='Active'` matchade inte ListJobAds (som saknar status-filter — bara `SuggestJobAdTerms` har det). Ny migration `F6P4aJobAdTrigramIndexPredicateFix` → predikat `WHERE deleted_at IS NULL`. |
+
+**Extra commits (utöver original 4):**
+- `e30e387` fix(migrate): ensure-extensions CLI-mode
+- `5bcae2c` fix(migrate): CommandTimeout 600s
+- `39cf768` fix(job-ads): GIN-index partial-predikat-fix
+
+## Verifierat post-deploy (v0.2.54-dev, dev.jobbpilot.se)
+
+**P1 q-search — index aktivt:**
+
+| Sökterm | Före | Efter (cold) | Efter (warm) |
+|---------|------|--------------|--------------|
+| systemutvecklare | 40s | 1.6s | 0.19s |
+| sjuksköterska | — | 5.4s | 0.56s |
+| ekonom | — | 5.0s | — |
+| **lärare** | — | **18.7s** | — |
+
+Handler-tid (LoggingBehavior, ej nätverk): systemutvecklare 1371ms→79ms, lärare 18762ms.
+
+**P1 KVARSTÅENDE PROBLEM — vanliga korta svenska termer.** "lärare" 18.7s. Trigram-svaghet: korta termer med vanliga trigram ("are" = extremt vanligt svenskt ordslut — lärare/snickare/bagare/...) ger låg-selektiv GIN-kandidatmängd → många heap-fetch + de-TOAST av description. Specifika/långa termer är snabba; vanliga korta är inte. Detta är den dokumenterade trigram-vs-FTS-avvägningen som ADR 0061 Beslut 2 sköt upp som YAGNI — verklig mätning har nu bevisat problemet. **Kräver ny senior-cto-advisor-rond** (memory `feedback_adr_mechanism_vs_env_phase_triage`): acceptera / FTS-hybrid på description / title-only-trigram.
+
+**P2 filter-bug — VERIFIERAD fungerande:**
+- `ssyk=fg7B_yov_smw` (Systemutvecklare) → totalCount=2 ✓
+- `region=CifL_Rzy_Mku` (Stockholms län) → totalCount=12 ✓
+- `region=CaRE_1nn_cSU` (Skåne län) → totalCount=7 ✓
+
+Små tal = enbart rader importerade med ny JobTechHit-POCO sedan v0.2.51-deployen (stream-jobbet `*/10`). De ~51k legacy-raderna får klassifikation först vid nästa fulla snapshot.
+
+**recent-searches:** 57s/504 → 6.3s ✓
+
 ## Pending Klas-aktion (post-leverans)
 
-1. **Tag-push `v0.2.51-dev`** → GO?
-2. **Dev-deploy:** migration applieras automatiskt via Migrate task. Verifiera `/api/ready` 200 + spot-check `EXPLAIN ANALYZE` på q-search (förvänta Bitmap Index Scan).
-3. **Manuell `SyncPlatsbankenSnapshotJob`-trigger** via dev-Hangfire-UI för backfill av existerande 51k rader (ny POCO populerar `raw_payload`-klassifikation → generated columns fylls).
-4. **Post-deploy verifierings-checklist:**
-   - `GET /api/v1/job-ads?q=systemutvecklare&pageSize=5` → förvänta <2s (mål <200ms, från 40s)
-   - `GET /api/v1/job-ads?ssyk=fg7B_yov_smw&pageSize=5` (Systemutvecklare/Programmerare) → förvänta totalCount>0 efter backfill
-   - `GET /api/v1/job-ads?region=CifL_Rzy_Mku` (Stockholms län) → förvänta totalCount>0 efter backfill
-   - `GET /api/v1/me/recent-searches` med q-rader → förvänta <10s (från 57s/504)
+1. **P2 backfill av 51k legacy-rader:** admin sync-endpoint avvecklad (410 Gone, ADR 0032 §9); ingen Hangfire-dashboard exponerad (TD-83). Backfill sker automatiskt vid nästa `sync-platsbanken-snapshot` (02:00 UTC) ELLER via operatörsåtgärd. Snapshot är idempotent UPSERT — re-importerar alla ~45k Platsbanken-jobb med full klassifikation.
+2. **P1 lärare-perf:** senior-cto-advisor-rond för vanliga-korta-termer-svagheten. Rekommenderas som F6 P4-followup, inte blockerande för P4b.
+3. **Verifiera efter snapshot-backfill:** ssyk/region-filter mot legacy-rader → totalCount ska reflektera hela korpusen.
 
 ## F6 P4b SavedJobAds — status
 
-**Avblockerad** efter Klas-GO för denna prompts deploy + verifiering. F6 P4b körs som separat backend-prompt enligt ursprunglig Klas-plan.
+**Avblockerad.** P1 (q-perf) levererad för normalfall; P2 (filter-bug) kod-verifierad. lärare-perf-refinement är icke-blockerande followup. F6 P4b körs som separat backend-prompt.
 
 ## Disciplin-noter
 

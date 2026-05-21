@@ -1,51 +1,28 @@
 using JobbPilot.Application.Common;
-using JobbPilot.Application.Common.Abstractions;
-using JobbPilot.Application.JobAds.Queries;
+using JobbPilot.Application.JobAds.Abstractions;
 using Mediator;
-using Microsoft.EntityFrameworkCore;
 
 namespace JobbPilot.Application.JobAds.Queries.ListJobAds;
 
-public sealed class ListJobAdsQueryHandler(IAppDbContext db)
+/// <summary>
+/// Tunn adapter (ADR 0062): mappar <see cref="ListJobAdsQuery"/> till
+/// <see cref="JobAdSearchCriteria"/> och delegerar till <see cref="IJobAdSearchQuery"/>.
+/// Hela sök-kompositionen (filter, FTS, sort, paginering) bor i Infrastructure-
+/// impl:en bakom porten — ADR 0039 Beslut 1 SPOT delas med
+/// <c>RunSavedSearchQueryHandler</c>.
+/// </summary>
+public sealed class ListJobAdsQueryHandler(IJobAdSearchQuery search)
     : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
 {
-    public async ValueTask<PagedResult<JobAdDto>> Handle(
+    public ValueTask<PagedResult<JobAdDto>> Handle(
         ListJobAdsQuery query, CancellationToken cancellationToken)
-    {
-        // ADR 0039 Beslut 1 — filter/sort-logiken ägs av JobAdSearch (delad
-        // med RunSavedSearchQueryHandler). Handlern är en tunn adapter som
-        // mappar sitt query-record till den delade komposition.
-        var baseQuery = JobAdSearch.ApplyCriteria(
-            db.JobAds.AsNoTracking(), query.Ssyk ?? [], query.Region ?? [], query.Q);
-
-        // Separat count-query per CLAUDE.md §3.6. Filter appliceras före count
-        // så totalen reflekterar filtrerad mängd, inte totalt antal annonser.
-        var totalCount = await baseQuery.CountAsync(cancellationToken);
-
-        var ordered = JobAdSearch.ApplySort(baseQuery, query.SortBy, query.Q);
-
-        // ADR 0042 Beslut E — IsNew = PublishedAt inom "ny sedan"-fönstret.
-        // Lokalt fångad nullable → EF översätter jämförelsen (false när Since
-        // ej angivet).
-        var since = query.Since;
-
-        var items = await ordered
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .Select(j => new JobAdDto(
-                j.Id.Value,
-                j.Title,
-                j.Company.Name,
-                j.Description,
-                j.Url,
-                j.Source.Value,
-                j.Status.Value,
-                j.PublishedAt,
-                j.ExpiresAt,
-                j.CreatedAt,
-                since != null && j.PublishedAt >= since))
-            .ToListAsync(cancellationToken);
-
-        return new PagedResult<JobAdDto>(items, totalCount, query.Page, query.PageSize);
-    }
+        => search.SearchAsync(
+            new JobAdSearchCriteria(
+                // null → tom lista: "inget filter" (ADR 0042 Beslut B).
+                new JobAdFilterCriteria(query.Ssyk ?? [], query.Region ?? [], query.Q),
+                query.SortBy,
+                query.Page,
+                query.PageSize,
+                query.Since),
+            cancellationToken);
 }

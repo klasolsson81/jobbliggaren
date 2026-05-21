@@ -1,5 +1,8 @@
+using JobbPilot.Application.Common;
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.Common.Auditing;
+using JobbPilot.Application.JobAds.Abstractions;
+using JobbPilot.Application.JobAds.Queries;
 using JobbPilot.Application.SavedSearches.Queries.RunSavedSearch;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.JobAds;
@@ -10,9 +13,15 @@ using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.SavedSearches.Queries;
 
+// ADR 0062 — RunSavedSearchQueryHandler är efter FTS-skiftet en tunn adapter
+// kring IJobAdSearchQuery. Auth/cross-tenant-logiken (UserId-null, okänt id,
+// cross-user) är OFÖRÄNDRAD och rör inte sök-kompositionen → de testas här mot
+// in-memory-DB. Sök-kompositionen (filter/FTS/sort/paginering) testas mot
+// riktig Postgres i Api.IntegrationTests. Porten mockas med NSubstitute.
 public class RunSavedSearchQueryHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
+    private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
     private readonly Guid _userId = Guid.NewGuid();
 
     public RunSavedSearchQueryHandlerTests()
@@ -20,16 +29,8 @@ public class RunSavedSearchQueryHandlerTests
         _currentUser.UserId.Returns(_userId);
     }
 
-    private static JobAd NewJobAd(string title) =>
-        JobAd.Create(
-            title,
-            Company.Create("Klarna").Value,
-            "Vi söker en backend-utvecklare.",
-            "https://jobs.klarna.com/job/1",
-            JobSource.Manual,
-            FakeDateTimeProvider.Default.UtcNow.AddDays(-1),
-            FakeDateTimeProvider.Default.UtcNow.AddDays(30),
-            FakeDateTimeProvider.Default).Value;
+    private static PagedResult<JobAdDto> EmptyPage(int page = 1, int pageSize = 20) =>
+        new([], 0, page, pageSize);
 
     private static async Task<(JobSeeker seeker, SavedSearch saved)> SeedAsync(
         JobbPilot.Infrastructure.Persistence.AppDbContext db, Guid userId,
@@ -54,22 +55,57 @@ public class RunSavedSearchQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenOwned_ReturnsPagedResult()
+    public async Task Handle_WhenOwned_ReturnsPagedResultFromPort()
     {
+        // Med mockad port spelar seedade JobAds ingen roll: handlern ska
+        // returnera exakt det porten ger tillbaka.
         var db = TestAppDbContextFactory.Create();
         var (_, saved) = await SeedAsync(db, _userId, q: "backend");
-        db.JobAds.Add(NewJobAd("Backend-utvecklare"));
-        await db.SaveChangesAsync(CancellationToken.None);
+        var dto = new JobAdDto(
+            Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",
+            "https://example.com/1", "Manual", "Active",
+            DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, IsNew: false);
+        var portResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(portResult);
 
         var handler = new RunSavedSearchQueryHandler(
-            db, _currentUser, Substitute.For<IFailedAccessLogger>());
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), _search);
 
         var result = await handler.Handle(
             new RunSavedSearchQuery(saved.Id.Value), CancellationToken.None);
 
-        result.ShouldNotBeNull();
-        result!.Page.ShouldBe(1);
-        result.PageSize.ShouldBe(20);
+        result.ShouldBeSameAs(portResult);
+        result!.TotalCount.ShouldBe(1);
+        result.Items.ShouldHaveSingleItem().Title.ShouldBe("Backend-utvecklare");
+    }
+
+    [Fact]
+    public async Task Handle_WhenOwned_MapsSearchCriteriaVoToJobAdSearchCriteria()
+    {
+        // SearchCriteria-VO → JobAdSearchCriteria: Ssyk/Region/Q/SortBy
+        // genomförda, Page/PageSize från queryn, Since alltid null (ADR 0042
+        // Beslut E — en körning exponerar aldrig IsNew=true).
+        var db = TestAppDbContextFactory.Create();
+        var (_, saved) = await SeedAsync(db, _userId, ssyk: "12345", q: "backend");
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage(page: 2, pageSize: 5));
+
+        var handler = new RunSavedSearchQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), _search);
+
+        await handler.Handle(
+            new RunSavedSearchQuery(saved.Id.Value, Page: 2, PageSize: 5),
+            CancellationToken.None);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Ssyk.ShouldBe(["12345"]);
+        captured.Filter.Q.ShouldBe("backend");
+        captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
+        captured.Page.ShouldBe(2);
+        captured.PageSize.ShouldBe(5);
+        captured.Since.ShouldBeNull();
     }
 
     [Fact]
@@ -80,9 +116,11 @@ public class RunSavedSearchQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, saved) = await SeedAsync(db, _userId);
         saved.LastRunAt.ShouldBeNull(); // utgångsläge
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
 
         var handler = new RunSavedSearchQueryHandler(
-            db, _currentUser, Substitute.For<IFailedAccessLogger>());
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), _search);
 
         await handler.Handle(new RunSavedSearchQuery(saved.Id.Value), CancellationToken.None);
 
@@ -101,7 +139,7 @@ public class RunSavedSearchQueryHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
         var handler = new RunSavedSearchQueryHandler(
-            db, currentUser, Substitute.For<IFailedAccessLogger>());
+            db, currentUser, Substitute.For<IFailedAccessLogger>(), _search);
 
         var result = await handler.Handle(
             new RunSavedSearchQuery(saved.Id.Value), CancellationToken.None);
@@ -115,7 +153,8 @@ public class RunSavedSearchQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         await SeedAsync(db, _userId);
         var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
-        var handler = new RunSavedSearchQueryHandler(db, _currentUser, failedAccessLogger);
+        var handler = new RunSavedSearchQueryHandler(
+            db, _currentUser, failedAccessLogger, _search);
 
         var result = await handler.Handle(
             new RunSavedSearchQuery(Guid.NewGuid()), CancellationToken.None);
@@ -136,7 +175,8 @@ public class RunSavedSearchQueryHandlerTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
-        var handler = new RunSavedSearchQueryHandler(db, _currentUser, failedAccessLogger);
+        var handler = new RunSavedSearchQueryHandler(
+            db, _currentUser, failedAccessLogger, _search);
 
         var result = await handler.Handle(
             new RunSavedSearchQuery(otherSaved.Id.Value), CancellationToken.None);

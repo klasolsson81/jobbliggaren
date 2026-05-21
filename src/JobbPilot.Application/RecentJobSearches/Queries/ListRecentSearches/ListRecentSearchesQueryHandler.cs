@@ -1,6 +1,5 @@
 using JobbPilot.Application.Common.Abstractions;
 using JobbPilot.Application.JobAds.Abstractions;
-using JobbPilot.Application.JobAds.Queries;
 using JobbPilot.Application.JobAds.Queries.GetTaxonomyTree;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -11,8 +10,9 @@ namespace JobbPilot.Application.RecentJobSearches.Queries.ListRecentSearches;
 /// ADR 0060 — list-projektion för auto-fångade RecentJobSearches per JobSeeker.
 /// Avsiktlig N+1 i CurrentCount-loopen (CTO 2026-05-20 Variant A): cap=20
 /// (<c>RecentJobSearch.MaxPerSeeker</c>) håller fan-out hanterbart; varje
-/// COUNT-fråga är btree-indexerad. Fitness function (ADR 0045) övervakar
-/// p95 och triggar Hangfire-cache-evolution om budget bryts.
+/// träffräkning går via <see cref="IJobAdSearchQuery.CountAsync"/> (ADR 0062 —
+/// samma filter-SPOT som ListJobAds, q-FTS-accelererad). Fitness function
+/// (ADR 0045) övervakar p95 och triggar Hangfire-cache-evolution om budget bryts.
 ///
 /// <para>Label server-härleds (Q || ssykLabels.First || regionLabels.First ||
 /// fallback) så FE inte behöver konstruera presentation. Defensive fallback
@@ -22,7 +22,8 @@ namespace JobbPilot.Application.RecentJobSearches.Queries.ListRecentSearches;
 public sealed class ListRecentSearchesQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    ITaxonomyReadModel taxonomy)
+    ITaxonomyReadModel taxonomy,
+    IJobAdSearchQuery search)
     : IQueryHandler<ListRecentSearchesQuery, IReadOnlyList<RecentJobSearchDto>>
 {
     public async ValueTask<IReadOnlyList<RecentJobSearchDto>> Handle(
@@ -53,10 +54,11 @@ public sealed class ListRecentSearchesQueryHandler(
             var regionLabels = await taxonomy.ResolveLabelsAsync(r.Region, cancellationToken);
 
             // Live-count: avsiktlig N+1 capped vid MaxPerSeeker=20 (CTO Variant A
-            // Q3-villkor). ADR 0045 fitness function observerar p95.
-            var currentCount = await JobAdSearch
-                .ApplyCriteria(db.JobAds.AsNoTracking(), r.Ssyk, r.Region, r.Q)
-                .CountAsync(cancellationToken);
+            // Q3-villkor). Via IJobAdSearchQuery.CountAsync (ADR 0062 — delad
+            // filter-SPOT med ListJobAds, q-FTS-accelererad). ADR 0045 fitness
+            // function observerar p95.
+            var currentCount = await search.CountAsync(
+                new JobAdFilterCriteria(r.Ssyk, r.Region, r.Q), cancellationToken);
 
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);
             var label = DeriveLabel(r.Q, ssykLabels, regionLabels);

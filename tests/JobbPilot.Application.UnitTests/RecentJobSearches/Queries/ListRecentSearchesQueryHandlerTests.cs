@@ -12,10 +12,15 @@ using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.RecentJobSearches.Queries;
 
+// ADR 0062 — ListRecentSearchesQueryHandler hämtar live-träffräkningen via
+// IJobAdSearchQuery.CountAsync (delad filter-SPOT med ListJobAds). Porten
+// mockas med NSubstitute; list-projektion + label-härledning + owner-filter
+// testas här mot in-memory-DB.
 public class ListRecentSearchesQueryHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
+    private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
     private readonly Guid _userId = Guid.NewGuid();
 
     public ListRecentSearchesQueryHandlerTests()
@@ -31,6 +36,10 @@ public class ListRecentSearchesQueryHandlerTests
                     .ToList();
                 return ValueTask.FromResult(labels);
             });
+        // Default: CountAsync → 0 så NewCount-cap-testet (CurrentCount==0)
+        // består. Enskilda tester override:ar vid behov.
+        _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<int>(0));
 #pragma warning restore CA2012
     }
 
@@ -59,7 +68,7 @@ public class ListRecentSearchesQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
-        var handler = new ListRecentSearchesQueryHandler(db, currentUser, _taxonomy);
+        var handler = new ListRecentSearchesQueryHandler(db, currentUser, _taxonomy, _search);
 
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
@@ -70,7 +79,7 @@ public class ListRecentSearchesQueryHandlerTests
     public async Task Handle_WhenNoSeeker_ReturnsEmpty()
     {
         var db = TestAppDbContextFactory.Create();
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy);
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
 
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
@@ -89,7 +98,7 @@ public class ListRecentSearchesQueryHandlerTests
         db.RecentJobSearches.Add(CaptureRow(seeker.Id, "middle", now.AddHours(-1)));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy);
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
         result.Count.ShouldBe(3);
@@ -105,17 +114,69 @@ public class ListRecentSearchesQueryHandlerTests
         var seeker = await SeedSeekerAsync(db);
         var now = FakeDateTimeProvider.Default.UtcNow;
 
-        // CurrentCount kommer från live-count mot JobAds (= 0 i InMemory test).
+        // CurrentCount kommer från IJobAdSearchQuery.CountAsync (default-stub = 0).
         // LastSeenCount lagrat på aggregatet — om större än CurrentCount så NewCount = 0.
         db.RecentJobSearches.Add(CaptureRow(seeker.Id, "with-seen", now, lastSeenCount: 5));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy);
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
         var dto = result.ShouldHaveSingleItem();
-        dto.CurrentCount.ShouldBe(0);          // tom DB
+        dto.CurrentCount.ShouldBe(0);          // port-stub = 0
         dto.NewCount.ShouldBe(0);              // max(0, 0 - 5)
+    }
+
+    [Fact]
+    public async Task Handle_PropagatesPortCurrentCountToDto()
+    {
+        // ADR 0062 — live-count kommer från IJobAdSearchQuery.CountAsync.
+        // Stubba porten → 7 och verifiera att CurrentCount når DTO:n samt att
+        // NewCount = max(0, 7 - LastSeenCount).
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        var now = FakeDateTimeProvider.Default.UtcNow;
+        db.RecentJobSearches.Add(CaptureRow(seeker.Id, "with-count", now, lastSeenCount: 2));
+        await db.SaveChangesAsync(CancellationToken.None);
+#pragma warning disable CA2012
+        _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<int>(7));
+#pragma warning restore CA2012
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        var dto = result.ShouldHaveSingleItem();
+        dto.CurrentCount.ShouldBe(7);
+        dto.NewCount.ShouldBe(5);              // max(0, 7 - 2)
+    }
+
+    [Fact]
+    public async Task Handle_CallsCountAsyncWithRowFilterCriteria()
+    {
+        // ADR 0062 SPOT — CountAsync ska anropas med rader-radens egna
+        // Ssyk/Region/Q (samma filter-väg som ListJobAds).
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        var criteria = SearchCriteria.Create(
+            ["54321"], ["goteborg"], "lärare", JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+        JobAdFilterCriteria? captured = null;
+#pragma warning disable CA2012
+        _search.CountAsync(
+                Arg.Do<JobAdFilterCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<int>(0));
+#pragma warning restore CA2012
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        captured.ShouldNotBeNull();
+        captured!.Ssyk.ShouldBe(["54321"]);
+        captured.Region.ShouldBe(["goteborg"]);
+        captured.Q.ShouldBe("lärare");
     }
 
     [Fact]
@@ -126,7 +187,7 @@ public class ListRecentSearchesQueryHandlerTests
         db.RecentJobSearches.Add(CaptureRow(seeker.Id, "backend dev", FakeDateTimeProvider.Default.UtcNow));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy);
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
         result.ShouldHaveSingleItem().Label.ShouldBe("backend dev");
@@ -144,7 +205,7 @@ public class ListRecentSearchesQueryHandlerTests
             RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy);
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
         result.ShouldHaveSingleItem().Label.ShouldBe("Label-77777");
@@ -166,7 +227,7 @@ public class ListRecentSearchesQueryHandlerTests
         db.RecentJobSearches.Add(CaptureRow(otherSeeker.Id, "theirs", now));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy);
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
         result.ShouldHaveSingleItem().Q.ShouldBe("mine");

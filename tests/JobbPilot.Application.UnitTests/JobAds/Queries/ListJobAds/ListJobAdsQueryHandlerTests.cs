@@ -1,163 +1,155 @@
+using JobbPilot.Application.Common;
+using JobbPilot.Application.JobAds.Abstractions;
+using JobbPilot.Application.JobAds.Queries;
 using JobbPilot.Application.JobAds.Queries.ListJobAds;
-using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.JobAds;
+using NSubstitute;
 using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.JobAds.Queries.ListJobAds;
 
+// ADR 0062 — ListJobAdsQueryHandler är efter FTS-skiftet en TUNN ADAPTER:
+// den mappar ListJobAdsQuery → JobAdSearchCriteria och delegerar till
+// IJobAdSearchQuery. Hela sök-kompositionen (ssyk/region-filter, q-FTS-hybrid,
+// ts_rank-relevans, sortering, paginering, projektion) bor i Infrastructure-
+// impl:en JobAdSearchQuery → testas mot riktig Postgres i
+// Api.IntegrationTests/JobAds/ListJobAdsFtsTests.cs + ListJobAdsMultiFilterTests.cs.
+//
+// Dessa unit-tester verifierar ENBART adapter-kontraktet: korrekt mappning
+// query→criteria och att port-resultatet returneras oförändrat. Porten mockas
+// med NSubstitute — ingen DB.
 public class ListJobAdsQueryHandlerTests
 {
-    private static JobAd CreateJobAd(
-        string title,
-        DateTimeOffset publishedAt,
-        DateTimeOffset? expiresAt = null) =>
-        JobAd.Create(
-            title,
-            Company.Create("Klarna").Value,
-            "Vi söker en backend-utvecklare.",
-            "https://jobs.klarna.com/job/1",
-            JobSource.Manual,
-            publishedAt,
-            expiresAt,
-            FakeDateTimeProvider.Default).Value;
+    private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
+
+    private static PagedResult<JobAdDto> EmptyPage(int page = 1, int pageSize = 20) =>
+        new([], 0, page, pageSize);
 
     [Fact]
-    public async Task Handle_WithJobAds_ReturnsPagedResultOrderedByPublishedAtDescending()
+    public async Task Handle_WhenSsykIsNull_MapsToEmptyFilterSsykList()
     {
-        await using var db = TestAppDbContextFactory.Create();
-        var baseTime = FakeDateTimeProvider.Default.UtcNow;
-        var older = CreateJobAd("Junior Developer", baseTime.AddHours(-1));
-        var newer = CreateJobAd("Senior Developer", baseTime);
-        db.JobAds.Add(older);
-        db.JobAds.Add(newer);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        // ADR 0042 Beslut B — null betyder "inget filter" → handlern normaliserar
+        // null → tom lista innan porten anropas.
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
 
-        var handler = new ListJobAdsQueryHandler(db);
+        await handler.Handle(new ListJobAdsQuery(Ssyk: null), TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Ssyk.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenRegionIsNull_MapsToEmptyFilterRegionList()
+    {
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
+
+        await handler.Handle(new ListJobAdsQuery(Region: null), TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Region.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenSsykAndRegionProvided_PassesListsThroughToFilter()
+    {
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
+
+        await handler.Handle(
+            new ListJobAdsQuery(Ssyk: ["1234", "5678"], Region: ["stockholm"]),
+            TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Ssyk.ShouldBe(["1234", "5678"]);
+        captured.Filter.Region.ShouldBe(["stockholm"]);
+    }
+
+    [Fact]
+    public async Task Handle_MapsQToFilter_AndSortPageSizeSinceToCriteria()
+    {
+        // Q hör hemma i Filter-SPOT:en; SortBy/Page/PageSize/Since på
+        // JobAdSearchCriteria. Verifierar att varje fält hamnar på rätt plats.
+        var since = new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero);
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage(page: 3, pageSize: 15));
+        var handler = new ListJobAdsQueryHandler(_search);
+
+        await handler.Handle(
+            new ListJobAdsQuery(
+                Page: 3,
+                PageSize: 15,
+                SortBy: JobAdSortBy.Relevance,
+                Q: "utvecklare",
+                Since: since),
+            TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Q.ShouldBe("utvecklare");
+        captured.SortBy.ShouldBe(JobAdSortBy.Relevance);
+        captured.Page.ShouldBe(3);
+        captured.PageSize.ShouldBe(15);
+        captured.Since.ShouldBe(since);
+    }
+
+    [Fact]
+    public async Task Handle_WithDefaultQuery_MapsDefaultsToCriteria()
+    {
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
+
+        await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Page.ShouldBe(1);
+        captured.PageSize.ShouldBe(20);
+        captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
+        captured.Filter.Q.ShouldBeNull();
+        captured.Filter.Ssyk.ShouldBeEmpty();
+        captured.Filter.Region.ShouldBeEmpty();
+        captured.Since.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_ReturnsPortResultUnchanged()
+    {
+        // Adaptern returnerar port-resultatet rakt — ingen efterbearbetning.
+        var dto = new JobAdDto(
+            Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",
+            "https://example.com/1", "Manual", "Active",
+            DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, IsNew: true);
+        var portResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(portResult);
+        var handler = new ListJobAdsQueryHandler(_search);
+
         var result = await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
 
-        result.TotalCount.ShouldBe(2);
-        result.Page.ShouldBe(1);
-        result.PageSize.ShouldBe(20);
-        result.Items.Count.ShouldBe(2);
-        result.Items[0].Title.ShouldBe("Senior Developer");
-        result.Items[1].Title.ShouldBe("Junior Developer");
+        result.ShouldBeSameAs(portResult);
+        result.TotalCount.ShouldBe(1);
+        result.Items.ShouldHaveSingleItem().Title.ShouldBe("Backend-utvecklare");
     }
 
     [Fact]
-    public async Task Handle_WithNoJobAds_ReturnsEmptyPagedResult()
+    public async Task Handle_DelegatesToPortExactlyOnce()
     {
-        await using var db = TestAppDbContextFactory.Create();
-        var handler = new ListJobAdsQueryHandler(db);
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
 
-        var result = await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
+        await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
 
-        result.TotalCount.ShouldBe(0);
-        result.Items.ShouldBeEmpty();
-        result.Page.ShouldBe(1);
-        result.PageSize.ShouldBe(20);
-    }
-
-    [Fact]
-    public async Task Handle_WithPagination_ReturnsCorrectSlice()
-    {
-        await using var db = TestAppDbContextFactory.Create();
-        var baseTime = FakeDateTimeProvider.Default.UtcNow;
-        for (var i = 0; i < 25; i++)
-        {
-            db.JobAds.Add(CreateJobAd($"Ad {i:00}", baseTime.AddMinutes(-i)));
-        }
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var handler = new ListJobAdsQueryHandler(db);
-
-        var page1 = await handler.Handle(
-            new ListJobAdsQuery(Page: 1, PageSize: 10), TestContext.Current.CancellationToken);
-        var page2 = await handler.Handle(
-            new ListJobAdsQuery(Page: 2, PageSize: 10), TestContext.Current.CancellationToken);
-        var page3 = await handler.Handle(
-            new ListJobAdsQuery(Page: 3, PageSize: 10), TestContext.Current.CancellationToken);
-
-        page1.TotalCount.ShouldBe(25);
-        page1.Items.Count.ShouldBe(10);
-        page1.TotalPages.ShouldBe(3);
-        page2.Items.Count.ShouldBe(10);
-        page3.Items.Count.ShouldBe(5);
-
-        // Inga duplikat över sidor (deterministisk sortering via Id som tiebreaker).
-        var allIds = page1.Items.Concat(page2.Items).Concat(page3.Items).Select(i => i.Id).ToList();
-        allIds.Distinct().Count().ShouldBe(25);
-    }
-
-    [Fact]
-    public async Task Handle_SortByPublishedAtAsc_ReturnsOldestFirst()
-    {
-        await using var db = TestAppDbContextFactory.Create();
-        var baseTime = FakeDateTimeProvider.Default.UtcNow;
-        db.JobAds.Add(CreateJobAd("Newest", baseTime));
-        db.JobAds.Add(CreateJobAd("Oldest", baseTime.AddHours(-2)));
-        db.JobAds.Add(CreateJobAd("Middle", baseTime.AddHours(-1)));
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var handler = new ListJobAdsQueryHandler(db);
-        var result = await handler.Handle(
-            new ListJobAdsQuery(SortBy: JobAdSortBy.PublishedAtAsc),
-            TestContext.Current.CancellationToken);
-
-        result.Items.Select(i => i.Title).ShouldBe(["Oldest", "Middle", "Newest"]);
-    }
-
-    [Fact]
-    public async Task Handle_SortByExpiresAtAsc_NullsSortedLast()
-    {
-        await using var db = TestAppDbContextFactory.Create();
-        var baseTime = FakeDateTimeProvider.Default.UtcNow;
-        db.JobAds.Add(CreateJobAd("ExpiresLater", baseTime.AddDays(-1), baseTime.AddDays(7)));
-        db.JobAds.Add(CreateJobAd("NoExpiry", baseTime.AddDays(-1), null));
-        db.JobAds.Add(CreateJobAd("ExpiresSoon", baseTime.AddDays(-1), baseTime.AddDays(1)));
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var handler = new ListJobAdsQueryHandler(db);
-        var result = await handler.Handle(
-            new ListJobAdsQuery(SortBy: JobAdSortBy.ExpiresAtAsc),
-            TestContext.Current.CancellationToken);
-
-        result.Items.Select(i => i.Title).ShouldBe(["ExpiresSoon", "ExpiresLater", "NoExpiry"]);
-    }
-
-    // F2-P9 (TD-70). Filter via `Ssyk`/`Region` (shadow-properties speglade till
-    // Postgres generated columns) + `Q` (EF.Functions.Like + .ToLowerInvariant())
-    // kan inte verifieras mot EF Core in-memory provider:
-    //   1. Shadow-properties som mappas via HasComputedColumnSql(..., stored:true)
-    //      finns inte i in-memory-modellen (kolumnen materialiseras av Postgres).
-    //   2. EF.Functions.Like → SQL ILIKE/LIKE-translation; in-memory har ingen
-    //      SQL-translator och kastar vid Like-användning.
-    // Filter-beteende täcks därför enbart i Api.IntegrationTests/JobAds/
-    // ListJobAdsTests.cs mot Testcontainers Postgres (riktig translation +
-    // generated columns aktiva). Detta är en medveten testbarhets-gräns:
-    // Postgres-specifik EF-translation hör hemma i integration-suite.
-    [Fact]
-    public void Handle_FilterTranslation_VerifiedInIntegrationSuiteOnly()
-    {
-        // Dokumentations-test (utan act/assert mot DB). Skydd mot felaktig
-        // antagande om att unit-tester täcker filter-vägen.
-        true.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task Handle_SortByExpiresAtDesc_NullsSortedLast()
-    {
-        await using var db = TestAppDbContextFactory.Create();
-        var baseTime = FakeDateTimeProvider.Default.UtcNow;
-        db.JobAds.Add(CreateJobAd("ExpiresLater", baseTime.AddDays(-1), baseTime.AddDays(7)));
-        db.JobAds.Add(CreateJobAd("NoExpiry", baseTime.AddDays(-1), null));
-        db.JobAds.Add(CreateJobAd("ExpiresSoon", baseTime.AddDays(-1), baseTime.AddDays(1)));
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var handler = new ListJobAdsQueryHandler(db);
-        var result = await handler.Handle(
-            new ListJobAdsQuery(SortBy: JobAdSortBy.ExpiresAtDesc),
-            TestContext.Current.CancellationToken);
-
-        result.Items.Select(i => i.Title).ShouldBe(["ExpiresLater", "ExpiresSoon", "NoExpiry"]);
+        await _search.Received(1).SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
     }
 }

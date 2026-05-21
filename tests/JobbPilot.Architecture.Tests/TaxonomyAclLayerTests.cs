@@ -24,10 +24,16 @@ public class TaxonomyAclLayerTests
     public void Application_should_not_depend_on_Npgsql_or_EF_relational()
     {
         // Taxonomi-ACL får inte läcka in databasprovider i Application.
+        // ADR 0062 — vakthund även mot FTS-typer: NpgsqlTsVector ligger i
+        // NpgsqlTypes-namespace (Npgsql-assemblyn). "Npgsql" prefix-matchar
+        // redan NpgsqlTypes.*, men "NpgsqlTypes" listas explicit för
+        // självdokumentation (FTS-LINQ får bara förekomma i Infrastructure-
+        // impl:en JobAdSearchQuery, ej i Application).
         var result = Types.InAssembly(typeof(JobbPilot.Application.AssemblyMarker).Assembly)
             .ShouldNot()
             .HaveDependencyOnAny(
                 "Npgsql",
+                "NpgsqlTypes",
                 "Npgsql.EntityFrameworkCore.PostgreSQL",
                 "Microsoft.EntityFrameworkCore.Relational")
             .GetResult();

@@ -2,13 +2,14 @@ using JobbPilot.Api.IntegrationTests.Infrastructure;
 using JobbPilot.Application.JobAds.Queries.ListJobAds;
 using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobAds;
+using JobbPilot.Infrastructure.JobAds;
 using JobbPilot.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace JobbPilot.Api.IntegrationTests.JobAds;
 
-// Batch 3 — ADR 0042 Beslut B. ApplyCriteria (delad JobAdSearch-SPOT, ADR 0039
+// Batch 3 — ADR 0042 Beslut B. ApplyCriteria (delad sök-SPOT, ADR 0039
 // Beslut 1) utvidgas till list-form: multi-ssyk/region ⇒ IN(...) via
 // ssyk.Contains(EF.Property<string?>(j,"SsykConceptId")).
 //
@@ -17,10 +18,12 @@ namespace JobbPilot.Api.IntegrationTests.JobAds;
 // generated column) till SQL IN(...). Kan EJ verifieras mot EF in-memory
 // (shadow-prop + Contains-translation saknas där) → mönster speglar
 // ListJobAdsFilterTests (riktig Testcontainers-Postgres, F2P9JobAdSearchColumns
-// aktiv). JobAdSearch är internal → exekveras via ListJobAdsQueryHandler
-// (public path) som anropar ApplyCriteria.
+// aktiv).
 //
-// RÖD tills ApplyCriteria + ListJobAdsQuery list-signaturen implementerats.
+// ADR 0062 — sök-kompositionen bor i Infrastructure-impl:en JobAdSearchQuery
+// (internal, InternalsVisibleTo Api.IntegrationTests). ListJobAdsQueryHandler
+// är en tunn adapter; den instansieras här med en riktig JobAdSearchQuery mot
+// Testcontainers-Postgres så hela filter-vägen exekveras.
 [Collection("Api")]
 public class ListJobAdsMultiFilterTests(ApiFactory factory)
 {
@@ -76,7 +79,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new ListJobAdsQueryHandler(db);
+        var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db));
 
         // Multi-värde ⇒ IN(ssykA, ssykB) → UNION-match (Npgsql Contains-mot-
         // shadow-prop-translation: den arkitekt-flaggade gaten).
@@ -102,7 +105,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new ListJobAdsQueryHandler(db);
+        var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db));
 
         var result = await handler.Handle(
             new ListJobAdsQuery(Region: [regA, regB]), ct);
@@ -126,7 +129,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new ListJobAdsQueryHandler(db);
+        var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db));
 
         var result = await handler.Handle(new ListJobAdsQuery(Ssyk: [ssyk]), ct);
 
@@ -145,7 +148,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new ListJobAdsQueryHandler(db);
+        var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db));
 
         var result = await handler.Handle(new ListJobAdsQuery(Ssyk: []), ct);
 
@@ -173,7 +176,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new ListJobAdsQueryHandler(db);
+        var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db));
 
         var result = await handler.Handle(
             new ListJobAdsQuery(Ssyk: [ssykA, ssykB], Region: [regX, regY]), ct);
@@ -183,39 +186,9 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
         result.TotalCount.ShouldBe(2);
     }
 
-    // Batch 4 — ADR 0042 Beslut D (D2 ILIKE-relevans) + Beslut E (IsNew).
-    // Verifierar Npgsql-translation av Relevance-CASE-ordningen mot riktig
-    // Postgres (arkitekt-flaggad query-logik-klass) + IsNew-projektionen.
-    [Fact]
-    public async Task RelevanceSort_RanksTitleMatchFirst_AndIsNewReflectsSince()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"rel{Guid.NewGuid():N}"[..16];
-        var token = $"zeta{Guid.NewGuid():N}"[..18];
-
-        // Exakt titel-match (rank 3), prefix (rank 2), contains (rank 1).
-        await SeedImportedJobAdAsync(token, ssyk, null, $"ext-{Guid.NewGuid():N}", ct);
-        await SeedImportedJobAdAsync($"{token} utvecklare", ssyk, null, $"ext-{Guid.NewGuid():N}", ct);
-        await SeedImportedJobAdAsync($"Senior {token} roll", ssyk, null, $"ext-{Guid.NewGuid():N}", ct);
-
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new ListJobAdsQueryHandler(db);
-
-        var result = await handler.Handle(
-            new ListJobAdsQuery(
-                SortBy: JobAdSortBy.Relevance, Ssyk: [ssyk], Q: token,
-                Since: DateTimeOffset.UtcNow.AddDays(-30)), ct);
-
-        result.TotalCount.ShouldBe(3);
-        result.Items[0].Title.ShouldBe(token);                 // exakt = högst rank
-        result.Items[1].Title.ShouldBe($"{token} utvecklare"); // prefix
-        result.Items[2].Title.ShouldBe($"Senior {token} roll"); // contains
-        // Since i det förflutna → alla nyligen seedade = IsNew.
-        result.Items.ShouldAllBe(i => i.IsNew);
-
-        var noSince = await handler.Handle(
-            new ListJobAdsQuery(SortBy: JobAdSortBy.Relevance, Ssyk: [ssyk], Q: token), ct);
-        noSince.Items.ShouldAllBe(i => !i.IsNew);
-    }
+    // Batch 4-relevanstestet (RelevanceSort_RanksTitleMatchFirst_AndIsNewReflectsSince)
+    // togs bort i ADR 0062 FTS-skiftet: dess exakt/prefix/contains-ordnings-
+    // assertion vilade på den gamla ILIKE-3-2-1-heuristiken (ADR 0042 D2) som
+    // ersattes av ts_rank. Relevans-rankning + IsNew/Since täcks nu av
+    // ListJobAdsFtsTests (FTS-/ts_rank-medvetna assertions mot riktig Postgres).
 }

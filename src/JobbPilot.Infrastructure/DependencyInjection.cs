@@ -318,6 +318,17 @@ public static class DependencyInjection
             JobbPilot.Application.RecentJobSearches.Abstractions.IRecentJobSearchCapturer,
             RecentJobSearches.RecentJobSearchCapturer>();
 
+        // ADR 0062 — IJobAdSearchQuery: hela sök-kompositionen (FTS-hybrid +
+        // ts_rank-relevans) flyttad Application→Infrastructure eftersom
+        // PostgreSQL FTS-LINQ ligger i Npgsql-assemblyn (arch-test-förbjuden i
+        // Application). Scoped — delar request-scopets AppDbContext, paritet med
+        // hur handlers konsumerar IAppDbContext (till skillnad från
+        // ITaxonomyReadModel som är singleton pga snapshot-cache). DI i samma
+        // commit som port-impl (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            JobbPilot.Application.JobAds.Abstractions.IJobAdSearchQuery,
+            JobAds.JobAdSearchQuery>();
+
         // TD-13 (ADR 0049) — KMS-envelope fält-kryptering. Registrerad i
         // AddPersistence: per-användare-DEK + interceptor-paret (C3) lever på
         // AppDbContext-livscykeln; måste vara tillgänglig i både Api och

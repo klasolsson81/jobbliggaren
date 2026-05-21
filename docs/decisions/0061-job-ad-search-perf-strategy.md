@@ -133,3 +133,27 @@ Migrationen levereras tillsammans med JobTechHit-POCO-fix (separat domän — fi
 - Mätningar och STOPP-rapporter: `docs/sessions/2026-05-20-*-f6-p4-sok-infrastruktur-fix.md` (skapas i samma batch)
 - Kod-källor: `src/JobbPilot.Infrastructure/Persistence/Migrations/20260520212725_F6P4aJobAdTrigramIndexes.cs`, `src/JobbPilot.Application/JobAds/Queries/JobAdSearch.cs:19-65, 116-124`
 - Agent-domar: senior-cto-advisor 2026-05-20 (Approach A vs B/C/D), dotnet-architect 2026-05-20 (migration-mekanik), CC web-search 2026-05-20 (AWS RDS + PG-docs)
+
+---
+
+## Amendment 2026-05-21 — Trigram-trigger uppfylld; FTS-hybrid införs (per ADR 0062)
+
+**Datum:** 2026-05-21
+**Källa:** F6 P4 FTS-skifte-session 2026-05-21. EXPLAIN ANALYZE-diagnos + 3 senior-cto-advisor-ronder. Additivt amendment-notat — ADR-immutabilitet: brödtexten ovan är medvetet orörd (samma mönster som ADR 0039:s "Amendment 2026-05-20").
+**Status:** ADR 0061 förblir **Accepted** — den superseras **inte**. Detta notat dokumenterar att en explicit trigger-villkor i brödtexten har uppfyllts och hänvisar till implementations-domen i [ADR 0062](./0062-fts-hybrid-search-and-infrastructure-query-port.md).
+
+ADR 0061 lämnade två explicita YAGNI-uppskjutningar med dokumenterade ADR-triggers:
+
+- **"Ingen svensk stemming i Fas 1"** (Konsekvenser → Negativa, rad 87) — "lyfts som ADR-trigger vid faktisk klagomål, inte spekulativt".
+- **Beslut 2** — Variant B (PostgreSQL FTS via tsvector + generated column) avvisades som *nuvarande* lösning, dokumenterad som framtida väg om trigram-svagheten skulle bevisas.
+
+**Trigger-villkoret är uppfyllt 2026-05-21.** EXPLAIN ANALYZE bevisade fundamental trigram-selektivitet för korta vanliga svenska termer: `lärare` mätte 18.7s p95 efter trigram-deploy (description-trigram returnerade 12 980 kandidater varav 7 581 falska positiva → de-TOAST + LIKE-recheck av ~13k stora description-texter). Detta är inte ett klagomål utan ett mätt budgetbrott mot ADR 0045 — en starkare trigger än brödtextens "faktisk klagomål"-tröskel.
+
+**ADR 0062 är implementations-domen:** PostgreSQL FTS-hybrid (`search_vector` STORED generated tsvector + GIN-index, `websearch_to_tsquery('swedish', q) OR lower(title) LIKE '%q%'`, `ts_rank`-relevans) införs som q-search-strategi. Svensk stemming — den uppskjutna luckan ovan — levereras som en direkt konsekvens av `to_tsvector('swedish', ...)`. Sök-kompositionen byter dessutom lager (Application → Infrastructure-port `IJobAdSearchQuery`) eftersom FTS-LINQ fysiskt ligger i Npgsql-assemblyn.
+
+**Trigram-indexen från Beslut 1 behålls:**
+
+- `ix_job_ads_title_lower_trgm` — **aktivt**, betjänar FTS-hybridens title-LIKE-substring-fallback (ADR 0062 Beslut 1).
+- `ix_job_ads_description_lower_trgm` — **behålls medvetet men oanvänt i q-grenen** efter FTS-skiftet (description-LIKE körs aldrig längre i q-search). Behållet för ev. framtida admin-queries/relevans-arbete (ADR 0062 Beslut 5) — en framtida architect ska inte drop:a det av misstag.
+
+ADR 0061 **superseras inte** — den var rätt Fas-1-steg och löste `systemutvecklare` (40s → 1.6s). ADR 0062 är nästa evolution-steg när trigram-tröskeln passerades, exakt den växtväg ADR 0061 Beslut 2 + Mekanik-not 3 förutsåg. Se [`0062-fts-hybrid-search-and-infrastructure-query-port.md`](./0062-fts-hybrid-search-and-infrastructure-query-port.md).

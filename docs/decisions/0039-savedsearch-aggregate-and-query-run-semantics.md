@@ -91,3 +91,25 @@ Accepted 2026-05-16 efter Klas-GO på samtliga fyra beslut + domänform. Impleme
 ## Amendment 2026-05-20 — Frontend slutar konsumera SavedSearch (per ADR 0060)
 
 Per [ADR 0060](./0060-recent-job-searches-auto-capture.md) Beslut 1 (Klas-direktiv F6 P4a 2026-05-20): frontend (Next.js) slutar konsumera SavedSearch-domänen i samma commit-batch som F6 P4a frontend levereras — `/sokningar`-routen konsumerar `RecentJobSearches` istället (auto-capture-semantik per Platsbanken-paritet). Backend-domän + endpoints (`/api/v1/saved-searches`, CRUD + run) **förblir live oförändrade** — ingen breaking change mot framtida konsumenter eller eventuella server-API-kallare. ADR 0039 övriga beslut (Domain-aggregat, jsonb-criteria, run-semantik, last_run_at Fas 5) **består**. Backend-cleanup framtida fas om städ blir prioriterat.
+
+---
+
+## Amendment 2026-05-21 — `JobAdSearch`-modulen flyttar Application → Infrastructure (per ADR 0062)
+
+**Datum:** 2026-05-21
+**Källa:** F6 P4 FTS-skifte-session 2026-05-21 ([ADR 0062](./0062-fts-hybrid-search-and-infrastructure-query-port.md)). Additivt amendment-notat — ADR-immutabilitet: all brödtext ovan (inkl. Amendment 2026-05-20) är medvetet orörd.
+**Status:** ADR 0039 förblir **Accepted** — den superseras **inte**. Beslut 1:s SPOT-princip **består oförändrad**; detta notat dokumenterar endast att den delade modulen byter lager.
+
+ADR 0039 Beslut 1 fastslog att `ApplyFilters`/`ApplySort` lyfts till en delad **intern modul i `JobbPilot.Application.JobAds.Queries`** (`JobAdSearch`) som ett SPOT-knowledge-piece — `ListJobAdsQueryHandler` och `RunSavedSearchQueryHandler` delar samma kanoniska filter-/sorterings-väg så att `list` och `run` aldrig kan divergera.
+
+Per [ADR 0062](./0062-fts-hybrid-search-and-infrastructure-query-port.md) (F6 P4 FTS-skifte 2026-05-21) **flyttar denna modul Application → Infrastructure**, bakom Application-porten `IJobAdSearchQuery`. Skälet: FTS-hybridens query-mekanik (`websearch_to_tsquery` / `@@` / `ts_rank` via `EF.Functions.WebSearchToTsQuery` / `NpgsqlTsVector.Matches` / `.Rank`) ligger fysiskt i `Npgsql.EntityFrameworkCore.PostgreSQL`-assemblyn, som arch-testet `Application_should_not_depend_on_Npgsql_or_EF_relational` förbjuder i Application. Sök-kompositionen kan därför inte längre bo i Application-lagret.
+
+**SPOT-principen (Beslut 1) består oförändrad** — det är fortfarande **ETT** knowledge piece, en kanonisk filter-väg. Endast lagret ändras: Application-statisk-modul (`JobAdSearch`) → Infrastructure-impl-bakom-port (`JobAdSearchQuery`, `internal sealed`, bakom `IJobAdSearchQuery`). `JobAdSearch.cs` tas bort.
+
+**Konsumentantalet växer från två till tre:**
+
+- `ListJobAdsQueryHandler` — via `IJobAdSearchQuery.SearchAsync`
+- `RunSavedSearchQueryHandler` — via `IJobAdSearchQuery.SearchAsync`
+- `ListRecentSearchesQueryHandler` — via `IJobAdSearchQuery.CountAsync` ([ADR 0060](./0060-recent-job-searches-auto-capture.md) Beslut 4 — per-sökning-träffräkning)
+
+Beslut 1:s kärnresonemang (DRY/SoC — `list`/`run`/`count` får aldrig divergera) är **starkare** efter flytten: alla tre konsumenter delar den splittrade `JobAdFilterCriteria`-record:en (ADR 0062 Beslut 3) → kompilator-garanti mot filter-divergens, inte bara en delad metod. Se [`0062-fts-hybrid-search-and-infrastructure-query-port.md`](./0062-fts-hybrid-search-and-infrastructure-query-port.md).

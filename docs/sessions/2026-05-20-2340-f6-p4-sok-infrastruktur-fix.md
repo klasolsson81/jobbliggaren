@@ -161,12 +161,45 @@ Små tal = enbart rader importerade med ny JobTechHit-POCO sedan v0.2.51-deploye
 
 **Avblockerad.** P1 (q-perf) levererad för normalfall; P2 (filter-bug) kod-verifierad. lärare-perf-refinement är icke-blockerande followup. F6 P4b körs som separat backend-prompt.
 
+## Forts. 2026-05-21 — build-CI-regression, EXPLAIN-diagnos, FTS-beslut
+
+### build-workflow-regression (fixad)
+När `CREATE EXTENSION pg_trgm` flyttades ur F6P4a-migrationen (commit `e30e387`) bröts `build`-workflow: Testcontainers-integrationstester kör migrationer men inte deploy-pipelinens `ensure-extensions`-steg → `42704 gin_trgm_ops does not exist`. Pre-push kör ej .NET-test → nådde CI. 7 test-fixturer fick `CREATE EXTENSION IF NOT EXISTS pg_trgm` före MigrateAsync (commits `6680c37` + `455f42e`). `build`-workflow åter grön (alla 7 jobs).
+
+### explain-search diagnostik-mode (`a143f60`, v0.2.55-dev)
+Ny CLI-mode i JobbPilot.Migrate — kör EXPLAIN (ANALYZE, BUFFERS) på q-search-filtret, loggar query-planen. Permanent operativt verktyg.
+
+### EXPLAIN ANALYZE-diagnos — entydig
+`lärare` COUNT-väg: Bitmap Heap Scan 4881ms, **`Heap Blocks: exact=4635, lossy=0`** → work_mem-hypotes (lossy bitmap) **definitivt utesluten**. description-trigram-index returnerar 12 980 kandidater, 7 581 falska positiva → kostnaden = de-TOAST + LIKE-recheck av ~13k stora description-texter. `systemutvecklare`: 165ms, 439 kandidater. Ren selektivitetsskillnad — fundamental trigram-svaghet.
+
+### CTO-ronder → FTS-hybrid, Variant (b)
+- **CTO-rond 1:** hypotes 1 bekräftad → Approach B (PostgreSQL FTS-hybrid).
+- **Klas-input:** Platsbanken kör Elasticsearch (web-verifierat). ES-kostnad undersökt — managed $25-130/mån (opraktiskt liten) / self-hosted kräver 8GB RAM (ryms ej på Hetzner CX32). Klas-beslut: inte ES nu, stanna i PostgreSQL.
+- **CTO-rond 2:** 7 delbeslut — FTS-only nu (query-token-parser = egen fas F6 P4c), `websearch_to_tsquery`, `ts_rank` på Relevance, behåll trigram (Klas-GO), spinner bekräftad, ADR 0061-amend + ny ADR 0062.
+- **dotnet-architect-blocker:** FTS-LINQ-funktioner (`websearch_to_tsquery`/`@@`/`NpgsqlTsVector`) ligger fysiskt i Npgsql-assemblyn — ingen provider-agnostisk väg. CTO:s "smal Application-exception utan ny assembly-referens" ogenomförbar.
+- **CTO-rond 3:** Variant (b) — Infrastructure-query-port `IJobAdSearchQuery`. Hela `JobAdSearch.ApplyCriteria`+`ApplySort` flyttas Application→Infrastructure bakom porten (SPOT bevaras, flyttas ej splittras). Kräver ADR 0039-amend + 0061-amend + ny ADR 0062. CTO häver explicit sitt eget rond-2-beslut ("INTE port") på verifierad falsk premiss.
+
+### Klas-beslut 2026-05-21
+- Behåll båda trigram-indexen (FTS-hybrid med substring-fallback).
+- **FTS-implementationen körs i egen fokuserad session** (ren `/clear`, egen startprompt) — lager-refaktor förtjänar full uppmärksamhet.
+
+## Status vid session-end
+
+**F6 P4 sök-infrastruktur-fix (P1+P2) LEVERERAD & DEPLOYAD.** HEAD `a143f60`, tag `v0.2.55-dev` live på dev.
+- P1 q-search: 40s → 1.6s cold / <0.2s warm för specifika termer. Vanliga korta termer (lärare 18.7s) → FTS-session.
+- P2 filter-bug: kod-fix verifierad fungerande; backfill av 51k legacy-rader pending 02:00 UTC-snapshot.
+- CI grön. 10 commits denna session.
+
+**Nästa: F6 P4 FTS-skifte** — egen session, startprompt genererad i chatten 2026-05-21.
+**Sedan: F6 P4b SavedJobAds** + **F6 P4c query-token-parser** + **F6 P4 retention** (51k vs 45k-städning, Klas-observation).
+
 ## Disciplin-noter
 
-- senior-cto-advisor invokerades INNAN CC presenterade egen rekommendation (memory `feedback_cto_decides_multi_approach`).
-- dotnet-architect invokerades INNAN kod (CLAUDE.md §9.2).
-- code-reviewer + security-auditor INNAN commit (samma).
-- Inga TDs lyfta — alla fynd in-block per §9.6 fas-regeln.
+- senior-cto-advisor invokerades INNAN CC presenterade egen rekommendation (memory `feedback_cto_decides_multi_approach`) — tre ronder.
+- dotnet-architect invokerades INNAN kod (CLAUDE.md §9.2) — fångade Clean Arch-blockern.
+- code-reviewer + security-auditor INNAN commit (P1/P2-batchen).
+- Inga TDs lyfta — alla fynd in-block per §9.6 fas-regeln. F6 P4c (query-parser) är planerad fas, ej TD (saknad funktion-dependency).
+- Klas-GO för pg_trgm-extension-grant var förhandsgodkänt i startprompten; ensure-extensions löste det via master-creds-mode.
 - ADR-prosa CC-skriven via adr-keeper på explicit Klas-direktiv i startprompten (override av §9.4 webb-Claude-verbatim per memory `feedback_klas_can_override_adr_verbatim_source`).
 - Ingen FE-implementation (CLAUDE.md-förbud i prompt) — filter-bugg visade sig BE-fixbar.
 - Pre-existing oparsade ändringar (`.claude/settings.json`, `docs/jobbpilot-v3-bundle/`, `docs/reviews/2026-05-17-agent-roster-gap-cto.md`) RÖRDA EJ.

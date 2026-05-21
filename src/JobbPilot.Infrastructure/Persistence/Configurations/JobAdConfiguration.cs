@@ -1,6 +1,7 @@
 using JobbPilot.Domain.JobAds;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NpgsqlTypes;
 
 namespace JobbPilot.Infrastructure.Persistence.Configurations;
 
@@ -78,6 +79,19 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         builder.Property<string?>("RegionConceptId")
             .HasColumnName("region_concept_id")
             .HasComputedColumnSql("raw_payload->'workplace_address'->>'region_concept_id'", stored: true);
+
+        // F6 P4 (ADR 0062) — FTS search_vector. STORED tsvector generated column,
+        // härledd från title + description av PostgreSQL ('swedish'-config för
+        // svensk stemming). Shadow-property (ej CLR-property på JobAd — NpgsqlTsVector
+        // är en provider-typ, får ej ligga på Domain-aggregatet, CLAUDE.md §2.1).
+        // GIN-index skapas i migration F6P4FtsSearchVector. LINQ-referens i
+        // JobAdSearchQuery-impl: EF.Property<NpgsqlTsVector>(j, "SearchVector").
+        builder.Property<NpgsqlTsVector>("SearchVector")
+            .HasColumnName("search_vector")
+            .HasColumnType("tsvector")
+            .HasComputedColumnSql(
+                "to_tsvector('swedish', coalesce(title,'') || ' ' || coalesce(description,''))",
+                stored: true);
 
         builder.HasQueryFilter(j => j.DeletedAt == null);
 

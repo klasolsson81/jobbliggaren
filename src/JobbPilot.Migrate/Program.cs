@@ -375,13 +375,18 @@ static async Task<int> RunEnsureExtensionsAsync(ILogger log, CancellationToken c
 }
 
 // F6 P4 (2026-05-21) — diagnostik-mode för sök-perf. Kör EXPLAIN (ANALYZE,
-// BUFFERS) på q-search-filtret (ListJobAds COUNT-väg) för en uppsättning
-// söktermer och loggar query-planen. Syfte: skilja work_mem-lossy-bitmap
-// (billig fix) från fundamental trigram-selektivitet (kräver FTS) — CTO-
-// rond 2026-05-21. Ansluter med app-creds (samma roll/planner-kontext som
-// runtime-queryn). Read-only — ingen schema-/data-ändring. Idempotent.
-// Termer via env-var EXPLAIN_SEARCH_TERMS (komma-separerad); default
-// "lärare,systemutvecklare" (långsam vs snabb referens).
+// BUFFERS) på q-search-filtret (ListJobAds COUNT- + ITEMS-väg) för en
+// uppsättning söktermer och loggar query-planen. Read-only — ingen schema-/
+// data-ändring. Idempotent. Ansluter med app-creds (samma roll/planner-
+// kontext som runtime-queryn). Termer via env-var EXPLAIN_SEARCH_TERMS
+// (komma-separerad); default "lärare,systemutvecklare" (tidigare långsam vs
+// snabb referens).
+//
+// ADR 0062 — speglar nu FTS-hybrid-filtret (search_vector @@
+// websearch_to_tsquery('swedish', term) OR lower(title) LIKE '%term%'),
+// inte den gamla trigram-LIKE-vägen. Post-deploy-verifiering: planen ska
+// visa Bitmap Index Scan på ix_job_ads_search_vector och INGA de-TOAST:ade
+// description-läsningar (den tidigare trigram-rotorsaken, ADR 0061).
 static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeExplainSearch(log);
@@ -405,21 +410,22 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
 
     foreach (var term in terms)
     {
-        var pattern = "%" + term.ToLowerInvariant() + "%";
-
-        // Speglar JobAdSearch.ApplyCriteria q-filtret + global query filter
-        // (deleted_at IS NULL). COUNT-vägen — representativ för filter-kostnaden.
+        // Speglar JobAdSearchQuery.ApplyCriteria q-FTS-hybrid-grenen + global
+        // query filter (deleted_at IS NULL). COUNT-vägen — representativ för
+        // filter-kostnaden. description-LIKE körs INTE längre (ADR 0062).
         const string countSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM job_ads "
             + "WHERE deleted_at IS NULL "
-            + "AND (lower(title) LIKE @p OR lower(description) LIKE @p);";
+            + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
+            + "OR lower(title) LIKE @p);";
         await ExplainAndLogAsync(conn, countSql, term, "COUNT", log, ct);
 
-        // Items-vägen — filter + ORDER BY published_at DESC + LIMIT.
+        // Items-vägen — filter + ORDER BY published_at DESC (default-sort) + LIMIT.
         const string itemsSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT id FROM job_ads "
             + "WHERE deleted_at IS NULL "
-            + "AND (lower(title) LIKE @p OR lower(description) LIKE @p) "
+            + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
+            + "OR lower(title) LIKE @p) "
             + "ORDER BY published_at DESC, id LIMIT 5;";
         await ExplainAndLogAsync(conn, itemsSql, term, "ITEMS", log, ct);
     }
@@ -432,6 +438,9 @@ static async Task ExplainAndLogAsync(
     ILogger log, CancellationToken ct)
 {
     await using var cmd = new NpgsqlCommand(explainSql, conn);
+    // @term: rå sökterm till websearch_to_tsquery (sköter egen normalisering).
+    // @p: lowercased %term%-pattern till title-LIKE-fallbacken (ADR 0062).
+    cmd.Parameters.Add(new NpgsqlParameter("term", term));
     cmd.Parameters.Add(new NpgsqlParameter("p", "%" + term.ToLowerInvariant() + "%"));
     var plan = new StringBuilder();
     await using (var reader = await cmd.ExecuteReaderAsync(ct))

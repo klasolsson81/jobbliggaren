@@ -2145,6 +2145,59 @@ a:hover { color: var(--jp-navy-600); }
   margin: 0 0 4px;
 }
 
+/* ── Skeleton (laddningstillstånd) ───────────────────
+   Platt neutral platshållare för /jobb-sökresultatet (F6 P4).
+   Civic-utility: ingen shimmer, ingen puls, ingen gradient, ingen
+   glow (jobbpilot-design-principles regel 1 + anti-pattern-katalog).
+   Rent statiskt block — `surface-3` är den lugnaste fyllytan i båda
+   teman (light + dark följer --jp-* automatiskt). Inget animeras, så
+   prefers-reduced-motion behöver ingen särregel här. */
+.jp-skeleton {
+  background: var(--jp-surface-3);
+  border-radius: var(--jp-r-sm);
+}
+/* jp-job-skeleton speglar .jp-job-radens mått (padding/border/radius)
+   så resultat-ytan inte hoppar när riktiga annonser ersätter den. */
+.jp-job-skeleton {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jp-skeleton--title {
+  height: 18px;
+  width: 60%;
+}
+.jp-skeleton--company {
+  height: 14px;
+  width: 35%;
+}
+.jp-job-skeleton__meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 2px;
+}
+.jp-skeleton--meta {
+  height: 12px;
+  width: 120px;
+}
+/* Toolbar-platshållare: speglar .jp-results-toolbar-radens två sidor
+   (träffräknare vänster, sorterings-select höger) så resultat-ytan inte
+   hoppar när riktiga data landar. jp-skeleton--count matchar
+   .jp-results-count-höjden; jp-skeleton--sort matchar .jp-select-höjden
+   (40px) + en bredd som rymmer label + select. */
+.jp-skeleton--count {
+  height: 20px;
+  width: 96px;
+}
+.jp-skeleton--sort {
+  height: 40px;
+  width: 232px;
+}
+
 /* Notifications dropdown */
 .jp-notif {
   position: absolute;

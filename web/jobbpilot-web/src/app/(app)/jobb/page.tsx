@@ -1,15 +1,13 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
-import { getJobAds } from "@/lib/api/job-ads";
 import { getRecentSearches } from "@/lib/api/recent-searches";
-import { getTaxonomyTree, resolveTaxonomyLabels } from "@/lib/api/taxonomy";
+import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
-import { assertNever } from "@/lib/dto/_helpers";
 import { Search } from "lucide-react";
-import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
-import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
-import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
+import { JobbResults } from "@/components/job-ads/jobb-results";
+import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 import { MarkJobbVisited } from "@/components/job-ads/mark-jobb-visited";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
 
@@ -65,14 +63,14 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
   const since = newWindowSince();
 
-  // ADR 0043 — picker-träd + reverse-lookup för redan-valda concept-id
-  // hämtas server-side (CLAUDE.md §4.3/§5.2 — ingen useEffect-fetch).
-  // Parallellt med listan: oberoende requests, inga inbördes beroenden.
-  const selectedConceptIds = [...ssyk, ...region];
-  const [result, taxonomyResult, labelsResult, recentSearchesResult] = await Promise.all([
-    getJobAds({ page, pageSize, sortBy, ssyk, region, q, since }),
+  // ADR 0043 — picker-träd hämtas server-side för hero-filter-popovern
+  // (CLAUDE.md §4.3/§5.2 — ingen useEffect-fetch). Träd + senaste
+  // sökningar är HERO-beroenden: de måste vara klara innan hero renderas
+  // och blockerar därför INTE resultat-streamingen. getJobAds() +
+  // chip-label-resolvern flyttades till `JobbResults` (F6 P4 B1) så att
+  // bara resultat-ytan — inte hero:n — byts mot skeleton under en sökning.
+  const [taxonomyResult, recentSearchesResult] = await Promise.all([
     getTaxonomyTree(),
-    resolveTaxonomyLabels(selectedConceptIds),
     getRecentSearches(),
   ]);
 
@@ -82,21 +80,26 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const recentSearches =
     recentSearchesResult.kind === "ok" ? recentSearchesResult.data : [];
 
-  // Träd-/label-hämtning får aldrig blockera sök-ytan. Misslyckas trädet
+  // Träd-hämtning får aldrig blockera sök-ytan. Misslyckas trädet
   // degraderar popovern civilt (tom lista + informativ rad i
-  // JobbFilterPopover); reverse-lookup-miss → chip faller till
-  // "Okänd kod (<id>)" i toolbaren (ADR 0043 Beslut B graceful degradation).
+  // JobbFilterPopover) (ADR 0043 Beslut B graceful degradation).
   const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
-  // Plain Record (EJ Map) — passas över RSC→client-gränsen till
-  // JobbResultsToolbar (Map serialiseras inte i RSC-payloaden; verifierat
-  // mot Next-docs server-and-client-components "props passed from a Server
-  // Component to a Client Component").
-  const resolvedLabels: Record<string, string> =
-    labelsResult.kind === "ok"
-      ? Object.fromEntries(
-          labelsResult.data.map((l) => [l.conceptId, l.label] as const)
-        )
-      : {};
+
+  // Suspense-key: byts vid varje ny sökning så fallbacken (skeleton)
+  // visas om även navigeringen sker mellan två /jobb-URL:er. Utan en
+  // ny key skulle React behålla föregående resultat-träd medan nästa
+  // sökning hämtas. searchParams-strängen är en stabil, kollisionsfri
+  // identitet för "den här sökningen".
+  const resultsKey = new URLSearchParams(
+    Object.entries({
+      page: params.page ?? "",
+      pageSize: params.pageSize ?? "",
+      sortBy: params.sortBy ?? "",
+      q: params.q ?? "",
+    })
+  ).toString();
+  const ssykKey = ssyk.join(",");
+  const regionKey = region.join(",");
 
   return (
     <>
@@ -112,7 +115,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
           inputs så en ny sökning inte tappar dem; `page` utelämnas medvetet
           (ny sökterm → sida 1). Ort/Yrke-pills + popovers = client-island
           JobbHeroFilters (F4, ADR 0055 + amendment — INGEN Filter-pill,
-          deferred helt). INGA Senaste/Sparade-chips (no-mock-doktrin). */}
+          deferred helt). INGA Senaste/Sparade-chips (no-mock-doktrin).
+          Hero renderas SYNKRONT — den ligger utanför Suspense-gränsen och
+          förblir synlig medan resultatet hämtas (F6 P4 B1). */}
       <section className="jp-hero">
         <div className="jp-hero__inner">
           {/* ADR 0060 / ADR 0055 amend 2026-05-20: Senaste-sökningar-chip
@@ -183,96 +188,28 @@ export default async function JobbPage({ searchParams }: PageProps) {
       </section>
 
       <div className="jp-container jp-page">
-        {renderResult(
-          result,
-          params,
-          pageSize,
-          ssyk,
-          region,
-          resolvedLabels,
-          q ?? "",
-          sortBy
-        )}
+        {/* Resultat-ytan streamas: <Suspense> visar JobAdListSkeleton
+            medan JobbResults await:ar getJobAds(). Hero ovan är redan
+            renderad och förblir synlig. `key` byts per sökning så
+            skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
+        <Suspense
+          key={`${resultsKey}|${ssykKey}|${regionKey}`}
+          fallback={<JobAdListSkeleton />}
+        >
+          <JobbResults
+            page={page}
+            pageSize={pageSize}
+            sortBy={sortBy}
+            ssyk={ssyk}
+            region={region}
+            q={q ?? ""}
+            since={since}
+            rawParams={params}
+          />
+        </Suspense>
       </div>
     </>
   );
-}
-
-function renderResult(
-  result: Awaited<ReturnType<typeof getJobAds>>,
-  params: JobbSearchParams,
-  pageSize: number,
-  ssyk: string[],
-  region: string[],
-  resolvedLabels: Record<string, string>,
-  q: string,
-  sortBy: JobAdSortBy
-) {
-  switch (result.kind) {
-    case "ok":
-      return (
-        <>
-          {/* Result-toolbar (client-island): N träffar + aktiva chips +
-              sort-dropdown på samma rad (F4/ADR 0055). totalCount kommer
-              från RSC-fetchen; chips/sort live-commit:ar searchParams
-              symmetriskt med hero-pills (buildJobbHref). */}
-          <JobbResultsToolbar
-            totalCount={result.data.totalCount}
-            ssyk={ssyk}
-            region={region}
-            resolvedLabels={resolvedLabels}
-            q={q}
-            sortBy={sortBy}
-            pageSize={params.pageSize}
-          />
-          <div className="flex flex-col gap-2.5">
-            <JobAdList jobAds={result.data.items} />
-            <JobAdPagination
-              page={result.data.page}
-              pageSize={result.data.pageSize}
-              totalCount={result.data.totalCount}
-              buildHref={(targetPage) =>
-                buildPageHref(params, targetPage, pageSize)
-              }
-            />
-          </div>
-        </>
-      );
-    case "unauthorized":
-      redirect("/logga-in");
-    case "rateLimited":
-      return (
-        <div
-          role="alert"
-          className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
-        >
-          <p className="text-body font-medium text-warning-700">
-            För många förfrågningar
-          </p>
-          <p className="mt-1 text-body-sm text-warning-700">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
-          </p>
-        </div>
-      );
-    // notFound/forbidden/error kollapsas till samma copy: list-endpointen kan
-    // aldrig runtime-faktiskt returnera 404 (responseToResult sätter inte
-    // includeNotFound) och job-ads endpoint är endast auth-gated (forbidden
-    // exponeras inte idag) — alla tre faller till samma "tekniskt fel"-copy.
-    case "notFound":
-    case "forbidden":
-    case "error":
-      return (
-        <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
-          <p className="text-body font-medium">Kunde inte ladda jobbannonser</p>
-          <p className="mt-1 text-body-sm">
-            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
-          </p>
-        </div>
-      );
-    default:
-      return assertNever(result);
-  }
 }
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
@@ -296,24 +233,4 @@ function toStringList(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];
   const arr = Array.isArray(raw) ? raw : [raw];
   return arr.map((v) => v.trim()).filter((v) => v.length > 0);
-}
-
-function buildPageHref(
-  params: JobbSearchParams,
-  targetPage: number,
-  defaultPageSize: number
-): string {
-  const url = new URLSearchParams();
-  if (targetPage !== 1) url.set("page", String(targetPage));
-  if (params.pageSize && Number(params.pageSize) !== defaultPageSize) {
-    url.set("pageSize", params.pageSize);
-  }
-  if (params.sortBy && params.sortBy !== "PublishedAtDesc") {
-    url.set("sortBy", params.sortBy);
-  }
-  for (const v of toStringList(params.ssyk)) url.append("ssyk", v);
-  for (const v of toStringList(params.region)) url.append("region", v);
-  if (params.q) url.set("q", params.q);
-  const qs = url.toString();
-  return qs.length > 0 ? `/jobb?${qs}` : "/jobb";
 }

@@ -2184,14 +2184,17 @@ a:hover { color: var(--jp-navy-600); }
   height: 12px;
   width: 120px;
 }
-/* Toolbar-platshållare: speglar .jp-results-toolbar-radens två sidor
-   (träffräknare vänster, sorterings-select höger) så resultat-ytan inte
-   hoppar när riktiga data landar. jp-skeleton--count matchar
-   .jp-results-count-höjden; jp-skeleton--sort matchar .jp-select-höjden
-   (40px) + en bredd som rymmer label + select. */
-.jp-skeleton--count {
-  height: 20px;
-  width: 96px;
+/* Toolbar-rad i laddningstillståndet (F6 P4):
+   - .jp-skeleton__status-text: synlig "Söker bland annonser…" vänster, samma
+     slot där .jp-results-count landar — undviker layout-shift. Stil matchar
+     .jp-results-count (17px, --jp-ink-1) så texten visuellt motsvarar den
+     träffräknare den ersätter under laddning. Ingen animation.
+   - .jp-skeleton--sort: speglar .jp-select-höjden (40px) + en bredd som
+     rymmer label + select. */
+.jp-skeleton__status-text {
+  margin: 0;
+  font-size: 17px;
+  color: var(--jp-ink-1);
 }
 .jp-skeleton--sort {
   height: 40px;

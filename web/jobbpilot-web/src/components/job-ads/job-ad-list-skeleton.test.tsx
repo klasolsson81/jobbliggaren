@@ -10,23 +10,26 @@ describe("JobAdListSkeleton", () => {
     expect(status).toHaveAttribute("aria-busy", "true");
   });
 
-  it("announces a plain, civic-utility loading message via aria-label", () => {
+  it("renders a visible 'Söker bland annonser…' message inside the status live-region", () => {
     render(<JobAdListSkeleton />);
-    // M2: accessible name sätts via aria-label direkt på status-wrappern
-    // — inte via aria-labelledby mot ett separat id-element — så
-    // komponenten är fri från DOM-id-kollisionsrisk.
-    const status = screen.getByRole("status", {
-      name: "Söker bland annonser…",
-    });
-    expect(status).toBeInTheDocument();
-    expect(status).toHaveAttribute("aria-label", "Söker bland annonser…");
+    // Synlig DOM-text — seende användare ser exakt samma signal som
+    // aria-live="polite" annonserar via live-region-uppdateringen när
+    // statusen mountas. Ingen sr-only-divergens.
+    const text = screen.getByText("Söker bland annonser…");
+    expect(text).toBeInTheDocument();
+    // Texten ligger inuti role="status" så live-region:en når den.
+    const status = screen.getByRole("status");
+    expect(status).toContainElement(text);
+    // ARIA 1.2 — role=status har `nameFrom: author`: aria-label/aria-labelledby
+    // skulle ÖVERSKUGGA den synliga texten i accessible-name-beräkningen.
+    // Vi vill att SR läser exakt den synliga texten via live-regionen — alltså
+    // INGEN aria-label/aria-labelledby.
+    expect(status).not.toHaveAttribute("aria-label");
     expect(status).not.toHaveAttribute("aria-labelledby");
   });
 
   it("renders no global id (safe to render multiple times)", () => {
     const { container } = render(<JobAdListSkeleton />);
-    // M2: inget hårt `id` får finnas — flera samtidiga instanser annars
-    // kolliderar i DOM:en.
     expect(container.querySelector("[id]")).toBeNull();
   });
 
@@ -35,29 +38,34 @@ describe("JobAdListSkeleton", () => {
     expect(container.querySelectorAll(".jp-job-skeleton")).toHaveLength(6);
   });
 
-  it("renders a toolbar placeholder so the layout does not shift", () => {
+  it("renders the toolbar row with visible status text and a sort placeholder", () => {
     const { container } = render(<JobAdListSkeleton />);
-    // M1: toolbaren är data-beroende och ligger innanför Suspense-gränsen
-    // — skeleton:en speglar toolbar-raden (träffräknare + sortering) så
-    // resultat-ytan inte hoppar när data landar.
+    // M1: toolbaren ligger innanför Suspense-gränsen — raden måste finnas
+    // i skeleton:en så resultat-ytan inte hoppar när data landar.
     const toolbar = container.querySelector(".jp-results-toolbar");
     expect(toolbar).not.toBeNull();
-    expect(toolbar?.querySelector(".jp-skeleton--count")).not.toBeNull();
+    // Vänster slot: synlig "Söker…"-text där träffräknaren landar.
+    expect(toolbar?.querySelector(".jp-skeleton__status-text")).not.toBeNull();
+    // Höger slot: sort-platshållare som speglar select:ens mått.
     expect(toolbar?.querySelector(".jp-skeleton--sort")).not.toBeNull();
   });
 
-  it("hides the decorative skeleton blocks from assistive tech", () => {
+  it("hides only the decorative skeleton blocks from assistive tech", () => {
     const { container } = render(<JobAdListSkeleton />);
-    // Skeleton-listan ska inte läsas upp som tomma element — bara den
-    // korta status-meningen annonseras.
+    // Skeleton-listan ska inte läsas upp som tomma element.
     expect(container.querySelector("ul")).toHaveAttribute(
       "aria-hidden",
       "true"
     );
-    // Toolbar-platshållaren är likaså rent dekorativ.
-    expect(container.querySelector(".jp-results-toolbar")).toHaveAttribute(
+    // Sort-platshållaren är rent dekorativ.
+    expect(container.querySelector(".jp-skeleton--sort")).toHaveAttribute(
       "aria-hidden",
       "true"
+    );
+    // Toolbaren själv är INTE aria-hidden längre — den innehåller den
+    // synliga statustexten som role="status" måste kunna läsa.
+    expect(container.querySelector(".jp-results-toolbar")).not.toHaveAttribute(
+      "aria-hidden"
     );
   });
 });

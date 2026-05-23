@@ -8,26 +8,24 @@
  *
  * Speglar resultat-ytans två delar så layouten inte hoppar när riktiga
  * data landar:
- *  - en toolbar-rad (träffräknare + sortering) — `.jp-job-skeleton`-höjd
- *    matchar `.jp-results-toolbar`-radens visuella tyngd
+ *  - en toolbar-rad: synlig "Söker bland annonser…"-text vänster (där
+ *    träffräknaren landar) + sorterings-platshållare höger
  *  - skeleton-rader som speglar `.jp-job`-kortens mått (`.jp-job-skeleton`)
  *
  * jobbpilot-design-components föreskriver "full row skeletons, not spinner"
  * för list-/tabell-laddning och "prefer Skeleton over Spinner for first
- * renders".
+ * renders". Civic-utility: platt neutral grå (`.jp-skeleton`), ingen
+ * shimmer, ingen puls, ingen glow, ingen gradient. Blocken är rent
+ * statisk DOM.
  *
- * Civic-utility: platt neutral grå (`.jp-skeleton`), ingen shimmer, ingen
- * puls, ingen glow, ingen gradient (jobbpilot-design-principles regel 1 +
- * anti-pattern-katalog). Blocken är rent statisk DOM.
- *
- * a11y: yttre `role="status"` + `aria-live="polite"` annonserar
- * "Söker bland annonser…" för skärmläsare medan fallbacken visas. Det
- * tillgängliga namnet sätts via `aria-label` direkt på status-wrappern —
- * inte via `aria-labelledby` mot ett separat `id`-element — så komponenten
- * kan renderas utan risk för DOM-id-kollision. Skeleton-blocken bär
- * `aria-hidden` så uppläsningen blir en kort mening, inte tom dekoration.
- * Inga interaktiva element finns i fallbacken — tangentbordsfokus påverkas
- * inte.
+ * a11y: yttre `role="status"` + `aria-live="polite"` annonserar den synliga
+ * "Söker bland annonser…"-texten för skärmläsare medan fallbacken visas.
+ * Texten är både visuell signal till seende användare OCH den enda
+ * upplästa meningen — ingen separat `aria-label`/`aria-labelledby` behövs
+ * (status-elementet läser sitt eget icke-aria-hidden innehåll). Skeleton-
+ * blocken (sort-platshållaren + rad-listan) bär `aria-hidden` så
+ * uppläsningen blir en kort mening, inte tom dekoration. Inga interaktiva
+ * element finns i fallbacken — tangentbordsfokus påverkas inte.
  */
 
 // Antal skeleton-rader. Fyller resultat-ytan utan att bli en lång
@@ -37,20 +35,17 @@ const SKELETON_ROWS = 6;
 
 export function JobAdListSkeleton() {
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      aria-label="Söker bland annonser…"
-    >
-      {/* Toolbar-platshållare: speglar .jp-results-toolbar (träffräknare
-          vänster, sortering höger) så raden inte hoppar in när resultatet
-          landar. Toolbaren är data-beroende (träffantal + filter-chips)
-          och ligger därför innanför Suspense-gränsen tillsammans med
-          listan. */}
-      <div className="jp-results-toolbar" aria-hidden="true">
-        <div className="jp-skeleton jp-skeleton--count" />
-        <div className="jp-skeleton jp-skeleton--sort" />
+    <div role="status" aria-live="polite" aria-busy="true">
+      {/* Toolbar-rad: synlig "Söker…"-text vänster (där träffräknaren
+          landar — samma slot, undviker layout-shift). sort-platshållaren
+          höger speglar select:ens mått. Texten är både visuell signal
+          och innehållet som role="status" annonserar. */}
+      <div className="jp-results-toolbar">
+        <p className="jp-skeleton__status-text">Söker bland annonser…</p>
+        <div
+          className="jp-skeleton jp-skeleton--sort"
+          aria-hidden="true"
+        />
       </div>
       <ul className="jp-jobs" aria-hidden="true">
         {Array.from({ length: SKELETON_ROWS }, (_, i) => (

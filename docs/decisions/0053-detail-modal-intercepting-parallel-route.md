@@ -75,6 +75,22 @@ Match-score visas som mono `"92% match"` + 3-nivå-förklaring.
 
 > **Amendment-proveniens:** Klas-godkänd amendment-prosa verbatim 2026-05-19 (memory `feedback_klas_can_override_adr_verbatim_source` — explicit Klas-override av §9.4 webb-Claude-verbatim-konvention). Grundad i senior-cto-advisor F3-plan-design-dom + verifierad data-/fas-verklighet (real `JobAdDto` saknar match/requirements/occupation/location; match-scoring = ofödd Fas-4 AI-domän). ADR förblir **Accepted** — amendment, ej supersession; originalt Beslut 5 + route-only-supersession-paradigmet består.
 
+## Amendment 2026-05-23 — Spara/Har-ansökt-knappar Accepted i F6 P5 Punkt 2
+
+> **Amendment 2026-05-23 (Klas-godkänd, CTO-triagead — agentId ad76c06a752275b17):** ADR 0053 Amendment 2026-05-19 deferrade `Spara annons` / `Har ansökt`-knappar till "fas där FE-action-bryggan (job-ad → saved-search/application-domän) byggs". F6 P5 Punkt 2 (2026-05-23) **ÄR den fasen** — FE-action-bryggan byggs nu. Deferringen lyfts: båda knapparna är **Accepted** i modal-footer för F6 P5 Punkt 2.
+>
+> **Backend (PR1 commit c015918 + PR3 commit a187467):**
+> - `SavedJobAd`-aggregat skapas som fullt aggregate root (paritet med `RecentJobSearch` per CTO Val 1 — ADR 0060-mönstret), strongly-typed soft-reference utan DB-FK (ADR 0011) mot JobSeekerId + JobAdId, hard-delete-semantik, ingen audit-bypass (rena `IAuditableCommand`-flöden).
+> - `CreateApplicationFromJobAdCommand` ny endpoint `/from-job-ad/{jobAdId}` (per CTO Val 3 SRP — separat från befintlig `CreateApplicationCommand` så manuella och job-ad-drivna flöden inte deluniformeras). `Application.Create` får `JobAdId` som strongly-typed soft-reference; **ingen snapshot** av annonsinnehåll persisteras till Application-aggregatet (ADR 0048 Beslut d respekteras — cross-aggregat-länk löses via read-join i query-vägen, inte via snapshot-duplicering i write-modellen, per CTO Val 2).
+>
+> **Frontend (PR2 commit 4afc081 + PR4):**
+> - `SaveJobAdToggle` i modal-footer (PR2): optimistic UI mot `POST/DELETE /api/saved-job-ads/{jobAdId}`, `aria-pressed`-state, toast vid fel som rullar tillbaka optimistic-mutationen. Knappen ersätter inte "Öppna annonsen"-länken — båda samexisterar i footer.
+> - `HarAnsoktButton` i modal-footer (PR4): optimistic-create mot `/from-job-ad/{jobAdId}`, toast på success med länk till `/ansokningar/{id}` (per CTO Val 4 Variant A — ADR 0053 modal-footer + toast, inte sekundär modal/inline-formulär; bevarar "en presentationskomponent två renderingskontexter"-disciplinen från Beslut 2).
+>
+> **Vad amendment INTE rör:** Match-presentation kvarstår Fas-4-gated per Amendment 2026-05-19 (real `JobAdDto` saknar match/requirements/occupation/location — Fas 3-modalen renderar fortfarande ingen match-sektion). Footer-fält-set i Fas 3 utökas till: `Öppna annonsen [url]` · `Spara annons` (PR2) · `Har ansökt` (PR4). Övriga modal-fält oförändrade.
+>
+> **Amendment-proveniens:** Klas-godkänd amendment-prosa verbatim 2026-05-23 (memory `feedback_klas_can_override_adr_verbatim_source` — explicit Klas-override av §9.4 webb-Claude-verbatim-konvention för PR4-amends). Grundad i senior-cto-advisor-dom (agentId ad76c06a752275b17 2026-05-23, 4 multi-approach-val: Val 1 SavedJobAd fullt aggregate root, Val 2 Application.Create med JobAdId NO snapshot, Val 3 separat `/from-job-ad/{jobAdId}`-endpoint, Val 4 modal-footer + toast Variant A). ADR förblir **Accepted** — additivt tilläggslager, ej supersession; originalt Beslut 5 + Amendment 2026-05-19 (match-presentation Fas-4-gated) + route-only-supersession-paradigmet består.
+
 ## Konsekvenser
 
 ### Positiva

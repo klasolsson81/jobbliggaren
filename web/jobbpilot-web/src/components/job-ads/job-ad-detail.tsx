@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { getJobAdStatusLabel } from "@/lib/job-ads/status";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
 import { SaveJobAdToggle } from "@/components/saved-job-ads/save-job-ad-toggle";
+import { HarAnsoktButton } from "@/components/applications/har-ansokt-button";
 import { formatAdDescription } from "./format-ad-description";
 
 /**
@@ -119,7 +120,10 @@ export function JobAdDetail({
       <div className="jp-modal__foot">
         <span className="jp-modal__foot__spacer" />
         {initialSaved !== undefined && (
-          <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={initialSaved} />
+          <>
+            <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={initialSaved} />
+            <HarAnsoktButton jobAdId={jobAd.id} />
+          </>
         )}
         {jobAd.url && (
           <a

@@ -509,3 +509,37 @@ Cascade-tabellen utökad:
 ### Pre-existing lucka (SavedSearches)
 
 SavedSearches saknade cascade i `HardDeleteAccountAsync` redan innan F6 P4a — pre-existing GDPR Art. 17-lucka som inte upptäcktes tidigare (low-volume-domän, ingen security-audit hade triggat genom det specifika delete-flödet med seedade SavedSearches). In-block-fix i samma commit-batch som RecentJobSearches per CLAUDE.md §9.6 (samma fas, samma blast-radius). Ingen separat TD lyfts.
+
+---
+
+## Amendment 2026-05-23 — Cascade utökad till SavedJobAds (per F6 P5 Punkt 2 Del A)
+
+**Datum:** 2026-05-23
+**Källa:** F6 P5 Punkt 2 Del A leverans (commit c015918) — code-reviewer Minor 2-fynd 2026-05-23 (agentId a57baf5e5e5539d9e: commit-meddelande och kod-kommentarer refererade till ADR 0024-amend som saknades i denna fil)
+**Trigger:** [ADR 0053 Amendment 2026-05-23](./0053-detail-modal-intercepting-parallel-route.md#amendment-2026-05-23--sparahar-anskt-knappar-accepted-i-f6-p5-punkt-2) — `SavedJobAd`-aggregat infört som strongly-typed soft-reference (ADR 0011-mönster, paritet med SavedSearches/RecentJobSearches) utan databas-FK till `job_seekers`
+
+### Bakgrund
+
+`SavedJobAd`-aggregatet följer samma `ADR 0011 strongly-typed soft-reference`-mönster som SavedSearches (ADR 0039) och RecentJobSearches (ADR 0060): ingen databas-FK till `job_seekers`, alltså inte heller `ON DELETE CASCADE`. Utan explicit `RemoveRange` i hard-delete-flödet skulle SavedJobAd-rader bli orphans efter `HardDeleteAccountsJob` — bryter atomisk GDPR Art. 17-erasure för hela user-trädet.
+
+### Beslut
+
+`AccountHardDeleter.HardDeleteAccountAsync` uppdaterad 2026-05-23 till att explicit `RemoveRange(db.SavedJobAds.Where(s => s.JobSeekerId == jsId))` innan `db.JobSeekers.Remove(jobSeeker)`. Operationen deltar i samma `BeginTransactionAsync`-transaktion som övriga cascades + DEK-erasure → atomic GDPR Art. 17-erasure för hela user-trädet bevarad (paritet med Applications + Resumes + SavedSearches + RecentJobSearches-cascade).
+
+Integration-test `HardDeleteAccountsJobIntegrationTests.RunAsync_CascadesHardDelete_ToSavedJobAds` (Worker.IntegrationTests/Auth/) verifierar end-to-end i CI.
+
+Cascade-tabellen utökad:
+
+| Aggregat | Mekanik | Driver |
+|---|---|---|
+| Application + barn (FollowUp/Note) | DB-CASCADE (HasMany→WithOne→Cascade) | EF Core |
+| Resume + Versions | DB-CASCADE | EF Core |
+| SavedSearch | Explicit `RemoveRange` (ingen DB-FK) | `AccountHardDeleter.HardDeleteAccountAsync` |
+| RecentJobSearch | Explicit `RemoveRange` (ingen DB-FK) | `AccountHardDeleter.HardDeleteAccountAsync` |
+| SavedJobAd | Explicit `RemoveRange` (ingen DB-FK) | `AccountHardDeleter.HardDeleteAccountAsync` |
+| audit_log | Anonymisering (D3) | `IAuditTrailEraser` |
+| user_data_keys (TD-13/ADR 0049) | Crypto-erasure (delete DEK) | `IUserDataKeyStore.DeleteDataKeysAsync` |
+
+### Disciplin
+
+Amendment är additivt — originaltexten + Cross-ref-amendment 2026-05-13 + Amendment 2026-05-20 består oförändrade. Ingen separat TD lyfts; cascade-tillägget är in-block-fix i samma commit-batch som SavedJobAd-aggregatet introducerades (commit c015918), enligt CLAUDE.md §9.6 (samma fas, samma blast-radius som ADR 0060-cascade-utökningen 2026-05-20).

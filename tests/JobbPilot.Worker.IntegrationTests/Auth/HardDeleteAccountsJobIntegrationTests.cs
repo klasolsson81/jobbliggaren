@@ -4,6 +4,7 @@ using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobAds;
 using JobbPilot.Domain.JobSeekers;
 using JobbPilot.Domain.RecentJobSearches;
+using JobbPilot.Domain.SavedJobAds;
 using JobbPilot.Domain.SavedSearches;
 using JobbPilot.Infrastructure.Identity;
 using JobbPilot.Infrastructure.Persistence;
@@ -193,8 +194,8 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         using (var scope = _fixture.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var savedJobAdJobAdId = new JobbPilot.Domain.JobAds.JobAdId(Guid.NewGuid());
-            var saved = JobbPilot.Domain.SavedJobAds.SavedJobAd.Save(
+            var savedJobAdJobAdId = new JobAdId(Guid.NewGuid());
+            var saved = SavedJobAd.Save(
                 jobSeekerId, savedJobAdJobAdId, oldDeletedAt.AddDays(-2));
             db.SavedJobAds.Add(saved);
             await db.SaveChangesAsync(ct);
@@ -209,7 +210,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         var savedJobAdAfter = await verifyDb.SavedJobAds
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                s => s.Id == new JobbPilot.Domain.SavedJobAds.SavedJobAdId(savedJobAdId), ct);
+                s => s.Id == new SavedJobAdId(savedJobAdId), ct);
         savedJobAdAfter.ShouldBeNull(
             "SavedJobAd ska cascade-raderas vid hard-delete (GDPR Art. 17, ADR 0024 amend 2026-05-23)");
     }

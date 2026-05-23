@@ -1,0 +1,171 @@
+"use client";
+
+import Link from "next/link";
+import { useTransition } from "react";
+import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
+import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
+import { unsaveJobAdAction } from "@/lib/actions/saved-job-ads";
+
+interface SavedJobAdRowProps {
+  item: SavedJobAdDto;
+  onUnsaved: (jobAdId: string) => void;
+  onUnsaveFailed: (jobAdId: string, error: string) => void;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("sv-SE");
+}
+
+/**
+ * F6 P5 Punkt 2 Del A — rad i `/sparade`-listan. Visar JobAd-metadata
+ * från ADR 0048 in-handler-join (`item.jobAd`). När annonsen soft-deletats
+ * eller borttagits från Platsbanken (ADR 0032 snapshot-retention) →
+ * `item.jobAd === null` → fallback-rendering med "Annonsen är borttagen".
+ *
+ * Borttag = `unsaveJobAdAction(item.jobAdId)` (ej SavedJobAdId — backend
+ * matchar på composite-key per ADR 0011 strongly-typed soft-ref).
+ */
+export function SavedJobAdRow({
+  item,
+  onUnsaved,
+  onUnsaveFailed,
+}: SavedJobAdRowProps) {
+  const [isPending, startTransition] = useTransition();
+  const savedAt = formatDate(item.savedAt);
+
+  function handleUnsave() {
+    startTransition(async () => {
+      const result = await unsaveJobAdAction(item.jobAdId);
+      if (result.success) {
+        onUnsaved(item.jobAdId);
+      } else {
+        onUnsaveFailed(item.jobAdId, result.error);
+      }
+    });
+  }
+
+  // Fallback-rendering när JobAd är null (soft-deletad / borttagen).
+  if (item.jobAd === null) {
+    return (
+      <li>
+        <article
+          className="jp-job"
+          style={{
+            gridTemplateColumns: "auto 1fr auto",
+            opacity: 0.7,
+          }}
+        >
+          <div
+            className="jp-job__match"
+            style={{
+              background: "var(--jp-surface-3)",
+              borderColor: "var(--jp-border)",
+              color: "var(--jp-ink-2)",
+            }}
+            aria-hidden="true"
+          >
+            <Bookmark size={20} />
+          </div>
+          <div className="jp-job__body">
+            <h3 className="jp-job__title">Annonsen är borttagen</h3>
+            <div className="jp-job__meta" style={{ marginTop: 8 }}>
+              <span>
+                Sparad <b>{savedAt}</b>
+              </span>
+            </div>
+          </div>
+          <div className="jp-job__actions" style={{ flexDirection: "row" }}>
+            <button
+              type="button"
+              className="jp-icon-btn"
+              aria-label="Ta bort bokmärke"
+              onClick={handleUnsave}
+              disabled={isPending}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </article>
+      </li>
+    );
+  }
+
+  // JobAd finns — normal rad.
+  const publishedAt = item.jobAd.publishedAt
+    ? formatDate(item.jobAd.publishedAt)
+    : null;
+  const expiresAt = item.jobAd.expiresAt
+    ? formatDate(item.jobAd.expiresAt)
+    : null;
+
+  return (
+    <li>
+      <article
+        className="jp-job"
+        style={{ gridTemplateColumns: "auto 1fr auto" }}
+      >
+        <Link
+          href={`/jobb/${item.jobAdId}`}
+          className="jp-job__match"
+          style={{
+            background: "var(--jp-surface-3)",
+            borderColor: "var(--jp-border)",
+            color: "var(--jp-ink-2)",
+            textDecoration: "none",
+          }}
+          aria-label={`Öppna ${item.jobAd.title}`}
+        >
+          <Bookmark size={20} aria-hidden="true" />
+        </Link>
+        <div className="jp-job__body">
+          <h3 className="jp-job__title">
+            <Link
+              href={`/jobb/${item.jobAdId}`}
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
+              {item.jobAd.title}
+            </Link>
+          </h3>
+          <div className="jp-job__company">{item.jobAd.company}</div>
+          <div className="jp-job__meta">
+            {publishedAt && (
+              <span>
+                Publicerad <b>{publishedAt}</b>
+              </span>
+            )}
+            {expiresAt && (
+              <span>
+                Sista ansökan <b>{expiresAt}</b>
+              </span>
+            )}
+            <span>
+              Sparad <b>{savedAt}</b>
+            </span>
+          </div>
+        </div>
+        <div className="jp-job__actions" style={{ flexDirection: "row" }}>
+          {item.jobAd.url && (
+            <a
+              href={item.jobAd.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="jp-icon-btn"
+              aria-label={`Öppna annonsen på externa webbplatsen`}
+            >
+              <ExternalLink size={16} aria-hidden="true" />
+            </a>
+          )}
+          <button
+            type="button"
+            className="jp-icon-btn"
+            aria-label={`Ta bort bokmärke för ${item.jobAd.title}`}
+            onClick={handleUnsave}
+            disabled={isPending}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </article>
+    </li>
+  );
+}

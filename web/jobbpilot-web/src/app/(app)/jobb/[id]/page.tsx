@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
+import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 
 interface PageProps {
@@ -26,7 +27,11 @@ export default async function JobbDetailPage({ params }: PageProps) {
   const result = await getJobAd(id);
 
   switch (result.kind) {
-    case "ok":
+    case "ok": {
+      // F6 P5 Punkt 2 Del A — Spara-toggle initial-tillstånd. Misslyckas
+      // lookup civilt (helper returnerar false), toggle visas ändå för att
+      // användaren kan klicka för att försöka spara.
+      const initialSaved = await isJobAdSaved(id);
       return (
         <div className="jp-container jp-page">
           <div
@@ -40,10 +45,11 @@ export default async function JobbDetailPage({ params }: PageProps) {
               animation: "none",
             }}
           >
-            <JobAdDetail jobAd={result.data} />
+            <JobAdDetail jobAd={result.data} initialSaved={initialSaved} />
           </div>
         </div>
       );
+    }
     case "unauthorized":
       redirect("/logga-in");
     case "notFound":

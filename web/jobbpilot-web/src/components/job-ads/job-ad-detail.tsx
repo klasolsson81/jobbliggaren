@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { getJobAdStatusLabel } from "@/lib/job-ads/status";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
+import { SaveJobAdToggle } from "@/components/saved-job-ads/save-job-ad-toggle";
 import { formatAdDescription } from "./format-ad-description";
 
 /**
@@ -24,6 +25,14 @@ interface JobAdDetailProps {
    * Fullsidan sätter false och äger rubriken själv.
    */
   headless?: boolean;
+  /**
+   * F6 P5 Punkt 2 Del A — initialt sparat-tillstånd för Spara-toggle
+   * i modal-footer. Server-renderas via `isJobAdSaved(id)`-lookup.
+   * `undefined` (default) = för icke-inloggade/system-vyer → toggle döljs.
+   * Lyfter ADR 0053 Amendment 2026-05-19-deferralen (Spara/Har-ansökt
+   * → Fas-4-uppskjutet) i samband med backend-leverans 2026-05-23.
+   */
+  initialSaved?: boolean;
 }
 
 // Active/Expired/Archived → .jp-pill-variant. Speglar
@@ -40,7 +49,11 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("sv-SE");
 }
 
-export function JobAdDetail({ jobAd, headless = false }: JobAdDetailProps) {
+export function JobAdDetail({
+  jobAd,
+  headless = false,
+  initialSaved,
+}: JobAdDetailProps) {
   const publishedAt = formatDate(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
 
@@ -105,6 +118,9 @@ export function JobAdDetail({ jobAd, headless = false }: JobAdDetailProps) {
 
       <div className="jp-modal__foot">
         <span className="jp-modal__foot__spacer" />
+        {initialSaved !== undefined && (
+          <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={initialSaved} />
+        )}
         {jobAd.url && (
           <a
             href={jobAd.url}

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Bell,
+  Bookmark,
   Briefcase,
   Clock,
   Inbox,
@@ -152,6 +153,13 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             onClick={() => setOpen(false)}
           >
             <Clock size={16} aria-hidden="true" /> Senaste sökningar
+          </Link>
+          <Link
+            href="/sparade"
+            className="jp-usermenu__item"
+            onClick={() => setOpen(false)}
+          >
+            <Bookmark size={16} aria-hidden="true" /> Sparade annonser
           </Link>
           <Link
             href="/cv"

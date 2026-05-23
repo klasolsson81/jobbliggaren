@@ -14,6 +14,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // `server-only` är Next.js sentinel som inte exporteras som top-level
+      // resolverbar modul (bara via Next.js compiled deps). Vite-side resolution
+      // failer i transform-steget när client-komponenter följs genom server-
+      // actions till API-helpers ("server-only"). Shim mot tom modul så
+      // test-imports fungerar — produktion-byggen respekterar fortsatt original-
+      // paketet via Next.js egen resolution.
+      "server-only": path.resolve(__dirname, "./src/test/server-only-shim.ts"),
     },
   },
 });

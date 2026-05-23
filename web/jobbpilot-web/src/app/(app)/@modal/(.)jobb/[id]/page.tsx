@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
+import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 
@@ -31,15 +32,17 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
   const result = await getJobAd(id);
 
   switch (result.kind) {
-    case "ok":
+    case "ok": {
+      const initialSaved = await isJobAdSaved(id);
       return (
         <JobAdModalShell
           title={result.data.title}
           company={result.data.companyName}
         >
-          <JobAdDetail jobAd={result.data} headless />
+          <JobAdDetail jobAd={result.data} headless initialSaved={initialSaved} />
         </JobAdModalShell>
       );
+    }
     case "unauthorized":
       redirect("/logga-in");
     case "notFound":

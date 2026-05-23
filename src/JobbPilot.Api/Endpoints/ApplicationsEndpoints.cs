@@ -1,6 +1,7 @@
 using JobbPilot.Application.Applications.Commands.AddFollowUp;
 using JobbPilot.Application.Applications.Commands.AddNote;
 using JobbPilot.Application.Applications.Commands.CreateApplication;
+using JobbPilot.Application.Applications.Commands.CreateApplicationFromJobAd;
 using JobbPilot.Application.Applications.Commands.RecordFollowUpOutcome;
 using JobbPilot.Application.Applications.Commands.TransitionTo;
 using JobbPilot.Application.Applications.Queries.GetApplicationById;
@@ -46,6 +47,24 @@ public static class ApplicationsEndpoints
             return result.IsSuccess
                 ? Results.Created($"/api/v1/applications/{result.Value}", new { id = result.Value })
                 : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+        }).RequireAuthorization();
+
+        // F6 P5 Punkt 2 Del B — "Har ansökt"-quick-create från jobbmodal-footer.
+        // Separat endpoint per CTO Val 3 (SRP: olika preconditions, olika
+        // optimistic-UI). Path är /{jobAdId} (semantisk nyckel, paritet med
+        // /api/v1/me/saved-job-ads/{jobAdId}).
+        group.MapPost("/from-job-ad/{jobAdId:guid}", async (
+            Guid jobAdId, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new CreateApplicationFromJobAdCommand(jobAdId), ct);
+            return result.IsSuccess
+                ? Results.Created(
+                    $"/api/v1/applications/{result.Value}", new { id = result.Value })
+                : Results.Problem(
+                    detail: result.Error.Message,
+                    title: result.Error.Code,
+                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
         }).RequireAuthorization();
 
         group.MapPost("/{id:guid}/transition", async (

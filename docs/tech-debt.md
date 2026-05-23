@@ -45,6 +45,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-18 | Stale-detektering: utökning till intervju-states | Minor | Trigger | UX/Domain |
 | TD-20 | `AuditPartitionMaintainer.DropPartitionsOlderThanAsync` defensiv refactor | Minor | Opportunistiskt | Code quality |
 | TD-39 | Error-summary-mönster för stora formulär | Minor | Trigger | A11y/UX |
+| TD-86 | Sök/filter-hardening: recall-gap vs Platsbanken, common-term-perf, query-token-parser m.m. | Minor | Trigger | Performance/Product quality/Search |
 
 ---
 
@@ -1029,6 +1030,53 @@ konsumenter förlitar sig på 400 är åtgärden ett breaking change (Klas-yta).
 **Trigger:** opportunistisk touch av ett delat Result→IResult-mappnings-lager,
 eller när OpenAPI-export (`docs/api/`, post-Fas 0) gör kontraktet externt
 synligt.
+
+---
+
+## TD-86: Sök/filter-hardening: recall-gap vs Platsbanken, common-term-perf, query-token-parser m.m.
+
+**Kategori:** Performance / Product quality / Search
+**Severity:** Minor
+**Fas:** Trigger (Klas-paus 2026-05-23 — återupptas vid Klas-GO för sök-fas-2)
+**Källa:** Klas-direktiv 2026-05-23 ("vi pausar sök-/filter och fortsätter med andra steg"); deploy-verifierings-rapport 2026-05-23 (EXPLAIN ANALYZE v0.2.56-dev); ADR 0062 deploy-utfall; F6 P4 FTS-skifte-session 2026-05-21.
+
+Samlad TD för sök-/filter-/taxonomi-ytan. F6 P4 FTS-skiftet (ADR 0062) levererade lager-flytten + FTS-hybrid men avtäckte både kvarstående perf-problem och produkt-kvalitetsgap som Klas medvetet skjutit till en framtida sök-fas. Klas-direktivet 2026-05-23: pausa scope, fokusera på andra steg, återuppta sök-/filter-arbetet ordentligt senare.
+
+**1. Recall-gap vs Platsbanken (potentiellt Major-klass vid pre-launch-omklassificering).** "systemutvecklare" returnerar ~198 träffar i JobbPilot mot Platsbankens 800+ (Klas-observation 2026-05-23). Rotorsak overifierad — möjliga: snapshot-jobbet importerar inte alla aktiva annonser (stream-filter / API-pagination-limit), JobTech-stream-filtrering på geografi/sökord/status, `JobAd.Status==Active`-domän-invariant smalare än Platsbankens "aktiv"-definition, eller TTL/expires-filter som droppar äldre annonser. **Diskvalifierande för publik launch.** Kräver discovery: jämför JobTech-`/search`-respons-count mot lokal `JobAd`-count för samma query.
+
+**2. Common-term-perf (Seq Scan vid 25 % match-frekvens).** Post-FTS-deploy v0.2.56-dev EXPLAIN ANALYZE 2026-05-23 visade att FTS löste long compound terms (systemutvecklare 1.6s→270ms, ekonom 5.0s→464ms — 6–11× snabbare) men INTE korta vanliga svenska termer ("lärare" 18.7s→23.5s, "sjuksköterska" ~5s→21.4s — sämre). Planneren väljer Seq Scan över GIN-tsvector eftersom svensk stemmer reducerar "lärare"→"lär" → matchar 14k+ rader (25 % av korpus); vid den selektiviteten ÄR Seq Scan billigare än Bitmap Heap Scan + recheck. description-LIKE-borttagningen (ADR 0062 medveten trade-off) hjälpte inte: search_vector är TOAST:ad och innehåller description-lexem → samma I/O-börda. Kräver senior-cto-advisor-rond på strategiska val:
+- (a) acceptera + förlita på spinner + query-parser (#3),
+- (b) title-only search_vector (förlorar description-sökning),
+- (c) `'simple'`-stemmer (förlorar svensk stemming),
+- (d) force-filter på q<N tecken (kräver ssyk/region för korta termer),
+- (e) F6 P4c query-token-parser (se #3),
+- (f) materialiserad cache (Hangfire) för top-N vanligaste termer.
+
+**3. F6 P4c query-token-parser.** Tidigare planerad som egen fas — "lärare göteborg" parsas till `q=lärare + region=göteborg` → AND-filter triggar selektivitet ner. Adresserar både recall-precision-balansen och perf-problemet för korta vanliga termer (genom att kräva disambiguering). Samlad under denna TD.
+
+**4. P2-backfill-verifiering pending.** ~51k legacy-rader (importerade pre-v0.2.51 utan JobTechHit-POCO-klassifikation) ska ha re-importerats av `sync-platsbanken-snapshot` 02:00 UTC sedan v0.2.51-deploy 2026-05-21 (idempotent UPSERT, ADR 0032 §5). Inte verifierat post-FTS-deploy 2026-05-23. Bekräfta `GET /api/v1/job-ads?ssyk=<id>`-totalCount mot hela korpusen (förväntat hundratals/tusentals) vs ~2-värdet från pre-backfill.
+
+**5. description-mitt-i-ord-substring borttagen (ADR 0062 trade-off-uppföljning).** Full description-ord matchar via FTS (search_vector spänner description). Mitt-i-ord-delsträngar i description-text matchar inte längre. Användarsignal-driven omprövning eller acceptera permanent.
+
+**6. Stemmer-aggressivitet (svensk vs simple).** `to_tsvector('swedish', …)` reducerar för aggressivt för korta termer ("lärare"→"lär" matchar lärorik/lärling/läranderik). Övervägbar omkonfigurering vid #2-beslut — kräver migration som regenererar `search_vector` (51k rader).
+
+**7. Ort/yrkesgrupper-pickers (ADR 0043 kommun-trigger).** Länsnivå fungerar; kommun-granularitet uppskjuten av ADR 0043 Beslut E pending payload-verifierings-trigger (`raw_payload.workplace_address.municipality_concept_id` overifierad existens). Vid sök-arbete-återupptag: bekräfta payload + bedöm om kommun-nivå behövs för UX (kommun-precision för storstadsregioner).
+
+**8. Spinner-justeringar (cosmetic, opportunistisk touch).**
+- Mi1 (design-reviewer 2026-05-21): `.jp-skeleton`-blocken har ~1.1:1 kontrast mot vit kort-yta i light-mode. Accepted-choice nu (dekorativa, aria-hidden), men kan skärpas vid touch om läsbarhets-signal önskas.
+- Pills-rendering i visual-verify-skärmbilder (rond 2): bekräfta vid nästa visual-verify-pass att Ort/Yrke-pills faktiskt renderar i `/jobb`-loading-state (kod-strukturen pekar på att de gör det — de ligger synkront i `page.tsx` utanför Suspense-gränsen; capture-artifact i throwaway-render-skriptet bedömd).
+
+**Föreslagen åtgärd:** När Klas väljer att återuppta sök-/filter-arbetet — fas-prompt med:
+1. Discovery-pass: recall-gap (#1) — JobTech-API vs JobbPilot-korpus-jämförelse, identifiera ingest-filter.
+2. senior-cto-advisor-rond på #2 (Variant a–f).
+3. F6 P4c query-token-parser-design (#3).
+4. P2-backfill-verifiering (#4) — snabb GET-check.
+5. ADR-paket: amend ADR 0062 (post-deploy-finding) + ev. ny ADR för #1-rotorsak.
+6. ADR 0043-amend om kommun-nivå behövs (#7).
+
+**Beroenden:** ADR 0062 (FTS-hybrid + `IJobAdSearchQuery`-port — bevaras), ADR 0043 (taxonomi-ACL), ADR 0061 (trigram-strategi — bevaras som substring-fallback), ADR 0042 Beslut D (Relevance — `ts_rank` installerat). TD-64 (i18n-migration av inline svenska error-strängar) är separat — sök-copy är inline svenska i konsekvens med kodbasen.
+
+**Trigger:** Klas-GO för sök-fas-2 / strategisk re-prioritering av sök-/filter-yta. Påverkar BUILD.md §18 "Söka jobb"-Fas 2-milstolpe om publik launch övervägs innan #1 (recall-gap) är löst.
 
 ---
 

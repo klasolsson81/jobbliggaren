@@ -156,6 +156,16 @@ public static class DependencyInjection
         services.AddScoped<JobbPilot.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenSnapshotJob>();
         services.AddScoped<JobbPilot.Application.JobAds.Jobs.PurgeRawPayloads.PurgeStaleRawPayloadsJob>();
 
+        // ADR 0032-amendment 2026-05-23 — snapshot-retention. Port + jobb i
+        // samma DI-batch som handler-impl (feedback_di_with_handlers_same_commit).
+        // Tracker är scoped: delar AppDbContext med snapshot/retention-jobben.
+        services.AddScoped<IJobAdSnapshotMissTracker,
+            JobbPilot.Infrastructure.JobAds.SnapshotMisses.JobAdSnapshotMissTracker>();
+        services.AddScoped<
+            JobbPilot.Application.JobAds.Jobs.RetainPlatsbankenJobAds.RetainPlatsbankenJobAdsJob>();
+        services.AddScoped<
+            JobbPilot.Application.JobAds.Jobs.ExpireJobAds.ExpireJobAdsJob>();
+
         // TD-13 C5 (ADR 0049 Beslut 4). Backfill-orchestrator scoped (paritet
         // PurgeStaleRawPayloadsJob) — DI i samma commit som job/port-impl
         // (feedback_di_with_handlers_same_commit).

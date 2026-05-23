@@ -2,7 +2,9 @@ using Hangfire;
 using JobbPilot.Application.Applications.Jobs.GhostedDetection;
 using JobbPilot.Application.Auth.Jobs.HardDeleteAccounts;
 using JobbPilot.Application.Common.Auditing.Jobs.AuditLogRetention;
+using JobbPilot.Application.JobAds.Jobs.ExpireJobAds;
 using JobbPilot.Application.JobAds.Jobs.PurgeRawPayloads;
+using JobbPilot.Application.JobAds.Jobs.RetainPlatsbankenJobAds;
 using Microsoft.Extensions.Hosting;
 
 namespace JobbPilot.Worker.Hosting;
@@ -12,11 +14,14 @@ namespace JobbPilot.Worker.Hosting;
 /// Idempotent — <see cref="IRecurringJobManager.AddOrUpdate{T}(string, System.Linq.Expressions.Expression{System.Action{T}}, string, RecurringJobOptions)"/>
 /// kan köras flera gånger utan biverkningar.
 ///
-/// Cron-tider är UTC (Hangfire-default). Schedule (CTO-rond 2026-05-13 punkt 8):
+/// Cron-tider är UTC (Hangfire-default). Schedule (CTO-rond 2026-05-13 punkt 8
+/// + architect-design 2026-05-23 retention):
 ///   */10 *  — sync-platsbanken-stream (10-min cron, overlap-window 15 min)
 ///   02:00   — sync-platsbanken-snapshot (daglig fullbackfill mot stream-drift)
 ///   03:00   — audit-log-retention (atomisk partition-DDL, &lt; 100ms typiskt)
+///   03:15   — retain-platsbanken-job-ads (snapshot-miss-retention, ADR 0032-amend 2026-05-23)
 ///   03:30   — detect-ghosted (DML på applications + audit-skrivningar)
+///   03:45   — expire-job-ads (ExpiresAt-cron, defense-in-depth, ADR 0032-amend 2026-05-23)
 ///   04:00   — hard-delete-accounts (1h efter retention)
 ///   04:30   — purge-stale-raw-payloads (30-min padding efter hard-delete)
 ///
@@ -51,10 +56,20 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             job => job.RunAsync(CancellationToken.None),
             Cron.Daily(3));
 
+        manager.AddOrUpdate<RetainPlatsbankenJobAdsWorker>(
+            "retain-platsbanken-job-ads",
+            job => job.RunAsync(CancellationToken.None),
+            "15 3 * * *");  // 03:15 UTC — efter snapshot-fönstret (02:00, upp till 60 min) + audit-log-retention
+
         manager.AddOrUpdate<DetectGhostedApplicationsJob>(
             "detect-ghosted",
             job => job.RunAsync(CancellationToken.None),
             "30 3 * * *");  // 03:30 UTC — 30-min padding efter audit-log-retention
+
+        manager.AddOrUpdate<ExpireJobAdsWorker>(
+            "expire-job-ads",
+            job => job.RunAsync(CancellationToken.None),
+            "45 3 * * *");  // 03:45 UTC — defense-in-depth ExpiresAt-cron (ADR 0032-amend 2026-05-23)
 
         manager.AddOrUpdate<HardDeleteAccountsJob>(
             "hard-delete-accounts",

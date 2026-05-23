@@ -210,15 +210,22 @@ public class AuditingLayerTests
             // FieldEncryptionBackfillRun-audit (GDPR Art. 30 accountability),
             // paritet PurgeStaleRawPayloadsJob. Architect-sanktionerad
             // audit-wire 2026-05-19 (C5-design Q5). Ratchet-tillägg.
-            "BackfillFieldEncryptionJob"
+            "BackfillFieldEncryptionJob",
+            // ADR 0032-amendment 2026-05-23 — retention-jobben skriver
+            // JobAdsRetentionCompleted-audit (CTO Q3=B aggregerad audit-rad
+            // ersätter per-item JobAdArchivedDomainEvent vid bulk-arkivering).
+            "RetainPlatsbankenJobAdsJob",
+            "ExpireJobAdsJob"
         };
         var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
 
         unauthorized.ShouldBeEmpty(
             $"ISystemEventAuditor får endast konsumeras av system-jobben " +
             $"(SyncPlatsbankenStreamJob, SyncPlatsbankenSnapshotJob, " +
-            $"PurgeStaleRawPayloadsJob, BackfillFieldEncryptionJob) per " +
-            $"ADR 0035. Otillåtna: {string.Join(", ", unauthorized)}");
+            $"PurgeStaleRawPayloadsJob, BackfillFieldEncryptionJob, " +
+            $"RetainPlatsbankenJobAdsJob, ExpireJobAdsJob) per ADR 0035 + " +
+            $"ADR 0032-amendment 2026-05-23. Otillåtna: " +
+            $"{string.Join(", ", unauthorized)}");
     }
 
     [Fact]

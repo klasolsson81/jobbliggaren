@@ -758,3 +758,242 @@ Om `/v2/snapshot` returnerar items i **stabil ordning** kan bounded retry inom s
 - Fowler, *PoEAA* (2002) — "Idempotent Receiver"; Beck, *XP* (1999) — YAGNI; Humble/Farley, *Continuous Delivery* (2010) — operability; Ford/Parsons/Kua, *Building Evolutionary Architectures* (2017)
 - CLAUDE.md §9.4 (verbatim-text-källa — medvetet Klas-override), §9.5 (verifiera externa fakta), §9.6 (in-block vs TD/skala-trigger)
 - ADR 0032 §2 (wire-only-SRP), §3 (overlap-window — förtydligad), §5 (dedup + 2026-05-16-clarification), §9 X4 (410 — oförändrad); ADR 0036 (ops-alarms)
+
+---
+
+## Amendment 2026-05-23 — snapshot-retention: defense-in-depth miss-cleanup + ExpiresAt-cron + ApplyCriteria Status=Active SPOT
+
+**Datum:** 2026-05-23
+**Källa:** F6 P5 Punkt 1 snapshot-retention-batch — root-cause-discovery 2026-05-23 (`GET /api/v1/job-ads?ssyk=2512`-totalCount ~56k mot förväntat ~40k aktiva annonser; korpus innehåller historiska Platsbanken-poster som aldrig arkiveras när JobStream `removal`-event missas eller annons faller ur snapshot utan removal-event).
+**Trigger:** Klas-observation 2026-05-23 (UX-räkne-drift > 40 % över förväntad aktiv korpus) → discovery → CTO-/architect-domar → in-block-fix (samma release-enhet som ADR 0032 2026-05-16-amendment per Martin 2017 kap. 13 REP).
+**Beslutsfattare:** senior-cto-advisor 2026-05-23 (agentId `a8e277380b446bb02`, Q1=(c) defense-in-depth, Q2=(i) återanvänd `JobAd.Archive()`, Q3=(B) `ExecuteUpdateAsync` + aggregerad audit, Q4=(W) ApplyCriteria-filter, Q5 trösklar, Q6 amendment-form) + dotnet-architect 2026-05-23 (agentId `a10f8271fe298246c`, port-design + cron-schema + bulk-update-mekanik) + Klas Olsson (godkänd 2026-05-23).
+**Status:** Accepted 2026-05-23 (Klas-GO mottaget; amendment-text CC-draftad från CTO/architect-underlaget per memory `feedback_klas_can_override_adr_verbatim_source` — medveten override av CLAUDE.md §9.4 verbatim-text-källa).
+
+### Kontext för amendment
+
+ADR 0032 §3 (snapshot 02:00 + stream `*/10`) + §6 (removal via `JobAd.Archive()`) förutsätter att **antingen** snapshot ELLER stream signalerar att en annons inte längre är aktiv. Faktisk observation 2026-05-23: korpus ackumulerar historiska annonser som **aldrig** arkiveras. Två oberoende läckage-paths identifierade:
+
+1. **Stream-removal-event missas** — `JobStreamClient` har overlap-window men event-tappa under nätverks-failover eller circuit-breaker-öppet (resilience-pipeline §1) är möjlig.
+2. **Annons faller ur snapshot utan removal-event** — JobTech kan ta bort annonser från `/v2/snapshot` utan att samma run emitterar `removed: true` på `/v2/stream`. Snapshot-trunkering (2026-05-16-amend) gör situationen värre: vid icke-deterministisk trunkering vet vi inte om en utelämnad annons är borttagen eller utanför trunkerings-prefixet.
+
+`JobAd.ExpiresAt` sätts av `Import`/`UpdateFromSource` men respekteras inte automatiskt av domain-modellen — `Status` förblir `Active` även när `ExpiresAt < now()`. Ingen befintlig mekanism arkiverar baserat på `ExpiresAt`.
+
+**Konsekvens:** `JobAdSearchQuery.ApplyCriteria` (ADR 0062) returnerar både `Active` och `Archived` JobAds → `/jobb`-listans `totalCount` reflekterar inte längre marknadens faktiska aktiva korpus → UX-räkne-drift + relevans-skuld (`ts_rank` rangerar gamla annonser jämbördigt med nya).
+
+### Beslut
+
+**Beslut 1.A — Snapshot-miss-cleanup (defense-in-depth primär)**
+
+Ny Application-port `IJobAdSnapshotMissTracker` (Application/JobAds/Abstractions) paritet med `IUserDataKeyStore` / ADR 0049 TD-13 C2:
+
+```csharp
+public interface IJobAdSnapshotMissTracker
+{
+    Task<SnapshotMissUpdateResult> ApplyAsync(
+        string source,
+        IReadOnlySet<string> seenExternalIds,
+        CancellationToken ct);
+
+    Task<int> ArchiveJobAdsWithMissCountAtLeastAsync(
+        string source,
+        int missThreshold,
+        CancellationToken ct);
+
+    Task<int> GetMaxObservedSnapshotSizeAsync(
+        string source,
+        TimeSpan window,
+        CancellationToken ct);
+}
+```
+
+`SyncPlatsbankenSnapshotJob` (Application/JobAds/Jobs/SyncPlatsbanken) bygger `seen`-set under enumeration, läser `SnapshotOutcomeRecorder.Outcome` efter `FetchSnapshotAsync` returnerar, kontrollerar floor-trösklar (Beslut 1.D), och anropar `tracker.ApplyAsync(source, seen, ct)` ENDAST om snapshot är **komplett** (ej trunkerad). Trunkerad snapshot → skippa miss-tracking helt (skydd mot massiv falsk archive vid partial transfer).
+
+Infrastructure-impl `JobAdSnapshotMissTracker` (Infrastructure/JobAds/SnapshotMisses) underhåller en separat tabell `job_ad_snapshot_misses(source text, external_id text, miss_count int, first_missed_at timestamptz, last_missed_at timestamptz)`:
+
+- PK composite `(source, external_id)`.
+- Partial-index `(source, miss_count) WHERE miss_count >= 1`.
+- Vid `ApplyAsync`: parametriserat Postgres `INSERT ... ON CONFLICT (source, external_id) DO UPDATE SET miss_count = miss_count + 1, last_missed_at = now()` för rader i `(externa_id-domän) \ seen`; samtidigt `DELETE` för rader i `seen` (reset vid återkomst). Raw SQL motiverat — bookkeeping-tabell utanför EF change-tracker, ortogonal mot `IAppDbContext` (ISP per Martin 2017 kap. 11).
+- `job_ad_snapshot_misses` exponeras **EJ** via `IAppDbContext` (ISP). Arch-test `JobAdRetentionLayerTests` låser.
+
+Ny Application-job `RetainPlatsbankenJobAdsJob` (Application/JobAds/Jobs/RetainPlatsbankenJobAds) anropar `tracker.ArchiveJobAdsWithMissCountAtLeastAsync("platsbanken", N=3, ct)` som internt kör:
+
+```csharp
+await db.JobAds
+    .Where(j => j.External!.Source == JobSource.Platsbanken
+             && j.Status == JobAdStatus.Active
+             && db.Set<JobAdSnapshotMiss>().Any(m =>
+                    m.Source == "platsbanken"
+                 && m.ExternalId == j.External.ExternalId
+                 && m.MissCount >= 3))
+    .ExecuteUpdateAsync(s => s.SetProperty(j => j.Status, _ => JobAdStatus.Archived), ct);
+```
+
+**N=3 consecutive misses** innan archive (CTO Q5). Konvergens-fördröjning ~72h efter deploy (3 dagliga snapshot-runs). Acceptabel trade-off mot false-positive-archive vid transient JobTech-API-hicka.
+
+**Beslut 1.B — ExpiresAt-cron (defense-in-depth sekundär)**
+
+Ny Application-job `ExpireJobAdsJob` (Application/JobAds/Jobs/ExpireJobAds) arkiverar JobAds vars `ExpiresAt < now()`:
+
+```csharp
+await db.JobAds
+    .Where(j => j.Status == JobAdStatus.Active && j.ExpiresAt < clock.UtcNow)
+    .ExecuteUpdateAsync(s => s.SetProperty(j => j.Status, _ => JobAdStatus.Archived), ct);
+```
+
+Skydd mot bägge läckage-paths: (a) annonser där JobTech satte `ExpiresAt` men aldrig emitterade `removed`-event når tröskeln direkt; (b) annonser utan stream-removal som faller ur snapshot men har korrekt `ExpiresAt` arkiveras utan att vänta på N=3 miss-tracking.
+
+Defense-in-depth-motivering (Saltzer/Schroeder 1975 — fail-safe defaults): två orthogonala mekanismer fångar disjunkta failure-modes. Miss-cleanup fångar fall där JobTech tar bort utan `ExpiresAt`-signal; ExpiresAt-cron fångar fall där `ExpiresAt` är satt men snapshot/stream är opålitlig.
+
+**Beslut 1.C — `JobAd.Archive()` återanvänds (ej `Expired`, ej ny `Closed`)**
+
+Bulk-archive använder `Status = JobAdStatus.Archived` — samma terminal-state som stream `removal`-events (§6). En annons är *en* annons oavsett varför den arkiverades (Vernon 2013 — Aggregate Consistency Boundary). `Expired`-värdet i `JobAdStatus`-SmartEnum förblir **dead code** (YAGNI per Beck 1999 — reserveras för framtida distinktion om/när "annonsen utgick" vs "annonsen togs bort" får produkt-värde). Ingen ny `Closed`-status införs.
+
+**Trade-off accepterad:** `JobAd.Archive()`s domain-event `JobAdArchivedDomainEvent` raisas **EJ** vid bulk-archive (ADR 0032 §6 jämfört). `ExecuteUpdateAsync` bypassar EF change-tracker och `IDomainEventDispatcher`. Verifierat 2026-05-23: **0 subscribers** på `JobAdArchivedDomainEvent` i Application/Infrastructure (grep `JobAdArchivedDomainEvent` returnerade endast raise-site i domain). Ingen reaktiv-flöde-regression. Audit-trail bevarad via Beslut 1.E aggregerad `ISystemEventAuditor`-rad.
+
+**Beslut 1.D — Trösklar för komplett-snapshot-detektion**
+
+`SyncPlatsbankenSnapshotJob` anropar `tracker.ApplyAsync` **endast** om alla tre kriterier uppfyllda:
+
+1. `SnapshotOutcomeRecorder.Outcome.TruncatedAndExhausted == false` (snapshot-trunkering-amend 2026-05-16: graceful `yield break` vid uttömd retry → outcome flaggar trunkering).
+2. `outcome.ParsedTotal >= max(SnapshotAbsoluteFloor, SnapshotRelativeFloorRatio × max_observed_snapshot_size_last_7d)` där standard:
+   - `SnapshotAbsoluteFloor = 30000` (under detta = uppenbart degraderad snapshot oavsett historik).
+   - `SnapshotRelativeFloorRatio = 0.80` (under 80 % av rullande 7-dygns-max = misstänkt liten snapshot).
+3. `max_observed_snapshot_size_last_7d` läses från `IJobAdSnapshotMissTracker.GetMaxObservedSnapshotSizeAsync("platsbanken", TimeSpan.FromDays(7), ct)` (impl: `SELECT MAX(snapshot_size) FROM job_ad_snapshot_runs WHERE source=… AND completed_at > now() - interval '7 days'`; bookkeeping-tabell ortogonal mot `job_ad_snapshot_misses` — completed-run-historik).
+
+Vid trunkering eller floor-failure: skippa miss-tracking-uppdatering helt (varken increment eller reset). Bevarar tidigare miss-counts oförändrade. CTO Q5: "skydd mot falsk archive vid degraderad snapshot är dyrare än konvergens-fördröjning vid 1 förlorad run".
+
+**Beslut 1.E — Aggregerad `ISystemEventAuditor`-rad per retention-pass (ADR 0035)**
+
+Inga per-item `JobAdArchivedDomainEvent`-raise. En aggregerad audit-rad per `RetainPlatsbankenJobAdsJob`-/`ExpireJobAdsJob`-pass via befintlig `ISystemEventAuditor`-port (ADR 0035):
+
+```csharp
+public sealed record JobAdsRetentionCompleted(
+    string Source,
+    string Mechanism,        // "snapshot-miss" | "expires-at"
+    int ArchivedCount,
+    DateTimeOffset CompletedAt) : SystemAuditEvent
+{
+    public override string EventType => "System.JobAdsRetentionCompleted";
+}
+```
+
+Audit-rad per pass (även 0-count) bevarar operativ observabilitet (cron körde, hittade inget) per Humble/Farley 2010 operability. Konsistent med `JobAdsSyncedDomainEvent`-mönstret (§8 amend 2026-05-13).
+
+**Beslut 1.F — Cron-schema**
+
+| Recurring-id | Schema (UTC) | Innehåll |
+|---|---|---|
+| `sync-platsbanken-snapshot` | `0 2 * * *` | Oförändrad (ADR 0032 §3) + ny miss-tracking-uppdatering vid komplett snapshot (Beslut 1.D-kriterier). |
+| `retain-platsbanken-job-ads` | `15 3 * * *` | Snapshot-miss-retention (Beslut 1.A). 75 min efter snapshot-start → garanti att snapshot-run hunnit complete (tiotals min post-streaming-fix per 2026-05-16-amend). |
+| `expire-job-ads` | `45 3 * * *` | ExpiresAt-cron (Beslut 1.B). 30 min efter retention → ortogonal kedja, ingen race på `Status`-fältet. |
+
+Båda nya jobben i Worker-lagret via `DisableConcurrentExecution(300)` per ADR 0032 §9 X4-precedens (overlap-skydd; 5 min är gott om marginal mot förväntad `ExecuteUpdateAsync`-tid på ~51k-rad-tabell).
+
+**Beslut 1.G — `JobAdSearchQuery.ApplyCriteria` får `Status = Active`-filter (SPOT)**
+
+Ortogonalt mot Beslut 1.A–1.F men i samma release-enhet (CTO Q4=(W), REP per Martin 2017 kap. 13): `IJobAdSearchQuery.ApplyCriteria` (ADR 0062) får `source.Where(j => j.Status == JobAdStatus.Active)` som **första** filter-steg, före `ApplyQ`/`ApplyFilters`. SPOT-mekanism — alla tre konsumenter (`ListJobAdsQueryHandler`, `RunSavedSearchQueryHandler`, `ListRecentSearchesQueryHandler`) får filtret automatiskt. Cross-ref dokumenterad i ADR 0062-amendment 2026-05-23.
+
+**Klas-STOPP-flaggad i CTO-domen:** `/jobb`-UX-räkning hoppar från ~56k till ~40k i **samma deploy** som retention-jobben aktiveras (CTO Variant 1: filter + retention samma release). Alternativet (filter först, retention senare) skulle visa korrekt aktiv-count innan retention faktiskt arkiverat → läckage av historiska poster i andra ytor (admin, audit-export). Variant 1 vald: konsistent state över alla läs-ytor från deploy-tillfället, även om UX-räkne-droppet blir synligt.
+
+**Beslut 1.H — Post-archive circuit-breaker (operator-ofog-skydd)**
+
+Källa: security-auditor 2026-05-23 (agentId `a82b9f511ec54889b`, fynd H1) → CTO-tilläggsrond 2026-05-23 (agentId `acfe2963371fde555`, in-block-fix entydig mot §9.6).
+
+Beslut 1.D:s tre uppströms-skydd (trunkering / absolut 30 000 / relativ 80% × max_7d) skyddar mot **trasiga snapshots från JobTech-sidan** men inte mot **trasig konfig från operatör-sidan**. En operatör som råkar sätta `SnapshotMissThreshold=1` eller `SnapshotAbsoluteFloor=1` i `appsettings.Production.json` kan trigga mass-arkivering (50 %+); range-validatorerna tillåter det (`[Range(1, 30)]` resp `[Range(1, 1_000_000)]`).
+
+Ny tröskel `JobSourceRetentionOptions.MaxArchivePctPerRun` (default `0.25`, range `[0.05, 1.00]`). `RetainPlatsbankenJobAdsJob` gör pre-archive-COUNT via två nya port-metoder `IJobAdSnapshotMissTracker.CountActiveJobAdsAsync` + `CountArchiveCandidatesAsync`, beräknar `ratio = candidates / active` (defaultar `0` när `active = 0` för att undvika div-by-zero), och vid `ratio > MaxArchivePctPerRun`:
+
+1. **Skriver audit-rad FÖRE throw** (`ThresholdAborted=true`, `AbortReason="max-archive-pct-exceeded"`) → granskningsbart spår även efter Hangfire-retry-loop (Vernon 2013 — events är sanningen).
+2. **Kastar `DomainException("RetainPlatsbankenJobAds.MaxArchivePctExceeded", message)`** med detaljerat ratio + count + max-värde i meddelandet → Hangfire markerar jobbet failed; CloudWatch metric filter `event_name=retention_aborted` (LoggerMessage EventId 5703) ger ops-alarm tills konfig korrigerad.
+
+Räkne-exempel: korpus 56k aktiva, förväntad första-körning ~10k archive ≈ 18 % < 25 % → släpps igenom. Steady-state ~0-2 %. Operator-ofog ger 50 %+ → stoppas. CTO motiverade 0.25 framför security-auditor:s 0.20 (noll marginal mot förväntad första-körning ger falsk-positiv-risk mot legit JobTech-fluktuation; 25 % > worst-legit, < worst-ofog).
+
+`JobAdsRetentionCompleted`-audit-eventet utvidgat med `AbortReason: string?` (null om inte aborterat). `ExpireJobAdsJob`-audit har samma fält men sätter alltid `null` (ingen pre-check där — bulk-UPDATE on `ExpiresAt < now()` har ingen analog ofog-yta).
+
+**Motivering (defense-in-depth):** Saltzer/Schroeder 1975 explicit > implicit; säkerhetsmekanismer ska vara default-on i-process snarare än default-correct-if-someone-set-it-up. Bullrig fail-loud-retry är **funktionen** vid operator-ofog, inte buggen — operator-config-attack ska störa ops tills nån tittar. Per §9.6 in-block-fix (samma fas, ingen saknad dependency); ingen TD lyft.
+
+### Avvisade alternativ
+
+- **Q1 (a) endast ExpiresAt-cron:** läcker när JobTech inte sätter `ExpiresAt` eller satt-värde är otillförlitligt; täcker inte stream-removal-event-tapp. Defense-in-depth-principen kräver två oberoende mekanismer.
+- **Q1 (b) endast snapshot-miss-cleanup:** konvergens-fördröjning N=3 dagar; annonser med korrekt `ExpiresAt` arkiveras onödigt sent.
+- **Q2 (ii) ny `Closed`-status:** YAGNI — `Archived` har korrekt domain-semantik (terminal, idempotent). Ny status fragmenterar `JobAdStatus`-konsumentlogik utan produkt-värde.
+- **Q2 (iii) återanvänd `Expired`:** distinktion mot stream-removal-`Archived` är prematur (ingen UI/audit-yta särskiljer). `Expired`-värdet är dead code men reserveras (kan aktiveras vid framtida produkt-behov utan amendment-konflikt).
+- **Q3 (A) per-item `JobAd.Archive()` med change-tracker:** ~tusentals-rad-archive per pass laddar hela grafen → minne + SaveChanges-latens. `ExecuteUpdateAsync` bypassar change-tracker → bulk-UPDATE-SQL direkt. EF Core 8+ global query-filter (DeletedAt) respekteras automatiskt → soft-deleted rader rörs ej. SmartEnum-converter fungerar med statiska readonly-värden (architect-verifierat 2026-05-23).
+- **Q3 (C) raw SQL UPDATE i Infrastructure-impl:** bryter CLAUDE.md §3.6 "använd `IAppDbContext` direkt"; EF Core 8+ `ExecuteUpdateAsync` är idiomatic .NET 10-väg.
+- **Q4 (Y) filter i varje konsument-handler:** bryter SPOT (Fowler 2018 — Single Point of Truth); tre konsumenter blir tre divergens-risker; lägger inte filter-disciplin vid den port-gräns ADR 0062 etablerade.
+- **Q4 (Z) filter via global query-filter på `JobAd`:** ändrar default-läsning för hela aggregatet → admin-ytor som vill visa arkiverade annonser måste `IgnoreQueryFilters()`, vilket ADR 0048 explicit förbjuder i query-filter-disciplinen.
+- **Cursor-tabell för snapshot-tracking:** förkastad redan 2026-05-16 (snapshot-trunkerings-amend) — idempotens via UNIQUE-index gör cursor onödig. Frånvaro-räknare (`job_ad_snapshot_misses`) är ortogonal mot konvergens-katch-up, EJ cursor.
+
+### Konsekvenser
+
+#### Positiva
+
+- **Korpus konvergerar mot aktiv-marknads-storlek** (~56k → ~40k) över ~72h efter deploy.
+- **Defense-in-depth mot bägge läckage-paths** — miss-cleanup fångar JobTech-removal-event-tapp; ExpiresAt-cron fångar ofullständig `removal`-signalering.
+- **SPOT-filter `Status=Active` i ApplyCriteria** — tre konsumenter får filtret från en plats; kompilator-garanti mot divergens.
+- **Skydd mot massiv falsk archive vid degraderad snapshot** — floor-trösklar (Beslut 1.D) skippar miss-tracking-uppdatering helt vid trunkering eller undersnitts-storlek.
+- **Bulk-UPDATE via `ExecuteUpdateAsync`** — O(antal-archive) SQL, ej O(antal-rader-i-graf) change-tracker. Hot-path-säkert även vid stora dygnliga retention-runs.
+- **Audit-trail bevarad** — aggregerad `ISystemEventAuditor.JobAdsRetentionCompleted`-rad per pass; konsistent med ADR 0035-mönstret.
+
+#### Negativa / accepterade trade-offs
+
+- **`Expired`-värdet förblir dead code** i `JobAdStatus`-SmartEnum (YAGNI; reserveras).
+- **Konvergens-fördröjning ~72h** efter deploy (N=3 runs över 3 dygn). Accepterat — alternativet (N=1) är dyrare att backa vid transient JobTech-hicka.
+- **Domain-event-bortfall för bulk-archive** — `JobAdArchivedDomainEvent` raisas EJ vid bulk-Archive. **Verifierat: 0 subscribers idag.** Vid framtida subscriber-tillkomst: lyft som amendment, ej tyst-fix (kan kräva per-item-loop eller event-republish-mekanism).
+- **Ny tabell `job_ad_snapshot_misses`** — bookkeeping, ej cursor. Frånvaro-räknare ortogonal mot konvergens-katch-up. Inte exponerad via `IAppDbContext` (ISP).
+- **`/jobb`-UX-räkning hoppar ~56k → ~40k i samma deploy** som filter + retention aktiveras (Klas-STOPP-flaggad i CTO-dom; Klas valde Variant 1: konsistent state över alla läs-ytor från deploy-tillfället).
+
+### Implementations-trail
+
+**Application-lager:**
+
+- `src/JobbPilot.Application/JobAds/Abstractions/IJobAdSnapshotMissTracker.cs` (NY — port + `SnapshotMissUpdateResult`-record)
+- `src/JobbPilot.Application/JobAds/Abstractions/SnapshotOutcome.cs` (NY — record `(ParsedTotal, Attempts, TruncatedAndExhausted)`)
+- `src/JobbPilot.Application/JobAds/Abstractions/SnapshotOutcomeRecorder.cs` (NY — single-write mutable; explicit passering)
+- `src/JobbPilot.Application/JobAds/Abstractions/IJobSource.cs` (ÄNDRAD — `FetchSnapshotAsync(SnapshotOutcomeRecorder, ct)`)
+- `src/JobbPilot.Application/JobAds/Abstractions/JobSourceRetentionOptions.cs` (ÄNDRAD — `SnapshotMissThreshold`, `SnapshotAbsoluteFloor`, `SnapshotRelativeFloorRatio`)
+- `src/JobbPilot.Application/Common/Auditing/SystemAuditEvent.cs` (ÄNDRAD — nytt `JobAdsRetentionCompleted`-record, event-type `System.JobAdsRetentionCompleted`)
+- `src/JobbPilot.Application/JobAds/Jobs/SyncPlatsbanken/SyncPlatsbankenSnapshotJob.cs` (ÄNDRAD — seen-set, outcome-läsning, floor-check, miss-tracker-anrop)
+- `src/JobbPilot.Application/JobAds/Jobs/RetainPlatsbankenJobAds/RetainPlatsbankenJobAdsJob.cs` (NY)
+- `src/JobbPilot.Application/JobAds/Jobs/ExpireJobAds/ExpireJobAdsJob.cs` (NY)
+
+**Infrastructure-lager:**
+
+- `src/JobbPilot.Infrastructure/JobAds/SnapshotMisses/JobAdSnapshotMiss.cs` (NY — entitet)
+- `src/JobbPilot.Infrastructure/JobAds/SnapshotMisses/JobAdSnapshotMissTracker.cs` (NY — `IJobAdSnapshotMissTracker`-impl, parametriserat Postgres `INSERT ... ON CONFLICT`)
+- `src/JobbPilot.Infrastructure/Persistence/Configurations/JobAdSnapshotMissConfiguration.cs` (NY)
+- `src/JobbPilot.Infrastructure/JobSources/Platsbanken/PlatsbankenJobSource.cs` (ÄNDRAD — `outcome.Record()` vid båda `yield break`-paths)
+- `src/JobbPilot.Infrastructure/JobAds/JobAdSearchQuery.cs` (ÄNDRAD — `source.Where(j => j.Status == JobAdStatus.Active)` SPOT-filter; ADR 0062 Beslut 1 query-mekanik bevarad)
+- `src/JobbPilot.Infrastructure/DependencyInjection.cs` (ÄNDRAD — `IJobAdSnapshotMissTracker` + 2 nya jobs scoped)
+- `src/JobbPilot.Infrastructure/Persistence/Migrations/20260523144102_F6P5SnapshotMisses.cs` (NY)
+
+**Worker-lager:**
+
+- `src/JobbPilot.Worker/Hosting/RetainPlatsbankenJobAdsWorker.cs` (NY — `[DisableConcurrentExecution(300)]`)
+- `src/JobbPilot.Worker/Hosting/ExpireJobAdsWorker.cs` (NY — `[DisableConcurrentExecution(300)]`)
+- `src/JobbPilot.Worker/Hosting/RecurringJobRegistrar.cs` (ÄNDRAD — 2 nya `AddOrUpdate` per Beslut 1.F)
+- `src/JobbPilot.Worker/Program.cs` (ÄNDRAD — DI för wrappers)
+
+**Test-svit:**
+
+- Domain 399 / Application 542 (inkl 4 nya retention-handler-tester + 3 nya snapshot-edge-cases för floor-check + truncated-skip) / Architecture 78 (inkl 5 nya `JobAdRetentionLayerTests` — konsumentlistor låsta, `JobAdSnapshotMiss` ej exponerad via `IAppDbContext`, bulk-update-mekanik i Infrastructure) — alla gröna 2026-05-23.
+- Integration-suite körs i CI (Docker ej igång lokalt vid implementation).
+
+### Referenser
+
+- senior-cto-advisor 2026-05-23 (`a8e277380b446bb02`) — Q1/Q2/Q3/Q4/Q5/Q6-domar
+- dotnet-architect 2026-05-23 (`a10f8271fe298246c`) — port-design, cron-schema, `ExecuteUpdateAsync`-mekanik, arch-test-låsning
+- Klas Olsson 2026-05-23 — Variant 1-val (filter + retention samma release)
+- Robert C. Martin, *Clean Architecture* (2017), kap. 11 (ISP — `job_ad_snapshot_misses` ej via `IAppDbContext`), kap. 13 (REP — samma release-enhet som 2026-05-16-amend)
+- Saltzer/Schroeder, *The Protection of Information in Computer Systems* (1975) — fail-safe defaults (defense-in-depth-motivering)
+- Kent Beck, *XP Explained* (1999) — YAGNI (`Expired` förblir dead code)
+- Vaughn Vernon, *Implementing DDD* (2013) — Aggregate Consistency Boundary (`Archived` är *en* terminal-state)
+- Martin Fowler, *Refactoring* 2nd ed (2018) — Single Point of Truth (`Status=Active` i ApplyCriteria)
+- Humble/Farley, *Continuous Delivery* (2010) — operability (audit-rad per pass även 0-count)
+- Microsoft Learn — *EF Core ExecuteUpdate/ExecuteDelete* (.NET 10, bulk-UPDATE utan change-tracker; global query-filter respekteras)
+- ADR 0032 §3 (snapshot-schema), §5 (dedup + child-scope), §6 (`JobAd.Archive()`), 2026-05-16-amend (snapshot-trunkerings-resiliens)
+- ADR 0035 (`ISystemEventAuditor` system-event-pipeline)
+- ADR 0048 (cross-aggregat join vs port — ortogonal mot detta beslut)
+- ADR 0049 (TD-13 C2 `IUserDataKeyStore`-port-paritet)
+- ADR 0062 (FTS-hybrid + `IJobAdSearchQuery`-port — ApplyCriteria-filter dokumenteras i ADR 0062-amendment 2026-05-23)
+- TD-86 not 2026-05-23 — korpus-storlek-delen (recall-gap punkt 1 m.fl.) löses indirekt av denna amendment via retention; TD-86 förblir öppen för övriga sök/filter-fynd

@@ -190,3 +190,42 @@ Detta dokumenteras explicit så att en framtida architect inte drop:ar `ix_job_a
 ---
 
 *ADR-index underhålls av docs-keeper. ADR 0062 fastställer PostgreSQL FTS-hybrid som q-search-strategin efter att trigram-tröskeln passerades, och `IJobAdSearchQuery` som Infrastructure-query-port — komplementärt tredje ben till ADR 0048:s join-vs-port-regel (provider-assembly-axeln), EJ supersession.*
+
+---
+
+## Amendment 2026-05-23 — `ApplyCriteria` får `Status = Active`-SPOT-filter
+
+**Datum:** 2026-05-23
+**Källa:** F6 P5 Punkt 1 snapshot-retention-batch (CTO-dom 2026-05-23 Q4=(W), `a8e277380b446bb02`).
+**Trigger:** Korpus-retention-arbete avtäckte att tre konsumenter (`ListJobAdsQueryHandler`, `RunSavedSearchQueryHandler`, `ListRecentSearchesQueryHandler`) saknade `Status=Active`-filter — UX-räkning inkluderade arkiverade JobAds.
+**Beslutsfattare:** senior-cto-advisor 2026-05-23 + Klas Olsson (godkänd 2026-05-23, Variant 1: filter + retention samma release).
+**Status:** Accepted 2026-05-23 (Klas-GO).
+
+### Beslut
+
+`JobAdSearchQuery.ApplyCriteria` (Infrastructure/JobAds/`JobAdSearchQuery.cs`) får `source.Where(j => j.Status == JobAdStatus.Active)` som **första** filter-steg, före `ApplyQ`/`ApplyFilters`. SPOT-mekanism — alla tre konsumenter av `IJobAdSearchQuery` (`SearchAsync` + `CountAsync`) ärver filtret automatiskt.
+
+**Avvisat:** filter per konsument-handler (bryter SPOT, tre divergens-risker), global query-filter på `JobAd` (admin-ytor måste `IgnoreQueryFilters()`, ADR 0048 förbjuder), filter i `JobAdSearchCriteria`-record (gör presentations-laget ansvarigt för domain-invariant).
+
+### Motivering
+
+Full motivering, beslutsmatris, defense-in-depth-mekanism och cron-schema dokumenterade i [**ADR 0032-amendment 2026-05-23**](./0032-jobtech-integration.md#amendment-2026-05-23--snapshot-retention-defense-in-depth-miss-cleanup--expiresat-cron--applycriteria-statusactive-spot) (snapshot-retention: miss-cleanup + ExpiresAt-cron + ApplyCriteria-filter).
+
+Detta amendment dokumenterar enbart filter-tillägget i `IJobAdSearchQuery`-portens impl — query-mekaniken (FTS-hybrid, `IJobAdSearchQuery`-port, splittad filter-record per Beslut 1–3) är oförändrad. ADR 0062 Beslut 1–5 består.
+
+### Implementations-trail
+
+- `src/JobbPilot.Infrastructure/JobAds/JobAdSearchQuery.cs` (ÄNDRAD — `Status=Active`-filter som första steg i `ApplyCriteria`)
+
+### Konsekvenser
+
+- **UX-räkne-konsistens** — `/jobb`-totalCount, `RunSavedSearchQueryHandler`-resultat och `ListRecentSearchesQueryHandler`-träffräkning reflekterar samtliga aktiv-marknads-korpusen.
+- **Klas-STOPP-flaggad UX-drop** (~56k → ~40k vid deploy) — Klas valde Variant 1 (filter + retention samma release) för konsistent state över alla läs-ytor från deploy-tillfället. Detaljer i ADR 0032-amendment 2026-05-23.
+- **SPOT bevarad och stärkt** — `IJobAdSearchQuery`-portens monopol på sök-läsning gör att en enda kod-rad i `ApplyCriteria` täcker alla tre konsumenter. Kompilator-garanti mot framtida divergens.
+
+### Referenser
+
+- [ADR 0032-amendment 2026-05-23](./0032-jobtech-integration.md#amendment-2026-05-23--snapshot-retention-defense-in-depth-miss-cleanup--expiresat-cron--applycriteria-statusactive-spot) — full beslutsmatris (Q1/Q2/Q3/Q4/Q5/Q6) + defense-in-depth-mekanism + cron-schema
+- senior-cto-advisor 2026-05-23 (`a8e277380b446bb02`) — Q4=(W) ApplyCriteria-SPOT-val
+- ADR 0062 Beslut 1–3 (FTS-hybrid + port-kontrakt — oförändrade)
+- ADR 0048 (cross-aggregat join vs port — global query-filter avvisad här på samma grund)

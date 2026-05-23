@@ -59,6 +59,36 @@ public sealed record RawPayloadPurged(
         OccurredAt);
 
 /// <summary>
+/// ADR 0032-amendment 2026-05-23 — audit-event för en retention-jobb-run.
+/// Skrivs av <c>RetainPlatsbankenJobAdsJob</c> (Reason="snapshot-miss") och
+/// <c>ExpireJobAdsJob</c> (Reason="expired"). Bulk-UPDATE-vägen kringgår
+/// <c>JobAd.Archive()</c> och därmed <c>JobAdArchivedDomainEvent</c> per item
+/// — denna aggregerade audit-rad är retention-vägens accountability-spår
+/// (GDPR Art. 30; CTO-rond 2026-05-23 Q3=B).
+/// </summary>
+/// <param name="Reason">"snapshot-miss" eller "expired".</param>
+/// <param name="ThresholdAborted">True om defense-in-depth-skydd avbröt arkivering (snapshot-trunkering, floor-violation eller post-archive circuit-breaker).</param>
+/// <param name="AbortReason">Null om inte aborterat. "max-archive-pct-exceeded" om post-archive circuit-breaker triggade (CTO-rond 2026-05-23 H1).</param>
+public sealed record JobAdsRetentionCompleted(
+    Guid AggregateId,
+    DateTimeOffset OccurredAt,
+    string Source,
+    string Reason,
+    int ArchivedCount,
+    int? Threshold,
+    int? ParsedTotalLastSnapshot,
+    int? Max7dObservedSnapshot,
+    bool ThresholdAborted,
+    string? AbortReason,
+    DateTimeOffset StartedAt,
+    DateTimeOffset CompletedAt)
+    : SystemAuditEvent(
+        EventType: "System.JobAdsRetentionCompleted",
+        AggregateType: "System.JobAdRetention",
+        AggregateId,
+        OccurredAt);
+
+/// <summary>
 /// TD-13 (ADR 0049 Beslut 4 + C5) — audit-event för en fält-krypterings-
 /// backfill-run. GDPR Art. 30 accountability: skrivs alltid (även 0 ägare
 /// processade) — "behandlingsaktivitet har körts". Per-kolumn kvarvarande

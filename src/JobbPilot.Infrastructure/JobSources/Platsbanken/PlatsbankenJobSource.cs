@@ -33,8 +33,10 @@ internal sealed partial class PlatsbankenJobSource(
     private const int MaxSnapshotAttempts = 3;
 
     public async IAsyncEnumerable<JobAdImportItem> FetchSnapshotAsync(
+        SnapshotOutcomeRecorder outcome,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(outcome);
         LogSnapshotStarted(logger);
 
         var converted = 0;
@@ -82,7 +84,13 @@ internal sealed partial class PlatsbankenJobSource(
                 if (!moved)
                 {
                     // Strömmen slut utan trunkering = fullständig snapshot.
+                    // ADR 0032-amendment 2026-05-23: registrera utfall för caller
+                    // INNAN yield break så miss-tracking kan köra säkert.
                     LogSnapshotCompleted(logger, converted, total);
+                    outcome.Record(new SnapshotOutcome(
+                        ParsedTotal: total,
+                        Attempts: attempt,
+                        TruncatedAndExhausted: false));
                     yield break;
                 }
 
@@ -106,7 +114,14 @@ internal sealed partial class PlatsbankenJobSource(
                 // exception → ingen retry-storm). Parsad prefix är redan
                 // idempotent persisterad; hybrid stream-katch-up + nästa
                 // cron fyller resten (CTO 2026-05-16).
+                // ADR 0032-amendment 2026-05-23: registrera trunkerings-utfall
+                // → caller skippar miss-tracking (kan inte särskilja missing
+                // från trunkering).
                 LogSnapshotCompleted(logger, converted, total);
+                outcome.Record(new SnapshotOutcome(
+                    ParsedTotal: total,
+                    Attempts: attempt,
+                    TruncatedAndExhausted: true));
                 yield break;
             }
             // truncated && attempt < Max → ny iteration = färsk GET.

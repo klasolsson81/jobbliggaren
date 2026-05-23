@@ -9,6 +9,7 @@ using JobbPilot.Domain.JobAds;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -48,13 +49,16 @@ public class SyncPlatsbankenSnapshotJobTests
     {
         var jobSource = Substitute.For<IJobSource>();
         jobSource.Source.Returns(JobSource.Platsbanken);
-        jobSource.FetchSnapshotAsync(Arg.Any<CancellationToken>())
-            .Returns(_ => ToAsyncEnumerable(items));
+        // ADR 0032-amendment 2026-05-23: FetchSnapshotAsync tar nu en
+        // SnapshotOutcomeRecorder som måste sättas innan yield break.
+        jobSource.FetchSnapshotAsync(Arg.Any<SnapshotOutcomeRecorder>(), Arg.Any<CancellationToken>())
+            .Returns(ci => ToAsyncEnumerable(items, ci.ArgAt<SnapshotOutcomeRecorder>(0)));
         return jobSource;
     }
 
     private static async IAsyncEnumerable<JobAdImportItem> ToAsyncEnumerable(
         JobAdImportItem[] items,
+        SnapshotOutcomeRecorder outcome,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         foreach (var item in items)
@@ -63,6 +67,9 @@ public class SyncPlatsbankenSnapshotJobTests
             yield return item;
             await Task.Yield();
         }
+        // Default stub: rapportera komplett (icke-trunkerad) snapshot.
+        outcome.Record(new SnapshotOutcome(
+            ParsedTotal: items.Length, Attempts: 1, TruncatedAndExhausted: false));
     }
 
     /// <summary>
@@ -95,11 +102,42 @@ public class SyncPlatsbankenSnapshotJobTests
     private static SyncPlatsbankenSnapshotJob CreateJob(
         IJobSource jobSource,
         IServiceScopeFactory scopeFactory,
-        ISystemEventAuditor? auditor = null) =>
-        new(
-            jobSource, scopeFactory, new FakeDateTimeProvider(Now),
+        ISystemEventAuditor? auditor = null,
+        IJobAdSnapshotMissTracker? missTracker = null)
+    {
+        IJobAdSnapshotMissTracker tracker;
+        if (missTracker is null)
+        {
+            tracker = Substitute.For<IJobAdSnapshotMissTracker>();
+            // Default: tracker rapporterar 0 reset/0 incremented + ingen 7d-historik.
+            tracker.ApplyAsync(
+                    Arg.Any<JobSource>(), Arg.Any<IReadOnlySet<string>>(),
+                    Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+                .Returns(new SnapshotMissUpdateResult(0, 0));
+            tracker.GetMaxObservedSnapshotSizeAsync(
+                    Arg.Any<JobSource>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns((int?)null);
+        }
+        else
+        {
+            // Caller har konfigurerat tracker:n själv — överskriv inte returvärden.
+            tracker = missTracker;
+        }
+
+        // Default-options: floor som passar små testdata (de 1-5 items vi seedar
+        // ska INTE skippas pga floor; sätt absoluteFloor=1).
+        var opts = Microsoft.Extensions.Options.Options.Create(new JobSourceRetentionOptions
+        {
+            SnapshotMissThreshold = 3,
+            SnapshotAbsoluteFloor = 1,
+            SnapshotRelativeFloorRatio = 0.80,
+        });
+
+        return new SyncPlatsbankenSnapshotJob(
+            jobSource, scopeFactory, tracker, opts, new FakeDateTimeProvider(Now),
             auditor ?? Substitute.For<ISystemEventAuditor>(),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
+    }
 
     [Fact]
     public async Task RunAsync_WithEmptySnapshot_ReturnsZeroCounts()
@@ -247,6 +285,172 @@ public class SyncPlatsbankenSnapshotJobTests
         // omklassad till Errors av generic catch.
         await auditor.DidNotReceive().RecordAsync(
             Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenSnapshotComplete_AppliesMissTrackingWithSeenSet()
+    {
+        // ADR 0032-amendment 2026-05-23: vid komplett (icke-trunkerad) snapshot
+        // ska tracker.ApplyAsync anropas med set:n av sedda ExternalIds.
+        var items = new[] { ValidItem("a"), ValidItem("b"), ValidItem("c") };
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+
+        var tracker = Substitute.For<IJobAdSnapshotMissTracker>();
+        IReadOnlySet<string>? capturedSeen = null;
+        tracker.ApplyAsync(
+                Arg.Any<JobSource>(),
+                Arg.Any<IReadOnlySet<string>>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                capturedSeen = ci.ArgAt<IReadOnlySet<string>>(1);
+                return new SnapshotMissUpdateResult(3, 0);
+            });
+        tracker.GetMaxObservedSnapshotSizeAsync(
+                Arg.Any<JobSource>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns((int?)null);
+
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator), missTracker: tracker);
+        var counts = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        counts.MissTrackingApplied.ShouldBeTrue();
+        counts.MissResetCount.ShouldBe(3);
+        await tracker.Received(1).ApplyAsync(
+            JobSource.Platsbanken,
+            Arg.Any<IReadOnlySet<string>>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<CancellationToken>());
+        capturedSeen.ShouldNotBeNull();
+        capturedSeen.ShouldContain("a");
+        capturedSeen.ShouldContain("b");
+        capturedSeen.ShouldContain("c");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenSnapshotTruncated_SkipsMissTracking()
+    {
+        // ADR 0032-amendment 2026-05-23: vid trunkering kan vi inte särskilja
+        // "missing från källan" från "missing från trunkerad prefix" → skip.
+        // Skydd mot mass-felaktig arkivering.
+        var jobSource = Substitute.For<IJobSource>();
+        jobSource.Source.Returns(JobSource.Platsbanken);
+        jobSource.FetchSnapshotAsync(Arg.Any<SnapshotOutcomeRecorder>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+                TruncatedEnumerable(
+                    new[] { ValidItem("a") },
+                    ci.ArgAt<SnapshotOutcomeRecorder>(0)));
+
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+
+        var tracker = Substitute.For<IJobAdSnapshotMissTracker>();
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator), missTracker: tracker);
+
+        var counts = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        counts.MissTrackingApplied.ShouldBeFalse();
+        await tracker.DidNotReceive().ApplyAsync(
+            Arg.Any<JobSource>(), Arg.Any<IReadOnlySet<string>>(),
+            Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenParsedTotalBelowAbsoluteFloor_SkipsMissTracking()
+    {
+        // CTO-rond 2026-05-23 Q5 — absolute floor (30 000 default). Snapshot
+        // som ger för få items är "uppenbart trasig" oavsett om bytes hann
+        // strömma → skydd mot mass-felaktig arkivering.
+        var items = new[] { ValidItem("a"), ValidItem("b") };
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+
+        var tracker = Substitute.For<IJobAdSnapshotMissTracker>();
+        tracker.GetMaxObservedSnapshotSizeAsync(
+                Arg.Any<JobSource>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns((int?)null);
+
+        // Sätt floor över items.Length så absolute-floor-violationen triggar.
+        var opts = Options.Create(new JobSourceRetentionOptions
+        {
+            SnapshotAbsoluteFloor = 100,  // 2 items < 100 → skip
+            SnapshotRelativeFloorRatio = 0.80,
+            SnapshotMissThreshold = 3,
+        });
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = new SyncPlatsbankenSnapshotJob(
+            jobSource, new FakeScopeFactory(mediator), tracker, opts,
+            new FakeDateTimeProvider(Now), auditor,
+            NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
+
+        var counts = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        counts.MissTrackingApplied.ShouldBeFalse();
+        await tracker.DidNotReceive().ApplyAsync(
+            Arg.Any<JobSource>(), Arg.Any<IReadOnlySet<string>>(),
+            Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenParsedTotalBelowRelativeFloor_SkipsMissTracking()
+    {
+        // CTO-rond 2026-05-23 Q5 + security-auditor H2 — relative floor
+        // (max_7d × 0.80 default). Snapshot som är dramatiskt mindre än
+        // 7-dygns-baslinje skippas → ingen falsk arkivering mot trasig
+        // snapshot-kontinuitet. Tredje benet av defense-in-depth.
+        var items = new[] { ValidItem("a"), ValidItem("b"), ValidItem("c") };
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+
+        var tracker = Substitute.For<IJobAdSnapshotMissTracker>();
+        // 7-dygns-baslinje = 50000. Ratio 0.80 → floor = 40000. Snapshot 3 < 40000 → skip.
+        tracker.GetMaxObservedSnapshotSizeAsync(
+                Arg.Any<JobSource>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns((int?)50_000);
+
+        // Sätt absolute floor lågt så bara relative-floor-violation triggar.
+        var opts = Options.Create(new JobSourceRetentionOptions
+        {
+            SnapshotAbsoluteFloor = 1,            // 3 items >= 1 → absolute OK
+            SnapshotRelativeFloorRatio = 0.80,     // 3 < 50000 × 0.80 = 40000 → relative violated
+            SnapshotMissThreshold = 3,
+        });
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = new SyncPlatsbankenSnapshotJob(
+            jobSource, new FakeScopeFactory(mediator), tracker, opts,
+            new FakeDateTimeProvider(Now), auditor,
+            NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
+
+        var counts = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        counts.MissTrackingApplied.ShouldBeFalse(
+            "relative floor-skydd skippar miss-tracking vid <80% av max_7d");
+        await tracker.DidNotReceive().ApplyAsync(
+            Arg.Any<JobSource>(), Arg.Any<IReadOnlySet<string>>(),
+            Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    private static async IAsyncEnumerable<JobAdImportItem> TruncatedEnumerable(
+        JobAdImportItem[] items,
+        SnapshotOutcomeRecorder outcome,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        foreach (var item in items)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return item;
+            await Task.Yield();
+        }
+        outcome.Record(new SnapshotOutcome(
+            ParsedTotal: items.Length, Attempts: 3, TruncatedAndExhausted: true));
     }
 
     [Fact]

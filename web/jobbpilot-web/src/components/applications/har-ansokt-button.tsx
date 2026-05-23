@@ -76,7 +76,14 @@ export function HarAnsoktButton({
           color: applied ? "var(--jp-ink-2)" : undefined,
         }}
       >
-        <Icon size={14} aria-hidden="true" /> {label}
+        <Icon
+          size={14}
+          aria-hidden="true"
+          style={{
+            color: applied ? "var(--jp-success, #2e7d32)" : undefined,
+          }}
+        />{" "}
+        {label}
       </button>
       {error && (
         <span role="alert" className="text-danger-700" style={{ fontSize: 12 }}>

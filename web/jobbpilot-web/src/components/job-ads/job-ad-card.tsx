@@ -17,6 +17,41 @@ function formatDate(iso: string): string {
 }
 
 /**
+ * PR5 Klas-feedback 2026-05-23 — Platsbanken-paritet: visa klockslag på
+ * publicerad-tidsstämpeln. Idag → "idag, kl. HH.MM"; igår → "igår, kl. HH.MM";
+ * äldre → "YYYY-MM-DD, kl. HH.MM". Hjälper användaren skilja annonser som
+ * postas under dagen (flera hundra dagligen).
+ */
+function formatPublishedAtWithTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+
+  const time = date.toLocaleTimeString("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  if (isToday) return `idag, kl. ${time}`;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate();
+
+  if (isYesterday) return `igår, kl. ${time}`;
+
+  return `${date.toLocaleDateString("sv-SE")}, kl. ${time}`;
+}
+
+/**
  * v3 jobbrad (`.jp-job`). Hela raden är en Link till `/jobb/[id]` — vid
  * soft-nav fångar `@modal/(.)jobb/[id]` den och visar modal; vid hard-nav
  * / delad länk renderas fullsidan (ADR 0053). Länk (ej div+onClick) ger
@@ -34,7 +69,7 @@ function formatDate(iso: string): string {
  * 2026-05-20 — per-annons "läst" gjorde gamla oöppnade annonser röriga).
  */
 export function JobAdCard({ jobAd, isSaved = false, isApplied = false }: JobAdCardProps) {
-  const publishedAt = formatDate(jobAd.publishedAt);
+  const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
   const publishedAtMs = Date.parse(jobAd.publishedAt);

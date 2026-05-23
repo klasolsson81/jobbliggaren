@@ -4,10 +4,10 @@ import { useSyncExternalStore } from "react";
 
 /**
  * "Senaste besök på /jobb"-tidsstämpel (high-water mark) som driver NY-taggens
- * conditional render. Modell (Klas-direktiv 2026-05-20): NY visas på allt med
- * `publishedAt > lastSeen` istället för per-annons "läst"-state. Användarens
- * sid-besök markerar HELA listan som sedd — nästa besök ser bara annonser
- * publicerade efter förra besöket som NY.
+ * conditional render. Modell (Klas-direktiv 2026-05-20, bekräftad 2026-05-23):
+ * NY visas på allt med `publishedAt > lastSeen` istället för per-annons
+ * "läst"-state. Användarens sid-besök markerar HELA listan som sedd — nästa
+ * besök ser bara annonser publicerade efter förra besöket som NY.
  *
  * Server-cap `isNew` (≤7d, ADR 0042 Beslut E) består som defensivt golv: om
  * en användare inte besökt /jobb på t.ex. 3 månader vill vi inte rendera
@@ -18,6 +18,14 @@ import { useSyncExternalStore } from "react";
  * sker en gång per sid-besök via separat `<MarkJobbVisited />`-island
  * (`mark-jobb-visited.tsx`), INTE per kort — annars 20+ skrivningar per
  * listrendering.
+ *
+ * Beteende-exempel (Klas-bekräftat 2026-05-23):
+ * - Förstagångsbesök (localStorage tom) → ALLA annonser inom 7d får NY.
+ * - MarkJobbVisited skriver `lastSeen = now` vid mount.
+ * - Refresh → läser nya `lastSeen` → annonser publicerade FÖRE refreshen
+ *   tappar NY; annonser publicerade EFTER refresh-tidsstämpeln behåller NY.
+ * - Om en annons publiceras 21:00 och du besöker 22:00, refreshar 22:30 →
+ *   annonsen visar inte längre NY (publishedAt < lastSeen).
  */
 
 const STORAGE_KEY = "jp-jobb-last-seen";

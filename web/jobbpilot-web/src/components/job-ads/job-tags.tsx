@@ -69,30 +69,18 @@ export function JobTags({
   const renderMatch =
     matchScore !== undefined && matchScore >= MATCH_THRESHOLD;
 
-  // PR5 Klas-debug 2026-05-23 — DOM-attribut för NY-modellen, syns i alla env
-  // via DevTools → Elements → välj .jp-job-tags-span. Ta bort när Klas
-  // verifierat beteendet (efter docs-keeper-uppdatering).
-  const debugAttrs = {
-    "data-debug-published": new Date(publishedAtMs).toISOString(),
-    "data-debug-lastseen":
-      lastSeen > 0 ? new Date(lastSeen).toISOString() : "(0/never)",
-    "data-debug-shownew": String(showNew),
-    "data-debug-rendernew": String(renderNew),
-  };
+  if (
+    !renderNew &&
+    !freshnessLabel &&
+    !renderMatch &&
+    !isSaved &&
+    !isApplied
+  ) {
+    return null;
+  }
 
-  const hasAnyTag =
-    renderNew || freshnessLabel || renderMatch || isSaved || isApplied;
-
-  // PR5 Klas-debug: rendera alltid en span (tom om inga taggar) så
-  // data-debug-attribut alltid är inspekterbart i DevTools. Tom span har
-  // noll-bredd (display:inline-flex utan children) → ingen layout-impact.
-  // Ta bort denna gren när debug-attrs tas bort.
   return (
-    <span
-      className="jp-job-tags"
-      {...debugAttrs}
-      data-debug-hasanytag={String(hasAnyTag)}
-    >
+    <span className="jp-job-tags">
       {renderNew && (
         <span className="jp-tag jp-tag--accent" data-tag="new">
           Ny

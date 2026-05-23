@@ -169,11 +169,7 @@ describe("JobTags (high-water-mark NY-modell)", () => {
     expect(screen.queryByText("Bra match")).not.toBeInTheDocument();
   });
 
-  it("renders empty container when all tags are absent (debug-attrs only, PR5)", () => {
-    // PR5 Klas-debug 2026-05-23: jp-job-tags-span renderas alltid så
-    // data-debug-attribut är inspekterbart även när inga taggar visas.
-    // Tom span = noll layout-impact. Ändra tillbaka till null-return när
-    // debug-attrs tas bort.
+  it("renders nothing when all tags are absent (no empty container)", () => {
     const { container } = render(
       <JobTags
         showNew={false}
@@ -182,10 +178,7 @@ describe("JobTags (high-water-mark NY-modell)", () => {
         matchScore={undefined}
       />,
     );
-    const tagsContainer = container.querySelector(".jp-job-tags");
-    expect(tagsContainer).not.toBeNull();
-    expect(tagsContainer!.querySelectorAll(".jp-tag")).toHaveLength(0);
-    expect(tagsContainer!.getAttribute("data-debug-hasanytag")).toBe("false");
+    expect(container.querySelector(".jp-job-tags")).toBeNull();
   });
 
   it("renders all three tags in order: NY → freshness → match", () => {
@@ -237,11 +230,8 @@ describe("JobTags (high-water-mark NY-modell)", () => {
         freshnessLabel={null}
       />,
     );
-    // PR5 Klas-debug: jp-job-tags-span finns alltid; inga jp-tag-children
-    // när inga status-taggar visas.
-    const tagsContainer = container.querySelector(".jp-job-tags");
-    expect(tagsContainer).not.toBeNull();
-    expect(tagsContainer!.querySelectorAll(".jp-tag")).toHaveLength(0);
+    // Inget tagg-block ska renderas alls
+    expect(container.querySelector(".jp-job-tags")).toBeNull();
   });
 
   it("renderar både Sparad och Ansökt vid full status", () => {

@@ -1076,6 +1076,8 @@ Samlad TD för sök-/filter-/taxonomi-ytan. F6 P4 FTS-skiftet (ADR 0062) leverer
 
 **Beroenden:** ADR 0062 (FTS-hybrid + `IJobAdSearchQuery`-port — bevaras), ADR 0043 (taxonomi-ACL), ADR 0061 (trigram-strategi — bevaras som substring-fallback), ADR 0042 Beslut D (Relevance — `ts_rank` installerat). TD-64 (i18n-migration av inline svenska error-strängar) är separat — sök-copy är inline svenska i konsekvens med kodbasen.
 
+**Not 2026-05-23:** Korpus-storlek-delen (punkt 1 recall-gap + indirekt punkt 2 common-term-perf via mindre korpus) adresseras indirekt av [ADR 0032-amendment 2026-05-23](./decisions/0032-jobtech-integration.md#amendment-2026-05-23--snapshot-retention-defense-in-depth-miss-cleanup--expiresat-cron--applycriteria-statusactive-spot) snapshot-retention (defense-in-depth miss-cleanup + ExpiresAt-cron) som arkiverar historiska Platsbanken-poster utan stream-removal-event. Förväntad korpus-konvergens ~56k → ~40k över ~72h efter deploy. Detta **stänger inte TD-86** — recall-gap-rotorsak (ingest-filter vs JobTech `/search`-respons) kräver fortfarande discovery, och common-term-perf-problemet (seq scan vid 25 % match-frekvens) är ortogonalt mot korpus-storlek. Re-mät punkt 1 + 2 efter retention konvergerat.
+
 **Trigger:** Klas-GO för sök-fas-2 / strategisk re-prioritering av sök-/filter-yta. Påverkar BUILD.md §18 "Söka jobb"-Fas 2-milstolpe om publik launch övervägs innan #1 (recall-gap) är löst.
 
 ---

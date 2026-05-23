@@ -24,8 +24,16 @@ public interface IJobSource
     /// per item. <see cref="IAsyncEnumerable{T}"/> — snapshot är ~300 MB
     /// (JobTech /v2/snapshot, web-verifierat 2026-05-16); materialisering till
     /// lista OOM:ar Fas 2 single-task Fargate (root-cause-fix 2026-05-16).
+    /// <para>
+    /// <b>ADR 0032-amendment 2026-05-23 (retention):</b> implementationen sätter
+    /// <paramref name="outcome"/> via <see cref="SnapshotOutcomeRecorder.Record"/>
+    /// exakt en gång precis innan <c>yield break</c> — caller använder utfallet
+    /// för att avgöra om snapshot-miss-tracking ska köra (skippas vid trunkering).
+    /// </para>
     /// </summary>
-    IAsyncEnumerable<JobAdImportItem> FetchSnapshotAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<JobAdImportItem> FetchSnapshotAsync(
+        SnapshotOutcomeRecorder outcome,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Hämtar inkrementella ändringar sedan given timestamp. Använt av Hangfire-

@@ -92,9 +92,18 @@ internal sealed class JobAdSearchQuery(IAppDbContext db) : IJobAdSearchQuery
     // det var perf-rotorsaken (EXPLAIN ANALYZE 2026-05-21 — de-TOAST av ~13k
     // description-texter, trigram-selektivitet 7 581 falska positiva för
     // "lärare"; ADR 0061 → ADR 0062).
+    //
+    // ADR 0032-amendment 2026-05-23 + ADR 0062-amendment 2026-05-23: Archived-
+    // JobAds (snapshot-retention + ExpiresAt-cron + stream-removal) får ALDRIG
+    // synas i sök-vägen. SPOT-filter här gör att alla tre konsumenter
+    // (ListJobAds, RunSavedSearch, ListRecentSearches CountAsync) ärver
+    // Status=Active-disciplinen automatiskt (ADR 0039 Beslut 1).
     private static IQueryable<JobAd> ApplyCriteria(
         IQueryable<JobAd> source, JobAdFilterCriteria criteria)
     {
+        // ADR 0032-amendment 2026-05-23 — slutanvändar-vyer ser bara Active.
+        source = source.Where(j => j.Status == JobAdStatus.Active);
+
         if (criteria.Ssyk.Count > 0)
         {
             var ssykValues = criteria.Ssyk;

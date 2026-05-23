@@ -67,7 +67,7 @@ public class JobTechStreamResilienceTests
         // Resilience-beteendet (Polly retry över 2× 503 → 200) verifieras genom
         // att strömmen kan konsumeras fullständigt och ger förväntat item.
         var items = new List<JobAdImportItem>();
-        await foreach (var item in jobSource.FetchSnapshotAsync(ct))
+        await foreach (var item in jobSource.FetchSnapshotAsync(new SnapshotOutcomeRecorder(), ct))
             items.Add(item);
 
         items.Count.ShouldBe(1);
@@ -109,7 +109,7 @@ public class JobTechStreamResilienceTests
         // end. WireMock returnerar samma trunkerade svar varje försök.
         var enumeration = async () =>
         {
-            await foreach (var item in jobSource.FetchSnapshotAsync(ct))
+            await foreach (var item in jobSource.FetchSnapshotAsync(new SnapshotOutcomeRecorder(), ct))
                 items.Add(item);
         };
 

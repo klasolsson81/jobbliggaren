@@ -47,6 +47,24 @@ builder.Services.AddScoped<JobbPilot.Worker.Hosting.ExpireJobAdsWorker>();
 // fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
 builder.Services.AddScoped<JobbPilot.Worker.Hosting.BackfillFieldEncryptionWorker>();
 
+// ADR 0064 — Worker:s landing-stats-refresh-wrapper. Job-klassen registreras
+// av AddLandingStats() nedan; wrappern bär bara Hangfire-attributet
+// (paritet ExpireJobAdsWorker per ADR 0023 delbeslut 2).
+builder.Services.AddScoped<JobbPilot.Worker.Hosting.RefreshLandingStatsWorker>();
+
+// ADR 0064 Variant B — Redis IDistributedCache krävs av RedisLandingStatsCache.
+// Worker delar inte AddIdentityAndSessions-stacken med Api (HTTP-fri Worker
+// per ADR 0023), så Redis-cache wiras explicit här. Bara IDistributedCache —
+// IConnectionMultiplexer (SADD/SREM-API:t för session-store) behövs ej i Worker.
+var workerRedisConnectionString =
+    builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+builder.Services.AddStackExchangeRedisCache(opts =>
+{
+    opts.Configuration = workerRedisConnectionString;
+    opts.InstanceName = "jobbpilot:";
+});
+builder.Services.AddLandingStats();
+
 builder.Services.AddApplication();
 
 // Worker-stubs av audit-portarna (per ADR 0022 + ADR 0023 / STEG 9).

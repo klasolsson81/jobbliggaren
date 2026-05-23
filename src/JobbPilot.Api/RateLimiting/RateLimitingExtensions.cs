@@ -26,6 +26,7 @@ public static partial class RateLimitingExtensions
     public const string ListReadPolicy = "list-read";
     public const string SuggestPolicy = "suggest";
     public const string TaxonomyReadPolicy = "taxonomy-read";
+    public const string LandingPublicReadPolicy = "landing-public-read";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -207,6 +208,27 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.TaxonomyRead.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.TaxonomyRead.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: IP. Dedikerad policy för publik anonym landing-stats
+            // (GET /api/v1/landing/stats) — ADR 0064. Återanvänder INTE
+            // ListReadPolicy som NoLimiter:ar anonyma (auth-gated semantik); mixar
+            // inte UserId-semantik med IP-semantik (Saltzer/Schroeder least common
+            // mechanism — anonym DoS-yta får inte dela skyddsbudget med autentiserad
+            // list-yta). senior-cto-advisor 2026-05-23 (agentId a1da26dc2029a5def).
+            // 60/min/IP är generöst för aggressiv prefetch + multi-tab, stramt nog
+            // för att stoppa hammering. Bakom ALB kräver UseForwardedHeaders satt
+            // (Sec-Major-1) annars hamnar alla i samma proxy-IP-bucket.
+            options.AddPolicy(LandingPublicReadPolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.LandingPublicRead.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.LandingPublicRead.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

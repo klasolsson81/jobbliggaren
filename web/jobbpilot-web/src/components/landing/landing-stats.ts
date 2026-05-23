@@ -1,26 +1,38 @@
-/**
- * Live-stats för landing-toppen ("45 580 aktiva annonser · 312 nya idag").
- *
- * Klas pre-F6 Prompt 1 (Landing) verbatim FAS-DEFERRAL: värden hårdkodas
- * mot denna hjälpfunktion tills datakontrakt klart. Pekare till framtida
- * endpoint dokumenteras i ADR 0056 (Landing v3-shell).
- *
- * Källa idag: konstanter från HANDOVER-v3 målbild 01-landing-light.png.
- * Värden är placeholder; ingen `getJobAds()`-aggregation eller cron-snapshot
- * gjord. När backend exponerar `GET /api/v1/job-ads/landing-stats` (eller
- * motsvarande) byter denna funktion till `fetch`-anrop i en RSC-context.
- */
+import { fetchLandingStats } from "@/lib/api/landing";
 
+/**
+ * Live-stats för landing-toppen ("aktiva annonser · nya idag"). Konsumeras
+ * av <LandingTopbar /> (RSC).
+ *
+ * Tidigare hårdkodade konstanter (45 580 / 312, från HANDOVER-v3 målbild 01)
+ * är borta — ADR 0056 Beslut 4-utbytespunkt lyft i ADR 0064:
+ * `getLandingStats()` är nu en async server-only-helper som anropar
+ * `GET /api/v1/landing/stats` (pre-computed Redis-cache via Worker-cron
+ * `RefreshLandingStatsJob`).
+ *
+ * <p>
+ * Fallback-floor används vid backend-fail (network, 5xx, 429, shape-mismatch).
+ * Konservativa värden — ljuger inte uppåt. Frontend exponerar inte
+ * `isStale`-flaggan i UI:t (HANDOVER §6.4 nämner ingen sådan affordans);
+ * räkneraden ser identisk ut oavsett ursprung. Backend-disciplin med
+ * `IsStale=true` bibehålls för operativ telemetri och framtida
+ * partner-integrationer.
+ * </p>
+ */
 export interface LandingStats {
   activeCount: number;
   newToday: number;
 }
 
-export function getLandingStats(): LandingStats {
-  return {
-    activeCount: 45_580,
-    newToday: 312,
-  };
+const FALLBACK_FLOOR: LandingStats = {
+  activeCount: 40_000,
+  newToday: 0,
+};
+
+export async function getLandingStats(): Promise<LandingStats> {
+  const dto = await fetchLandingStats();
+  if (!dto) return FALLBACK_FLOOR;
+  return { activeCount: dto.activeCount, newToday: dto.newToday };
 }
 
 /**

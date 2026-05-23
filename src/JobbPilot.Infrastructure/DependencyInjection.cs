@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddHttpAuditing();
         services.AddInvitationsAndEmail(configuration);
         services.AddJobSources(configuration);
+        services.AddLandingStats();
         return services;
     }
 
@@ -172,6 +173,27 @@ public static class DependencyInjection
         services.AddScoped<
             JobbPilot.Application.Security.Jobs.BackfillFieldEncryption.BackfillFieldEncryptionJob>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// ADR 0064 — publik anonym landing-stats med pre-computed Redis-cache.
+    /// Registrerar både Application-jobbet <c>RefreshLandingStatsJob</c> (Worker
+    /// orkestrerar via Hangfire) och port-impl <c>RedisLandingStatsCache</c>
+    /// (skriv/läs av cache-nyckel <c>landing:stats:v1</c>). Anropas av både
+    /// Api (handler-read) och Worker (Worker-job-write).
+    /// <para>
+    /// IDistributedCache förutsätts registrerad av anroparen (Api via
+    /// <see cref="AddIdentityAndSessions"/>; Worker via direkt
+    /// <c>AddStackExchangeRedisCache</c> i <c>Program.cs</c>).
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddLandingStats(this IServiceCollection services)
+    {
+        services.AddScoped<JobbPilot.Application.Landing.Common.ILandingStatsCache,
+            JobbPilot.Infrastructure.Landing.RedisLandingStatsCache>();
+        services.AddScoped<
+            JobbPilot.Application.Landing.Jobs.RefreshLandingStats.RefreshLandingStatsJob>();
         return services;
     }
 

@@ -114,6 +114,21 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// GET /api/v1/landing/stats (publik anonym landing-stats, ADR 0064) —
+    /// partitionerat per IP. Egen policy (least common mechanism,
+    /// Saltzer/Schroeder): publik anonym DoS-yta får inte dela skyddsbudget
+    /// med autentiserad list-yta (ListRead) eller statisk taxonomi (TaxonomyRead).
+    /// 60/min/IP per senior-cto-advisor-dom 2026-05-23 (agentId a1da26dc2029a5def):
+    /// generöst för aggressiv prefetch + multi-tab, stramt nog för hammering-skydd.
+    /// Klas-låsbart (produkt-/kostnadsdimension).
+    /// </summary>
+    public PolicyOptions LandingPublicRead { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

@@ -5,6 +5,7 @@ using JobbPilot.Application.Common.Auditing.Jobs.AuditLogRetention;
 using JobbPilot.Application.JobAds.Jobs.ExpireJobAds;
 using JobbPilot.Application.JobAds.Jobs.PurgeRawPayloads;
 using JobbPilot.Application.JobAds.Jobs.RetainPlatsbankenJobAds;
+using JobbPilot.Application.Landing.Jobs.RefreshLandingStats;
 using Microsoft.Extensions.Hosting;
 
 namespace JobbPilot.Worker.Hosting;
@@ -85,6 +86,17 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             "backfill-field-encryption",
             job => job.RunAsync(CancellationToken.None),
             "0 5 * * *");  // 05:00 UTC — 30-min padding efter purge (TD-13 C5, ADR 0049 Beslut 4)
+
+        // ADR 0064 — publik landing-stats pre-compute. Hot-path per ADR 0045
+        // Beslut 1 klass (a). Var 5:e min UTC: räcker för att landingens
+        // "newToday"-räknare ska upplevas live utan att slå mer än trivialt
+        // mot DB:n (två COUNT-queries på indexerade kolumner ~46k aktiva rader).
+        // Krockar med stream-cron (*/10) 6×/timme — acceptabelt eftersom
+        // stream-cron är HTTP-bunden mot JobTech, inte DB-bunden.
+        manager.AddOrUpdate<RefreshLandingStatsWorker>(
+            "refresh-landing-stats",
+            job => job.RunAsync(CancellationToken.None),
+            "*/5 * * * *");
 
         return Task.CompletedTask;
     }

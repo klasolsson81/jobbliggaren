@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatLandingNumber, getLandingStats } from "./landing-stats";
+import { formatLandingNumber, type LandingStats } from "./landing-stats";
 
 /**
  * LandingTopbar — v3-header för landing-routen (`/`). Egen header-shell
@@ -13,10 +13,13 @@ import { formatLandingNumber, getLandingStats } from "./landing-stats";
  * Vit bg i båda light och dark (HANDOVER §0 punkt 6 + §2.4 scoped — CSS
  * `.jp-land-top` overrider tokens till light även under `[data-theme="dark"]`).
  *
- * Ren RSC — stats hämtas server-side via `getLandingStats()`.
+ * Ren RSC, ren rendering: stats fås som prop från <LandingPage /> som
+ * ansvarar för server-side fetch via `getLandingStats()` (ADR 0064).
+ * Att lyfta fetch:en till page-nivå håller den här komponenten testbar
+ * utan att mocka API-anrop (`render(<LandingTopbar stats={...} />)`).
  */
-export function LandingTopbar() {
-  const { activeCount, newToday } = getLandingStats();
+export function LandingTopbar({ stats }: { stats: LandingStats }) {
+  const { activeCount, newToday } = stats;
   return (
     <header className="jp-land-top">
       <div className="jp-land-top__inner">

@@ -7,9 +7,15 @@ namespace JobbPilot.Application.UserStatus.Queries.GetJobAdStatusBatch;
 
 /// <summary>
 /// ADR 0063 — handler. Två separata <c>.AsNoTracking()</c>-queries (CLAUDE.md
-/// §3.6) — en mot SavedJobAds, en mot Applications. Anonym user (currentUser
-/// utan UserId) → tom DTO (no 401-friktion på publik söksida). Returnerar
-/// endast distinct IDs (Set-storage i FE).
+/// §3.6) — en mot SavedJobAds, en mot Applications. Returnerar endast distinct
+/// IDs (Set-storage i FE).
+///
+/// <para>
+/// Anonym user (utan <see cref="ICurrentUser.UserId"/>) → tom DTO. Endpoint är
+/// medvetet INTE <c>.RequireAuthorization()</c>-gated per ADR 0063 §Kontext
+/// + CTO-dom 2026-05-23 (agentId a5b8f9db1079a1a12 Minor 9 Variant A) — denna
+/// gren är levande primär-väg, INTE defensiv backstop. Rensa ej som "död kod".
+/// </para>
 /// </summary>
 public sealed class GetJobAdStatusBatchQueryHandler(IAppDbContext db, ICurrentUser currentUser)
     : IQueryHandler<GetJobAdStatusBatchQuery, JobAdStatusBatchDto>

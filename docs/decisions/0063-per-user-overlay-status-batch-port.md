@@ -40,7 +40,7 @@ Krafter som spelar in:
 
 Per-user-status (Sparad / Har ansökt) projiceras ovanpå publika list-DTOs via **dedikerad batch-port**, inte via `JobAdDto`-vidgning. Den publika list-projektionen (`JobAdDto` / `IJobAdSearchQuery` per ADR 0062) förblir **publik och anonym-renderbar** — per-user-overlayet hämtas i ett separat anrop som frontend komponerar in vid render.
 
-Endpoint: **`POST /api/v1/me/job-ad-status`** (auth-gated, rate-limited per user).
+Endpoint: **`POST /api/v1/me/job-ad-status`** (anonym-tolerant per §Kontext — handler returnerar tom DTO för anonym; modal-single-endpoint `GET /me/applications/has-applied/{id}` är dock auth-gated). Rate-limit per anonym IP + per user lyfts som TD-87 (fas-konsistent batch med Saved/Recent-endpoints). *Förtydligande från redaktionell konsistens-fix 2026-05-23 — CTO-dom (agentId a5b8f9db1079a1a12) Minor 9 Variant A: tidigare "auth-gated" motsade §Kontext-intent "no 401-friktion på publik söksida".*
 
 **Request:**
 
@@ -147,7 +147,7 @@ ADR 0063 **superseder inte** ADR 0048 — det är en **komplementär avgränsnin
 ## Implementation
 
 - **Backend (Application-lager):** `GetJobAdStatusBatchQuery` (record class) + `GetJobAdStatusBatchQueryHandler` (CLAUDE.md §3.3, §2.3). FluentValidation-validator för `jobAdIds.Count <= 100` och non-empty. `.AsNoTracking()` på båda queries (CLAUDE.md §3.6). Två separata `Where`-filter på `SavedJobAds` resp. `Applications` (Beslut a). Pipeline-behaviors enligt ADR 0008-ordningen (Logging → Validation → Authorization → UoW).
-- **Backend (Api-lager):** `POST /api/v1/me/job-ad-status`-endpoint, `[Authorize]` (auth-gated). Rate-limit per user (per ADR 0045 fitness-function-vakt).
+- **Backend (Api-lager):** `POST /api/v1/me/job-ad-status`-endpoint, anonym-tolerant per §Kontext (ingen `.RequireAuthorization()` — handler returnerar tom DTO för anonym). Modal-single-endpoint `GET /me/applications/has-applied/{id}` är dock `.RequireAuthorization()`-gated (modal-yta är auth-kontext per Beslut c). Rate-limit per anonym IP + per user lyfts som TD-87 (fas-konsistent batch). *Förtydligande från CTO-dom 2026-05-23 (Minor 9 Variant A).*
 - **Frontend:** ny TanStack Query mutation/query `fetchJobAdStatusBatch(jobAdIds)`. Komponeras i `/jobb`-list-rendering: efter `JobAdDto[]` hämtas, anropa batch-endpoint med `jobAdIds`, mappa response till `JobAdCard`-rendering (`isSaved`/`hasApplied` boolean per kort). Zod-schema-spegling (ADR 0020).
 - **`JobAdDto` orörd** — ingen `IsSaved`/`HasApplied`-vidgning (Beslut b).
 - **Modal-yta orörd** — single-anrop-paritet från PR1–4 består (Beslut c, ADR 0053-amendment 2026-05-23).

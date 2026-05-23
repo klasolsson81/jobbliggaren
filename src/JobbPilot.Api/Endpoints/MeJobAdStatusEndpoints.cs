@@ -16,6 +16,11 @@ public static class MeJobAdStatusEndpoints
 
     public static void MapMeJobAdStatusEndpoints(this IEndpointRouteBuilder app)
     {
+        // ADR 0063 §Kontext + CTO-dom 2026-05-23 (Minor 9 Variant A) —
+        // anonym-tolerant; handler returnerar tom DTO utan UserId. Endpoint
+        // INTE `.RequireAuthorization()`-gated (skiljs från modal-single nedan).
+        // Rate-limit per anonym IP + per user lyfts som TD-87 (fas-konsistent
+        // batch med Saved/Recent-endpoints innan F6 P5 Punkt 2-fas-stängning).
         app.MapPost("/api/v1/me/job-ad-status", async (
                 JobAdStatusBatchRequest body, IMediator mediator, CancellationToken ct) =>
             {
@@ -23,8 +28,7 @@ public static class MeJobAdStatusEndpoints
                     new GetJobAdStatusBatchQuery(body.JobAdIds ?? []), ct);
                 return Results.Ok(result);
             })
-            .WithTags("Me")
-            .RequireAuthorization();
+            .WithTags("Me");
 
         app.MapGet("/api/v1/me/applications/has-applied/{jobAdId:guid}", async (
                 Guid jobAdId, IMediator mediator, CancellationToken ct) =>

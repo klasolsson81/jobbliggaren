@@ -58,8 +58,13 @@ export function JobAdDetail({
   initialSaved,
   initialApplied,
 }: JobAdDetailProps) {
-  const showUserActions =
-    initialSaved !== undefined && initialApplied !== undefined;
+  // Typ-narrowing-pattern: bind till en `userActions`-konst som är non-null
+  // när BÅDA props är definierade. Eliminerar `!`-suppressions i JSX nedan
+  // (code-reviewer Minor 6).
+  const userActions =
+    initialSaved !== undefined && initialApplied !== undefined
+      ? { saved: initialSaved, applied: initialApplied }
+      : null;
   const publishedAt = formatDate(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
 
@@ -124,10 +129,10 @@ export function JobAdDetail({
 
       <div className="jp-modal__foot">
         <span className="jp-modal__foot__spacer" />
-        {showUserActions && (
+        {userActions && (
           <>
-            <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={initialSaved!} />
-            <HarAnsoktButton jobAdId={jobAd.id} initialApplied={initialApplied!} />
+            <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={userActions.saved} />
+            <HarAnsoktButton jobAdId={jobAd.id} initialApplied={userActions.applied} />
           </>
         )}
         {jobAd.url && (
@@ -141,7 +146,7 @@ export function JobAdDetail({
           </a>
         )}
       </div>
-      {showUserActions && initialApplied && (
+      {userActions?.applied && (
         <p
           className="jp-muted"
           style={{

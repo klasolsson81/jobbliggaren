@@ -196,4 +196,77 @@ describe("JobTags (high-water-mark NY-modell)", () => {
     expect(tags[1]).toHaveTextContent("Idag");
     expect(tags[2]).toHaveTextContent("Bra match");
   });
+
+  // PR5 — Sparad + Ansökt-taggar (ADR 0063 per-user-overlay).
+  it("renders Sparad-tagg när isSaved=true", () => {
+    render(
+      <JobTags
+        showNew={false}
+        publishedAtMs={RECENT_MS}
+        freshnessLabel={null}
+        isSaved={true}
+      />,
+    );
+    expect(screen.getByText("Sparad")).toBeInTheDocument();
+  });
+
+  it("renders Ansökt-tagg när isApplied=true", () => {
+    render(
+      <JobTags
+        showNew={false}
+        publishedAtMs={RECENT_MS}
+        freshnessLabel={null}
+        isApplied={true}
+      />,
+    );
+    expect(screen.getByText("Ansökt")).toBeInTheDocument();
+  });
+
+  it("renderar inga status-taggar när isSaved=false + isApplied=false (default)", () => {
+    const { container } = render(
+      <JobTags
+        showNew={false}
+        publishedAtMs={RECENT_MS}
+        freshnessLabel={null}
+      />,
+    );
+    // Inget tagg-block ska renderas alls
+    expect(container.querySelector(".jp-job-tags")).toBeNull();
+  });
+
+  it("renderar både Sparad och Ansökt vid full status", () => {
+    const { container } = render(
+      <JobTags
+        showNew={false}
+        publishedAtMs={RECENT_MS}
+        freshnessLabel={null}
+        isSaved={true}
+        isApplied={true}
+      />,
+    );
+    const tags = container.querySelectorAll(".jp-tag");
+    expect(screen.getByText("Sparad")).toBeInTheDocument();
+    expect(screen.getByText("Ansökt")).toBeInTheDocument();
+    expect(tags).toHaveLength(2);
+  });
+
+  it("renderar alla 5 taggar i ordning: NY → freshness → Sparad → Ansökt → match", () => {
+    const { container } = render(
+      <JobTags
+        showNew={true}
+        publishedAtMs={RECENT_MS}
+        freshnessLabel="Idag"
+        matchScore={90}
+        isSaved={true}
+        isApplied={true}
+      />,
+    );
+    const tags = container.querySelectorAll(".jp-tag");
+    expect(tags).toHaveLength(5);
+    expect(tags[0]).toHaveTextContent("Ny");
+    expect(tags[1]).toHaveTextContent("Idag");
+    expect(tags[2]).toHaveTextContent("Sparad");
+    expect(tags[3]).toHaveTextContent("Ansökt");
+    expect(tags[4]).toHaveTextContent("Bra match");
+  });
 });

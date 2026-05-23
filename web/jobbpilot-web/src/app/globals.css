@@ -1284,6 +1284,21 @@ a:hover { color: var(--jp-navy-600); }
   color: var(--jp-ink-1);
   border-color: var(--jp-navy-700);
 }
+/* PR5 (Klas-feedback 2026-05-23) — Sparad/Ansökt-status-taggar får
+   kraftigare navy-kantlinje + ink för att stå ut från färskhet/freshness
+   utan att bryta civic-utility (inga pastellchips, ingen färgad fyll,
+   bara förstärkt outline). Override mot jp-tag--neutral default. */
+.jp-tag[data-tag="saved"],
+.jp-tag[data-tag="applied"] {
+  border-color: var(--jp-navy-700);
+  color: var(--jp-navy-700);
+  font-weight: 700;
+}
+[data-theme="dark"] .jp-tag[data-tag="saved"],
+[data-theme="dark"] .jp-tag[data-tag="applied"] {
+  border-color: var(--jp-navy-300);
+  color: var(--jp-ink-1);
+}
 .jp-matchchip {
   display: inline-flex;
   align-items: center;

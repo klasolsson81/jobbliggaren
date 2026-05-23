@@ -69,6 +69,21 @@ export function JobTags({
   const renderMatch =
     matchScore !== undefined && matchScore >= MATCH_THRESHOLD;
 
+  // PR5 Klas-debug 2026-05-23 — sanity-log för NY-modellen. Visar bara i
+  // dev-builds (Vercel prod-build strippar via process.env.NODE_ENV).
+  // Ta bort efter Klas verifierat NY-beteende.
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+    // eslint-disable-next-line no-console
+    console.debug("[JobTags NY-debug]", {
+      showNew,
+      publishedAtMs,
+      publishedAt: new Date(publishedAtMs).toISOString(),
+      lastSeen,
+      lastSeenIso: lastSeen > 0 ? new Date(lastSeen).toISOString() : "(0/never)",
+      renderNew,
+    });
+  }
+
   if (
     !renderNew &&
     !freshnessLabel &&

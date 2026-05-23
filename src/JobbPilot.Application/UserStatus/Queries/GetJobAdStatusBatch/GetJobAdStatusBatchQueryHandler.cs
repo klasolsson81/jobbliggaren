@@ -35,29 +35,35 @@ public sealed class GetJobAdStatusBatchQueryHandler(IAppDbContext db, ICurrentUs
         if (jobSeekerId == default)
             return new JobAdStatusBatchDto([], []);
 
-        // EF Core 10 + Npgsql: List<JobAdId>.Contains(s.JobAdId) över strongly-
-        // typed VO ger translation-runtime-fel (500 observerat i CI 2026-05-23
-        // run 26340816593). Lösning: projisera till HasConversion-mappade
-        // .Value FÖRE Contains-jämförelsen — då blir LHS plain Guid och RHS
-        // är List<Guid> som översätts korrekt till SQL ANY. Verifierat i CI
-        // mot Testcontainers Postgres.
-        var jobAdIdValues = query.JobAdIds.ToList();
+        // EF Core 10 + Npgsql: Contains() över strongly-typed-VO-projektioner ger
+        // translation-runtime-fel (500 observerat i CI 2026-05-23 runs 26340816593
+        // + 26341061119 — både `List<JobAdId>.Contains(s.JobAdId)` OCH post-Select
+        // `Where(id => list.Contains(id))` failade). Pragmatisk fix: ladda hela
+        // seekerens SavedJobAd/Application JobAdId-lista (bounded — typiskt
+        // <100 rader per seeker, GetJobAdStatusBatchQueryValidator capps:ar
+        // request-batchen på 100 ändå) och filtrera client-side mot
+        // batch-request-set:n. Server-side projektion + HashSet O(1)-lookup.
+        var requestedIds = new HashSet<Guid>(query.JobAdIds);
 
-        var savedIds = await db.SavedJobAds
+        var allSavedForSeeker = await db.SavedJobAds
             .AsNoTracking()
             .Where(s => s.JobSeekerId == jobSeekerId)
             .Select(s => s.JobAdId.Value)
-            .Where(id => jobAdIdValues.Contains(id))
-            .Distinct()
             .ToListAsync(cancellationToken);
+        var savedIds = allSavedForSeeker
+            .Where(id => requestedIds.Contains(id))
+            .Distinct()
+            .ToList();
 
-        var appliedIds = await db.Applications
+        var allAppliedForSeeker = await db.Applications
             .AsNoTracking()
             .Where(a => a.JobSeekerId == jobSeekerId && a.JobAdId != null)
             .Select(a => a.JobAdId!.Value.Value)
-            .Where(id => jobAdIdValues.Contains(id))
-            .Distinct()
             .ToListAsync(cancellationToken);
+        var appliedIds = allAppliedForSeeker
+            .Where(id => requestedIds.Contains(id))
+            .Distinct()
+            .ToList();
 
         return new JobAdStatusBatchDto(savedIds, appliedIds);
     }

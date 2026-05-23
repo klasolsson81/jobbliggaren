@@ -24,6 +24,55 @@ function authHeaders(sessionId: string): HeadersInit {
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
+export type CreateApplicationFromJobAdResult =
+  | { success: true; applicationId: string }
+  | { success: false; error: string };
+
+/**
+ * F6 P5 Punkt 2 Del B — "Har ansökt"-quick-create från ADR 0053-modal-footer.
+ * Returnerar applicationId vid framgång så client-island kan visa toast med
+ * länk till `/ansokningar/{id}`. Skiljs från `createApplicationAction` (som
+ * redirectar — denna lever inom modal-flödet, ingen redirect).
+ *
+ * Backend: `POST /api/v1/applications/from-job-ad/{jobAdId}` (CTO Val 3
+ * Variant A — separat endpoint per SRP, commit a187467).
+ */
+export async function createApplicationFromJobAdAction(
+  jobAdId: string
+): Promise<CreateApplicationFromJobAdResult> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/applications/from-job-ad/${jobAdId}`,
+      {
+        method: "POST",
+        headers: authHeaders(sessionId),
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, "Kunde inte registrera ansökan."),
+      };
+    }
+
+    const data = await parseResponse(
+      res,
+      createdResourceSchema,
+      "POST /api/v1/applications/from-job-ad"
+    );
+    revalidatePath("/ansokningar");
+    revalidatePath("/jobb");
+    return { success: true, applicationId: data.id };
+  } catch {
+    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+  }
+}
+
 export async function createApplicationAction(
   _prevState: ActionResult | null,
   formData: FormData

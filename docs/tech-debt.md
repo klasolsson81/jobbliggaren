@@ -48,6 +48,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-86 | Sök/filter-hardening: recall-gap vs Platsbanken, common-term-perf, query-token-parser m.m. | Minor | Trigger | Performance/Product quality/Search |
 | TD-87 | Rate-limit för `/me/*`-endpoints batch (saved-job-ads + job-ad-status + recent-searches) | **Major** | F6 P5 P2-fas-stängning | Säkerhet/DoS-skydd |
 | TD-88 | DOM-mutation via onMouseOver i RecentSearchesHeroChip + SavedJobAdsHeroChip — flytta till CSS `:hover` | Minor | Trigger | Frontend/React-disciplin |
+| TD-89 | Ephemeral API+Redis+Worker-stack i CI loadtest-jobb (kör `LOADTEST_SCENARIOS=landing-stats` mot riktig backend) | Minor | Trigger | Performance/CI fitness function |
 
 ---
 
@@ -137,6 +138,38 @@ med `:hover`-stil + applicera klass i båda hero-chip-renderItem.
 
 **Trigger:** Vid nästa hero-chip-touch (ny chip-typ, layout-ändring) eller
 F6 P5 Punkt 2-fas-stängnings-polish.
+
+
+## TD-89: Ephemeral API+Redis+Worker-stack i CI loadtest-jobb
+
+**Kategori:** Performance / CI fitness function
+**Severity:** Minor
+**Fas:** Trigger (när docker-compose-stöd läggs till loadtest-jobbet, eller F6
+fas-stängnings-polish — vad som kommer först)
+**Källa:** perf-test-writer F6 P5 Punkt 3 PR2-rapport 2026-05-23 (agentId
+`a8d8c9a68d076ba85`). Self-vetoad enligt CLAUDE.md §9.6 punkt 2 — funktion-
+dependency saknas idag (docker-compose i `loadtest`-jobbet finns ej).
+
+NBomber-scenariot `landing_stats_cache_hit` finns och är lokalt körbart via
+`LOADTEST_SCENARIOS=landing-stats dotnet run --project perf/JobbPilot.LoadTests`.
+I CI är `loadtest`-jobbet idag konfigurerat med `LOADTEST_SCENARIOS=baseline-only`
+eftersom körning av landing-stats kräver att en backend-stack (API + Redis +
+Worker) faktiskt kör inom CI-jobbet. ADR 0045 Beslut 5 säger fitness-function
+ska vara observe-only Fas 1, eget job utanför `ci.needs`, exit 0 — det är redan
+korrekt wiret. Det som saknas är ephemeral backend-stack i samma jobb (docker-
+compose med Postgres + Redis + en kortlivad Api-binär).
+
+**Föreslagen åtgärd:** docker-compose-block (eller motsvarande GitHub-Action-
+matrix-step) i `.github/workflows/build.yml` `loadtest`-jobbet som startar
+API + Redis + Postgres som services innan `LOADTEST_SCENARIOS=landing-stats
+dotnet run` körs. Worker behöver pre-warm-step (manuellt anropa
+`RefreshLandingStatsJob.RunAsync` via dedikerat ENV-flag eller initial seed
+av Redis-nyckel) så cache-hit-scenariot inte träffar Floor-fallback hela tiden.
+
+**Beroenden:** Inga blockerande. Trigger = (a) nästa CI-polish-fas, (b) ADR
+0045 Beslut 6-ratchet närmar sig (flip observe-only → blockerande kräver
+faktisk runtime-mätning), eller (c) någon annan fitness-function-yta behöver
+samma stack.
 
 
 ## Major — Fas 3+

@@ -306,16 +306,43 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
-      # Compile-gate för NBomber-scaffoldet (fångar att paket/projekt bygger).
-      # Runtime-load mot ephemeral API = perf-test-writer-agentens utbyggnad.
+      # Compile-gate för NBomber-projektet (fångar att paket/projekt bygger).
+      # Runtime-exekvering mot ephemeral API kräver docker-compose-stack
+      # (Postgres + Redis + Worker + Api). Wiras upp när CI får compose-stöd;
+      # tills dess kör vi enbart compile + baseline-runner mot loopback (utan
+      # API → connection-refused, men exit 0 hålls via Program.cs).
       - name: Build load-test project
         continue-on-error: true
         run: dotnet build perf/JobbPilot.LoadTests/JobbPilot.LoadTests.csproj -c Release
 
+      # Kör NBomber-runnern i "baseline-only"-läge. Hot-path-scenarier (landing-
+      # stats m.fl., klass (a)/(b)/(c)) skrivna av perf-test-writer-agenten kräver
+      # ephemeral API + Redis-stack — aktiveras genom att flippa
+      # LOADTEST_SCENARIOS=landing-stats när compose-stöd finns i CI.
+      - name: Run load-test (baseline-only, observe-only)
+        continue-on-error: true
+        env:
+          LOADTEST_SCENARIOS: baseline-only
+          LOADTEST_BASE_URL: http://127.0.0.1:8080
+        run: dotnet run --project perf/JobbPilot.LoadTests/JobbPilot.LoadTests.csproj -c Release --no-build
+
+      # Ladda upp NBomber-rapporter + JSON-trend-artefakter. Behövs för
+      # Beslut 6-ratchet-utvärderingen (stabil distribution över N runs).
+      - name: Upload load-test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: loadtest-reports
+          path: |
+            loadtest-reports/
+            artifacts/perf/
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Observe-only-not
         if: always()
         run: |
-          echo "::notice::Load-test observe-only Fas 1 (ADR 0045 Beslut 4/5). Baslinje-scaffold compile-verifierat. Hot-path-scenarier mot p95-budgetar (Beslut 1) wiras av perf-test-writer-agenten. Blockerar ej merge."
+          echo "::notice::Load-test observe-only Fas 1 (ADR 0045 Beslut 4/5). NBomber-projekt compile-verifierat + baseline-runner exekverad. Hot-path-scenarier mot p95-budgetar (Beslut 1) finns implementerade (perf/JobbPilot.LoadTests/Scenarios/) men kräver ephemeral API-stack i CI för runtime-exekvering. Blockerar ej merge; flip→gate = Klas-GO-ratchet (Beslut 6)."
 
   # Supply-chain audit — ADR 0045 Beslut 4/7. CVE-scan (CI-/Dependabot-formad
   # per security-auditor.md:292). Fail-signal vid High/Critical men OBSERVE-

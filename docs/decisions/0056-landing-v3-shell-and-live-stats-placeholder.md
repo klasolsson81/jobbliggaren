@@ -41,9 +41,24 @@ Mode-state lyfts till `<LandingHeroSection />` så hero-CTA "Skapa konto" kan fl
 
 ### Beslut 4 — Live-stats hårdkodas via `getLandingStats()`-helper tills datakontrakt klart
 
+> **⚠ AMENDAD 2026-05-23 — se [Amendment 2026-05-23 — Live-stats Beslut 4 lyft: implementation byts, utbytespunkt bevarad](#amendment-2026-05-23--live-stats-beslut-4-lyft-implementation-byts-utbytespunkt-bevarad) nedan. Originaltexten nedan bevaras oförändrad; amendment-lagret gäller implementations-status (FAS-DEFERRAL upphävd, async-fetch via `GET /api/v1/landing/stats` realiserad i F6 P5 Punkt 3 per ADR 0064).**
+
 `src/components/landing/landing-stats.ts` exporterar `getLandingStats(): LandingStats` som returnerar `{ activeCount: 45_580, newToday: 312 }` — konstanter från HANDOVER-målbild 01.
 
 **Datakontrakt-stub (FAS-DEFERRAL):** när backend exponerar en endpoint för aggregerade Platsbanken-stats (förslagsvis `GET /api/v1/job-ads/landing-stats` med daglig snapshot eller real-time count) byter helpern till `fetch`-anrop i RSC-context. Inget API-arbete i F6 — Landing-prompten är ren frontend.
+
+## Amendment 2026-05-23 — Live-stats Beslut 4 lyft: implementation byts, utbytespunkt bevarad
+
+> **Amendment 2026-05-23 (Klas-godkänd, CTO-triagead — senior-cto-advisor agentId `a1da26dc2029a5def` multi-approach-triage 2026-05-23, Variant B vald över A/C/D):** ADR 0056 Beslut 4:s FAS-DEFERRAL för live-stats är **lyft**. F6 P5 Punkt 3 (HEAD `e6b08fa` 2026-05-23) realiserar backend-endpointen — den arkitektur-substansen är dokumenterad separat i [ADR 0064 — Publik anonym aggregat-read via Worker-precomputed Redis-cache](./0064-public-aggregate-read-via-worker-precomputed-redis-cache.md), som etablerar mönstret för publik anonym aggregat-read som arkitekturprecedens (återanvänds av F6 P5 Punkt 4 `/oversikt`).
+>
+> **Utbytespunkt-design (Beslut 4) bevarades — endast implementationen byttes:**
+> - `getLandingStats()`-helpern i `src/components/landing/landing-stats.ts` behåller **samma komponent-API-yta** mot konsumenten (`<LandingTopbar />`): prop-driven konsumtion av `{ activeCount, newToday, isStale }`.
+> - **Signatur-byte:** sync hårdkodad konstant → async `fetch('/api/v1/landing/stats')` i RSC-context. Detta är frontend-isolerad förändring; ingen konsumerande komponent ändrar `props`-shape utöver tillägget av `isStale`-flagga från ADR 0064:s Floor-fallback-semantik.
+> - **Endpoint-namn:** ADR 0056 Beslut 4 föreslog `GET /api/v1/job-ads/landing-stats`. Faktisk implementation valde `GET /api/v1/landing/stats` (landing-namespace istället för job-ads-suffix) — kosmetisk path-justering, ingen semantisk skillnad. Förslagsnamnet i ADR 0056 var inte bindande.
+>
+> **Vad amendment INTE rör:** Beslut 1 (LandingTopbar-shell), Beslut 2 (theme/lang i footer), Beslut 3 (AuthCard delar `<LoginForm/>`/`<RegisterForm/>`), Beslut 5 (OAuth-knappar stubs) — alla bestå oförändrade. Endast Beslut 4:s FAS-DEFERRAL-status byts.
+>
+> **Amendment-proveniens:** Klas-godkänd amendment-prosa 2026-05-23 (memory `feedback_klas_can_override_adr_verbatim_source` — explicit Klas-override av §9.4 webb-Claude-verbatim-konvention för F6 P5 Punkt 3 ADR-leverans). Grundad i senior-cto-advisor multi-approach-dom 2026-05-23 (agentId `a1da26dc2029a5def`, Variant B vald över Variant A cache-aside / Variant C PG materialiserad vy / Variant D Next.js fetch revalidate) + verifierad mot redan committed implementation (HEAD `e6b08fa`). ADR 0056 förblir **Accepted** — additivt tilläggslager, EJ supersession; originalt Beslut 4 + utbytespunkt-design bevaras, endast FAS-DEFERRAL-status flips.
 
 ### Beslut 5 — OAuth-knappar är stubs som länkar till `/logga-in?provider=<id>`
 

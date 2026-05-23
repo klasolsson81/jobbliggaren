@@ -35,26 +35,27 @@ public sealed class GetJobAdStatusBatchQueryHandler(IAppDbContext db, ICurrentUs
         if (jobSeekerId == default)
             return new JobAdStatusBatchDto([], []);
 
-        // EF Core 10: List<Guid>.Contains översätts till SQL ANY på Npgsql.
-        // JobAdId-strongly-typed → konvertera via .Select(id => new JobAdId(id))
-        // för id-comparison. Plain Guid räcker eftersom EF mappar HasConversion.
-        var jobAdIds = query.JobAdIds
-            .Select(id => new JobAdId(id))
-            .ToList();
+        // EF Core 10 + Npgsql: List<JobAdId>.Contains(s.JobAdId) över strongly-
+        // typed VO ger translation-runtime-fel (500 observerat i CI 2026-05-23
+        // run 26340816593). Lösning: projisera till HasConversion-mappade
+        // .Value FÖRE Contains-jämförelsen — då blir LHS plain Guid och RHS
+        // är List<Guid> som översätts korrekt till SQL ANY. Verifierat i CI
+        // mot Testcontainers Postgres.
+        var jobAdIdValues = query.JobAdIds.ToList();
 
         var savedIds = await db.SavedJobAds
             .AsNoTracking()
-            .Where(s => s.JobSeekerId == jobSeekerId && jobAdIds.Contains(s.JobAdId))
+            .Where(s => s.JobSeekerId == jobSeekerId)
             .Select(s => s.JobAdId.Value)
+            .Where(id => jobAdIdValues.Contains(id))
             .Distinct()
             .ToListAsync(cancellationToken);
 
         var appliedIds = await db.Applications
             .AsNoTracking()
-            .Where(a => a.JobSeekerId == jobSeekerId
-                        && a.JobAdId != null
-                        && jobAdIds.Contains(a.JobAdId.Value))
+            .Where(a => a.JobSeekerId == jobSeekerId && a.JobAdId != null)
             .Select(a => a.JobAdId!.Value.Value)
+            .Where(id => jobAdIdValues.Contains(id))
             .Distinct()
             .ToListAsync(cancellationToken);
 

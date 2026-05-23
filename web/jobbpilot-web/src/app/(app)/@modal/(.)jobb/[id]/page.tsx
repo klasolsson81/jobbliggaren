@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
+import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 
@@ -33,13 +34,21 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
 
   switch (result.kind) {
     case "ok": {
-      const initialSaved = await isJobAdSaved(id);
+      const [initialSaved, initialApplied] = await Promise.all([
+        isJobAdSaved(id),
+        hasAppliedJobAd(id),
+      ]);
       return (
         <JobAdModalShell
           title={result.data.title}
           company={result.data.companyName}
         >
-          <JobAdDetail jobAd={result.data} headless initialSaved={initialSaved} />
+          <JobAdDetail
+            jobAd={result.data}
+            headless
+            initialSaved={initialSaved}
+            initialApplied={initialApplied}
+          />
         </JobAdModalShell>
       );
     }

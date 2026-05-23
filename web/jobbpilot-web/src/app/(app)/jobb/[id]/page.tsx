@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
+import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 
 interface PageProps {
@@ -28,10 +29,12 @@ export default async function JobbDetailPage({ params }: PageProps) {
 
   switch (result.kind) {
     case "ok": {
-      // F6 P5 Punkt 2 Del A — Spara-toggle initial-tillstånd. Misslyckas
-      // lookup civilt (helper returnerar false), toggle visas ändå för att
-      // användaren kan klicka för att försöka spara.
-      const initialSaved = await isJobAdSaved(id);
+      // F6 P5 Punkt 2 PR5 — parallell server-fetch av Spara + Har-ansökt-state.
+      // Promise.all undviker waterfall; båda misslyckas civilt (returnerar false).
+      const [initialSaved, initialApplied] = await Promise.all([
+        isJobAdSaved(id),
+        hasAppliedJobAd(id),
+      ]);
       return (
         <div className="jp-container jp-page">
           <div
@@ -45,7 +48,11 @@ export default async function JobbDetailPage({ params }: PageProps) {
               animation: "none",
             }}
           >
-            <JobAdDetail jobAd={result.data} initialSaved={initialSaved} />
+            <JobAdDetail
+              jobAd={result.data}
+              initialSaved={initialSaved}
+              initialApplied={initialApplied}
+            />
           </div>
         </div>
       );

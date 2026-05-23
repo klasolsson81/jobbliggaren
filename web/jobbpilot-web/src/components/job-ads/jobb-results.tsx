@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getJobAds } from "@/lib/api/job-ads";
+import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
 import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -83,7 +84,15 @@ export async function JobbResults({
       : {};
 
   switch (result.kind) {
-    case "ok":
+    case "ok": {
+      // PR5 / ADR 0063 — per-user-overlay-status batch (Sparad/Ansökt-taggar
+      // på list-kort). Anonym/utan-auth → tomma set:n (degraderar civilt,
+      // inga taggar visas). Max 100 IDs per anrop = validator-cap.
+      const itemIds = result.data.items.map((it) => it.id);
+      const status = await getJobAdStatusBatch(itemIds);
+      const savedIdSet = new Set(status.savedIds);
+      const appliedIdSet = new Set(status.appliedIds);
+
       return (
         <>
           {/* Result-toolbar (client-island): N träffar + aktiva chips +
@@ -100,7 +109,11 @@ export async function JobbResults({
             pageSize={rawParams.pageSize}
           />
           <div className="flex flex-col gap-2.5">
-            <JobAdList jobAds={result.data.items} />
+            <JobAdList
+              jobAds={result.data.items}
+              savedIdSet={savedIdSet}
+              appliedIdSet={appliedIdSet}
+            />
             <JobAdPagination
               page={result.data.page}
               pageSize={result.data.pageSize}
@@ -112,6 +125,7 @@ export async function JobbResults({
           </div>
         </>
       );
+    }
     case "unauthorized":
       redirect("/logga-in");
     case "rateLimited":

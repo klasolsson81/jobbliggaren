@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { getJobAdStatusLabel } from "@/lib/job-ads/status";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
@@ -27,13 +28,14 @@ interface JobAdDetailProps {
    */
   headless?: boolean;
   /**
-   * F6 P5 Punkt 2 Del A — initialt sparat-tillstånd för Spara-toggle
-   * i modal-footer. Server-renderas via `isJobAdSaved(id)`-lookup.
-   * `undefined` (default) = för icke-inloggade/system-vyer → toggle döljs.
-   * Lyfter ADR 0053 Amendment 2026-05-19-deferralen (Spara/Har-ansökt
-   * → Fas-4-uppskjutet) i samband med backend-leverans 2026-05-23.
+   * F6 P5 Punkt 2 — initial-state för Spara/Har-ansökt-knappar i modal-footer.
+   * `undefined` (default) = anonym/system-vy → knappar döljs helt
+   * (civic-utility — ingen disabled-knapp-teater).
+   * När definerade: båda måste vara satta tillsammans (PR5 — server-fetchar
+   * isJobAdSaved + hasAppliedJobAd parallellt i page-handler).
    */
   initialSaved?: boolean;
+  initialApplied?: boolean;
 }
 
 // Active/Expired/Archived → .jp-pill-variant. Speglar
@@ -54,7 +56,10 @@ export function JobAdDetail({
   jobAd,
   headless = false,
   initialSaved,
+  initialApplied,
 }: JobAdDetailProps) {
+  const showUserActions =
+    initialSaved !== undefined && initialApplied !== undefined;
   const publishedAt = formatDate(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
 
@@ -119,10 +124,10 @@ export function JobAdDetail({
 
       <div className="jp-modal__foot">
         <span className="jp-modal__foot__spacer" />
-        {initialSaved !== undefined && (
+        {showUserActions && (
           <>
-            <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={initialSaved} />
-            <HarAnsoktButton jobAdId={jobAd.id} />
+            <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={initialSaved!} />
+            <HarAnsoktButton jobAdId={jobAd.id} initialApplied={initialApplied!} />
           </>
         )}
         {jobAd.url && (
@@ -136,6 +141,26 @@ export function JobAdDetail({
           </a>
         )}
       </div>
+      {showUserActions && initialApplied && (
+        <p
+          className="jp-muted"
+          style={{
+            marginTop: 8,
+            fontSize: 13,
+            color: "var(--jp-ink-2)",
+            textAlign: "right",
+          }}
+        >
+          Du har markerat denna annons som ansökt — se i{" "}
+          <Link
+            href="/ansokningar"
+            style={{ color: "var(--jp-link, currentColor)", textDecoration: "underline" }}
+          >
+            Mina ansökningar
+          </Link>
+          .
+        </p>
+      )}
     </>
   );
 }

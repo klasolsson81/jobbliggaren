@@ -1,92 +1,86 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { createApplicationFromJobAdAction } from "@/lib/actions/applications";
 
 interface HarAnsoktButtonProps {
   jobAdId: string;
+  /**
+   * Server-fetched initialApplied (`hasAppliedJobAd(id)`). När true visas
+   * knappen som "Ansökt" från start (modal-öppning post-toggle visar
+   * korrekt state utan extra round-trip — PR5 Klas-feedback fix).
+   */
+  initialApplied: boolean;
 }
 
 /**
- * F6 P5 Punkt 2 Del B — "Har ansökt"-knapp i ADR 0053 jobbmodal-footer.
- * CTO Val 4 Variant A: modal-footer + toast med länk efter framgång.
+ * F6 P5 Punkt 2 Del B + PR5 — "Markera som ansökt"-knapp i ADR 0053
+ * jobbmodal-footer.
  *
- * Flow:
- * 1. Klick → optimistic disabled-state + server-action
- * 2. Backend `POST /api/v1/applications/from-job-ad/{jobAdId}` skapar
- *    Application kopplad till JobAd (CreateApplicationFromJobAdCommand)
- * 3. Vid framgång: knappen byts mot inline-toast "Sparad i Mina ansökningar"
- *    med länk till `/ansokningar/{id}`. Modalen stängs inte automatiskt —
- *    användaren stänger när hen vill (civic-utility-disciplin).
- * 4. Vid fel: knappen återställs + felmeddelande visas inline.
- *
- * Idempotens: backend tillåter dubbel-create (varje POST skapar en ny
- * Application). FE förebygger dubbla klick via `isPending`-disabled-state +
- * post-success-state-switch.
+ * PR5-ändringar (Klas-feedback 2026-05-23 + CTO Val 3 Variant A modifierad):
+ * - Copy: "Markera som ansökt" (idle) / "Ansökt" (post-success) — ärlig om
+ *   att handlingen skapar en Application i Status=Draft, inte ett
+ *   marknadsutskick.
+ * - Stil: `jp-btn--secondary` från start (paritet med Spara + Öppna annonsen).
+ *   Ingen primär-CTA-hierarki som sticker ut.
+ * - Layout: state-byte i samma knapp-position (ingen footer-bredd-skiftning).
+ *   "Öppna ansökan"-länken renderas inte här — den läggs i en muted-rad UNDER
+ *   footern av `JobAdDetail` när `initialApplied` blir true.
+ * - State-persistence: `initialApplied` server-fetchas vid varje modal-mount
+ *   via `hasAppliedJobAd(id)` (ADR 0063 single-endpoint). Modal-stäng/öppna
+ *   återgår alltså inte till "Markera som ansökt"-state om Application redan
+ *   skapats — Klas-feedback om modal-reset löst.
  */
-export function HarAnsoktButton({ jobAdId }: HarAnsoktButtonProps) {
-  const [state, setState] = useState<
-    | { kind: "idle" }
-    | { kind: "success"; applicationId: string }
-    | { kind: "error"; message: string }
-  >({ kind: "idle" });
+export function HarAnsoktButton({
+  jobAdId,
+  initialApplied,
+}: HarAnsoktButtonProps) {
+  const [applied, setApplied] = useState(initialApplied);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleClick() {
-    setState({ kind: "idle" });
+    if (applied) return; // Idempotent — backend tillåter dubbel-create, men FE-kontrakt = en gång
+    setError(null);
+    setApplied(true); // Optimistic
+
     startTransition(async () => {
       const result = await createApplicationFromJobAdAction(jobAdId);
-      if (result.success) {
-        setState({ kind: "success", applicationId: result.applicationId });
-      } else {
-        setState({ kind: "error", message: result.error });
+      if (!result.success) {
+        setApplied(false); // Rollback
+        setError(result.error);
       }
     });
   }
 
-  if (state.kind === "success") {
-    return (
-      <div
-        role="status"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          color: "var(--jp-ink-2)",
-          fontSize: 14,
-        }}
-      >
-        <CheckCircle2
-          size={16}
-          aria-hidden="true"
-          style={{ color: "var(--jp-success, #2e7d32)" }}
-        />
-        <span>Sparad som ansökan.</span>
-        <Link
-          href={`/ansokningar/${state.applicationId}`}
-          className="jp-btn jp-btn--secondary jp-btn--sm"
-        >
-          Öppna ansökan
-        </Link>
-      </div>
-    );
-  }
+  const label = applied ? "Ansökt" : "Markera som ansökt";
+  const ariaLabel = applied
+    ? "Du har markerat denna annons som ansökt"
+    : "Markera annonsen som ansökt";
+  const Icon = applied ? CheckCircle2 : Circle;
+  const opacity = isPending ? 0.7 : 1;
 
   return (
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button
         type="button"
-        className="jp-btn jp-btn--primary"
+        className="jp-btn jp-btn--secondary"
+        aria-label={ariaLabel}
+        aria-pressed={applied}
         onClick={handleClick}
-        disabled={isPending}
+        style={{
+          opacity,
+          // Dimmad text när applied (civic tyst bekräftelse) men knappen
+          // förblir klickbar (för future "ångra"-flöde — i Fas 7 ev.).
+          color: applied ? "var(--jp-ink-2)" : undefined,
+        }}
       >
-        <CheckCircle2 size={14} aria-hidden="true" /> Har ansökt
+        <Icon size={14} aria-hidden="true" /> {label}
       </button>
-      {state.kind === "error" && (
+      {error && (
         <span role="alert" className="text-danger-700" style={{ fontSize: 12 }}>
-          {state.message}
+          {error}
         </span>
       )}
     </div>

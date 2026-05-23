@@ -6,6 +6,9 @@ import { computeFreshnessLabel } from "./freshness";
 
 interface JobAdCardProps {
   jobAd: JobAdDto;
+  /** PR5 — per-user overlay-status (ADR 0063 batch-port). */
+  isSaved?: boolean;
+  isApplied?: boolean;
 }
 
 function formatDate(iso: string): string {
@@ -30,7 +33,7 @@ function formatDate(iso: string): string {
  * markerad av `<MarkJobbVisited />`-island på sidnivå (Klas-direktiv
  * 2026-05-20 — per-annons "läst" gjorde gamla oöppnade annonser röriga).
  */
-export function JobAdCard({ jobAd }: JobAdCardProps) {
+export function JobAdCard({ jobAd, isSaved = false, isApplied = false }: JobAdCardProps) {
   const publishedAt = formatDate(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
@@ -53,6 +56,8 @@ export function JobAdCard({ jobAd }: JobAdCardProps) {
             // Klas (ADR 0053 amendment: match-score är Fas 4-gated). I
             // Prompt 1 alltid undefined → "Bra match"-taggen renderas aldrig.
             matchScore={undefined}
+            isSaved={isSaved}
+            isApplied={isApplied}
           />
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>

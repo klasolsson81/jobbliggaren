@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getRecentSearches } from "@/lib/api/recent-searches";
+import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
 import { Search } from "lucide-react";
@@ -10,6 +11,7 @@ import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 import { MarkJobbVisited } from "@/components/job-ads/mark-jobb-visited";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
+import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
 // searchParams-värden kan vara string | string[] | undefined. ssyk/region
 // är upprepade query-params (ADR 0042 Beslut B) → string[] vid flera värden.
@@ -69,16 +71,23 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // och blockerar därför INTE resultat-streamingen. getJobAds() +
   // chip-label-resolvern flyttades till `JobbResults` (F6 P4 B1) så att
   // bara resultat-ytan — inte hero:n — byts mot skeleton under en sökning.
-  const [taxonomyResult, recentSearchesResult] = await Promise.all([
-    getTaxonomyTree(),
-    getRecentSearches(),
-  ]);
+  const [taxonomyResult, recentSearchesResult, savedJobAdsResult] =
+    await Promise.all([
+      getTaxonomyTree(),
+      getRecentSearches(),
+      getSavedJobAds(),
+    ]);
 
   // ADR 0060: Senaste-sökningar-hero-chip degraderar civilt — vid fel
   // (network/parse/auth-edge) faller chipen till tom-tillstånd och inget
   // visas i hero-topbaren (no-mock-doktrin). Capturen är best-effort på BE.
   const recentSearches =
     recentSearchesResult.kind === "ok" ? recentSearchesResult.data : [];
+
+  // PR5 (Klas-feedback 2026-05-23 + Platsbanken-paritet): Sparade-chip
+  // paritet med Senaste-sökningar. Civil degradering vid fel.
+  const savedJobAds =
+    savedJobAdsResult.kind === "ok" ? savedJobAdsResult.data : [];
 
   // Träd-hämtning får aldrig blockera sök-ytan. Misslyckas trädet
   // degraderar popovern civilt (tom lista + informativ rad i
@@ -120,14 +129,15 @@ export default async function JobbPage({ searchParams }: PageProps) {
           förblir synlig medan resultatet hämtas (F6 P4 B1). */}
       <section className="jp-hero">
         <div className="jp-hero__inner">
-          {/* ADR 0060 / ADR 0055 amend 2026-05-20: Senaste-sökningar-chip
-              i hero-topbaren vänster. Sparade annonser-chip = F6 P4b
-              (SavedJobAds-backend ej levererat). */}
+          {/* PR5 (Klas-feedback 2026-05-23 + Platsbanken-paritet): båda
+              chips till HÖGER sida av hero-topbaren. Sparade-chip
+              (F6 P5 Punkt 2 PR5) + Senaste-sökningar (ADR 0060). */}
           <div
             className="jp-hero__topbar"
-            style={{ justifyContent: "flex-start" }}
+            style={{ justifyContent: "flex-end", gap: 8 }}
           >
             <RecentSearchesHeroChip items={recentSearches} />
+            <SavedJobAdsHeroChip items={savedJobAds} />
           </div>
 
           <h1 className="jp-hero__title">Sök bland aktiva annonser</h1>

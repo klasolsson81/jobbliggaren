@@ -18,6 +18,11 @@ import { useLastSeenJobs } from "./use-last-seen-jobs";
  * Server-flagga `showNew` (= backend `isNew`, ≤7d-cap) består som defensivt
  * golv: även om lastSeen är gammalt visas aldrig NY på annonser äldre än 7d.
  * Färskhet och match-tröskel beräknas server-side i parent (JobAdCard).
+ *
+ * PR5 (Klas-feedback 2026-05-23 + CTO Val 4 Variant A): utvidgad med
+ * Sparad + Ansökt-taggar (per-user-overlay via ADR 0063 batch-port).
+ * `isSaved`/`isApplied` är opt-in flaggor — utelämnas för anonyma/list-yta
+ * utan auth → taggar visas inte. Civic-utility: ingen "Inte sparad"-tagg.
  */
 
 export interface JobTagsProps {
@@ -40,6 +45,12 @@ export interface JobTagsProps {
    * I Prompt 1 alltid `undefined` → taggen renderas aldrig live.
    */
   matchScore?: number;
+  /**
+   * F6 P5 Punkt 2 PR5 — per-user-overlay-status (ADR 0063 batch-port).
+   * Server-fetchad via `getJobAdStatusBatch` i list-page. Default false.
+   */
+  isSaved?: boolean;
+  isApplied?: boolean;
 }
 
 const MATCH_THRESHOLD = 75;
@@ -49,6 +60,8 @@ export function JobTags({
   publishedAtMs,
   freshnessLabel,
   matchScore,
+  isSaved = false,
+  isApplied = false,
 }: JobTagsProps) {
   const lastSeen = useLastSeenJobs();
 
@@ -56,7 +69,13 @@ export function JobTags({
   const renderMatch =
     matchScore !== undefined && matchScore >= MATCH_THRESHOLD;
 
-  if (!renderNew && !freshnessLabel && !renderMatch) {
+  if (
+    !renderNew &&
+    !freshnessLabel &&
+    !renderMatch &&
+    !isSaved &&
+    !isApplied
+  ) {
     return null;
   }
 
@@ -72,6 +91,16 @@ export function JobTags({
           {freshnessLabel}
         </span>
       )}
+      {isSaved && (
+        <span className="jp-tag jp-tag--neutral" data-tag="saved">
+          Sparad
+        </span>
+      )}
+      {isApplied && (
+        <span className="jp-tag jp-tag--neutral" data-tag="applied">
+          Ansökt
+        </span>
+      )}
       {renderMatch && (
         <span className="jp-tag jp-tag--brand" data-tag="match">
           Bra match
@@ -80,4 +109,3 @@ export function JobTags({
     </span>
   );
 }
-

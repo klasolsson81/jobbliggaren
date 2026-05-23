@@ -22,13 +22,15 @@ interface SaveJobAdToggleProps {
 }
 
 /**
- * F6 P5 Punkt 2 Del A — Spara/Ta bort bokmärke-toggle.
- * ADR 0053 modal-footer (CTO Val 4 Variant A) — placeras bredvid
- * "Öppna annonsen" i `JobAdDetail` modal-footer.
+ * F6 P5 Punkt 2 Del A — Spara/Ta bort bokmärke-toggle (ADR 0053 modal-footer).
  *
- * Optimistic UI: knappens ikon/text byts omedelbart vid klick, server-action
- * körs i transition. Vid fel rullas tillstånd tillbaka + felmeddelande visas
- * inline (rolealert). Idempotent backend → dubbelklick är säkert.
+ * PR5-uppdatering (Klas-feedback 2026-05-23): Knappen är ALDRIG `disabled` —
+ * Klas måste kunna ångra direkt utan att vänta på pending server-action.
+ * Backend är idempotent (ADR 0032 §5 ON CONFLICT) → race-säkert mot
+ * dubbelklick. Pending visas via subtle opacity i stället för disabled-state.
+ *
+ * Stilen är `jp-btn--secondary` paritet med övriga modal-footer-knappar
+ * (civic-utility, inga konkurrerande CTA-hierarkier).
  */
 export function SaveJobAdToggle({
   jobAdId,
@@ -61,6 +63,7 @@ export function SaveJobAdToggle({
     ? "Ta bort bokmärke för annonsen"
     : "Spara annonsen som bokmärke";
   const Icon = saved ? BookmarkCheck : Bookmark;
+  const opacity = isPending ? 0.7 : 1;
 
   if (variant === "compact") {
     return (
@@ -70,7 +73,7 @@ export function SaveJobAdToggle({
         aria-label={ariaLabel}
         aria-pressed={saved}
         onClick={handleClick}
-        disabled={isPending}
+        style={{ opacity }}
       >
         <Icon size={18} aria-hidden="true" />
       </button>
@@ -81,13 +84,11 @@ export function SaveJobAdToggle({
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button
         type="button"
-        className={
-          saved ? "jp-btn jp-btn--secondary" : "jp-btn jp-btn--secondary"
-        }
+        className="jp-btn jp-btn--secondary"
         aria-label={ariaLabel}
         aria-pressed={saved}
         onClick={handleClick}
-        disabled={isPending}
+        style={{ opacity }}
       >
         <Icon size={14} aria-hidden="true" /> {label}
       </button>

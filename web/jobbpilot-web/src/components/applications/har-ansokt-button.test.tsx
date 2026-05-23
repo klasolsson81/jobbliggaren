@@ -14,58 +14,69 @@ beforeEach(() => {
   createActionMock.mockReset();
 });
 
-describe("HarAnsoktButton", () => {
-  it("renders 'Har ansökt'-knapp i idle-state", () => {
-    render(<HarAnsoktButton jobAdId="j1" />);
+describe("HarAnsoktButton (PR5)", () => {
+  it("renderar 'Markera som ansökt' när initialApplied=false", () => {
+    render(<HarAnsoktButton jobAdId="j1" initialApplied={false} />);
     expect(
-      screen.getByRole("button", { name: /Har ansökt/i })
+      screen.getByRole("button", { name: /Markera annonsen som ansökt/i })
     ).toBeInTheDocument();
+    expect(screen.getByText("Markera som ansökt")).toBeInTheDocument();
   });
 
-  it("kallar createApplicationFromJobAdAction vid klick", async () => {
+  it("renderar 'Ansökt' när initialApplied=true (paritet server-state)", () => {
+    render(<HarAnsoktButton jobAdId="j1" initialApplied={true} />);
+    expect(
+      screen.getByRole("button", {
+        name: /Du har markerat denna annons som ansökt/i,
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ansökt")).toBeInTheDocument();
+  });
+
+  it("kallar action vid klick + uppdaterar UI optimistic", async () => {
     createActionMock.mockResolvedValue({
       success: true,
       applicationId: "a-123",
     });
-    render(<HarAnsoktButton jobAdId="j1" />);
+    render(<HarAnsoktButton jobAdId="j1" initialApplied={false} />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Har ansökt/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Markera annonsen som ansökt/i })
+    );
 
     expect(createActionMock).toHaveBeenCalledWith("j1");
+    expect(await screen.findByText("Ansökt")).toBeInTheDocument();
   });
 
-  it("visar success-tillstånd med länk till ansökan", async () => {
-    createActionMock.mockResolvedValue({
-      success: true,
-      applicationId: "a-456",
-    });
-    render(<HarAnsoktButton jobAdId="j1" />);
+  it("idempotent — klick när redan applied gör inget", async () => {
+    render(<HarAnsoktButton jobAdId="j1" initialApplied={true} />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Har ansökt/i }));
+    await user.click(
+      screen.getByRole("button", {
+        name: /Du har markerat denna annons som ansökt/i,
+      })
+    );
 
-    expect(await screen.findByText(/Sparad som ansökan/i)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /Öppna ansökan/i });
-    expect(link).toHaveAttribute("href", "/ansokningar/a-456");
+    expect(createActionMock).not.toHaveBeenCalled();
   });
 
-  it("visar felmeddelande vid backend-fel", async () => {
+  it("rullbar vid fel — knappen återställs + felmeddelande", async () => {
     createActionMock.mockResolvedValue({
       success: false,
       error: "Kunde inte registrera ansökan.",
     });
-    render(<HarAnsoktButton jobAdId="j1" />);
+    render(<HarAnsoktButton jobAdId="j1" initialApplied={false} />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Har ansökt/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Markera annonsen som ansökt/i })
+    );
 
     expect(
       await screen.findByText(/Kunde inte registrera ansökan/i)
     ).toBeInTheDocument();
-    // Knappen finns kvar (kan klickas igen)
-    expect(
-      screen.getByRole("button", { name: /Har ansökt/i })
-    ).toBeInTheDocument();
+    expect(screen.getByText("Markera som ansökt")).toBeInTheDocument();
   });
 });

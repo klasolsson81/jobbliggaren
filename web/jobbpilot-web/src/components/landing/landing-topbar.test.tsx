@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { LandingTopbar } from "./landing-topbar";
-import type { LandingStats } from "./landing-stats";
+import type { LandingStats } from "./landing-stats-format";
 
 // Mock-värden — efter ADR 0064 hämtas riktiga värden från `/api/v1/landing/stats`
 // och passeras som prop från <LandingPage />. Topbar:n är ren rendering;

@@ -16,3 +16,16 @@ export const landingStatsDtoSchema = z.object({
   refreshedAt: z.string().nullable(),
 });
 export type LandingStatsDto = z.infer<typeof landingStatsDtoSchema>;
+
+/**
+ * Single-source floor — speglar backendens GetLandingStatsQueryHandler.Floor
+ * (ADR 0064). Återanvänds av AppLayout (`(app)/layout.tsx`) vid backend-fail
+ * och av `getLandingStats()` (`landing-stats.ts`) som klient-format. Att hålla
+ * konstanten på ett ställe undviker silent drift mellan kod-paths.
+ */
+export const LANDING_STATS_FLOOR_DTO: LandingStatsDto = {
+  activeCount: 40_000,
+  newToday: 0,
+  isStale: true,
+  refreshedAt: null,
+};

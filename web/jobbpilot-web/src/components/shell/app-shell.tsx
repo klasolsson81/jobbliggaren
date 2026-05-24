@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
+import { HeaderStats } from "@/components/shell/header-stats";
+import type { LandingStatsDto } from "@/lib/dto/landing";
 
 /**
  * v3 header-shell (ADR 0054 — header-meny ersätter sektionerad sidebar).
@@ -332,10 +334,12 @@ function Drawer({
 export function AppShell({
   email,
   isAdmin,
+  initialStats,
   children,
 }: {
   email: string;
   isAdmin: boolean;
+  initialStats: LandingStatsDto;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -370,6 +374,8 @@ export function AppShell({
               </Link>
             ))}
           </nav>
+
+          <HeaderStats initialStats={initialStats} />
 
           <span className="jp-header__spacer" />
 

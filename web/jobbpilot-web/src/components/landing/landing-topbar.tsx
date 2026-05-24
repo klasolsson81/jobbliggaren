@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatLandingNumber, type LandingStats } from "./landing-stats";
+import { formatLandingNumber, type LandingStats } from "./landing-stats-format";
 
 /**
  * LandingTopbar — v3-header för landing-routen (`/`). Egen header-shell

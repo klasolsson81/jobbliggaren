@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { AppShell } from "@/components/shell/app-shell";
+import { fetchLandingStats } from "@/lib/api/landing";
+import { LANDING_STATS_FLOOR_DTO } from "@/lib/dto/landing";
 
 export default async function AppLayout({
   children,
@@ -17,6 +19,10 @@ export default async function AppLayout({
   if (!user) redirect("/logga-in");
 
   const isAdmin = user.roles.includes(ROLES.Admin);
+  // ADR 0064 — landing-stats server-fetchas en gång per request, samma
+  // endpoint som anonyma landing. `<HeaderStats />` i AppShell pollar sedan
+  // klient-side var 10:e min (Klas-direktiv 2026-05-24).
+  const initialStats = (await fetchLandingStats()) ?? LANDING_STATS_FLOOR_DTO;
 
   return (
     <>
@@ -26,7 +32,7 @@ export default async function AppLayout({
       >
         Hoppa till huvudinnehåll
       </a>
-      <AppShell email={user.email} isAdmin={isAdmin}>
+      <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
         {children}
         {modal}
       </AppShell>

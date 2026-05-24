@@ -660,6 +660,61 @@ a:hover { color: var(--jp-navy-600); }
   .jp-drawer-trigger { display: inline-flex; }
 }
 
+/* App-header live-stats (ADR 0064 — inloggad-paritet med landing-topbar).
+   Klient-polling var 10:e min i HeaderStats.tsx; delta-pill fade-in:as när
+   newToday ökar sedan senaste polling (Klas-direktiv 2026-05-24 — variant
+   "Fade-in + stay"). Döljs på <900px paritet med .jp-nav. */
+.jp-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: 8px;
+}
+.jp-header-stats__item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  position: relative;
+}
+.jp-header-stats__num {
+  font-family: var(--jp-font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+  letter-spacing: -0.005em;
+}
+.jp-header-stats__label {
+  font-family: var(--jp-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+.jp-header-stats__sep {
+  width: 1px;
+  height: 16px;
+  background: var(--jp-border);
+}
+.jp-header-stats__delta {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--jp-success);
+  margin-left: 4px;
+  animation: jp-header-stats-delta-in 200ms ease-out both;
+}
+@keyframes jp-header-stats-delta-in {
+  from { opacity: 0; transform: translateY(-1px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-header-stats__delta { animation: none; }
+}
+@media (max-width: 900px) {
+  .jp-header-stats { display: none; }
+}
+
 /* User menu (popover) */
 .jp-usermenu {
   position: absolute;

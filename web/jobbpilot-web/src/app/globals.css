@@ -663,45 +663,51 @@ a:hover { color: var(--jp-navy-600); }
 /* App-header live-stats (ADR 0064 — inloggad-paritet med landing-topbar).
    Klient-polling var 10:e min i HeaderStats.tsx; delta-pill fade-in:as när
    newToday ökar sedan senaste polling (Klas-direktiv 2026-05-24 — variant
-   "Fade-in + stay"). Döljs på <900px paritet med .jp-nav. */
+   "Fade-in + stay"). Storlek + flex-column-layout är exakt paritet med
+   .jp-land-top__stat* (CSS rad 2366-2391) per Klas-direktiv 2026-05-24
+   "samma stil, font, färger, placering till höger". Döljs på <900px
+   paritet med .jp-nav. */
 .jp-header-stats {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-left: 8px;
+  gap: 18px;
 }
 .jp-header-stats__item {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: column;
+  line-height: 1.1;
   position: relative;
 }
 .jp-header-stats__num {
   font-family: var(--jp-font-mono);
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--jp-ink-1);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
 }
 .jp-header-stats__label {
   font-family: var(--jp-font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--jp-ink-2);
+  margin-top: 2px;
 }
 .jp-header-stats__sep {
   width: 1px;
-  height: 16px;
+  height: 28px;
   background: var(--jp-border);
 }
 .jp-header-stats__delta {
+  position: absolute;
+  top: -10px;
+  right: 0;
   font-family: var(--jp-font-mono);
   font-size: 11px;
   font-weight: 700;
   color: var(--jp-success);
-  margin-left: 4px;
+  white-space: nowrap;
   animation: jp-header-stats-delta-in 200ms ease-out both;
 }
 @keyframes jp-header-stats-delta-in {

@@ -322,3 +322,15 @@ Plan A var att skriva specification helt SQL-side: `WHERE last_status_change_at 
 - **Fas 4** — när AI-jobb-orchestration introduceras + TD-16 retention-jobb byggs: bekräfta att `WorkerCount = 4` räcker eller om jobb-prioritets-köer behövs (`Hangfire.Server.Queues`)
 
 Pre-prod-deploy-krav (TD-17) ska adresseras innan Fas 1 går till prod. ADR 0008 + ADR 0022 kompletteras implicit av denna ADR — pipeline-ordningen är oförändrad (5 behaviors), men registrerings-mekanismen är `AddMediatorPipelineBehaviors()`-extension istället för `options.PipelineBehaviors`-array.
+
+---
+
+## Amendment 2026-05-24 — Worker får Redis-write-port (ADR 0064)
+
+> **Amendment 2026-05-24** (dotnet-architect-dom agentId `a9446dac40e8fef02`, Klas-GO för verbatim-text per memory `feedback_klas_can_override_adr_verbatim_source`):
+>
+> ADR 0064 introducerar `IDistributedCache`-skrivport i Worker (`RedisLandingStatsCache` via `RefreshLandingStatsJob`, cron `*/5 * * * *`). Invariantens kärna (HTTP-fri Worker, ingen ASP.NET Core, ingen Identity-cookie/auth-yta) är **opåverkad**. Outgoing-portar (System.Net.Http per ADR 0032 + StackExchange.Redis per ADR 0064) är fortsatt OK; det är HTTP-server-bagaget som förbjuds.
+>
+> **Operativ konsekvens:** Worker-task-def kräver `ConnectionStrings__Redis`-secret-injektion i `worker_secrets`-blocket (Terraform `environments/dev/main.tf` rad 328-335). Tidigare kommentar "Worker använder INTE Redis" är **superseded** av denna amendment.
+>
+> **Fail-loud-paritet:** Worker `Program.cs` Redis-DI kastar `InvalidOperationException` vid saknad `ConnectionStrings:Redis` (paritet Api `Infrastructure/DependencyInjection.cs:438-440`) — ingen tyst localhost-fallback. Incident 2026-05-24 (Worker-restart efter v0.2.60-dev-deploy producerade `RedisConnectionException` mot localhost var 5:e min eftersom `worker_secrets` saknade Redis-injektion) motiverar denna disciplin.

@@ -375,9 +375,9 @@ export function AppShell({
             ))}
           </nav>
 
-          <HeaderStats initialStats={initialStats} />
-
           <span className="jp-header__spacer" />
+
+          <HeaderStats initialStats={initialStats} />
 
           <div className="jp-header__actions">
             <NotificationsBell />

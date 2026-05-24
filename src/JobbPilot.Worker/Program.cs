@@ -56,8 +56,14 @@ builder.Services.AddScoped<JobbPilot.Worker.Hosting.RefreshLandingStatsWorker>()
 // Worker delar inte AddIdentityAndSessions-stacken med Api (HTTP-fri Worker
 // per ADR 0023), så Redis-cache wiras explicit här. Bara IDistributedCache —
 // IConnectionMultiplexer (SADD/SREM-API:t för session-store) behövs ej i Worker.
-var workerRedisConnectionString =
-    builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+// Fail-loud-paritet med Api Infrastructure/DependencyInjection.cs:438-440 —
+// localhost:6379-fallback skulle masquera config-bortfall i Fargate-task som
+// faller silent var 5:e min (incident 2026-05-24, dotnet-architect-dom
+// agentId a9446dac40e8fef02).
+var workerRedisConnectionString = builder.Configuration.GetConnectionString("Redis")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:Redis saknas i Worker-konfiguration. ADR 0064 kräver " +
+        "Redis-cache-yta för RefreshLandingStatsJob. Verifiera task-def secrets-block.");
 builder.Services.AddStackExchangeRedisCache(opts =>
 {
     opts.Configuration = workerRedisConnectionString;

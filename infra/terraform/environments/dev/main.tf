@@ -325,12 +325,17 @@ module "ecs" {
     "ConnectionStrings__Redis"    = module.redis.connection_string_secret_arn
   }
 
-  # Worker använder INTE Redis (verifierat: Infrastructure/DependencyInjection.cs:90 läser
-  # Redis bara i AddIdentityAndSessions som är HTTP-only; Worker laddar inte denna).
-  # Bara Postgres + HangfireStorage krävs.
+  # ADR 0064 (2026-05-23) — Worker skriver landing-stats-cache till Redis var 5:e
+  # min via RefreshLandingStatsJob → ILandingStatsCache → RedisLandingStatsCache.
+  # Producent-kontraktet kräver samma Redis-CS som Api konsumerar.
+  # Ersätter tidigare invariant "Worker använder INTE Redis" — ADR 0023-kärnan
+  # (HTTP-fri Worker, ingen ASP.NET Core, ingen Identity-yta) är opåverkad; Worker
+  # har nu legitim outgoing cache-write-port (paritet System.Net.Http per ADR 0032).
+  # Se ADR 0023 Amendment 2026-05-24.
   worker_secrets = {
     "ConnectionStrings__HangfireStorage" = aws_secretsmanager_secret.db_hangfire_connection.arn
     "ConnectionStrings__Postgres"        = aws_secretsmanager_secret.db_app_connection.arn
+    "ConnectionStrings__Redis"           = module.redis.connection_string_secret_arn
   }
 
   # Klartext env-vars (icke-känsligt). Alb__HttpsEnabled gate:ar

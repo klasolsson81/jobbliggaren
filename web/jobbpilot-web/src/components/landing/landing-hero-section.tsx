@@ -1,38 +1,24 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Plus } from "lucide-react";
-import { AuthCard, type AuthMode } from "./auth-card";
+import { ArrowRight } from "lucide-react";
+import { AuthCard } from "./auth-card";
 
 /**
  * LandingHeroSection — navy hero med copy-kolumn vänster + AuthCard höger
  * (HANDOVER §7.1 punkt 2).
  *
- * Klient-island eftersom det håller mode-state delat mellan hero-CTA
- * "Skapa konto" och AuthCard. När CTA:n klickas flippas AuthCard till
- * register-tab + sidan scrollar till toppen (matchar prototyp-beteende
- * `setMode("register"); window.scrollTo({ top: 0, behavior: "smooth" })`).
- *
- * "Utforska som gäst" navigerar till `/jobb` (samma route som auth-gated
- * användare landar på efter login). Backend-middleware hanterar
- * autentisering-redirecten om användaren inte är inloggad — landing-koden
- * gör ingen client-side auth-check.
+ * Klient-island eftersom CTA-knapparna använder `useRouter`. Per Klas-direktiv
+ * 2026-05-24 (Steg 5 closed-beta-disciplin) är "Skapa konto"-CTA borttagen.
+ * Två CTA:er återstår: "Anmäl till väntelista" (→ `/vantelista`) och
+ * "Utforska som gäst" (→ `/jobb`, middleware hanterar auth-redirect).
  *
  * Civic-utility-disciplin: inga Sparkles-ikoner, inga gradient-bg, inga
- * trust-pills. CTA-ikoner (Plus, ArrowRight) är funktionella `lucide-react`
- * monogram, ingen "AI"-konnotation.
+ * trust-pills. CTA-ikon (ArrowRight) är funktionell `lucide-react` monogram,
+ * ingen "AI"-konnotation.
  */
 export function LandingHeroSection() {
   const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>("login");
-
-  const onSkapaKonto = () => {
-    setMode("register");
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  };
 
   return (
     <section className="jp-land-hero">
@@ -50,9 +36,9 @@ export function LandingHeroSection() {
               type="button"
               className="jp-btn jp-btn--lg"
               style={{ background: "#fff", color: "#0A2647", borderColor: "#fff" }}
-              onClick={onSkapaKonto}
+              onClick={() => router.push("/vantelista")}
             >
-              <Plus size={16} aria-hidden="true" /> Skapa konto
+              Anmäl till väntelista
             </button>
             <button
               type="button"
@@ -69,7 +55,7 @@ export function LandingHeroSection() {
           </div>
         </div>
 
-        <AuthCard mode={mode} onModeChange={setMode} />
+        <AuthCard />
       </div>
     </section>
   );

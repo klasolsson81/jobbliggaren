@@ -4,7 +4,6 @@ import LandingPage from "@/app/(marketing)/page";
 
 vi.mock("@/lib/auth/actions", () => ({
   loginAction: vi.fn(),
-  registerAction: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -69,14 +68,19 @@ describe("LandingPage (F6 Prompt 1, smoke)", () => {
     expect(screen.getByText("Om JobbPilot")).toBeInTheDocument();
   });
 
-  it("hero CTA 'Skapa konto' flippar AuthCard till register-tab", async () => {
+  it("hero CTA 'Anmäl till väntelista' navigerar till /vantelista (closed beta)", async () => {
     await renderAsyncPage();
-    const heroSkapaKonto = screen.getAllByRole("button", {
-      name: /Skapa konto/i,
-    })[0];
-    fireEvent.click(heroSkapaKonto!);
-    // Register-form-text-fragment ska finnas (datapolicy-disclaimer)
-    expect(screen.getByText(/datapolicy/i)).toBeInTheDocument();
+    const heroVantelistaButton = screen.getByRole("button", {
+      name: /Anmäl till väntelista/i,
+    });
+    expect(heroVantelistaButton).toBeInTheDocument();
+  });
+
+  it("INGEN 'Skapa konto'-CTA i hero (closed beta — registrering stängd)", async () => {
+    await renderAsyncPage();
+    expect(
+      screen.queryByRole("button", { name: /Skapa konto/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("INGEN Sparkles/AI-trope, INGEN Drift-indikator, INGEN Version-kicker (HANDOVER §7.1 Bort:)", async () => {

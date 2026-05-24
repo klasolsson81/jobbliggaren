@@ -27,15 +27,12 @@ export default function VantelistaPage() {
         </div>
       </header>
 
-      <main className="jp-container jp-page">
-        <section
-          aria-labelledby="vantelista-heading"
-          className="mx-auto flex max-w-2xl flex-col gap-6"
-        >
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-12">
+        <section aria-labelledby="vantelista-heading">
           <WaitlistForm />
         </section>
 
-        <footer className="mx-auto mt-12 flex max-w-2xl flex-col gap-3 border-t border-border pt-6">
+        <footer className="flex flex-col gap-3 border-t border-border pt-6">
           <p className="text-body-sm text-text-secondary">
             Vi sparar dina uppgifter endast för väntelistan. Du kan be oss
             radera dem när som helst genom att svara på bekräftelsemejlet.

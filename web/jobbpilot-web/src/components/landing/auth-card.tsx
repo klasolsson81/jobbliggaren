@@ -3,15 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { LoginForm } from "@/components/forms/LoginForm";
-import { RegisterForm } from "@/components/forms/RegisterForm";
 import { OAuthMark, type OAuthProvider } from "./oauth-mark";
-
-export type AuthMode = "login" | "register";
-
-interface AuthCardProps {
-  mode: AuthMode;
-  onModeChange: (mode: AuthMode) => void;
-}
 
 const OAUTH_PROVIDERS: ReadonlyArray<{
   id: OAuthProvider;
@@ -23,81 +15,64 @@ const OAUTH_PROVIDERS: ReadonlyArray<{
 ];
 
 /**
- * AuthCard — höger-kort i landing-hero. Tabs (Logga in / Skapa konto) +
- * formulär + OAuth-knappar.
+ * AuthCard — höger-kort i landing-hero. Per Klas-direktiv 2026-05-24 och
+ * Steg 5 closed-beta-disciplin är registrerings-tab borttagen — bara LoginForm
+ * + OAuth-knappar. Väntelistan nås via separat hero-CTA till `/vantelista`.
  *
- * Mode-state lyfts till parent `<LandingHeroSection />` så hero-CTA "Skapa
- * konto" kan flippa kortet till register-tab. Tab-knapparna här delegerar
- * till samma `onModeChange`.
+ * Formuläret är delade `<LoginForm />` (samma action som `/logga-in`-routen).
+ * Suspense-wrap eftersom det använder `useSearchParams` (App Router-mönster).
  *
- * Formerna är de befintliga delade `<LoginForm />` / `<RegisterForm />`
- * (inga duplicerade valideringsscheman, samma actions). Suspense-wrap
- * eftersom de använder `useSearchParams` (Next App Router-mönster).
- *
- * OAuth-knapparna är **stubs** denna fas (FAS-DEFERRAL per Klas Prompt 1):
- * de leder till `/logga-in?provider=<id>` så befintlig auth-route kan
- * upptäcka query-paramet och hantera när fullt OAuth-flöde wires:as.
- * Idag är det ett no-op-redirect till login-routen — ingen regression.
+ * OAuth-knapparna är stubs denna fas (FAS-DEFERRAL per Klas Prompt 1): de
+ * pekar mot `/logga-in?provider=<id>` så befintlig auth-route kan upptäcka
+ * query-paramet när fullt OAuth-flöde wires:as.
  *
  * Auth-kortet har scoped token-overrides via `.jp-land-auth` så det
  * renderas i ljust läge även i dark mode (HANDOVER §2.4).
  */
-export function AuthCard({ mode, onModeChange }: AuthCardProps) {
+export function AuthCard() {
   return (
     <div className="jp-land-auth">
-      <div className="jp-land-auth__tabs" role="tablist" aria-label="Logga in eller skapa konto">
-        {(["login", "register"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            role="tab"
-            aria-selected={mode === m}
-            className="jp-land-auth__tab"
-            data-active={mode === m}
-            onClick={() => onModeChange(m)}
-          >
-            {m === "login" ? "Logga in" : "Skapa konto"}
-          </button>
-        ))}
-      </div>
+      <h2
+        style={{
+          margin: 0,
+          fontSize: 18,
+          fontWeight: 600,
+          color: "#0A2647",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        Logga in
+      </h2>
 
       <Suspense fallback={null}>
-        {mode === "login" ? <LoginForm /> : <RegisterForm />}
+        <LoginForm />
       </Suspense>
 
-      {mode === "login" && (
-        // TODO: Fas 7 — wire mot riktig glömt-lösenord-route när den finns.
-        // Idag pekar länken mot `/logga-in?reset=1` så befintlig auth-route
-        // kan upptäcka query-paramet (no-op idag, ingen regression).
-        <Link
-          href="/logga-in?reset=1"
-          style={{
-            fontSize: 13.5,
-            alignSelf: "flex-end",
-            textDecoration: "underline",
-            color: "#1B5396",
-            marginTop: -4,
-          }}
-        >
-          Glömt lösenord?
-        </Link>
-      )}
+      <Link
+        href="/logga-in?reset=1"
+        style={{
+          fontSize: 13.5,
+          alignSelf: "flex-end",
+          textDecoration: "underline",
+          color: "#1B5396",
+          marginTop: -4,
+        }}
+      >
+        Glömt lösenord?
+      </Link>
 
       <div
         className="jp-land-auth__sep"
         role="separator"
         aria-orientation="horizontal"
       >
-        <span>
-          {mode === "login" ? "eller logga in med" : "eller fortsätt med"}
-        </span>
+        <span>eller logga in med</span>
       </div>
 
       <div className="jp-land-auth__oauth">
         {OAUTH_PROVIDERS.map((p) => (
           <a
             key={p.id}
-            // TODO: Fas 7 — wire mot riktig OAuth-flöde (ADR-spår behövs)
             href={`/logga-in?provider=${p.id}`}
             className="jp-btn jp-btn--secondary"
             style={{ height: 42, justifyContent: "center" }}
@@ -109,19 +84,23 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
         ))}
       </div>
 
-      {mode === "register" && (
-        <p
-          style={{
-            fontSize: 13.5,
-            color: "var(--jp-ink-2)",
-            margin: 0,
-            lineHeight: 1.5,
-          }}
+      <p
+        style={{
+          fontSize: 13.5,
+          color: "var(--jp-ink-2)",
+          margin: 0,
+          lineHeight: 1.5,
+        }}
+      >
+        Inget konto?{" "}
+        <Link
+          href="/vantelista"
+          style={{ color: "#1B5396", textDecoration: "underline" }}
         >
-          Genom att skapa konto godkänner du våra användarvillkor och vår
-          datapolicy. JobbPilot säljer aldrig din data.
-        </p>
-      )}
+          Anmäl dig till väntelistan
+        </Link>{" "}
+        — JobbPilot är i sluten beta.
+      </p>
     </div>
   );
 }

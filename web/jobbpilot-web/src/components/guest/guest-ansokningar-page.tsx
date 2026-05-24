@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { buildGuestPipeline } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5 — Gäst-ansökningar-pipeline. Mockdata-driven, ingen
@@ -42,8 +43,11 @@ export function GuestAnsokningarPage() {
                 </p>
               ) : (
                 group.applications.map((app) => (
-                  <article
+                  // F-Pre Punkt 5b: rader är `<Link>` så soft-nav fångas av
+                  // `@modal/(.)ansokningar/[id]` → modal (ADR 0053-paritet).
+                  <Link
                     key={app.id}
+                    href={`/gast/ansokningar/${app.id}`}
                     className="jp-app"
                     aria-label={`${app.role} – ${app.company} – ${group.statusLabel}`}
                   >
@@ -56,7 +60,7 @@ export function GuestAnsokningarPage() {
                         <span>{app.updatedAtLabel}</span>
                       </div>
                     </div>
-                  </article>
+                  </Link>
                 ))
               )}
             </div>

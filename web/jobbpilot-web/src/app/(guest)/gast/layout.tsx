@@ -13,8 +13,13 @@ import { hasSeenGuestWelcome } from "@/lib/guest/guest-mode";
 
 export default async function GuestLayout({
   children,
+  modal,
 }: {
   children: React.ReactNode;
+  // F-Pre Punkt 5b 2026-05-24 — @modal parallel-route-slot för
+  // intercepting-routes-modal-paritet med live (CTO Beslut 1). default.tsx
+  // ger null vid omatchad slot.
+  modal: React.ReactNode;
 }) {
   const welcomed = await hasSeenGuestWelcome();
 
@@ -26,7 +31,10 @@ export default async function GuestLayout({
       >
         Hoppa till huvudinnehåll
       </a>
-      <GuestShell>{children}</GuestShell>
+      <GuestShell>
+        {children}
+        {modal}
+      </GuestShell>
       <GuestWelcomeModal showWelcome={!welcomed} />
     </>
   );

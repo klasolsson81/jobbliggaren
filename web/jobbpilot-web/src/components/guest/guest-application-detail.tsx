@@ -1,3 +1,8 @@
+import type { ApplicationStatus } from "@/lib/types/applications";
+import {
+  getStatusLabel,
+  getStatusPillClass,
+} from "@/lib/applications/status";
 import type {
   GuestApplicationStatus,
   GuestMockApplication,
@@ -6,16 +11,35 @@ import type {
 // F-Pre Punkt 5b 2026-05-24 — egen gäst-variant av ApplicationDetail (CTO
 // Beslut 6). Live `<ApplicationDetail>` exponerar muterande knappar
 // (StatusEditCard, AddNoteForm, AddFollowUpForm, RecordFollowUpOutcomeForm)
-// som anropar BE. Gäst får INTE mutera (Klas-direktiv §F) — adapter med
-// "passa undefined"-mönster funkar inte här (komponenten har ingen sådan
-// prop). Egen presentational variant utan mutationsformulär.
+// som anropar BE. Gäst får INTE mutera (Klas-direktiv §F). Egen
+// presentational variant utan mutationsformulär.
+//
+// design-reviewer M1 2026-05-24: status-pill mappar nu till live
+// `ApplicationStatus` + använder `getStatusPillClass` + `getStatusLabel` så
+// färgkodningen är identisk live/gäst. Tidigare hand-roll-mappning gav
+// "warning" för Rejected (live = "danger") och "info" för Submitted
+// (live = "brand") — funktionell felsignalering bröt
+// memory `project_crossref_badge_status`. SECTION_LABEL-rubrik tillagd för
+// typografisk paritet med live <ApplicationDetail> (m6).
 
-const STATUS_BADGE: Record<GuestApplicationStatus, { label: string; pill: string }> = {
-  Draft: { label: "Utkast", pill: "jp-pill jp-pill--neutral" },
-  Submitted: { label: "Inskickad", pill: "jp-pill jp-pill--info" },
-  Interview: { label: "Intervju", pill: "jp-pill jp-pill--success" },
-  Offer: { label: "Erbjudande", pill: "jp-pill jp-pill--success" },
-  Rejected: { label: "Avslag", pill: "jp-pill jp-pill--warning" },
+const SECTION_LABEL_STYLE: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "var(--jp-ink-2)",
+  marginBottom: 10,
+  marginTop: 16,
+};
+
+// GuestApplicationStatus är subset av live ApplicationStatus, mappad så
+// färg + etikett blir identiska (design-reviewer M1).
+const GUEST_TO_LIVE_STATUS: Record<GuestApplicationStatus, ApplicationStatus> = {
+  Draft: "Draft",
+  Submitted: "Submitted",
+  Interview: "InterviewScheduled",
+  Offer: "OfferReceived",
+  Rejected: "Rejected",
 };
 
 export function GuestApplicationDetail({
@@ -23,13 +47,16 @@ export function GuestApplicationDetail({
 }: {
   application: GuestMockApplication;
 }) {
-  const status = STATUS_BADGE[application.status];
+  const liveStatus = GUEST_TO_LIVE_STATUS[application.status];
 
   return (
     <div className="jp-modal__body">
-      <span className={status.pill} style={{ alignSelf: "flex-start" }}>
+      <span
+        className={getStatusPillClass(liveStatus)}
+        style={{ alignSelf: "flex-start" }}
+      >
         <span className="jp-pill__dot" aria-hidden="true" />
-        {status.label}
+        {getStatusLabel(liveStatus)}
       </span>
 
       <dl className="jp-modal__metarow">
@@ -51,7 +78,8 @@ export function GuestApplicationDetail({
         </div>
       </dl>
 
-      <p className="text-body-sm text-text-secondary" style={{ marginTop: 16 }}>
+      <div style={SECTION_LABEL_STYLE}>Om exempelansökningar</div>
+      <p className="text-body-sm text-text-secondary">
         Detta är en exempelansökan i demoläget. Logga in eller anmäl dig till
         väntelistan för att skapa, redigera och följa upp egna ansökningar
         med statusbyten, anteckningar och uppföljningar.

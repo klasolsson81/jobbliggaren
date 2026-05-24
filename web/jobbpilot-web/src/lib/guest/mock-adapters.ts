@@ -1,5 +1,5 @@
 import type { JobAdDto } from "@/lib/dto/job-ads";
-import type { GuestMockJobAd } from "./mock-data";
+import { GUEST_MOCK_REF_NOW_MS, type GuestMockJobAd } from "./mock-data";
 
 // F-Pre Punkt 5b 2026-05-24 — adapters för att map:a gäst-mockdata till
 // DTO-shapes så befintliga presentational-komponenter (`<JobAdDetail>`)
@@ -29,8 +29,8 @@ function isWithinDays(iso: string, days: number): boolean {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return false;
   const ms = days * 24 * 60 * 60 * 1000;
-  // Använd referens-stämpel istället för Date.now() så vitest-snapshots inte
-  // driftar — gäst-mockdata är frozen ändå.
-  const REF_NOW = Date.parse("2026-05-24T20:00:00Z");
-  return REF_NOW - t <= ms;
+  // Använd `GUEST_MOCK_REF_NOW_MS` istället för Date.now() så
+  // vitest-snapshots inte driftar — gäst-mockdata är frozen ändå
+  // (code-reviewer Minor 2 2026-05-24: konsoliderad referens).
+  return GUEST_MOCK_REF_NOW_MS - t <= ms;
 }

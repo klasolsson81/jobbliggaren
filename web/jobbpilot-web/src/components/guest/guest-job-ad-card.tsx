@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getJobSourceLabel } from "@/lib/job-ads/status";
 import type { GuestMockJobAd } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5b 2026-05-24 — gäst-variant av JobAdCard. Länk pekar mot
@@ -38,7 +39,7 @@ export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>
         <div className="jp-job__meta">
-          <span>{jobAd.source}</span>
+          <span>{getJobSourceLabel(jobAd.source)}</span>
           <span>
             Publicerad <b>{publishedAt}</b>
           </span>

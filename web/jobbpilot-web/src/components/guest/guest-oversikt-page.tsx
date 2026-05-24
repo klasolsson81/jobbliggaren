@@ -1,15 +1,24 @@
 import Link from "next/link";
 import { GUEST_MOCK, OVERSIKT_MOCK } from "@/lib/guest/mock-data";
 import { SummaryRow } from "@/components/oversikt/summary-row";
+import { TodayCard } from "@/components/oversikt/today-card";
 
 // F-Pre Punkt 5 — Gäst-översikt-sida (CTO-dom 2026-05-24 Beslut 1).
+// F-Pre Punkt 5b 2026-05-24 (CTO Beslut 5, Variant α): Klas-feedback "för
+// liten" adresserad genom återanvändning av `<TodayCard>` (presentational
+// RSC), utökad summary (4 rader per grupp), och fler notiser (4 i stället
+// för 3).
 //
 // Ren mockdata-driven utan BE-anrop. Återanvänder presentational
-// `<SummaryRow>` (CTO Beslut 1 — komponent-extraction sker när duplikat
-// upptäcks). Muterande notice-CTAs leder till /vantelista per Klas-direktiv
-// §F.
+// `<SummaryRow>` + `<TodayCard>`. Muterande notice-CTAs leder till
+// /vantelista per Klas-direktiv §F.
 
 const STAMP_DATE = new Date().toISOString().slice(0, 10);
+// Stabil "i dag"-referens för demo så TodayCard inte ändrar datum mellan
+// renderings i samma session (gäst-mockdata är frozen — datumet ska kännas
+// realistiskt men inte drifta). Använder referens-stämpel som matchar
+// mock-applikationernas updatedAtLabel-period.
+const GUEST_DEMO_TODAY = new Date("2026-05-24T08:00:00Z");
 
 function formatThousands(n: number): string {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -31,6 +40,13 @@ export function GuestOversiktPage() {
               Så här ser det ut när du följer dina ansökningar. Allt här är
               exempeldata.
             </p>
+          </div>
+          <div className="jp-pagehero__aside">
+            <TodayCard
+              today={GUEST_DEMO_TODAY}
+              events={OVERSIKT_MOCK.todaysEvents}
+              googleSynced={false}
+            />
           </div>
         </div>
       </section>
@@ -70,6 +86,20 @@ export function GuestOversiktPage() {
             </div>
           )}
 
+          <div className="jp-notice jp-notice--warning">
+            <span className="jp-notice__strip" aria-hidden="true" />
+            <span className="jp-notice__label">Påminnelse</span>
+            <div className="jp-notice__text">
+              Du har <b>{GUEST_MOCK.summary.applicationsByStatus.Draft} utkast</b>{" "}
+              som inte är inskickade. Färdigställ och skicka för att hålla
+              pipeline aktiv.
+            </div>
+            <Link href="/gast/ansokningar" className="jp-notice__cta">
+              Visa ansökningar
+            </Link>
+            <span className="jp-notice__time">i dag</span>
+          </div>
+
           <div className="jp-notice jp-notice--info">
             <span className="jp-notice__strip" aria-hidden="true" />
             <span className="jp-notice__label">Matchning</span>
@@ -79,8 +109,8 @@ export function GuestOversiktPage() {
               matchar profilen — de flesta inom{" "}
               <em>{OVERSIKT_MOCK.matchSegmentLabel}</em>.
             </div>
-            <Link href="/vantelista" className="jp-notice__cta">
-              Anmäl till väntelistan
+            <Link href="/gast/jobb" className="jp-notice__cta">
+              Visa annonser
             </Link>
             <span className="jp-notice__time">i dag</span>
           </div>
@@ -130,6 +160,11 @@ export function GuestOversiktPage() {
             <div className="jp-summary__group">
               <div className="jp-summary__group__title">Bevakning</div>
               <SummaryRow
+                label="Sparade sökningar"
+                value={OVERSIKT_MOCK.savedSearchHitsLast.newHits}
+                hint="nya träffar"
+              />
+              <SummaryRow
                 label="Nya matchningar i dag"
                 value={OVERSIKT_MOCK.matchCountToday}
                 hint="profil"
@@ -139,14 +174,19 @@ export function GuestOversiktPage() {
                 value={formatThousands(GUEST_MOCK.activeJobAdsTotal)}
               />
               <SummaryRow
-                label="Senaste sökning"
-                value={OVERSIKT_MOCK.savedSearchHitsLast.name}
+                label="Exempelannonser i demo"
+                value={GUEST_MOCK.summary.jobAdsTotal}
+                href="/gast/jobb"
               />
             </div>
 
             <div className="jp-summary__group">
               <div className="jp-summary__group__title">Underlag</div>
-              <SummaryRow label="CV-varianter" value={summary.resumesTotal} />
+              <SummaryRow
+                label="CV-varianter"
+                value={summary.resumesTotal}
+                href="/gast/cv"
+              />
               <SummaryRow
                 label="Personliga brev"
                 value={OVERSIKT_MOCK.personalLettersCount}
@@ -154,6 +194,11 @@ export function GuestOversiktPage() {
               <SummaryRow
                 label="Senast uppdaterat CV"
                 value={resumes[0]?.updatedAtLabel ?? "—"}
+              />
+              <SummaryRow
+                label="Demo aktiv sedan"
+                value="i dag"
+                hint="ej sparad"
               />
             </div>
           </div>

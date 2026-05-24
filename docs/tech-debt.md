@@ -49,6 +49,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-87 | Rate-limit för `/me/*`-endpoints batch (saved-job-ads + job-ad-status + recent-searches) | **Major** | F6 P5 P2-fas-stängning | Säkerhet/DoS-skydd |
 | TD-88 | DOM-mutation via onMouseOver i RecentSearchesHeroChip + SavedJobAdsHeroChip — flytta till CSS `:hover` | Minor | Trigger | Frontend/React-disciplin |
 | TD-89 | Ephemeral API+Redis+Worker-stack i CI loadtest-jobb (kör `LOADTEST_SCENARIOS=landing-stats` mot riktig backend) | Minor | Trigger | Performance/CI fitness function |
+| TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl, värdet 1 oförändrat) | Minor | Trigger | Infra/IaC |
 
 ---
 
@@ -170,6 +171,37 @@ av Redis-nyckel) så cache-hit-scenariot inte träffar Floor-fallback hela tiden
 0045 Beslut 6-ratchet närmar sig (flip observe-only → blockerande kräver
 faktisk runtime-mätning), eller (c) någon annan fitness-function-yta behöver
 samma stack.
+
+
+## TD-91: RDS param-group `apply_method`-drift (pre-existing state-config-drift)
+
+**Kategori:** Infra/IaC
+**Severity:** Minor
+**Fas:** Trigger (separat IaC-triage-session, paritet TD-85 github_oidc-drift)
+**Källa:** `terraform plan` mot `environments/dev` 2026-05-24 03:51 UTC (incident
+session F6 P5 Punkt 3 — Worker→Redis-fix). Pre-existing drift upptäckt vid
+plan-output, EJ introducerad av denna session.
+
+`terraform plan` mot dev visar `module.rds.aws_db_parameter_group.this` med
+update-in-place där `parameter.apply_method` byter från `pending-reboot` till
+`immediate` för `rds.force_ssl`-parametern. Värdet (`1`) är **oförändrat** —
+SSL forceras lika strikt före och efter. Det är ren state-config-drift där
+AWS-side har annat `apply_method`-fält än Terraform-config säger. Ingen
+funktionell incident.
+
+Targeted apply 2026-05-24 (TD-85-precedens) uteslöt RDS-modulen medvetet för
+att inte svepa med drift utanför scope. Drift kvarstår tills separat IaC-
+session adresserar både denna och TD-85 (+ ev. andra pre-existing-drift som
+ackumulerats).
+
+**Föreslagen åtgärd:** I separat IaC-session, kör `terraform plan` på hela
+dev + prod, listare ALLA pre-existing-drifter, gör Klas-triage per drift
+(applya / supersede config / dokumentera intent), kör full apply efter triage.
+
+**Beroenden:** Inga blockerande. Trigger = (a) annan IaC-modul-ändring som
+ändå rör RDS-modulen (paritet vinst), (b) framtida sec-auditor- eller architect-
+rond som vill ha rent plan-utgångsläge, eller (c) Klas-IaC-triage-session
+(samlas med TD-85 + ev. nya).
 
 
 ## Major — Fas 3+

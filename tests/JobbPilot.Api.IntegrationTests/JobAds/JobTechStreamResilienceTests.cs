@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Polly;
+using Refit;
 using Shouldly;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -196,6 +197,12 @@ public class JobTechStreamResilienceTests
                 Delay = TimeSpan.FromMilliseconds(10),
             });
         });
+
+        // STEG 6 (2026-05-24) — PlatsbankenJobSource har nu IJobTechSearchClient
+        // som constructor-dep för RefetchByExternalIdAsync. Snapshot/stream-tester
+        // anropar inte refetch-vägen, men DI måste fortfarande resolvera porten.
+        services.AddRefitClient<IJobTechSearchClient>()
+            .ConfigureHttpClient(c => c.BaseAddress = new Uri(baseUrl));
 
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
 

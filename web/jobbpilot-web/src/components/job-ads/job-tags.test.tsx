@@ -43,6 +43,26 @@ describe("computeFreshnessLabel", () => {
     const published = new Date(now + 1 * DAY_MS).toISOString();
     expect(computeFreshnessLabel(published, now)).toBeNull();
   });
+
+  // Klas-observation 2026-05-24 — låser kalender-dag-jämförelse: en annons
+  // publicerad strax före midnatt UTC visas som "1 dag" ~3h senare, INTE som
+  // "Idag" (vilket 24h-fönster-implementationen tidigare gjorde och som
+  // krockade med `formatPublishedAtWithTime`-copy som sa "igår, kl. 23:37").
+  it("returns '1 dag' when published before midnight UTC and inspected next day (kalender-gräns)", () => {
+    const inspectedAt = Date.parse("2026-05-24T02:30:00Z");
+    const publishedJustBeforeMidnight = "2026-05-23T23:37:00Z";
+    expect(computeFreshnessLabel(publishedJustBeforeMidnight, inspectedAt)).toBe(
+      "1 dag",
+    );
+  });
+
+  it("returns 'Idag' for any publish time on same UTC calendar day", () => {
+    const inspectedAt = Date.parse("2026-05-24T23:50:00Z");
+    const publishedSameDayEarly = "2026-05-24T00:11:00Z";
+    expect(computeFreshnessLabel(publishedSameDayEarly, inspectedAt)).toBe(
+      "Idag",
+    );
+  });
 });
 
 describe("JobTags (high-water-mark NY-modell)", () => {

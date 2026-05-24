@@ -1,28 +1,11 @@
-import { Suspense } from "react";
-import Link from "next/link";
-import { RegisterForm } from "@/components/forms/RegisterForm";
+import { permanentRedirect } from "next/navigation";
 
-export default function RegistreraPage() {
-  return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-h2 font-medium text-text-primary">Skapa konto</h1>
-        <p className="text-body text-text-secondary">JobbPilot</p>
-      </div>
-
-      <Suspense fallback={null}>
-        <RegisterForm />
-      </Suspense>
-
-      <p className="text-sm text-text-secondary text-center">
-        Har du redan ett konto?{" "}
-        <Link
-          href="/logga-in"
-          className="text-brand-600 hover:text-brand-700 underline underline-offset-2"
-        >
-          Logga in
-        </Link>
-      </p>
-    </div>
-  );
+/**
+ * Closed-beta-disciplin (ADR 0005 Amendment 2026-05-12): publik registrering
+ * är stängd. `/registrera` 308-permanent-redirectar till `/vantelista` där
+ * intresseanmälningar samlas. RegisterForm-komponenten är bevarad i
+ * `@/components/forms/RegisterForm` för post-launch invite-flow.
+ */
+export default function RegistreraPage(): never {
+  permanentRedirect("/vantelista");
 }

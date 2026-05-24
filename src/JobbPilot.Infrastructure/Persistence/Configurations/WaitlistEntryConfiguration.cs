@@ -20,6 +20,14 @@ public sealed class WaitlistEntryConfiguration : IEntityTypeConfiguration<Waitli
             .HasMaxLength(254)
             .IsRequired();
 
+        builder.Property(w => w.Name)
+            .HasMaxLength(WaitlistEntry.NameMaxLength)
+            .IsRequired();
+
+        builder.Property(w => w.Motivation)
+            .HasMaxLength(WaitlistEntry.MotivationMaxLength)
+            .IsRequired();
+
         builder.Property(w => w.RequestedAt).IsRequired();
 
         builder.Property(w => w.Status)
@@ -38,6 +46,25 @@ public sealed class WaitlistEntryConfiguration : IEntityTypeConfiguration<Waitli
             .HasConversion(
                 id => id == null ? (Guid?)null : id.Value.Value,
                 value => value == null ? (InvitationId?)null : new InvitationId(value.Value));
+
+        // GDPR Art. 7-acceptance-record. Användarvillkor + nödvändiga cookies
+        // levereras under Art. 6(1)(b) "performance of contract" (submit = acceptance),
+        // ingen separat consent-checkbox. Endast MarketingEmailAccepted är genuint
+        // Art. 7-samtycke. CTO-dom 2026-05-24 Fynd 1 Approach B.
+        builder.OwnsOne(w => w.Acceptance, acceptance =>
+        {
+            acceptance.Property(a => a.MarketingEmailAccepted)
+                .HasColumnName("marketing_email_accepted")
+                .IsRequired();
+            acceptance.Property(a => a.AcceptedAt)
+                .HasColumnName("accepted_at")
+                .IsRequired();
+            acceptance.Property(a => a.PrivacyPolicyVersion)
+                .HasColumnName("privacy_policy_version")
+                .HasMaxLength(50)
+                .IsRequired();
+        });
+        builder.Navigation(w => w.Acceptance).IsRequired();
 
         // Admin pollar "vilka pending finns" → status-first compound index.
         builder.HasIndex(w => new { w.Status, w.RequestedAt });

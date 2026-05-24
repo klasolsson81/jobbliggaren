@@ -99,7 +99,16 @@ public class AdminWaitlistApprovalTests(ApiFactory factory)
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<JobbPilot.Domain.Common.IDateTimeProvider>();
-        var entry = WaitlistEntry.Request(email, clock).Value;
+        var acceptance = new AcceptanceSnapshot(
+            MarketingEmailAccepted: false,
+            AcceptedAt: clock.UtcNow,
+            PrivacyPolicyVersion: "1.0");
+        var entry = WaitlistEntry.Request(
+            email,
+            name: "Testperson",
+            motivation: "Integration-test seed med tillräckligt lång motivering.",
+            acceptance,
+            clock).Value;
         db.WaitlistEntries.Add(entry);
         await db.SaveChangesAsync(ct);
         return entry.Id.Value;

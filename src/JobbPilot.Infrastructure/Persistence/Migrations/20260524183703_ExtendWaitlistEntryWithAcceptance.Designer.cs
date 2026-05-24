@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobbPilot.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace JobbPilot.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260524183703_ExtendWaitlistEntryWithAcceptance")]
+    partial class ExtendWaitlistEntryWithAcceptance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -747,41 +750,6 @@ namespace JobbPilot.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_waitlist_entries_status_requested_at");
 
                     b.ToTable("waitlist_entries", (string)null);
-                });
-
-            modelBuilder.Entity("JobbPilot.Domain.Waitlist.WaitlistEntry", b =>
-                {
-                    b.OwnsOne("JobbPilot.Domain.Waitlist.AcceptanceSnapshot", "Acceptance", b1 =>
-                        {
-                            b1.Property<Guid>("WaitlistEntryId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("id");
-
-                            b1.Property<DateTimeOffset>("AcceptedAt")
-                                .HasColumnType("timestamp with time zone")
-                                .HasColumnName("accepted_at");
-
-                            b1.Property<bool>("MarketingEmailAccepted")
-                                .HasColumnType("boolean")
-                                .HasColumnName("marketing_email_accepted");
-
-                            b1.Property<string>("PrivacyPolicyVersion")
-                                .IsRequired()
-                                .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
-                                .HasColumnName("privacy_policy_version");
-
-                            b1.HasKey("WaitlistEntryId");
-
-                            b1.ToTable("waitlist_entries");
-
-                            b1.WithOwner()
-                                .HasForeignKey("WaitlistEntryId")
-                                .HasConstraintName("fk_waitlist_entries_waitlist_entries_id");
-                        });
-
-                    b.Navigation("Acceptance")
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("JobbPilot.Infrastructure.JobAds.SnapshotMisses.JobAdSnapshotMiss", b =>

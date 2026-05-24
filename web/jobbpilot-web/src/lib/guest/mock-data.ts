@@ -40,9 +40,22 @@ export interface GuestMockResume {
   readonly isPrimary: boolean;
 }
 
+export interface GuestMockJobAd {
+  readonly id: string;
+  readonly title: string;
+  readonly companyName: string;
+  readonly source: "Platsbanken" | "Manual";
+  readonly publishedAtIso: string;
+  readonly expiresAtIso: string | null;
+  readonly summary: string;
+  readonly description: string;
+  readonly url: string;
+}
+
 export interface GuestMockData {
   readonly applications: ReadonlyArray<GuestMockApplication>;
   readonly resumes: ReadonlyArray<GuestMockResume>;
+  readonly jobAds: ReadonlyArray<GuestMockJobAd>;
   // Sammanfattnings-tal som synkas med /gast/oversikt:s "Mina ansökningar"-rad
   // och /gast/ansokningar:s pipeline-count. Härleds från `applications` ovan
   // (single source of truth — uppdatera mockdata på en plats).
@@ -50,6 +63,7 @@ export interface GuestMockData {
     readonly applicationsTotal: number;
     readonly applicationsByStatus: Readonly<Record<GuestApplicationStatus, number>>;
     readonly resumesTotal: number;
+    readonly jobAdsTotal: number;
   };
   /** Mock-totalt aktiva annonser i korpus (design-reviewer M5). */
   readonly activeJobAdsTotal: number;
@@ -178,16 +192,138 @@ function countByStatus(
 // dev-korpus (~46k aktiva annonser) så användaren får realistisk demo.
 const GUEST_ACTIVE_JOB_ADS_TOTAL = 46_000;
 
+// F-Pre Punkt 5b 2026-05-24 — mock-jobbannonser för /gast/jobb (CTO Beslut 2).
+// Stabila ISO-dates (inte Date.now()) så vitest-snapshots inte driftar.
+// Datum-strängarna är "färska" mot referens-stämpel 2026-05-24.
+const GUEST_JOB_ADS: ReadonlyArray<GuestMockJobAd> = [
+  {
+    id: "gj-1",
+    title: "Senior Backend-utvecklare .NET",
+    companyName: "Klarna",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-23T08:14:00Z",
+    expiresAtIso: "2026-06-15",
+    summary:
+      "Vi söker en senior backend-utvecklare som vill bygga betalningstjänster i .NET och Azure.",
+    description:
+      "Du blir en del av ett team som äger en av Klarnas centrala betalningsdomäner. Du designar API:er, arbetar med event-drivna arkitekturer (Kafka), och tar ansvar för kvalitet, observabilitet och säkerhet. Vi värdesätter erfarenhet av Clean Architecture, CQRS och testdriven utveckling.\n\nDu får jobba med moderna tekniker, distribuerad arkitektur och ett team som värnar om hantverk och pedagogik. Vi har kontor i Stockholm men erbjuder hybrid- och distansarbete.\n\nKvalifikationer: 5+ års erfarenhet av .NET, gärna med microservices, samt vana av att äga produktionssystem.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-1",
+  },
+  {
+    id: "gj-2",
+    title: "Systemutvecklare .NET",
+    companyName: "Folksam IT",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-22T11:30:00Z",
+    expiresAtIso: "2026-06-10",
+    summary:
+      "Folksam IT söker en systemutvecklare som vill arbeta med försäkringsdomänen.",
+    description:
+      "Folksam IT bygger system som hanterar miljontals försäkringsärenden årligen. Vi söker dig som tycker om att förstå domänen och skriva ren, testbar kod. Du blir del av ett tvärfunktionellt team med UX, produkt och drift.\n\nVi arbetar med .NET 8, EF Core, Postgres och Azure. Kunskap om DDD, CQRS och event sourcing är meriterande men inte krav.\n\nKollektivavtal, tjänstepension och 30 dagars semester.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-2",
+  },
+  {
+    id: "gj-3",
+    title: "Frontend-utvecklare React/Next.js",
+    companyName: "Bonnier News",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-24T07:00:00Z",
+    expiresAtIso: "2026-06-21",
+    summary:
+      "Bonnier News bygger nästa generations nyhetsupplevelser i React och Next.js.",
+    description:
+      "Du blir en del av redaktionella produktteam som arbetar nära journalister och designers. Vi använder Next.js App Router, RSC och TypeScript. Du värnar om tillgänglighet, prestanda och underhållbarhet.\n\nVi söker dig med god förståelse för React Server Components, modernt CSS och systemdesign. Erfarenhet av tillgänglighetsarbete (WCAG) är starkt meriterande.\n\nKontor i centrala Stockholm. Hybrid 2-3 dagar i veckan.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-3",
+  },
+  {
+    id: "gj-4",
+    title: "Lösningsarkitekt — offentlig sektor",
+    companyName: "Skatteverket",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-21T13:45:00Z",
+    expiresAtIso: "2026-06-12",
+    summary:
+      "Skatteverket söker en lösningsarkitekt för förvaltning av centrala system.",
+    description:
+      "Du arbetar nära beställare och utvecklingsteam för att utforma långsiktigt hållbara lösningar. Du tar fram arkitekturbeslut (ADR), genomför reviews och bidrar till våra principer för säkerhet och datakvalitet.\n\nKrav: bred erfarenhet av systemdesign, dokumentation och kommunikation. Erfarenhet av offentlig sektor och regelefterlevnad är meriterande.\n\nFasta arbetstider, statlig pension, möjlighet till distansarbete upp till två dagar i veckan.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-4",
+  },
+  {
+    id: "gj-5",
+    title: "Fullstack-utvecklare",
+    companyName: "ICA Gruppen",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-20T09:20:00Z",
+    expiresAtIso: "2026-06-08",
+    summary:
+      "ICA digital söker en fullstack-utvecklare till handel- och kunddata-teamet.",
+    description:
+      "Du arbetar med både frontend (TypeScript, React) och backend (.NET, Postgres). Teamet ansvarar för kundklubben och digitala erbjudanden — system som möter miljoner kunder dagligen.\n\nVi värdesätter pragmatism, testdisciplin och förståelse för hela leveranskedjan från idé till produktion.\n\nKontor i Solna. Hybrid.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-5",
+  },
+  {
+    id: "gj-6",
+    title: "Junior Backend-utvecklare",
+    companyName: "Region Stockholm",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-18T14:10:00Z",
+    expiresAtIso: "2026-06-05",
+    summary:
+      "Region Stockholm utvecklar vårdens digitala stödsystem och söker en junior utvecklare.",
+    description:
+      "Du blir en del av ett team som bygger e-tjänster för invånare och vårdpersonal. Du får mentor från första dagen och tydliga utvecklingsmål.\n\nKrav: avslutad utbildning inom systemvetenskap eller motsvarande. Kunskap om .NET eller Java. Vi värdesätter förmåga att läsa och förstå befintlig kod lika högt som att skriva ny.\n\nKollektivavtal och pension via region-avtal.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-6",
+  },
+  {
+    id: "gj-7",
+    title: "Webbutvecklare — tillgänglighet",
+    companyName: "Trafikverket",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-19T10:00:00Z",
+    expiresAtIso: "2026-06-09",
+    summary:
+      "Trafikverket söker en webbutvecklare med fokus på tillgänglighet och WCAG-efterlevnad.",
+    description:
+      "Du arbetar i tvärfunktionella team och stöttar både utvecklare och designers i tillgänglighetsfrågor. Du genomför audits, ger feedback på komponentbibliotek och bygger gemensamma riktlinjer.\n\nKrav: dokumenterad erfarenhet av WCAG 2.1 AA, semantisk HTML och ARIA. Kunskap om svensk DOS-lagen är meriterande.\n\nStandard statliga villkor.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-7",
+  },
+  {
+    id: "gj-8",
+    title: "DevOps-ingenjör",
+    companyName: "Spotify",
+    source: "Platsbanken",
+    publishedAtIso: "2026-05-22T16:55:00Z",
+    expiresAtIso: "2026-06-19",
+    summary:
+      "Spotify söker en DevOps-ingenjör som vill arbeta med plattformsteam.",
+    description:
+      "Du designar och vidareutvecklar interna utvecklingsplattformar som tusentals ingenjörer använder dagligen. Fokus på utvecklarupplevelse, observabilitet och CI/CD.\n\nVi arbetar med Kubernetes, Backstage, GCP och egna interna verktyg. Erfarenhet av distributed systems på skala krävs.\n\nKontor i Stockholm. Flexibelt hybridläge.",
+    url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-8",
+  },
+];
+
 export const GUEST_MOCK: GuestMockData = {
   applications: APPLICATIONS,
   resumes: RESUMES,
+  jobAds: GUEST_JOB_ADS,
   summary: {
     applicationsTotal: APPLICATIONS.length,
     applicationsByStatus: countByStatus(APPLICATIONS),
     resumesTotal: RESUMES.length,
+    jobAdsTotal: GUEST_JOB_ADS.length,
   },
   activeJobAdsTotal: GUEST_ACTIVE_JOB_ADS_TOTAL,
 } as const;
+
+/** Slå upp gäst-mock-annons via id. Returnerar `null` om id okänt. */
+export function findGuestJobAd(id: string): GuestMockJobAd | null {
+  return GUEST_JOB_ADS.find((j) => j.id === id) ?? null;
+}
+
+/** Slå upp gäst-mock-ansökan via id. Returnerar `null` om id okänt. */
+export function findGuestApplication(id: string): GuestMockApplication | null {
+  return APPLICATIONS.find((a) => a.id === id) ?? null;
+}
 
 // Pipeline-grupperingen för /gast/ansokningar — samma data, omstrukturerad
 // efter status. Härleds (inte hårdkodad) så summan = applications.length och

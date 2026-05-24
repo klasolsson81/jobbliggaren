@@ -2444,3 +2444,76 @@ prod-deploy.
 **Reviews:** `docs/reviews/2026-05-19-td13-c456-security-audit.md`,
 `-c456-code-review.md`, `-kms-iac-design-architect.md`,
 `-c4-gate-and-mechanic.md`, `2026-05-18-td13-*`.
+
+---
+
+## TD-82: Översikt/Dashboard-sida (post-login-landningsvy)
+**Kategori:** Frontend / Feature
+**Severity:** Minor
+**Fas:** 2 (Klas-bekräftad 2026-05-16)
+**Källa:** senior-cto-advisor 2026-05-16 (UI-refactor v2-iteration, Beslut 3)
+**Stängd:** 2026-05-24 (F6 P5 Punkt 4)
+
+Designsystem v2 / referensdesignen (`pages.jsx → DashboardPage`) hade en
+"Översikt" som första nav-item och naturlig post-login-landning (Aktuellt-feed,
+senaste ansökningar, matchande jobb). Den byggdes **inte** i v2-batchen och nav
+saknade den medvetet.
+
+**Skäl till TD (CLAUDE.md §9.6 kriterium 2 — saknad funktion-dependency):** En
+äkta Översikt krävde aggregat-queries som inte fanns (ansökningsstatus-counts,
+kommande intervjuer/deadlines, ny-matchningar). Att scaffolda en tom/fejkad
+dashboard nu vore fyllnadselement — direkt brott mot PRINCIPLES.md regel 3
+("varje pixel ska bära information"). En tom översikt är sämre än ingen.
+
+Interim-beslut levererat in-block i v2-iterationen: post-login redirectar till
+`/jobb` (produktens primära jobb-att-göra), inte `/mig`.
+
+**Föreslagen åtgärd (uppfylld):** När aggregat-query-ytan finns (Fas 2 ansöknings-/
+matchnings-data): bygg Översikt enligt referensdesignen, lägg in som första
+nav-item, och ändra post-login-default från `/jobb` till `/oversikt`.
+
+**Beroenden:** Aggregat-queries för ansökningsstatus-counts + kommande
+kalenderhändelser (Fas 2-domändata).
+
+### Stängningsnotat
+
+Stängd via F6 P5 Punkt 4 (2026-05-24, commit-batch på `main` HEAD `0e2bd57`).
+
+**Leverans-omfattning (Variant A per CTO-dom 2026-05-24 agentId `ac1dbfa14aa599e65`):**
+
+- Ny route `/oversikt` under `(app)`-gruppen — auth-gated, `force-dynamic`
+  (GDPR + ADR 0045 klass (a) auth-gated read 300ms p95)
+- Tre sektioner per Klas-godkänd HANDOVER-oversikt.md: Title+I dag-kort /
+  Notiser (Kräver åtgärd + Information) / Sammanfattning (Ansökningar +
+  Bevakning + Underlag)
+- Direkt RSC `Promise.all` mot 6 befintliga endpoints
+  (`getMyProfile`, `getPipeline`, `getSavedJobAds`, `getRecentSearches`,
+  `getResumes`, `getJobAds`) — INGEN ny composer-endpoint, INGEN Worker-cache
+  (per-user-data, ej publik anonym → ADR 0064-mönstret EJ tillämpligt)
+- Klient-side dismiss-state via `useSyncExternalStore` + localStorage
+  (key `jp-oversikt-dismissed-notices`) — ingen `markNotificationRead`-
+  server-action ännu (BE-port saknas)
+- Centraliserad mock-modul `web/jobbpilot-web/src/lib/oversikt/mock-data.ts`
+  per HANDOVER §3.7 — varje mock-fält har BE-port-kommentar för framtida byte
+- `/oversikt` lagts till som FÖRSTA nav-item i `app-shell.tsx` (additivt)
+
+**Avvikelse — DEFERRED till separat Klas-GO-commit:** Default-route-byte
+(login-redirect + brand-länk till `/oversikt`) hålls för separat substitutiv
+commit efter Klas pixel-verifiering (CTO-dom D6: substitutiv user-visible
+change med synlig mockdata → reversibility-disciplin > strict-spec-compliance).
+HANDOVER §7 spec uppfylld additivt, substitutivt-bytet blir framtida fas.
+
+**Reviews:**
+- senior-cto-advisor (`a1c4756be8a949a6f` … se `docs/reviews/2026-05-24-f6-p5-punkt4-oversikt-cto.md` agentId `ac1dbfa14aa599e65`)
+- nextjs-ui-engineer leverans (`a1c4756be8a949a6f`)
+- code-reviewer / security-auditor / design-reviewer (se `docs/reviews/2026-05-24-f6-p5-punkt4-*.md`)
+
+**Tester:** 70 vitest-filer / 676/676 tester PASS (+21 nya
+`aggregations.test.ts`); `pnpm build` PASS (`/oversikt` listad som
+dynamisk route); `pnpm lint` PASS (0 errors, 5 pre-existerande warnings
+oförändrade).
+
+**Ingen ADR skriven** per CTO-dom D5 — ADR 0048 Beslut (b) täcker regeln att
+per-user auth-gated aggregat inte tillhör någon av de fyra port-axlarna
+(0043/0062/0063/0064) → in-konsument-aggregering. Implementations-not
+i `current-work.md` etablerar skiljelinjen mot ADR 0064.

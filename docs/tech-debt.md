@@ -23,7 +23,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
 | TD-27 | EmailHash → HMAC med roterande nyckel | Minor | 2 | Säkerhet/GDPR |
 | TD-85 | github_oidc prod-drift (OIDC-provider + deploy_dev-roll) | Minor | Trigger | Infra/IaC |
-| TD-82 | Översikt/Dashboard-sida (post-login-landningsvy) | Minor | 2 | Frontend/Feature |
 | TD-74 | Strikta DML-GRANTs på public + identity istället för GRANT ALL | Minor | 2 (opportunistisk) | Säkerhet/Least Privilege |
 | TD-72 | Auto-trigga Migrate bootstrap-mode i deploy-dev.yml | Minor | Trigger | Operations/CI-CD |
 | TD-75 | Name-baserad rekryterar-PII-radering (multi-path jsonb + full-text) | Minor | Trigger | GDPR/Privacy |
@@ -50,6 +49,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-88 | DOM-mutation via onMouseOver i RecentSearchesHeroChip + SavedJobAdsHeroChip — flytta till CSS `:hover` | Minor | Trigger | Frontend/React-disciplin |
 | TD-89 | Ephemeral API+Redis+Worker-stack i CI loadtest-jobb (kör `LOADTEST_SCENARIOS=landing-stats` mot riktig backend) | Minor | Trigger | Performance/CI fitness function |
 | TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl, värdet 1 oförändrat) | Minor | Trigger | Infra/IaC |
+| TD-92 | Rate-limit på 5 `/me/*` + `/applications/pipeline` + `/resumes` auth-gated GET-endpoints (preexisting, amplifieras av /oversikt Promise.all) | **Major** | F6 P5-fas-stängning | Säkerhet/DoS-skydd |
 
 ---
 
@@ -80,6 +80,51 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 ## Major — Fas 2
 
 ## Major — F6 P5 Punkt 2-fas-stängning
+
+## TD-92: Rate-limit på auth-gated GET-endpoints (preexisting, amplifieras av `/oversikt` `Promise.all`)
+
+**Kategori:** Säkerhet/DoS-skydd
+**Severity:** Major
+**Fas:** F6 P5-fas-stängning
+**Källa:** security-auditor F6 P5 Punkt 4-review 2026-05-24 (agentId `a11074672eb69e526`) Major M-1.
+
+5 av 6 endpoints som `/oversikt` ringer parallellt saknar `.RequireRateLimiting(...)`:
+
+- `GET /api/v1/me/profile` (MeEndpoints.cs:23-27)
+- `GET /api/v1/applications/pipeline` (ApplicationsEndpoints.cs:31-35)
+- `GET /api/v1/me/saved-job-ads` (SavedJobAdsEndpoints.cs:23-27)
+- `GET /api/v1/me/recent-searches` (RecentSearchesEndpoints.cs:21)
+- `GET /api/v1/resumes` (ResumesEndpoints.cs:21-29)
+
+Endast `GET /api/v1/job-ads` har `ListReadPolicy`. Endpoints är auth-gated
+(`RequireAuthorization`) så anonym DoS-yta är skyddad — men kompromissat
+konto kan göra OWASP API4:2023-style Unrestricted Resource Consumption mot
+5 osynliga endpoints.
+
+**Pre-existing.** Ej introducerat av F6 P5 Punkt 4. Men `/oversikt` skapar nu
+en enda klient-sidladdning som triggar 6 BE-anrop — 6x request-amplifikation
+per sidladdning vs en enskild list-endpoint. Detta höjer DoS-yta-multiplikatorn
+för kompromissat konto utan att ändra underliggande sanning: per-endpoint-
+skyddet saknas oavsett.
+
+**§9.6-press:** Pre-existing fynd; funktion-dependencies finns
+(`ListReadPolicy` + alla 5 endpoints). Kvalificerar för TD eftersom (a) scope-
+spridning över 5 BE-filer är ej rimlig att amplifiera i ren FE-PR, (b) policy-
+val per endpoint kräver dotnet-architect-rond (är `ListReadPolicy` 60/min/user
+rätt för pipeline-yta som ofta returnerar tunga objekt, eller behövs dedikerad
+`MeListReadPolicy` med lägre limit?).
+
+**Föreslagen åtgärd:**
+
+1. dotnet-architect-rond: en-policy-för-alla (`ListReadPolicy`) vs dedikerad
+   `MeListReadPolicy` (lägre limit, dual-partition userId+IP)
+2. Applicera `.RequireRateLimiting(...)` på alla 5 endpoints
+3. Lägg integration-test som verifierar 429 vid burst per partition
+4. Stäng innan F6-fas-stängning
+
+**Beroenden:** Inga (alla funktioner finns).
+
+---
 
 ## TD-87: Rate-limit för `/me/*`-endpoints batch
 
@@ -396,37 +441,6 @@ korrelations-fönster).
    är etablerat (Fas 4+)
 
 **Beroenden:** TD-13 (KMS-integration). Bör adresseras tillsammans.
-
----
-
-## TD-82: Översikt/Dashboard-sida (post-login-landningsvy)
-**Kategori:** Frontend / Feature
-**Severity:** Minor
-**Fas:** 2 (Klas-bekräftad 2026-05-16)
-**Källa:** senior-cto-advisor 2026-05-16 (UI-refactor v2-iteration, Beslut 3)
-
-Designsystem v2 / referensdesignen (`pages.jsx → DashboardPage`) har en
-"Översikt" som första nav-item och naturlig post-login-landning (Aktuellt-feed,
-senaste ansökningar, matchande jobb). Den byggdes **inte** i v2-batchen och nav
-saknar den medvetet.
-
-**Skäl till TD (CLAUDE.md §9.6 kriterium 2 — saknad funktion-dependency):** En
-äkta Översikt kräver aggregat-queries som inte finns (ansökningsstatus-counts,
-kommande intervjuer/deadlines, ny-matchningar). Att scaffolda en tom/fejkad
-dashboard nu vore fyllnadselement — direkt brott mot PRINCIPLES.md regel 3
-("varje pixel ska bära information"). En tom översikt är sämre än ingen.
-
-Interim-beslut levererat in-block i v2-iterationen: post-login redirectar till
-`/jobb` (produktens primära jobb-att-göra), inte `/mig`.
-
-**Föreslagen åtgärd:** När aggregat-query-ytan finns (Fas 2 ansöknings-/
-matchnings-data): bygg Översikt enligt `JobbPilotNEWDESIGN/src/pages.jsx`
-DashboardPage (Aktuellt-feed `.jp-attention`, "Senaste ansökningar"-tabell,
-"Matchande jobb"-ledger), lägg in som första nav-item i "Söka jobb"-sektionen,
-och ändra post-login-default från `/jobb` till `/oversikt`.
-
-**Beroenden:** Aggregat-queries för ansökningsstatus-counts + kommande
-kalenderhändelser (Fas 2-domändata).
 
 ---
 
@@ -1272,6 +1286,7 @@ ADR-cross-references och granskningsbevis.
 | TD-70 | Search/filter-yta för JobAd-katalog (?ssyk&?region&?q) | 2026-05-13 | F2-P9 D+A-session (generated columns + ListReadPolicy rate-limit) |
 | TD-80 | JobAd.Url scheme-whitelist (http/https) i Domain.ValidateInputs | 2026-05-13 | TD-80-batch (Domain ValidateCore + 17 nya tester, 932 backend-tester gröna) |
 | TD-13 | Encryption av PII-kolumner | 2026-05-19 | FAS 3.5 (ADR 0049) C1–C6 + KMS-IaC; `c291ad6`/`fca3605` + `v0.2.19-dev`-deploy grön |
+| TD-82 | Översikt/Dashboard-sida (post-login-landningsvy) | 2026-05-24 | F6 P5 Punkt 4 — `/oversikt`-route levererad per HANDOVER-oversikt.md + CTO-dom Variant A (direkt RSC `Promise.all`) |
 
 ---
 

@@ -11,10 +11,11 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.3-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![AWS](https://img.shields.io/badge/AWS-eu--north--1-FF9900?logo=amazonwebservices&logoColor=white)](https://aws.amazon.com/)
 [![Arkitektur](https://img.shields.io/badge/arkitektur-Clean%20%2B%20DDD-2C3E50)](docs/decisions/0001-clean-architecture.md)
-[![Tester](https://img.shields.io/badge/tester-1%20156%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
+[![Tester](https://img.shields.io/badge/backend-1%20100%2B%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
+[![Vitest](https://img.shields.io/badge/vitest-686%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
 [![Coverage](https://img.shields.io/badge/first--party%20line-92,1%25-success)](docs/decisions/0044-test-coverage-policy.md)
-[![ADR](https://img.shields.io/badge/ADR-44%20beslut-informational)](docs/decisions/README.md)
-[![Status](https://img.shields.io/badge/fas-2%20klar%20·%203%20planerad-blue)](docs/steg-tracker.md)
+[![ADR](https://img.shields.io/badge/ADR-64%20beslut-informational)](docs/decisions/README.md)
+[![Status](https://img.shields.io/badge/fas-3%20klar%20·%204%20GDPR--gated-blue)](docs/steg-tracker.md)
 [![dev](https://img.shields.io/badge/dev-live-success)](https://dev.jobbpilot.se/api/ready)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#licens)
 
@@ -50,7 +51,7 @@ JobbPilot är en komplett jobbsök- och ansökningshanterare för den svenska ar
 Målet är att stressade jobbsökare får ett verktyg som känns som en förlängning av svensk offentlig digital service (1177, Försäkringskassan, Digg) snarare än ett av hundra AI-produkter som alla ser likadana ut. Den medvetna icke-differentieringen är ett designval, inte en brist på ambition.
 
 > [!NOTE]
-> Detta repo är publikt för portfölj-syfte. Det är ett **pågående arbete** — Fas 0–2 är levererade, Fas 3 är planerad (se [Status och roadmap](#status-och-roadmap)). README beskriver det faktiska tillståndet, inte ett mål-tillstånd.
+> Detta repo är publikt för portfölj-syfte. Det är ett **pågående arbete** — Fas 0–3 är levererade, Fas 4 (AI-lager) är GDPR-gated bakom [ADR 0051](docs/decisions/0051-anthropic-direct-api-and-pre-fas-4-gdpr-gate.md) och fem icke-förhandlingsbara villkor. Pre-Fas-4-arbete pågår parallellt i `/oversikt`, `/sparade`, landing live-stats, closed-beta-väntelista m.m. (se [Status och roadmap](#status-och-roadmap)). README beskriver det faktiska tillståndet, inte ett mål-tillstånd.
 
 ### Målgrupp
 
@@ -72,7 +73,7 @@ Positionen jag tränar i detta projekt: **AI-Augmented Fullstack Engineer med fo
 
 ## Agent-orkestrering
 
-JobbPilot kör **direct-push till `main` utan PR-flöde** ([ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md)). Granskningsvärdet ett PR-flöde ger ersätts inte av tillit — det ersätts av en orkestrerad agent-struktur med skrivna mandat. Roster verifierad i [`.claude/agents/`](.claude/agents/): **12 specialiserade agenter** med distinkta, icke-överlappande mandat.
+JobbPilot kör **direct-push till `main` utan PR-flöde** ([ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md)). Granskningsvärdet ett PR-flöde ger ersätts inte av tillit — det ersätts av en orkestrerad agent-struktur med skrivna mandat. Roster verifierad i [`.claude/agents/`](.claude/agents/): **13 specialiserade agenter** med distinkta, icke-överlappande mandat.
 
 ```mermaid
 flowchart TB
@@ -96,6 +97,7 @@ flowchart TB
         DM["db-migration-writer<br/>EF Core-migrations · GDPR-schema"]
         UI["nextjs-ui-engineer<br/>RSC · shadcn · Tailwind 4"]
         AP["ai-prompt-engineer<br/>Bedrock-prompts · token-budget"]
+        PT["perf-test-writer<br/>NBomber · Lighthouse-CI"]
     end
 
     subgraph Keepers["Dokumentations-keepers"]
@@ -130,7 +132,7 @@ Den här sektionen är portfolions kärna. Varje princip nedan är kopplad till 
 
 ### Clean Architecture — maskinellt enforced, inte beskrivet
 
-De flesta kodbaser *beskriver* sin lager-separation. JobbPilot **failar bygget** om den bryts. [`JobbPilot.Architecture.Tests`](tests/JobbPilot.Architecture.Tests/) innehåller **53 NetArchTest-fakta över 10 filer** som körs i CI. Den hårdaste regeln, `DomainLayerTests.Domain_should_not_depend_on_any_other_project` (en av 7 fakta i `DomainLayerTests.cs`), asserterar att domänlagret har noll beroende på EF Core, ASP.NET Core, Mediator, FluentValidation eller något högre lager:
+De flesta kodbaser *beskriver* sin lager-separation. JobbPilot **failar bygget** om den bryts. [`JobbPilot.Architecture.Tests`](tests/JobbPilot.Architecture.Tests/) innehåller **78 NetArchTest-fakta över 14 filer** som körs i CI. Den hårdaste regeln, `DomainLayerTests.Domain_should_not_depend_on_any_other_project`, asserterar att domänlagret har noll beroende på EF Core, ASP.NET Core, Mediator, FluentValidation eller något högre lager:
 
 ```csharp
 // tests/JobbPilot.Architecture.Tests/DomainLayerTests.cs
@@ -332,7 +334,7 @@ flowchart LR
 - `Application` definierar interfaces; `Infrastructure` implementerar
 - `Api` och `Worker` är separata komposition-rots ([ADR 0010](docs/decisions/0010-worker-composition-root.md)) — de bygger DI-containern; pipeline-ordningen delas så de inte driftar isär
 
-44 arkitekturbeslut är historieförda som ADRs under [`docs/decisions/`](docs/decisions/) — index i [`docs/decisions/README.md`](docs/decisions/README.md). Mer detaljerat: [`BUILD.md §4`](BUILD.md), [`CLAUDE.md §2`](CLAUDE.md).
+64 arkitekturbeslut är historieförda som ADRs under [`docs/decisions/`](docs/decisions/) — index i [`docs/decisions/README.md`](docs/decisions/README.md). Mer detaljerat: [`BUILD.md §4`](BUILD.md), [`CLAUDE.md §2`](CLAUDE.md).
 
 ---
 
@@ -348,7 +350,7 @@ JobbPilot byggs med en uttalad kvalitetsstandard: varje commit ska kunna försva
 - **Integrationstester mot riktig Postgres.** Testcontainers startar PostgreSQL 18.3 och Valkey per integrations-svit — ingen in-memory-attrapp som döljer provider-skillnader.
 - **Granskningsspärrar utan PR-flöde.** Direct-push till `main` ([ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md)) kompenseras av plan-design, STOPP-disciplin, specialiserade review-agenter med veto-rätt (code-reviewer, security-auditor, design-reviewer), manuell diff-granskning och pre-push-hooks.
 
-Backend-sviten omfattar **1 156 tester** (Domain, Application, Architecture, Api-integration, Worker, Migrate) — 0 failed.
+Backend-sviten omfattar **1 100+ tester gröna** över Domain (422), Application (591), Architecture (78), Api-integration, Worker-integration och Migrate. Frontend-sviten kör **686 Vitest-tester** plus Playwright E2E för kritiska flöden.
 
 ### Coverage — reproducerbar, ärlig, regressionsskyddad
 
@@ -359,7 +361,7 @@ Coverage mäts av en **versionerad in-repo-mekanism** ([ADR 0044](docs/decisions
 - Genererad kod (Mediator source-gen, OpenAPI), entrypoints (`Program.cs`, `JobbPilot.Migrate`) och migrationer filtreras bort så siffran speglar verklig testbar kvalitet, inte nämnar-kosmetik.
 - En kommandorad reproducerar allt: `bash scripts/coverage.sh` (Windows: `scripts/coverage.ps1`).
 
-First-party-resultat (samma mekanism, 1 156 tester gröna):
+First-party-resultat per ADR 0044-baseline (samma mekanism):
 
 | Lager | Line | Branch | Method |
 |-------|------|--------|--------|
@@ -547,9 +549,10 @@ jobbpilot/
 ├── tests/
 │   ├── JobbPilot.Domain.UnitTests/
 │   ├── JobbPilot.Application.UnitTests/
-│   ├── JobbPilot.Worker.UnitTests/
-│   ├── JobbPilot.Api.IntegrationTests/   # Testcontainers + WebApplicationFactory
-│   └── JobbPilot.Architecture.Tests/     # NetArchTest-regler för lager-gränser
+│   ├── JobbPilot.Architecture.Tests/        # NetArchTest-regler för lager-gränser
+│   ├── JobbPilot.Api.IntegrationTests/      # Testcontainers + WebApplicationFactory
+│   ├── JobbPilot.Worker.IntegrationTests/   # Hangfire-job-orkestrering, recurring-jobs
+│   └── JobbPilot.Migrate.UnitTests/         # Migrate-CLI + connection-string-fabriker
 │
 ├── infra/
 │   └── terraform/
@@ -680,12 +683,15 @@ JobbPilot är ett **pågående arbete**. Faserna nedan följer den auktoritativa
 | **Fas 0** | Foundation — AWS-infra, container-pipeline, DNS + TLS, CI/CD | Registrera + logga in på dev.jobbpilot.se | **Klar 2026-05-10** |
 | **Fas 1** | Core Domain — auth, kärn-CRUD, aggregat, audit | CV manuellt + "fake" ansökningar i admin-audit | **Klar 2026-05-11** |
 | **Fas 2** | JobTech Integration — Platsbanken-sök, sparade sökningar, taxonomi-ACL | Söka jobb på Platsbanken via appen | **Klar 2026-05-17** |
-| **Fas 3** | Application Management — fullständig ansökningshantering (utan AI) | Pipeline-tracker end-to-end | Planerad |
-| **Fas 4** | AI Layer — alla AI-features end-to-end + dogfood | CV/brev-skräddarsydning live | Planerad |
+| **Fas 3** | Application Management — fullständig ansökningshantering (utan AI) | Pipeline-tracker end-to-end | **Klar 2026-05-18** |
+| **Pre-Fas-4** | Discovery- och UX-vertikaler — landing live-stats, översiktssida, jobbkort spara/har-ansökt, closed-beta-väntelista, sökningsperformance | Avskild från Fas 4 (AI) — körs medan AI-grinden är stängd | Pågående 2026-05 |
+| **Fas 4** | AI Layer — alla AI-features end-to-end + dogfood | CV/brev-skräddarsydning live | **GDPR-gated** — kräver 5 villkor per [ADR 0051](docs/decisions/0051-anthropic-direct-api-and-pre-fas-4-gdpr-gate.md) |
 | **Fas 5** | Integrationer — Gmail auto-logg, Google Calendar | Intervjuer i kalendern | Planerad |
 | **Fas 6** | Admin & Analytics — admin-panel komplett | Impersonation + token-statistik | Planerad |
 | **Fas 7** | Internal Beta — 3 användare aktivt 14 dagar | Dogfood-validering | Planerad |
 | **Fas 8** | Klass-launch — 20 klasskamrater onboardade | v1 klar | Planerad |
+
+**Pre-Fas-4-disciplin.** Fas 4 (AI) är låst bakom fem icke-förhandlingsbara GDPR-villkor i [ADR 0051](docs/decisions/0051-anthropic-direct-api-and-pre-fas-4-gdpr-gate.md): DPIA Art. 35, SCC + Schrems II-TIA + Anthropic-DPA + DPF-verifikation, versionerad privacy-policy, Art. 25-opt-in även för systemnyckel, och ADR 0049-decrypt-interaktion. Tills villkoren är gröna körs leveransen i avskilda pre-Fas-4-vertikaler: landing live-stats ([ADR 0064](docs/decisions/0064-public-aggregate-read-via-worker-precomputed-redis-cache.md)), översiktssida `/oversikt`, jobbkort Spara/Har-ansökt ([ADR 0063](docs/decisions/0063-per-user-overlay-status-batch-port.md)), FTS-hybridsök ([ADR 0062](docs/decisions/0062-fts-hybrid-search-and-infrastructure-query-port.md)), recent-job-searches auto-capture ([ADR 0060](docs/decisions/0060-recent-job-searches-auto-capture.md)) och closed-beta-väntelista per EDPB-tolkning ([ADR 0005 amendment](docs/decisions/0005-go-to-market.md)). Auktoritativ status: [`docs/current-work.md`](docs/current-work.md).
 
 Live dev-miljö: [`https://dev.jobbpilot.se/api/ready`](https://dev.jobbpilot.se/api/ready) — auto-deploy via tag `v*-dev` på `main`. Projektet är pre-MVP; inga publika användare ännu.
 
@@ -701,7 +707,7 @@ Live dev-miljö: [`https://dev.jobbpilot.se/api/ready`](https://dev.jobbpilot.se
 | [`docs/current-work.md`](docs/current-work.md) | Session-state, senaste commits, aktiv fas |
 | [`docs/steg-tracker.md`](docs/steg-tracker.md) | Långsiktig fas/STEG-progression |
 | [`docs/tech-debt.md`](docs/tech-debt.md) | TD-register med prioriteringar |
-| [`docs/decisions/`](docs/decisions/) | 44 Architecture Decision Records (ADRs) |
+| [`docs/decisions/`](docs/decisions/) | 64 Architecture Decision Records (ADRs) |
 | [`docs/reviews/`](docs/reviews/) | Auto-genererade agent-reviews |
 | [`docs/runbooks/`](docs/runbooks/) | Operativa procedurer (AWS-setup, lokal-dev, etc.) |
 | [`docs/sessions/`](docs/sessions/) | Per-session retrospektiv-loggar |

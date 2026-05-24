@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getSourceLabel } from "@/lib/applications/status";
 import { buildGuestPipeline } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5 — Gäst-ansökningar-pipeline. Mockdata-driven, ingen
@@ -55,7 +56,7 @@ export function GuestAnsokningarPage() {
                       <h3 className="jp-app__title">{app.role}</h3>
                       <div className="jp-app__company">{app.company}</div>
                       <div className="jp-app__meta">
-                        <span>{app.source}</span>
+                        <span>{getSourceLabel(app.source)}</span>
                         <span aria-hidden="true"> · </span>
                         <span>{app.updatedAtLabel}</span>
                       </div>

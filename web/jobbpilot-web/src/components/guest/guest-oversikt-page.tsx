@@ -1,7 +1,12 @@
-import Link from "next/link";
-import { GUEST_MOCK, OVERSIKT_MOCK } from "@/lib/guest/mock-data";
+import {
+  GUEST_MOCK,
+  GUEST_MOCK_REF_DATE,
+  OVERSIKT_MOCK,
+} from "@/lib/guest/mock-data";
 import { SummaryRow } from "@/components/oversikt/summary-row";
 import { TodayCard } from "@/components/oversikt/today-card";
+import { NoticeList } from "@/components/oversikt/notice-list";
+import type { NoticeData } from "@/components/oversikt/notice-row";
 
 // F-Pre Punkt 5 — Gäst-översikt-sida (CTO-dom 2026-05-24 Beslut 1).
 // F-Pre Punkt 5b 2026-05-24 (CTO Beslut 5, Variant α): Klas-feedback "för
@@ -9,16 +14,18 @@ import { TodayCard } from "@/components/oversikt/today-card";
 // RSC), utökad summary (4 rader per grupp), och fler notiser (4 i stället
 // för 3).
 //
-// Ren mockdata-driven utan BE-anrop. Återanvänder presentational
-// `<SummaryRow>` + `<TodayCard>`. Muterande notice-CTAs leder till
-// /vantelista per Klas-direktiv §F.
+// F-Pre Punkt 5b in-block-fix 2026-05-24 (design-reviewer M3):
+// notiser-strukturen renderas nu via `<NoticeList>` + `<NoticeData[]>` så
+// markup, ARIA, grupp-rubriker ("Kräver åtgärd" / "Information") och
+// 6-kolumn-grid (inkl. dismiss-knapp) speglar live `(app)/oversikt` exakt.
+// `<NoticeList>` dismiss-state är client-only localStorage — ingen BE-
+// mutation (gäst-tree-disciplin OK).
+//
+// design-reviewer m5: STAMP_DATE härleds från frozen `GUEST_MOCK_REF_DATE`
+// så hela demoöversikten är konsekvent frozen (mockdata åldras inte mellan
+// renderings).
 
-const STAMP_DATE = new Date().toISOString().slice(0, 10);
-// Stabil "i dag"-referens för demo så TodayCard inte ändrar datum mellan
-// renderings i samma session (gäst-mockdata är frozen — datumet ska kännas
-// realistiskt men inte drifta). Använder referens-stämpel som matchar
-// mock-applikationernas updatedAtLabel-period.
-const GUEST_DEMO_TODAY = new Date("2026-05-24T08:00:00Z");
+const STAMP_DATE = GUEST_MOCK_REF_DATE.toISOString().slice(0, 10);
 
 function formatThousands(n: number): string {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -28,6 +35,70 @@ export function GuestOversiktPage() {
   const { applications, resumes, summary } = GUEST_MOCK;
   const latestOffer = applications.find((a) => a.status === "Offer");
   const latestInterview = applications.find((a) => a.status === "Interview");
+
+  const actionNotices: NoticeData[] = [];
+  if (latestOffer) {
+    actionNotices.push({
+      id: "guest-n-offer",
+      kind: "success",
+      label: "Erbjudande",
+      text: (
+        <>
+          <b>{latestOffer.company}</b> — {latestOffer.role}. Erbjudande
+          väntar svar.
+        </>
+      ),
+      cta: "Anmäl till väntelistan",
+      href: "/vantelista",
+      time: "i dag",
+    });
+  }
+  actionNotices.push({
+    id: "guest-n-drafts",
+    kind: "warning",
+    label: "Påminnelse",
+    text: (
+      <>
+        Du har <b>{summary.applicationsByStatus.Draft} utkast</b> som inte
+        är inskickade. Färdigställ och skicka för att hålla pipeline aktiv.
+      </>
+    ),
+    cta: "Visa ansökningar",
+    href: "/gast/ansokningar",
+    time: "i dag",
+  });
+
+  const infoNotices: NoticeData[] = [];
+  if (latestInterview) {
+    infoNotices.push({
+      id: "guest-n-interview",
+      kind: "brand",
+      label: "Intervju",
+      text: (
+        <>
+          <b>{latestInterview.company}</b> har bekräftat intervjutid.
+        </>
+      ),
+      cta: "Anmäl till väntelistan",
+      href: "/vantelista",
+      time: "i går",
+    });
+  }
+  infoNotices.push({
+    id: "guest-n-match",
+    kind: "info",
+    label: "Matchning",
+    text: (
+      <>
+        Det finns <b>{OVERSIKT_MOCK.matchCountThisWeek} nya annonser</b>{" "}
+        som matchar profilen — de flesta inom{" "}
+        <em>{OVERSIKT_MOCK.matchSegmentLabel}</em>.
+      </>
+    ),
+    cta: "Visa annonser",
+    href: "/gast/jobb",
+    time: "i dag",
+  });
 
   return (
     <>
@@ -43,7 +114,7 @@ export function GuestOversiktPage() {
           </div>
           <div className="jp-pagehero__aside">
             <TodayCard
-              today={GUEST_DEMO_TODAY}
+              today={GUEST_MOCK_REF_DATE}
               events={OVERSIKT_MOCK.todaysEvents}
               googleSynced={false}
             />
@@ -52,69 +123,11 @@ export function GuestOversiktPage() {
       </section>
 
       <div className="jp-container jp-page">
-        <section className="jp-notice-list" aria-labelledby="guest-notiser">
-          <h2 className="sr-only" id="guest-notiser">
-            Notiser (exempel)
-          </h2>
-
-          {latestOffer && (
-            <div className="jp-notice jp-notice--success">
-              <span className="jp-notice__strip" aria-hidden="true" />
-              <span className="jp-notice__label">Erbjudande</span>
-              <div className="jp-notice__text">
-                <b>{latestOffer.company}</b> — {latestOffer.role}. Erbjudande
-                väntar svar.
-              </div>
-              <Link href="/vantelista" className="jp-notice__cta">
-                Anmäl till väntelistan
-              </Link>
-              <span className="jp-notice__time">i dag</span>
-            </div>
-          )}
-
-          {latestInterview && (
-            <div className="jp-notice jp-notice--brand">
-              <span className="jp-notice__strip" aria-hidden="true" />
-              <span className="jp-notice__label">Intervju</span>
-              <div className="jp-notice__text">
-                <b>{latestInterview.company}</b> har bekräftat intervjutid.
-              </div>
-              <Link href="/vantelista" className="jp-notice__cta">
-                Anmäl till väntelistan
-              </Link>
-              <span className="jp-notice__time">i går</span>
-            </div>
-          )}
-
-          <div className="jp-notice jp-notice--warning">
-            <span className="jp-notice__strip" aria-hidden="true" />
-            <span className="jp-notice__label">Påminnelse</span>
-            <div className="jp-notice__text">
-              Du har <b>{GUEST_MOCK.summary.applicationsByStatus.Draft} utkast</b>{" "}
-              som inte är inskickade. Färdigställ och skicka för att hålla
-              pipeline aktiv.
-            </div>
-            <Link href="/gast/ansokningar" className="jp-notice__cta">
-              Visa ansökningar
-            </Link>
-            <span className="jp-notice__time">i dag</span>
-          </div>
-
-          <div className="jp-notice jp-notice--info">
-            <span className="jp-notice__strip" aria-hidden="true" />
-            <span className="jp-notice__label">Matchning</span>
-            <div className="jp-notice__text">
-              Det finns{" "}
-              <b>{OVERSIKT_MOCK.matchCountThisWeek} nya annonser</b> som
-              matchar profilen — de flesta inom{" "}
-              <em>{OVERSIKT_MOCK.matchSegmentLabel}</em>.
-            </div>
-            <Link href="/gast/jobb" className="jp-notice__cta">
-              Visa annonser
-            </Link>
-            <span className="jp-notice__time">i dag</span>
-          </div>
-        </section>
+        <NoticeList
+          actionNotices={actionNotices}
+          infoNotices={infoNotices}
+          lastUpdated={`exempeldata · ${STAMP_DATE}`}
+        />
 
         <section className="jp-section" aria-labelledby="guest-sammanfattning">
           <div className="jp-section__head">

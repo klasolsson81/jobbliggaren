@@ -42,7 +42,10 @@ export default async function GuestJobbFullPage({ params }: PageProps) {
       </section>
 
       <div className="jp-container jp-page">
-        <JobAdDetail jobAd={jobAd} />
+        {/* `headless` så `<JobAdDetail>` inte renderar egen h1/header
+            (security-auditor m-1 2026-05-24: undvik dubbel h1 — pagehero
+            äger titeln). */}
+        <JobAdDetail jobAd={jobAd} headless />
       </div>
     </>
   );

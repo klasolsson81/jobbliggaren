@@ -5,8 +5,12 @@ import Link from "next/link";
 //
 // Civic-utility-disciplin: tydlig, lugn ton. Ingen emoji, inget utropstecken,
 // ingen gradient/glow. CSS-klass `.jp-demo-banner` definieras i globals.css.
-// Ej rendered på `/gast/jobb` per Klas-direktiv (konverterings-CTA har egen
-// rendering där).
+//
+// F-Pre Punkt 5b 2026-05-24 (code-reviewer Minor 1): kommentaren tidigare
+// sa "ej rendered på /gast/jobb" men sedan CTO Beslut 4 (mockdata-jobb-sida)
+// renderas bannern PÅ alla gäst-routes där datan är mock — inklusive
+// /gast/jobb. Bannern hide:as endast om en route skulle visa riktig LIVE-
+// data (ingen sådan i nuvarande gäst-tree).
 
 export function GuestDemoBanner() {
   return (

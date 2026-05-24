@@ -322,7 +322,15 @@ module "ecs" {
   # Infrastructure/DependencyInjection.cs:90+120 GetConnectionString("Redis")-pattern.
   api_secrets = {
     "ConnectionStrings__Postgres" = aws_secretsmanager_secret.db_app_connection.arn
-    "ConnectionStrings__Redis"    = module.redis.connection_string_secret_arn
+    # STEG 6 Plan B (2026-05-24) — Api behöver hangfire-storage-CS för
+    # IBackgroundJobClient.Enqueue mot admin-endpoint /backfill-ssyk.
+    # Rollen jobbpilot_worker är hangfire-only (PUBLIC revoke:ad, ingen
+    # jobbpilot_app-inheritance per docs/runbooks/hangfire-schema.md §4) →
+    # Saltzer & Schroeder least-privilege bevarad. Se TD-99 för legacy-namn-
+    # cleanup planerat i STEG 14 prod-DDL-cutover. CTO-rond a9f2e123b1080b00f
+    # + architect-rond a1513a571782c2dc0.
+    "ConnectionStrings__HangfireStorage" = aws_secretsmanager_secret.db_hangfire_connection.arn
+    "ConnectionStrings__Redis"           = module.redis.connection_string_secret_arn
   }
 
   # ADR 0064 (2026-05-23) — Worker skriver landing-stats-cache till Redis var 5:e

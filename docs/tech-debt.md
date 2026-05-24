@@ -55,6 +55,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-96 | Api→Worker port för Hangfire-enqueue (defense-in-depth `[DisableConcurrentExecution]` + AdminAuthorizationBehavior coverage på fire-and-forget) | Minor | Trigger | Architecture/Security |
 | TD-97 | Integration-test för STORED column-re-evaluation i BackfillJobAdSsykJob mot Testcontainers Postgres | Minor | Fas 1 (efter MVP-demo) | Test coverage |
 | TD-98 | Dedikerad rate-limit-policy för admin-endpoints (`AdminWritePolicy`, partition på UserId) | Minor | Trigger | Säkerhet/DoS-skydd |
+| TD-99 | Rename Postgres-roll `jobbpilot_worker` → `jobbpilot_hangfire` + secret-namn (legacy-bagage; rollen är hangfire-only sedan STEG 6 delas mellan Api+Worker) | Minor | STEG 14 (prod-DDL-cutover) | Code-hygiene/Naming |
 
 ---
 

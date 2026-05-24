@@ -13,6 +13,13 @@ Implementerar TD-17 (Fas 1 prod-deploy-blockare) per
 Hangfire-storage är PostgreSQL via `Hangfire.PostgreSql`. Schema-namnet är
 `hangfire` (separerat från `public` för att undvika kolumn-konflikter).
 
+**STEG 6 Plan B-uppdatering 2026-05-24:** `ConnectionStrings__HangfireStorage`
+konsumeras av BÅDA Worker-processen (jobb-execution via `HangfireServer`) OCH
+Api-processen (`IBackgroundJobClient.Enqueue` för admin-endpoint
+`/api/v1/admin/job-ads/backfill-ssyk`). Rollen `jobbpilot_worker` förblir
+hangfire-only (PUBLIC revoke:ad, ingen `jobbpilot_app`-inheritance — se §4).
+Roll-namnet är legacy; renamning planerad i STEG 14 prod-DDL-cutover (TD-99).
+
 **Två schema-lifecycle-strategier:**
 
 | Miljö | `PrepareSchemaIfNecessary` | Schema-skapnings-väg |

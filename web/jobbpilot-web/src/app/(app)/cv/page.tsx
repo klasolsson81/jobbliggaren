@@ -60,36 +60,53 @@ export default async function CvListPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div className="flex flex-col gap-2">
-          <h1 className="jp-h1">CV</h1>
-          <p className="jp-lede">
-            Hantera dina CV-varianter. AI-stöd hjälper dig anpassa innehållet
-            per ansökan, men du behåller alltid kontrollen.
-          </p>
-        </div>
-        <Link href="/cv/ny" className="jp-btn jp-btn--primary">
-          <Plus size={16} aria-hidden="true" />
-          <span>Nytt CV</span>
-        </Link>
-      </header>
-
-      {sorted.length === 0 ? (
-        <div className="jp-empty">
-          <div className="jp-empty__title">Inga CV ännu</div>
-          Skapa ditt första CV för att komma igång.
-        </div>
-      ) : (
-        <>
-          <div className="jp-cvgrid">
-            {sorted.map((resume) => (
-              <ResumeCard key={resume.id} resume={resume} />
-            ))}
+    <>
+      {/* F6 P5 Punkt 6 — page-hero (HANDOVER-v4 §2.4). */}
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <h1 className="jp-pagehero__title">CV</h1>
+            <p className="jp-pagehero__lede">
+              Hantera dina CV-varianter. AI-stöd hjälper dig anpassa innehållet
+              per ansökan, men du behåller alltid kontrollen.
+            </p>
           </div>
-          <AnpassaCvBanner />
-        </>
-      )}
-    </div>
+          <div className="jp-pagehero__aside">
+            <Link href="/cv/ny" className="jp-btn jp-btn--primary">
+              <Plus size={16} aria-hidden="true" />
+              <span>Nytt CV</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <div className="jp-container jp-page">
+        {sorted.length === 0 ? (
+          <div className="jp-empty jp-empty--brand">
+            <div className="jp-empty__kicker">CV-varianter</div>
+            <div className="jp-empty__title">Inga CV ännu</div>
+            <p className="jp-empty__body">
+              Skapa ditt första CV för att komma igång. Du kan ha flera
+              varianter — t.ex. en för ledarskap och en för teknisk roll —
+              och välja rätt CV per ansökan.
+            </p>
+            <div className="jp-empty__actions">
+              <Link href="/cv/ny" className="jp-btn jp-btn--primary">
+                <Plus size={14} aria-hidden="true" /> Skapa första CV
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="jp-cvgrid">
+              {sorted.map((resume) => (
+                <ResumeCard key={resume.id} resume={resume} />
+              ))}
+            </div>
+            <AnpassaCvBanner />
+          </>
+        )}
+      </div>
+    </>
   );
 }

@@ -980,6 +980,81 @@ a:hover { color: var(--jp-navy-600); }
   border-radius: var(--jp-r-pill);
 }
 
+/* ── v4: kompakt navy-band för inre sidor ─────────
+   Page-hero för /oversikt, /ansokningar, /cv. Samma --jp-hero-bg som
+   .jp-hero (jobb-sidan) men mindre höjd/titel — kan användas överallt
+   utan att ta över sidan. HANDOVER-v4 §1.1 + §2.1. */
+.jp-pagehero { background: var(--jp-hero-bg); color: var(--jp-hero-ink); position: relative; }
+.jp-pagehero__inner {
+  max-width: 1200px; margin-inline: auto;
+  padding: 32px 32px 36px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 32px; flex-wrap: wrap;
+}
+@media (max-width: 720px) {
+  .jp-pagehero__inner { padding: 24px 20px 28px; }
+}
+.jp-pagehero__main { flex: 1 1 320px; min-width: 0; }
+.jp-pagehero__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--jp-hero-ink-soft); margin: 0 0 8px;
+}
+.jp-pagehero__title {
+  font-size: 34px; font-weight: 700;
+  letter-spacing: -0.022em; line-height: 1.1;
+  margin: 0; color: var(--jp-hero-ink);
+}
+.jp-pagehero__lede {
+  margin: 8px 0 0; font-size: 16px;
+  color: var(--jp-hero-ink-soft); max-width: 60ch;
+}
+.jp-pagehero__aside {
+  flex: 0 0 auto; display: flex; align-items: center;
+  gap: 12px; flex-wrap: wrap;
+}
+.jp-pagehero-chip {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--jp-r-md);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: var(--jp-hero-ink);
+}
+.jp-pagehero-chip__value {
+  font-family: var(--jp-font-mono); font-weight: 700;
+  font-size: 18px; letter-spacing: -0.01em;
+  color: var(--jp-hero-ink);
+}
+.jp-pagehero-chip__label {
+  font-family: var(--jp-font-mono); font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--jp-hero-ink-soft);
+}
+.jp-pagehero .jp-btn {
+  white-space: nowrap;
+}
+.jp-pagehero .jp-btn--primary {
+  background: #fff; color: var(--jp-hero-bg); border-color: #fff;
+}
+.jp-pagehero .jp-btn--primary:hover {
+  background: #EAF1FA; color: #08213F; border-color: #EAF1FA;
+}
+.jp-pagehero .jp-btn--ghost {
+  color: var(--jp-hero-ink); background: transparent;
+  border-color: rgba(255,255,255,0.24);
+}
+.jp-pagehero .jp-btn--ghost:hover {
+  background: rgba(255,255,255,0.08); color: #fff;
+}
+/* Fokus-ring syns mot mörk bakgrund (WCAG 2.4.7 — vit outline för
+   kontrast >3:1 mot navy --jp-hero-bg #0A2647). HANDOVER-v4 §4.2. */
+.jp-pagehero :focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 /* ── Popover (filter, dropdown chips) ─────────────── */
 .jp-popover {
   position: absolute;
@@ -2219,6 +2294,57 @@ a:hover { color: var(--jp-navy-600); }
   font-size: 17px;
   font-weight: 600;
   margin: 0 0 4px;
+}
+
+/* ── v4: brand-tonad empty-state (CV / pipeline tomma)
+   Modifier på .jp-empty. Används när hela sidan annars vore vit
+   (CV-listan tom, pipeline tom). HANDOVER-v4 §1.2 + §2.1. */
+.jp-empty--brand {
+  background: var(--jp-hero-bg);
+  border: 1px solid var(--jp-hero-bg);
+  color: var(--jp-hero-ink-soft);
+  padding: 56px 32px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; text-align: center;
+}
+.jp-empty--brand .jp-empty__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--jp-hero-ink-soft); margin: 0;
+}
+.jp-empty--brand .jp-empty__title {
+  color: var(--jp-hero-ink);
+  font-size: 20px; font-weight: 700;
+  letter-spacing: -0.015em; margin: 0;
+  text-wrap: balance;
+}
+.jp-empty--brand .jp-empty__body {
+  color: var(--jp-hero-ink-soft);
+  max-width: 52ch; margin: 0;
+  font-size: 15px; line-height: 1.5;
+}
+.jp-empty--brand .jp-empty__actions {
+  display: flex; gap: 10px; margin-top: 6px;
+  flex-wrap: wrap; justify-content: center;
+}
+.jp-empty--brand .jp-btn--primary {
+  background: #fff; color: var(--jp-hero-bg); border-color: #fff;
+}
+.jp-empty--brand .jp-btn--primary:hover {
+  background: #EAF1FA; color: #08213F; border-color: #EAF1FA;
+}
+.jp-empty--brand .jp-btn--ghost {
+  color: var(--jp-hero-ink); background: transparent;
+  border-color: rgba(255,255,255,0.30);
+}
+.jp-empty--brand .jp-btn--ghost:hover {
+  background: rgba(255,255,255,0.08); color: #fff;
+  border-color: rgba(255,255,255,0.45);
+}
+.jp-empty--brand :focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 /* ── Skeleton (laddningstillstånd) ───────────────────

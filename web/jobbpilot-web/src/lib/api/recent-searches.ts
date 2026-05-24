@@ -36,17 +36,25 @@ const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
  * Konsumerar `GET /api/v1/me/recent-searches` (auth-gated, JobSeeker-scopad,
  * cap=20 rader).
  *
- * <p><b>includeCount</b> (default true): styr om backend beräknar per-row
- * `currentCount`/`newCount` (slow N+1 över JobAds-COUNT, TD-94 rot).
- * Lättviktiga konsumenter (t.ex. /oversikt-Sammanfattning) skickar
- * <code>false</code> för att skippa COUNT-loopen och eliminera
- * 7-10s loadtime. /jobb-hero-chip kvar med <code>true</code> för
- * "(N nya)"-affordance.
- * </p>
- * <p>F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback).</p>
+ * <p><b>includeCount</b> (default <code>false</code> per svans-PR6 2026-05-24):
+ * styr om backend beräknar per-row `currentCount`/`newCount` (slow N+1 över
+ * JobAds-COUNT, TD-94 rot). Default flyttat från <code>true</code> till
+ * <code>false</code> eftersom CloudWatch (2026-05-24) visar p50 15-22s + max
+ * &gt;25s timeout för cap=3+ rader med low-selectivity-Q ("AI", "lärare").
+ * Min PR5-fix 25s räcker inte; /sokningar + hero-chip 500-failade i Klas-
+ * session, cascade-fel drog även hero-chip till tom-state.</p>
+ *
+ * <p><b>Förlust:</b> hero-chip + /sokningar visar nu bara namn utan
+ * "(N nya)"-affordance tills TD-94 löser rotorsaken (slow ListJobAds COUNT).
+ * Civic-utility acceptabelt: namn + klickbar rad ger fortfarande funktionell
+ * "kör om sökning"-yta. Counts kan återställas i samma deploy som TD-94-fix.</p>
+ *
+ * <p>Konsumenter som explicit behöver counts kan sätta <code>true</code> — de
+ * tar då 15-25s slow load + risk för timeout. Inte rekommenderat för någon
+ * konsument idag.</p>
  */
 export async function getRecentSearches(
-  includeCount: boolean = true,
+  includeCount: boolean = false,
 ): Promise<ApiResult<ListRecentSearchesResult>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };

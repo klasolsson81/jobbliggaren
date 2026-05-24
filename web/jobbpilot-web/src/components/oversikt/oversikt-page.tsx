@@ -258,65 +258,70 @@ export function OversiktPage({
   const stampDate = today.toISOString().slice(0, 10);
 
   return (
-    <div className="jp-container jp-page">
-      {/* Title block + I dag-kort */}
-      <div className="jp-page__title-block">
-        <div className="jp-oversikt__head">
-          <div>
-            <div className="jp-oversikt__kicker">
+    <>
+      {/* F6 P5 Punkt 6 — page-hero (HANDOVER-v4 §2.2). Edge-to-edge navy
+          band; TodayCard ligger som vitt kort i aside mot navy bg. */}
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <div className="jp-pagehero__kicker">
               Inloggad som {kickerName}
             </div>
-            <h1 className="jp-page__title">Översikt</h1>
-            <p className="jp-page__lede">
+            <h1 className="jp-pagehero__title">Översikt</h1>
+            <p className="jp-pagehero__lede">
               Senaste händelser och status för dina ansökningar.
             </p>
           </div>
-          <TodayCard
-            today={today}
-            events={OVERSIKT_MOCK.todaysEvents}
-            googleSynced={OVERSIKT_MOCK.googleSynced}
-          />
+          <div className="jp-pagehero__aside">
+            <TodayCard
+              today={today}
+              events={OVERSIKT_MOCK.todaysEvents}
+              googleSynced={OVERSIKT_MOCK.googleSynced}
+            />
+          </div>
         </div>
-      </div>
-
-      {/* Notiser */}
-      <NoticeList
-        actionNotices={actionNotices}
-        infoNotices={infoNotices}
-        lastUpdated={OVERSIKT_MOCK.noticesLastUpdated}
-      />
-
-      {/* Sammanfattning */}
-      <section
-        className="jp-section"
-        aria-labelledby="oversikt-sammanfattning"
-      >
-        <div className="jp-section__head">
-          <h2
-            className="jp-section__title"
-            id="oversikt-sammanfattning"
-          >
-            Sammanfattning
-          </h2>
-          <span className="jp-section__count">
-            registrerat per <span className="jp-mono">{stampDate}</span>
-          </span>
-        </div>
-
-        <Summary
-          counts={counts}
-          savedJobsCount={savedCount}
-          recentSearchesCount={recentSearchesData.length}
-          lastSearchName={lastSearchName}
-          activeJobAdsTotal={activeJobAdsTotal}
-          matchCountToday={OVERSIKT_MOCK.matchCountToday}
-          cvCount={cvCount}
-          personalLettersCount={OVERSIKT_MOCK.personalLettersCount}
-          lastUpdatedCvDate={lastUpdatedCvDate}
-          searchStartDate={searchStartDate}
-          searchStartDaysSince={searchStartDaysSince}
-        />
       </section>
-    </div>
+
+      <div className="jp-container jp-page">
+        {/* Notiser */}
+        <NoticeList
+          actionNotices={actionNotices}
+          infoNotices={infoNotices}
+          lastUpdated={OVERSIKT_MOCK.noticesLastUpdated}
+        />
+
+        {/* Sammanfattning */}
+        <section
+          className="jp-section"
+          aria-labelledby="oversikt-sammanfattning"
+        >
+          <div className="jp-section__head">
+            <h2
+              className="jp-section__title"
+              id="oversikt-sammanfattning"
+            >
+              Sammanfattning
+            </h2>
+            <span className="jp-section__count">
+              registrerat per <span className="jp-mono">{stampDate}</span>
+            </span>
+          </div>
+
+          <Summary
+            counts={counts}
+            savedJobsCount={savedCount}
+            recentSearchesCount={recentSearchesData.length}
+            lastSearchName={lastSearchName}
+            activeJobAdsTotal={activeJobAdsTotal}
+            matchCountToday={OVERSIKT_MOCK.matchCountToday}
+            cvCount={cvCount}
+            personalLettersCount={OVERSIKT_MOCK.personalLettersCount}
+            lastUpdatedCvDate={lastUpdatedCvDate}
+            searchStartDate={searchStartDate}
+            searchStartDaysSince={searchStartDaysSince}
+          />
+        </section>
+      </div>
+    </>
   );
 }

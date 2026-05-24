@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -66,36 +66,46 @@ export default async function AnsokningarPage() {
   }
 
   return (
-    <div className="jp-container jp-page">
-      <div
-        className="jp-page__title-block"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h1 className="jp-page__title">Mina ansökningar</h1>
-          <p className="jp-page__lede">
-            Pipeline över alla ansökningar. Klicka på en rad för detaljer.
-          </p>
+    <>
+      {/* F6 P5 Punkt 6 — page-hero (HANDOVER-v4 §2.3). */}
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <h1 className="jp-pagehero__title">Mina ansökningar</h1>
+            <p className="jp-pagehero__lede">
+              Pipeline över alla ansökningar. Klicka på en rad för detaljer.
+            </p>
+          </div>
+          <div className="jp-pagehero__aside">
+            <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
+              <Plus size={16} aria-hidden="true" /> Ny ansökan
+            </Link>
+          </div>
         </div>
-        <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
-          <Plus size={16} aria-hidden="true" /> Ny ansökan
-        </Link>
-      </div>
+      </section>
 
-      {total === 0 ? (
-        <div className="jp-empty">
-          <div className="jp-empty__title">Inga ansökningar</div>
-          Skapa din första ansökan för att komma igång.
-        </div>
-      ) : (
-        <ApplicationsPipeline groups={groups} rowSlots={rowSlots} />
-      )}
-    </div>
+      <div className="jp-container jp-page">
+        {total === 0 ? (
+          <div className="jp-empty jp-empty--brand">
+            <div className="jp-empty__kicker">Pipeline</div>
+            <div className="jp-empty__title">Inga ansökningar ännu</div>
+            <p className="jp-empty__body">
+              Så fort du registrerar din första ansökan hamnar den här.
+              Spåra status från utkast till svar utan att tappa en enda råd.
+            </p>
+            <div className="jp-empty__actions">
+              <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
+                <Plus size={14} aria-hidden="true" /> Skapa första ansökan
+              </Link>
+              <Link href="/jobb" className="jp-btn jp-btn--ghost">
+                <Search size={14} aria-hidden="true" /> Sök annonser först
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <ApplicationsPipeline groups={groups} rowSlots={rowSlots} />
+        )}
+      </div>
+    </>
   );
 }

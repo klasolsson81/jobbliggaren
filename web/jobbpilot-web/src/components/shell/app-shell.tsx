@@ -65,7 +65,7 @@ function isActive(pathname: string, href: string): boolean {
  * .jp-container/.jp-page tas denna lista + .jp-shell-transitional-
  * container bort tillsammans (se globals.css-trail, ADR 0052).
  */
-const V3_NATIVE_ROUTES = ["/jobb", "/ansokningar", "/oversikt"];
+const V3_NATIVE_ROUTES = ["/jobb", "/ansokningar", "/oversikt", "/cv"];
 
 function isV3Native(pathname: string): boolean {
   return V3_NATIVE_ROUTES.some(

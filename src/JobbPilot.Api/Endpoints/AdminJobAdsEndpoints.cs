@@ -1,5 +1,7 @@
+using Hangfire;
 using JobbPilot.Application.Common.Authorization;
 using JobbPilot.Application.JobAds.Commands.RedactRecruiterPii;
+using JobbPilot.Application.JobAds.Jobs.BackfillJobAdSsyk;
 using Mediator;
 
 namespace JobbPilot.Api.Endpoints;
@@ -57,6 +59,29 @@ public static class AdminJobAdsEndpoints
                     detail: result.Error.Message,
                     statusCode: 400);
         });
+
+        // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för JobAds
+        // vars raw_payload saknar occupation-key (pre-2026-05-20-fix). Enqueue:as
+        // som Hangfire fire-and-forget mot Worker-processens HangfireServer (samma
+        // postgres-storage). Api returnerar 202 Accepted + jobId omedelbart;
+        // körningen tar ~2h vid default-throttle. INTE registrerad som cron —
+        // engångs-operation, idempotent restart-vänlig via NULL-filter.
+        //
+        // Concurrency-skydd: Application-jobbet enqueue:as direkt (utan Worker-
+        // wrapper-DisableConcurrentExecution) eftersom Api inte refererar Worker-
+        // projektet (Clean Arch). Operativ disciplin: Klas triggar endast EN gång
+        // per körnings-fönster (UI-knappen är manuell). Vid race blir worst-case
+        // dubbla Hangfire-jobs som båda iterar NULL-filtret — UNIQUE-index +
+        // UpdateFromSource-idempotens gör race till no-op-overhead, inte korruption.
+        // architect-rond 2026-05-24 (sub-decision från CC vid Api-discovery-gap).
+        group.MapPost("/backfill-ssyk", (IBackgroundJobClient backgroundJobs) =>
+        {
+            var jobId = backgroundJobs.Enqueue<BackfillJobAdSsykJob>(
+                j => j.RunAsync(CancellationToken.None));
+            return Results.Accepted(
+                uri: null,
+                value: new BackfillSsykResponse(JobId: jobId));
+        });
     }
 }
 
@@ -75,3 +100,10 @@ public sealed record RedactRecruiterPiiRequest(
 public sealed record RedactRecruiterPiiResponse(
     Guid RequestId,
     int RowsAffected);
+
+/// <summary>
+/// Response-body för POST /api/v1/admin/job-ads/backfill-ssyk.
+/// JobId = Hangfire-jobb-id (kan inspekteras via Hangfire-storage eller CloudWatch
+/// /aws/ecs/jobbpilot-dev/worker-loggen för progress/completion).
+/// </summary>
+public sealed record BackfillSsykResponse(string JobId);

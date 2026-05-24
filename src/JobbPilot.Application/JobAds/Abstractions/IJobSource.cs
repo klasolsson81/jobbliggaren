@@ -42,6 +42,25 @@ public interface IJobSource
     IAsyncEnumerable<JobAdChange> StreamChangesAsync(
         DateTimeOffset since,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Per-ID-refetch för enskilda annonser. Använt av <c>BackfillJobAdSsykJob</c>
+    /// för att re-hämta rader vars raw_payload saknar fält (t.ex. pre-2026-05-20-
+    /// fix-rader som saknar <c>occupation.concept_id</c> — snapshot-trunkering
+    /// kommer aldrig fram till just dessa IDs eftersom JobTech <c>/v2/snapshot</c>
+    /// trunkerar icke-deterministiskt vid ~10k rader). Returnerar redan sanitized
+    /// <see cref="JobAdImportItem"/>; <c>null</c> betyder att annonsen är borta
+    /// från källan (404).
+    /// <para>
+    /// <b>Semantik vid <c>null</c>:</b> callern hanterar som "skip + log + count"
+    /// — INTE arkivering. Retention-disciplinen (miss-tracking) ägs av
+    /// <see cref="FetchSnapshotAsync"/>-flödet (ADR 0032-amendment 2026-05-23);
+    /// per-ID-fetch får inte påverka den.
+    /// </para>
+    /// </summary>
+    Task<JobAdImportItem?> RefetchByExternalIdAsync(
+        string externalId,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

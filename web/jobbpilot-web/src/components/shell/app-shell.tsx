@@ -9,6 +9,7 @@ import {
   Briefcase,
   Clock,
   Inbox,
+  LayoutDashboard,
   LogOut,
   Menu,
   ScrollText,
@@ -40,6 +41,9 @@ type NavItem = {
 };
 
 const PRIMARY_NAV: NavItem[] = [
+  // F6 P5 Punkt 4 — additivt tillägg. Default-route-byte (login-redirect +
+  // brand-länk) DEFERRAS till separat Klas-GO-commit per CTO-dom 2026-05-24 D6.
+  { href: "/oversikt", label: "Översikt", icon: LayoutDashboard },
   { href: "/jobb", label: "Jobb", icon: Briefcase },
   { href: "/ansokningar", label: "Mina ansökningar", icon: Inbox },
   { href: "/cv", label: "CV", icon: ScrollText },
@@ -61,7 +65,7 @@ function isActive(pathname: string, href: string): boolean {
  * .jp-container/.jp-page tas denna lista + .jp-shell-transitional-
  * container bort tillsammans (se globals.css-trail, ADR 0052).
  */
-const V3_NATIVE_ROUTES = ["/jobb", "/ansokningar"];
+const V3_NATIVE_ROUTES = ["/jobb", "/ansokningar", "/oversikt"];
 
 function isV3Native(pathname: string): boolean {
   return V3_NATIVE_ROUTES.some(
@@ -377,7 +381,13 @@ export function AppShell({
 
           <span className="jp-header__spacer" />
 
-          <HeaderStats initialStats={initialStats} />
+          {/* design-reviewer M1 (2026-05-24): dölj HeaderStats på /oversikt
+              eftersom Sammanfattning > Bevakning > "Aktiva annonser totalt"
+              är auktoritativ där. Två återgivningar av samma siffra på samma
+              sida bryter flödesbegriplighet (Area 5 — Norman/Krug). */}
+          {pathname !== "/oversikt" && (
+            <HeaderStats initialStats={initialStats} />
+          )}
 
           <div className="jp-header__actions">
             <NotificationsBell />

@@ -51,7 +51,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl, värdet 1 oförändrat) | Minor | Trigger | Infra/IaC |
 | TD-92 | Rate-limit på 5 `/me/*` + `/applications/pipeline` + `/resumes` auth-gated GET-endpoints (preexisting, amplifieras av /oversikt Promise.all) | **Major** | F6 P5-fas-stängning | Säkerhet/DoS-skydd |
 | TD-93 | Riktig matchning mot användarens CV/sökkriterier (inte alla nya annonser) — Nya matchningar idag-fält | Minor | Trigger (efter matching-tjänst) | Frontend/Feature |
-| TD-94 | `ListJobAdsQuery` perf (p50 ~1.2s, max 6.7s — ADR 0045 budget 300ms; COUNT-query mot 46k+ rader misstänkt rot) | **Major** | F6 P5-fas-stängning | Performance/Backend |
+| TD-94 | `ListJobAdsQuery` perf (p50 ~1.2s, max 6.7s — ADR 0045 budget 300ms; COUNT-query mot 46k+ rader misstänkt rot). **Blocker för "(N nya)"-affordance-restoration** på hero-chip + /sokningar (förlorad i svans-PR6) | **Major** | **Fas Nu** | Performance/Backend |
 
 ---
 

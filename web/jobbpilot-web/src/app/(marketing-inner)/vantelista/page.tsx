@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { WaitlistForm } from "@/components/forms/WaitlistForm";
 
 export const metadata: Metadata = {
@@ -10,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function VantelistaPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
+    <>
       <header className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
@@ -27,27 +26,18 @@ export default function VantelistaPage() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-12">
-        <section aria-labelledby="vantelista-heading">
+      <main className="mx-auto w-full max-w-2xl px-6 py-12">
+        <section aria-labelledby="vantelista-heading" className="flex flex-col gap-8">
           <WaitlistForm />
-        </section>
 
-        <footer className="flex flex-col gap-3 border-t border-border pt-6">
-          <p className="text-body-sm text-text-secondary">
-            Vi sparar dina uppgifter endast för väntelistan. Du kan be oss
-            radera dem när som helst genom att svara på bekräftelsemejlet.
-          </p>
-          <p className="text-body-sm text-text-secondary">
-            Har du redan ett konto?{" "}
-            <Link
-              href="/logga-in"
-              className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
-            >
-              Logga in
-            </Link>
-          </p>
-        </footer>
+          <div className="border-t border-border pt-6">
+            <p className="text-body-sm text-text-secondary">
+              Vi sparar dina uppgifter endast för väntelistan. Du kan be oss
+              radera dem när som helst genom att svara på bekräftelsemejlet.
+            </p>
+          </div>
+        </section>
       </main>
-    </div>
+    </>
   );
 }

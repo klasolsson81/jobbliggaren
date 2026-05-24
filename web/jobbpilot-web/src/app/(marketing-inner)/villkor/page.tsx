@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Användarvillkor — JobbPilot",
@@ -8,13 +7,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * Placeholder-sida för användarvillkor. Versionerad policy-text är öppen
- * fråga i BUILD.md §20 — levereras av Klas innan första prod-deploy med
- * riktig användarbas. Tills dess visar sidan en notis om sluten beta.
+ * Placeholder för användarvillkor. Versionerad policy-text är öppen fråga i
+ * BUILD.md §20 — levereras av Klas innan första prod-deploy med riktig
+ * användarbas.
  */
 export default function VillkorPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
+    <>
       <header className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
@@ -27,17 +26,16 @@ export default function VillkorPage() {
       <main className="mx-auto w-full max-w-2xl px-6 py-12">
         <section className="flex flex-col gap-4">
           <p className="text-body text-text-primary">
-            JobbPilot befinner sig i sluten beta. Fullständiga
-            användarvillkor publiceras innan tjänsten öppnas för
-            allmänheten.
+            JobbPilot befinner sig i sluten beta. Fullständiga användarvillkor
+            publiceras innan tjänsten öppnas för allmänheten.
           </p>
           <p className="text-body text-text-secondary">
             Under beta-perioden gäller följande:
           </p>
           <ul className="flex flex-col gap-2 text-body text-text-secondary">
             <li>
-              Tjänsten levereras i befintligt skick — funktioner kan
-              ändras eller tillkomma.
+              Tjänsten levereras i befintligt skick — funktioner kan ändras
+              eller tillkomma.
             </li>
             <li>
               Vi sparar dina uppgifter endast så länge det krävs för att
@@ -48,17 +46,8 @@ export default function VillkorPage() {
               svara på bekräftelsemejlet eller kontakta oss.
             </li>
           </ul>
-
-          <p className="text-body-sm text-text-secondary pt-4">
-            <Link
-              href="/vantelista"
-              className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
-            >
-              Tillbaka till väntelistan
-            </Link>
-          </p>
         </section>
       </main>
-    </div>
+    </>
   );
 }

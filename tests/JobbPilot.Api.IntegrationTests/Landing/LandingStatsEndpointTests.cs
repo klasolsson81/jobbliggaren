@@ -32,9 +32,13 @@ public class LandingStatsEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
 
         // Rensa Redis-nyckeln explicit så vi vet att vi testar cache-miss-banan.
+        // IDistributedCache.InstanceName ("jobbpilot:") prefix:as automatiskt —
+        // skicka enbart logiska nyckeln som RedisLandingStatsCache använder
+        // (annars blir nyckeln dubbel-prefixad "jobbpilot:jobbpilot:..." och
+        // raderingen blir no-op när en annan test-ordning lämnar kvar värde).
         using var scope = _factory.Services.CreateScope();
         var cache = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
-        await cache.RemoveAsync("jobbpilot:landing:stats:v1", ct);
+        await cache.RemoveAsync("landing:stats:v1", ct);
 
         var response = await _client.GetAsync("/api/v1/landing/stats", ct);
 

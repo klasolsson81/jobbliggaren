@@ -2897,3 +2897,423 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-table tbody tr:hover td { background: var(--jp-surface-tertiary); }
 .jp-table tbody tr:last-child td { border-bottom: 2px solid var(--jp-border-strong); }
+
+/* ============================================================
+   F6 P5 Punkt 4 — Översikt (civic dossier)
+   Källa: docs/jobbpilot-v3-bundle/JobbPilot/handoff-oversikt/
+          jobbpilot-v3.css rad 1461-1879 (VERBATIM-klon per ADR 0052 —
+          jp-*-klasser är källan, ej refaktorerat till Tailwind).
+   Civic-utility-ledger — inga AI-dashboard-kort. ADR 0064-paritet
+   gäller INTE här (per-user auth-gated, ej publik anonym).
+   ============================================================ */
+
+.jp-oversikt__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.jp-oversikt__head > :first-child {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.jp-oversikt__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  margin-bottom: 8px;
+}
+/* "I dag" — kalenderblock i toppen.
+   Visar dagens planerade händelser (mockas; senare Google Calendar). */
+.jp-oversikt__today {
+  width: 320px;
+  max-width: 100%;
+  border: 1px solid var(--jp-border);
+  background: var(--jp-surface);
+  border-radius: var(--jp-r-md);
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jp-oversikt__today__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-oversikt__today__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+.jp-oversikt__today__date {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.jp-oversikt__today__day {
+  font-family: var(--jp-font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--jp-navy-700);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-feature-settings: "tnum" 1;
+}
+.jp-oversikt__today__rest {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+.jp-oversikt__today__weekday {
+  font-weight: 600;
+  color: var(--jp-ink-1);
+  text-transform: lowercase;
+}
+.jp-oversikt__today__month {
+  color: var(--jp-ink-3);
+  text-transform: lowercase;
+}
+
+.jp-oversikt__today__empty {
+  font-size: 14px;
+  color: var(--jp-ink-3);
+  font-style: italic;
+  padding: 4px 0 6px;
+}
+
+.jp-oversikt__today__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-oversikt__today__event {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  column-gap: 12px;
+  row-gap: 0;
+  align-items: baseline;
+  padding-left: 10px;
+  border-left: 2px solid var(--jp-navy-700);
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.jp-oversikt__today__event--google {
+  border-left-color: var(--jp-info);
+}
+.jp-oversikt__today__time {
+  font-family: var(--jp-font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--jp-ink-1);
+  font-feature-settings: "tnum" 1;
+}
+.jp-oversikt__today__title {
+  color: var(--jp-ink-1);
+  font-weight: 500;
+}
+.jp-oversikt__today__where {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--jp-ink-3);
+}
+
+.jp-oversikt__today__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--jp-ink-3);
+  border-top: 1px dashed var(--jp-border);
+  padding-top: 8px;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+@media (max-width: 720px) {
+  .jp-oversikt__today { width: 100%; }
+}
+
+/* Notiser */
+.jp-notice-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-notice {
+  display: grid;
+  grid-template-columns: 4px 130px 1fr auto 120px 36px;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px 0 0;
+  min-height: 64px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-notice:first-child { border-top: 0; }
+.jp-notice__strip {
+  align-self: stretch;
+  width: 4px;
+  background: var(--jp-border);
+}
+.jp-notice--info .jp-notice__strip    { background: var(--jp-info); }
+.jp-notice--warning .jp-notice__strip { background: var(--jp-warning); }
+.jp-notice--brand .jp-notice__strip   { background: var(--jp-navy-700); }
+.jp-notice--success .jp-notice__strip { background: var(--jp-success); }
+
+.jp-notice__label {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--jp-ink-2);
+  padding: 14px 0 14px 8px;
+}
+.jp-notice--info .jp-notice__label    { color: var(--jp-info); }
+.jp-notice--warning .jp-notice__label { color: var(--jp-warning); }
+.jp-notice--brand .jp-notice__label   { color: var(--jp-navy-700); }
+.jp-notice--success .jp-notice__label { color: var(--jp-success); }
+
+.jp-notice__text {
+  font-size: 15px;
+  color: var(--jp-ink-1);
+  line-height: 1.45;
+  padding: 14px 0;
+}
+.jp-notice__text b {
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-notice__text em {
+  font-style: normal;
+  font-family: var(--jp-font-mono);
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+}
+
+.jp-notice__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--jp-navy-700);
+  font-weight: 600;
+  font-size: 13.5px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 6px 4px;
+}
+.jp-notice__cta:hover {
+  color: var(--jp-navy-600);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.jp-notice__time {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-3);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.jp-notice__dismiss {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--jp-r-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--jp-ink-3);
+  cursor: pointer;
+}
+.jp-notice__dismiss:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+}
+
+@media (max-width: 880px) {
+  .jp-notice {
+    grid-template-columns: 4px 1fr 32px;
+    grid-template-areas:
+      "strip label   dismiss"
+      "strip text    text"
+      "strip cta     time";
+    column-gap: 14px;
+    row-gap: 4px;
+    padding: 12px 14px 14px 0;
+  }
+  .jp-notice__strip { grid-area: strip; }
+  .jp-notice__label { grid-area: label; padding: 14px 0 0 4px; }
+  .jp-notice__text  { grid-area: text; padding: 0 4px; }
+  .jp-notice__cta   { grid-area: cta; padding: 6px 4px 14px; }
+  .jp-notice__time  { grid-area: time; justify-self: end; padding: 0 4px 14px; align-self: end; }
+  .jp-notice__dismiss { grid-area: dismiss; align-self: start; margin-top: 8px; }
+}
+
+/* Sammanfattning — dossier-tabell */
+.jp-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-summary__group {
+  padding: 18px 22px 14px;
+  border-right: 1px solid var(--jp-border-soft);
+  display: flex;
+  flex-direction: column;
+}
+.jp-summary__group:last-child { border-right: 0; }
+.jp-summary__group__title {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--jp-ink-2);
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  border-bottom: 1.5px solid var(--jp-border);
+}
+.jp-summary__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 14px;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 0 10px;
+  border-bottom: 1px dotted var(--jp-border);
+  font-size: 14.5px;
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  width: 100%;
+  text-align: left;
+  color: var(--jp-ink-1);
+  font-family: inherit;
+  cursor: default;
+}
+.jp-summary__group .jp-summary__row:last-of-type {
+  border-bottom: 0;
+}
+.jp-summary__row--btn {
+  cursor: pointer;
+}
+.jp-summary__row--btn:hover .jp-summary__row__label {
+  color: var(--jp-navy-700);
+}
+.jp-summary__row--btn:hover .jp-summary__row__leader {
+  border-bottom-color: var(--jp-navy-700);
+}
+.jp-summary__row__label {
+  color: var(--jp-ink-1);
+  font-weight: 500;
+  min-width: 0;
+  /* Tillåt wrap så hela texten syns ("Senaste sökning",
+     "Profilen synlig för", "Nya matchningar i dag · profil"
+     trunkerades tidigare vid 880–1200px). */
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+.jp-summary__row__hint {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--jp-ink-3);
+  letter-spacing: 0;
+}
+.jp-summary__row__leader {
+  align-self: end;
+  margin-bottom: 5px;
+  border-bottom: 1px dotted var(--jp-border-strong);
+  height: 0;
+}
+.jp-summary__row__value {
+  font-family: var(--jp-font-mono);
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--jp-ink-1);
+  letter-spacing: -0.01em;
+  font-feature-settings: "tnum" 1;
+}
+.jp-summary__row--highlight .jp-summary__row__value {
+  color: var(--jp-navy-700);
+}
+.jp-summary__row__chev {
+  color: var(--jp-ink-3);
+  align-self: center;
+}
+.jp-summary__row--btn:hover .jp-summary__row__chev {
+  color: var(--jp-navy-700);
+}
+
+@media (max-width: 880px) {
+  .jp-summary { grid-template-columns: 1fr; }
+  .jp-summary__group {
+    border-right: 0;
+    border-bottom: 1px solid var(--jp-border-soft);
+  }
+  .jp-summary__group:last-child { border-bottom: 0; }
+}
+
+/* Notice-grupp rubriker — "Kräver åtgärd" / "Information" */
+.jp-notice-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 6px;
+  padding-bottom: 4px;
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+.jp-notice-group:first-child {
+  margin-top: 4px;
+}
+.jp-notice-group__title {
+  color: var(--jp-ink-1);
+}
+.jp-notice-group--info .jp-notice-group__title {
+  color: var(--jp-ink-2);
+}
+.jp-notice-group__count {
+  color: var(--jp-ink-3);
+  font-weight: 600;
+}
+.jp-notice-group__count::before {
+  content: "(";
+}
+.jp-notice-group__count::after {
+  content: ")";
+}

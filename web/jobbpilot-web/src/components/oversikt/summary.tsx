@@ -112,7 +112,7 @@ export function Summary({
           href={lastUpdatedCvDate ? "/cv" : undefined}
         />
         <SummaryRow
-          label="Sökstart"
+          label="Aktiv sedan"
           value={searchStartDate ?? "—"}
           hint={
             searchStartDaysSince != null

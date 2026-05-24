@@ -4,7 +4,7 @@ import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
 import type { GetResumesResult } from "@/lib/dto/resumes";
-import type { ListJobAdsResult } from "@/lib/dto/job-ads";
+import type { LandingStatsDto } from "@/lib/dto/landing";
 import {
   computeApplicationCounts,
   daysSince,
@@ -30,7 +30,13 @@ interface OversiktPageProps {
   readonly savedJobAds: ApiResult<ListSavedJobAdsResult>;
   readonly recentSearches: ApiResult<ListRecentSearchesResult>;
   readonly resumes: ApiResult<GetResumesResult>;
-  readonly jobAds: ApiResult<ListJobAdsResult>;
+  /**
+   * Landing-stats per CTO svans-PR2-dom (agentId ad37955db80099f19) —
+   * ersatte tidigare `jobAds` prop. Worker-precomputed Redis-cache
+   * (ADR 0064), 0-1ms read vs ListJobAdsQuery p50 ~1.2s. Samma
+   * `activeCount` som HeaderStats renderar → ingen 28 vs 9 mismatch.
+   */
+  readonly landingStats: LandingStatsDto | null;
 }
 
 /**
@@ -52,9 +58,15 @@ export function OversiktPage({
   savedJobAds,
   recentSearches,
   resumes,
-  jobAds,
+  landingStats,
 }: OversiktPageProps) {
   const today = new Date();
+  // Klas svans-PR2 Variant A: datum-suffix på notice-IDs så dismissad notis
+  // återkommer när data ändras (nästa dag = ny render av "143 nya annonser").
+  // Permanent-dismiss-defekten i PR1 (Klas-feedback #2 2026-05-24) löst.
+  // När unified notification-port finns: ersätt slug+datum med riktigt
+  // notificationId per backend-instans.
+  const dateSlug = today.toISOString().slice(0, 10);
   const kickerName =
     displayName && displayName.trim().length > 0
       ? displayName
@@ -84,7 +96,7 @@ export function OversiktPage({
     const offerCompany = latestOffer.jobAd?.company ?? "ett företag";
     const offerTitle = latestOffer.jobAd?.title;
     actionNotices.push({
-      id: "n-offer",
+      id: `n-offer-${dateSlug}`,
       kind: "success",
       label: "Erbjudande",
       text: (
@@ -101,7 +113,7 @@ export function OversiktPage({
 
   if (followUps.length > 0) {
     actionNotices.push({
-      id: "n-followup",
+      id: `n-followup-${dateSlug}`,
       kind: "warning",
       label: "Uppföljning",
       text: (
@@ -129,7 +141,7 @@ export function OversiktPage({
   if (savedCount > 0 && futureDeadlines.length > 0) {
     const labels = futureDeadlines.map((d) => d.label).join(", ");
     actionNotices.push({
-      id: "n-deadline",
+      id: `n-deadline-${dateSlug}`,
       kind: "warning",
       label: "Deadline",
       text: (
@@ -147,7 +159,7 @@ export function OversiktPage({
 
   const infoNotices: NoticeData[] = [
     {
-      id: "n-match",
+      id: `n-match-${dateSlug}`,
       kind: "info",
       label: "Matchning",
       text: (
@@ -169,7 +181,7 @@ export function OversiktPage({
     const interviewCompany =
       interview.jobAd?.company ?? "en arbetsgivare";
     infoNotices.push({
-      id: "n-interview-confirmed",
+      id: `n-interview-confirmed-${dateSlug}`,
       kind: "brand",
       label: "Intervju",
       text: (
@@ -190,7 +202,7 @@ export function OversiktPage({
     recentSearches.kind === "ok" ? recentSearches.data : [];
   if (recentSearchesData.length > 0) {
     infoNotices.push({
-      id: "n-saved-search",
+      id: `n-saved-search-${dateSlug}`,
       kind: "info",
       label: "Sparad sökning",
       text: (
@@ -229,8 +241,10 @@ export function OversiktPage({
 
   // design-reviewer M2: vid endpoint-failure ⇒ null (renders som "—"),
   // inte 0 (genuint missvisande för prod-korpus ~46k aktiva annonser).
-  const activeJobAdsTotal =
-    jobAds.kind === "ok" ? jobAds.data.totalCount : null;
+  // svans-PR2: nu från landing-stats (Worker-precomputed cache, samma siffra
+  // som HeaderStats). Floor-fallback (IsStale=true) räknas som "ok" — vi
+  // använder floor-värdet hellre än "—" för att undvika svart fält på sidan.
+  const activeJobAdsTotal = landingStats?.activeCount ?? null;
 
   const profileCreatedAt =
     profile.kind === "ok" ? profile.data.createdAt : null;

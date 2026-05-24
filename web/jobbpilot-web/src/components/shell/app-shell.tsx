@@ -357,7 +357,7 @@ export function AppShell({
     <div className="jp-shell">
       <header className="jp-header" role="banner">
         <div className="jp-header__inner">
-          <Link href="/jobb" className="jp-brand" aria-label="JobbPilot — till start">
+          <Link href="/oversikt" className="jp-brand" aria-label="JobbPilot — till start">
             <span className="jp-brand__mark" aria-hidden="true">
               J
             </span>
@@ -381,13 +381,12 @@ export function AppShell({
 
           <span className="jp-header__spacer" />
 
-          {/* design-reviewer M1 (2026-05-24): dölj HeaderStats på /oversikt
-              eftersom Sammanfattning > Bevakning > "Aktiva annonser totalt"
-              är auktoritativ där. Två återgivningar av samma siffra på samma
-              sida bryter flödesbegriplighet (Area 5 — Norman/Krug). */}
-          {pathname !== "/oversikt" && (
-            <HeaderStats initialStats={initialStats} />
-          )}
+          {/* Klas post-leverans-feedback 2026-05-24: HeaderStats återställd
+              på alla auth-routes inkl. /oversikt (revertera design-reviewer
+              M1 från svans-PR1). Mock-konflikten 28 vs 9 är löst i samma
+              svans-PR via att /oversikt "Aktiva annonser totalt" nu också
+              använder getLandingStats() — samma siffra som HeaderStats. */}
+          <HeaderStats initialStats={initialStats} />
 
           <div className="jp-header__actions">
             <NotificationsBell />

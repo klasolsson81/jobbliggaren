@@ -19,7 +19,11 @@ function safeRedirectPath(raw: string | null): string {
   ) {
     return raw;
   }
-  return "/jobb";
+  // F6 P5 Punkt 4 svans (2026-05-24, Klas D6-GO post-leverans-feedback):
+  // default-route efter login byter från /jobb till /oversikt eftersom
+  // /oversikt är start-sidan per HANDOVER §7. /jobb behålls som direkt-
+  // route, men inte längre default-landningsplats.
+  return "/oversikt";
 }
 
 export type AuthActionState = {

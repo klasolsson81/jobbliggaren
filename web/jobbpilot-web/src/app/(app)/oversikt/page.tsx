@@ -5,7 +5,7 @@ import { getPipeline } from "@/lib/api/applications";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getResumes } from "@/lib/api/resumes";
-import { getJobAds } from "@/lib/api/job-ads";
+import { fetchLandingStats } from "@/lib/api/landing";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
 
 /**
@@ -21,29 +21,33 @@ export default async function OversiktRoute() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const [profile, pipeline, savedJobAds, recentSearches, resumes, jobAds] =
+  // PERF svans-PR2 (2026-05-24): bytt getJobAds() → getLandingStats() för
+  // "Aktiva annonser totalt"-fältet. Samma värde (activeCount), men landing-
+  // stats är Worker-precomputed Redis-cache 0-1ms vs ListJobAdsQuery p50
+  // ~1.2s / max ~7s (CloudWatch-discovery 2026-05-24). Eliminerar 1-2s från
+  // Promise.all-max + löser samtidigt 28-vs-9 mismatch i HeaderStats
+  // (HeaderStats använder samma endpoint). CTO-godkänd discovery-baserad
+  // fix (agentId ad37955db80099f19). Landing-stats är publik anonym ADR 0064
+  // — säker att läsa även från auth-gated route.
+  const [profile, pipeline, savedJobAds, recentSearches, resumes, landingStats] =
     await Promise.all([
       getMyProfile(),
       getPipeline(),
       getSavedJobAds(),
       getRecentSearches(),
       getResumes(1, 20),
-      getJobAds({
-        page: 1,
-        pageSize: 1,
-        sortBy: "PublishedAtDesc",
-      }),
+      fetchLandingStats(),
     ]);
 
   // Unauthorized mid-render (token expired mellan layout-check och här):
   // redirecta. Övriga fel ⇒ degraderad render i OversiktPage.
+  // (landingStats är anonym så har ingen unauthorized-väg.)
   if (
     profile.kind === "unauthorized" ||
     pipeline.kind === "unauthorized" ||
     savedJobAds.kind === "unauthorized" ||
     recentSearches.kind === "unauthorized" ||
-    resumes.kind === "unauthorized" ||
-    jobAds.kind === "unauthorized"
+    resumes.kind === "unauthorized"
   ) {
     redirect("/logga-in");
   }
@@ -60,7 +64,7 @@ export default async function OversiktRoute() {
       savedJobAds={savedJobAds}
       recentSearches={recentSearches}
       resumes={resumes}
-      jobAds={jobAds}
+      landingStats={landingStats}
     />
   );
 }

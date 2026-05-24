@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { Inbox, LayoutDashboard, LogIn, ScrollText } from "lucide-react";
+import { Briefcase, Inbox, LayoutDashboard, LogIn, ScrollText } from "lucide-react";
 
 // F-Pre Punkt 5 — Gäst-shell (CTO-dom 2026-05-24 Beslut 1, Variant A).
 // Egen shell separat från `(app)`-shellen — gemensam Look (header + brand)
@@ -20,11 +20,12 @@ interface GuestNavItem {
   readonly icon: typeof LayoutDashboard;
 }
 
-// CTO Beslut 3 Alt 2: ingen `/gast/jobb`-länk i navet — /jobb LIVE är deferrad
-// till senare session (Klas-GO 2026-05-24 STOPP A). Sidan finns ändå som
-// konverterings-CTA om någon når URL:en direkt.
+// F-Pre Punkt 5b — /gast/jobb tillbaka i nav (CTO 2026-05-24 5b Beslut 3);
+// föregående hide motiverad av LIVE-deferral (Punkt 5 Alt 2), mockdata-väg
+// har inte den risk-profilen (inga BE-anrop, ingen anonym auth-yta).
 const GUEST_NAV: ReadonlyArray<GuestNavItem> = [
   { href: "/gast/oversikt", label: "Översikt", icon: LayoutDashboard },
+  { href: "/gast/jobb", label: "Jobb", icon: Briefcase },
   { href: "/gast/ansokningar", label: "Mina ansökningar", icon: Inbox },
   { href: "/gast/cv", label: "CV", icon: ScrollText },
 ];

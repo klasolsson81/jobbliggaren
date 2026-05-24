@@ -50,6 +50,9 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-89 | Ephemeral API+Redis+Worker-stack i CI loadtest-jobb (kör `LOADTEST_SCENARIOS=landing-stats` mot riktig backend) | Minor | Trigger | Performance/CI fitness function |
 | TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl, värdet 1 oförändrat) | Minor | Trigger | Infra/IaC |
 | TD-92 | Rate-limit på 5 `/me/*` + `/applications/pipeline` + `/resumes` auth-gated GET-endpoints (preexisting, amplifieras av /oversikt Promise.all) | **Major** | F6 P5-fas-stängning | Säkerhet/DoS-skydd |
+| TD-93 | Riktig matchning mot användarens CV/sökkriterier (inte alla nya annonser) — Nya matchningar idag-fält | Minor | Trigger (efter matching-tjänst) | Frontend/Feature |
+| TD-94 | `ListJobAdsQuery` perf (p50 ~1.2s, max 6.7s — ADR 0045 budget 300ms; COUNT-query mot 46k+ rader misstänkt rot) | **Major** | F6 P5-fas-stängning | Performance/Backend |
+| TD-95 | "Senaste sökning"-rad i Översikt-sammanfattning visar "—" trots utförda text-sökningar — discovery + ev. fix | Minor | Trigger | Frontend/Bug |
 
 ---
 
@@ -80,6 +83,131 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 ## Major — Fas 2
 
 ## Major — F6 P5 Punkt 2-fas-stängning
+
+## TD-95: "Senaste sökning"-rad tom i Översikt-sammanfattning
+
+**Kategori:** Frontend/Bug
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** Klas post-leverans-feedback F6 P5 Punkt 4 visual-verify 2026-05-24
+
+Klas-rapport: text-sökning "systemutvecklare" → /jobb → /oversikt visar
+"Senaste sökning: —" istället för "systemutvecklare". Förväntad: senaste
+text-sökning ska visas.
+
+**Discovery (CC 2026-05-24):**
+
+- `RecentJobSearchCaptureBehavior.cs:56` — capture körs när Q **ELLER** ssyk
+  **ELLER** region har innehåll (inte alla tomma). Text-search Q="systemutvecklare"
+  passerar denna guard.
+- `ListJobAdsQuery.cs:22` — implementerar `ICapturesRecentSearch` → behavior
+  triggas för alla `/api/v1/job-ads`-anrop.
+- `RecentJobSearchCapturer.cs` — sparar via `SearchCriteria.Create` om validering
+  passar; try/catch på rad 73 swallow fel som warning-logg.
+
+**Möjliga orsaker (att verifiera):**
+1. `SearchCriteria.Create` failar för text-only Q (tom ssyk + region) i Domain-
+   invariant — capture görs ej; queryn lyckas men ingen RecentSearch sparas
+2. Capture sparas korrekt men `lastViewedAt`-sort i `oversikt-page.tsx:213`
+   ger felaktigt resultat (sortering på `localeCompare` av ISO-string — borde
+   funka men edge cases möjliga)
+3. Klas testade FÖRE deploy av landing-stats v0.2.61-dev där text-search-feature
+   blev fullt aktiv (osannolikt; ADR 0060 från 2026-05-20)
+4. `getRecentSearches()` returnerar tom array för Klas-konto pga retention-policy
+   (default 30 dagar per ADR 0060)
+
+**Föreslagen åtgärd:**
+
+1. Lokalt: kör `dotnet test --filter "RecentJobSearchCapture"` + manuell
+   text-only-Q-test mot dev-konto
+2. CloudWatch: `aws logs filter-log-events --filter-pattern '"auto-capture misslyckades"'`
+   senaste 24h — om hits ⇒ capture-fel
+3. Direkt SQL: `SELECT * FROM recent_job_searches WHERE user_id = '<klas>'`
+   för att se faktisk state
+4. Fix baserat på rot — kan vara `SearchCriteria.Create` text-only-guard,
+   `lastViewedAt`-bug, eller bara verifiera att Klas inte glömt logga
+   in/ut igen sedan deploy
+
+**Beroenden:** Inga (alla verktyg finns).
+
+---
+
+## TD-94: `ListJobAdsQuery` perf — p50 ~1.2s, max 6.7s (ADR 0045 violation 4-22x)
+
+**Kategori:** Performance/Backend
+**Severity:** Major
+**Fas:** F6 P5-fas-stängning (innan tag-push v0.2.63-dev eller motsv.)
+**Källa:** senior-cto-advisor F6 P5 P4 svans-PR2 perf-incident-rond 2026-05-24
+(agentId `ad37955db80099f19`) + CloudWatch-discovery av Klas-rapporterad 10s+
+loadtime för `/jobb`-sidan.
+
+CloudWatch-data (senaste 1h, dev-environment):
+```
+ListJobAdsQuery  n=12  p50=1185ms  max=6729ms  avg=1929ms
+```
+
+ADR 0045 Beslut 1 klass (a) säger 300ms p95 för auth-gated reads. p50 är
+4x över budget; max 22x över. Konstant regression.
+
+**Hypoteser (verifieras i kommande session):**
+
+- COUNT(*) över 46k+ JobAds-rader utan dedikerad index → 1-3s baseline-cost
+- JsonbContains för ssyk/region (pre-FTS-fall-through) → seq scan
+- Sortering på `publishedAt` utan composite index för filtrerade queries
+- TOAST-detoasting av `description`-fält per row (ADR 0062 — STORED generated
+  search_vector innehåller redan title+description; vid SELECT laddas hela
+  raw_payload)
+
+**§9.6-press:** Pre-existing perf-defekt amplifierad av F6 P5 P4-svans
+(där `/oversikt`s 6x request-amplifikation gjorde det synligt för Klas).
+Kvalificerar för TD eftersom (a) scope-spridning över Application/Infra/
+EF-config-filer + dotnet-architect-rond krävs för query-optimering, (b)
+fixet i F6 P5 P4-svans (byt `/oversikt`→landing-stats) löser /oversikt-
+specifika fanout-problemet men inte /jobb-rotorsaken, (c) NBomber-load-test
+för regression-skydd behövs (perf-test-writer-mandat).
+
+**Föreslagen åtgärd:**
+
+1. dotnet-architect-rond: EF-query-profiling, EXPLAIN ANALYZE mot dev-korpus,
+   index-strategi
+2. Möjliga åtgärder beroende på rot: composite-index för (status, deleted_at,
+   published_at), separat materialiserad COUNT-vy med periodisk refresh,
+   projektion av smalare DTO (utan raw_payload/description)
+3. NBomber-scenario `list_job_ads_p95` per ADR 0045 fitness function
+4. Stäng innan F6-fas-stängning
+
+**Beroenden:** Ingen (verktyg + agenter finns).
+
+---
+
+## TD-93: Riktig matchning mot användarens CV/sökkriterier (inte alla nya annonser)
+
+**Kategori:** Frontend/Feature
+**Severity:** Minor
+**Fas:** Trigger (efter matching-tjänst etablerad)
+**Källa:** Klas post-leverans-feedback F6 P5 Punkt 4 visual-verify 2026-05-24
+
+Klas-direktiv: "Om vi ska ha riktig 'match' så skall vi givetvis inte matchas
+mot alla nya annonser. Utan då skall vi matchas mot det vi söker/eller vad vi
+har för CV etc. Vi kan låte det vara mock så länge, och spara detta som en
+framtida åtgärd."
+
+Översikten visar "Nya matchningar i dag: 28" + "143 nya annonser som matchar
+din profil sedan i tisdags" — båda värdena är MOCK från `OVERSIKT_MOCK` i
+`lib/oversikt/mock-data.ts`. För riktig matchning behövs:
+
+1. Matching-tjänst som korrelerar (a) användarens sparade sökkriterier, (b)
+   användarens primära CV (skills, role), (c) nya JobAds sedan senaste login
+2. Beräknad "score per JobAd" eller "match-mängd inom användarens profil"
+3. Separat domain-aggregate `UserJobAdMatch` eller composite-query
+
+**Föreslagen åtgärd:** Bygg matching-tjänst som framtida feature (sannolikt
+Fas 7+ med AI-stöd) eller enklare heuristik baserad på SSYK-overlap.
+
+**Beroenden:** Användarens profil-data (skills, role-historia) — finns delvis
+i Resume-aggregat men inte queryable för matching idag.
+
+---
 
 ## TD-92: Rate-limit på auth-gated GET-endpoints (preexisting, amplifieras av `/oversikt` `Promise.all`)
 

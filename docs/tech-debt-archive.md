@@ -2517,3 +2517,48 @@ oförändrade).
 per-user auth-gated aggregat inte tillhör någon av de fyra port-axlarna
 (0043/0062/0063/0064) → in-konsument-aggregering. Implementations-not
 i `current-work.md` etablerar skiljelinjen mot ADR 0064.
+
+---
+
+## TD-95: "Senaste sökning"-rad tom i Översikt-sammanfattning
+**Kategori:** Frontend/Bug
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** Klas post-leverans-feedback F6 P5 Punkt 4 visual-verify 2026-05-24
+**Stängd:** 2026-05-24 (F6 P5 P4 svans-PR4)
+
+Klas-rapport: text-sökning "systemutvecklare" → /jobb → /oversikt visar
+"Senaste sökning: —" istället för "systemutvecklare". Förväntad: senaste
+text-sökning ska visas.
+
+### Stängningsnotat
+
+**Rotorsak (CloudWatch-discovery 2026-05-24):**
+`ListRecentSearchesQueryHandler:60` har **avsiktlig N+1** (CTO 2026-05-20
+Variant A — cap=20 håller fanout) som anropar `IJobAdSearchQuery.CountAsync`
+per row. Den queryn är samma slow COUNT som TD-94 rot (ListJobAdsQuery
+COUNT-perf p50 1.2s / max 6.7s). Cap=20 × ~1.5s = 7.5s totalt sekventiellt.
+
+FE-timeout `LIST_TIMEOUT_MS = 8_000` i `lib/api/recent-searches.ts:25` triggade
+abort efter 8s → cancellationToken propagerade till EF → Postgres returnerade
+`57014: canceling statement due to user request` → handler kastade
+OperationCanceledException → FE fick `{ kind: "error" }` → fallback till
+tom array. Användaren såg "Inga senaste sökningar än" trots existerande
+RecentSearches i DB.
+
+**Fix:** `ListRecentSearchesQuery(bool IncludeCount = true)`-parameter +
+handler skippar per-row COUNT när `IncludeCount=false` + endpoint exponerar
+`?includeCount=false` + FE `getRecentSearches(false)` på `/oversikt`.
+`/jobb`-hero-chip behåller default `true` för "(N nya)"-affordance — den ytan
+är inte hot-path för Klas just nu.
+
+**Symptom-fix, inte rot-fix.** Rotorsaken (slow ListJobAds-COUNT) är TD-94 —
+samma problem ligger kvar för `/jobb`-listsidan och för `/jobb`-hero-chip.
+TD-94 löser hela problemet (dotnet-architect-rond + index-strategi). Denna
+stäng tar bort /oversikt-symptomet utan att ändra arkitektur-kontraktet för
+hero-chip-konsumenten.
+
+**Reviews:** ingen formell review-cykel (5-LoC parameter-tillägg + handler-
+condition). Pre-commit gates: .NET 404+578+78 PASS, vitest 683 PASS, lint OK.
+
+**Commits:** F6 P5 P4 svans-PR4 (kommer post-stäng).

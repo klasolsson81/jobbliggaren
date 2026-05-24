@@ -34,7 +34,11 @@ export default async function OversiktRoute() {
       getMyProfile(),
       getPipeline(),
       getSavedJobAds(),
-      getRecentSearches(),
+      // svans-PR4 perf-fix: includeCount=false skippar slow per-row JobAds-
+      // COUNT (TD-94 rot) som triggade FE-timeout 8s → Npgsql 57014 (Klas
+      // 2026-05-24). /oversikt använder bara label + lastViewedAt — currentCount
+      // är 0 vilket är OK eftersom Sammanfattningen inte renderar "(N nya)".
+      getRecentSearches(false),
       getResumes(1, 20),
       fetchLandingStats(),
     ]);

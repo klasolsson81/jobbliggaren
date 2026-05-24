@@ -53,12 +53,20 @@ public sealed class ListRecentSearchesQueryHandler(
             var ssykLabels = await taxonomy.ResolveLabelsAsync(r.Ssyk, cancellationToken);
             var regionLabels = await taxonomy.ResolveLabelsAsync(r.Region, cancellationToken);
 
-            // Live-count: avsiktlig N+1 capped vid MaxPerSeeker=20 (CTO Variant A
-            // Q3-villkor). Via IJobAdSearchQuery.CountAsync (ADR 0062 — delad
-            // filter-SPOT med ListJobAds, q-FTS-accelererad). ADR 0045 fitness
-            // function observerar p95.
-            var currentCount = await search.CountAsync(
-                new JobAdFilterCriteria(r.Ssyk, r.Region, r.Q), cancellationToken);
+            // F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback /oversikt 7-10s):
+            // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20
+            // N+1). När `IncludeCount=false` skippar vi COUNT — kallas av
+            // /oversikt-konsumenten som bara använder Label + LastViewedAt.
+            // /jobb hero-chip behåller IncludeCount=true för "(N nya)"-affordance.
+            // Eliminerar /oversikt-fanout-blockern (5 rader × ~1.5s sekventiellt
+            // = 7.5s → FE-timeout 8s → Npgsql 57014). Fundamental rotorsak
+            // (slow ListJobAds COUNT) kvarstår — TD-94 separat session.
+            int currentCount = 0;
+            if (query.IncludeCount)
+            {
+                currentCount = await search.CountAsync(
+                    new JobAdFilterCriteria(r.Ssyk, r.Region, r.Q), cancellationToken);
+            }
 
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);
             var label = DeriveLabel(r.Q, ssykLabels, regionLabels);

@@ -18,9 +18,16 @@ public static class RecentSearchesEndpoints
             .WithTags("RecentSearches")
             .RequireAuthorization();
 
-        group.MapGet("/", async (IMediator mediator, CancellationToken ct) =>
+        // ?includeCount=false skippar per-row JobAds-COUNT (cap=20 N+1) för
+        // lättviktiga konsumenter — driver /oversikt-Sammanfattningens
+        // "Senaste sökning"-rad utan att triggra slow ListJobAds-COUNT.
+        // F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback /oversikt 7-10s).
+        group.MapGet("/", async (
+            IMediator mediator,
+            CancellationToken ct,
+            bool includeCount = true) =>
         {
-            var result = await mediator.Send(new ListRecentSearchesQuery(), ct);
+            var result = await mediator.Send(new ListRecentSearchesQuery(includeCount), ct);
             return Results.Ok(result);
         });
 

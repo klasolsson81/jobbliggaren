@@ -52,7 +52,6 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-92 | Rate-limit på 5 `/me/*` + `/applications/pipeline` + `/resumes` auth-gated GET-endpoints (preexisting, amplifieras av /oversikt Promise.all) | **Major** | F6 P5-fas-stängning | Säkerhet/DoS-skydd |
 | TD-93 | Riktig matchning mot användarens CV/sökkriterier (inte alla nya annonser) — Nya matchningar idag-fält | Minor | Trigger (efter matching-tjänst) | Frontend/Feature |
 | TD-94 | `ListJobAdsQuery` perf (p50 ~1.2s, max 6.7s — ADR 0045 budget 300ms; COUNT-query mot 46k+ rader misstänkt rot) | **Major** | F6 P5-fas-stängning | Performance/Backend |
-| TD-95 | "Senaste sökning"-rad i Översikt-sammanfattning visar "—" trots utförda text-sökningar — discovery + ev. fix | Minor | Trigger | Frontend/Bug |
 
 ---
 
@@ -83,54 +82,6 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 ## Major — Fas 2
 
 ## Major — F6 P5 Punkt 2-fas-stängning
-
-## TD-95: "Senaste sökning"-rad tom i Översikt-sammanfattning
-
-**Kategori:** Frontend/Bug
-**Severity:** Minor
-**Fas:** Trigger
-**Källa:** Klas post-leverans-feedback F6 P5 Punkt 4 visual-verify 2026-05-24
-
-Klas-rapport: text-sökning "systemutvecklare" → /jobb → /oversikt visar
-"Senaste sökning: —" istället för "systemutvecklare". Förväntad: senaste
-text-sökning ska visas.
-
-**Discovery (CC 2026-05-24):**
-
-- `RecentJobSearchCaptureBehavior.cs:56` — capture körs när Q **ELLER** ssyk
-  **ELLER** region har innehåll (inte alla tomma). Text-search Q="systemutvecklare"
-  passerar denna guard.
-- `ListJobAdsQuery.cs:22` — implementerar `ICapturesRecentSearch` → behavior
-  triggas för alla `/api/v1/job-ads`-anrop.
-- `RecentJobSearchCapturer.cs` — sparar via `SearchCriteria.Create` om validering
-  passar; try/catch på rad 73 swallow fel som warning-logg.
-
-**Möjliga orsaker (att verifiera):**
-1. `SearchCriteria.Create` failar för text-only Q (tom ssyk + region) i Domain-
-   invariant — capture görs ej; queryn lyckas men ingen RecentSearch sparas
-2. Capture sparas korrekt men `lastViewedAt`-sort i `oversikt-page.tsx:213`
-   ger felaktigt resultat (sortering på `localeCompare` av ISO-string — borde
-   funka men edge cases möjliga)
-3. Klas testade FÖRE deploy av landing-stats v0.2.61-dev där text-search-feature
-   blev fullt aktiv (osannolikt; ADR 0060 från 2026-05-20)
-4. `getRecentSearches()` returnerar tom array för Klas-konto pga retention-policy
-   (default 30 dagar per ADR 0060)
-
-**Föreslagen åtgärd:**
-
-1. Lokalt: kör `dotnet test --filter "RecentJobSearchCapture"` + manuell
-   text-only-Q-test mot dev-konto
-2. CloudWatch: `aws logs filter-log-events --filter-pattern '"auto-capture misslyckades"'`
-   senaste 24h — om hits ⇒ capture-fel
-3. Direkt SQL: `SELECT * FROM recent_job_searches WHERE user_id = '<klas>'`
-   för att se faktisk state
-4. Fix baserat på rot — kan vara `SearchCriteria.Create` text-only-guard,
-   `lastViewedAt`-bug, eller bara verifiera att Klas inte glömt logga
-   in/ut igen sedan deploy
-
-**Beroenden:** Inga (alla verktyg finns).
-
----
 
 ## TD-94: `ListJobAdsQuery` perf — p50 ~1.2s, max 6.7s (ADR 0045 violation 4-22x)
 
@@ -1415,6 +1366,7 @@ ADR-cross-references och granskningsbevis.
 | TD-80 | JobAd.Url scheme-whitelist (http/https) i Domain.ValidateInputs | 2026-05-13 | TD-80-batch (Domain ValidateCore + 17 nya tester, 932 backend-tester gröna) |
 | TD-13 | Encryption av PII-kolumner | 2026-05-19 | FAS 3.5 (ADR 0049) C1–C6 + KMS-IaC; `c291ad6`/`fca3605` + `v0.2.19-dev`-deploy grön |
 | TD-82 | Översikt/Dashboard-sida (post-login-landningsvy) | 2026-05-24 | F6 P5 Punkt 4 — `/oversikt`-route levererad per HANDOVER-oversikt.md + CTO-dom Variant A (direkt RSC `Promise.all`) |
+| TD-95 | "Senaste sökning"-rad tom i Översikt-sammanfattning | 2026-05-24 | F6 P5 P4 svans-PR4 — rot=ListRecentSearchesQueryHandler:60 N+1 COUNT timeout → fix via IncludeCount-parameter |
 
 ---
 

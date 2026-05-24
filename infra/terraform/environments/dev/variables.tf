@@ -72,21 +72,49 @@ variable "common_tags" {
 # ---------------------------------------------------------------------------
 
 variable "api_image_tag" {
-  description = "Image-tag för Api-container. Default \"latest\" (mutable för dev). STEG 14 ersätter med SHA-tag via GitHub Actions."
+  description = <<-EOT
+    Image-tag för Api-container. KRÄVER explicit värde — deploy-workflow
+    (.github/workflows/deploy-dev.yml) pushar bara `:<sha>` + `:<tag>` till
+    ECR, INTE `:latest`. Manuell `terraform apply` med default `:latest`
+    skapade en oanvändbar task-def-revision 2026-05-24 (Worker→Redis-incident).
+
+    Hitta senaste deployed tag:
+      aws ecs describe-task-definition --task-definition jobbpilot-dev-api \
+        --profile jobbpilot --region eu-north-1 \
+        --query 'taskDefinition.containerDefinitions[0].image' --output text \
+        | cut -d: -f2
+
+    Kör: terraform apply -var api_image_tag=<sha>
+  EOT
   type        = string
-  default     = "latest"
+  default     = ""
+
+  validation {
+    condition     = length(var.api_image_tag) > 0 && var.api_image_tag != "latest"
+    error_message = "api_image_tag måste sättas explicit (SHA eller version-tag). 'latest' förbjudet — ECR-workflow pushar inte den taggen, task-def-revision skulle skapas men inte kunna pullas."
+  }
 }
 
 variable "worker_image_tag" {
-  description = "Image-tag för Worker-container."
+  description = "Image-tag för Worker-container. Samma disciplin som api_image_tag — se den för rationale."
   type        = string
-  default     = "latest"
+  default     = ""
+
+  validation {
+    condition     = length(var.worker_image_tag) > 0 && var.worker_image_tag != "latest"
+    error_message = "worker_image_tag måste sättas explicit (SHA eller version-tag). 'latest' förbjudet — ECR-workflow pushar inte den taggen."
+  }
 }
 
 variable "migrate_image_tag" {
   description = "Image-tag för Migrate one-shot DDL-init (STEG 14b). Tom = task-def skapas inte. Sätts efter docker push av migrate-image."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.migrate_image_tag != "latest"
+    error_message = "migrate_image_tag får inte vara 'latest' — ECR-workflow pushar inte den taggen. Tom sträng är OK (task-def skapas inte alls)."
+  }
 }
 
 variable "api_cpu" {

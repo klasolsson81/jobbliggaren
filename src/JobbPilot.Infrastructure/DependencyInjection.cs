@@ -173,6 +173,17 @@ public static class DependencyInjection
         services.AddScoped<
             JobbPilot.Application.Security.Jobs.BackfillFieldEncryption.BackfillFieldEncryptionJob>();
 
+        // STEG 6 (2026-05-24) — ssyk_concept_id-backfill för pre-2026-05-20-
+        // fix-rader. IOptions-binding för delay/cap-tunables; jobbet self
+        // scoped (paritet BackfillFieldEncryptionJob).
+        services.AddOptions<JobbPilot.Application.JobAds.Jobs.BackfillJobAdSsyk.BackfillJobAdSsykOptions>()
+            .Bind(configuration.GetSection(
+                JobbPilot.Application.JobAds.Jobs.BackfillJobAdSsyk.BackfillJobAdSsykOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            JobbPilot.Application.JobAds.Jobs.BackfillJobAdSsyk.BackfillJobAdSsykJob>();
+
         return services;
     }
 

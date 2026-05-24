@@ -16,6 +16,7 @@ namespace JobbPilot.Infrastructure.JobSources.Platsbanken;
 /// </summary>
 internal sealed partial class PlatsbankenJobSource(
     IJobTechStreamClient streamClient,
+    IJobTechSearchClient searchClient,
     IDateTimeProvider clock,
     ILogger<PlatsbankenJobSource> logger) : IJobSource
 {
@@ -156,6 +157,37 @@ internal sealed partial class PlatsbankenJobSource(
         }
     }
 
+    public async Task<JobAdImportItem?> RefetchByExternalIdAsync(
+        string externalId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(externalId);
+
+        JobTechHit? hit;
+        try
+        {
+            hit = await searchClient.GetAdByIdAsync(externalId, cancellationToken);
+        }
+        catch (Refit.ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // ADR 0032-amendment 2026-05-23 — 404 = "annons borttagen från
+            // källan", caller hanterar som skip+count, inte arkivering.
+            // Retention-disciplinen ägs av snapshot-flödets miss-tracking,
+            // inte per-ID-fetch (architect-rond 2026-05-24).
+            LogRefetchNotFound(logger, externalId);
+            return null;
+        }
+
+        if (hit is null)
+        {
+            // Refit 8+ nullable-return-shape: 404 → null utan exception.
+            LogRefetchNotFound(logger, externalId);
+            return null;
+        }
+
+        return TryConvertToImportItem(hit);
+    }
+
     private JobAdImportItem? TryConvertToImportItem(JobTechHit hit)
     {
         if (string.IsNullOrWhiteSpace(hit.Id) || hit.PublicationDate is null)
@@ -261,4 +293,8 @@ internal sealed partial class PlatsbankenJobSource(
         Message = "Platsbanken snapshot trunkerad mid-stream — bounded retry uttömd efter {Attempt} försök ({ConvertedCount}/{TotalCount} konverterade). Avslutar gracefully; hybrid stream-katch-up + nästa cron fyller resten (ADR 0032-amendment 2026-05-16). Ingen Hangfire-retry-storm.")]
     private static partial void LogSnapshotTruncatedGivingUp(
         ILogger logger, Exception exception, int attempt, int convertedCount, int totalCount);
+
+    [LoggerMessage(EventId = 5006, Level = LogLevel.Debug,
+        Message = "Platsbanken refetch ExternalId={ExternalId} — 404 från källan, hoppas över (ej arkivering — retention-flödet skiljt).")]
+    private static partial void LogRefetchNotFound(ILogger logger, string externalId);
 }

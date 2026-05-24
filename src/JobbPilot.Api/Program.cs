@@ -13,6 +13,8 @@ using JobbPilot.Infrastructure;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Sessions;
 using JobbPilot.Infrastructure.Persistence;
+using Hangfire;
+using Hangfire.PostgreSql;
 using Mediator;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -62,6 +64,34 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthorizationPolicies.Admin, policy => policy.RequireRole(Roles.Admin));
 });
 builder.Services.AddJobbPilotRateLimiting(builder.Configuration);
+
+// STEG 6 (2026-05-24) — Hangfire-client (storage-only, INGEN HangfireServer).
+// Api enqueue:ar BackfillJobAdSsykWorker via IBackgroundJobClient; körningen
+// utförs av Worker-processens HangfireServer som läser från samma storage.
+// HTTP-fri-invariant per ADR 0023 bevaras — Hangfire ligger inte i request-vägen,
+// bara som klient mot delad postgres-tabell.
+//
+// Connection-string-resolver speglar Worker.Hosting.HangfireConnectionStringResolver
+// fallback-kedjan: HangfireStorage → Postgres. I dev räcker Postgres (samma DB).
+// I prod: jobbpilot_app-roll behöver GRANT på hangfire.* för att kunna enqueue:a;
+// alternativt sätt ConnectionStrings:HangfireStorage till jobbpilot_worker-secret
+// via Terraform (TD-X dokumenterar om prod-deploy aktualiseras).
+var hangfireConn = builder.Configuration.GetConnectionString("HangfireStorage")
+    ?? builder.Configuration.GetConnectionString("Postgres")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:HangfireStorage eller :Postgres saknas — kan inte enqueue:a Hangfire-jobb.");
+
+builder.Services.AddHangfire(cfg => cfg
+    .UseRecommendedSerializerSettings()
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UsePostgreSqlStorage(
+        opts => opts.UseNpgsqlConnection(hangfireConn),
+        new PostgreSqlStorageOptions
+        {
+            SchemaName = "hangfire",
+            // Api ska ALDRIG migrera schemat — Worker äger schema-bootstrap.
+            PrepareSchemaIfNecessary = false,
+        }));
 
 // Health checks — TD-29 / F2-P6 strict readiness-probe.
 //

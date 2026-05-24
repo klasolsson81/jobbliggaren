@@ -46,6 +46,11 @@ builder.Services.AddScoped<JobbPilot.Worker.Hosting.ExpireJobAdsWorker>();
 // TD-13 C5 (ADR 0049 Beslut 4) — DisableConcurrentExecution-wrapper för
 // fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
 builder.Services.AddScoped<JobbPilot.Worker.Hosting.BackfillFieldEncryptionWorker>();
+// STEG 6 (2026-05-24) — DisableConcurrentExecution-wrapper för ssyk-backfill
+// (~2h körnings-tid vid default-throttle, paritet snapshot/field-encryption).
+// Wrappern registreras för framtida cron-användning; Api enqueue:ar för MVP-
+// triggern Application-jobbet direkt (Clean Arch — Api refererar inte Worker).
+builder.Services.AddScoped<JobbPilot.Worker.Hosting.BackfillJobAdSsykWorker>();
 
 // ADR 0064 — Worker:s landing-stats-refresh-wrapper. Job-klassen registreras
 // av AddLandingStats() nedan; wrappern bär bara Hangfire-attributet

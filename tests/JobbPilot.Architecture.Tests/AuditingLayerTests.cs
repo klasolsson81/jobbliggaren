@@ -215,7 +215,12 @@ public class AuditingLayerTests
             // JobAdsRetentionCompleted-audit (CTO Q3=B aggregerad audit-rad
             // ersätter per-item JobAdArchivedDomainEvent vid bulk-arkivering).
             "RetainPlatsbankenJobAdsJob",
-            "ExpireJobAdsJob"
+            "ExpireJobAdsJob",
+            // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för
+            // pre-2026-05-20-fix-rader (snapshot-trunkering når dem aldrig).
+            // Återanvänder JobAdsSynced med JobType="backfill" per architect-
+            // rond 2026-05-24 (inget nytt audit-koncept under MVP-press).
+            "BackfillJobAdSsykJob"
         };
         var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
 

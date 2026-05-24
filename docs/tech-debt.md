@@ -52,6 +52,9 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-92 | Rate-limit på 5 `/me/*` + `/applications/pipeline` + `/resumes` auth-gated GET-endpoints (preexisting, amplifieras av /oversikt Promise.all) | **Major** | F6 P5-fas-stängning | Säkerhet/DoS-skydd |
 | TD-93 | Riktig matchning mot användarens CV/sökkriterier (inte alla nya annonser) — Nya matchningar idag-fält | Minor | Trigger (efter matching-tjänst) | Frontend/Feature |
 | TD-94 | `ListJobAdsQuery` perf (p50 ~1.2s, max 6.7s — ADR 0045 budget 300ms; COUNT-query mot 46k+ rader misstänkt rot). **Blocker för "(N nya)"-affordance-restoration** på hero-chip + /sokningar (förlorad i svans-PR6) | **Major** | **Fas Nu** | Performance/Backend |
+| TD-96 | Api→Worker port för Hangfire-enqueue (defense-in-depth `[DisableConcurrentExecution]` + AdminAuthorizationBehavior coverage på fire-and-forget) | Minor | Trigger | Architecture/Security |
+| TD-97 | Integration-test för STORED column-re-evaluation i BackfillJobAdSsykJob mot Testcontainers Postgres | Minor | Fas 1 (efter MVP-demo) | Test coverage |
+| TD-98 | Dedikerad rate-limit-policy för admin-endpoints (`AdminWritePolicy`, partition på UserId) | Minor | Trigger | Säkerhet/DoS-skydd |
 
 ---
 

@@ -17,10 +17,10 @@ export default function LoggaInPage() {
       <p className="text-sm text-text-secondary text-center">
         Inget konto?{" "}
         <Link
-          href="/registrera"
+          href="/vantelista"
           className="text-brand-600 hover:text-brand-700 underline underline-offset-2"
         >
-          Skapa ett konto
+          Anmäl dig till väntelistan
         </Link>
       </p>
     </div>

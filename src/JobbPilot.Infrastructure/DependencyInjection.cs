@@ -266,6 +266,13 @@ public static class DependencyInjection
         services.Configure<FeatureFlagsOptions>(
             configuration.GetSection(FeatureFlagsOptions.SectionName));
 
+        // Server-side privacy-policy-version-stämpel för waitlist consent-records
+        // (GDPR Art. 7(1) bevis). Default "1.0" via class-init; appsettings.json-
+        // overrides bindas här.
+        services.Configure<JobbPilot.Application.Waitlist.PrivacyPolicyOptions>(
+            configuration.GetSection(
+                JobbPilot.Application.Waitlist.PrivacyPolicyOptions.SectionName));
+
         services.AddSingleton<IInvitationTokenGenerator, InvitationTokenGenerator>();
         services.AddSingleton<IFeatureFlags, OptionsFeatureFlags>();
 

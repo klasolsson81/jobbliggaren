@@ -17,7 +17,7 @@ public class RejectWaitlistEntryCommandHandlerTests
     private static (AppDbContext Db, WaitlistEntry Entry) SeedPendingEntry()
     {
         var db = TestAppDbContextFactory.Create();
-        var entry = WaitlistEntry.Request("vantar@example.com", Clock).Value;
+        var entry = TestWaitlistFactory.CreatePending("vantar@example.com", Clock);
         db.WaitlistEntries.Add(entry);
         db.SaveChanges();
         return (db, entry);

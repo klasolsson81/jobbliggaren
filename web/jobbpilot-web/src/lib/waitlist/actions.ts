@@ -2,28 +2,51 @@
 
 import { env } from "@/lib/env";
 import { parseResponse } from "@/lib/dto/_helpers";
-import { waitlistEntryResponseSchema } from "@/lib/dto/waitlist";
+import {
+  waitlistEntryResponseSchema,
+  waitlistFormSchema,
+} from "@/lib/dto/waitlist";
 
 export type WaitlistActionState =
   | { status: "idle" }
   | { status: "success"; email: string }
-  | { status: "error"; error: string };
+  | { status: "error"; error: string; fieldErrors?: Record<string, string> };
+
+function coerceBool(value: FormDataEntryValue | null): boolean {
+  return value === "on" || value === "true" || value === "1";
+}
 
 export async function requestWaitlistAction(
   _prevState: WaitlistActionState,
   formData: FormData,
 ): Promise<WaitlistActionState> {
-  const email = formData.get("email") as string | null;
+  const parsed = waitlistFormSchema.safeParse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+    motivation: formData.get("motivation"),
+    marketingEmailAccepted: coerceBool(formData.get("marketingEmailAccepted")),
+  });
 
-  if (!email) {
-    return { status: "error", error: "E-postadress krävs." };
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const path = issue.path[0];
+      if (typeof path === "string" && !fieldErrors[path]) {
+        fieldErrors[path] = issue.message;
+      }
+    }
+    return {
+      status: "error",
+      error: "Kontrollera fälten och försök igen.",
+      fieldErrors,
+    };
   }
 
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/waitlist/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(parsed.data),
       cache: "no-store",
     });
 
@@ -31,14 +54,14 @@ export async function requestWaitlistAction(
       return {
         status: "error",
         error:
-          "Registreringar är just nu stängda. Försök igen senare när vi öppnar nästa pulse.",
+          "Anmälningar är just nu stängda. Försök igen senare när vi öppnar nästa pulse.",
       };
     }
 
     if (res.status === 400) {
       return {
         status: "error",
-        error: "E-postadressen har fel format.",
+        error: "Något var fel med uppgifterna. Kontrollera och försök igen.",
       };
     }
 

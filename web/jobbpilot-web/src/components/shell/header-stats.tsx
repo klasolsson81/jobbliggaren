@@ -14,9 +14,10 @@ import { formatLandingNumber } from "@/components/landing/landing-stats-format";
  *       2026-05-24). Worker-cronnen refreshar Redis var 5:e min, så
  *       worst-case latens från ny annons → synlig är ~15 min.</li>
  *   <li>När polling-svaret ger högre `newToday` än senaste sedda värdet
- *       visas en grön <code>+N</code>-pill via fade-in (200ms), och stannar
- *       tills nästa render (Klas-direktiv 2026-05-24 — variant "Fade-in +
- *       stay", civic-utility).</li>
+ *       visas en grön <code>+N</code>-pill via fade-in (200ms), syns i 8
+ *       sekunder, sen fade-out (Klas-feedback 2026-05-24 svans-PR5 —
+ *       tidigare "stay forever" upplevdes som "livräknaren har +1 hela tiden"
+ *       istället för "nu kom det in nya jobb"-affordance).</li>
  * </ul>
  *
  * Rate-limit-budget: 10-min polling = 0.1 req/min per tab; backend
@@ -27,6 +28,7 @@ import { formatLandingNumber } from "@/components/landing/landing-stats-format";
  * "behåll nuvarande"-disciplin.
  */
 const POLL_INTERVAL_MS = 10 * 60 * 1000;
+const DELTA_VISIBLE_MS = 8_000;
 
 export function HeaderStats({
   initialStats,
@@ -41,6 +43,11 @@ export function HeaderStats({
   // Unik key för fade-in-animationen — bumpar varje gång en ny delta visas
   // så React monterar om elementet och CSS-keyframes startar om.
   const [deltaKey, setDeltaKey] = useState<number>(0);
+  // Auto-clear-timer för delta-pillen (Klas-feedback 2026-05-24 svans-PR5).
+  // Ref håller pågående timer så ny delta innan timeout-utgång nollställer
+  // gammal timer och startar om — pillen syns 8s från SENASTE delta, inte
+  // permanent. Unmount-cleanup hindrar timer från att fira på unmount.
+  const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const poll = useCallback(async () => {
     try {
@@ -60,6 +67,15 @@ export function HeaderStats({
       if (diff > 0) {
         setDeltaToday(diff);
         setDeltaKey((k) => k + 1);
+        // Restart auto-clear-timer — om ny delta kommer innan tidigare
+        // pill hunnit nollställas, så restartas synligheten med ny delta.
+        if (deltaTimerRef.current !== null) {
+          clearTimeout(deltaTimerRef.current);
+        }
+        deltaTimerRef.current = setTimeout(() => {
+          setDeltaToday(0);
+          deltaTimerRef.current = null;
+        }, DELTA_VISIBLE_MS);
       }
     } catch {
       // Polling-fel = behåll nuvarande värde. Civic-utility:
@@ -85,6 +101,12 @@ export function HeaderStats({
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisibility);
+      // Cleanup pågående delta-timer vid unmount så pending setState inte
+      // försöker exekvera på unmounted komponent.
+      if (deltaTimerRef.current !== null) {
+        clearTimeout(deltaTimerRef.current);
+        deltaTimerRef.current = null;
+      }
     };
   }, [poll]);
 

@@ -16,13 +16,20 @@ function authHeaders(sessionId: string): HeadersInit {
 
 /**
  * Klient-side timeout för list-anropet. ADR 0060 Beslut 4 accepterar N+1
- * COUNT-projektion under cap=20. Vid full-text-q-criteria mot stor JobAds-
- * korpus utan trigram-index kan COUNTs ackumulera till >30s — vi degraderar
- * /jobb och /sokningar civilt istället för att binda Vercel-funktionen
- * tills den 504:ar (UX > väntan på data). Backend N+1-optimering = separat
- * BE-prompt; FE-timeout = defense-in-depth.
+ * COUNT-projektion under cap=20. Default-timeout är pragmatic band tills
+ * TD-94 löser rotorsaken (ListJobAds COUNT-perf p50 1.2s/max 6.7s).
+ *
+ * <p>Konsumenter som anropar med <code>includeCount=false</code> behöver ingen
+ * slow COUNT-loop → kan använda kortare default-timeout. Konsumenter med
+ * <code>includeCount=true</code> (hero-chip, /sokningar-list) behöver längre
+ * timeout för worst-case cap=20×1.5s=30s.</p>
+ *
+ * <p>F6 P5 P4 svans-PR5 (2026-05-24, Klas-feedback /sokningar + /jobb-hero-chip
+ * "Inga senaste sökningar än"): tidigare statiskt 8s blockerade /sokningar +
+ * hero-chip när Klas hade flera RecentSearches.</p>
  */
-const LIST_TIMEOUT_MS = 8_000;
+const LIST_TIMEOUT_COMPACT_MS = 8_000;
+const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
 
 /**
  * ADR 0060 — hämtar användarens auto-fångade RecentJobSearches.
@@ -45,12 +52,15 @@ export async function getRecentSearches(
   if (!sessionId) return { kind: "unauthorized" };
 
   const url = `${env.BACKEND_URL}/api/v1/me/recent-searches?includeCount=${includeCount}`;
+  const timeoutMs = includeCount
+    ? LIST_TIMEOUT_WITH_COUNT_MS
+    : LIST_TIMEOUT_COMPACT_MS;
 
   try {
     const res = await fetch(url, {
       headers: authHeaders(sessionId),
       cache: "no-store",
-      signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     return await responseToResult(
       res,

@@ -899,7 +899,7 @@ a:hover { color: var(--jp-navy-600); }
 
 .jp-hero__searchblock {
   margin-top: 28px;
-  max-width: 760px;
+  max-width: 1040px;
 }
 .jp-hero__searchlabels {
   font-size: 14px;
@@ -2571,7 +2571,7 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-land-top__stat__label {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;

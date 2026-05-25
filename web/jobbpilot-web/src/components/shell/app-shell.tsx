@@ -20,6 +20,7 @@ import {
 import { logoutAction } from "@/lib/auth/actions";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import type { LandingStatsDto } from "@/lib/dto/landing";
 
 /**
@@ -358,10 +359,7 @@ export function AppShell({
       <header className="jp-header" role="banner">
         <div className="jp-header__inner">
           <Link href="/oversikt" className="jp-brand" aria-label="JobbPilot — till start">
-            <span className="jp-brand__mark" aria-hidden="true">
-              J
-            </span>
-            <span className="jp-brand__word">JobbPilot</span>
+            <BrandLogo />
           </Link>
 
           <nav className="jp-nav" aria-label="Huvudnavigation">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Briefcase, Inbox, LayoutDashboard, LogIn, ScrollText } from "lucide-react";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 // F-Pre Punkt 5 — Gäst-shell (CTO-dom 2026-05-24 Beslut 1, Variant A).
 // Egen shell separat från `(app)`-shellen — gemensam Look (header + brand)
@@ -46,10 +47,7 @@ export function GuestShell({ children }: { children: ReactNode }) {
             className="jp-brand"
             aria-label="JobbPilot — till startsidan"
           >
-            <span className="jp-brand__mark" aria-hidden="true">
-              J
-            </span>
-            <span className="jp-brand__word">JobbPilot</span>
+            <BrandLogo />
           </Link>
 
           <nav className="jp-nav" aria-label="Demonavigation">

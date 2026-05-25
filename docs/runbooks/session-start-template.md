@@ -112,9 +112,10 @@ som möjligt, fråga mig endast när det måste, eller vid stort beslut").
 - {Vad triggar Klas-input — t.ex. ADR-amendment, fas-skifte, deploy-beslut}
 - {ev. flaggor specifika för uppgiften}
 
-Default: CC kör non-stop med PR-rapport efter varje push. CTO-rond avgör
-multi-approach. Klas-STOPP endast vid: ADR-amendments, prod-deploys,
-BUILD.md/CLAUDE.md/DESIGN.md-ändringar.
+Default: CC kör non-stop med STOPP-rapport efter varje PR-push (PR-länk i
+rapporten). CTO-rond avgör multi-approach. Klas-STOPP endast vid:
+ADR-amendments, prod-deploys, BUILD.md/CLAUDE.md/DESIGN.md-ändringar (kräver
+även `bash .claude/hooks/approve-spec-edit.sh`).
 ```
 
 ### 8. Disciplin-påminnelser (kritiskt)
@@ -134,8 +135,18 @@ BUILD.md/CLAUDE.md/DESIGN.md-ändringar.
 - **Multi-approach → CTO INNAN egen rekommendation** (memory `feedback_cto_decides_multi_approach`)
 - **TD-lyftningar pressas mot §9.6** (memory `feedback_td_lifting_discipline`)
 - **Lyft inga nya TDs som kan fixas direkt** (Klas-direktiv 2026-05-13)
-- **Non-stop arbete, STOPP bara efter PR** (memory `feedback_nonstop_with_pr_reports`)
+- **Non-stop arbete, STOPP bara efter PR-push** (memory `feedback_nonstop_with_pr_reports`)
 - **Aldrig ta bort auto-skapade filer utan GO** (memory `feedback_dont_delete_auto_files`)
+
+### PR-flöde per ADR 0065 (mandatory 2026-05-25)
+
+- **Feature-branch obligatorisk:** `<type>/<short-slug>` (t.ex. `fix/laptop-demo-audit`, `feat/byok-onboarding`). Type-prefixet matchar Conventional Commits-typen.
+- **Inga direct-pushes till `main`.** Classic branch protection blockerar — `enforce_admins: true` gäller även Klas.
+- **PR krävs** med `ci`-aggregatet grönt (backend+frontend+coverage). Lighthouse/loadtest/audit är observe-only (ADR 0045 Beslut 5).
+- **Docs-sync ingår i SAMMA PR som scope/issue** (Klas-direktiv 2026-05-25). Skapa inte "docs only"-uppföljnings-PR.
+- **Squash- eller rebase-merge** — linear history krävs, inga merge-commits.
+- **Required conversation resolution:** alla agent-trådar i PR-body måste vara explicit avslutade innan merge.
+- **STOPP-rapport efter PR-push** innehåller PR-URL (`gh pr create` output) + agent-report-summering + CI-länk.
 
 ### Parallell-CC-disciplin (intjänad 2026-05-17 — tre process-glidningar i en parallell körning)
 
@@ -151,13 +162,16 @@ BUILD.md/CLAUDE.md/DESIGN.md-ändringar.
 ```
 ## Förbud
 
+- INGA direct-pushes till `main` — alla ändringar via feature-branch + PR (ADR 0065)
 - INGA prod-deploys/applies utan Klas-GO
-- INGA BUILD.md/CLAUDE.md/DESIGN.md-ändringar utan explicit instruktion
+- INGA BUILD.md/CLAUDE.md/DESIGN.md-ändringar utan explicit instruktion (kräver `bash .claude/hooks/approve-spec-edit.sh`)
 - INGA tag-pushes utan Klas-GO
 - INGA infra-config-ändringar (Terraform ALB-timeout, IAM, etc.) utan Klas-GO
+- INGA merge-commits till `main` (linear history enforced — squash/rebase only)
 - INGET `git commit -a` / pathspec-lös `git commit` när parallell CC aktiv (cross-CC-svep)
 - INGEN sub-agent-bypass av pre-push-hooks (`--no-verify`, `core.hooksPath`)
 - INGEN agent-själv-edit av `.claude/settings.json`-permissions / agent-config (klassificerar-hård-block är korrekt)
+- INGA separata "docs only"-PRs ovanpå en feature-PR — docs-sync ingår i samma PR som scope
 - {ev. uppgifts-specifika förbud}
 ```
 
@@ -182,7 +196,9 @@ Konkret + verifierbart. Inkluderar tag-version om relevant.
 - {Leverans 1 levererad}
 - {Leverans 2 levererad}
 - Backend-tester {N}+ gröna
-- Tag `v{version}-dev` LIVE på dev (om deploy-batch)
+- **PR #{nummer} öppen mot `main`** med `ci`-aggregatet grönt + agent-reports inline (per ADR 0065)
+- Docs-sync (current-work.md + session-log + ev. ADR-uppdateringar) committad i samma PR
+- Tag `v{version}-dev` LIVE på dev (om deploy-batch — efter Klas merge:r PR)
 - {TD-stängningar}
 ```
 
@@ -208,15 +224,16 @@ Lycka till.
 
 ## CC-checklist innan startprompt levereras
 
-- [ ] HEAD-SHA stämmer med senaste push (`git log --oneline -3` verifierad)
+- [ ] HEAD-SHA stämmer med senaste merged PR (`git log --oneline -3` verifierad)
 - [ ] Mandatory reads pekar på filer som faktiskt finns
 - [ ] Memory-listan är aktuell (`grep -l "metadata: type: feedback" memory/`)
 - [ ] CTO/architect/reviewer-disciplin är listad
 - [ ] Memory-direktiv från Klas är inkluderade
 - [ ] Discovery-targets är specificerade vid extern fakta-behov
-- [ ] Förväntat sluttillstånd är konkret + verifierbart
+- [ ] Förväntat sluttillstånd är konkret + verifierbart, **inkluderar PR-leverans**
 - [ ] Pending operativt-listan är updaterad mot current-work.md
 - [ ] Klas-STOPP-flaggor är specifika för uppgiften, inte generiska
+- [ ] PR-flöde per ADR 0065 är reflekterat i §"Disciplin" och §"Förbud"
 
 ---
 
@@ -225,3 +242,9 @@ Lycka till.
 - **2026-05-13:** Skapad efter Klas-direktiv att standardisera startprompter
   + lyfta workflow till CLAUDE.md §1.5. Trigger: glömt CTO-invocation i
   F2-P8c-startprompten.
+- **2026-05-25:** Uppdaterad för PR-flöde per ADR 0065. Förändringar:
+  - §"Klas-STOPP-flaggor": "PR-rapport efter varje push" → "STOPP-rapport efter varje PR-push (PR-länk i rapporten)"; spec-edit-flagga nämner `approve-spec-edit.sh`
+  - §"Disciplin": ny sub-sektion "PR-flöde per ADR 0065 (mandatory 2026-05-25)" med feature-branch, ci-gate, docs-i-samma-PR, linear history, conversation resolution, STOPP-rapport-PR-URL
+  - §"Förbud": tillagt "INGA direct-pushes till main", "INGA merge-commits", "INGA separata docs-only-PRs"
+  - §"Förväntat sluttillstånd": PR-leveransen är nu en explicit punkt; tag-deploy sker efter Klas-merge
+  - §"CC-checklist": HEAD-SHA stämmer mot senaste **merged PR**; ny rad för PR-flöde-reflektion

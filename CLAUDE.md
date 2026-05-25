@@ -42,7 +42,7 @@ JobbPilot är en svensk jobbansökningshanterare byggd som en **civic utility** 
 3. Create session log in `docs/sessions/YYYY-MM-DD-HHMM-<slug>.md`
    - YAML frontmatter (session, datum, slug, status, commits)
    - Body covers: goals, what was completed per step, decisions, commits, next session
-4. Commit docs-uppdateringar separat från feature-commits (inte bundlade) och pusha
+4. Commit docs-uppdateringar som **egna logiska commits** (separat från feature-commits) men **i samma PR som scope/issue** (per [ADR 0065](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md) — docs-sync har ingen egen PR; den ingår i scopets PR). Pusha till feature-branchen; mergen sker när hela PR:n är klar.
 5. **Endast vid session-end:** Generera startprompt för nästa session enligt
    strukturen i [`docs/runbooks/session-start-template.md`](./docs/runbooks/session-start-template.md).
    - **Levereras alltid som copy-paste-block i chatten — aldrig som ny fil i repot** (håller repot rent från engångs-prompter)
@@ -289,8 +289,11 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
 
 ### 6.1 Branches
 
-- `main` = enda branch (direct-push-praxis per ADR 0019, superseder ADR 0004)
-- Inga feature-branches, inga PRs — granskningsspärrar listas i §6.3
+- `main` = skyddad default-branch (PR-flöde per [ADR 0065](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md), superseder ADR 0019)
+- Feature-branches enligt `<type>/<short-slug>` (samma type-prefix som commit), t.ex. `fix/laptop-demo-audit`, `feat/byok-onboarding`, `docs/adr-0065-pr-flow-restoration`
+- **PR krävs** för alla ändringar mot `main`. `ci`-aggregatet (backend + frontend + coverage) måste vara grönt innan merge. 0 approvals krävs (solo-fas; höjs när bidragsgivare tillkommer). `enforce_admins: true` — även Klas går via PR.
+- Linear history krävs (squash- eller rebase-merge). Inga merge-commits.
+- **Docs-sync ingår i samma PR som scope/issue** (Klas-direktiv 2026-05-25 + §1.5 step 4). Skapa inte separata "docs only"-PRs ovanpå en feature-PR.
 - Conventional Commits-format består (§6.2)
 - Deploy via taggar på `main`: `v*-dev` → dev-miljö, `v*-rc*` → staging, `v*` → prod (manuell approval)
 - Staging är *miljö*, inte *branch*
@@ -307,17 +310,18 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
   - `fix(ai): honorera EU-inferens när systemnyckel används`
   - `refactor(resumes): extrahera ResumeContent som value object`
 
-### 6.3 Granskningsspärrar (PR-fri praxis)
+### 6.3 Granskningsspärrar (PR + CI-gate per ADR 0065)
 
-JobbPilot kör direct-push till `main` per ADR 0019. PR-flödet finns inte. Granskningsvärdet ersätts av fem mekanismer:
+JobbPilot kör PR-baserat flöde mot `main` per [ADR 0065](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md). Granskningsvärdet kommer från sex mekanismer:
 
 1. **Plan-design** — webb-Claude och Klas designar scope, sekvens, risker och alternativ i chat innan kod skrivs
 2. **STOPP-disciplin** — Claude Code halt vid varje övergång; inga `str_replace`, inga commits, ingen analys mellan STOPP och GO
-3. **Agent-invocation** — security-auditor / code-reviewer / dotnet-architect invokeras vid relevant scope och rapporter granskas innan commit (§9.2)
-4. **Manuell diff-granskning** — Klas läser `git diff` innan varje push
-5. **Pre-push hooks** — gitleaks, dotnet format, lint-staged
+3. **Agent-invocation** — security-auditor / code-reviewer / dotnet-architect invokeras vid relevant scope och rapporter bifogas PR-body innan merge (§9.2)
+4. **Manuell diff-granskning** — Klas läser PR-diff i GitHub-vyn innan merge
+5. **CI-gate** — `ci`-aggregatet (backend + frontend + coverage per ADR 0044) måste passera innan merge; observe-only-jobben (lighthouse / loadtest / audit per ADR 0045) blockerar ej
+6. **Pre-push hooks** — gitleaks, dotnet format, lint-staged
 
-Chat-history (Klas + webb-Claude) är primär granskningstrail. GitHub-side review-record finns inte. Vid bidragsgivar-tillkomst eller disciplin-regression: trigger för återgång till PR-flöde finns dokumenterad i ADR 0019.
+PR-tråden (commits + CI-resultat + agent-reports + Klas-kommentarer) är primär granskningstrail; chat-history kompletterar. `enforce_admins: true` — även Klas går via PR. Required conversation resolution = agent-trådar måste vara explicit avslutade innan merge. Trigger för omvärdering av PR-regimen finns dokumenterad i ADR 0065 §"Trigger för omvärdering".
 
 ---
 
@@ -376,7 +380,7 @@ En feature är "klar" när:
 5. Implementera minimalt för att passera
 6. Kör `dotnet test` + relevant lint lokalt
 7. Commit med conventional commits
-8. Bifoga relevanta agent-rapporter (security-auditor / code-reviewer / dotnet-architect) till STOPP-rapport så Klas kan granska parallellt — direct-push till `main` efter Klas:s GO (per ADR 0019)
+8. Pusha feature-branch + skapa PR (`gh pr create`) med agent-rapporter inline i body. Vänta `ci`-aggregatet grönt. Klas reviewar diff + CI + agent-trådar i PR-vyn och mergar (squash) efter GO. Docs-sync (current-work.md + session-log) committas som egna logiska commits **i samma PR**. (Per [ADR 0065](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md))
 
 ### 9.2 Gränser för Claude Code
 

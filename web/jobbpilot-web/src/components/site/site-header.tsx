@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 /**
  * SiteHeader — delad topbar för marketing-inre sidor (/vantelista, /villkor,
@@ -15,10 +16,7 @@ export function SiteHeader({ showLogin = true }: { showLogin?: boolean }) {
     <header className="jp-land-top">
       <div className="jp-land-top__inner">
         <Link href="/" className="jp-brand" aria-label="JobbPilot — startsida">
-          <span className="jp-brand__mark" aria-hidden="true">
-            J
-          </span>
-          <span className="jp-brand__word">JobbPilot</span>
+          <BrandLogo />
         </Link>
         {showLogin && (
           <Link

@@ -117,6 +117,7 @@
   --jp-brand-600: var(--jp-navy-800);   /* primary = navy-800 (ADR 0052, 14:1 på vit) */
   --jp-brand-700: var(--jp-navy-700);   /* länk/hover */
   --jp-brand-900: var(--jp-navy-900);
+  --jp-brand-accent: #FFCD00;           /* compass-center-dot (Klas-val C4 2026-05-25) */
   --jp-success-50:  var(--jp-success-bg);
   --jp-success-500: var(--jp-success);
   --jp-success-600: var(--jp-success);
@@ -532,20 +533,20 @@ a:hover { color: var(--jp-navy-600); }
   align-items: center;
   gap: 10px;
   text-decoration: none;
-  color: var(--jp-ink-1);
+  /* F-Pre Punkt 6 (CTO Beslut 2-rev): navy-700 → currentColor på <BrandLogo>-SVG;
+     dark-mode flippar automatiskt via befintlig navy-700-token-skift (ADR 0052).
+     Override för scoped-vit-header se [data-theme="dark"] .jp-land-top .jp-brand nedan. */
+  color: var(--jp-navy-700);
+}
+.jp-brand:focus-visible {
+  /* design-reviewer m2 2026-05-25: WCAG 2.4.7 paritet med .jp-btn-focus-stil. */
+  outline: 2px solid var(--jp-navy-700);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 .jp-brand__mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: var(--jp-navy-800);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: -0.02em;
+  flex-shrink: 0;
+  display: block;
 }
 .jp-brand__word {
   font-size: 19px;
@@ -2529,6 +2530,12 @@ a:hover { color: var(--jp-navy-600); }
   --jp-ink-3: #7C8AA0;
   --jp-border: #C9D2E0;
   color: #0C1A2E;
+}
+[data-theme="dark"] .jp-land-top .jp-brand {
+  /* design-reviewer M2 2026-05-25: scoped-vit-topbar i dark får INTE skifta brand
+     till ljusare navy-700 (#4F8AD0, 3.2:1 mot vit = WCAG-borderline). Lås till
+     light-värdet (#133F73, ~10:1) eftersom topbar är vit-på-vit oavsett tema. */
+  color: #133F73;
 }
 .jp-land-top__inner {
   max-width: 1200px;

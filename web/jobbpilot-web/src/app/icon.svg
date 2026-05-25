@@ -1,0 +1,13 @@
+<!-- SYNK-KÄLLA: src/components/brand/brand-mark-svg.tsx (BrandMarkSvg).
+     Detta är file-convention-mirror för Next.js auto-favicon-pickup
+     (modern browsers prefererar SVG-favicon över .ico).
+     Vid geometri-ändring: uppdatera BrandMarkSvg först, mirror-paste hit.
+     CTO M1-triage 2026-05-25 Variant B. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="JobbPilot">
+  <title>JobbPilot</title>
+  <polygon points="50,8 56,30 50,47 44,30" fill="var(--jp-brand-primary, #0A2647)" />
+  <polygon points="92,50 70,56 53,50 70,44" fill="var(--jp-brand-primary, #0A2647)" />
+  <polygon points="50,92 44,70 50,53 56,70" fill="var(--jp-brand-primary, #0A2647)" />
+  <polygon points="8,50 30,44 47,50 30,56" fill="var(--jp-brand-primary, #0A2647)" />
+  <circle cx="50" cy="50" r="5" fill="var(--jp-brand-accent, #FFCD00)" />
+</svg>

@@ -18,8 +18,26 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JobbPilot",
-  description: "Din jobbansökningshanterare",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://dev.jobbpilot.se"
+  ),
+  title: {
+    default: "JobbPilot",
+    template: "%s | JobbPilot",
+  },
+  description: "Den svenska jobbansökningshanteraren",
+  applicationName: "JobbPilot",
+  // icons/openGraph/twitter/manifest plockas upp automatiskt av Next.js 16
+  // file-conventions (app/icon.svg, app/apple-icon.tsx, app/opengraph-image.tsx,
+  // app/twitter-image.tsx, app/manifest.ts) — explicit metadata-fält behövs inte.
+  openGraph: {
+    type: "website",
+    locale: "sv_SE",
+    siteName: "JobbPilot",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({

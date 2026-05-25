@@ -26,6 +26,10 @@ coverage/
 # In-repo coverage-artefakter (ADR 0044) — aldrig committade
 artifacts/
 
+# Lokal jobbar-mapp för temp-artefakter (Flux brand-iterationer F-Pre Punkt 6, lokala dumps).
+# Security-auditor 2026-05-25: aldrig in i prod-bundle eller git-historik.
+tmp/
+
 # Node / Next.js
 node_modules/
 .husky/_/

@@ -1,11 +1,12 @@
 # ADR 0019 — Solo direct-push till main
 
 **Datum:** 2026-05-07
-**Status:** Accepted
+**Status:** **Superseded by [ADR 0065](./0065-pr-flow-restoration-with-ci-gate.md) (2026-05-25)** — JobbPilot återgår till PR-flöde med CI-gate när `ci`-aggregatet är på plats och pre-launch-disciplin motiverar PR-trail. ADR 0019 §"Trigger för återgång till PR-flöde" §3 (CI-tillgänglighet implicit) realiserad.
 **Kontext:** Session 4b.2 Turn 2 — efterspel av PR #2
 **Beslutsfattare:** Klas Olsson
 **Superseder:** ADR 0004 (GitHub Flow)
-**Relaterad:** ADR 0007 (Branch protection — omvärderas separat)
+**Superseded by:** [ADR 0065](./0065-pr-flow-restoration-with-ci-gate.md)
+**Relaterad:** ADR 0007 (Branch protection — amended av ADR 0065)
 
 ## Kontext
 

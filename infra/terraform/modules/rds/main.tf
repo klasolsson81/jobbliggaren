@@ -141,8 +141,8 @@ resource "aws_db_instance" "this" {
 
   deletion_protection       = var.deletion_protection
   delete_automated_backups  = false
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${var.name_prefix}-rds-final-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  skip_final_snapshot       = var.skip_final_snapshot
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name_prefix}-rds-final-${formatdate("YYYYMMDDhhmmss", timestamp())}"
 
   tags = merge(var.tags, {
     Name = "${var.name_prefix}-rds"

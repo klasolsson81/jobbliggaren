@@ -33,6 +33,12 @@ variable "keep_last_n_images" {
   default     = 10
 }
 
+variable "force_delete" {
+  description = "Tillåter terraform destroy av repo med images kvar. Default false (säkert — destroy kräver tom repo). Sätts true för clean teardown-scenarier (ADR 0066 Beslut 3)."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Common tags."
   type        = map(string)

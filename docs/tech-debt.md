@@ -48,10 +48,8 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-87 | Rate-limit för `/me/*`-endpoints batch (saved-job-ads + job-ad-status + recent-searches) | **Major** | F6 P5 P2-fas-stängning | Säkerhet/DoS-skydd |
 | TD-88 | DOM-mutation via onMouseOver i RecentSearchesHeroChip + SavedJobAdsHeroChip — flytta till CSS `:hover` | Minor | Trigger | Frontend/React-disciplin |
 | TD-89 | Ephemeral API+Redis+Worker-stack i CI loadtest-jobb (kör `LOADTEST_SCENARIOS=landing-stats` mot riktig backend) | Minor | Trigger | Performance/CI fitness function |
-| TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl, värdet 1 oförändrat) | Minor | Trigger | Infra/IaC |
 | TD-92 | Rate-limit på 5 `/me/*` + `/applications/pipeline` + `/resumes` auth-gated GET-endpoints (preexisting, amplifieras av /oversikt Promise.all) | **Major** | F6 P5-fas-stängning | Säkerhet/DoS-skydd |
 | TD-93 | Riktig matchning mot användarens CV/sökkriterier (inte alla nya annonser) — Nya matchningar idag-fält | Minor | Trigger (efter matching-tjänst) | Frontend/Feature |
-| TD-94 | `ListJobAdsQuery` perf (p50 ~1.2s, max 6.7s — ADR 0045 budget 300ms; COUNT-query mot 46k+ rader misstänkt rot). **Blocker för "(N nya)"-affordance-restoration** på hero-chip + /sokningar (förlorad i svans-PR6) | **Major** | **Fas Nu** | Performance/Backend |
 | TD-96 | Api→Worker port för Hangfire-enqueue (defense-in-depth `[DisableConcurrentExecution]` + AdminAuthorizationBehavior coverage på fire-and-forget) | Minor | Trigger | Architecture/Security |
 | TD-97 | Integration-test för STORED column-re-evaluation i BackfillJobAdSsykJob mot Testcontainers Postgres | Minor | Fas 1 (efter MVP-demo) | Test coverage |
 | TD-98 | Dedikerad rate-limit-policy för admin-endpoints (`AdminWritePolicy`, partition på UserId) | Minor | Trigger | Säkerhet/DoS-skydd |
@@ -88,51 +86,7 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 
 ## Major — F6 P5 Punkt 2-fas-stängning
 
-## TD-94: `ListJobAdsQuery` perf — p50 ~1.2s, max 6.7s (ADR 0045 violation 4-22x)
-
-**Kategori:** Performance/Backend
-**Severity:** Major
-**Fas:** F6 P5-fas-stängning (innan tag-push v0.2.63-dev eller motsv.)
-**Källa:** senior-cto-advisor F6 P5 P4 svans-PR2 perf-incident-rond 2026-05-24
-(agentId `ad37955db80099f19`) + CloudWatch-discovery av Klas-rapporterad 10s+
-loadtime för `/jobb`-sidan.
-
-CloudWatch-data (senaste 1h, dev-environment):
-```
-ListJobAdsQuery  n=12  p50=1185ms  max=6729ms  avg=1929ms
-```
-
-ADR 0045 Beslut 1 klass (a) säger 300ms p95 för auth-gated reads. p50 är
-4x över budget; max 22x över. Konstant regression.
-
-**Hypoteser (verifieras i kommande session):**
-
-- COUNT(*) över 46k+ JobAds-rader utan dedikerad index → 1-3s baseline-cost
-- JsonbContains för ssyk/region (pre-FTS-fall-through) → seq scan
-- Sortering på `publishedAt` utan composite index för filtrerade queries
-- TOAST-detoasting av `description`-fält per row (ADR 0062 — STORED generated
-  search_vector innehåller redan title+description; vid SELECT laddas hela
-  raw_payload)
-
-**§9.6-press:** Pre-existing perf-defekt amplifierad av F6 P5 P4-svans
-(där `/oversikt`s 6x request-amplifikation gjorde det synligt för Klas).
-Kvalificerar för TD eftersom (a) scope-spridning över Application/Infra/
-EF-config-filer + dotnet-architect-rond krävs för query-optimering, (b)
-fixet i F6 P5 P4-svans (byt `/oversikt`→landing-stats) löser /oversikt-
-specifika fanout-problemet men inte /jobb-rotorsaken, (c) NBomber-load-test
-för regression-skydd behövs (perf-test-writer-mandat).
-
-**Föreslagen åtgärd:**
-
-1. dotnet-architect-rond: EF-query-profiling, EXPLAIN ANALYZE mot dev-korpus,
-   index-strategi
-2. Möjliga åtgärder beroende på rot: composite-index för (status, deleted_at,
-   published_at), separat materialiserad COUNT-vy med periodisk refresh,
-   projektion av smalare DTO (utan raw_payload/description)
-3. NBomber-scenario `list_job_ads_p95` per ADR 0045 fitness function
-4. Stäng innan F6-fas-stängning
-
-**Beroenden:** Ingen (verktyg + agenter finns).
+*(Sektionen tom 2026-05-26 — TD-94 stängd som obsolet i AWS dev-stack teardown semester-pause Fas B per ADR 0066.)*
 
 ---
 
@@ -300,37 +254,6 @@ av Redis-nyckel) så cache-hit-scenariot inte träffar Floor-fallback hela tiden
 0045 Beslut 6-ratchet närmar sig (flip observe-only → blockerande kräver
 faktisk runtime-mätning), eller (c) någon annan fitness-function-yta behöver
 samma stack.
-
-
-## TD-91: RDS param-group `apply_method`-drift (pre-existing state-config-drift)
-
-**Kategori:** Infra/IaC
-**Severity:** Minor
-**Fas:** Trigger (separat IaC-triage-session, paritet TD-85 github_oidc-drift)
-**Källa:** `terraform plan` mot `environments/dev` 2026-05-24 03:51 UTC (incident
-session F6 P5 Punkt 3 — Worker→Redis-fix). Pre-existing drift upptäckt vid
-plan-output, EJ introducerad av denna session.
-
-`terraform plan` mot dev visar `module.rds.aws_db_parameter_group.this` med
-update-in-place där `parameter.apply_method` byter från `pending-reboot` till
-`immediate` för `rds.force_ssl`-parametern. Värdet (`1`) är **oförändrat** —
-SSL forceras lika strikt före och efter. Det är ren state-config-drift där
-AWS-side har annat `apply_method`-fält än Terraform-config säger. Ingen
-funktionell incident.
-
-Targeted apply 2026-05-24 (TD-85-precedens) uteslöt RDS-modulen medvetet för
-att inte svepa med drift utanför scope. Drift kvarstår tills separat IaC-
-session adresserar både denna och TD-85 (+ ev. andra pre-existing-drift som
-ackumulerats).
-
-**Föreslagen åtgärd:** I separat IaC-session, kör `terraform plan` på hela
-dev + prod, listare ALLA pre-existing-drifter, gör Klas-triage per drift
-(applya / supersede config / dokumentera intent), kör full apply efter triage.
-
-**Beroenden:** Inga blockerande. Trigger = (a) annan IaC-modul-ändring som
-ändå rör RDS-modulen (paritet vinst), (b) framtida sec-auditor- eller architect-
-rond som vill ha rent plan-utgångsläge, eller (c) Klas-IaC-triage-session
-(samlas med TD-85 + ev. nya).
 
 
 ## Major — Fas 3+
@@ -1445,6 +1368,8 @@ ADR-cross-references och granskningsbevis.
 | TD-13 | Encryption av PII-kolumner | 2026-05-19 | FAS 3.5 (ADR 0049) C1–C6 + KMS-IaC; `c291ad6`/`fca3605` + `v0.2.19-dev`-deploy grön |
 | TD-82 | Översikt/Dashboard-sida (post-login-landningsvy) | 2026-05-24 | F6 P5 Punkt 4 — `/oversikt`-route levererad per HANDOVER-oversikt.md + CTO-dom Variant A (direkt RSC `Promise.all`) |
 | TD-95 | "Senaste sökning"-rad tom i Översikt-sammanfattning | 2026-05-24 | F6 P5 P4 svans-PR4 — rot=ListRecentSearchesQueryHandler:60 N+1 COUNT timeout → fix via IncludeCount-parameter |
+| TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl) | 2026-05-26 | AWS dev-stack teardown semester-pause Fas B (ADR 0066) — RDS raderas, drift försvinner naturligt |
+| TD-94 | `ListJobAdsQuery` perf p50 ~1.2s / max 6.7s (ADR 0045 violation) | 2026-05-26 | AWS dev-stack teardown semester-pause Fas B (ADR 0066) — RDS raderas, query slutar köras; re-öppna vid återstart om rot kvarstår |
 
 ---
 

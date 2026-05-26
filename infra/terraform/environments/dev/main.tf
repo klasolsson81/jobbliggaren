@@ -61,7 +61,14 @@ module "rds" {
   # som ökar GDPR-overlap-fönster utan motsvarande recovery-värde vid 1-user-
   # volym i Fas 2.
   backup_retention_days = 14
-  deletion_protection   = true
+
+  # ADR 0066 Beslut 1 + 3 (2026-05-26) — semester-pause-teardown.
+  # deletion_protection = false → tillåter terraform destroy.
+  # skip_final_snapshot = true → Klas-direktiv "stoppa allt, ingen snapshot"
+  # (waitlist tom + korpus = publikt JobTech-API gratis re-import).
+  # Återställ båda till true / false vid återstart innan första apply.
+  deletion_protection = false
+  skip_final_snapshot = true
 
   tags = var.common_tags
 }
@@ -162,6 +169,13 @@ module "ecr" {
   name_prefix      = var.name_prefix
   repository_names = ["api", "worker", "migrate"]
   kms_key_id       = data.aws_kms_alias.master.target_key_arn
+
+  # ADR 0066 Beslut 3 (2026-05-26) — semester-pause-teardown.
+  # force_delete = true → tillåter terraform destroy med images kvar i repos
+  # (annars fail med "repository contains images"). Images re-pushas från
+  # GitHub Actions deploy-workflow vid återstart.
+  # Återställ till false vid återstart innan första apply.
+  force_delete = true
 
   tags = var.common_tags
 }

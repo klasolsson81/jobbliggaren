@@ -84,6 +84,12 @@ variable "deletion_protection" {
   default     = true
 }
 
+variable "skip_final_snapshot" {
+  description = "Skippar final-snapshot vid destroy. Default false (säkert — snapshot tas). Sätts true för clean teardown-scenarier där data inte behöver bevaras (ADR 0066 Beslut 3)."
+  type        = bool
+  default     = false
+}
+
 variable "performance_insights_enabled" {
   description = "Aktivera Performance Insights (gratis 7-dagars retention)."
   type        = bool

@@ -2562,3 +2562,111 @@ hero-chip-konsumenten.
 condition). Pre-commit gates: .NET 404+578+78 PASS, vitest 683 PASS, lint OK.
 
 **Commits:** F6 P5 P4 svans-PR4 (kommer post-stäng).
+
+---
+
+## TD-91: RDS param-group `apply_method`-drift (pre-existing state-config-drift)
+
+**Kategori:** Infra/IaC
+**Severity:** Minor
+**Fas:** Trigger (separat IaC-triage-session, paritet TD-85 github_oidc-drift)
+**Källa:** `terraform plan` mot `environments/dev` 2026-05-24 03:51 UTC (incident
+session F6 P5 Punkt 3 — Worker→Redis-fix). Pre-existing drift upptäckt vid
+plan-output, EJ introducerad av denna session.
+**Stängd:** 2026-05-26 (AWS dev-stack teardown semester-pause Fas B)
+
+`terraform plan` mot dev visar `module.rds.aws_db_parameter_group.this` med
+update-in-place där `parameter.apply_method` byter från `pending-reboot` till
+`immediate` för `rds.force_ssl`-parametern. Värdet (`1`) är **oförändrat** —
+SSL forceras lika strikt före och efter. Det är ren state-config-drift där
+AWS-side har annat `apply_method`-fält än Terraform-config säger. Ingen
+funktionell incident.
+
+Targeted apply 2026-05-24 (TD-85-precedens) uteslöt RDS-modulen medvetet för
+att inte svepa med drift utanför scope. Drift kvarstår tills separat IaC-
+session adresserar både denna och TD-85 (+ ev. andra pre-existing-drift som
+ackumulerats).
+
+**Föreslagen åtgärd:** I separat IaC-session, kör `terraform plan` på hela
+dev + prod, listare ALLA pre-existing-drifter, gör Klas-triage per drift
+(applya / supersede config / dokumentera intent), kör full apply efter triage.
+
+**Beroenden:** Inga blockerande. Trigger = (a) annan IaC-modul-ändring som
+ändå rör RDS-modulen (paritet vinst), (b) framtida sec-auditor- eller architect-
+rond som vill ha rent plan-utgångsläge, eller (c) Klas-IaC-triage-session
+(samlas med TD-85 + ev. nya).
+
+### Stängningsnotat
+
+**Obsolet under semester-pause-teardown (ADR 0066, 2026-05-26).** RDS-instans
++ param-group raderas i samband med `terraform destroy` på
+`environments/dev/`. Drift försvinner naturligt med resursen. Vid återstart
+mot samma AWS-yta skapas RDS-param-group från ren state — drift-frågan
+återuppstår inte automatiskt. Om TD-91-mönstret återupptäcks post-återstart:
+omöppna som ny TD eller adressera i samma IaC-triage-session som TD-85.
+
+**Commits:** PR `chore/aws-dev-stack-teardown-2026-05-26` (denna stängning).
+
+---
+
+## TD-94: `ListJobAdsQuery` perf — p50 ~1.2s, max 6.7s (ADR 0045 violation 4-22x)
+
+**Kategori:** Performance/Backend
+**Severity:** Major
+**Fas:** F6 P5-fas-stängning (innan tag-push v0.2.63-dev eller motsv.) →
+eskalerad till Fas Nu 2026-05-24 (F6 P5 P4 svans-PR6)
+**Källa:** senior-cto-advisor F6 P5 P4 svans-PR2 perf-incident-rond 2026-05-24
+(agentId `ad37955db80099f19`) + CloudWatch-discovery av Klas-rapporterad 10s+
+loadtime för `/jobb`-sidan.
+**Stängd:** 2026-05-26 (AWS dev-stack teardown semester-pause Fas B)
+
+CloudWatch-data (senaste 1h, dev-environment):
+```
+ListJobAdsQuery  n=12  p50=1185ms  max=6729ms  avg=1929ms
+```
+
+ADR 0045 Beslut 1 klass (a) säger 300ms p95 för auth-gated reads. p50 är
+4x över budget; max 22x över. Konstant regression.
+
+**Hypoteser (verifieras i kommande session):**
+
+- COUNT(*) över 46k+ JobAds-rader utan dedikerad index → 1-3s baseline-cost
+- JsonbContains för ssyk/region (pre-FTS-fall-through) → seq scan
+- Sortering på `publishedAt` utan composite index för filtrerade queries
+- TOAST-detoasting av `description`-fält per row (ADR 0062 — STORED generated
+  search_vector innehåller redan title+description; vid SELECT laddas hela
+  raw_payload)
+
+**§9.6-press:** Pre-existing perf-defekt amplifierad av F6 P5 P4-svans
+(där `/oversikt`s 6x request-amplifikation gjorde det synligt för Klas).
+Kvalificerar för TD eftersom (a) scope-spridning över Application/Infra/
+EF-config-filer + dotnet-architect-rond krävs för query-optimering, (b)
+fixet i F6 P5 P4-svans (byt `/oversikt`→landing-stats) löser /oversikt-
+specifika fanout-problemet men inte /jobb-rotorsaken, (c) NBomber-load-test
+för regression-skydd behövs (perf-test-writer-mandat).
+
+**Föreslagen åtgärd:**
+
+1. dotnet-architect-rond: EF-query-profiling, EXPLAIN ANALYZE mot dev-korpus,
+   index-strategi
+2. Möjliga åtgärder beroende på rot: composite-index för (status, deleted_at,
+   published_at), separat materialiserad COUNT-vy med periodisk refresh,
+   projektion av smalare DTO (utan raw_payload/description)
+3. NBomber-scenario `list_job_ads_p95` per ADR 0045 fitness function
+4. Stäng innan F6-fas-stängning
+
+**Beroenden:** Ingen (verktyg + agenter finns).
+
+### Stängningsnotat
+
+**Obsolet under semester-pause-teardown (ADR 0066, 2026-05-26).** RDS-instans
+raderas i samband med `terraform destroy` på `environments/dev/`. ListJobAds-
+queryn slutar köras mot någon databas tills återstart. Vid återstart mot ny
+RDS-instans (eller VPS-Postgres per ADR 0050) återuppstår perf-frågan med
+samma rot — re-öppna då som ny TD eller adressera direkt om
+dotnet-architect-rond + index-strategi då naturligt ingår i återstarts-scope.
+
+"(N nya)"-affordance-restoration på hero-chip + /sokningar (som denna TD var
+blocker för) är också vilande tills återstart.
+
+**Commits:** PR `chore/aws-dev-stack-teardown-2026-05-26` (denna stängning).

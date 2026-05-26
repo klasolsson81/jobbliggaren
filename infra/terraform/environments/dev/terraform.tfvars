@@ -54,3 +54,15 @@ baseline_budget_name     = "jobbpilot-monthly"
 # admin-trigger-smoke-test mot /api/v1/admin/job-ads/sync/platsbanken.
 # ---------------------------------------------------------------------------
 initial_admin_email = "klasolsson81@gmail.com"
+
+# ---------------------------------------------------------------------------
+# ADR 0066 (2026-05-26) — semester-pause teardown.
+# api_image_tag + worker_image_tag har validation `length > 0 && != "latest"`.
+# För `terraform destroy` behöver dessa giltiga värden för att passera
+# validation vid plan/destroy (även när task-defs ska raderas).
+# Dummy-värdet "teardown" passes validation och signalerar tydligt att
+# tfvars är i teardown-state.
+# Vid återstart: TA BORT dessa rader (sätts som -var av deploy-workflow).
+# ---------------------------------------------------------------------------
+api_image_tag    = "teardown"
+worker_image_tag = "teardown"

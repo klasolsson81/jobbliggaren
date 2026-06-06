@@ -276,23 +276,20 @@ public static class DependencyInjection
         services.AddSingleton<IInvitationTokenGenerator, InvitationTokenGenerator>();
         services.AddSingleton<IFeatureFlags, OptionsFeatureFlags>();
 
+        // ADR 0066 — AWS SES borttaget (Hetzner-deploy använder inte SES;
+        // transaktionell mejlväg är genuin TD för Hetzner-fasen). Console-
+        // sendern (loggar till Serilog/Seq) är default och enda providern för
+        // lokal dev/MVP. Switch-mekanismen behålls för framtida provider
+        // (SMTP/HTTP-API) — okänt värde fail-stoppas.
         var emailProvider = configuration[$"{EmailOptions.SectionName}:Provider"] ?? "Console";
         if (string.Equals(emailProvider, "Console", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IEmailSender, ConsoleEmailSender>();
         }
-        else if (string.Equals(emailProvider, "Ses", StringComparison.OrdinalIgnoreCase))
-        {
-            var region = configuration[$"{EmailOptions.SectionName}:AwsRegion"] ?? "eu-north-1";
-            services.AddSingleton<Amazon.SimpleEmailV2.IAmazonSimpleEmailServiceV2>(
-                _ => new Amazon.SimpleEmailV2.AmazonSimpleEmailServiceV2Client(
-                    Amazon.RegionEndpoint.GetBySystemName(region)));
-            services.AddSingleton<IEmailSender, Email.SesEmailSender>();
-        }
         else
         {
             throw new InvalidOperationException(
-                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console' eller 'Ses'.");
+                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console'.");
         }
 
         return services;
@@ -409,15 +406,44 @@ public static class DependencyInjection
         services.AddSingleton<
             Microsoft.Extensions.Options.IValidateOptions<Security.FieldEncryptionOptions>,
             Security.FieldEncryptionOptionsValidator>();
-        var kmsRegion = configuration[
-            $"{Security.FieldEncryptionOptions.SectionName}:AwsRegion"] ?? "eu-north-1";
-        services.AddSingleton<Amazon.KeyManagementService.IAmazonKeyManagementService>(
-            _ => new Amazon.KeyManagementService.AmazonKeyManagementServiceClient(
-                Amazon.RegionEndpoint.GetBySystemName(kmsRegion)));
+
+        // IFieldEncryptor (AES-256-GCM-primitiv) är AWS-fri och delas av BÅDA
+        // DEK-providers — registreras ovillkorligt. Bara DEK-wrap/unwrap
+        // (IDataKeyProvider) skiljer Kms- från Local-grenen.
         services.AddSingleton<JobbPilot.Application.Common.Security.IFieldEncryptor,
             Security.KmsEnvelopeEncryptor>();
-        services.AddSingleton<JobbPilot.Application.Common.Security.IDataKeyProvider,
-            Security.KmsDataKeyProvider>();
+
+        // ADR 0066 — provider-switch (paritet EmailOptions.Provider). Default
+        // "Kms" bevarar befintligt beteende i alla miljöer som inte explicit
+        // väljer Local (integ-test-fixturer override:ar KMS-klienten last-wins;
+        // prod glömmer-Provider → KMS-försök → loud runtime-fail, ingen tyst
+        // lokal krypto). Dev sätter "Local" i appsettings.Development.json.
+        var fieldEncryptionProvider = configuration[
+            $"{Security.FieldEncryptionOptions.SectionName}:Provider"] ?? "Kms";
+        if (string.Equals(fieldEncryptionProvider, "Kms", StringComparison.OrdinalIgnoreCase))
+        {
+            var kmsRegion = configuration[
+                $"{Security.FieldEncryptionOptions.SectionName}:AwsRegion"] ?? "eu-north-1";
+            services.AddSingleton<Amazon.KeyManagementService.IAmazonKeyManagementService>(
+                _ => new Amazon.KeyManagementService.AmazonKeyManagementServiceClient(
+                    Amazon.RegionEndpoint.GetBySystemName(kmsRegion)));
+            services.AddSingleton<JobbPilot.Application.Common.Security.IDataKeyProvider,
+                Security.KmsDataKeyProvider>();
+        }
+        else if (string.Equals(fieldEncryptionProvider, "Local", StringComparison.OrdinalIgnoreCase))
+        {
+            // Local-grenen registrerar INTE IAmazonKeyManagementService — ingen
+            // onödig AWS-SDK-instans. Master-nyckeln binds via IOptions
+            // (appsettings.Local.json, gitignored).
+            services.AddSingleton<JobbPilot.Application.Common.Security.IDataKeyProvider,
+                Security.LocalDataKeyProvider>();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"FieldEncryption:Provider='{fieldEncryptionProvider}' stöds inte. " +
+                "Använd 'Kms' eller 'Local'.");
+        }
 
         // TD-13 C2 (ADR 0049 Beslut 1, CTO FRÅGA 2). Scoped: delar scopets
         // AppDbContext (DeleteDataKeysAsync deltar i hard-delete-transaktionen

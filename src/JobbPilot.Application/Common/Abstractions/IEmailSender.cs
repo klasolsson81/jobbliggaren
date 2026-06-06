@@ -2,8 +2,10 @@ namespace JobbPilot.Application.Common.Abstractions;
 
 /// <summary>
 /// Email-utskick för transactional flows (invitations, waitlist).
-/// Impl: SesEmailSender (Infrastructure, F2-P0d) — AWS SES eu-north-1.
-/// Templates på svenska per civic-utility-design.
+/// Impl: ConsoleEmailSender (Infrastructure) — loggar till Serilog/Seq för
+/// lokal dev/MVP. Transaktionell mejlväg (SMTP/HTTP-API) är TD för Hetzner-
+/// fasen (ADR 0066 — AWS SES borttaget). Templates på svenska per
+/// civic-utility-design.
 /// </summary>
 public interface IEmailSender
 {

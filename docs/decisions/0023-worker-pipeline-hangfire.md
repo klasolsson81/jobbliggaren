@@ -334,3 +334,17 @@ Pre-prod-deploy-krav (TD-17) ska adresseras innan Fas 1 går till prod. ADR 0008
 > **Operativ konsekvens:** Worker-task-def kräver `ConnectionStrings__Redis`-secret-injektion i `worker_secrets`-blocket (Terraform `environments/dev/main.tf` rad 328-335). Tidigare kommentar "Worker använder INTE Redis" är **superseded** av denna amendment.
 >
 > **Fail-loud-paritet:** Worker `Program.cs` Redis-DI kastar `InvalidOperationException` vid saknad `ConnectionStrings:Redis` (paritet Api `Infrastructure/DependencyInjection.cs:438-440`) — ingen tyst localhost-fallback. Incident 2026-05-24 (Worker-restart efter v0.2.60-dev-deploy producerade `RedisConnectionException` mot localhost var 5:e min eftersom `worker_secrets` saknade Redis-injektion) motiverar denna disciplin.
+
+---
+
+## Amendment 2026-06-06 — Worker `ValidateOnBuild=false` för lokal Development-boot (ADR 0066-pivot)
+
+> **Amendment 2026-06-06** (senior-cto-advisor-dom agentId `aaba3ba73662b3dcd`, Variant A; CC-skriven prosa grundad i CTO-beslut per memory `feedback_klas_can_override_adr_verbatim_source` — entydigt principbeslut, inget Klas-GO krävt per §9.6):
+>
+> Worker registrerar via `AddMediator(assembly: Application)` HELA Application-assemblyns handler-set (Mediator.SourceGenerator scannar per assembly — kan inte subset:as), men laddar medvetet bara sin minimala DI-yta per Delbeslut 1+2 (HTTP-fri Worker — INTE `AddIdentityAndSessions`/`AddInvitationsAndEmail`). `Host.CreateApplicationBuilder` sätter `ValidateOnBuild=true` i Development, vilket eager-validerar ÄVEN Api-only-handlers (Auth/Invitation/Waitlist) vars deps (`ISessionStore`/`IRefreshTokenStore`/`IEmailSender`/`IInvitationTokenGenerator`) Worker aldrig registrerar och aldrig kör → **falsk positiv**.
+>
+> På Fargate kördes Worker som Production (`ValidateOnBuild=false`), så detta avtäcktes först vid första lokala Development-boot efter AWS-avveckling (ADR 0066). Det är en pre-existing latent konsekvens av Delbeslut 2:s assembly-per-scan-design, inte ett nytt designfel.
+>
+> **Beslut:** `Program.cs` sätter explicit `builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = false }))`. `ValidateScopes` BEHÅLLS (captive-dependency-skydd är hög-värde i Hangfire-host:en där varje job kör i eget scope). Worker:s EGNA job-handler-deps valideras lazily vid Hangfire-invocation + av WorkerLayerTests + integ-tester — signal-förlusten är trippelt täckt och därmed motiverad (CLAUDE.md §2.5-analog).
+>
+> **Invarianten är opåverkad** — Variant A är det enda alternativet som INTE rör DI-ytan denna ADR fryser (Variant B "registrera de fyra i Worker" avvisades som ADR 0023-brott, paritet med Alt α). Den rena lösningen (split av Application-assemblyn för isolerad Worker-scan) är **TD-103** (Minor/Trigger).

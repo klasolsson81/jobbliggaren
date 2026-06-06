@@ -138,10 +138,13 @@ internal sealed partial class PlatsbankenJobSource(
             if (string.IsNullOrWhiteSpace(hit.Id))
                 continue;
 
-            var occurredAt = hit.LastPublicationDate
+            // Npgsql timestamptz kräver Offset=0 — normalisera externa JobTech-
+            // datum till UTC vid ACL-boundary (instant bevaras). clock.UtcNow är
+            // redan UTC (no-op). Se TryConvertToImportItem för fullt motiv.
+            var occurredAt = (hit.LastPublicationDate
                 ?? hit.RemovedDate
                 ?? hit.PublicationDate
-                ?? clock.UtcNow;
+                ?? clock.UtcNow).ToUniversalTime();
 
             if (hit.Removed == true)
             {
@@ -211,8 +214,12 @@ internal sealed partial class PlatsbankenJobSource(
         // är sista fallback (sällan satt — kan vara mailto).
         var url = FirstNonMailtoUrl(hit.WebpageUrl, hit.SourceLinks, hit.ApplicationDetails?.Url);
         var company = hit.Employer?.Name?.Trim();
-        var publishedAt = hit.PublicationDate.Value;
-        var expiresAt = hit.LastPublicationDate;
+        // Npgsql timestamptz kräver Offset=0 — normalisera externa JobTech-datum
+        // till UTC vid ACL-boundary (instant bevaras). System.Text.Json tilldelar
+        // lokal maskin-offset för JobTech-datum, vilket failar på icke-UTC-värdar
+        // (funkade på Fargate=UTC, ej lokalt i Sverige=+02:00; ADR 0066-pivot).
+        var publishedAt = hit.PublicationDate.Value.ToUniversalTime();
+        var expiresAt = hit.LastPublicationDate?.ToUniversalTime();
 
         // Lite tolerant filtrering vid wire-format-luckor — JobAd.Import-faktorn
         // validerar slutligt (titel/desc/url non-empty + URL absolute).

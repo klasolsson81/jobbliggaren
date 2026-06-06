@@ -55,6 +55,9 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-98 | Dedikerad rate-limit-policy för admin-endpoints (`AdminWritePolicy`, partition på UserId) | Minor | Trigger | Säkerhet/DoS-skydd |
 | TD-99 | Rename Postgres-roll `jobbpilot_worker` → `jobbpilot_hangfire` + secret-namn (legacy-bagage; rollen är hangfire-only sedan STEG 6 delas mellan Api+Worker) | Minor | STEG 14 (prod-DDL-cutover) | Code-hygiene/Naming |
 | TD-100 | Yrkesgrupp/yrke-dropdown-UI med 100%-Platsbanken-paritet + SSYK-filter-verifiering (komplement till synonym-mapping från STEG 6 Approach B; ger användaren explicit precision-väg) | Minor | Trigger (när FE bygger yrkesfilter-UI) | Frontend/Search UX |
+| TD-101 | Transaktionell mejlväg för beta/prod (Hetzner) — IEmailSender-impl saknas efter SES-borttagning | **Major** | Hetzner-deploy | Infrastructure/Email |
+| TD-102 | Self-managed master-nyckel-skyddsmodell + rotation för Hetzner-prod (ADR 0049-amendment) | **Major** | Hetzner-deploy | Säkerhet/GDPR/Crypto |
+| TD-103 | Application-assembly-split för isolerad Worker-jobb-scan (återinför ValidateOnBuild=true) | Minor | Trigger | Architecture/Code quality |
 
 ---
 
@@ -299,6 +302,75 @@ mass-poison-pill-attacker där varje anrop maximerar input-context.
 
 **Beroenden:** Fas 4 AI-Layer + ADR för IAiProvider-port. Skapa egen ADR
 för cost-cap-design när AI-features designas.
+
+
+## Major — Hetzner-deploy
+
+## TD-101: Transaktionell mejlväg för beta/prod (Hetzner)
+
+**Kategori:** Infrastructure / feature-dependency
+**Severity:** Major (blockerar beta-utskick av riktiga invitation-/waitlist-mejl)
+**Fas:** Hetzner-deploy (ej nuvarande lokal-dev-fas)
+**Källa:** senior-cto-advisor-triage 2026-06-06 (ADR 0066 AWS-avveckling, CTO Rond 1)
+
+`IEmailSender`-porten finns och är korrekt abstraherad. Enda impl är
+`ConsoleEmailSender` (loggar till Serilog/Seq — dev/MVP). AWS SES borttaget
+2026-06-06 (ADR 0066): `SesEmailSender` + `AWSSDK.SimpleEmailV2` raderade
+eftersom Hetzner inte har SES och koden var permanent död. Beta-testare behöver
+RIKTIGA invitation-/lösenordsåterställnings-mejl — prod-impl saknas tills
+mejl-provider valts.
+
+**Föreslagen åtgärd (vid Hetzner-deploy-beslut):**
+
+1. Välj provider — transaktionell HTTP-API (Resend / Postmark / Brevo) **eller**
+   SMTP-relay. Designvalet HTTP-API-vs-SMTP fattas DÅ, inte nu (YAGNI — Hetzner-
+   stackar kör ofta HTTP-API snarare än SMTP).
+2. Implementera ny `IEmailSender`-impl i Infrastructure, registrerad via den
+   bevarade `EmailOptions.Provider`-switchen (idag enbart "Console").
+3. Secret (API-nyckel/SMTP-creds) via `IOptions<T>` + extern secret-store
+   (env/secret-fil på Hetzner), ALDRIG committad `appsettings`.
+4. Domän/SPF/DKIM/DMARC-konfiguration för avsändardomänen.
+5. Eventuell BUILD.md §3.1/§3.2-uppdatering (ny NuGet/provider) kräver
+   `approve-spec-edit.sh` + Klas-GO.
+
+**Beroenden:** Hetzner-deploy-fas + provider-val (Klas affärsbeslut).
+**Trigger:** Första riktiga beta-utskicket.
+
+
+## TD-102: Self-managed master-nyckel-skyddsmodell + rotation för Hetzner-prod
+
+**Kategori:** Säkerhet / GDPR / Crypto
+**Severity:** Major (säkerhetsmodell-skifte managed→self-managed; GDPR-relevant)
+**Fas:** Hetzner-deploy (ej nuvarande lokal-dev-fas)
+**Källa:** senior-cto-advisor-triage + security-auditor 2026-06-06 (ADR 0066, CTO Rond 2)
+
+`LocalDataKeyProvider` (ADR 0066) ersätter AWS KMS för DEK-envelope-wrapping med
+en lokal AES-256-GCM master-nyckel (`FieldEncryption:LocalMasterKeyBase64`). För
+lokal dev är detta korrekt. För Hetzner-PROD är det en medveten nedgradering av
+nyckel-skyddsmodellen: ADR 0049 byggde på AWS KMS där CMK aldrig lämnar HSM:en
+och aldrig finns i app-minne; `LocalDataKeyProvider` laddar en självhanterad
+master-nyckel i process-minne ur konfig. KMS gav dessutom CMK-rotation gratis —
+en lokal master-nyckel roterar inte av sig själv.
+
+Envelope-strukturen är medvetet BEVARAD (wrapped-DEK lagras per JobSeeker) just
+för att rotation ska kunna återinföras som en avgränsad re-wrap-operation
+(rotera master-nyckel → re-wrappa lagrade wrapped-DEK:er; fältdata orörd) istället
+för en re-encrypt-allt-migration.
+
+**Föreslagen åtgärd (vid Hetzner-deploy):**
+
+1. **ADR-amendment till ADR 0049** (eller ny superseder-ADR) som dokumenterar
+   master-nyckelns at-rest-skydd i prod (env/secret-injektion, ALDRIG fil),
+   åtkomstkontroll, och EU-residens på infra-nivå (Hetzner-EU).
+2. **Rotations-strategi:** schema + körbar re-wrap-operation för master-nyckel-
+   rotation (utnyttja den bevarade envelope-strukturen + `cmk_key_id`/DEK-version-
+   fälten).
+3. **security-auditor-granskning** av prod-konfigurationen innan första beta-data.
+4. Överväg HSM/extern KV om hot-threat-modellen kräver det (annars är env-injicerad
+   nyckel acceptabel för beta-skala).
+
+**Beroenden:** Hetzner-deploy-fas, ADR 0049-amendment.
+**Trigger:** Hetzner-prod-deploy med riktig PII (beta-testare).
 
 
 ## Minor — Fas 1
@@ -1302,6 +1374,40 @@ När yrkesfilter-UI byggs i FE (egen punkt eller del av sök-fas-2):
 - "Vår egen subset av yrken" (förvirrande för användare som känner Platsbanken)
 - Stale taxonomy-data (bygg cache-invaliderings-strategi för JobTech taxonomy-updates)
 - Dropdown utan validering mot Platsbanken (vi tror vi har paritet men har inte)
+
+
+## TD-103: Application-assembly-split för isolerad Worker-jobb-scan
+
+**Kategori:** Architecture / Code quality
+**Severity:** Minor
+**Fas:** Trigger
+**Källa:** senior-cto-advisor-triage 2026-06-06 (Worker boot-fix, Variant C)
+
+Worker registrerar via `AddMediator(assembly: Application)` HELA Application-
+assemblyns ICommandHandler/IQueryHandler (Mediator.SourceGenerator scannar per
+assembly — kan inte subset:as), men laddar medvetet bara sin minimala DI-yta per
+ADR 0023. Api-only-handlers (Auth/Invitation/Waitlist) registreras därför i Worker
+utan att deras deps (ISessionStore/IRefreshTokenStore/IEmailSender/
+IInvitationTokenGenerator) finns. Detta avtäcktes som DI-valideringsfel vid första
+lokala Development-boot (ADR 0066-pivot) och löstes funktionellt med
+`ValidateOnBuild=false` (Variant A, ADR 0023-amendment 2026-06-06).
+
+Variant C — splitta Application-assemblyn så Worker-jobben ligger i en egen
+assembly Mediator kan scanna isolerat — är den rena lösningen (Worker skulle bara
+registrera de handlers den faktiskt kör, och `ValidateOnBuild=true` kunde
+återinföras). Men det är en stor refaktor (flytta job-handlers, justera assembly-
+markers, Mediator-config i båda composition-roots, arch-tester) som är
+opåkallad så länge Worker-jobb-ytan är liten.
+
+**Föreslagen åtgärd (vid trigger):** extrahera Worker-relevanta Application-jobb
+till egen assembly (t.ex. `JobbPilot.Application.Jobs`) med egen AssemblyMarker;
+Worker scannar enbart den; återinför `ValidateOnBuild=true` i Worker.
+
+**Beroenden:** ingen (ren intern refaktor).
+**Trigger:** Worker-jobb-ytan växer så att den oavsiktliga handler-registreringen
+blir en faktisk belastning (jfr ADR 0023 Status "omvärderas vid Fas 2/Fas 4 om
+fler stubs tillkommer, extrahera"). Tills dess är `ValidateOnBuild=false` +
+ADR 0023-amendment tillräckligt.
 
 ---
 

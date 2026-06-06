@@ -5,9 +5,10 @@ public sealed class EmailOptions
     public const string SectionName = "Email";
 
     /// <summary>
-    /// Provider-val: "Console" (loggar email till applikationslogg, dev/MVP)
-    /// eller "Ses" (AWS SES v2, eu-north-1). Sandbox-mode i Ses kräver att
-    /// mottagar-emails är verifierade i AWS-konsolen innan första utskick.
+    /// Provider-val: "Console" (loggar email till applikationslogg, dev/MVP) —
+    /// enda providern efter ADR 0066 (AWS SES borttaget). Switch-mekanismen
+    /// behålls för framtida transaktionell mejlväg (SMTP/HTTP-API) i Hetzner-
+    /// fasen; okänt värde fail-stoppas i DI.
     /// </summary>
     public string Provider { get; init; } = "Console";
 

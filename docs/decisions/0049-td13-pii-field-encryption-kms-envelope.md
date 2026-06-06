@@ -14,6 +14,24 @@
 
 ---
 
+> **Not 2026-06-06 (ADR 0066 — lokal envelope-provider):** Efter AWS-avveckling
+> (ADR 0066) introducerades `LocalDataKeyProvider` som ett andra
+> `IDataKeyProvider`-impl bredvid `KmsDataKeyProvider`, valt via config-switch
+> `FieldEncryption:Provider` ("Kms" default / "Local"). Local-grenen wrappar
+> per-användar-DEK:en med en lokal AES-256-GCM master-nyckel
+> (`FieldEncryption:LocalMasterKeyBase64`, gitignored) istället för KMS
+> `GenerateDataKey`/`Decrypt`. **Hela denna ADR:s besluts-substans är oförändrad:**
+> envelope-strukturen (per-JobSeeker wrapped-DEK i `user_data_keys`),
+> owner-AAD-bindningen, fail-closed-invarianten och `IFieldEncryptor`
+> (AES-256-GCM-primitiv) är identiska — bara DEK-wrap-mekanismen byter. KMS-impl
+> + paket BEHÅLLS som referens. Self-managed-nyckelns prod-skyddsmodell + rotation
+> för Hetzner är **TD-102** (Major, Hetzner-deploy) och kräver ADR-amendment/
+> superseder + security-auditor-granskning innan riktig PII. Lokal dev kräver det
+> inte. Verifierat denna session: `KmsEnvelopeEncryptor` har noll AWS-import
+> (ren BCL `AesGcm`); enda AWS-touchpoint var `KmsDataKeyProvider`.
+
+---
+
 ## Kontext
 
 Fem databaskolumner lagrar PII-känsligt innehåll (BUILD.md §13.1 "Känsligt")

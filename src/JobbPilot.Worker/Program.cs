@@ -17,6 +17,24 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
+// DI-validerings-policy (ADR 0023 amendment 2026-06-06, senior-cto-advisor).
+// Host.CreateApplicationBuilder sätter ValidateOnBuild=true i Development.
+// Worker registrerar via AddMediator HELA Application-assemblyns handler-set
+// (Mediator.SourceGenerator scannar per assembly — kan inte subset:as), men
+// laddar MEDVETET bara sin minimala DI-yta per ADR 0023 (HTTP-fri) — INTE
+// AddIdentityAndSessions/AddInvitationsAndEmail. Eager ValidateOnBuild
+// försöker därför konstruera Api-only-handlers (Auth/Invitation/Waitlist) vars
+// deps (ISessionStore/IRefreshTokenStore/IEmailSender/IInvitationTokenGenerator)
+// Worker aldrig registrerar och aldrig kör → falsk positiv. På Fargate
+// (Production) var ValidateOnBuild=false så detta dök upp först vid lokal
+// Development-boot efter AWS-avveckling (ADR 0066). ValidateScopes BEHÅLLS
+// (captive-dependency-skydd är hög-värde i Hangfire-host:en där varje job kör i
+// eget scope). Worker:s egna job-handler-deps valideras lazily vid Hangfire-
+// invocation + av WorkerLayerTests + integ-tester. Variant C (split av
+// Application-assemblyn för isolerad Worker-scan) är framtida TD/Trigger.
+builder.ConfigureContainer(new DefaultServiceProviderFactory(
+    new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = false }));
+
 // Persistence-modul (DbContext, IAppDbContext, IDateTimeProvider, IDbExceptionInspector)
 // — utan HTTP-bagage, utan Identity. Worker-kontextens DI-yta är medvetet minimerad
 // per ADR 0023 / STEG 9.

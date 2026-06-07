@@ -32,4 +32,24 @@ else
     echo "ℹ docs/current-work.md finns inte än — skapas vid första /session-end."
 fi
 
+# 5. Frontend node_modules-drift mot pin/lockfile
+#    Lokal regressions-audit 2026-06-07: en detached dev-server körde på stale
+#    node_modules (next 16.2.4) medan lockfilen bumpats (16.2.7, Dependabot) —
+#    jest-worker-render-barnen kraschade på uncachade routes och maskerade felet
+#    som "Jest worker encountered N child process exceptions". Icke-blockerande
+#    parity-check (Twelve-Factor §10): jämför installerad next mot package.json-pin.
+WEB_DIR="web/jobbpilot-web"
+if [ -f "$WEB_DIR/package.json" ] && [ -f "$WEB_DIR/node_modules/next/package.json" ]; then
+    declared=$(grep -oE '"next"[[:space:]]*:[[:space:]]*"[^"]+"' "$WEB_DIR/package.json" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    installed=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$WEB_DIR/node_modules/next/package.json" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    if [ -n "$declared" ] && [ -n "$installed" ] && [ "$declared" != "$installed" ]; then
+        echo ""
+        echo "⚠ Frontend dep-drift: next i node_modules ($installed) ≠ package.json-pin ($declared)."
+        echo "  Kör 'pnpm install' i $WEB_DIR och starta om 'pnpm dev' — en stale dev-worker"
+        echo "  ger maskerade RSC-krascher (\"Jest worker ... child process exceptions\")."
+    else
+        echo "✓ Frontend node_modules i synk med next-pin (${declared:-okänd})."
+    fi
+fi
+
 exit 0

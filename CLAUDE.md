@@ -317,7 +317,7 @@ JobbPilot kör PR-baserat flöde mot `main` per [ADR 0065](./docs/decisions/0065
 1. **Plan-design** — webb-Claude och Klas designar scope, sekvens, risker och alternativ i chat innan kod skrivs
 2. **STOPP-disciplin** — Claude Code halt vid varje övergång; inga `str_replace`, inga commits, ingen analys mellan STOPP och GO
 3. **Agent-invocation** — security-auditor / code-reviewer / dotnet-architect invokeras vid relevant scope och rapporter bifogas PR-body innan merge (§9.2)
-4. **Manuell diff-granskning** — Klas läser PR-diff i GitHub-vyn innan merge
+4. **Manuell diff-granskning** — Klas läser PR-diff i GitHub-vyn. **Per [ADR 0065 Amendment 2026-06-07](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md#amendment-2026-06-07--automerge-default-för-ccs-egna-prer) är detta post-merge för CC:s egna PR:er:** CC sätter `automerge`-labeln på alla egna PR:er (`gh pr edit <nr> --add-label automerge`) → `label-automerge.yml` mergar (squash) när required `ci` är grön, och Klas granskar diffen efter merge. Undantag (label sätts INTE — STOPP till Klas): ej-åtgärdat agent-Blocker/Major, eller Klas säger annat. Spec-edits kräver fortfarande `approve-spec-edit.sh` för själva editen, men PR:n får ändå labeln
 5. **CI-gate** — `ci`-aggregatet (backend + frontend + coverage per ADR 0044) måste passera innan merge; observe-only-jobben (lighthouse / loadtest / audit per ADR 0045) blockerar ej
 6. **Pre-push hooks** — gitleaks, dotnet format, lint-staged
 
@@ -380,7 +380,7 @@ En feature är "klar" när:
 5. Implementera minimalt för att passera
 6. Kör `dotnet test` + relevant lint lokalt
 7. Commit med conventional commits
-8. Pusha feature-branch + skapa PR (`gh pr create`) med agent-rapporter inline i body. Vänta `ci`-aggregatet grönt. Klas reviewar diff + CI + agent-trådar i PR-vyn och mergar (squash) efter GO. Docs-sync (current-work.md + session-log) committas som egna logiska commits **i samma PR**. (Per [ADR 0065](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md))
+8. Pusha feature-branch + skapa PR (`gh pr create`) med agent-rapporter inline i body. **Sätt `automerge`-labeln** (`gh pr edit <nr> --add-label automerge`) — `label-automerge.yml` mergar (squash) när `ci`-aggregatet är grönt; Klas granskar diffen **post-merge** ([ADR 0065 Amendment 2026-06-07](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md#amendment-2026-06-07--automerge-default-för-ccs-egna-prer)). Undantag (STOPP till Klas innan label): ej-åtgärdat agent-Blocker/Major, eller spec-edit-PR vars edit ännu inte är godkänd. Docs-sync (current-work.md + session-log) committas som egna logiska commits **i samma PR**. (Per [ADR 0065](./docs/decisions/0065-pr-flow-restoration-with-ci-gate.md))
 
 ### 9.2 Gränser för Claude Code
 

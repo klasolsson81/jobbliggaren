@@ -57,6 +57,8 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-100 | Yrkesgrupp/yrke-dropdown-UI med 100%-Platsbanken-paritet + SSYK-filter-verifiering (komplement till synonym-mapping från STEG 6 Approach B; ger användaren explicit precision-väg) | Minor | Trigger (när FE bygger yrkesfilter-UI) | Frontend/Search UX |
 | TD-101 | Transaktionell mejlväg för beta/prod (Hetzner) — IEmailSender-impl saknas efter SES-borttagning | **Major** | Hetzner-deploy | Infrastructure/Email |
 | TD-102 | Self-managed master-nyckel-skyddsmodell + rotation för Hetzner-prod (ADR 0049-amendment) | **Major** | Hetzner-deploy | Säkerhet/GDPR/Crypto |
+| TD-104 | Observability-sink saknas — ingen Serilog/Seq-wiring lokalt + ingen prod-logg-sink efter CloudWatch-exit | Minor | Hetzner-deploy | Observability/Operations |
+| TD-105 | JobbPilot.Migrate är AWS-Secrets-Manager-bunden — ej VPS-portabel | Minor | Hetzner-deploy | Infra/VPS-portabilitet |
 | TD-103 | Application-assembly-split för isolerad Worker-jobb-scan (återinför ValidateOnBuild=true) | Minor | Trigger | Architecture/Code quality |
 
 ---
@@ -874,6 +876,84 @@ genererar reell DB-load.
 sustained i Fas 7 internal beta (tidig varning-signal).
 
 **Beroenden:** Inga.
+
+
+## Minor — Hetzner-deploy
+
+## TD-104: Observability-sink saknas — ingen Serilog/Seq-wiring lokalt + ingen prod-logg-sink efter CloudWatch-exit
+
+**Kategori:** Observability / Operations
+**Severity:** Minor (appen loggar korrekt till console via Microsoft.Extensions.Logging; synlighets-gap, inte funktions-gap; ingen fas-stängnings-blocker för lokal-dev-fasen)
+**Fas:** Hetzner-deploy (ej nuvarande lokal-dev-fas)
+**Källa:** Lokal regressions-audit 2026-06-07 (fynd 3-Seq + fynd 5b), senior-cto-advisor-triage `ad6b2bf569b9f98bd`
+
+Lokal regressions-audit verifierade on-disk: **det finns ingen Serilog alls i
+lösningen** — noll `Serilog.*`-PackageReference i något `.csproj`, ingen
+`WriteTo`/sink-config, `Program.cs` har ingen logging-setup. Appen kör default
+Microsoft.Extensions.Logging → console. Seq-containern (`docker-compose`,
+`localhost:5341`) **kör men tar emot inget** (Seq event-query returnerar `[]`).
+
+Detta motsäger två on-disk-påståenden som är faktiskt felaktiga:
+
+1. **CLAUDE.md §11.3** beskriver `seq` som "(local Serilog sink)" — det finns
+   ingen Serilog-sink. (TD-101-blocket upprepar samma inexakthet:
+   "ConsoleEmailSender (loggar till Serilog/Seq)".)
+2. Session-loggen 2026-06-07 (lokal-stack-reparation) noterade "Lösenordsbyte →
+   ConsoleEmailSender → Seq" — loggen når console, inte Seq.
+
+`docker-compose`-kommentaren säger "Produktion kör aldrig Seq (CloudWatch
+istället)" — men CloudWatch är borttaget (ADR 0066) → **det finns ingen
+prod-logg-sink alls** efter AWS-exit. Detta är en VPS-portabilitets-lucka
+(fynd 5b): på Hetzner behövs en logg-sink-strategi.
+
+**Föreslagen åtgärd (vid Hetzner-deploy-beslut, ÉN gång med sink-abstraktion):**
+
+1. Välj prod-logg-sink-strategi för VPS (self-hosted Seq på VPS / Loki+Grafana /
+   managed log-tjänst). Designvalet fattas DÅ (YAGNI), knutet till ADR 0050.
+2. Wira Serilog (`Serilog.AspNetCore` + relevant sink, t.ex.
+   `Serilog.Sinks.Seq`) så att BÅDE lokal dev (Seq på `5341`) och prod-sink
+   täcks av samma abstraktion (DIP — undvik dubbel-wiring). Nya top-level-deps
+   kräver §9.2-motivering + ev. BUILD.md-uppdatering (`approve-spec-edit.sh`).
+3. **Korrigera CLAUDE.md §11.3** ("seq (local Serilog sink)") + TD-101-blockets
+   Serilog/Seq-formulering så docs matchar verkligheten. Spec-edit → Klas-GO +
+   `approve-spec-edit.sh`.
+
+**Beroenden:** Hetzner-deploy-fas (ADR 0050, Proposed) + sink-val.
+**Trigger:** Hetzner-prod-deploy ELLER när observability behövs för beta.
+**Cross-refs:** ADR 0050 (VPS-exit), ADR 0066 (AWS-exit), TD-101 (mejl-Serilog/Seq-inexakthet), CLAUDE.md §11.3.
+
+
+## TD-105: JobbPilot.Migrate är AWS-Secrets-Manager-bunden — ej VPS-portabel
+
+**Kategori:** Infrastructure / VPS-portabilitet
+**Severity:** Minor (oanvänd lokalt — lokal kör EF design-time/auto-migrate; blockerar inte nuvarande fas)
+**Fas:** Hetzner-deploy (ej nuvarande lokal-dev-fas)
+**Källa:** Lokal regressions-audit 2026-06-07 (fynd 5a), senior-cto-advisor-triage `ad6b2bf569b9f98bd`
+
+`JobbPilot.Migrate` är hårt bunden till AWS Secrets Manager:
+`AmazonSecretsManagerClient` hämtar master-creds + app-connection-strings
+(`GetSecretValueAsync`) och skriver tillbaka via `PutSecretValueAsync` i ett
+two-phase least-privilege-migrationsflöde (master-creds → app-creds). Hela
+flödet förutsätter AWS — `AWSSDK.SecretsManager` är fortfarande referenserad i
+`JobbPilot.Migrate.csproj`. Projektet används **inte lokalt** (lokal dev kör
+migrations via EF design-time-factory / auto-migrate), så detta är ingen lokal
+regression — men det är en genuin VPS-portabilitets-blockerare: på Hetzner finns
+ingen Secrets Manager, så den nuvarande migrations-runnern kan inte köras.
+
+**Föreslagen åtgärd (vid Hetzner-deploy):**
+
+1. Designa VPS-portabel migrations-strategi: ersätt Secrets-Manager-hämtningen
+   med en `IConfiguration`/env-baserad väg (connection-string + ev. master-creds
+   via env/secret-fil på VPS) eller en VPS-secrets-store-gren (paritet med
+   `EmailOptions.Provider`/`FieldEncryption.Provider`-switch-mönstret, ADR 0066).
+2. Behåll two-phase least-privilege-mönstret om VPS-DB:n stödjer separata
+   migrate-/app-roller; annars förenkla medvetet för beta-skala.
+3. AWS-grenen kan bevaras bakom provider-switch (ADR 0066-reversibilitet) eller
+   rensas när Hetzner är beslutat (Klas-beslut vid deploy).
+
+**Beroenden:** Hetzner-deploy-fas (ADR 0050, Proposed) + VPS-DB-/secrets-modell.
+**Trigger:** Första VPS-migrations-körningen.
+**Cross-refs:** ADR 0050 (VPS-exit), ADR 0066 (AWS-exit), TD-72 (Migrate bootstrap-auto-trigger, deploy-CI).
 
 
 ## Minor — Efter MVP / Trigger-baserade

@@ -1,0 +1,39 @@
+# Label-baserad auto-merge för egna PRs (opt-in per PR) — Klas-GO 2026-06-07.
+#
+# Sätt label:n "automerge" på en PR → den auto-mergas FÖRST när required
+# `ci`-aggregatet är grönt (branch protection, ADR 0065). PRs UTAN labeln
+# granskas/mergas manuellt som default — ADR 0065 #4 (manuell diff-granskning)
+# bevaras för allt du inte uttryckligen opt-in:ar.
+#
+# Säkerhet: endast collaborators (Klas) kan sätta labels på repot → labeln =
+# medveten Klas-opt-in. `pull_request` (ej `pull_request_target`) → fork-PRs får
+# read-only token och kan inte missbruka steget. CI (build+test+coverage) gatar
+# fortfarande mergen via branch protection.
+#
+# OBS: detta workflow har INGEN egen vuln-gate (till skillnad från
+# dependabot-automerge.yml) — dina egna PRs är medvetet kod du själv skrivit och
+# labelat; required `ci` är grinden. Ändrar du dependencies i en egen PR, väg
+# audit-utfallet manuellt innan du sätter labeln.
+name: label-automerge
+
+on:
+  pull_request:
+    types: [labeled]
+
+# write krävs för att GITHUB_TOKEN ska kunna aktivera auto-merge på PR:n.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: auto-merge (label)
+    runs-on: ubuntu-latest
+    # Kör ENBART när just "automerge"-labeln sätts.
+    if: ${{ github.event.label.name == 'automerge' }}
+    steps:
+      - name: Aktivera auto-merge
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

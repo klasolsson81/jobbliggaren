@@ -5,6 +5,7 @@
 .claude/logs/
 .claude/backups/
 .claude/tasks/
+.claude/scheduled_tasks.lock
 
 # Environment files (dev secrets)
 .env

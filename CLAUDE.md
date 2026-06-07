@@ -245,7 +245,7 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
 - ❌ `dynamic` i C# — förbjudet
 - ❌ Catch-all `try/catch` utan action — låt exceptions bubbla till middleware
 - ❌ Loggning av känslig data i klartext (CV-innehåll, AI-prompts med PII, OAuth-tokens)
-- ❌ Konfiguration hårdkodad — allt via `IOptions<T>` bundet mot `appsettings.json` + AWS Secrets Manager
+- ❌ Konfiguration hårdkodad — allt via `IOptions<T>` bundet mot `appsettings.json` + managed secrets-store (lokalt: `appsettings.Local.json`, gitignored)
 - ❌ Synkron I/O i request-pipeline
 - ❌ Hämta hela listor utan paginering
 - ❌ `SELECT *` via EF Core (använd projections till DTOs för read-models)
@@ -272,11 +272,11 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
 - ❌ AI-output renderat direkt som HTML utan sanitization
 - ❌ Systemnyckel använd för BYOK-användare (alltid rätt provider per user)
 - ❌ BYOK-nycklar loggade eller synliga i admin-panel (bara fingerprint)
-- ❌ AI-prompts med användardata skickas över **global** inference utan explicit samtycke — systemnyckel ska alltid EU-routas via Bedrock
+- ❌ AI-prompts med användardata skickas till extern inferens utan explicit opt-in — systemnyckel-AI går via Anthropic Direct API (US) och kräver opt-in per ADR 0051 (Bedrock/EU-routing utgår; ingen tyst US-default)
 
 ### 5.4 Säkerhet
 
-- ❌ Secrets i `appsettings.json` eller miljövariabler utan KMS
+- ❌ Secrets i `appsettings.json` (committad) eller miljövariabler i klartext — känsliga värden i gitignored `appsettings.Local.json` lokalt, managed secrets-store i drift; PII-fält/BYOK via DEK-envelope (`IDataKeyProvider`, ADR 0066/0049)
 - ❌ JWT i localStorage
 - ❌ CORS med `*` eller bredd credentials
 - ❌ SQL via rå string concatenation (EF Core används, men om rå SQL: parametriserat)
@@ -446,9 +446,9 @@ Externa fakta uppdateras konstant. Training data är out-of-date i veckor till m
 
 **Triggers för web-search:**
 
-- AWS — feature, pris, region, IAM-policy-format, Bedrock-modell-tillgänglighet
+- Deploy-provider (Hetzner / Vercel / Cloudflare per ADR 0050) — feature, pris, region, konfig-format
 - .NET / Next.js / TypeScript — library-version, breaking changes, deprecation-status
-- AI-modeller — modell-namn, kontextfönster, prissättning, EU-inferens-tillgänglighet
+- AI-modeller (Anthropic Direct API, ADR 0051) — modell-namn, kontextfönster, prissättning, residency/DPF-status
 - Claude-features — Claude Code-flaggor, SDK-versioner, agent-konfiguration
 - NuGet / npm — paket-status, senaste version, compat-matriser
 
@@ -613,7 +613,7 @@ istället, lyft inte.
 
 ### 11.3 Dev environment
 
-- Docker Compose i repo-root: `postgres`, `redis`, `seq` (local Serilog sink). Riktig AWS används direkt — ingen LocalStack i dev (medvetet val per SESSION-2-PLAN).
+- Docker Compose i repo-root: `postgres`, `redis`, `seq` (local Serilog sink). All utveckling kör lokalt på laptop utan molntjänster (AWS avvecklat, ADR 0066) — `ConsoleEmailSender` för mejl, `LocalDataKeyProvider` (AES-256-GCM) för fält-kryptering.
 - `make dev` eller `pnpm dev:up` startar allt lokalt
 - `.env.local` för frontend, `appsettings.Development.json` för backend (committade defaults + overrides i `appsettings.Local.json` som är gitignorad)
 

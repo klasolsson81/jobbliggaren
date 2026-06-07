@@ -130,17 +130,16 @@ Se §18 Utvecklingsfaser.
 | Mapping | Mapster | 10.x | Snabbare än AutoMapper, kodgenerering |
 | Background jobs | Hangfire | 1.8.x | Postgres-storage |
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
-| Logging | Serilog | 4.x | CloudWatch + Seq dev |
+| Logging | Serilog | 4.x | Seq (lokal dev); produktions-sink TBD (ADR 0050) |
 | Observability | OpenTelemetry | 1.15+ | Traces + metrics |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
 | PDF generation | QuestPDF | 2026.2.x | Community MIT free under USD 1M revenue; `QuestPDF.Settings.License = LicenseType.Community` i startup |
 | DOCX generation | DocumentFormat.OpenXml | 3.x | Template-baserad |
-| AI SDK (Bedrock) | AWSSDK.BedrockRuntime | 4.x | Converse API, primary för systemnyckel |
-| AI SDK (direkt) | Anthropic (officiell NuGet) | 12.x | MIT, BYOK-flöde (ersätter community `Anthropic.SDK`) |
+| AI SDK | Anthropic (officiell NuGet) | 12.x | MIT, Anthropic Direct API för **både** systemnyckel och BYOK (Bedrock utgår, ADR 0051) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
-| Database | PostgreSQL | 18.3 | RDS eu-north-1 |
-| Cache | Redis | 8.6 | ElastiCache (tri-license, extern cache-användning OK) |
+| Database | PostgreSQL | 18.3 | lokal Docker Compose nu; managed host TBD (ADR 0050) |
+| Cache | Redis | 8.6 | lokal Docker Compose nu; managed host TBD (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
 | Test-mocks | NSubstitute | 5.x | Mock-ramverk för Application-tester |
 | Arch-tests | NetArchTest.Rules | 1.x | V1-val; abandoned sedan 2022 — överväg ArchUnitNET vid v2 |
@@ -160,37 +159,47 @@ Se §18 Utvecklingsfaser.
 
 ### 3.2 Infrastruktur
 
-| Tjänst | Val | Region | Notis |
-|--------|-----|--------|-------|
-| Compute (backend) | AWS ECS Fargate | eu-north-1 (Stockholm) | Container-baserat |
-| Compute (worker) | AWS ECS Fargate (separat service) | eu-north-1 | Hangfire-server |
-| Database | AWS RDS PostgreSQL | eu-north-1, Multi-AZ | 18.3 |
-| Cache | AWS ElastiCache Redis | eu-north-1 | 8.6 |
-| Object storage | AWS S3 | eu-north-1 | CV-uppladdningar, genererade PDF/DOCX |
-| AI inferens (systemnyckel) | AWS Bedrock | EU cross-region inference profile callable från eu-north-1; fallback eu-central-1 / eu-west-1 | Ingen cross-region-kostnad från backend |
-| AI inferens (BYOK) | Anthropic direkt API | Global routing | Användarens eget ansvar, tydligt samtycke |
-| Email | AWS SES | eu-north-1 | DKIM/SPF/DMARC konfigurerat |
-| Frontend | Vercel | eu | Next.js hosting |
-| Secrets | AWS Secrets Manager | eu-north-1 | DB-credentials, API-nycklar |
-| Encryption keys | AWS KMS | eu-north-1 | BYOK envelope encryption |
-| Analytics | PostHog self-hosted | EC2 eu-north-1 | GDPR-säkert |
-| DNS | AWS Route 53 | — | jobbpilot.se + subdomäner |
-| CDN | CloudFront | — | S3 + backend |
-| Monitoring | CloudWatch | eu-north-1 | Logs, metrics, alarms |
-| Errors | Sentry | EU datacenter | Backend + frontend |
-| CI/CD | GitHub Actions | — | Build, test, deploy till ECS + Vercel |
-| IaC | Terraform | 1.14+ | AWS-provider |
+> **Statusbanner (2026-06-06):** AWS-dev-stacken är avvecklad (ADR 0066) och
+> AWS lämnas permanent (Klas-direktiv 2026-06-06). All utveckling kör nu lokalt
+> på laptop (Docker Compose: postgres + redis + seq). Permanent deploy-mål
+> (plan: Hetzner CX-serie BE + Vercel FE + Cloudflare) specificeras i **ADR 0050
+> (Proposed)** och fastställs när den flippas till Accepted. Tabellen nedan
+> beskriver **nuläge (lokalt)** + **TBD-pekare** — inga molnkonfig-värden fylls
+> i förrän Hetzner-deploy-ADR:n är beslutad. AWS-kolumnerna i ADR/sessions/
+> research bevaras som historik.
+
+| Tjänst | Nuläge (lokal dev) | Permanent mål |
+|--------|--------------------|---------------|
+| Compute (backend/worker) | `dotnet run` lokalt | TBD — Hetzner (ADR 0050 Proposed) |
+| Database | PostgreSQL 18.3 (Docker Compose) | TBD (ADR 0050) |
+| Cache | Redis 8.6 (Docker Compose) | TBD (ADR 0050) |
+| Object storage | lokal disk / ej aktiverat | TBD — S3-kompatibel (ADR 0050: Cloudflare R2) |
+| AI inferens | Anthropic Direct API (system + BYOK), opt-in per ADR 0051; AI-lager Fas 4 (ej byggt) | Anthropic Direct API (ADR 0051) |
+| Email | `ConsoleEmailSender` → Seq (ADR 0066) | TBD — transaktionell mejlväg (TD-101) |
+| Secrets | `appsettings.Local.json` (gitignored) | TBD (ADR 0050) |
+| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | TBD — self-managed nyckelmodell (TD-102) |
+| Frontend | `pnpm dev` (localhost:3000) | TBD — Vercel (ADR 0050 Proposed) |
+| DNS / CDN | — | TBD — Cloudflare (ADR 0050) |
+| Logging / monitoring | Seq (lokal) | TBD (ADR 0050) |
+| Errors | — | Sentry (EU) planerat |
+| CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
+| IaC | `infra/terraform/` bevarad som reversibilitets-mekanik (ADR 0066 Beslut 1) | retireras via egen ADR vid Hetzner-cutover |
 
 ### 3.3 Miljöer
 
-| Miljö | Syfte | Deployment | Domän |
-|-------|-------|-----------|-------|
-| local | Utveckling | Docker Compose | localhost |
-| dev | Integration | Auto på tag `v*-dev` från `main` | dev.jobbpilot.se |
-| staging | Pre-prod test | Auto på tag `v*-rc*` från `main` | staging.jobbpilot.se |
-| production | Live | Manuell approval på tag `v*` (ej `-rc`) från `main` | jobbpilot.se |
+> **Status (2026-06-06):** dev/staging/production-AWS-miljöerna är avvecklade
+> (ADR 0066). `local` är enda aktiva miljön tills permanent deploy-mål är
+> beslutat (ADR 0050). Tag-baserad deploy (`v*-dev`/`v*-rc*`/`v*`) är pausad —
+> deploy-workflowsen (`deploy-dev.yml` m.fl.) bevarade men inaktiva tills
+> Hetzner-deploy-ADR:n definierar ny pipeline.
 
-GitHub Flow tillämpas: `main` är den enda långlivade branchen. Feature-branches mergeas via squash-PR. Inga `develop`/`staging`-branches — staging är en *miljö*, inte en branch (se §15.3).
+| Miljö | Syfte | Deployment | Status |
+|-------|-------|-----------|--------|
+| local | Utveckling | Docker Compose | **Aktiv** |
+| dev / staging / production | Integration / pre-prod / live | TBD (ADR 0050) | Avvecklad (ADR 0066) |
+
+PR-flöde mot `main` per ADR 0065 (CI-gate). Permanent deploy-strategi och
+miljö-topologi fastställs i ADR 0050 när den flippas till Accepted.
 
 ---
 
@@ -209,8 +218,9 @@ GitHub Flow tillämpas: `main` är den enda långlivade branchen. Feature-branch
 │  ├─ Persistence (EF Core, migrations)               │
 │  ├─ Identity                                        │
 │  ├─ JobSources.Platsbanken                          │
-│  ├─ AiProviders.Bedrock / AiProviders.Anthropic     │
-│  ├─ Email.Ses                                       │
+│  ├─ AiProviders.Anthropic   (Fas 4, ej byggt)       │
+│  ├─ Email (ConsoleEmailSender; SES borttagen)       │
+│  ├─ Security (Local/Kms DEK-provider, ADR 0066)     │
 │  ├─ CalendarIntegration.Google                      │
 │  ├─ GmailSync                                       │
 │  ├─ Salary.Scb                                      │
@@ -772,7 +782,7 @@ ai_operations
   id (uuid PK)
   job_seeker_id (uuid FK)
   operation_type (text)          -- 'cv_parse', 'cv_tailor', 'cover_letter_generate', 'match_deep', 'research_brief', 'cliche_detect'
-  provider (text)                -- 'bedrock' | 'anthropic'
+  tenancy (text)                 -- 'system' | 'byok' (båda via Anthropic Direct API, ADR 0051)
   model (text)
   tokens_input (int)
   tokens_output (int)
@@ -899,60 +909,62 @@ public interface IAiProvider
 
 public interface IAiProviderResolver
 {
-    // Väljer provider per användare: systemnyckel (Bedrock) eller BYOK (direkt Anthropic)
+    // Väljer provider per användare: systemnyckel vs BYOK. Dispatch-axeln är
+    // credential/tenancy (plattformens nyckel vs användarens egen nyckel), INTE
+    // vendor — båda grenar talar Anthropic Direct API (Bedrock utgår, ADR 0051).
     Task<IAiProvider> ResolveForUserAsync(
         JobSeekerId userId,
         AiOperationType operationType,
         CancellationToken ct);
 }
 
-public enum AiProviderKind { BedrockClaude, AnthropicDirect }
+// Namngivning fastställs i Fas 4 (ADR 0051 — AiProviderKind-namngivning deferred).
+// Dispatch-axeln är credential/tenancy, inte vendor.
+public enum AiProviderKind { SystemKey, Byok }
 public enum AiModelTier { Fast, Deep }     // Fast = Haiku, Deep = Sonnet
 public enum AiOperationType { CvParse, CvTailor, CoverLetterGenerate, MatchDeep, ResearchBrief, ClicheDetect, RecommendationReasoning }
 ```
 
 ### 8.2 Modell-mappning
 
-| Use case | Tier | Modell (Bedrock EU-profil) | Modell (Anthropic direkt) |
-|----------|------|----------------------------|---------------------------|
-| CV-parsing (text → JSON) | Fast | `eu.anthropic.claude-haiku-4-5-20251001-v1:0` | `claude-haiku-4-5-20251001` |
-| Anti-klyscha-detektor | Fast | Haiku | Haiku |
-| Matchningsscore (Deep) | Deep | `eu.anthropic.claude-sonnet-4-6` | `claude-sonnet-4-6` |
-| Skräddarsytt CV | Deep | Sonnet 4.6 | Sonnet 4.6 |
-| Personligt brev | Deep | Sonnet 4.6 | Sonnet 4.6 |
-| Företagsresearch-brief | Deep | Sonnet 4.6 (+ web search tool) | Sonnet 4.6 |
-| Rekommendations-reasoning | Fast | Haiku | Haiku |
-| Premium (optional) | Premium | `eu.anthropic.claude-opus-4-7` | `claude-opus-4-7` |
+> **Anthropic Direct API för båda vägar (ADR 0051).** Bedrock utgår — ingen
+> EU-inference-profil-kolumn. Systemnyckel-AI är **opt-in** (US-processing,
+> ADR 0051 Beslut 2); icke-opt-in-användare får ingen systemnyckel-AI.
 
-Alla tre EU-profil-ID:n verifierade mot `aws bedrock list-inference-profiles` i
-både `eu-central-1` och `eu-west-1` per session 3 steg 2g — se
-[`docs/research/bedrock-inference-profiles.md`](./docs/research/bedrock-inference-profiles.md).
-Sonnet 4.6 och Opus 4.7 saknar datumsuffix; Haiku 4.5 har det.
-Model access är redan `AUTHORIZED` i kontot — ingen manuell Console-request behövs.
+Mappningen nedan binder *use case → tier*, inte use case → exakt modell-version.
+Tier-strategin är det stabila beslutet; de exakta modell-ID:na lever i config
+(`appsettings`, source-of-truth) och verifieras mot `https://docs.claude.com`
+(ADR 0002-amendment 2026-06-07 — versions-ID upprepas inte i prosa, de ruttnar).
 
-Modellnamn ska hämtas från konfiguration, inte hårdkodas. `appsettings.json`:
+| Use case | Tier |
+|----------|------|
+| CV-parsing (text → JSON) | Fast |
+| Anti-klyscha-detektor | Fast |
+| Matchningsscore | Deep |
+| Skräddarsytt CV | Deep |
+| Personligt brev | Deep |
+| Företagsresearch-brief | Deep (+ web search tool) |
+| Rekommendations-reasoning | Fast |
+| Premium (optional) | Premium |
+
+**Tier → modellfamilj:** Fast = Haiku (snabb/billig), Deep = Sonnet (balans),
+Premium = Opus. Exakta ID:n per tier sätts i config (nedan).
+
+Modellnamn hämtas från konfiguration, hårdkodas aldrig. Exempel `appsettings.json`
+(ID:na är **exempel** — aktuella verifieras mot docs.claude.com per ADR 0002):
 
 ```jsonc
 {
   "Ai": {
-    "SystemProvider": "BedrockClaude",
-    "Bedrock": {
-      // Backend körs i eu-north-1; EU cross-region inference profile
-      // tillåter anrop från eu-north-1 utan cross-region-kostnad.
-      "Region": "eu-north-1",
-      "ModelIds": {
-        "Fast": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
-        "Deep": "eu.anthropic.claude-sonnet-4-6",
-        "Premium": "eu.anthropic.claude-opus-4-7"
-      }
-    },
-    "AnthropicDirect": {
+    // Provider-resolver dispatchar på credential/tenancy (systemnyckel vs BYOK),
+    // inte vendor — båda talar Anthropic Direct API (ADR 0051).
+    "Anthropic": {
       "ApiVersion": "2023-06-01",
-      "InferenceGeo": "global",
       "Models": {
+        // Pinnade exakta ID:n (ADR 0002) — exempelvärden, ej kanon:
         "Fast": "claude-haiku-4-5-20251001",
         "Deep": "claude-sonnet-4-6",
-        "Premium": "claude-opus-4-7"
+        "Premium": "claude-opus-4-8"
       }
     }
   }
@@ -973,12 +985,13 @@ Modellnamn ska hämtas från konfiguration, inte hårdkodas. `appsettings.json`:
 2. Frontend POST:ar i klartext över HTTPS till backend (TLS enda skyddet på wire)
 3. Backend omedelbart:
    - Verifierar nyckeln mot provider (1 billig test-call)
-   - Genererar ny AES-256-nyckel (data key) via KMS GenerateDataKey
+   - Genererar ny AES-256-nyckel (data key) via `IDataKeyProvider`
+     (Local AES-256-GCM eller KMS, config-switchat per ADR 0066)
    - Krypterar API-nyckel med data key (AES-GCM)
-   - Lagrar `ciphertext` + `encrypted_data_key` (av KMS)
+   - Lagrar `ciphertext` + `encrypted_data_key` (wrappad av provider)
    - Plaintext-nyckeln scrubbas från minnet direkt
 4. Vid användning:
-   - KMS Decrypt för data key
+   - `IDataKeyProvider` unwrap för data key
    - AES decrypt för API-nyckel
    - Used i-memory, aldrig loggad
 5. Admin kan **inte** se BYOK-nycklar — bara fingerprint
@@ -1100,13 +1113,19 @@ Runtime laddar prompts via `IPromptLibrary`, gör token-substitution, och skicka
 - Streamar respons när UI kan använda det
 - Token-usage returneras och loggas per operation
 
-### 9.6 AWS Bedrock (systemnyckel)
+### 9.6 Systemnyckel via Anthropic Direct API (Bedrock utgår — ADR 0051)
 
-- SDK: `AWSSDK.BedrockRuntime` 4.x (Converse API, ersätter äldre `InvokeModel`-flöde)
-- Region: `eu-north-1` (Stockholm) som call-region via EU cross-region inference profile
-- EU inference profile: `eu.anthropic.claude-*`; fallback-källregioner inkluderar `eu-central-1`, `eu-west-1`, `eu-south-1`, `eu-south-2`, `eu-west-3`
-- IAM-policy minimal: `bedrock:InvokeModel` + `bedrock:Converse*` mot specifika inference-profile-ARNs
-- Data stannar inom EU oavsett vilken källregion som servar requesten
+- SDK: officiell `Anthropic` NuGet (HTTP mot `https://api.anthropic.com/v1/messages`)
+  — **samma klient som BYOK-vägen**; dispatch sker på credential/tenancy, inte vendor
+- `AWSSDK.BedrockRuntime` och en Bedrock-adapter byggs **aldrig** (ADR 0051 Beslut 1)
+- **Ingen EU-residency-fallback:** Anthropic Direct self-serve är US-only.
+  Systemnyckel-AI är därför **opt-in** (ADR 0051 Beslut 2, GDPR Art. 25.2);
+  icke-opt-in-användare får ingen systemnyckel-AI (endast BYOK om egen nyckel finns)
+- **Fas-4-grind (ADR 0051 Beslut 3, security-auditor GDPR-veto, icke-förhandlingsbar):**
+  DPIA (Art. 35) + SCC modul 2 + Schrems II-TIA + Anthropic-DPA + DPF-status-verifiering
+  + ADR 0049-cross-ref (decrypt-före-AI = klartext-PII över Atlanten) — alla uppfyllda
+  **innan en Fas-4-kodrad skrivs**
+- Token-usage returneras och loggas per operation; PII loggas aldrig i klartext
 
 ---
 
@@ -1277,9 +1296,12 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 ### 13.2 Encryption
 
 **At rest:**
-- RDS: AWS-managed encryption (AES-256) via KMS
-- S3: SSE-KMS
-- OAuth-tokens och BYOK-nycklar: envelope encryption med KMS (extra lager utöver RDS-kryptering)
+- Databas: managed encryption (AES-256) på permanent host (TBD, ADR 0050)
+- Object storage: server-side-kryptering (TBD, ADR 0050)
+- PII-fält (`cover_letter`, `resume_versions.content` m.fl.), OAuth-tokens och
+  BYOK-nycklar: per-användar-DEK envelope encryption via `IDataKeyProvider`
+  (Local AES-256-GCM eller KMS, config-switchat per ADR 0066/0049) — extra lager
+  utöver databas-kryptering
 
 **In transit:**
 - TLS 1.3 överallt
@@ -1287,16 +1309,16 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 - Certificate pinning i mobilklient (framtida)
 
 **Secrets-hantering per miljö:**
-- `local`: `.env`-fil i repo-roten, gitignored; `.env.example` committas som mall utan värden
-- `dev` / `staging` / `production`: AWS Secrets Manager i eu-north-1 (SSM Parameter Store för icke-känslig config)
-- BYOK-nycklar: ALDRIG i `.env` eller Secrets Manager i plaintext — alltid KMS envelope (§8.4)
+- `local`: `appsettings.Local.json` (gitignored) + `.env` för frontend; committade defaults i `appsettings.Development.json`
+- permanent miljö: managed secrets-store (TBD, ADR 0050)
+- BYOK-nycklar: ALDRIG i klartext i config — alltid DEK-envelope via `IDataKeyProvider` (§8.4, ADR 0066/0049)
 - `IConfiguration`-abstraktionen gör att koden är identisk oavsett källa; endast DI-registreringen skiljer
 
 ### 13.3 GDPR-flöden
 
 **Registerutdrag (Art. 15):**
 - `GET /api/v1/me/export` genererar ZIP med alla användardata som JSON + originalfiler
-- Delivered via signed S3-URL, giltig 24 h
+- Delivered via signerad nedladdnings-URL, giltig 24 h (lagrings-backend TBD, ADR 0050)
 - Loggas som `DataExportRequestedEvent`
 
 **Rätt till radering (Art. 17):**
@@ -1314,19 +1336,23 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 ### 13.4 Subprocessors
 
-Upprätthålls i publik lista på `/integritet#subprocessors`:
-- AWS (infrastruktur, EU)
-- Anthropic (BYOK-flöde, frivilligt, US)
+Upprätthålls i publik lista på `/integritet#subprocessors` (publiceras när AI-lagret
+och permanent infra aktiveras; listan nedan speglar **planerad** uppsättning):
+- Infrastruktur (hosting/databas/storage): TBD — permanent provider beslutas i ADR 0050
+- Anthropic (system- + BYOK-AI, **opt-in**, US) — Fas 4, ej aktiverad; gated av
+  ADR 0051:s fem GDPR-villkor (DPIA/SCC/TIA/DPA innan flippen är live)
 - Google (Gmail/Calendar, frivilligt, global)
-- Vercel (frontend, EU)
-- Sentry (errors, EU)
+- Vercel (frontend, EU) — TBD (ADR 0050)
+- Sentry (errors, EU) — planerat
 - PostHog self-hosted (analytics, EU — inte subprocessor)
-- AWS SES (email, EU)
+
+> AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
+> kedjan. Permanent infra-subprocessor läggs till när ADR 0050 är Accepted.
 
 ### 13.5 Säkerhetshygien
 
 - `dotnet-outdated` + `npm audit` körs i CI, bryter build vid kritiska CVEs
-- Secrets aldrig i kod — allt via AWS Secrets Manager eller miljövariabler
+- Secrets aldrig i kod — allt via managed secrets-store eller miljövariabler (lokalt: `appsettings.Local.json`, gitignored)
 - `dotnet format` + ESLint/Prettier i pre-commit (Husky)
 - Rate limiting per IP + per user på alla endpoints (AspNetCoreRateLimit eller custom middleware)
 - CORS restriktivt: bara `jobbpilot.se`-domäner
@@ -1340,7 +1366,7 @@ Upprätthålls i publik lista på `/integritet#subprocessors`:
 ### 14.1 Logging
 
 - Serilog structured logging
-- Sinks: CloudWatch (prod), Seq (lokal dev)
+- Sinks: Seq (lokal dev); produktions-sink TBD (ADR 0050)
 - Log levels:
   - `Trace`/`Debug`: dev only
   - `Information`: normala request-flows (start/slut av handlers)
@@ -1352,8 +1378,8 @@ Upprätthålls i publik lista på `/integritet#subprocessors`:
 
 ### 14.2 Traces
 
-- OpenTelemetry + AWS X-Ray
-- Trace från frontend (Vercel) genom backend (ECS) till DB/AI/external
+- OpenTelemetry (exporter/backend TBD, ADR 0050)
+- Trace från frontend genom backend till DB/AI/external
 - Sampling: 100% i dev, 10% i prod
 
 ### 14.3 Metrics
@@ -1366,7 +1392,7 @@ Upprätthålls i publik lista på `/integritet#subprocessors`:
 
 ### 14.4 Alerting
 
-CloudWatch alarms:
+Alarms (plattform TBD, ADR 0050):
 - Backend 5xx rate > 1% över 5 min → PagerDuty/email
 - AI-providers error rate > 10% → email
 - JobTech sync misslyckas 3 gånger i rad → email
@@ -1374,7 +1400,7 @@ CloudWatch alarms:
 
 ### 14.5 Product analytics (PostHog)
 
-- Self-hosted PostHog på EC2 i eu-north-1
+- Self-hosted PostHog i EU (host TBD, ADR 0050)
 - Auto-capture off, explicit event-tracking
 - Events: `job_searched`, `application_submitted`, `ai_cover_letter_generated`, `ai_cv_tailored`, `cliche_detected`, `byok_added`, etc.
 - Session recording av för integritet (kan slås på per användare via admin-flag)
@@ -1384,96 +1410,51 @@ CloudWatch alarms:
 
 ## 15. Infrastruktur & deployment
 
-### 15.1 AWS-layout
+> **Status (2026-06-06):** Den AWS-baserade deploy-arkitekturen nedan är
+> **avvecklad** (ADR 0066) och AWS lämnas permanent (Klas-direktiv 2026-06-06).
+> Permanent deploy-mål — plan: **Hetzner** (BE) + **Vercel** (FE) + **Cloudflare**
+> (DNS/CDN/R2) — specificeras i **ADR 0050 (Proposed)** och fastställs där.
+> Den faktiska deploy-layouten, IaC-strukturen och CI/CD-deploy-pipelinen för
+> Hetzner skrivs in här när ADR 0050 flippas till Accepted. **Inga Hetzner-
+> konfig-värden fylls i förrän de är beslutade.**
+>
+> `infra/terraform/` (den tidigare AWS-stacken) + AWS-deploy-workflowsen
+> (`deploy-dev.yml`, `rds-ca-bundle-check.yml`) är **bevarade men inaktiva** som
+> reversibilitets-mekanik (ADR 0066 Beslut 1). De retireras via egen ADR vid
+> Hetzner-cutover, inte i en städ-PR.
 
-```
-┌─ VPC (eu-north-1, 3 AZ)
-│   ├─ Public subnets (ALB, NAT)
-│   ├─ Private subnets (ECS, RDS, ElastiCache)
-│   └─ VPC Endpoints (S3, Secrets Manager, KMS, Bedrock)
-│
-├─ ECS Fargate cluster: jobbpilot-prod
-│   ├─ service: api (2 tasks min, autoscale to 10)
-│   └─ service: worker (1 task min, autoscale to 4)
-│
-├─ RDS Postgres 18.3, Multi-AZ, db.t4g.medium
-├─ ElastiCache Redis 8.6, cache.t4g.small, 2-node
-│
-├─ S3 buckets:
-│   ├─ jobbpilot-uploads-prod (CVs, encrypted, 7-dagar lifecycle för tmp)
-│   ├─ jobbpilot-exports-prod (genererade PDF/DOCX, 24h expiry)
-│   └─ jobbpilot-logs-prod (flow logs, audit log archival)
-│
-├─ Bedrock via EU cross-region inference profile (anropas från eu-north-1)
-│
-└─ Route 53 → CloudFront → ALB → ECS
-```
+### 15.1 Deploy-layout (TBD — ADR 0050)
 
-### 15.2 Terraform-struktur
+Permanent topologi (Hetzner BE + Vercel FE + Cloudflare) definieras i ADR 0050.
+Den tidigare AWS-layouten (VPC/ECS/RDS/ElastiCache/S3/Bedrock/Route 53) finns
+dokumenterad i ADR 0066 + sessions som historik.
 
-```
-/infra/terraform
-  /bootstrap                  (S3 state-bucket + DynamoDB locks — körs en gång med bootstrap-profil)
-  /modules
-    /network
-    /ecs-service
-    /rds
-    /redis
-    /s3
-    /iam
-    /budgets
-    /cloudtrail
-    /kms
-    /secrets_manager
-    /bedrock_model_access
-  /environments
-    /dev
-    /staging
-    /prod                     (primär — main.tf + terraform.tfvars)
-```
+### 15.2 IaC (TBD — ADR 0050)
 
-- State i S3 + DynamoDB locks
-- `terraform apply` körs via GitHub Actions med OIDC federation
+Befintlig AWS-Terraform under `infra/terraform/` bevarad som reversibilitets-
+mekanik (ADR 0066). Hetzner-IaC-strategi (Terraform-provider, modul-struktur)
+beslutas i ADR 0050.
 
 ### 15.3 CI/CD
 
-**GitHub Actions workflows (GitHub Flow, tag-baserad deploy):**
+**Aktivt nu (PR-flöde per ADR 0065):**
 
-`ci.yml`:
+`build.yml` (`ci`-aggregat):
 - Trigger: PR mot `main`, push till `main`
-- Jobs: `build`, `test` (unit + architecture), `typecheck`, `lint`, `docker-build` (push till ECR vid push till `main`)
+- Jobs: backend build + test, frontend lint/typecheck/test, coverage-gate (ADR 0044)
+- Inga moln-anrop, inga deploys
 
-`code-review.yml`:
-- Trigger: PR opened / synchronize
-- Kör `code-reviewer`-agenten mot PR-diff, postar kommentar, arkiverar rapport under `docs/reviews/`
+Observe-only-jobb (lighthouse / loadtest / audit per ADR 0045) blockerar ej merge.
 
-`security.yml`:
-- Trigger: PR + veckovis cron
-- `security-auditor` + `dotnet list package --vulnerable` + `pnpm audit` + gitleaks
+**Pausat (deploy — bevarat men inaktivt):**
+Tag-baserad AWS-deploy (`deploy-dev.yml` m.fl.) är pausad efter ADR 0066.
+Ny deploy-pipeline mot Hetzner/Vercel definieras i ADR 0050.
 
-`deploy-dev.yml`:
-- Trigger: tag `v*-dev` på `main` → ECS service update i dev
+### 15.4 Deployment-strategi (TBD — ADR 0050)
 
-`deploy-staging.yml`:
-- Trigger: tag `v*-rc*` på `main` → ECS service update i staging
-
-`deploy-prod.yml`:
-- Trigger: tag `v*` (ej `-rc`) på `main` → manuell approval via GitHub Environments → ECS + migrations-task
-
-`terraform.yml`:
-- Plan on PR, apply on merge till `main` (via OIDC federation)
-
-`frontend.yml`:
-- Vercel Git integration (auto-deploy)
-- Lint + type check + Playwright e2e i CI
-
-### 15.4 Deployment-strategi
-
-- Rolling update (ECS default), 200% max capacity under deployment
-- Health check krav: `/api/ready` måste returnera 200 inom 30 s
-- Canary för stora releases via ECS Blue/Green + CodeDeploy (framtida)
-- Migrations körs som separate ECS task före service-update, stoppar deploy vid failure
-- Rollback: ECS service → previous task definition
+Permanent deploy-strategi (rolling/canary, migrations-ordning, rollback)
+fastställs i ADR 0050 utifrån vald Hetzner/Vercel-topologi. Health-check-kravet
+`/api/ready` → 200 inom 30 s består oavsett plattform.
 
 ---
 
@@ -1483,7 +1464,7 @@ CloudWatch alarms:
 
 - Postgres-storage (`Hangfire.PostgreSql`)
 - Dashboard på `/hangfire` skyddad med Admin-roll
-- Dedicated ECS service för worker (inte i samma container som Api)
+- Dedicerad worker-process (separat från Api — egen container/service på permanent host, TBD ADR 0050)
 
 ### 16.2 Schedulerade jobb
 
@@ -1565,8 +1546,13 @@ Triggas av handlers för:
 Ingen hård deadline, men mjuka milstolpar för att driva framåt:
 
 ### Fas 0 — Foundation (~2 veckor)
-- AWS-konto + SSO (Identity Center), IAM-roller, OIDC-federation till GitHub
-- Terraform bootstrap (S3 state + DynamoDB locks) + prod-baseline (budgets, CloudTrail, KMS, Secrets Manager, Bedrock model access)
+
+> **Status:** Fas 0 genomfördes ursprungligen på AWS (Klar 2026-05-10). AWS är
+> sedan avvecklat (ADR 0066) — foundation-stegen nedan beskriver det ursprungliga
+> AWS-uppsättet och är historiska. Permanent infra-foundation görs om mot
+> Hetzner/Vercel när ADR 0050 är Accepted.
+
+- (Historiskt) AWS-konto + SSO, IAM-roller, OIDC-federation, Terraform bootstrap + prod-baseline
 - Clean Arch-solution setup + NetArchTest
 - ASP.NET Core Identity + första JWT-endpoint
 - Next.js 16-projekt + design system-baseline (tokens, Hanken Grotesk, Button, Card, Input)
@@ -1613,8 +1599,12 @@ Ingen hård deadline, men mjuka milstolpar för att driva framåt:
 **Milstolpe:** Fullständig ansökningshantering fungerar (utan AI).
 
 ### Fas 4 — AI Layer (~3–4 veckor)
-- `IAiProvider` + Bedrock + Anthropic direct implementations
-- BYOK-UI + KMS-säkerhet
+
+> **Förkrav (ADR 0051 Beslut 3, GDPR-veto):** DPIA + SCC/TIA + Anthropic-DPA +
+> DPF-status-verifiering + ADR 0049-cross-ref uppfyllda **innan första AI-kodrad**.
+
+- `IAiProvider` + Anthropic Direct API-implementation (Bedrock utgår, ADR 0051)
+- BYOK-UI + DEK-envelope-säkerhet (`IDataKeyProvider`, ADR 0066/0049)
 - Prompt library + versionshantering
 - Credit system
 - CV-parsing (PDF/DOCX)
@@ -1706,12 +1696,12 @@ Saker som inte är beslutade och behöver stängas under fas 0–1:
 
 - **Branding-färg exakt hex:** `#0B5CAD` är förslag, verifiera mot A11y-kontrastkrav på all körtext. Kan behöva justeras.
 - **Logotyp:** ska designas (eventuellt ett litet projekt med AI-assistans à la KalasKoll-identitet, eller leja in designbyrå)
-- **Domän:** `jobbpilot.se` — registrera via Loopia eller One.com, DNS hos Route 53
+- **Domän:** `jobbpilot.se` — DNS-host TBD (ADR 0050: Cloudflare)
 - **E-post-adress för support:** `hej@jobbpilot.se` förslag
 - **Integritetspolicy + TOS:** behöver skrivas (svenska, med GDPR-explicit text)
 - **Onboarding-video eller hjälpcenter:** skjuts till v1.1
 - **Rate limits per plan:** rimligt förslag är 60 req/min Bas, 120 Premium
-- **Bakgrundsjobb-observability:** Hangfire-dashboard räcker eller ska vi skicka till CloudWatch?
+- **Bakgrundsjobb-observability:** Hangfire-dashboard räcker eller ska vi skicka till extern logg-sink? (sink TBD, ADR 0050)
 
 Dessa ska alla lösas innan fas 8 (klass-launch).
 
@@ -1723,8 +1713,7 @@ Dessa ska alla lösas innan fas 8 (klass-launch).
 - JobSearch API docs: https://jobsearch.api.jobtechdev.se
 - Taxonomy API: https://taxonomy.api.jobtechdev.se
 - SCB Pxweb API: https://api.scb.se/OV0104/v1/doris/sv/ssd
-- AWS Bedrock EU inference profiles: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
-- Anthropic direct API: https://docs.claude.com
+- Anthropic API: https://docs.claude.com (Anthropic Direct för system + BYOK, ADR 0051)
 - GOV.UK Design System: https://design-system.service.gov.uk
 - Digg (svensk digital förvaltning): https://www.digg.se
 - WCAG 2.1 AA: https://www.w3.org/TR/WCAG21/

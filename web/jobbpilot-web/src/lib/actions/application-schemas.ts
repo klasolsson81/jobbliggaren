@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { ApplicationStatus } from "@/lib/types/applications";
-
-const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { GUID_REGEX } from "@/lib/validation/guid";
 
 const APPLICATION_STATUSES = [
   "Draft", "Submitted", "Acknowledged", "InterviewScheduled",

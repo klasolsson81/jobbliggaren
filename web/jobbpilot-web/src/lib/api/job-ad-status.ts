@@ -6,6 +6,7 @@ import {
   jobAdStatusBatchSchema,
   type JobAdStatusBatch,
 } from "@/lib/dto/job-ad-status";
+import { isValidId } from "@/lib/validation/guid";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -49,10 +50,13 @@ export async function getJobAdStatusBatch(
 export async function hasAppliedJobAd(jobAdId: string): Promise<boolean> {
   const sessionId = await getSessionId();
   if (!sessionId) return false;
+  // Allowlist-guard: avvisa icke-GUID innan id:t når backend-URL:en (SSRF-
+  // barrier + path-injektion-skydd). Misslyckad lookup → false (fail-shape).
+  if (!isValidId(jobAdId)) return false;
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/applications/has-applied/${jobAdId}`,
+      `${env.BACKEND_URL}/api/v1/me/applications/has-applied/${encodeURIComponent(jobAdId)}`,
       { headers: authHeaders(sessionId), cache: "no-store" }
     );
     if (!res.ok) return false;

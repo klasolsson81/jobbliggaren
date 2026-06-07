@@ -13,6 +13,7 @@ import type { ResumeContentDto } from "@/lib/types/resumes";
 import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { mapActionError } from "./_action-error";
+import { isValidId } from "@/lib/validation/guid";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -22,9 +23,6 @@ function authHeaders(sessionId: string): HeadersInit {
 }
 
 export type ActionResult = { success: true } | { success: false; error: string };
-
-const GUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function createResumeAction(
   _prevState: ActionResult | null,
@@ -94,7 +92,7 @@ export async function renameResumeAction(
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/${parsed.data.resumeId}`,
+      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(parsed.data.resumeId)}`,
       {
         method: "PATCH",
         headers: authHeaders(sessionId),
@@ -135,7 +133,7 @@ export async function updateMasterContentAction(
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/${parsed.data.resumeId}/master`,
+      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(parsed.data.resumeId)}/master`,
       {
         method: "PUT",
         headers: authHeaders(sessionId),
@@ -165,16 +163,19 @@ export async function deleteResumeAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  if (!GUID_REGEX.test(resumeId)) {
+  if (!isValidId(resumeId)) {
     return { success: false, error: "Ogiltigt CV-ID." };
   }
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes/${resumeId}`, {
-      method: "DELETE",
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(resumeId)}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(sessionId),
+        cache: "no-store",
+      }
+    );
 
     if (!res.ok) {
       return {
@@ -197,13 +198,13 @@ export async function deleteResumeVersionAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  if (!GUID_REGEX.test(resumeId) || !GUID_REGEX.test(versionId)) {
+  if (!isValidId(resumeId) || !isValidId(versionId)) {
     return { success: false, error: "Ogiltigt ID." };
   }
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/${resumeId}/versions/${versionId}`,
+      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}`,
       {
         method: "DELETE",
         headers: authHeaders(sessionId),

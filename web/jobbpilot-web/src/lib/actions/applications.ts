@@ -14,6 +14,7 @@ import {
 import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { mapActionError } from "./_action-error";
+import { isValidId } from "@/lib/validation/guid";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -42,10 +43,13 @@ export async function createApplicationFromJobAdAction(
 ): Promise<CreateApplicationFromJobAdResult> {
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  // Allowlist-guard: avvisa icke-GUID innan id:t når backend-URL:en (SSRF-
+  // barrier + path-injektion-skydd).
+  if (!isValidId(jobAdId)) return { success: false, error: "Ogiltigt annons-ID." };
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/from-job-ad/${jobAdId}`,
+      `${env.BACKEND_URL}/api/v1/applications/from-job-ad/${encodeURIComponent(jobAdId)}`,
       {
         method: "POST",
         headers: authHeaders(sessionId),
@@ -143,7 +147,7 @@ export async function transitionStatusAction(
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${applicationId}/transition`,
+      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/transition`,
       {
         method: "POST",
         headers: authHeaders(sessionId),
@@ -183,7 +187,7 @@ export async function addFollowUpAction(
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${applicationId}/follow-ups`,
+      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/follow-ups`,
       {
         method: "POST",
         headers: authHeaders(sessionId),
@@ -224,7 +228,7 @@ export async function addNoteAction(
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${applicationId}/notes`,
+      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/notes`,
       {
         method: "POST",
         headers: authHeaders(sessionId),
@@ -263,7 +267,7 @@ export async function recordFollowUpOutcomeAction(
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${applicationId}/follow-ups/${followUpId}/outcome`,
+      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/follow-ups/${encodeURIComponent(parsed.data.followUpId)}/outcome`,
       {
         method: "POST",
         headers: authHeaders(sessionId),

@@ -1,7 +1,7 @@
 # ADR 0051 — AI-provider-strategi: Bedrock utgår, Anthropic Direct API för systemnyckel + BYOK
 
-**Status:** Accepted (2026-06-06 — Klas-GO; Proposed 2026-05-19)
-**Datum:** 2026-05-19 (Accepted-flip 2026-06-06)
+**Status:** Accepted (2026-06-07 — flip; Klas-GO 2026-06-06; Proposed 2026-05-19)
+**Datum:** 2026-05-19 (Accepted-flip 2026-06-07)
 **Kontext:** Post-Fas-3 + pre-migration-discovery (Block 3). Konsekvens av full AWS-exit (ADR 0050) + Klas-direktiv "det måste inte vara EU-baserat allt".
 **Beslutsfattare:** Klas Olsson (riktnings-GO 2026-05-19); senior-cto-advisor (§9.6 decision-maker); security-auditor (GDPR-veto-villkor, icke-förhandlingsbara); dotnet-architect (greenfield-design-dom)
 **Relaterad:** ADR 0049 (TD-13 PII-fält-kryptering — **decrypt-före-AI-interaktion, cross-ref**); ADR 0050 (AWS-exit — denna ADR möjliggör ren exit); ADR 0005 (kostnadsskydd — Bedrock-deny moot). Underlag: `docs/research/2026-05-19-bedrock-vs-anthropic-direct.md` (tre agent-domar §4–7). BUILD.md Bilaga B planerad `NNNN-bedrock-eu-for-system-key.md` — denna ADR fyller den slotten med **inverterad** slutsats (Bedrock formaliseras EJ; utgår).
@@ -15,9 +15,10 @@
 > denna ADR implicerar (BUILD.md/CLAUDE.md/privacy-policy) appliceras EJ av CC
 > utan Klas spec-edit-approve-mekanism (CC self-godkänner aldrig, memory).
 >
-> **Accepted-flip 2026-06-06:** Klas explicit-direktiv ("ingen Bedrock alls,
-> Anthropic direkt") under AWS-cleanup-städsessionen är den separata Klas-GO
-> som Proposed-noten krävde. Status flippad Proposed → Accepted. Spec-amendment-
+> **Accepted-flip 2026-06-07** (Klas-GO 2026-06-06)**:** Klas explicit-direktiv
+> ("ingen Bedrock alls, Anthropic direkt") 2026-06-06 under AWS-cleanup-
+> städsessionen är den separata Klas-GO som Proposed-noten krävde; flippen
+> applicerades 2026-06-07. Status flippad Proposed → Accepted. Spec-amendment-
 > kartan (§"Relaterade beslut") applicerades i samma städ-PR
 > (`chore/aws-cleanup-refit-cert`) på Klas spec-edit-GO (Bypass mode +
 > städ-prompt) — radnummer on-disk-verifierade innan varje edit per §9.4.

@@ -782,7 +782,7 @@ ai_operations
   id (uuid PK)
   job_seeker_id (uuid FK)
   operation_type (text)          -- 'cv_parse', 'cv_tailor', 'cover_letter_generate', 'match_deep', 'research_brief', 'cliche_detect'
-  provider (text)                -- 'bedrock' | 'anthropic'
+  tenancy (text)                 -- 'system' | 'byok' (båda via Anthropic Direct API, ADR 0051)
   model (text)
   tokens_input (int)
   tokens_output (int)

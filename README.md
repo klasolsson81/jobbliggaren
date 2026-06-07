@@ -14,9 +14,8 @@
 [![Tester](https://img.shields.io/badge/backend-1%20100%2B%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
 [![Vitest](https://img.shields.io/badge/vitest-686%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
 [![Coverage](https://img.shields.io/badge/first--party%20line-92,1%25-success)](docs/decisions/0044-test-coverage-policy.md)
-[![ADR](https://img.shields.io/badge/ADR-64%20beslut-informational)](docs/decisions/README.md)
+[![ADR](https://img.shields.io/badge/ADR-66%20beslut-informational)](docs/decisions/README.md)
 [![Status](https://img.shields.io/badge/fas-3%20klar%20·%204%20GDPR--gated-blue)](docs/steg-tracker.md)
-[![dev](https://img.shields.io/badge/dev-live-success)](https://dev.jobbpilot.se/api/ready)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#licens)
 
 ---
@@ -680,7 +679,7 @@ JobbPilot är ett **pågående arbete**. Faserna nedan följer den auktoritativa
 | **Fas 7** | Internal Beta — 3 användare aktivt 14 dagar | Dogfood-validering | Planerad |
 | **Fas 8** | Klass-launch — 20 klasskamrater onboardade | v1 klar | Planerad |
 
-**Pre-Fas-4-disciplin.** Fas 4 (AI) är låst bakom fem icke-förhandlingsbara GDPR-villkor i [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md): DPIA Art. 35, SCC + Schrems II-TIA + Anthropic-DPA + DPF-verifikation, versionerad privacy-policy, Art. 25-opt-in även för systemnyckel, och ADR 0049-decrypt-interaktion. Tills villkoren är gröna körs leveransen i avskilda pre-Fas-4-vertikaler: landing live-stats ([ADR 0064](docs/decisions/0064-public-aggregate-read-via-worker-precomputed-redis-cache.md)), översiktssida `/oversikt`, jobbkort Spara/Har-ansökt ([ADR 0063](docs/decisions/0063-per-user-overlay-status-batch-port.md)), FTS-hybridsök ([ADR 0062](docs/decisions/0062-fts-hybrid-search-and-infrastructure-query-port.md)), recent-job-searches auto-capture ([ADR 0060](docs/decisions/0060-recent-job-searches-auto-capture.md)) och closed-beta-väntelista per EDPB-tolkning ([ADR 0005 amendment](docs/decisions/0005-go-to-market.md)). Auktoritativ status: [`docs/current-work.md`](docs/current-work.md).
+**Pre-Fas-4-disciplin.** Fas 4 (AI) är låst bakom fem icke-förhandlingsbara GDPR-villkor i [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md): DPIA Art. 35, SCC + Schrems II-TIA + Anthropic-DPA + DPF-verifikation, versionerad privacy-policy, Art. 25-opt-in även för systemnyckel, och ADR 0049-decrypt-interaktion. Tills villkoren är gröna körs leveransen i avskilda pre-Fas-4-vertikaler: landing live-stats ([ADR 0064](docs/decisions/0064-public-aggregate-read-via-worker-precomputed-redis-cache.md)), översiktssida `/oversikt`, jobbkort Spara/Har-ansökt ([ADR 0063](docs/decisions/0063-per-user-overlay-status-batch-port.md)), FTS-hybridsök ([ADR 0062](docs/decisions/0062-fts-hybrid-search-and-infrastructure-query-port.md)), recent-job-searches auto-capture ([ADR 0060](docs/decisions/0060-recent-job-searches-auto-capture.md)) och closed-beta-väntelista per EDPB-tolkning ([ADR 0005 amendment](docs/decisions/0005-go-to-market-strategy.md)). Auktoritativ status: [`docs/current-work.md`](docs/current-work.md).
 
 Dev-miljön (`dev.jobbpilot.se`) är avvecklad under semester-pausen (ADR 0066) — all utveckling kör lokalt. Permanent miljö återupprättas vid Hetzner-cutover (ADR 0050). Projektet är pre-MVP; inga publika användare ännu.
 
@@ -696,7 +695,7 @@ Dev-miljön (`dev.jobbpilot.se`) är avvecklad under semester-pausen (ADR 0066) 
 | [`docs/current-work.md`](docs/current-work.md) | Session-state, senaste commits, aktiv fas |
 | [`docs/steg-tracker.md`](docs/steg-tracker.md) | Långsiktig fas/STEG-progression |
 | [`docs/tech-debt.md`](docs/tech-debt.md) | TD-register med prioriteringar |
-| [`docs/decisions/`](docs/decisions/) | 64 Architecture Decision Records (ADRs) |
+| [`docs/decisions/`](docs/decisions/) | 66 Architecture Decision Records (ADRs) |
 | [`docs/reviews/`](docs/reviews/) | Auto-genererade agent-reviews |
 | [`docs/runbooks/`](docs/runbooks/) | Operativa procedurer (lokal-dev, TLS, etc.) |
 | [`docs/sessions/`](docs/sessions/) | Per-session retrospektiv-loggar |

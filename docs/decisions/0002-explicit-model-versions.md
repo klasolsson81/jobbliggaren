@@ -112,10 +112,68 @@ begränsande faktor; usage-limits hanteras via degraderingsordning nedan.
 - Modell-ID:n måste uppdateras manuellt när nya versioner görs relevanta
 - Ingen automatisk uppgradering vid familj-releasar
 
-**Degraderingsordning vid usage-limit-problem (Opus → Sonnet 4.6):**
+**Degraderingsordning vid usage-limit-problem (Opus → Sonnet):**
 
 1. `design-reviewer` — lägst kritikalitet bland Opus-agenter
 2. `test-writer`
 3. `nextjs-ui-engineer`
 4. `code-reviewer`, `security-auditor`, `dotnet-architect`, `ai-prompt-engineer`
    behåller Opus — dessa är projektets kvalitetsankare
+
+---
+
+## Amendment 2026-06-07 — explicit ID i config vs tier-referens i prosa
+
+**Status:** Accepted (amendment till ADR 0002)
+**Beslutsfattare:** Klas Olsson (GO 2026-06-07); senior-cto-advisor decision-maker
+`a86e76f7f560689ac` (riktning A); kontext: AWS-cleanup-städsession, PR
+`chore/aws-cleanup-refit-cert`.
+
+> **Livscykel-not:** Skriven 2026-06-07 av Claude Code på explicit Klas-GO ("GO
+> enligt rek") under städsessionen, grundad verbatim i senior-cto-advisor-domarna
+> `abc7a9aeb0d711cea` + `a86e76f7f560689ac` — inga nya beslut konstruerade
+> (medveten override av §9.4 webb-Claude-verbatim per memory
+> `feedback_klas_can_override_adr_verbatim_source`).
+
+### Bakgrund
+
+Klas observerade 2026-06-06 att modell-versioner hårdkodas i docs/spec (t.ex.
+`opus-4-7`) och ruttnar när nya modeller släpps (Opus 4.8 var live medan specen
+sa 4.7). Frågan blottlade två separata sanningar som behöver olika behandling.
+
+### Beslut
+
+**1. Separation per dokumenttyp (DRY — ett auktoritativt hem per modell-ID,
+Hunt/Thomas 1999):**
+
+- **Operativ konfiguration** — agent-frontmatter `model:`-fält, `appsettings`
+  `Ai:Anthropic:Models`, och prompt-fil-frontmatter (`prompts/*.prompt.md`):
+  **explicit pinned modell-ID** (ADR 0002:s ursprungliga kärnbeslut — determinism,
+  ingen tyst alias-drift). ADR 0002:s "Förbjuden/Korrekt syntax"-block scopas
+  hädanefter explicit till denna kategori.
+- **Illustrativ prosa** — BUILD.md §8.2-tabeller, README-tabeller, agent-fil-
+  förklaringar: **tier-referens (Fast/Deep/Premium = Haiku/Sonnet/Opus) + EN
+  pekare** till config/`https://docs.claude.com`. Versionssträngar upprepas inte
+  i prosa (de saknar runtime-effekt och ruttnar).
+
+**2. On-disk-drift erkänd (öppen punkt, egen touch):** senior-cto-advisor-
+verifiering 2026-06-07 visade att agent-filerna i `.claude/agents/` **saknar
+`model:`-fält** on-disk — ADR 0002:s mappning (11 agenter, 7×Opus + 4×Sonnet)
+beskriver ett avsett läge som aldrig applicerades (eller strippades). Dessutom
+finns 13 agenter on-disk (`senior-cto-advisor` + `perf-test-writer` tillkom efter
+2026-04-18). **Återställning av explicit `model:`-fält på alla 13 agenter +
+ev. Opus 4.7→4.8-bump är en egen medveten touch/PR** (SoC: modell-strategi ≠
+AWS-städning; modell-byte ändrar agent-beteende → förtjänar isolerad, observerbar
+diff — Martin 2017 kap. 7/13, Winters et al. 2020 kap. 9). EJ i denna städ-PR.
+
+**3. Senaste-modell-status (web-verifierat 2026-06-07, §9.5):** `claude-sonnet-4-6`
+är fortfarande senaste Sonnet; Opus 4.8 (`claude-opus-4-8`) är live. Premium-tier
+pinnas mot Opus 4.8 i config-exempel.
+
+### Konsekvens
+
+- Docs slutar ruttna — tier-strategin (det stabila beslutet) står i prosa, exakt
+  ID i config (källa).
+- Determinism bevarad där den räknas (operativ config), per ADR 0002-kärnan.
+- Ingen tyst motsägelse mellan ADR 0002 och BUILD.md §8.2 (Ford/Parsons/Kua 2017
+  — granskningstrail).

@@ -1,7 +1,7 @@
 # ADR 0051 — AI-provider-strategi: Bedrock utgår, Anthropic Direct API för systemnyckel + BYOK
 
-**Status:** Proposed
-**Datum:** 2026-05-19
+**Status:** Accepted (2026-06-06 — Klas-GO; Proposed 2026-05-19)
+**Datum:** 2026-05-19 (Accepted-flip 2026-06-06)
 **Kontext:** Post-Fas-3 + pre-migration-discovery (Block 3). Konsekvens av full AWS-exit (ADR 0050) + Klas-direktiv "det måste inte vara EU-baserat allt".
 **Beslutsfattare:** Klas Olsson (riktnings-GO 2026-05-19); senior-cto-advisor (§9.6 decision-maker); security-auditor (GDPR-veto-villkor, icke-förhandlingsbara); dotnet-architect (greenfield-design-dom)
 **Relaterad:** ADR 0049 (TD-13 PII-fält-kryptering — **decrypt-före-AI-interaktion, cross-ref**); ADR 0050 (AWS-exit — denna ADR möjliggör ren exit); ADR 0005 (kostnadsskydd — Bedrock-deny moot). Underlag: `docs/research/2026-05-19-bedrock-vs-anthropic-direct.md` (tre agent-domar §4–7). BUILD.md Bilaga B planerad `NNNN-bedrock-eu-for-system-key.md` — denna ADR fyller den slotten med **inverterad** slutsats (Bedrock formaliseras EJ; utgår).
@@ -10,10 +10,21 @@
 > (medveten override av CLAUDE.md §9.4 webb-Claude-verbatim-konventionen för
 > denna session). Besluts-substansen är transkriberad verbatim från
 > dotnet-architect-/security-auditor-/senior-cto-advisor-domarna +
-> discovery-rapporten — inga nya beslut konstruerade. Status **Proposed**:
-> Accepted-flip kräver separat Klas-GO. **Spec-amendments som denna ADR
-> implicerar (BUILD.md/CLAUDE.md/privacy-policy) appliceras EJ av CC** —
-> kräver Klas spec-edit-approve-mekanism (CC self-godkänner aldrig, memory).
+> discovery-rapporten — inga nya beslut konstruerade. Status **Proposed**
+> (2026-05-19): Accepted-flip kräver separat Klas-GO. Spec-amendments som
+> denna ADR implicerar (BUILD.md/CLAUDE.md/privacy-policy) appliceras EJ av CC
+> utan Klas spec-edit-approve-mekanism (CC self-godkänner aldrig, memory).
+>
+> **Accepted-flip 2026-06-06:** Klas explicit-direktiv ("ingen Bedrock alls,
+> Anthropic direkt") under AWS-cleanup-städsessionen är den separata Klas-GO
+> som Proposed-noten krävde. Status flippad Proposed → Accepted. Spec-amendment-
+> kartan (§"Relaterade beslut") applicerades i samma städ-PR
+> (`chore/aws-cleanup-refit-cert`) på Klas spec-edit-GO (Bypass mode +
+> städ-prompt) — radnummer on-disk-verifierade innan varje edit per §9.4.
+> senior-cto-advisor-dom `abc7a9aeb0d711cea` 2026-06-06 bekräftade att
+> referens-städningen är dokumentations-hygien (rör ingen Fas-4-kod; AI-lagret
+> är fortfarande 0 rader) och att de fem GDPR-villkoren (Beslut 3) förblir
+> Fas-4-blockerande oförändrade.
 
 ---
 

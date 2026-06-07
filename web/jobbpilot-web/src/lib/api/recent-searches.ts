@@ -6,6 +6,7 @@ import {
   type ListRecentSearchesResult,
 } from "@/lib/dto/recent-searches";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
+import { isValidId } from "@/lib/validation/guid";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -89,10 +90,13 @@ export async function deleteRecentSearch(
 ): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: avvisa icke-GUID innan id:t når backend-URL:en (SSRF-
+  // barrier + path-injektion-skydd). Malformat id kan ändå inte existera → 404.
+  if (!isValidId(id)) return { kind: "notFound" };
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/recent-searches/${id}`,
+      `${env.BACKEND_URL}/api/v1/me/recent-searches/${encodeURIComponent(id)}`,
       { method: "DELETE", headers: authHeaders(sessionId), cache: "no-store" }
     );
     if (res.status === 204) return { kind: "ok", data: undefined };

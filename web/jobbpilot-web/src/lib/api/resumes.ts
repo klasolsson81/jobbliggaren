@@ -11,6 +11,7 @@ import {
   responseToResult,
   type ApiResult,
 } from "@/lib/dto/_helpers";
+import { isValidId } from "@/lib/validation/guid";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -51,12 +52,15 @@ export async function getResumeById(
 ): Promise<ApiResult<ResumeDetailDto>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: avvisa icke-GUID innan id:t når backend-URL:en (SSRF-
+  // barrier + path-injektion-skydd). Malformat id kan ändå inte existera → 404.
+  if (!isValidId(id)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes/${id}`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(id)}`,
+      { headers: authHeaders(sessionId), cache: "no-store" }
+    );
     return await responseToResult(
       res,
       resumeDetailDtoSchema,

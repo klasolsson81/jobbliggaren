@@ -6,6 +6,7 @@ import {
   type ListSavedJobAdsResult,
 } from "@/lib/dto/saved-job-ads";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
+import { isValidId } from "@/lib/validation/guid";
 
 function authHeaders(sessionId: string): HeadersInit {
   return {
@@ -48,10 +49,13 @@ export async function getSavedJobAds(): Promise<
 export async function saveJobAd(jobAdId: string): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: avvisa icke-GUID innan id:t når backend-URL:en (SSRF-
+  // barrier + path-injektion-skydd). Malformat id kan ändå inte existera → 404.
+  if (!isValidId(jobAdId)) return { kind: "notFound" };
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/saved-job-ads/${jobAdId}`,
+      `${env.BACKEND_URL}/api/v1/me/saved-job-ads/${encodeURIComponent(jobAdId)}`,
       { method: "POST", headers: authHeaders(sessionId), cache: "no-store" }
     );
     if (res.status === 204) return { kind: "ok", data: undefined };
@@ -70,10 +74,11 @@ export async function saveJobAd(jobAdId: string): Promise<ApiResult<void>> {
 export async function unsaveJobAd(jobAdId: string): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(jobAdId)) return { kind: "notFound" };
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/saved-job-ads/${jobAdId}`,
+      `${env.BACKEND_URL}/api/v1/me/saved-job-ads/${encodeURIComponent(jobAdId)}`,
       { method: "DELETE", headers: authHeaders(sessionId), cache: "no-store" }
     );
     if (res.status === 204) return { kind: "ok", data: undefined };

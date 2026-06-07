@@ -31,10 +31,10 @@ Specialiserade sub-agenter som Claude Code delegerar till. Filerna finns i `agen
 | `test-writer` | claude-opus-4-7 | Skriver unit- och integrationstester (xUnit v3, Shouldly, NSubstitute, Testcontainers) — TDD-first |
 | `db-migration-writer` | claude-sonnet-4-6 | EF Core 10-migrationer mot PostgreSQL 18.3, GDPR-kompatibla scheman |
 | `nextjs-ui-engineer` | claude-opus-4-7 | Next.js 16 App Router, shadcn/ui, Tailwind 4.2 — enforcar civic-utility-estetiken |
-| `ai-prompt-engineer` | claude-opus-4-7 | Prompt-design och versionering, AWS Bedrock EU-profiler, `/prompts/`-biblioteket |
+| `ai-prompt-engineer` | claude-opus-4-7 | Prompt-design och versionering, Anthropic Direct API (Bedrock utgår, ADR 0051), `/prompts/`-biblioteket |
 | `design-reviewer` | claude-opus-4-7 | DESIGN.md-enforcer med veto-makt — blockerar PRs som bryter civic-utility-estetiken |
 | `code-reviewer` | claude-opus-4-7 | CLAUDE.md-enforcer med veto-makt — sista kvalitetsgranskning innan merge |
-| `security-auditor` | claude-opus-4-7 | GDPR-väktare, granskar PII, secrets, auth och cross-region dataflöden — inga MVP-undantag |
+| `security-auditor` | claude-opus-4-7 | GDPR-väktare, granskar PII, secrets, auth och tredjelandsöverföringar (AI) — inga MVP-undantag |
 | `docs-keeper` | claude-sonnet-4-6 | Håller dokumentation synkad med verkligheten — skriver inte ny spec |
 | `adr-keeper` | claude-sonnet-4-6 | Författar ADRs, hanterar status-livscykeln (Proposed → Accepted → Superseded) |
 | `test-runner` | claude-sonnet-4-6 | Kör `dotnet test`, tolkar xUnit-output, rapporterar status — delegerar aldrig uppåt |

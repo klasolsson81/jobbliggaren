@@ -103,9 +103,14 @@
          BUILD.md §3.1). Microsoft.Extensions.Http.Resilience för retry+CB+rate-limit
          (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly).
          WireMock.Net.xUnit för integration-tester av JobTech-shape + resilience-fallbacks
-         (transient 503, rate-limit 429, polymorft event-schema). -->
-    <PackageVersion Include="Refit" Version="10.1.6" />
-    <PackageVersion Include="Refit.HttpClientFactory" Version="10.1.6" />
+         (transient 503, rate-limit 429, polymorft event-schema).
+         10.2.0 = 10.1.6 OM-SIGNERAD med giltigt cert (drop-in, non-breaking). 10.1.6:s
+         författar-signeringscert (Glenn Watson) återkallades uppströms 2026-06-02 →
+         NU3012 i audit-jobbet. Bump till 10.2.0 löser cert-blockern utan kodändring.
+         11.x medvetet EJ valt (breaking error/exception-modell — egen framtida touch).
+         Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
+    <PackageVersion Include="Refit" Version="10.2.0" />
+    <PackageVersion Include="Refit.HttpClientFactory" Version="10.2.0" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.6.0" />
     <PackageVersion Include="WireMock.Net" Version="1.25.0" />
     <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +

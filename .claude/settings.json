@@ -130,32 +130,6 @@
       "Bash(gh release view:*)",
       "Bash(gh workflow:*)",
 
-      "Bash(aws sts get-caller-identity:*)",
-      "Bash(aws sso login:*)",
-      "Bash(aws configure:*)",
-      "Bash(aws s3api:*)",
-      "Bash(aws s3 ls:*)",
-      "Bash(aws dynamodb describe-table:*)",
-      "Bash(aws dynamodb list-tables:*)",
-      "Bash(aws budgets describe-budgets:*)",
-      "Bash(aws budgets describe-notifications-for-budget:*)",
-      "Bash(aws cloudtrail describe-trails:*)",
-      "Bash(aws cloudtrail lookup-events:*)",
-      "Bash(aws kms list-aliases:*)",
-      "Bash(aws kms list-keys:*)",
-      "Bash(aws kms describe-key:*)",
-      "Bash(aws secretsmanager list-secrets:*)",
-      "Bash(aws secretsmanager describe-secret:*)",
-      "Bash(aws iam list-policies:*)",
-      "Bash(aws iam get-policy:*)",
-      "Bash(aws iam list-attached-role-policies:*)",
-      "Bash(aws iam list-users:*)",
-      "Bash(aws bedrock list-foundation-models:*)",
-      "Bash(aws bedrock list-inference-profiles:*)",
-      "Bash(aws bedrock get-foundation-model:*)",
-      "Bash(aws bedrock get-foundation-model-availability:*)",
-      "Bash(aws bedrock get-inference-profile:*)",
-
       "Bash(terraform init:*)",
       "Bash(terraform validate:*)",
       "Bash(terraform fmt:*)",
@@ -195,16 +169,7 @@
 
       "Bash(dotnet ef database drop*)",
 
-      "Bash(terraform destroy*)",
-
-      "Bash(aws * delete-*)",
-      "Bash(aws * delete --*)",
-      "Bash(aws iam delete-user*)",
-      "Bash(aws iam delete-access-key*)",
-      "Bash(aws s3 rb *)",
-      "Bash(aws s3 rm * --recursive*)",
-      "Bash(aws kms schedule-key-deletion*)",
-      "Bash(aws kms disable-key*)"
+      "Bash(terraform destroy*)"
     ],
 
     "ask": [

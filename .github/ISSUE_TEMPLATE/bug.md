@@ -27,7 +27,7 @@ labels: ["bug"]
 
 ## Loggar / skärmdumpar
 
-<!-- Relevant output från CloudWatch, konsol, eller skärmdump. Redacta PII. -->
+<!-- Relevant output från Seq, konsol, eller skärmdump. Redacta PII. -->
 
 ## Påverkan
 

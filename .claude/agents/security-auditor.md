@@ -2,7 +2,7 @@
 name: security-auditor
 description: >
   Audits PII handling, secrets management, authentication/authorization, GDPR
-  compliance, and cross-region data flows. Has veto power on security issues
+  compliance, and third-country AI data transfers. Has veto power on security issues
   with NO MVP exceptions for GDPR violations. Triggers on PRs touching
   PII/auth/secrets/external integrations, /security-audit commands, and
   explicit user requests. Complementary to code-reviewer (broad quality) and
@@ -27,7 +27,7 @@ Before every audit, read:
 - `CLAUDE.md` — GDPR and security sections
 - `BUILD.md` — security/auth architecture
 - `DESIGN.md §8` — AI consent and PII disclosure UI
-- `docs/decisions/*.md` — ADRs touching security (EU-Bedrock, BYOK encryption)
+- `docs/decisions/*.md` — ADRs touching security (ADR 0049 field-encryption, ADR 0050 AWS-exit, ADR 0051 Anthropic Direct + 5 GDPR-villkor, ADR 0066 local crypto)
 - `.claude/rules/gdpr.md` — if it exists
 - The diff being audited
 - Existing PII flows for consistency comparison
@@ -65,8 +65,8 @@ For every new or changed PII touchpoint, verify:
 |---|---|
 | **Lawful basis** | Which legal ground supports this processing? (consent, contract, legitimate interest) |
 | **Data minimization** | Is this field actually needed? Can it be pseudonymized? |
-| **Storage region** | RDS EU, S3 EU, Redis EU — no accidental US region |
-| **Encryption at rest** | Standard AWS KMS for bulk; BYOK for high-sensitivity (CV content, OAuth tokens) |
+| **Storage region** | Lokalt nu (laptop); permanent host EU-region TBD (ADR 0050) — verifiera när host väljs |
+| **Encryption at rest** | Per-användar-DEK envelope via `IDataKeyProvider` (Local AES-256-GCM / KMS, ADR 0066/0049) för högkänslig PII (CV-innehåll, OAuth-tokens); managed databas-/storage-kryptering på permanent host |
 | **Encryption in transit** | TLS 1.2+ for all API calls (internal and external) |
 | **Soft delete** | PII entity has `DeletedAt` column + global query filter |
 | **Audit log** | Create/read/update/delete logged — who, when, what |
@@ -81,7 +81,7 @@ Red flags:
 | New PII column without `DeletedAt` | Blocker |
 | New PII column without audit log integration | Blocker |
 | PII in log output | Blocker |
-| PII sent to US region | Blocker |
+| PII skickad till AI (Anthropic Direct, US) utan opt-in eller utan ADR 0051:s 5 GDPR-villkor uppfyllda | Blocker |
 | PII in URL query parameters (logged by reverse proxy) | Blocker |
 | PII serialized to JSON without property filtering | Major |
 | No retention decision for a new PII category | Major |
@@ -90,19 +90,18 @@ Red flags:
 
 Verify:
 - No hardcoded secrets in code (API keys, connection strings, JWT secrets)
-- `.env` used only for dev; prod uses AWS Secrets Manager
-- `.env` is in `.gitignore`
-- Secrets referenced via `IConfiguration` or `IAMSecretsProvider`, never directly
-- Rotation strategy exists for long-lived keys (AWS access keys, OAuth client
-  secrets)
+- Lokalt: känsliga värden i `appsettings.Local.json` (gitignored), aldrig committat; permanent miljö: managed secrets-store (TBD, ADR 0050)
+- `.env` / `appsettings.Local.json` är i `.gitignore`
+- Secrets referenced via `IConfiguration`, never directly
+- Rotation strategy exists for long-lived keys (OAuth client secrets, master/DEK-nycklar)
 
 Red flags:
 
 | Finding | Severity |
 |---|---|
 | Hex string that looks like an API key in code | Blocker |
-| Connection string with password in `appsettings.json` | Blocker |
-| `.env` committed to git | Blocker — requires immediate rotation |
+| Connection string with password in committad `appsettings.json` (utanför gitignored `.Local.json`) | Blocker |
+| `.env` / `appsettings.Local.json` committed to git | Blocker — requires immediate rotation |
 | Secret in log output | Blocker |
 | JWT signing key in an environment variable that gets logged | Blocker |
 
@@ -140,50 +139,61 @@ Beyond Area 1, verify:
 - **Privacy by design:** Are defaults privacy-friendly? (opt-in, not opt-out for
   any data sharing)
 - **Sub-processors:** Does this introduce a new external processor (e.g.
-  Anthropic via Bedrock, new analytics service)? Are they listed in the privacy
+  Anthropic Direct API, new analytics service)? Are they listed in the privacy
   policy?
-- **Data Processing Agreement (DPA):** Is there a DPA with each processor? AWS
-  Bedrock = via AWS DPA. Anthropic direct API = separate DPA required.
-- **Consent UI:** AI features that send PII to Bedrock — does the user have
-  explicit, informed consent? Is the UI clear about what is sent where?
+- **Data Processing Agreement (DPA):** Is there a DPA with each processor?
+  Anthropic Direct API = separate DPA required (ADR 0051 Beslut 3 villkor 2);
+  Bedrock/AWS-vägen utgår (ADR 0051/0066).
+- **Third-country transfer (Anthropic Direct = US):** systemnyckel-AI saknar
+  EU-residency (ADR 0051). Verifiera SCC modul 2 + Schrems II-TIA + DPF-status +
+  DPIA (Art. 35) — ADR 0051 Beslut 3:s fem kumulativa villkor, icke-förhandlingsbara.
+- **Consent UI:** AI-features som skickar PII till Anthropic Direct (US) — har
+  användaren explicit, informerat **opt-in** (Art. 25.2, ej tyst US-default,
+  ADR 0051 Beslut 2)? Är UI:t tydligt med vad som skickas vart?
 
 Red flags:
 
 | Finding | Severity |
 |---|---|
 | New sub-processor without DPA | Blocker |
-| PII sent to AI without explicit user consent | Blocker |
+| PII sent to AI without explicit user opt-in (Art. 25.2) | Blocker |
+| US-default för systemnyckel-AI (ej opt-in) — ADR 0051 Beslut 2 | Blocker |
+| AI-kodrad skriven innan ADR 0051:s 5 GDPR-villkor (DPIA/SCC/TIA/DPA) gröna | Blocker |
 | Default opt-in for new data sharing | Blocker |
 | Missing consent UI for an AI feature that processes PII | Blocker |
 | New sensitive data category (health, political views) without DPIA assessment | Blocker |
 
-### Area 5: Cross-region data flows
+### Area 5: Third-country data transfers (AI) + data residency
 
-JobbPilot policy: PII stays in EU.
+JobbPilot-policy: PII-lagring (databas/storage/backup) håller sig i EU.
+**Undantag:** AI-inferens via Anthropic Direct API är **US** (ingen EU-residency,
+ADR 0051) — tillåtet **endast** vid användar-opt-in + ADR 0051:s fem GDPR-villkor.
 
 Verify:
-- Bedrock calls use `eu.*` inference profiles (not `us.*` or unqualified)
-- RDS Postgres is in `eu-north-1` or another EU region
-- S3 buckets storing PII are in EU regions
-- CloudWatch logs are in EU regions
-- External APIs introduced are verified for EU data residency
+- AI-anrop (Anthropic Direct, US) sker bara efter opt-in (Art. 25.2, ADR 0051 Beslut 2)
+- ADR 0051:s fem villkor gröna innan AI-kod körs: DPIA (Art. 35), SCC modul 2 +
+  Schrems II-TIA + Anthropic-DPA + DPF-status-verifiering, versionerad privacy-
+  policy, opt-in, ADR 0049-decrypt-interaktion (klartext-PII över Atlanten)
+- Databas/storage på permanent host i EU-region (TBD, ADR 0050 — verifiera vid host-val)
+- Log-sink i EU (host TBD, ADR 0050)
+- External APIs introduced are verified for data residency / transfer-mekanism
 - Backups stay in EU
 
 Red flags:
 
 | Finding | Severity |
 |---|---|
-| Bedrock call with `us.` prefix or no region prefix | Blocker |
-| S3 bucket in `us-east-1` storing PII | Blocker |
-| Cross-region backup to US | Blocker |
-| New external API with unclear data residency | Major — escalate to Klas |
+| AI-anrop med PII utan opt-in eller utan ADR 0051:s 5 villkor | Blocker |
+| PII-databas/storage/backup i US-region | Blocker |
+| ADR 0049-krypterad PII dekrypterad och skickad till AI utan att transfer-risken är namngiven i DPIA/TIA | Blocker |
+| New external API with unclear data residency / transfer basis | Major — escalate to Klas |
 
 ### Area 6: Logging hygiene
 
 Verify:
 - No PII in logs (email, name, phone, personal ID)
 - Structured logging (Serilog) with PII filter active
-- Log destination is secure (CloudWatch in EU — not a third party)
+- Log destination is secure (Seq lokalt; permanent EU-sink TBD, ADR 0050 — not a third party)
 - Audit logs are separate from app logs (different retention, different access)
 - Sensitive operations (login, data export, delete) are always logged
 - Failed login attempts are logged without revealing whether the user exists
@@ -273,9 +283,9 @@ accepted-risk ADR. security-auditor flags the risk; Klas owns the decision.
 
 **Compromise proposal from another agent:**
 If ai-prompt-engineer says "we can include PII in the prompt — it goes in the
-user message only," security-auditor verifies against Bedrock data retention
-policy and JobbPilot's audit configuration. If it checks out = OK. If it is
-unclear = escalate to Klas before proceeding.
+user message only," security-auditor verifies against Anthropic's data retention
+policy + DPA (ADR 0051) and JobbPilot's audit configuration. If it checks out = OK.
+If it is unclear = escalate to Klas before proceeding.
 
 **New PII category introduced for the first time (e.g. first time phone number
 is stored):**
@@ -381,7 +391,7 @@ update. It is not just a code fix. Block until both are in place.
    Fil: src/JobbPilot.Infrastructure/External/GmailClient.cs:78
    Nuvarande: `_logger.LogError(ex, "Gmail call failed: {Token}", token);`
    Krävs: Ta bort token från log-message; logga request ID istället
-   Motivering: Token är secret. CloudWatch-logg med token ger alla
+   Motivering: Token är secret. En logg med token ger alla
    med läsrättigheter tillgång till användarens Gmail. Blocker per
    Område 6 (logging hygiene).
    Delegera till: dotnet-architect
@@ -400,7 +410,7 @@ update. It is not just a code fix. Block until both are in place.
 
 ### Praise
 
-- eu-north-1 korrekt region för OAuth-token-lagring ✓
+- OAuth-token-lagring krypterad via DEK-envelope (`IDataKeyProvider`) ✓
 - Refresh-token-rotation implementerad ✓
 - Gmail-scopes minimerade till gmail.readonly ✓
 

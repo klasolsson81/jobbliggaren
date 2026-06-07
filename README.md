@@ -9,14 +9,13 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.2-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.3-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![AWS](https://img.shields.io/badge/AWS-eu--north--1-FF9900?logo=amazonwebservices&logoColor=white)](https://aws.amazon.com/)
+[![Dev](https://img.shields.io/badge/dev-lokal%20stack%20(Docker%20Compose)-2C3E50)](docs/decisions/0066-aws-dev-stack-teardown-semester-pause.md)
 [![Arkitektur](https://img.shields.io/badge/arkitektur-Clean%20%2B%20DDD-2C3E50)](docs/decisions/0001-clean-architecture.md)
 [![Tester](https://img.shields.io/badge/backend-1%20100%2B%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
 [![Vitest](https://img.shields.io/badge/vitest-686%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
 [![Coverage](https://img.shields.io/badge/first--party%20line-92,1%25-success)](docs/decisions/0044-test-coverage-policy.md)
-[![ADR](https://img.shields.io/badge/ADR-64%20beslut-informational)](docs/decisions/README.md)
+[![ADR](https://img.shields.io/badge/ADR-66%20beslut-informational)](docs/decisions/README.md)
 [![Status](https://img.shields.io/badge/fas-3%20klar%20·%204%20GDPR--gated-blue)](docs/steg-tracker.md)
-[![dev](https://img.shields.io/badge/dev-live-success)](https://dev.jobbpilot.se/api/ready)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#licens)
 
 ---
@@ -51,7 +50,7 @@ JobbPilot är en komplett jobbsök- och ansökningshanterare för den svenska ar
 Målet är att stressade jobbsökare får ett verktyg som känns som en förlängning av svensk offentlig digital service (1177, Försäkringskassan, Digg) snarare än ett av hundra AI-produkter som alla ser likadana ut. Den medvetna icke-differentieringen är ett designval, inte en brist på ambition.
 
 > [!NOTE]
-> Detta repo är publikt för portfölj-syfte. Det är ett **pågående arbete** — Fas 0–3 är levererade, Fas 4 (AI-lager) är GDPR-gated bakom [ADR 0051](docs/decisions/0051-anthropic-direct-api-and-pre-fas-4-gdpr-gate.md) och fem icke-förhandlingsbara villkor. Pre-Fas-4-arbete pågår parallellt i `/oversikt`, `/sparade`, landing live-stats, closed-beta-väntelista m.m. (se [Status och roadmap](#status-och-roadmap)). README beskriver det faktiska tillståndet, inte ett mål-tillstånd.
+> Detta repo är publikt för portfölj-syfte. Det är ett **pågående arbete** — Fas 0–3 är levererade, Fas 4 (AI-lager) är GDPR-gated bakom [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md) och fem icke-förhandlingsbara villkor. Pre-Fas-4-arbete pågår parallellt i `/oversikt`, `/sparade`, landing live-stats, closed-beta-väntelista m.m. (se [Status och roadmap](#status-och-roadmap)). README beskriver det faktiska tillståndet, inte ett mål-tillstånd.
 
 ### Målgrupp
 
@@ -96,7 +95,7 @@ flowchart TB
         TR["test-runner<br/>dotnet test · svensk summering"]
         DM["db-migration-writer<br/>EF Core-migrations · GDPR-schema"]
         UI["nextjs-ui-engineer<br/>RSC · shadcn · Tailwind 4"]
-        AP["ai-prompt-engineer<br/>Bedrock-prompts · token-budget"]
+        AP["ai-prompt-engineer<br/>Anthropic-prompts · token-budget"]
         PT["perf-test-writer<br/>NBomber · Lighthouse-CI"]
     end
 
@@ -210,7 +209,7 @@ ACL:n är formaliserad i [ADR 0043](docs/decisions/0043-taxonomy-acl-for-search-
 - Svensk-först (Platsbanken, SCB, svensk rekryteringskultur)
 - Kvalitet över volym — inga auto-apply-funktioner
 - AI-assisterad där det ger tydligt värde, aldrig "AI-genererat för syns skull"
-- GDPR-säker med äkta EU-datalokalisering (eu-north-1 Stockholm + Bedrock EU inference profile)
+- GDPR-säker med dataminimering och fält-kryptering; AI-residens via Anthropic Direct opt-in (ADR 0051), permanent infra-region TBD (ADR 0050)
 - Öppen för Bring-Your-Own-Key (BYOK) för AI
 
 **JobbPilot är inte:**
@@ -277,35 +276,29 @@ flowchart TB
         Mobile["Mobile<br/>(framtid)"]
     end
 
-    subgraph AWS["AWS eu-north-1"]
-        ALB["Application Load Balancer<br/>HTTPS / TLS 1.3"]
-        subgraph ECS["ECS Fargate"]
-            Api["JobbPilot.Api<br/>ASP.NET Core 10 Minimal API"]
-            Worker["JobbPilot.Worker<br/>Hangfire"]
-        end
-        RDS[("PostgreSQL 18.3<br/>RDS Multi-AZ")]
-        Redis[("Valkey 8<br/>ElastiCache")]
-        S3[("S3<br/>CV uploads")]
-        KMS["KMS<br/>BYOK envelope"]
-        Bedrock["Bedrock<br/>Claude EU inference"]
+    subgraph Local["Lokal stack (Docker Compose) — permanent mål TBD (ADR 0050)"]
+        Api["JobbPilot.Api<br/>ASP.NET Core 10 Minimal API"]
+        Worker["JobbPilot.Worker<br/>Hangfire"]
+        DB[("PostgreSQL 18.3")]
+        Redis[("Redis 8")]
+        Seq["Seq<br/>log-sink"]
+        DEK["IDataKeyProvider<br/>Local AES-256-GCM (ADR 0066)"]
     end
 
     subgraph External["Externt"]
         JobTech["JobTech / Platsbanken"]
         SCB["SCB lönestatistik"]
         Gmail["Gmail / Calendar"]
-        Anthropic["Anthropic Direct API<br/>(BYOK)"]
+        Anthropic["Anthropic Direct API<br/>(system + BYOK, Fas 4, ADR 0051)"]
     end
 
-    Browser -->|HTTPS| ALB
-    ALB --> Api
-    Api -->|EF Core 10| RDS
+    Browser -->|HTTPS| Api
+    Api -->|EF Core 10| DB
     Api -->|Sessions| Redis
-    Api --> S3
-    Api --> KMS
-    Api --> Bedrock
-    Api --> Anthropic
-    Worker --> RDS
+    Api --> Seq
+    Api --> DEK
+    Api -.->|Fas 4, opt-in| Anthropic
+    Worker --> DB
     Worker --> JobTech
     Worker --> SCB
     Worker --> Gmail
@@ -317,7 +310,7 @@ flowchart TB
 flowchart LR
     Api["JobbPilot.Api<br/>(composition root)"]
     Worker["JobbPilot.Worker<br/>(composition root)"]
-    Infra["JobbPilot.Infrastructure<br/>(EF Core, AWS, Bedrock)"]
+    Infra["JobbPilot.Infrastructure<br/>(EF Core, Anthropic, local crypto)"]
     App["JobbPilot.Application<br/>(CQRS handlers, behaviors)"]
     Domain["JobbPilot.Domain<br/>(aggregates, VOs, events)"]
 
@@ -398,8 +391,7 @@ Versioner är låsta. Full lista i [`BUILD.md §3`](BUILD.md).
 | Background jobs | Hangfire (Postgres-storage) | 1.8.x |
 | Logging | Serilog | 4.x |
 | Observability | OpenTelemetry | 1.15+ |
-| AI (system-key) | AWSSDK.BedrockRuntime (Converse API) | 4.x |
-| AI (BYOK) | Anthropic (officiell NuGet) | 12.x |
+| AI (system + BYOK) | Anthropic (officiell NuGet) — Anthropic Direct API (Bedrock utgår, ADR 0051) | 12.x |
 | PDF | PdfPig (parse) + QuestPDF (gen) | 0.1.14 / 2026.2 |
 
 ### Frontend
@@ -419,22 +411,23 @@ Versioner är låsta. Full lista i [`BUILD.md §3`](BUILD.md).
 
 ### Datalager och infra
 
-| Tjänst | Val |
-|--------|-----|
-| Databas | PostgreSQL 18.3 — AWS RDS Multi-AZ, eu-north-1 |
-| Cache | Valkey 8 — AWS ElastiCache, eu-north-1 |
-| Compute | AWS ECS Fargate (api + worker som separata services) |
-| AI inference | AWS Bedrock EU cross-region inference profile (Claude Haiku 4.5 + Sonnet 4.6) |
-| Object storage | AWS S3 — CV-uppladdningar, genererade dokument |
-| Encryption | AWS KMS (master + BYOK envelope) |
-| Frontend hosting | Vercel (EU) |
-| DNS | Route 53 (`jobbpilot.se`) |
-| Email | AWS SES (DKIM/SPF/DMARC) |
-| Logs / metrics | CloudWatch + Seq (lokalt) |
-| Errors | Sentry (EU datacenter) |
-| Analytics | PostHog self-hosted (eu-north-1) |
-| IaC | Terraform 1.14+ |
-| CI/CD | GitHub Actions |
+> AWS-dev-stacken avvecklad (ADR 0066); permanent mål (Hetzner BE + Vercel FE + Cloudflare) i ADR 0050 (Proposed). Tabellen visar **nuläge (lokalt)** + **permanent mål**.
+
+| Tjänst | Nuläge (lokal dev) | Permanent mål |
+|--------|--------------------|---------------|
+| Databas | PostgreSQL 18.3 (Docker Compose) | TBD (ADR 0050) |
+| Cache | Redis 8 (Docker Compose) | TBD (ADR 0050) |
+| Compute | `dotnet run` lokalt | TBD — Hetzner (ADR 0050) |
+| AI inference | Anthropic Direct API (Fas 4, opt-in, ADR 0051) | Anthropic Direct API |
+| Object storage | lokal disk / ej aktiverat | TBD — S3-kompatibel (ADR 0050) |
+| Encryption | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | TBD — self-managed (TD-102) |
+| Frontend hosting | `pnpm dev` (localhost) | TBD — Vercel (ADR 0050) |
+| DNS / CDN | — | TBD — Cloudflare (ADR 0050) |
+| Email | `ConsoleEmailSender` → Seq (ADR 0066) | TBD — transaktionell väg (TD-101) |
+| Logs / metrics | Seq (lokalt) | TBD (ADR 0050) |
+| Errors | — | Sentry (EU) planerat |
+| IaC | `infra/terraform/` bevarad (reversibilitet, ADR 0066) | Hetzner-IaC TBD (ADR 0050) |
+| CI | GitHub Actions (build + test + coverage) | oförändrat |
 
 ### Tester
 
@@ -539,7 +532,7 @@ jobbpilot/
 ├── src/
 │   ├── JobbPilot.Domain/             # Aggregates, value objects, domain events
 │   ├── JobbPilot.Application/        # CQRS handlers, pipeline behaviors, abstractions
-│   ├── JobbPilot.Infrastructure/     # EF Core, AWS clients, Bedrock, Anthropic
+│   ├── JobbPilot.Infrastructure/     # EF Core, Anthropic-klient, local/KMS crypto-providers
 │   ├── JobbPilot.Api/                # ASP.NET Core Minimal API, composition root
 │   └── JobbPilot.Worker/             # Hangfire-server, schedulerade jobb
 │
@@ -555,11 +548,11 @@ jobbpilot/
 │   └── JobbPilot.Migrate.UnitTests/         # Migrate-CLI + connection-string-fabriker
 │
 ├── infra/
-│   └── terraform/
+│   └── terraform/                    # AWS-stack bevarad men INAKTIV (ADR 0066); retireras via egen ADR vid Hetzner-cutover
 │       ├── modules/                  # network, rds, redis, alb, ecs, route53, acm, ...
 │       └── environments/
-│           ├── prod/                 # Baseline-stack: KMS, CloudTrail, Route53, budgets
-│           └── dev/                  # Lean dev-miljö
+│           ├── prod/                 # Baseline (historisk referens)
+│           └── dev/                  # avvecklad (ADR 0066)
 │
 ├── prompts/                          # AI-prompts som .prompt.md-filer
 │
@@ -624,34 +617,29 @@ pnpm test             # Vitest unit-tests
 pnpm playwright test  # E2E-tests
 ```
 
-### Infrastruktur (AWS)
+### Infrastruktur (lokal dev)
+
+AWS-dev-stacken är avvecklad (ADR 0066). All utveckling kör lokalt på laptop:
 
 ```bash
-# SSO-login (krävs varje session)
-aws sso login --profile jobbpilot
-
-# Plan + apply mot dev-stack
-cd infra/terraform/environments/dev
-terraform init
-terraform plan -out=plan.out
-terraform apply plan.out
-
-# Outputs (cert-ARN, ALB-DNS, etc.)
-terraform output
+docker compose up -d         # postgres + redis + seq
+dotnet run --project src/JobbPilot.Api
+dotnet run --project src/JobbPilot.Worker
 ```
+
+Permanent deploy-infra (Hetzner/Vercel/Cloudflare) definieras i ADR 0050
+(Proposed). `infra/terraform/` är bevarad men inaktiv som reversibilitets-mekanik.
 
 ---
 
 ## Miljöer
 
-| Miljö | Syfte | Deployment | Domän |
-|-------|-------|------------|-------|
-| `local` | Utveckling | Docker Compose | `localhost` |
-| `dev` | Integration | Auto via tag `v*-dev` på `main` | `dev.jobbpilot.se` |
-| `staging` | Pre-prod | Auto via tag `v*-rc*` på `main` | `staging.jobbpilot.se` |
-| `prod` | Produktion | Manuell approval på tag `v*` | `jobbpilot.se` |
+| Miljö | Syfte | Deployment | Status |
+|-------|-------|------------|--------|
+| `local` | Utveckling | Docker Compose | **Aktiv** |
+| `dev` / `staging` / `prod` | Integration / pre-prod / live | TBD (ADR 0050) | Avvecklad (ADR 0066) |
 
-Branch-strategi: **direct-push till `main`** med Conventional Commits per [ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md). Inga PR-flöden i nuvarande fas — granskningsspärrar via plan-design + agent-reviews + manuell diff-review + pre-commit/pre-push-hooks. Trigger för återgång till PR-flöde är dokumenterad i ADR 0019.
+Branch-strategi: **PR-flöde mot `main`** med Conventional Commits per [ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md) (superseder ADR 0019). `ci`-aggregatet (backend + frontend + coverage) måste vara grönt innan squash-merge; agent-reviews + manuell diff-review + pre-commit/pre-push-hooks kompletterar.
 
 ---
 
@@ -659,16 +647,16 @@ Branch-strategi: **direct-push till `main`** med Conventional Commits per [ADR 0
 
 JobbPilot är byggd för svensk arbetsmarknad och är därför **GDPR-säker by default**. Nyckel-höjdpunkter:
 
-- **Datalokalisering:** all PII och alla AI-prompter med användardata stannar i EU. Bedrock används med EU cross-region inference profile (eu-central-1 + eu-west-1 fallback från eu-north-1)
-- **Encryption at rest:** RDS + S3 + Secrets Manager + ElastiCache via AWS KMS (master-key)
-- **Encryption in transit:** TLS 1.3 mellan klient och ALB ([ADR 0027](docs/decisions/0027-https-aktiverat-supersession.md)); HSTS 365 dagar + includeSubDomains; rds.force_ssl=1
-- **BYOK:** användare kan koppla egen Anthropic-API-nyckel; den envelope-krypteras med separat KMS-key och syns aldrig i klartext utanför inference-anrop
+- **Datalokalisering:** PII och fält-data minimeras och krypteras lokalt; AI-prompter med användardata skickas till Anthropic Direct API (US) **endast vid opt-in** (ADR 0051, Bedrock/EU-routing utgår). Permanent infra-region TBD (ADR 0050)
+- **Encryption at rest:** PII-fält + OAuth-tokens + BYOK-nycklar via per-användar-DEK envelope (`IDataKeyProvider`: Local AES-256-GCM eller KMS, ADR 0066/0049); managed databas-/storage-kryptering på permanent host (TBD, ADR 0050)
+- **Encryption in transit:** TLS 1.3 ([ADR 0027](docs/decisions/0027-https-aktiverat-supersession.md)); HSTS 365 dagar + includeSubDomains
+- **BYOK:** användare kan koppla egen Anthropic-API-nyckel; den envelope-krypteras med separat DEK och syns aldrig i klartext utanför inference-anrop
 - **Audit-trail:** alla state-transitioner i `Application`-aggregatet raisar domain events som lagras i `audit_log`. Impersonation dubbel-taggas
 - **Art. 17 cascade:** soft-delete på primära aggregates triggar 30-dagars anonymisering ([ADR 0024](docs/decisions/0024-audit-retention-and-art17-cascade.md))
 - **IP-anonymisering:** IPv4 /24 + IPv6 /48 i alla loggar
-- **Loggretention:** 30 dagar standard (CloudWatch + Sentry)
+- **Loggretention:** 30 dagar standard
 - **Rate-limiting:** auth-write 20/min/IP, auth-loose 30/min/IP, account-deletion 1/60s/UserId
-- **Subprocessor-kedja:** AWS (eu-north-1), Anthropic (Bedrock EU), Sentry (EU), PostHog self-hosted, Vercel (EU). Inga US-baserade processors för PII
+- **Subprocessor-kedja (planerad):** infra-host TBD (ADR 0050), Anthropic (Anthropic Direct, opt-in, US — Fas 4, ADR 0051), Sentry (EU), PostHog self-hosted, Vercel (EU). AWS utgår (ADR 0066)
 
 Detaljer: [`BUILD.md §13`](BUILD.md), [`docs/decisions/0024-*`](docs/decisions/), [`docs/decisions/0031-*`](docs/decisions/).
 
@@ -680,20 +668,20 @@ JobbPilot är ett **pågående arbete**. Faserna nedan följer den auktoritativa
 
 | Fas | Innehåll | Milstolpe | Status |
 |-----|----------|-----------|--------|
-| **Fas 0** | Foundation — AWS-infra, container-pipeline, DNS + TLS, CI/CD | Registrera + logga in på dev.jobbpilot.se | **Klar 2026-05-10** |
+| **Fas 0** | Foundation — infra, container-pipeline, DNS + TLS, CI/CD (ursprungligen AWS; avvecklat ADR 0066) | Registrera + logga in på dev.jobbpilot.se | **Klar 2026-05-10** |
 | **Fas 1** | Core Domain — auth, kärn-CRUD, aggregat, audit | CV manuellt + "fake" ansökningar i admin-audit | **Klar 2026-05-11** |
 | **Fas 2** | JobTech Integration — Platsbanken-sök, sparade sökningar, taxonomi-ACL | Söka jobb på Platsbanken via appen | **Klar 2026-05-17** |
 | **Fas 3** | Application Management — fullständig ansökningshantering (utan AI) | Pipeline-tracker end-to-end | **Klar 2026-05-18** |
 | **Pre-Fas-4** | Discovery- och UX-vertikaler — landing live-stats, översiktssida, jobbkort spara/har-ansökt, closed-beta-väntelista, sökningsperformance | Avskild från Fas 4 (AI) — körs medan AI-grinden är stängd | Pågående 2026-05 |
-| **Fas 4** | AI Layer — alla AI-features end-to-end + dogfood | CV/brev-skräddarsydning live | **GDPR-gated** — kräver 5 villkor per [ADR 0051](docs/decisions/0051-anthropic-direct-api-and-pre-fas-4-gdpr-gate.md) |
+| **Fas 4** | AI Layer — alla AI-features end-to-end + dogfood | CV/brev-skräddarsydning live | **GDPR-gated** — kräver 5 villkor per [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md) |
 | **Fas 5** | Integrationer — Gmail auto-logg, Google Calendar | Intervjuer i kalendern | Planerad |
 | **Fas 6** | Admin & Analytics — admin-panel komplett | Impersonation + token-statistik | Planerad |
 | **Fas 7** | Internal Beta — 3 användare aktivt 14 dagar | Dogfood-validering | Planerad |
 | **Fas 8** | Klass-launch — 20 klasskamrater onboardade | v1 klar | Planerad |
 
-**Pre-Fas-4-disciplin.** Fas 4 (AI) är låst bakom fem icke-förhandlingsbara GDPR-villkor i [ADR 0051](docs/decisions/0051-anthropic-direct-api-and-pre-fas-4-gdpr-gate.md): DPIA Art. 35, SCC + Schrems II-TIA + Anthropic-DPA + DPF-verifikation, versionerad privacy-policy, Art. 25-opt-in även för systemnyckel, och ADR 0049-decrypt-interaktion. Tills villkoren är gröna körs leveransen i avskilda pre-Fas-4-vertikaler: landing live-stats ([ADR 0064](docs/decisions/0064-public-aggregate-read-via-worker-precomputed-redis-cache.md)), översiktssida `/oversikt`, jobbkort Spara/Har-ansökt ([ADR 0063](docs/decisions/0063-per-user-overlay-status-batch-port.md)), FTS-hybridsök ([ADR 0062](docs/decisions/0062-fts-hybrid-search-and-infrastructure-query-port.md)), recent-job-searches auto-capture ([ADR 0060](docs/decisions/0060-recent-job-searches-auto-capture.md)) och closed-beta-väntelista per EDPB-tolkning ([ADR 0005 amendment](docs/decisions/0005-go-to-market.md)). Auktoritativ status: [`docs/current-work.md`](docs/current-work.md).
+**Pre-Fas-4-disciplin.** Fas 4 (AI) är låst bakom fem icke-förhandlingsbara GDPR-villkor i [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md): DPIA Art. 35, SCC + Schrems II-TIA + Anthropic-DPA + DPF-verifikation, versionerad privacy-policy, Art. 25-opt-in även för systemnyckel, och ADR 0049-decrypt-interaktion. Tills villkoren är gröna körs leveransen i avskilda pre-Fas-4-vertikaler: landing live-stats ([ADR 0064](docs/decisions/0064-public-aggregate-read-via-worker-precomputed-redis-cache.md)), översiktssida `/oversikt`, jobbkort Spara/Har-ansökt ([ADR 0063](docs/decisions/0063-per-user-overlay-status-batch-port.md)), FTS-hybridsök ([ADR 0062](docs/decisions/0062-fts-hybrid-search-and-infrastructure-query-port.md)), recent-job-searches auto-capture ([ADR 0060](docs/decisions/0060-recent-job-searches-auto-capture.md)) och closed-beta-väntelista per EDPB-tolkning ([ADR 0005 amendment](docs/decisions/0005-go-to-market-strategy.md)). Auktoritativ status: [`docs/current-work.md`](docs/current-work.md).
 
-Live dev-miljö: [`https://dev.jobbpilot.se/api/ready`](https://dev.jobbpilot.se/api/ready) — auto-deploy via tag `v*-dev` på `main`. Projektet är pre-MVP; inga publika användare ännu.
+Dev-miljön (`dev.jobbpilot.se`) är avvecklad under semester-pausen (ADR 0066) — all utveckling kör lokalt. Permanent miljö återupprättas vid Hetzner-cutover (ADR 0050). Projektet är pre-MVP; inga publika användare ännu.
 
 ---
 
@@ -707,9 +695,9 @@ Live dev-miljö: [`https://dev.jobbpilot.se/api/ready`](https://dev.jobbpilot.se
 | [`docs/current-work.md`](docs/current-work.md) | Session-state, senaste commits, aktiv fas |
 | [`docs/steg-tracker.md`](docs/steg-tracker.md) | Långsiktig fas/STEG-progression |
 | [`docs/tech-debt.md`](docs/tech-debt.md) | TD-register med prioriteringar |
-| [`docs/decisions/`](docs/decisions/) | 64 Architecture Decision Records (ADRs) |
+| [`docs/decisions/`](docs/decisions/) | 66 Architecture Decision Records (ADRs) |
 | [`docs/reviews/`](docs/reviews/) | Auto-genererade agent-reviews |
-| [`docs/runbooks/`](docs/runbooks/) | Operativa procedurer (AWS-setup, lokal-dev, etc.) |
+| [`docs/runbooks/`](docs/runbooks/) | Operativa procedurer (lokal-dev, TLS, etc.) |
 | [`docs/sessions/`](docs/sessions/) | Per-session retrospektiv-loggar |
 | [`.claude/`](.claude/) | Agent-definitioner, skills, hooks, slash-kommandon |
 | [`prompts/`](prompts/) | AI-prompts som versionerade `.prompt.md`-filer |

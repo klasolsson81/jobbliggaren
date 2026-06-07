@@ -1,0 +1,16 @@
+# CodeQL-konfiguration för code-scanning-workflowen (.github/workflows/codeql.yml).
+#
+# paths-ignore gäller endast tolkade språk (JS/TS, per CodeQL-docs). node_modules
+# + bower_components exkluderas redan automatiskt av extractorn — listas inte här.
+# Vi exkluderar build-output och genererade artefakter som inte är källkod att
+# granska. C# styrs inte av paths-ignore (compiled-language extraction sker via
+# build:et i workflowen).
+name: jobbpilot-codeql-config
+
+paths-ignore:
+  # Next.js build-output (.next) — genererad, ej källkod.
+  - 'web/jobbpilot-web/.next'
+  # Test-/coverage-/perf-artefakter.
+  - 'web/jobbpilot-web/coverage'
+  - 'web/jobbpilot-web/playwright-report'
+  - 'web/jobbpilot-web/test-results'

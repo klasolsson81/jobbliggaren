@@ -1,6 +1,29 @@
 # Current work — JobbPilot
 
-**Status:** **LOKAL REGRESSIONS-AUDIT (VPS-PORTABILITETS-LINS) 2026-06-07 (branch `chore/lokal-regressions-audit-vps-lins`, PR mot main, bas-HEAD `02650e8`).** Systematisk genomgång av features som funkade på AWS-live men kunde vara trasiga lokalt. **Resultat:**
+**Status:** **GH-SÄKERHETSHÄRDNING — CodeQL CODE-SCANNING (OBSERVE-ONLY) + §11.3/TD-101 DOC-KORRIGERING 2026-06-07 (branch `chore/gh-security-hardening`, PR mot main, bas-HEAD `54b5da1`).** Liten, hög-värde, låg-risk hygien-PR. **Nästa steg:** Klas approve-spec-edit.sh för CLAUDE.md §11.3-korrigeringen (sista pending-itemet) → därefter PR-merge efter `ci` grönt.
+
+**Active now (denna session):**
+
+- **CodeQL code-scanning levererad (observe-only Fas 1):** `.github/workflows/codeql.yml` + `.github/codeql/codeql-config.yml`. Två språk: **C#/.NET 10** (`build-mode: manual` — återbrukar build.yml:s kända-gröna recept setup-dotnet@v5 + global.json + restore + build, för determinism + source-generator-täckning; Mediator.SourceGenerator emitterar auth-pipeline-kod endast vid kompilering, `build-mode:none` vore blind för den ytan) + **JS/TS/Next 16** (`build-mode: none`, språk-id `javascript-typescript`, paths-ignore `.next`/coverage/test-artefakter). Triggers: push main, PR main, veckovis cron, workflow_dispatch. codeql-action@v4. **Ligger MEDVETET utanför required `ci`-aggregatet** (`ci.needs: [backend, frontend, coverage]` orört) + `continue-on-error: true` → kan aldrig blockera merge (ADR 0045-ratchet-precedens). Flip→blockerande = framtida medvetet Klas-GO.
+- **CTO-dom (`af8997b2f5987e1ee`):** Variant C (`build-mode: manual`) > Variant A (none, täckningshål source-generators) > Variant B (autobuild, divergens/flakiness). **Ingen ny ADR** (ärver ADR 0045-ratchet-precedens; build-mode = workflow-impl-detalj). **CC gick direkt till impl utan separat Klas-GO** (entydigt motiverat, scope redan låst observe-only).
+- **Doc-korrigeringar (verklighet vs on-disk):** TD-101-blocket "loggar till Serilog/Seq" → "console via Microsoft.Extensions.Logging — ingen Serilog/Seq-sink wirad, se TD-104"; TD-104 punkt 3 markerad delvis adresserad. In-block-fix: `build.yml`-kommentar `latestPatch`→`latestFeature` (matchar global.json; code-reviewer-fynd).
+- **PENDING (Klas-GO krävs):** **CLAUDE.md §11.3** ("`seq` (local Serilog sink)") — spec-trinity-edit, klassificerar-blockad (memory `feedback_spec_edit_approve_classifier_block`). Verbatim-korrigering förberedd i STOPP-rapporten; kräver `bash .claude/hooks/approve-spec-edit.sh` (Klas kör, el. explicit GO att CC kör i Bypass). Läggs i SAMMA PR efter GO.
+- **Agenter:** senior-cto-advisor (`af8997b2f5987e1ee`, build-mode-dom), security-auditor (`a2e68a0122b279f3a`, **PASS** 0 Block/0 Major/1 Minor floating-pin observation), code-reviewer (`a88d1ad3529feaafa`, **APPROVED** 0/0/0). Rapporter i `docs/reviews/2026-06-07-gh-security-hardening-*.md`.
+- **Operativt:** lokala Api+Worker stoppades för att frigöra DLL-byggslås under pre-commit (parallell-build-lås, Förkrav 4) — **måste startas om** (`dotnet run --project src/JobbPilot.Api` + Worker efter API-build klar). Docker (postgres-dev 5435/redis-dev 6379/seq 5341) + FE 3000 opåverkade.
+
+**Commits denna session:**
+
+| SHA | Typ | Beskrivning |
+|---|---|---|
+| `f409e56` | ci(security) | CodeQL code-scanning observe-only (C# manual + JS/TS none) + build.yml-kommentarsfix |
+| `689adae` | docs(tech-debt) | Korrigera TD-101/TD-104 Serilog/Seq-formulering + agent-rapporter |
+| (denna) | docs(sessions) | current-work + session-log sync |
+
+**Done last session:** lokal regressions-audit (VPS-portabilitets-lins) — lead-fix (stale node_modules/jest-worker), TD-104/105, drift-guard.
+
+---
+
+**(Föregående) Status:** **LOKAL REGRESSIONS-AUDIT (VPS-PORTABILITETS-LINS) 2026-06-07 (branch `chore/lokal-regressions-audit-vps-lins`, PR mot main, bas-HEAD `02650e8`).** Systematisk genomgång av features som funkade på AWS-live men kunde vara trasiga lokalt. **Resultat:**
 
 - **LEAD — Job-modal `/jobb/[id]`-krasch (ROTORSAK FUNNEN, ej maskerad):** Den körande dev-servern (PID 39712, detached bakgrundsprocess från förra sessionen) körde på **stale node_modules** (next **16.2.4**/react **19.2.4**, installerade 2026-05-06) medan committad `pnpm-lock.yaml` kräver **16.2.7**/**19.2.7** (Dependabot #15 bumpade lockfilen 2026-06-07 08:25, men `pnpm install` kördes aldrig efter laptop-omstart). Den gamla processen spydde dessutom `write EPIPE`-uncaughtExceptions (bruten stdout-pipe) → jest-worker-render-barnen kraschade hårt (process-exit) på UNCACHADE tunga routes (`/jobb/[id]`, `/sparade`); cachade routes (`/jobb`, `/oversikt`) överlevde. **Bevis att det EJ är kodbugg:** prod `pnpm build` lyckas på BÅDE 16.2.4 och 16.2.7 → app-koden korrekt, **VPS/prod opåverkat**. **Fix applicerad:** `pnpm install --frozen-lockfile` (node_modules→16.2.7) + dödade stale PID + ren `pnpm dev`-restart. **VERIFIERAT:** fullsida + modal-intercept + `/sparade` ger nu HTTP 200, noll jest-worker-fel. Notera: Next 16.2.6 hade säkerhetsfixar → 16.2.4 var även säkerhetsmässigt stale.
 - **Sök/filter EF Core 10 + Npgsql VO-`Contains`:** HEALTHY. Känd fälla korrekt workaround:ad (`GetJobAdStatusBatchQueryHandler` projicerar VO→Guid + client-side HashSet). E2e mot riktig Postgres: free-text(Relevance)/ssyk/suggest/save→batch→saved-list/unsave alla 200, korrekt VO-round-trip. Ingen åtgärd.

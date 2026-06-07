@@ -316,7 +316,8 @@ för cost-cap-design när AI-features designas.
 **Källa:** senior-cto-advisor-triage 2026-06-06 (ADR 0066 AWS-avveckling, CTO Rond 1)
 
 `IEmailSender`-porten finns och är korrekt abstraherad. Enda impl är
-`ConsoleEmailSender` (loggar till Serilog/Seq — dev/MVP). AWS SES borttaget
+`ConsoleEmailSender` (loggar till console via Microsoft.Extensions.Logging —
+ingen Serilog/Seq-sink finns wirad, se TD-104; dev/MVP). AWS SES borttaget
 2026-06-06 (ADR 0066): `SesEmailSender` + `AWSSDK.SimpleEmailV2` raderade
 eftersom Hetzner inte har SES och koden var permanent död. Beta-testare behöver
 RIKTIGA invitation-/lösenordsåterställnings-mejl — prod-impl saknas tills
@@ -917,6 +918,11 @@ prod-logg-sink alls** efter AWS-exit. Detta är en VPS-portabilitets-lucka
 3. **Korrigera CLAUDE.md §11.3** ("seq (local Serilog sink)") + TD-101-blockets
    Serilog/Seq-formulering så docs matchar verkligheten. Spec-edit → Klas-GO +
    `approve-spec-edit.sh`.
+   *(Delvis adresserad 2026-06-07, PR `chore/gh-security-hardening`: TD-101-blockets*
+   *"loggar till Serilog/Seq" korrigerad till "loggar till console via*
+   *Microsoft.Extensions.Logging". CLAUDE.md §11.3-korrigeringen kvarstår — spec-edit*
+   *kräver `approve-spec-edit.sh`/Klas-GO. Den underliggande wiring-åtgärden*
+   *(punkt 1–2) kvarstår oförändrad till Hetzner-deploy.)*
 
 **Beroenden:** Hetzner-deploy-fas (ADR 0050, Proposed) + sink-val.
 **Trigger:** Hetzner-prod-deploy ELLER när observability behövs för beta.

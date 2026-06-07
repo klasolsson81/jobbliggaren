@@ -1,0 +1,127 @@
+# CodeQL code scanning — SAST (observe-only Fas 1).
+#
+# Statisk säkerhetsanalys (SAST) av backend (C# / .NET 10) + frontend
+# (JavaScript/TypeScript / Next.js 16). Resultat hamnar i repots
+# Security → Code scanning-flik som SARIF-alerts.
+#
+# ---------------------------------------------------------------------------
+# OBSERVE-ONLY Fas 1 (samma ratchet-disciplin som ADR 0045 fitness-functions).
+#
+# Denna workflow är en EGEN check — den ligger MEDVETET UTANFÖR det required
+# `ci`-aggregatet i build.yml (`ci.needs: [backend, frontend, coverage]`).
+# Branch protection (ADR 0065) kräver enbart `ci`, så CodeQL kan aldrig
+# blockera merge Fas 1. `continue-on-error: true` på jobbet speglar
+# lighthouse/loadtest/audit-jobben i build.yml — fynd/build-fel ger neutral
+# check, inte röd merge-spärr. Alerts syns ändå i Security-fliken.
+#
+# Flip observe-only → blockerande (kräva "CodeQL"-check i branch protection,
+# eller code-scanning required) = MEDVETEN Klas-GO-ratchet efter stabil
+# baslinje (ADR 0045 Beslut 6-precedens), ALDRIG en tyst default. Ändra inte
+# detta utan Klas-GO. Den ratchet:en ska då dokumenteras (ADR 0045-amendment
+# eller egen ADR), konsekvent med hur 0045 behandlade sina observe→gate-flips.
+# ---------------------------------------------------------------------------
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Måndag 04:23 UTC — udda minut för att undvika runner-rusningstid.
+    # Schemalagd full-scan fångar drift mellan PR:er + nya CodeQL-queries.
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+# Avbryt äldre runs vid ny push på samma ref (sparar minutes på dependabot-PRs).
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }}, observe-only)
+    runs-on: ubuntu-latest
+    # Observe-only Fas 1: jobbet kan aldrig blockera merge (speglar ADR 0045-
+    # jobben i build.yml). Build-fel/fynd → neutral check, ej röd spärr.
+    continue-on-error: true
+    timeout-minutes: 20
+
+    permissions:
+      # CodeQL kräver write för att ladda upp SARIF till Security-fliken.
+      security-events: write
+      # Läs-behörigheter för checkout + workflow-metadata.
+      contents: read
+      actions: read
+
+    strategy:
+      # Låt C#-jobbet fortsätta även om JS/TS-jobbet faller (och tvärtom) —
+      # observe-only, vi vill ha bägge språkens signal oberoende.
+      fail-fast: false
+      matrix:
+        include:
+          # C# / .NET 10: build-mode MANUAL. Återbrukar build.yml:s kända-gröna
+          # build-recept (setup-dotnet@v5 + global.json + restore + build) för
+          # determinism — INTE autobuild. Skäl (senior-cto-advisor 2026-06-07,
+          # agentId af8997b2f5987e1ee): Mediator.SourceGenerator emitterar
+          # CQRS-dispatch/DI/pipeline-kod (inkl auth-pipeline) endast vid
+          # kompilering. build-mode:none skulle lämna den ytan osynlig för SAST;
+          # autobuild inför en andra, divergens-benägen build-väg (DRY-brott +
+          # flakiness-risk i observe-only-jobb). Manual = autobuilds täckning
+          # utan dess heuristik-risk, deterministiskt identiskt med grön CI.
+          - language: csharp
+            build-mode: manual
+          # JS/TS / Next.js 16: build-mode NONE — tolkat språk, inget bygge
+          # krävs. node_modules exkluderas automatiskt; .next via codeql-config.
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # --- C#-only: SDK + NuGet-cache (krävs av manual build nedan) ----------
+      # global.json låser 10.0.200 (rollForward latestFeature) — identiskt med
+      # build.yml så CodeQL bygger exakt samma produkt som grön CI.
+      - name: Setup .NET
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        if: matrix.language == 'csharp'
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # --- CodeQL init -------------------------------------------------------
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # --- C#-only: manuellt build mellan init och analyze -------------------
+      # Källgenererad mediator-kod existerar bara efter kompilering → måste
+      # byggas för att SAST ska se den. Samma fyra steg som build.yml.
+      - name: Build (C#, manual build-mode)
+        if: matrix.language == 'csharp'
+        run: |
+          dotnet restore JobbPilot.sln
+          dotnet build JobbPilot.sln --no-restore -c Release
+
+      # --- CodeQL analyze ----------------------------------------------------
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'
+
+      - name: Observe-only-not
+        if: always()
+        run: |
+          echo "::notice::CodeQL observe-only Fas 1 (ADR 0045-ratchet-precedens). ${{ matrix.language }} SAST → Security-fliken. Blockerar ej merge (utanför required ci-aggregatet); flip→blockerande = Klas-GO-ratchet."

@@ -1,0 +1,49 @@
+# Dependabot auto-merge — minska manuellt PR-arbete för rutinmässiga dep-bumpar.
+#
+# Aktiverar GitHub auto-merge på Dependabot-PRs som är patch/minor. MAJOR
+# granskas alltid manuellt (auto-merge aktiveras ej för dem).
+#
+# Respekterar branch protection (ADR 0065): GitHub auto-merge squash-mergar
+# FÖRST när required `ci`-aggregatet är grönt. Observe-only-jobben (audit /
+# lighthouse / loadtest, ADR 0045) blockerar ej — en patch/minor-bump som t.ex.
+# bär ett återkallat signeringscert (jfr NU3012) fångas därför INTE av
+# auto-merge-grinden, bara av full build+test. Medveten avvägning för
+# rutinbumpar; major-granskningen är kvar manuell.
+#
+# FÖRKRAV (engångs, Klas): "Allow auto-merge" måste vara PÅ i
+# Settings → General, annars failar `gh pr merge --auto`. Vid strict
+# "require branches up to date" kan auto-merge stanna tills Dependabot rebasar
+# PR:n mot main (sker normalt automatiskt).
+#
+# OBS (ADR 0065): required_conversation_resolution=true — om en kommentar landar
+# på en Dependabot-PR väntar auto-merge tills tråden är resolved.
+name: dependabot-automerge
+
+on:
+  pull_request:
+    branches: [main]
+
+# write krävs för att GITHUB_TOKEN ska kunna aktivera auto-merge på PR:n.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: auto-merge (patch/minor)
+    runs-on: ubuntu-latest
+    # Kör ENBART för Dependabot-öppnade PRs.
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Hämta Dependabot-metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Aktivera auto-merge (endast patch/minor)
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

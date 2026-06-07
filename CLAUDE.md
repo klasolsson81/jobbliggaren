@@ -613,7 +613,7 @@ istället, lyft inte.
 
 ### 11.3 Dev environment
 
-- Docker Compose i repo-root: `postgres`, `redis`, `seq` (local Serilog sink). All utveckling kör lokalt på laptop utan molntjänster (AWS avvecklat, ADR 0066) — `ConsoleEmailSender` för mejl, `LocalDataKeyProvider` (AES-256-GCM) för fält-kryptering.
+- Docker Compose i repo-root: `postgres`, `redis`, `seq`. Loggning går default till console via Microsoft.Extensions.Logging — ingen Serilog/sink är wirad mot Seq-containern ännu (den kör men tar emot inget; full observability-wiring = TD-104, Hetzner-fas). All utveckling kör lokalt på laptop utan molntjänster (AWS avvecklat, ADR 0066) — `ConsoleEmailSender` för mejl, `LocalDataKeyProvider` (AES-256-GCM) för fält-kryptering.
 - `make dev` eller `pnpm dev:up` startar allt lokalt
 - `.env.local` för frontend, `appsettings.Development.json` för backend (committade defaults + overrides i `appsettings.Local.json` som är gitignorad)
 

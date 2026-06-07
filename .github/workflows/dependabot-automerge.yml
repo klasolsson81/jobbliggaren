@@ -4,16 +4,22 @@
 # granskas alltid manuellt (auto-merge aktiveras ej för dem).
 #
 # Respekterar branch protection (ADR 0065): GitHub auto-merge squash-mergar
-# FÖRST när required `ci`-aggregatet är grönt. Observe-only-jobben (audit /
-# lighthouse / loadtest, ADR 0045) blockerar ej — en patch/minor-bump som t.ex.
-# bär ett återkallat signeringscert (jfr NU3012) fångas därför INTE av
-# auto-merge-grinden, bara av full build+test. Medveten avvägning för
-# rutinbumpar; major-granskningen är kvar manuell.
+# FÖRST när required `ci`-aggregatet är grönt.
 #
-# FÖRKRAV (engångs, Klas): "Allow auto-merge" måste vara PÅ i
-# Settings → General, annars failar `gh pr merge --auto`. Vid strict
-# "require branches up to date" kan auto-merge stanna tills Dependabot rebasar
-# PR:n mot main (sker normalt automatiskt).
+# BLOCKERANDE VULN-GATE (Klas-GO "B" 2026-06-07, security-auditor-rond
+# a60bb5f08176fdf7f): till skillnad från `ci`-aggregatet (där audit är
+# observe-only, ADR 0045) kör detta workflow en EGEN blockerande supply-chain-
+# scan (NuGet + pnpm, High/Critical) innan auto-merge aktiveras — eftersom ingen
+# människa läser observe-only-audit vid auto-merge. En patch/minor med känd
+# High/Critical-CVE auto-mergas alltså INTE; jobbet failar och PR:n faller
+# tillbaka på manuell granskning. (OBS: detta fångar CVE:er, inte cert-/signerings-
+# fel som NU3012 — sådant fångas av build+restore i `ci`-aggregatet.) Detta ändrar
+# EJ ADR 0045:s observe-only-status för `ci` (Avvisat-alt-5 i ADR 0065 består) —
+# gaten gäller bara den automatiska vägen.
+#
+# FÖRKRAV (engångs, Klas): "Allow auto-merge" PÅ i Settings → General +
+# branch protection aktiv (kräver publikt repo eller Pro — bunden till
+# visibility, verifiera vid visibility-byte).
 #
 # OBS (ADR 0065): required_conversation_resolution=true — om en kommentar landar
 # på en Dependabot-PR väntar auto-merge tills tråden är resolved.
@@ -32,6 +38,7 @@ jobs:
   automerge:
     name: auto-merge (patch/minor)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Kör ENBART för Dependabot-öppnade PRs.
     if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
@@ -41,8 +48,76 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Aktivera auto-merge (endast patch/minor)
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
+      # Avgör behörighet en gång: endast patch/minor. Major/okänd → hela resten
+      # hoppas över (ingen scan, ingen auto-merge) → manuell granskning.
+      - name: Avgör behörighet (endast patch/minor)
+        id: gate
+        shell: bash
+        run: |
+          if [[ "$UT" == "version-update:semver-patch" || "$UT" == "version-update:semver-minor" ]]; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::update-type=$UT → major/okänd, manuell granskning (ingen auto-merge)."
+          fi
+        env:
+          UT: ${{ steps.metadata.outputs.update-type }}
+
+      - name: Checkout
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Setup pnpm
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+
+      # Blockerande NuGet-gate. dotnet list package --vulnerable returnerar exit 0
+      # även med fynd → vi greppar Severity-kolumnen och failar vid High/Critical.
+      - name: Blockerande NuGet vuln-gate (High/Critical)
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          dotnet restore JobbPilot.sln
+          out=$(dotnet list JobbPilot.sln package --vulnerable --include-transitive 2>&1 || true)
+          echo "$out"
+          if echo "$out" | grep -Eiq '\b(High|Critical)\b'; then
+            echo "::error::NuGet High/Critical-CVE — auto-merge blockeras. Granska manuellt."
+            exit 1
+          fi
+          echo "::notice::Inga NuGet High/Critical-CVE:er."
+
+      # Blockerande npm-gate. pnpm audit --audit-level=high returnerar exit != 0
+      # vid High/Critical → jobbet failar → auto-merge aktiveras ej.
+      - name: Install (pnpm, för audit)
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
+        working-directory: web/jobbpilot-web
+        run: pnpm install --frozen-lockfile
+
+      - name: Blockerande pnpm vuln-gate (High/Critical)
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
+        working-directory: web/jobbpilot-web
+        run: pnpm audit --audit-level=high
+
+      - name: Aktivera auto-merge (patch/minor, vuln-gate passerad)
+        if: ${{ steps.gate.outputs.eligible == 'true' }}
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

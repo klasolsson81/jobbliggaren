@@ -918,11 +918,12 @@ prod-logg-sink alls** efter AWS-exit. Detta är en VPS-portabilitets-lucka
 3. **Korrigera CLAUDE.md §11.3** ("seq (local Serilog sink)") + TD-101-blockets
    Serilog/Seq-formulering så docs matchar verkligheten. Spec-edit → Klas-GO +
    `approve-spec-edit.sh`.
-   *(Delvis adresserad 2026-06-07, PR `chore/gh-security-hardening`: TD-101-blockets*
-   *"loggar till Serilog/Seq" korrigerad till "loggar till console via*
-   *Microsoft.Extensions.Logging". CLAUDE.md §11.3-korrigeringen kvarstår — spec-edit*
-   *kräver `approve-spec-edit.sh`/Klas-GO. Den underliggande wiring-åtgärden*
-   *(punkt 1–2) kvarstår oförändrad till Hetzner-deploy.)*
+   *(Dok-korrigerings-delen av punkt 3 KLAR 2026-06-07: TD-101-blockets "loggar*
+   *till Serilog/Seq" → "console via Microsoft.Extensions.Logging" (PR #21,*
+   *`chore/gh-security-hardening`); CLAUDE.md §11.3 "(local Serilog sink)" →*
+   *console-formulering (PR `docs/clarify-section-11-3-logging-sink`, Klas-GO +*
+   *`approve-spec-edit.sh`). Den underliggande wiring-åtgärden (punkt 1–2)*
+   *kvarstår oförändrad till Hetzner-deploy.)*
 
 **Beroenden:** Hetzner-deploy-fas (ADR 0050, Proposed) + sink-val.
 **Trigger:** Hetzner-prod-deploy ELLER när observability behövs för beta.

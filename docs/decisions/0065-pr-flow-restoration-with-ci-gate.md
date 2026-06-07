@@ -4,6 +4,7 @@
 **Status:** Accepted
 **Kontext:** Klas-direktiv 2026-05-25 — Pre-launch-disciplin
 **Beslutsfattare:** Klas Olsson
+**Amendment 2026-06-07:** Automerge-default för CC:s egna PR:er — se [§Amendment 2026-06-07](#amendment-2026-06-07--automerge-default-för-ccs-egna-prer).
 **Superseder:** ADR 0019 (Solo direct-push till main, 2026-05-07)
 **Amends:** ADR 0007 (Branch protection för main i Fas 0, 2026-04-18) — Fas 0-protectionprofilen utökas till PR-gate-profil när CI-aggregatet `ci` finns på plats; ADR 0007 force-push- och deletion-skydd består.
 **Relaterad:** ADR 0019 §"Trigger för återgång till PR-flöde", `.github/workflows/build.yml` (`ci`-aggregat-job)
@@ -131,6 +132,27 @@ Detta beslut omvärderas (ny ADR som superseder) vid något av följande:
 3. **PR-overhead bevisat skadlig** (definierat som: per-PR-overhead > granskningsvärdet under 4 veckor i följd, dokumenterat med konkreta incidenter) → omvärdera mot lättviktigt direct-push-mönster med starkare lokala spärrar.
 
 Vid trigger: ny ADR skapas som superseder denna. ADR 0019 kan inte återupplivas — ny ADR med uppdaterade premisser krävs.
+
+## Amendment 2026-06-07 — Automerge-default för CC:s egna PR:er
+
+**Beslutsfattare:** Klas Olsson. **Kontext:** Klas-direktiv 2026-06-07 efter att automerge-infrastrukturen (`label-automerge.yml`, PR #18) etablerats men inte använts.
+
+Grindmekanismen i Beslut §"Operativt flöde" steg 6 (**"Klas reviewar diff + agent-reports + CI-resultat i PR-vyn"** *innan* merge) var i originalbeslutet en **pre-merge**-spärr. Detta amendment flyttar den till **post-merge** för Claude Codes egna PR:er:
+
+- **CC sätter `automerge`-labeln på alla egna PR:er** direkt efter `gh pr create` (`gh pr edit <nr> --add-label automerge`). `label-automerge.yml` aktiverar då auto-merge (squash) som verkställs så snart required `ci` är grön. Klas läser diffen **efter** merge istället för före.
+- **Motiv:** maximalt tempo i solo-fasen. Klas valde "auto på alla egna PR:er" framför "bara när jag säger till" (strikt original-default) och "auto på låg-risk". Kvaliteten bärs av de spärrar som förblir **pre-merge**: agent-invocation (#3), CI-gate (#5), pre-push hooks (#6), required conversation resolution och `enforce_admins`. Bara den mänskliga diff-läsningen (#4) blir post-merge.
+
+**Oförändrat:** Allt annat i ADR 0065 består. Required `ci`-aggregatet, linear history, force/deletion-skydd, `enforce_admins: true` och required conversation resolution gäller precis som förut — automerge verkställs *genom* grindarna, inte runt dem.
+
+**Undantag där CC INTE auto-mergar (STOPP till Klas först):**
+
+1. **Ej-åtgärdat agent-Blocker/Major** — om security-auditor/code-reviewer/CTO lämnar ett ej-fixat Blocker eller Major, sätts ingen label förrän Klas tagit ställning.
+2. **Spec-edits (BUILD/CLAUDE/DESIGN)** — själva editen kräver fortfarande `approve-spec-edit.sh`/Klas-GO; men PR:n som bär en godkänd spec-edit får automerge-labeln som vanligt.
+3. **Klas säger explicit annat** för en specifik PR.
+
+**Trigger för återgång (pre-merge-review återinförs):** om en regression som en pre-merge diff-läsning hade fångat når `main` via automerge, eller om Klas bedömer post-merge-granskningen otillräcklig → detta amendment rivs (label-default tas bort; #4 återgår till pre-merge). Dokumenteras då i ny amendment.
+
+**Berörda dokument (uppdaterade i samma PR som detta amendment):** CLAUDE.md §6.3 mekanism #4 + §9.1 steg 8.
 
 ## Relation till andra beslut
 

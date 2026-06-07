@@ -14,6 +14,9 @@
 # Settings → General, annars failar `gh pr merge --auto`. Vid strict
 # "require branches up to date" kan auto-merge stanna tills Dependabot rebasar
 # PR:n mot main (sker normalt automatiskt).
+#
+# OBS (ADR 0065): required_conversation_resolution=true — om en kommentar landar
+# på en Dependabot-PR väntar auto-merge tills tråden är resolved.
 name: dependabot-automerge
 
 on:

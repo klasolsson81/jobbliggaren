@@ -120,8 +120,13 @@ internal sealed partial class TaxonomySnapshotSeeder(
 
     internal static List<TaxonomyConcept> MapRows(TaxonomySnapshotFile snapshot)
     {
+        // Kapacitets-hint: regioner + kommuner + yrkesområden + yrken + yrkesgrupper.
         var rows = new List<TaxonomyConcept>(
-            snapshot.Regions.Count + snapshot.OccupationFields.Count);
+            snapshot.Regions.Count
+            + snapshot.Regions.Sum(r => r.Municipalities?.Count ?? 0)
+            + snapshot.OccupationFields.Count
+            + snapshot.OccupationFields.Sum(f =>
+                f.Occupations.Count + (f.OccupationGroups?.Count ?? 0)));
 
         foreach (var r in snapshot.Regions)
         {
@@ -131,6 +136,18 @@ internal sealed partial class TaxonomySnapshotSeeder(
                 Kind = TaxonomyConceptKind.Region,
                 Label = r.Label,
             });
+
+            // ADR 0043-amendment 2026-06-08 — kommun (parent = län, 1:1).
+            foreach (var m in r.Municipalities ?? [])
+            {
+                rows.Add(new TaxonomyConcept
+                {
+                    ConceptId = m.ConceptId,
+                    Kind = TaxonomyConceptKind.Municipality,
+                    Label = m.Label,
+                    ParentConceptId = r.ConceptId,
+                });
+            }
         }
 
         foreach (var f in snapshot.OccupationFields)
@@ -149,6 +166,19 @@ internal sealed partial class TaxonomySnapshotSeeder(
                     ConceptId = o.ConceptId,
                     Kind = TaxonomyConceptKind.Occupation,
                     Label = o.Label,
+                    ParentConceptId = f.ConceptId,
+                });
+            }
+
+            // ADR 0043-amendment 2026-06-08 — yrkesgrupp/ssyk-level-4
+            // (parent = yrkesområde, 1:1). Primärt yrke-filter (ADR 0067 Beslut 1).
+            foreach (var g in f.OccupationGroups ?? [])
+            {
+                rows.Add(new TaxonomyConcept
+                {
+                    ConceptId = g.ConceptId,
+                    Kind = TaxonomyConceptKind.OccupationGroup,
+                    Label = g.Label,
                     ParentConceptId = f.ConceptId,
                 });
             }

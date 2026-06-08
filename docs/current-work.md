@@ -1,6 +1,19 @@
 # Current work — JobbPilot
 
-**Status:** **PLATSBANKEN SÖK-PARITET — FAS A (DESIGN + ADR) LEVERERAD 2026-06-08 (branch `docs/sok-paritet-adr-0067`, PR mot main, bas-HEAD `cf482b8`).** Initiativ-start: 100% paritet med Platsbankens sök/filter/sortering + smart fritext-sök, fler-fasigt (PR per fas). Session 1 = design-grind (Fas A), levererar ADR:er — INGEN kod (fas-skifte till data-layer = nästa session, Klas-GO).
+**Status:** **PLATSBANKEN SÖK-PARITET — FAS B1 (DATA-LAYER, KLASS 1) LEVERERAD 2026-06-08 (branch `feat/sok-paritet-data-layer-b1`, PR mot main, bas-HEAD `01a6039`).** Klass 1 STORED-kolumner (kommun + yrkesgrupp) + EF-config + migration (Testcontainers-grön) + taxonomi-snapshot v29→30 + seeder. Ingen re-ingest (payload finns). Nästa: Fas B2 (Klass 2) eller Fas C1 (query/filter-layer) — Klas-GO.
+
+**Levererat denna session (Fas B1-PR, commit `8b94367`):**
+- **Två STORED generated columns på job_ads** (F2P9-klon): `occupation_group_concept_id` (← `raw_payload->'occupation_group'->>'concept_id'`, **TOP-LEVEL** — ssyk-level-4/yrkesgrupp) + `municipality_concept_id` (← `workplace_address->>'municipality_concept_id'`). Partial B-tree-index WHERE col IS NOT NULL. Migration `F6P6JobAdKlass1SearchColumns`. Backfill auto-populerar från befintlig raw_payload (dev-DB: 34843/33935 rader). **STORED ADD = full table rewrite/ACCESS EXCLUSIVE** (ej metadata-billig — discovery-brief korrigerad; dokumenterat i migration; lokalt sekunder mot 44k).
+- **TaxonomyConceptKind += Municipality + OccupationGroup** (båda 1:1 parent, ingen dedup). Snapshot **v29→30** via committat genererings-script `tools/taxonomy-snapshot/` (Variant C): +290 kommuner +400 yrkesgrupper, occupations bevarade (2323; occupation-name byter roll, raderas ej per ADR 0067 §1). MapRows + TaxonomySnapshotFile additivt (nullable nested, bakåtkompat). **LoadAsync/TaxonomyTreeDto ORÖRDA** (DTO-exponering = Fas C1, CTO Variant A).
+- **4 agent-domar** i `docs/reviews/2026-06-08-sok-paritet-b1-{cto,architect,code-review}.md` (+ db-migration-writer + test-writer inline). CTO Beslut 1 = Variant C (committat script), Beslut 2 = Variant A (B1/C1-gräns). code-reviewer GO (0 Blocker/Major, 3 Minor behåll). security-auditor ej i scope (taxonomi-koder = icke-PII).
+- **Tester (Testcontainers, ej InMemory):** unit 630, generated-column backfill + path-spärr 5, taxonomi-seeder-integration 10, arkitektur 78, ListJobAds-filter 13 (regression) — alla gröna.
+- **Incidentell benign EF-snapshot-konsolidering:** HEAD hade duplicerat WaitlistEntry-relationsblock (artefakt); EF-regenerering tog bort dubbletten (code-reviewer verifierade benignt, behålls).
+
+**Pending operativt för Klas (Fas B1):** (1) granska B1-PR-diff post-merge (automerge); (2) GO för nästa fas — **B2** (Klass 2: employment_type/worktime_extent — kräver POCO-tillägg + full re-ingest, NULL tills cron) eller **C1** (query/filter-layer: filter-SPOT + ApplyCriteria + ITaxonomyReadModel-DTO + nivåbyte); (3) ev. köra `tools/taxonomy-snapshot/generate.mjs` vid framtida taxonomi-uppdatering.
+
+---
+
+**(Föregående) Status:** **PLATSBANKEN SÖK-PARITET — FAS A (DESIGN + ADR) LEVERERAD 2026-06-08 (branch `docs/sok-paritet-adr-0067`, PR #29 mergad → `01a6039`).** Initiativ-start: 100% paritet med Platsbankens sök/filter/sortering + smart fritext-sök, fler-fasigt (PR per fas). Session 1 = design-grind (Fas A), levererar ADR:er — INGEN kod.
 
 **Kärninsikter (discovery 2026-06-08 — Klas-screenshots + JobTech live + kodbas):**
 - **Yrke-nivå-avvikelse:** Platsbanken filtrerar yrke på `ssyk-level-4` (yrkesgrupp, ~400), JobbPilot på `occupation-name` (~2179). → byts (ADR 0067 Beslut 1).
@@ -8,7 +21,7 @@
 - **Klass 1/Klass 2-payload-skillnad** (architect-fynd): kommun + yrkesgrupp finns i raw_payload (ingen re-ingest); anställningsform + omfattning kräver POCO-tillägg + re-ingest.
 - Distans ej tillförlitligt payload-fält → defer. Live facet-count + ny mörkgrön färg = nya krav.
 
-**Levererat denna session (Fas A-PR):**
+**Levererat (Fas A-PR):**
 - **ADR 0067 (Accepted)** — sök-paritet: yrke-nivåskifte occupation-name→ssyk-level-4 (occupation-name-substrat bevarat för CV-matchning TD-93/ADR 0040), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) Klass1/Klass2-sekvens, distans-defer (payload-trigger), facet-counts (total nu + per-option `FacetCountsAsync` ny port-metod, NBomber-gate), smart typeahead-chip-sök (utökad suggest = taxonomi-union + job_ads-titel; chip=FE-state; residual-fritext→`ISearchQueryParser`+FTS kraschsäkert), VO-expansion, fas A–E + reverse-lookup-migration sparade sökningar. §9.4-override (Klas valde Accepted-skrivning) i Livscykel-not.
 - **ADR 0043-amendment 2026-06-08** — kommun-dimension (Kind+=Municipality) + yrke-nivå (Kind+=OccupationGroup); ACL-kärna oförändrad, granularitet/dimensioner utvidgade; dedup-skuld krymper.
 - **3 agent-domar** i `docs/reviews/2026-06-08-sok-paritet-{architect,cto,cto-followup}.md` + discovery-brief `docs/research/2026-06-08-platsbanken-sok-paritet-discovery.md`.

@@ -1,92 +1,1294 @@
 {
   "source": "JobTech Taxonomy API (taxonomy.api.jobtechdev.se)",
-  "taxonomyVersion": "29",
-  "fetchedAt": "2026-05-17",
-  "note": "Off-search-path snapshot per ADR 0043 (Variant A, defekt-triage #1 Variant C). Kanoniskt dedupliserad: varje yrke under exakt ETT primaert yrkesomrade (deterministisk regel: occupation-field sorterad pa conceptId, yrket behalls i forsta field det forekommer i). Scope: Lan (region) + Yrkesomrade->Yrke. Ingen kommun.",
+  "taxonomyVersion": "30",
+  "fetchedAt": "2026-06-08",
+  "note": "Off-search-path snapshot per ADR 0043 (Variant A) + ADR 0043-amendment 2026-06-08 (kommun + ssyk-level-4 yrkesgrupp, ADR 0067). Genererad av tools/taxonomy-snapshot/generate.mjs. Kanoniskt dedupliserad occupation-name (varje yrke under exakt ETT primaert yrkesomrade). Kommun->region och ssyk-level-4->occupation-field aer baada exakt 1:1 (ingen dedup). Scope: Lan (region) -> Kommun (municipality) + Yrkesomrade (occupation-field) -> Yrke (occupation-name) + Yrkesgrupp (ssyk-level-4).",
   "regions": [
     {
       "conceptId": "DQZd_uYs_oKb",
-      "label": "Blekinge län"
+      "label": "Blekinge län",
+      "municipalities": [
+        {
+          "conceptId": "1gEC_kvM_TXK",
+          "label": "Olofström"
+        },
+        {
+          "conceptId": "EVPy_phD_8Vf",
+          "label": "Sölvesborg"
+        },
+        {
+          "conceptId": "HtGW_WgR_dpE",
+          "label": "Karlshamn"
+        },
+        {
+          "conceptId": "YSt4_bAa_ccs",
+          "label": "Karlskrona"
+        },
+        {
+          "conceptId": "vH8x_gVz_z7R",
+          "label": "Ronneby"
+        }
+      ]
     },
     {
       "conceptId": "oDpK_oZ2_WYt",
-      "label": "Dalarnas län"
+      "label": "Dalarnas län",
+      "municipalities": [
+        {
+          "conceptId": "4eS9_HX1_M7V",
+          "label": "Vansbro"
+        },
+        {
+          "conceptId": "5zZX_8FH_Sbq",
+          "label": "Smedjebacken"
+        },
+        {
+          "conceptId": "7Zsu_ant_gcn",
+          "label": "Leksand"
+        },
+        {
+          "conceptId": "CRyF_5Jg_4ht",
+          "label": "Orsa"
+        },
+        {
+          "conceptId": "DE9u_V4K_Z1S",
+          "label": "Hedemora"
+        },
+        {
+          "conceptId": "FPCd_poj_3tq",
+          "label": "Malung-Sälen"
+        },
+        {
+          "conceptId": "Jy3D_2ux_dg8",
+          "label": "Rättvik"
+        },
+        {
+          "conceptId": "N1wJ_Cuu_7Cs",
+          "label": "Falun"
+        },
+        {
+          "conceptId": "Nn7p_W3Z_y68",
+          "label": "Gagnef"
+        },
+        {
+          "conceptId": "Ny2b_2bo_7EL",
+          "label": "Ludvika"
+        },
+        {
+          "conceptId": "Szbq_2fg_ydQ",
+          "label": "Avesta"
+        },
+        {
+          "conceptId": "UGcC_kYx_fTs",
+          "label": "Mora"
+        },
+        {
+          "conceptId": "c3Zx_jBf_CqF",
+          "label": "Säter"
+        },
+        {
+          "conceptId": "cZtt_qGo_oBr",
+          "label": "Älvdalen"
+        },
+        {
+          "conceptId": "cpya_jJg_pGp",
+          "label": "Borlänge"
+        }
+      ]
     },
     {
       "conceptId": "K8iD_VQv_2BA",
-      "label": "Gotlands län"
+      "label": "Gotlands län",
+      "municipalities": [
+        {
+          "conceptId": "Ft9P_E8F_VLJ",
+          "label": "Gotland"
+        }
+      ]
     },
     {
       "conceptId": "zupA_8Nt_xcD",
-      "label": "Gävleborgs län"
+      "label": "Gävleborgs län",
+      "municipalities": [
+        {
+          "conceptId": "63iQ_V6F_REB",
+          "label": "Ljusdal"
+        },
+        {
+          "conceptId": "BbdN_xLB_k6s",
+          "label": "Sandviken"
+        },
+        {
+          "conceptId": "GEvW_wKy_A9H",
+          "label": "Ockelbo"
+        },
+        {
+          "conceptId": "JPSe_mUQ_NDs",
+          "label": "Ovanåker"
+        },
+        {
+          "conceptId": "JauG_nz5_7mu",
+          "label": "Söderhamn"
+        },
+        {
+          "conceptId": "KxjG_ig5_exF",
+          "label": "Bollnäs"
+        },
+        {
+          "conceptId": "Utks_mwF_axY",
+          "label": "Hudiksvall"
+        },
+        {
+          "conceptId": "fFeF_RCz_Tm5",
+          "label": "Nordanstig"
+        },
+        {
+          "conceptId": "qk8Y_2b6_82D",
+          "label": "Gävle"
+        },
+        {
+          "conceptId": "yuNd_3bg_ttc",
+          "label": "Hofors"
+        }
+      ]
     },
     {
       "conceptId": "wjee_qH2_yb6",
-      "label": "Hallands län"
+      "label": "Hallands län",
+      "municipalities": [
+        {
+          "conceptId": "3JKV_KSK_x6z",
+          "label": "Kungsbacka"
+        },
+        {
+          "conceptId": "3XMe_nGt_RcU",
+          "label": "Hylte"
+        },
+        {
+          "conceptId": "AkUx_yAq_kGr",
+          "label": "Varberg"
+        },
+        {
+          "conceptId": "c1iL_rqh_Zja",
+          "label": "Laholm"
+        },
+        {
+          "conceptId": "kUQB_KdK_kAh",
+          "label": "Halmstad"
+        },
+        {
+          "conceptId": "qaJg_wMR_C8T",
+          "label": "Falkenberg"
+        }
+      ]
     },
     {
       "conceptId": "65Ms_7r1_RTG",
-      "label": "Jämtlands län"
+      "label": "Jämtlands län",
+      "municipalities": [
+        {
+          "conceptId": "D7ax_CXP_6r1",
+          "label": "Åre"
+        },
+        {
+          "conceptId": "Voto_egJ_FZP",
+          "label": "Ragunda"
+        },
+        {
+          "conceptId": "Vt7P_856_WZS",
+          "label": "Östersund"
+        },
+        {
+          "conceptId": "eNSc_Nj1_CDP",
+          "label": "Bräcke"
+        },
+        {
+          "conceptId": "gRNJ_hVW_Gpg",
+          "label": "Berg"
+        },
+        {
+          "conceptId": "j35Q_VKL_NiM",
+          "label": "Härjedalen"
+        },
+        {
+          "conceptId": "ppjq_Eci_Wz9",
+          "label": "Strömsund"
+        },
+        {
+          "conceptId": "yurW_aLE_4ga",
+          "label": "Krokom"
+        }
+      ]
     },
     {
       "conceptId": "MtbE_xWT_eMi",
-      "label": "Jönköpings län"
+      "label": "Jönköpings län",
+      "municipalities": [
+        {
+          "conceptId": "6bS8_fzf_xpW",
+          "label": "Värnamo"
+        },
+        {
+          "conceptId": "91VR_Hxi_GN4",
+          "label": "Gnosjö"
+        },
+        {
+          "conceptId": "9zQB_3vU_BQA",
+          "label": "Habo"
+        },
+        {
+          "conceptId": "KURg_KJF_Lwc",
+          "label": "Jönköping"
+        },
+        {
+          "conceptId": "KfXT_ySA_do2",
+          "label": "Nässjö"
+        },
+        {
+          "conceptId": "L1cX_MjM_y8W",
+          "label": "Sävsjö"
+        },
+        {
+          "conceptId": "Namm_SpC_RPG",
+          "label": "Tranås"
+        },
+        {
+          "conceptId": "VacK_WF6_XVg",
+          "label": "Eksjö"
+        },
+        {
+          "conceptId": "cNQx_Yqi_83Q",
+          "label": "Gislaved"
+        },
+        {
+          "conceptId": "smXg_BXp_jTW",
+          "label": "Mullsjö"
+        },
+        {
+          "conceptId": "xJqx_SLC_415",
+          "label": "Vetlanda"
+        },
+        {
+          "conceptId": "y9HE_XD7_WaD",
+          "label": "Aneby"
+        },
+        {
+          "conceptId": "zFup_umX_LVv",
+          "label": "Vaggeryd"
+        }
+      ]
     },
     {
       "conceptId": "9QUH_2bb_6Np",
-      "label": "Kalmar län"
+      "label": "Kalmar län",
+      "municipalities": [
+        {
+          "conceptId": "1koj_6Bg_8K6",
+          "label": "Emmaboda"
+        },
+        {
+          "conceptId": "8eEp_iz4_cNN",
+          "label": "Mönsterås"
+        },
+        {
+          "conceptId": "AEQD_1RT_vM9",
+          "label": "Hultsfred"
+        },
+        {
+          "conceptId": "LY9i_qNL_kXf",
+          "label": "Borgholm"
+        },
+        {
+          "conceptId": "Muim_EAi_EFp",
+          "label": "Mörbylånga"
+        },
+        {
+          "conceptId": "Pnmg_SgP_uHQ",
+          "label": "Kalmar"
+        },
+        {
+          "conceptId": "WPDh_pMr_RLZ",
+          "label": "Högsby"
+        },
+        {
+          "conceptId": "a7hJ_zwv_2FR",
+          "label": "Vimmerby"
+        },
+        {
+          "conceptId": "t7H4_S2P_3Fw",
+          "label": "Västervik"
+        },
+        {
+          "conceptId": "tUP8_hRE_NcF",
+          "label": "Oskarshamn"
+        },
+        {
+          "conceptId": "wYFb_q7w_Nnh",
+          "label": "Torsås"
+        },
+        {
+          "conceptId": "xk68_bJa_6Fh",
+          "label": "Nybro"
+        }
+      ]
     },
     {
       "conceptId": "tF3y_MF9_h5G",
-      "label": "Kronobergs län"
+      "label": "Kronobergs län",
+      "municipalities": [
+        {
+          "conceptId": "78cu_S5T_Pgp",
+          "label": "Uppvidinge"
+        },
+        {
+          "conceptId": "EK6X_wZq_CQ8",
+          "label": "Älmhult"
+        },
+        {
+          "conceptId": "GzKo_S48_QCm",
+          "label": "Ljungby"
+        },
+        {
+          "conceptId": "MMph_wmN_esc",
+          "label": "Alvesta"
+        },
+        {
+          "conceptId": "ZhVf_yL5_Q5g",
+          "label": "Markaryd"
+        },
+        {
+          "conceptId": "mmot_H3A_auW",
+          "label": "Växjö"
+        },
+        {
+          "conceptId": "nXZy_1Jd_D8X",
+          "label": "Lessebo"
+        },
+        {
+          "conceptId": "qz8Q_kDz_N2Y",
+          "label": "Tingsryd"
+        }
+      ]
     },
     {
       "conceptId": "9hXe_F4g_eTG",
-      "label": "Norrbottens län"
+      "label": "Norrbottens län",
+      "municipalities": [
+        {
+          "conceptId": "14WF_zh1_W3y",
+          "label": "Älvsbyn"
+        },
+        {
+          "conceptId": "6R2u_zkb_uoS",
+          "label": "Gällivare"
+        },
+        {
+          "conceptId": "A5WX_XVo_Zt6",
+          "label": "Arvidsjaur"
+        },
+        {
+          "conceptId": "CXbY_gui_14v",
+          "label": "Luleå"
+        },
+        {
+          "conceptId": "biN6_UiL_Qob",
+          "label": "Kiruna"
+        },
+        {
+          "conceptId": "cUyN_C9V_HLU",
+          "label": "Kalix"
+        },
+        {
+          "conceptId": "dHMF_72G_4NM",
+          "label": "Pajala"
+        },
+        {
+          "conceptId": "ehMP_onv_Chk",
+          "label": "Övertorneå"
+        },
+        {
+          "conceptId": "mp6j_2b6_1bz",
+          "label": "Jokkmokk"
+        },
+        {
+          "conceptId": "n5Sq_xxo_QWL",
+          "label": "Överkalix"
+        },
+        {
+          "conceptId": "tfRE_hXa_eq7",
+          "label": "Haparanda"
+        },
+        {
+          "conceptId": "umej_bP2_PpK",
+          "label": "Piteå"
+        },
+        {
+          "conceptId": "vkQW_GB6_MNk",
+          "label": "Arjeplog"
+        },
+        {
+          "conceptId": "y4NQ_tnB_eVd",
+          "label": "Boden"
+        }
+      ]
     },
     {
       "conceptId": "CaRE_1nn_cSU",
-      "label": "Skåne län"
+      "label": "Skåne län",
+      "municipalities": [
+        {
+          "conceptId": "2r6J_g2w_qp5",
+          "label": "Svalöv"
+        },
+        {
+          "conceptId": "5ohg_WJU_Ktn",
+          "label": "Kävlinge"
+        },
+        {
+          "conceptId": "64g5_Lio_aMU",
+          "label": "Burlöv"
+        },
+        {
+          "conceptId": "8QQ6_e95_a1d",
+          "label": "Höganäs"
+        },
+        {
+          "conceptId": "BN7r_iPV_F9p",
+          "label": "Perstorp"
+        },
+        {
+          "conceptId": "JARU_FAY_hTS",
+          "label": "Klippan"
+        },
+        {
+          "conceptId": "LTt7_CGG_RUf",
+          "label": "Östra Göinge"
+        },
+        {
+          "conceptId": "N29z_AqQ_Ppc",
+          "label": "Höör"
+        },
+        {
+          "conceptId": "P3Cs_1ZP_9XB",
+          "label": "Sjöbo"
+        },
+        {
+          "conceptId": "STvk_dra_M1X",
+          "label": "Trelleborg"
+        },
+        {
+          "conceptId": "Tcog_5sH_b46",
+          "label": "Vellinge"
+        },
+        {
+          "conceptId": "UMev_wGs_9bg",
+          "label": "Tomelilla"
+        },
+        {
+          "conceptId": "WMNK_PXa_Khm",
+          "label": "Bromölla"
+        },
+        {
+          "conceptId": "Yt5s_Vf9_rds",
+          "label": "Landskrona"
+        },
+        {
+          "conceptId": "autr_KMa_cfp",
+          "label": "Hörby"
+        },
+        {
+          "conceptId": "bP5q_53x_aqJ",
+          "label": "Hässleholm"
+        },
+        {
+          "conceptId": "dLxo_EpC_oPe",
+          "label": "Simrishamn"
+        },
+        {
+          "conceptId": "gfCw_egj_1M4",
+          "label": "Eslöv"
+        },
+        {
+          "conceptId": "hdYk_hnP_uju",
+          "label": "Ystad"
+        },
+        {
+          "conceptId": "i8vK_odq_6ar",
+          "label": "Båstad"
+        },
+        {
+          "conceptId": "muSY_tsR_vDZ",
+          "label": "Lund"
+        },
+        {
+          "conceptId": "n6r4_fjK_kRr",
+          "label": "Svedala"
+        },
+        {
+          "conceptId": "nBTS_Nge_dVH",
+          "label": "Örkelljunga"
+        },
+        {
+          "conceptId": "naG4_AUS_z2v",
+          "label": "Lomma"
+        },
+        {
+          "conceptId": "najS_Lvy_mDD",
+          "label": "Osby"
+        },
+        {
+          "conceptId": "oYPt_yRA_Smm",
+          "label": "Malmö"
+        },
+        {
+          "conceptId": "oezL_78x_r89",
+          "label": "Skurup"
+        },
+        {
+          "conceptId": "pCuv_P5A_9oh",
+          "label": "Ängelholm"
+        },
+        {
+          "conceptId": "qj3q_oXH_MGR",
+          "label": "Helsingborg"
+        },
+        {
+          "conceptId": "tEv6_ktG_QQb",
+          "label": "Åstorp"
+        },
+        {
+          "conceptId": "vBrj_bov_KEX",
+          "label": "Staffanstorp"
+        },
+        {
+          "conceptId": "vrvW_sr8_1en",
+          "label": "Kristianstad"
+        },
+        {
+          "conceptId": "waQp_FjW_qhF",
+          "label": "Bjuv"
+        }
+      ]
     },
     {
       "conceptId": "CifL_Rzy_Mku",
-      "label": "Stockholms län"
+      "label": "Stockholms län",
+      "municipalities": [
+        {
+          "conceptId": "15nx_Vut_GrH",
+          "label": "Värmdö"
+        },
+        {
+          "conceptId": "37UU_T7x_oxG",
+          "label": "Nynäshamn"
+        },
+        {
+          "conceptId": "4KBw_CPU_VQv",
+          "label": "Salem"
+        },
+        {
+          "conceptId": "8gKt_ZsV_PGj",
+          "label": "Österåker"
+        },
+        {
+          "conceptId": "8ryy_X54_xJj",
+          "label": "Sigtuna"
+        },
+        {
+          "conceptId": "9aAJ_j6L_DST",
+          "label": "Vaxholm"
+        },
+        {
+          "conceptId": "AvNB_uwa_6n6",
+          "label": "Stockholm"
+        },
+        {
+          "conceptId": "CCVZ_JA7_d3y",
+          "label": "Botkyrka"
+        },
+        {
+          "conceptId": "E4CV_a5E_ucX",
+          "label": "Danderyd"
+        },
+        {
+          "conceptId": "FBbF_mda_TYD",
+          "label": "Lidingö"
+        },
+        {
+          "conceptId": "K4az_Bm6_hRV",
+          "label": "Vallentuna"
+        },
+        {
+          "conceptId": "Q7gp_9dT_k2F",
+          "label": "Haninge"
+        },
+        {
+          "conceptId": "UTJZ_zHH_mJm",
+          "label": "Sundbyberg"
+        },
+        {
+          "conceptId": "XWKY_c49_5nv",
+          "label": "Upplands Väsby"
+        },
+        {
+          "conceptId": "Z5Cq_SgB_dsB",
+          "label": "Sollentuna"
+        },
+        {
+          "conceptId": "aYA7_PpG_BqP",
+          "label": "Nacka"
+        },
+        {
+          "conceptId": "btgf_fS7_sKG",
+          "label": "Norrtälje"
+        },
+        {
+          "conceptId": "g1Gc_aXK_EKu",
+          "label": "Huddinge"
+        },
+        {
+          "conceptId": "g6hK_M1o_hiU",
+          "label": "Södertälje"
+        },
+        {
+          "conceptId": "mBKv_q3B_SK8",
+          "label": "Nykvarn"
+        },
+        {
+          "conceptId": "magF_Gon_YL2",
+          "label": "Ekerö"
+        },
+        {
+          "conceptId": "onpA_B5a_zfv",
+          "label": "Täby"
+        },
+        {
+          "conceptId": "qm5H_jsD_fUF",
+          "label": "Järfälla"
+        },
+        {
+          "conceptId": "sTPc_k2B_SqV",
+          "label": "Tyresö"
+        },
+        {
+          "conceptId": "w6yq_CGR_Fiv",
+          "label": "Upplands-Bro"
+        },
+        {
+          "conceptId": "zHxw_uJZ_NJ8",
+          "label": "Solna"
+        }
+      ]
     },
     {
       "conceptId": "s93u_BEb_sx2",
-      "label": "Södermanlands län"
+      "label": "Södermanlands län",
+      "municipalities": [
+        {
+          "conceptId": "72XK_mUU_CAH",
+          "label": "Oxelösund"
+        },
+        {
+          "conceptId": "KzvD_ePV_DKQ",
+          "label": "Nyköping"
+        },
+        {
+          "conceptId": "P8yp_WT9_Bks",
+          "label": "Flen"
+        },
+        {
+          "conceptId": "kMxr_NiX_YrU",
+          "label": "Eskilstuna"
+        },
+        {
+          "conceptId": "os8Y_RUo_U3u",
+          "label": "Gnesta"
+        },
+        {
+          "conceptId": "rjzu_nQn_mCK",
+          "label": "Trosa"
+        },
+        {
+          "conceptId": "rut9_f5W_kTX",
+          "label": "Vingåker"
+        },
+        {
+          "conceptId": "shnD_RiE_RKL",
+          "label": "Strängnäs"
+        },
+        {
+          "conceptId": "snx9_qVD_Dr1",
+          "label": "Katrineholm"
+        }
+      ]
     },
     {
       "conceptId": "zBon_eET_fFU",
-      "label": "Uppsala län"
+      "label": "Uppsala län",
+      "municipalities": [
+        {
+          "conceptId": "Bbs5_JUs_Qh5",
+          "label": "Håbo"
+        },
+        {
+          "conceptId": "HGwg_unG_TsG",
+          "label": "Enköping"
+        },
+        {
+          "conceptId": "K8A2_JBa_e6e",
+          "label": "Tierp"
+        },
+        {
+          "conceptId": "KALq_sG6_VrW",
+          "label": "Knivsta"
+        },
+        {
+          "conceptId": "VE3L_3Ei_XbG",
+          "label": "Östhammar"
+        },
+        {
+          "conceptId": "cbyw_9aK_Cni",
+          "label": "Älvkarleby"
+        },
+        {
+          "conceptId": "otaF_bQY_4ZD",
+          "label": "Uppsala"
+        },
+        {
+          "conceptId": "sD2e_1Tr_4WZ",
+          "label": "Heby"
+        }
+      ]
     },
     {
       "conceptId": "EVVp_h6U_GSZ",
-      "label": "Värmlands län"
+      "label": "Värmlands län",
+      "municipalities": [
+        {
+          "conceptId": "N5HQ_hfp_7Rm",
+          "label": "Eda"
+        },
+        {
+          "conceptId": "PSNt_P95_x6q",
+          "label": "Grums"
+        },
+        {
+          "conceptId": "SVQS_uwJ_m2B",
+          "label": "Kristinehamn"
+        },
+        {
+          "conceptId": "UXir_vKD_FuW",
+          "label": "Filipstad"
+        },
+        {
+          "conceptId": "hQdb_zn9_Sok",
+          "label": "Torsby"
+        },
+        {
+          "conceptId": "hRDj_PoV_sFU",
+          "label": "Karlstad"
+        },
+        {
+          "conceptId": "mPt5_3QD_LTM",
+          "label": "Storfors"
+        },
+        {
+          "conceptId": "ocMw_Rz5_B1L",
+          "label": "Kil"
+        },
+        {
+          "conceptId": "oqNH_cnJ_Tdi",
+          "label": "Sunne"
+        },
+        {
+          "conceptId": "qk9a_g5U_sAH",
+          "label": "Hagfors"
+        },
+        {
+          "conceptId": "wmxQ_Guc_dsy",
+          "label": "Säffle"
+        },
+        {
+          "conceptId": "x5qW_BXr_aut",
+          "label": "Hammarö"
+        },
+        {
+          "conceptId": "x73h_7rW_mXN",
+          "label": "Munkfors"
+        },
+        {
+          "conceptId": "xnEt_JN3_GkA",
+          "label": "Forshaga"
+        },
+        {
+          "conceptId": "yGue_F32_wev",
+          "label": "Arvika"
+        },
+        {
+          "conceptId": "ymBu_aFc_QJA",
+          "label": "Årjäng"
+        }
+      ]
     },
     {
       "conceptId": "g5Tt_CAV_zBd",
-      "label": "Västerbottens län"
+      "label": "Västerbottens län",
+      "municipalities": [
+        {
+          "conceptId": "7rpN_naz_3Uz",
+          "label": "Lycksele"
+        },
+        {
+          "conceptId": "7sHJ_YCE_5Zv",
+          "label": "Malå"
+        },
+        {
+          "conceptId": "QiGt_BLu_amP",
+          "label": "Umeå"
+        },
+        {
+          "conceptId": "VM7L_yJK_Doo",
+          "label": "Sorsele"
+        },
+        {
+          "conceptId": "XmpG_vPQ_K7T",
+          "label": "Norsjö"
+        },
+        {
+          "conceptId": "gQgT_BAk_fMu",
+          "label": "Storuman"
+        },
+        {
+          "conceptId": "izT6_zWu_tta",
+          "label": "Vindeln"
+        },
+        {
+          "conceptId": "kicB_LgH_2Dk",
+          "label": "Skellefteå"
+        },
+        {
+          "conceptId": "p8Mv_377_bxp",
+          "label": "Robertsfors"
+        },
+        {
+          "conceptId": "tSkf_Tbn_rHk",
+          "label": "Dorotea"
+        },
+        {
+          "conceptId": "tUnW_mFo_Hvi",
+          "label": "Vilhelmina"
+        },
+        {
+          "conceptId": "utQc_6xq_Dfm",
+          "label": "Vännäs"
+        },
+        {
+          "conceptId": "vQkf_tw2_CmR",
+          "label": "Bjurholm"
+        },
+        {
+          "conceptId": "wMab_4Zs_wpM",
+          "label": "Nordmaling"
+        },
+        {
+          "conceptId": "xLdL_tMA_JJv",
+          "label": "Åsele"
+        }
+      ]
     },
     {
       "conceptId": "NvUF_SP1_1zo",
-      "label": "Västernorrlands län"
+      "label": "Västernorrlands län",
+      "municipalities": [
+        {
+          "conceptId": "dJbx_FWY_tK6",
+          "label": "Sundsvall"
+        },
+        {
+          "conceptId": "oJ8D_rq6_kjt",
+          "label": "Timrå"
+        },
+        {
+          "conceptId": "swVa_cyS_EMN",
+          "label": "Ånge"
+        },
+        {
+          "conceptId": "uYRx_AdM_r4A",
+          "label": "Härnösand"
+        },
+        {
+          "conceptId": "v5y4_YPe_TMZ",
+          "label": "Sollefteå"
+        },
+        {
+          "conceptId": "yR8g_7Jz_HBZ",
+          "label": "Kramfors"
+        },
+        {
+          "conceptId": "zBmE_n6s_MnQ",
+          "label": "Örnsköldsvik"
+        }
+      ]
     },
     {
       "conceptId": "G6DV_fKE_Viz",
-      "label": "Västmanlands län"
+      "label": "Västmanlands län",
+      "municipalities": [
+        {
+          "conceptId": "4Taz_AuG_tSm",
+          "label": "Köping"
+        },
+        {
+          "conceptId": "7D9G_yrX_AGJ",
+          "label": "Fagersta"
+        },
+        {
+          "conceptId": "8deT_FRF_2SP",
+          "label": "Västerås"
+        },
+        {
+          "conceptId": "Fac5_h7a_UoM",
+          "label": "Kungsör"
+        },
+        {
+          "conceptId": "Jkyb_5MQ_7pB",
+          "label": "Arboga"
+        },
+        {
+          "conceptId": "Nufj_vmt_VrH",
+          "label": "Skinnskatteberg"
+        },
+        {
+          "conceptId": "dAen_yTK_tqz",
+          "label": "Sala"
+        },
+        {
+          "conceptId": "jbVe_Cps_vtd",
+          "label": "Norberg"
+        },
+        {
+          "conceptId": "jfD3_Hdg_UhT",
+          "label": "Surahammar"
+        },
+        {
+          "conceptId": "oXYf_HmD_ddE",
+          "label": "Hallstahammar"
+        }
+      ]
     },
     {
       "conceptId": "zdoY_6u5_Krt",
-      "label": "Västra Götalands län"
+      "label": "Västra Götalands län",
+      "municipalities": [
+        {
+          "conceptId": "17Ug_Btv_mBr",
+          "label": "Ale"
+        },
+        {
+          "conceptId": "7HAb_9or_eFM",
+          "label": "Mark"
+        },
+        {
+          "conceptId": "96Dh_3sQ_RFb",
+          "label": "Munkedal"
+        },
+        {
+          "conceptId": "CCiR_sXa_BVW",
+          "label": "Partille"
+        },
+        {
+          "conceptId": "CSy8_41F_YvX",
+          "label": "Trollhättan"
+        },
+        {
+          "conceptId": "FN1Y_asc_D8y",
+          "label": "Lidköping"
+        },
+        {
+          "conceptId": "J116_VFs_cg6",
+          "label": "Herrljunga"
+        },
+        {
+          "conceptId": "Lzpu_thX_Wpa",
+          "label": "Mariestad"
+        },
+        {
+          "conceptId": "M1UC_Cnf_r7g",
+          "label": "Åmål"
+        },
+        {
+          "conceptId": "NMc9_oEm_yxy",
+          "label": "Dals-Ed"
+        },
+        {
+          "conceptId": "NfFx_5jj_ogg",
+          "label": "Vårgårda"
+        },
+        {
+          "conceptId": "PAxT_FLT_3Kq",
+          "label": "Strömstad"
+        },
+        {
+          "conceptId": "PVZL_BQT_XtL",
+          "label": "Göteborg"
+        },
+        {
+          "conceptId": "SEje_LdC_9qN",
+          "label": "Tranemo"
+        },
+        {
+          "conceptId": "THif_q6H_MjG",
+          "label": "Vänersborg"
+        },
+        {
+          "conceptId": "TbL3_HmF_gnx",
+          "label": "Tjörn"
+        },
+        {
+          "conceptId": "TpRZ_bFL_jhL",
+          "label": "Borås"
+        },
+        {
+          "conceptId": "UQ75_1eU_jaC",
+          "label": "Alingsås"
+        },
+        {
+          "conceptId": "YQcE_SNB_Tv3",
+          "label": "Lilla Edet"
+        },
+        {
+          "conceptId": "YbFS_34r_K2v",
+          "label": "Hjo"
+        },
+        {
+          "conceptId": "ZNZy_Hh5_gSW",
+          "label": "Grästorp"
+        },
+        {
+          "conceptId": "Zjiv_rhk_oJK",
+          "label": "Öckerö"
+        },
+        {
+          "conceptId": "ZkZf_HbK_Mcr",
+          "label": "Kungälv"
+        },
+        {
+          "conceptId": "Zsf5_vpP_Bs4",
+          "label": "Tidaholm"
+        },
+        {
+          "conceptId": "ZySF_gif_zE4",
+          "label": "Falköping"
+        },
+        {
+          "conceptId": "ZzEA_2Fg_Pt2",
+          "label": "Essunga"
+        },
+        {
+          "conceptId": "a15F_gAH_pn6",
+          "label": "Töreboda"
+        },
+        {
+          "conceptId": "aKkp_sEX_cVM",
+          "label": "Sotenäs"
+        },
+        {
+          "conceptId": "aLFZ_NHw_atB",
+          "label": "Tibro"
+        },
+        {
+          "conceptId": "an4a_8t2_Zpd",
+          "label": "Ulricehamn"
+        },
+        {
+          "conceptId": "dzWW_R3G_6Eh",
+          "label": "Härryda"
+        },
+        {
+          "conceptId": "e413_94L_hdh",
+          "label": "Karlsborg"
+        },
+        {
+          "conceptId": "fbHM_yhA_BqS",
+          "label": "Vara"
+        },
+        {
+          "conceptId": "fqAy_4ji_Lz2",
+          "label": "Skövde"
+        },
+        {
+          "conceptId": "hejM_Jct_XJk",
+          "label": "Bengtsfors"
+        },
+        {
+          "conceptId": "k1SK_gxg_dW4",
+          "label": "Skara"
+        },
+        {
+          "conceptId": "kCHb_icw_W5E",
+          "label": "Färgelanda"
+        },
+        {
+          "conceptId": "mc45_ki9_Bv3",
+          "label": "Mölndal"
+        },
+        {
+          "conceptId": "qffn_qY4_DLk",
+          "label": "Tanum"
+        },
+        {
+          "conceptId": "rZWC_pXf_ySZ",
+          "label": "Svenljunga"
+        },
+        {
+          "conceptId": "roiB_uVV_4Cj",
+          "label": "Gullspång"
+        },
+        {
+          "conceptId": "tmAp_ykH_N6k",
+          "label": "Orust"
+        },
+        {
+          "conceptId": "tt1B_7rH_vhG",
+          "label": "Mellerud"
+        },
+        {
+          "conceptId": "txzq_PQY_FGi",
+          "label": "Götene"
+        },
+        {
+          "conceptId": "wHrG_FBH_hoD",
+          "label": "Stenungsund"
+        },
+        {
+          "conceptId": "xQc2_SzA_rHK",
+          "label": "Uddevalla"
+        },
+        {
+          "conceptId": "yHV7_2Y6_zQx",
+          "label": "Lerum"
+        },
+        {
+          "conceptId": "ypAQ_vTD_KLU",
+          "label": "Bollebygd"
+        },
+        {
+          "conceptId": "z2cX_rjC_zFo",
+          "label": "Lysekil"
+        }
+      ]
     },
     {
       "conceptId": "xTCk_nT5_Zjm",
-      "label": "Örebro län"
+      "label": "Örebro län",
+      "municipalities": [
+        {
+          "conceptId": "Ak9V_rby_yYS",
+          "label": "Hallsberg"
+        },
+        {
+          "conceptId": "JQE9_189_Ska",
+          "label": "Lindesberg"
+        },
+        {
+          "conceptId": "WFXN_hsU_gmx",
+          "label": "Nora"
+        },
+        {
+          "conceptId": "dbF7_Ecz_CWF",
+          "label": "Askersund"
+        },
+        {
+          "conceptId": "eF2n_714_hSU",
+          "label": "Ljusnarsberg"
+        },
+        {
+          "conceptId": "kuMn_feU_hXx",
+          "label": "Örebro"
+        },
+        {
+          "conceptId": "oYEQ_m8Q_unY",
+          "label": "Laxå"
+        },
+        {
+          "conceptId": "pvzC_muj_rcq",
+          "label": "Degerfors"
+        },
+        {
+          "conceptId": "sCbY_r36_xhs",
+          "label": "Hällefors"
+        },
+        {
+          "conceptId": "viCA_36P_pQp",
+          "label": "Kumla"
+        },
+        {
+          "conceptId": "wgJm_upX_z5W",
+          "label": "Karlskoga"
+        },
+        {
+          "conceptId": "yaHU_E7z_YnE",
+          "label": "Lekeberg"
+        }
+      ]
     },
     {
       "conceptId": "oLT3_Q9p_3nn",
-      "label": "Östergötlands län"
+      "label": "Östergötlands län",
+      "municipalities": [
+        {
+          "conceptId": "E1MC_1uG_phm",
+          "label": "Motala"
+        },
+        {
+          "conceptId": "Fu8g_29u_3xF",
+          "label": "Ödeshög"
+        },
+        {
+          "conceptId": "Pcv9_yYh_Uw8",
+          "label": "Söderköping"
+        },
+        {
+          "conceptId": "SYty_Yho_JAF",
+          "label": "Norrköping"
+        },
+        {
+          "conceptId": "Sb3D_iGB_aXu",
+          "label": "Valdemarsvik"
+        },
+        {
+          "conceptId": "U4XJ_hYF_FBA",
+          "label": "Kinda"
+        },
+        {
+          "conceptId": "VcCU_Y86_eKU",
+          "label": "Vadstena"
+        },
+        {
+          "conceptId": "bFWo_FRJ_x2T",
+          "label": "Åtvidaberg"
+        },
+        {
+          "conceptId": "bm2x_1mr_Qhx",
+          "label": "Linköping"
+        },
+        {
+          "conceptId": "dMFe_J6W_iJv",
+          "label": "Finspång"
+        },
+        {
+          "conceptId": "e5LB_m9V_TnT",
+          "label": "Boxholm"
+        },
+        {
+          "conceptId": "stqv_JGB_x8A",
+          "label": "Mjölby"
+        },
+        {
+          "conceptId": "vRRz_nLT_vYv",
+          "label": "Ydre"
+        }
+      ]
     }
   ],
   "occupationFields": [
@@ -1242,6 +2444,176 @@
           "conceptId": "xrNb_bgJ_bdD",
           "label": "Åklagare"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "2kLc_pto_DpV",
+          "label": "Medicinska sekreterare, vårdadministratörer m.fl."
+        },
+        {
+          "conceptId": "4W6S_1kA_nrv",
+          "label": "Skattehandläggare"
+        },
+        {
+          "conceptId": "4aPu_2nd_8X6",
+          "label": "Telefonister"
+        },
+        {
+          "conceptId": "6aak_8eh_iwT",
+          "label": "Åklagare"
+        },
+        {
+          "conceptId": "9dLz_BCK_oDA",
+          "label": "Försäkringssäljare och försäkringsrådgivare"
+        },
+        {
+          "conceptId": "Bbkh_nrm_2J8",
+          "label": "Traders och fondförvaltare"
+        },
+        {
+          "conceptId": "ByrL_ANp_UwV",
+          "label": "Kontorsreceptionister"
+        },
+        {
+          "conceptId": "DZVN_v5g_Fco",
+          "label": "Affärs- och företagsjurister"
+        },
+        {
+          "conceptId": "FfMN_Bw1_qYR",
+          "label": "Banktjänstemän"
+        },
+        {
+          "conceptId": "GMDo_DVo_Yzh",
+          "label": "Lantmätare"
+        },
+        {
+          "conceptId": "H2Zj_eL9_x28",
+          "label": "Gruppledare för kontorspersonal"
+        },
+        {
+          "conceptId": "JAFv_ZaP_tDG",
+          "label": "Inkasserare och pantlånare m.fl."
+        },
+        {
+          "conceptId": "JfYV_ZGg_6rm",
+          "label": "Förvaltnings- och organisationsjurister"
+        },
+        {
+          "conceptId": "L7eh_ihX_vM5",
+          "label": "Löne- och personaladministratörer"
+        },
+        {
+          "conceptId": "MGk3_LvL_AU2",
+          "label": "Backofficepersonal m.fl."
+        },
+        {
+          "conceptId": "Qo7p_wjf_gtv",
+          "label": "Lednings- och organisationsutvecklare"
+        },
+        {
+          "conceptId": "Ru4W_zn2_LEz",
+          "label": "Skadereglerare och värderare"
+        },
+        {
+          "conceptId": "TQkt_eeK_eNp",
+          "label": "Arkiv- och biblioteksassistenter m.fl."
+        },
+        {
+          "conceptId": "Uw4n_UB2_RCW",
+          "label": "Controller"
+        },
+        {
+          "conceptId": "WZCM_nfS_eAk",
+          "label": "Nationalekonomer och makroanalytiker m.fl."
+        },
+        {
+          "conceptId": "Y6yY_SuR_hVh",
+          "label": "Övriga ekonomer"
+        },
+        {
+          "conceptId": "ZQTR_hVC_QhJ",
+          "label": "Skolassistenter m.fl."
+        },
+        {
+          "conceptId": "ZQiZ_6Kd_D3a",
+          "label": "Socialförsäkringshandläggare"
+        },
+        {
+          "conceptId": "aQpg_E2T_cWq",
+          "label": "Mäklare inom finans"
+        },
+        {
+          "conceptId": "bjqk_F3A_5Hk",
+          "label": "Personal- och HR-specialister"
+        },
+        {
+          "conceptId": "br6a_VVS_V3y",
+          "label": "Övriga jurister"
+        },
+        {
+          "conceptId": "cRmd_536_pT1",
+          "label": "Revisorer m.fl."
+        },
+        {
+          "conceptId": "eQ4M_CNm_ozj",
+          "label": "Övriga kontorsassistenter och sekreterare"
+        },
+        {
+          "conceptId": "fsnw_ZCu_v2U",
+          "label": "Arbetsförmedlare"
+        },
+        {
+          "conceptId": "ij8k_EwC_zyB",
+          "label": "Ekonomiassistenter m.fl."
+        },
+        {
+          "conceptId": "jv1x_tpK_32p",
+          "label": "Statistiker"
+        },
+        {
+          "conceptId": "k1Nx_auG_sNh",
+          "label": "Informatörer, kommunikatörer och PR-specialister"
+        },
+        {
+          "conceptId": "oEmP_NC1_sXE",
+          "label": "Övriga handläggare"
+        },
+        {
+          "conceptId": "pTr9_RBT_9ur",
+          "label": "Finansanalytiker och investeringsrådgivare m.fl."
+        },
+        {
+          "conceptId": "pwRH_MT1_8nR",
+          "label": "Kundtjänstpersonal"
+        },
+        {
+          "conceptId": "q81z_3oD_1qu",
+          "label": "Redovisningsekonomer"
+        },
+        {
+          "conceptId": "q8wL_kdi_WaW",
+          "label": "Advokater"
+        },
+        {
+          "conceptId": "qsJJ_EYo_fzA",
+          "label": "Domare"
+        },
+        {
+          "conceptId": "sXgV_QFg_vpb",
+          "label": "Arkeologer och specialister inom humaniora m.m."
+        },
+        {
+          "conceptId": "vCAb_uuo_ek5",
+          "label": "Chefssekreterare och VD-assistenter m.fl."
+        },
+        {
+          "conceptId": "vPP6_rsw_dck",
+          "label": "Planerare och utredare m.fl."
+        },
+        {
+          "conceptId": "zKvJ_GnC_Szx",
+          "label": "Domstols- och juristsekreterare m.fl."
+        }
       ]
     },
     {
@@ -1880,6 +3252,96 @@
           "conceptId": "y4XX_MZ7_Nk7",
           "label": "Yrkesdykare"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "3UzE_P8A_9sS",
+          "label": "Kyl- och värmepumpstekniker m.fl."
+        },
+        {
+          "conceptId": "3ZtN_hhA_SM7",
+          "label": "Anläggningsmaskinförare m.fl."
+        },
+        {
+          "conceptId": "3g5x_Tm7_8QH",
+          "label": "Takmontörer"
+        },
+        {
+          "conceptId": "7zKm_4NW_eey",
+          "label": "Brunnsborrare m.fl."
+        },
+        {
+          "conceptId": "9mJN_VwW_Xjg",
+          "label": "Träarbetare, snickare m.fl."
+        },
+        {
+          "conceptId": "AD3U_cFH_rbe",
+          "label": "Övriga byggnads- och anläggningsarbetare"
+        },
+        {
+          "conceptId": "DPPw_4wa_AsH",
+          "label": "Anläggningsdykare"
+        },
+        {
+          "conceptId": "NnB3_eWH_auo",
+          "label": "Murare m.fl."
+        },
+        {
+          "conceptId": "QKvX_v7r_PNL",
+          "label": "Målare"
+        },
+        {
+          "conceptId": "V79C_DD2_3Gj",
+          "label": "Golvläggare"
+        },
+        {
+          "conceptId": "XYzP_5Tn_7Ep",
+          "label": "Kranförare m.fl."
+        },
+        {
+          "conceptId": "XeBP_nMe_pXx",
+          "label": "Civilingenjörsyrken inom bygg och anläggning"
+        },
+        {
+          "conceptId": "Y4j1_P17_wVA",
+          "label": "Ställningsbyggare"
+        },
+        {
+          "conceptId": "bXfo_4hb_SXx",
+          "label": "Byggnads- och ventilationsplåtslagare"
+        },
+        {
+          "conceptId": "bZ4J_riZ_zK6",
+          "label": "Anläggningsarbetare"
+        },
+        {
+          "conceptId": "cGxX_R9c_kW1",
+          "label": "Isoleringsmontörer"
+        },
+        {
+          "conceptId": "f71c_gjL_RDq",
+          "label": "Gruv- och stenbrottsarbetare"
+        },
+        {
+          "conceptId": "fLKb_bJ3_69p",
+          "label": "VVS-montörer m.fl."
+        },
+        {
+          "conceptId": "iHrC_aRv_fVm",
+          "label": "Grovarbetare inom bygg och anläggning"
+        },
+        {
+          "conceptId": "q2Ge_zrQ_zJb",
+          "label": "Betongarbetare"
+        },
+        {
+          "conceptId": "thZP_oR7_WrY",
+          "label": "Ingenjörer och tekniker inom bygg och anläggning"
+        },
+        {
+          "conceptId": "w6ud_quG_dgh",
+          "label": "Arbetsledare inom bygg, anläggning och gruva"
+        }
       ]
     },
     {
@@ -2254,6 +3716,136 @@
           "conceptId": "aNMw_pdw_wkj",
           "label": "Överdirektör"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1uau_t1u_rDL",
+          "label": "Chefer inom förskoleverksamhet"
+        },
+        {
+          "conceptId": "3i4a_Ufc_qpp",
+          "label": "Verkställande direktörer m.fl."
+        },
+        {
+          "conceptId": "4GAs_rKs_2Ne",
+          "label": "Fastighets- och förvaltningschefer"
+        },
+        {
+          "conceptId": "7mn2_kA9_ftp",
+          "label": "Driftchefer inom bygg, anläggning och gruva"
+        },
+        {
+          "conceptId": "8SPu_K1k_5qR",
+          "label": "Chefer inom arkitekt- och ingenjörsverksamhet"
+        },
+        {
+          "conceptId": "9Mn4_PNA_7Yz",
+          "label": "Chefer inom bank, finans och försäkring"
+        },
+        {
+          "conceptId": "9QMD_sZ3_ZjX",
+          "label": "Förvaltare inom skogsbruk och lantbruk m.fl."
+        },
+        {
+          "conceptId": "Fu4x_7KG_YgC",
+          "label": "Chefer inom handel"
+        },
+        {
+          "conceptId": "NQTS_fou_E6u",
+          "label": "Övriga chefer inom övrig servicenäring"
+        },
+        {
+          "conceptId": "NxXz_fBh_w7j",
+          "label": "Chefer inom socialt och kurativt arbete"
+        },
+        {
+          "conceptId": "Pz9M_srJ_Lc9",
+          "label": "Försäljnings- och marknadschefer"
+        },
+        {
+          "conceptId": "QG4f_MCh_vND",
+          "label": "Forsknings- och utvecklingschefer"
+        },
+        {
+          "conceptId": "X1Ac_Y9P_PJo",
+          "label": "Förvaltnings- och planeringschefer"
+        },
+        {
+          "conceptId": "ajwx_FvL_YuY",
+          "label": "Chefstjänstemän i intresseorganisationer"
+        },
+        {
+          "conceptId": "coyZ_Cyv_Srw",
+          "label": "Chefer inom äldreomsorg"
+        },
+        {
+          "conceptId": "ddGt_fEH_432",
+          "label": "General-, landstings- och kommundirektörer m.fl."
+        },
+        {
+          "conceptId": "eWiB_mGP_MjE",
+          "label": "IT-chefer"
+        },
+        {
+          "conceptId": "eX3C_MtJ_nPA",
+          "label": "Hotell- och konferenschefer"
+        },
+        {
+          "conceptId": "g6eC_Fwu_B3J",
+          "label": "Övriga chefer inom utbildning"
+        },
+        {
+          "conceptId": "hZLv_S5f_jo2",
+          "label": "Restaurang- och kökschefer"
+        },
+        {
+          "conceptId": "mNoS_AN5_drn",
+          "label": "Personal- och HR-chefer"
+        },
+        {
+          "conceptId": "mZsb_A1K_Gec",
+          "label": "Ekonomi- och finanschefer"
+        },
+        {
+          "conceptId": "mpuA_s56_Hsy",
+          "label": "Informations-, kommunikations- och PR-chefer"
+        },
+        {
+          "conceptId": "nNxJ_YWy_vR2",
+          "label": "Inköps-, logistik- och transportchefer"
+        },
+        {
+          "conceptId": "pf1K_PTz_frm",
+          "label": "Produktionschefer inom tillverkning"
+        },
+        {
+          "conceptId": "qVHD_Hj5_PXh",
+          "label": "Politiker"
+        },
+        {
+          "conceptId": "sWzF_6pd_Y6L",
+          "label": "Övriga chefer inom samhällsservice"
+        },
+        {
+          "conceptId": "uxst_tkg_zDh",
+          "label": "Övriga administrations- och servicechefer"
+        },
+        {
+          "conceptId": "wby2_mwq_fWV",
+          "label": "Chefer inom friskvård, sport och fritid"
+        },
+        {
+          "conceptId": "womV_SEj_CAH",
+          "label": "Chefer inom hälso- och sjukvård"
+        },
+        {
+          "conceptId": "x9mo_1VH_Rps",
+          "label": "Chefer och ledare inom trossamfund"
+        },
+        {
+          "conceptId": "z8di_AqX_GBr",
+          "label": "Chefer inom grund- och gymnasieskola samt vuxenutbildning"
+        }
       ]
     },
     {
@@ -2539,6 +4131,56 @@
         {
           "conceptId": "X85i_eSh_Kfv",
           "label": "Webbansvarig"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "13md_uyV_BNG",
+          "label": "Drifttekniker, IT"
+        },
+        {
+          "conceptId": "BAeH_eg8_T2d",
+          "label": "IT-säkerhetsspecialister"
+        },
+        {
+          "conceptId": "D9SL_mtn_vGM",
+          "label": "Systemtestare och testledare"
+        },
+        {
+          "conceptId": "DJh5_yyF_hEM",
+          "label": "Mjukvaru- och systemutvecklare m.fl."
+        },
+        {
+          "conceptId": "Fv7d_YhP_YmS",
+          "label": "Webbmaster och webbadministratörer"
+        },
+        {
+          "conceptId": "MYAz_x9m_2LJ",
+          "label": "Systemadministratörer"
+        },
+        {
+          "conceptId": "Q5DF_juj_8do",
+          "label": "Utvecklare inom spel och digitala media"
+        },
+        {
+          "conceptId": "UXKZ_3zZ_ipB",
+          "label": "Systemanalytiker och IT-arkitekter m.fl."
+        },
+        {
+          "conceptId": "UxT1_tPF_Kbg",
+          "label": "Övriga IT-specialister"
+        },
+        {
+          "conceptId": "VCpu_5EN_bBt",
+          "label": "Nätverks- och systemtekniker m.fl."
+        },
+        {
+          "conceptId": "cBBa_ngH_fCx",
+          "label": "Systemförvaltare m.fl."
+        },
+        {
+          "conceptId": "hmaC_cfi_UKg",
+          "label": "Supporttekniker, IT"
         }
       ]
     },
@@ -3018,6 +4660,104 @@
           "conceptId": "a1E3_mkT_gPe",
           "label": "Virkesköpare/Virkesinköpare"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "41Az_ioZ_rmH",
+          "label": "Apotekstekniker"
+        },
+        {
+          "conceptId": "48KE_fDE_ryL",
+          "label": "Evenemangs- och reseproducenter m.fl."
+        },
+        {
+          "conceptId": "83wV_GJa_vMd",
+          "label": "Marknadsundersökare och intervjuare"
+        },
+        {
+          "conceptId": "85cq_6uK_4cK",
+          "label": "Inköpare och upphandlare"
+        },
+        {
+          "conceptId": "8A1f_sxQ_adT",
+          "label": "Ordersamordnare m.fl."
+        },
+        {
+          "conceptId": "A6X3_efC_VNy",
+          "label": "Guider och reseledare"
+        },
+        {
+          "conceptId": "AQrL_tTu_Wbg",
+          "label": "Optikerassistenter"
+        },
+        {
+          "conceptId": "AuTi_FEo_j3R",
+          "label": "Speditörer och transportmäklare"
+        },
+        {
+          "conceptId": "Fghp_zje_WA8",
+          "label": "Fastighetsmäklare"
+        },
+        {
+          "conceptId": "Fp7x_Yqt_bx9",
+          "label": "Säljande butikschefer och avdelningschefer i butik"
+        },
+        {
+          "conceptId": "JnTF_wXr_6Eh",
+          "label": "Bensinstationspersonal"
+        },
+        {
+          "conceptId": "M47D_MU2_dhS",
+          "label": "Uthyrare"
+        },
+        {
+          "conceptId": "NCeZ_rSk_B4D",
+          "label": "Eventsäljare och butiksdemonstratörer m.fl."
+        },
+        {
+          "conceptId": "PxXc_16t_oZo",
+          "label": "Telefonförsäljare m.fl."
+        },
+        {
+          "conceptId": "WNVp_RYe_zLX",
+          "label": "Kassapersonal m.fl."
+        },
+        {
+          "conceptId": "WX67_Pfb_WMN",
+          "label": "Marknadsanalytiker och marknadsförare m.fl."
+        },
+        {
+          "conceptId": "YKL2_FCB_1yr",
+          "label": "Butikssäljare, fackhandel"
+        },
+        {
+          "conceptId": "dUuh_wwa_FGj",
+          "label": "Övriga förmedlare"
+        },
+        {
+          "conceptId": "fdLf_oPp_wVw",
+          "label": "Resesäljare och trafikassistenter m.fl."
+        },
+        {
+          "conceptId": "iWcY_mko_rq2",
+          "label": "Inköps- och orderassistenter"
+        },
+        {
+          "conceptId": "oXSW_fbY_XrY",
+          "label": "Företagssäljare"
+        },
+        {
+          "conceptId": "p16X_44f_rwZ",
+          "label": "Marknads- och försäljningsassistenter"
+        },
+        {
+          "conceptId": "s1Qk_o98_2o1",
+          "label": "Butikssäljare, dagligvaror"
+        },
+        {
+          "conceptId": "xyW2_toA_Skh",
+          "label": "Torg- och marknadsförsäljare m.fl."
+        }
       ]
     },
     {
@@ -3324,6 +5064,60 @@
           "conceptId": "qy8Z_AhS_M8F",
           "label": "Ädelstensslipare"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1Nwn_GYH_wkH",
+          "label": "Fin-, inrednings- och möbelsnickare"
+        },
+        {
+          "conceptId": "5qT8_z9d_8rw",
+          "label": "Bagare och konditorer"
+        },
+        {
+          "conceptId": "J17g_Q2a_2u1",
+          "label": "Glastekniker"
+        },
+        {
+          "conceptId": "J9Vz_JxJ_Bji",
+          "label": "Gjutare"
+        },
+        {
+          "conceptId": "UZBj_yDX_Ctp",
+          "label": "Sömmare"
+        },
+        {
+          "conceptId": "aKdV_u7V_R5j",
+          "label": "Musikinstrumentmakare och övriga konsthantverkare"
+        },
+        {
+          "conceptId": "e6nk_AGp_y28",
+          "label": "Finmekaniker"
+        },
+        {
+          "conceptId": "mwVN_oEH_g9k",
+          "label": "Skräddare och ateljésömmerskor m.fl."
+        },
+        {
+          "conceptId": "nwSm_phw_sPo",
+          "label": "Guld- och silversmeder"
+        },
+        {
+          "conceptId": "q8Ho_3Xw_sHq",
+          "label": "Smeder"
+        },
+        {
+          "conceptId": "v7W3_cLQ_q2S",
+          "label": "Manuella ytbehandlare, trä"
+        },
+        {
+          "conceptId": "vJQk_YvC_XB7",
+          "label": "Läderhantverkare och skomakare"
+        },
+        {
+          "conceptId": "vhUJ_LyD_XWc",
+          "label": "Tapetserare"
+        }
       ]
     },
     {
@@ -3493,6 +5287,48 @@
         {
           "conceptId": "sqJi_voF_eaR",
           "label": "Storhushållsföreståndare"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1wqU_Jhj_amb",
+          "label": "Kafé- och konditoribiträden"
+        },
+        {
+          "conceptId": "BStc_SJh_DKG",
+          "label": "Kockar och kallskänkor"
+        },
+        {
+          "conceptId": "UjoW_meY_Zwt",
+          "label": "Hovmästare och servitörer"
+        },
+        {
+          "conceptId": "XFXX_Jq9_Y2a",
+          "label": "Bartendrar"
+        },
+        {
+          "conceptId": "XGyi_i4B_ME7",
+          "label": "Köksmästare och souschefer"
+        },
+        {
+          "conceptId": "YHwG_fk2_MDL",
+          "label": "Croupierer och oddssättare m.fl."
+        },
+        {
+          "conceptId": "a8gg_ktU_w8V",
+          "label": "Pizzabagare m.fl."
+        },
+        {
+          "conceptId": "bYde_Frc_xcB",
+          "label": "Hotellreceptionister m.fl."
+        },
+        {
+          "conceptId": "h324_DPT_7Tw",
+          "label": "Storhushållsföreståndare"
+        },
+        {
+          "conceptId": "tPox_ie4_X9X",
+          "label": "Restaurang- och köksbiträden m.fl."
         }
       ]
     },
@@ -4176,6 +6012,176 @@
           "conceptId": "AFm7_LbR_f1U",
           "label": "Ögonsjuksköterska"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1tGC_fXC_mxX",
+          "label": "Röntgensjuksköterskor"
+        },
+        {
+          "conceptId": "3H17_ZZr_BEc",
+          "label": "Ambulanssjukvårdare"
+        },
+        {
+          "conceptId": "4F9o_Jzv_Pwz",
+          "label": "Tandhygienister"
+        },
+        {
+          "conceptId": "5dxv_nVQ_N8o",
+          "label": "Tandsköterskor"
+        },
+        {
+          "conceptId": "6Fu3_qQA_9DK",
+          "label": "Företagssköterskor"
+        },
+        {
+          "conceptId": "6eAB_cbY_i9T",
+          "label": "Geriatriksjuksköterskor"
+        },
+        {
+          "conceptId": "6zAR_EHM_Kwj",
+          "label": "Övriga specialistsjuksköterskor"
+        },
+        {
+          "conceptId": "7XXd_4St_nit",
+          "label": "Barnmorskor"
+        },
+        {
+          "conceptId": "7fNG_sve_JWU",
+          "label": "Skötare"
+        },
+        {
+          "conceptId": "8q1B_5AR_CEM",
+          "label": "Djursjukskötare m.fl."
+        },
+        {
+          "conceptId": "Bywn_Doc_3VF",
+          "label": "Skolsköterskor"
+        },
+        {
+          "conceptId": "F19Z_oB6_pg3",
+          "label": "Terapeuter inom alternativmedicin"
+        },
+        {
+          "conceptId": "GiNX_ESA_AL1",
+          "label": "Övrig vård- och omsorgspersonal"
+        },
+        {
+          "conceptId": "HPxT_fQJ_zwT",
+          "label": "Tandläkare"
+        },
+        {
+          "conceptId": "LP4Z_ABV_gRm",
+          "label": "Undersköterskor, vård- och specialavdelning och mottagning"
+        },
+        {
+          "conceptId": "NFUg_y9y_1TY",
+          "label": "Barnsjuksköterskor"
+        },
+        {
+          "conceptId": "PHJN_fva_yxs",
+          "label": "Ambulanssjuksköterskor m.fl."
+        },
+        {
+          "conceptId": "PUhV_DVQ_MM6",
+          "label": "Optiker"
+        },
+        {
+          "conceptId": "Pq5C_SPC_bRA",
+          "label": "Dietister"
+        },
+        {
+          "conceptId": "TMsM_oNw_j6z",
+          "label": "Apotekare"
+        },
+        {
+          "conceptId": "TPH4_2AM_isT",
+          "label": "Arbetsterapeuter"
+        },
+        {
+          "conceptId": "UUQi_UJ5_MSb",
+          "label": "Psykoterapeuter"
+        },
+        {
+          "conceptId": "VYeq_GDF_a2g",
+          "label": "Psykologer"
+        },
+        {
+          "conceptId": "WL4E_r4b_ek4",
+          "label": "Veterinärer"
+        },
+        {
+          "conceptId": "XjcN_5LT_bWx",
+          "label": "Receptarier"
+        },
+        {
+          "conceptId": "Z8ci_bBE_tmx",
+          "label": "Grundutbildade sjuksköterskor"
+        },
+        {
+          "conceptId": "aWki_4uA_adn",
+          "label": "Kiropraktorer och naprapater m.fl."
+        },
+        {
+          "conceptId": "bEDv_SL7_VrL",
+          "label": "Psykiatrisjuksköterskor"
+        },
+        {
+          "conceptId": "cuaN_Rj5_YCc",
+          "label": "Operationssjuksköterskor"
+        },
+        {
+          "conceptId": "dyWo_sDb_MLQ",
+          "label": "Intensivvårdssjuksköterskor"
+        },
+        {
+          "conceptId": "ek9W_qqp_XpF",
+          "label": "AT-läkare"
+        },
+        {
+          "conceptId": "gXqW_s5Q_ZjN",
+          "label": "Övriga läkare"
+        },
+        {
+          "conceptId": "jY19_knH_MJp",
+          "label": "Undersköterskor, hemtjänst, hemsjukvård, äldreboende och habilitering"
+        },
+        {
+          "conceptId": "kHgb_AHf_vrY",
+          "label": "Barnsköterskor"
+        },
+        {
+          "conceptId": "nrVt_xUL_KdQ",
+          "label": "Anestesisjuksköterskor"
+        },
+        {
+          "conceptId": "nu7c_QuB_KVQ",
+          "label": "Specialistläkare"
+        },
+        {
+          "conceptId": "oj4c_P4b_cja",
+          "label": "Distriktssköterskor"
+        },
+        {
+          "conceptId": "pzch_NRY_9ZF",
+          "label": "Audionomer och logopeder"
+        },
+        {
+          "conceptId": "s7vU_FhY_L5Z",
+          "label": "Fysioterapeuter och sjukgymnaster"
+        },
+        {
+          "conceptId": "seu9_VoQ_VNo",
+          "label": "ST-läkare"
+        },
+        {
+          "conceptId": "tAJS_JNb_hDH",
+          "label": "Vårdbiträden"
+        },
+        {
+          "conceptId": "vTgW_pnr_QMp",
+          "label": "Övriga specialister inom hälso- och sjukvård"
+        }
       ]
     },
     {
@@ -4690,6 +6696,184 @@
           "conceptId": "tDS5_hG2_ML5",
           "label": "Verktygsmakare"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1G6H_AuG_qyy",
+          "label": "Processoperatörer, papper"
+        },
+        {
+          "conceptId": "4DET_dLf_iB9",
+          "label": "Maskinoperatörer, blekning, färgning och tvättning"
+        },
+        {
+          "conceptId": "4bxV_58E_P9N",
+          "label": "Slipare m.fl."
+        },
+        {
+          "conceptId": "4obu_LL6_RqJ",
+          "label": "Processoperatörer, pappersmassa"
+        },
+        {
+          "conceptId": "8ddv_P8e_iYz",
+          "label": "Montörer, träprodukter"
+        },
+        {
+          "conceptId": "AUs8_M5f_dLt",
+          "label": "Maskinoperatörer inom ytbehandling, trä"
+        },
+        {
+          "conceptId": "DxiF_hTo_b3X",
+          "label": "Handpaketerare och andra fabriksarbetare"
+        },
+        {
+          "conceptId": "ENV6_BNa_brP",
+          "label": "Maskinoperatörer, gummiindustri"
+        },
+        {
+          "conceptId": "HXzD_qvt_HV6",
+          "label": "Övriga montörer"
+        },
+        {
+          "conceptId": "Kxm9_N3V_shF",
+          "label": "Montörer, metall-, gummi- och plastprodukter"
+        },
+        {
+          "conceptId": "L4hA_SJP_SFi",
+          "label": "Tunnplåtslagare"
+        },
+        {
+          "conceptId": "LEvM_7Hs_w8i",
+          "label": "Processoperatörer, stenkross- och malmförädling"
+        },
+        {
+          "conceptId": "LeQV_umf_wUS",
+          "label": "Prepresstekniker"
+        },
+        {
+          "conceptId": "MSnK_3Z8_4qA",
+          "label": "Verktygsmakare"
+        },
+        {
+          "conceptId": "QqHf_XKZ_eyy",
+          "label": "Slaktare och styckare m.fl."
+        },
+        {
+          "conceptId": "SgAJ_DW2_FN5",
+          "label": "Montörer, elektrisk och elektronisk utrustning"
+        },
+        {
+          "conceptId": "TrwQ_RXT_W8a",
+          "label": "Stålkonstruktionsmontörer och grovplåtsslagare"
+        },
+        {
+          "conceptId": "UcNa_inr_snV",
+          "label": "Övriga maskin- och processoperatörer vid stål- och metallverk"
+        },
+        {
+          "conceptId": "UdrS_qzV_P7i",
+          "label": "Operatörer inom sågverk, hyvleri och plywood m.m."
+        },
+        {
+          "conceptId": "VKKg_e4t_t46",
+          "label": "Maskinsnickare och maskinoperatörer, träindustri"
+        },
+        {
+          "conceptId": "Vfum_e6B_7Bw",
+          "label": "Maskinoperatörer, kemisktekniska och fotografiska produkter"
+        },
+        {
+          "conceptId": "XeJB_bkn_mRn",
+          "label": "Tryckare"
+        },
+        {
+          "conceptId": "YiQw_N87_zLU",
+          "label": "Maskinoperatörer, ytbehandling"
+        },
+        {
+          "conceptId": "aU9p_ekE_Fqf",
+          "label": "Maskinoperatörer, påfyllning, packning och märkning"
+        },
+        {
+          "conceptId": "dAu7_VyL_hsy",
+          "label": "Provsmakare och kvalitetsbedömare"
+        },
+        {
+          "conceptId": "dKUb_KBP_mw3",
+          "label": "Lackerare och industrimålare"
+        },
+        {
+          "conceptId": "dMVD_VYy_kgg",
+          "label": "Arbetsledare inom tillverkning"
+        },
+        {
+          "conceptId": "gJtZ_EBc_n2z",
+          "label": "Maskinoperatörer, kött- och fiskberedningsindustri"
+        },
+        {
+          "conceptId": "hxm6_xkr_dHm",
+          "label": "Övriga process- och maskinoperatörer"
+        },
+        {
+          "conceptId": "iZLB_KpD_LLo",
+          "label": "Maskinoperatörer, pappersvaruindustri"
+        },
+        {
+          "conceptId": "icae_Y69_H8E",
+          "label": "Övriga maskinoperatörer, livsmedelsindustri m.m."
+        },
+        {
+          "conceptId": "kF59_fge_kts",
+          "label": "Maskinoperatörer, kvarn-, bageri- och konfektyrindustri"
+        },
+        {
+          "conceptId": "m8TS_hdk_pSf",
+          "label": "Valsverksoperatörer"
+        },
+        {
+          "conceptId": "mPzg_93F_QEv",
+          "label": "Bokbindare m.fl."
+        },
+        {
+          "conceptId": "o31g_CX1_qhQ",
+          "label": "Maskinoperatörer, cement-, sten- och betongvaror"
+        },
+        {
+          "conceptId": "rxmK_wwM_1NA",
+          "label": "Maskinoperatörer, farmaceutiska produkter"
+        },
+        {
+          "conceptId": "sX9n_CWa_KVC",
+          "label": "Bergsprängare"
+        },
+        {
+          "conceptId": "shkw_ojo_UL2",
+          "label": "Fordonsmontörer"
+        },
+        {
+          "conceptId": "skLS_kpa_Ui1",
+          "label": "Övriga maskinoperatörer, textil-, skinn- och läderindustri"
+        },
+        {
+          "conceptId": "vCBT_Pnd_8UB",
+          "label": "Stenhuggare m.fl."
+        },
+        {
+          "conceptId": "vaEp_iBS_c5h",
+          "label": "Maskinställare och maskinoperatörer, metallarbete"
+        },
+        {
+          "conceptId": "wQ1E_Bzk_ZyA",
+          "label": "Svetsare och gasskärare"
+        },
+        {
+          "conceptId": "yJk6_azD_ywF",
+          "label": "Maskinoperatörer, mejeri"
+        },
+        {
+          "conceptId": "yPQ4_EaN_Dtj",
+          "label": "Maskinoperatörer, plastindustri"
+        }
       ]
     },
     {
@@ -4960,6 +7144,64 @@
           "conceptId": "9XKh_kC3_A29",
           "label": "Vindkrafttekniker"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "7Zqy_hSM_Fig",
+          "label": "Övriga drifttekniker och processövervakare"
+        },
+        {
+          "conceptId": "9DdK_AZY_ZNK",
+          "label": "Vaktmästare m.fl."
+        },
+        {
+          "conceptId": "Cppd_9P7_HeR",
+          "label": "Drifttekniker vid värme- och vattenverk"
+        },
+        {
+          "conceptId": "E87t_egE_pjA",
+          "label": "Processövervakare, metallproduktion"
+        },
+        {
+          "conceptId": "KttZ_Skc_bMR",
+          "label": "Underhållsmekaniker och maskinreparatörer"
+        },
+        {
+          "conceptId": "Lzpv_ofL_3H5",
+          "label": "Motorfordonsmekaniker och fordonsreparatörer"
+        },
+        {
+          "conceptId": "MW1P_GNJ_4F9",
+          "label": "Distributionselektriker"
+        },
+        {
+          "conceptId": "QEBd_qHu_vGr",
+          "label": "Processövervakare, kemisk industri"
+        },
+        {
+          "conceptId": "a75S_eLg_JWH",
+          "label": "Industrielektriker"
+        },
+        {
+          "conceptId": "df9D_e6y_61z",
+          "label": "Fastighetsskötare"
+        },
+        {
+          "conceptId": "fWrt_sLg_koW",
+          "label": "Elektronikreparatörer och kommunikationselektriker m.fl."
+        },
+        {
+          "conceptId": "iGTu_bYL_2T7",
+          "label": "Flygmekaniker m.fl."
+        },
+        {
+          "conceptId": "ieVp_d5L_rS9",
+          "label": "Övriga servicearbetare"
+        },
+        {
+          "conceptId": "yyF7_jsW_EeP",
+          "label": "Installations- och serviceelektriker"
+        }
       ]
     },
     {
@@ -5021,6 +7263,28 @@
         {
           "conceptId": "GNX3_2s8_99p",
           "label": "Spaterapeut"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "HATH_AfN_RRz",
+          "label": "Fotterapeuter"
+        },
+        {
+          "conceptId": "LyBp_bY6_bZK",
+          "label": "Frisörer"
+        },
+        {
+          "conceptId": "ezKk_kss_CiQ",
+          "label": "Övriga skönhets- och kroppsterapeuter"
+        },
+        {
+          "conceptId": "uxHV_KXc_PKD",
+          "label": "Massörer och massageterapeuter"
+        },
+        {
+          "conceptId": "xr7w_N6Q_QMA",
+          "label": "Hudterapeuter"
         }
       ]
     },
@@ -6072,6 +8336,88 @@
           "conceptId": "zzdq_iU5_Ph4",
           "label": "Översättare, skönlitteratur"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "34Tn_BQQ_tfo",
+          "label": "Bildkonstnärer m.fl."
+        },
+        {
+          "conceptId": "3J38_DNz_YKK",
+          "label": "Fotografer"
+        },
+        {
+          "conceptId": "4BsK_q2C_sCL",
+          "label": "Ljus-, ljud- och scentekniker"
+        },
+        {
+          "conceptId": "8Bmh_vtM_zts",
+          "label": "Grafiska formgivare m.fl."
+        },
+        {
+          "conceptId": "AWJF_wqZ_va9",
+          "label": "Musiker, sångare och kompositörer"
+        },
+        {
+          "conceptId": "CSUf_ZVM_a7Z",
+          "label": "Inredare, dekoratörer och scenografer m.fl."
+        },
+        {
+          "conceptId": "CkRH_4Qn_iX3",
+          "label": "Bild- och sändningstekniker"
+        },
+        {
+          "conceptId": "DqLe_pH6_jyj",
+          "label": "Industridesigner"
+        },
+        {
+          "conceptId": "Mbt6_3ko_DiD",
+          "label": "Designer inom spel och digitala medier"
+        },
+        {
+          "conceptId": "PF4H_kQD_zpL",
+          "label": "Övriga designer och formgivare"
+        },
+        {
+          "conceptId": "PH2M_uV4_r72",
+          "label": "Inspicienter och scriptor m.fl."
+        },
+        {
+          "conceptId": "PQDm_Z63_zst",
+          "label": "Översättare, tolkar och lingvister m.fl."
+        },
+        {
+          "conceptId": "Qbvf_6nd_Esn",
+          "label": "Museiintendenter m.fl."
+        },
+        {
+          "conceptId": "SgNH_hag_n9D",
+          "label": "Journalister m.fl."
+        },
+        {
+          "conceptId": "gmRr_7tt_eHj",
+          "label": "Koreografer och dansare"
+        },
+        {
+          "conceptId": "iBUL_s38_izZ",
+          "label": "Skådespelare"
+        },
+        {
+          "conceptId": "rYSG_3WJ_LmC",
+          "label": "Regissörer och producenter av film, teater m.m."
+        },
+        {
+          "conceptId": "wVfo_Njx_1rB",
+          "label": "Bibliotekarier och arkivarier"
+        },
+        {
+          "conceptId": "xuSE_mtB_Mir",
+          "label": "Övriga yrken inom kultur och underhållning"
+        },
+        {
+          "conceptId": "zfve_s6G_tpc",
+          "label": "Författare m.fl."
+        }
       ]
     },
     {
@@ -6089,6 +8435,20 @@
         {
           "conceptId": "EsHf_niD_7PB",
           "label": "Specialistofficer"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "KiVA_anS_RJh",
+          "label": "Officerare"
+        },
+        {
+          "conceptId": "dhgR_9jk_95r",
+          "label": "Specialistofficerare"
+        },
+        {
+          "conceptId": "jXUQ_rUV_iBv",
+          "label": "Soldater m.fl."
         }
       ]
     },
@@ -6499,6 +8859,64 @@
         {
           "conceptId": "EUwj_KEo_dNz",
           "label": "Yrkesjägare"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1EBv_UzM_ozQ",
+          "label": "Bärplockare och plantörer m.fl."
+        },
+        {
+          "conceptId": "2xQ4_4kh_kTZ",
+          "label": "Trädgårdsodlare"
+        },
+        {
+          "conceptId": "3LdB_WEJ_8Ms",
+          "label": "Specialister och rådgivare inom skogsbruk"
+        },
+        {
+          "conceptId": "KYmy_iqC_xiQ",
+          "label": "Uppfödare och skötare av lantbrukets husdjur"
+        },
+        {
+          "conceptId": "KwVo_sQu_G2e",
+          "label": "Förare av jordbruks- och skogsmaskiner"
+        },
+        {
+          "conceptId": "Lm3Z_gek_GYc",
+          "label": "Fiskare"
+        },
+        {
+          "conceptId": "Lrsj_wRZ_sFV",
+          "label": "Övriga djuruppfödare och djurskötare"
+        },
+        {
+          "conceptId": "MSzH_F2n_Emb",
+          "label": "Uppfödare och skötare av sällskapsdjur"
+        },
+        {
+          "conceptId": "RYCQ_ogb_uUY",
+          "label": "Växtodlare och djuruppfödare, blandad drift"
+        },
+        {
+          "conceptId": "XBh3_Xrm_C4R",
+          "label": "Trädgårdsanläggare m.fl."
+        },
+        {
+          "conceptId": "XurM_DVs_ggn",
+          "label": "Specialister och rådgivare inom lantbruk m.m."
+        },
+        {
+          "conceptId": "c8r8_e4L_gwj",
+          "label": "Fiskodlare"
+        },
+        {
+          "conceptId": "k3R3_UkC_nK2",
+          "label": "Odlare av jordbruksväxter, frukt och bär"
+        },
+        {
+          "conceptId": "qouP_wtb_93q",
+          "label": "Skogsarbetare"
         }
       ]
     },
@@ -6950,6 +9368,52 @@
           "conceptId": "Dhyj_JLZ_JA6",
           "label": "Ärftlighetsforskare"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "KM7d_Z6Y_LCJ",
+          "label": "Fysiker och astronomer"
+        },
+        {
+          "conceptId": "LP8B_auW_wMp",
+          "label": "Meteorologer"
+        },
+        {
+          "conceptId": "V7Yz_4WV_g4z",
+          "label": "Geologer och geofysiker m.fl."
+        },
+        {
+          "conceptId": "Z2MZ_eYc_Lfv",
+          "label": "Cell- och molekylärbiologer m.fl."
+        },
+        {
+          "conceptId": "ZA1N_Z2B_nFQ",
+          "label": "Matematiker och aktuarier"
+        },
+        {
+          "conceptId": "dsK3_hkt_zGy",
+          "label": "Farmakologer och biomedicinare"
+        },
+        {
+          "conceptId": "e9FK_VKh_ahW",
+          "label": "Växt- och djurbiologer"
+        },
+        {
+          "conceptId": "eofS_oZs_RZi",
+          "label": "Kemister"
+        },
+        {
+          "conceptId": "puim_6PY_DGj",
+          "label": "Miljö- och hälsoskyddsinspektörer"
+        },
+        {
+          "conceptId": "rE1E_m3d_cx1",
+          "label": "Specialister inom miljöskydd och miljöteknik"
+        },
+        {
+          "conceptId": "wNrt_Ysj_WuT",
+          "label": "Biomedicinska analytiker m.fl."
+        }
       ]
     },
     {
@@ -7356,6 +9820,84 @@
           "conceptId": "86sy_hBf_exW",
           "label": "Ämneslärare, gymnasieskolan"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1CX5_mZw_Vcq",
+          "label": "Övriga utbildare och instruktörer"
+        },
+        {
+          "conceptId": "2x2V_UeL_6ke",
+          "label": "Lärare i yrkesämnen"
+        },
+        {
+          "conceptId": "3FP7_4Eg_x8P",
+          "label": "Speciallärare och specialpedagoger m.fl."
+        },
+        {
+          "conceptId": "4KhP_FxL_uZ5",
+          "label": "Gymnasielärare"
+        },
+        {
+          "conceptId": "5ek3_Cgq_WeZ",
+          "label": "Förskollärare"
+        },
+        {
+          "conceptId": "AwXA_EM4_71n",
+          "label": "Professionella idrottsutövare"
+        },
+        {
+          "conceptId": "CFW8_eBa_NaV",
+          "label": "Fritidspedagoger"
+        },
+        {
+          "conceptId": "EA6o_N1N_QtT",
+          "label": "Idrottstränare och instruktörer m.fl."
+        },
+        {
+          "conceptId": "Gm5j_S2Y_aTB",
+          "label": "Professorer"
+        },
+        {
+          "conceptId": "Hi9c_iTe_gHH",
+          "label": "Barnskötare"
+        },
+        {
+          "conceptId": "NNK9_F1o_pK5",
+          "label": "Doktorander"
+        },
+        {
+          "conceptId": "P7eS_nP8_3dy",
+          "label": "Forskarassistenter m.fl."
+        },
+        {
+          "conceptId": "RPBE_x5M_cXX",
+          "label": "Övriga universitets- och högskolelärare"
+        },
+        {
+          "conceptId": "XW9L_tA9_WaX",
+          "label": "Elevassistenter m.fl."
+        },
+        {
+          "conceptId": "cYCo_PxY_zQd",
+          "label": "Universitets- och högskolelektorer"
+        },
+        {
+          "conceptId": "jJF3_qaQ_Zsh",
+          "label": "Studie- och yrkesvägledare"
+        },
+        {
+          "conceptId": "mcRJ_kq2_jFr",
+          "label": "Övriga pedagoger med teoretisk specialistkompetens"
+        },
+        {
+          "conceptId": "oQUQ_D11_HPx",
+          "label": "Grundskollärare"
+        },
+        {
+          "conceptId": "yVZH_zHh_6fG",
+          "label": "Trafiklärare"
+        }
       ]
     },
     {
@@ -7449,6 +9991,36 @@
         {
           "conceptId": "snWH_Lp8_JfA",
           "label": "Återvinningsarbetare på ÅVC"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "FjdF_H2e_tAG",
+          "label": "Bilrekonditionerare, fönsterputsare m.fl."
+        },
+        {
+          "conceptId": "FtyZ_Joo_tB8",
+          "label": "Städledare och husfruar"
+        },
+        {
+          "conceptId": "SUfj_4D9_FNx",
+          "label": "Skorstensfejare"
+        },
+        {
+          "conceptId": "X7HR_rZK_4wj",
+          "label": "Renhållnings- och återvinningsarbetare"
+        },
+        {
+          "conceptId": "Z6TY_xDf_Yup",
+          "label": "Städare"
+        },
+        {
+          "conceptId": "idjo_2Wr_a3E",
+          "label": "Saneringsarbetare m.fl."
+        },
+        {
+          "conceptId": "o1gn_FoS_fB7",
+          "label": "Övrig hemservicepersonal m.fl."
         }
       ]
     },
@@ -7711,6 +10283,48 @@
         {
           "conceptId": "wTfw_7hJ_gkU",
           "label": "Yrkeshygieniker"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "FKCE_Anf_zGH",
+          "label": "Tull- och kustbevakningstjänstemän"
+        },
+        {
+          "conceptId": "Uw64_cuc_U3H",
+          "label": "Arbetsmiljöingenjörer, yrkes- och miljöhygieniker"
+        },
+        {
+          "conceptId": "ayQ4_G3W_A2w",
+          "label": "Övrig bevaknings- och säkerhetspersonal"
+        },
+        {
+          "conceptId": "hgAg_gLr_YGg",
+          "label": "Kriminalvårdare"
+        },
+        {
+          "conceptId": "iqZh_3yX_i8n",
+          "label": "Väktare och ordningsvakter"
+        },
+        {
+          "conceptId": "kZwz_D8K_bKs",
+          "label": "SOS-operatörer m.fl."
+        },
+        {
+          "conceptId": "nuXg_Wjc_JPd",
+          "label": "Säkerhetsinspektörer m.fl."
+        },
+        {
+          "conceptId": "rNcE_Zno_pD8",
+          "label": "Poliser"
+        },
+        {
+          "conceptId": "ug5y_o6z_U3L",
+          "label": "Brandmän"
+        },
+        {
+          "conceptId": "wCx8_rY3_XUT",
+          "label": "Brandingenjörer och byggnadsinspektörer m.fl."
         }
       ]
     },
@@ -8302,6 +10916,92 @@
           "conceptId": "8UPT_SpB_Zqh",
           "label": "Överstyrman"
         }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "1Tso_4TB_RkE",
+          "label": "Kabinpersonal m.fl."
+        },
+        {
+          "conceptId": "3MBw_pDA_P2F",
+          "label": "Lastbilsförare m.fl."
+        },
+        {
+          "conceptId": "7n3y_FTE_qSe",
+          "label": "Piloter m.fl."
+        },
+        {
+          "conceptId": "957L_kZK_rHZ",
+          "label": "Transportledare och transportsamordnare"
+        },
+        {
+          "conceptId": "CbQK_7th_Tyf",
+          "label": "Matroser och jungmän m.fl."
+        },
+        {
+          "conceptId": "FiDm_2S8_gx7",
+          "label": "Buss- och spårvagnsförare"
+        },
+        {
+          "conceptId": "MrcX_RDn_N53",
+          "label": "Truckförare"
+        },
+        {
+          "conceptId": "P7Ay_ooF_pri",
+          "label": "Övriga bil-, motorcykel- och cykelförare"
+        },
+        {
+          "conceptId": "Rsoy_sS6_6c4",
+          "label": "Maskinbefäl"
+        },
+        {
+          "conceptId": "SZ7Q_2zF_nFy",
+          "label": "Hamnarbetare"
+        },
+        {
+          "conceptId": "UGgc_Vm9_Bog",
+          "label": "Lokförare"
+        },
+        {
+          "conceptId": "WhBn_FAp_ZNW",
+          "label": "Arbetsledare inom lager och terminal"
+        },
+        {
+          "conceptId": "bwnk_nv2_1cR",
+          "label": "Ramppersonal, flyttkarlar och varupåfyllare m.fl."
+        },
+        {
+          "conceptId": "ffz2_2n3_R7g",
+          "label": "Taxiförare m.fl."
+        },
+        {
+          "conceptId": "gaBh_1vR_tNE",
+          "label": "Brevbärare och postterminalarbetare"
+        },
+        {
+          "conceptId": "kDnq_Q98_sD3",
+          "label": "Fartygsbefäl m.fl."
+        },
+        {
+          "conceptId": "kLyY_rwr_aJr",
+          "label": "Lager- och terminalpersonal"
+        },
+        {
+          "conceptId": "nk6Z_5oD_QoM",
+          "label": "Bangårdspersonal"
+        },
+        {
+          "conceptId": "qhbP_JEJ_HtK",
+          "label": "Reklamutdelare och tidningsdistributörer"
+        },
+        {
+          "conceptId": "s78G_Zp2_dkq",
+          "label": "Tågvärdar och ombordansvariga m.fl."
+        },
+        {
+          "conceptId": "yct8_Pun_DWd",
+          "label": "Flygledare"
+        }
       ]
     },
     {
@@ -8631,6 +11331,64 @@
         {
           "conceptId": "y114_8sx_SXk",
           "label": "Äldreomsorgschef"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "2L2s_EU8_PzR",
+          "label": "Präster"
+        },
+        {
+          "conceptId": "5uP5_Ugw_aVE",
+          "label": "Biståndsbedömare m.fl."
+        },
+        {
+          "conceptId": "7pz9_eY9_D2s",
+          "label": "Vårdare, boendestödjare"
+        },
+        {
+          "conceptId": "BWwk_fYX_S5B",
+          "label": "Behandlingsassistenter och socialpedagoger m.fl."
+        },
+        {
+          "conceptId": "DSGC_nw7_WnH",
+          "label": "Övrig servicepersonal"
+        },
+        {
+          "conceptId": "FpPP_jqK_xzT",
+          "label": "Friskvårdskonsulenter och hälsopedagoger m.fl."
+        },
+        {
+          "conceptId": "R8bW_rsJ_b2G",
+          "label": "Begravnings- och krematoriepersonal"
+        },
+        {
+          "conceptId": "aA2Z_9XX_R1v",
+          "label": "Fritidsledare m.fl."
+        },
+        {
+          "conceptId": "dJXy_Rpq_a2u",
+          "label": "Kuratorer"
+        },
+        {
+          "conceptId": "n6iX_f2z_XfE",
+          "label": "Övriga yrken inom socialt arbete"
+        },
+        {
+          "conceptId": "pok1_ipJ_yzD",
+          "label": "Socialsekreterare"
+        },
+        {
+          "conceptId": "sq3e_WVv_Fjd",
+          "label": "Personliga assistenter"
+        },
+        {
+          "conceptId": "wzeq_No2_LF1",
+          "label": "Diakoner"
+        },
+        {
+          "conceptId": "x5rn_vga_gRK",
+          "label": "Pastorer m.fl."
         }
       ]
     },
@@ -9505,6 +12263,92 @@
         {
           "conceptId": "qCeG_oQA_cxB",
           "label": "Verktygskonstruktör"
+        }
+      ],
+      "occupationGroups": [
+        {
+          "conceptId": "33Nt_DSs_YYA",
+          "label": "Ingenjörer och tekniker inom industri, logistik och produktionsplanering"
+        },
+        {
+          "conceptId": "39yB_xPQ_ozd",
+          "label": "Tandtekniker och ortopedingenjörer m.fl."
+        },
+        {
+          "conceptId": "3jEy_yuT_aVo",
+          "label": "Ingenjörer och tekniker inom gruvteknik och metallurgi"
+        },
+        {
+          "conceptId": "41KB_bfk_5jR",
+          "label": "Arkitekter m.fl."
+        },
+        {
+          "conceptId": "ETAR_ggZ_Wuw",
+          "label": "Landskapsarkitekter"
+        },
+        {
+          "conceptId": "GC7L_Yw7_Mfo",
+          "label": "Tekniker, bilddiagnostik och medicinteknisk utrustning"
+        },
+        {
+          "conceptId": "K8yg_U4C_gkY",
+          "label": "Ingenjörer och tekniker inom maskinteknik"
+        },
+        {
+          "conceptId": "PRQn_9yw_NJA",
+          "label": "Civilingenjörsyrken inom maskinteknik"
+        },
+        {
+          "conceptId": "Pd51_xnr_KCY",
+          "label": "Planeringsarkitekter m.fl."
+        },
+        {
+          "conceptId": "SPYW_7Z1_ShT",
+          "label": "Civilingenjörsyrken inom elektroteknik"
+        },
+        {
+          "conceptId": "U8HK_Jdi_GuC",
+          "label": "Fastighetsförvaltare"
+        },
+        {
+          "conceptId": "bExu_8gk_azk",
+          "label": "Laboratorieingenjörer"
+        },
+        {
+          "conceptId": "eRkT_cTv_H9v",
+          "label": "Flygtekniker"
+        },
+        {
+          "conceptId": "ketV_G9W_GeR",
+          "label": "GIS- och kartingenjörer"
+        },
+        {
+          "conceptId": "mis4_feV_uex",
+          "label": "Övriga ingenjörer och tekniker"
+        },
+        {
+          "conceptId": "mp2Y_vyC_RFV",
+          "label": "Övriga civilingenjörsyrken"
+        },
+        {
+          "conceptId": "nDaB_vdy_eAy",
+          "label": "Ingenjörer och tekniker inom elektroteknik"
+        },
+        {
+          "conceptId": "qn2U_dB9_Cmh",
+          "label": "Civilingenjörsyrken inom kemi och kemiteknik"
+        },
+        {
+          "conceptId": "rwpH_6RA_XTT",
+          "label": "Civilingenjörsyrken inom gruvteknik och metallurgi"
+        },
+        {
+          "conceptId": "v9nU_6Fw_4Qg",
+          "label": "Ingenjörer och tekniker inom kemi och kemiteknik"
+        },
+        {
+          "conceptId": "xm5G_vGn_iyk",
+          "label": "Civilingenjörsyrken inom logistik och produktionsplanering"
         }
       ]
     }

@@ -14,8 +14,17 @@ if [ -z "$SLN" ] && [ ! -d "$WEB_DIR" ]; then
     exit 0
 fi
 
-# .NET-gates (aktiveras när .sln finns)
-if [ -n "$SLN" ]; then
+# Stage:ade filer (ACM = added/copied/modified) styr vilka gates som körs.
+# Rena docs-/markdown-commits ska INTE bygga .NET — bygget låser Domain.dll
+# (krockar med körande Api/Worker → MSB3027) och är onödigt för icke-kod-ändringar.
+# CI-aggregatet `ci` på PR:n kör hela bygget + alla tester ändå (ADR 0065 är den
+# riktiga gaten); pre-commit är en lokal snabbkoll, inte täckningskällan.
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+DOTNET_CHANGED=$(echo "$STAGED" | grep -E '\.(cs|csproj|props|targets|sln)$|(^|/)global\.json$' || true)
+WEB_CHANGED=$(echo "$STAGED" | grep -E "^$WEB_DIR/" || true)
+
+# .NET-gates (aktiveras när .sln finns OCH .NET-relevanta filer är stage:ade)
+if [ -n "$SLN" ] && [ -n "$DOTNET_CHANGED" ]; then
     echo "[pre-commit] .NET format + snabba tester..."
     dotnet format --verify-no-changes || {
         echo "✗ dotnet format fel. Kör 'dotnet format' och stega in igen." >&2
@@ -24,13 +33,17 @@ if [ -n "$SLN" ]; then
     dotnet test --project tests/JobbPilot.Domain.UnitTests/JobbPilot.Domain.UnitTests.csproj --verbosity minimal || exit 1
     dotnet test --project tests/JobbPilot.Application.UnitTests/JobbPilot.Application.UnitTests.csproj --verbosity minimal || exit 1
     dotnet test --project tests/JobbPilot.Architecture.Tests/JobbPilot.Architecture.Tests.csproj --verbosity minimal || exit 1
+elif [ -n "$SLN" ]; then
+    echo "[pre-commit] Inga .NET-filer stage:ade — hoppar över .NET-gates (CI är gaten, ADR 0065)."
 fi
 
-# Web-gates (aktiveras när web/jobbpilot-web/ finns)
-if [ -d "$WEB_DIR" ]; then
+# Web-gates (aktiveras när web/jobbpilot-web/ finns OCH web-filer är stage:ade)
+if [ -d "$WEB_DIR" ] && [ -n "$WEB_CHANGED" ]; then
     echo "[pre-commit] Web lint + typecheck..."
     (cd "$WEB_DIR" && pnpm lint && pnpm tsc --noEmit) || exit 1
+elif [ -d "$WEB_DIR" ]; then
+    echo "[pre-commit] Inga web-filer stage:ade — hoppar över web-gates."
 fi
 
-echo "[pre-commit] ✓ Alla pre-commit-gates passerade."
+echo "[pre-commit] ✓ Alla pre-commit-gates passerade (relevanta för stage:ade filer)."
 exit 0

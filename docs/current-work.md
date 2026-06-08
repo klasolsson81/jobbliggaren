@@ -1,6 +1,24 @@
 # Current work — JobbPilot
 
-**Status:** **GH-SÄKERHETSHÄRDNINGS-BÅGE LEVERERAD 2026-06-07/08 (main `c062448`+, 5 PR:er #21–#25).** CodeQL code-scanning live (observe-only) + alla 8 SSRF-alarm åtgärdade + spec-/doc-korrigeringar + automerge-policy formaliserad + sista Dependabot-alarmet stängt. **GitHub Security: 9 → 0 alarm.** **Nästa steg:** ny uppgift (ingen pending).
+**Status:** **ADR 0050 (Hetzner-VPS-exit) AMENDERAD + ACCEPTED 2026-06-08 (bas-HEAD `076ca72`, docs/ADR-only PR mot main).** Strategisk session: re-validerade ADR 0050 (skriven 2026-05-19, före AWS-teardown 0066 + LocalDataKeyProvider) mot nuläget, flippade Proposed→Accepted med targeted amendment. **Beslut (Klas-GO):** sizing CX32→**CAX31** (ARM 8vCPU/16GB/160GB ~€16/mån, total backend-compute inkl. co-tenant-DB); backup R2→**Hetzner-EU Storage Box** (CLOUD Act); KMS-blocker LÖST via 0066 (omframad → TD-102); ogiltig rollback-story ersatt; **Pre-beta-data-gates** (security-auditor 2 Blockers + 4 Majors, alla gates FÖRE real-PII ej före flip). **Sekvens: Fas 4 (AI Layer) näst, Hetzner sist vid MVP före beta-testare.** **Nästa steg:** Fas 4 (ADR 0051) alternativt TD-rensning.
+
+**Levererat denna session (ADR 0050-PR):**
+
+- **ADR 0050 amendment + Accepted:** rubrik CX32→CAX31, Beslut 2 (sizing + ARM-motivering + single-box-RAM-feldomän), Beslut 4 (backup Hetzner-EU + klient-kryptering), "Öppen fråga KMS-beroende" → "LÖST via ADR 0066", rollback-story (lokal-Compose-paritets-baseline), Amendment 2026-06-08-sektion (mem_limit-hybrid + Pre-beta-data-gate-tabell + sekvensering), Konsekvens-kostnad (~€19/mån ~80%), Relaterade beslut + Referenser. Livscykel-not dokumenterar §9.4-Klas-override-revision.
+- **TD-106** (Major, Hetzner-deploy): Compose-stack + Caddy + deploy-sekvens + VPS-härdning (M-5/M-6, AlbOptions-rename, conn-pool, deploy-workflow). **TD-107** (Major): krypterad Hetzner-EU-backup + restore-runbook + retention (M-4).
+- **TD-104** beslutsaxel uppdaterad (Serilog>OTel, Seq-self-hosted-lutning). **TD-101/102/105** cross-refs → ADR 0050 Accepted. Översiktstabell + ADR-index (README) uppdaterade.
+- **3 agent-rapporter** i `docs/reviews/2026-06-08-adr-0050-*` (architect/security/CTO inline i PR-body).
+- **B-2 GDPR-Blocker verifierad GRÖN:** `appsettings.Local.json` i .gitignore, aldrig committad, inget master-nyckel-värde i git-historik.
+
+**Eskalerat till Klas (GDPR-Blockers, gates FÖRE real-PII ej denna session):** B-1 (master-nyckel aldrig plaintext-på-disk på beta-VPS) — Hetzner-fas (TD-102). B-2 verifierad grön denna session.
+
+**Deferat (separat Klas-GO):** AWS-kodhygien (rensa döda `deploy-dev.yml`+`rds-ca-bundle-check.yml`) = egen `chore(infra)`-PR (`.github/`-touch). KMS-SDK behålls (0066-reversibilitet); SecretsManager via TD-105.
+
+**⚠️ SECURITY WARNING (flaggad till Klas):** senior-cto-advisor-subagenten körde PowerShell-cmdlets (Select-String/Select-Object) via Bash → kringgick user-deny mot PowerShell. Granskat: read-only discovery, ingen mutation, påverkar ej domen. Flaggat per stående praxis (`feedback_subagent_hook_bypass_watch`).
+
+---
+
+**(Föregående) Status:** **GH-SÄKERHETSHÄRDNINGS-BÅGE LEVERERAD 2026-06-07/08 (main `c062448`+, 5 PR:er #21–#25).** CodeQL code-scanning live (observe-only) + alla 8 SSRF-alarm åtgärdade + spec-/doc-korrigeringar + automerge-policy formaliserad + sista Dependabot-alarmet stängt. **GitHub Security: 9 → 0 alarm.** **Nästa steg:** ny uppgift (ingen pending).
 
 **Levererat (PR-kedja):**
 

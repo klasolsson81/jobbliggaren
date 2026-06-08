@@ -1,6 +1,7 @@
 using Hangfire;
 using JobbPilot.Application.Common.Authorization;
 using JobbPilot.Application.JobAds.Commands.RedactRecruiterPii;
+using JobbPilot.Application.JobAds.Jobs.BackfillJobAdKlass2;
 using JobbPilot.Application.JobAds.Jobs.BackfillJobAdSsyk;
 using Mediator;
 
@@ -82,6 +83,25 @@ public static class AdminJobAdsEndpoints
                 uri: null,
                 value: new BackfillSsykResponse(JobId: jobId));
         });
+
+        // Fas B2 (2026-06-08, ADR 0067 Beslut 2) — engångs-backfill av Klass 2-
+        // kolumnerna (employment_type_concept_id + worktime_extent_concept_id) för
+        // JobAds vars raw_payload saknar dessa keys (alla rader importerade före
+        // B2:s JobTechHit-POCO-tillägg → 100% av tabellen tills körningen skett).
+        // Samma fire-and-forget-mönster som backfill-ssyk: enqueue:as direkt mot
+        // Worker-processens HangfireServer, Api returnerar 202 + jobId omedelbart.
+        // Per-ID-refetch re-skriver hela raw_payload → båda Klass 2-kolumnerna
+        // populeras. Idempotent restart-vänlig via NULL-filter. Engångs-operation,
+        // INTE i RecurringJobRegistrar. Re-ingest-körningen är Klas-GO-grindad
+        // (ADR 0067 Beslut 2 — kolumnerna NULL tills körd).
+        group.MapPost("/backfill-klass2", (IBackgroundJobClient backgroundJobs) =>
+        {
+            var jobId = backgroundJobs.Enqueue<BackfillJobAdKlass2Job>(
+                j => j.RunAsync(CancellationToken.None));
+            return Results.Accepted(
+                uri: null,
+                value: new BackfillKlass2Response(JobId: jobId));
+        });
     }
 }
 
@@ -107,3 +127,10 @@ public sealed record RedactRecruiterPiiResponse(
 /// /aws/ecs/jobbpilot-dev/worker-loggen för progress/completion).
 /// </summary>
 public sealed record BackfillSsykResponse(string JobId);
+
+/// <summary>
+/// Response-body för POST /api/v1/admin/job-ads/backfill-klass2 (Fas B2).
+/// JobId = Hangfire-jobb-id (inspekteras via Hangfire-storage / Worker-loggen
+/// för progress/completion).
+/// </summary>
+public sealed record BackfillKlass2Response(string JobId);

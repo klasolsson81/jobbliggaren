@@ -96,6 +96,28 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasColumnName("municipality_concept_id")
             .HasComputedColumnSql("raw_payload->'workplace_address'->>'municipality_concept_id'", stored: true);
 
+        // B2 (ADR 0067 Beslut 2, Platsbanken sök-paritet) — Klass 2 STORED
+        // generated columns: anställningsform (employment_type) + omfattning
+        // (worktime_extent). Båda TOP-LEVEL i payloaden (som occupation_group i
+        // B1). SKILLNAD MOT B1/Klass 1: raw_payload saknar dessa keys för ALLA
+        // befintliga rader (JobTechHit-POCO deserialiserade dem aldrig förrän B2)
+        // → kolumnerna är NULL för 100% av raderna tills POCO-tillägg + full
+        // re-ingest (backfill-klass2-jobbet) re-serialiserar raw_payload. ADD
+        // COLUMN backfillar INGET här (till skillnad mot B1 där payload fanns).
+        //
+        // NAMNGLAPP-FÄLLA: kolumnen heter worktime_extent_concept_id (taxonomi-typ
+        // worktime-extent) men källan i payloaden heter working_hours_type. ADR
+        // 0067 Beslut 2 låser kolumnnamnet efter taxonomi-typen. Pekar
+        // computedColumnSql på fel path ('worktime_extent') blir kolumnen tyst
+        // alltid-NULL utan kompileringsfel — verifierat av JobAdGeneratedColumnsTests.
+        builder.Property<string?>("EmploymentTypeConceptId")
+            .HasColumnName("employment_type_concept_id")
+            .HasComputedColumnSql("raw_payload->'employment_type'->>'concept_id'", stored: true);
+
+        builder.Property<string?>("WorktimeExtentConceptId")
+            .HasColumnName("worktime_extent_concept_id")
+            .HasComputedColumnSql("raw_payload->'working_hours_type'->>'concept_id'", stored: true);
+
         // F6 P4 (ADR 0062) — FTS search_vector. STORED tsvector generated column,
         // härledd från title + description av PostgreSQL ('swedish'-config för
         // svensk stemming). Shadow-property (ej CLR-property på JobAd — NpgsqlTsVector

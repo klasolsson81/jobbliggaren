@@ -8,11 +8,14 @@ using Shouldly;
 
 namespace JobbPilot.Api.IntegrationTests.JobAds;
 
-// Fas B1 (Platsbanken sök-paritet, Klass 1). Verifierar de TVÅ nya STORED
+// Fas B1+B2 (Platsbanken sök-paritet, Klass 1 + Klass 2). Verifierar STORED
 // generated columns på job_ads mot riktig Postgres (Testcontainers):
-//   occupation_group_concept_id ← raw_payload->'occupation_group'->>'concept_id'
-//                                 (OBS top-level, EJ nested under occupation)
-//   municipality_concept_id     ← raw_payload->'workplace_address'->>'municipality_concept_id'
+//   B1: occupation_group_concept_id ← raw_payload->'occupation_group'->>'concept_id'
+//                                     (OBS top-level, EJ nested under occupation)
+//   B1: municipality_concept_id     ← raw_payload->'workplace_address'->>'municipality_concept_id'
+//   B2: employment_type_concept_id  ← raw_payload->'employment_type'->>'concept_id'
+//   B2: worktime_extent_concept_id  ← raw_payload->'working_hours_type'->>'concept_id'
+//                                     (NAMNGLAPP: kolumn worktime_extent ↔ payload working_hours_type)
 //
 // Detta är det KRITISKA testet (architect): EF-InMemory ignorerar
 // HasComputedColumnSql(stored: true) → endast en relationell motor beräknar
@@ -29,11 +32,18 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
     // property-namnen via modellens snake_case-namnkonvention (MunicipalityConceptId
     // → municipality_concept_id) — därför SELECT:ar vi de råa snake_case-kolumnerna
     // UTAN alias (ett PascalCase-alias skulle göra att EF inte hittar kolumnen).
+    // Fas B2 utökar DTO:n med två nya STORED-kolumner (Klass 2):
+    //   employment_type_concept_id ← raw_payload->'employment_type'->>'concept_id'
+    //   worktime_extent_concept_id ← raw_payload->'working_hours_type'->>'concept_id'
+    // NAMNGLAPP: kolumnen heter worktime_extent_concept_id men läser payload-path
+    // 'working_hours_type' (taxonomi-namn ≠ wire-key). Se nya [Fact]-metoder nedan.
     private sealed record GeneratedColumnRow(
         string? SsykConceptId,
         string? RegionConceptId,
         string? OccupationGroupConceptId,
-        string? MunicipalityConceptId);
+        string? MunicipalityConceptId,
+        string? EmploymentTypeConceptId,
+        string? WorktimeExtentConceptId);
 
     // Seedar en importerad JobAd och returnerar dess unika title (för readback).
     private async Task<string> SeedImportedAsync(
@@ -41,7 +51,9 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
         string? region,
         string? occupationGroup,
         string? municipality,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? employmentType = null,
+        string? workingHoursType = null)
     {
         var title = $"GenCol {Guid.NewGuid():N}";
         var externalId = $"ext-{Guid.NewGuid():N}";
@@ -50,7 +62,9 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var rawPayload = BuildRawPayload(externalId, ssyk, region, occupationGroup, municipality);
+        var rawPayload = BuildRawPayload(
+            externalId, ssyk, region, occupationGroup, municipality,
+            employmentType, workingHoursType);
 
         var jobAd = JobAd.Import(
             title: title,
@@ -82,7 +96,9 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
                 SELECT ssyk_concept_id,
                        region_concept_id,
                        occupation_group_concept_id,
-                       municipality_concept_id
+                       municipality_concept_id,
+                       employment_type_concept_id,
+                       worktime_extent_concept_id
                 FROM job_ads
                 WHERE title = {0}
                 """,
@@ -99,12 +115,19 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
     //   occupation_group.concept_id  (TOP-LEVEL)    → occupation_group_concept_id
     //   workplace_address.municipality_concept_id   → municipality_concept_id
     // occupation_group är TOP-LEVEL, EJ nested under occupation (path-kontrakt).
+    //   employment_type.concept_id  (TOP-LEVEL)    → employment_type_concept_id   (B2)
+    //   working_hours_type.concept_id (TOP-LEVEL)   → worktime_extent_concept_id   (B2)
+    // employment_type + working_hours_type är TOP-LEVEL (speglar occupation_group),
+    // EJ nested under conditions. NAMNGLAPP: payload-key working_hours_type matchar
+    // kolumn worktime_extent_concept_id.
     private static string BuildRawPayload(
         string externalId,
         string? ssyk,
         string? region,
         string? occupationGroup,
-        string? municipality)
+        string? municipality,
+        string? employmentType = null,
+        string? workingHoursType = null)
     {
         var occupationJson = ssyk is null
             ? "null"
@@ -125,10 +148,22 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
             ? "null"
             : "{" + string.Join(",", addressFields) + "}";
 
+        var employmentTypeJson = employmentType is null
+            ? "null"
+            : $"{{\"concept_id\":\"{employmentType}\"}}";
+
+        // OBS: wire-keyn är working_hours_type (ej worktime_extent) — kolumnen
+        // worktime_extent_concept_id läser DENNA path.
+        var workingHoursTypeJson = workingHoursType is null
+            ? "null"
+            : $"{{\"concept_id\":\"{workingHoursType}\"}}";
+
         return $"{{\"id\":\"{externalId}\","
             + $"\"occupation\":{occupationJson},"
             + $"\"occupation_group\":{occupationGroupJson},"
-            + $"\"workplace_address\":{workplaceAddressJson}}}";
+            + $"\"workplace_address\":{workplaceAddressJson},"
+            + $"\"employment_type\":{employmentTypeJson},"
+            + $"\"working_hours_type\":{workingHoursTypeJson}}}";
     }
 
     [Fact]
@@ -214,5 +249,101 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
 
         row.SsykConceptId.ShouldBe("Ssyk_uwa_333");
         row.OccupationGroupConceptId.ShouldBeNull();
+    }
+
+    // ── Fas B2 (Platsbanken sök-paritet, Klass 2) ─────────────────────────────
+    // Två nya STORED generated columns mot riktig Postgres (Testcontainers):
+    //   employment_type_concept_id ← raw_payload->'employment_type'->>'concept_id'
+    //   worktime_extent_concept_id ← raw_payload->'working_hours_type'->>'concept_id'
+    // KÄRNAN: kolumn worktime_extent_concept_id läser payload-path
+    // 'working_hours_type' (namnglapp). Om HasComputedColumnSql copy-paste-glider
+    // till '->'worktime_extent'->>...' blir kolumnen ALLTID NULL — dessa tester
+    // fångar det. EF-InMemory ignorerar STORED → endast Postgres beräknar
+    // (samma falsk-grön-risk som B1).
+
+    [Fact]
+    public async Task GeneratedColumns_ShouldPopulateEmploymentAndWorktime_WhenPayloadHasBothConceptIds()
+    {
+        // Populering (ny B2-payload-form): employment_type + working_hours_type
+        // top-level → båda nya kolumner populeras. Detta är test 1 — fångar
+        // namnglapp-glidningen direkt (worktime_extent_concept_id läser
+        // working_hours_type-path).
+        var ct = TestContext.Current.CancellationToken;
+        const string employmentType = "PFZr_Syz_cUq"; // Tillsvidareanställning
+        const string workingHoursType = "6YE1_gAC_R2G"; // Heltid
+
+        var title = await SeedImportedAsync(
+            ssyk: null, region: null, occupationGroup: null, municipality: null, ct,
+            employmentType: employmentType, workingHoursType: workingHoursType);
+
+        var row = await ReadGeneratedColumnsAsync(title, ct);
+
+        row.EmploymentTypeConceptId.ShouldBe(employmentType);
+        // worktime_extent_concept_id MÅSTE bära working_hours_type-värdet.
+        row.WorktimeExtentConceptId.ShouldBe(workingHoursType);
+    }
+
+    [Fact]
+    public async Task WorktimeExtentConceptId_ShouldReadFromWorkingHoursTypePath_WhenPresent()
+    {
+        // NAMNGLAPP-spärr (isolerat): bevisar att worktime_extent_concept_id
+        // läser raw_payload->'working_hours_type', INTE ->'worktime_extent'.
+        // Endast working_hours_type seedas (employment_type null) → kolumnen
+        // måste ändå populeras. Om SQL pekar på 'worktime_extent'-path (som
+        // inte finns i payloaden) blir kolumnen NULL → testet rött.
+        var ct = TestContext.Current.CancellationToken;
+        const string workingHoursType = "6YE1_gAC_R2G";
+
+        var title = await SeedImportedAsync(
+            ssyk: null, region: null, occupationGroup: null, municipality: null, ct,
+            employmentType: null, workingHoursType: workingHoursType);
+
+        var row = await ReadGeneratedColumnsAsync(title, ct);
+
+        row.WorktimeExtentConceptId.ShouldBe(workingHoursType);
+        row.EmploymentTypeConceptId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task EmploymentTypeConceptId_ShouldReadFromEmploymentTypePath_WhenPresent()
+    {
+        // Isolerat: employment_type_concept_id läser raw_payload->'employment_type'.
+        var ct = TestContext.Current.CancellationToken;
+        const string employmentType = "PFZr_Syz_cUq";
+
+        var title = await SeedImportedAsync(
+            ssyk: null, region: null, occupationGroup: null, municipality: null, ct,
+            employmentType: employmentType, workingHoursType: null);
+
+        var row = await ReadGeneratedColumnsAsync(title, ct);
+
+        row.EmploymentTypeConceptId.ShouldBe(employmentType);
+        row.WorktimeExtentConceptId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task EmploymentAndWorktimeColumns_ShouldBeNull_WhenPayloadIsB1EraForm()
+    {
+        // NULL-spärr (gammal B1-eran payload-form utan employment_type/
+        // working_hours_type-keys): båda nya kolumner == NULL. Bevisar grace-
+        // degradering + att partial-index/filter exkluderar dessa rader (samma
+        // 0-rad-backfill som migration F6P7 förlitar sig på). Seedar B1-fält
+        // (occupation_group + municipality) för att visa att de OPÅVERKADE
+        // populeras medan de nya förblir NULL.
+        var ct = TestContext.Current.CancellationToken;
+
+        var title = await SeedImportedAsync(
+            ssyk: "Ssyk_uwa_444", region: null,
+            occupationGroup: "DJh5_yyF_hEM", municipality: "AvNB_uwa_6n6", ct,
+            employmentType: null, workingHoursType: null);
+
+        var row = await ReadGeneratedColumnsAsync(title, ct);
+
+        // B1-kolumner populeras oförändrat.
+        row.OccupationGroupConceptId.ShouldBe("DJh5_yyF_hEM");
+        row.MunicipalityConceptId.ShouldBe("AvNB_uwa_6n6");
+        // B2-kolumner förblir NULL (gammal payload saknar keys).
+        row.EmploymentTypeConceptId.ShouldBeNull();
+        row.WorktimeExtentConceptId.ShouldBeNull();
     }
 }

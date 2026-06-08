@@ -173,6 +173,12 @@ public static class DependencyInjection
         services.AddScoped<
             JobbPilot.Application.Security.Jobs.BackfillFieldEncryption.BackfillFieldEncryptionJob>();
 
+        // Delad re-ingest-kärna för backfill-jobben (senior-cto-advisor Variant H
+        // 2026-06-08). Konsumeras av både ssyk- och Klass2-backfillen — registreras
+        // en gång, scoped (paritet jobben).
+        services.AddScoped<
+            JobbPilot.Application.JobAds.Jobs.Common.JobAdRefetchBackfillRunner>();
+
         // STEG 6 (2026-05-24) — ssyk_concept_id-backfill för pre-2026-05-20-
         // fix-rader. IOptions-binding för delay/cap-tunables; jobbet self
         // scoped (paritet BackfillFieldEncryptionJob).
@@ -183,6 +189,19 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddScoped<
             JobbPilot.Application.JobAds.Jobs.BackfillJobAdSsyk.BackfillJobAdSsykJob>();
+
+        // Fas B2 (2026-06-08, ADR 0067 Beslut 2) — Klass 2-backfill (employment_type
+        // + worktime_extent) för rader importerade före POCO-tillägget. Tunn wrapper
+        // kring JobAdRefetchBackfillRunner med eget NULL-predikat + tunables (paritet
+        // ssyk-backfillen). DI i samma commit som jobb/endpoint
+        // (feedback_di_with_handlers_same_commit).
+        services.AddOptions<JobbPilot.Application.JobAds.Jobs.BackfillJobAdKlass2.BackfillJobAdKlass2Options>()
+            .Bind(configuration.GetSection(
+                JobbPilot.Application.JobAds.Jobs.BackfillJobAdKlass2.BackfillJobAdKlass2Options.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            JobbPilot.Application.JobAds.Jobs.BackfillJobAdKlass2.BackfillJobAdKlass2Job>();
 
         return services;
     }

@@ -216,11 +216,16 @@ public class AuditingLayerTests
             // ersätter per-item JobAdArchivedDomainEvent vid bulk-arkivering).
             "RetainPlatsbankenJobAdsJob",
             "ExpireJobAdsJob",
-            // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för
-            // pre-2026-05-20-fix-rader (snapshot-trunkering når dem aldrig).
-            // Återanvänder JobAdsSynced med JobType="backfill" per architect-
-            // rond 2026-05-24 (inget nytt audit-koncept under MVP-press).
-            "BackfillJobAdSsykJob"
+            // STEG 6 (2026-05-24) → Fas B2 (2026-06-08, senior-cto-advisor
+            // Variant H): backfill-jobbens audit-skrivning (JobAdsSynced,
+            // JobType="backfill"/"backfill-klass2") relokerades från
+            // BackfillJobAdSsykJob till den delade re-ingest-kärnan
+            // JobAdRefetchBackfillRunner när Klass 2-backfillen klonade samma
+            // mekanik. ssyk-/Klass2-jobben är nu tunna wrappers som inte
+            // konsumerar ISystemEventAuditor direkt — bara runnern gör det.
+            // Ratchet-tillägg (audit-bypass-disciplinen bevarad: runnern är
+            // system-job-lagrets enda nya audit-consumer).
+            "JobAdRefetchBackfillRunner"
         };
         var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
 

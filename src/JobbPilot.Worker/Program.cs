@@ -69,6 +69,12 @@ builder.Services.AddScoped<JobbPilot.Worker.Hosting.BackfillFieldEncryptionWorke
 // Wrappern registreras för framtida cron-användning; Api enqueue:ar för MVP-
 // triggern Application-jobbet direkt (Clean Arch — Api refererar inte Worker).
 builder.Services.AddScoped<JobbPilot.Worker.Hosting.BackfillJobAdSsykWorker>();
+// Fas B2 (2026-06-08, ADR 0067) — DisableConcurrentExecution-wrapper för Klass 2-
+// backfill (~2,5h körnings-tid vid default-throttle mot ~44k rader, paritet
+// ssyk-backfill). Wrappern registreras för framtida cron-användning; Api
+// enqueue:ar för triggern Application-jobbet direkt (Clean Arch — Api refererar
+// inte Worker).
+builder.Services.AddScoped<JobbPilot.Worker.Hosting.BackfillJobAdKlass2Worker>();
 
 // ADR 0064 — Worker:s landing-stats-refresh-wrapper. Job-klassen registreras
 // av AddLandingStats() nedan; wrappern bär bara Hangfire-attributet

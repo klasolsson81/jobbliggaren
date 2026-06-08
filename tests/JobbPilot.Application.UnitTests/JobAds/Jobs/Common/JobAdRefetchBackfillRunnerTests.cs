@@ -1,38 +1,51 @@
 using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.JobAds.Abstractions;
 using JobbPilot.Application.JobAds.Commands.UpsertExternalJobAd;
-using JobbPilot.Application.JobAds.Jobs.BackfillJobAdSsyk;
+using JobbPilot.Application.JobAds.Jobs.Common;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobAds;
 using JobbPilot.Infrastructure.Persistence;
 using Mediator;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
-namespace JobbPilot.Application.UnitTests.JobAds.Jobs.BackfillJobAdSsyk;
+namespace JobbPilot.Application.UnitTests.JobAds.Jobs.Common;
 
 /// <summary>
-/// STEG 6 (2026-05-24) — BackfillJobAdSsykJob iterar JobAds med NULL
-/// ssyk_concept_id, re-fetchar mot JobTech per ID, och kör UpsertExternalJobAd-
-/// pipelinen för att uppdatera raw_payload (STORED computed column re-evaluerar).
+/// Delad re-ingest-kärna (senior-cto-advisor Variant H 2026-06-08, extraherad ur
+/// BackfillJobAdSsykJob). Iterar JobAds som matchar ett NULL-kolumn-predikat,
+/// re-fetchar mot JobTech per ID, och kör UpsertExternalJobAd-pipelinen för att
+/// re-skriva raw_payload (STORED computed columns re-evaluerar). Testerna
+/// använder ssyk-predikatet (<c>SsykConceptId IS NULL</c>) som representativ
+/// stand-in — i InMemory är alla shadow-kolumner NULL (computed columns körs ej)
+/// så predikatet matchar alla seedade rader; samma täckning som gällde när loopen
+/// bodde i ssyk-jobbet. Klass2-/ssyk-wrappers är tunna delegationer (predikat +
+/// auditJobType) och verifieras via runnern + Testcontainers-generated-column-test.
 ///
 /// Verifierar:
 /// <list type="bullet">
 /// <item>Empty DB → counts alla 0, audit-rad skrivs ändå</item>
-/// <item>Happy path: 3 NULL-rader → 3 RefetchAttempted → 3 Updated</item>
+/// <item>Happy path: 3 NULL-rader → 3 RefetchAttempted → 3 Updated, scope per item</item>
 /// <item>404 från källan (RefetchByExternalIdAsync → null) → NotFoundOnSource++</item>
+/// <item>UpsertOutcome.Skipped klassas separat från Updated</item>
+/// <item>Per-item handler-failure isolerad → Errors++, batchen fortsätter</item>
 /// <item>OperationCanceledException propagerar</item>
-/// <item>Per-item exception isolerad → Errors++, batchen fortsätter</item>
+/// <item>MaxItemsPerRun bryter gracefully</item>
 /// </list>
 /// </summary>
-public class BackfillJobAdSsykJobTests
+public class JobAdRefetchBackfillRunnerTests
 {
     private static readonly DateTimeOffset Now =
-        new(2026, 5, 24, 14, 0, 0, TimeSpan.Zero);
+        new(2026, 6, 8, 14, 0, 0, TimeSpan.Zero);
+
+    // Representativt NULL-kolumn-predikat (ssyk). I InMemory är shadow-kolumnen
+    // alltid NULL → matchar alla seedade rader.
+    private static System.Linq.Expressions.Expression<Func<JobAd, bool>> SsykNullPredicate =>
+        j => EF.Property<string?>(j, "SsykConceptId") == null;
 
     private static JobAd CreateImportedJobAd(string externalId, FakeDateTimeProvider clock) =>
         JobAd.Import(
@@ -75,23 +88,24 @@ public class BackfillJobAdSsykJobTests
         public void Dispose() { }
     }
 
-    private static BackfillJobAdSsykJob CreateJob(
+    private static JobAdRefetchBackfillRunner CreateRunner(
         IJobSource jobSource,
         IServiceScopeFactory scopeFactory,
         AppDbContext db,
-        BackfillJobAdSsykOptions? options = null,
         ISystemEventAuditor? auditor = null)
     {
         var clock = new FakeDateTimeProvider(Now);
-        return new BackfillJobAdSsykJob(
+        return new JobAdRefetchBackfillRunner(
             jobSource: jobSource,
             scopeFactory: scopeFactory,
             db: db,
-            options: Options.Create(options ?? new BackfillJobAdSsykOptions { PerItemDelayMs = 0 }),
             clock: clock,
             auditor: auditor ?? Substitute.For<ISystemEventAuditor>(),
-            logger: NullLogger<BackfillJobAdSsykJob>.Instance);
+            logger: NullLogger<JobAdRefetchBackfillRunner>.Instance);
     }
+
+    private static BackfillRunnerOptions Opts(int maxItems = 100_000) =>
+        new(PerItemDelayMs: 0, MaxItemsPerRun: maxItems, ProgressLogEvery: 100);
 
     [Fact]
     public async Task RunAsync_EmptyDatabase_AllCountsZero_AuditRecorded()
@@ -104,8 +118,8 @@ public class BackfillJobAdSsykJobTests
         var mediator = Substitute.For<IMediator>();
         var scopeFactory = new FakeScopeFactory(mediator);
 
-        var job = CreateJob(jobSource, scopeFactory, db, auditor: auditor);
-        var counts = await job.RunAsync(ct);
+        var runner = CreateRunner(jobSource, scopeFactory, db, auditor);
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(), "backfill", ct);
 
         counts.Fetched.ShouldBe(0);
         counts.RefetchAttempted.ShouldBe(0);
@@ -143,9 +157,9 @@ public class BackfillJobAdSsykJobTests
             .Returns(Result.Success(UpsertOutcome.Updated));
 
         var scopeFactory = new FakeScopeFactory(mediator);
-        var job = CreateJob(jobSource, scopeFactory, db);
+        var runner = CreateRunner(jobSource, scopeFactory, db);
 
-        var counts = await job.RunAsync(ct);
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(), "backfill", ct);
 
         counts.Fetched.ShouldBe(3);
         counts.RefetchAttempted.ShouldBe(3);
@@ -180,9 +194,9 @@ public class BackfillJobAdSsykJobTests
             .Returns(Result.Success(UpsertOutcome.Updated));
 
         var scopeFactory = new FakeScopeFactory(mediator);
-        var job = CreateJob(jobSource, scopeFactory, db);
+        var runner = CreateRunner(jobSource, scopeFactory, db);
 
-        var counts = await job.RunAsync(ct);
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(), "backfill", ct);
 
         counts.Fetched.ShouldBe(2);
         counts.RefetchAttempted.ShouldBe(2);
@@ -217,9 +231,9 @@ public class BackfillJobAdSsykJobTests
             .Returns(Result.Success(UpsertOutcome.Skipped));
 
         var scopeFactory = new FakeScopeFactory(mediator);
-        var job = CreateJob(jobSource, scopeFactory, db);
+        var runner = CreateRunner(jobSource, scopeFactory, db);
 
-        var counts = await job.RunAsync(ct);
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(), "backfill", ct);
 
         counts.Updated.ShouldBe(0);
         counts.SkippedByHandler.ShouldBe(1);
@@ -252,9 +266,9 @@ public class BackfillJobAdSsykJobTests
                 DomainError.Validation("Test.Failure", "expected handler failure")));
 
         var scopeFactory = new FakeScopeFactory(mediator);
-        var job = CreateJob(jobSource, scopeFactory, db);
+        var runner = CreateRunner(jobSource, scopeFactory, db);
 
-        var counts = await job.RunAsync(ct);
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(), "backfill", ct);
 
         counts.Updated.ShouldBe(1);
         counts.Errors.ShouldBe(1);
@@ -275,13 +289,13 @@ public class BackfillJobAdSsykJobTests
 
         var mediator = Substitute.For<IMediator>();
         var scopeFactory = new FakeScopeFactory(mediator);
-        var job = CreateJob(jobSource, scopeFactory, db);
+        var runner = CreateRunner(jobSource, scopeFactory, db);
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
         await Should.ThrowAsync<OperationCanceledException>(
-            () => job.RunAsync(cts.Token));
+            () => runner.RunAsync(SsykNullPredicate, Opts(), "backfill", cts.Token));
     }
 
     [Fact]
@@ -309,10 +323,9 @@ public class BackfillJobAdSsykJobTests
             .Returns(Result.Success(UpsertOutcome.Updated));
 
         var scopeFactory = new FakeScopeFactory(mediator);
-        var job = CreateJob(jobSource, scopeFactory, db,
-            options: new BackfillJobAdSsykOptions { PerItemDelayMs = 0, MaxItemsPerRun = 2 });
+        var runner = CreateRunner(jobSource, scopeFactory, db);
 
-        var counts = await job.RunAsync(ct);
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(maxItems: 2), "backfill", ct);
 
         counts.Fetched.ShouldBe(3);  // 2 processade + 1 trigger-check innan break
         counts.Updated.ShouldBe(2);

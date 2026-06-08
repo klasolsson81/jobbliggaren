@@ -187,4 +187,151 @@ public class JobTechHitDeserializationTests
         sanitized.ShouldContain("\"workplace_address\":{");
         sanitized.ShouldContain("\"region_concept_id\":\"CifL_Rzy_Mku\"");
     }
+
+    // ── Fas B2 (Platsbanken sök-paritet, Klass 2) ─────────────────────────────
+    // Två nya concept-id-dimensioner (CTO + architect 2026-06-08, scope_of_work
+    // avvisat): anställningsform (employment_type) + omfattning (working_hours_type).
+    // POCO-grinden: om JobTechHit inte deserialiserar dessa keys producerar
+    // JsonSerializer.Serialize(hit) en payload UTAN dem → generated columns
+    // employment_type_concept_id / worktime_extent_concept_id blir NULL på alla
+    // rader (samma rotorsak som F6 P4-filter-buggen). Dessa tester är
+    // regressions-grinden CTO flaggade — utan dem förblir NULL-bugg odetekterad.
+
+    [Fact]
+    public void Deserialize_PopulatesEmploymentTypeConceptId()
+    {
+        // employment_type är TOP-LEVEL i JobTech v2-payloaden (speglar
+        // occupation_group-mönstret), EJ nested under conditions/employment.
+        const string wireJson = """
+        {
+            "id": "31063032",
+            "employment_type": {
+                "concept_id": "PFZr_Syz_cUq",
+                "label": "Tillsvidareanställning",
+                "legacy_ams_taxonomy_id": "1"
+            }
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.EmploymentType.ShouldNotBeNull();
+        hit.EmploymentType.ConceptId.ShouldBe("PFZr_Syz_cUq");
+        hit.EmploymentType.Label.ShouldBe("Tillsvidareanställning");
+        hit.EmploymentType.LegacyAmsTaxonomyId.ShouldBe("1");
+    }
+
+    [Fact]
+    public void Deserialize_PopulatesWorkingHoursTypeConceptId()
+    {
+        // NAMNGLAPP-fälla (KÄRNAN i B2): payload-key=working_hours_type, men
+        // taxonomi/kolumn heter worktime_extent. POCO-propertyn binder mot
+        // payload-keyn via [JsonPropertyName("working_hours_type")]. Om attributet
+        // råkar bli "worktime_extent" deserialiserar den aldrig (wire-keyn är
+        // working_hours_type) → ConceptId förblir null → kolumnen blir NULL.
+        const string wireJson = """
+        {
+            "id": "31063032",
+            "working_hours_type": {
+                "concept_id": "6YE1_gAC_R2G",
+                "label": "Heltid",
+                "legacy_ams_taxonomy_id": "1"
+            }
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.WorkingHoursType.ShouldNotBeNull();
+        hit.WorkingHoursType.ConceptId.ShouldBe("6YE1_gAC_R2G");
+        hit.WorkingHoursType.Label.ShouldBe("Heltid");
+        hit.WorkingHoursType.LegacyAmsTaxonomyId.ShouldBe("1");
+    }
+
+    [Fact]
+    public void Deserialize_GracefullyHandlesMissingEmploymentAndWorkingHours()
+    {
+        // B1-erans payload-form (gamla rader): saknar employment_type +
+        // working_hours_type → null-properties, ingen krasch. Speglar
+        // grace-degraderingen som migration F6P7 förlitar sig på (0-rad-backfill).
+        const string wireJson = """
+        {
+            "id": "31063032",
+            "headline": "Backend Developer"
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.EmploymentType.ShouldBeNull();
+        hit.WorkingHoursType.ShouldBeNull();
+    }
+
+    [Fact]
+    public void RoundTripSerialize_PreservesEmploymentAndWorkingHoursJsonPaths()
+    {
+        // ROTORSAKS-REGRESSIONS-GRIND för B2: PlatsbankenJobSource.cs:184 gör
+        // JsonSerializer.Serialize(hit) → raw_payload. Generated columns
+        // konsumerar:
+        //   employment_type_concept_id ← raw_payload->'employment_type'->>'concept_id'
+        //   worktime_extent_concept_id ← raw_payload->'working_hours_type'->>'concept_id'
+        // Verifierar att JsonPropertyName-attributen producerar EXAKT samma
+        // wire-keys (working_hours_type, INTE worktime_extent) som SQL förväntar.
+        var hit = new JobTechHit
+        {
+            Id = "31063032",
+            EmploymentType = new JobTechEmploymentType { ConceptId = "PFZr_Syz_cUq" },
+            WorkingHoursType = new JobTechWorkingHoursType { ConceptId = "6YE1_gAC_R2G" },
+        };
+
+        var json = JsonSerializer.Serialize(hit);
+
+        // Generated column SQL: raw_payload->'employment_type'->>'concept_id'
+        json.ShouldContain("\"employment_type\":{");
+        json.ShouldContain("\"concept_id\":\"PFZr_Syz_cUq\"");
+
+        // Generated column SQL: raw_payload->'working_hours_type'->>'concept_id'
+        // (namnglapp — wire-keyn är working_hours_type, kolumnen worktime_extent).
+        json.ShouldContain("\"working_hours_type\":{");
+        json.ShouldContain("\"concept_id\":\"6YE1_gAC_R2G\"");
+
+        // Negativ kontroll: payloaden får INTE bära worktime_extent som key —
+        // det är kolumn-/taxonomi-namnet, aldrig wire-format-keyn.
+        json.ShouldNotContain("worktime_extent");
+
+        // Roundtrip-bekräftelse.
+        var roundTripped = JsonSerializer.Deserialize<JobTechHit>(json);
+        roundTripped.ShouldNotBeNull();
+        roundTripped.EmploymentType!.ConceptId.ShouldBe("PFZr_Syz_cUq");
+        roundTripped.WorkingHoursType!.ConceptId.ShouldBe("6YE1_gAC_R2G");
+    }
+
+    [Fact]
+    public void RoundTripThroughSanitizer_PreservesEmploymentAndWorkingHoursForGeneratedColumns()
+    {
+        // End-to-end PlatsbankenJobSource.cs:184-185. Sanitizer-allowlist:ar
+        // redan employment_type + working_hours_type + concept_id (JobTech-
+        // PayloadSanitizer.cs:44,54) → no-op-passering. Detta är hela vägen från
+        // in-memory hit till raw_payload i job_ads — om en key droppas här blir
+        // motsvarande generated column NULL.
+        var hit = new JobTechHit
+        {
+            Id = "31063032",
+            Headline = "Backend Developer",
+            EmploymentType = new JobTechEmploymentType { ConceptId = "PFZr_Syz_cUq" },
+            WorkingHoursType = new JobTechWorkingHoursType { ConceptId = "6YE1_gAC_R2G" },
+        };
+
+        var rawJson = JsonSerializer.Serialize(hit);
+        var sanitized = JobTechPayloadSanitizer.SanitizeForStorage(rawJson);
+
+        sanitized.ShouldContain("\"employment_type\":{");
+        sanitized.ShouldContain("\"concept_id\":\"PFZr_Syz_cUq\"");
+        sanitized.ShouldContain("\"working_hours_type\":{");
+        sanitized.ShouldContain("\"concept_id\":\"6YE1_gAC_R2G\"");
+        sanitized.ShouldNotContain("worktime_extent");
+    }
 }

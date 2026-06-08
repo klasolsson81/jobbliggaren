@@ -90,6 +90,27 @@ internal sealed class JobTechHit
 
     [JsonPropertyName("workplace_address")]
     public JobTechWorkplaceAddress? WorkplaceAddress { get; set; }
+
+    // B2 / Klass 2 (ADR 0067 Beslut 2, Platsbanken sök-paritet) — anställningsform
+    // + omfattning. Båda TOP-LEVEL i JobTech v2-payloaden (live-verifierat
+    // 2026-06-08: jobsearch.api.jobtechdev.se/search → employment_type +
+    // working_hours_type top-level, samma som occupation_group). POCO:n
+    // deserialiserade dem INTE tidigare → JsonSerializer.Serialize(hit) i
+    // PlatsbankenJobSource.cs producerade raw_payload UTAN dessa keys → generated
+    // columns employment_type_concept_id / worktime_extent_concept_id blev NULL
+    // på alla rader tills detta POCO-tillägg + full re-ingest (samma rotorsaks-
+    // mönster som F6 P4 fixade för occupation/workplace_address).
+    //
+    // NAMNGLAPP: payload-fältet heter working_hours_type men taxonomi-concept-
+    // typen (och STORED-kolumnen) heter worktime-extent/worktime_extent
+    // (omfattning, Heltid/Deltid) — exakt som occupation_group→ssyk-level-4 i B1.
+    // POCO-property:n följer wire-formatet (working_hours_type); översättningen
+    // till kolumn-namn sker i JobAdConfiguration (shadow-property-mapping).
+    [JsonPropertyName("employment_type")]
+    public JobTechEmploymentType? EmploymentType { get; set; }
+
+    [JsonPropertyName("working_hours_type")]
+    public JobTechWorkingHoursType? WorkingHoursType { get; set; }
 }
 
 internal sealed class JobTechDescription
@@ -148,6 +169,36 @@ internal sealed class JobTechOccupationGroup
 }
 
 internal sealed class JobTechOccupationField
+{
+    [JsonPropertyName("concept_id")]
+    public string? ConceptId { get; set; }
+
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
+    [JsonPropertyName("legacy_ams_taxonomy_id")]
+    public string? LegacyAmsTaxonomyId { get; set; }
+}
+
+// B2 / Klass 2 — anställningsform + omfattning. Samma {concept_id, label,
+// legacy_ams_taxonomy_id}-shape som occupation-trion; separata typer för
+// divergens-tålighet (JobTech kan ändra var och en oberoende). Klass-namnet
+// WorkingHoursType speglar wire-keyn (working_hours_type), INTE taxonomi-typen
+// worktime-extent — POCO är ACL mot JobTech-wire-formatet (Evans 2003 §14).
+
+internal sealed class JobTechEmploymentType
+{
+    [JsonPropertyName("concept_id")]
+    public string? ConceptId { get; set; }
+
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
+    [JsonPropertyName("legacy_ams_taxonomy_id")]
+    public string? LegacyAmsTaxonomyId { get; set; }
+}
+
+internal sealed class JobTechWorkingHoursType
 {
     [JsonPropertyName("concept_id")]
     public string? ConceptId { get; set; }

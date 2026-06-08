@@ -80,6 +80,22 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasColumnName("region_concept_id")
             .HasComputedColumnSql("raw_payload->'workplace_address'->>'region_concept_id'", stored: true);
 
+        // B1 (ADR 0067 Beslut 2 + ADR 0043-amendment 2026-06-08) — Klass 1
+        // STORED generated columns för Platsbanken sök-paritet. Payload finns
+        // redan (POCO deserialiserar occupation_group + workplace_address.
+        // municipality_concept_id, sanitizer-allowlist passerar dem) → ADD
+        // COLUMN populerar från befintlig raw_payload utan re-ingest.
+        // OBS: occupation_group är TOP-LEVEL i payloaden (EJ nested under
+        // occupation som ssyk_concept_id) — namnglappet "occupation_group"
+        // pekar på ssyk-level-4 (yrkesgrupp), JobTechs primära yrke-filternivå.
+        builder.Property<string?>("OccupationGroupConceptId")
+            .HasColumnName("occupation_group_concept_id")
+            .HasComputedColumnSql("raw_payload->'occupation_group'->>'concept_id'", stored: true);
+
+        builder.Property<string?>("MunicipalityConceptId")
+            .HasColumnName("municipality_concept_id")
+            .HasComputedColumnSql("raw_payload->'workplace_address'->>'municipality_concept_id'", stored: true);
+
         // F6 P4 (ADR 0062) — FTS search_vector. STORED tsvector generated column,
         // härledd från title + description av PostgreSQL ('swedish'-config för
         // svensk stemming). Shadow-property (ej CLR-property på JobAd — NpgsqlTsVector

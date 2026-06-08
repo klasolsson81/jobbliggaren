@@ -189,6 +189,61 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Seeder_ShouldPersistMunicipalityRowsWithRegionParent_WhenSnapshotSeeded()
+    {
+        // Fas B1 (Platsbanken sök-paritet, Klass 1): nya Kind=Municipality-rader
+        // ska landa i taxonomy_concepts med ParentConceptId = region-concept-id.
+        // Verifierar att seederns utökade MapRows persisterar mot riktig Postgres
+        // (string-konvertering av enum + parent-relation).
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var municipalities = await db.Set<TaxonomyConcept>()
+            .Where(c => c.Kind == TaxonomyConceptKind.Municipality)
+            .ToListAsync(ct);
+
+        municipalities.ShouldNotBeEmpty();
+        municipalities.ShouldAllBe(m => m.ParentConceptId != null);
+
+        // Varje kommuns parent ska vara ett seedat Region-concept-id (1:1-relation).
+        var regionIds = await db.Set<TaxonomyConcept>()
+            .Where(c => c.Kind == TaxonomyConceptKind.Region)
+            .Select(c => c.ConceptId)
+            .ToListAsync(ct);
+        var regionIdSet = regionIds.ToHashSet();
+        municipalities.ShouldAllBe(m => regionIdSet.Contains(m.ParentConceptId!));
+    }
+
+    [Fact]
+    public async Task Seeder_ShouldPersistOccupationGroupRowsWithFieldParent_WhenSnapshotSeeded()
+    {
+        // Fas B1: nya Kind=OccupationGroup-rader ska landa med ParentConceptId =
+        // yrkesområdets concept-id (ssyk-level-4→occupation-field 1:1).
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var groups = await db.Set<TaxonomyConcept>()
+            .Where(c => c.Kind == TaxonomyConceptKind.OccupationGroup)
+            .ToListAsync(ct);
+
+        groups.ShouldNotBeEmpty();
+        groups.ShouldAllBe(g => g.ParentConceptId != null);
+
+        var fieldIds = await db.Set<TaxonomyConcept>()
+            .Where(c => c.Kind == TaxonomyConceptKind.OccupationField)
+            .Select(c => c.ConceptId)
+            .ToListAsync(ct);
+        var fieldIdSet = fieldIds.ToHashSet();
+        groups.ShouldAllBe(g => fieldIdSet.Contains(g.ParentConceptId!));
+    }
+
+    [Fact]
     public async Task Seeder_ShouldBeIdempotent_WhenRunTwiceWithSameVersion()
     {
         var ct = TestContext.Current.CancellationToken;

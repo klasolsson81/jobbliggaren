@@ -44,7 +44,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-18 | Stale-detektering: utökning till intervju-states | Minor | Trigger | UX/Domain |
 | TD-20 | `AuditPartitionMaintainer.DropPartitionsOlderThanAsync` defensiv refactor | Minor | Opportunistiskt | Code quality |
 | TD-39 | Error-summary-mönster för stora formulär | Minor | Trigger | A11y/UX |
-| TD-86 | Sök/filter-hardening: recall-gap vs Platsbanken, common-term-perf, query-token-parser m.m. | Minor | Trigger | Performance/Product quality/Search |
+| TD-86 | ~~Sök/filter-hardening: recall-gap, common-term-perf, query-token-parser m.m.~~ — **ABSORBERAD 2026-06-08 av ADR 0067** (sök-paritets-initiativet); punkterna spåras nu av ADR 0067:s fas-plan | Minor | ERSATT av ADR 0067 | Performance/Product quality/Search |
 | TD-87 | Rate-limit för `/me/*`-endpoints batch (saved-job-ads + job-ad-status + recent-searches) | **Major** | F6 P5 P2-fas-stängning | Säkerhet/DoS-skydd |
 | TD-88 | DOM-mutation via onMouseOver i RecentSearchesHeroChip + SavedJobAdsHeroChip — flytta till CSS `:hover` | Minor | Trigger | Frontend/React-disciplin |
 | TD-89 | Ephemeral API+Redis+Worker-stack i CI loadtest-jobb (kör `LOADTEST_SCENARIOS=landing-stats` mot riktig backend) | Minor | Trigger | Performance/CI fitness function |
@@ -98,6 +98,8 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 ---
 
 ## TD-93: Riktig matchning mot användarens CV/sökkriterier (inte alla nya annonser)
+
+> **Korsref [ADR 0067](./decisions/0067-platsbanken-search-parity.md) 2026-06-08:** sök-paritets-initiativet byter primärt yrke-filter till ssyk-level-4 (yrkesgrupp) men **bevarar `ssyk_concept_id` (occupation-name) + index som queryable substrat** för denna CV-matchning (ADR 0067 Beslut 1 — kostnadsfritt, finns on-disk). Klas-roadmap 2026-06-08: CV-matchning utan AI, på yrken. CTO-dom: CV-parsing kan mappa till ssyk-level-4 (matchar då samma nivå som paritets-UI:t) ELLER occupation-name (substratet finns) — designvalet är reserverat till denna TD / ADR 0040 Beslut 3 (Fas 4-faststart), EJ låst av ADR 0067. Se `docs/reviews/2026-06-08-sok-paritet-cto-followup.md`.
 
 **Kategori:** Frontend/Feature
 **Severity:** Minor
@@ -1437,9 +1439,18 @@ synligt.
 
 ## TD-86: Sök/filter-hardening: recall-gap vs Platsbanken, common-term-perf, query-token-parser m.m.
 
+> **ABSORBERAD 2026-06-08 av [ADR 0067](./decisions/0067-platsbanken-search-parity.md) (Platsbanken-sök-paritets-initiativet).** Sök-fas-2-triggern är uppfylld (Klas-direktiv 2026-06-08); paraply-TD:n dissolveras och dess punkter spåras nu av ADR 0067:s fas-plan (mer precist instrument än en samlad TD). CTO-triage 2026-06-08 (`docs/reviews/2026-06-08-sok-paritet-cto.md`). **Punkt→fas-mappning:**
+> - **#1 recall-gap** (systemutvecklare ~198 vs 800+) → **tvärgående mätpunkt** i ADR 0067 (efter Fas B2+C1; hypotes: gapet minskar med ssyk-level-4-filter + occupation_group-mappning). Fixas in-initiativ.
+> - **#2 common-term-perf** (Seq Scan vid 25% match) → re-mät efter Fas C1; om ej löst av Q1=A-selektivitet → smal efterföljar-TD med korrekt fas (skapas DÅ, ej nu — §9.6).
+> - **#3 query-token-parser** → **ADR 0067 Beslut 5 / Fas D2** (typeahead-chip-komponist + residual-`ISearchQueryParser`). Absorberad.
+> - **#4 P2-backfill-verifiering** → **Fas B2** re-ingest-verifiering. Absorberad.
+> - **#5–#8** (description-infix, stemmer, kommun-pickers, spinner) → adresseras inom ADR 0067-faserna (kommun = ADR 0043-amendment / Fas B1; FE-polish = Fas E) eller permanent-accept.
+>
+> Fysisk arkivering till `tech-debt-archive.md` sker när initiativet stängts (docs-keeper). Kvarstår synlig här tills dess för granskningstrail. Originaltext nedan bevarad.
+
 **Kategori:** Performance / Product quality / Search
 **Severity:** Minor
-**Fas:** Trigger (Klas-paus 2026-05-23 — återupptas vid Klas-GO för sök-fas-2)
+**Fas:** ERSATT av ADR 0067 (tidigare: Trigger — Klas-paus 2026-05-23, återupptas vid Klas-GO för sök-fas-2)
 **Källa:** Klas-direktiv 2026-05-23 ("vi pausar sök-/filter och fortsätter med andra steg"); deploy-verifierings-rapport 2026-05-23 (EXPLAIN ANALYZE v0.2.56-dev); ADR 0062 deploy-utfall; F6 P4 FTS-skifte-session 2026-05-21.
 
 Samlad TD för sök-/filter-/taxonomi-ytan. F6 P4 FTS-skiftet (ADR 0062) levererade lager-flytten + FTS-hybrid men avtäckte både kvarstående perf-problem och produkt-kvalitetsgap som Klas medvetet skjutit till en framtida sök-fas. Klas-direktivet 2026-05-23: pausa scope, fokusera på andra steg, återuppta sök-/filter-arbetet ordentligt senare.
@@ -1486,9 +1497,11 @@ Samlad TD för sök-/filter-/taxonomi-ytan. F6 P4 FTS-skiftet (ADR 0062) leverer
 
 ## TD-100: Yrkesgrupp/yrke-dropdown-UI med 100%-Platsbanken-paritet + SSYK-filter-verifiering
 
+> **Korsref [ADR 0067](./decisions/0067-platsbanken-search-parity.md) 2026-06-08:** TD-100 förblir **Trigger** men dess 100%-paritets-spec + SSYK-filter-verifiering är nu **acceptance criteria för ADR 0067 Fas E** (FE-UI). Notera nivå-korrigeringen: Platsbanken filtrerar yrke på **ssyk-level-4 (yrkesgrupp)**, inte occupation-name (ADR 0067 Beslut 1 + ADR 0043-amendment) — dropdown-UI:t byggs mot yrkesgrupp-nivå. Aktiveras vid Fas E (design-reviewer VETO + Klas-GO). CC-mandat (§9.6 — genuint senare fas, FE-dependency saknas än).
+
 **Kategori:** Frontend / Search UX / Product quality
 **Severity:** Minor
-**Fas:** Trigger (när FE bygger yrkesfilter-UI — egen punkt eller del av sök-fas-2)
+**Fas:** Trigger (när FE bygger yrkesfilter-UI = ADR 0067 Fas E)
 **Källa:** Klas-direktiv 2026-05-24 (post-STEG 6 reflektion): "när vi bygger dropdown yrken — matcha Platsbanken till 100% gällande val av yrkesgrupper och yrken samt att SSYK ska filtrera rätt".
 
 ### Bakgrund

@@ -159,3 +159,50 @@ Status-flip till Accepted bekräftas av Klas-GO efter att han granskat reviews-r
 ---
 
 *Referenser: Eric Evans, Domain-Driven Design (2003) kap. 5, 14 (Anticorruption Layer / read-model); Robert C. Martin, Clean Architecture (2017) kap. 7, 10 (ISP), 13 (REP/CCP); Beck (XP, YAGNI); Fowler, Refactoring 2nd ed (2018) kap. 3 (Speculative Generality); Ford/Parsons/Kua, Building Evolutionary Architectures (2017) kap. 4 (blast-radius); Winters/Manshreck/Wright, Software Engineering at Google (2020) kap. 18 (hermetiska builds); Hunt/Thomas, Pragmatic Programmer (1999) DRY/SPOT; Saltzer/Schroeder (1975) least common mechanism / complete mediation / defense in depth; OWASP API4:2023 (Unrestricted Resource Consumption), CWE-400, OWASP Web Cache Deception; Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0042; CLAUDE.md §1, §2.1, §2.3, §3.3, §5.1, §9.6, §10.3; jobbpilot-design-principles regel 3/7. Beslutsunderlag: docs/reviews/2026-05-17-soktyta-platsbanken-cto.md, docs/reviews/2026-05-17-fynd2-taxonomi-acl-architect.md, docs/reviews/2026-05-17-fynd2-taxonomi-acl-cto.md.*
+
+---
+
+## Amendment 2026-06-08 — Kommun-dimension + yrkesgrupp-nivå (per ADR 0067)
+
+**Datum:** 2026-06-08
+**Källa:** Platsbanken-sök-paritets-initiativet ([ADR 0067](./0067-platsbanken-search-parity.md)), design-grind 2026-06-08. Additivt amendment-notat — ADR-immutabilitet: all brödtext ovan (inkl. Beslut A–E) är medvetet orörd.
+**Beslutsfattare:** Klas Olsson + senior-cto-advisor (decision-maker) + dotnet-architect 2026-06-08.
+**Status:** ADR 0043 förblir **Accepted** — den superseras **inte**. ACL-kärnan (lokal snapshot, concept-id aldrig i UI, `ITaxonomyReadModel`-port, `IAppDbContext` växer ej, snapshot-dedup) **består oförändrad**. Detta amendment utvidgar **granularitet + dimensioner**; det häver två avgränsningar Beslut E gjorde medvetet temporära.
+
+ADR 0043 Beslut E sköt upp **Kommun-granularitet** pending en payload-verifierings-trigger (två villkor: payload-bekräftelse + användarsignal) och fastställde att yrke-pickern går **occupation-field → occupation-name**. Bägge revideras nu per ADR 0067:
+
+### 1. Kommun-dimensionen levereras (Beslut E payload-trigger uppfylld)
+
+Payload-verifierings-triggern är uppfylld: `municipalityconceptid` är verifierat närvarande i JobTech-annons-payloaden (live-läsning 2026-06-08, `workplace_address.municipality_concept_id`; POCO:n `JobTechWorkplaceAddress` deserialiserar det redan), och Klas-direktivet 2026-06-08 är användarsignalen. Per Beslut E:s eget protokoll ("separat förhandlad batch + ADR 0043-amendment, ej autonom, Klas-GO") levereras kommun nu:
+
+- Ny STORED generated column `municipality_concept_id ← raw_payload->'workplace_address'->>'municipality_concept_id'` (Klass 1 — payload finns, ingen re-ingest). Partial B-tree-index `WHERE municipality_concept_id IS NOT NULL`, exakt region-mönstret.
+- `TaxonomyConceptKind += Municipality` (parent = Region). Kommun→län är 1:1 (`municipality broader→region`) → **ingen multi-parent-dedup** (till skillnad från occupation-name-grafen).
+- `TaxonomyTreeDto`/`TaxonomyRegionDto` växer additivt: `IReadOnlyList<TaxonomyMunicipalityDto> Municipalities` under varje region (speglar `OccupationField → Occupations`-mönstret). Port-signaturen (`ITaxonomyReadModel.GetTreeAsync`) är **oförändrad** — rikare DTO, inget nytt kontrakt. `LoadAsync`-grupperingen blir `Kind`-medveten (impl-ändring, ej modell-ändring). Single `ParentConceptId` räcker oavsett djup — `Kind` ÄR nivå-diskriminatorn (ingen redundant `Level`-int, DRY).
+- "Shadow-prop ORÖRD"-garantin (Beslut E) **häves medvetet** — kommun blir en ny filtrerbar shadow-dimension. Detta är amendment-ets uttryckliga syfte, ej en oavsiktlig regression.
+
+### 2. Yrke-pickern byter nivå occupation-field → ssyk-level-4 (yrkesgrupp)
+
+Beslut E:s yrke-granularitet (occupation-field → **occupation-name**) ändras till occupation-field → **ssyk-level-4 (yrkesgrupp)** för Platsbanken-paritet (Platsbanken filtrerar yrke på ssyk-level-4, ej occupation-name — discovery 2026-06-08). Detaljer i [ADR 0067 Beslut 1](./0067-platsbanken-search-parity.md):
+
+- Ny STORED column `occupation_group_concept_id ← raw_payload->'occupation_group'->>'concept_id'` (Klass 1) blir primärt yrke-filter.
+- `TaxonomyConceptKind += OccupationGroup` (parent = OccupationField). Snapshot-trädet krymper occupation-name (~2179) → ssyk-level-4 (~400) → **ADR 0043 Beslut B:s snapshot-kanoniserings-/dedup-skuld (359/2724 multi-field-par) krymper mot noll** (ssyk-level-4→occupation-field är en renare single-parent-relation). Amendment-et betalar ner Beslut B:s dedup-komplexitet.
+- `ssyk_concept_id` (occupation-name) + index **bevaras** — degraderas från primärt filter till synonym-/recall-input + queryable substrat för CV-matchning (TD-93/ADR 0040). Beslut E:s shadow-prop raderas alltså inte; den byter roll.
+- Reverse-lookup-migration av gamla sparade `Ssyk`-sökningar (occupation-name → parent ssyk-level-4) — ADR 0067 Beslut 1 + Fas C2.
+
+### Konsekvenser
+
+- ACL-principen (ADR 0043 Beslut A–D) består: svenska namn i UI, concept-id aldrig exponerat, lokal in-memory-snapshot, ingen extern hop på sök-vägen. Kommun + yrkesgrupp är nya **dimensioner inom samma ACL**, inte en ny arkitektur.
+- Taxonomi-snapshot (`taxonomy-snapshot.json` + seeder) regenereras med kommun-noder (parent=region) + ssyk-level-4-noder (parent=occupation-field). Seeder-mekanismen (idempotent upsert, Beslut B) är oförändrad.
+- Snapshot-dedup-disciplinen (Beslut B kanonisering) **lättar** — kommun 1:1, ssyk-level-4 nästan 1:1.
+
+### Implementations-trail (ADR 0067-faser)
+- Fas B1: `municipality_concept_id` + `occupation_group_concept_id` STORED + EF-config + migration (Testcontainers) + snapshot-utökning + seeder.
+- Fas C1: `ITaxonomyReadModel`-DTO + `ApplyCriteria`-utökning + validators.
+- Fas C2: reverse-lookup-migration (sparade sökningar).
+- Fas E: FE Län→Kommun-kaskad + Yrkesområde→Yrkesgrupp-picker.
+
+### Referenser
+- [ADR 0067](./0067-platsbanken-search-parity.md) (Platsbanken-sök-paritet — Beslut 1/2 + ADR 0043-amendment-källa)
+- Discovery + agent-domar: `docs/research/2026-06-08-platsbanken-sok-paritet-discovery.md`, `docs/reviews/2026-06-08-sok-paritet-{architect,cto,cto-followup}.md`
+- ADR 0043 Beslut E (payload-trigger-protokoll — följt exakt), Beslut B (snapshot-dedup — skuld krymper)
+- Evans DDD (2003) kap. 14 (ACL utvidgning); Hunt/Thomas (1999) DRY (Kind-diskriminator ej Level-int); Nygard (2011) additivt amendment ej supersession

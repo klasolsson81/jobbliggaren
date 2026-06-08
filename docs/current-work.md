@@ -1,6 +1,28 @@
 # Current work — JobbPilot
 
-**Status:** **ADR 0050 (Hetzner-VPS-exit) AMENDERAD + ACCEPTED 2026-06-08 (bas-HEAD `076ca72`, docs/ADR-only PR mot main).** Strategisk session: re-validerade ADR 0050 (skriven 2026-05-19, före AWS-teardown 0066 + LocalDataKeyProvider) mot nuläget, flippade Proposed→Accepted med targeted amendment. **Beslut (Klas-GO):** sizing CX32→**CAX31** (ARM 8vCPU/16GB/160GB ~€16/mån, total backend-compute inkl. co-tenant-DB); backup R2→**Hetzner-EU Storage Box** (CLOUD Act); KMS-blocker LÖST via 0066 (omframad → TD-102); ogiltig rollback-story ersatt; **Pre-beta-data-gates** (security-auditor 2 Blockers + 4 Majors, alla gates FÖRE real-PII ej före flip). **Sekvens: Fas 4 (AI Layer) näst, Hetzner sist vid MVP före beta-testare.** **Nästa steg:** Fas 4 (ADR 0051) alternativt TD-rensning.
+**Status:** **PLATSBANKEN SÖK-PARITET — FAS A (DESIGN + ADR) LEVERERAD 2026-06-08 (branch `docs/sok-paritet-adr-0067`, PR mot main, bas-HEAD `cf482b8`).** Initiativ-start: 100% paritet med Platsbankens sök/filter/sortering + smart fritext-sök, fler-fasigt (PR per fas). Session 1 = design-grind (Fas A), levererar ADR:er — INGEN kod (fas-skifte till data-layer = nästa session, Klas-GO).
+
+**Kärninsikter (discovery 2026-06-08 — Klas-screenshots + JobTech live + kodbas):**
+- **Yrke-nivå-avvikelse:** Platsbanken filtrerar yrke på `ssyk-level-4` (yrkesgrupp, ~400), JobbPilot på `occupation-name` (~2179). → byts (ADR 0067 Beslut 1).
+- **Kommun:** ADR 0043 Beslut E payload-trigger nu uppfylld (`municipalityconceptid` finns) → ADR 0043-amendment.
+- **Klass 1/Klass 2-payload-skillnad** (architect-fynd): kommun + yrkesgrupp finns i raw_payload (ingen re-ingest); anställningsform + omfattning kräver POCO-tillägg + re-ingest.
+- Distans ej tillförlitligt payload-fält → defer. Live facet-count + ny mörkgrön färg = nya krav.
+
+**Levererat denna session (Fas A-PR):**
+- **ADR 0067 (Accepted)** — sök-paritet: yrke-nivåskifte occupation-name→ssyk-level-4 (occupation-name-substrat bevarat för CV-matchning TD-93/ADR 0040), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) Klass1/Klass2-sekvens, distans-defer (payload-trigger), facet-counts (total nu + per-option `FacetCountsAsync` ny port-metod, NBomber-gate), smart typeahead-chip-sök (utökad suggest = taxonomi-union + job_ads-titel; chip=FE-state; residual-fritext→`ISearchQueryParser`+FTS kraschsäkert), VO-expansion, fas A–E + reverse-lookup-migration sparade sökningar. §9.4-override (Klas valde Accepted-skrivning) i Livscykel-not.
+- **ADR 0043-amendment 2026-06-08** — kommun-dimension (Kind+=Municipality) + yrke-nivå (Kind+=OccupationGroup); ACL-kärna oförändrad, granularitet/dimensioner utvidgade; dedup-skuld krymper.
+- **3 agent-domar** i `docs/reviews/2026-06-08-sok-paritet-{architect,cto,cto-followup}.md` + discovery-brief `docs/research/2026-06-08-platsbanken-sok-paritet-discovery.md`.
+- **TD-86 ABSORBERAD av ADR 0067** (punkt→fas-mappning: #1 recall-gap=tvärgående mätpunkt, #3 parser=Fas D2, #4 backfill=Fas B2); **TD-100** korsref (Fas E-criteria, yrkesgrupp-nivå); **TD-93** korsref (occupation-name-substrat bevarat). README-index + ADR 0043-rad uppdaterade.
+
+**Klas-beslut denna session (AskUserQuestion 2026-06-08):** Q1 = Option A (CTO löste CV-roadmap → ssyk-level-4-matchning, ej Option B); Q4 = defer distans; Q6 = typeahead-chip + additiv/OR + residual-FTS (kraschsäker); ADR = Accepted.
+
+**Nästa steg:** **Fas B1 (data-layer)** = nästa session med Klas-GO — Klass 1 STORED-kolumner (`municipality_concept_id` + `occupation_group_concept_id`) + EF-config + migration (Testcontainers) + taxonomi-snapshot-utökning (kommun + ssyk-level-4) + seeder. Ingen kod denna session (fas-skifte kräver GO, CLAUDE.md §9.2).
+
+**Pending operativt för Klas:** (1) granska Fas A-PR-diff post-merge (automerge); (2) GO för Fas B1-start nästa session; (3) Q6 chip/residual-kombinationssemantik = mild Klas-STOPP vid Fas D2; (4) Platsbanken-screenshots i `tmp/platsbanken/` raderas när hela initiativet är klart (Klas-direktiv — ej committade).
+
+---
+
+**(Föregående) Status:** **ADR 0050 (Hetzner-VPS-exit) AMENDERAD + ACCEPTED 2026-06-08 (bas-HEAD `076ca72`, docs/ADR-only PR mot main).** Strategisk session: re-validerade ADR 0050 (skriven 2026-05-19, före AWS-teardown 0066 + LocalDataKeyProvider) mot nuläget, flippade Proposed→Accepted med targeted amendment. **Beslut (Klas-GO):** sizing CX32→**CAX31** (ARM 8vCPU/16GB/160GB ~€16/mån, total backend-compute inkl. co-tenant-DB); backup R2→**Hetzner-EU Storage Box** (CLOUD Act); KMS-blocker LÖST via 0066 (omframad → TD-102); ogiltig rollback-story ersatt; **Pre-beta-data-gates** (security-auditor 2 Blockers + 4 Majors, alla gates FÖRE real-PII ej före flip). **Sekvens: Fas 4 (AI Layer) näst, Hetzner sist vid MVP före beta-testare.** **Nästa steg:** Fas 4 (ADR 0051) alternativt TD-rensning.
 
 **Levererat denna session (ADR 0050-PR):**
 

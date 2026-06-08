@@ -59,6 +59,8 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-102 | Self-managed master-nyckel-skyddsmodell + rotation för Hetzner-prod (ADR 0049-amendment) | **Major** | Hetzner-deploy | Säkerhet/GDPR/Crypto |
 | TD-104 | Observability-sink saknas — ingen Serilog/Seq-wiring lokalt + ingen prod-logg-sink efter CloudWatch-exit | Minor | Hetzner-deploy | Observability/Operations |
 | TD-105 | JobbPilot.Migrate är AWS-Secrets-Manager-bunden — ej VPS-portabel | Minor | Hetzner-deploy | Infra/VPS-portabilitet |
+| TD-106 | Hetzner Docker-Compose-stack + reverse-proxy (Caddy) + deploy-sekvens + VPS-härdning | **Major** | Hetzner-deploy | Infra/Deploy |
+| TD-107 | Krypterad offsite-backup (Hetzner-EU Storage Box) + restore-runbook + retention | **Major** | Hetzner-deploy | Infra/GDPR/Backup |
 | TD-103 | Application-assembly-split för isolerad Worker-jobb-scan (återinför ValidateOnBuild=true) | Minor | Trigger | Architecture/Code quality |
 
 ---
@@ -338,6 +340,7 @@ mejl-provider valts.
 
 **Beroenden:** Hetzner-deploy-fas + provider-val (Klas affärsbeslut).
 **Trigger:** Första riktiga beta-utskicket.
+**Cross-refs:** ADR 0050 (Accepted 2026-06-08, Hetzner-deploy), ADR 0066 (SES-borttagning).
 
 
 ## TD-102: Self-managed master-nyckel-skyddsmodell + rotation för Hetzner-prod
@@ -374,6 +377,88 @@ för en re-encrypt-allt-migration.
 
 **Beroenden:** Hetzner-deploy-fas, ADR 0049-amendment.
 **Trigger:** Hetzner-prod-deploy med riktig PII (beta-testare).
+**Cross-refs:** ADR 0050 (Accepted 2026-06-08, Pre-beta-data-gates B-1/M-2/M-3), ADR 0049, ADR 0066.
+
+
+## TD-106: Hetzner Docker-Compose-stack + reverse-proxy (Caddy) + deploy-sekvens + VPS-härdning
+
+**Kategori:** Infrastructure / Deploy
+**Severity:** Major (blockerar all Hetzner-deploy)
+**Fas:** Hetzner-deploy (ej nuvarande lokal-dev-fas)
+**Källa:** dotnet-architect + senior-cto-advisor-triage 2026-06-08 (ADR 0050 Accepted), `docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-{architect,cto}.md`
+
+Hetzner-cutover kräver en produktions-Docker-Compose-stack som driftsätter hela
+backend (API + Worker + PostgreSQL + Redis + Caddy) på en CAX31-box (ADR 0050
+Beslut 2). Arbetet är ett sammanhängande stack-bygge (CCP — komponenter som
+ändras tillsammans hör ihop), inte fragmenterbart i mikro-TDs.
+
+**Föreslagen åtgärd (vid Hetzner-deploy):**
+
+1. **Compose all-in-one** med named volumes (PG-persistens), `restart:
+   unless-stopped` + healthchecks per service, och **hybrid `mem_limit`**: hård
+   cap på Worker + Redis (skydda PG mot ingestion-OOM), generös/osatt PG-cap
+   (data-durabilitet) — Bulkhead, ADR 0050 mem_limit-not.
+2. **Reverse-proxy Caddy:** auto-TLS via DNS-01 (Cloudflare-plugin), Cloudflare
+   "Full (strict)" + origin-IP-lockdown (bara CF-IP på 443) + HSTS (security-
+   auditor M-5).
+3. **`ForwardedHeadersConfig` config-overlay:** Docker-bridge-CIDR i
+   `KnownNetworks` (ej omskrivning — `ForwardedHeadersConfig.cs` är redan
+   proxy-agnostisk), `ForwardLimit=1` (Caddy), Caddy `trusted_proxies cloudflare`
+   för äkta klient-IP.
+4. **Rename `AlbOptions` → `ReverseProxyOptions`** + docstring-städ (AWS-ALB-
+   namngivning + `aws-setup.md`-referenser blir vilseledande på Hetzner) + ny
+   `hetzner-setup.md`-runbook.
+5. **Migrations-sekvens:** oneshot-migrate-container (`docker compose run --rm
+   migrate ensure-extensions && ... schema`) FÖRE API/Worker-start (kräver
+   TD-105 re-home först).
+6. **Connection-pool-budgetering:** separata Npgsql pool-storlekar API vs Worker
+   (ingestion svälter ej API-pool).
+7. **Hetzner-deploy-workflow** (ersätter raderad `deploy-dev.yml`): build → push
+   image → SSH/compose-pull-deploy mot box.
+8. **VPS-härdnings-baseline (security-auditor M-6):** SSH-key-only (lösenords-
+   /root-login av), Hetzner Cloud Firewall + nftables (bara 443 från CF-IP +
+   SSH; PG/Redis/Seq aldrig publika — bind `127.0.0.1`/Docker-internt), fail2ban,
+   unattended-upgrades, swap av/krypterad + core-dumps av (`LimitCORE=0`,
+   master-nyckel-minnesläck-hygien), non-root containers där möjligt.
+
+**Beroenden:** Hetzner-box provisionerad; TD-105 (Migrate-re-home) för punkt 5.
+**Trigger:** Hetzner-cutover (vid MVP före beta-testare, ADR 0050 Sekvensering).
+**Cross-refs:** ADR 0050 (Accepted, Beslut 2 + mem_limit-not + gates M-5/M-6),
+ADR 0023 (Worker HTTP-fri), TD-105, TD-99 (roll-rename), TD-72 (Migrate bootstrap).
+
+
+## TD-107: Krypterad offsite-backup (Hetzner-EU Storage Box) + restore-runbook + retention
+
+**Kategori:** Infrastructure / GDPR / Backup
+**Severity:** Major (GDPR-relevant: icke-krypterad PII i pg_dump; data-durabilitet på single-box)
+**Fas:** Hetzner-deploy (ej nuvarande lokal-dev-fas)
+**Källa:** security-auditor M-4 + senior-cto-advisor-triage 2026-06-08 (ADR 0050 Beslut 4), `docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-{security,cto}.md`
+
+Single-box-topologin (ADR 0050) kräver offsite-backup för data-durabilitet, och
+`pg_dump` bär **icke-krypterad PII** — bara fyra kolumner är fält-krypterade
+(ADR 0049); e-post/namn/`waitlist_entries`/audit-IP ligger i klartext i dumpen.
+ADR 0050 Beslut 4 (amenderat 2026-06-08) avvisade Cloudflare R2 (US-bolag, CLOUD
+Act → tredjelandsöverföring) till förmån för Hetzner-EU Storage Box.
+
+**Föreslagen åtgärd (vid Hetzner-deploy):**
+
+1. **Nattlig `pg_dump` klient-side-krypterad (age)** FÖRE upload — fält-krypteringen
+   skyddar bara fyra kolumner *i* dumpen; resten kräver eget krypto-lager
+   (backup-nyckel hanteras som master-nyckeln, TD-102).
+2. **Mål: Hetzner-EU Storage Box** (~€3,20/mån/1 TB, samma EU-jurisdiktion som
+   boxen) — backups ligger ej på boxens 160 GB.
+3. **Retention/rotations-policy:** bortre gräns för icke-krypterad PII i gamla
+   dumpar (t.ex. 14d rullande, ADR 0024-paritet — finns ej gratis på Hetzner,
+   måste byggas; EDPB CEF 2025: backup-overwrite med dokumenterad retention =
+   accepterat).
+4. **Restore-drill som DoD-grind** före produktions-cutover (Ford/Parsons/Kua:
+   en backup utan restore-test är en hypotes; crypto-erasure-semantik mot
+   restore av rad med sedan-raderad användare verifieras).
+
+**Beroenden:** Hetzner-box + Postgres provisionerad; backup-nyckel-custody (TD-102).
+**Trigger:** Hetzner-cutover (före första real-PII, ADR 0050 gate M-4).
+**Cross-refs:** ADR 0050 (Accepted, Beslut 4 + gate M-4), ADR 0049 (crypto-erasure
+mot backups), ADR 0024 (RDS-retention-precedens), TD-102 (backup-nyckel).
 
 
 ## Minor — Fas 1
@@ -911,10 +996,18 @@ prod-logg-sink alls** efter AWS-exit. Detta är en VPS-portabilitets-lucka
 
 1. Välj prod-logg-sink-strategi för VPS (self-hosted Seq på VPS / Loki+Grafana /
    managed log-tjänst). Designvalet fattas DÅ (YAGNI), knutet till ADR 0050.
+   **Beslutsaxel (senior-cto-advisor 2026-06-08, ADR 0050 axel 3):** riktning
+   **Seq self-hosted** (dev/prod-paritet + EU-residens) om CAX31-RAM-headroom
+   räcker; managed avvisas tills PII-i-loggar-residens GDPR-granskad; Loki+Grafana
+   om box-RAM pressas. **Pipeline: Serilog > OTel-logs** (Serilog mogen
+   structured-sink-ergonomi 2026; reversibelt via `ILogger`-seam — riktning, ej
+   låst). Sink + pipeline-val bindande i Hetzner-fas, ej nu.
 2. Wira Serilog (`Serilog.AspNetCore` + relevant sink, t.ex.
    `Serilog.Sinks.Seq`) så att BÅDE lokal dev (Seq på `5341`) och prod-sink
-   täcks av samma abstraktion (DIP — undvik dubbel-wiring). Nya top-level-deps
-   kräver §9.2-motivering + ev. BUILD.md-uppdatering (`approve-spec-edit.sh`).
+   täcks av samma abstraktion (DIP — `ILogger`-seam är redan ren, undvik
+   dubbel-wiring). Nya top-level-deps kräver §9.2-motivering + ev. BUILD.md-
+   uppdatering (`approve-spec-edit.sh`). Städa felaktiga Serilog-kommentarer i
+   `DependencyInjection.cs` (rad 243/281 — refererar Serilog som om det fanns).
 3. **Korrigera CLAUDE.md §11.3** ("seq (local Serilog sink)") + TD-101-blockets
    Serilog/Seq-formulering så docs matchar verkligheten. Spec-edit → Klas-GO +
    `approve-spec-edit.sh`.
@@ -925,7 +1018,7 @@ prod-logg-sink alls** efter AWS-exit. Detta är en VPS-portabilitets-lucka
    *`approve-spec-edit.sh`). Den underliggande wiring-åtgärden (punkt 1–2)*
    *kvarstår oförändrad till Hetzner-deploy.)*
 
-**Beroenden:** Hetzner-deploy-fas (ADR 0050, Proposed) + sink-val.
+**Beroenden:** Hetzner-deploy-fas (ADR 0050, Accepted 2026-06-08) + sink-val.
 **Trigger:** Hetzner-prod-deploy ELLER när observability behövs för beta.
 **Cross-refs:** ADR 0050 (VPS-exit), ADR 0066 (AWS-exit), TD-101 (mejl-Serilog/Seq-inexakthet), CLAUDE.md §11.3.
 
@@ -958,7 +1051,7 @@ ingen Secrets Manager, så den nuvarande migrations-runnern kan inte köras.
 3. AWS-grenen kan bevaras bakom provider-switch (ADR 0066-reversibilitet) eller
    rensas när Hetzner är beslutat (Klas-beslut vid deploy).
 
-**Beroenden:** Hetzner-deploy-fas (ADR 0050, Proposed) + VPS-DB-/secrets-modell.
+**Beroenden:** Hetzner-deploy-fas (ADR 0050, Accepted 2026-06-08) + VPS-DB-/secrets-modell.
 **Trigger:** Första VPS-migrations-körningen.
 **Cross-refs:** ADR 0050 (VPS-exit), ADR 0066 (AWS-exit), TD-72 (Migrate bootstrap-auto-trigger, deploy-CI).
 

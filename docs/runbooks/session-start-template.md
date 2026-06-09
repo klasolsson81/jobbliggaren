@@ -28,9 +28,9 @@ Hej. Klas-prompt: {fas/scope-namn} — {kort beskrivning av leveransmål}.
 2. Verifiera HEAD = `{förväntat-sha}` via `git log --oneline -10`
    Förväntat senaste rad: `{senaste commit-meddelande-snippet}`
 3. `git status` clean (eller bara specifika ignored-filer)
-4. (Om relevant) AWS dev live: `curl -sI https://dev.jobbpilot.se/api/ready` → HTTP 200
-5. (Om relevant) AWS SSO aktiv: `aws sts get-caller-identity --profile jobbpilot`
-6. Lokala krav: .NET 10 SDK ({version}), Node 22 + pnpm, Docker, AWS CLI
+4. Docker Compose-stack uppe (postgres/redis/seq): `docker compose ps`
+5. (Om relevant) Lokal stack live: `curl -sI http://localhost:5049/api/ready` → HTTP 200
+6. Lokala krav: .NET 10 SDK ({version}), Node 22 + pnpm, Docker Desktop
 ```
 
 ### 3. Mandatory reads (CLAUDE.md §1.5)
@@ -239,6 +239,10 @@ Lycka till.
 
 ## Versionshistorik
 
+- **2026-06-10:** §"Förkrav" AWS-rensning per ADR 0066 (AWS avvecklat): AWS
+  dev-live-curl + AWS SSO-check ersatta med Docker Compose-stack-check + lokal
+  `/api/ready`-check (localhost:5049); "AWS CLI" struken ur lokala krav.
+  Trigger: extern idé-triage 2026-06-10 avtäckte dokumentations-drift.
 - **2026-05-13:** Skapad efter Klas-direktiv att standardisera startprompter
   + lyfta workflow till CLAUDE.md §1.5. Trigger: glömt CTO-invocation i
   F2-P8c-startprompten.

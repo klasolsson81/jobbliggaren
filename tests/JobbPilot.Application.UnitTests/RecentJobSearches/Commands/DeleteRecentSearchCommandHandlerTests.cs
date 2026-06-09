@@ -1,5 +1,5 @@
-using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.RecentJobSearches.Commands.DeleteRecentSearch;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.JobAds;

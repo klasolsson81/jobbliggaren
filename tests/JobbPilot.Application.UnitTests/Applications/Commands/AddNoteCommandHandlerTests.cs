@@ -1,6 +1,6 @@
 using JobbPilot.Application.Applications.Commands.AddNote;
-using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.JobSeekers;

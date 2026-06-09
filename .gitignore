@@ -49,7 +49,6 @@ logs/
 
 # IDE
 .idea/
-.vscode/settings.json
 
 # Terraform
 **/.terraform/

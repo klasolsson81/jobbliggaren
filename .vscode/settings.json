@@ -1,0 +1,42 @@
+{
+  // Editor-baseline per CLAUDE.md §11.2 + CTO-dom 2026-06-10 (Variant B):
+  // speglar pre-commit-gates (dotnet format + lint-staged) som on-save-feedback.
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  "[csharp]": {
+    "editor.defaultFormatter": "ms-dotnettools.csharp"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    // Trailing spaces är hårda radbrytningar i markdown — rör dem inte on-save.
+    "files.trimTrailingWhitespace": false
+  },
+
+  "eslint.workingDirectories": ["web/jobbpilot-web"],
+
+  // Error Lens: visa det som annars först bryter bygget (TreatWarningsAsErrors).
+  "errorLens.enabledDiagnosticLevels": ["error", "warning"]
+}

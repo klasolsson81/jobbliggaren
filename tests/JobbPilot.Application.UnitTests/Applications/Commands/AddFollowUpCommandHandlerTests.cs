@@ -1,6 +1,6 @@
 using JobbPilot.Application.Applications.Commands.AddFollowUp;
-using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Exceptions;
 using JobbPilot.Application.UnitTests.Common;
 using JobbPilot.Domain.Applications;

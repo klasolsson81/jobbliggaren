@@ -1,7 +1,7 @@
 using JobbPilot.Application;
 using JobbPilot.Application.Common;
-using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Application.Common.Abstractions;
+using JobbPilot.Application.Common.Auditing;
 using JobbPilot.Domain.Common;
 using JobbPilot.Infrastructure;
 using JobbPilot.Infrastructure.Persistence;

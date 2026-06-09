@@ -1,3 +1,5 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using JobbPilot.Api.Configuration;
 using JobbPilot.Api.Endpoints;
 using JobbPilot.Api.HealthChecks;
@@ -13,8 +15,6 @@ using JobbPilot.Infrastructure;
 using JobbPilot.Infrastructure.Auth;
 using JobbPilot.Infrastructure.Auth.Sessions;
 using JobbPilot.Infrastructure.Persistence;
-using Hangfire;
-using Hangfire.PostgreSql;
 using Mediator;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;

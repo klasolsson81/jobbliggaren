@@ -72,6 +72,7 @@ documentation, place it according to this map:
 | Directory | Purpose | Examples |
 |-----------|---------|----------|
 | `docs/current-work.md` | Single source of truth for session state | (one file) |
+| `docs/current-work-archive.md` | Historiska current-work-status-block (omvänd kronologi, full kropp) | (en fil) |
 | `docs/sessions/` | Per-session retrospective logs | `2026-04-19-1000-session-4-*.md` |
 | `docs/decisions/` | Architecture Decision Records (ADRs) | `0001-clean-architecture.md` |
 | `docs/decisions/README.md` | ADR index — auto-maintained by docs-keeper | (one file) |

@@ -1,15 +1,22 @@
 using JobbPilot.Application.JobAds.Queries.ListJobAds;
 using JobbPilot.Domain.JobAds;
+using JobbPilot.Domain.SavedSearches;
 using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.JobAds.Queries.ListJobAds;
 
-// Batch 3 — ADR 0042 Beslut B: ListJobAdsQuery.Ssyk/.Region string? →
-// IReadOnlyList<string>?. Validator-yta: per-element regex via RuleForEach,
-// maxantal-cap (10), generaliserad tom-invariant. Speglar SearchCriteria-
-// invarianterna (defense-in-depth, samma yta som dagens concept-id-regex).
+// C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte. Validator-ytan
+// utökas med två nya filter-dimensioner: OccupationGroup (→ ssyk-level-4,
+// occupation_group_concept_id) + Municipality (→ municipality_concept_id).
+// Samma per-element-regex + maxantal-cap-mönster som Ssyk/Region. Cap höjs
+// 10→400 (SearchCriteria.MaxConceptIds) — boundary-tester refererar konstanten,
+// ALDRIG literalen 400 (DRY, CLAUDE.md §5.1; om MaxConceptIds ändras följer
+// testet med). Ssyk behålls som deprecerad no-op-param (binder fortfarande +
+// valideras defense-in-depth, men ApplyCriteria ignorerar den — se
+// ListJobAdsSsykNoOpTests).
 //
-// RÖD tills ListJobAdsQuery + ListJobAdsQueryValidator implementerar list-formen.
+// RÖD tills ListJobAdsQuery + ListJobAdsQueryValidator implementerar de nya
+// dimensionerna + cap-höjningen.
 public class ListJobAdsQueryValidatorTests
 {
     private readonly ListJobAdsQueryValidator _validator = new();
@@ -47,8 +54,8 @@ public class ListJobAdsQueryValidatorTests
     }
 
     // ---------------------------------------------------------------
-    // Per-element regex ^[A-Za-z0-9_-]{1,32}$ via RuleForEach
-    // Single-element-lista ⇒ samma resultat som gammalt single-värde.
+    // OccupationGroup (NY dimension — primärt yrke-filter, Variant C)
+    // Per-element regex ^[A-Za-z0-9_-]{1,32}$ via RuleForEach.
     // ---------------------------------------------------------------
 
     [Theory]
@@ -56,17 +63,17 @@ public class ListJobAdsQueryValidatorTests
     [InlineData("abc-123")]
     [InlineData("Z")]
     [InlineData("0123456789ABCDEFabcdef_-_-_-_-12")] // 32 tecken (max)
-    public void Validate_Ssyk_SingleValidConceptId_Passes(string ssyk)
+    public void Validate_OccupationGroup_SingleValidConceptId_Passes(string group)
     {
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: [ssyk]));
+        var result = _validator.Validate(new ListJobAdsQuery(OccupationGroup: [group]));
         result.IsValid.ShouldBeTrue();
     }
 
     [Fact]
-    public void Validate_Ssyk_MultipleValidConceptIds_Passes()
+    public void Validate_OccupationGroup_MultipleValidConceptIds_Passes()
     {
         var result = _validator.Validate(
-            new ListJobAdsQuery(Ssyk: ["MVqp_eS8_kDZ", "abc-123", "Z"]));
+            new ListJobAdsQuery(OccupationGroup: ["MVqp_eS8_kDZ", "abc-123", "Z"]));
         result.IsValid.ShouldBeTrue();
     }
 
@@ -77,27 +84,106 @@ public class ListJobAdsQueryValidatorTests
     [InlineData("dot.notation")]
     [InlineData("plus+sign")]
     [InlineData("0123456789ABCDEFabcdef_-_-_-_-123")] // 33 tecken
-    public void Validate_Ssyk_AnyInvalidElement_Fails(string bad)
+    public void Validate_OccupationGroup_AnyInvalidElement_Fails(string bad)
     {
-        // RuleForEach: ett ogiltigt element bland giltiga ⇒ hela query ogiltig.
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: ["12345", bad]));
+        var result = _validator.Validate(
+            new ListJobAdsQuery(OccupationGroup: ["12345", bad]));
         result.IsValid.ShouldBeFalse();
     }
 
     [Fact]
-    public void Validate_Ssyk_Null_Passes()
+    public void Validate_OccupationGroup_Null_Passes()
     {
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: null));
+        var result = _validator.Validate(new ListJobAdsQuery(OccupationGroup: null));
         result.IsValid.ShouldBeTrue();
     }
 
     [Fact]
-    public void Validate_Ssyk_EmptyList_Passes()
+    public void Validate_OccupationGroup_EmptyList_Passes()
     {
-        // Tom lista = inget filter (generaliserad tom-invariant).
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: []));
+        var result = _validator.Validate(new ListJobAdsQuery(OccupationGroup: []));
         result.IsValid.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Validate_OccupationGroup_ExactlyMax_Passes()
+    {
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"grp{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(OccupationGroup: max));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_OccupationGroup_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"grp{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(OccupationGroup: overMax));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    // ---------------------------------------------------------------
+    // Municipality (NY dimension — kommun, barn under Region)
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("MVqp_eS8_kDZ")]
+    [InlineData("abc-123")]
+    public void Validate_Municipality_SingleValidConceptId_Passes(string municipality)
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(Municipality: [municipality]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Municipality_MultipleValidConceptIds_Passes()
+    {
+        var result = _validator.Validate(
+            new ListJobAdsQuery(Municipality: ["sthlm_kn", "uppsala_kn"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("åäö")]
+    [InlineData("<script>")]
+    [InlineData("0123456789ABCDEFabcdef_-_-_-_-123")] // 33 tecken
+    public void Validate_Municipality_AnyInvalidElement_Fails(string bad)
+    {
+        var result = _validator.Validate(
+            new ListJobAdsQuery(Municipality: ["sthlm_kn", bad]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Municipality_Null_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(Municipality: null));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Municipality_ExactlyMax_Passes()
+    {
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"kn{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(Municipality: max));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Municipality_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"kn{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(Municipality: overMax));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    // ---------------------------------------------------------------
+    // Region — oförändrad dimension, cap höjd 10→400.
+    // ---------------------------------------------------------------
 
     [Theory]
     [InlineData("MVqp_eS8_kDZ")]
@@ -134,31 +220,59 @@ public class ListJobAdsQueryValidatorTests
         result.IsValid.ShouldBeTrue();
     }
 
-    // ---------------------------------------------------------------
-    // Maxantal-cap = 10 per lista (speglar SearchCriteria-invariant 2)
-    // ---------------------------------------------------------------
-
     [Fact]
-    public void Validate_Ssyk_ExactlyTen_Passes()
+    public void Validate_Region_ExactlyMax_Passes()
     {
-        var ten = Enumerable.Range(1, 10).Select(i => $"ssyk{i}").ToArray();
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: ten));
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"reg{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(Region: max));
         result.IsValid.ShouldBeTrue();
     }
 
     [Fact]
-    public void Validate_Ssyk_Eleven_IsInvalid()
+    public void Validate_Region_OneOverMax_IsInvalid()
     {
-        var eleven = Enumerable.Range(1, 11).Select(i => $"ssyk{i}").ToArray();
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: eleven));
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"reg{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(Region: overMax));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    // ---------------------------------------------------------------
+    // Ssyk — deprecerad no-op-param (Variant C). Param binder fortfarande och
+    // valideras defense-in-depth, men ApplyCriteria ignorerar den. Behåller
+    // regex/cap-grinden så en kvarvarande ?ssyk= inte kringgår input-hygienen.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Validate_Ssyk_SingleValidConceptId_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: ["MVqp_eS8_kDZ"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("åäö")]
+    public void Validate_Ssyk_AnyInvalidElement_Fails(string bad)
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: ["12345", bad]));
         result.IsValid.ShouldBeFalse();
     }
 
     [Fact]
-    public void Validate_Region_Eleven_IsInvalid()
+    public void Validate_Ssyk_Null_Passes()
     {
-        var eleven = Enumerable.Range(1, 11).Select(i => $"reg{i}").ToArray();
-        var result = _validator.Validate(new ListJobAdsQuery(Region: eleven));
+        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: null));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Ssyk_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"ssyk{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: overMax));
         result.IsValid.ShouldBeFalse();
     }
 
@@ -212,7 +326,7 @@ public class ListJobAdsQueryValidatorTests
     {
         var result = _validator.Validate(new ListJobAdsQuery(
             Page: 1, PageSize: 20, SortBy: JobAdSortBy.PublishedAtDesc,
-            Ssyk: null, Region: null, Q: null));
+            OccupationGroup: null, Municipality: null, Region: null, Ssyk: null, Q: null));
         result.IsValid.ShouldBeTrue();
     }
 
@@ -221,7 +335,8 @@ public class ListJobAdsQueryValidatorTests
     {
         var result = _validator.Validate(new ListJobAdsQuery(
             Page: 1, PageSize: 20, SortBy: JobAdSortBy.PublishedAtDesc,
-            Ssyk: ["MVqp_eS8_kDZ", "abc-123"], Region: ["stockholm"], Q: "developer"));
+            OccupationGroup: ["grp-1", "grp-2"], Municipality: ["sthlm_kn"],
+            Region: ["stockholm"], Ssyk: null, Q: "developer"));
         result.IsValid.ShouldBeTrue();
     }
 
@@ -231,7 +346,7 @@ public class ListJobAdsQueryValidatorTests
     public void Validate_RelevanceSortWithoutQ_IsInvalid()
     {
         var result = _validator.Validate(new ListJobAdsQuery(
-            SortBy: JobAdSortBy.Relevance, Ssyk: ["12345"], Q: null));
+            SortBy: JobAdSortBy.Relevance, OccupationGroup: ["12345"], Q: null));
         result.IsValid.ShouldBeFalse();
     }
 

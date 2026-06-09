@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using JobbPilot.Api.IntegrationTests.Helpers;
 using JobbPilot.Api.IntegrationTests.Infrastructure;
+using JobbPilot.Application.JobAds.Queries.GetTaxonomyTree;
 using Shouldly;
 
 namespace JobbPilot.Api.IntegrationTests.JobAds;
@@ -73,6 +74,55 @@ public class GetTaxonomyEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task GET_taxonomy_exposes_municipality_and_occupationGroup_cascade()
+    {
+        // C1 (ADR 0067 Platsbanken sök-paritet) — additiv kaskad i JSON-svaret:
+        //   regions[].municipalities[] (kommun under län)
+        //   occupationFields[].occupationGroups[] (yrkesgrupp under yrkesområde)
+        //   occupationFields[].occupations[] BEHÅLLS (recall-substrat).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.GetAsync("/api/v1/job-ads/taxonomy", ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        // Minst ett län bär municipalities-array med innehåll.
+        var regionWithMunicipalities = json.GetProperty("regions").EnumerateArray()
+            .FirstOrDefault(r =>
+                r.TryGetProperty("municipalities", out var m)
+                && m.ValueKind == JsonValueKind.Array
+                && m.GetArrayLength() > 0);
+        regionWithMunicipalities.ValueKind.ShouldNotBe(JsonValueKind.Undefined);
+        var municipality = regionWithMunicipalities.GetProperty("municipalities")[0];
+        municipality.GetProperty("conceptId").GetString().ShouldNotBeNullOrWhiteSpace();
+        municipality.GetProperty("label").GetString().ShouldNotBeNullOrWhiteSpace();
+
+        // Minst ett yrkesområde bär occupationGroups-array med innehåll, OCH
+        // occupations-arrayen finns kvar (additiv kaskad).
+        var fields = json.GetProperty("occupationFields").EnumerateArray().ToList();
+        var fieldWithGroups = fields.FirstOrDefault(f =>
+            f.TryGetProperty("occupationGroups", out var g)
+            && g.ValueKind == JsonValueKind.Array
+            && g.GetArrayLength() > 0);
+        fieldWithGroups.ValueKind.ShouldNotBe(JsonValueKind.Undefined);
+        var group = fieldWithGroups.GetProperty("occupationGroups")[0];
+        group.GetProperty("conceptId").GetString().ShouldNotBeNullOrWhiteSpace();
+        group.GetProperty("label").GetString().ShouldNotBeNullOrWhiteSpace();
+
+        // occupations-fältet bevaras på alla yrkesområden.
+        fields.ShouldAllBe(f => HasArrayProperty(f, "occupations"));
+    }
+
+    // Hjälpare: out-var får inte deklareras i ett expression tree (CS8198) —
+    // ShouldAllBe tar en Expression<Func<...>>, så TryGetProperty-anropet flyttas
+    // till en vanlig metod som expression-trädet kan kalla.
+    private static bool HasArrayProperty(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var value)
+           && value.ValueKind == JsonValueKind.Array;
+
+    [Fact]
     public async Task GET_taxonomy_with_matching_If_None_Match_returns_304()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -125,13 +175,15 @@ public class GetTaxonomyEndpointTests(ApiFactory factory)
     [Fact]
     public async Task GET_taxonomy_labels_over_cap_returns_400()
     {
-        // DoS-cap (ResolveTaxonomyLabelsQueryValidator = MaxConceptIds ×2)
-        // enforce:as i Validation-pipeline → 400 innan handlern.
+        // DoS-cap (ResolveTaxonomyLabelsQueryValidator = MaxConceptIds ×4 efter
+        // C1, ADR 0067) enforce:as i Validation-pipeline → 400 innan handlern.
+        // Antalet härleds från konstanten (DRY) — cap+1 → over-cap → 400.
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
+        var overCap = ResolveTaxonomyLabelsQueryValidator.MaxConceptIdsPerCall + 1;
         var ids = string.Join("&",
-            Enumerable.Range(0, 200).Select(i => $"ids=id{i}"));
+            Enumerable.Range(0, overCap).Select(i => $"ids=id{i}"));
 
         var response = await _client.GetAsync(
             $"/api/v1/job-ads/taxonomy/labels?{ids}", ct);

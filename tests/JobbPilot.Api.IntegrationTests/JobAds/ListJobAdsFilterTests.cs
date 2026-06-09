@@ -13,9 +13,16 @@ using Shouldly;
 namespace JobbPilot.Api.IntegrationTests.JobAds;
 
 // F2-P9 (TD-70, CTO-rond 2026-05-13). Filter-suite för GET /api/v1/job-ads
-// med ssyk / region / q. Mot Testcontainers Postgres (F2P9JobAdSearchColumns-
-// migration aktiv) — verifierar att generated columns auto-populeras från
-// raw_payload + att EF.Functions.Like-translation fungerar case-insensitivt.
+// med occupationGroup / region / q. Mot Testcontainers Postgres
+// (F2P9JobAdSearchColumns-migration aktiv) — verifierar att generated columns
+// auto-populeras från raw_payload + att EF.Functions.Like-translation fungerar
+// case-insensitivt.
+//
+// C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte: yrke-filtrets
+// semantik flyttad från ssyk (occupation-name) till occupationGroup
+// (ssyk-level-4, occupation_group_concept_id). De yrke-filtrerande testerna här
+// targetar därför occupationGroup. Ssyk-no-op-regressionen ligger separat i
+// ListJobAdsSsykNoOpTests.
 [Collection("Api")]
 public class ListJobAdsFilterTests(ApiFactory factory)
 {
@@ -28,14 +35,14 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
-    // Seed:ar JobAd via Import-factory med raw_payload som har ssyk + region
-    // concept-ids på korrekt JSON-path. Generated columns (ssyk_concept_id,
-    // region_concept_id) auto-populeras av Postgres vid INSERT — verifierar
-    // hela kedjan från raw_payload till indexed column.
+    // Seed:ar JobAd via Import-factory med raw_payload som har occupation_group
+    // + region concept-ids på korrekt JSON-path. Generated columns
+    // (occupation_group_concept_id, region_concept_id) auto-populeras av Postgres
+    // vid INSERT — verifierar hela kedjan från raw_payload till indexed column.
     private async Task SeedImportedJobAdAsync(
         string title,
         string description,
-        string? ssykConceptId,
+        string? occupationGroupConceptId,
         string? regionConceptId,
         string externalId,
         CancellationToken ct)
@@ -44,7 +51,7 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var rawPayload = BuildRawPayload(externalId, ssykConceptId, regionConceptId);
+        var rawPayload = BuildRawPayload(externalId, occupationGroupConceptId, regionConceptId);
 
         var jobAd = JobAd.Import(
             title: title,
@@ -62,7 +69,8 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     }
 
     // Seed:ar manuell JobAd utan raw_payload — generated columns blir NULL,
-    // får ingen entry i partial index, ska aldrig matchas av ssyk/region-filter.
+    // får ingen entry i partial index, ska aldrig matchas av
+    // occupationGroup/region-filter.
     private async Task SeedManualJobAdAsync(
         string title,
         string description,
@@ -87,19 +95,19 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     }
 
     private static string BuildRawPayload(
-        string externalId, string? ssykConceptId, string? regionConceptId)
+        string externalId, string? occupationGroupConceptId, string? regionConceptId)
     {
         // Bygger payload som matchar generated-column-paths i JobAdConfiguration:
-        //   raw_payload->'occupation'->>'concept_id'              → ssyk_concept_id
+        //   raw_payload->'occupation_group'->>'concept_id'         → occupation_group_concept_id (TOP-LEVEL)
         //   raw_payload->'workplace_address'->>'region_concept_id' → region_concept_id
-        var ssykJson = ssykConceptId is null
+        var groupJson = occupationGroupConceptId is null
             ? "null"
-            : $"{{\"concept_id\":\"{ssykConceptId}\"}}";
+            : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
         var regionJson = regionConceptId is null
             ? "null"
             : $"{{\"region_concept_id\":\"{regionConceptId}\"}}";
 
-        return $"{{\"id\":\"{externalId}\",\"occupation\":{ssykJson},\"workplace_address\":{regionJson}}}";
+        return $"{{\"id\":\"{externalId}\",\"occupation_group\":{groupJson},\"workplace_address\":{regionJson}}}";
     }
 
     private static async Task<(int totalCount, JsonElement items)> ReadPagedAsync(
@@ -110,26 +118,27 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_job_ads_with_ssyk_filter_returns_only_matching_ads()
+    public async Task GET_job_ads_with_occupationGroup_filter_returns_only_matching_ads()
     {
         var ct = TestContext.Current.CancellationToken;
-        var ssykMatch = $"ssyk{Guid.NewGuid():N}"[..16];
-        var ssykOther = $"ssyk{Guid.NewGuid():N}"[..16];
+        var groupMatch = $"grp{Guid.NewGuid():N}"[..16];
+        var groupOther = $"grp{Guid.NewGuid():N}"[..16];
 
         await SeedImportedJobAdAsync(
-            "SsykMatch annons", "desc", ssykMatch, regionConceptId: null,
+            "GruppMatch annons", "desc", groupMatch, regionConceptId: null,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
         await SeedImportedJobAdAsync(
-            "Ej match annons", "desc", ssykOther, regionConceptId: null,
+            "Ej match annons", "desc", groupOther, regionConceptId: null,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
 
         await AuthenticateAsync(ct);
-        var response = await _client.GetAsync($"/api/v1/job-ads?ssyk={ssykMatch}", ct);
+        var response = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationGroup={groupMatch}", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var (totalCount, items) = await ReadPagedAsync(response, ct);
         totalCount.ShouldBe(1);
-        items[0].GetProperty("title").GetString().ShouldBe("SsykMatch annons");
+        items[0].GetProperty("title").GetString().ShouldBe("GruppMatch annons");
     }
 
     [Fact]
@@ -140,10 +149,10 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         var regionOther = $"reg{Guid.NewGuid():N}"[..16];
 
         await SeedImportedJobAdAsync(
-            "RegionMatch annons", "desc", ssykConceptId: null, regionMatch,
+            "RegionMatch annons", "desc", occupationGroupConceptId: null, regionMatch,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
         await SeedImportedJobAdAsync(
-            "Ej match annons", "desc", ssykConceptId: null, regionOther,
+            "Ej match annons", "desc", occupationGroupConceptId: null, regionOther,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
 
         await AuthenticateAsync(ct);
@@ -162,11 +171,11 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         var unique = Guid.NewGuid().ToString("N")[..12];
         await SeedImportedJobAdAsync(
             $"Backend {unique} developer", "ordinarie beskrivning",
-            ssykConceptId: null, regionConceptId: null,
+            occupationGroupConceptId: null, regionConceptId: null,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
         await SeedImportedJobAdAsync(
             "Helt annan titel", "ordinarie beskrivning",
-            ssykConceptId: null, regionConceptId: null,
+            occupationGroupConceptId: null, regionConceptId: null,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
 
         await AuthenticateAsync(ct);
@@ -187,11 +196,11 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         var unique = Guid.NewGuid().ToString("N")[..12];
         await SeedImportedJobAdAsync(
             "Vanlig titel A", $"Vi söker {unique} expert.",
-            ssykConceptId: null, regionConceptId: null,
+            occupationGroupConceptId: null, regionConceptId: null,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
         await SeedImportedJobAdAsync(
             "Vanlig titel B", "Ingen match här.",
-            ssykConceptId: null, regionConceptId: null,
+            occupationGroupConceptId: null, regionConceptId: null,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
 
         await AuthenticateAsync(ct);
@@ -210,7 +219,7 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         var unique = Guid.NewGuid().ToString("N")[..8];
         await SeedImportedJobAdAsync(
             $"Senior {unique}Developer", "desc",
-            ssykConceptId: null, regionConceptId: null,
+            occupationGroupConceptId: null, regionConceptId: null,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
 
         await AuthenticateAsync(ct);
@@ -227,26 +236,26 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     public async Task GET_job_ads_with_all_filters_combined_applies_AND_logic()
     {
         var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
+        var group = $"grp{Guid.NewGuid():N}"[..16];
         var region = $"reg{Guid.NewGuid():N}"[..16];
         var qToken = Guid.NewGuid().ToString("N")[..10];
 
-        // Match: ssyk + region + title innehåller qToken
+        // Match: occupationGroup + region + title innehåller qToken
         await SeedImportedJobAdAsync(
-            $"Annons {qToken} target", "desc", ssyk, region,
+            $"Annons {qToken} target", "desc", group, region,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
-        // Endast ssyk-match (region annan, q saknas)
+        // Endast grupp-match (region annan, q saknas)
         await SeedImportedJobAdAsync(
-            "Ssyk men ej region", "desc", ssyk, regionConceptId: $"reg{Guid.NewGuid():N}"[..16],
+            "Grupp men ej region", "desc", group, regionConceptId: $"reg{Guid.NewGuid():N}"[..16],
             externalId: $"ext-{Guid.NewGuid():N}", ct);
-        // Ssyk + region match men q matchar inte
+        // Grupp + region match men q matchar inte
         await SeedImportedJobAdAsync(
-            "Helt fel titel", "Helt fel beskrivning", ssyk, region,
+            "Helt fel titel", "Helt fel beskrivning", group, region,
             externalId: $"ext-{Guid.NewGuid():N}", ct);
 
         await AuthenticateAsync(ct);
         var response = await _client.GetAsync(
-            $"/api/v1/job-ads?ssyk={ssyk}&region={region}&q={qToken}", ct);
+            $"/api/v1/job-ads?occupationGroup={group}&region={region}&q={qToken}", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var (totalCount, items) = await ReadPagedAsync(response, ct);
@@ -263,7 +272,8 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         var nonExistent = $"none{Guid.NewGuid():N}"[..16];
 
         await AuthenticateAsync(ct);
-        var response = await _client.GetAsync($"/api/v1/job-ads?ssyk={nonExistent}", ct);
+        var response = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationGroup={nonExistent}", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var (totalCount, items) = await ReadPagedAsync(response, ct);
@@ -275,26 +285,27 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     public async Task GET_job_ads_with_filter_total_count_reflects_filtered_set()
     {
         var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
+        var group = $"grp{Guid.NewGuid():N}"[..16];
 
-        // Seed:a 3 med matchande ssyk + 2 med annan ssyk
+        // Seed:a 3 med matchande occupationGroup + 2 med annan grupp
         for (var i = 0; i < 3; i++)
         {
             await SeedImportedJobAdAsync(
-                $"Match {i}", "desc", ssyk, regionConceptId: null,
+                $"Match {i}", "desc", group, regionConceptId: null,
                 externalId: $"ext-{Guid.NewGuid():N}", ct);
         }
         for (var i = 0; i < 2; i++)
         {
             await SeedImportedJobAdAsync(
                 $"Annan {i}", "desc",
-                ssykConceptId: $"ssyk{Guid.NewGuid():N}"[..16],
+                occupationGroupConceptId: $"grp{Guid.NewGuid():N}"[..16],
                 regionConceptId: null,
                 externalId: $"ext-{Guid.NewGuid():N}", ct);
         }
 
         await AuthenticateAsync(ct);
-        var response = await _client.GetAsync($"/api/v1/job-ads?ssyk={ssyk}&pageSize=2", ct);
+        var response = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationGroup={group}&pageSize=2", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -355,17 +366,18 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     public async Task GET_job_ads_ad_without_raw_payload_not_matched_by_filter()
     {
         var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
+        var group = $"grp{Guid.NewGuid():N}"[..16];
 
-        // Manuell annons utan raw_payload → ssyk_concept_id NULL i DB
-        await SeedManualJobAdAsync($"Manuell med {ssyk} i titel", "desc", ct);
+        // Manuell annons utan raw_payload → occupation_group_concept_id NULL i DB
+        await SeedManualJobAdAsync($"Manuell med {group} i titel", "desc", ct);
 
         await AuthenticateAsync(ct);
-        var response = await _client.GetAsync($"/api/v1/job-ads?ssyk={ssyk}", ct);
+        var response = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationGroup={group}", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var (totalCount, _) = await ReadPagedAsync(response, ct);
-        // Filter på generated column = NULL → ingen match även om ssyk-strängen
+        // Filter på generated column = NULL → ingen match även om grupp-strängen
         // råkar finnas i title.
         totalCount.ShouldBe(0);
     }

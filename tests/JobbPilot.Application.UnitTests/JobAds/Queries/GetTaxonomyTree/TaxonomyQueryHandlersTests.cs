@@ -23,10 +23,14 @@ public class TaxonomyQueryHandlersTests
     public async Task Handle_ShouldReturnPortTree_WhenGetTaxonomyTreeQuery()
     {
         var ct = TestContext.Current.CancellationToken;
+        // C1 (ADR 0067) — additiv kaskad: Region bär Municipalities,
+        // OccupationField bär Occupations + OccupationGroups.
         var tree = new TaxonomyTreeDto(
-            [new TaxonomyRegionDto("r1", "Stockholms län")],
+            [new TaxonomyRegionDto("r1", "Stockholms län",
+                [new TaxonomyMunicipalityDto("kn1", "Stockholm")])],
             [new TaxonomyOccupationFieldDto("f1", "Data/IT",
-                [new TaxonomyOccupationDto("o1", "Backend-utvecklare")])]);
+                [new TaxonomyOccupationDto("o1", "Backend-utvecklare")],
+                [new TaxonomyOccupationGroupDto("g1", "Mjukvaru- och systemutvecklare")])]);
         _taxonomy.GetTreeAsync(Arg.Any<CancellationToken>())
             .Returns(new ValueTask<TaxonomyTreeDto>(tree));
         var sut = new GetTaxonomyTreeQueryHandler(_taxonomy);

@@ -19,7 +19,19 @@ public sealed class ListJobAdsQueryHandler(IJobAdSearchQuery search)
         => search.SearchAsync(
             new JobAdSearchCriteria(
                 // null → tom lista: "inget filter" (ADR 0042 Beslut B).
-                new JobAdFilterCriteria(query.Ssyk ?? [], query.Region ?? [], query.Q),
+                // ADR 0067 Beslut 1 (Variant C): pure-adapter passthrough av alla
+                // dimensioner inkl. Ssyk (occupation-name). No-op-disciplinen för
+                // Ssyk enforce:as på ETT ställe — ApplyCriteria har ingen Ssyk-
+                // equality-gren längre. Alla tre konsumenter (ListJobAds/
+                // RunSavedSearch/ListRecentSearches) matar sin Ssyk-källa hit
+                // enhetligt; q-vägens synonym-expansion mot SsykConceptId drivs
+                // separat av Q.
+                new JobAdFilterCriteria(
+                    OccupationGroup: query.OccupationGroup ?? [],
+                    Municipality: query.Municipality ?? [],
+                    Region: query.Region ?? [],
+                    Ssyk: query.Ssyk ?? [],
+                    Q: query.Q),
                 query.SortBy,
                 query.Page,
                 query.PageSize,

@@ -4,22 +4,25 @@ using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.JobAds.Queries.GetTaxonomyTree;
 
-// ADR 0043 MAP-3 — reverse-lookup-cap enforce:as i Validation-pipeline FÖRE
-// handlern. Cap = SearchCriteria.MaxConceptIds ×2 (Ssyk + Region i en sparad
-// sökning). Konstanten refereras i assert, ALDRIG hårdkodad siffra (DRY/
-// domän-konsekvens — om SearchCriteria.MaxConceptIds ändras följer testet med).
+// ADR 0043 MAP-3 + C1 (ADR 0067 Platsbanken sök-paritet) — reverse-lookup-cap
+// enforce:as i Validation-pipeline FÖRE handlern. C1 höjer multiplikatorn ×2→×4:
+// en sparad sökning kan nu bära fyra MaxConceptIds-dimensioner (OccupationGroup
+// + Municipality + Region + Ssyk) → cap = SearchCriteria.MaxConceptIds ×4.
+// Konstanten refereras i assert, ALDRIG hårdkodad siffra (DRY/domän-konsekvens
+// — om SearchCriteria.MaxConceptIds ändras följer testet med).
 // Speglar SuggestJobAdTermsQueryValidatorTests.
 public class ResolveTaxonomyLabelsQueryValidatorTests
 {
     private readonly ResolveTaxonomyLabelsQueryValidator _validator = new();
 
     [Fact]
-    public void Validate_ShouldExposeCapAsTwiceDomainMaxConceptIds_WhenInspected()
+    public void Validate_ShouldExposeCapAsFourTimesDomainMaxConceptIds_WhenInspected()
     {
-        // Self-dokumenterande: bekräftar att cap härleds från domänkonstanten,
-        // inte en magisk literal (CLAUDE.md §5.1 magic-string-förbud).
+        // Self-dokumenterande: bekräftar att cap härleds från domänkonstanten
+        // ×4 (fyra filter-dimensioner per sökning efter C1), inte en magisk
+        // literal (CLAUDE.md §5.1 magic-string-förbud).
         ResolveTaxonomyLabelsQueryValidator.MaxConceptIdsPerCall
-            .ShouldBe(SearchCriteria.MaxConceptIds * 2);
+            .ShouldBe(SearchCriteria.MaxConceptIds * 4);
     }
 
     [Fact]
@@ -94,5 +97,33 @@ public class ResolveTaxonomyLabelsQueryValidatorTests
             new ResolveTaxonomyLabelsQuery([string.Empty]));
 
         result.IsValid.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("bad<id>")]
+    [InlineData("åäö")]
+    [InlineData("semi;colon")]
+    public void Validate_ShouldBeInvalid_WhenElementBreaksConceptIdCharset(string badId)
+    {
+        // C1 (security-auditor 2026-06-09 Minor) — ConceptIdPattern
+        // (^[A-Za-z0-9_-]{1,32}$) speglas nu även här. Charset-cap begränsar den
+        // reflekterade id-strängen i svars-DTO:n (defense-in-depth mot XSS-stuffing).
+        var result = _validator.Validate(
+            new ResolveTaxonomyLabelsQuery([badId]));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_ShouldPass_WhenElementMatchesConceptIdCharset()
+    {
+        // Giltigt JobTech-format (alfanumeriskt + _- ) inkl. okänd-men-välformad
+        // kod (taxonomi-drift) — graceful "Okänd kod"-fallback sker i handlern,
+        // inte via 400. Validatorn släpper igenom välformade ids.
+        var result = _validator.Validate(
+            new ResolveTaxonomyLabelsQuery(["MVqp_eS8_kDZ", "helt-okand-77"]));
+
+        result.IsValid.ShouldBeTrue();
     }
 }

@@ -79,11 +79,18 @@ internal sealed class JobAdSearchQuery(
         => await ApplyCriteria(db.JobAds.AsNoTracking(), criteria, synonymExpander)
             .CountAsync(cancellationToken);
 
-    // F2-P9 (TD-70). ssyk/region-filter via Postgres STORED generated columns
-    // (B-tree-indexerade, equality-lookup). Shadow-properties refereras via
+    // F2-P9 (TD-70). Filter via Postgres STORED generated columns (B-tree-
+    // indexerade, equality-lookup). Shadow-properties refereras via
     // EF.Property<string?>(…) — de är inte top-level Domain-fält (Evans 2003
     // §14 ACL — JobTech-taxonomi är inte JobbPilots ubiquitous language).
-    // ADR 0042 Beslut B — Ssyk/Region multi → SQL IN(…) via list.Contains.
+    // ADR 0042 Beslut B — multi → SQL IN(…) via list.Contains.
+    //
+    // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1, Variant C) — yrke-
+    // nivåbyte: det explicita yrke-filtret targetar OccupationGroupConceptId
+    // (ssyk-level-4/yrkesgrupp) i stället för SsykConceptId (occupation-name).
+    // Den tidigare Ssyk-equality-grenen är BORTTAGEN. SsykConceptId-kolumnen
+    // lever vidare i q-vägens synonym-expansion nedan (recall-substrat bevarat).
+    // Municipality (kommun) tillkommer som ny dimension (analogt Region).
     //
     // ADR 0062 — q-FTS-hybrid. FTS-grenen (search_vector @@ websearch_to_tsquery)
     // är den snabba primärvägen: GIN-index på tsvector + svensk stemming
@@ -107,10 +114,16 @@ internal sealed class JobAdSearchQuery(
         // ADR 0032-amendment 2026-05-23 — slutanvändar-vyer ser bara Active.
         source = source.Where(j => j.Status == JobAdStatus.Active);
 
-        if (criteria.Ssyk.Count > 0)
+        if (criteria.OccupationGroup.Count > 0)
         {
-            var ssykValues = criteria.Ssyk;
-            source = source.Where(j => ssykValues.Contains(EF.Property<string?>(j, "SsykConceptId")));
+            var groupValues = criteria.OccupationGroup;
+            source = source.Where(j => groupValues.Contains(EF.Property<string?>(j, "OccupationGroupConceptId")));
+        }
+
+        if (criteria.Municipality.Count > 0)
+        {
+            var municipalityValues = criteria.Municipality;
+            source = source.Where(j => municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId")));
         }
 
         if (criteria.Region.Count > 0)

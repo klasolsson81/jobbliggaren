@@ -33,6 +33,12 @@ public static class JobAdsEndpoints
             JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc,
             // ADR 0042 Beslut B — multi: upprepad query-string ?ssyk=a&ssyk=b
             // binds av ASP.NET Core minimal API till string[].
+            // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1) — nya
+            // dimensioner: ?occupationGroup= (ssyk-level-4/yrkesgrupp, primärt
+            // yrke-filter) + ?municipality= (kommun). ?ssyk= behålls deprecerad
+            // (no-op-filter; FE byter till ?occupationGroup= i Fas E).
+            string[]? occupationGroup = null,
+            string[]? municipality = null,
             string[]? ssyk = null,
             string[]? region = null,
             string? q = null,
@@ -41,7 +47,14 @@ public static class JobAdsEndpoints
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
-                new ListJobAdsQuery(page, pageSize, sortBy, ssyk, region, q, since), ct);
+                new ListJobAdsQuery(
+                    page, pageSize, sortBy,
+                    OccupationGroup: occupationGroup,
+                    Municipality: municipality,
+                    Region: region,
+                    Ssyk: ssyk,
+                    Q: q,
+                    Since: since), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
@@ -86,7 +99,8 @@ public static class JobAdsEndpoints
         // ADR 0043 — reverse-lookup (concept-id → namn) för redan-sparade
         // sökningar/valda chips. Okänt id → "Okänd kod (<id>)" (graceful,
         // aldrig 500). Cap i ResolveTaxonomyLabelsQueryValidator (= domänens
-        // MaxConceptIds ×2). Cache-Control: private (varierar per ids, auth).
+        // MaxConceptIds ×4 efter C1, ADR 0067 — fyra filter-dimensioner).
+        // Cache-Control: private (varierar per ids, auth).
         group.MapGet("/taxonomy/labels", async (
             IMediator mediator, HttpContext http,
             string[]? ids = null, CancellationToken ct = default) =>

@@ -73,6 +73,56 @@ public class ListJobAdsQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenOccupationGroupIsNull_MapsToEmptyFilterOccupationGroupList()
+    {
+        // C1 (ADR 0067) — ny dimension: null → tom lista innan porten anropas
+        // (samma normalisering som Ssyk/Region).
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
+
+        await handler.Handle(
+            new ListJobAdsQuery(OccupationGroup: null), TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.OccupationGroup.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenMunicipalityIsNull_MapsToEmptyFilterMunicipalityList()
+    {
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
+
+        await handler.Handle(
+            new ListJobAdsQuery(Municipality: null), TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Municipality.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenOccupationGroupAndMunicipalityProvided_PassesListsThroughToFilter()
+    {
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = new ListJobAdsQueryHandler(_search);
+
+        await handler.Handle(
+            new ListJobAdsQuery(
+                OccupationGroup: ["grp-1", "grp-2"], Municipality: ["sthlm_kn"]),
+            TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.OccupationGroup.ShouldBe(["grp-1", "grp-2"]);
+        captured.Filter.Municipality.ShouldBe(["sthlm_kn"]);
+    }
+
+    [Fact]
     public async Task Handle_MapsQToFilter_AndSortPageSizeSinceToCriteria()
     {
         // Q hör hemma i Filter-SPOT:en; SortBy/Page/PageSize/Since på
@@ -115,6 +165,8 @@ public class ListJobAdsQueryHandlerTests
         captured.PageSize.ShouldBe(20);
         captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         captured.Filter.Q.ShouldBeNull();
+        captured.Filter.OccupationGroup.ShouldBeEmpty();
+        captured.Filter.Municipality.ShouldBeEmpty();
         captured.Filter.Ssyk.ShouldBeEmpty();
         captured.Filter.Region.ShouldBeEmpty();
         captured.Since.ShouldBeNull();

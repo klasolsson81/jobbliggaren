@@ -12,8 +12,12 @@ using Shouldly;
 namespace JobbPilot.Api.IntegrationTests.JobAds;
 
 // Batch 3 — ADR 0042 Beslut B. ApplyCriteria (delad sök-SPOT, ADR 0039
-// Beslut 1) utvidgas till list-form: multi-ssyk/region ⇒ IN(...) via
-// ssyk.Contains(EF.Property<string?>(j,"SsykConceptId")).
+// Beslut 1) utvidgas till list-form: multi-occupationGroup/region ⇒ IN(...) via
+// occupationGroup.Contains(EF.Property<string?>(j,"OccupationGroupConceptId")).
+//
+// C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte: yrke-filtrets
+// multi-value-tester targetar OccupationGroupConceptId (Ssyk-grenen borttagen,
+// no-op-regressionen ligger i ListJobAdsSsykNoOpTests). Region oförändrad.
 //
 // ARCHITECT-FLAGGAD BLOCKERANDE GATE: verifierar att Npgsql översätter
 // List<string>.Contains(EF.Property<string?>(...)) mot shadow-property (Postgres
@@ -33,7 +37,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
 
     private async Task SeedImportedJobAdAsync(
         string title,
-        string? ssykConceptId,
+        string? occupationGroupConceptId,
         string? regionConceptId,
         string externalId,
         CancellationToken ct)
@@ -42,14 +46,15 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var ssykJson = ssykConceptId is null
+        // occupation_group är TOP-LEVEL i payloaden (→ occupation_group_concept_id).
+        var groupJson = occupationGroupConceptId is null
             ? "null"
-            : $"{{\"concept_id\":\"{ssykConceptId}\"}}";
+            : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
         var regionJson = regionConceptId is null
             ? "null"
             : $"{{\"region_concept_id\":\"{regionConceptId}\"}}";
         var rawPayload =
-            $"{{\"id\":\"{externalId}\",\"occupation\":{ssykJson}," +
+            $"{{\"id\":\"{externalId}\",\"occupation_group\":{groupJson}," +
             $"\"workplace_address\":{regionJson}}}";
 
         var jobAd = JobAd.Import(
@@ -68,25 +73,25 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task ApplyCriteria_MultiSsyk_MatchesUnionOfAllValues()
+    public async Task ApplyCriteria_MultiOccupationGroup_MatchesUnionOfAllValues()
     {
         var ct = TestContext.Current.CancellationToken;
-        var ssykA = $"ssyk{Guid.NewGuid():N}"[..16];
-        var ssykB = $"ssyk{Guid.NewGuid():N}"[..16];
-        var ssykOther = $"ssyk{Guid.NewGuid():N}"[..16];
+        var groupA = $"grp{Guid.NewGuid():N}"[..16];
+        var groupB = $"grp{Guid.NewGuid():N}"[..16];
+        var groupOther = $"grp{Guid.NewGuid():N}"[..16];
 
-        await SeedImportedJobAdAsync("Annons A", ssykA, null, $"ext-{Guid.NewGuid():N}", ct);
-        await SeedImportedJobAdAsync("Annons B", ssykB, null, $"ext-{Guid.NewGuid():N}", ct);
-        await SeedImportedJobAdAsync("Annons C", ssykOther, null, $"ext-{Guid.NewGuid():N}", ct);
+        await SeedImportedJobAdAsync("Annons A", groupA, null, $"ext-{Guid.NewGuid():N}", ct);
+        await SeedImportedJobAdAsync("Annons B", groupB, null, $"ext-{Guid.NewGuid():N}", ct);
+        await SeedImportedJobAdAsync("Annons C", groupOther, null, $"ext-{Guid.NewGuid():N}", ct);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()));
 
-        // Multi-värde ⇒ IN(ssykA, ssykB) → UNION-match (Npgsql Contains-mot-
+        // Multi-värde ⇒ IN(groupA, groupB) → UNION-match (Npgsql Contains-mot-
         // shadow-prop-translation: den arkitekt-flaggade gaten).
         var result = await handler.Handle(
-            new ListJobAdsQuery(Ssyk: [ssykA, ssykB]), ct);
+            new ListJobAdsQuery(OccupationGroup: [groupA, groupB]), ct);
 
         result.Items.Select(i => i.Title).OrderBy(t => t)
             .ShouldBe(["Annons A", "Annons B"]);
@@ -118,70 +123,70 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task ApplyCriteria_SingleElementSsykList_MatchesSameAsOldSingleValue()
+    public async Task ApplyCriteria_SingleElementOccupationGroupList_MatchesSameAsOldSingleValue()
     {
         // Regressions-grind: single-element-lista ⇒ identiskt beteende som
         // gammalt single-värde (ADR 0039 Beslut 1 SPOT får ej divergera).
         var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
-        var other = $"ssyk{Guid.NewGuid():N}"[..16];
+        var group = $"grp{Guid.NewGuid():N}"[..16];
+        var other = $"grp{Guid.NewGuid():N}"[..16];
 
-        await SeedImportedJobAdAsync("Match", ssyk, null, $"ext-{Guid.NewGuid():N}", ct);
+        await SeedImportedJobAdAsync("Match", group, null, $"ext-{Guid.NewGuid():N}", ct);
         await SeedImportedJobAdAsync("EjMatch", other, null, $"ext-{Guid.NewGuid():N}", ct);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()));
 
-        var result = await handler.Handle(new ListJobAdsQuery(Ssyk: [ssyk]), ct);
+        var result = await handler.Handle(new ListJobAdsQuery(OccupationGroup: [group]), ct);
 
         result.TotalCount.ShouldBe(1);
         result.Items[0].Title.ShouldBe("Match");
     }
 
     [Fact]
-    public async Task ApplyCriteria_EmptySsykList_AppliesNoFilter()
+    public async Task ApplyCriteria_EmptyOccupationGroupList_AppliesNoFilter()
     {
         // Tom lista = inget filter (generaliserad tom-invariant, ADR 0042 B.3).
         var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
+        var group = $"grp{Guid.NewGuid():N}"[..16];
         await SeedImportedJobAdAsync(
-            $"Oavsett {Guid.NewGuid():N}", ssyk, null, $"ext-{Guid.NewGuid():N}", ct);
+            $"Oavsett {Guid.NewGuid():N}", group, null, $"ext-{Guid.NewGuid():N}", ct);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()));
 
-        var result = await handler.Handle(new ListJobAdsQuery(Ssyk: []), ct);
+        var result = await handler.Handle(new ListJobAdsQuery(OccupationGroup: []), ct);
 
-        // Inget ssyk-filter applicerat ⇒ minst den seedade annonsen återfinns
-        // (totalCount speglar ofiltrerad mängd, inte 0).
+        // Inget occupationGroup-filter applicerat ⇒ minst den seedade annonsen
+        // återfinns (totalCount speglar ofiltrerad mängd, inte 0).
         result.TotalCount.ShouldBeGreaterThanOrEqualTo(1);
     }
 
     [Fact]
-    public async Task ApplyCriteria_MultiSsykAndMultiRegion_AppliesAndAcrossListsOrWithin()
+    public async Task ApplyCriteria_MultiOccupationGroupAndMultiRegion_AppliesAndAcrossListsOrWithin()
     {
-        // ssyk IN(a,b) AND region IN(x,y): OR inom lista, AND mellan listor.
+        // occupationGroup IN(a,b) AND region IN(x,y): OR inom lista, AND mellan listor.
         var ct = TestContext.Current.CancellationToken;
-        var ssykA = $"ssyk{Guid.NewGuid():N}"[..16];
-        var ssykB = $"ssyk{Guid.NewGuid():N}"[..16];
+        var groupA = $"grp{Guid.NewGuid():N}"[..16];
+        var groupB = $"grp{Guid.NewGuid():N}"[..16];
         var regX = $"reg{Guid.NewGuid():N}"[..16];
         var regY = $"reg{Guid.NewGuid():N}"[..16];
         var regZ = $"reg{Guid.NewGuid():N}"[..16];
 
-        // Matchar: ssyk i {A,B} OCH region i {X,Y}
-        await SeedImportedJobAdAsync("Match1", ssykA, regX, $"ext-{Guid.NewGuid():N}", ct);
-        await SeedImportedJobAdAsync("Match2", ssykB, regY, $"ext-{Guid.NewGuid():N}", ct);
-        // ssyk ok men region utanför {X,Y}
-        await SeedImportedJobAdAsync("NoRegion", ssykA, regZ, $"ext-{Guid.NewGuid():N}", ct);
+        // Matchar: grupp i {A,B} OCH region i {X,Y}
+        await SeedImportedJobAdAsync("Match1", groupA, regX, $"ext-{Guid.NewGuid():N}", ct);
+        await SeedImportedJobAdAsync("Match2", groupB, regY, $"ext-{Guid.NewGuid():N}", ct);
+        // grupp ok men region utanför {X,Y}
+        await SeedImportedJobAdAsync("NoRegion", groupA, regZ, $"ext-{Guid.NewGuid():N}", ct);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()));
 
         var result = await handler.Handle(
-            new ListJobAdsQuery(Ssyk: [ssykA, ssykB], Region: [regX, regY]), ct);
+            new ListJobAdsQuery(OccupationGroup: [groupA, groupB], Region: [regX, regY]), ct);
 
         result.Items.Select(i => i.Title).OrderBy(t => t)
             .ShouldBe(["Match1", "Match2"]);

@@ -78,10 +78,28 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             .AsNoTracking()
             .ToListAsync();
 
+        // ADR 0067 Beslut 1 + ADR 0043-amendment 2026-06-08 (Fas C1) — kommun
+        // som barn under län (1:1 via ParentConceptId). Samma GroupBy-mönster
+        // som occupationsByField nedan.
+        var municipalitiesByRegion = concepts
+            .Where(c => c.Kind == TaxonomyConceptKind.Municipality
+                        && c.ParentConceptId is not null)
+            .GroupBy(c => c.ParentConceptId!)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(c => c.Label, StringComparer.Ordinal)
+                      .Select(c => new TaxonomyMunicipalityDto(c.ConceptId, c.Label))
+                      .ToList());
+
         var regions = concepts
             .Where(c => c.Kind == TaxonomyConceptKind.Region)
             .OrderBy(c => c.Label, StringComparer.Ordinal)
-            .Select(c => new TaxonomyRegionDto(c.ConceptId, c.Label))
+            .Select(c => new TaxonomyRegionDto(
+                c.ConceptId,
+                c.Label,
+                municipalitiesByRegion.TryGetValue(c.ConceptId, out var muni)
+                    ? muni
+                    : []))
             .ToList();
 
         var occupationsByField = concepts
@@ -94,6 +112,18 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
                       .Select(c => new TaxonomyOccupationDto(c.ConceptId, c.Label))
                       .ToList());
 
+        // ADR 0067 Beslut 1 (Fas C1) — yrkesgrupp (ssyk-level-4) som barn under
+        // yrkesområde (1:1). Primärt yrke-filter för Platsbanken-paritet.
+        var groupsByField = concepts
+            .Where(c => c.Kind == TaxonomyConceptKind.OccupationGroup
+                        && c.ParentConceptId is not null)
+            .GroupBy(c => c.ParentConceptId!)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(c => c.Label, StringComparer.Ordinal)
+                      .Select(c => new TaxonomyOccupationGroupDto(c.ConceptId, c.Label))
+                      .ToList());
+
         var occupationFields = concepts
             .Where(c => c.Kind == TaxonomyConceptKind.OccupationField)
             .OrderBy(c => c.Label, StringComparer.Ordinal)
@@ -102,6 +132,9 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
                 c.Label,
                 occupationsByField.TryGetValue(c.ConceptId, out var occ)
                     ? occ
+                    : [],
+                groupsByField.TryGetValue(c.ConceptId, out var grp)
+                    ? grp
                     : []))
             .ToList();
 

@@ -35,8 +35,17 @@ public sealed record SearchCriteria
     private const int QMaxLength = 100;
 
     /// <summary>Maxantal concept-ids per lista (ADR 0042 Beslut B invariant 2 —
-    /// query-blowup/IN(...)-DoS-tak). Speglas i ListJobAdsQueryValidator.</summary>
-    public const int MaxConceptIds = 10;
+    /// query-blowup/IN(...)-DoS-tak). Speglas i ListJobAdsQueryValidator.
+    /// <para>ADR 0042-amendment 2026-06-09 (ADR 0067 Platsbanken sök-paritet Fas C1):
+    /// 10→400. Taket = ssyk-level-4-universumets storlek (~400 yrkesgrupper) så
+    /// "Välj alla yrkesgrupper" aldrig träffar taket (Klas-GO 2026-06-09, CTO-dom).
+    /// "Markera alla" uttrycks som tom lista (= inget filter = alla), inte ~400
+    /// materialiserade ids (FE-kontrakt Fas E). 400 är säkert mot IN(...)-DoS
+    /// (B-tree-indexerad STORED-kolumn) + jsonb-dedupe (≤~15KB/sparad sökning,
+    /// TOAST normalt) + ADR 0045 read-query 300ms p95. Ändligt tak består —
+    /// obegränsad lista vore den verkliga DoS-vektorn. Om ssyk-universum växer
+    /// förbi 400 i framtida JobTech-snapshot bör taket följa med.</para></summary>
+    public const int MaxConceptIds = 400;
 
     public IReadOnlyList<string> Ssyk { get; private init; } = [];
     public IReadOnlyList<string> Region { get; private init; } = [];

@@ -206,3 +206,7 @@ Beslut E:s yrke-granularitet (occupation-field → **occupation-name**) ändras 
 - Discovery + agent-domar: `docs/research/2026-06-08-platsbanken-sok-paritet-discovery.md`, `docs/reviews/2026-06-08-sok-paritet-{architect,cto,cto-followup}.md`
 - ADR 0043 Beslut E (payload-trigger-protokoll — följt exakt), Beslut B (snapshot-dedup — skuld krymper)
 - Evans DDD (2003) kap. 14 (ACL utvidgning); Hunt/Thomas (1999) DRY (Kind-diskriminator ej Level-int); Nygard (2011) additivt amendment ej supersession
+
+### Implementerings-notat 2026-06-09 (Fas C1) — Beslut D reverse-lookup-cap-multiplikator 2 → 4
+
+ADR 0043 Beslut D:s reverse-lookup-cap (`ResolveTaxonomyLabelsQueryValidator.MaxConceptIdsPerCall`) är härledd ur `SearchCriteria.MaxConceptIds` (DRY single-source). Multiplikatorn antog **2 dimensioner** (Ssyk + Region). Fas C1 inför OccupationGroup + Municipality → upp till **4 filterbara dimensioner** en chip-render kan materialisera i den platta `ConceptIds`-listan (legacy-Ssyk inkluderat — gamla sparade sökningar bär occupation-name-ids som måste label-resolvas tills Fas C2 reverse-lookup-migrerar dem). Multiplikatorn justeras **2 → 4** (= 1600 med MaxConceptIds=400). Beslut D-mekaniken (cap = MaxConceptIds × dimensioner, deriverad konstant) **består** — detta är en mekanik-konkretisering, inte ett amendment. Säkert: O(n) in-memory dict-lookup, auth + rate-limited (TaxonomyReadPolicy), per-element MaximumLength(32). senior-cto-advisor-dom 2026-06-09 (`docs/reviews/2026-06-09-sok-paritet-c1-cto.md`).

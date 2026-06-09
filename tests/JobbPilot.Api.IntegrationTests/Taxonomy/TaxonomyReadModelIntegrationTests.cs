@@ -244,6 +244,70 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTreeAsync_ShouldNestMunicipalitiesUnderRegion_WhenSnapshotSeeded()
+    {
+        // C1 (ADR 0067 Platsbanken sök-paritet) — additiv kaskad: kommun-DTOs
+        // nästlas under rätt Region (parent_concept_id-gruppering, 1:1).
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var tree = await sut.GetTreeAsync(ct);
+
+        // Minst ett län ska ha underordnade kommuner.
+        tree.Regions.ShouldContain(r => r.Municipalities.Count > 0);
+        tree.Regions.SelectMany(r => r.Municipalities)
+            .ShouldAllBe(m => !string.IsNullOrWhiteSpace(m.ConceptId)
+                              && !string.IsNullOrWhiteSpace(m.Label));
+    }
+
+    [Fact]
+    public async Task GetTreeAsync_ShouldNestOccupationGroupsUnderOccupationField_WhenSnapshotSeeded()
+    {
+        // C1 — yrkesgrupp-DTOs (ssyk-level-4) nästlas under rätt yrkesområde.
+        // Occupations (occupation-name) BEHÅLLS parallellt (recall-substrat).
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var tree = await sut.GetTreeAsync(ct);
+
+        tree.OccupationFields.ShouldContain(f => f.OccupationGroups.Count > 0);
+        tree.OccupationFields.SelectMany(f => f.OccupationGroups)
+            .ShouldAllBe(g => !string.IsNullOrWhiteSpace(g.ConceptId)
+                              && !string.IsNullOrWhiteSpace(g.Label));
+
+        // Occupations får ej tappas av kaskad-tillägget (additiv, ej ersättande).
+        tree.OccupationFields.ShouldContain(f => f.Occupations.Count > 0);
+    }
+
+    [Fact]
+    public async Task ResolveLabelsAsync_ShouldResolveMunicipalityAndOccupationGroupLabels_WhenSeeded()
+    {
+        // C1 — reverse-lookup måste täcka ALLA Kinds (labelByConceptId byggs över
+        // hela snapshoten). Hämta ett kommun- + ett yrkesgrupp-concept-id ur
+        // trädet och verifiera att de resolvar till riktiga namn (ej fallback).
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+        var tree = await sut.GetTreeAsync(ct);
+
+        var knownMunicipality = tree.Regions
+            .SelectMany(r => r.Municipalities).First();
+        var knownGroup = tree.OccupationFields
+            .SelectMany(f => f.OccupationGroups).First();
+
+        var result = await sut.ResolveLabelsAsync(
+            [knownMunicipality.ConceptId, knownGroup.ConceptId], ct);
+
+        result.Count.ShouldBe(2);
+        result[0].Label.ShouldBe(knownMunicipality.Label);
+        result[0].Label.ShouldNotStartWith("Okänd kod");
+        result[1].Label.ShouldBe(knownGroup.Label);
+        result[1].Label.ShouldNotStartWith("Okänd kod");
+    }
+
+    [Fact]
     public async Task Seeder_ShouldBeIdempotent_WhenRunTwiceWithSameVersion()
     {
         var ct = TestContext.Current.CancellationToken;

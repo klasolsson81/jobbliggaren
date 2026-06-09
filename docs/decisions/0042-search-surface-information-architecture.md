@@ -153,6 +153,22 @@ Beslut B.4 (gammal-rad jsonb-datakompat, ADR-brödtext §39) konkretiseras: mult
 
 Beslut E ("Ny"-badge via `ListJobAdsQuery.Since`) konkretiseras: fönstret är **fast rullande 7 dygn, serverstyrt, ingen UI-kontroll**. Klas-bekräftat 2026-05-17 (civic-enkelhet — ingen användarinställning, ett förutsägbart serverstyrt fönster i linje med jobbpilot-design-principles regel 3/7).
 
+### Amendment 2026-06-09 — Beslut B maxantal-cap (MaxConceptIds) 10 → 400 (per ADR 0067 Fas C1)
+
+**Källa:** Platsbanken-sök-paritets-initiativet ([ADR 0067](./0067-platsbanken-search-parity.md)) Fas C1. Additivt amendment-notat — ADR-immutabilitet: Beslut A–F-brödtext ovan är orörd. Detta amendment justerar **endast invariant-värdet** i Beslut B.2 (maxantal-cap), inte mekaniken.
+
+**Status:** ADR 0042 förblir **Accepted**. Beslut B.2:s maxantal-cap-mekanik (`SearchCriteria.MaxConceptIds` som single source, speglad i `ListJobAdsQueryValidator`) **består oförändrad**. Endast talet ändras.
+
+**Ändring:** `SearchCriteria.MaxConceptIds` **10 → 400** (per dimension, enhetligt över alla dimensioner: OccupationGroup, Municipality, Region, Ssyk).
+
+**Motiv (senior-cto-advisor decision-maker 2026-06-09 + Klas-GO):**
+- **Verifierat behov:** 10 valdes 2026-05-16 *innan* Platsbanken-paritet var mål. Klas testade "Välj alla Data/IT-yrken" (70 st) 2026-06-08 → ValidationException → FE "tekniskt fel". Redan ~12 yrkesgrupper i Data/IT (efter yrke-nivåbytet, ADR 0067 Beslut 1) överskrider 10.
+- **400 = ssyk-level-4-universumets storlek** (~400 yrkesgrupper) → "Välj alla yrkesgrupper" träffar aldrig taket. Invarianten speglar domänens verklighet (Evans 2003 kap. 5).
+- **"Markera alla" = tom lista** (= inget filter = alla), inte ~400 materialiserade ids (FE-kontrakt, Fas E). YAGNI/KISS — "alla" och "inget filter" är samma resultatmängd.
+- **DoS-disciplin bevarad:** IN(400) mot B-tree-indexerad STORED-kolumn trivialt; jsonb-dedupe ≤~15KB/sparad sökning (TOAST normalt, läses en-i-taget); inom ADR 0045 read-query 300ms p95. Ändligt tak består. Avvisat: 200 (godtyckligt, bryter UX för manuellt 250-val under universumstorleken, noll DoS-vinst); asymmetriskt per-dimension-tak (bryter enhetlighet utan bärande skäl).
+
+Full dom: `docs/reviews/2026-06-09-sok-paritet-c1-cto.md`. Konsekvens: ADR 0043 reverse-lookup-cap-multiplikator följde med 2→4 (se ADR 0043 implementerings-notat 2026-06-09).
+
 ### Korsreferenser
 
 - ADR 0032-amendment 2026-05-16 (snapshot-trunkerings-resiliens/hybrid) — stream-cron-skrivlasten som motiverar att `pg_trgm` GIN-write-overhead avvisas.

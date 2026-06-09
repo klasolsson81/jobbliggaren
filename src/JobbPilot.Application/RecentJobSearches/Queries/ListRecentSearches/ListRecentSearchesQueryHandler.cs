@@ -64,8 +64,17 @@ public sealed class ListRecentSearchesQueryHandler(
             int currentCount = 0;
             if (query.IncludeCount)
             {
+                // ADR 0067 Beslut 1 (Variant C): RecentJobSearch bär ännu inte
+                // OccupationGroup/Municipality (entity-expansion = Fas C2) → tomma
+                // listor. Persisterad Ssyk passthrough (ApplyCriteria no-op).
                 currentCount = await search.CountAsync(
-                    new JobAdFilterCriteria(r.Ssyk, r.Region, r.Q), cancellationToken);
+                    new JobAdFilterCriteria(
+                        OccupationGroup: [],
+                        Municipality: [],
+                        Region: r.Region,
+                        Ssyk: r.Ssyk,
+                        Q: r.Q),
+                    cancellationToken);
             }
 
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);

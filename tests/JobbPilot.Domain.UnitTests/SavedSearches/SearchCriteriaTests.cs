@@ -207,53 +207,70 @@ public class SearchCriteriaTests
     }
 
     // ---------------------------------------------------------------
-    // Invariant 3 — Maxantal-cap = 10 per lista (Domain-konstant)
+    // Invariant 3 — Maxantal-cap = MaxConceptIds per lista (Domain-konstant).
+    // C1 (ADR 0067 Platsbanken sök-paritet): cap höjs 10→400 (enhetligt per
+    // dimension). Boundary-testerna refererar konstanten, ALDRIG literalen 400,
+    // så testerna följer med om MaxConceptIds ändras igen (DRY, CLAUDE.md §5.1).
     // ---------------------------------------------------------------
 
     [Fact]
-    public void Create_WithExactlyTenSsyk_ReturnsSuccess()
+    public void Create_WithExactlyMaxSsyk_ReturnsSuccess()
     {
-        var ten = Enumerable.Range(1, 10).Select(i => $"ssyk{i}").ToArray();
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"ssyk{i}").ToArray();
 
-        var result = SearchCriteria.Create(ten, null, null, JobAdSortBy.PublishedAtDesc);
+        var result = SearchCriteria.Create(max, null, null, JobAdSortBy.PublishedAtDesc);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Ssyk.Count.ShouldBe(10);
+        result.Value.Ssyk.Count.ShouldBe(SearchCriteria.MaxConceptIds);
     }
 
     [Fact]
-    public void Create_WithElevenSsyk_ReturnsFailure()
+    public void Create_WithOneOverMaxSsyk_ReturnsFailure()
     {
-        var eleven = Enumerable.Range(1, 11).Select(i => $"ssyk{i}").ToArray();
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"ssyk{i}").ToArray();
 
-        var result = SearchCriteria.Create(eleven, null, null, JobAdSortBy.PublishedAtDesc);
+        var result = SearchCriteria.Create(overMax, null, null, JobAdSortBy.PublishedAtDesc);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("SearchCriteria.TooManySsyk");
     }
 
     [Fact]
-    public void Create_WithElevenRegion_ReturnsFailure()
+    public void Create_WithOneOverMaxRegion_ReturnsFailure()
     {
-        var eleven = Enumerable.Range(1, 11).Select(i => $"reg{i}").ToArray();
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"reg{i}").ToArray();
 
-        var result = SearchCriteria.Create(null, eleven, null, JobAdSortBy.PublishedAtDesc);
+        var result = SearchCriteria.Create(null, overMax, null, JobAdSortBy.PublishedAtDesc);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("SearchCriteria.TooManyRegion");
     }
 
     [Fact]
-    public void Create_CapAppliesAfterDistinct_ElevenWithDuplicateUnderCap_ReturnsSuccess()
+    public void Create_CapIsFourHundred_AfterC1Raise()
     {
-        // 11 råelement varav 1 dubblett → 10 distinkta → under cap → success.
-        var raw = Enumerable.Range(1, 10).Select(i => $"ssyk{i}").ToList();
+        // C1 (ADR 0067) låser den nya cap-nivån. Self-dokumenterande grind:
+        // bevisar att 10→400-höjningen faktiskt skett (om någon råkar sänka
+        // tillbaka konstanten faller detta test).
+        SearchCriteria.MaxConceptIds.ShouldBe(400);
+    }
+
+    [Fact]
+    public void Create_CapAppliesAfterDistinct_MaxPlusOneWithDuplicateUnderCap_ReturnsSuccess()
+    {
+        // MaxConceptIds+1 råelement varav 1 dubblett → MaxConceptIds distinkta
+        // → under cap → success (cap appliceras EFTER distinct-normaliseringen).
+        var raw = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"ssyk{i}").ToList();
         raw.Add("ssyk1"); // dubblett
 
         var result = SearchCriteria.Create(raw, null, null, JobAdSortBy.PublishedAtDesc);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Ssyk.Count.ShouldBe(10);
+        result.Value.Ssyk.Count.ShouldBe(SearchCriteria.MaxConceptIds);
     }
 
     // ---------------------------------------------------------------

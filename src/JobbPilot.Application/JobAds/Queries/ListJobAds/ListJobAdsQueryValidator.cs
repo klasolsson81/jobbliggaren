@@ -21,6 +21,32 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
 
         // Maxantal-cap (invariant 2) — IN(...)-blowup/jsonb-stuffing-DoS-tak.
         // Refererar Domain-konstanten (single source).
+        //
+        // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1) — nya dimensioner
+        // OccupationGroup (ssyk-level-4/yrkesgrupp, primärt yrke-filter) +
+        // Municipality (kommun). Samma cap/regex-yta som Ssyk/Region. Ssyk
+        // (occupation-name) BEHÅLLS som deprecerad no-op-param men valideras
+        // fortsatt defense-in-depth (Saltzer/Schroeder default-deny).
+        RuleFor(q => q.OccupationGroup!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.OccupationGroup is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} yrkesgrupper per sökning.");
+
+        RuleForEach(q => q.OccupationGroup)
+            .Matches(ConceptIdPattern)
+            .When(q => q.OccupationGroup is not null)
+            .WithMessage("Yrkesgrupp måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        RuleFor(q => q.Municipality!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.Municipality is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} kommuner per sökning.");
+
+        RuleForEach(q => q.Municipality)
+            .Matches(ConceptIdPattern)
+            .When(q => q.Municipality is not null)
+            .WithMessage("Kommun måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
         RuleFor(q => q.Ssyk!)
             .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
             .When(q => q.Ssyk is not null)

@@ -5,16 +5,34 @@ namespace JobbPilot.Application.JobAds.Queries.GetTaxonomyTree;
 
 /// <summary>
 /// ADR 0043 MAP-3 — reverse-lookup-cap enforce:as i Validation-pipeline FÖRE
-/// handlern. Cap = <see cref="SearchCriteria.MaxConceptIds"/> ×2 (en sparad
-/// sökning bär som mest MaxConceptIds Ssyk + MaxConceptIds Region) — refererad
-/// domänkonstant, ej hårdkodad (DRY; en sparad sökning kan aldrig be om fler
-/// än domänen tillåter). Speglar <c>SuggestJobAdTermsQueryValidator</c>.
+/// handlern. Cap = <see cref="SearchCriteria.MaxConceptIds"/> ×4 — refererad
+/// domänkonstant, ej hårdkodad (DRY; en chip-render kan aldrig be om fler koder
+/// än de filterbara dimensionerna tillsammans tillåter). Speglar
+/// <c>SuggestJobAdTermsQueryValidator</c>.
+/// <para>
+/// ADR 0043 implementerings-notat 2026-06-09 (ADR 0067 Platsbanken sök-paritet
+/// Fas C1): multiplikator ×2→×4. Reverse-lookup-querryn tar en platt
+/// concept-id-lista (chips från en sparad/recent-sökning) → cap måste spegla
+/// summan av alla filterbara dimensioner: OccupationGroup + Municipality +
+/// Region + legacy-Ssyk (occupation-name behålls i gamla sparade sökningar och
+/// måste fortf. label-resolvas tills C2 reverse-lookup-migrerar dem). ×4 = 1600
+/// med MaxConceptIds=400. Säkert: O(n) in-memory dict-lookup, auth+rate-limited
+/// (TaxonomyReadPolicy), per-element MaximumLength(32). CTO-dom 2026-06-09.
+/// </para>
 /// </summary>
 public sealed class ResolveTaxonomyLabelsQueryValidator
     : AbstractValidator<ResolveTaxonomyLabelsQuery>
 {
-    // Ssyk + Region är två separata MaxConceptIds-listor i en sparad sökning.
-    public static readonly int MaxConceptIdsPerCall = SearchCriteria.MaxConceptIds * 2;
+    // JobTech v2 concept-id-format — identiskt med ListJobAdsQueryValidator +
+    // SearchCriteria (default-deny, Saltzer/Schroeder 1975). Charset-cappet
+    // begränsar även den reflekterade id-strängen i svars-DTO:n (defense-in-
+    // depth mot XSS-stuffing; FE:s render bär det primära ansvaret).
+    // security-auditor 2026-06-09 Minor — symmetri med övriga concept-id-ytor.
+    private const string ConceptIdPattern = @"^[A-Za-z0-9_-]{1,32}$";
+
+    // OccupationGroup + Municipality + Region + legacy-Ssyk = fyra separata
+    // MaxConceptIds-listor en sökning kan materialisera i en chip-render.
+    public static readonly int MaxConceptIdsPerCall = SearchCriteria.MaxConceptIds * 4;
 
     public ResolveTaxonomyLabelsQueryValidator()
     {
@@ -27,8 +45,7 @@ public sealed class ResolveTaxonomyLabelsQueryValidator
             .WithMessage($"Max {MaxConceptIdsPerCall} koder per anrop.");
 
         RuleForEach(q => q.ConceptIds)
-            .NotEmpty()
-            .MaximumLength(32)   // speglar SearchCriteria concept-id-format
-            .WithMessage("Concept-id måste vara 1-32 tecken.");
+            .Matches(ConceptIdPattern)   // speglar SearchCriteria concept-id-format
+            .WithMessage("Concept-id måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
     }
 }

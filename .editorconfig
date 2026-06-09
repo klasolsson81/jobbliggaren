@@ -1,0 +1,90 @@
+# JobbPilot .editorconfig — per CLAUDE.md §11.2 + CTO-dom 2026-06-10 (Variant B).
+# Princip: endast regler spårbara till CLAUDE.md §3 får warning-severity
+# (EnforceCodeStyleInBuild + TreatWarningsAsErrors gör warning = byggfel).
+# Övrigt = suggestion (IDE-vägledning, auto-fixas ej av dotnet format default).
+
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_size = 4
+
+[*.{ts,tsx,js,jsx,mjs,json,jsonc,yml,yaml}]
+indent_size = 2
+
+[*.md]
+# Trailing spaces är hårda radbrytningar i markdown.
+trim_trailing_whitespace = false
+indent_size = 2
+
+# EF Core-scaffoldade migrationer är genererad kod (block-scoped namespace är
+# EF-default) — stilregler ska inte gälla dem.
+[src/JobbPilot.Infrastructure/**/Migrations/*.cs]
+generated_code = true
+
+# ---------------------------------------------------------------------------
+# C# — stilregler (CLAUDE.md §3-mappning i PR-body)
+# ---------------------------------------------------------------------------
+[*.cs]
+
+# §3.1: file-scoped namespaces (IDE0161)
+csharp_style_namespace_declarations = file_scoped:warning
+
+# §2.2/§3.3 immutability: fält som kan vara readonly ska vara det (IDE0044)
+dotnet_style_readonly_field = true:warning
+
+# Vägledning utan byggrisk (ej §3-mandat → suggestion)
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+csharp_prefer_braces = true:suggestion
+csharp_using_directive_placement = outside_namespace:suggestion
+dotnet_sort_system_directives_first = true
+
+# ---------------------------------------------------------------------------
+# C# — namngivningsregler. Roslyn matchar efter specificitet: const- och
+# static readonly-reglerna bär required_modifiers och vinner därmed över den
+# generella _camelCase-regeln för private fält.
+# ---------------------------------------------------------------------------
+
+# §3.2: interfaces har I-prefix (warning)
+dotnet_naming_rule.interfaces_begin_with_i.symbols = interfaces
+dotnet_naming_rule.interfaces_begin_with_i.style = i_prefix_pascal_case
+dotnet_naming_rule.interfaces_begin_with_i.severity = warning
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_symbols.interfaces.applicable_accessibilities = *
+dotnet_naming_style.i_prefix_pascal_case.required_prefix = I
+dotnet_naming_style.i_prefix_pascal_case.capitalization = pascal_case
+
+# Konstanter = PascalCase (etablerad kodbas-konvention; suggestion-nivå
+# och placerad FÖRE private-fält-regeln så const undantas från _camelCase)
+dotnet_naming_rule.constants_pascal_case.symbols = constant_fields
+dotnet_naming_rule.constants_pascal_case.style = pascal_case
+dotnet_naming_rule.constants_pascal_case.severity = suggestion
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+# Static readonly-fält = PascalCase (dominerande kodbas-konvention, en känd
+# outlier → suggestion, ej warning; undantar dem från _camelCase-regeln)
+dotnet_naming_rule.static_readonly_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_pascal_case.style = pascal_case
+dotnet_naming_rule.static_readonly_pascal_case.severity = suggestion
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+
+# §3.2: private fält = _camelCase (warning)
+dotnet_naming_rule.private_fields_underscore_camel.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore_camel.style = underscore_camel_case
+dotnet_naming_rule.private_fields_underscore_camel.severity = warning
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case

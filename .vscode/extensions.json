@@ -1,0 +1,31 @@
+{
+  // Editor-baseline per CLAUDE.md §11.2 + CTO-dom 2026-06-10 (chore/editor-baseline).
+  // Urvalsprincip: låg distraktion, bidrar till kodkvalitet/kontroll.
+  "recommendations": [
+    // Backend (.NET 10 / C# 14)
+    "ms-dotnettools.csdevkit",
+
+    // Frontend (Next.js 16 / TypeScript / Tailwind 4)
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+
+    // Tvärgående kvalitet
+    "editorconfig.editorconfig",
+    "usernamehw.errorlens",
+    "eamodio.gitlens",
+
+    // Dev-stack (Docker Compose: postgres/redis/seq per CLAUDE.md §11.3)
+    "ms-azuretools.vscode-containers",
+
+    // Sanktionerad agent-kanal
+    "anthropic.claude-code"
+  ],
+  // Claude Code är repots enda sanktionerade AI-agent-kanal (parallell-agent-
+  // och hook-bypass-riskklass dokumenterad i memory/session-loggar).
+  "unwantedRecommendations": [
+    "saoudrizwan.claude-dev",
+    "github.copilot",
+    "github.copilot-chat"
+  ]
+}

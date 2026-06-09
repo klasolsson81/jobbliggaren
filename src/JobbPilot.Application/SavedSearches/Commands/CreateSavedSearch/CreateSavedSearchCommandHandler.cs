@@ -29,7 +29,11 @@ public sealed class CreateSavedSearchCommandHandler(
                 DomainError.NotFound("JobSeeker", currentUser.UserId.Value));
 
         var criteriaResult = SearchCriteria.Create(
-            command.Ssyk, command.Region, command.Q, command.SortBy);
+            occupationGroup: command.OccupationGroup,
+            municipality: command.Municipality,
+            region: command.Region,
+            q: command.Q,
+            sortBy: command.SortBy);
         if (criteriaResult.IsFailure)
             return Result.Failure<Guid>(criteriaResult.Error);
 

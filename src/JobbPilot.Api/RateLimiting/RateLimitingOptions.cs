@@ -68,7 +68,8 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// List/search-endpoints (GET /api/v1/job-ads med ?ssyk/?region/?q) —
+    /// List/search-endpoints (GET /api/v1/job-ads med
+    /// ?occupationGroup/?municipality/?region/?q) —
     /// partitionerat per UserId (claim "sub"). Skyddar mot multi-query-DoS
     /// från komprometterat konto via wildcard-LIKE-pattern (CWE-400, OWASP
     /// API4:2023 "Unrestricted Resource Consumption"). 60/min ger 6-20x

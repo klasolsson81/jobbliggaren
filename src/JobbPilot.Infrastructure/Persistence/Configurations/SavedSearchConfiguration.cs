@@ -29,11 +29,12 @@ public sealed class SavedSearchConfiguration : IEntityTypeConfiguration<SavedSea
             .IsRequired();
 
         // ADR 0039 §16 — criteria jsonb. ADR 0042 Beslut B (CTO Yta A3
-        // 2026-05-16): Ssyk/Region single→multi. `OwnsOne(...).ToJson()` mappar
-        // inte IReadOnlyList<string> stabilt i Npgsql (#3129) → property-level
-        // ValueConverter mot jsonb-kolumn med tolerant default-deny-converter
-        // (läser gammal skalär + ny array, ingen data-migration). Comparern
-        // bär VO:ts strukturella record-equality (SavedSearch jsonb-dedupe).
+        // 2026-05-16): property-level ValueConverter mot jsonb-kolumn
+        // (`OwnsOne(...).ToJson()` mappar inte IReadOnlyList<string> stabilt i
+        // Npgsql, #3129). Konverter-kontraktet (nycklar, tolerans, fail-loud
+        // på legacy-"Ssyk" efter C2-reverse-lookup-migrationen) dokumenteras i
+        // SearchCriteriaConverters.cs (SPOT). Comparern bär VO:ts strukturella
+        // record-equality (SavedSearch jsonb-dedupe).
         var criteria = builder.Property(s => s.Criteria)
             .HasConversion(SearchCriteriaConversion.Converter)
             .HasColumnType("jsonb")

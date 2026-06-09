@@ -5,18 +5,17 @@ using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.JobAds.Queries.ListJobAds;
 
-// C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte. Validator-ytan
-// utökas med två nya filter-dimensioner: OccupationGroup (→ ssyk-level-4,
-// occupation_group_concept_id) + Municipality (→ municipality_concept_id).
-// Samma per-element-regex + maxantal-cap-mönster som Ssyk/Region. Cap höjs
-// 10→400 (SearchCriteria.MaxConceptIds) — boundary-tester refererar konstanten,
-// ALDRIG literalen 400 (DRY, CLAUDE.md §5.1; om MaxConceptIds ändras följer
-// testet med). Ssyk behålls som deprecerad no-op-param (binder fortfarande +
-// valideras defense-in-depth, men ApplyCriteria ignorerar den — se
-// ListJobAdsSsykNoOpTests).
+// C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte: dimensionerna
+// OccupationGroup (→ ssyk-level-4, occupation_group_concept_id) + Municipality
+// (→ municipality_concept_id). Samma per-element-regex + maxantal-cap-mönster
+// som Region. Boundary-tester refererar SearchCriteria.MaxConceptIds, ALDRIG
+// literalen 400 (DRY, CLAUDE.md §5.1).
 //
-// RÖD tills ListJobAdsQuery + ListJobAdsQueryValidator implementerar de nya
-// dimensionerna + cap-höjningen.
+// C2 (CTO-dom (e)): Ssyk-paramen + Ssyk-validator-reglerna är BORTTAGNA —
+// ?ssyk= är numera en obunden query-param som Minimal-API-bindningen
+// ignorerar (se ListJobAdsSsykNoOpTests för integrationsbeviset).
+//
+// RÖD tills ListJobAdsQuery + ListJobAdsQueryValidator droppat Ssyk.
 public class ListJobAdsQueryValidatorTests
 {
     private readonly ListJobAdsQueryValidator _validator = new();
@@ -239,44 +238,6 @@ public class ListJobAdsQueryValidatorTests
     }
 
     // ---------------------------------------------------------------
-    // Ssyk — deprecerad no-op-param (Variant C). Param binder fortfarande och
-    // valideras defense-in-depth, men ApplyCriteria ignorerar den. Behåller
-    // regex/cap-grinden så en kvarvarande ?ssyk= inte kringgår input-hygienen.
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void Validate_Ssyk_SingleValidConceptId_Passes()
-    {
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: ["MVqp_eS8_kDZ"]));
-        result.IsValid.ShouldBeTrue();
-    }
-
-    [Theory]
-    [InlineData("has space")]
-    [InlineData("åäö")]
-    public void Validate_Ssyk_AnyInvalidElement_Fails(string bad)
-    {
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: ["12345", bad]));
-        result.IsValid.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void Validate_Ssyk_Null_Passes()
-    {
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: null));
-        result.IsValid.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void Validate_Ssyk_OneOverMax_IsInvalid()
-    {
-        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
-            .Select(i => $"ssyk{i}").ToArray();
-        var result = _validator.Validate(new ListJobAdsQuery(Ssyk: overMax));
-        result.IsValid.ShouldBeFalse();
-    }
-
-    // ---------------------------------------------------------------
     // Q oförändrat — 2-100 tecken
     // ---------------------------------------------------------------
 
@@ -326,7 +287,7 @@ public class ListJobAdsQueryValidatorTests
     {
         var result = _validator.Validate(new ListJobAdsQuery(
             Page: 1, PageSize: 20, SortBy: JobAdSortBy.PublishedAtDesc,
-            OccupationGroup: null, Municipality: null, Region: null, Ssyk: null, Q: null));
+            OccupationGroup: null, Municipality: null, Region: null, Q: null));
         result.IsValid.ShouldBeTrue();
     }
 
@@ -336,7 +297,7 @@ public class ListJobAdsQueryValidatorTests
         var result = _validator.Validate(new ListJobAdsQuery(
             Page: 1, PageSize: 20, SortBy: JobAdSortBy.PublishedAtDesc,
             OccupationGroup: ["grp-1", "grp-2"], Municipality: ["sthlm_kn"],
-            Region: ["stockholm"], Ssyk: null, Q: "developer"));
+            Region: ["stockholm"], Q: "developer"));
         result.IsValid.ShouldBeTrue();
     }
 

@@ -4,10 +4,11 @@ using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.JobAds.Queries.GetTaxonomyTree;
 
-// ADR 0043 MAP-3 + C1 (ADR 0067 Platsbanken sök-paritet) — reverse-lookup-cap
-// enforce:as i Validation-pipeline FÖRE handlern. C1 höjer multiplikatorn ×2→×4:
-// en sparad sökning kan nu bära fyra MaxConceptIds-dimensioner (OccupationGroup
-// + Municipality + Region + Ssyk) → cap = SearchCriteria.MaxConceptIds ×4.
+// ADR 0043 MAP-3 + C1/C2 (ADR 0067 Platsbanken sök-paritet) — reverse-lookup-cap
+// enforce:as i Validation-pipeline FÖRE handlern. C1 höjde multiplikatorn ×2→×4.
+// C2 (CTO-dom (e)): legacy-Ssyk-dimensionen utgår men ×4 BEHÅLLS — dims =
+// OccupationGroup + Municipality + Region + headroom för B2-dimensioner.
+// Capen är ett tak, inte en exakt summa (churn 4→3→5 vore poänglös).
 // Konstanten refereras i assert, ALDRIG hårdkodad siffra (DRY/domän-konsekvens
 // — om SearchCriteria.MaxConceptIds ändras följer testet med).
 // Speglar SuggestJobAdTermsQueryValidatorTests.
@@ -19,7 +20,7 @@ public class ResolveTaxonomyLabelsQueryValidatorTests
     public void Validate_ShouldExposeCapAsFourTimesDomainMaxConceptIds_WhenInspected()
     {
         // Self-dokumenterande: bekräftar att cap härleds från domänkonstanten
-        // ×4 (fyra filter-dimensioner per sökning efter C1), inte en magisk
+        // ×4 (tre aktiva dimensioner + B2-headroom efter C2), inte en magisk
         // literal (CLAUDE.md §5.1 magic-string-förbud).
         ResolveTaxonomyLabelsQueryValidator.MaxConceptIdsPerCall
             .ShouldBe(SearchCriteria.MaxConceptIds * 4);
@@ -54,8 +55,9 @@ public class ResolveTaxonomyLabelsQueryValidatorTests
     [Fact]
     public void Validate_ShouldPass_WhenConceptIdListIsEmpty()
     {
-        // Tom lista är giltig: en sparad sökning utan Ssyk/Region ger inget
-        // reverse-lookup-behov men endpointen ska inte 400:a på tomt anrop.
+        // Tom lista är giltig: en sparad sökning utan concept-id-dimensioner
+        // ger inget reverse-lookup-behov men endpointen ska inte 400:a på
+        // tomt anrop.
         var result = _validator.Validate(
             new ResolveTaxonomyLabelsQuery([]));
 

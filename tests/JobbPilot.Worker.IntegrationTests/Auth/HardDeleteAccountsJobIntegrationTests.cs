@@ -147,7 +147,9 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock(oldDeletedAt.AddDays(-2));
             var criteria = SearchCriteria.Create(
-                ["12345"], ["stockholm"], "developer", JobAdSortBy.PublishedAtDesc).Value;
+                occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
+                region: ["stockholm"], q: "developer",
+                sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
             var saved = SavedSearch.Create(jobSeekerId, "Mitt sök", criteria, false, clock).Value;
             db.SavedSearches.Add(saved);

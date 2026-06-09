@@ -26,22 +26,6 @@ public class ListJobAdsQueryHandlerTests
         new([], 0, page, pageSize);
 
     [Fact]
-    public async Task Handle_WhenSsykIsNull_MapsToEmptyFilterSsykList()
-    {
-        // ADR 0042 Beslut B — null betyder "inget filter" → handlern normaliserar
-        // null → tom lista innan porten anropas.
-        JobAdSearchCriteria? captured = null;
-        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
-            .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search);
-
-        await handler.Handle(new ListJobAdsQuery(Ssyk: null), TestContext.Current.CancellationToken);
-
-        captured.ShouldNotBeNull();
-        captured!.Filter.Ssyk.ShouldBeEmpty();
-    }
-
-    [Fact]
     public async Task Handle_WhenRegionIsNull_MapsToEmptyFilterRegionList()
     {
         JobAdSearchCriteria? captured = null;
@@ -56,7 +40,7 @@ public class ListJobAdsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenSsykAndRegionProvided_PassesListsThroughToFilter()
+    public async Task Handle_WhenRegionProvided_PassesListThroughToFilter()
     {
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
@@ -64,12 +48,19 @@ public class ListJobAdsQueryHandlerTests
         var handler = new ListJobAdsQueryHandler(_search);
 
         await handler.Handle(
-            new ListJobAdsQuery(Ssyk: ["1234", "5678"], Region: ["stockholm"]),
+            new ListJobAdsQuery(Region: ["stockholm", "uppsala"]),
             TestContext.Current.CancellationToken);
 
         captured.ShouldNotBeNull();
-        captured!.Filter.Ssyk.ShouldBe(["1234", "5678"]);
-        captured.Filter.Region.ShouldBe(["stockholm"]);
+        captured!.Filter.Region.ShouldBe(["stockholm", "uppsala"]);
+    }
+
+    [Fact]
+    public void ListJobAdsQuery_HasNoSsykParameter_AfterC2()
+    {
+        // C2 (CTO-dom (e)): Ssyk-paramen är borttagen — fältet var en lögn i
+        // kontraktet efter att equality-grenen togs i C1 (no-op-param).
+        typeof(ListJobAdsQuery).GetProperty("Ssyk").ShouldBeNull();
     }
 
     [Fact]
@@ -167,7 +158,6 @@ public class ListJobAdsQueryHandlerTests
         captured.Filter.Q.ShouldBeNull();
         captured.Filter.OccupationGroup.ShouldBeEmpty();
         captured.Filter.Municipality.ShouldBeEmpty();
-        captured.Filter.Ssyk.ShouldBeEmpty();
         captured.Filter.Region.ShouldBeEmpty();
         captured.Since.ShouldBeNull();
     }

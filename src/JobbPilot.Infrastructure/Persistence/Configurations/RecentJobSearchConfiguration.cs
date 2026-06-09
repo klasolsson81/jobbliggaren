@@ -50,20 +50,32 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
             .HasColumnName("q");
 
         // text[]-kolumner via shadow backing-fields. RecentJobSearch exponerar
-        // IReadOnlyList<string> Ssyk/Region som AsReadOnly-wrapper över privat
-        // List<string>. EF mappar mot fältet via shadow-property + field-access.
+        // IReadOnlyList<string> OccupationGroup/Municipality/Region som
+        // AsReadOnly-wrapper över privat List<string>. EF mappar mot fältet
+        // via shadow-property + field-access.
         var stringListComparer = new ValueComparer<List<string>>(
             (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>(), StringComparer.Ordinal),
             v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s)),
             v => v.ToList());
 
-        var ssyk = builder.Property<List<string>>("_ssyk")
-            .HasField("_ssyk")
+        // ADR 0067 Fas C2 (CTO-dom (d)): occupation_group_list + municipality_list
+        // ersätter ssyk_list (occupation-name-dimensionen utgick; befintliga
+        // rader raderades i C2-migrationen).
+        var occupationGroup = builder.Property<List<string>>("_occupationGroup")
+            .HasField("_occupationGroup")
             .UsePropertyAccessMode(PropertyAccessMode.Field)
-            .HasColumnName("ssyk_list")
+            .HasColumnName("occupation_group_list")
             .HasColumnType("text[]")
             .IsRequired();
-        ssyk.Metadata.SetValueComparer(stringListComparer);
+        occupationGroup.Metadata.SetValueComparer(stringListComparer);
+
+        var municipality = builder.Property<List<string>>("_municipality")
+            .HasField("_municipality")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasColumnName("municipality_list")
+            .HasColumnType("text[]")
+            .IsRequired();
+        municipality.Metadata.SetValueComparer(stringListComparer);
 
         var region = builder.Property<List<string>>("_region")
             .HasField("_region")
@@ -75,7 +87,8 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
 
         // Public IReadOnlyList<string>-getters är beräknade wrappers — EF
         // ska inte försöka mappa dem (skulle duplicera shadow-kolumnerna).
-        builder.Ignore(r => r.Ssyk);
+        builder.Ignore(r => r.OccupationGroup);
+        builder.Ignore(r => r.Municipality);
         builder.Ignore(r => r.Region);
 
         builder.Property(r => r.SortBy)

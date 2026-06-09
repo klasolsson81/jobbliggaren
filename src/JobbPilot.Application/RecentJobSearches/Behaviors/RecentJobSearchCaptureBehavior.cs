@@ -51,15 +51,25 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // SearchCriteria-VO:t i framtiden lättar på sin Empty-invariant
         // för en annan feature. SearchCriteria.Create kallas fortfarande
         // nedan så normalisering + validering äger rum innan persist.
-        var ssykCount = capt.Ssyk?.Count ?? 0;
+        // Fas C2 (ADR 0067): guarden räknar alla fyra dimensioner — stänger
+        // C1:s live-gap där yrkesgrupp-/kommun-only-sökningar inte fångades.
+        var occupationGroupCount = capt.OccupationGroup?.Count ?? 0;
+        var municipalityCount = capt.Municipality?.Count ?? 0;
         var regionCount = capt.Region?.Count ?? 0;
-        if (string.IsNullOrWhiteSpace(capt.Q) && ssykCount == 0 && regionCount == 0)
+        if (string.IsNullOrWhiteSpace(capt.Q) && occupationGroupCount == 0
+            && municipalityCount == 0 && regionCount == 0)
+        {
             return response;
+        }
 
         try
         {
             var criteriaResult = SearchCriteria.Create(
-                capt.Ssyk ?? [], capt.Region ?? [], capt.Q, capt.SortBy);
+                occupationGroup: capt.OccupationGroup ?? [],
+                municipality: capt.Municipality ?? [],
+                region: capt.Region ?? [],
+                q: capt.Q,
+                sortBy: capt.SortBy);
 
             // Andra valideringsfel speglar query-validator-brott och bör inte
             // rendera capture (queryn bör då ha failat i ValidationBehavior).

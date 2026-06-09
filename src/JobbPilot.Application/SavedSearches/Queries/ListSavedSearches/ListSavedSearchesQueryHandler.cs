@@ -42,32 +42,37 @@ public sealed class ListSavedSearchesQueryHandler(
             .OrderByDescending(s => s.UpdatedAt)
             .ToListAsync(cancellationToken);
 
-        // Per sparad sökning: resolvera Ssyk resp. Region var för sig
-        // (in-process O(1) singleton-cache, ingen DB-/HTTP-touch, ingen
-        // fan-out-DoS — annan yta än /taxonomy/labels-endpointen). Tom lista
-        // → ResolveLabelsAsync ger tom lista (ingen krasch). Okänt id →
+        // Per sparad sökning: resolvera varje dimension för sig (in-process
+        // O(1) singleton-cache, ingen DB-/HTTP-touch, ingen fan-out-DoS —
+        // annan yta än /taxonomy/labels-endpointen). Tom lista →
+        // ResolveLabelsAsync ger tom lista (ingen krasch). Okänt id →
         // "Okänd kod (<id>)" via portens befintliga fallback-semantik.
+        // ADR 0067 Fas C2: OccupationGroup + Municipality ersätter Ssyk.
         var dtos = new List<SavedSearchDto>(items.Count);
         foreach (var s in items)
         {
-            var ssykLabels = await taxonomy.ResolveLabelsAsync(
-                s.Criteria.Ssyk, cancellationToken);
+            var occupationGroupLabels = await taxonomy.ResolveLabelsAsync(
+                s.Criteria.OccupationGroup, cancellationToken);
+            var municipalityLabels = await taxonomy.ResolveLabelsAsync(
+                s.Criteria.Municipality, cancellationToken);
             var regionLabels = await taxonomy.ResolveLabelsAsync(
                 s.Criteria.Region, cancellationToken);
 
             dtos.Add(new SavedSearchDto(
                 s.Id.Value,
                 s.Name,
-                s.Criteria.Ssyk,
-                s.Criteria.Region,
+                OccupationGroup: s.Criteria.OccupationGroup,
+                Municipality: s.Criteria.Municipality,
+                Region: s.Criteria.Region,
                 s.Criteria.Q,
                 s.Criteria.SortBy,
                 s.NotificationEnabled,
                 s.LastRunAt,
                 s.CreatedAt,
                 s.UpdatedAt,
-                ssykLabels,
-                regionLabels));
+                OccupationGroupLabels: occupationGroupLabels,
+                MunicipalityLabels: municipalityLabels,
+                RegionLabels: regionLabels));
         }
 
         return dtos;

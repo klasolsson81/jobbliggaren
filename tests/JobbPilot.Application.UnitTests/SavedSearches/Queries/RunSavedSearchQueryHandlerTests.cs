@@ -34,19 +34,27 @@ public class RunSavedSearchQueryHandlerTests
 
     private static async Task<(JobSeeker seeker, SavedSearch saved)> SeedAsync(
         JobbPilot.Infrastructure.Persistence.AppDbContext db, Guid userId,
-        string? ssyk = null, string? region = null, string? q = null)
+        string? occupationGroup = null, string? municipality = null,
+        string? region = null, string? q = null)
     {
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        // Default: q=null,region=null kräver minst ett kriterium → ssyk default.
-        // Single-element-lista ⇒ samma beteende som gammalt single-värde
-        // (ADR 0039 Beslut 1 SPOT — regressions-grind).
-        var ssykList = ssyk is not null
-            ? new[] { ssyk }
-            : q is null && region is null ? ["12345"] : System.Array.Empty<string>();
+        // Default: alla null kräver minst ett kriterium → occupationGroup
+        // default. Single-element-lista ⇒ samma beteende som gammalt
+        // single-värde (ADR 0039 Beslut 1 SPOT — regressions-grind).
+        var groupList = occupationGroup is not null
+            ? new[] { occupationGroup }
+            : q is null && region is null && municipality is null
+                ? ["grp_12345"] : System.Array.Empty<string>();
+        var municipalityList = municipality is not null
+            ? new[] { municipality } : System.Array.Empty<string>();
         var regionList = region is not null ? new[] { region } : System.Array.Empty<string>();
         var criteria = SearchCriteria.Create(
-            ssykList, regionList, q, JobAdSortBy.PublishedAtDesc).Value;
+            occupationGroup: groupList,
+            municipality: municipalityList,
+            region: regionList,
+            q: q,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Kör mig", criteria, false,
             FakeDateTimeProvider.Default).Value;
         db.SavedSearches.Add(saved);
@@ -83,11 +91,15 @@ public class RunSavedSearchQueryHandlerTests
     [Fact]
     public async Task Handle_WhenOwned_MapsSearchCriteriaVoToJobAdSearchCriteria()
     {
-        // SearchCriteria-VO → JobAdSearchCriteria: Ssyk/Region/Q/SortBy
-        // genomförda, Page/PageSize från queryn, Since alltid null (ADR 0042
-        // Beslut E — en körning exponerar aldrig IsNew=true).
+        // C2 (architect F6): SearchCriteria-VO → JobAdSearchCriteria —
+        // OccupationGroup/Municipality/Region/Q genomförda (täpper C1:s tomma
+        // listor: tidigare skickades OccupationGroup: [] / Municipality: []),
+        // Page/PageSize från queryn, Since alltid null (ADR 0042 Beslut E —
+        // en körning exponerar aldrig IsNew=true).
         var db = TestAppDbContextFactory.Create();
-        var (_, saved) = await SeedAsync(db, _userId, ssyk: "12345", q: "backend");
+        var (_, saved) = await SeedAsync(db, _userId,
+            occupationGroup: "grp_12345", municipality: "sthlm_kn",
+            region: "stockholm", q: "backend");
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage(page: 2, pageSize: 5));
@@ -100,7 +112,9 @@ public class RunSavedSearchQueryHandlerTests
             CancellationToken.None);
 
         captured.ShouldNotBeNull();
-        captured!.Filter.Ssyk.ShouldBe(["12345"]);
+        captured!.Filter.OccupationGroup.ShouldBe(["grp_12345"]);
+        captured.Filter.Municipality.ShouldBe(["sthlm_kn"]);
+        captured.Filter.Region.ShouldBe(["stockholm"]);
         captured.Filter.Q.ShouldBe("backend");
         captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         captured.Page.ShouldBe(2);

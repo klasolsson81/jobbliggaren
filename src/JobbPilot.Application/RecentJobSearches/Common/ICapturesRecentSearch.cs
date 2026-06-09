@@ -9,8 +9,10 @@ namespace JobbPilot.Application.RecentJobSearches.Common;
 /// markören (paritet med <c>IRequiresFieldEncryptionKey</c>-mönstret).
 ///
 /// <para>Interface exponerar de fält som tillsammans definierar filter-identitet
-/// (Q, Ssyk, Region, SortBy). Record-typer (t.ex. <c>ListJobAdsQuery</c>) matchar
-/// shape automatiskt via primary-ctor-properties.</para>
+/// (Q, OccupationGroup, Municipality, Region, SortBy — Fas C2/ADR 0067:
+/// occupation-name-dimensionen Ssyk utgick med VO-expansionen). Record-typer
+/// (t.ex. <c>ListJobAdsQuery</c>) matchar shape automatiskt via
+/// primary-ctor-properties.</para>
 ///
 /// <para><b>Auth-invariant (security-auditor F6 P4a Medium-3 2026-05-20):</b>
 /// Endpoints som exponerar messages med denna markör <b>MÅSTE</b> ha
@@ -25,7 +27,8 @@ namespace JobbPilot.Application.RecentJobSearches.Common;
 public interface ICapturesRecentSearch
 {
     string? Q { get; }
-    IReadOnlyList<string>? Ssyk { get; }
+    IReadOnlyList<string>? OccupationGroup { get; }
+    IReadOnlyList<string>? Municipality { get; }
     IReadOnlyList<string>? Region { get; }
     JobAdSortBy SortBy { get; }
 }

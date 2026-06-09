@@ -11,20 +11,24 @@ using Shouldly;
 
 namespace JobbPilot.Api.IntegrationTests.SavedSearches;
 
-// Batch 3 — Yta A3 (senior-cto-advisor agentId a3f867af2b57df564, ADR 0042
-// Beslut B.4). Bakåtkompat-yta för saved_searches.criteria jsonb:
-// gammal skalär-form ({"Ssyk":"x"}) måste fortfarande deserialiseras korrekt
-// mot den nya list-formen, med TOLERANT DEFAULT-DENY (felaktig form koerceras
-// EJ tyst — den kastar).
+// C2 (ADR 0067, CTO-dom (f) + architect F2) — SearchCriteriaJsonConverter-
+// kontraktet på den faktiska persistensvägen (riktig Postgres jsonb via
+// AppDbContext; konverter-klassen är internal i Infrastructure och testas
+// medvetet via beteendet — etablerat mönster sedan Batch 3):
 //
-// DISCOVERY-FYND (rapporterat): det finns INGEN custom SearchCriteriaJsonConverter
-// on-disk. Persistens sker via EF Core OwnsOne(s => s.Criteria).ToJson() i
-// SavedSearchConfiguration.cs. Dessa tester verifierar därför BETEENDET på den
-// faktiska persistensvägen (riktig Postgres jsonb roundtrip via AppDbContext),
-// inte en konverter-klass vid namn — så de överlever oavsett om impl väljer
-// custom JsonConverter<SearchCriteria>, EF value converter eller datamigrering.
+//   1. Read: nya nycklar "OccupationGroup"/"Municipality" (sträng-eller-
+//      array-tolerans, default-deny för övriga former).
+//   2. Read: legacy-nyckeln "Ssyk" → FAIL-LOUD JsonException (även "Ssyk":[]).
+//      ALDRIG tyst Skip() — tyst droppning kunde amputera en bevaknings
+//      yrke-dimension (Saltzer/Schroeder fail-safe default).
+//   3. Read: saknade nya nycklar i gammal rad → tomma listor → Create
+//      passerar (bakåtkompat-invariant 4).
+//   4. Write: ordning OccupationGroup, Municipality, Region, Q, SortBy —
+//      skriver ALDRIG "Ssyk" (skrivvägen kan per konstruktion inte
+//      producera en rad som triggar fail-loud-casen).
+//   5. Roundtrip: Write → Read = strukturellt samma VO.
 //
-// RÖD tills list-formen + bakåtkompat-läsningen implementerats.
+// RÖD tills konvertern implementerar C2-formen.
 [Collection("Api")]
 public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
 {
@@ -39,7 +43,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
     }
 
     // Skriver en saved_searches-rad direkt med RÅ jsonb (kringgår EF-mappningen)
-    // för att simulera en redan-persistent gammal skalär-form-rad.
+    // för att simulera en redan-persistent rad i godtycklig form.
     private async Task<Guid> InsertRawSavedSearchAsync(
         Guid jobSeekerId, string criteriaJson, CancellationToken ct)
     {
@@ -59,7 +63,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
             """;
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("sid", jobSeekerId);
-        cmd.Parameters.AddWithValue("name", "Gammal skalär-rad");
+        cmd.Parameters.AddWithValue("name", "Rå jsonb-rad");
         cmd.Parameters.AddWithValue("criteria", criteriaJson);
         cmd.Parameters.AddWithValue("now", now);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -67,9 +71,36 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         return id;
     }
 
-    // (a) Gammal skalär-form läses som ett-element-lista.
+    // Läser kolumnen criteria som RÅ text (verifierar Write-formen on-disk,
+    // inte bara vad konvertern läser tillbaka).
+    private async Task<string> ReadRawCriteriaAsync(Guid savedSearchId, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var conn = (NpgsqlConnection)db.Database.GetDbConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT criteria::text FROM saved_searches WHERE id = @id";
+        cmd.Parameters.AddWithValue("id", savedSearchId);
+        var raw = (string)(await cmd.ExecuteScalarAsync(ct))!;
+        await conn.CloseAsync();
+        return raw;
+    }
+
+    private static string FlattenMessages(Exception ex)
+    {
+        var messages = new List<string>();
+        for (Exception? e = ex; e is not null; e = e.InnerException)
+            messages.Add(e.Message);
+        return string.Join(" | ", messages);
+    }
+
+    // ---------------------------------------------------------------
+    // (1) Nya nycklar — sträng-eller-array-tolerans
+    // ---------------------------------------------------------------
+
     [Fact]
-    public async Task OldScalarForm_ReadsAsSingleElementList()
+    public async Task NewKeys_ScalarForm_ReadsAsSingleElementList()
     {
         var ct = TestContext.Current.CancellationToken;
         using var scope = _factory.Services.CreateScope();
@@ -77,24 +108,115 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
 
-        // Gammal on-disk-form: Ssyk/Region som skalär sträng.
-        var oldJson = """{"Ssyk":"x","Region":"y","Q":null,"SortBy":0}""";
-        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, oldJson, ct);
+        // Skalär-tolerans per ReadStringOrStringArray-återbruket (architect F2).
+        var json = """{"OccupationGroup":"g1","Municipality":"m1","Region":"y","Q":null,"SortBy":0}""";
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
 
         using var readScope = _factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var saved = await readDb.SavedSearches
             .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
 
-        saved.Criteria.Ssyk.ShouldBe(["x"]);
+        saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
+        saved.Criteria.Municipality.ShouldBe(["m1"]);
         saved.Criteria.Region.ShouldBe(["y"]);
         saved.Criteria.Q.ShouldBeNull();
         saved.Criteria.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
     }
 
-    // (b) Ny array-form roundtrip (skriv via EF → läs via EF).
     [Fact]
-    public async Task NewArrayForm_RoundTripsThroughEf()
+    public async Task NewKeys_ArrayForm_ReadsAsList()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        var json = """{"OccupationGroup":["g1","g2"],"Municipality":["m1"],"Region":[],"Q":"backend","SortBy":0}""";
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
+
+        using var readScope = _factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await readDb.SavedSearches
+            .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
+
+        saved.Criteria.OccupationGroup.ShouldBe(["g1", "g2"]);
+        saved.Criteria.Municipality.ShouldBe(["m1"]);
+        saved.Criteria.Region.ShouldBeEmpty();
+        saved.Criteria.Q.ShouldBe("backend");
+    }
+
+    // ---------------------------------------------------------------
+    // (2) Legacy-"Ssyk"-nyckel — FAIL-LOUD, aldrig tyst Skip()
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("""{"Ssyk":"x","Region":"y","Q":null,"SortBy":0}""")]            // gammal skalär
+    [InlineData("""{"Ssyk":["x"],"Region":["y"],"Q":null,"SortBy":0}""")]        // gammal array
+    [InlineData("""{"Ssyk":[],"Region":["y"],"Q":null,"SortBy":0}""")]           // TOM array — Write skrev ALLTID nyckeln
+    public async Task LegacySsykKey_FailsLoud_WithMigrationGuidance(string legacyJson)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, legacyJson, ct);
+
+        using var readScope = _factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var ex = await Should.ThrowAsync<Exception>(async () =>
+            await readDb.SavedSearches.SingleAsync(s => s.Id == new SavedSearchId(id), ct));
+
+        // Feltexten ska peka mot rotorsak + åtgärd (CTO-dom (f): "applicera
+        // migrationen i stället för att tyst droppa yrke-dimensionen").
+        var messages = FlattenMessages(ex);
+        messages.ShouldContain("legacy");
+        messages.ShouldContain("OccupationGroup");
+        messages.ShouldContain("migrationen");
+    }
+
+    // ---------------------------------------------------------------
+    // (3) Saknade nya nycklar — tomma listor → Create passerar
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task MissingNewKeys_ReadAsEmptyLists_CreatePasses()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        // Post-migration Region/Q-only-rad: varken OccupationGroup eller
+        // Municipality-nyckel finns → tomma listor (bakåtkompat-invariant 4).
+        var json = """{"Region":["y"],"Q":null,"SortBy":0}""";
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
+
+        using var readScope = _factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await readDb.SavedSearches
+            .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
+
+        saved.Criteria.OccupationGroup.ShouldBeEmpty();
+        saved.Criteria.Municipality.ShouldBeEmpty();
+        saved.Criteria.Region.ShouldBe(["y"]);
+    }
+
+    // ---------------------------------------------------------------
+    // (4) Write-form on-disk — nya nycklar skrivs, "Ssyk" skrivs ALDRIG.
+    // OBS: jsonb normaliserar nyckelordning i lagrad form — Write-blockets
+    // ORDNING (OccupationGroup, Municipality, Region, Q, SortBy per architect
+    // F2) är därför inte observerbar här; den bär ingen semantik post-lagring
+    // (canonical-hash-ordningen ägs av FilterHashCalculator och låses i
+    // FilterHashCalculatorTests). Här låses nyckel-NÄRVARON.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Write_EmitsNewKeys_AndNeverSsyk()
     {
         var ct = TestContext.Current.CancellationToken;
         using var scope = _factory.Services.CreateScope();
@@ -103,9 +225,43 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         var seeker = await SeedSeekerAsync(db, clock, ct);
 
         var criteria = SearchCriteria.Create(
-            ["sysdev", "frontend"], ["stockholm", "uppsala"], "backend",
-            JobAdSortBy.PublishedAtDesc).Value;
-        var saved = SavedSearch.Create(seeker.Id, "Ny array-rad", criteria, false, clock).Value;
+            occupationGroup: ["g1"], municipality: ["m1"], region: ["r1"],
+            q: "backend", sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        var saved = SavedSearch.Create(seeker.Id, "Write-form", criteria, false, clock).Value;
+        db.SavedSearches.Add(saved);
+        await db.SaveChangesAsync(ct);
+
+        var raw = await ReadRawCriteriaAsync(saved.Id.Value, ct);
+
+        // Skrivvägen producerar per konstruktion aldrig en fail-loud-rad.
+        raw.ShouldNotContain("\"Ssyk\"");
+        raw.ShouldContain("\"OccupationGroup\"");
+        raw.ShouldContain("\"Municipality\"");
+        raw.ShouldContain("\"Region\"");
+        raw.ShouldContain("\"Q\"");
+        raw.ShouldContain("\"SortBy\"");
+    }
+
+    // ---------------------------------------------------------------
+    // (5) Roundtrip — Write → Read = strukturellt samma VO
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task NewForm_RoundTripsThroughEf()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grpB", "grpA"],
+            municipality: ["uppsala_kn", "sthlm_kn"],
+            region: ["stockholm", "uppsala"],
+            q: "backend",
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        var saved = SavedSearch.Create(seeker.Id, "Roundtrip-rad", criteria, false, clock).Value;
         db.SavedSearches.Add(saved);
         await db.SaveChangesAsync(ct);
 
@@ -114,19 +270,23 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         var reloaded = await readDb.SavedSearches
             .SingleAsync(s => s.Id == saved.Id, ct);
 
-        reloaded.Criteria.Ssyk.ShouldBe(["frontend", "sysdev"]); // sorterad ordinal
+        reloaded.Criteria.OccupationGroup.ShouldBe(["grpA", "grpB"]); // sorterad ordinal
+        reloaded.Criteria.Municipality.ShouldBe(["sthlm_kn", "uppsala_kn"]);
         reloaded.Criteria.Region.ShouldBe(["stockholm", "uppsala"]);
         reloaded.Criteria.Q.ShouldBe("backend");
         reloaded.Criteria.ShouldBe(criteria); // strukturell equality bevarad
     }
 
-    // (c) Default-deny: felaktiga former koerceras EJ tyst — de kastar.
+    // ---------------------------------------------------------------
+    // (6) Default-deny för nya nycklar — felaktiga former koerceras EJ tyst
+    // ---------------------------------------------------------------
+
     [Theory]
-    [InlineData("""{"Ssyk":42,"Region":[],"Q":null,"SortBy":0}""")]            // nummer
-    [InlineData("""{"Ssyk":{"k":"v"},"Region":[],"Q":null,"SortBy":0}""")]     // objekt
-    [InlineData("""{"Ssyk":["ok",123],"Region":[],"Q":null,"SortBy":0}""")]    // array m. icke-sträng
-    [InlineData("""{"Ssyk":["ok",null],"Region":[],"Q":null,"SortBy":0}""")]   // null-element
-    public async Task MalformedForm_DefaultDeny_Throws(string malformedJson)
+    [InlineData("""{"OccupationGroup":42,"Municipality":[],"Region":[],"Q":"xy","SortBy":0}""")]          // nummer
+    [InlineData("""{"OccupationGroup":{"k":"v"},"Municipality":[],"Region":[],"Q":"xy","SortBy":0}""")]   // objekt
+    [InlineData("""{"OccupationGroup":["ok",123],"Municipality":[],"Region":[],"Q":"xy","SortBy":0}""")]  // array m. icke-sträng
+    [InlineData("""{"OccupationGroup":[],"Municipality":["ok",null],"Region":[],"Q":"xy","SortBy":0}""")] // null-element
+    public async Task MalformedNewKeys_DefaultDeny_Throws(string malformedJson)
     {
         var ct = TestContext.Current.CancellationToken;
         using var scope = _factory.Services.CreateScope();

@@ -9,27 +9,23 @@ namespace JobbPilot.Application.JobAds.Abstractions;
 /// <see cref="IJobAdSearchQuery.CountAsync"/>) — de kan aldrig divergera i
 /// filter-logik.
 /// <para>
-/// <b>ADR 0067 Beslut 1 (Platsbanken sök-paritet, Fas C1, Variant C) — yrke-
-/// nivåbyte:</b> det primära yrke-filtret targetar nu <see cref="OccupationGroup"/>
-/// (ssyk-level-4/yrkesgrupp, ~400) i stället för occupation-name. <see cref="Ssyk"/>
-/// (occupation-name) BEVARAS i SPOT-formen — den matas av persisterad
-/// <c>SearchCriteria.Ssyk</c>-VO (RunSavedSearch) och <c>RecentJobSearch.Ssyk</c>
-/// (ListRecentSearches) vars rename är C2-bunden (VO-expansion) — men dess
-/// explicita equality-gren är BORTTAGEN ur <c>JobAdSearchQuery.ApplyCriteria</c>
-/// (no-op tills Fas E byter FE-picker + Fas C2 reverse-lookup-migrerar sparade
-/// sökningar). occupation-name lever vidare som synonym-/recall-substrat på
-/// q-FTS-vägen (orörd) — ingen recall förloras.
+/// <b>ADR 0067 Beslut 1 (Fas C2, CTO-dom (e) 2026-06-09):</b> <c>Ssyk</c>-
+/// fältet (occupation-name) är BORTTAGET — dess equality-gren togs redan i C1,
+/// och C2-reverse-lookup-migrationen + VO-/entity-expansionen upplöste de två
+/// persistens-bundna konsumenter som motiverade fältets överlevnad.
+/// occupation-name lever vidare som synonym-/recall-substrat på q-FTS-vägen
+/// (<c>SsykConceptId</c>-kolumnen + <c>IOccupationSynonymExpander</c> i
+/// <c>JobAdSearchQuery</c> — orörda; ingen recall förloras).
 /// </para>
 /// <para>
 /// Alla listor är aldrig null — en tom lista betyder "inget filter" (handlern
 /// normaliserar <c>null → []</c>, ADR 0042 Beslut B). <see cref="Q"/> är
 /// null/whitespace = ingen fritextsökning. <b>Named arguments obligatoriskt</b>
-/// vid konstruktion (fyra listor i rad = tyst-fel-fälla vid positionell mappning).
+/// vid konstruktion (tre listor i rad = tyst-fel-fälla vid positionell mappning).
 /// </para>
 /// </summary>
 public sealed record JobAdFilterCriteria(
     IReadOnlyList<string> OccupationGroup,
     IReadOnlyList<string> Municipality,
     IReadOnlyList<string> Region,
-    IReadOnlyList<string> Ssyk,
     string? Q);

@@ -25,8 +25,10 @@ public class GetSavedSearchQueryHandlerTests
     {
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        var criteria = SearchCriteria.Create(["12345"], ["stockholm"], "backend",
-            JobAdSortBy.PublishedAtDesc).Value;
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
+            region: ["stockholm"], q: "backend",
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Mitt sök", criteria, true,
             FakeDateTimeProvider.Default).Value;
         db.SavedSearches.Add(saved);
@@ -48,9 +50,11 @@ public class GetSavedSearchQueryHandlerTests
         result.ShouldNotBeNull();
         result!.Id.ShouldBe(saved.Id.Value);
         result.Name.ShouldBe("Mitt sök");
-        // Batch 3 (ADR 0042 Beslut B): DTO.Ssyk projiceras från VO:ns
-        // IReadOnlyList<string>. Single seeded element ⇒ ett-element-lista.
-        result.Ssyk.ShouldBe(["12345"]);
+        // C2 (architect F5.5/F6): DTO.OccupationGroup/Municipality projiceras
+        // från VO:ns IReadOnlyList<string>. Single seeded element ⇒
+        // ett-element-lista.
+        result.OccupationGroup.ShouldBe(["grp_12345"]);
+        result.Municipality.ShouldBe(["sthlm_kn"]);
         result.NotificationEnabled.ShouldBeTrue();
     }
 

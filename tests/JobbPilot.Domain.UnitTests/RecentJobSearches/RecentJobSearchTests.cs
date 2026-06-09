@@ -11,16 +11,30 @@ namespace JobbPilot.Domain.UnitTests.RecentJobSearches;
 // AR — Capture/Bump skyddar invarianter (CLAUDE.md §2.2). Auto-capture-domän
 // (ADR 0060), skild från SavedSearch (manuell-spara). Identitet via FilterHash
 // per JobSeeker; Bump muterar bara LastViewedAt + LastSeenCount.
+//
+// C2 (ADR 0067, CTO-dom (d) + architect F4): Ssyk-projektion ersätts av
+// OccupationGroup + Municipality — Capture projicerar criteria.OccupationGroup/
+// Municipality/Region. RÖD tills RecentJobSearch byter backing-fields.
 public class RecentJobSearchTests
 {
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
     private static readonly JobSeekerId ValidJobSeekerId = new(Guid.NewGuid());
 
     private static SearchCriteria ValidCriteria() =>
-        SearchCriteria.Create(["12345"], ["stockholm"], "backend", JobAdSortBy.PublishedAtDesc).Value;
+        SearchCriteria.Create(
+            occupationGroup: ["grp_12345"],
+            municipality: ["sthlm_kn"],
+            region: ["stockholm"],
+            q: "backend",
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
     private static SearchCriteria AlternateCriteria() =>
-        SearchCriteria.Create(["67890"], ["goteborg"], "frontend", JobAdSortBy.PublishedAtAsc).Value;
+        SearchCriteria.Create(
+            occupationGroup: ["grp_67890"],
+            municipality: ["gbg_kn"],
+            region: ["goteborg"],
+            q: "frontend",
+            sortBy: JobAdSortBy.PublishedAtAsc).Value;
 
     // ---------------------------------------------------------------
     // Capture — happy path
@@ -36,12 +50,38 @@ public class RecentJobSearchTests
 
         aggregate.JobSeekerId.ShouldBe(ValidJobSeekerId);
         aggregate.Q.ShouldBe("backend");
-        aggregate.Ssyk.ShouldHaveSingleItem().ShouldBe("12345");
+        aggregate.OccupationGroup.ShouldHaveSingleItem().ShouldBe("grp_12345");
+        aggregate.Municipality.ShouldHaveSingleItem().ShouldBe("sthlm_kn");
         aggregate.Region.ShouldHaveSingleItem().ShouldBe("stockholm");
         aggregate.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         aggregate.LastSeenCount.ShouldBe(42);
         aggregate.LastViewedAt.ShouldBe(Clock.UtcNow);
         aggregate.CreatedAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void Capture_WithOccupationGroupOnlyCriteria_ProjectsEmptyOtherLists()
+    {
+        // C2 stänger C1:s live-gap: en yrkesgrupp-only-sökning ska kunna
+        // captureras — övriga listor projiceras som tomma.
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_only"], municipality: null, region: null,
+            q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
+
+        var aggregate = RecentJobSearch.Capture(
+            ValidJobSeekerId, criteria, currentCount: 0, Clock.UtcNow);
+
+        aggregate.OccupationGroup.ShouldBe(["grp_only"]);
+        aggregate.Municipality.ShouldBeEmpty();
+        aggregate.Region.ShouldBeEmpty();
+        aggregate.Q.ShouldBeNull();
+    }
+
+    [Fact]
+    public void RecentJobSearch_HasNoSsykProperty_AfterC2()
+    {
+        // CTO-dom (d)/(f): Ssyk-kolumnen/projektionen utgår ur entiteten.
+        typeof(RecentJobSearch).GetProperty("Ssyk").ShouldBeNull();
     }
 
     [Fact]
@@ -93,8 +133,12 @@ public class RecentJobSearchTests
     public void Capture_SameCriteriaWithDifferentInputOrdering_ProducesSameHash()
     {
         // SearchCriteria.NormalizeList sorterar/dedupar → samma hash trots olika input-ordning.
-        var c1 = SearchCriteria.Create(["zzz", "aaa"], ["bbb", "ccc"], "xx", JobAdSortBy.PublishedAtDesc).Value;
-        var c2 = SearchCriteria.Create(["aaa", "zzz"], ["ccc", "bbb"], "xx", JobAdSortBy.PublishedAtDesc).Value;
+        var c1 = SearchCriteria.Create(
+            occupationGroup: ["zzz", "aaa"], municipality: ["kkk", "jjj"],
+            region: ["bbb", "ccc"], q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        var c2 = SearchCriteria.Create(
+            occupationGroup: ["aaa", "zzz"], municipality: ["jjj", "kkk"],
+            region: ["ccc", "bbb"], q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
         var a = RecentJobSearch.Capture(ValidJobSeekerId, c1, 1, Clock.UtcNow);
         var b = RecentJobSearch.Capture(ValidJobSeekerId, c2, 1, Clock.UtcNow);
@@ -144,7 +188,8 @@ public class RecentJobSearchTests
             ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow);
         var originalHash = aggregate.FilterHash;
         var originalQ = aggregate.Q;
-        var originalSsyk = aggregate.Ssyk;
+        var originalOccupationGroup = aggregate.OccupationGroup;
+        var originalMunicipality = aggregate.Municipality;
         var originalRegion = aggregate.Region;
         var originalSortBy = aggregate.SortBy;
         var originalCreatedAt = aggregate.CreatedAt;
@@ -153,7 +198,8 @@ public class RecentJobSearchTests
 
         aggregate.FilterHash.ShouldBe(originalHash);
         aggregate.Q.ShouldBe(originalQ);
-        aggregate.Ssyk.ShouldBe(originalSsyk);
+        aggregate.OccupationGroup.ShouldBe(originalOccupationGroup);
+        aggregate.Municipality.ShouldBe(originalMunicipality);
         aggregate.Region.ShouldBe(originalRegion);
         aggregate.SortBy.ShouldBe(originalSortBy);
         aggregate.CreatedAt.ShouldBe(originalCreatedAt);

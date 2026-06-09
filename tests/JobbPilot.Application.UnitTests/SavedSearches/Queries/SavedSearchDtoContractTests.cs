@@ -1,4 +1,3 @@
-using System.Reflection;
 using JobbPilot.Application.JobAds.Queries.GetTaxonomyTree;
 using JobbPilot.Application.SavedSearches.Queries;
 using JobbPilot.Domain.JobAds;
@@ -6,15 +5,17 @@ using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.SavedSearches.Queries;
 
-// ADR 0039/0043-kontraktsvakthund (CTO 2026-05-17). SavedSearchDto-utökningen
-// måste vara ADDITIV: befintliga concept-id-fält + ordning OFÖRÄNDRADE (FE-DTO
-// + ADR 0039-jsonb-konsumenter bryts inte), nya label-fält tillkommer.
-// SsykLabels/RegionLabels speglar ITaxonomyReadModel.ResolveLabelsAsync-
-// kontraktet (IReadOnlyList<TaxonomyLabelDto>).
+// C2-kontraktsvakthund (architect F5.5): SavedSearch-API:t konsumeras INTE av
+// FE (verifierat on-disk, ADR 0039-amendment 2026-05-20) → DTO:n renamesas
+// FRITT: Ssyk → OccupationGroup, +Municipality; SsykLabels →
+// OccupationGroupLabels, +MunicipalityLabels. Positionsordningen följer den
+// kanoniska dimensionsordningen (OccupationGroup, Municipality, Region —
+// architect F1; samma SPOT-ordning genom hela kedjan), labels sist (additiv
+// konvention från ADR 0043-utökningen).
 public class SavedSearchDtoContractTests
 {
     [Fact]
-    public void SavedSearchDto_ShouldKeepExistingConceptIdProperties_Unchanged()
+    public void SavedSearchDto_ShouldExposeConceptIdProperties_InC2Form()
     {
         var t = typeof(SavedSearchDto);
 
@@ -22,9 +23,11 @@ public class SavedSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(Guid));
         t.GetProperty(nameof(SavedSearchDto.Name))!
             .PropertyType.ShouldBe(typeof(string));
-        t.GetProperty(nameof(SavedSearchDto.Ssyk))!
+        t.GetProperty("OccupationGroup")!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
-        t.GetProperty(nameof(SavedSearchDto.Region))!
+        t.GetProperty("Municipality")!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        t.GetProperty("Region")!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(SavedSearchDto.Q))!
             .PropertyType.ShouldBe(typeof(string));
@@ -41,22 +44,35 @@ public class SavedSearchDtoContractTests
     }
 
     [Fact]
-    public void SavedSearchDto_ShouldExposeAdditiveLabelProjections()
+    public void SavedSearchDto_ShouldNotExposeSsykProperties_AfterC2()
+    {
+        // CTO-dom (e)/(f): occupation-name-dimensionen avvecklas helt ur
+        // SavedSearch-kontraktet — ingen FE-konsument finns (F5.5).
+        var t = typeof(SavedSearchDto);
+
+        t.GetProperty("Ssyk").ShouldBeNull();
+        t.GetProperty("SsykLabels").ShouldBeNull();
+    }
+
+    [Fact]
+    public void SavedSearchDto_ShouldExposeLabelProjections_PerDimension()
     {
         var t = typeof(SavedSearchDto);
 
-        t.GetProperty("SsykLabels")!
+        t.GetProperty("OccupationGroupLabels")!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
+        t.GetProperty("MunicipalityLabels")!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
         t.GetProperty("RegionLabels")!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
     }
 
     [Fact]
-    public void SavedSearchDto_ShouldKeepRawConceptIdPositionalOrder_ForBackCompat()
+    public void SavedSearchDto_ShouldKeepCanonicalPositionalOrder()
     {
-        // ADR 0039: jsonb/VO-projektionens positionella kontrakt (de första
-        // 10 fälten) får inte permuteras. Nya label-fält ska tillkomma SIST
-        // (additivt) — annars bryts positionella konsumenter/serialisering.
+        // Kanonisk dimensionsordning (architect F1) i råfälten; labels sist
+        // (additiv konvention). Named arguments krävs ändå vid konstruktion —
+        // detta test gör ordningen granskningsbar.
         var ctor = typeof(SavedSearchDto)
             .GetConstructors()
             .OrderByDescending(c => c.GetParameters().Length)
@@ -64,13 +80,15 @@ public class SavedSearchDtoContractTests
 
         var names = ctor.GetParameters().Select(p => p.Name).ToArray();
 
-        names.Length.ShouldBeGreaterThanOrEqualTo(12);
-        names[..10].ShouldBe(
+        names.Length.ShouldBe(14);
+        names[..11].ShouldBe(
         [
-            "Id", "Name", "Ssyk", "Region", "Q", "SortBy",
-            "NotificationEnabled", "LastRunAt", "CreatedAt", "UpdatedAt",
+            "Id", "Name", "OccupationGroup", "Municipality", "Region", "Q",
+            "SortBy", "NotificationEnabled", "LastRunAt", "CreatedAt", "UpdatedAt",
         ]);
-        names.ShouldContain("SsykLabels");
-        names.ShouldContain("RegionLabels");
+        names[11..].ShouldBe(
+        [
+            "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
+        ]);
     }
 }

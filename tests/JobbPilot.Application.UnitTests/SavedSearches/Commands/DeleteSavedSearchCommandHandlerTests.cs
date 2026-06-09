@@ -26,8 +26,9 @@ public class DeleteSavedSearchCommandHandlerTests
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
-        var criteria = SearchCriteria.Create(["12345"], null, null,
-            JobAdSortBy.PublishedAtDesc).Value;
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_12345"], municipality: null, region: null,
+            q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Att radera", criteria, false,
             FakeDateTimeProvider.Default).Value;
         db.SavedSearches.Add(saved);

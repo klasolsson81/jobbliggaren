@@ -27,9 +27,16 @@ public class CreateSavedSearchCommandHandlerTests
         return seeker;
     }
 
+    // C2 (architect F6): Ssyk → OccupationGroup + Municipality. Named args
+    // (tre likatypade listor i rad).
     private static CreateSavedSearchCommand ValidCommand() =>
-        new("Backend i Stockholm", ["12345"], ["stockholm"], "backend",
-            JobAdSortBy.PublishedAtDesc, NotificationEnabled: true);
+        new("Backend i Stockholm",
+            OccupationGroup: ["grp_12345"],
+            Municipality: ["sthlm_kn"],
+            Region: ["stockholm"],
+            Q: "backend",
+            SortBy: JobAdSortBy.PublishedAtDesc,
+            NotificationEnabled: true);
 
     [Fact]
     public async Task Handle_WithValidCommand_ReturnsSuccessWithNewId()
@@ -83,7 +90,13 @@ public class CreateSavedSearchCommandHandlerTests
 
         // Inget kriterium angivet → SearchCriteria.Empty bubblar upp som 400.
         var command = new CreateSavedSearchCommand(
-            "Tom sökning", null, null, null, JobAdSortBy.PublishedAtDesc, false);
+            "Tom sökning",
+            OccupationGroup: null,
+            Municipality: null,
+            Region: null,
+            Q: null,
+            SortBy: JobAdSortBy.PublishedAtDesc,
+            NotificationEnabled: false);
         // OBS: tomma/null-listor + null Q = generaliserad tom-invariant
         // (ADR 0042 Beslut B.3) → samma SearchCriteria.Empty som gammalt.
 
@@ -102,7 +115,13 @@ public class CreateSavedSearchCommandHandlerTests
         var handler = new CreateSavedSearchCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
 
         var command = new CreateSavedSearchCommand(
-            "", ["12345"], null, null, JobAdSortBy.PublishedAtDesc, false);
+            "",
+            OccupationGroup: ["grp_12345"],
+            Municipality: null,
+            Region: null,
+            Q: null,
+            SortBy: JobAdSortBy.PublishedAtDesc,
+            NotificationEnabled: false);
 
         var result = await handler.Handle(command, CancellationToken.None);
 

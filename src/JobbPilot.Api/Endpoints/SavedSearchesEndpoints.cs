@@ -48,8 +48,11 @@ public static class SavedSearchesEndpoints
                 body.Criteria is null
                     ? null
                     : new SavedSearchCriteriaInput(
-                        body.Criteria.Ssyk, body.Criteria.Region,
-                        body.Criteria.Q, body.Criteria.SortBy));
+                        OccupationGroup: body.Criteria.OccupationGroup,
+                        Municipality: body.Criteria.Municipality,
+                        Region: body.Criteria.Region,
+                        Q: body.Criteria.Q,
+                        SortBy: body.Criteria.SortBy));
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.NoContent()
@@ -85,9 +88,14 @@ public static class SavedSearchesEndpoints
         bool? NotificationEnabled,
         UpdateSavedSearchCriteriaBody? Criteria);
 
-    // ADR 0042 Beslut B — Ssyk/Region single→multi (JSON-array).
+    // ADR 0042 Beslut B — multi-värde-listor (JSON-array).
+    // ADR 0067 Fas C2 (CTO-dom (e)/(f)): Ssyk UTGICK — OccupationGroup +
+    // Municipality ersätter. Gammal klient som skickar "ssyk" får fältet
+    // tyst ignorerat (System.Text.Json default) → SearchCriteria.Empty-400
+    // om inget annat kriterium (fail-säkert, ingen tyst halvspara).
     private sealed record UpdateSavedSearchCriteriaBody(
-        IReadOnlyList<string>? Ssyk,
+        IReadOnlyList<string>? OccupationGroup,
+        IReadOnlyList<string>? Municipality,
         IReadOnlyList<string>? Region,
         string? Q,
         JobAdSortBy SortBy);

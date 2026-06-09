@@ -3,18 +3,21 @@ using JobbPilot.Domain.JobAds;
 
 namespace JobbPilot.Application.SavedSearches.Queries;
 
-// ADR 0042 Beslut B — Ssyk/Region single→multi (IReadOnlyList; aldrig null
-// från VO:t — tom lista = inget filter).
-// ADR 0043 (CTO 2026-05-17, Approach A) — SsykLabels/RegionLabels är en
-// ADDITIV read-projektion: server-side namn-berikning via ITaxonomyReadModel
-// (in-process, O(1) — ingen /taxonomy/labels-endpoint, ingen Beslut D-cap-yta)
-// så /sokningar-listan kan visa svenska namn istället för rå concept-id. De
-// råa Ssyk/Region-fälten är OFÖRÄNDRADE (ADR 0039 VO-kontrakt orört); labels
-// paras med concept-id (TaxonomyLabelDto) → ingen index-misalignment.
+// ADR 0042 Beslut B — multi-värde-listor (IReadOnlyList; aldrig null från
+// VO:t — tom lista = inget filter).
+// ADR 0043 (CTO 2026-05-17, Approach A) — *Labels är en ADDITIV read-
+// projektion: server-side namn-berikning via ITaxonomyReadModel (in-process,
+// O(1)) så /sokningar-listan kan visa svenska namn istället för rå concept-id.
+// Labels paras med concept-id (TaxonomyLabelDto) → ingen index-misalignment.
+// ADR 0067 Fas C2 (CTO-dom (e)/(f), architect F5.5): Ssyk/SsykLabels UTGICK —
+// SavedSearch-API:t konsumeras inte av FE (ADR 0039-amendment 2026-05-20) →
+// DTO:n renamead fritt till kanonisk dimensionsordning (OccupationGroup,
+// Municipality, Region; architect F1), labels per dimension sist.
 public sealed record SavedSearchDto(
     Guid Id,
     string Name,
-    IReadOnlyList<string> Ssyk,
+    IReadOnlyList<string> OccupationGroup,
+    IReadOnlyList<string> Municipality,
     IReadOnlyList<string> Region,
     string? Q,
     JobAdSortBy SortBy,
@@ -22,5 +25,6 @@ public sealed record SavedSearchDto(
     DateTimeOffset? LastRunAt,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<TaxonomyLabelDto> SsykLabels,
+    IReadOnlyList<TaxonomyLabelDto> OccupationGroupLabels,
+    IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels,
     IReadOnlyList<TaxonomyLabelDto> RegionLabels);

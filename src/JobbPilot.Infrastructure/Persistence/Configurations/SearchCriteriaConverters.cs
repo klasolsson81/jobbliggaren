@@ -13,11 +13,22 @@ namespace JobbPilot.Infrastructure.Persistence.Configurations;
 /// <c>IReadOnlyList&lt;string&gt;</c> stabilt i Npgsql (issue #3129) →
 /// property-level <see cref="ValueConverter"/> mot en <c>jsonb</c>-kolumn
 /// istället, med en tolerant <see cref="JsonConverter{T}"/> som läser BÅDE
-/// gammal skalär-form (<c>"Ssyk":"x"</c>) och ny array-form
-/// (<c>"Ssyk":["x"]</c>) — ingen data-migration (lazy on-read). Default-deny:
-/// allt som inte är sträng-eller-strängarray avvisas (Saltzer/Schroeder 1975).
-/// Bor i Infrastructure — Domain förblir serialiserings-/EF-fritt
-/// (CLAUDE.md §2.1).
+/// skalär-form och array-form per list-nyckel. Saknad nyckel → tom lista
+/// (ADR 0042 invariant 4 — gammal rad utan nya dimensioner passerar Create).
+/// Default-deny: allt som inte är sträng-eller-strängarray avvisas
+/// (Saltzer/Schroeder 1975). Bor i Infrastructure — Domain förblir
+/// serialiserings-/EF-fritt (CLAUDE.md §2.1).
+///
+/// <para><b>Fas C2 (ADR 0067, CTO-dom (f) 2026-06-09) — legacy-"Ssyk"-kedjan:</b>
+/// nycklarna är OccupationGroup/Municipality/Region/Q/SortBy. Legacy-nyckeln
+/// <c>"Ssyk"</c> (occupation-name) FAIL-LOUD:ar (aldrig tyst Skip — tyst
+/// droppning kunde amputera en bevaknings yrke-dimension eller lämna raden i
+/// tom-invariant-brott). Garantikedjan som gör fallet ≈ omöjligt: (1) C2-
+/// reverse-lookup-migrationen transformerar/strippar nyckeln på ALLA rader
+/// (predikat = nyckel-existens, inkl. <c>"Ssyk":[]</c>) och abortar vid
+/// omappbart id; (2) skrivvägen stängdes i samma batch (Write emitterar aldrig
+/// nyckeln; commands bär inte fältet); (3) saved_searches hade 0 rader vid
+/// migrationen. Deploy-ordning: migrationen appliceras FÖRE ny binär startas.</para>
 /// </summary>
 internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria>
 {
@@ -27,7 +38,8 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         if (reader.TokenType != JsonTokenType.StartObject)
             throw new JsonException("SearchCriteria-jsonb måste vara ett objekt.");
 
-        List<string> ssyk = [];
+        List<string> occupationGroup = [];
+        List<string> municipality = [];
         List<string> region = [];
         string? q = null;
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc;
@@ -44,8 +56,11 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
 
             switch (prop)
             {
-                case "Ssyk":
-                    ssyk = ReadStringOrStringArray(ref reader, "Ssyk");
+                case "OccupationGroup":
+                    occupationGroup = ReadStringOrStringArray(ref reader, "OccupationGroup");
+                    break;
+                case "Municipality":
+                    municipality = ReadStringOrStringArray(ref reader, "Municipality");
                     break;
                 case "Region":
                     region = ReadStringOrStringArray(ref reader, "Region");
@@ -63,6 +78,14 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
                         throw new JsonException("SearchCriteria.SortBy måste vara ett heltal.");
                     sortBy = (JobAdSortBy)sb;
                     break;
+                case "Ssyk":
+                    // CTO-dom (f) 2026-06-09: fail-loud, ALDRIG tyst Skip().
+                    // Se garantikedjan i klass-XML-doc:en.
+                    throw new JsonException(
+                        "Lagrad SearchCriteria-jsonb bär legacy-nyckeln \"Ssyk\" (occupation-name) "
+                        + "som skulle ha transformerats till \"OccupationGroup\" av C2-reverse-lookup-"
+                        + "migrationen. Raden är omigrerad — applicera migrationen i stället för att "
+                        + "tyst droppa sökningens yrke-dimension (fail-safe default, ADR 0067).");
                 default:
                     reader.Skip();
                     break;
@@ -70,9 +93,15 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         }
 
         // Re-validera via Domain-faktorn (single source of invariants +
-        // sorterad+distinct-normalisering). Lagrad data var giltig vid skrivning;
-        // gammal skalär→[x] passerar. Fail-safe default-deny vid korrupt data.
-        var result = SearchCriteria.Create(ssyk, region, q, sortBy);
+        // sorterad+distinct-normalisering). Lagrad data var giltig vid
+        // skrivning; saknad nyckel → tom lista passerar. Fail-safe
+        // default-deny vid korrupt data.
+        var result = SearchCriteria.Create(
+            occupationGroup: occupationGroup,
+            municipality: municipality,
+            region: region,
+            q: q,
+            sortBy: sortBy);
         if (result.IsFailure)
             throw new JsonException(
                 $"Lagrad SearchCriteria-jsonb bröt domän-invariant: {result.Error.Code}.");
@@ -82,14 +111,22 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
     public override void Write(
         Utf8JsonWriter writer, SearchCriteria value, JsonSerializerOptions options)
     {
-        // Skriver alltid ny array-form + PascalCase (matchar befintlig
-        // kolumn-nyckelkonvention). SortBy som heltal (oförändrad gammal form).
+        // Skriver alltid array-form + PascalCase (matchar VO-property-namnen =
+        // jsonb-nyckel-kontraktet). Nyckelordning = kanonisk dimensionsordning
+        // (architect F1). SortBy som heltal (oförändrad form). "Ssyk" skrivs
+        // ALDRIG — skrivvägen kan per konstruktion inte trigga fail-loud-casen.
         writer.WriteStartObject();
 
-        writer.WritePropertyName("Ssyk");
+        writer.WritePropertyName("OccupationGroup");
         writer.WriteStartArray();
-        foreach (var s in value.Ssyk)
-            writer.WriteStringValue(s);
+        foreach (var g in value.OccupationGroup)
+            writer.WriteStringValue(g);
+        writer.WriteEndArray();
+
+        writer.WritePropertyName("Municipality");
+        writer.WriteStartArray();
+        foreach (var m in value.Municipality)
+            writer.WriteStringValue(m);
         writer.WriteEndArray();
 
         writer.WritePropertyName("Region");

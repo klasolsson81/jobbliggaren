@@ -16,6 +16,13 @@ namespace JobbPilot.Application.UnitTests.RecentJobSearches.Queries;
 // IJobAdSearchQuery.CountAsync (delad filter-SPOT med ListJobAds). Porten
 // mockas med NSubstitute; list-projektion + label-härledning + owner-filter
 // testas här mot in-memory-DB.
+//
+// C2 (ADR 0067, CTO-dom (d)/(e) + architect F5/F6): handlern mappar
+// r.OccupationGroup/r.Municipality/r.Region/r.Q in i JobAdFilterCriteria
+// (täpper C1:s tomma listor), resolvar occupationGroupLabels +
+// municipalityLabels, och DeriveLabel-fallback är q → yrkesgrupp → kommun →
+// region → "Alla annonser". DTO:n är ADDITIV: deprecated SsykList/SsykLabels
+// matas ALLTID med [].
 public class ListRecentSearchesQueryHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -58,7 +65,12 @@ public class ListRecentSearchesQueryHandlerTests
         DateTimeOffset viewedAt,
         int lastSeenCount = 0)
     {
-        var criteria = SearchCriteria.Create(["12345"], ["stockholm"], q, JobAdSortBy.PublishedAtDesc).Value;
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_12345"],
+            municipality: ["sthlm_kn"],
+            region: ["stockholm"],
+            q: q,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
         return RecentJobSearch.Capture(seekerId, criteria, lastSeenCount, viewedAt);
     }
 
@@ -154,12 +166,17 @@ public class ListRecentSearchesQueryHandlerTests
     [Fact]
     public async Task Handle_CallsCountAsyncWithRowFilterCriteria()
     {
-        // ADR 0062 SPOT — CountAsync ska anropas med rader-radens egna
-        // Ssyk/Region/Q (samma filter-väg som ListJobAds).
+        // ADR 0062 SPOT + C2 architect F6 — CountAsync ska anropas med radens
+        // EGNA OccupationGroup/Municipality/Region/Q (täpper C1:s tomma listor:
+        // tidigare skickades OccupationGroup: [] / Municipality: []).
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db);
         var criteria = SearchCriteria.Create(
-            ["54321"], ["goteborg"], "lärare", JobAdSortBy.PublishedAtDesc).Value;
+            occupationGroup: ["grp_54321"],
+            municipality: ["gbg_kn"],
+            region: ["goteborg"],
+            q: "lärare",
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
             RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
         await db.SaveChangesAsync(CancellationToken.None);
@@ -174,10 +191,62 @@ public class ListRecentSearchesQueryHandlerTests
         await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
         captured.ShouldNotBeNull();
-        captured!.Ssyk.ShouldBe(["54321"]);
+        captured!.OccupationGroup.ShouldBe(["grp_54321"]);
+        captured.Municipality.ShouldBe(["gbg_kn"]);
         captured.Region.ShouldBe(["goteborg"]);
         captured.Q.ShouldBe("lärare");
     }
+
+    // ---------------------------------------------------------------
+    // DTO-projektion — additiv form (architect F5): deprecated SsykList/
+    // SsykLabels ALLTID tomma; nya OccupationGroup-/Municipality-fält bär data.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_ProjectsOccupationGroupAndMunicipalityListsAndLabels()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(CaptureRow(seeker.Id, "backend", FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        var dto = result.ShouldHaveSingleItem();
+        dto.OccupationGroupList.ShouldBe(["grp_12345"]);
+        dto.MunicipalityList.ShouldBe(["sthlm_kn"]);
+        dto.OccupationGroupLabels.ShouldContain(l =>
+            l.ConceptId == "grp_12345" && l.Label == "Label-grp_12345");
+        dto.MunicipalityLabels.ShouldContain(l =>
+            l.ConceptId == "sthlm_kn" && l.Label == "Label-sthlm_kn");
+        dto.RegionList.ShouldBe(["stockholm"]);
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsDeprecatedSsykFieldsAsAlwaysEmpty()
+    {
+        // F5-kontraktet: FE-zod kräver ssykList (REQUIRED) → fältet består men
+        // matas ALLTID med []. Tas bort i Fas E tillsammans med zod-schemat.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(CaptureRow(seeker.Id, "backend", FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        var dto = result.ShouldHaveSingleItem();
+        dto.SsykList.ShouldNotBeNull();
+        dto.SsykList.ShouldBeEmpty();
+        dto.SsykLabels.ShouldNotBeNull();
+        dto.SsykLabels.ShouldBeEmpty();
+    }
+
+    // ---------------------------------------------------------------
+    // DeriveLabel — fallback-ordning q → yrkesgrupp → kommun → region →
+    // "Alla annonser" (architect F6)
+    // ---------------------------------------------------------------
 
     [Fact]
     public async Task Handle_DerivesLabelFromQuery_WhenQPresent()
@@ -194,13 +263,18 @@ public class ListRecentSearchesQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_DerivesLabelFromFirstSsykLabel_WhenQNull()
+    public async Task Handle_DerivesLabelFromFirstOccupationGroupLabel_WhenQNull()
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db);
 
-        // Q=null + ssyk + region → label från ssykLabel
-        var criteria = SearchCriteria.Create(["77777"], ["stockholm"], null, JobAdSortBy.PublishedAtDesc).Value;
+        // Q=null + yrkesgrupp + kommun + region → label från occupationGroupLabel
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_77777"],
+            municipality: ["sthlm_kn"],
+            region: ["stockholm"],
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
             RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
         await db.SaveChangesAsync(CancellationToken.None);
@@ -208,7 +282,51 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-77777");
+        result.ShouldHaveSingleItem().Label.ShouldBe("Label-grp_77777");
+    }
+
+    [Fact]
+    public async Task Handle_DerivesLabelFromFirstMunicipalityLabel_WhenQAndOccupationGroupMissing()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: ["gbg_kn"],
+            region: ["goteborg"],
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn");
+    }
+
+    [Fact]
+    public async Task Handle_DerivesLabelFromFirstRegionLabel_WhenOnlyRegionPresent()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: null,
+            region: ["stockholm"],
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.ShouldHaveSingleItem().Label.ShouldBe("Label-stockholm");
     }
 
     [Fact]

@@ -316,17 +316,10 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         json.GetProperty("totalPages").GetInt32().ShouldBe(2);
     }
 
-    [Fact]
-    public async Task GET_job_ads_with_invalid_ssyk_format_returns_400()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        // Mellanslag bryter regex ^[A-Za-z0-9_-]{1,32}$
-        var response = await _client.GetAsync("/api/v1/job-ads?ssyk=has%20space", ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-    }
+    // C2 (CTO-dom (e)): GET_job_ads_with_invalid_ssyk_format_returns_400 är
+    // borttagen — ?ssyk= binder inte längre (obunden param ignoreras → 200).
+    // Se ListJobAdsSsykNoOpTests.GET_job_ads_with_previously_invalid_ssyk_format_returns_200
+    // (motsvarande occupationGroup-grind finns i ListJobAdsOccupationGroupEndpointTests).
 
     [Fact]
     public async Task GET_job_ads_with_invalid_region_format_returns_400()

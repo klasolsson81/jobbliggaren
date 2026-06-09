@@ -14,10 +14,16 @@ namespace JobbPilot.Application.RecentJobSearches.Queries.ListRecentSearches;
 /// samma filter-SPOT som ListJobAds, q-FTS-accelererad). Fitness function
 /// (ADR 0045) övervakar p95 och triggar Hangfire-cache-evolution om budget bryts.
 ///
-/// <para>Label server-härleds (Q || ssykLabels.First || regionLabels.First ||
-/// fallback) så FE inte behöver konstruera presentation. Defensive fallback
-/// "Alla annonser" är dead code så länge SearchCriteria.Empty-invarianten
-/// håller, men behålls för robusthet.</para>
+/// <para>Label server-härleds (Q || occupationGroupLabels.First ||
+/// municipalityLabels.First || regionLabels.First || fallback) så FE inte
+/// behöver konstruera presentation. Defensive fallback "Alla annonser" är dead
+/// code så länge SearchCriteria.Empty-invarianten håller, men behålls för
+/// robusthet.</para>
+///
+/// <para><b>Fas C2 (ADR 0067):</b> entiteten bär OccupationGroup + Municipality
+/// (occupation-name/Ssyk utgick) — mappas in i filter-SPOT:en (täpper C1:s
+/// tomma listor). DTO:ns SsykList/SsykLabels är deprecated alltid-tomma
+/// (wire-kontrakt-shim tills Fas E, architect F5).</para>
 /// </summary>
 public sealed class ListRecentSearchesQueryHandler(
     IAppDbContext db,
@@ -50,8 +56,12 @@ public sealed class ListRecentSearchesQueryHandler(
         var dtos = new List<RecentJobSearchDto>(items.Count);
         foreach (var r in items)
         {
-            var ssykLabels = await taxonomy.ResolveLabelsAsync(r.Ssyk, cancellationToken);
-            var regionLabels = await taxonomy.ResolveLabelsAsync(r.Region, cancellationToken);
+            var occupationGroupLabels = await taxonomy.ResolveLabelsAsync(
+                r.OccupationGroup, cancellationToken);
+            var municipalityLabels = await taxonomy.ResolveLabelsAsync(
+                r.Municipality, cancellationToken);
+            var regionLabels = await taxonomy.ResolveLabelsAsync(
+                r.Region, cancellationToken);
 
             // F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback /oversikt 7-10s):
             // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20
@@ -64,48 +74,56 @@ public sealed class ListRecentSearchesQueryHandler(
             int currentCount = 0;
             if (query.IncludeCount)
             {
-                // ADR 0067 Beslut 1 (Variant C): RecentJobSearch bär ännu inte
-                // OccupationGroup/Municipality (entity-expansion = Fas C2) → tomma
-                // listor. Persisterad Ssyk passthrough (ApplyCriteria no-op).
+                // ADR 0067 Fas C2: radens egna dimensioner in i filter-SPOT:en
+                // (C1:s tomma-listor-läge täppt).
                 currentCount = await search.CountAsync(
                     new JobAdFilterCriteria(
-                        OccupationGroup: [],
-                        Municipality: [],
+                        OccupationGroup: r.OccupationGroup,
+                        Municipality: r.Municipality,
                         Region: r.Region,
-                        Ssyk: r.Ssyk,
                         Q: r.Q),
                     cancellationToken);
             }
 
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);
-            var label = DeriveLabel(r.Q, ssykLabels, regionLabels);
+            var label = DeriveLabel(
+                r.Q, occupationGroupLabels, municipalityLabels, regionLabels);
 
             dtos.Add(new RecentJobSearchDto(
                 r.Id.Value,
                 r.Q,
-                r.Ssyk,
-                r.Region,
-                ssykLabels,
-                regionLabels,
+                SsykList: [],
+                RegionList: r.Region,
+                SsykLabels: [],
+                RegionLabels: regionLabels,
                 r.SortBy,
                 label,
                 currentCount,
                 newCount,
-                r.LastViewedAt));
+                r.LastViewedAt,
+                OccupationGroupList: r.OccupationGroup,
+                MunicipalityList: r.Municipality,
+                OccupationGroupLabels: occupationGroupLabels,
+                MunicipalityLabels: municipalityLabels));
         }
 
         return dtos;
     }
 
+    // Fallback-kedja per architect F6: q → yrkesgrupp → kommun → region →
+    // "Alla annonser" (defensive dead code så länge Empty-invarianten håller).
     private static string DeriveLabel(
         string? q,
-        IReadOnlyList<TaxonomyLabelDto> ssykLabels,
+        IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
+        IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
         IReadOnlyList<TaxonomyLabelDto> regionLabels)
     {
         if (!string.IsNullOrWhiteSpace(q))
             return q;
-        if (ssykLabels.Count > 0)
-            return ssykLabels[0].Label;
+        if (occupationGroupLabels.Count > 0)
+            return occupationGroupLabels[0].Label;
+        if (municipalityLabels.Count > 0)
+            return municipalityLabels[0].Label;
         if (regionLabels.Count > 0)
             return regionLabels[0].Label;
         return "Alla annonser";

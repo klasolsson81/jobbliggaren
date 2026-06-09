@@ -14,10 +14,15 @@ namespace JobbPilot.Domain.RecentJobSearches;
 /// dependency rule, Martin 2017 kap. 22).
 ///
 /// <para>
-/// Canonical-JSON: <c>{"q":string?|null,"ssyk":[...],"region":[...],"sortBy":int}</c>.
-/// Listorna är redan sorted+distinct ordinal från <see cref="SearchCriteria"/>:s
-/// invarianter → deterministisk. SHA-256 ger fix 64-tecken hex-output, ingen
-/// känd preimage-attack relevant för denna icke-säkerhets-användning.
+/// Canonical-JSON (Fas C2, ADR 0067 — "ssyk"-nyckeln utgick med occupation-
+/// name-dimensionen; CTO-dom (d) 2026-06-09 — befintliga rader raderades i
+/// C2-migrationen, ingen hash-versionering):
+/// <c>{"q":string?|null,"occupationGroup":[...],"municipality":[...],"region":[...],"sortBy":int}</c>.
+/// Fältordningen är fixerad och dokumenterad — ändras den ändras hashen för
+/// logiskt samma sökning. Listorna är redan sorted+distinct ordinal från
+/// <see cref="SearchCriteria"/>:s invarianter → deterministisk. SHA-256 ger
+/// fix 64-tecken hex-output, ingen känd preimage-attack relevant för denna
+/// icke-säkerhets-användning.
 /// </para>
 /// </summary>
 public static class FilterHashCalculator
@@ -25,16 +30,20 @@ public static class FilterHashCalculator
     public static string Compute(SearchCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        return Compute(criteria.Q, criteria.Ssyk, criteria.Region, criteria.SortBy);
+        return Compute(
+            criteria.Q, criteria.OccupationGroup, criteria.Municipality,
+            criteria.Region, criteria.SortBy);
     }
 
     public static string Compute(
         string? q,
-        IReadOnlyList<string> ssyk,
+        IReadOnlyList<string> occupationGroup,
+        IReadOnlyList<string> municipality,
         IReadOnlyList<string> region,
         JobAdSortBy sortBy)
     {
-        ArgumentNullException.ThrowIfNull(ssyk);
+        ArgumentNullException.ThrowIfNull(occupationGroup);
+        ArgumentNullException.ThrowIfNull(municipality);
         ArgumentNullException.ThrowIfNull(region);
 
         using var stream = new MemoryStream();
@@ -47,9 +56,14 @@ public static class FilterHashCalculator
             else
                 writer.WriteString("q", q);
 
-            writer.WriteStartArray("ssyk");
-            foreach (var s in ssyk)
-                writer.WriteStringValue(s);
+            writer.WriteStartArray("occupationGroup");
+            foreach (var g in occupationGroup)
+                writer.WriteStringValue(g);
+            writer.WriteEndArray();
+
+            writer.WriteStartArray("municipality");
+            foreach (var m in municipality)
+                writer.WriteStringValue(m);
             writer.WriteEndArray();
 
             writer.WriteStartArray("region");

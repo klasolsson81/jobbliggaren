@@ -58,19 +58,16 @@ public sealed class RunSavedSearchQueryHandler(
         // ADR 0039 Beslut 2 — ingen last_run_at-skrivning (query, ej command).
         // ADR 0042 Beslut E — Since=null: en körning exponerar aldrig IsNew=true
         // (Since är ListJobAds-runtime-kontext, ej del av SavedSearch-VO:t).
-        // ADR 0067 Beslut 1 (Variant C): SearchCriteria-VO bär ännu inte
-        // OccupationGroup/Municipality (VO-expansion = Fas C2) → tomma listor
-        // här. Persisterad Ssyk (occupation-name) passthrough:as strukturellt
-        // men ApplyCriteria ignorerar dess equality (no-op-fönster tills C2
-        // reverse-lookup-migrerar sparade sökningar till ssyk-level-4). q-vägens
-        // synonym-expansion mot SsykConceptId ger fortf. recall om Q är satt.
+        // ADR 0067 Fas C2: VO:t bär OccupationGroup + Municipality — mappas in
+        // i filter-SPOT:en (C1:s tomma-listor-fönster täppt; sparade
+        // yrkesgrupp-/kommun-sökningar filtrerar). Ssyk-dimensionen utgick med
+        // reverse-lookup-migrationen (CTO-dom (e)/(f)).
         return await search.SearchAsync(
             new JobAdSearchCriteria(
                 new JobAdFilterCriteria(
-                    OccupationGroup: [],
-                    Municipality: [],
+                    OccupationGroup: criteria.OccupationGroup,
+                    Municipality: criteria.Municipality,
                     Region: criteria.Region,
-                    Ssyk: criteria.Ssyk,
                     Q: criteria.Q),
                 criteria.SortBy,
                 query.Page,

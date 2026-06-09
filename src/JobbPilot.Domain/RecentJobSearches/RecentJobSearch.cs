@@ -19,15 +19,21 @@ namespace JobbPilot.Domain.RecentJobSearches;
 /// </para>
 /// <list type="number">
 /// <item><b>Identitet via FilterHash:</b> UNIQUE(JobSeekerId, FilterHash) på persistens-yta.
-/// <see cref="FilterHashCalculator"/> är canonical-källan; Q/Ssyk/Region/SortBy är
-/// derivat av hash och får aldrig divergera (Bump muterar dem ej).</item>
+/// <see cref="FilterHashCalculator"/> är canonical-källan; Q/OccupationGroup/Municipality/
+/// Region/SortBy är derivat av hash och får aldrig divergera (Bump muterar dem ej).</item>
 /// <item><b>Cap per seeker:</b> <see cref="MaxPerSeeker"/> — affärsregel, enforce:as i
 /// <c>IRecentJobSearchCapturer</c>-implementationen (evict äldsta LastViewedAt vid
 /// overflow). Konstanten deklareras i Domain (CLAUDE.md §5.1 — ingen magic number).</item>
 /// <item><b>Kriterier:</b> <see cref="SearchCriteria"/>-invarianter (ADR 0042 Beslut B,
-/// MaxConceptIds=10, regex, Q 2-100, tom-invariant, Relevance kräver Q) bärs av VO:t
+/// MaxConceptIds=400, regex, Q 2-100, tom-invariant, Relevance kräver Q) bärs av VO:t
 /// — Capture tar redan-validerad criteria som parameter (DRY, Evans 2003 kap. 5).</item>
 /// </list>
+///
+/// <para><b>Fas C2 (ADR 0067, CTO-dom (d) 2026-06-09):</b> occupation-name-
+/// dimensionen (Ssyk) UTGICK — ersatt av OccupationGroup (ssyk-level-4) +
+/// Municipality. Befintliga rader raderades i C2-migrationen (cache-data utan
+/// audit-trail-värdighet, cap-20-eviction självåterbygger) i stället för
+/// hash-versionering.</para>
 /// </summary>
 public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
 {
@@ -40,8 +46,11 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
     public string FilterHash { get; private set; } = null!;
     public string? Q { get; private set; }
 
-    private readonly List<string> _ssyk = [];
-    public IReadOnlyList<string> Ssyk => _ssyk.AsReadOnly();
+    private readonly List<string> _occupationGroup = [];
+    public IReadOnlyList<string> OccupationGroup => _occupationGroup.AsReadOnly();
+
+    private readonly List<string> _municipality = [];
+    public IReadOnlyList<string> Municipality => _municipality.AsReadOnly();
 
     private readonly List<string> _region = [];
     public IReadOnlyList<string> Region => _region.AsReadOnly();
@@ -65,7 +74,8 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
         JobSeekerId = jobSeekerId;
         FilterHash = filterHash;
         Q = criteria.Q;
-        _ssyk.AddRange(criteria.Ssyk);
+        _occupationGroup.AddRange(criteria.OccupationGroup);
+        _municipality.AddRange(criteria.Municipality);
         _region.AddRange(criteria.Region);
         SortBy = criteria.SortBy;
         LastViewedAt = now;

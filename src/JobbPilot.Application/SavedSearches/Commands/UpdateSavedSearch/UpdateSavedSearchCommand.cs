@@ -25,9 +25,12 @@ public sealed record UpdateSavedSearchCommand(
     public Guid ExtractAggregateId(Result response) => Id;
 }
 
-// ADR 0042 Beslut B — Ssyk/Region single→multi (IReadOnlyList).
+// ADR 0042 Beslut B — multi-värde-listor (IReadOnlyList).
+// ADR 0067 Fas C2 (CTO-dom (e)/(f)): Ssyk UTGICK — OccupationGroup +
+// Municipality ersätter (kanonisk dimensionsordning, architect F1).
 public sealed record SavedSearchCriteriaInput(
-    IReadOnlyList<string>? Ssyk,
+    IReadOnlyList<string>? OccupationGroup,
+    IReadOnlyList<string>? Municipality,
     IReadOnlyList<string>? Region,
     string? Q,
     JobAdSortBy SortBy);

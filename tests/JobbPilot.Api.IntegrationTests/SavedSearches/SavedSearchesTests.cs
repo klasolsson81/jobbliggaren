@@ -26,10 +26,13 @@ public class SavedSearchesTests(ApiFactory factory)
     // sortBy skickas numeriskt: API:t registrerar ingen JsonStringEnumConverter
     // för request-body-bindning, så enum-fält i POST/PATCH-body måste vara
     // numeriska (0 = PublishedAtDesc). Se OBSERVATION i test-rapport.
+    // C2 (CTO-dom (e) + architect F6): body-formen byter ssyk →
+    // occupationGroup + municipality.
     private static object CreateBody(string name) => new
     {
         name,
-        ssyk = new[] { "12345" },          // ADR 0042 Beslut B — multi (array)
+        occupationGroup = new[] { "grp_12345" },
+        municipality = (string[]?)null,
         region = (string[]?)null,
         q = "backend",
         sortBy = 0,
@@ -78,9 +81,32 @@ public class SavedSearchesTests(ApiFactory factory)
         var body = new
         {
             name = "Tomt",
-            ssyk = (string?)null,
-            region = (string?)null,
+            occupationGroup = (string[]?)null,
+            municipality = (string[]?)null,
+            region = (string[]?)null,
             q = (string?)null,
+            sortBy = 0,
+            notificationEnabled = false,
+        };
+        var response = await _client.PostAsJsonAsync("/api/v1/saved-searches", body, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task POST_saved_search_with_legacy_ssyk_only_body_returns_400()
+    {
+        // C2 (architect F5.5): en hypotetisk gammal klient som POST:ar "ssyk"
+        // får fältet tyst ignorerat (System.Text.Json default) → utan annat
+        // kriterium blir det SearchCriteria.Empty-400 — korrekt fail-säkert,
+        // ingen tyst halvspara.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var body = new
+        {
+            name = "Legacy-klient",
+            ssyk = new[] { "12345" },   // okänd JSON-prop efter C2 — ignoreras
             sortBy = 0,
             notificationEnabled = false,
         };

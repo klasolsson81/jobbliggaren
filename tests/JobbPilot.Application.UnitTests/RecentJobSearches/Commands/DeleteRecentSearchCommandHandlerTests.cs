@@ -27,7 +27,9 @@ public class DeleteRecentSearchCommandHandlerTests
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
-        var criteria = SearchCriteria.Create(["12345"], null, null, JobAdSortBy.PublishedAtDesc).Value;
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_12345"], municipality: null, region: null,
+            q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var recent = RecentJobSearch.Capture(
             seeker.Id, criteria, currentCount: 5, FakeDateTimeProvider.Default.UtcNow);
         db.RecentJobSearches.Add(recent);

@@ -26,8 +26,10 @@ public class UpdateSavedSearchCommandHandlerTests
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
-        var criteria = SearchCriteria.Create(["12345"], ["stockholm"], "backend",
-            JobAdSortBy.PublishedAtDesc).Value;
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
+            region: ["stockholm"], q: "backend",
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Originalnamn", criteria, false,
             FakeDateTimeProvider.Default).Value;
         db.SavedSearches.Add(saved);
@@ -61,7 +63,9 @@ public class UpdateSavedSearchCommandHandlerTests
 
         var result = await handler.Handle(
             new UpdateSavedSearchCommand(saved.Id.Value, null, null,
-                new SavedSearchCriteriaInput(["99999"], null, null, JobAdSortBy.PublishedAtAsc)),
+                new SavedSearchCriteriaInput(
+                    OccupationGroup: ["grp_99999"], Municipality: null,
+                    Region: null, Q: null, SortBy: JobAdSortBy.PublishedAtAsc)),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
@@ -92,11 +96,13 @@ public class UpdateSavedSearchCommandHandlerTests
 
         var result = await handler.Handle(
             new UpdateSavedSearchCommand(saved.Id.Value, null, null,
-                new SavedSearchCriteriaInput(["has space"], null, null, JobAdSortBy.PublishedAtDesc)),
+                new SavedSearchCriteriaInput(
+                    OccupationGroup: ["has space"], Municipality: null,
+                    Region: null, Q: null, SortBy: JobAdSortBy.PublishedAtDesc)),
             CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("SearchCriteria.InvalidSsyk");
+        result.Error.Code.ShouldBe("SearchCriteria.InvalidOccupationGroup");
     }
 
     [Fact]

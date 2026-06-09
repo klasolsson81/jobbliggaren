@@ -11,7 +11,7 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
     // ADR 0042 Beslut B — multi: per-element-regex + maxantal-cap speglar
     // SearchCriteria.Create (Domain = sanningskälla; detta = defense-in-depth
     // pre-handler-yta, samma mönster som single-värde-validatorn hade).
-    private const string ConceptIdPattern = @"^[A-Za-z0-9_-]{1,32}$";
+    private const string ConceptIdPattern = @"^[A-Za-z0-9_-]{1,32}\z";
 
     public ListJobAdsQueryValidator()
     {
@@ -22,11 +22,11 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
         // Maxantal-cap (invariant 2) — IN(...)-blowup/jsonb-stuffing-DoS-tak.
         // Refererar Domain-konstanten (single source).
         //
-        // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1) — nya dimensioner
-        // OccupationGroup (ssyk-level-4/yrkesgrupp, primärt yrke-filter) +
-        // Municipality (kommun). Samma cap/regex-yta som Ssyk/Region. Ssyk
-        // (occupation-name) BEHÅLLS som deprecerad no-op-param men valideras
-        // fortsatt defense-in-depth (Saltzer/Schroeder default-deny).
+        // ADR 0067 Beslut 1 — dimensioner OccupationGroup (ssyk-level-4/
+        // yrkesgrupp, primärt yrke-filter) + Municipality (kommun) + Region.
+        // Fas C2 (CTO-dom (e)): Ssyk-paramen (occupation-name) borttagen —
+        // ?ssyk= är numera en obunden query-param som ignoreras av endpointen
+        // tills Fas E byter FE-picker.
         RuleFor(q => q.OccupationGroup!)
             .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
             .When(q => q.OccupationGroup is not null)
@@ -46,16 +46,6 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
             .Matches(ConceptIdPattern)
             .When(q => q.Municipality is not null)
             .WithMessage("Kommun måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
-
-        RuleFor(q => q.Ssyk!)
-            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
-            .When(q => q.Ssyk is not null)
-            .WithMessage($"Max {SearchCriteria.MaxConceptIds} yrkesområden per sökning.");
-
-        RuleForEach(q => q.Ssyk)
-            .Matches(ConceptIdPattern)
-            .When(q => q.Ssyk is not null)
-            .WithMessage("Ssyk måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
 
         RuleFor(q => q.Region!)
             .Must(l => l.Count <= SearchCriteria.MaxConceptIds)

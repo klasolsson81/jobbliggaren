@@ -11,17 +11,33 @@ namespace JobbPilot.Domain.SavedSearches;
 /// (determinerar paginerat resultat → del av användarens avsikt).
 ///
 /// <para>
-/// <b>ADR 0042 Beslut B (Accepted 2026-05-16) — Ssyk/Region single→multi:</b>
-/// <see cref="Ssyk"/>/<see cref="Region"/> är <c>IReadOnlyList&lt;string&gt;</c>
-/// (aldrig null; tom lista = inget filter). Fyra invarianter upprätthålls i
-/// <see cref="Create"/>: (1) normalisering sorterad+distinct ordinal (annars
-/// bryts SavedSearch jsonb-dedupe — record-collection-equality är referens-
-/// baserad), (2) maxantal-cap <see cref="MaxConceptIds"/> (query-blowup/
-/// IN(...)-DoS-skydd, speglas i ListJobAdsQueryValidator), (3) generaliserad
-/// tom-invariant (minst en icke-tom lista ELLER Q), (4) jsonb-bakåtkompat
-/// hanteras i Infrastructure-converter (CTO Yta A3). <c>Equals</c>/
-/// <c>GetHashCode</c> överrids explicit med ordinal sekvensjämförelse —
-/// SavedSearch jsonb-dedupe vilar på strukturell VO-likhet (Evans 2003 kap. 5).
+/// <b>ADR 0067 Beslut 1+6 (Fas C2, 2026-06-09) — dimensionsbyte:</b>
+/// <see cref="OccupationGroup"/> (ssyk-level-4/yrkesgrupp, primärt yrke-filter)
+/// + <see cref="Municipality"/> (kommun) ersätter occupation-name-dimensionen
+/// (Ssyk UTGICK — sparade rader reverse-lookup-migrerades occupation-name →
+/// parent ssyk-level-4; senior-cto-advisor-dom (a)/(f) 2026-06-09).
+/// occupation-name-substratet bevaras i job_ads (synonym-/recall-väg via Q) —
+/// inte i VO:t. EmploymentType/WorktimeExtent-VO-fält följer sin query-wiring
+/// post re-ingest (CTO (a) — sekvensering, ej omprövning av Beslut 6).
+/// </para>
+///
+/// <para>
+/// <b>ADR 0042 Beslut B (Accepted 2026-05-16) — multi-värde-invarianter:</b>
+/// listorna är <c>IReadOnlyList&lt;string&gt;</c> (aldrig null; tom lista =
+/// inget filter). Fyra invarianter upprätthålls i <see cref="Create"/>:
+/// (1) normalisering sorterad+distinct ordinal (annars bryts SavedSearch
+/// jsonb-dedupe — record-collection-equality är referensbaserad),
+/// (2) maxantal-cap <see cref="MaxConceptIds"/> (query-blowup/IN(...)-DoS-
+/// skydd, speglas i ListJobAdsQueryValidator), (3) generaliserad tom-invariant
+/// (minst en icke-tom lista ELLER Q), (4) jsonb-bakåtkompat hanteras i
+/// Infrastructure-converter (CTO Yta A3). <c>Equals</c>/<c>GetHashCode</c>
+/// överrids explicit med ordinal sekvensjämförelse — SavedSearch jsonb-dedupe
+/// vilar på strukturell VO-likhet (Evans 2003 kap. 5).
+/// </para>
+///
+/// <para>
+/// <b>Property-namnen är jsonb-nyckel-kontraktet (PascalCase)</b> — rename
+/// utan converter+migration bryter persisterad data (SearchCriteriaJsonConverter).
 /// </para>
 /// </summary>
 public sealed record SearchCriteria
@@ -29,7 +45,7 @@ public sealed record SearchCriteria
     // JobTech v2 concept-id-format — identiskt med ListJobAdsQueryValidator
     // (CTO-rond 2026-05-13 Q7a/Q7b). Defense-in-depth default-deny.
     private static readonly Regex ConceptIdPattern =
-        new(@"^[A-Za-z0-9_-]{1,32}$", RegexOptions.Compiled);
+        new(@"^[A-Za-z0-9_-]{1,32}\z", RegexOptions.Compiled);
 
     private const int QMinLength = 2;
     private const int QMaxLength = 100;
@@ -47,7 +63,8 @@ public sealed record SearchCriteria
     /// förbi 400 i framtida JobTech-snapshot bör taket följa med.</para></summary>
     public const int MaxConceptIds = 400;
 
-    public IReadOnlyList<string> Ssyk { get; private init; } = [];
+    public IReadOnlyList<string> OccupationGroup { get; private init; } = [];
+    public IReadOnlyList<string> Municipality { get; private init; } = [];
     public IReadOnlyList<string> Region { get; private init; } = [];
     public string? Q { get; private init; }
     public JobAdSortBy SortBy { get; private init; }
@@ -56,7 +73,8 @@ public sealed record SearchCriteria
     private SearchCriteria() { }
 
     public static Result<SearchCriteria> Create(
-        IEnumerable<string>? ssyk,
+        IEnumerable<string>? occupationGroup,
+        IEnumerable<string>? municipality,
         IEnumerable<string>? region,
         string? q,
         JobAdSortBy sortBy)
@@ -65,40 +83,43 @@ public sealed record SearchCriteria
             return Result.Failure<SearchCriteria>(DomainError.Validation(
                 "SearchCriteria.InvalidSortBy", "Ogiltig sortering."));
 
-        var normSsyk = NormalizeList(ssyk);
+        var normOccupationGroup = NormalizeList(occupationGroup);
+        var normMunicipality = NormalizeList(municipality);
         var normRegion = NormalizeList(region);
         var normQ = NormalizeString(q);
 
-        if (normSsyk.Length == 0 && normRegion.Length == 0 && normQ is null)
+        if (normOccupationGroup.Length == 0 && normMunicipality.Length == 0
+            && normRegion.Length == 0 && normQ is null)
+        {
             return Result.Failure<SearchCriteria>(DomainError.Validation(
                 "SearchCriteria.Empty",
-                "Minst ett sökkriterium (yrkesområde, region eller fritext) krävs."));
+                "Minst ett sökkriterium (yrkesgrupp, kommun, region eller fritext) krävs."));
+        }
 
-        if (normSsyk.Length > MaxConceptIds)
-            return Result.Failure<SearchCriteria>(DomainError.Validation(
-                "SearchCriteria.TooManySsyk",
-                $"Max {MaxConceptIds} yrkesområden per sökning."));
-
-        if (normRegion.Length > MaxConceptIds)
-            return Result.Failure<SearchCriteria>(DomainError.Validation(
+        // Cap + per-element-regex per dimension (invariant 2 + default-deny).
+        // Helper bevarar per-dimension-felkoder utan tre duplicerade block (DRY).
+        var error =
+            ValidateConceptList(
+                normOccupationGroup,
+                "SearchCriteria.TooManyOccupationGroup",
+                $"Max {MaxConceptIds} yrkesgrupper per sökning.",
+                "SearchCriteria.InvalidOccupationGroup",
+                "Yrkesgrupp måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).")
+            ?? ValidateConceptList(
+                normMunicipality,
+                "SearchCriteria.TooManyMunicipality",
+                $"Max {MaxConceptIds} kommuner per sökning.",
+                "SearchCriteria.InvalidMunicipality",
+                "Kommun måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).")
+            ?? ValidateConceptList(
+                normRegion,
                 "SearchCriteria.TooManyRegion",
-                $"Max {MaxConceptIds} regioner per sökning."));
+                $"Max {MaxConceptIds} regioner per sökning.",
+                "SearchCriteria.InvalidRegion",
+                "Region måste vara en giltig JobTech location-concept-id (1-32 tecken, alfanumeriskt + _-).");
 
-        foreach (var s in normSsyk)
-        {
-            if (!ConceptIdPattern.IsMatch(s))
-                return Result.Failure<SearchCriteria>(DomainError.Validation(
-                    "SearchCriteria.InvalidSsyk",
-                    "Yrkesområde måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-)."));
-        }
-
-        foreach (var r in normRegion)
-        {
-            if (!ConceptIdPattern.IsMatch(r))
-                return Result.Failure<SearchCriteria>(DomainError.Validation(
-                    "SearchCriteria.InvalidRegion",
-                    "Region måste vara en giltig JobTech location-concept-id (1-32 tecken, alfanumeriskt + _-)."));
-        }
+        if (error is not null)
+            return Result.Failure<SearchCriteria>(error);
 
         if (normQ is not null && (normQ.Length < QMinLength || normQ.Length > QMaxLength))
             return Result.Failure<SearchCriteria>(DomainError.Validation(
@@ -113,11 +134,29 @@ public sealed record SearchCriteria
 
         return Result.Success(new SearchCriteria
         {
-            Ssyk = normSsyk,
+            OccupationGroup = normOccupationGroup,
+            Municipality = normMunicipality,
             Region = normRegion,
             Q = normQ,
             SortBy = sortBy,
         });
+    }
+
+    private static DomainError? ValidateConceptList(
+        string[] values,
+        string tooManyCode, string tooManyMessage,
+        string invalidCode, string invalidMessage)
+    {
+        if (values.Length > MaxConceptIds)
+            return DomainError.Validation(tooManyCode, tooManyMessage);
+
+        foreach (var v in values)
+        {
+            if (!ConceptIdPattern.IsMatch(v))
+                return DomainError.Validation(invalidCode, invalidMessage);
+        }
+
+        return null;
     }
 
     // Invariant 1 (ADR 0042 Beslut B): trim per element, droppa tom/whitespace,
@@ -145,7 +184,8 @@ public sealed record SearchCriteria
     // Strukturell VO-likhet (Evans 2003 kap. 5). record med IReadOnlyList får
     // default REFERENS-equality → SavedSearch jsonb-dedupe skulle aldrig hitta
     // dubbletter. Listorna är redan normaliserade (sorterad+distinct ordinal)
-    // i Create → sekvensjämförelse är deterministisk.
+    // i Create → sekvensjämförelse är deterministisk. Kanonisk dimensions-
+    // ordning: OccupationGroup, Municipality, Region (architect F1).
     public bool Equals(SearchCriteria? other)
     {
         if (other is null)
@@ -155,7 +195,8 @@ public sealed record SearchCriteria
 
         return SortBy == other.SortBy
             && string.Equals(Q, other.Q, StringComparison.Ordinal)
-            && Ssyk.SequenceEqual(other.Ssyk, StringComparer.Ordinal)
+            && OccupationGroup.SequenceEqual(other.OccupationGroup, StringComparer.Ordinal)
+            && Municipality.SequenceEqual(other.Municipality, StringComparer.Ordinal)
             && Region.SequenceEqual(other.Region, StringComparer.Ordinal);
     }
 
@@ -164,8 +205,10 @@ public sealed record SearchCriteria
         var hash = new HashCode();
         hash.Add(SortBy);
         hash.Add(Q, StringComparer.Ordinal);
-        foreach (var s in Ssyk)
-            hash.Add(s, StringComparer.Ordinal);
+        foreach (var g in OccupationGroup)
+            hash.Add(g, StringComparer.Ordinal);
+        foreach (var m in Municipality)
+            hash.Add(m, StringComparer.Ordinal);
         foreach (var r in Region)
             hash.Add(r, StringComparer.Ordinal);
         return hash.ToHashCode();

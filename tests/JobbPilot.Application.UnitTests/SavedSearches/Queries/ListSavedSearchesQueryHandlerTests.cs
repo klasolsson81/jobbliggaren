@@ -17,12 +17,11 @@ namespace JobbPilot.Application.UnitTests.SavedSearches.Queries;
 // (singleton O(1)-lookup; ingen HTTP-endpoint, ingen klient-fan-out, ingen
 // Beslut D-cap-relevans — annan yta än /taxonomy/labels-endpointen).
 //
-// DTO-form (val dokumenterat i docs/reviews/2026-05-17-savedsearch-namn-tester-
-// test-writer.md): SavedSearchDto utökas ADDITIVT med
-// IReadOnlyList<TaxonomyLabelDto> SsykLabels + RegionLabels — speglar
-// ITaxonomyReadModel.ResolveLabelsAsync-kontraktet (returnerar exakt
-// IReadOnlyList<TaxonomyLabelDto>) och TaxonomyTreeDto-stilen i kodbasen.
-// VO/jsonb/ADR 0039-kontrakt OFÖRÄNDRAT — ren read-projektion.
+// DTO-form: label-projektioner per dimension (IReadOnlyList<TaxonomyLabelDto>)
+// speglar ITaxonomyReadModel.ResolveLabelsAsync-kontraktet. C2 (architect
+// F5.5/F6): Ssyk → OccupationGroup + Municipality i både VO och DTO (ingen
+// FE-konsument av SavedSearch-API:t — fritt rename); labels per dimension =
+// OccupationGroupLabels + MunicipalityLabels + RegionLabels.
 //
 // CA2012: NSubstitute-stubbning av ValueTask-returnerande port-medlemmar är
 // ett känt analyzer-false-positive (substitute-anropet konsumeras aldrig — det
@@ -53,13 +52,17 @@ public class ListSavedSearchesQueryHandlerTests
     private static SavedSearch NewSaved(
         JobSeekerId seekerId,
         string name,
-        IEnumerable<string>? ssyk = null,
+        IEnumerable<string>? occupationGroup = null,
+        IEnumerable<string>? municipality = null,
         IEnumerable<string>? region = null) =>
         SavedSearch.Create(
             seekerId, name,
             SearchCriteria.Create(
-                ssyk ?? ["12345"], region, null,
-                JobAdSortBy.PublishedAtDesc).Value,
+                occupationGroup: occupationGroup ?? ["grp_12345"],
+                municipality: municipality,
+                region: region,
+                q: null,
+                sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value;
 
     // ---- Befintliga invarianter (får EJ regrediera) -----------------------
@@ -112,14 +115,16 @@ public class ListSavedSearchesQueryHandlerTests
     // ---- Namn-berikning (ADR 0043-utvidgning, Approach A) -----------------
 
     [Fact]
-    public async Task Handle_ShouldPopulateSsykAndRegionLabels_WhenConceptIdsResolve()
+    public async Task Handle_ShouldPopulateOccupationGroupMunicipalityAndRegionLabels_WhenConceptIdsResolve()
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = JobSeeker.Register(_userId, "Owner", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.SavedSearches.Add(NewSaved(
             seeker.Id, "IT i Stockholm",
-            ssyk: ["MVqp_eS8_kDZ"], region: ["CifL_Rsz_Hb7"]));
+            occupationGroup: ["MVqp_eS8_kDZ"],
+            municipality: ["AvNB_uwa_6n6"],
+            region: ["CifL_Rsz_Hb7"]));
         await db.SaveChangesAsync(CancellationToken.None);
 
         _taxonomy.ResolveLabelsAsync(
@@ -128,7 +133,15 @@ public class ListSavedSearchesQueryHandlerTests
             .Returns(new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
                 (IReadOnlyList<TaxonomyLabelDto>)
                 [
-                    new TaxonomyLabelDto("MVqp_eS8_kDZ", "Systemutvecklare"),
+                    new TaxonomyLabelDto("MVqp_eS8_kDZ", "Mjukvaru- och systemutvecklare"),
+                ]));
+        _taxonomy.ResolveLabelsAsync(
+                Arg.Is<IReadOnlyList<string>>(ids => ids.Contains("AvNB_uwa_6n6")),
+                Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
+                (IReadOnlyList<TaxonomyLabelDto>)
+                [
+                    new TaxonomyLabelDto("AvNB_uwa_6n6", "Stockholm"),
                 ]));
         _taxonomy.ResolveLabelsAsync(
                 Arg.Is<IReadOnlyList<string>>(ids => ids.Contains("CifL_Rsz_Hb7")),
@@ -143,12 +156,15 @@ public class ListSavedSearchesQueryHandlerTests
         var result = await handler.Handle(new ListSavedSearchesQuery(), CancellationToken.None);
 
         var dto = result.ShouldHaveSingleItem();
-        dto.SsykLabels.ShouldContain(l =>
-            l.ConceptId == "MVqp_eS8_kDZ" && l.Label == "Systemutvecklare");
+        dto.OccupationGroupLabels.ShouldContain(l =>
+            l.ConceptId == "MVqp_eS8_kDZ" && l.Label == "Mjukvaru- och systemutvecklare");
+        dto.MunicipalityLabels.ShouldContain(l =>
+            l.ConceptId == "AvNB_uwa_6n6" && l.Label == "Stockholm");
         dto.RegionLabels.ShouldContain(l =>
             l.ConceptId == "CifL_Rsz_Hb7" && l.Label == "Stockholms län");
-        // Råa concept-id-fälten orörda (additiv projektion, ADR 0039 ej brutet).
-        dto.Ssyk.ShouldBe(["MVqp_eS8_kDZ"]);
+        // Råa concept-id-fälten orörda (additiv label-projektion).
+        dto.OccupationGroup.ShouldBe(["MVqp_eS8_kDZ"]);
+        dto.Municipality.ShouldBe(["AvNB_uwa_6n6"]);
         dto.Region.ShouldBe(["CifL_Rsz_Hb7"]);
     }
 
@@ -159,7 +175,7 @@ public class ListSavedSearchesQueryHandlerTests
         var seeker = JobSeeker.Register(_userId, "Owner", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.SavedSearches.Add(NewSaved(
-            seeker.Id, "Stale", ssyk: ["borttagen-kod"], region: null));
+            seeker.Id, "Stale", occupationGroup: ["borttagen-kod"]));
         await db.SaveChangesAsync(CancellationToken.None);
 
         // Porten ger fallback (befintlig ResolveLabelsAsync-semantik — aldrig
@@ -169,13 +185,13 @@ public class ListSavedSearchesQueryHandlerTests
         var result = await handler.Handle(new ListSavedSearchesQuery(), CancellationToken.None);
 
         var dto = result.ShouldHaveSingleItem();
-        dto.SsykLabels.ShouldContain(l =>
+        dto.OccupationGroupLabels.ShouldContain(l =>
             l.ConceptId == "borttagen-kod"
             && l.Label == "Okänd kod (borttagen-kod)");
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnEmptyLabelLists_WhenCriteriaHasNoSsykOrRegion()
+    public async Task Handle_ShouldReturnEmptyLabelLists_WhenCriteriaHasNoConceptIds()
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = JobSeeker.Register(_userId, "Owner", FakeDateTimeProvider.Default).Value;
@@ -184,7 +200,8 @@ public class ListSavedSearchesQueryHandlerTests
         db.SavedSearches.Add(SavedSearch.Create(
             seeker.Id, "Bara q",
             SearchCriteria.Create(
-                null, null, "remote", JobAdSortBy.PublishedAtDesc).Value,
+                occupationGroup: null, municipality: null, region: null,
+                q: "remote", sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -192,7 +209,8 @@ public class ListSavedSearchesQueryHandlerTests
         var result = await handler.Handle(new ListSavedSearchesQuery(), CancellationToken.None);
 
         var dto = result.ShouldHaveSingleItem();
-        dto.SsykLabels.ShouldBeEmpty();
+        dto.OccupationGroupLabels.ShouldBeEmpty();
+        dto.MunicipalityLabels.ShouldBeEmpty();
         dto.RegionLabels.ShouldBeEmpty();
     }
 
@@ -209,7 +227,8 @@ public class ListSavedSearchesQueryHandlerTests
             // prodkod). "xy" = giltigt, behåller testintentionen "endast q,
             // inga concept-id".
             SearchCriteria.Create(
-                null, null, "xy", JobAdSortBy.PublishedAtDesc).Value,
+                occupationGroup: null, municipality: null, region: null,
+                q: "xy", sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -227,8 +246,8 @@ public class ListSavedSearchesQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var seeker = JobSeeker.Register(_userId, "Owner", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        db.SavedSearches.Add(NewSaved(seeker.Id, "A", ssyk: ["a1"], region: ["r1"]));
-        db.SavedSearches.Add(NewSaved(seeker.Id, "B", ssyk: ["b1"], region: null));
+        db.SavedSearches.Add(NewSaved(seeker.Id, "A", occupationGroup: ["a1"], region: ["r1"]));
+        db.SavedSearches.Add(NewSaved(seeker.Id, "B", occupationGroup: ["b1"], municipality: ["m1"]));
         await db.SaveChangesAsync(CancellationToken.None);
 
         var handler = new ListSavedSearchesQueryHandler(db, _currentUser, _taxonomy);
@@ -252,8 +271,8 @@ public class ListSavedSearchesQueryHandlerTests
         db.JobSeekers.Add(seeker);
         var other = JobSeeker.Register(Guid.NewGuid(), "Other", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(other);
-        db.SavedSearches.Add(NewSaved(seeker.Id, "Min", ssyk: ["mine"]));
-        db.SavedSearches.Add(NewSaved(other.Id, "Annans", ssyk: ["theirs"]));
+        db.SavedSearches.Add(NewSaved(seeker.Id, "Min", occupationGroup: ["mine"]));
+        db.SavedSearches.Add(NewSaved(other.Id, "Annans", occupationGroup: ["theirs"]));
         await db.SaveChangesAsync(CancellationToken.None);
 
         var handler = new ListSavedSearchesQueryHandler(db, _currentUser, _taxonomy);

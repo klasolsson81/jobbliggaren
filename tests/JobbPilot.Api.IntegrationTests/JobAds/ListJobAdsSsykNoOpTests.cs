@@ -4,33 +4,26 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using JobbPilot.Api.IntegrationTests.Helpers;
 using JobbPilot.Api.IntegrationTests.Infrastructure;
-using JobbPilot.Application.JobAds.Abstractions;
-using JobbPilot.Application.JobAds.Queries.ListJobAds;
 using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobAds;
-using JobbPilot.Infrastructure.JobAds;
 using JobbPilot.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using Shouldly;
 
 namespace JobbPilot.Api.IntegrationTests.JobAds;
 
-// C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte. Den explicita
-// Ssyk-equality-grenen TAS BORT ur ApplyCriteria: yrke-filtret targetar numera
-// OccupationGroupConceptId (ssyk-level-4), inte SsykConceptId (occupation-name).
+// C2 (ADR 0067, CTO-dom (e)) — Ssyk-paramen är BORTTAGEN ur endpointen
+// (`string[]? ssyk` binder inte längre). Minimal-API-binding ignorerar
+// query-parametrar som inte binds → `?ssyk=X` ger 200 OK med SAMMA resultat
+// som utan param. Funktionellt identiskt med C1:s no-op (Klas-GO:at fönster
+// 2026-06-09) — skillnaden är att kontraktet slutar låtsas att fältet finns.
+// FE skickar `?ssyk=` tills Fas E; detta test är CTO (e):s in-block-
+// verifieringskrav.
 //
-// SsykConceptId-KOLUMNEN bevaras (q-vägens synonym-expansion mot SsykConceptId
-// rörs INTE — den är separat och testas i ListJobAdsFtsTests). Men en explicit
-// ?ssyk=X / OccupationGroup-oberoende Ssyk-param ska INTE längre filtrera på
-// egen hand. Param finns kvar (deprecerad no-op, bakåtkompat-binding) men
-// ApplyCriteria ignorerar den.
+// SsykConceptId-KOLUMNEN + q-vägens synonym-expansion rörs INTE (testas i
+// ListJobAdsFtsTests).
 //
-// no-op-semantik (verifierad mot architect-design Variant C): en query med
-// ENBART Ssyk angiven motsvarar en query UTAN filter → samtliga aktiva annonser
-// returneras (Ssyk varken filtrerar bort eller in). q-vägen är opåverkad.
-//
-// RÖD tills JobAdSearchQuery.ApplyCriteria tar bort Ssyk-equality-grenen.
+// RÖD tills JobAdsEndpoints droppat ssyk-paramen (idag binder + validerar den).
 [Collection("Api")]
 public class ListJobAdsSsykNoOpTests(ApiFactory factory)
 {
@@ -71,57 +64,8 @@ public class ListJobAdsSsykNoOpTests(ApiFactory factory)
         await db.SaveChangesAsync(ct);
     }
 
-    private static ListJobAdsQueryHandler CreateHandler(IServiceScope scope) =>
-        new(new JobAdSearchQuery(
-            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            Substitute.For<IOccupationSynonymExpander>()));
-
     [Fact]
-    public async Task ApplyCriteria_SsykOnly_DoesNotFilter_ReturnsBothMatchingAndNonMatchingByOccupation()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
-        var other = $"ssyk{Guid.NewGuid():N}"[..16];
-
-        // En annons med occupation.concept_id=ssyk + en med annan occupation.
-        await SeedImportedJobAdAsync("HarSsyk", ssyk, $"ext-{Guid.NewGuid():N}", ct);
-        await SeedImportedJobAdAsync("AnnanSsyk", other, $"ext-{Guid.NewGuid():N}", ct);
-
-        using var scope = _factory.Services.CreateScope();
-        var handler = CreateHandler(scope);
-
-        var result = await handler.Handle(new ListJobAdsQuery(Ssyk: [ssyk]), ct);
-
-        // Variant C: Ssyk-grenen borta → ingen filtrering. BÅDA annonserna
-        // (och eventuella andra aktiva) återfinns; mängden krymper INTE till
-        // bara den med matchande occupation.concept_id.
-        var titles = result.Items.Select(i => i.Title).ToList();
-        titles.ShouldContain("HarSsyk");
-        titles.ShouldContain("AnnanSsyk");
-    }
-
-    [Fact]
-    public async Task ApplyCriteria_SsykOnly_IsEquivalentToNoFilter()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
-        await SeedImportedJobAdAsync("Seed", ssyk, $"ext-{Guid.NewGuid():N}", ct);
-
-        using var scope = _factory.Services.CreateScope();
-        var handler = CreateHandler(scope);
-
-        // En stor pageSize så hela aktiva mängden ryms i totalCount-jämförelsen.
-        var withSsyk = await handler.Handle(
-            new ListJobAdsQuery(PageSize: 100, Ssyk: [ssyk]), ct);
-        var withoutFilter = await handler.Handle(
-            new ListJobAdsQuery(PageSize: 100), ct);
-
-        // no-op: Ssyk-param ändrar inte den filtrerade mängden.
-        withSsyk.TotalCount.ShouldBe(withoutFilter.TotalCount);
-    }
-
-    [Fact]
-    public async Task GET_job_ads_with_ssyk_filter_no_longer_filters_on_its_own()
+    public async Task GET_job_ads_with_ssyk_param_returns_200_and_does_not_filter()
     {
         var ct = TestContext.Current.CancellationToken;
         var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
@@ -131,7 +75,7 @@ public class ListJobAdsSsykNoOpTests(ApiFactory factory)
         await SeedImportedJobAdAsync("AnnanSsyk", other, $"ext-{Guid.NewGuid():N}", ct);
 
         await AuthenticateAsync(ct);
-        // HTTP-vägen: ?ssyk=X binder fortfarande (bakåtkompat) men ska EJ filtrera.
+        // HTTP-vägen: ?ssyk=X binder INTE längre (obunden param ignoreras).
         var response = await _client.GetAsync(
             $"/api/v1/job-ads?ssyk={ssyk}&pageSize=100", ct);
 
@@ -141,8 +85,46 @@ public class ListJobAdsSsykNoOpTests(ApiFactory factory)
             .Select(e => e.GetProperty("title").GetString())
             .ToList();
 
-        // Båda annonserna syns trots ?ssyk= (no-op).
+        // Båda annonserna syns trots ?ssyk= (paramen är borta → ingen filtrering).
         titles.ShouldContain("HarSsyk");
         titles.ShouldContain("AnnanSsyk");
+    }
+
+    [Fact]
+    public async Task GET_job_ads_with_ssyk_param_returns_same_result_as_without()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var ssyk = $"ssyk{Guid.NewGuid():N}"[..16];
+        await SeedImportedJobAdAsync("Seed", ssyk, $"ext-{Guid.NewGuid():N}", ct);
+
+        await AuthenticateAsync(ct);
+        var withSsyk = await _client.GetAsync(
+            $"/api/v1/job-ads?ssyk={ssyk}&pageSize=100", ct);
+        var withoutParam = await _client.GetAsync(
+            "/api/v1/job-ads?pageSize=100", ct);
+
+        withSsyk.StatusCode.ShouldBe(HttpStatusCode.OK);
+        withoutParam.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var jsonWith = await withSsyk.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var jsonWithout = await withoutParam.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        // Obunden param ändrar inte den filtrerade mängden.
+        jsonWith.GetProperty("totalCount").GetInt32()
+            .ShouldBe(jsonWithout.GetProperty("totalCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task GET_job_ads_with_previously_invalid_ssyk_format_returns_200()
+    {
+        // FÖRE C2 gav `?ssyk=has space` 400 (validator-regex). EFTER C2 binder
+        // paramen inte alls → ingen validering → 200. Detta är medvetet:
+        // en obunden query-param är inte en del av kontraktet.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.GetAsync("/api/v1/job-ads?ssyk=has%20space", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 }

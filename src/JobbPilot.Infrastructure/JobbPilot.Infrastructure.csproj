@@ -31,6 +31,12 @@
     <EmbeddedResource Include="Taxonomy\taxonomy-snapshot.json">
       <LogicalName>JobbPilot.Infrastructure.Taxonomy.taxonomy-snapshot.json</LogicalName>
     </EmbeddedResource>
+    <!-- ADR 0067 Fas C2 — FRUSEN migration-ägd reverse-lookup-resurs
+         (occupation-name → ssyk-level-4). Läses ENDAST av C2-migrationen;
+         regenereras aldrig (CTO-dom (c) 2026-06-09, migrations-immutabilitet). -->
+    <EmbeddedResource Include="Persistence\Migrations\Resources\occupation-name-to-ssyk-level-4.v30.json">
+      <LogicalName>JobbPilot.Infrastructure.Persistence.Migrations.Resources.occupation-name-to-ssyk-level-4.v30.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>

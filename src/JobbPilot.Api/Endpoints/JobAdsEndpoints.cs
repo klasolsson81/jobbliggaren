@@ -31,15 +31,15 @@ public static class JobAdsEndpoints
             int page = 1,
             int pageSize = 20,
             JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc,
-            // ADR 0042 Beslut B — multi: upprepad query-string ?ssyk=a&ssyk=b
-            // binds av ASP.NET Core minimal API till string[].
-            // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1) — nya
-            // dimensioner: ?occupationGroup= (ssyk-level-4/yrkesgrupp, primärt
-            // yrke-filter) + ?municipality= (kommun). ?ssyk= behålls deprecerad
-            // (no-op-filter; FE byter till ?occupationGroup= i Fas E).
+            // ADR 0042 Beslut B — multi: upprepad query-string binds av
+            // ASP.NET Core minimal API till string[].
+            // ADR 0067 — dimensioner: ?occupationGroup= (ssyk-level-4/
+            // yrkesgrupp, primärt yrke-filter) + ?municipality= (kommun) +
+            // ?region=. Fas C2 (CTO-dom (e)): ?ssyk=-paramen BORTTAGEN —
+            // obunden query-param ignoreras (200 OK, inget filter) tills
+            // Fas E byter FE-picker till ?occupationGroup=.
             string[]? occupationGroup = null,
             string[]? municipality = null,
-            string[]? ssyk = null,
             string[]? region = null,
             string? q = null,
             // ADR 0042 Beslut E — "ny sedan"-fönster (runtime-kontext).
@@ -52,7 +52,6 @@ public static class JobAdsEndpoints
                     OccupationGroup: occupationGroup,
                     Municipality: municipality,
                     Region: region,
-                    Ssyk: ssyk,
                     Q: q,
                     Since: since), ct);
             return Results.Ok(result);

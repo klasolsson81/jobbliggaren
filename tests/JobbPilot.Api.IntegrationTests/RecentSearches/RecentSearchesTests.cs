@@ -11,7 +11,12 @@ namespace JobbPilot.Api.IntegrationTests.RecentSearches;
 // ADR 0060 — RecentJobSearches auto-capture + list/delete end-to-end mot
 // Testcontainers Postgres. Auto-capture sker via RecentJobSearchCaptureBehavior
 // när authenticated user kör GET /api/v1/job-ads med ICapturesRecentSearch-
-// query-shape (ssyk/region/q/sortBy).
+// query-shape (q/occupationGroup/municipality/region/sortBy — C2-form).
+//
+// C2 (ADR 0067, CTO-dom (d) + architect F5/F6): yrkesgrupp-only- och
+// kommun-only-sökningar capture:as nu (stänger C1:s LIVE-gap där guarden bara
+// räknade Q/Ssyk/Region). DTO:n är additiv: deprecated ssykList/ssykLabels är
+// ALLTID tomma; nya occupationGroupList/municipalityList + labels bär data.
 [Collection("Api")]
 public class RecentSearchesTests(ApiFactory factory)
 {
@@ -55,6 +60,59 @@ public class RecentSearchesTests(ApiFactory factory)
         var row = items[0];
         row.GetProperty("q").GetString().ShouldBe("backend");
         row.GetProperty("label").GetString().ShouldBe("backend");
+    }
+
+    [Fact]
+    public async Task Searching_jobs_with_occupation_group_only_captures_a_recent_search_row()
+    {
+        // C1:s LIVE-gap: en ?occupationGroup=-sökning utan q capture:ades
+        // aldrig (guarden räknade inte dimensionen). C2 stänger gapet.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var group = $"grp{Guid.NewGuid():N}"[..16];
+        var searchResponse = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationGroup={group}&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
+        listResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        items.GetArrayLength().ShouldBe(1);
+
+        var row = items[0];
+        row.GetProperty("q").ValueKind.ShouldBe(JsonValueKind.Null);
+        row.GetProperty("occupationGroupList").EnumerateArray()
+            .Select(e => e.GetString())
+            .ShouldContain(group);
+        // Deprecated fält består i wire-formen (FE-zod REQUIRED) men är ALLTID tomma.
+        row.GetProperty("ssykList").GetArrayLength().ShouldBe(0);
+        row.GetProperty("ssykLabels").GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Searching_jobs_with_municipality_only_captures_a_recent_search_row()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var municipality = $"kn{Guid.NewGuid():N}"[..16];
+        var searchResponse = await _client.GetAsync(
+            $"/api/v1/job-ads?municipality={municipality}&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
+        listResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        items.GetArrayLength().ShouldBe(1);
+
+        var row = items[0];
+        row.GetProperty("municipalityList").EnumerateArray()
+            .Select(e => e.GetString())
+            .ShouldContain(municipality);
+        row.GetProperty("ssykList").GetArrayLength().ShouldBe(0);
     }
 
     [Fact]

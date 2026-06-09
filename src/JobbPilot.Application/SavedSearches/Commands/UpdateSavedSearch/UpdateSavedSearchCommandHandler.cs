@@ -44,7 +44,12 @@ public sealed class UpdateSavedSearchCommandHandler(
         if (command.Criteria is not null)
         {
             var c = command.Criteria;
-            var criteriaResult = SearchCriteria.Create(c.Ssyk, c.Region, c.Q, c.SortBy);
+            var criteriaResult = SearchCriteria.Create(
+                occupationGroup: c.OccupationGroup,
+                municipality: c.Municipality,
+                region: c.Region,
+                q: c.Q,
+                sortBy: c.SortBy);
             if (criteriaResult.IsFailure)
                 return Result.Failure(criteriaResult.Error);
 

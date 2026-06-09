@@ -22,7 +22,8 @@ public class SavedSearchesCrossUserIsolationTests(ApiFactory factory)
     private static object CreateBody => new
     {
         name = "User A:s sökning",
-        ssyk = new[] { "12345" },          // ADR 0042 Beslut B — multi (array)
+        occupationGroup = new[] { "grp_12345" },   // C2 — ssyk → occupationGroup
+        municipality = (string[]?)null,
         region = (string[]?)null,
         q = "backend",
         sortBy = 0,

@@ -47,8 +47,14 @@ public sealed record SearchCriteria
     private static readonly Regex ConceptIdPattern =
         new(@"^[A-Za-z0-9_-]{1,32}\z", RegexOptions.Compiled);
 
-    private const int QMinLength = 2;
-    private const int QMaxLength = 100;
+    /// <summary>Min/max-längd för fritext-<see cref="Q"/> (CTO-rond 2026-05-13
+    /// Q7c). <c>public const</c> så att ListJobAdsQueryValidator (pre-handler
+    /// defense-in-depth) OCH <c>ISearchQueryParser</c> (ADR 0067 Fas D2 residual-
+    /// normalisering) refererar EN sanningskälla i stället för att duplicera
+    /// literalerna 2/100 (DRY/SPOT, Hunt/Thomas 1999). Speglar
+    /// <see cref="MaxConceptIds"/>-exponeringen.</summary>
+    public const int QMinLength = 2;
+    public const int QMaxLength = 100;
 
     /// <summary>Maxantal concept-ids per lista (ADR 0042 Beslut B invariant 2 —
     /// query-blowup/IN(...)-DoS-tak). Speglas i ListJobAdsQueryValidator.

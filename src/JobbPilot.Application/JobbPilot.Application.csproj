@@ -4,6 +4,16 @@
     <ProjectReference Include="..\JobbPilot.Domain\JobbPilot.Domain.csproj" />
   </ItemGroup>
 
+  <!-- ADR 0067 Fas D2 — SearchQueryParser är internal sealed (ren CPU-impl bakom
+       ISearchQueryParser-porten; bara porten korsar gränsen). InternalsVisibleTo
+       så unit-testet kan instansiera parsern direkt (Application.UnitTests) och
+       integration-testet kan konstruera ListJobAdsQueryHandler med en riktig
+       parser (Api.IntegrationTests). Speglar Infrastructure.csproj-mönstret. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="JobbPilot.Application.UnitTests" />
+    <InternalsVisibleTo Include="JobbPilot.Api.IntegrationTests" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />

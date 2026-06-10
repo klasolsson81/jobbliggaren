@@ -59,10 +59,12 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
 
         // q MinLength(2) hindrar `?q=a` (matchar närapå hela tabellen → DoS-yta).
         // MaxLength(100) räcker för normal söksträng + safety margin mot injection-
-        // stuffing. CTO-rond 2026-05-13 Q7c.
+        // stuffing. CTO-rond 2026-05-13 Q7c. Refererar Domain-konstanterna
+        // (single source) — speglar MaxConceptIds-mönstret ovan; samma gräns
+        // läses av ISearchQueryParser (ADR 0067 Fas D2).
         RuleFor(q => q.Q)
-            .MinimumLength(2)
-            .MaximumLength(100)
+            .MinimumLength(SearchCriteria.QMinLength)
+            .MaximumLength(SearchCriteria.QMaxLength)
             .When(q => !string.IsNullOrWhiteSpace(q.Q))
             .WithMessage("Söktext måste vara 2-100 tecken.");
 

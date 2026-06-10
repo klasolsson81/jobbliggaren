@@ -1,5 +1,6 @@
 using JobbPilot.Api.IntegrationTests.Infrastructure;
 using JobbPilot.Application.JobAds.Abstractions;
+using JobbPilot.Application.JobAds.Internal;
 using JobbPilot.Application.JobAds.Queries.ListJobAds;
 using JobbPilot.Domain.Common;
 using JobbPilot.Domain.JobAds;
@@ -68,9 +69,11 @@ public class ListJobAdsFtsTests(ApiFactory factory)
     }
 
     private static ListJobAdsQueryHandler CreateHandler(IServiceScope scope) =>
-        new(new JobAdSearchQuery(
-            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            Substitute.For<IOccupationSynonymExpander>()));
+        new(
+            new JobAdSearchQuery(
+                scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                Substitute.For<IOccupationSynonymExpander>()),
+            new SearchQueryParser());
 
     // 1. FTS svensk stemming — websearch_to_tsquery('swedish', …) reducerar
     //    böjningsformer (lärare/läraren/lärares) till samma lexem.

@@ -50,9 +50,12 @@ describe("JobAdTypeahead (ADR 0042 Beslut C)", () => {
   it("debounces then fetches suggestions and renders them", async () => {
     const fetchMock = vi.fn(
       async () =>
-        new Response(JSON.stringify(["Backend-utvecklare"]), {
-          status: 200,
-        })
+        // SuggestionDto-wire (ADR 0067 Beslut 5a): kind serialiseras som
+        // heltal (0=Title), conceptId=null för titel-träffar.
+        new Response(
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Backend-utvecklare" }]),
+          { status: 200 }
+        )
     );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -76,9 +79,10 @@ describe("JobAdTypeahead (ADR 0042 Beslut C)", () => {
   it("selecting a suggestion calls onSelect with the term", async () => {
     const fetchMock = vi.fn(
       async () =>
-        new Response(JSON.stringify(["Frontend-utvecklare"]), {
-          status: 200,
-        })
+        new Response(
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend-utvecklare" }]),
+          { status: 200 }
+        )
     );
     vi.stubGlobal("fetch", fetchMock);
     const onSelect = vi.fn();

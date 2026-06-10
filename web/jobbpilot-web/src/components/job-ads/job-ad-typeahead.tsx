@@ -6,6 +6,7 @@ import {
   SUGGEST_MIN_PREFIX,
   SUGGEST_DEBOUNCE_MS,
   suggestJobAdTermsResultSchema,
+  type SuggestionDto,
 } from "@/lib/dto/job-ads";
 
 interface JobAdTypeaheadProps {
@@ -22,7 +23,7 @@ interface JobAdTypeaheadProps {
 type SuggestState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; items: string[] }
+  | { status: "ready"; items: SuggestionDto[] }
   | { status: "rateLimited" };
 
 /**
@@ -175,13 +176,13 @@ export function JobAdTypeahead({
           aria-label="Sökförslag"
         >
           {state.items.map((item) => (
-            <li key={item}>
+            <li key={`${item.kind}:${item.conceptId ?? item.label}`}>
               <button
                 type="button"
-                onClick={() => choose(item)}
+                onClick={() => choose(item.label)}
                 className="block w-full px-3 py-2 text-left text-body-sm text-text-primary hover:bg-surface-tertiary"
               >
-                {item}
+                {item.label}
               </button>
             </li>
           ))}

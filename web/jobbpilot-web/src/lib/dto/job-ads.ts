@@ -67,9 +67,65 @@ export type JobAdDto = z.infer<typeof jobAdDtoSchema>;
 export const listJobAdsResultSchema = pagedResult(jobAdDtoSchema);
 export type ListJobAdsResult = z.infer<typeof listJobAdsResultSchema>;
 
-// ADR 0042 Beslut C — typeahead. `GET /api/v1/job-ads/suggest` returnerar
-// en ren `string[]` (distinkta aktiva titel-prefix-träffar, capade backend).
-export const suggestJobAdTermsResultSchema = z.array(z.string());
+// ADR 0067 Beslut 5a — utökad typeahead-union. `GET /api/v1/job-ads/suggest`
+// returnerar `SuggestionDto[]`: titel-prefix-träffar (ADR 0042 Beslut C) +
+// taxonomi-prefix-träffar (Län/Kommun/Yrkesområde/Yrkesgrupp). Tidigare en
+// ren `string[]` (enbart titlar) — Fas D1 utökade formen.
+//
+// `SuggestionKind` är en C#-native enum UTAN JsonStringEnumConverter (varken
+// global eller [JsonConverter]-attribut) → System.Text.Json serialiserar den
+// som HELTAL på wire (Title=0, Region=1, Municipality=2, OccupationField=3,
+// OccupationGroup=4). Samma int-på-wire-konvention som `JobAdSortBy` hanteras
+// av i `recent-searches.ts` (`sortByFromWire` + `SAVED_SEARCH_SORT_ORDER`).
+// `suggestionKindFromWire` accepterar både heltal
+// (faktisk wire-form) och sträng-namn (defensivt — robust om en converter
+// senare adderas), speglar recent-searches `sortByFromWire`.
+//
+// SUGGESTION_KIND_ORDER är AUKTORITATIV och måste spegla backend-enumens
+// deklarationsordning (`JobbPilot.Application.JobAds.Abstractions.SuggestionKind`)
+// — int-mappningen bygger på ordinalvärdet.
+export const SUGGESTION_KIND_ORDER = [
+  "Title",
+  "Region",
+  "Municipality",
+  "OccupationField",
+  "OccupationGroup",
+] as const;
+export type SuggestionKind = (typeof SUGGESTION_KIND_ORDER)[number];
+
+const suggestionKindFromWire = z
+  .union([z.number().int(), z.string()])
+  .transform((v, ctx): SuggestionKind => {
+    if (typeof v === "number") {
+      const name = SUGGESTION_KIND_ORDER[v];
+      if (name) return name;
+      ctx.addIssue({
+        code: "custom",
+        message: `Okänt SuggestionKind-index: ${v}`,
+      });
+      return z.NEVER;
+    }
+    const matched = SUGGESTION_KIND_ORDER.find((name) => name === v);
+    if (matched) return matched;
+    ctx.addIssue({ code: "custom", message: `Okänt SuggestionKind: ${v}` });
+    return z.NEVER;
+  });
+
+// Ett typeahead-förslag. `conceptId` är null för Title-träffar (fri titel-
+// prefix utan taxonomi-koppling), satt för taxonomi-träffar. `label` är det
+// svenska visningsnamnet (renderas som text — React auto-escapar). Struktur-
+// fälten (kind + conceptId) är input till chip-kompositionen (ADR 0067
+// Beslut 5b, Fas E2) — i nuläget konsumerar typeaheaden enbart `label`.
+// conceptId valideras inte mot concept-id-mönstret (samma permissiva hållning
+// som `taxonomyLabelSchema` — en stale snapshot kan bära annat id-format).
+export const suggestionDtoSchema = z.object({
+  kind: suggestionKindFromWire,
+  conceptId: z.string().nullable(),
+  label: z.string(),
+});
+export type SuggestionDto = z.infer<typeof suggestionDtoSchema>;
+
+export const suggestJobAdTermsResultSchema = z.array(suggestionDtoSchema);
 export type SuggestJobAdTermsResult = z.infer<
   typeof suggestJobAdTermsResultSchema
 >;

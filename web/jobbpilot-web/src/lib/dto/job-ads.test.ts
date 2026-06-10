@@ -6,6 +6,8 @@ import {
   jobAdStatusSchema,
   jobSourceSchema,
   listJobAdsResultSchema,
+  suggestJobAdTermsResultSchema,
+  suggestionDtoSchema,
 } from "./job-ads";
 
 const baseJobAd = {
@@ -283,5 +285,83 @@ describe("jobAdFiltersSchema (ADR 0042 Beslut B multi + D Relevance)", () => {
         q: "java",
       }).success
     ).toBe(true);
+  });
+});
+
+// ADR 0067 Beslut 5a — suggest-union (titel + taxonomi). Verifierar wire-
+// kontraktet: kind serialiseras som HELTAL av backend (native enum utan
+// JsonStringEnumConverter), men schemat accepterar även sträng-namn defensivt.
+describe("suggestionDtoSchema (ADR 0067 Beslut 5a)", () => {
+  it("maps integer kind (faktisk wire-form) to the enum name", () => {
+    const parsed = suggestionDtoSchema.safeParse({
+      kind: 0,
+      conceptId: null,
+      label: "Backend-utvecklare",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.kind).toBe("Title");
+  });
+
+  it("maps each ordinal to the matching SuggestionKind name", () => {
+    const expected = [
+      "Title",
+      "Region",
+      "Municipality",
+      "OccupationField",
+      "OccupationGroup",
+    ] as const;
+    expected.forEach((name, i) => {
+      const parsed = suggestionDtoSchema.safeParse({
+        kind: i,
+        conceptId: name === "Title" ? null : "abc_123",
+        label: name,
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.kind).toBe(name);
+    });
+  });
+
+  it("accepts a string kind name defensively (om converter senare adderas)", () => {
+    const parsed = suggestionDtoSchema.safeParse({
+      kind: "OccupationGroup",
+      conceptId: "ssyk_1234",
+      label: "Systemutvecklare m.fl.",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.kind).toBe("OccupationGroup");
+  });
+
+  it("rejects an out-of-range kind index", () => {
+    expect(
+      suggestionDtoSchema.safeParse({ kind: 99, conceptId: null, label: "x" })
+        .success
+    ).toBe(false);
+  });
+
+  it("rejects an unknown string kind", () => {
+    expect(
+      suggestionDtoSchema.safeParse({
+        kind: "Bogus",
+        conceptId: null,
+        label: "x",
+      }).success
+    ).toBe(false);
+  });
+
+  it("parses an array of mixed title + taxonomy suggestions", () => {
+    const parsed = suggestJobAdTermsResultSchema.safeParse([
+      { kind: 0, conceptId: null, label: "Systemutvecklare" },
+      { kind: 4, conceptId: "ssyk_1234", label: "Mjukvaru- och systemutvecklare m.fl." },
+      { kind: 1, conceptId: "lan_01", label: "Stockholms län" },
+    ]);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toHaveLength(3);
+      expect(parsed.data[1]).toEqual({
+        kind: "OccupationGroup",
+        conceptId: "ssyk_1234",
+        label: "Mjukvaru- och systemutvecklare m.fl.",
+      });
+    }
   });
 });

@@ -1,10 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import LandingPage from "@/app/(marketing)/page";
-
-vi.mock("@/lib/auth/actions", () => ({
-  loginAction: vi.fn(),
-}));
 
 // F-Pre Punkt 5 (2026-05-24): LandingPage anropar nu `getServerSession()` för
 // att rendera kontextuell CTA (anonym vs inloggad). Mock returnerar `null`
@@ -101,14 +97,21 @@ describe("LandingPage (F6 Prompt 1, smoke)", () => {
     expect(screen.queryByText(/Sparkles/i)).not.toBeInTheDocument();
   });
 
-  it("INGEN inloggningsknapp i topbar (HANDOVER §6.4)", async () => {
+  it("topbar har 'Logga in'-länk till /logga-in (G4-redesign)", async () => {
     await renderAsyncPage();
-    // Topbar har ingen <button> med login/skapa-konto-text — bara brand-link.
-    // Login-knappen i AuthCard SKA finnas, så vi verifierar att topbar-
-    // containern är fri:
     const topbar = document.querySelector(".jp-land-top");
     expect(topbar).not.toBeNull();
+    // Login är en <a> (navigering), inte en <button> — civic-utility a11y.
     expect(topbar?.querySelector("button")).toBeNull();
+    const loginLink = screen.getByRole("link", { name: /Logga in/i });
+    expect(loginLink).toHaveAttribute("href", "/logga-in");
+  });
+
+  it("INGEN inline auth-card/login-form i hero (G4 — login flyttad till topbar)", async () => {
+    await renderAsyncPage();
+    // AuthCard (med Lösenord-fält + OAuth-knappar) är borttagen ur hero.
+    expect(screen.queryByLabelText("Lösenord")).not.toBeInTheDocument();
+    expect(screen.queryByText("eller logga in med")).not.toBeInTheDocument();
   });
 
   it("renderar 4 funktioner med mono-key + text", async () => {

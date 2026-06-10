@@ -10,8 +10,9 @@ import { getServerSession } from "@/lib/auth/session";
  * (F6 P5 Punkt 3, ADR 0064).
  *
  * Ren async server-component-shell. Komponenterna delar uppgifter:
- *  - LandingTopbar (RSC): vit header med brand + live-stats (prop-driven)
- *  - LandingHeroSection (client): navy hero + copy + AuthCard (mode-state)
+ *  - LandingTopbar (RSC): vit header med brand + live-stats + "Logga in"-länk
+ *  - LandingHeroSection (client): ljus produkt-forward hero + copy + CTA +
+ *    statisk produkt-peek (G4-redesign, CTO Riktning A)
  *  - LandingFeatures (RSC): "Funktioner"-sektion (4 mono-key/text-rader)
  *  - LandingFooter (RSC-komposit): länkrad + ThemeToggle + LangToggle
  *
@@ -23,9 +24,9 @@ import { getServerSession } from "@/lib/auth/session";
  * kicker, "Drift"-indikator i footer och "Så funkar det"-sektion är BORT
  * per HANDOVER-v3 §7.1 "Bort:" + §0 punkt 6+7 + §6.4.
  *
- * Kvarvarande FAS-DEFERRALs (ej blocker):
- *  - OAuth: knappar finns, fullt flöde i senare fas.
- *  - Glömt-lösenord: ingår i LoginForm (befintlig markup).
+ * G4-redesign: AuthCard (inline login + OAuth-stubs) borttagen ur hero —
+ * inloggning sker nu via "Logga in"-länken i topbar → `/logga-in` (den fulla
+ * auth-routen där LoginForm + OAuth bor). Hero är ren produkt-orientering.
  */
 export default async function LandingPage() {
   // Parallell fetch: stats är publik (anonym), session är cookie-baserad — båda

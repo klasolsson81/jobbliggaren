@@ -1211,10 +1211,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    (sanktionerad gradient-konsument; 0 konsumenter efter G2 M2). */
 .jp-hero__plate,
 .jp-pagehero__inner,
-.jp-empty--brand,
-.jp-land-hero__inner {
+.jp-empty--brand {
   --jp-focus: #FFFFFF;
 }
+/* G4: .jp-land-hero__inner är inte längre en gradient-yta (ljus canvas) —
+   borttagen ur vit-ring-scopet så hero-CTA:ernas fokusring blir grön mot
+   ljus bakgrund. Peek-bandets gradient innehåller inga fokuserbara element
+   (aria-hidden, ren markup) → behöver ingen ring-override. */
 /* Tema-stabilitets-pins för gradient-ytornas vita knappar: accent-50/-100
    skiftar mörkgrönt i dark — det hade gjort vit-knapp-hovern oläsbar. */
 .jp-pagehero__inner,
@@ -2737,6 +2740,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 6px;
 }
+/* Höger-grupp: live-stats + login-länk (G4). */
+.jp-land-top__right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
 .jp-land-top__stats {
   display: flex;
   align-items: center;
@@ -2777,54 +2786,45 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
 }
 .jp-land-top__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   background: transparent;
   border: 0;
   padding: 10px 16px;
   font-size: 15px;
   font-weight: 500;
   color: var(--jp-ink-2);
+  text-decoration: none;
   cursor: pointer;
   border-radius: var(--jp-r-md);
 }
-.jp-land-top__link:hover { background: var(--jp-surface-3); color: var(--jp-ink-1); }
+.jp-land-top__link:hover { background: var(--jp-surface-3); color: var(--jp-accent-700); }
 .jp-land-top__link.is-active { color: var(--jp-accent-700); font-weight: 600; }
 
 @media (max-width: 720px) {
   .jp-land-top__inner { padding: 0 20px; }
 }
 
-/* Hero */
+/* Hero (G4-redesign — produkt-forward LJUS hero, CTO Riktning A) ──────
+   Tidigare gröna gradient-platta bakom H1 är BORTTAGEN: canvasen är ljus
+   (`--jp-surface`), inga gröna bakgrundsboxar. Den enda gröna ytan i hero
+   är primär-CTA:ns fill plus ett scoped band-fragment INUTI produkt-peeken
+   (ADR 0068-undantaget, se .jp-land-peek__band). */
 .jp-land-hero {
-  /* G2 (Klas-direktiv 2026-06-10): inramad platta även på landing —
-     kant-till-kant-banden utgår överallt; samma F4-mekanik som
-     .jp-hero/.jp-pagehero (wrapper = canvas + inset, inner = platta). */
-  background: var(--jp-canvas);
-  color: #fff;
-  padding: 24px 32px 0;
+  background: var(--jp-surface);
+  padding: 56px 32px 64px;
 }
 .jp-land-hero__inner {
   max-width: 1136px;
   margin-inline: auto;
-  background: var(--jp-hero-gradient);
-  border-radius: var(--jp-r-md);
-  padding: 56px 48px 64px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
   gap: 64px;
-  align-items: start;
+  align-items: center;
 }
-[data-theme="dark"] .jp-land-hero__inner {
-  /* Avgränsning mot mörk canvas — paritet med .jp-hero__plate (G1). */
-  border: 1px solid var(--jp-border-soft);
-}
-.jp-land-hero__kicker {
-  font-family: var(--jp-font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--jp-hero-ink-soft);
-  margin-bottom: 22px;
+.jp-land-hero__copy {
+  min-width: 0;
 }
 .jp-land-hero__title {
   margin: 0;
@@ -2832,13 +2832,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.05;
-  color: #fff;
+  color: var(--jp-ink-1);
 }
 .jp-land-hero__lede {
   margin: 24px 0 0;
   font-size: 18px;
   line-height: 1.55;
-  color: var(--jp-hero-ink-soft);
+  color: var(--jp-ink-2);
   max-width: 56ch;
 }
 .jp-land-hero__ctas {
@@ -2847,140 +2847,110 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 12px;
   flex-wrap: wrap;
 }
-.jp-land-hero__trust {
-  margin-top: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13.5px;
-  color: var(--jp-hero-ink-soft);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.18);
-  padding: 8px 14px;
-  border-radius: var(--jp-r-pill);
-}
-.jp-land-hero__trust svg { color: var(--jp-leaf-600); }
 
 @media (max-width: 980px) {
-  .jp-land-hero__inner { grid-template-columns: 1fr; padding: 36px 28px 44px; }
-  .jp-land-hero { padding: 16px 20px 0; }
+  .jp-land-hero { padding: 36px 24px 44px; }
+  .jp-land-hero__inner { grid-template-columns: 1fr; gap: 40px; }
 }
 
-/* Auth card */
-.jp-land-auth {
-  background: #FFFFFF;
-  color: #0C1A2E;
+/* Produkt-peek (G4) — STATISK dekorativ produkt-illustration (aria-hidden).
+   Visar produkten i miniatyr: scoped grönt band-fragment + sökfält-attrapp
+   ovanför två flat/papper-resultatkort. Ingen interaktivitet, ingen JS. */
+.jp-land-peek {
+  min-width: 0;
+  border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-lg);
-  border: 1px solid #C9D2E0;
-  padding: 28px 28px 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  /* Scoped token-override så fält, labels och hints renderas i ljust läge även i dark */
-  --jp-surface:    #FFFFFF;
-  --jp-surface-2:  #F4F6FA;
-  --jp-surface-3:  #E8EDF4;
-  --jp-ink-1: #0C1A2E;
-  --jp-ink-2: #455366;
-  --jp-ink-3: #7C8AA0;
-  --jp-border:        #C9D2E0;
-  --jp-border-soft:   #E3E8F0;
-  --jp-border-input:  #7C8AA0;
-  /* G1: light-accent-pins (ersätter stale navy-pins — kortet har inga
-     navy-konsumenter kvar). Kortet renderas ALLTID ljust, även i dark. */
-  --jp-accent-700: #15603F;
-  --jp-accent-600: #1E6B4C;
-  --jp-accent-50:  #E9F2ED;
-  /* Re-deklaration krävs: --jp-focus ärvs annars som FÄRDIGBERÄKNAT
-     dark-värde (#6EE7A8) från root — re-substituerar mot pinnad light. */
-  --jp-focus: var(--jp-accent-700);
+  background: var(--jp-surface);
+  overflow: hidden;
 }
-.jp-land-auth__tabs {
-  display: flex;
-  gap: 4px;
-  background: #F4F6FA;
-  border: 1px solid #E3E8F0;
-  border-radius: var(--jp-r-md);
-  padding: 4px;
+/* Scoped hero-band-fragment — ADR 0068-undantaget (gradient ENDAST här). */
+.jp-land-peek__band {
+  background: var(--jp-hero-gradient);
+  padding: 20px 20px 22px;
 }
-.jp-land-auth__tab {
-  flex: 1;
-  background: transparent;
-  border: 0;
-  padding: 9px 12px;
-  border-radius: var(--jp-r-sm);
-  font-family: inherit;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: #455366;
-  cursor: pointer;
-}
-.jp-land-auth__tab[data-active="true"] {
-  background: #FFFFFF;
-  color: var(--jp-accent-800);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-}
-.jp-land-auth__form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.jp-land-auth__sep {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 4px 0;
+.jp-land-peek__band-kicker {
+  display: block;
   font-family: var(--jp-font-mono);
   font-size: 11.5px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #7C8AA0;
+  color: var(--jp-hero-ink-soft);
+  margin-bottom: 12px;
 }
-.jp-land-auth__sep::before,
-.jp-land-auth__sep::after {
-  content: "";
+/* Sökfält-ATTRAPP — ren markup (ingen riktig input), tema-stabilt vitt
+   fält + ink-knapp (samma mönster som /jobb-bannerns sökrad). */
+.jp-land-peek__search {
+  display: flex;
+  align-items: stretch;
+  background: var(--jp-hero-pill-bg);
+  border-radius: var(--jp-r-sm);
+  overflow: hidden;
+}
+.jp-land-peek__search-text {
   flex: 1;
-  height: 1px;
-  background: #E3E8F0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 44px;
+  font-size: 14px;
+  color: var(--jp-hero-pill-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.jp-land-auth__oauth {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+.jp-land-peek__search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--jp-hero-sok-bg);
+  color: #fff;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
 }
-.jp-land-auth .jp-input { background: #fff; color: #0C1A2E; border-color: #7C8AA0; }
-.jp-land-auth .jp-input::placeholder { color: #7C8AA0; }
-.jp-land-auth a { color: var(--jp-accent-600); } /* G1: var hårdkodad navy-600 */
-/* Dark-mode scoped overrides — AuthCard renderas ALLTID i ljust läge
-   (HANDOVER §2.4 + ADR 0056 Beslut 3). De delade <LoginForm/>/<RegisterForm/>-
-   komponenterna binder labels/help-text via shadcn-utility-klasser
-   (.text-text-primary/.text-text-secondary/.text-label-) som flippar
-   med `[data-theme="dark"]`-tokens på root. Children-overrides nedan
-   återställer ljus färg inom kort-scopet (selektor-specificity är högre
-   än Tailwind-utility-defaults). */
-[data-theme="dark"] .jp-land-auth,
-[data-theme="dark"] .jp-land-auth label,
-[data-theme="dark"] .jp-land-auth .text-text-primary,
-[data-theme="dark"] .jp-land-auth .text-label {
-  color: #0C1A2E;
+/* Resultat-kort: flat/papper, hairline-separerade (regel 1 + 2). */
+.jp-land-peek__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
-[data-theme="dark"] .jp-land-auth .text-text-secondary,
-[data-theme="dark"] .jp-land-auth .text-body-sm,
-[data-theme="dark"] .jp-land-auth p {
-  color: #455366;
+.jp-land-peek__card {
+  padding: 14px 20px;
+  border-top: 1px solid var(--jp-border-soft);
 }
-[data-theme="dark"] .jp-land-auth .text-danger-600,
-[data-theme="dark"] .jp-land-auth .text-danger-700 {
-  color: #BE1B1B;
+.jp-land-peek__card:first-child {
+  border-top: 0;
 }
-[data-theme="dark"] .jp-land-auth input {
-  background: #FFFFFF;
-  color: #0C1A2E;
-  border-color: #7C8AA0;
+.jp-land-peek__card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+  margin-bottom: 6px;
 }
-[data-theme="dark"] .jp-land-auth input::placeholder {
-  color: #7C8AA0;
+.jp-land-peek__card-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--jp-accent-700);
+}
+.jp-land-peek__card-meta {
+  margin-top: 3px;
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+}
+
+@media (max-width: 980px) {
+  /* Peek under copy på mobil — behåll den (statisk, billig); CTO-spec
+     staplar i stället för att gömma. */
+  .jp-land-peek { max-width: 420px; }
 }
 
 /* Sektioner */

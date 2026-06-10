@@ -72,16 +72,9 @@ export default async function CvListPage() {
             </p>
           </div>
           <div className="jp-pagehero__aside">
-            {/* G2 design-reviewer M2: en-primary — ghost när empty-statens
-                CTA är skärmens primära handling. */}
-            <Link
-              href="/cv/ny"
-              className={
-                sorted.length === 0
-                  ? "jp-btn jp-btn--ghost"
-                  : "jp-btn jp-btn--primary"
-              }
-            >
+            {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
+                med /jobb-bannerns vita kontroller. */}
+            <Link href="/cv/ny" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" />
               <span>Nytt CV</span>
             </Link>

@@ -19,9 +19,11 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
   return {
     id: "11111111-1111-1111-1111-111111111111",
     q: "backend",
-    ssykList: ["MVqp_eS8_kDZ"],
+    occupationGroupList: ["MVqp_eS8_kDZ"],
     regionList: ["CifL_Rzy_Mku"],
-    ssykLabels: [{ conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" }],
+    occupationGroupLabels: [
+      { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
+    ],
     regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
     sortBy: "PublishedAtDesc",
     label: "backend i Mjukvaruutveckling, Stockholms län",
@@ -94,7 +96,9 @@ describe("RecentSearchRow", () => {
     );
     const link = screen.getByRole("link", { name: /Kör igen/ });
     expect(link.getAttribute("href")).toMatch(/^\/jobb\?/);
-    expect(link.getAttribute("href")).toContain("ssyk=MVqp_eS8_kDZ");
+    expect(link.getAttribute("href")).toContain(
+      "occupationGroup=MVqp_eS8_kDZ",
+    );
     expect(link.getAttribute("href")).toContain("region=CifL_Rzy_Mku");
     expect(link.getAttribute("href")).toContain("q=backend");
   });

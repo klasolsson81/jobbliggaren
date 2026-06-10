@@ -14,9 +14,9 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
   return {
     id: "id-1",
     q: null,
-    ssykList: [],
+    occupationGroupList: [],
     regionList: [],
-    ssykLabels: [],
+    occupationGroupLabels: [],
     regionLabels: [],
     sortBy: "PublishedAtDesc",
     label: "default",
@@ -84,7 +84,7 @@ describe("RecentSearchesHeroChip", () => {
             id: "a1",
             label: "backend",
             q: "backend",
-            ssykList: ["MVqp_eS8_kDZ"],
+            occupationGroupList: ["MVqp_eS8_kDZ"],
           }),
         ]}
       />,
@@ -95,7 +95,7 @@ describe("RecentSearchesHeroChip", () => {
     const url = pushMock.mock.calls[0]?.[0] as string;
     expect(url).toMatch(/^\/jobb\?/);
     expect(url).toContain("q=backend");
-    expect(url).toContain("ssyk=MVqp_eS8_kDZ");
+    expect(url).toContain("occupationGroup=MVqp_eS8_kDZ");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

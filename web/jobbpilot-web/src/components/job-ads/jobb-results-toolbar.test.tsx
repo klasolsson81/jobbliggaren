@@ -23,7 +23,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     render(
       <JobbResultsToolbar
         totalCount={1234}
-        ssyk={[]}
+        occupationGroup={[]}
         region={[]}
         resolvedLabels={{}}
         q=""
@@ -39,7 +39,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     render(
       <JobbResultsToolbar
         totalCount={3}
-        ssyk={["MVqp_eS8_kDZ"]}
+        occupationGroup={["MVqp_eS8_kDZ"]}
         region={["CifL_Rzy_Mku"]}
         resolvedLabels={resolvedLabels}
         q="backend"
@@ -52,9 +52,9 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     await user.click(
       screen.getByRole("button", { name: "Ta bort filter Stockholms län" }),
     );
-    // region bort, ssyk + q bevarade.
+    // region bort, occupationGroup + q bevarade.
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?ssyk=MVqp_eS8_kDZ&q=backend",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=backend",
     );
   });
 
@@ -62,7 +62,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     render(
       <JobbResultsToolbar
         totalCount={1}
-        ssyk={[]}
+        occupationGroup={[]}
         region={["XX_unknown"]}
         resolvedLabels={{}}
         q=""
@@ -78,7 +78,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     render(
       <JobbResultsToolbar
         totalCount={5}
-        ssyk={[]}
+        occupationGroup={[]}
         region={[]}
         resolvedLabels={{}}
         q=""
@@ -95,7 +95,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     render(
       <JobbResultsToolbar
         totalCount={5}
-        ssyk={[]}
+        occupationGroup={[]}
         region={[]}
         resolvedLabels={{}}
         q="ab"
@@ -113,7 +113,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     render(
       <JobbResultsToolbar
         totalCount={5}
-        ssyk={["MVqp_eS8_kDZ"]}
+        occupationGroup={["MVqp_eS8_kDZ"]}
         region={[]}
         resolvedLabels={resolvedLabels}
         q="data"
@@ -125,7 +125,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       "Mest relevant (CV-match)",
     );
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?ssyk=MVqp_eS8_kDZ&q=data&sortBy=Relevance",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=Relevance",
     );
   });
 });

@@ -13,13 +13,15 @@ import { MarkJobbVisited } from "@/components/job-ads/mark-jobb-visited";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
-// searchParams-värden kan vara string | string[] | undefined. ssyk/region
-// är upprepade query-params (ADR 0042 Beslut B) → string[] vid flera värden.
+// searchParams-värden kan vara string | string[] | undefined.
+// occupationGroup/region är upprepade query-params (ADR 0042 Beslut B) →
+// string[] vid flera värden. occupationGroup = ssyk-level-4/yrkesgrupp
+// (ADR 0067 Fas E2a nivå-skifte; `?ssyk=` borttagen backend-side i C2).
 type JobbSearchParams = {
   page?: string;
   pageSize?: string;
   sortBy?: string;
-  ssyk?: string | string[];
+  occupationGroup?: string | string[];
   region?: string | string[];
   q?: string;
 };
@@ -59,7 +61,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
     100
   );
   const sortBy = parseSortBy(params.sortBy);
-  const ssyk = toStringList(params.ssyk);
+  const occupationGroup = toStringList(params.occupationGroup);
   const region = toStringList(params.region);
   const q = emptyToUndefined(params.q);
 
@@ -107,7 +109,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
       q: params.q ?? "",
     })
   ).toString();
-  const ssykKey = ssyk.join(",");
+  const occupationGroupKey = occupationGroup.join(",");
   const regionKey = region.join(",");
 
   return (
@@ -120,7 +122,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
       {/* v3 navy-hero — edge-to-edge i .jp-content (/jobb är v3-native,
           app-shell V3_NATIVE_ROUTES opt-out). GET-form mot /jobb behåller
           befintlig searchParams-mekanik/URL-kontrakt utan client-JS:
-          aktiva filter (ssyk[]/region[]/sortBy/pageSize) bärs som hidden
+          aktiva filter (occupationGroup[]/region[]/sortBy/pageSize) bärs som hidden
           inputs så en ny sökning inte tappar dem; `page` utelämnas medvetet
           (ny sökterm → sida 1). Ort/Yrke-pills + popovers = client-island
           JobbHeroFilters (F4, ADR 0055 + amendment — INGEN Filter-pill,
@@ -163,8 +165,13 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 <Search size={18} aria-hidden="true" /> Sök
               </button>
             </div>
-            {ssyk.map((v) => (
-              <input key={`ssyk-${v}`} type="hidden" name="ssyk" value={v} />
+            {occupationGroup.map((v) => (
+              <input
+                key={`occupationGroup-${v}`}
+                type="hidden"
+                name="occupationGroup"
+                value={v}
+              />
             ))}
             {region.map((v) => (
               <input
@@ -186,10 +193,10 @@ export default async function JobbPage({ searchParams }: PageProps) {
               F4/ADR 0055). Serialiserbara props: taxonomy-träd, valda
               conceptId string[], q/sortBy/pageSize. Live-commit per klick
               via router.push (transition) — searchParams ADR 0042
-              Beslut B (upprepade ssyk/region) OFÖRÄNDRAT. */}
+              Beslut B (upprepade occupationGroup/region) OFÖRÄNDRAT. */}
           <JobbHeroFilters
             taxonomy={taxonomy}
-            initialSsyk={ssyk}
+            initialOccupationGroup={occupationGroup}
             initialRegion={region}
             q={q ?? ""}
             sortBy={sortBy}
@@ -204,14 +211,14 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${ssykKey}|${regionKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
             page={page}
             pageSize={pageSize}
             sortBy={sortBy}
-            ssyk={ssyk}
+            occupationGroup={occupationGroup}
             region={region}
             q={q ?? ""}
             since={since}

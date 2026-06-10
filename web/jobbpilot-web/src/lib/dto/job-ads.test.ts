@@ -197,7 +197,7 @@ describe("listJobAdsResultSchema", () => {
 
 describe("jobAdFiltersSchema (ADR 0042 Beslut B multi + D Relevance)", () => {
   const valid = {
-    ssyk: [] as string[],
+    occupationGroup: [] as string[],
     region: [] as string[],
     q: "",
     sortBy: "PublishedAtDesc",
@@ -211,35 +211,38 @@ describe("jobAdFiltersSchema (ADR 0042 Beslut B multi + D Relevance)", () => {
     expect(
       jobAdFiltersSchema.safeParse({
         ...valid,
-        ssyk: ["MVqp_eS8_kDZ", "CifL_Rzy_Mku"],
+        occupationGroup: ["MVqp_eS8_kDZ", "CifL_Rzy_Mku"],
       }).success
     ).toBe(true);
   });
 
   it("rejects a concept-id with invalid characters", () => {
     expect(
-      jobAdFiltersSchema.safeParse({ ...valid, ssyk: ["ssyk!hack"] }).success
+      jobAdFiltersSchema.safeParse({ ...valid, occupationGroup: ["ssyk!hack"] })
+        .success
     ).toBe(false);
   });
 
   it("rejects a concept-id longer than 32 chars", () => {
     expect(
-      jobAdFiltersSchema.safeParse({ ...valid, ssyk: ["a".repeat(33)] })
+      jobAdFiltersSchema.safeParse({ ...valid, occupationGroup: ["a".repeat(33)] })
         .success
     ).toBe(false);
   });
 
-  it("rejects more than 10 ssyk values (mirrors SearchCriteria.MaxConceptIds)", () => {
-    const eleven = Array.from({ length: 11 }, (_, i) => `code${i}`);
+  it("rejects more than 400 occupationGroup values (mirrors SearchCriteria.MaxConceptIds)", () => {
+    const tooMany = Array.from({ length: 401 }, (_, i) => `code${i}`);
     expect(
-      jobAdFiltersSchema.safeParse({ ...valid, ssyk: eleven }).success
+      jobAdFiltersSchema.safeParse({ ...valid, occupationGroup: tooMany })
+        .success
     ).toBe(false);
   });
 
-  it("accepts exactly 10 ssyk values (cap boundary)", () => {
-    const ten = Array.from({ length: 10 }, (_, i) => `code${i}`);
+  it("accepts exactly 400 occupationGroup values (cap boundary)", () => {
+    const capped = Array.from({ length: 400 }, (_, i) => `code${i}`);
     expect(
-      jobAdFiltersSchema.safeParse({ ...valid, ssyk: ten }).success
+      jobAdFiltersSchema.safeParse({ ...valid, occupationGroup: capped })
+        .success
     ).toBe(true);
   });
 

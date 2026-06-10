@@ -7,9 +7,11 @@ import {
 const wireBase = {
   id: "33333333-3333-3333-3333-333333333333",
   q: "backend",
-  ssykList: ["MVqp_eS8_kDZ"],
+  occupationGroupList: ["MVqp_eS8_kDZ"],
   regionList: ["CifL_Rzy_Mku"],
-  ssykLabels: [{ conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" }],
+  occupationGroupLabels: [
+    { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
+  ],
   regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
   sortBy: 0,
   label: "backend",
@@ -28,15 +30,15 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.newCount).toBe(7);
   });
 
-  it("accepts null q (only ssyk/region filter)", () => {
+  it("accepts null q (only occupationGroup/region filter)", () => {
     const parsed = recentJobSearchDtoSchema.parse({ ...wireBase, q: null });
     expect(parsed.q).toBeNull();
   });
 
-  it("defaults missing ssykLabels/regionLabels to empty arrays", () => {
-    const { ssykLabels: _a, regionLabels: _b, ...rest } = wireBase;
+  it("defaults missing occupationGroupLabels/regionLabels to empty arrays", () => {
+    const { occupationGroupLabels: _a, regionLabels: _b, ...rest } = wireBase;
     const parsed = recentJobSearchDtoSchema.parse(rest);
-    expect(parsed.ssykLabels).toEqual([]);
+    expect(parsed.occupationGroupLabels).toEqual([]);
     expect(parsed.regionLabels).toEqual([]);
   });
 
@@ -63,13 +65,13 @@ describe("recentJobSearchDtoSchema", () => {
     ).toThrow();
   });
 
-  it("accepts multiple ssyk and region concept-ids", () => {
+  it("accepts multiple occupationGroup and region concept-ids", () => {
     const parsed = recentJobSearchDtoSchema.parse({
       ...wireBase,
-      ssykList: ["a1", "b2"],
+      occupationGroupList: ["a1", "b2"],
       regionList: ["x1", "y2"],
     });
-    expect(parsed.ssykList).toEqual(["a1", "b2"]);
+    expect(parsed.occupationGroupList).toEqual(["a1", "b2"]);
     expect(parsed.regionList).toEqual(["x1", "y2"]);
   });
 });

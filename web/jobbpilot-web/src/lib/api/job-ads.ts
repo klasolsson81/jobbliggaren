@@ -17,8 +17,10 @@ export interface ListJobAdsQuery {
   pageSize: number;
   sortBy: JobAdSortBy;
   // ADR 0042 Beslut B — multi: skickas som upprepad query-string
-  // (?ssyk=a&ssyk=b). ASP.NET Core minimal API binder till string[].
-  ssyk?: ReadonlyArray<string>;
+  // (?occupationGroup=a&occupationGroup=b). ASP.NET Core minimal API binder
+  // till string[]. ADR 0067 Fas E2a: yrke-filtret är yrkesgrupp (ssyk-
+  // level-4); backend tog bort `?ssyk=` i C2.
+  occupationGroup?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
   q?: string;
   // ADR 0042 Beslut E — "ny sedan"-fönster (ISO 8601). Driver JobAdDto.isNew.
@@ -38,7 +40,8 @@ function buildQuery(query: ListJobAdsQuery): string {
   params.set("pageSize", String(query.pageSize));
   params.set("sortBy", query.sortBy);
   // append (ej set) — upprepad nyckel per element (ADR 0042 Beslut B).
-  for (const v of query.ssyk ?? []) params.append("ssyk", v);
+  for (const v of query.occupationGroup ?? [])
+    params.append("occupationGroup", v);
   for (const v of query.region ?? []) params.append("region", v);
   if (query.q) params.set("q", query.q);
   if (query.since) params.set("since", query.since);
@@ -46,8 +49,8 @@ function buildQuery(query: ListJobAdsQuery): string {
 }
 
 /**
- * Hämtar paginerad JobAd-lista med valfria filter (ssyk[], region[], q,
- * since) och sort. Konsumerar `GET /api/v1/job-ads` (auth-gated, rate-limit
+ * Hämtar paginerad JobAd-lista med valfria filter (occupationGroup[],
+ * region[], q, since) och sort. Konsumerar `GET /api/v1/job-ads` (auth-gated, rate-limit
  * 60/min per UserId via backend ListReadPolicy — F2-P9 TD-70-leverans
  * 2026-05-13).
  *

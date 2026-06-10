@@ -18,9 +18,9 @@ function makeDto(id: string, label: string, newCount = 0): RecentJobSearchDto {
   return {
     id,
     q: null,
-    ssykList: [],
+    occupationGroupList: [],
     regionList: [],
-    ssykLabels: [],
+    occupationGroupLabels: [],
     regionLabels: [],
     sortBy: "PublishedAtDesc",
     label,

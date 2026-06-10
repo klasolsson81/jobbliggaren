@@ -20,7 +20,7 @@ const taxonomy: TaxonomyTree = {
     {
       conceptId: "apaJ_2ja_LuF",
       label: "Data/IT",
-      occupations: [
+      occupationGroups: [
         { conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" },
         { conceptId: "Q5DF_juj_8do", label: "Mjukvaruarkitekt" },
       ],
@@ -28,7 +28,7 @@ const taxonomy: TaxonomyTree = {
     {
       conceptId: "X1bg_e2a_ABC",
       label: "Bygg och anläggning",
-      occupations: [{ conceptId: "Z9zz_zzz_zzz", label: "Snickare" }],
+      occupationGroups: [{ conceptId: "Z9zz_zzz_zzz", label: "Snickare" }],
     },
   ],
 };
@@ -41,7 +41,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroFilters>[0]>) {
   return render(
     <JobbHeroFilters
       taxonomy={taxonomy}
-      initialSsyk={[]}
+      initialOccupationGroup={[]}
       initialRegion={[]}
       q=""
       sortBy="PublishedAtDesc"
@@ -114,8 +114,10 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
     await user.click(screen.getByRole("button", { name: /^Yrke/ }));
 
     const dialog = screen.getByRole("dialog", { name: "Yrkesområde" });
-    // Första gruppen aktiv per default → dess yrken syns.
-    expect(within(dialog).getByText("Välj alla yrken")).toBeInTheDocument();
+    // Första gruppen aktiv per default → dess yrkesgrupper syns.
+    expect(
+      within(dialog).getByText("Välj alla yrkesgrupper"),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText("Systemutvecklare")).toBeInTheDocument();
     expect(within(dialog).getByText("Mjukvaruarkitekt")).toBeInTheDocument();
   });
@@ -128,7 +130,9 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
     await user.click(screen.getByRole("option", { name: /Bygg och anläggning/ }));
     await user.click(screen.getByText("Snickare"));
 
-    expect(pushMock).toHaveBeenCalledWith("/jobb?ssyk=Z9zz_zzz_zzz");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/jobb?occupationGroup=Z9zz_zzz_zzz",
+    );
   });
 
   it("bevarar q i URL:en när ett yrke väljs (param-bevarande)", async () => {
@@ -138,7 +142,7 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
     await user.click(screen.getByText("Systemutvecklare"));
 
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?ssyk=MVqp_eS8_kDZ&q=backend",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=backend",
     );
   });
 });
@@ -149,7 +153,7 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
     render(
       <JobbHeroFilters
         taxonomy={null}
-        initialSsyk={[]}
+        initialOccupationGroup={[]}
         initialRegion={[]}
         q=""
         sortBy="PublishedAtDesc"

@@ -26,7 +26,7 @@ export interface PopoverGroup {
   /** conceptId för yrkesområdet (vänsterrad) — endast tvåkolumns. */
   conceptId: string;
   label: string;
-  /** Val under gruppen (occupations). */
+  /** Val under gruppen (yrkesgrupper, ssyk-level-4). */
   items: ReadonlyArray<PopoverItem>;
 }
 
@@ -38,7 +38,7 @@ export interface PopoverItem {
 
 interface BaseProps {
   open: boolean;
-  /** conceptId-lista för denna axel (ssyk eller region). */
+  /** conceptId-lista för denna axel (occupationGroup eller region). */
   selected: ReadonlyArray<string>;
   /** Live-commit: emitterar hela nästa conceptId-listan. */
   onChange: (next: string[]) => void;

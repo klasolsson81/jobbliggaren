@@ -27,12 +27,12 @@ import {
 interface ChipModel {
   conceptId: string;
   label: string;
-  axis: "ssyk" | "region";
+  axis: "occupationGroup" | "region";
 }
 
 interface JobbResultsToolbarProps {
   totalCount: number;
-  ssyk: ReadonlyArray<string>;
+  occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
@@ -57,7 +57,7 @@ function labelFor(
 
 export function JobbResultsToolbar({
   totalCount,
-  ssyk,
+  occupationGroup,
   region,
   resolvedLabels,
   q,
@@ -72,7 +72,9 @@ export function JobbResultsToolbar({
   // chips/sort så UI:t inte hoppar innan RSC-omrendering landat.
   const qReady = q.trim().length >= 2;
 
-  const [ssykState, setSsyk] = useState<string[]>([...ssyk]);
+  const [occupationGroupState, setOccupationGroup] = useState<string[]>([
+    ...occupationGroup,
+  ]);
   const [regionState, setRegion] = useState<string[]>([...region]);
   const selectRef = useRef<HTMLSelectElement>(null);
 
@@ -84,12 +86,12 @@ export function JobbResultsToolbar({
     ? sortBy
     : DEFAULT_SORT_BY;
 
-  function pushState(nextSsyk: string[], nextRegion: string[]) {
+  function pushState(nextOccupationGroup: string[], nextRegion: string[]) {
     startTransition(() => {
       router.push(
         buildJobbHref({
           q,
-          ssyk: nextSsyk,
+          occupationGroup: nextOccupationGroup,
           region: nextRegion,
           sortBy,
           pageSize,
@@ -99,14 +101,14 @@ export function JobbResultsToolbar({
   }
 
   function removeChip(chip: ChipModel) {
-    if (chip.axis === "ssyk") {
-      const next = ssykState.filter((v) => v !== chip.conceptId);
-      setSsyk(next);
+    if (chip.axis === "occupationGroup") {
+      const next = occupationGroupState.filter((v) => v !== chip.conceptId);
+      setOccupationGroup(next);
       pushState(next, regionState);
     } else {
       const next = regionState.filter((v) => v !== chip.conceptId);
       setRegion(next);
-      pushState(ssykState, next);
+      pushState(occupationGroupState, next);
     }
   }
 
@@ -116,7 +118,7 @@ export function JobbResultsToolbar({
       router.push(
         buildJobbHref({
           q,
-          ssyk: ssykState,
+          occupationGroup: occupationGroupState,
           region: regionState,
           sortBy: next,
           pageSize,
@@ -131,10 +133,10 @@ export function JobbResultsToolbar({
       label: labelFor(conceptId, resolvedLabels),
       axis: "region",
     })),
-    ...ssykState.map<ChipModel>((conceptId) => ({
+    ...occupationGroupState.map<ChipModel>((conceptId) => ({
       conceptId,
       label: labelFor(conceptId, resolvedLabels),
-      axis: "ssyk",
+      axis: "occupationGroup",
     })),
   ];
 

@@ -15,7 +15,7 @@ import {
 /**
  * Hero-filter-pills + Platsbanken-popovers (HANDOVER-v3.md §5.4/§5.5,
  * ADR 0055 + amendment 2026-05-19). Client-island under hero-sökrutan:
- * `Ort ▾` (enkelkolumns Län) · `Yrke ▾` (tvåkolumns Yrkesområde→Yrken).
+ * `Ort ▾` (enkelkolumns Län) · `Yrke ▾` (tvåkolumns Yrkesområde→Yrkesgrupper).
  * INGEN Filter-pill (deferred helt — amendment).
  *
  * RSC→client-kontrakt: tar serialiserbara props (taxonomy-träd, valda
@@ -27,7 +27,7 @@ import {
 
 interface JobbHeroFiltersProps {
   taxonomy: TaxonomyTree | null;
-  initialSsyk: ReadonlyArray<string>;
+  initialOccupationGroup: ReadonlyArray<string>;
   initialRegion: ReadonlyArray<string>;
   /** Hero-sökordet — bärs vidare så filter-klick inte raderar q. */
   q: string;
@@ -39,7 +39,7 @@ type OpenPop = "ort" | "yrke" | null;
 
 export function JobbHeroFilters({
   taxonomy,
-  initialSsyk,
+  initialOccupationGroup,
   initialRegion,
   q,
   sortBy,
@@ -48,36 +48,39 @@ export function JobbHeroFilters({
   const router = useRouter();
   const [, startTransition] = useTransition();
 
-  const [ssyk, setSsyk] = useState<string[]>([...initialSsyk]);
+  const [occupationGroup, setOccupationGroup] = useState<string[]>([
+    ...initialOccupationGroup,
+  ]);
   const [region, setRegion] = useState<string[]>([...initialRegion]);
   const [openPop, setOpenPop] = useState<OpenPop>(null);
 
   const ortBtnRef = useRef<HTMLButtonElement>(null);
   const yrkeBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Taxonomi → popover-form. Län = enkelkolumns items; Yrkesområde→Yrken
-  // = tvåkolumns grupper.
+  // Taxonomi → popover-form. Län = enkelkolumns items; Yrkesområde→
+  // Yrkesgrupper (ssyk-level-4) = tvåkolumns grupper (ADR 0067 Fas E2a
+  // nivå-skifte — occupation-name utgår ur pickern).
   const regionItems: PopoverItem[] = (taxonomy?.regions ?? []).map((r) => ({
     conceptId: r.conceptId,
     label: r.label,
   }));
-  const occupationGroups: PopoverGroup[] = (
+  const occupationFieldGroups: PopoverGroup[] = (
     taxonomy?.occupationFields ?? []
   ).map((f) => ({
     conceptId: f.conceptId,
     label: f.label,
-    items: f.occupations.map((o) => ({
-      conceptId: o.conceptId,
-      label: o.label,
+    items: f.occupationGroups.map((g) => ({
+      conceptId: g.conceptId,
+      label: g.label,
     })),
   }));
 
-  function push(nextSsyk: string[], nextRegion: string[]) {
+  function push(nextOccupationGroup: string[], nextRegion: string[]) {
     startTransition(() => {
       router.push(
         buildJobbHref({
           q,
-          ssyk: nextSsyk,
+          occupationGroup: nextOccupationGroup,
           region: nextRegion,
           sortBy,
           pageSize,
@@ -86,13 +89,13 @@ export function JobbHeroFilters({
     });
   }
 
-  function changeSsyk(next: string[]) {
-    setSsyk(next);
+  function changeOccupationGroup(next: string[]) {
+    setOccupationGroup(next);
     push(next, region);
   }
   function changeRegion(next: string[]) {
     setRegion(next);
-    push(ssyk, next);
+    push(occupationGroup, next);
   }
 
   return (
@@ -120,17 +123,17 @@ export function JobbHeroFilters({
         ref={yrkeBtnRef}
         type="button"
         className="jp-hero-pill"
-        data-active={openPop === "yrke" || ssyk.length > 0}
+        data-active={openPop === "yrke" || occupationGroup.length > 0}
         aria-haspopup="dialog"
         aria-expanded={openPop === "yrke"}
         onClick={() => setOpenPop(openPop === "yrke" ? null : "yrke")}
       >
-        {ssyk.length > 0 && (
+        {occupationGroup.length > 0 && (
           <span className="jp-hero-pill__dot" aria-hidden="true" />
         )}
         Yrke
-        {ssyk.length > 0 && (
-          <span className="jp-hero-pill__count">{ssyk.length}</span>
+        {occupationGroup.length > 0 && (
+          <span className="jp-hero-pill__count">{occupationGroup.length}</span>
         )}
         <ChevronDown size={14} aria-hidden="true" />
       </button>
@@ -155,13 +158,13 @@ export function JobbHeroFilters({
         mode="two-column"
         open={openPop === "yrke"}
         leftTitle="Yrkesområde"
-        rightTitle="Yrken"
-        selectAllLabel="Välj alla yrken"
-        groups={occupationGroups}
-        selected={ssyk}
-        onChange={changeSsyk}
+        rightTitle="Yrkesgrupper"
+        selectAllLabel="Välj alla yrkesgrupper"
+        groups={occupationFieldGroups}
+        selected={occupationGroup}
+        onChange={changeOccupationGroup}
         onClose={() => setOpenPop(null)}
-        onClearAll={() => changeSsyk([])}
+        onClearAll={() => changeOccupationGroup([])}
         triggerRef={yrkeBtnRef}
       />
     </div>

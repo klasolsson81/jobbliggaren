@@ -27,19 +27,25 @@ export const taxonomyRegionSchema = z.object({
 });
 export type TaxonomyRegion = z.infer<typeof taxonomyRegionSchema>;
 
-// Yrke (JobTech `occupation-name`). conceptId matchar
-// `job_ads.ssyk_concept_id` → driver shadow-prop-filtreringen.
-export const taxonomyOccupationSchema = z.object({
+// Yrkesgrupp (JobTech `ssyk-level-4`, ~400). conceptId matchar
+// `job_ads.occupation_group_concept_id` → PRIMÄRT yrke-filter (ADR 0067
+// Beslut 1, Platsbanken-paritet). occupation-name (yrke) konsumeras EJ av
+// FE — det är recall-substrat backend-side (FTS-synonym-grenen) och
+// exkluderas ur FE-DTO:n: en ACL modellerar vad konsumenten (pickern)
+// behöver, inte källans interna modell (Evans 2003 kap. 14).
+export const taxonomyOccupationGroupSchema = z.object({
   conceptId: conceptIdSchema,
   label: z.string().min(1),
 });
-export type TaxonomyOccupation = z.infer<typeof taxonomyOccupationSchema>;
+export type TaxonomyOccupationGroup = z.infer<
+  typeof taxonomyOccupationGroupSchema
+>;
 
-// Yrkesområde (JobTech `occupation-field`, ~21) med underordnade yrken.
+// Yrkesområde (JobTech `occupation-field`, ~21) med underordnade yrkesgrupper.
 export const taxonomyOccupationFieldSchema = z.object({
   conceptId: conceptIdSchema,
   label: z.string().min(1),
-  occupations: z.array(taxonomyOccupationSchema),
+  occupationGroups: z.array(taxonomyOccupationGroupSchema),
 });
 export type TaxonomyOccupationField = z.infer<
   typeof taxonomyOccupationFieldSchema

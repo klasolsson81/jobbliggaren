@@ -40,7 +40,7 @@ interface JobbResultsProps {
   page: number;
   pageSize: number;
   sortBy: JobAdSortBy;
-  ssyk: string[];
+  occupationGroup: string[];
   region: string[];
   q: string;
   since: string;
@@ -49,7 +49,7 @@ interface JobbResultsProps {
     page?: string;
     pageSize?: string;
     sortBy?: string;
-    ssyk?: string | string[];
+    occupationGroup?: string | string[];
     region?: string | string[];
     q?: string;
   };
@@ -59,7 +59,7 @@ export async function JobbResults({
   page,
   pageSize,
   sortBy,
-  ssyk,
+  occupationGroup,
   region,
   q,
   since,
@@ -68,9 +68,9 @@ export async function JobbResults({
   // Chip-labels hör ihop med resultatet — hämtas parallellt med listan.
   // Reverse-lookup-miss → chip faller till "Okänd kod (<id>)" i toolbaren
   // (ADR 0043 Beslut B graceful degradation).
-  const selectedConceptIds = [...ssyk, ...region];
+  const selectedConceptIds = [...occupationGroup, ...region];
   const [result, labelsResult] = await Promise.all([
-    getJobAds({ page, pageSize, sortBy, ssyk, region, q, since }),
+    getJobAds({ page, pageSize, sortBy, occupationGroup, region, q, since }),
     resolveTaxonomyLabels(selectedConceptIds),
   ]);
 
@@ -101,7 +101,7 @@ export async function JobbResults({
               symmetriskt med hero-pills (buildJobbHref). */}
           <JobbResultsToolbar
             totalCount={result.data.totalCount}
-            ssyk={ssyk}
+            occupationGroup={occupationGroup}
             region={region}
             resolvedLabels={resolvedLabels}
             q={q}
@@ -183,7 +183,8 @@ function buildPageHref(
   if (params.sortBy && params.sortBy !== "PublishedAtDesc") {
     url.set("sortBy", params.sortBy);
   }
-  for (const v of toStringList(params.ssyk)) url.append("ssyk", v);
+  for (const v of toStringList(params.occupationGroup))
+    url.append("occupationGroup", v);
   for (const v of toStringList(params.region)) url.append("region", v);
   if (params.q) url.set("q", params.q);
   const qs = url.toString();

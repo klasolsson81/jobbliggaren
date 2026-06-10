@@ -137,9 +137,12 @@ export const SUGGEST_MIN_PREFIX = 2;
 export const SUGGEST_DEBOUNCE_MS = 300;
 
 // ADR 0042 Beslut B — maxantal-cap per taxonomilista. Speglar backend
-// SearchCriteria.MaxConceptIds (=10). UI visar gränsen i copy och blockerar
-// tillägg över taket; backend-cap är sista barriär.
-export const MAX_CONCEPT_IDS = 10;
+// SearchCriteria.MaxConceptIds (=400, höjt 10→400 i ADR 0042-amendment
+// 2026-06-09 / ADR 0067 Fas C1 så "Välj alla yrkesgrupper" (~400 ssyk-
+// level-4) aldrig slår i taket — Platsbanken-paritet). FE-cap är defense-
+// in-depth; backend-cap är sista barriär. Får aldrig vara strängare än
+// backend (då blockeras giltiga requests).
+export const MAX_CONCEPT_IDS = 400;
 
 // Filter-form-schema för JobAdFilters Client Component. Speglar backend
 // validator-regler (`ListJobAdsQueryValidator`) i FE för defense-in-depth +
@@ -160,7 +163,7 @@ const conceptIdListSchema = z
 
 export const jobAdFiltersSchema = z
   .object({
-    ssyk: conceptIdListSchema,
+    occupationGroup: conceptIdListSchema,
     region: conceptIdListSchema,
     // Tom sträng tillåts — okänt fält. Filtrering bort sker innan URL-build.
     q: z

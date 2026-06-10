@@ -13,7 +13,7 @@ interface RecentSearchesHeroChipProps {
 function buildHrefFor(item: RecentJobSearchDto): string {
   return buildJobbHref({
     q: item.q ?? "",
-    ssyk: item.ssykList,
+    occupationGroup: item.occupationGroupList,
     region: item.regionList,
     sortBy: item.sortBy,
   });

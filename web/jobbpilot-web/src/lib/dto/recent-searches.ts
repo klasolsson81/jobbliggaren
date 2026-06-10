@@ -35,9 +35,14 @@ const sortByFromWire = z
 export const recentJobSearchDtoSchema = z.object({
   id: z.string(),
   q: z.string().nullable(),
-  ssykList: z.array(z.string()),
+  // ADR 0067 Fas E2a — yrke-dimensionen är yrkesgrupp (ssyk-level-4), ej
+  // occupation-name. Backend `RecentJobSearchDto` bär `occupationGroupList`
+  // (C2-reverse-lookup-migrerade ids) + deprecated alltid-tomma `ssykList`;
+  // FE konsumerar yrkesgrupp-fältet. (Municipality-dimensionen tillkommer
+  // i E2b med Län→Kommun-kaskaden.)
+  occupationGroupList: z.array(z.string()),
   regionList: z.array(z.string()),
-  ssykLabels: z.array(taxonomyLabelSchema).default([]),
+  occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),
   sortBy: sortByFromWire,
   label: z.string(),

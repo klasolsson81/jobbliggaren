@@ -11,7 +11,9 @@ const validTree = {
     {
       conceptId: "apaJ_2ja_LuF",
       label: "Data/IT",
-      occupations: [{ conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" }],
+      occupationGroups: [
+        { conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" },
+      ],
     },
   ],
 };

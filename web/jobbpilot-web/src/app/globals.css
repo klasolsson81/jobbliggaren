@@ -64,13 +64,28 @@
   --jp-coral-600: #DA2A47;   --jp-coral-50: #FCE4E9;
   --jp-amber-500: #E89A1A;   --jp-amber-50: #FBEBC8;
 
-  /* Hero (alltid samma navy oavsett tema — v3 §2.4 scoped) */
+  /* Hero (alltid samma navy oavsett tema — v3 §2.4 scoped).
+     --jp-hero-bg behålls för .jp-pagehero (inre sidor förblir navy). */
   --jp-hero-bg:          #0A2647;
   --jp-hero-ink:         #FFFFFF;
   --jp-hero-ink-soft:    #BBCCE5;
   --jp-hero-pill-bg:     #FFFFFF;
   --jp-hero-pill-ink:    #0C1A2E;
   --jp-hero-pill-border: #94A3B8;
+
+  /* E1a (Klas-LÅST 2026-06-10, riktning A "Papperskontoret"):
+     /jobb-heron flippas från navy-banner → varm content-first papperston.
+     .jp-hero läser --jp-hero-canvas (varm i light); barnen flippas till
+     ink-on-paper via --jp-ink-*. Dark ärver --jp-canvas (ingen varm-dark-hex). */
+  --jp-hero-canvas: #FAF9F6;
+
+  /* Placeholder-ton (E1a, design-reviewer-rotfix 2026-06-10): WCAG AA ≥4.5:1
+     mot BÅDA fält-bakgrunderna — #FFFFFF (light surface) ≈ 5.4:1 och #F0F4FB
+     (dark-temats ljusa input-fält) ≈ 4.9:1. Tema-oberoende (input-fältet är
+     ljust i båda teman). Sitter mellan --jp-ink-2 och --jp-ink-3 → läser som
+     placeholder, inte ifylld text. Ersätter --jp-ink-3 (3.5:1, under golvet)
+     som placeholder-färg på hero-inputen. */
+  --jp-placeholder: #626B78;
 
   /* Focus (v3-kanon) */
   --jp-focus: #2E6CC2;
@@ -152,6 +167,9 @@
   --jp-surface-2:  #142136;
   --jp-surface-3:  #283C5E;
   --jp-canvas:     #0B1525;        /* mörk navy-grå, INTE svart */
+
+  /* E1a: hero-canvasen ärver app-canvas i dark (ingen ny varm-dark-hex) */
+  --jp-hero-canvas: var(--jp-canvas);
 
   --jp-ink-1: #F4F7FC;
   --jp-ink-2: #C2CFE2;
@@ -835,10 +853,13 @@ a:hover { color: var(--jp-navy-600); }
   color: var(--jp-navy-700);
 }
 
-/* ── Hero (navy zon på /jobb) ────────────────────── */
+/* ── Hero (varm papperston-zon på /jobb — E1a, riktning A) ───────────
+   Flippad från navy-banner → content-first varm canvas (Klas-LÅST
+   2026-06-10). Alla barn flippade vit-på-navy → ink-på-papper via
+   --jp-ink-*/--jp-surface. .jp-pagehero (inre sidor) förblir navy. */
 .jp-hero {
-  background: var(--jp-hero-bg);
-  color: var(--jp-hero-ink);
+  background: var(--jp-hero-canvas);
+  color: var(--jp-ink-1);
   position: relative;
 }
 .jp-hero__inner {
@@ -862,38 +883,39 @@ a:hover { color: var(--jp-navy-600); }
   gap: 8px;
   height: 40px;
   padding: 0 16px;
-  background: rgba(255,255,255,0.95);
-  border: 1px solid rgba(255,255,255,0.95);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-input);
   border-radius: var(--jp-r-md);
-  color: #0A2647;
+  color: var(--jp-ink-1);
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
 }
 .jp-hero-chip:hover {
-  background: #fff;
-  border-color: #fff;
+  background: var(--jp-surface-3);
+  border-color: var(--jp-border-strong);
 }
 .jp-hero-chip__count {
   font-family: var(--jp-font-mono);
-  color: #0A2647;
+  color: var(--jp-ink-2);
   font-size: 13px;
   font-weight: 600;
   margin-left: -2px;
 }
 
 .jp-hero__title {
-  font-size: 40px;
+  /* H1-token (jobbpilot-design-tokens): 28px / 700 / -0.02em — var 40px (regel-1-brott) */
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   margin: 0;
-  color: #fff;
+  color: var(--jp-ink-1);
 }
 .jp-hero__lede {
   margin: 10px 0 0;
   font-size: 18px;
-  color: var(--jp-hero-ink-soft);
+  color: var(--jp-ink-2);
   max-width: 56ch;
 }
 
@@ -903,15 +925,16 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-hero__searchlabels {
   font-size: 14px;
-  color: var(--jp-hero-ink-soft);
+  color: var(--jp-ink-2);
   margin-bottom: 10px;
 }
 .jp-hero__searchrow {
   display: flex;
-  background: #fff;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-input);
   border-radius: var(--jp-r-md);
   overflow: hidden;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  /* E1a: djup från BORDER (papper), inte drop-shadow (regel-1-brott borttaget) */
 }
 .jp-hero__input {
   flex: 1;
@@ -921,17 +944,18 @@ a:hover { color: var(--jp-navy-600); }
   height: 56px;
   font-family: inherit;
   font-size: 17px;
-  color: #0C1A2E;
+  color: var(--jp-ink-1);
   background: transparent;
   min-width: 0;
 }
-.jp-hero__input::placeholder { color: #7C8AA0; }
+.jp-hero__input::placeholder { color: var(--jp-placeholder); }
 .jp-hero__searchbtn {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  background: #FFFFFF;
-  color: #0A2647;
+  /* Navy primary på varm canvas (ADR 0052 navy-knapp-kontrakt + mockup A) */
+  background: var(--jp-navy-800);
+  color: #fff;
   border: 0;
   padding: 0 28px;
   font-size: 17px;
@@ -939,7 +963,7 @@ a:hover { color: var(--jp-navy-600); }
   cursor: pointer;
   letter-spacing: -0.01em;
 }
-.jp-hero__searchbtn:hover { background: #EAF1FA; color: #08213F; }
+.jp-hero__searchbtn:hover { background: var(--jp-navy-700); color: #fff; }
 
 .jp-hero__pills {
   margin-top: 14px;
@@ -953,17 +977,17 @@ a:hover { color: var(--jp-navy-600); }
   gap: 10px;
   height: 40px;
   padding: 0 16px;
-  background: var(--jp-hero-pill-bg);
-  color: var(--jp-hero-pill-ink);
-  border: 1px solid var(--jp-hero-pill-border);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  border: 1px solid var(--jp-border-input);
   border-radius: var(--jp-r-md);
   font-size: 14.5px;
   font-weight: 500;
   cursor: pointer;
 }
 .jp-hero-pill[data-active="true"] {
-  border-color: #0A2647;
-  box-shadow: inset 0 0 0 1px #0A2647;
+  border-color: var(--jp-navy-700);
+  box-shadow: inset 0 0 0 1px var(--jp-navy-700);
 }
 .jp-hero-pill__dot {
   width: 8px;
@@ -975,11 +999,24 @@ a:hover { color: var(--jp-navy-600); }
   font-family: var(--jp-font-mono);
   font-size: 12px;
   font-weight: 700;
-  background: #0A2647;
+  background: var(--jp-navy-800);
   color: #fff;
   padding: 1px 7px;
   border-radius: var(--jp-r-pill);
 }
+
+/* E1a dark-mode: sökfältet förblir LJUST med mörk text — paritet med
+   .jp-input-konventionen (rad ~1300, "ljusa input-fält i dark"). Heron är
+   custom (ej .jp-input) så regeln speglas explicit. #F0F4FB/#0C1A2E är
+   etablerad codebase-precedent, ej ny varm-hex. Sök-knappen (navy-800) +
+   ink-on-canvas-resten flippar auto via --jp-hero-canvas/--jp-ink-*. */
+[data-theme="dark"] .jp-hero__searchrow {
+  background: #F0F4FB;
+  border-color: var(--jp-border-input);
+}
+[data-theme="dark"] .jp-hero__input { color: #0C1A2E; }
+/* Ingen dark-placeholder-override: --jp-placeholder är tema-oberoende och når
+   ≥4.5:1 även mot det ljusa dark-fältet (#F0F4FB). */
 
 /* ── v4: kompakt navy-band för inre sidor ─────────
    Page-hero för /oversikt, /ansokningar, /cv. Samma --jp-hero-bg som

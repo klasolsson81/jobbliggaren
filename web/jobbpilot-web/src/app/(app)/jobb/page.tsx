@@ -140,7 +140,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             <SavedJobAdsHeroChip items={savedJobAds} />
           </div>
 
-          <h1 className="jp-hero__title">Sök bland aktiva annonser</h1>
+          <h1 className="jp-hero__title">Lediga jobb</h1>
           <p className="jp-hero__lede">
             Sök bland aktiva annonser från Platsbanken. Filtrera och jämför i
             lugn och ro.
@@ -148,7 +148,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
           <form action="/jobb" method="get" className="jp-hero__searchblock">
             <label htmlFor="jobb-q" className="jp-hero__searchlabels">
-              Sök på ett eller flera ord
+              Sök efter yrke, arbetsgivare eller ort
             </label>
             <div className="jp-hero__searchrow">
               <input
@@ -156,6 +156,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 name="q"
                 type="search"
                 defaultValue={q ?? ""}
+                placeholder="t.ex. systemutvecklare Göteborg"
                 className="jp-hero__input"
               />
               <button type="submit" className="jp-hero__searchbtn">

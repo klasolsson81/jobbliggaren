@@ -9,6 +9,22 @@ per-session-detaljer i `docs/sessions/`.
 
 ---
 
+**Status:** **PLATSBANKEN SÖK-PARITET — FAS D1 (FACET-COUNTS + UTÖKAD TYPEAHEAD-SUGGEST) LEVERERAD 2026-06-10 (branch `feat/sok-paritet-facets-d1`, PR #37 squash `ed959c0`).** `FacetCountsAsync` (ny metod på `IJobAdSearchQuery`, EJ ny port — SPOT) med facett-exkluderings-semantik (count för dimension X reflekterar alla andra filter men inte X) via GROUP BY shadow-column; `FacetDimension = {OccupationGroup, Municipality, Region}` (B2-dims uteslutna tills re-ingest — falsk-klar). Utökad suggest: `SuggestByPrefixAsync` på `ITaxonomyReadModel` (in-memory ACL-snapshot) + ny `SuggestionKind`-enum; `SuggestJobAdTermsQuery` retur `string[]`→`SuggestionDto[]` (FE-brott medvetet, ingen shim). NBomber-instrument författat men parkerat (gate-exekvering bunden till Fas E per ADR 0067 "före live"). 23 nya Testcontainers-tester gröna.
+
+**Levererat (Fas D1-PR #37):**
+- **`FacetCountsAsync` (ADR 0067 Beslut 4):** ny port-metod; Infra-impl `JobAdSearchQuery` — `ExcludeDimension` klonar filter-SPOT:en (`criteria with { X = [] }`), `ShadowColumn`-switch → GROUP BY på STORED shadow-column, NULL-shadow exkluderas. Rå concept-id→count. Status=Active ärvs via ApplyCriteria-SPOT.
+- **`FacetDimension`-enum:** `{OccupationGroup, Municipality, Region}`. EmploymentType/WorktimeExtent UTESLUTNA (NULL-data tills re-ingest — CTO VAL 1, falsk-klar).
+- **Utökad typeahead-suggest (Beslut 5a):** `SuggestByPrefixAsync` på `ITaxonomyReadModel` (in-memory prefix-scan); `SuggestionKind`-enum (ACL via `MapKind`). occupation-name UTESLUTET (CTO VAL 4). Union-handler: taxonomi först, sedan titel-prefix, dedup, cap. `SuggestionDto(Kind, ConceptId?, Label)`.
+- **Kontraktsbrott (CTO VAL 5):** `SuggestJobAdTermsQuery` retur `string[]`→`SuggestionDto[]`. FE inkompatibel tills Fas E. Inget shim.
+- **NBomber-instrument (CTO Väg B):** `FacetCountsScenarios.cs` författat men EJ registrerat (port-only D1). Gate bunden till Fas E.
+- **Arch-test:** `TaxonomyAclLayerTests`-allowlist utökad (femte ITaxonomyReadModel-konsument).
+- **Tester:** 20 nya + 3 uppdaterade. Testcontainers. 23 gröna.
+- **Agent-domar (`docs/reviews/2026-06-10-sok-paritet-d1-*.md`):** architect, CTO (5 val + NBomber-reconcile), code-reviewer (0/0/2 Minor FYI), security-auditor (0/0/1 Minor). Minor in-block.
+
+Full detalj: session-log `2026-06-10-0637-d1-facet-counts-suggest-union.md`.
+
+---
+
 **Status:** **EDITOR-BASELINE + DOCS-DRIFT-FIX LEVERERAD 2026-06-10 (branch `chore/editor-baseline`, PR #34 squash `cefa60f`).** Extern idé-triage (Gemini-prompt via Klas) avtäckte spec-drift: CLAUDE.md §11.2 lovade `.editorconfig` + `.vscode/settings.json` + `.vscode/extensions.json` som inte existerade — nu skapade per senior-cto-advisor-dom (Variant B-editorconfig: endast CLAUDE.md §3-spårbara regler på warning; EF-migrations `generated_code = true`). Session-start-templatens AWS-förkrav (döda per ADR 0066) ersatta med lokal-stack-checks. `current-work.md` splittad: historik → denna arkivfil. Imports-normalisering (11 filer) via `dotnet format`. CLAUDE.md §1.6-rad (PR #35, `e06c678`) + handoff-bundles/agent-roster (PR #36, `06b7840`) följde. Full detalj i session-log `2026-06-10-0034-editor-baseline-gemini-triage.md`. Graphify-pilot deferrad efter MVP (ingen TD); Cline avvisad.
 
 ---

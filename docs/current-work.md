@@ -1,17 +1,16 @@
 # Current work — JobbPilot
 
-**Status:** **PLATSBANKEN SÖK-PARITET — FAS D1 (FACET-COUNTS + UTÖKAD TYPEAHEAD-SUGGEST) LEVERERAD 2026-06-10 (branch `feat/sok-paritet-facets-d1`, PR mot main, bas-HEAD `06b7840`).** `FacetCountsAsync` (ny metod på `IJobAdSearchQuery`, EJ ny port — SPOT) med facett-exkluderings-semantik (count för dimension X reflekterar alla andra filter men inte X) via GROUP BY shadow-column; `FacetDimension = {OccupationGroup, Municipality, Region}` (B2-dims uteslutna tills re-ingest — falsk-klar). Utökad suggest: `SuggestByPrefixAsync` på `ITaxonomyReadModel` (in-memory ACL-snapshot) + ny `SuggestionKind`-enum; `SuggestJobAdTermsQuery` retur `string[]`→`SuggestionDto[]` (FE-brott medvetet, ingen shim). NBomber-instrument författat men **parkerat** (gate-exekvering bunden till Fas E per ADR 0067 "före live"). 23 nya Testcontainers-tester gröna. **Nästa: Fas D2 (`ISearchQueryParser` residual-fritext — Klas-STOPP) ELLER Fas E (FE-picker) — Klas-GO.**
+**Status:** **PLATSBANKEN SÖK-PARITET — FAS D2 (`ISearchQueryParser` RESIDUAL-FRITEXT) LEVERERAD 2026-06-10 (branch `feat/sok-paritet-query-parser-d2`, PR mot main, bas-HEAD `ed959c0`).** `ISearchQueryParser`-port + `ParsedSearchQuery(string? ResidualQ)` (Variant A+A — ren ResidualQ-normalisering, INGA dimensions-fält; CTO VAL 1). `SearchQueryParser` (`internal sealed`, Application/JobAds/Internal — ren CPU, bor HELT i Application, ej Infra; CTO VAL 2). Parsern wirad i `ListJobAdsQueryHandler`: live-`query.Q` → `ResidualQ` → `JobAdFilterCriteria.Q` → FTS-hybridens OR-additiva gren (kraschsäker — residual blir aldrig hårt AND, kompilator-garanterat eftersom kontraktet saknar dimensions-fält). 32 parser-unit-fall + 5 handler-fall + 4 Testcontainers-integ + sök-regression (35) gröna. **ADR 0067-kontraktet (5c, pre-C2) reconcilat → implementerings-notat (CTO VAL 3, ingen amendment). Kombinationssemantik = Klas-STOPP (GO först vid Fas E-wiring). Nästa: Fas E (FE-picker + chip-komposition + live-count + ny färg-identitet) — Klas-GO.**
 
-**Levererat denna session (Fas D1-PR):**
+**Levererat denna session (Fas D2-PR):**
 
-- **`FacetCountsAsync` (ADR 0067 Beslut 4):** ny port-metod (`IJobAdSearchQuery`); Infrastructure-impl i `JobAdSearchQuery` — `ExcludeDimension` klonar filter-SPOT:en med X-listan tömd (`criteria with { X = [] }`, exkluderings-mekaniken; SPOT bevarad, ingen `ApplyCriteriaExcept`-duplikat), `ShadowColumn`-switch → GROUP BY på STORED shadow-column, NULL-shadow exkluderas (`EF.Property<string?> != null`). Rå concept-id→count (namn-omedveten, ADR 0043 Beslut E). Status=Active ärvs via ApplyCriteria-SPOT.
-- **`FacetDimension`-enum:** `{OccupationGroup, Municipality, Region}`. EmploymentType/WorktimeExtent UTESLUTNA (NULL-data för ~44k rader tills re-ingest — CTO VAL 1 = Variant A, falsk-klar-disciplin). Tillkommer additivt vid B2-data.
-- **Utökad typeahead-suggest (ADR 0067 Beslut 5a):** `SuggestByPrefixAsync` på `ITaxonomyReadModel` (in-memory prefix-scan av cachad snapshot, bryter EJ ADR 0043 extern-hop-förbud); `SuggestionKind`-enum (ny Application-typ — `TaxonomyConceptKind` är `internal`, får ej korsa gränsen; ACL via `MapKind`). occupation-name UTESLUTET (saknar filter-dimension — CTO VAL 4). Union-handler: taxonomi först, sedan titel-prefix (oförändrad LIKE-escape-gren), dedup `(Kind, ConceptId)`/`(Title, Label)`, cap till limit. `SuggestionDto(Kind, ConceptId?, Label)`.
-- **Kontraktsbrott (medvetet, CTO VAL 5):** `SuggestJobAdTermsQuery` retur `IReadOnlyList<string>`→`IReadOnlyList<SuggestionDto>`. `/suggest`-endpoint returnerar nu `SuggestionDto[]`. `web/.../job-ad-typeahead.tsx` inkompatibel tills Fas E migrerar FE. Inget bakåtkompat-shim (transient read-API utan persistens ≠ C2:s RecentJobSearchDto-shim).
-- **NBomber-instrument (CTO Väg B reconcile):** `FacetCountsScenarios.cs` författat mot planerad Fas E-endpoint men **EJ registrerat i `Program.cs` aktiv körning** (ingen endpoint i D1 = port-only per CTO VAL 2). Gatens exekvering (300 ms p95, ADR 0045 klass a) binds till Fas E ("före per-option går live"). **Ingen p95-dom i D1, ingen live-aktivering i D1** (anti-falsk-klar).
-- **Arch-test:** `TaxonomyAclLayerTests`-allowlist utökad med femte legitim `ITaxonomyReadModel`-konsument (`SuggestJobAdTermsQueryHandler`, query-handler).
-- **Tester:** 20 nya (7 FacetCounts + 9 SuggestByPrefix + 4 union) + 3 uppdaterade (suggest-kontraktsbrott). Testcontainers (ej InMemory) för GROUP BY-/shadow-prop-vägen. 23 D1-tester verifierat gröna lokalt.
-- **Agent-domar (`docs/reviews/2026-06-10-sok-paritet-d1-*.md`):** dotnet-architect (signatur + GROUP BY-placering + suggest-union), senior-cto-advisor (5 multi-approach-val + NBomber-reconcile Väg B), code-reviewer (0 Block / 0 Major / 2 Minor FYI), security-auditor (0 Crit / 0 High / 1 Minor). Minor fixade in-block.
+- **`ISearchQueryParser`-port + `ParsedSearchQuery`-DTO (ADR 0067 Beslut 5c):** Application/JobAds/Abstractions. Kontrakt = `Parse(string? raw) → ParsedSearchQuery(string? ResidualQ)`. Variant A+A (CTO VAL 1): parsern extraherar INGA dimensioner — dimension-disambiguering är FE-chip-ansvar (Beslut 5b/Fas E), inte "gissande backend". Vestigiala dimensions-fält avvisade (Fowler Speculative Generality/YAGNI).
+- **`SearchQueryParser` impl (CTO VAL 2):** `internal sealed`, Application/JobAds/Internal. Ren CPU (ingen IOptions/taxonomi/Npgsql) → bor HELT i Application (Martin kap. 22). `IOccupationSynonymExpander`-Infra-precedensen gäller ej (den splitten = IOptions-binding som saknas här). Normalisering: whitespace-kollaps (inkl. tab/newline, IsWhiteSpace FÖRE Cc/Cf-strip), strip Unicode Control/Format (null-byte/C0/zero-width/RTL-override), sub-`QMinLength`(2)→null (1-tecken-`%a%`-near-full-scan-skydd), >`QMaxLength`(100)→**rune-säker trunkering** (backar aldrig mitt i surrogatpar). Kastar ALDRIG.
+- **DRY-konsolidering:** `SearchCriteria.QMinLength`/`QMaxLength` private→`public const` (parallellt med `MaxConceptIds`); `ListJobAdsQueryValidator` + parsern refererar EN sanningskälla i stället för literalerna 2/100 (Hunt/Thomas DRY/SPOT).
+- **Residual-Q-inkoppling:** `ListJobAdsQueryHandler`-ctor +`ISearchQueryParser`; `parser.Parse(query.Q).ResidualQ` → `JobAdFilterCriteria.Q` → q-FTS-hybrid (ADR 0062). `RunSavedSearch` parsar EJ om sitt Q (persisterat, redan validerat vid spar-tid) — scope-korrekt, ej SPOT-brott. DI singleton i Application Common/DependencyInjection (samma commit).
+- **InternalsVisibleTo:** Application.csproj → Application.UnitTests + Api.IntegrationTests (för parser-instansiering i test; speglar Infrastructure.csproj).
+- **Tester:** ny `SearchQueryParserTests` (32 fall, ren CPU + kraschsäkerhet + surrogat-gräns) + `ListJobAdsQueryHandlerTests` (uppdaterad 2-arg ctor + 5 nya parser-inkopplings-fall) + ny `ListJobAdsResidualQueryTests` (4 Testcontainers — recall-bevarande, ingen-träff utan krasch, residual AND region, kontrolltecken→strip). 3 befintliga integ-filer uppdaterade för 2-arg ctorn. Application 728 / Domain 440 / Architecture 78 / integ residual 4 + sök-regression 35 gröna. Bygg 0 warn/0 err, format-verify exit 0.
+- **Agent-domar (`docs/reviews/2026-06-10-sok-paritet-d2-*.md`):** dotnet-architect (kontrakts-spänning + lager + reconciliation-natur), senior-cto-advisor (VAL 1–6: Variant A+A, Application-only, notat-ej-amendment, kombinationssemantik, in-block, scope-vakt), code-reviewer (0 Block / **1 Major surrogat-split — åtgärdad in-block** + rune-säker trunkering + 2 gränstester / 2 Minor acceptabla), security-auditor (**APPROVED**, 0 Crit/High/Major — parsern minskar netto-attack-ytan). ADR 0067 implementerings-notat 2026-06-10 (Fas D2) skrivet.
 
 **Commit-kedja (squash-merge-SHA på main, sök-paritet-bågen):**
 
@@ -25,21 +24,22 @@
 | `cefa60f` | #34 | chore/editor-baseline — .editorconfig + .vscode + docs-drift-fix |
 | `e06c678` | #35 | docs(spec) — CLAUDE.md §1.6-rad current-work-archive |
 | `06b7840` | #36 | docs(design) — handoff-bundles + agent-roster-CTO-rapport |
-| (denna) | — | feat/sok-paritet-facets-d1 — facet-counts + utökad suggest-union |
+| `ed959c0` | #37 | Fas D1 — facet-counts + utökad typeahead-suggest |
+| (denna) | — | feat/sok-paritet-query-parser-d2 — ISearchQueryParser residual-fritext |
 
 ---
 
 ## Pending operativt för Klas
 
-1. **Granska Fas D1-PR post-merge** (automerge-label sätts av CC; `ci`-aggregatet bär kvaliteten + agent-reports inline).
-2. **FE-kontraktsbrott medveten-flagga (CTO VAL 5):** suggest retur `string[]`→`SuggestionDto[]`. Ingen mellanliggande FE-deploy mot D1-backend förväntas före Fas E. **Säg till om en sådan deploy planeras** → då omprövas shim (Väg A). Annars kör vi vidare.
-3. **NBomber facet-counts-gate körs i Fas E** (när endpoint finns). Vill du ha en tunn mät-endpoint redan nu (CTO Väg A) istället för parkerat instrument? Default = parkerat (Väg B).
-4. **GO för nästa fas:** D2 (`ISearchQueryParser` residual-fritext — chip-AND/residual-FTS-semantik = Klas-STOPP per ADR 0067) eller E (FE-picker + live-count + ny färg-identitet, design-reviewer VETO).
-5. **Re-ingest Klass 2** (`POST /api/v1/admin/job-ads/backfill-klass2`, ~2,5h) — opåverkad, blockerar B2-dims-wiring (employment_type/worktime_extent) i FacetDimension + suggest. Kör EJ utan Klas-GO.
+1. **Granska Fas D2-PR post-merge** (automerge-label sätts av CC; `ci`-aggregatet bär kvaliteten + agent-reports inline). code-reviewer Major (surrogat-split) åtgärdad in-block med rune-säker trunkering + gränstester; security-auditor APPROVED.
+2. **KLAS-STOPP — chip/residual-kombinationssemantik (ADR 0067 Beslut 5 mildrad Klas-STOPP):** D2 byggde backend-parsern men wirar INTE FE-chip-state. Innan Fas E wirar chip+residual ihop, bekräfta semantiken: dimensioner AND-mellan / OR-inom (ADR 0042 B); residual-Q AND-block bredvid dimensionerna men OR-bevarande inom q-grenen (FTS ∨ title-LIKE ∨ synonym, ADR 0062). Dvs `(dim-predikat) AND (FTS ∨ title-LIKE ∨ synonym)` — Q smalnar additivt mot dimensionerna men breddar inom sig själv, aldrig eget AND-fält. **Se STOPP-rapporten för full presentation.**
+3. **FE-kontraktsbrott från D1 (kvarstår):** `/suggest` retur `SuggestionDto[]`; `web/.../job-ad-typeahead.tsx` migreras i Fas E. Säg till om mellanliggande FE-deploy planeras.
+4. **NBomber facet-counts-gate (D1) körs i Fas E** (när endpoint finns). Default = parkerat (Väg B).
+5. **Re-ingest Klass 2** (`POST /api/v1/admin/job-ads/backfill-klass2`, ~2,5h) — blockerar B2-dims (employment_type/worktime_extent) i FacetDimension + suggest + ev. framtida parser-kontrakt-tillägg. Kör EJ utan Klas-GO.
 6. **CLAUDE.md §11.3-drift** (`make dev`/`pnpm dev:up` finns ej) — skapa-vs-stryk-beslut vid nästa spec-touch (kvarstår).
 
 ---
 
 ## Historik
 
-All tidigare session-historik (editor-baseline, Fas C2 och bakåt): **`docs/current-work-archive.md`** (omvänd kronologi) + per-session-loggar i **`docs/sessions/`**.
+All tidigare session-historik (Fas D1, editor-baseline, Fas C2 och bakåt): **`docs/current-work-archive.md`** (omvänd kronologi) + per-session-loggar i **`docs/sessions/`**.

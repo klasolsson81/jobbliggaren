@@ -90,7 +90,7 @@ Never `outline: none` without a replacement — that is a WCAG 2.4.7 violation.
 ```css
 /* From globals.css — do not override without design-reviewer approval */
 *:focus-visible {
-  outline: 2px solid var(--jp-focus);  /* #0B5CAD light / #60A5FA dark */
+  outline: 2px solid var(--jp-focus);  /* #15603F light / #6EE7A8 dark (ADR 0068); VIT i gradient-ytor */
   outline-offset: 2px;
   border-radius: var(--jp-r-sm);
 }

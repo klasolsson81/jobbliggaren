@@ -177,7 +177,7 @@ export function WaitlistForm() {
           <input
             id="marketingEmailAccepted"
             type="checkbox"
-            className="mt-1 size-4 rounded-sm border-border accent-brand-600 focus-visible:outline-2 focus-visible:outline-brand-600 focus-visible:outline-offset-2"
+            className="mt-1 size-4 rounded-sm border-border accent-brand-600"
             {...register("marketingEmailAccepted")}
           />
           <span>

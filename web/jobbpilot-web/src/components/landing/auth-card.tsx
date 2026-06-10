@@ -37,7 +37,9 @@ export function AuthCard() {
           margin: 0,
           fontSize: 18,
           fontWeight: 600,
-          color: "#0A2647",
+          // G1 (ADR 0068): navy → accent; resolvas mot .jp-land-auth:s
+          // light-pin (kortet renderas alltid ljust).
+          color: "var(--jp-accent-800)",
           letterSpacing: "-0.01em",
         }}
       >
@@ -54,7 +56,7 @@ export function AuthCard() {
           fontSize: 13.5,
           alignSelf: "flex-end",
           textDecoration: "underline",
-          color: "#1B5396",
+          color: "var(--jp-accent-700)",
           marginTop: -4,
         }}
       >
@@ -95,7 +97,7 @@ export function AuthCard() {
         Inget konto?{" "}
         <Link
           href="/vantelista"
-          style={{ color: "#1B5396", textDecoration: "underline" }}
+          style={{ color: "var(--jp-accent-700)", textDecoration: "underline" }}
         >
           Anmäl dig till väntelistan
         </Link>{" "}

@@ -119,89 +119,104 @@ export default async function JobbPage({ searchParams }: PageProps) {
           publishedAt > lastSeen vid NÄSTA sid-besök (Klas-direktiv
           2026-05-20). Render-null, ingen visuell yta. */}
       <MarkJobbVisited />
-      {/* v3 navy-hero — edge-to-edge i .jp-content (/jobb är v3-native,
-          app-shell V3_NATIVE_ROUTES opt-out). GET-form mot /jobb behåller
-          befintlig searchParams-mekanik/URL-kontrakt utan client-JS:
-          aktiva filter (occupationGroup[]/region[]/sortBy/pageSize) bärs som hidden
-          inputs så en ny sökning inte tappar dem; `page` utelämnas medvetet
-          (ny sökterm → sida 1). Ort/Yrke-pills + popovers = client-island
-          JobbHeroFilters (F4, ADR 0055 + amendment — INGEN Filter-pill,
-          deferred helt). INGA Senaste/Sparade-chips (no-mock-doktrin).
-          Hero renderas SYNKRONT — den ligger utanför Suspense-gränsen och
-          förblir synlig medan resultatet hämtas (F6 P4 B1). */}
+      {/* G1 "F4 Hybrid"-banner (ADR 0068) — inramad mörkgrön gradient-
+          platta på canvas-wrapper, asymmetrisk komposition: display-rubrik
+          vänster, sök + actions höger (kompositions-facit:
+          docs/handoff-banner/referens/F4-banner-referens.html).
+          GET-form mot /jobb behåller befintlig searchParams-mekanik/URL-
+          kontrakt utan client-JS: aktiva filter (occupationGroup[]/region[]/
+          sortBy/pageSize) bärs som hidden inputs så en ny sökning inte
+          tappar dem; `page` utelämnas medvetet (ny sökterm → sida 1).
+          INGEN placeholder i sökfältet (Klas hård regel 2026-06-10 —
+          labeln ovanför bär instruktionen). Stats stannar i headern.
+          Hero renderas SYNKRONT — utanför Suspense-gränsen och förblir
+          synlig medan resultatet hämtas (F6 P4 B1). */}
       <section className="jp-hero">
         <div className="jp-hero__inner">
-          {/* PR5 (Klas-feedback 2026-05-23 + Platsbanken-paritet): båda
-              chips till HÖGER sida av hero-topbaren. Sparade-chip
-              (F6 P5 Punkt 2 PR5) + Senaste-sökningar (ADR 0060). */}
-          <div
-            className="jp-hero__topbar"
-            style={{ justifyContent: "flex-end", gap: 8 }}
-          >
-            <RecentSearchesHeroChip items={recentSearches} />
-            <SavedJobAdsHeroChip items={savedJobAds} />
-          </div>
-
-          <h1 className="jp-hero__title">Lediga jobb</h1>
-          <p className="jp-hero__lede">
-            Sök bland aktiva annonser från Platsbanken. Filtrera och jämför i
-            lugn och ro.
-          </p>
-
-          <form action="/jobb" method="get" className="jp-hero__searchblock">
-            <label htmlFor="jobb-q" className="jp-hero__searchlabels">
-              Sök efter yrke, arbetsgivare eller ort
-            </label>
-            <div className="jp-hero__searchrow">
-              <input
-                id="jobb-q"
-                name="q"
-                type="search"
-                defaultValue={q ?? ""}
-                placeholder="t.ex. systemutvecklare Göteborg"
-                className="jp-hero__input"
-              />
-              <button type="submit" className="jp-hero__searchbtn">
-                <Search size={18} aria-hidden="true" /> Sök
-              </button>
+          <div className="jp-hero__plate">
+            <div>
+              <h1 className="jp-hero__title">
+                Lediga jobb.
+                <br />I lugn och ro.
+              </h1>
+              <p className="jp-hero__lede">
+                Sök bland aktiva annonser från Platsbanken. Filtrera och
+                jämför utan att tappa en enda annons.
+              </p>
             </div>
-            {occupationGroup.map((v) => (
-              <input
-                key={`occupationGroup-${v}`}
-                type="hidden"
-                name="occupationGroup"
-                value={v}
-              />
-            ))}
-            {region.map((v) => (
-              <input
-                key={`region-${v}`}
-                type="hidden"
-                name="region"
-                value={v}
-              />
-            ))}
-            {sortBy !== "PublishedAtDesc" && (
-              <input type="hidden" name="sortBy" value={sortBy} />
-            )}
-            {params.pageSize && (
-              <input type="hidden" name="pageSize" value={params.pageSize} />
-            )}
-          </form>
 
-          {/* Hero-filter-pills + Platsbanken-popovers (client-island,
-              F4/ADR 0055). Serialiserbara props: taxonomy-träd, valda
-              conceptId string[], q/sortBy/pageSize. Live-commit per klick
-              via router.push (transition) — searchParams ADR 0042
-              Beslut B (upprepade occupationGroup/region) OFÖRÄNDRAT. */}
-          <JobbHeroFilters
-            taxonomy={taxonomy}
-            initialOccupationGroup={occupationGroup}
-            initialRegion={region}
-            q={q ?? ""}
-            sortBy={sortBy}
-            pageSize={params.pageSize}
-          />
+            <div className="jp-hero__panel">
+              {/* Actions-rad: Senaste-sökningar (ADR 0060) + Sparade-chip
+                  (F6 P5 Punkt 2 PR5) — flyttade från hero-topbaren in i
+                  höger-panelen (G1), samma komponenter. */}
+              <div className="jp-hero__actions">
+                <RecentSearchesHeroChip items={recentSearches} />
+                <SavedJobAdsHeroChip items={savedJobAds} />
+              </div>
+
+              <form
+                action="/jobb"
+                method="get"
+                className="jp-hero__searchblock"
+              >
+                <label htmlFor="jobb-q" className="jp-hero__searchlabels">
+                  Sök efter yrke, arbetsgivare eller ort
+                </label>
+                <div className="jp-hero__searchrow">
+                  <input
+                    id="jobb-q"
+                    name="q"
+                    type="search"
+                    defaultValue={q ?? ""}
+                    className="jp-hero__input"
+                  />
+                  <button type="submit" className="jp-hero__searchbtn">
+                    <Search size={18} aria-hidden="true" /> Sök
+                  </button>
+                </div>
+                {occupationGroup.map((v) => (
+                  <input
+                    key={`occupationGroup-${v}`}
+                    type="hidden"
+                    name="occupationGroup"
+                    value={v}
+                  />
+                ))}
+                {region.map((v) => (
+                  <input
+                    key={`region-${v}`}
+                    type="hidden"
+                    name="region"
+                    value={v}
+                  />
+                ))}
+                {sortBy !== "PublishedAtDesc" && (
+                  <input type="hidden" name="sortBy" value={sortBy} />
+                )}
+                {params.pageSize && (
+                  <input
+                    type="hidden"
+                    name="pageSize"
+                    value={params.pageSize}
+                  />
+                )}
+              </form>
+
+              {/* Hero-filter-pills + Platsbanken-popovers (client-island,
+                  F4/ADR 0055). Serialiserbara props: taxonomy-träd, valda
+                  conceptId string[], q/sortBy/pageSize. Live-commit per
+                  klick via router.push (transition) — searchParams ADR 0042
+                  Beslut B (upprepade occupationGroup/region) OFÖRÄNDRAT. */}
+              <JobbHeroFilters
+                taxonomy={taxonomy}
+                initialOccupationGroup={occupationGroup}
+                initialRegion={region}
+                q={q ?? ""}
+                sortBy={sortBy}
+                pageSize={params.pageSize}
+              />
+            </div>
+          </div>
         </div>
       </section>
 

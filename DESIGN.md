@@ -31,14 +31,14 @@ Referenser som **inte** ska kännas:
 | ✅ Ja | ❌ Nej |
 |-------|--------|
 | Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
-| Myndighetsblå primärfärg | Neon, lila, cyan-accenter |
+| Mörkgrön accent (`--jp-accent`, ADR 0068) | Neon, lila, cyan-accenter |
 | Rak svensk copy | Emojis, utropstecken, "Let's go!" |
 | Tabeller och listor | Kort-layouter överallt |
 | `border-radius: 4px` | 16px+ rundade hörn |
 | Muted statusfärger | Glow, drop shadow, glasmorfism |
 | Breadcrumbs + hierarki | Flata sidor utan kontext |
 | Systemfont/Hanken Grotesk | Display-fonter, scripts |
-| Content-first sidor | Hero-sektioner, vibey microcopy |
+| Content-first sidor (hero-bannern är en saklig sök-/orienterings-yta, ADR 0068) | Marketing-heros, vibey microcopy |
 | Kvantifierad info | Vag "positiv" feedback |
 
 ---
@@ -61,14 +61,15 @@ Filosofi-sammanfattningar finns i denna fil. Fullständiga specer med tokens, va
 
 ## 3. Färgsystem (sammanfattning)
 
-Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens — fler färger skapar kognitiv belastning. v2 är **slate-baserad** (kall neutral, papper-metafor).
+Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens — fler färger skapar kognitiv belastning. Kanon = `globals.css` (v3-neutraler + grön accent per ADR 0068); fullständiga värden i `jobbpilot-design-tokens`-skillen.
 
-- **Primärblå (myndighetsblå):** brand-600 `#0B5CAD` — knappar, länkar, fokusring, aktiv selektion
-- **Neutral slate-skala:** surfaces `#FFFFFF` / `#F8FAFC` / `#F1F5F9`, text `#0F172A` / `#475569` / `#94A3B8`
-- **Statusfärger:** success grön, warning amber, danger röd, info slate — alltid i 50/600/700-varianter, endast för status (aldrig dekoration)
-- **Borders:** border-default `#E2E8F0` (slate-200, dekorativa hairlines), border-strong `#CBD5E1` (slate-300, informationsbärande dividers — klarar 3:1 mot vit canvas), border-modal (light `#E2E8F0` / dark `#64748B` — strukturell modal/popover-gräns, WCAG 1.4.11 ≥3:1 i dark; ADR 0041), border-structural (light `#E2E8F0` / dark `#64748B` — strukturell yt-chrome-kant: kort/sektion/panel/sidebar där kanten är enda boundary, WCAG 1.4.11 ≥3:1 i dark; ADR 0041-amendment 2026-05-18)
-- **Skuggor:** bara shadow-sm och shadow-md (popovers/dropdowns) — djup skapas via border/hairline, aldrig på cards/knappar
-- WCAG AA-kontrast obligatoriskt på alla färgpar. brand-600 på vit = 6.1:1.
+- **Accent (mörkgrön, ADR 0068):** `--jp-accent-800` `#15603F` fill (primärknapp, EJ dark-skiftad, vit text — aldrig ljus knapp/mörk text); `--jp-accent-700` `#15603F` light / `#6EE7A8` dark för länkar, aktiv nav, fokus (`#6EE7A8` ALDRIG som fill); `--jp-accent-50` selektion. Ersätter tidigare blå/navy. Logotypens kompass förblir navy + guldprick — varumärket byter inte färg.
+- **Hero-gradient (scoped undantag, ADR 0068):** `--jp-hero-gradient` (118° `#0B2A1E`→`#14503A`→`#1E6B4C`) ENBART på hero-banner-plattan/pagehero/empty-brand/landing-hero — gradients förbjudna överallt annars.
+- **Neutraler (v3, ADR 0052 — oförändrade av G1):** ink `#0C1A2E` / `#455366` / `#7C8AA0`, surfaces `#FFFFFF` / `#F4F6FA` / `#E8EDF4`, canvas `#F4F6FA` light / `#0B1525` dark (mörk navy-grå, inte svart), placeholder `#626B78` (WCAG-motiverad).
+- **Statusfärger:** success `#16793B`, warning `#B4540B`, danger `#BE1B1B`, info `#1B5396` + bg-varianter — endast för status (aldrig dekoration); oförändrade av accentbytet.
+- **Borders:** border `#C9D2E0` (dekorativa hairlines), border-soft `#E3E8F0`, border-strong `#97A4B8` (informationsbärande dividers), border-input `#7C8AA0`; border-modal/-structural per ADR 0041 (re-homade på v3-border).
+- **Skuggor:** bara shadow-card/pop/modal (popovers/dropdowns/modal) — djup skapas via border/hairline, aldrig på cards/knappar
+- WCAG AA-kontrast obligatoriskt på alla färgpar. accent-700 på vit = 7.56:1; `#6EE7A8` på dark canvas = 11.9:1. Full tabell i tokens-skillens `contrast-table.md`.
 
 ### Dark-mode-stance
 

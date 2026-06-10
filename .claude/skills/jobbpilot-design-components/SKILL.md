@@ -64,8 +64,8 @@ font 16px/500 sans; `letter-spacing: -0.005em`. Toolbar-knappar kvarstår som
 dokumenterat undantag (28px).
 
 Variants:
-- `primary` — `bg-brand-600` white text (dark text in dark mode), hover
-  `bg-brand-700`. Default CTA (Spara, Skicka, Ansök).
+- `primary` — `bg-brand-600` (= accent-800 grön per ADR 0068, EJ dark-skiftad) + vit text i BÅDA teman (aldrig ljus knapp/mörk text), hover
+  `bg-[var(--jp-accent-800-hover)]` (`#1E6B4C`, EJ dark-skiftad — `brand-700`/accent-700 dark-flippar till `#6EE7A8` som ALDRIG får vara fill, ADR 0068). Default CTA (Spara, Skicka, Ansök).
 - `secondary` — `bg-surface-primary` + `border-border-default`, hover bg
   `surface-secondary` + `border-border-strong`. Sekundära actions.
 - `ghost` — transparent, `text-text-secondary`, hover bg `surface-tertiary`.

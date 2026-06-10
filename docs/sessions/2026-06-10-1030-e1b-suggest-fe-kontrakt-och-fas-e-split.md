@@ -2,7 +2,7 @@
 session: Platsbanken sök-paritet Fas E — uppdelning + E1b suggest-kontrakt
 datum: 2026-06-10
 slug: e1b-suggest-fe-kontrakt-och-fas-e-split
-status: E1b+E1a+E2a+G1 MERGADE (#39-#42); G2 banner-konsekvens byggd (H1/alignment/platta-rollout), pending Klas rendered-GO
+status: E1b+E1a+E2a+G1+G2 MERGADE (#39-#43); G3 konsekvensfixar byggd (rubrik-align/vit-CTA/a:hover-rotfix), pending Klas-GO; landing-redesign väntar Klas-riktning
 commits:
   - 5fee02c feat(jobads) E1b typeahead-suggest FE-kontrakt SuggestionDto[]
   - (docs-commit) ADR 0067 impl-note + current-work + session-log + reviews
@@ -137,10 +137,22 @@ kontrakts-migration + docs-drift) som första session, med förväntad sub-split
 - **CodeQL-incident (orelaterad):** transient GitHub-API-401 fällde csharp-analyze
   på #42 + första workflow-dispatch — båda löstes med rerun/retry.
 
+## Fas G3 — konsekvensfixar (samma session, Klas rendered-feedback på G2)
+
+- Tre fynd: "Sök jobb" centrerad (vill top-left), pagehero-CTA grön (vill vit),
+  "Skapa första"-knapp grön text på hover (osynlig).
+- Fixar: `.jp-hero__plate align-items: end→start`; pagehero-CTA alltid vit
+  (`.jp-pagehero .jp-btn--primary`); **rotfix** `a`/`a:hover` → `a:not(.jp-btn)`
+  (knapp-`<a>` ärvde länkfärg i hover pga specificitet 0,1,1 > 0,1,0 + knapp-hover
+  satte bara bakgrund — lagar även latent secondary-`<a>`-bug). design-reviewer
+  Approved 0 fynd. 721 vitest gröna.
+- **Klas fynd #1 (landing "grön box ful")** → separat större design-omtag, väntar
+  Klas-riktning (Claude Design-handoff vs CC-proposal).
+
 ## Nästa session
 
-1. **Klas rendered-GO på G2** (Vercel-preview: /jobb, /oversikt, /ansokningar, /cv,
-   landing — light+dark) → automerge.
+1. **Klas rendered-GO på G3** (Vercel-preview) → automerge.
+2. **Landing-redesign** — efter Klas-riktning.
 2. **Logo-översyn** (separat Klas-ägd): guld #FFCD00 vs #E8C77B + og/twitter-wordmark.
 3. **E2b–E2e återupptas efter G1-merge** (Klas-GO per split; byggs i grön identitet):
    E2b kommun-kaskad; E2c facet-count + NBomber; E2d chips (kräver chip/residual-

@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** **FAS G2 (BANNER-KONSEKVENS) BYGGD + design-reviewer-rond klar 2026-06-10 (branch `feat/design-g2-banner-konsekvens`, PR mot main, bas-HEAD `7140c6b`). KLAS-GO PÅ RENDERAD UI KVARSTÅR.** G1 MERGAD `7140c6b` (#42, Klas rendered-GO). G2 = Klas tre rendered-fynd åtgärdade: (1) H1 /jobb "Lediga jobb./I lugn och ro." → **"Sök jobb"** (AI-aktigt; GOV.UK-mönster, inget utropstecken per §10.3); (2) **plattan smalare än korten** — rotorsak `.jp-page`-shorthand skrev över `.jp-container`-padding → fix `padding-block`; innehållsbredd-kanon app-wide = **1136px** (header = platta = kort, Playwright-verifierat 532→1668 på alla ytor); (3) **kant-till-kant-banners + olika rubrik-typografi** → F4-platta-rollouten tidigarelagd: `.jp-pagehero` (alla inre sidor) + `.jp-land-hero` (landing) = samma inramade gradient-platta, pagehero-titel 44/800 (= jobb-bannerns display-skala, 32px mobil), dark-hairlines. design-reviewer 0 VETO/2 Major åtgärdade in-block: M1 spec-trail (ADR 0068 G2-notat + DESIGN.md §4 + tokens-skill); M2 dubbel-grön (`.jp-empty--brand` neutraliserad på /ansokningar+/cv + en-primary-regeln: pagehero-CTA ghost vid tom pipeline) + fokus-scope flyttad till inner-plattorna + typo "råd"→"ansökan". tsc/eslint/build gröna, 721 vitest gröna. **KVARSTÅR: Klas rendered-GO (Vercel-preview).**
+**Status:** **FAS G3 (KONSEKVENSFIXAR) BYGGD + design-reviewer APPROVED 2026-06-10 (branch `feat/design-g3-konsekvensfixar`, PR mot main, bas-HEAD `74a25a9`). KLAS-GO PÅ RENDERAD UI KVARSTÅR.** G2 MERGAD `74a25a9` (#43). G3 = tre Klas rendered-fynd: (1) /jobb-rubrik → "Sök jobb" + top-left (`.jp-hero__plate align-items: end→start`, konsekvent med pagehero); (2) pagehero-CTA "Ny ansökan"/"Nytt CV" → VIT (var grön-genomskinlig ghost; banner-kontroller vita per handoff); (3) **rotfix app-wide:** `a`/`a:hover`-färg scopad `a:not(.jp-btn)` — knapp-`<a>` ärvde länkfärg i hover (grön text på grön knapp; specificitet `a:hover` 0,1,1 > `.jp-btn--primary` 0,1,0). Lagar latent secondary-`<a>`-bug på köpet. design-reviewer APPROVED (0 fynd), tsc/eslint/build gröna, 721 vitest gröna. **KVARSTÅR: (1) Klas rendered-GO (Vercel-preview); (2) LANDING-REDESIGN — Klas fynd #1 "gröna boxen ful", separat större design-omtag, väntar Klas-riktning.**
 
 **Levererat denna session (Fas E2a-PR — pending Klas rendered-GO):**
 
@@ -50,7 +50,8 @@
 | `f860ddf` | #40 | Fas E1a — /jobb-hero varm papperston-canvas (Papperskontoret) |
 | `2922a25` | #41 | Fas E2a — yrke-nivå-skifte → yrkesgrupp (ssyk-level-4) |
 | `7140c6b` | #42 | Fas G1 — grön accent-identitet + F4-banner (ADR 0068) |
-| (denna) | — | feat/design-g2-banner-konsekvens — H1/alignment/platta-rollout (pending Klas-GO) |
+| `74a25a9` | #43 | Fas G2 — banner-konsekvens (Sök jobb, 1136-alignment, F4-platta-rollout) |
+| (denna) | — | feat/design-g3-konsekvensfixar — rubrik-align + vit pagehero-CTA + a:hover-rotfix (pending Klas-GO) |
 
 ---
 

@@ -2,7 +2,7 @@
 session: Platsbanken sök-paritet Fas E — uppdelning + E1b suggest-kontrakt
 datum: 2026-06-10
 slug: e1b-suggest-fe-kontrakt-och-fas-e-split
-status: E1b+E1a+E2a MERGADE (#39/#40/#41); G1 grön identitet + F4-banner byggd (ADR 0068) + reviews klara, pending Klas rendered-GO
+status: E1b+E1a+E2a+G1 MERGADE (#39-#42); G2 banner-konsekvens byggd (H1/alignment/platta-rollout), pending Klas rendered-GO
 commits:
   - 5fee02c feat(jobads) E1b typeahead-suggest FE-kontrakt SuggestionDto[]
   - (docs-commit) ADR 0067 impl-note + current-work + session-log + reviews
@@ -120,9 +120,27 @@ kontrakts-migration + docs-drift) som första session, med förväntad sub-split
   security-auditor EJ invokerad (ren CSS/copy/spec — ingen §9.2-yta).
 - tsc/eslint/build gröna; 721 vitest gröna.
 
+## Fas G2 — banner-konsekvens (samma session, Klas rendered-feedback på G1)
+
+- G1 mergad (#42, Klas-GO). Klas tre rendered-fynd: AI-aktig H1, platta smalare än
+  kort, kant-till-kant-banners + olika rubrik-typografi per sida.
+- **Fixar:** H1 → "Sök jobb" (GOV.UK-mönster, inget utropstecken per §10.3 trots
+  Klas-exemplets "!"); `.jp-page` shorthand→`padding-block` (rotorsak: kaskad-
+  kollision med `.jp-container` — innehåll blev 1200 i st.f. 1136; Playwright-
+  verifierad alignment 532→1668 på ALLA ytor efteråt); F4-platta-rollout
+  tidigarelagd till pagehero (alla inre sidor, titel 44/800) + landing.
+- **design-reviewer 0 VETO / 2 Major in-block:** M1 spec-trail (ADR 0068 G2-notat +
+  DESIGN.md §4 + tokens-skill — display följer platta-komponenten, 1136-kanon);
+  M2 dubbel-grön (empty--brand neutraliserad på pagehero-sidor + en-primary:
+  pagehero-CTA ghost vid tom pipeline). + fokus-scope till inner-plattorna,
+  typo "råd"→"ansökan". 721 vitest gröna.
+- **CodeQL-incident (orelaterad):** transient GitHub-API-401 fällde csharp-analyze
+  på #42 + första workflow-dispatch — båda löstes med rerun/retry.
+
 ## Nästa session
 
-1. **Klas rendered-GO på G1** (Vercel-preview, light+dark — hans egen design) → automerge.
+1. **Klas rendered-GO på G2** (Vercel-preview: /jobb, /oversikt, /ansokningar, /cv,
+   landing — light+dark) → automerge.
 2. **Logo-översyn** (separat Klas-ägd): guld #FFCD00 vs #E8C77B + og/twitter-wordmark.
 3. **E2b–E2e återupptas efter G1-merge** (Klas-GO per split; byggs i grön identitet):
    E2b kommun-kaskad; E2c facet-count + NBomber; E2d chips (kräver chip/residual-

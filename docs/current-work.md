@@ -1,6 +1,12 @@
 # Current work — JobbPilot
 
-**Status:** **PLATSBANKEN SÖK-PARITET — FAS E1a (/jobb-HERO "PAPPERSKONTORET") BYGGD + design-reviewer APPROVED 2026-06-10 (branch `feat/sok-paritet-fe-hero-e1a`, PR mot main, bas-HEAD `86b61ae`). KLAS-GO PÅ RENDERAD UI + docs-drift-approve KVARSTÅR.** E1b (suggest-kontrakt) MERGAD `86b61ae` (#39). Klas bekräftade CTO Approach A (scope-omförhandling: param-rename + recent-shim + picker-nivå-skifte → E2; E1b=suggest-only). E1a skinnar om /jobb-heron navy-banner → varm papperston-canvas (`#FAF9F6`, ny `--jp-hero-canvas`-token /jobb-scoped); regel-1-fixar (drop-shadow→border, 40px-titel→28px H1; 12px redan compliant); navy-800 Sök-knapp (ADR 0052); ny `--jp-placeholder`-token (#626B78, WCAG AA båda teman) löste design-reviewer-VETO; microcopy (H1 "Lediga jobb", ingen Platsbanken-verbatim). design-reviewer VETO→åtgärdad→**APPROVED** (0 fynd). pnpm build grön. **KVARSTÅR: (1) Klas-GO på renderad UI (Vercel-preview) — Beslut 7 rad 104; (2) docs-drift `#0B5CAD`→navy-800 i design-tokens-skill = spec-edit, Klas kör `approve-spec-edit.sh` → committas in i E1a-PR.** Nästa fas: E2 (FE-taxonomy-DTO-utökning + picker-nivå-skifte + param-rename + recent-shim + Län→Kommun-kaskad + live-count + chip-komposition + TD-100-paritet) — Klas-GO.
+**Status:** **PLATSBANKEN SÖK-PARITET — FAS E2a (YRKE-FILTER NIVÅ-SKIFTE → YRKESGRUPP) BYGGD + alla reviews APPROVED 2026-06-10 (branch `feat/sok-paritet-fe-yrkesgrupp-e2a`, PR mot main, bas-HEAD `f860ddf`). KLAS-GO PÅ RENDERAD UI KVARSTÅR.** E1 KLAR: E1b suggest-kontrakt MERGAD `86b61ae` (#39); E1a hero "Papperskontoret" MERGAD `f860ddf` (#40, Klas rendered-GO). Klas-GO E2 (Approach A). **E2a = atomisk korrekthets-batch (EN commit, 20 filer):** Yrke-pickern skiftar nivå occupation-name → yrkesgrupp (ssyk-level-4, ~400) för 100% Platsbanken-paritet (TD-100-kärna). FE-taxonomy-DTO `occupations`→`occupationGroups` (occupation-name droppad, ACL); `?ssyk=`→`?occupationGroup=` atomisk rename över alla call-sites; recent-shim `ssykList`→`occupationGroupList`; cap `MAX_CONCEPT_IDS` 10→400 (backend-paritet). Rubrik "Yrkesgrupper", pill-label "Yrke" behållen. Backend-data verifierad live (400 yrkesgrupper populerade). code-reviewer 0 Block/0 Major/1 Minor (in-block), security-auditor APPROVED, design-reviewer APPROVED. tsc rent, 93 vitest gröna, build grön. **KVARSTÅR: Klas-GO på renderad UI (Vercel-preview, Beslut 7 rad 104).** Nästa split: E2b (Län→Kommun-kaskad + municipality-DTO), E2c (live facet-count + NBomber), E2d (chip-komponist — kräver chip/residual-bekräftelse), E2e (Rensa-länkar/sortering). **docs-drift (#0B5CAD→navy-canon)** frikopplad från E1a-PR (Klas mergade #40 före approve) → folds in i E2-split efter Klas `approve-spec-edit.sh`.
+
+**Levererat denna session (Fas E2a-PR — pending Klas rendered-GO):**
+
+- **Yrke-nivå-skifte (TD-100-kärna):** FE-taxonomy-DTO `occupationFields[].occupations` → `occupationGroups` (ssyk-level-4); occupation-name droppad ur FE (ACL — recall-substrat backend-side). Pickern matar yrkesgrupp-ids. Empiriskt verifierat: 400 yrkesgrupper populerade (t.ex. "Advokater", "Arbetsförmedlare").
+- **Atomisk `?ssyk=`→`?occupationGroup=`** över buildJobbHref/buildQuery/page/picker/results+toolbar/recent (Fowler Rename Field, TS-säkrad). recent-shim `ssykList`→`occupationGroupList`. Cap 10→400.
+- **Agent-domar** (`docs/reviews/2026-06-10-sok-paritet-e2a-reviews.md`): architect (E2a-spec), code-reviewer/security-auditor/design-reviewer APPROVED. ADR 0067 impl-notat (Fas E2a) skrivet.
 
 **Levererat denna session (Fas E1a-PR — pending Klas-GO):**
 
@@ -41,20 +47,19 @@
 | `ed959c0` | #37 | Fas D1 — facet-counts + utökad typeahead-suggest |
 | `13eb0af` | #38 | Fas D2 — ISearchQueryParser residual-fritext |
 | `86b61ae` | #39 | Fas E1b — typeahead-suggest FE-kontrakt SuggestionDto[] |
-| (denna) | — | feat/sok-paritet-fe-hero-e1a — /jobb-hero varm papperston-canvas (pending Klas-GO) |
+| `f860ddf` | #40 | Fas E1a — /jobb-hero varm papperston-canvas (Papperskontoret) |
+| (denna) | — | feat/sok-paritet-fe-yrkesgrupp-e2a — yrke-nivå-skifte → yrkesgrupp (pending Klas-GO) |
 
 ---
 
 ## Pending operativt för Klas
 
-1. **KLAS-GO PÅ RENDERAD UI — E1a /jobb-hero (Beslut 7 rad 104):** design-reviewer APPROVED (0 fynd), men Fas E kräver design-reviewer VETO **+ Klas-GO**. Granska Vercel-preview (light + dark) → ge GO så CC sätter automerge-label. Se STOPP-rapport för preview-URL.
-2. **DOCS-DRIFT SPEC-EDIT (E1a item 4, Klas-gated):** stale `#0B5CAD` → navy-800 (#0A2647) i `jobbpilot-design-tokens`-skill + referenser. Klassificeraren blockerar CC-self-approve → **Klas kör `approve-spec-edit.sh`** (el. permission-regel), sedan committar CC in i E1a-PR. Exakta filer/förekomster i STOPP-rapporten.
-3. **Granska Fas E1b post-merge** (#39 mergad `86b61ae`; CodeQL triggad på main). code-reviewer 0 Block/0 Major/1 Minor (in-block); security-auditor APPROVED.
-4. **Scope Fas E BEKRÄFTAD (Klas-GO 2026-06-10):** Approach A — E1b=suggest-only (mergad), param-rename + recent-shim + picker-nivå-skifte → E2.
-5. **KLAS-STOPP — chip/residual-kombinationssemantik (ADR 0067 Beslut 5):** kvarstår. Innan E2 wirar chip+residual: bekräfta `(dim-predikat) AND (FTS ∨ title-LIKE ∨ synonym)`.
-6. **NBomber facet-counts-gate (D1) körs i E2** (när endpoint finns). Default = parkerat (Väg B).
-7. **Re-ingest Klass 2** (`POST /api/v1/admin/job-ads/backfill-klass2`, ~2,5h) — blockerar B2-dims + Anställningsform/Omfattning-filter. Kör EJ utan Klas-GO.
-8. **CLAUDE.md §11.3-drift** (`make dev`/`pnpm dev:up` finns ej) — skapa-vs-stryk-beslut vid nästa spec-touch (kvarstår).
+1. **KLAS-GO PÅ RENDERAD UI — E2a yrke-picker (Beslut 7 rad 104):** design-reviewer APPROVED (0 fynd), men Fas E kräver design-reviewer VETO **+ Klas-GO**. Granska Vercel-preview (PR #41): Yrke-popoverns högerkolumn ska visa ~400 yrkesgrupper (Yrkesområde→Yrkesgrupper). Ge GO → CC sätter automerge-label.
+2. **DOCS-DRIFT SPEC-EDIT (Klas-gated, frikopplad från E1a-PR):** stale `#0B5CAD` → navy-canon i `jobbpilot-design-tokens`-skill (genomgående v2-slate: brand-ramp + focus + dark-värden, 5 filer). Klassificeraren blockerar CC-self-approve → **Klas kör `approve-spec-edit.sh`** + scope-val (bara brand-600 vs full ramp); CC synkar (docs-keeper), folds in i nästa E2-split-PR.
+3. **KLAS-STOPP — chip/residual-kombinationssemantik (ADR 0067 Beslut 5):** krävs INNAN E2d wirar chip+residual. Bekräfta `(dim-predikat) AND (FTS ∨ title-LIKE ∨ synonym)`.
+4. **E2b–E2e (nästa splits, kräver Klas-GO per split):** E2b Län→Kommun-kaskad + municipality-DTO; E2c live facet-count "Visa N annonser" (`FacetCountsAsync`-endpoint + NBomber-gate ADR 0045 300ms p95 BLOCKING); E2d chip-komponist (efter chip/residual-bekräftelse); E2e Rensa-textlänkar + sortering.
+5. **Re-ingest Klass 2** (`POST /api/v1/admin/job-ads/backfill-klass2`, ~2,5h) — blockerar Anställningsform/Omfattning-filter (gated tills körd). Kör EJ utan Klas-GO.
+6. **CLAUDE.md §11.3-drift** (`make dev`/`pnpm dev:up` finns ej) — skapa-vs-stryk-beslut vid nästa spec-touch (kvarstår).
 
 ---
 

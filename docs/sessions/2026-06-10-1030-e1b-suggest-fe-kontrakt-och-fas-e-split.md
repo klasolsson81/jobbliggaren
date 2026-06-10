@@ -2,7 +2,7 @@
 session: Platsbanken sök-paritet Fas E — uppdelning + E1b suggest-kontrakt
 datum: 2026-06-10
 slug: e1b-suggest-fe-kontrakt-och-fas-e-split
-status: E1b MERGAD (#39); scope Approach A bekräftad; E1a hero byggd + design-reviewer APPROVED, pending Klas rendered-GO + docs-drift-approve
+status: E1b+E1a MERGADE (#39/#40); E2a yrke-nivå-skifte byggd + alla reviews APPROVED, pending Klas rendered-GO; docs-drift pending approve
 commits:
   - 5fee02c feat(jobads) E1b typeahead-suggest FE-kontrakt SuggestionDto[]
   - (docs-commit) ADR 0067 impl-note + current-work + session-log + reviews
@@ -76,14 +76,27 @@ kontrakts-migration + docs-drift) som första session, med förväntad sub-split
 - **Detour:** visual-verify auth-mode kräver https (`__Host-`-cookie) → lokal auth-rendering blockerad;
   rätt källa = Vercel-preview. Registrerade dev-test-kontot lokalt (för login-test) — harmlös dev-artefakt.
 
+## E2a-leverans (samma session, efter Klas GO E2 / Approach A)
+
+- E1a-hero MERGAD av Klas (#40, rendered-GO). Klas "GO" → E2.
+- **E2a = atomisk korrekthets-batch (20 filer, EN commit):** Yrke-pickern skiftar nivå
+  occupation-name → yrkesgrupp (ssyk-level-4) för TD-100-paritet. FE-taxonomy-DTO
+  `occupations`→`occupationGroups` (occupation-name droppad, ACL); `?ssyk=`→`?occupationGroup=`
+  atomisk rename (Fowler, TS-säkrad); recent-shim; cap 10→400.
+- **dotnet-architect** gav E2a-spec (drop occupations, municipality→E2b, atomisk rename, cap 400).
+- **Reviews:** code-reviewer 0 Block/0 Major/1 Minor (in-block), security-auditor APPROVED,
+  design-reviewer APPROVED. Empirisk backend-verifiering: 400 yrkesgrupper populerade.
+- **Detour:** pnpm build clobbrade `pnpm dev`:s `.next` igen → FE-dev-server omstartad (bg).
+- **Pending:** Klas rendered-GO (Vercel-preview PR #41).
+
 ## Nästa session
 
-1. **Klas rendered-GO på E1a-hero** (Vercel-preview light+dark) → CC sätter automerge.
-2. **docs-drift spec-edit** (#0B5CAD→navy-800 i design-tokens-skill) efter Klas `approve-spec-edit.sh`
-   → committas in i E1a-PR.
-3. **E2:** FE-taxonomy-DTO-utökning + picker-nivå-skifte + param-rename + recent-shim +
-   Län→Kommun-kaskad + live-count + chip-komposition + TD-100-paritet. Atomisk commit-batch.
-   Kräver även chip/residual-semantik-bekräftelse + ev. NBomber-gate.
+1. **Klas rendered-GO på E2a-yrke-picker** (Vercel-preview PR #41) → CC sätter automerge.
+2. **docs-drift spec-edit** (#0B5CAD→navy-canon, hela v2-slate-skillen) efter Klas
+   `approve-spec-edit.sh` + scope-val → folds in i E2-split-PR.
+3. **E2b–E2e (Klas-GO per split):** E2b Län→Kommun-kaskad + municipality-DTO; E2c live
+   facet-count + NBomber-gate; E2d chip-komponist (kräver chip/residual-bekräftelse); E2e
+   Rensa-länkar/sortering. Anställningsform/Omfattning-filter gated på re-ingest Klass 2.
 
 ## Stack-status vid sessionsslut
 

@@ -25,7 +25,7 @@ interface ApplicationDetailProps {
 
 const BADGE_COLOR_VAR: Record<string, string> = {
   info: "var(--jp-info)",
-  brand: "var(--jp-navy-700)",
+  brand: "var(--jp-accent-700)", /* G1: brand-interaktionsfärg = accent (navy är logo-only) */
   success: "var(--jp-success)",
   warning: "var(--jp-warning)",
   danger: "var(--jp-danger)",

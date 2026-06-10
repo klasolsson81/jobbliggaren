@@ -1,12 +1,13 @@
-# JobbPilot — Dark Mode (v2: SUPPORTED)
+# JobbPilot — Dark Mode (v3/G1: SUPPORTED)
 
-> **Status: SUPPORTED.** Designsystem v2 — Klas-GO 2026-05-16 + ADR.
+> **Status: SUPPORTED.** Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068
+> grön accent — supersedar både v2-blå och navy-mellanfasen).
 >
-> This replaces the earlier Fas 0 removal of dark mode. That removal was
-> caused by the shadcn nova-preset shipping oklch indigo-violet values that
-> broke the civic palette — **not** by a decision against dark mode itself.
-> v2 reintroduces dark mode with a **civic slate scale that has no decorative
-> hue**, so the trust/utility tone holds in both themes.
+> Dark mode återinfördes i designsystem v2 (Klas-GO 2026-05-16) efter
+> Fas 0-borttagningen (som berodde på shadcn nova-presetens oklch
+> indigo-violetter, inte på ett beslut mot dark mode). v3 (ADR 0052) gav
+> mörk navy-grå canvas med ljusa input-fält; G1 (ADR 0068) bytte
+> interaktionsfärgen till grön accent-ramp.
 
 ---
 
@@ -22,9 +23,10 @@
   (contrast with auth/session tokens, which must never be in `localStorage`).
 - **Light and dark are validated in parallel** — dark is never a bolt-on.
   Contrast is checked in both themes (see `contrast-table.md`).
-- **Sunken is darker than canvas in both themes** — the paper metaphor holds:
-  light sunken `#F1F5F9` < canvas `#FFFFFF`; dark sunken `#000000` < canvas
-  `#020617`.
+- **Canvas i dark är `#0B1525`** — mörk navy-grå, **INTE svart och INTE
+  `#020617`** (v2-slate-värdet är utgånget).
+- **Knapp-kontraktet gäller i båda teman:** primärknapp = `accent-800`
+  `#15603F` fill + vit text. Aldrig "ljus knapp med mörk text".
 
 ---
 
@@ -59,23 +61,46 @@ stay inline and render-blocking — do not move it into a deferred bundle.
 
 Full hex per token in `tokens-full.md`. Key shifts:
 
-- **Surfaces:** canvas `#FFFFFF` → `#020617` (slate-950); chrome `#F8FAFC` →
-  `#0F172A` (slate-900); hover `#F1F5F9` → `#1E293B` (slate-800); sunken
-  `#F1F5F9` → `#000000` (pitch-black, still darker than canvas).
-- **Text:** primary `#0F172A` → `#F8FAFC`; secondary `#475569` → `#94A3B8`;
-  tertiary `#94A3B8` → `#64748B`.
-- **Brand:** selection bg `brand-50` `#EAF2FB` → `#1E3A5F` (dim blue);
-  primary/action `brand-600` `#0B5CAD` → `#60A5FA` (blue-400);
-  `brand-700` `#094B8C` → `#BFDBFE` (text on selection). Primary button text in
-  dark is dark (`#0F172A`), matching `.jp-btn--primary`.
-- **Status:** 600/700 lift to the 400/300-range (e.g. success-600 `#059669` →
-  `#4ADE80`) so they read on the dark canvas; 50-backgrounds become very dark
-  tints (e.g. success-50 `#ECFDF5` → `#052E1A`).
-- **Borders:** `border` `#E2E8F0` → `#1E293B`; `border-strong` `#CBD5E1` →
-  `#334155`.
-- **Focus:** `#0B5CAD` → `#60A5FA`.
-- **Shadows:** opacity raised (0.04/0.06 → 0.6/0.7) so popover/dropdown depth
-  remains visible on dark.
+- **Surfaces:** canvas `#F4F6FA` → `#0B1525` (mörk navy-grå, INTE `#020617`);
+  surface `#FFFFFF` → `#1B2B47`; surface-2 `#F4F6FA` → `#142136`; surface-3
+  `#E8EDF4` → `#283C5E`. (v3 har ingen egen sunken-token — aliaset
+  `--jp-surface-sunken` pekar på surface-2.)
+- **Text:** ink-1 `#0C1A2E` → `#F4F7FC`; ink-2 `#455366` → `#C2CFE2`; ink-3
+  `#7C8AA0` → `#8DA0BD`; ink-inverse `#FFFFFF` → `#0C1A2E`.
+  `--jp-placeholder` `#626B78` är **tema-oberoende** (input-fälten är ljusa
+  i båda teman).
+- **Accent (G1):** 700 `#15603F` → `#6EE7A8`; 600 `#1E6B4C` → `#A7F3D0`;
+  500 `#2E8B63` → `#3E8E68`; 300 `#74C29A` → `#2E5C46`; 100/50 → `#0E2A1E`.
+  **800 / 800-hover / 900 skiftas EJ** (knapp-kontraktet: primärknappen
+  förblir mörkgrön `#15603F` med vit text). `#6EE7A8` används ENDAST som
+  text/länk/fokus/border — aldrig fill bakom vit text.
+- **Focus:** `#15603F` → `#6EE7A8` — men `--jp-focus` omdefinieras INTE i
+  dark-blocket; den är `var(--jp-accent-700)` och följer accent-skiftet
+  automatiskt. Gradient-ytor scopar vit ring i båda teman.
+- **Gradient/hero: OFÖRÄNDRAD i dark.** `--jp-hero-*` omdefinieras inte —
+  plattan är tema-stabil och får i dark en 1px `--jp-border-soft`-hairline
+  som avgränsning mot mörk canvas. Plattans kontroller är tema-stabila vita.
+- **Status:** ljusare ramp mot mörk canvas — success `#16793B` → `#5DD894`,
+  warning `#B4540B` → `#FBC267`, danger `#BE1B1B` → `#FB8989`, info
+  `#1B5396` → `#8FBEEF`; bg-tonerna blir mycket mörka tints (t.ex.
+  success-bg `#DFF3E5` → `#143E29`).
+- **Borders:** border `#C9D2E0` → `#44598A`; soft `#E3E8F0` → `#2C3F65`;
+  strong `#97A4B8` → `#6F86A8`; input `#7C8AA0` → `#6F86A8` (synliga, inte
+  hairlines).
+- **Navy (LOGO-ONLY):** rampen ljusas i dark (700 `#133F73` → `#4F8AD0`
+  osv.; 800/900 skiftas ej) — enbart för `BrandLogo`-substratet; inga
+  interaktions-konsumenter.
+- **Shadows:** opacity raised så popover/modal-djup syns på mörk canvas
+  (t.ex. shadow-pop 0.16/0.08 → 0.55/0.4).
+
+### Komponent-undantag i dark
+
+- **Input-fälten är LJUSA i dark** (user-krav): `#F0F4FB` bg + `#0C1A2E`
+  text + `#94A3B8` border — gäller `.jp-input`/`.jp-select`/`.jp-textarea`
+  och shadcn `data-slot="input|textarea|select-trigger"`.
+- **Headern förblir ljus i dark** (vit remsa): `[data-theme="dark"]
+  .jp-header` pinnar om hela light-paletten scoped (inkl. light-accent
+  `#15603F` och re-deklarerad `--jp-focus`) så barnen renderas i ljust läge.
 
 ---
 
@@ -97,7 +122,9 @@ Full hex per token in `tokens-full.md`. Key shifts:
 - Override the same `--jp-*` token names under `[data-theme="dark"]` — never a
   separate Tailwind config or a parallel class set.
 - shadcn bridge tokens (`--background`, `--primary`, …) reference `--jp-*`, so
-  they shift automatically. The only explicit dark override is
-  `--primary-foreground` / `--sidebar-primary-foreground` → `#0F172A`
-  (dark text on the light-blue primary in dark).
+  they shift automatically. `--primary` = `--jp-brand-600` = alias →
+  `--jp-accent-800` (EJ dark-skiftad) → **`--primary-foreground` är vit
+  (`#FFFFFF`) i BÅDA teman** — aldrig mörk text på primärknappen.
+  `--ring`/`--sidebar-ring` följer `--jp-focus` (G1 WCAG-fix: accent-800
+  hade varit osynlig ring i dark).
 - Test with NVDA + Windows high-contrast mode in addition to standard dark.

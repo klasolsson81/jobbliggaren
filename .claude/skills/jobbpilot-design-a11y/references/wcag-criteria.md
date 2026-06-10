@@ -141,7 +141,7 @@ Keyboard focus indicator visible. See SKILL.md §3. Never `outline: none`.
 
 **2.4.11 Focus Appearance (AA — WCAG 2.2)**
 Focus indicator: area ≥ CSS perimeter × 2px, contrast ≥ 3:1.
-- JobbPilot focus ring: 2px outline, brand-600 on white = 6.1:1. Passes.
+- JobbPilot focus ring: 2px outline, accent `#15603F` on white = 7.56:1 (dark: `#6EE7A8` på #0B1525 = 11.9:1; vit ring i gradient-ytor 6.4:1 mot ljusaste stopp). Passes. (ADR 0068)
 
 ### 2.5 Input Modalities
 

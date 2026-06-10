@@ -29,8 +29,8 @@ a11y-skillen.)
 **primary**
 | State | Classes |
 |---|---|
-| Default | `bg-brand-600` + white text (dark text `#0F172A` in dark mode) |
-| Hover | `bg-brand-700` |
+| Default | `bg-brand-600` (= accent-800 `#15603F`, EJ dark-skiftad per ADR 0068) + vit text i båda teman |
+| Hover | `bg-[var(--jp-accent-800-hover)]` (`#1E6B4C`, EJ dark-skiftad — accent-700 är textfärg, aldrig fill i dark; ADR 0068) |
 | Disabled | `opacity-50 cursor-not-allowed` |
 | Focus | global `*:focus-visible` ring (2px `--jp-focus`, offset 2px) |
 | Loading | `disabled` + label → "Sparar…", preserve width |
@@ -296,7 +296,7 @@ container:  margin-top 28px; border-top 1px border
 row:        flex; gap 16px; padding 18px 4px; border-bottom 1px border
 dot:        8px circle, margin-top 8px (status color)
 text:       flex 1; 16px; line-height 1.55; max-width 68ch
-link:       brand-700 underlined (brand-600 in dark), thicker underline on hover
+link:       accent-700 underlined (dark: #6EE7A8 auto via token; hover accent-600 #A7F3D0 i dark), thicker underline on hover
 dismiss:    22px ghost button, opacity 0 → 1 on row hover
 ```
 

@@ -1,4 +1,6 @@
-# JobbPilot — Contrast Ratio Table (v2 slate)
+# JobbPilot — Contrast Ratio Table (v3 + G1 grön accent)
+
+> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068).**
 
 WCAG 2.1 AA requirements:
 - Body text (< 18.66px bold, < 24px regular): **4.5:1 minimum**
@@ -16,39 +18,36 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 | Text token | Background token | Ratio | WCAG | Notes |
 |---|---|---|---|---|
-| `text-primary` (#0F172A) | `surface-primary` (#FFFFFF) | ~17.9:1 | AAA ✓ | Body text, rubriker |
-| `text-secondary` (#475569) | `surface-primary` (#FFFFFF) | ~7.4:1 | AA ✓ | Lede, metadata, **mono caps-labels**, mono inline-data (ADR 0038) |
-| `text-tertiary` (#94A3B8) | `surface-primary` (#FFFFFF) | ~2.6:1 | ✗ body | **Dekorativt endast** — aldrig informationsbärande text, aldrig mono data/labels (ADR 0038) |
-| `brand-600` (#0B5CAD) | `surface-primary` (#FFFFFF) | 6.1:1 | AA ✓ | Länkar, primärknappar, fokusring |
-| `brand-700` (#094B8C) | `surface-primary` (#FFFFFF) | ~8.2:1 | AA ✓ | Hover, länktext |
-| `text-inverse` (#FFFFFF) | `brand-600` (#0B5CAD) | 6.1:1 | AA ✓ | Vit text på primärknapp |
+| `ink-1` (#0C1A2E) | `surface` (#FFFFFF) | ~17.5:1 | AAA ✓ | Body text, rubriker |
+| `ink-2` (#455366) | `surface` (#FFFFFF) | ~7.8:1 | AAA ✓ | Lede, metadata, mono-labels |
+| `ink-3` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | ✗ body / ✓ large+UI | **Dekorativt/large endast** — aldrig brödtext, aldrig placeholder |
+| `accent-700` (#15603F) | `surface` (#FFFFFF) | 7.56:1 | AAA ✓ | Länkar, aktiv nav, titlar, fokusring |
+| `accent-700` (#15603F) | `canvas` (#F4F6FA) | ~7.0:1 | AAA ✓ | Länk på canvas |
+| vit (#FFFFFF) | `accent-800` (#15603F) | 7.56:1 | AAA ✓ | Vit text på primärknapp (fill-kontraktet) |
+| vit (#FFFFFF) | `accent-800-hover` (#1E6B4C) | ~6.4:1 | AA ✓ | Vit text på primärknapp-hover |
+| `placeholder` (#626B78) | `surface` (#FFFFFF) | 5.39:1 | AA ✓ | Placeholder light-fält |
+| `placeholder` (#626B78) | dark-input-fält (#F0F4FB) | 4.89:1 | AA ✓ | Placeholder i dark-temats ljusa fält (tema-oberoende token) |
 
 ## Light mode — borders / dividers
 
-| Token | Against | Ratio | WCAG | Notes |
-|---|---|---|---|---|
-| `border` (#E2E8F0) | `surface-primary` (#FFFFFF) | ~1.2:1 | n/a | Dekorativ hairline — ej informationsbärande, undantaget 3:1 |
-| `border-strong` (#CBD5E1) | `surface-primary` (#FFFFFF) | ~3.0:1 | AA ✓ | **Informationsbärande** dividers (kanban-kolumner, tabellhuvud) — klarar 3:1 |
+| Token | Against | Ratio | Notes |
+|---|---|---|---|
+| `border` (#C9D2E0) | `surface` (#FFFFFF) | ~1.5:1 | Synlig avgränsare men ej informationsbärande ensam |
+| `border-input` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | Input-vila — klarar 3:1 UI-golvet |
+| `border-strong` (#97A4B8) | `surface` (#FFFFFF) | ~2.5:1 | Under 3:1 — komplettera alltid med text/ikon, aldrig endast kanten som informationsbärare |
 
 ## Light mode — status pairs
 
 | Text token | Background token | Ratio | WCAG | Notes |
 |---|---|---|---|---|
-| `success-700` (#047857) | `success-50` (#ECFDF5) | ~5.3:1 | AA ✓ | Pill-text |
-| `success-600` (#059669) | `surface-primary` (#FFFFFF) | ~3.3:1 | AA ✓ large/UI | Statusprick, ikon |
-| `warning-700` (#B45309) | `warning-50` (#FFFBEB) | ~5.0:1 | AA ✓ | Pill-text |
-| `danger-700` (#B91C1C) | `danger-50` (#FEF2F2) | ~6.0:1 | AA ✓ | Pill-text |
-| `danger-600` (#DC2626) | `surface-primary` (#FFFFFF) | ~4.6:1 | AA ✓ | Felmeddelande-text |
-| `info-700` (#334155) | `info-50` (#F1F5F9) | ~9.6:1 | AAA ✓ | Pill-text |
-| `info-600` (#475569) | `surface-primary` (#FFFFFF) | ~7.4:1 | AA ✓ | Neutral statusprick |
-
-## Light mode — surface-on-surface
-
-| Text token | Background token | Ratio | WCAG |
-|---|---|---|---|
-| `text-primary` (#0F172A) | `surface-secondary` (#F8FAFC) | ~17.3:1 | AAA ✓ |
-| `text-secondary` (#475569) | `surface-secondary` (#F8FAFC) | ~7.1:1 | AA ✓ |
-| `text-primary` (#0F172A) | `surface-tertiary` (#F1F5F9) | ~16.5:1 | AAA ✓ |
+| `success` (#16793B) | `success-bg` (#DFF3E5) | ~4.7:1 | AA ✓ | Pill-text |
+| `success` (#16793B) | `surface` (#FFFFFF) | ~5.5:1 | AA ✓ | Statusikon/text |
+| `warning` (#B4540B) | `warning-bg` (#FCE9D1) | ~4.2:1 | ✓ large/UI, **borderline body** | Under 4.5:1 — för liten pill-text, komplettera med ikon eller använd ink-text; re-checka i live-checker |
+| `warning` (#B4540B) | `surface` (#FFFFFF) | ~5.0:1 | AA ✓ | Felfri som text på vit |
+| `danger` (#BE1B1B) | `danger-bg` (#FBE0E0) | ~5.0:1 | AA ✓ | Pill-text |
+| `danger` (#BE1B1B) | `surface` (#FFFFFF) | ~6.2:1 | AA ✓ | Felmeddelande-text |
+| `info` (#1B5396) | `info-bg` (#DEE9F8) | ~6.3:1 | AA ✓ | Pill-text |
+| `info` (#1B5396) | `surface` (#FFFFFF) | ~7.7:1 | AAA ✓ | Info-text |
 
 ---
 
@@ -56,31 +55,39 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 | Text token | Background token | Ratio | WCAG | Notes |
 |---|---|---|---|---|
-| `text-primary` (#F8FAFC) | `surface-primary` (#020617) | ~18.1:1 | AAA ✓ | Body text, rubriker |
-| `text-secondary` (#94A3B8) | `surface-primary` (#020617) | ~6.5:1 | AA ✓ | Lede, metadata, **mono caps-labels**, mono inline-data (ADR 0038) |
-| `text-tertiary` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | ✗ body / ✓ large | **Dekorativt endast** — aldrig mono data/labels (ADR 0038) |
-| `brand-600` (#60A5FA) | `surface-primary` (#020617) | ~7.0:1 | AA ✓ | Länkar, primary (action) |
-| `text-inverse` (#0F172A) | `brand-600` (#60A5FA) | ~7.0:1 | AA ✓ | Mörk text på ljusblå primary |
-| `text-primary` (#F8FAFC) | `surface-secondary` (#0F172A) | ~16.0:1 | AAA ✓ | Text på sidebar |
-| `text-primary` (#F8FAFC) | `surface-sunken` (#000000) | ~19.3:1 | AAA ✓ | Sunken är mörkare än canvas |
-
-## Dark mode — borders / dividers
-
-| Token | Against | Ratio | Notes |
-|---|---|---|---|
-| `border` (#1E293B) | `surface-primary` (#020617) | ~1.6:1 | Dekorativ hairline — undantaget **endast** där annan separation bär (rad-bg, yt-shift, inre divider innanför migrerad kant). Är kanten enda boundary (kort/sektion/panel/sidebar) → använd `border-structural`. ADR 0041-amendment |
-| `border-strong` (#334155) | `surface-primary` (#020617) | ~2.6:1 | Informationsbärande — komplettera alltid med text/ikon, aldrig endast färg |
-| `border-modal` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | **Strukturell** modal/popover-gräns — WCAG 1.4.11 ✓ (≥3:1 även mot `bg-black/50`-dimmad canvas). ADR 0041. Light = `#E2E8F0`. |
-| `border-structural` (#64748B) | `surface-primary` (#020617) | ~3.6:1 | **Strukturell** yt-chrome-kant — kort/sektion/panel/sidebar där kanten är enda perceptuella boundary i dark. WCAG 1.4.11 ✓ (≥3:1 även mot dimmad canvas). = `--jp-info-500` / `--jp-border-modal` dark. ADR 0041-amendment 2026-05-18. Light = `#E2E8F0`. |
+| `ink-1` (#F4F7FC) | `canvas` (#0B1525) | ~17.0:1 | AAA ✓ | Body text, rubriker |
+| `ink-1` (#F4F7FC) | `surface` (#1B2B47) | ~13.2:1 | AAA ✓ | Text på kort |
+| `ink-2` (#C2CFE2) | `canvas` (#0B1525) | ~11.6:1 | AAA ✓ | Sekundärtext |
+| `accent-700` (#6EE7A8) | `canvas` (#0B1525) | 11.9:1 | AAA ✓ | Länkar, aktiv nav, fokus — **ENDAST text/länk/fokus/border, aldrig fill** |
+| `accent-700` (#6EE7A8) | `surface` (#1B2B47) | ~9.2:1 | AAA ✓ | Länk på kort |
+| `accent-600` (#A7F3D0) | `canvas` (#0B1525) | ~14.3:1 | AAA ✓ | Länk-hover |
+| vit (#FFFFFF) | `accent-800` (#15603F) | 7.56:1 | AAA ✓ | Primärknapp i dark — accent-800 skiftas EJ |
+| mörk text (#0C1A2E) | dark-input-fält (#F0F4FB) | ~15.8:1 | AAA ✓ | Ljusa input-fält i dark (user-krav) |
 
 ## Dark mode — status pairs
 
 | Text token | Background token | Ratio | WCAG | Notes |
 |---|---|---|---|---|
-| `success-700` (#86EFAC) | `success-50` (#052E1A) | ~9.6:1 | AAA ✓ | Pill-text |
-| `warning-700` (#FDE68A) | `warning-50` (#2A1D05) | ~11.4:1 | AAA ✓ | Pill-text |
-| `danger-700` (#FECACA) | `danger-50` (#2E1014) | ~7.6:1 | AA ✓ | Pill-text |
-| `info-700` (#CBD5E1) | `info-50` (#1E293B) | ~8.3:1 | AAA ✓ | Pill-text |
+| `success` (#5DD894) | `success-bg` (#143E29) | ~6.7:1 | AA ✓ | Pill-text |
+| `warning` (#FBC267) | `warning-bg` (#3F2A0B) | ~8.4:1 | AAA ✓ | Pill-text |
+| `danger` (#FB8989) | `danger-bg` (#3F1419) | ~6.8:1 | AA ✓ | Pill-text |
+| `info` (#8FBEEF) | `info-bg` (#1B3358) | ~6.6:1 | AA ✓ | Pill-text |
+
+---
+
+## Gradient-ytor (hero-plattan, pagehero, empty-brand, land-hero)
+
+Gradienten är tema-stabil (samma i light + dark). Fokusringen i
+gradient-scope är **VIT** (`--jp-focus: #FFFFFF`) — grön ring syns inte
+mot grönt.
+
+| Text | Background | Ratio | WCAG | Notes |
+|---|---|---|---|---|
+| vit (#FFFFFF) | `hero-from` (#0B2A1E) | ~15.4:1 | AAA ✓ | Gradient-start |
+| vit (#FFFFFF) | `hero-mid` / `hero-bg` (#14503A) | ~9.4:1 | AAA ✓ | Gradient-mitt = solid ankare |
+| vit (#FFFFFF) | `hero-to` (#1E6B4C) | ~6.4:1 | AA ✓ | Gradient-slut — sämsta stoppet, fortfarande AA |
+| `hero-pill-ink` (#0C1A2E) | `hero-pill-bg` (#FFFFFF) | ~17.5:1 | AAA ✓ | Tema-stabila vita kontroller i plattan |
+| vit (#FFFFFF) | `hero-sok-bg` (#0C1A2E) | ~17.5:1 | AAA ✓ | Sök-knapp (ink, INTE grön) |
 
 ---
 
@@ -88,10 +95,11 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 | Text | Background | Issue |
 |---|---|---|
-| `text-tertiary` (light #94A3B8) | `surface-primary` (#FFFFFF) | ~2.6:1 — fails body. Dekorativt endast — aldrig mono inline-data/caps-labels (ADR 0038). |
-| `text-tertiary` (light #94A3B8) | `surface-secondary` (#F8FAFC) | < 2.5:1 — fails. Dekorativt endast. |
-| Any `brand-*` < 600 (light) | white | < 3:1 — not enough contrast for text/UI |
-| `border` (default hairline) | as an information-bearing divider | < 3:1 — use `border-strong` when the divider carries meaning |
+| `ink-3` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 — fails body. Dekorativt/large endast; aldrig placeholder (använd `--jp-placeholder` #626B78). |
+| vit text | `accent-700` dark (#6EE7A8) som fill | ~1.5:1 — kontraktsbrott. #6EE7A8 är ENDAST text/länk/fokus/border; fill = `accent-800` (skiftas EJ). |
+| Ljus knapp + mörk text som "primary" | — | Bryter knapp-kontraktet (ADR 0068): primärknapp är alltid mörkgrön accent-800 + vit text, båda teman. |
+| Grön fokusring | gradient-ytor | Syns inte mot grönt — gradient-scope sätter `--jp-focus: #FFFFFF`. |
+| `border` (hairline-bruk) | som ensam informationsbärande avgränsare | ~1.5:1 light — komplettera med text/ikon eller starkare separation. |
 
 ---
 

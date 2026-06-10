@@ -20,15 +20,32 @@
    egen F-städ-fas efter grep-verifierad nollkonsumtion.
    ──────────────────────────────────────────────────────────── */
 :root {
-  /* Brand — djup navy (v3-kanon) */
+  /* Brand — djup navy (v3-kanon). G1 (ADR 0068): navy är LOGO-ONLY —
+     kompassen i BrandLogo förblir blå (+ gulprick --jp-brand-accent).
+     Som interaktionsfärg är navy ersatt av accent-rampen nedan; rampen
+     behålls här tills logo-översynen och städas i egen fas. */
   --jp-navy-900: #08213F;
-  --jp-navy-800: #0A2647;   /* primärknapp, hero bg */
-  --jp-navy-700: #133F73;   /* länkar, titlar */
+  --jp-navy-800: #0A2647;
+  --jp-navy-700: #133F73;
   --jp-navy-600: #1B5396;
   --jp-navy-500: #2E6CC2;
   --jp-navy-300: #7FA9DF;
   --jp-navy-100: #D6E3F4;
   --jp-navy-50:  #EAF1FA;
+
+  /* Accent — mörkgrön (G1, ADR 0068; ersätter navy som interaktionsfärg).
+     Hue-neutral namnrymd. 800/800-hover/900 dark-skiftas ALDRIG
+     (knapp-kontraktet "aldrig ljus knapp/mörk text"). */
+  --jp-accent-900: #0B2A1E;
+  --jp-accent-800: #15603F;        /* FILL: primärknapp, checked — EJ dark-skiftad */
+  --jp-accent-800-hover: #1E6B4C;  /* fill-hover båda teman */
+  --jp-accent-700: #15603F;        /* TEXT/BORDER: länkar, aktiv nav, titlar, fokus (light) */
+  --jp-accent-600: #1E6B4C;        /* länk-hover */
+  --jp-accent-500: #2E8B63;
+  --jp-accent-300: #74C29A;
+  --jp-accent-100: #D3E7DC;
+  --jp-accent-50:  #E9F2ED;
+  --jp-gold: #E8C77B;              /* signatur — INGEN konsument ännu (logo-översyn separat) */
 
   /* Surfaces (v3-kanon) */
   --jp-surface:    #FFFFFF;   /* kort, popovers, modal */
@@ -64,31 +81,36 @@
   --jp-coral-600: #DA2A47;   --jp-coral-50: #FCE4E9;
   --jp-amber-500: #E89A1A;   --jp-amber-50: #FBEBC8;
 
-  /* Hero (alltid samma navy oavsett tema — v3 §2.4 scoped).
-     --jp-hero-bg behålls för .jp-pagehero (inre sidor förblir navy). */
-  --jp-hero-bg:          #0A2647;
+  /* Hero (G1 "F4 Hybrid", ADR 0068 — mörkgrön diagonal gradient, tema-
+     stabil i light + dark). Gradient + 6px-radie på plattan är MEDVETNA,
+     dokumenterade undantag från civic-utility-reglerna — gäller ENBART
+     hero-plattan/.jp-pagehero/.jp-empty--brand. Ersätter E1a:s varma
+     papperston-canvas (--jp-hero-canvas UTGÅR; wrappern läser --jp-canvas). */
+  --jp-hero-from: #0B2A1E;
+  --jp-hero-mid:  #14503A;
+  --jp-hero-to:   #1E6B4C;
+  --jp-hero-gradient: linear-gradient(118deg, var(--jp-hero-from) 0%, var(--jp-hero-mid) 60%, var(--jp-hero-to) 100%);
+  --jp-hero-bg:          #14503A;  /* SOLID ankare — pagehero-knapp-text/border läser denna */
   --jp-hero-ink:         #FFFFFF;
-  --jp-hero-ink-soft:    #BBCCE5;
+  --jp-hero-ink-soft:    rgba(255, 255, 255, 0.78);
+  /* Banner-LOKALA kontroll-värden (CTO Beslut 1, 2026-06-10): vita tema-
+     stabila kontroller på gradienten — hero-scopade, INTE globala neutraler. */
   --jp-hero-pill-bg:     #FFFFFF;
-  --jp-hero-pill-ink:    #0C1A2E;
-  --jp-hero-pill-border: #94A3B8;
+  --jp-hero-pill-ink:    #0C1A2E;  /* v3-ink */
+  --jp-hero-pill-border: #CBD5E1;
+  --jp-hero-sok-bg:      #0C1A2E;  /* Sök-knapp = v3-ink, tema-stabil — INTE grön */
 
-  /* E1a (Klas-LÅST 2026-06-10, riktning A "Papperskontoret"):
-     /jobb-heron flippas från navy-banner → varm content-first papperston.
-     .jp-hero läser --jp-hero-canvas (varm i light); barnen flippas till
-     ink-on-paper via --jp-ink-*. Dark ärver --jp-canvas (ingen varm-dark-hex). */
-  --jp-hero-canvas: #FAF9F6;
-
-  /* Placeholder-ton (E1a, design-reviewer-rotfix 2026-06-10): WCAG AA ≥4.5:1
-     mot BÅDA fält-bakgrunderna — #FFFFFF (light surface) ≈ 5.4:1 och #F0F4FB
-     (dark-temats ljusa input-fält) ≈ 4.9:1. Tema-oberoende (input-fältet är
-     ljust i båda teman). Sitter mellan --jp-ink-2 och --jp-ink-3 → läser som
-     placeholder, inte ifylld text. Ersätter --jp-ink-3 (3.5:1, under golvet)
-     som placeholder-färg på hero-inputen. */
+  /* Placeholder-ton (design-reviewer-rotfix 2026-06-10): WCAG AA ≥4.5:1 mot
+     båda fält-bakgrunderna (#FFFFFF ≈ 5.4:1, #F0F4FB ≈ 4.9:1). OBS: inga fält
+     har exempel-placeholder (Klas hård regel, ADR 0068) — tokenen är STANDARDEN
+     för ev. framtida funktionella placeholder (t.ex. datumformat) och för
+     .jp-input-instansernas planerade a11y-touch (ersätter ink-3 3.5:1). */
   --jp-placeholder: #626B78;
 
-  /* Focus (v3-kanon) */
-  --jp-focus: #2E6CC2;
+  /* Focus (G1, ADR 0068): följer accent-700 — #15603F light, #6EE7A8 dark
+     (accent-700 skiftar själv i dark-blocket; ingen separat dark-fokus-hex).
+     Gradient-ytor scopar om till vit ring (se .jp-hero__plate m.fl.). */
+  --jp-focus: var(--jp-accent-700);
 
   /* Radius (v3-kanon — ADR 0052: 6 rad/kort, 4 inputs, 8 modal, 12 ENDAST hero) */
   --jp-r-sm:   4px;
@@ -125,13 +147,16 @@
   --jp-text-secondary:    var(--jp-ink-2);
   --jp-text-tertiary:     var(--jp-ink-3);
   --jp-text-inverse:      var(--jp-ink-inverse);
-  --jp-brand-50:  var(--jp-navy-50);
-  --jp-brand-100: var(--jp-navy-100);
-  --jp-brand-300: var(--jp-navy-300);
-  --jp-brand-500: var(--jp-navy-500);
-  --jp-brand-600: var(--jp-navy-800);   /* primary = navy-800 (ADR 0052, 14:1 på vit) */
-  --jp-brand-700: var(--jp-navy-700);   /* länk/hover */
-  --jp-brand-900: var(--jp-navy-900);
+  /* G1 alias-flip (ADR 0068): brand-aliasen pekar på accent-rampen så
+     Tailwind-@theme-bryggan + shadcn följer gratis. --jp-brand-accent
+     (#FFCD00, kompass-prick) RÖRS EJ. */
+  --jp-brand-50:  var(--jp-accent-50);
+  --jp-brand-100: var(--jp-accent-100);
+  --jp-brand-300: var(--jp-accent-300);
+  --jp-brand-500: var(--jp-accent-500);
+  --jp-brand-600: var(--jp-accent-800);   /* primary = accent-800 (fill-kontrakt, EJ dark-skiftad) */
+  --jp-brand-700: var(--jp-accent-700);   /* länk/hover */
+  --jp-brand-900: var(--jp-accent-900);
   --jp-brand-accent: #FFCD00;           /* compass-center-dot (Klas-val C4 2026-05-25) */
   --jp-success-50:  var(--jp-success-bg);
   --jp-success-500: var(--jp-success);
@@ -168,9 +193,6 @@
   --jp-surface-3:  #283C5E;
   --jp-canvas:     #0B1525;        /* mörk navy-grå, INTE svart */
 
-  /* E1a: hero-canvasen ärver app-canvas i dark (ingen ny varm-dark-hex) */
-  --jp-hero-canvas: var(--jp-canvas);
-
   --jp-ink-1: #F4F7FC;
   --jp-ink-2: #C2CFE2;
   --jp-ink-3: #8DA0BD;
@@ -181,13 +203,25 @@
   --jp-border-strong: #6F86A8;
   --jp-border-input:  #6F86A8;
 
-  /* Navy-ramp ljusare i dark (länkar/aktiv) — 800/900 medvetet ej skiftade */
+  /* Navy-ramp ljusare i dark — G1: navy är LOGO-ONLY (BrandLogo via
+     .jp-brand currentColor); inga interaktions-konsumenter kvar.
+     800/900 medvetet ej skiftade. Städas vid logo-översynen. */
   --jp-navy-700: #4F8AD0;
   --jp-navy-600: #6FA4E3;
   --jp-navy-500: #3D75B8;
   --jp-navy-300: #2C5894;
   --jp-navy-100: #1F3866;
   --jp-navy-50:  #1F3866;
+
+  /* Accent-ramp i dark (G1, ADR 0068): #6EE7A8 ENDAST text/länk/fokus/
+     border — ALDRIG fill bakom vit text. 800/800-hover/900 skiftas EJ
+     (knapp-kontraktet: primärknapp förblir mörkgrön med vit text). */
+  --jp-accent-700: #6EE7A8;
+  --jp-accent-600: #A7F3D0;
+  --jp-accent-500: #3E8E68;
+  --jp-accent-300: #2E5C46;
+  --jp-accent-100: #0E2A1E;
+  --jp-accent-50:  #0E2A1E;
 
   /* Statusfärger — ljusare ramp så de syns mot mörk canvas */
   --jp-success: #5DD894;  --jp-success-bg: #143E29;
@@ -198,7 +232,8 @@
   --jp-leaf-600:  #5BCB7B;  --jp-leaf-50:  #143E29;
   --jp-coral-600: #F47185;  --jp-coral-50: #3A1722;
 
-  --jp-focus: #8FBEEF;
+  /* --jp-focus omdefinieras EJ här (G1): :root-värdet var(--jp-accent-700)
+     resolvar själv till #6EE7A8 i dark via accent-skiftet ovan. */
 
   --jp-shadow-card:  0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.4);
   --jp-shadow-pop:   0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
@@ -317,14 +352,14 @@ body {
    dark — bright, WCAG AA mot dark canvas). Återinförd här (utanför
    @layer base — ingen base-reset-konflikt, bara färg).
    Scopad dark-override för Tailwind-klassade `text-brand-600`-länkar:
-   brand-600 → --jp-navy-800 (#0A2647, medvetet EJ skiftad i dark per
-   ADR 0052 för primärknappen) blev osynlig som länktext på dark canvas
-   (B5). Höjer dem till navy-700 i dark UTAN att röra knapp-tokenen
+   brand-600 → --jp-accent-800 (G1; medvetet EJ skiftad i dark — fill-
+   kontraktet) blir för mörk som länktext på dark canvas (B5-mönstret).
+   Höjer dem till accent-700 i dark UTAN att röra knapp-tokenen
    eller F6-auth-filerna (CTO B-SCOPE: ingen F6-läcka). */
-a { color: var(--jp-navy-700); }
-a:hover { color: var(--jp-navy-600); }
-[data-theme="dark"] a.text-brand-600 { color: var(--jp-navy-700); }
-[data-theme="dark"] a.text-brand-600:hover { color: var(--jp-navy-600); }
+a { color: var(--jp-accent-700); }
+a:hover { color: var(--jp-accent-600); }
+[data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
+[data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 
 /* ── Reduced motion ───────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
@@ -397,7 +432,9 @@ a:hover { color: var(--jp-navy-600); }
   --destructive:                var(--jp-danger-600);
   --border:                     var(--jp-border);
   --input:                      var(--jp-border);
-  --ring:                       var(--jp-brand-600);
+  /* G1 WCAG-fix: ring följer --jp-focus (skiftar i dark) — brand-600/
+     accent-800 är EJ dark-skiftad och blev osynlig ring i dark. */
+  --ring:                       var(--jp-focus);
   --radius:                     0.25rem;
   --chart-1:                    var(--jp-brand-600);
   --chart-2:                    var(--jp-brand-500);
@@ -411,13 +448,13 @@ a:hover { color: var(--jp-navy-600); }
   --sidebar-accent:             var(--jp-surface-tertiary);
   --sidebar-accent-foreground:  var(--jp-text-primary);
   --sidebar-border:             var(--jp-border);
-  --sidebar-ring:               var(--jp-brand-600);
+  --sidebar-ring:               var(--jp-focus);  /* G1 WCAG-fix, se --ring */
 }
 
 /* shadcn dark-värden: ärvs automatiskt — alla bryggor refererar --jp-*    */
 /* som redan skiftar i [data-theme="dark"]. --primary = --jp-brand-600 =   */
-/* alias → --jp-navy-800 (#0A2647, EJ skiftad i dark per ADR 0052) → vit   */
-/* foreground i båda teman, aldrig "ljusblå knapp med mörk text".          */
+/* alias → --jp-accent-800 (#15603F, EJ skiftad i dark — G1 fill-kontrakt) */
+/* → vit foreground i båda teman, aldrig "ljus knapp med mörk text".       */
 [data-theme="dark"] {
   --primary-foreground:         #FFFFFF;
   --sidebar-primary-foreground: #FFFFFF;
@@ -528,10 +565,20 @@ a:hover { color: var(--jp-navy-600); }
   --jp-ink-3: #7C8AA0;
   --jp-border:      #C9D2E0;
   --jp-border-soft: #E3E8F0;
+  /* Navy-pins behålls för .jp-brand (logo currentColor) på vit remsa */
   --jp-navy-700: #133F73;
   --jp-navy-600: #1B5396;
   --jp-navy-100: #D6E3F4;
   --jp-navy-50:  #EAF1FA;
+  /* G1: light-accent-pins — utan dessa skulle dark-accent (#6EE7A8) ge
+     ljusgröna länkar/aktiv-nav på den vita headern (AA-fail). */
+  --jp-accent-700: #15603F;
+  --jp-accent-600: #1E6B4C;
+  --jp-accent-100: #D3E7DC;
+  --jp-accent-50:  #E9F2ED;
+  /* Re-deklaration krävs: --jp-focus ärvs som FÄRDIGBERÄKNAT dark-värde
+     (#6EE7A8, AA-fail på vit remsa) — re-substituerar mot pinnad light. */
+  --jp-focus: var(--jp-accent-700);
   --jp-shadow-pop: 0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
   color: #0C1A2E;
 }
@@ -553,12 +600,15 @@ a:hover { color: var(--jp-navy-600); }
   text-decoration: none;
   /* F-Pre Punkt 6 (CTO Beslut 2-rev): navy-700 → currentColor på <BrandLogo>-SVG;
      dark-mode flippar automatiskt via befintlig navy-700-token-skift (ADR 0052).
+     G1-UNDANTAG: logon förblir NAVY (kompassen byter inte färg, ADR 0068) —
+     enda kvarvarande navy-konsumenten utöver scoped-pins/dark-ramp-defs.
      Override för scoped-vit-header se [data-theme="dark"] .jp-land-top .jp-brand nedan. */
   color: var(--jp-navy-700);
 }
 .jp-brand:focus-visible {
-  /* design-reviewer m2 2026-05-25: WCAG 2.4.7 paritet med .jp-btn-focus-stil. */
-  outline: 2px solid var(--jp-navy-700);
+  /* design-reviewer m2 2026-05-25: WCAG 2.4.7 paritet med .jp-btn-focus-stil.
+     G1: ringen följer --jp-focus (accent) — logon är navy men fokus är systemets. */
+  outline: 2px solid var(--jp-focus);
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -594,7 +644,7 @@ a:hover { color: var(--jp-navy-600); }
   background: var(--jp-surface-3);
 }
 .jp-nav__link[aria-current="page"] {
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
   font-weight: 600;
 }
 .jp-nav__link[aria-current="page"]::after {
@@ -604,7 +654,7 @@ a:hover { color: var(--jp-navy-600); }
   right: 14px;
   bottom: -19px;
   height: 3px;
-  background: var(--jp-navy-700);
+  background: var(--jp-accent-700);
   border-radius: 2px 2px 0 0;
 }
 
@@ -661,8 +711,8 @@ a:hover { color: var(--jp-navy-600); }
   width: 36px;
   height: 36px;
   border-radius: var(--jp-r-pill);
-  background: var(--jp-navy-100);
-  color: var(--jp-navy-700);
+  background: var(--jp-accent-100);
+  color: var(--jp-accent-700);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -849,124 +899,159 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-drawer__item:hover { background: var(--jp-surface-3); }
 .jp-drawer__item[aria-current="page"] {
-  border-left-color: var(--jp-navy-700);
-  color: var(--jp-navy-700);
+  border-left-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
 }
 
-/* ── Hero (varm papperston-zon på /jobb — E1a, riktning A) ───────────
-   Flippad från navy-banner → content-first varm canvas (Klas-LÅST
-   2026-06-10). Alla barn flippade vit-på-navy → ink-på-papper via
-   --jp-ink-*/--jp-surface. .jp-pagehero (inre sidor) förblir navy. */
+/* ── Hero (F4 Hybrid — G1, ADR 0068) ─────────────────────────────────
+   Inramad platta (inte full-bleed): canvas-wrapper med inset, mörkgrön
+   diagonal gradient på plattan, 6px radie. Asymmetrisk komposition:
+   display-rubrik vänster, sök + actions höger. Kompositions-facit:
+   docs/handoff-banner/referens/F4-banner-referens.html. Gradient + 44px-
+   rubriken är DOKUMENTERADE undantag från civic-utility-reglerna och
+   gäller ENBART hero-plattan. Alla kontroller i plattan är TEMA-STABILA
+   (vita, ink-text) — bannern bär färgen, kontrollerna gör det inte. */
 .jp-hero {
-  background: var(--jp-hero-canvas);
-  color: var(--jp-ink-1);
-  position: relative;
+  background: var(--jp-canvas);
 }
 .jp-hero__inner {
   max-width: 1200px;
   margin-inline: auto;
-  padding: 48px 32px 56px;
+  padding: 24px 32px 0;
 }
-@media (max-width: 720px) {
-  .jp-hero__inner { padding: 32px 20px 40px; }
+.jp-hero__plate {
+  background: var(--jp-hero-gradient);
+  border-radius: var(--jp-r-md);
+  padding: 44px 48px 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: end;
+  color: var(--jp-hero-ink);
 }
-.jp-hero__topbar {
+/* Dark: 1px hairline avgränsar plattan mot mörk canvas */
+[data-theme="dark"] .jp-hero__plate {
+  border: 1px solid var(--jp-border-soft);
+}
+
+.jp-hero__title {
+  /* DOKUMENTERAT undantag (ADR 0068): display-rubrik 44px/800 — gäller
+     ENBART hero-plattan, inte H1-token-skalan (28px). */
+  margin: 0;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--jp-hero-ink);
+}
+.jp-hero__lede {
+  margin: 14px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 42ch;
+  color: var(--jp-hero-ink-soft);
+}
+
+/* Höger-panel: actions-rad + sök-block + filter-pills (stack, gap 14) */
+.jp-hero__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.jp-hero__actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-bottom: 28px;
   flex-wrap: wrap;
 }
+
+/* Neutrala kontroller i plattan — vita solida, tema-stabila (banner-
+   LOKALA värden per CTO Beslut 1; ALDRIG genomskinliga/gröna). */
 .jp-hero-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  height: 38px;
   padding: 0 16px;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border-input);
-  border-radius: var(--jp-r-md);
-  color: var(--jp-ink-1);
-  font-size: 14.5px;
+  background: var(--jp-hero-pill-bg);
+  border: 1px solid var(--jp-hero-pill-border);
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-hero-pill-ink);
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
 }
 .jp-hero-chip:hover {
-  background: var(--jp-surface-3);
-  border-color: var(--jp-border-strong);
+  /* Banner-lokala hover-värden (tema-stabila — ljus slate, ej token) */
+  background: #E8EDF4;
+  border-color: #97A4B8;
 }
 .jp-hero-chip__count {
   font-family: var(--jp-font-mono);
-  color: var(--jp-ink-2);
+  color: #455366; /* banner-lokal v3-light-ink-2 — tema-stabil på vit chip */
   font-size: 13px;
   font-weight: 600;
   margin-left: -2px;
 }
 
-.jp-hero__title {
-  /* H1-token (jobbpilot-design-tokens): 28px / 700 / -0.02em — var 40px (regel-1-brott) */
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  margin: 0;
-  color: var(--jp-ink-1);
-}
-.jp-hero__lede {
-  margin: 10px 0 0;
-  font-size: 18px;
-  color: var(--jp-ink-2);
-  max-width: 56ch;
-}
-
 .jp-hero__searchblock {
-  margin-top: 28px;
-  max-width: 1040px;
+  margin: 0;
+  min-width: 0;
 }
 .jp-hero__searchlabels {
-  font-size: 14px;
-  color: var(--jp-ink-2);
-  margin-bottom: 10px;
+  display: block;
+  font-size: 13px;
+  color: var(--jp-hero-ink-soft);
+  margin-bottom: 6px;
 }
 .jp-hero__searchrow {
   display: flex;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border-input);
-  border-radius: var(--jp-r-md);
+  background: var(--jp-hero-pill-bg);
+  border-radius: var(--jp-r-sm);
   overflow: hidden;
-  /* E1a: djup från BORDER (papper), inte drop-shadow (regel-1-brott borttaget) */
+  /* Ingen border — plattan ger kontrasten (F4-referens) */
 }
 .jp-hero__input {
   flex: 1;
   border: 0;
   outline: 0;
-  padding: 0 18px;
-  height: 56px;
+  padding: 0 16px;
+  height: 52px;
   font-family: inherit;
-  font-size: 17px;
-  color: var(--jp-ink-1);
+  font-size: 15px;
+  color: var(--jp-hero-pill-ink);
   background: transparent;
   min-width: 0;
 }
-.jp-hero__input::placeholder { color: var(--jp-placeholder); }
+/* WCAG 2.4.7: searchrow har overflow:hidden → yttre ring klipps. Inåtvänd
+   ink-ring (tema-stabil, ~16:1 mot vitt fält) istället för vit plate-ring. */
+.jp-hero__input:focus-visible {
+  outline: 2px solid var(--jp-hero-sok-bg);
+  outline-offset: -2px;
+}
 .jp-hero__searchbtn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  /* Navy primary på varm canvas (ADR 0052 navy-knapp-kontrakt + mockup A) */
-  background: var(--jp-navy-800);
+  gap: 8px;
+  /* Ink — INTE grön (CTO Beslut 1: handoffens #0F172A → v3-ink #0C1A2E) */
+  background: var(--jp-hero-sok-bg);
   color: #fff;
   border: 0;
-  padding: 0 28px;
-  font-size: 17px;
-  font-weight: 700;
+  height: 52px;
+  padding: 0 26px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
   letter-spacing: -0.01em;
 }
-.jp-hero__searchbtn:hover { background: var(--jp-navy-700); color: #fff; }
+.jp-hero__searchbtn:hover { background: #233650; color: #fff; } /* ljusare ink-nyans */
+.jp-hero__searchbtn:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: -3px; /* inåtvänd — yttre ring klipps av searchrow-overflow */
+}
 
 .jp-hero__pills {
-  margin-top: 14px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -975,54 +1060,58 @@ a:hover { color: var(--jp-navy-600); }
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  height: 40px;
-  padding: 0 16px;
-  background: var(--jp-surface);
-  color: var(--jp-ink-1);
-  border: 1px solid var(--jp-border-input);
-  border-radius: var(--jp-r-md);
-  font-size: 14.5px;
+  height: 36px;
+  padding: 0 14px;
+  background: var(--jp-hero-pill-bg);
+  color: var(--jp-hero-pill-ink);
+  border: 1px solid var(--jp-hero-pill-border);
+  border-radius: var(--jp-r-sm);
+  font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
 }
 .jp-hero-pill[data-active="true"] {
-  border-color: var(--jp-navy-700);
-  box-shadow: inset 0 0 0 1px var(--jp-navy-700);
+  /* accent-800 är tema-stabil (EJ dark-skiftad) — rätt token för vit pill
+     (accent-700 flippar till #6EE7A8 i dark = för svag på vitt). */
+  border-color: var(--jp-accent-800);
+  box-shadow: inset 0 0 0 1px var(--jp-accent-800);
 }
 .jp-hero-pill__dot {
   width: 8px;
   height: 8px;
   border-radius: var(--jp-r-pill);
-  background: var(--jp-leaf-600);
+  background: #2C8A3F; /* banner-lokal light-leaf — tema-stabil på vit pill */
 }
 .jp-hero-pill__count {
   font-family: var(--jp-font-mono);
   font-size: 12px;
   font-weight: 700;
-  background: var(--jp-navy-800);
+  background: var(--jp-accent-800); /* EJ dark-skiftad — tema-stabil fill */
   color: #fff;
   padding: 1px 7px;
   border-radius: var(--jp-r-pill);
 }
 
-/* E1a dark-mode: sökfältet förblir LJUST med mörk text — paritet med
-   .jp-input-konventionen (rad ~1300, "ljusa input-fält i dark"). Heron är
-   custom (ej .jp-input) så regeln speglas explicit. #F0F4FB/#0C1A2E är
-   etablerad codebase-precedent, ej ny varm-hex. Sök-knappen (navy-800) +
-   ink-on-canvas-resten flippar auto via --jp-hero-canvas/--jp-ink-*. */
-[data-theme="dark"] .jp-hero__searchrow {
-  background: #F0F4FB;
-  border-color: var(--jp-border-input);
+/* Mobil (≤768px): en kolumn (rubrik först), tightare platta, hit-targets
+   ≥44px (WCAG 2.5.5 touch). Sökrad är redan 52px. */
+@media (max-width: 768px) {
+  .jp-hero__inner { padding: 20px 20px 0; }
+  .jp-hero__plate {
+    grid-template-columns: 1fr;
+    padding: 28px 24px;
+    gap: 28px;
+  }
+  .jp-hero__title { font-size: 32px; }
+  .jp-hero__actions { justify-content: flex-start; }
+  .jp-hero-chip,
+  .jp-hero-pill { min-height: 44px; }
 }
-[data-theme="dark"] .jp-hero__input { color: #0C1A2E; }
-/* Ingen dark-placeholder-override: --jp-placeholder är tema-oberoende och når
-   ≥4.5:1 även mot det ljusa dark-fältet (#F0F4FB). */
 
 /* ── v4: kompakt navy-band för inre sidor ─────────
    Page-hero för /oversikt, /ansokningar, /cv. Samma --jp-hero-bg som
    .jp-hero (jobb-sidan) men mindre höjd/titel — kan användas överallt
    utan att ta över sidan. HANDOVER-v4 §1.1 + §2.1. */
-.jp-pagehero { background: var(--jp-hero-bg); color: var(--jp-hero-ink); position: relative; }
+.jp-pagehero { background: var(--jp-hero-gradient); color: var(--jp-hero-ink); position: relative; }
 .jp-pagehero__inner {
   max-width: 1200px; margin-inline: auto;
   padding: 32px 32px 36px;
@@ -1077,7 +1166,7 @@ a:hover { color: var(--jp-navy-600); }
   background: #fff; color: var(--jp-hero-bg); border-color: #fff;
 }
 .jp-pagehero .jp-btn--primary:hover {
-  background: #EAF1FA; color: #08213F; border-color: #EAF1FA;
+  background: var(--jp-accent-50); color: var(--jp-accent-900); border-color: var(--jp-accent-50);
 }
 .jp-pagehero .jp-btn--ghost {
   color: var(--jp-hero-ink); background: transparent;
@@ -1086,11 +1175,26 @@ a:hover { color: var(--jp-navy-600); }
 .jp-pagehero .jp-btn--ghost:hover {
   background: rgba(255,255,255,0.08); color: #fff;
 }
-/* Fokus-ring syns mot mörk bakgrund (WCAG 2.4.7 — vit outline för
-   kontrast >3:1 mot navy --jp-hero-bg #0A2647). HANDOVER-v4 §4.2. */
-.jp-pagehero :focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 2px;
+/* G1 fokus-scoping (WCAG 2.4.7): gradient-ytor får vit ring via property-
+   scoping av --jp-focus (grön ring syns inte mot grönt). Ersätter de
+   tidigare :focus-visible-specialreglerna för pagehero/empty--brand. */
+.jp-hero__plate,
+.jp-pagehero,
+.jp-empty--brand,
+.jp-land-hero {
+  --jp-focus: #FFFFFF;
+}
+/* Tema-stabilitets-pins för gradient-ytornas vita knappar: accent-50/-100
+   skiftar mörkgrönt i dark — det hade gjort vit-knapp-hovern oläsbar. */
+.jp-pagehero,
+.jp-empty--brand {
+  --jp-accent-50:  #E9F2ED;
+  --jp-accent-100: #D3E7DC;
+}
+/* Popovers är flytande, tema-följande ytor — återställ fokus-färgen om en
+   popover renderas inom en gradient-scope (t.ex. filter-popover i plattan). */
+.jp-popover {
+  --jp-focus: var(--jp-accent-700);
 }
 
 /* ── Popover (filter, dropdown chips) ─────────────── */
@@ -1141,7 +1245,7 @@ a:hover { color: var(--jp-navy-600); }
 .jp-popover__clear {
   background: transparent;
   border: 0;
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -1179,10 +1283,10 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-popover-row:hover { background: var(--jp-surface-3); }
 .jp-popover-row[aria-selected="true"] {
-  background: var(--jp-navy-50);
-  color: var(--jp-navy-700);
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
   font-weight: 600;
-  border-left-color: var(--jp-navy-700);
+  border-left-color: var(--jp-accent-700);
 }
 .jp-popover-row__chev {
   color: var(--jp-ink-3);
@@ -1209,8 +1313,10 @@ a:hover { color: var(--jp-navy-600); }
   flex-shrink: 0;
 }
 .jp-checkitem[aria-checked="true"] .jp-checkitem__box {
-  background: var(--jp-navy-700);
-  border-color: var(--jp-navy-700);
+  /* G1: checked = FILL bakom vit bock → accent-800 (fill-kontraktet,
+     EJ dark-skiftad — accent-700 hade gett #6EE7A8-fyll i dark). */
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
   color: #fff;
 }
 .jp-popover__foot {
@@ -1240,19 +1346,19 @@ a:hover { color: var(--jp-navy-600); }
   transition: background 90ms linear, color 90ms linear, border-color 90ms linear;
 }
 .jp-btn--primary {
-  background: var(--jp-navy-800);
+  background: var(--jp-accent-800);
   color: #FFFFFF;
-  border-color: var(--jp-navy-800);
+  border-color: var(--jp-accent-800);
 }
-.jp-btn--primary:hover { background: var(--jp-navy-700); border-color: var(--jp-navy-700); }
+.jp-btn--primary:hover { background: var(--jp-accent-800-hover); border-color: var(--jp-accent-800-hover); }
 [data-theme="dark"] .jp-btn--primary {
-  background: var(--jp-navy-800);
+  background: var(--jp-accent-800);
   color: #FFFFFF;
-  border-color: var(--jp-navy-800);
+  border-color: var(--jp-accent-800);
 }
 [data-theme="dark"] .jp-btn--primary:hover {
-  background: var(--jp-navy-700);
-  border-color: var(--jp-navy-700);
+  background: var(--jp-accent-800-hover);
+  border-color: var(--jp-accent-800-hover);
 }
 
 .jp-btn--secondary {
@@ -1319,8 +1425,9 @@ a:hover { color: var(--jp-navy-600); }
 .jp-input:focus,
 .jp-select:focus,
 .jp-textarea:focus {
-  border-color: var(--jp-navy-700);
-  box-shadow: 0 0 0 3px rgba(46, 108, 194, 0.20);
+  border-color: var(--jp-accent-700);
+  /* G1: glow-tint = accent-500 #2E8B63 i rgb (var navy-500 rgb(46,108,194)) */
+  box-shadow: 0 0 0 3px rgba(46, 139, 99, 0.20);
 }
 [data-theme="dark"] .jp-input,
 [data-theme="dark"] .jp-select,
@@ -1387,7 +1494,7 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-job:hover,
 .jp-app:hover {
-  border-color: var(--jp-navy-700);
+  border-color: var(--jp-accent-700);
 }
 .jp-job__newflag {
   display: inline-flex;
@@ -1445,8 +1552,8 @@ a:hover { color: var(--jp-navy-600); }
   font-weight: 600;
 }
 .jp-tag--brand {
-  background: var(--jp-navy-50);
-  color: var(--jp-navy-700);
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
   font-weight: 600;
 }
 [data-theme="dark"] .jp-tag--neutral {
@@ -1456,7 +1563,7 @@ a:hover { color: var(--jp-navy-600); }
 [data-theme="dark"] .jp-tag--brand {
   background: transparent;
   color: var(--jp-ink-1);
-  border-color: var(--jp-navy-700);
+  border-color: var(--jp-accent-700);
 }
 /* PR5 (Klas-feedback 2026-05-23) — Sparad/Ansökt-status-taggar får
    kraftigare navy-kantlinje + ink för att stå ut från färskhet/freshness
@@ -1464,13 +1571,13 @@ a:hover { color: var(--jp-navy-600); }
    bara förstärkt outline). Override mot jp-tag--neutral default. */
 .jp-tag[data-tag="saved"],
 .jp-tag[data-tag="applied"] {
-  border-color: var(--jp-navy-700);
-  color: var(--jp-navy-700);
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
   font-weight: 700;
 }
 [data-theme="dark"] .jp-tag[data-tag="saved"],
 [data-theme="dark"] .jp-tag[data-tag="applied"] {
-  border-color: var(--jp-navy-300);
+  border-color: var(--jp-accent-300);
   color: var(--jp-ink-1);
 }
 .jp-matchchip {
@@ -1500,9 +1607,12 @@ a:hover { color: var(--jp-navy-600); }
   border-color: var(--jp-success);
 }
 .jp-matchchip--mid {
-  color: var(--jp-navy-700);
-  background: var(--jp-navy-50);
-  border-color: var(--jp-navy-700);
+  /* G1 (architect-fynd): mid får INTE bli accent-grön — skulle kollidera
+     med success-/high-semantiken. Neutral variant; flaggad för
+     design-reviewer/Klas. */
+  color: var(--jp-ink-2);
+  background: var(--jp-surface-2);
+  border-color: var(--jp-border-strong);
 }
 .jp-matchchip--low {
   color: var(--jp-ink-3);
@@ -1525,7 +1635,7 @@ a:hover { color: var(--jp-navy-600); }
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
   letter-spacing: -0.01em;
   line-height: 1.3;
   display: flex;
@@ -1571,8 +1681,10 @@ a:hover { color: var(--jp-navy-600); }
   font-weight: 700;
 }
 [data-theme="dark"] .jp-save[data-saved="true"] {
-  background: var(--jp-navy-700);
-  border-color: var(--jp-navy-700);
+  /* G1: fill bakom vit text → accent-800 (EJ dark-skiftad; accent-700
+     hade gett #6EE7A8-fyll bakom vit text = kontraktsbrott). */
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
   color: #FFFFFF;
 }
 .jp-save {
@@ -1591,9 +1703,9 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-save:hover { background: var(--jp-surface-3); color: var(--jp-ink-1); }
 .jp-save[data-saved="true"] {
-  background: var(--jp-navy-50);
-  border-color: var(--jp-navy-700);
-  color: var(--jp-navy-700);
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
 }
 
 @media (max-width: 720px) {
@@ -1623,7 +1735,7 @@ a:hover { color: var(--jp-navy-600); }
 .jp-results-count b {
   font-family: var(--jp-font-mono);
   font-weight: 700;
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
 }
 
 /* Active filter chips */
@@ -1832,7 +1944,7 @@ a:hover { color: var(--jp-navy-600); }
   border-color: var(--jp-border);
 }
 .jp-disclosure-row:focus-visible {
-  outline: 2px solid var(--jp-navy-700);
+  outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
 }
 .jp-disclosure-row[aria-expanded="true"] {
@@ -1911,11 +2023,11 @@ a:hover { color: var(--jp-navy-600); }
   background: var(--jp-surface-3);
 }
 .jp-segment__opt:focus-visible {
-  outline: 2px solid var(--jp-navy-700);
+  outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
 }
 .jp-segment__opt[data-active="true"] {
-  background: var(--jp-navy-800);
+  background: var(--jp-accent-800);
   color: #FFFFFF;
 }
 .jp-segment__opt:disabled {
@@ -1972,7 +2084,7 @@ a:hover { color: var(--jp-navy-600); }
   transition: background 100ms, border-color 100ms;
 }
 .jp-togglerow__switch:focus-visible {
-  outline: 2px solid var(--jp-navy-700);
+  outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
 }
 .jp-togglerow__switch:disabled {
@@ -1980,8 +2092,8 @@ a:hover { color: var(--jp-navy-600); }
   cursor: not-allowed;
 }
 .jp-togglerow__switch[data-checked="true"] {
-  background: var(--jp-navy-800);
-  border-color: var(--jp-navy-800);
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
 }
 .jp-togglerow__thumb {
   position: absolute;
@@ -2070,7 +2182,7 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-pill--neutral { background: var(--jp-surface-3); color: var(--jp-ink-2); border-color: var(--jp-border); }
 .jp-pill--info    { background: var(--jp-info-bg);    color: var(--jp-info);    border-color: var(--jp-info); }
-.jp-pill--brand   { background: var(--jp-navy-50);    color: var(--jp-navy-700); border-color: var(--jp-navy-700); }
+.jp-pill--brand   { background: var(--jp-accent-50);    color: var(--jp-accent-700); border-color: var(--jp-accent-700); }
 .jp-pill--success { background: var(--jp-success-bg); color: var(--jp-success); border-color: var(--jp-success); }
 .jp-pill--warning { background: var(--jp-warning-bg); color: var(--jp-warning); border-color: var(--jp-warning); }
 .jp-pill--danger  { background: var(--jp-danger-bg);  color: var(--jp-danger);  border-color: var(--jp-danger); }
@@ -2257,8 +2369,8 @@ a:hover { color: var(--jp-navy-600); }
 .jp-cv-banner {
   margin-top: 28px;
   padding: 20px;
-  background: var(--jp-navy-50);
-  border: 1px solid var(--jp-navy-700);
+  background: var(--jp-accent-50);
+  border: 1px solid var(--jp-accent-700);
   border-radius: var(--jp-r-md);
   display: flex;
   align-items: center;
@@ -2272,7 +2384,7 @@ a:hover { color: var(--jp-navy-600); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
   background: var(--jp-surface);
   border-radius: var(--jp-r-md);
   border: 1px solid var(--jp-border-soft);
@@ -2338,7 +2450,7 @@ a:hover { color: var(--jp-navy-600); }
    Modifier på .jp-empty. Används när hela sidan annars vore vit
    (CV-listan tom, pipeline tom). HANDOVER-v4 §1.2 + §2.1. */
 .jp-empty--brand {
-  background: var(--jp-hero-bg);
+  background: var(--jp-hero-gradient);
   border: 1px solid var(--jp-hero-bg);
   color: var(--jp-hero-ink-soft);
   padding: 56px 32px;
@@ -2370,7 +2482,7 @@ a:hover { color: var(--jp-navy-600); }
   background: #fff; color: var(--jp-hero-bg); border-color: #fff;
 }
 .jp-empty--brand .jp-btn--primary:hover {
-  background: #EAF1FA; color: #08213F; border-color: #EAF1FA;
+  background: var(--jp-accent-50); color: var(--jp-accent-900); border-color: var(--jp-accent-50);
 }
 .jp-empty--brand .jp-btn--ghost {
   color: var(--jp-hero-ink); background: transparent;
@@ -2380,10 +2492,8 @@ a:hover { color: var(--jp-navy-600); }
   background: rgba(255,255,255,0.08); color: #fff;
   border-color: rgba(255,255,255,0.45);
 }
-.jp-empty--brand :focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 2px;
-}
+/* :focus-visible-specialregeln borttagen (G1) — vit ring kommer via
+   --jp-focus-scopingen i gradient-blocket (se .jp-pagehero-sektionen). */
 
 /* ── Skeleton (laddningstillstånd) ───────────────────
    Platt neutral platshållare för /jobb-sökresultatet (F6 P4).
@@ -2566,6 +2676,13 @@ a:hover { color: var(--jp-navy-600); }
   --jp-ink-2: #455366;
   --jp-ink-3: #7C8AA0;
   --jp-border: #C9D2E0;
+  /* G1: light-accent-pins (paritet med [data-theme="dark"] .jp-header) —
+     dark-accent #6EE7A8 vore AA-fail som länk/aktiv-färg på vit remsa. */
+  --jp-accent-700: #15603F;
+  --jp-accent-600: #1E6B4C;
+  --jp-accent-100: #D3E7DC;
+  --jp-accent-50:  #E9F2ED;
+  --jp-focus: var(--jp-accent-700); /* se .jp-header-pin-kommentaren */
   color: #0C1A2E;
 }
 [data-theme="dark"] .jp-land-top .jp-brand {
@@ -2639,7 +2756,7 @@ a:hover { color: var(--jp-navy-600); }
   border-radius: var(--jp-r-md);
 }
 .jp-land-top__link:hover { background: var(--jp-surface-3); color: var(--jp-ink-1); }
-.jp-land-top__link.is-active { color: var(--jp-navy-700); font-weight: 600; }
+.jp-land-top__link.is-active { color: var(--jp-accent-700); font-weight: 600; }
 
 @media (max-width: 720px) {
   .jp-land-top__inner { padding: 0 20px; }
@@ -2647,7 +2764,9 @@ a:hover { color: var(--jp-navy-600); }
 
 /* Hero */
 .jp-land-hero {
-  background: #0A2647;
+  /* G1 (ADR 0068): landing-heron får samma gröna gradient som hero-plattan
+     (CTO Beslut 2(iii) — färg-swap nu, full F4-komponent senare). */
+  background: var(--jp-hero-gradient);
   color: #fff;
   padding: 72px 0 88px;
 }
@@ -2666,7 +2785,7 @@ a:hover { color: var(--jp-navy-600); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #BBCCE5;
+  color: var(--jp-hero-ink-soft);
   margin-bottom: 22px;
 }
 .jp-land-hero__title {
@@ -2681,7 +2800,7 @@ a:hover { color: var(--jp-navy-600); }
   margin: 24px 0 0;
   font-size: 18px;
   line-height: 1.55;
-  color: #BBCCE5;
+  color: var(--jp-hero-ink-soft);
   max-width: 56ch;
 }
 .jp-land-hero__ctas {
@@ -2696,7 +2815,7 @@ a:hover { color: var(--jp-navy-600); }
   align-items: center;
   gap: 8px;
   font-size: 13.5px;
-  color: #BBCCE5;
+  color: var(--jp-hero-ink-soft);
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.18);
   padding: 8px 14px;
@@ -2730,9 +2849,14 @@ a:hover { color: var(--jp-navy-600); }
   --jp-border:        #C9D2E0;
   --jp-border-soft:   #E3E8F0;
   --jp-border-input:  #7C8AA0;
-  --jp-navy-700: #133F73;
-  --jp-navy-600: #1B5396;
-  --jp-navy-50:  #EAF1FA;
+  /* G1: light-accent-pins (ersätter stale navy-pins — kortet har inga
+     navy-konsumenter kvar). Kortet renderas ALLTID ljust, även i dark. */
+  --jp-accent-700: #15603F;
+  --jp-accent-600: #1E6B4C;
+  --jp-accent-50:  #E9F2ED;
+  /* Re-deklaration krävs: --jp-focus ärvs annars som FÄRDIGBERÄKNAT
+     dark-värde (#6EE7A8) från root — re-substituerar mot pinnad light. */
+  --jp-focus: var(--jp-accent-700);
 }
 .jp-land-auth__tabs {
   display: flex;
@@ -2756,7 +2880,7 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-land-auth__tab[data-active="true"] {
   background: #FFFFFF;
-  color: #0A2647;
+  color: var(--jp-accent-800);
   box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 .jp-land-auth__form {
@@ -2789,7 +2913,7 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-land-auth .jp-input { background: #fff; color: #0C1A2E; border-color: #7C8AA0; }
 .jp-land-auth .jp-input::placeholder { color: #7C8AA0; }
-.jp-land-auth a { color: #1B5396; }
+.jp-land-auth a { color: var(--jp-accent-600); } /* G1: var hårdkodad navy-600 */
 /* Dark-mode scoped overrides — AuthCard renderas ALLTID i ljust läge
    (HANDOVER §2.4 + ADR 0056 Beslut 3). De delade <LoginForm/>/<RegisterForm/>-
    komponenterna binder labels/help-text via shadcn-utility-klasser
@@ -2864,7 +2988,7 @@ a:hover { color: var(--jp-navy-600); }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
 }
 .jp-land-feature__val {
   font-size: 16px;
@@ -3135,7 +3259,7 @@ a:hover { color: var(--jp-navy-600); }
   font-family: var(--jp-font-mono);
   font-size: 30px;
   font-weight: 700;
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
   line-height: 1;
   letter-spacing: -0.02em;
   font-feature-settings: "tnum" 1;
@@ -3181,7 +3305,7 @@ a:hover { color: var(--jp-navy-600); }
   row-gap: 0;
   align-items: baseline;
   padding-left: 10px;
-  border-left: 2px solid var(--jp-navy-700);
+  border-left: 2px solid var(--jp-accent-700);
   font-size: 13.5px;
   line-height: 1.35;
 }
@@ -3248,7 +3372,7 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-notice--info .jp-notice__strip    { background: var(--jp-info); }
 .jp-notice--warning .jp-notice__strip { background: var(--jp-warning); }
-.jp-notice--brand .jp-notice__strip   { background: var(--jp-navy-700); }
+.jp-notice--brand .jp-notice__strip   { background: var(--jp-accent-700); }
 .jp-notice--success .jp-notice__strip { background: var(--jp-success); }
 
 .jp-notice__label {
@@ -3262,7 +3386,7 @@ a:hover { color: var(--jp-navy-600); }
 }
 .jp-notice--info .jp-notice__label    { color: var(--jp-info); }
 .jp-notice--warning .jp-notice__label { color: var(--jp-warning); }
-.jp-notice--brand .jp-notice__label   { color: var(--jp-navy-700); }
+.jp-notice--brand .jp-notice__label   { color: var(--jp-accent-700); }
 .jp-notice--success .jp-notice__label { color: var(--jp-success); }
 
 .jp-notice__text {
@@ -3286,7 +3410,7 @@ a:hover { color: var(--jp-navy-600); }
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
   font-weight: 600;
   font-size: 13.5px;
   background: transparent;
@@ -3296,7 +3420,7 @@ a:hover { color: var(--jp-navy-600); }
   padding: 6px 4px;
 }
 .jp-notice__cta:hover {
-  color: var(--jp-navy-600);
+  color: var(--jp-accent-600);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -3397,10 +3521,10 @@ a:hover { color: var(--jp-navy-600); }
   cursor: pointer;
 }
 .jp-summary__row--btn:hover .jp-summary__row__label {
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
 }
 .jp-summary__row--btn:hover .jp-summary__row__leader {
-  border-bottom-color: var(--jp-navy-700);
+  border-bottom-color: var(--jp-accent-700);
 }
 .jp-summary__row__label {
   color: var(--jp-ink-1);
@@ -3436,14 +3560,14 @@ a:hover { color: var(--jp-navy-600); }
   font-feature-settings: "tnum" 1;
 }
 .jp-summary__row--highlight .jp-summary__row__value {
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
 }
 .jp-summary__row__chev {
   color: var(--jp-ink-3);
   align-self: center;
 }
 .jp-summary__row--btn:hover .jp-summary__row__chev {
-  color: var(--jp-navy-700);
+  color: var(--jp-accent-700);
 }
 
 @media (max-width: 880px) {
@@ -3495,9 +3619,11 @@ a:hover { color: var(--jp-navy-600); }
    leder till /vantelista (konvertering).
    ------------------------------------------------------------------ */
 .jp-demo-banner {
-  background: var(--jp-navy-700);
+  /* G1: fill bakom vit text → accent-800 (tema-stabil); border ett snäpp
+     mörkare (accent-900) — bevarar v3-intentionen "mörkare underkant". */
+  background: var(--jp-accent-800);
   color: #fff;
-  border-bottom: 1px solid var(--jp-navy-800, #0A2647);
+  border-bottom: 1px solid var(--jp-accent-900);
 }
 .jp-demo-banner__inner {
   max-width: 1200px;
@@ -3513,7 +3639,9 @@ a:hover { color: var(--jp-navy-600); }
   padding: 2px 8px;
   border-radius: 3px;
   background: #fff;
-  color: var(--jp-navy-700);
+  /* G1: accent-800 (tema-stabil) — accent-700 flippar till #6EE7A8 i dark
+     vilket vore oläsbart på den vita etiketten. */
+  color: var(--jp-accent-800);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -3595,7 +3723,7 @@ a:hover { color: var(--jp-navy-600); }
   margin: 8px 0 0;
 }
 [data-theme="dark"] .jp-demo-banner {
-  background: var(--jp-navy-700);
+  background: var(--jp-accent-800);
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 @media (max-width: 600px) {

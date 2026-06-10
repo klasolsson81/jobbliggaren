@@ -61,16 +61,16 @@ or does it add cognitive load?**
 | ✅ Ja | ❌ Nej |
 |-------|--------|
 | Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
-| Myndighetsblå primary color | Neon, purple, cyan accents |
+| Mörkgrön accent (`--jp-accent`, ADR 0068) | Neon, purple, cyan accents |
 | Direct Swedish copy | Emojis, exclamation marks, "Let's go!" |
 | Tables and lists | Card layouts everywhere |
 | `border-radius: 4px` | 16px+ rounded corners |
 | Muted status colors | Glow, drop shadow, glassmorphism |
 | Breadcrumbs + hierarchy | Flat pages without context |
 | Hanken Grotesk / JetBrains Mono | Display fonts, scripts, Inter/Roboto/Arial |
-| Content-first pages | Hero sections, vibey microcopy |
+| Content-first pages (hero-bannern är en saklig sök-/orienterings-yta per ADR 0068, inte marketing-hero) | Marketing-heros, vibey microcopy |
 | Quantified information | Vague "positive" feedback |
-| Solid backgrounds via tokens | Gradient backgrounds |
+| Solid backgrounds via tokens (undantag: hero-plattans `--jp-hero-gradient`, ADR 0068) | Gradient backgrounds i övrigt |
 | `shadow-sm`/`shadow-md` on popovers only | Drop-shadow on cards/buttons |
 
 ---
@@ -88,8 +88,12 @@ tryckta tidtabeller. Den är **inte** modern AI-app-design, konsument-SaaS,
 
 Vit canvas. Hairlines mellan rader och sektioner. **Inga floating cards. Inga
 drop shadows utan funktion** (skuggor finns bara på popovers/dropdowns för att
-signalera lager). **Inga gradients någonstans.** Tänk på UI:t som ett dokument,
-inte en glasplatta med widgets ovanpå.
+signalera lager). **Inga gradients** — med ETT dokumenterat undantag:
+hero-banner-plattans mörkgröna gradient (`--jp-hero-gradient`, scoped till
+`.jp-hero__plate`/`.jp-pagehero`/`.jp-empty--brand`/`.jp-land-hero` per
+[ADR 0068](../../../docs/decisions/0068-gron-accent-identitet-f4-banner.md));
+gradients förblir förbjudna på knappar, badges, kort och alla andra bakgrunder.
+Tänk på UI:t som ett dokument, inte en glasplatta med widgets ovanpå.
 
 ### 2. Information är design
 
@@ -118,9 +122,13 @@ JetBrains Mono används för ID:n/referenser (`S-1042`, `A-2841`), datum
 
 ### 5. En accentfärg
 
-Myndighetsblå (`--jp-brand-600`, `#0B5CAD` light) är produktens enda dekorativa
-färg, reserverad för primär åtgärd, aktiv selektion (rader/flikar/navigation),
-länkar och "idag"-markering. Status-färgerna används **endast** för status:
+Mörkgrön (`--jp-accent`, `#15603F` light / `#6EE7A8` dark — ADR 0068, ersätter
+tidigare blå/navy) är produktens enda dekorativa färg, reserverad för primär
+åtgärd, aktiv selektion (rader/flikar/navigation), länkar och "idag"-markering.
+Knapp-kontrakt: fill = `--jp-accent-800` (`#15603F`, EJ dark-skiftad) + vit
+text — aldrig ljus knapp med mörk text; `#6EE7A8` är ENDAST text/länk/fokus/
+border i dark, aldrig fill. Logotypens kompass förblir navy + guldprick
+(varumärket byter inte färg). Status-färgerna används **endast** för status:
 `success` → erbjudande/drift/klar; `warning` → deadlines/uppmärksamhet;
 `danger` → avslag/fel/destruktivt; `info` → neutral info (skickad/bekräftad).
 **Aldrig** för temamarkering, dekoration eller "brand expression".
@@ -174,7 +182,7 @@ accessible, and built to be trusted — not admired.
 ## Förbjudna mönster (anti-pattern catalog)
 
 ### Layout & styling
-- ✗ Gradienter på bakgrunder, knappar, badges
+- ✗ Gradienter på bakgrunder, knappar, badges (enda undantag: hero-banner-plattan, ADR 0068)
 - ✗ Drop-shadows på cards (skuggor endast på popovers/dropdowns)
 - ✗ Avrundade hörn över 6px (utom pill-prickar)
 - ✗ Floating Action Buttons (FAB)

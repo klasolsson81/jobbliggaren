@@ -115,7 +115,7 @@ export function HeroChip<T>({
                   display: "block",
                   padding: "10px 16px",
                   fontSize: 14,
-                  color: "var(--jp-navy-700)",
+                  color: "var(--jp-accent-700)",
                   textDecoration: "none",
                   fontWeight: 600,
                 }}

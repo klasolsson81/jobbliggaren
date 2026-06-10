@@ -356,8 +356,12 @@ body {
    kontraktet) blir för mörk som länktext på dark canvas (B5-mönstret).
    Höjer dem till accent-700 i dark UTAN att röra knapp-tokenen
    eller F6-auth-filerna (CTO B-SCOPE: ingen F6-läcka). */
-a { color: var(--jp-accent-700); }
-a:hover { color: var(--jp-accent-600); }
+/* G3 rotfix: scopa bort knappar (.jp-btn = ofta <Link>/<a>). Annars vinner
+   `a:hover` (0,1,1) över `.jp-btn--primary`s `color:#fff` (0,1,0) i hover-läge
+   — knappens hover sätter bara bakgrund, inte color → grön text på grön knapp
+   (Klas-fynd 2026-06-10). Länkfärgen ska aldrig gälla knappar. */
+a:not(.jp-btn) { color: var(--jp-accent-700); }
+a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
 [data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 
@@ -929,7 +933,9 @@ a:hover { color: var(--jp-accent-600); }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 48px;
-  align-items: end;
+  /* G3 (Klas-fynd 2026-06-10): rubriken top-left, konsekvent med pagehero-
+     titlarna på övriga sidor (var `end` = botten-/centrerad). */
+  align-items: start;
   color: var(--jp-hero-ink);
 }
 /* Dark: 1px hairline avgränsar plattan mot mörk canvas */

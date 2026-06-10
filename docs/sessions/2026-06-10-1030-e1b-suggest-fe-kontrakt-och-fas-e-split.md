@@ -2,7 +2,7 @@
 session: Platsbanken sök-paritet Fas E — uppdelning + E1b suggest-kontrakt
 datum: 2026-06-10
 slug: e1b-suggest-fe-kontrakt-och-fas-e-split
-status: E1b+E1a MERGADE (#39/#40); E2a yrke-nivå-skifte byggd + alla reviews APPROVED, pending Klas rendered-GO; docs-drift pending approve
+status: E1b+E1a+E2a MERGADE (#39/#40/#41); G1 grön identitet + F4-banner byggd (ADR 0068) + reviews klara, pending Klas rendered-GO
 commits:
   - 5fee02c feat(jobads) E1b typeahead-suggest FE-kontrakt SuggestionDto[]
   - (docs-commit) ADR 0067 impl-note + current-work + session-log + reviews
@@ -89,14 +89,44 @@ kontrakts-migration + docs-drift) som första session, med förväntad sub-split
 - **Detour:** pnpm build clobbrade `pnpm dev`:s `.next` igen → FE-dev-server omstartad (bg).
 - **Pending:** Klas rendered-GO (Vercel-preview PR #41).
 
+## Fas G1 — grön accent-identitet + F4-banner (samma session, ADR 0068)
+
+- E2a mergad (#41) av Klas. Klas levererade NY design-handoff (`docs/handoff-banner/`,
+  Claude Design "F4 Hybrid"): bannern tillbaka (saknades — för tomt), accentbyte
+  blå/navy→mörkgrön i HELA appen + landing; CC fick spec-fil-mandat.
+- **CTO-triage:** neutraler A (v3 består — referensens slate = stale scaffolding);
+  scope i–iii (accent app-wide nu, /jobb full F4, pagehero/landing färg-swap nu +
+  F4-komponent senare); ny ADR 0068 (supersedar ADR 0052 Beslut 6 delvis + E1a-heron;
+  absorberar pending docs-drift → skills direkt till grön kanon); fas-namn G1; E2b–E2e pausade.
+- **Architect:** `--jp-accent-*`-ramp (hue-neutral namnrymd — logo-fällan: navy-700
+  konsumeras av kompassen via currentColor), alias-flip, gradient-composite-token +
+  solid ankare #14503A, fokus-property-scoping, fill/text-split i dark (800 ej skiftad /
+  #6EE7A8 aldrig fill). 3 fynd: matchchip-grönkollision→neutral, shadcn-ring-WCAG-fix,
+  referens-placeholder-AA (moot — Klas-regel: INGEN placeholder, memory uppdaterad).
+- **Bygge (nextjs-ui-engineer):** globals.css (~550 rader), F4-platta på /jobb +
+  guest-klon, mekanisk navy→accent-rename, E1a-hero riven (--jp-hero-canvas utgår).
+  Jag kompletterade: land-hero hårdkodad #0A2647→gradient, auth-card inline-navy→accent,
+  CTA→hero-bg, vit-fokus-scope + land-hero.
+- **Spec-sync (Klas-mandat, approve-hook per edit):** ADR 0068 + index; CLAUDE.md §5.2
+  gradient-undantag (scoped 4 ytor); DESIGN.md §1.2+§3 (grön kanon); principles-skill
+  (regel 1-undantag + regel 5 grön); tokens-skill 5 filer (docs-keeper — full grön+v3-sync,
+  docs-drift STÄNGD); components/a11y-skill-faktafel fixade.
+- **Reviews:** design-reviewer 0 VETO / 2 Major (CLAUDE.md-scope-rad + landing-CTA
+  leaf-på-grön→ghost) — åtgärdade in-block; code-reviewer 0 Block / 1 Major
+  (components-skill-hover skulle producera #6EE7A8-fill i dark) — åtgärdad + minors
+  (pill-token, WaitlistForm-fokus, placeholder-token-kommentar, radius-rad).
+  Matchchip-mid→neutral GODKÄND. TD-108 lyft (pre-existing warning-bg 4.2:1 +
+  border-strong 2.5:1 — G1 låser status/neutraler, in-block vore scope-brott).
+  security-auditor EJ invokerad (ren CSS/copy/spec — ingen §9.2-yta).
+- tsc/eslint/build gröna; 721 vitest gröna.
+
 ## Nästa session
 
-1. **Klas rendered-GO på E2a-yrke-picker** (Vercel-preview PR #41) → CC sätter automerge.
-2. **docs-drift spec-edit** (#0B5CAD→navy-canon, hela v2-slate-skillen) efter Klas
-   `approve-spec-edit.sh` + scope-val → folds in i E2-split-PR.
-3. **E2b–E2e (Klas-GO per split):** E2b Län→Kommun-kaskad + municipality-DTO; E2c live
-   facet-count + NBomber-gate; E2d chip-komponist (kräver chip/residual-bekräftelse); E2e
-   Rensa-länkar/sortering. Anställningsform/Omfattning-filter gated på re-ingest Klass 2.
+1. **Klas rendered-GO på G1** (Vercel-preview, light+dark — hans egen design) → automerge.
+2. **Logo-översyn** (separat Klas-ägd): guld #FFCD00 vs #E8C77B + og/twitter-wordmark.
+3. **E2b–E2e återupptas efter G1-merge** (Klas-GO per split; byggs i grön identitet):
+   E2b kommun-kaskad; E2c facet-count + NBomber; E2d chips (kräver chip/residual-
+   semantik-GO); E2e Rensa/sortering. Re-ingest Klass 2 gated.
 
 ## Stack-status vid sessionsslut
 

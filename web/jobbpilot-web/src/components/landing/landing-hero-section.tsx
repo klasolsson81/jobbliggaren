@@ -41,9 +41,10 @@ export function LandingHeroSection({
             varje ansökan, från utkast till svar.
           </p>
           <div className="jp-land-hero__ctas">
-            {/* CTA-färger via designsystem-tokens per design-reviewer M3 2026-05-24:
-                hex-värden (#fff, #0A2647) ersatta med --jp-surface / --jp-navy-800 /
-                --jp-ink-inverse / --jp-leaf-600. Inga nya `.jp-btn--*`-modifiers
+            {/* CTA-färger via designsystem-tokens per design-reviewer M3 2026-05-24.
+                G1 (ADR 0068): vit knapp på grön gradient — texten läser
+                --jp-hero-bg (solid gradient-ankare, samma mönster som
+                pageheros vita knappar). Inga nya `.jp-btn--*`-modifiers
                 introduceras för att undvika scope-bloat — inline-tokens är
                 acceptabelt mot CLAUDE.md §5.2 så länge värdena är tokens, inte
                 hex. */}
@@ -52,7 +53,7 @@ export function LandingHeroSection({
               className="jp-btn jp-btn--lg"
               style={{
                 background: "var(--jp-surface)",
-                color: "var(--jp-navy-800)",
+                color: "var(--jp-hero-bg)",
                 borderColor: "var(--jp-surface)",
               }}
               onClick={() => router.push("/vantelista")}
@@ -62,10 +63,14 @@ export function LandingHeroSection({
             <button
               type="button"
               className="jp-btn jp-btn--lg"
+              // G1 design-reviewer M2: leaf-grön fill på grön gradient =
+              // grön-på-grön (accent-konkurrens) + vit-på-leaf 4.36:1 < AA.
+              // Ghost-mönster (samma som .jp-pagehero .jp-btn--ghost):
+              // civic hierarki vit solid primär + ghost sekundär.
               style={{
-                background: "var(--jp-leaf-600)",
-                color: "var(--jp-ink-inverse)",
-                borderColor: "var(--jp-leaf-600)",
+                background: "transparent",
+                color: "var(--jp-hero-ink)",
+                borderColor: "rgba(255,255,255,0.45)",
               }}
               onClick={() =>
                 router.push(isAuthenticated ? "/oversikt" : "/gast/oversikt")

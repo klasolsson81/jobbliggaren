@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobbPilot — F4 Banner-referens</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ============================================================
+       JobbPilot — Jobb-sidans banner, vald design "F4 Hybrid"
+       Inramad platta + asymmetrisk komposition.
+       Detta är en levande spec: alla tokens i :root nedan.
+       Toggle dark mode med klass "dark" på <html>.
+       ============================================================ */
+    :root {
+      /* Hero-banner */
+      --jp-hero-from: #0B2A1E;
+      --jp-hero-mid: #14503A;
+      --jp-hero-to: #1E6B4C;
+      --jp-hero-radius: 6px;
+      --jp-hero-inset: 32px;       /* sidomarginal runt plattan */
+      --jp-hero-inset-top: 24px;
+
+      /* Accentsystem (ersätter blå #0B5CAD) */
+      --jp-accent: #15603F;        /* länkar, aktiv nav, primärknappar, match ≥75% */
+      --jp-accent-50: #E9F2ED;     /* selektion, aktiv rad-bakgrund */
+      --jp-gold: #E8C77B;          /* signatur — logo-prick, sparsamt */
+
+      /* Neutraler (oförändrade från civic-utility) */
+      --jp-ink: #0F172A;
+      --jp-text-secondary: #475569;
+      --jp-text-tertiary: #94A3B8;
+      --jp-border: #E2E8F0;
+      --jp-border-input: #CBD5E1;
+      --jp-surface: #FFFFFF;
+      --jp-surface-sunken: #F8FAFC;
+      --jp-surface-card: #FFFFFF;
+
+      /* Fokus */
+      --jp-focus-on-light: #15603F;   /* grön ring på vit yta */
+      --jp-focus-on-dark: #FFFFFF;    /* vit ring inne i bannern */
+    }
+    html.dark {
+      --jp-ink: #F8FAFC;
+      --jp-text-secondary: #94A3B8;
+      --jp-text-tertiary: #64748B;
+      --jp-border: #1E293B;
+      --jp-border-input: #334155;
+      --jp-surface: #020617;
+      --jp-surface-sunken: #0F172A;
+      --jp-surface-card: #0F172A;
+      --jp-accent: #6EE7A8;        /* ljusare grön för kontrast på mörkt */
+      --jp-accent-50: #0E2A1E;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Hanken Grotesk', sans-serif;
+      background: var(--jp-surface);
+      color: var(--jp-ink);
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* ——— Topbar (oförändrad utom accentfärgen) ——— */
+    .topbar {
+      height: 64px;
+      background: var(--jp-surface-card);
+      border-bottom: 1px solid var(--jp-border);
+      display: flex; align-items: center; gap: 36px;
+      padding: 0 32px;
+    }
+    .topbar__brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; letter-spacing: -0.02em; }
+    .topbar__nav { display: flex; gap: 26px; font-size: 14.5px; color: var(--jp-text-secondary); flex: 1; }
+    .topbar__nav a { color: inherit; text-decoration: none; padding: 21px 0; }
+    .topbar__nav a.active {
+      color: var(--jp-accent);
+      font-weight: 600;
+      box-shadow: inset 0 -2px 0 var(--jp-accent);
+    }
+    .topbar__stats { display: flex; gap: 28px; align-items: center; }
+    .stat { text-align: right; }
+    .stat__num { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; }
+    .stat__label { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.1em; color: var(--jp-text-tertiary); }
+    .topbar__divider { width: 1px; height: 28px; background: var(--jp-border); }
+    .topbar__avatar { width: 32px; height: 32px; border-radius: 9999px; background: var(--jp-surface-sunken); border: 1px solid var(--jp-border); }
+
+    /* ——— Banner F4 ——— */
+    .hero-wrap { padding: var(--jp-hero-inset-top) var(--jp-hero-inset) 0; }
+    .hero {
+      background: linear-gradient(118deg, var(--jp-hero-from) 0%, var(--jp-hero-mid) 60%, var(--jp-hero-to) 100%);
+      border-radius: var(--jp-hero-radius);
+      padding: 44px 48px 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: end;
+    }
+    .hero__title {
+      margin: 0;
+      font-size: 44px; line-height: 1.1; font-weight: 800;
+      letter-spacing: -0.025em; color: #FFFFFF;
+    }
+    .hero__lede {
+      margin: 14px 0 0;
+      font-size: 16px; line-height: 1.5; max-width: 42ch;
+      color: rgba(255,255,255,0.78);
+    }
+    .hero__panel { display: flex; flex-direction: column; gap: 14px; }
+    .hero__actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* Neutrala knappar i bannern — vita solida, ALDRIG genomskinliga/gröna */
+    .btn-neutral {
+      height: 38px; padding: 0 16px;
+      background: #FFFFFF; border: 1px solid var(--jp-border-input);
+      border-radius: 4px; color: #0F172A;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13.5px; font-family: inherit; cursor: pointer;
+    }
+    .hero__search-label { display: block; font-size: 13px; margin-bottom: 6px; color: rgba(255,255,255,0.75); }
+    .hero__search { display: flex; }
+    .hero__search input {
+      flex: 1; height: 52px; border: none; border-radius: 4px 0 0 4px;
+      padding: 0 16px; font-size: 15px; font-family: inherit;
+      background: #FFFFFF; color: #0F172A;
+    }
+    .hero__search input::placeholder { color: #94A3B8; }
+    .btn-sok {
+      height: 52px; padding: 0 26px; border: none; cursor: pointer;
+      background: #0F172A; color: #FFFFFF;   /* ink — INTE grön */
+      border-radius: 0 4px 4px 0;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-weight: 600; font-size: 15px; font-family: inherit;
+    }
+    .hero__chips { display: flex; gap: 10px; }
+    .chip {
+      height: 36px; padding: 0 14px;
+      background: #FFFFFF; border: 1px solid var(--jp-border-input);
+      border-radius: 4px; color: #0F172A;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13.5px; font-family: inherit; cursor: pointer;
+    }
+
+    /* Fokus: grön ring på ljus yta, vit ring inne i bannern */
+    :focus-visible { outline: 2px solid var(--jp-focus-on-light); outline-offset: 2px; }
+    .hero :focus-visible { outline-color: var(--jp-focus-on-dark); }
+
+    /* ——— Resultatlista (kontext — befintlig design, bara accentbytet) ——— */
+    .results { padding: 20px 64px 64px; }
+    .results__meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-size: 15px; }
+    .results__meta .count { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+    .results__meta .rest { color: var(--jp-text-secondary); }
+    .card {
+      border: 1px solid var(--jp-border); border-radius: 4px;
+      background: var(--jp-surface-card); padding: 16px 20px;
+      display: flex; justify-content: space-between; margin-bottom: 12px;
+    }
+    .card__title { color: var(--jp-accent); font-weight: 600; font-size: 16px; }
+    .card__company { font-size: 14px; margin-top: 2px; }
+    .card__meta { font-size: 12.5px; color: var(--jp-text-secondary); margin-top: 8px; display: flex; gap: 16px; }
+    .badge {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
+      border: 1px solid var(--jp-border); border-radius: 2px;
+      padding: 3px 8px; height: fit-content; color: var(--jp-text-secondary);
+    }
+
+    /* Demo-kontroll, ingår inte i designen */
+    .demo-toggle { position: fixed; right: 16px; bottom: 16px; z-index: 10; height: 32px; padding: 0 12px; font-size: 12.5px; border-radius: 4px; border: 1px solid var(--jp-border); background: var(--jp-surface-card); color: var(--jp-ink); cursor: pointer; font-family: inherit; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__brand">
+      <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true">
+        <path d="M50 4 L54.2 26 L50.4 48 L46 27 Z" fill="#5B9BE5"></path>
+        <path d="M50 4 L54.2 26 L50.4 48 Z" fill="#3F7BC4"></path>
+        <path d="M96 50 L74 54.2 L52 50.4 L73 46 Z" fill="#5B9BE5"></path>
+        <path d="M96 50 L74 54.2 L52 50.4 Z" fill="#3F7BC4"></path>
+        <path d="M50 96 L46 74 L49.6 52 L54 73 Z" fill="#5B9BE5"></path>
+        <path d="M50 96 L46 74 L49.6 52 Z" fill="#3F7BC4"></path>
+        <path d="M4 50 L26 46 L48 49.6 L27 54 Z" fill="#5B9BE5"></path>
+        <path d="M4 50 L26 46 L48 49.6 Z" fill="#3F7BC4"></path>
+        <circle cx="50" cy="50" r="4" fill="#E8C77B"></circle>
+      </svg>
+      <span>JobbPilot</span>
+    </div>
+    <nav class="topbar__nav">
+      <a href="#">Översikt</a>
+      <a href="#" class="active">Jobb</a>
+      <a href="#">Mina ansökningar</a>
+      <a href="#">CV</a>
+    </nav>
+    <div class="topbar__stats">
+      <div class="stat">
+        <div class="stat__num">43 448</div>
+        <div class="stat__label">AKTIVA ANNONSER</div>
+      </div>
+      <div class="topbar__divider"></div>
+      <div class="stat">
+        <div class="stat__num">1 313</div>
+        <div class="stat__label">NYA IDAG</div>
+      </div>
+      <div class="topbar__avatar"></div>
+    </div>
+  </header>
+
+  <div class="hero-wrap">
+    <section class="hero" aria-label="Sök lediga jobb">
+      <div>
+        <h1 class="hero__title">Lediga jobb.<br />I lugn och ro.</h1>
+        <p class="hero__lede">Sök bland aktiva annonser från Platsbanken. Filtrera och jämför utan att tappa en enda annons.</p>
+      </div>
+      <div class="hero__panel">
+        <div class="hero__actions">
+          <button class="btn-neutral" type="button">Senaste sökningar
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+          <button class="btn-neutral" type="button">Sparade annonser
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+        </div>
+        <div>
+          <label class="hero__search-label" for="jobsearch">Sök efter yrke, arbetsgivare eller ort</label>
+          <div class="hero__search">
+            <input id="jobsearch" type="text" placeholder="t.ex. systemutvecklare Göteborg" />
+            <button class="btn-sok" type="button">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              Sök
+            </button>
+          </div>
+        </div>
+        <div class="hero__chips">
+          <button class="chip" type="button">Ort
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+          <button class="chip" type="button">Yrke
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <main class="results">
+    <div class="results__meta">
+      <div><span class="count">43 479</span> <span class="rest">träffar</span></div>
+      <div class="rest">Sortera&nbsp;&nbsp;Nyast först ▾</div>
+    </div>
+    <article class="card">
+      <div>
+        <div class="card__title">Renewal Manager</div>
+        <div class="card__company">Tacton Systems AB</div>
+        <div class="card__meta">
+          <span>Platsbanken</span>
+          <span>Publicerad <span class="mono">idag, kl. 14:09</span></span>
+          <span>Sista ansökan <span class="mono">2026-12-07</span></span>
+        </div>
+      </div>
+      <span class="badge">IDAG</span>
+    </article>
+    <article class="card">
+      <div>
+        <div class="card__title">Backendadministratör på sommarjobb i Uppsala</div>
+        <div class="card__company">Barona Professionals AB</div>
+        <div class="card__meta">
+          <span>Platsbanken</span>
+          <span>Publicerad <span class="mono">idag, kl. 14:09</span></span>
+          <span>Sista ansökan <span class="mono">2026-07-10</span></span>
+        </div>
+      </div>
+      <span class="badge">IDAG</span>
+    </article>
+  </main>
+
+  <button class="demo-toggle" type="button" onclick="document.documentElement.classList.toggle('dark')">Växla light/dark (demo)</button>
+</body>
+</html>

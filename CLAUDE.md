@@ -259,7 +259,7 @@ Om du någonsin ser dig importera `Microsoft.EntityFrameworkCore` i Domain eller
 - ❌ `console.log` i produktion — använd strukturerad logger
 - ❌ Emoji i UI-copy
 - ❌ "!"-utropstecken i texter (civic-utility-ton)
-- ❌ Gradients, drop shadows > `shadow-sm`, glow-effekter, glas-morphism
+- ❌ Gradients, drop shadows > `shadow-sm`, glow-effekter, glas-morphism — **enda undantag:** hero-banner-plattans mörkgröna gradient (`--jp-hero-gradient`, scoped till `.jp-hero__plate`/`.jp-pagehero`/`.jp-empty--brand`/`.jp-land-hero`) per [ADR 0068](./docs/decisions/0068-gron-accent-identitet-f4-banner.md); gradients förblir förbjudna överallt annars (knappar, badges, kort, bakgrunder)
 - ❌ Radius större än 6px utom för pills/badges
 - ❌ `localStorage` för känslig data (OAuth-tokens, session-tokens)
 - ❌ Hårdkodade strängar i komponenter — använd `next-intl` med `messages/sv.json`

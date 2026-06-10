@@ -1,121 +1,163 @@
-# JobbPilot — Full Token Reference (v2, slate-baserad)
+# JobbPilot — Full Token Reference (v3 + G1 grön accent)
 
-All CSS custom properties defined in `globals.css`. The canonical palette is
-`--jp-*` defined once in `:root {}` (light) and overridden in
-`[data-theme="dark"]`. The `@theme inline {}` block bridges them into Tailwind
-semantic utilities (`bg-surface-primary` etc.) — see `theme-block.md`. These
-`--jp-*` hex values are authoritative; they match `JobbPilotNEWDESIGN/TOKENS.md`.
+> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068).** All CSS custom
+> properties defined in `web/jobbpilot-web/src/app/globals.css`. The canonical
+> palette is `--jp-*` defined once in `:root {}` (light) and overridden in
+> `[data-theme="dark"]`. The `@theme inline {}` block bridges them into
+> Tailwind semantic utilities (`bg-surface-primary` etc.) — see
+> `theme-block.md`. Vid avvikelse vinner globals.css.
 
-> Light is default. Dark mode is **supported** (civic slate scale, no
-> decorative hue) via `data-theme="dark"` on `<html>` — see `dark-mode.md`.
+Light is default. Dark mode is **supported** (mörk navy-grå canvas, ljusa
+input-fält) via `data-theme="dark"` on `<html>` — see `dark-mode.md`.
 
 ---
 
-## Surface tokens
-
-| Token | Light | Dark | Tailwind class | Use |
-|---|---|---|---|---|
-| `--jp-surface-primary` | `#FFFFFF` | `#020617` | `bg-surface-primary` | Canvas, kort, modal. "Papper". |
-| `--jp-surface-secondary` | `#F8FAFC` | `#0F172A` | `bg-surface-secondary` | Sidebar + topbar (chrome). |
-| `--jp-surface-tertiary` | `#F1F5F9` | `#1E293B` | `bg-surface-tertiary` | Hover på rader. |
-| `--jp-surface-sunken` | `#F1F5F9` | `#000000` | `bg-surface-sunken` | Dim innehåll, datum-chips, footer. Mörkare än canvas i båda lägen. |
-| `--jp-surface-inverse` | `#0F172A` | `#F8FAFC` | `bg-surface-inverse` | Inverterad yta. |
-
-## Text tokens
-
-| Token | Light | Dark | Tailwind class | Use |
-|---|---|---|---|---|
-| `--jp-text-primary` | `#0F172A` | `#F8FAFC` | `text-text-primary` | Brödtext, rubriker. |
-| `--jp-text-secondary` | `#475569` | `#94A3B8` | `text-text-secondary` | Lede, etiketter, metadata, mono caps-labels, all informationsbärande sekundärtext. |
-| `--jp-text-tertiary` | `#94A3B8` | `#64748B` | `text-text-tertiary` | **DEKORATIVT ENDAST** — fails body contrast på vit (~2.6:1). Aldrig informationsbärande text, aldrig mono data/labels (se `contrast-table.md`). |
-| `--jp-text-inverse` | `#FFFFFF` | `#0F172A` | `text-text-inverse` | Text på inverterad bakgrund. |
-
-## Brand palette (myndighetsblå)
-
-| Token | Light | Dark | Tailwind class | Note |
-|---|---|---|---|---|
-| `--jp-brand-50` | `#EAF2FB` | `#1E3A5F` | `bg-brand-50` | Selektions-bg, "idag" i kalender. |
-| `--jp-brand-100` | `#C8DDF1` | `#1E40AF` | `bg-brand-100` | Avatar-bg. |
-| `--jp-brand-300` | `#6BA1DC` | `#60A5FA` | `bg-brand-300` | Disabled brand-state. |
-| `--jp-brand-500` | `#1F6EB8` | `#3B82F6` | `bg-brand-500` | Mellanton (sällan). |
-| `--jp-brand-600` | `#0B5CAD` | `#60A5FA` | `bg-brand-600` | **PRIMARY** — åtgärd, aktiv flik, selektions-prick. |
-| `--jp-brand-700` | `#094B8C` | `#BFDBFE` | `bg-brand-700` | Hover på primärknapp, länkfärg. |
-| `--jp-brand-900` | `#062F57` | `#062F57` | `bg-brand-900` | Mörkaste skiftning (sällan). |
-
-I dark läser selektion som "dimmed blue" (`brand-50`) medan action är ljusare
-(`brand-600` = blue-400). Knapptext på primary i dark är mörk (`#0F172A`).
-
-## Status: success (grön)
-
-| Token | Light | Dark | Tailwind class |
-|---|---|---|---|
-| `--jp-success-50` | `#ECFDF5` | `#052E1A` | `bg-success-50` |
-| `--jp-success-600` | `#059669` | `#4ADE80` | `text-success-600` |
-| `--jp-success-700` | `#047857` | `#86EFAC` | `text-success-700` |
-
-## Status: warning (amber)
-
-| Token | Light | Dark | Tailwind class |
-|---|---|---|---|
-| `--jp-warning-50` | `#FFFBEB` | `#2A1D05` | `bg-warning-50` |
-| `--jp-warning-600` | `#D97706` | `#FBBF24` | `text-warning-600` |
-| `--jp-warning-700` | `#B45309` | `#FDE68A` | `text-warning-700` |
-
-## Status: danger (röd)
-
-| Token | Light | Dark | Tailwind class |
-|---|---|---|---|
-| `--jp-danger-50` | `#FEF2F2` | `#2E1014` | `bg-danger-50` |
-| `--jp-danger-600` | `#DC2626` | `#F87171` | `text-danger-600` |
-| `--jp-danger-700` | `#B91C1C` | `#FECACA` | `text-danger-700` |
-
-## Status: info (neutral slate)
-
-| Token | Light | Dark | Tailwind class |
-|---|---|---|---|
-| `--jp-info-50` | `#F1F5F9` | `#1E293B` | `bg-info-50` |
-| `--jp-info-600` | `#475569` | `#94A3B8` | `text-info-600` |
-| `--jp-info-700` | `#334155` | `#CBD5E1` | `text-info-700` |
-
-## Border tokens
-
-| Token | Light | Dark | Tailwind class | Use |
-|---|---|---|---|---|
-| `--jp-border` | `#E2E8F0` | `#1E293B` | `border-border-default` | Hairlines. Standardvalet (dekorativa avgränsare). |
-| `--jp-border-strong` | `#CBD5E1` | `#334155` | `border-border-strong` | Tabellhuvud, kanban-kolumner — informationsbärande, klarar 3:1 mot canvas. |
-| `--jp-border-modal` | `#E2E8F0` | `#64748B` | `border-border-modal` | Modal/popover-**gräns** (strukturell, ej dekorativ). Dark slate-500 klarar WCAG 1.4.11 ≥3:1 mot dimmad canvas. Light = `--jp-border`-värde (light ej defekt). ADR 0041. |
-| `--jp-border-structural` | `#E2E8F0` | `#64748B` | `border-border-structural` | Strukturell **yt-chrome-kant** (kort/sektion/panel/sidebar där kanten är enda boundary, ej dekorativ hairline). Dark slate-500 = `--jp-info-500` / `--jp-border-modal`, WCAG 1.4.11 ≥3:1. Light = `--jp-border`-värde (light ej defekt). ADR 0041-amendment 2026-05-18. |
-| `--jp-border-soft` | `#F1F5F9` | `#1E293B` | — | Mjukaste avgränsare. |
-| `--jp-border-hairline` | `#E2E8F0` | `#1E293B` | — | Alias för `--jp-border`. |
-| `--jp-border-brand` | `var(--jp-brand-600)` | — | `border-border-brand` | Brand-kant (banner, selektion). |
-
-## Focus ring
-
-| Token | Light | Dark |
-|---|---|---|
-| `--jp-focus` | `#0B5CAD` | `#60A5FA` |
-| `--color-focus-ring-offset` | `var(--jp-surface-primary)` | `var(--jp-surface-primary)` |
-
-## Shadows (endast två — använd sparsamt)
+## Accent (grön — interaktionsfärgen, G1/ADR 0068)
 
 | Token | Light | Dark | Note |
 |---|---|---|---|
-| `--jp-shadow-sm` | `0 1px 2px rgba(0,0,0,0.04)` | `0 1px 2px rgba(0,0,0,0.6)` | Popovers. |
-| `--jp-shadow-md` | `0 2px 4px rgba(0,0,0,0.06)` | `0 2px 4px rgba(0,0,0,0.7)` | Dropdowns. |
+| `--jp-accent-900` | `#0B2A1E` | (skiftas EJ) | Mörkaste steg; = `--jp-hero-from` |
+| `--jp-accent-800` | `#15603F` | **(skiftas EJ)** | **FILL: primärknapp, checked** — alltid vit text (knapp-kontraktet) |
+| `--jp-accent-800-hover` | `#1E6B4C` | **(skiftas EJ)** | Fill-hover båda teman |
+| `--jp-accent-700` | `#15603F` | `#6EE7A8` | **TEXT/BORDER:** länkar, aktiv nav, titlar, fokus |
+| `--jp-accent-600` | `#1E6B4C` | `#A7F3D0` | Länk-hover |
+| `--jp-accent-500` | `#2E8B63` | `#3E8E68` | Mellanton; light-rgb (46,139,99) används som input-fokus-glow `rgba(...,0.20)` |
+| `--jp-accent-300` | `#74C29A` | `#2E5C46` | — |
+| `--jp-accent-100` | `#D3E7DC` | `#0E2A1E` | Avatar-bg |
+| `--jp-accent-50` | `#E9F2ED` | `#0E2A1E` | Selektions-bg (popover-rad, selekterad) |
+| `--jp-gold` | `#E8C77B` | — | **Signatur — INGEN konsument ännu** (logo-översyn separat) |
 
-Aldrig drop-shadows på cards eller knappar. `shadow-lg`/`xl`/`2xl` förbjudna.
-Djup skapas via border/hairline.
+`#6EE7A8` (dark-accent-700) används ENDAST som text/länk/fokus/border —
+ALDRIG fill bakom vit text.
 
-## Radius tokens (strikt civic)
+## Navy (LOGO-ONLY sedan G1)
+
+Kompassen i `BrandLogo` förblir navy + guldprick `--jp-brand-accent #FFCD00`.
+Inga interaktions-konsumenter — rampen är logo-substrat, städas vid
+logo-översynen.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--jp-navy-900` | `#08213F` | (skiftas EJ) |
+| `--jp-navy-800` | `#0A2647` | (skiftas EJ) |
+| `--jp-navy-700` | `#133F73` | `#4F8AD0` |
+| `--jp-navy-600` | `#1B5396` | `#6FA4E3` |
+| `--jp-navy-500` | `#2E6CC2` | `#3D75B8` |
+| `--jp-navy-300` | `#7FA9DF` | `#2C5894` |
+| `--jp-navy-100` | `#D6E3F4` | `#1F3866` |
+| `--jp-navy-50` | `#EAF1FA` | `#1F3866` |
+
+## Surface tokens
+
+| Token | Light | Dark | Tailwind class (alias) | Use |
+|---|---|---|---|---|
+| `--jp-surface` | `#FFFFFF` | `#1B2B47` | `bg-surface-primary` | Kort, popover, modal. "Papper". |
+| `--jp-surface-2` | `#F4F6FA` | `#142136` | `bg-surface-secondary` / `bg-surface-sunken` | Page bg under canvas, popover-foot |
+| `--jp-surface-3` | `#E8EDF4` | `#283C5E` | `bg-surface-tertiary` | Hover på rader |
+| `--jp-canvas` | `#F4F6FA` | `#0B1525` | — (`body` / `.jp-shell`) | Sidans baslager. Dark = mörk navy-grå, **INTE svart** |
+
+## Text tokens
+
+| Token | Light | Dark | Tailwind class (alias) | Use |
+|---|---|---|---|---|
+| `--jp-ink-1` | `#0C1A2E` | `#F4F7FC` | `text-text-primary` | Brödtext, rubriker |
+| `--jp-ink-2` | `#455366` | `#C2CFE2` | `text-text-secondary` | Lede, metadata, all informationsbärande sekundärtext |
+| `--jp-ink-3` | `#7C8AA0` | `#8DA0BD` | `text-text-tertiary` | ~3.5:1 på vit — fails body. Dekorativt/large endast; ALDRIG placeholder |
+| `--jp-ink-inverse` | `#FFFFFF` | `#0C1A2E` | `text-text-inverse` | Text på inverterad yta |
+| `--jp-placeholder` | `#626B78` | (tema-oberoende) | — | Placeholder — AA mot `#FFFFFF` (5.39:1) och `#F0F4FB` (4.89:1); input-fältet är ljust i båda teman |
+
+## Border tokens (synliga, inte hairlines)
+
+| Token | Light | Dark | Tailwind class (alias) | Use |
+|---|---|---|---|---|
+| `--jp-border` | `#C9D2E0` | `#44598A` | `border-border-default` | Standardvalet |
+| `--jp-border-soft` | `#E3E8F0` | `#2C3F65` | — (alias `--jp-border-hairline`) | Mjukaste avgränsare |
+| `--jp-border-strong` | `#97A4B8` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
+| `--jp-border-input` | `#7C8AA0` | `#6F86A8` | — | Input-vila — samma hex som ink-3 light (medveten tonalitet, separat semantik) |
+| `--jp-border-modal` | `var(--jp-border)` | (följer) | `border-border-modal` | ADR 0041-token, re-homed på v3-border |
+| `--jp-border-structural` | `var(--jp-border)` | (följer) | `border-border-structural` | ADR 0041-amendment-token, re-homed på v3-border |
+
+## Status
+
+Bas-token = text/ikon; `-bg` = pill/banner-bakgrund. Tailwind-alias:
+`*-50` → `--jp-*-bg`; `*-500`/`*-600`/`*-700` → bas-tokenen (alla tre samma).
+
+| Token | Light | Dark |
+|---|---|---|
+| `--jp-success` | `#16793B` | `#5DD894` |
+| `--jp-success-bg` | `#DFF3E5` | `#143E29` |
+| `--jp-warning` | `#B4540B` | `#FBC267` |
+| `--jp-warning-bg` | `#FCE9D1` | `#3F2A0B` |
+| `--jp-danger` | `#BE1B1B` | `#FB8989` |
+| `--jp-danger-bg` | `#FBE0E0` | `#3F1419` |
+| `--jp-info` | `#1B5396` | `#8FBEEF` |
+| `--jp-info-bg` | `#DEE9F8` | `#1B3358` |
+
+## Dekorativa accenter
+
+| Token | Light | Dark |
+|---|---|---|
+| `--jp-leaf-600` | `#2C8A3F` | `#5BCB7B` |
+| `--jp-leaf-50` | `#DFF3E5` | `#143E29` |
+| `--jp-coral-600` | `#DA2A47` | `#F47185` |
+| `--jp-coral-50` | `#FCE4E9` | `#3A1722` |
+| `--jp-amber-500` | `#E89A1A` | (skiftas EJ) |
+| `--jp-amber-50` | `#FBEBC8` | (skiftas EJ) |
+
+## Hero / gradient (G1 "F4 Hybrid", ADR 0068 — dokumenterat undantag)
+
+Tema-stabila (omdefinieras INTE i dark; plattan får 1px
+`--jp-border-soft`-hairline i dark). Gradient ENBART `.jp-hero__plate` /
+`.jp-pagehero` / `.jp-empty--brand` / `.jp-land-hero`.
+
+| Token | Värde | Use |
+|---|---|---|
+| `--jp-hero-from` | `#0B2A1E` | Gradient 0% |
+| `--jp-hero-mid` | `#14503A` | Gradient 60% |
+| `--jp-hero-to` | `#1E6B4C` | Gradient 100% |
+| `--jp-hero-gradient` | `linear-gradient(118deg, var(--jp-hero-from) 0%, var(--jp-hero-mid) 60%, var(--jp-hero-to) 100%)` | Plattans bakgrund |
+| `--jp-hero-bg` | `#14503A` | **SOLID ankare** — pagehero-knapp-text/border |
+| `--jp-hero-ink` | `#FFFFFF` | Text på gradienten |
+| `--jp-hero-ink-soft` | `rgba(255, 255, 255, 0.78)` | Lede/kicker på gradienten |
+| `--jp-hero-pill-bg` | `#FFFFFF` | Banner-lokala vita kontroller (tema-stabila) |
+| `--jp-hero-pill-ink` | `#0C1A2E` | Kontroll-text (v3-ink) |
+| `--jp-hero-pill-border` | `#CBD5E1` | Kontroll-border |
+| `--jp-hero-sok-bg` | `#0C1A2E` | Sök-knapp = v3-ink, tema-stabil — INTE grön |
+
+## Focus
+
+| Token | Light | Dark |
+|---|---|---|
+| `--jp-focus` | `var(--jp-accent-700)` → `#15603F` | (samma var) → `#6EE7A8` |
+| `--color-focus-ring-offset` | `var(--jp-surface-primary)` | (följer) |
+
+Gradient-ytor (`.jp-hero__plate`, `.jp-pagehero`, `.jp-empty--brand`,
+`.jp-land-hero`) scopar `--jp-focus: #FFFFFF`. `.jp-popover` återställer till
+`var(--jp-accent-700)`. shadcn `--ring`/`--sidebar-ring` = `var(--jp-focus)`.
+
+## Shadows (v3 — undantag: popover/modal får skugga)
+
+| Token | Light | Dark | Note |
+|---|---|---|---|
+| `--jp-shadow-card` | `0 1px 2px rgba(15,27,45,0.05), 0 1px 0 rgba(15,27,45,0.04)` | `0 1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(0,0,0,0.4)` | Kort |
+| `--jp-shadow-pop` | `0 10px 30px rgba(8,23,48,0.16), 0 2px 6px rgba(8,23,48,0.08)` | `0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)` | Popover/dropdown |
+| `--jp-shadow-modal` | `0 30px 80px rgba(8,23,48,0.35)` | `0 30px 80px rgba(0,0,0,0.7)` | Modal/drawer |
+| `--jp-shadow-sm` | `0 1px 2px rgba(0,0,0,0.04)` | `0 1px 2px rgba(0,0,0,0.6)` | v2-alias-nivå (bridge/inline) |
+| `--jp-shadow-md` | `0 2px 4px rgba(0,0,0,0.06)` | `0 2px 4px rgba(0,0,0,0.7)` | v2-alias-nivå (bridge/inline) |
+
+Aldrig drop-shadows på knappar eller godtyckliga ytor — djup via border.
+
+## Radius tokens (v3-kanon — ADR 0052)
 
 | Token | Värde | Tailwind | Use |
 |---|---|---|---|
-| `--jp-r-sm` | `2px` | `rounded-sm` | Inputs, badges, pill-räknare. |
-| `--jp-r-md` | `4px` | `rounded-md` | **DEFAULT** — knappar, panels, sökruta. |
-| `--jp-r-lg` | `6px` | `rounded-lg` | Större paneler, dropdowns. |
-| `--jp-r-pill` | `9999px` | `rounded-pill` | Endast statusprickar och pills. |
+| `--jp-r-sm` | `4px` | `rounded-sm` | Inputs, checkboxar, hero-pills |
+| `--jp-r-md` | `6px` | `rounded-md` | **DEFAULT** — knappar, kort, rader, popovers |
+| `--jp-r-lg` | `8px` | `rounded-lg` | Modal, större paneler |
+| `--jp-r-xl` | `12px` | `rounded-xl` | **ENDAST hero-plattan** — shadcn `--radius-xl` cappas till `--jp-r-lg` (8px) |
+| `--jp-r-pill` | `9999px` | `rounded-pill` | Status dots, pills, avatar |
 
-Radier > 6px förbjudna (pill undantaget). Inga 8/10/12px.
+ADR 0052: 6px rad/kort, 4px inputs, 8px modal, 12px ENDAST hero.
 
 ## Typografi-familjer
 
@@ -124,42 +166,31 @@ Radier > 6px förbjudna (pill undantaget). Inga 8/10/12px.
 | `--jp-font-sans` | `var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif` |
 | `--jp-font-mono` | `var(--font-mono), "SF Mono", Menlo, Consolas, monospace` |
 
-`--font-sans` (Hanken Grotesk) och `--font-mono` (JetBrains Mono) injiceras via
-`next/font/google` som CSS-variabler. Aldrig Inter/Roboto/Arial/system-ui som
-primär font; aldrig mono för brödtext.
+`--font-sans` (Hanken Grotesk) och `--font-mono` (JetBrains Mono) injiceras
+via `next/font/google`. Aldrig Inter/Roboto/Arial/system-ui som primär font;
+aldrig mono för brödtext.
 
-## Full typografi-skala
+## Typografi-skala (Tailwind `@theme`, on-disk)
 
-Global text-tracking `-0.005em` på `body` (optisk täthet).
+Global text-tracking `-0.005em` på `body` (16px, line-height 1.55).
 
-| Roll | Storlek | Vikt | Line-height | Letter-spacing | Färg |
-|---|---|---|---|---|---|
-| Display H1 | 56px | 600 | 1.05 | -0.025em | `--jp-text-primary` |
-| H1 | 28px | 600 | 1.2 | -0.02em | `--jp-text-primary` |
-| H2 | 20px | 600 | 1.3 | -0.015em | `--jp-text-primary` |
-| H3 | 18px | 600 | 1.3 | -0.01em | `--jp-text-primary` |
-| Lede | 17px | 400 | 1.55 | 0 | `--jp-text-secondary` |
-| Body | 16px | 400 | 1.55 | -0.005em (global) | `--jp-text-primary` |
-| Small | 14px | 400 | 1.5 | 0 | `--jp-text-secondary` |
-| Mono caps | 11.5px | 500 | 1.4 | 0.08em + UPPERCASE | `--jp-text-secondary` (ALDRIG tertiary) |
-| Mono inline | 13px | 500 | 1.4 | 0 | `--jp-text-secondary` / `--jp-text-primary` (aldrig tertiary) |
+| Token | Värde |
+|---|---|
+| `--text-display` | 56px (landing hero only) |
+| `--text-h1` | 28px |
+| `--text-h2` | 20px |
+| `--text-h3` | 18px |
+| `--text-h4` | 16px |
+| `--text-body-lg` | 17px |
+| `--text-body` | 16px |
+| `--text-body-sm` | 14px |
+| `--text-caption` | 13px |
+| `--text-label` | 14px |
+| `--text-mono` | 13px |
 
-Tailwind `@theme`-skala (för `text-*`-utilities): `--text-display` 56px,
-`--text-h1` 28px, `--text-h2` 20px, `--text-h3` 18px, `--text-h4` 17px,
-`--text-body-lg` 17px, `--text-body` 16px, `--text-body-sm` 14px,
-`--text-caption` 13px, `--text-label` 14px, `--text-mono` 13px.
-
-Display 56px/600 endast landing hero. Mono caps 11.5px/500/0.08em UPPERCASE för
-kickers och kolumnhuvuden (`UPPDATERAD · MAJ 2026`), på `--jp-text-secondary` —
-aldrig `--jp-text-tertiary`. Mono inline-data (datum, ID:n, räknare som
-användaren läser) 13px/500 på `--jp-text-secondary` eller `--jp-text-primary`.
-Aldrig all caps i sans.
-
-> **Omkalibrerad per ADR 0038** (GOV.UK-läsbarhetsgolv) — supersederar v2-
-> handoffens täthet för typografi/fältstorlek. Civic-ledger-formen (flata
-> tabeller, hairlines, mono-ID:n, inga cards) är oförändrad — endast
-> skala/färg/fältstorlek är omkalibrerad. `--jp-text-tertiary` är dekorativt
-> endast (se `contrast-table.md`).
+**Dokumenterat undantag (ADR 0068):** `.jp-hero__title` 44px/800 — ENBART
+hero-plattan, inte H1-skalan. Mono caps-labels och mono inline-data på
+`--jp-ink-2`/`--jp-ink-1` — aldrig `--jp-ink-3` (ADR 0038-golvet består).
 
 ## Spacing (4px-grid)
 
@@ -172,11 +203,11 @@ Aldrig all caps i sans.
 | 24px | Mellan sektionsblock, panel-padding |
 | 28px | Sidpadding (`--jp-pad-x`) |
 | 48px | Mellan major sections |
-| 64px | Mellan fristående kapitel (designsystem-sidan) |
+| 64px | Mellan fristående kapitel |
 
 ## Density-multiplikator
 
-Sätts via `[data-density]` på app-roten (`<html>`):
+Sätts via `[data-density]` på `<html>`:
 
 | Mode | `--jp-density` |
 |---|---|
@@ -184,23 +215,46 @@ Sätts via `[data-density]` på app-roten (`<html>`):
 | `standard` | `1` (default) |
 | `luftig` | `1.18` |
 
-Påverkar:
-- `--jp-row-h` = `calc(36px * var(--jp-density))`
-- `--jp-section-y` = `calc(28px * var(--jp-density))`
-- `--jp-pad-x` = `calc(28px * var(--jp-density))`
+Påverkar `--jp-row-h` = `calc(36px * var(--jp-density))`, `--jp-section-y` =
+`calc(28px * var(--jp-density))`, `--jp-pad-x` = `calc(28px * var(--jp-density))`.
+Hårdkoda aldrig padding där density gäller.
 
-Standard radhöjd i flat ledger ~36px (density 1.0). Vertical-align top på
-celler med två rader (företag + tjänst). Padding 12–14px vertikalt, 0
-horisontalt (cellgränser är hairlines). Hårdkoda aldrig padding där density
-gäller.
+## v2-kompat-alias → v3-kanon (städas i F-städ efter nollkonsumtion)
 
-## Komponent-fältstorlek (ADR 0038)
+| v2-alias | Pekar på |
+|---|---|
+| `--jp-surface-primary` | `var(--jp-surface)` |
+| `--jp-surface-secondary` | `var(--jp-surface-2)` |
+| `--jp-surface-tertiary` | `var(--jp-surface-3)` |
+| `--jp-surface-sunken` | `var(--jp-surface-2)` |
+| `--jp-surface-inverse` | `var(--jp-ink-1)` |
+| `--jp-text-primary` | `var(--jp-ink-1)` |
+| `--jp-text-secondary` | `var(--jp-ink-2)` |
+| `--jp-text-tertiary` | `var(--jp-ink-3)` |
+| `--jp-text-inverse` | `var(--jp-ink-inverse)` |
+| `--jp-brand-50` | `var(--jp-accent-50)` |
+| `--jp-brand-100` | `var(--jp-accent-100)` |
+| `--jp-brand-300` | `var(--jp-accent-300)` |
+| `--jp-brand-500` | `var(--jp-accent-500)` |
+| `--jp-brand-600` | **`var(--jp-accent-800)`** (primary = fill-kontraktet, EJ dark-skiftad) |
+| `--jp-brand-700` | `var(--jp-accent-700)` (länk/hover) |
+| `--jp-brand-900` | `var(--jp-accent-900)` |
+| `--jp-brand-accent` | `#FFCD00` (kompass-prick — RÖRS EJ av G1) |
+| `--jp-success-50` | `var(--jp-success-bg)` — `-500/-600/-700` → `var(--jp-success)` |
+| `--jp-warning-50` | `var(--jp-warning-bg)` — `-500/-600/-700` → `var(--jp-warning)` |
+| `--jp-danger-50` | `var(--jp-danger-bg)` — `-500/-600/-700` → `var(--jp-danger)` |
+| `--jp-info-50` | `var(--jp-info-bg)` — `-500/-600/-700` → `var(--jp-info)` |
+| `--jp-border-hairline` | `var(--jp-border-soft)` |
+| `--jp-border-modal` | `var(--jp-border)` |
+| `--jp-border-structural` | `var(--jp-border)` |
 
-| Komponent | Höjd | sm-variant |
+## Komponent-fältstorlek (on-disk `.jp-*`)
+
+| Komponent | Höjd | Varianter |
 |---|---|---|
-| Input / Textarea / Select | 44px | 40px |
-| Button | 40px | 36px |
+| `.jp-input` / `.jp-select` / `.jp-textarea` | 48px (textarea min 110px) | — |
+| `.jp-btn` | 44px | `--sm` 36px, `--lg` 52px |
+| Hero-sökrad (`.jp-hero__input`/`__searchbtn`) | 52px | — |
 
-Radius oförändrad (4px, `--jp-r-md`), transition oförändrad (80ms linear).
-Toolbar-knappar kvarstår som dokumenterat undantag (28px) — men inputs/knappar
-i innehållsytor är 44/40. Civic-ledger-formen är oförändrad.
+Dark mode: input-fälten är LJUSA (`#F0F4FB` bg, `#0C1A2E` text, border
+`#94A3B8`) — user-krav, gäller både `.jp-input` och shadcn `data-slot`-fälten.

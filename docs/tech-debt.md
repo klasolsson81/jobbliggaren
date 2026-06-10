@@ -18,6 +18,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | ID | Titel | Severity | Fas | Kategori |
 |---|---|---|---|---|
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
+| TD-108 | Pre-existing kontrast-borderlines i v3-tokenpar (warning-pill-text 4.2:1 + border-strong 2.5:1) | Minor | 1 | A11y/Design tokens |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -465,7 +466,20 @@ mot backups), ADR 0024 (RDS-retention-precedens), TD-102 (backup-nyckel).
 
 ## Minor — Fas 1
 
-*(Sektionen tom 2026-05-12 — TD-68 stängd efter dev-apply.)*
+## TD-108: Pre-existing kontrast-borderlines i v3-tokenpar (warning-pill-text + border-strong-ensam-kant)
+
+**Kategori:** A11y / Design tokens
+**Severity:** Minor
+**Fas:** 1 (fixas innan fas-stängning)
+**Källa:** design-reviewer + docs-keeper-skill-sync G1 2026-06-10 (`docs/reviews/` G1-rond). Upptäckta vid kontrast-tabell-omräkningen; **EJ G1-regressioner** — pre-existing v3-tokenpar som ADR 0068 explicit låser som oförändrade i G1 (in-block-fix vore scope-brott mot fasens eget beslut → TD per §9.6).
+
+Två WCAG-borderlines i v3-paletten:
+
+1. **`--jp-warning` `#B4540B` på `--jp-warning-bg` `#FCE9D1` ≈ 4.2:1** — under 4.5:1-bodygolvet för 13px-pill-text (klarar large/UI 3:1). Riktvärde för fix: mörka warning-texten till ≥4.5:1 mot warning-bg (~`#A34A06`, verifiera + dark-paret).
+2. **`--jp-border-strong` `#97A4B8` på vit ≈ 2.5:1** — under 3:1-UI-golvet (WCAG 1.4.11) där kanten ENSAM bär information (informationsbärande dividers). Åtgärd: konsument-audit (vilka ytor har border-strong som enda boundary?) + antingen mörkare token eller text/ikon-komplement per yta.
+
+**Föreslagen åtgärd:** (i) justera `--jp-warning` light (+ ev. dark-par) till ≥4.5:1 mot sin bg; (ii) border-strong-konsument-audit + åtgärd per yta. Båda verifieras mot `contrast-table.md` (som redan dokumenterar borderlines ärligt med mitigations).
+**Trigger:** nästa a11y-touch eller Fas 1-stängning, vilket som kommer först.
 
 
 ## Minor — Fas 2

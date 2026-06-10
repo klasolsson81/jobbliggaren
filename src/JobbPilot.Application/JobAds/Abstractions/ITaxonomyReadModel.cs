@@ -35,4 +35,21 @@ public interface ITaxonomyReadModel
     ValueTask<IReadOnlyList<TaxonomyLabelDto>> ResolveLabelsAsync(
         IReadOnlyList<string> conceptIds,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Prefix-sök mot taxonomi-snapshotens labels (ADR 0067 Beslut 5a — utökad
+    /// typeahead-suggest). Matchar Län/Kommun/Yrkesområde/Yrkesgrupp vars namn
+    /// börjar med <paramref name="prefix"/> (case-insensitivt). occupation-name
+    /// ingår INTE (saknar filter-dimension; senior-cto-advisor 2026-06-10 VAL 4).
+    /// <para>
+    /// Ren in-memory-scan av den redan cachade snapshoten — bryter EJ ADR 0043:s
+    /// extern-hop-förbud på sök-vägen (ingen DB-/API-träff per tangenttryck).
+    /// Porten översätter Infrastructures interna <c>TaxonomyConceptKind</c> till
+    /// publika <see cref="SuggestionKind"/> (ACL — <c>TaxonomyConceptKind</c> är
+    /// <c>internal</c> och får aldrig korsa Application-gränsen). Cappas till
+    /// <paramref name="limit"/> (delas med titel-grenen i union-handlern).
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyList<TaxonomySuggestionDto>> SuggestByPrefixAsync(
+        string prefix, int limit, CancellationToken cancellationToken);
 }

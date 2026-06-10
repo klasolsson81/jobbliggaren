@@ -1,3 +1,5 @@
+using JobbPilot.Application.JobAds.Abstractions;
+
 namespace JobbPilot.Application.JobAds.Queries.GetTaxonomyTree;
 
 /// <summary>
@@ -51,3 +53,13 @@ public sealed record TaxonomyOccupationGroupDto(string ConceptId, string Label);
 /// <summary>Reverse-lookup-rad: concept-id → visningsnamn (eller
 /// fallback för okänt id).</summary>
 public sealed record TaxonomyLabelDto(string ConceptId, string Label);
+
+/// <summary>
+/// Ett taxonomi-prefix-förslag (ADR 0067 Beslut 5a) returnerat av
+/// <see cref="JobbPilot.Application.JobAds.Abstractions.ITaxonomyReadModel.SuggestByPrefixAsync"/>.
+/// Porten översätter Infrastructures interna <c>TaxonomyConceptKind</c> till den
+/// publika <see cref="SuggestionKind"/> (ACL — concept-id-vokabulär läcker aldrig
+/// uppåt; <c>TaxonomyConceptKind</c> är <c>internal</c>). <see cref="ConceptId"/>
+/// är alltid satt (taxonomi-noder har alltid concept-id).
+/// </summary>
+public sealed record TaxonomySuggestionDto(SuggestionKind Kind, string ConceptId, string Label);

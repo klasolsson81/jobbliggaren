@@ -1,6 +1,6 @@
 # Current work — JobbPilot
 
-**Status:** **FAS G3 (KONSEKVENSFIXAR) BYGGD + design-reviewer APPROVED 2026-06-10 (branch `feat/design-g3-konsekvensfixar`, PR mot main, bas-HEAD `74a25a9`). KLAS-GO PÅ RENDERAD UI KVARSTÅR.** G2 MERGAD `74a25a9` (#43). G3 = tre Klas rendered-fynd: (1) /jobb-rubrik → "Sök jobb" + top-left (`.jp-hero__plate align-items: end→start`, konsekvent med pagehero); (2) pagehero-CTA "Ny ansökan"/"Nytt CV" → VIT (var grön-genomskinlig ghost; banner-kontroller vita per handoff); (3) **rotfix app-wide:** `a`/`a:hover`-färg scopad `a:not(.jp-btn)` — knapp-`<a>` ärvde länkfärg i hover (grön text på grön knapp; specificitet `a:hover` 0,1,1 > `.jp-btn--primary` 0,1,0). Lagar latent secondary-`<a>`-bug på köpet. design-reviewer APPROVED (0 fynd), tsc/eslint/build gröna, 721 vitest gröna. **KVARSTÅR: (1) Klas rendered-GO (Vercel-preview); (2) LANDING-REDESIGN — Klas fynd #1 "gröna boxen ful", separat större design-omtag, väntar Klas-riktning.**
+**Status:** **FAS G4 (LANDING-REDESIGN) BYGGD + design-reviewer APPROVED 2026-06-10 (branch `feat/design-g4-landing-redesign`, rebasad på main `08abb7b`). KLAS RENDERED-GO KVARSTÅR.** G1–G3 MERGADE (#42 `7140c6b` / #43 `74a25a9` / #44 `08abb7b`). Klas fynd: landing "gröna boxen ful, snyggare landingpage" → valde "CC tar fram förslag". CTO låste **Riktning A (produkt-forward ljus hero):** grön box BORT → ljus canvas-hero (content-first, Mercury-doktrin); login-formulär BORT från hero (DRY-brott — `/logga-in` finns som egen sida) → "Logga in"-länk i topbaren; AuthCard+oauth-mark RADERADE (LoginForm orört); statisk produkt-peek (grön mini-banner + 2 resultatkort, visar produkten); grönt = accent (primär-CTA/topbar-login/peek-fragment), ingen grön box; Features+footer ORÖRDA. design-reviewer APPROVED (0 VETO/0 Major/2 Minor FYI). tsc/eslint/build gröna, 716 vitest gröna. Light+dark egen-verifierade (skärmdump — rejält lyft). **KVARSTÅR: Klas rendered-GO (Vercel-preview); två CTO-flaggor i preview (peek vs typografisk hero; login helt bort från `/`).**
 
 **Levererat denna session (Fas E2a-PR — pending Klas rendered-GO):**
 
@@ -51,13 +51,14 @@
 | `2922a25` | #41 | Fas E2a — yrke-nivå-skifte → yrkesgrupp (ssyk-level-4) |
 | `7140c6b` | #42 | Fas G1 — grön accent-identitet + F4-banner (ADR 0068) |
 | `74a25a9` | #43 | Fas G2 — banner-konsekvens (Sök jobb, 1136-alignment, F4-platta-rollout) |
-| (denna) | — | feat/design-g3-konsekvensfixar — rubrik-align + vit pagehero-CTA + a:hover-rotfix (pending Klas-GO) |
+| `08abb7b` | #44 | Fas G3 — konsekvensfixar (Sök jobb top-left, vit pagehero-CTA, a:hover-rotfix) |
+| (denna) | — | feat/design-g4-landing-redesign — produkt-forward ljus hero, login→topbar (pending Klas-GO) |
 
 ---
 
 ## Pending operativt för Klas
 
-1. **KLAS-GO PÅ RENDERAD UI — G2 banner-konsekvens:** granska Vercel-preview (G2-PR): /jobb ("Sök jobb"-rubrik, platta = kort-bredd), /oversikt + /ansokningar + /cv (inramade plattor, 44/800-rubriker, neutral empty-state), landing (inramad platta). Light + dark. Ge GO → CC sätter automerge.
+1. **KLAS RENDERED-GO — G4 landing-redesign:** granska Vercel-preview (G4-PR) light+dark: ljus hero, grön primär-CTA "Anmäl till väntelista", produkt-peek (grön mini-banner + 2 jobbkort), "Logga in" i topbaren. Två val för ditt öga: (a) produkt-peek vs ren typografisk hero (fallback finns); (b) login helt bort från `/` (topbar-länk → /logga-in; egen sida finns). Ge GO → automerge. *(G1/G2/G3 redan mergade.)*
 2. **Logo-översyn (separat, Klas-ägd):** guld `#FFCD00` (nuvarande kompass-prick) vs handoffens `#E8C77B` (token finns nu) + og/twitter-image-wordmark-färgerna — tas när du vill.
 3. **KLAS-STOPP — chip/residual-kombinationssemantik (ADR 0067 Beslut 5):** krävs INNAN E2d wirar chip+residual. Bekräfta `(dim-predikat) AND (FTS ∨ title-LIKE ∨ synonym)`.
 4. **E2b–E2e (återupptas efter G1-merge, Klas-GO per split):** E2b Län→Kommun-kaskad + municipality-DTO; E2c live facet-count (`FacetCountsAsync`-endpoint + NBomber-gate ADR 0045 BLOCKING); E2d chip-komponist (efter semantik-GO); E2e Rensa-textlänkar + sortering. Byggs nu i GRÖN identitet (G1-poängen).

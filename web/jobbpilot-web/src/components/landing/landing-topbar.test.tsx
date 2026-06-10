@@ -24,13 +24,21 @@ describe("LandingTopbar (F6 Prompt 1)", () => {
     expect(screen.getByText("312")).toBeInTheDocument();
   });
 
-  it("INNEHÅLLER INGA inloggningsknappar (HANDOVER §6.4)", () => {
+  it("har 'Logga in'-LÄNK (ej knapp) till /logga-in, INGEN 'Skapa konto' (G4)", () => {
     render(<LandingTopbar stats={STATS_MOCK} />);
+    // G4-redesign: login flyttad från AuthCard till topbar som <a>-länk.
+    // Navigering ska vara <a href>, aldrig <button> (a11y).
     expect(
       screen.queryByRole("button", { name: /Logga in/i }),
     ).not.toBeInTheDocument();
+    const loginLink = screen.getByRole("link", { name: /Logga in/i });
+    expect(loginLink).toHaveAttribute("href", "/logga-in");
+    // Closed beta — ingen registrering från topbar.
     expect(
       screen.queryByRole("button", { name: /Skapa konto/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Skapa konto/i }),
     ).not.toBeInTheDocument();
   });
 

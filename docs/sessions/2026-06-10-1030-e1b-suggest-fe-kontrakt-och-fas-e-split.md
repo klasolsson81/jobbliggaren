@@ -146,15 +146,23 @@ kontrakts-migration + docs-drift) som första session, med förväntad sub-split
   (knapp-`<a>` ärvde länkfärg i hover pga specificitet 0,1,1 > 0,1,0 + knapp-hover
   satte bara bakgrund — lagar även latent secondary-`<a>`-bug). design-reviewer
   Approved 0 fynd. 721 vitest gröna.
-- **Klas fynd #1 (landing "grön box ful")** → separat större design-omtag, väntar
-  Klas-riktning (Claude Design-handoff vs CC-proposal).
+- **Klas fynd #1 (landing "grön box ful")** → Fas G4 (separat); Klas valde CC-proposal.
+
+## Fas G4 — landing-redesign (samma session)
+
+- **CTO låste Riktning A** (produkt-forward ljus hero): grön box bort (Mercury "produkten
+  ÄR gränssnittet"); login-formulär bort från hero (DRY — /logga-in finns) → topbar-
+  "Logga in"-länk; statisk produkt-peek; grönt → accent. Features/footer orörda.
+- **nextjs-ui-engineer byggde:** ljus `.jp-land-hero`, `.jp-land-peek*` (grön mini-banner-
+  attrapp + 2 flat jobbkort), topbar-login, AuthCard+oauth-mark RADERADE (LoginForm orört),
+  tester uppdaterade samma commit. design-reviewer APPROVED 0 VETO/0 Major/2 Minor FYI.
+  Egen-verifierad light+dark (skärmdump). 716 vitest gröna. Rebasad på G3-main (08abb7b).
 
 ## Nästa session
 
-1. **Klas rendered-GO på G3** (Vercel-preview) → automerge.
-2. **Landing-redesign** — efter Klas-riktning.
+1. **Klas rendered-GO på G4** (Vercel-preview light+dark) → automerge.
 2. **Logo-översyn** (separat Klas-ägd): guld #FFCD00 vs #E8C77B + og/twitter-wordmark.
-3. **E2b–E2e återupptas efter G1-merge** (Klas-GO per split; byggs i grön identitet):
+3. **E2b–E2e återupptas** (Klas-GO per split; byggs i grön identitet):
    E2b kommun-kaskad; E2c facet-count + NBomber; E2d chips (kräver chip/residual-
    semantik-GO); E2e Rensa/sortering. Re-ingest Klass 2 gated.
 

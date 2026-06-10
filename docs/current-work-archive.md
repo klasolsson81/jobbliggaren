@@ -9,6 +9,10 @@ per-session-detaljer i `docs/sessions/`.
 
 ---
 
+**Status:** **EDITOR-BASELINE + DOCS-DRIFT-FIX LEVERERAD 2026-06-10 (branch `chore/editor-baseline`, PR #34 squash `cefa60f`).** Extern idé-triage (Gemini-prompt via Klas) avtäckte spec-drift: CLAUDE.md §11.2 lovade `.editorconfig` + `.vscode/settings.json` + `.vscode/extensions.json` som inte existerade — nu skapade per senior-cto-advisor-dom (Variant B-editorconfig: endast CLAUDE.md §3-spårbara regler på warning; EF-migrations `generated_code = true`). Session-start-templatens AWS-förkrav (döda per ADR 0066) ersatta med lokal-stack-checks. `current-work.md` splittad: historik → denna arkivfil. Imports-normalisering (11 filer) via `dotnet format`. CLAUDE.md §1.6-rad (PR #35, `e06c678`) + handoff-bundles/agent-roster (PR #36, `06b7840`) följde. Full detalj i session-log `2026-06-10-0034-editor-baseline-gemini-triage.md`. Graphify-pilot deferrad efter MVP (ingen TD); Cline avvisad.
+
+---
+
 **Status:** **PLATSBANKEN SÖK-PARITET — FAS C2 (SEARCHCRITERIA-VO-EXPANSION + REVERSE-LOOKUP-MIGRATION + JSONB-BAKÅTKOMPAT) LEVERERAD 2026-06-10 (branch `feat/sok-paritet-vo-reverse-lookup-c2`, PR mot main, bas-HEAD `bc54a84`).** SearchCriteria-VO bär OccupationGroup + Municipality (Ssyk UTGICK — full avveckling ur sök-identiteten per CTO-dom (e)/(f)); RunSavedSearch + ListRecentSearches mappar VO-/entity-fälten in i filter-SPOT:en (C1:s no-op-fönster för sparade/recent sökningar STÄNGT). Reverse-lookup-migration `C2SearchParityReverseLookupAndRecentExpansion` (jsonb Ssyk→OccupationGroup ur frusen embedded resource, 2179 poster; recent_job_searches kolumnbyte + radering) — **EJ applicerad mot dev-DB, Klas-GO krävs; Api/Worker startas om EFTER apply (deploy-ordning: migration före ny binär)**. Nästa: Fas D1 (facet-counts + typeahead) ELLER Fas E (FE-picker) — Klas-GO.
 
 **Levererat denna session (Fas C2-PR):**

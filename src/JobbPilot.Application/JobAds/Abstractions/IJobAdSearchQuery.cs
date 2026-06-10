@@ -40,4 +40,29 @@ public interface IJobAdSearchQuery
     /// </summary>
     ValueTask<int> CountAsync(
         JobAdFilterCriteria criteria, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Per-option facet-counts för <paramref name="dimension"/> (ADR 0067
+    /// Beslut 4 — Platsbanken sök-paritet Fas D1). Returnerar
+    /// concept-id → antal matchande aktiva annonser, t.ex. "Mörbylånga (34)".
+    /// <para>
+    /// <b>Facett-exkluderings-semantik:</b> counten reflekterar alla andra
+    /// aktiva filter i <paramref name="criteria"/> men INTE
+    /// <paramref name="dimension"/> självt (annars fel siffror vs Platsbanken —
+    /// en användare som redan valt en yrkesgrupp ska ändå se hur många annonser
+    /// varje *annan* yrkesgrupp skulle ge). Mekanik: <c>ApplyCriteria</c> körs
+    /// med dimensionens egen lista tömd (SPOT bevarad — ingen andra filter-väg),
+    /// följt av GROUP BY på dimensionens STORED shadow-column.
+    /// </para>
+    /// <para>
+    /// Rå concept-id (namn-omedveten, ADR 0043 Beslut E — label-resolution är
+    /// <see cref="ITaxonomyReadModel"/>/FE-ansvar). NULL-shadow-värden (annons
+    /// utan värde på dimensionen) exkluderas → ingen null-nyckel i resultatet.
+    /// Ny omätt hot-path mot ~44k rader → NBomber-gate mot ADR 0045 (300 ms p95)
+    /// FÖRE live-aktivering.
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyDictionary<string, int>> FacetCountsAsync(
+        JobAdFilterCriteria criteria, FacetDimension dimension,
+        CancellationToken cancellationToken);
 }

@@ -79,6 +79,60 @@ internal sealed class JobAdSearchQuery(
         => await ApplyCriteria(db.JobAds.AsNoTracking(), criteria, synonymExpander)
             .CountAsync(cancellationToken);
 
+    // ADR 0067 Beslut 4 (Fas D1) — per-option facet-counts.
+    public async ValueTask<IReadOnlyDictionary<string, int>> FacetCountsAsync(
+        JobAdFilterCriteria criteria, FacetDimension dimension,
+        CancellationToken cancellationToken)
+    {
+        // Facett-exkludering: töm den facetterade dimensionens egen lista (tom =
+        // inget filter, befintlig JobAdFilterCriteria-semantik) så counten
+        // reflekterar alla ANDRA aktiva filter men inte X självt — annars fel
+        // siffror vs Platsbanken. SPOT bevarad: ApplyCriteria är fortsatt enda
+        // filter-vägen (ingen ApplyCriteriaExcept-duplikat, ADR 0039 Beslut 1 /
+        // ADR 0067 Beslut 4).
+        var faceted = ExcludeDimension(criteria, dimension);
+        var column = ShadowColumn(dimension);
+
+        var baseQuery = ApplyCriteria(db.JobAds.AsNoTracking(), faceted, synonymExpander);
+
+        // GROUP BY shadow-column → concept-id-count. GROUP BY-translation ligger i
+        // Npgsql-assemblyn ⊂ Infrastructure (ADR 0062 Beslut 4 provider-assembly-
+        // axel). NULL-shadow exkluderas (annons utan värde på dimensionen) →
+        // ingen null-nyckel; predikatet matchar partial-indexet WHERE col IS NOT NULL.
+        var grouped = await baseQuery
+            .Where(j => EF.Property<string?>(j, column) != null)
+            .GroupBy(j => EF.Property<string?>(j, column))
+            .Select(g => new { ConceptId = g.Key!, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        return grouped.ToDictionary(x => x.ConceptId, x => x.Count, StringComparer.Ordinal);
+    }
+
+    // FacetDimension → STORED shadow-column (kolumnnamn är Infrastructure-hemlighet;
+    // läcker aldrig till Application). Äger GroupBy-nyckelns kolumn, INTE filter-
+    // predikatet (det äger ApplyCriteria) — olika ansvar, samma kolumn-konstant.
+    private static string ShadowColumn(FacetDimension dimension) => dimension switch
+    {
+        FacetDimension.OccupationGroup => "OccupationGroupConceptId",
+        FacetDimension.Municipality => "MunicipalityConceptId",
+        FacetDimension.Region => "RegionConceptId",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(dimension), dimension, "Unknown FacetDimension — enum out of sync with ApplyCriteria."),
+    };
+
+    // Klonar filter-SPOT:en med den facetterade dimensionens lista tömd (record
+    // with-expression; tom lista = inget filter). Detta är exkluderings-mekaniken
+    // (ADR 0067 Beslut 4) — counten för X ska inte filtreras av X.
+    private static JobAdFilterCriteria ExcludeDimension(
+        JobAdFilterCriteria criteria, FacetDimension dimension) => dimension switch
+        {
+            FacetDimension.OccupationGroup => criteria with { OccupationGroup = [] },
+            FacetDimension.Municipality => criteria with { Municipality = [] },
+            FacetDimension.Region => criteria with { Region = [] },
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(dimension), dimension, "Unknown FacetDimension — enum out of sync with ApplyCriteria."),
+        };
+
     // F2-P9 (TD-70). Filter via Postgres STORED generated columns (B-tree-
     // indexerade, equality-lookup). Shadow-properties refereras via
     // EF.Property<string?>(…) — de är inte top-level Domain-fält (Evans 2003

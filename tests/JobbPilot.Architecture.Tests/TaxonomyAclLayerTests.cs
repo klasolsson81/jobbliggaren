@@ -113,6 +113,11 @@ public class TaxonomyAclLayerTests
             nameof(JobbPilot.Application.RecentJobSearches.Queries.ListRecentSearches.ListRecentSearchesQueryHandler),
             nameof(JobbPilot.Application.SavedSearches.Queries.ListSavedSearches.ListSavedSearchesQueryHandler),
             nameof(JobbPilot.Application.JobAds.Queries.GetTaxonomyTree.ResolveTaxonomyLabelsQueryHandler),
+            // ADR 0067 Beslut 5a (2026-06-10) — femte legitim konsument: utökad
+            // typeahead-suggest unionar taxonomi-snapshot-prefix (SuggestByPrefixAsync)
+            // med job_ads-titel-prefix. Tunn query-handler, samma Application-port-
+            // mönster; ingen Clean Arch-brott (porten är Application-ägd, §2.1).
+            nameof(JobbPilot.Application.JobAds.Queries.SuggestJobAdTerms.SuggestJobAdTermsQueryHandler),
         ]);
     }
 }

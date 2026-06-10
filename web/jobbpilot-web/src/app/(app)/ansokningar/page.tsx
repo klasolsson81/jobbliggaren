@@ -77,17 +77,11 @@ export default async function AnsokningarPage() {
             </p>
           </div>
           <div className="jp-pagehero__aside">
-            {/* G2 design-reviewer M2: en-primary-regeln — när pipelinen är
-                tom är empty-statens CTA skärmens primära handling; asiden
-                växlar då till ghost. */}
-            <Link
-              href="/ansokningar/ny"
-              className={
-                total === 0
-                  ? "jp-btn jp-btn--ghost"
-                  : "jp-btn jp-btn--primary"
-              }
-            >
+            {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
+                med /jobb-bannerns vita kontroller (.jp-pagehero .jp-btn--
+                primary = vit; ghost-på-gradient läste som grön). En-primary
+                bibehållen: vit knapp i plattan vs grön i empty-kortet. */}
+            <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" /> Ny ansökan
             </Link>
           </div>

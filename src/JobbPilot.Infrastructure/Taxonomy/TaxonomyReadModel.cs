@@ -22,7 +22,8 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
 {
     private sealed record CacheState(
         TaxonomyTreeDto Tree,
-        IReadOnlyDictionary<string, string> LabelByConceptId);
+        IReadOnlyDictionary<string, string> LabelByConceptId,
+        IReadOnlyList<TaxonomySuggestionDto> Suggestable);
 
     // Cachen fylls en gång och delas av alla läsare. Medvetet INTE
     // Lazy<Task> (security-auditor 2026-05-17 Minor): en faulted Lazy<Task>
@@ -49,6 +50,24 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             result.Add(new TaxonomyLabelDto(id, label));
         }
         return result;
+    }
+
+    // ADR 0067 Beslut 5a (Fas D1) — in-memory prefix-scan av snapshot-labels.
+    public async ValueTask<IReadOnlyList<TaxonomySuggestionDto>> SuggestByPrefixAsync(
+        string prefix, int limit, CancellationToken cancellationToken)
+    {
+        var state = await GetStateAsync(cancellationToken);
+
+        // Ren in-memory-scan av den redan cachade snapshoten (ingen DB-/extern-
+        // hop per tangenttryck — ADR 0043). OrdinalIgnoreCase: konsekvent med
+        // snapshotens Ordinal-sortering och täcker åäö-case. Deterministisk
+        // ordning (Kind enum → Label) gör union-handlern + testen stabila.
+        return state.Suggestable
+            .Where(s => s.Label.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.Kind)
+            .ThenBy(s => s.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(limit)
+            .ToList();
     }
 
     private async ValueTask<CacheState> GetStateAsync(CancellationToken ct)
@@ -142,8 +161,35 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             .GroupBy(c => c.ConceptId)
             .ToDictionary(g => g.Key, g => g.First().Label, StringComparer.Ordinal);
 
+        // ADR 0067 Beslut 5a — förberäknade typeahead-kandidater. Endast
+        // filtrerbara kinds (Län/Kommun/Yrkesområde/Yrkesgrupp); occupation-name
+        // utesluts (saknar filter-dimension, VAL 4). Kind översätts till den
+        // publika SuggestionKind (ACL — TaxonomyConceptKind är internal).
+        var suggestable = concepts
+            .Where(c => c.Kind is TaxonomyConceptKind.Region
+                            or TaxonomyConceptKind.Municipality
+                            or TaxonomyConceptKind.OccupationField
+                            or TaxonomyConceptKind.OccupationGroup)
+            .Select(c => new TaxonomySuggestionDto(MapKind(c.Kind), c.ConceptId, c.Label))
+            .ToList();
+
         return new CacheState(
             new TaxonomyTreeDto(regions, occupationFields),
-            labelByConceptId);
+            labelByConceptId,
+            suggestable);
     }
+
+    // ACL-översättning Infrastructure-intern TaxonomyConceptKind → publik
+    // SuggestionKind. Endast suggest-bara kinds mappas (Occupation når aldrig
+    // hit — filtreras bort i suggestable-bygget ovan; throw = fail-fast om
+    // filtret och switchen divergerar).
+    private static SuggestionKind MapKind(TaxonomyConceptKind kind) => kind switch
+    {
+        TaxonomyConceptKind.Region => SuggestionKind.Region,
+        TaxonomyConceptKind.Municipality => SuggestionKind.Municipality,
+        TaxonomyConceptKind.OccupationField => SuggestionKind.OccupationField,
+        TaxonomyConceptKind.OccupationGroup => SuggestionKind.OccupationGroup,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(kind), kind, "Non-suggestable TaxonomyConceptKind reached MapKind."),
+    };
 }

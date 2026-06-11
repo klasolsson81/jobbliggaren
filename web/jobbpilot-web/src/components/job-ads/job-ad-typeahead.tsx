@@ -21,6 +21,25 @@ interface JobAdTypeaheadProps {
   onSelect: (suggestion: SuggestionDto) => void;
   /** `name` på inputen (no-JS GET-form-fältet — föräldern bär en `<form>`). */
   name?: string;
+  /**
+   * E2h (Klas-spec): Tab väljer det markerade förslaget ("tabba-klart")
+   * i stället för fokus-flytt. Medvetet WAI-ARIA APG-avsteg, mitigerat:
+   * intercept ENDAST när listan är öppen OCH en markering finns (pil/
+   * mouseover) — annars normal fokus-flytt, aldrig en fokus-fälla.
+   * Shift+Tab interceptas aldrig.
+   */
+  selectOnTab?: boolean;
+  /**
+   * E2h: Backspace i TOMT fält — föräldern tar bort sista chipen
+   * (etablerat chip-input-mönster).
+   */
+  onEmptyBackspace?: () => void;
+  /**
+   * E2h (design-reviewer B2): ref till själva input-elementet så föräldern
+   * kan återföra fokus efter chip-×-borttagning (WCAG 2.4.3 — chipen
+   * försvinner ur DOM, fokus får inte falla till body).
+   */
+  inputRef?: React.Ref<HTMLInputElement>;
   /** Styling-override för inputen (t.ex. `jp-hero__input`). */
   inputClassName?: string;
   /** Styling-override för wrappern (t.ex. `relative flex-1`). */
@@ -58,6 +77,9 @@ export function JobAdTypeahead({
   onChange,
   onSelect,
   name,
+  selectOnTab,
+  onEmptyBackspace,
+  inputRef,
   inputClassName,
   wrapperClassName,
   ariaInvalid,
@@ -147,7 +169,19 @@ export function JobAdTypeahead({
       setActive(-1);
       return;
     }
+    // Backspace i tomt fält → föräldern tar bort sista chipen (E2h).
+    if (e.key === "Backspace" && value === "" && onEmptyBackspace) {
+      onEmptyBackspace();
+      return;
+    }
     if (!showList) return;
+    // Tab väljer markerat förslag (E2h, Klas-spec "tabba-klart") — ENDAST
+    // vid öppen lista + markering; Shift+Tab aldrig (se prop-dokumentationen).
+    if (selectOnTab && e.key === "Tab" && !e.shiftKey && active >= 0) {
+      e.preventDefault();
+      choose(items[active]!);
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((i) => (i + 1) % items.length);
@@ -168,6 +202,7 @@ export function JobAdTypeahead({
   return (
     <div className={wrapperClassName ?? "relative flex flex-col gap-1.5"}>
       <input
+        ref={inputRef}
         id={id}
         name={name}
         type="search"
@@ -219,6 +254,10 @@ export function JobAdTypeahead({
           role="listbox"
           className="absolute top-full left-0 z-10 mt-1 w-full overflow-hidden rounded-md border border-border-default bg-surface-primary shadow-md"
           aria-label="Sökförslag"
+          // Rensa markeringen när pekaren lämnar listan (design-reviewer M4
+          // E2h): en parkerad muspekare får inte lämna stale markering som
+          // Tab sedan väljer utan att användaren tittar.
+          onMouseLeave={() => setActive(-1)}
         >
           {items.map((item, i) => (
             <li

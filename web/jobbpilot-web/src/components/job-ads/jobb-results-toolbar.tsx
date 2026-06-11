@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, MapPin, X } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
+  type JobbUrlState,
 } from "@/lib/job-ads/search-params";
+import {
+  buildChipModels,
+  removeChipFromState,
+  type SearchChip,
+} from "@/lib/job-ads/chip-models";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
 
 /**
@@ -15,21 +21,21 @@ import { publishTotalCount } from "@/lib/job-ads/total-count-store";
  * `N träffar` (mono) vänster + aktiva filter-chips + `Sortera [select ▾]`
  * höger. INGET separat sorterings-block (Klas F4-spec).
  *
- * Chips: label via server-resolverad conceptId→label (ADR 0043 Beslut B,
- * "Okänd kod (<id>)"-fallback redan applicerad i page.tsx). × tar bort
- * den conceptId ur rätt searchParam-axel, övriga params bevaras
- * (`buildJobbHref` — symmetriskt med hero-pills).
+ * E2h: chips deriveras ur props (URL-sanningen) via delade
+ * `buildChipModels`/`removeChipFromState` (lib/job-ads/chip-models —
+ * SPOT med hero-fältets in-field-chips; × är SAMMA operation i båda
+ * renderingarna). Tidigare lokala useState-kopior (E2g-divergent mönster
+ * som bara överlevde via Suspense-remounten) ersatta med useOptimistic —
+ * URL är enda sanningen, overlay:t ger omedelbar ×-respons.
+ *
+ * Labels: server-resolverad conceptId→label (ADR 0043 Beslut B, "Okänd
+ * kod (<id>)"-fallback). Toolbar-× PUSHAR (CTO E2h VAL 2-asymmetrin:
+ * fältet = pågående komposition → replace; toolbaren = redigering av
+ * etablerad sökning → push).
  *
  * Sort: native `<select>`. Relevance disablad när q < 2 tecken
- * (ADR 0042 Beslut D — icke-förhandlingsbar invariant, härledd ur
- * q-searchParam-propen, EJ lokal state).
+ * (ADR 0042 Beslut D — härledd ur q-searchParam-propen, EJ lokal state).
  */
-
-interface ChipModel {
-  conceptId: string;
-  label: string;
-  axis: "occupationGroup" | "region" | "municipality";
-}
 
 interface JobbResultsToolbarProps {
   totalCount: number;
@@ -55,13 +61,6 @@ const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string }> = [
   { value: "ExpiresAtAsc", label: "Ansökningsdatum (sista ansökan)" },
 ];
 
-function labelFor(
-  conceptId: string,
-  resolvedLabels: Record<string, string>,
-): string {
-  return resolvedLabels[conceptId] ?? `Okänd kod (${conceptId})`;
-}
-
 export function JobbResultsToolbar({
   totalCount,
   occupationGroup,
@@ -75,9 +74,8 @@ export function JobbResultsToolbar({
   const router = useRouter();
   const [, startTransition] = useTransition();
 
-  // q ägs av hero-GET-formuläret; toolbaren härleder bara Relevance-gaten
-  // ur searchParam-propen (ADR 0042 Beslut D). Lokal state hålls för
-  // chips/sort så UI:t inte hoppar innan RSC-omrendering landat.
+  // q ägs av hero-fältet; toolbaren härleder bara Relevance-gaten
+  // ur searchParam-propen (ADR 0042 Beslut D).
   const qReady = q.trim().length >= 2;
 
   // E2c (CTO VAL 2) — publicera list-svarets totalCount till hero-öns
@@ -87,104 +85,63 @@ export function JobbResultsToolbar({
     publishTotalCount(totalCount);
   }, [totalCount]);
 
-  const [occupationGroupState, setOccupationGroup] = useState<string[]>([
-    ...occupationGroup,
-  ]);
-  const [regionState, setRegion] = useState<string[]>([...region]);
-  const [municipalityState, setMunicipality] = useState<string[]>([
-    ...municipality,
-  ]);
-  const selectRef = useRef<HTMLSelectElement>(null);
+  // URL-sanningen som bas + optimistiskt overlay (E2g/E2h — ersätter de
+  // tidigare lokala useState-kopiorna).
+  const base = useMemo<JobbUrlState>(
+    () => ({
+      q,
+      occupationGroup: [...occupationGroup],
+      region: [...region],
+      municipality: [...municipality],
+      sortBy,
+      pageSize,
+    }),
+    [q, occupationGroup, region, municipality, sortBy, pageSize],
+  );
+  const [urlState, setOptimisticState] = useOptimistic(
+    base,
+    (_current, next: JobbUrlState) => next,
+  );
 
   // Om URL bär en sort utanför de tre locked alternativen (t.ex.
   // PublishedAtAsc), visar select:en default men toolbaren emitterar
   // bara de tre. Bevarar ändå det riktiga sortBy-värdet i URL-build tills
   // användaren aktivt byter (annars skulle render tvinga ett byte).
-  const selectValue = SORT_OPTIONS.some((o) => o.value === sortBy)
-    ? sortBy
+  const selectValue = SORT_OPTIONS.some((o) => o.value === urlState.sortBy)
+    ? urlState.sortBy
     : DEFAULT_SORT_BY;
 
-  function pushState(
-    nextOccupationGroup: string[],
-    nextRegion: string[],
-    nextMunicipality: string[],
-  ) {
+  function commit(next: JobbUrlState) {
     startTransition(() => {
-      router.push(
-        buildJobbHref({
-          q,
-          occupationGroup: nextOccupationGroup,
-          region: nextRegion,
-          municipality: nextMunicipality,
-          sortBy,
-          pageSize,
-        }),
-      );
+      setOptimisticState(next);
+      router.push(buildJobbHref(next));
     });
   }
 
-  function removeChip(chip: ChipModel) {
-    if (chip.axis === "occupationGroup") {
-      const next = occupationGroupState.filter((v) => v !== chip.conceptId);
-      setOccupationGroup(next);
-      pushState(next, regionState, municipalityState);
-    } else if (chip.axis === "region") {
-      const next = regionState.filter((v) => v !== chip.conceptId);
-      setRegion(next);
-      pushState(occupationGroupState, next, municipalityState);
-    } else {
-      const next = municipalityState.filter((v) => v !== chip.conceptId);
-      setMunicipality(next);
-      pushState(occupationGroupState, regionState, next);
-    }
+  function removeChip(chip: SearchChip) {
+    commit(removeChipFromState(urlState, chip));
   }
 
   // E2e (ADR 0067 rad 109): "Rensa alla filter" = röd text-länk (ej knapp)
   // som nollar alla tre filter-axlarna. q bevaras — söktermen ägs av
-  // hero-formuläret och är inte ett filter-chip.
+  // hero-fältet och representeras inte i toolbarens chips.
   function clearAllFilters() {
-    setOccupationGroup([]);
-    setRegion([]);
-    setMunicipality([]);
-    pushState([], [], []);
+    commit({ ...urlState, occupationGroup: [], region: [], municipality: [] });
   }
 
   function onSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const next = e.target.value as JobAdSortBy;
-    startTransition(() => {
-      router.push(
-        buildJobbHref({
-          q,
-          occupationGroup: occupationGroupState,
-          region: regionState,
-          municipality: municipalityState,
-          sortBy: next,
-          pageSize,
-        }),
-      );
-    });
+    commit({ ...urlState, sortBy: e.target.value as JobAdSortBy });
   }
 
   // Chips-ordning: region → municipality → occupationGroup (geografin
-  // samlad — E2b-architect-dom fråga 5). Kommun delar MapPin med region:
-  // chipen representerar dimensionen Ort; län/kommun är granulariteter.
-  const chips: ChipModel[] = [
-    ...regionState.map<ChipModel>((conceptId) => ({
-      conceptId,
-      label: labelFor(conceptId, resolvedLabels),
-      axis: "region",
-    })),
-    ...municipalityState.map<ChipModel>((conceptId) => ({
-      conceptId,
-      label: labelFor(conceptId, resolvedLabels),
-      axis: "municipality",
-    })),
-    ...occupationGroupState.map<ChipModel>((conceptId) => ({
-      conceptId,
-      label: labelFor(conceptId, resolvedLabels),
-      axis: "occupationGroup",
-    })),
-  ];
+  // samlad — E2b-architect-dom fråga 5; ordningen ägs av buildChipModels).
+  // q-orden visas INTE här (söktermen är inte ett filter-chip i toolbaren).
+  const chips = buildChipModels(
+    urlState,
+    (_axis, conceptId) =>
+      resolvedLabels[conceptId] ?? `Okänd kod (${conceptId})`,
+    { includeQ: false },
+  );
 
   return (
     <div className="jp-results-toolbar">
@@ -209,7 +166,7 @@ export function JobbResultsToolbar({
             aria-label="Aktiva filter"
           >
             {chips.map((chip) => (
-              <span key={`${chip.axis}-${chip.conceptId}`} className="jp-filterchip">
+              <span key={`${chip.axis}-${chip.value}`} className="jp-filterchip">
                 {chip.axis === "occupationGroup" ? (
                   <Briefcase size={12} aria-hidden="true" />
                 ) : (
@@ -246,7 +203,6 @@ export function JobbResultsToolbar({
         </label>
         <select
           id="jobb-sort"
-          ref={selectRef}
           className="jp-select"
           style={{ height: 40, width: "auto", minWidth: 180 }}
           value={selectValue}

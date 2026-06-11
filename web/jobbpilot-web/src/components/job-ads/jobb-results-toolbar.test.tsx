@@ -100,6 +100,82 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     ).toBeInTheDocument();
   });
 
+  it("Rensa alla filter nollar alla tre axlarna men bevarar q (E2e)", async () => {
+    const user = userEvent.setup();
+    render(
+      <JobbResultsToolbar
+        totalCount={3}
+        occupationGroup={["MVqp_eS8_kDZ"]}
+        region={["CifL_Rzy_Mku"]}
+        municipality={["zHxw_uJZ_NNh"]}
+        resolvedLabels={resolvedLabels}
+        q="backend"
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rensa alla filter" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend");
+  });
+
+  it("Rensa alla filter bevarar icke-default sortBy (E2e, code-reviewer Minor 1)", async () => {
+    const user = userEvent.setup();
+    render(
+      <JobbResultsToolbar
+        totalCount={3}
+        occupationGroup={["MVqp_eS8_kDZ"]}
+        region={[]}
+        municipality={[]}
+        resolvedLabels={resolvedLabels}
+        q="backend"
+        sortBy="ExpiresAtAsc"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rensa alla filter" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend&sortBy=ExpiresAtAsc");
+  });
+
+  it("Rensa alla filter visas inte utan aktiva chips (E2e)", () => {
+    render(
+      <JobbResultsToolbar
+        totalCount={5}
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        resolvedLabels={{}}
+        q=""
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Rensa alla filter" }),
+    ).toBeNull();
+  });
+
+  it("sort-alternativen bär E2e-labels (Relevans / Datum (nyast) / Ansökningsdatum (sista ansökan))", () => {
+    render(
+      <JobbResultsToolbar
+        totalCount={5}
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        resolvedLabels={{}}
+        q="ab"
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Relevans" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Datum (nyast)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Ansökningsdatum (sista ansökan)" }),
+    ).toBeInTheDocument();
+  });
+
   it("Relevance-alternativet är disablat utan söktext (ADR 0042 Beslut D)", () => {
     render(
       <JobbResultsToolbar
@@ -113,7 +189,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       />,
     );
     const opt = screen.getByRole("option", {
-      name: "Mest relevant (CV-match)",
+      name: "Relevans",
     }) as HTMLOptionElement;
     expect(opt.disabled).toBe(true);
   });
@@ -131,7 +207,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       />,
     );
     const opt = screen.getByRole("option", {
-      name: "Mest relevant (CV-match)",
+      name: "Relevans",
     }) as HTMLOptionElement;
     expect(opt.disabled).toBe(false);
   });
@@ -151,7 +227,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     );
     await user.selectOptions(
       screen.getByLabelText("Sortera"),
-      "Mest relevant (CV-match)",
+      "Relevans",
     );
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=Relevance",

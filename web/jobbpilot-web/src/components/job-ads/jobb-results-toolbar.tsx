@@ -27,13 +27,14 @@ import {
 interface ChipModel {
   conceptId: string;
   label: string;
-  axis: "occupationGroup" | "region";
+  axis: "occupationGroup" | "region" | "municipality";
 }
 
 interface JobbResultsToolbarProps {
   totalCount: number;
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
+  municipality: ReadonlyArray<string>;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -59,6 +60,7 @@ export function JobbResultsToolbar({
   totalCount,
   occupationGroup,
   region,
+  municipality,
   resolvedLabels,
   q,
   sortBy,
@@ -76,6 +78,9 @@ export function JobbResultsToolbar({
     ...occupationGroup,
   ]);
   const [regionState, setRegion] = useState<string[]>([...region]);
+  const [municipalityState, setMunicipality] = useState<string[]>([
+    ...municipality,
+  ]);
   const selectRef = useRef<HTMLSelectElement>(null);
 
   // Om URL bär en sort utanför de tre locked alternativen (t.ex.
@@ -86,13 +91,18 @@ export function JobbResultsToolbar({
     ? sortBy
     : DEFAULT_SORT_BY;
 
-  function pushState(nextOccupationGroup: string[], nextRegion: string[]) {
+  function pushState(
+    nextOccupationGroup: string[],
+    nextRegion: string[],
+    nextMunicipality: string[],
+  ) {
     startTransition(() => {
       router.push(
         buildJobbHref({
           q,
           occupationGroup: nextOccupationGroup,
           region: nextRegion,
+          municipality: nextMunicipality,
           sortBy,
           pageSize,
         }),
@@ -104,11 +114,15 @@ export function JobbResultsToolbar({
     if (chip.axis === "occupationGroup") {
       const next = occupationGroupState.filter((v) => v !== chip.conceptId);
       setOccupationGroup(next);
-      pushState(next, regionState);
-    } else {
+      pushState(next, regionState, municipalityState);
+    } else if (chip.axis === "region") {
       const next = regionState.filter((v) => v !== chip.conceptId);
       setRegion(next);
-      pushState(occupationGroupState, next);
+      pushState(occupationGroupState, next, municipalityState);
+    } else {
+      const next = municipalityState.filter((v) => v !== chip.conceptId);
+      setMunicipality(next);
+      pushState(occupationGroupState, regionState, next);
     }
   }
 
@@ -120,6 +134,7 @@ export function JobbResultsToolbar({
           q,
           occupationGroup: occupationGroupState,
           region: regionState,
+          municipality: municipalityState,
           sortBy: next,
           pageSize,
         }),
@@ -127,11 +142,19 @@ export function JobbResultsToolbar({
     });
   }
 
+  // Chips-ordning: region → municipality → occupationGroup (geografin
+  // samlad — E2b-architect-dom fråga 5). Kommun delar MapPin med region:
+  // chipen representerar dimensionen Ort; län/kommun är granulariteter.
   const chips: ChipModel[] = [
     ...regionState.map<ChipModel>((conceptId) => ({
       conceptId,
       label: labelFor(conceptId, resolvedLabels),
       axis: "region",
+    })),
+    ...municipalityState.map<ChipModel>((conceptId) => ({
+      conceptId,
+      label: labelFor(conceptId, resolvedLabels),
+      axis: "municipality",
     })),
     ...occupationGroupState.map<ChipModel>((conceptId) => ({
       conceptId,
@@ -164,10 +187,10 @@ export function JobbResultsToolbar({
           >
             {chips.map((chip) => (
               <span key={`${chip.axis}-${chip.conceptId}`} className="jp-filterchip">
-                {chip.axis === "region" ? (
-                  <MapPin size={12} aria-hidden="true" />
-                ) : (
+                {chip.axis === "occupationGroup" ? (
                   <Briefcase size={12} aria-hidden="true" />
+                ) : (
+                  <MapPin size={12} aria-hidden="true" />
                 )}
                 {chip.label}
                 <button

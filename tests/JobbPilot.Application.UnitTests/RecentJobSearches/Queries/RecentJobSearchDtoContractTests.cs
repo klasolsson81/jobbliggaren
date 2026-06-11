@@ -5,28 +5,18 @@ using Shouldly;
 
 namespace JobbPilot.Application.UnitTests.RecentJobSearches.Queries;
 
-// C2-kontraktsvakthund (architect F5 — villkorat Blocker, löst med ADDITIV
-// DTO). FE-zod-schemat (web/.../recent-searches.ts) har `ssykList` REQUIRED —
-// rakt rename Ssyk*→OccupationGroup* skulle bryta /sokningar + /jobb-hero-chip
-// + /oversikt. Därför:
-//
-//   - Befintliga fält + deras inbördes positionsordning OFÖRÄNDRADE
-//     (Id, Q, SsykList, RegionList, SsykLabels, RegionLabels, SortBy, Label,
-//     CurrentCount, NewCount, LastViewedAt).
-//   - SsykList/SsykLabels är deprecated och matas ALLTID med [] (verifieras i
-//     ListRecentSearchesQueryHandlerTests); tas bort i Fas E med zod-schemat.
-//   - Nya fält tillkommer SIST (samma additiva konvention som
-//     SavedSearchDtoContractTests etablerade — zod stripper okända nycklar →
-//     osynliga för FE tills Fas E): OccupationGroupList, MunicipalityList,
-//     OccupationGroupLabels, MunicipalityLabels.
-//
-// VAL DOKUMENTERAT (test-writer C2): architect F5 specade inte exakta
-// positioner — "nya fält sist" väljs för paritet med SavedSearchDto-
-// konventionen och minsta positionella kontraktsyta.
+// Kontraktsvakthund. C2 (architect F5) höll DTO:n ADDITIV med deprecated
+// alltid-tomma SsykList/SsykLabels eftersom FE-zod krävde `ssykList`.
+// E2a frikopplade FE-zod (occupationGroupList); E2b utförde F5-planens
+// borttagning (CTO-direktiv commit 3, 2026-06-11) — shimmet är BORTA och
+// formen är den slutgiltiga: dimensioner yrkesgrupp → kommun → region,
+// labels i samma ordning, sedan SortBy/Label/counters/LastViewedAt.
+// Wire-kontraktet är namnbaserat (camelCase, zod) — positionslåset här är
+// intern granskningsbarhet, inte wire-yta.
 public class RecentJobSearchDtoContractTests
 {
     [Fact]
-    public void RecentJobSearchDto_ShouldKeepExistingProperties_Unchanged()
+    public void RecentJobSearchDto_ShouldExposeExpectedPropertyTypes()
     {
         var t = typeof(RecentJobSearchDto);
 
@@ -34,13 +24,17 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(Guid));
         t.GetProperty(nameof(RecentJobSearchDto.Q))!
             .PropertyType.ShouldBe(typeof(string));
-        t.GetProperty("SsykList")!
+        t.GetProperty(nameof(RecentJobSearchDto.OccupationGroupList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
-        t.GetProperty("RegionList")!
+        t.GetProperty(nameof(RecentJobSearchDto.MunicipalityList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
-        t.GetProperty("SsykLabels")!
+        t.GetProperty(nameof(RecentJobSearchDto.RegionList))!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        t.GetProperty(nameof(RecentJobSearchDto.OccupationGroupLabels))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
-        t.GetProperty("RegionLabels")!
+        t.GetProperty(nameof(RecentJobSearchDto.MunicipalityLabels))!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
+        t.GetProperty(nameof(RecentJobSearchDto.RegionLabels))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
         t.GetProperty(nameof(RecentJobSearchDto.SortBy))!
             .PropertyType.ShouldBe(typeof(JobAdSortBy));
@@ -55,26 +49,19 @@ public class RecentJobSearchDtoContractTests
     }
 
     [Fact]
-    public void RecentJobSearchDto_ShouldExposeAdditiveOccupationGroupAndMunicipalityFields()
+    public void RecentJobSearchDto_ShouldNotCarryDeprecatedSsykShim()
     {
+        // E2b-vakthund: C2-shimmet får inte återuppstå — occupation-name-
+        // dimensionen finns inte i sök-identiteten (C2 CTO-dom (e)).
         var t = typeof(RecentJobSearchDto);
 
-        t.GetProperty("OccupationGroupList")!
-            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
-        t.GetProperty("MunicipalityList")!
-            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
-        t.GetProperty("OccupationGroupLabels")!
-            .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
-        t.GetProperty("MunicipalityLabels")!
-            .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
+        t.GetProperty("SsykList").ShouldBeNull();
+        t.GetProperty("SsykLabels").ShouldBeNull();
     }
 
     [Fact]
-    public void RecentJobSearchDto_ShouldKeepExistingPositionalOrder_NewFieldsLast()
+    public void RecentJobSearchDto_ShouldKeepCanonicalPositionalOrder()
     {
-        // FE-wire-kontraktet är namnbaserat (zod), men positionsordningen låses
-        // ändå: befintliga 11 fält först (oförändrad inbördes ordning), nya
-        // fält tillkommer SIST — additivitet är granskningsbar i ett test.
         var ctor = typeof(RecentJobSearchDto)
             .GetConstructors()
             .OrderByDescending(c => c.GetParameters().Length)
@@ -82,16 +69,12 @@ public class RecentJobSearchDtoContractTests
 
         var names = ctor.GetParameters().Select(p => p.Name).ToArray();
 
-        names.Length.ShouldBe(15);
-        names[..11].ShouldBe(
+        names.ShouldBe(
         [
-            "Id", "Q", "SsykList", "RegionList", "SsykLabels", "RegionLabels",
+            "Id", "Q",
+            "OccupationGroupList", "MunicipalityList", "RegionList",
+            "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
             "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
-        ]);
-        names[11..].ShouldBe(
-        [
-            "OccupationGroupList", "MunicipalityList",
-            "OccupationGroupLabels", "MunicipalityLabels",
         ]);
     }
 }

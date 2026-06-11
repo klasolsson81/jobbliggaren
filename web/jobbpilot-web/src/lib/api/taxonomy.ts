@@ -66,8 +66,9 @@ export async function getTaxonomyTree(): Promise<ApiResult<TaxonomyTree>> {
  * Okänt id → backend `"Okänd kod (<id>)"` (graceful, ADR 0043 Beslut B).
  *
  * Tom id-lista → tom lista utan backend-anrop (ingen DoS-yta, ingen
- * onödig rundtur). Cap = backend `SearchCriteria.MaxConceptIds * 2` i
- * `ResolveTaxonomyLabelsQueryValidator` (sista barriär).
+ * onödig rundtur). Cap = backend `SearchCriteria.MaxConceptIds * 4` (=1600)
+ * i `ResolveTaxonomyLabelsQueryValidator` (sista barriär; ×4 sedan ADR
+ * 0043-notatet 2026-06-09 — kommentaren här släpade på ×2).
  *
  * Cache: backend skickar `private, no-store` (varierar per ids, auth) →
  * vi sätter `cache: "no-store"` för att inte cacha per-användar-svar.

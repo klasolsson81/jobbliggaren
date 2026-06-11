@@ -7,9 +7,10 @@ import type { JobAdSortBy } from "@/lib/dto/job-ads";
  * URL får inte radera varandras params).
  *
  * Kontrakt (ADR 0042 Beslut B, OFÖRÄNDRAT):
- * - `occupationGroup` / `region` = upprepade query-params (conceptId
- *   string[]). `occupationGroup` = ssyk-level-4/yrkesgrupp (ADR 0067 Fas
- *   E2a nivå-skifte; backend tog bort `?ssyk=` i C2).
+ * - `occupationGroup` / `region` / `municipality` = upprepade query-params
+ *   (conceptId string[]). `occupationGroup` = ssyk-level-4/yrkesgrupp (ADR
+ *   0067 Fas E2a nivå-skifte). `municipality` = kommun (Fas E2b — backend
+ *   kombinerar region∪municipality som union, ADR 0067 impl-notat E2b).
  * - `q` = hero-sökordet (ägs av hero-GET-formuläret; bärs vidare här så
  *   en filter-/sort-ändring aldrig tappar användarens sökterm).
  * - `sortBy` utelämnas när = default (PublishedAtDesc).
@@ -21,6 +22,7 @@ export interface JobbUrlState {
   q: string;
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
+  municipality: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -32,6 +34,7 @@ export function buildJobbHref(state: JobbUrlState): string {
   for (const v of state.occupationGroup)
     params.append("occupationGroup", v);
   for (const v of state.region) params.append("region", v);
+  for (const v of state.municipality) params.append("municipality", v);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);

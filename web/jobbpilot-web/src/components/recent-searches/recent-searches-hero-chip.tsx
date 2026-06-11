@@ -15,6 +15,7 @@ function buildHrefFor(item: RecentJobSearchDto): string {
     q: item.q ?? "",
     occupationGroup: item.occupationGroupList,
     region: item.regionList,
+    municipality: item.municipalityList,
     sortBy: item.sortBy,
   });
 }

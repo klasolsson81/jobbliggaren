@@ -10,12 +10,16 @@ import { useDismissable } from "@/lib/hooks/use-dismissable";
  * window-globals/mock ersatta med conceptId↔label-kontraktet (ADR 0043 ACL)
  * och live searchParams-commit (ADR 0042 Beslut B, OFÖRÄNDRAT).
  *
- * Två renderingslägen:
- * - Tvåkolumns (Yrke): vänster = grupper (occupationFields) som rader,
- *   höger = valt grupps val (occupations) med "Välj alla"-rad överst.
- * - Enkelkolumns (Ort): EN kolumn = Län-val (ADR 0055 amendment
- *   2026-05-19 — regions enkelnivå, ingen kommun; INGEN platshållare för
- *   framtida höger-kolumn).
+ * Tvåkolumns kaskad: vänster = grupper (yrkesområden/län) som
+ * navigationsrader, höger = aktiva gruppens val med "Välj alla"-rad överst.
+ * Fas E2b (CTO VAL 3, docs/reviews/2026-06-11-sok-paritet-e2b-cto.md):
+ * kontraktet är AXEL-MEDVETET via optionala `groupAxis`-props — "Välj
+ * alla"-raden kan toggla GRUPPENS conceptId i en egen axel (Ort: hela
+ * länet = ETT region-id; kommun-rader = municipality-axeln) i stället för
+ * att materialisera höger-kolumnens ids i `selected`. Yrke utelämnar
+ * `groupAxis` = degenererat enaxel-fall (parameterisering med data, inte
+ * mode-flagga — Flag Argument-smell avvisat). Det tidigare enkelkolumns-
+ * läget (Ort som platt Län-lista) utgick i E2b — noll konsumenter.
  *
  * Ingen footer, ingen Använd/Stäng-knapp (ADR 0055 Beslut 2). ESC + klick
  * utanför stänger, fokus återförs till triggern (jobbpilot-design-a11y,
@@ -23,10 +27,10 @@ import { useDismissable } from "@/lib/hooks/use-dismissable";
  */
 
 export interface PopoverGroup {
-  /** conceptId för yrkesområdet (vänsterrad) — endast tvåkolumns. */
+  /** conceptId för gruppen (vänsterrad — yrkesområde/län). */
   conceptId: string;
   label: string;
-  /** Val under gruppen (yrkesgrupper, ssyk-level-4). */
+  /** Val under gruppen (yrkesgrupper resp. kommuner). */
   items: ReadonlyArray<PopoverItem>;
 }
 
@@ -36,39 +40,41 @@ export interface PopoverItem {
   label: string;
 }
 
-interface BaseProps {
+interface JobbFilterPopoverProps {
   open: boolean;
-  /** conceptId-lista för denna axel (occupationGroup eller region). */
+  /** conceptId-lista för ITEM-axeln (occupationGroup eller municipality). */
   selected: ReadonlyArray<string>;
-  /** Live-commit: emitterar hela nästa conceptId-listan. */
+  /** Live-commit: emitterar hela nästa conceptId-listan (item-axeln). */
   onChange: (next: string[]) => void;
   onClose: () => void;
-  /** Återställ hela denna axel (header-Rensa). */
+  /** Återställ ALLA axlar denna picker äger (header-Rensa). */
   onClearAll: () => void;
   /** Triggerns ref — fokus-retur vid ESC/utanför-klick (a11y). */
   triggerRef: React.RefObject<HTMLButtonElement | null>;
-}
-
-interface TwoColumnProps extends BaseProps {
-  mode: "two-column";
-  /** Vänster kolumn-titel (t.ex. "Yrkesområde"). */
+  /** Vänster kolumn-titel (t.ex. "Yrkesområde", "Län"). */
   leftTitle: string;
-  /** Höger kolumn-titel (t.ex. "Yrken"). */
+  /** Höger kolumn-titel (t.ex. "Yrkesgrupper", "Kommuner"). */
   rightTitle: string;
   /** "Välj alla X"-radens text (höger kolumn). */
   selectAllLabel: string;
   groups: ReadonlyArray<PopoverGroup>;
+  /** Civil degradering när grupperna inte kunde laddas. */
+  emptyText: string;
+  /** Höger kolumns tomtext (grupp utan val). */
+  rightEmptyText: string;
+  /**
+   * Axel-medveten "Välj alla" (Ort, CTO VAL 3): raden togglar AKTIVA
+   * gruppens conceptId i en EGEN axel (region) i stället för att
+   * materialisera höger-kolumnens items i `selected`. `onClearColumn`
+   * rensar båda axlarna för EN grupp (höger-kolumnens Rensa). Utelämnad
+   * (Yrke) → "Välj alla" materialiserar item-ids i `selected` som förut.
+   */
+  groupAxis?: {
+    selected: ReadonlyArray<string>;
+    onToggleGroup: (groupConceptId: string) => void;
+    onClearColumn: (groupConceptId: string) => void;
+  };
 }
-
-interface SingleColumnProps extends BaseProps {
-  mode: "single-column";
-  /** Kolumn-titel (t.ex. "Län"). */
-  title: string;
-  selectAllLabel: string;
-  items: ReadonlyArray<PopoverItem>;
-}
-
-type JobbFilterPopoverProps = TwoColumnProps | SingleColumnProps;
 
 // Position härleds ur triggerns ref INNE I en effect (refs får inte läsas
 // under render — react-hooks/refs). Mätningen sker efter mount/öppning och
@@ -116,7 +122,7 @@ function toggle(
   );
 }
 
-/** "Välj alla"/"Avmarkera alla" för en grupp av conceptId. */
+/** "Välj alla"/"Avmarkera alla" för en grupp av conceptId (enaxel-fallet). */
 function toggleAll(
   selected: ReadonlyArray<string>,
   groupIds: ReadonlyArray<string>,
@@ -165,23 +171,38 @@ function CheckRow({
   );
 }
 
-export function JobbFilterPopover(props: JobbFilterPopoverProps) {
-  const { open, selected, onChange, onClose, onClearAll, triggerRef } = props;
-
+export function JobbFilterPopover({
+  open,
+  selected,
+  onChange,
+  onClose,
+  onClearAll,
+  triggerRef,
+  leftTitle,
+  rightTitle,
+  selectAllLabel,
+  groups,
+  emptyText,
+  rightEmptyText,
+  groupAxis,
+}: JobbFilterPopoverProps) {
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePopoverPosition(open, triggerRef);
 
-  // Aktivt yrkesområde (vänsterrad) — endast tvåkolumns. Lazy-initieras
-  // till första gruppen. Reset till första gruppen vid varje öppning sker
-  // via `key`-remount i föräldern (JobbHeroFilters) — INTE setState i en
-  // effect (react-hooks/set-state-in-effect). Pixel-/beteende-paritet med
-  // src-v3 FilterPopover (som re-initierar activeLeft vid open) behålls.
-  const groups = props.mode === "two-column" ? props.groups : [];
+  // Aktiv grupp (vänsterrad). Lazy-initieras till första gruppen. Reset
+  // till första gruppen vid varje öppning sker via `key`-remount i
+  // föräldern (JobbHeroFilters) — INTE setState i en effect
+  // (react-hooks/set-state-in-effect). Pixel-/beteende-paritet med src-v3
+  // FilterPopover (som re-initierar activeLeft vid open) behålls.
   const [activeLeft, setActiveLeft] = useState<string | null>(
     () => groups[0]?.conceptId ?? null,
   );
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const groupSelectedSet = useMemo(
+    () => new Set(groupAxis?.selected ?? []),
+    [groupAxis?.selected],
+  );
 
   if (!open) return null;
 
@@ -190,100 +211,43 @@ export function JobbFilterPopover(props: JobbFilterPopoverProps) {
     : // Innan mätning: håll utanför viewport (ingen flimmer-hopp).
       { top: -9999, left: -9999, width: 580 };
 
-  if (props.mode === "single-column") {
-    const ids = props.items.map((it) => it.conceptId);
-    const anySelected = ids.some((id) => selectedSet.has(id));
-    const allSelected =
-      props.items.length > 0 && ids.every((id) => selectedSet.has(id));
-
-    return (
-      <div
-        ref={ref}
-        className="jp-popover"
-        role="dialog"
-        aria-label={props.title}
-        style={style}
-      >
-        <div style={{ maxHeight: "60vh", overflow: "auto", padding: "6px 0" }}>
-          <div className="jp-popover__colhead">
-            <span className="jp-popover__title">{props.title}</span>
-            {anySelected && (
-              <button
-                type="button"
-                className="jp-popover__clear"
-                onClick={onClearAll}
-              >
-                Rensa
-              </button>
-            )}
-          </div>
-          {props.items.length === 0 ? (
-            <div
-              style={{
-                padding: "12px 16px",
-                color: "var(--jp-ink-2)",
-                fontSize: 14,
-              }}
-            >
-              Län kunde inte laddas just nu. Du kan söka på sökord ändå.
-            </div>
-          ) : (
-            <>
-              <CheckRow
-                label={props.selectAllLabel}
-                checked={allSelected}
-                isAll
-                onToggle={() =>
-                  toggleAll(selected, ids, allSelected, onChange)
-                }
-              />
-              {props.items.map((it) => (
-                <CheckRow
-                  key={it.conceptId}
-                  label={it.label}
-                  checked={selectedSet.has(it.conceptId)}
-                  onToggle={() => toggle(selected, it.conceptId, onChange)}
-                />
-              ))}
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Tvåkolumns (Yrke) ──────────────────────────────
   const activeGroup =
     groups.find((g) => g.conceptId === activeLeft) ?? groups[0] ?? null;
   const rightItems = activeGroup?.items ?? [];
   const rightIds = rightItems.map((it) => it.conceptId);
-  const rightAnySelected = rightIds.some((id) => selectedSet.has(id));
-  const rightAllSelected =
-    rightItems.length > 0 && rightIds.every((id) => selectedSet.has(id));
-  const anySelectedAnywhere = selected.length > 0;
+  const activeGroupChecked =
+    activeGroup != null && groupSelectedSet.has(activeGroup.conceptId);
+  const rightAnySelected =
+    rightIds.some((id) => selectedSet.has(id)) || activeGroupChecked;
+  // "Välj alla"-radens checked-state: axel-medvetet = gruppens eget id;
+  // enaxel = samtliga höger-ids markerade.
+  const selectAllChecked = groupAxis
+    ? activeGroupChecked
+    : rightItems.length > 0 && rightIds.every((id) => selectedSet.has(id));
+  const anySelectedAnywhere =
+    selected.length > 0 || (groupAxis?.selected.length ?? 0) > 0;
 
   return (
     <div
       ref={ref}
       className="jp-popover"
       role="dialog"
-      aria-label={props.leftTitle}
+      aria-label={leftTitle}
       style={style}
     >
       <div className="jp-popover__body">
         {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-
-            förälderns max-height) — speglar single-column-Ort:s BEVISAT
-            fungerande mekanism. Grid-barn får ingen användbar höjd att
+            förälderns max-height) — grid-barn får ingen användbar höjd att
             scrolla inom från förälderns max-height; constraint måste sitta
             på scroll-elementet självt (design-reviewer F4 Blocker x2). */}
         <div
           className="jp-popover__col"
           role="listbox"
-          aria-label={props.leftTitle}
+          aria-label={leftTitle}
           style={{ maxHeight: "60vh", overflowY: "auto" }}
         >
           <div className="jp-popover__colhead">
-            <span className="jp-popover__title">{props.leftTitle}</span>
+            <span className="jp-popover__title">{leftTitle}</span>
             {anySelectedAnywhere && (
               <button
                 type="button"
@@ -302,15 +266,14 @@ export function JobbFilterPopover(props: JobbFilterPopoverProps) {
                 fontSize: 14,
               }}
             >
-              Yrkesområden kunde inte laddas just nu. Du kan söka på sökord
-              ändå.
+              {emptyText}
             </div>
           ) : (
             groups.map((g) => {
               const active = activeGroup?.conceptId === g.conceptId;
-              const hasSel = g.items.some((it) =>
-                selectedSet.has(it.conceptId),
-              );
+              const hasSel =
+                g.items.some((it) => selectedSet.has(it.conceptId)) ||
+                groupSelectedSet.has(g.conceptId);
               return (
                 <div
                   key={g.conceptId}
@@ -362,16 +325,20 @@ export function JobbFilterPopover(props: JobbFilterPopoverProps) {
           style={{ maxHeight: "60vh", overflowY: "auto" }}
         >
           <div className="jp-popover__colhead">
-            <span className="jp-popover__title">{props.rightTitle}</span>
-            {rightAnySelected && (
+            <span className="jp-popover__title">{rightTitle}</span>
+            {rightAnySelected && activeGroup && (
               <button
                 type="button"
                 className="jp-popover__clear"
-                onClick={() =>
-                  onChange(
-                    selected.filter((v) => !rightIds.includes(v)),
-                  )
-                }
+                onClick={() => {
+                  if (groupAxis) {
+                    groupAxis.onClearColumn(activeGroup.conceptId);
+                  } else {
+                    onChange(
+                      selected.filter((v) => !rightIds.includes(v)),
+                    );
+                  }
+                }}
               >
                 Rensa
               </button>
@@ -385,22 +352,26 @@ export function JobbFilterPopover(props: JobbFilterPopoverProps) {
                 fontSize: 14,
               }}
             >
-              Välj ett yrkesområde till vänster.
+              {rightEmptyText}
             </div>
           ) : (
             <>
               <CheckRow
-                label={props.selectAllLabel}
-                checked={rightAllSelected}
+                label={selectAllLabel}
+                checked={selectAllChecked}
                 isAll
-                onToggle={() =>
-                  toggleAll(
-                    selected,
-                    rightIds,
-                    rightAllSelected,
-                    onChange,
-                  )
-                }
+                onToggle={() => {
+                  if (groupAxis && activeGroup) {
+                    groupAxis.onToggleGroup(activeGroup.conceptId);
+                  } else {
+                    toggleAll(
+                      selected,
+                      rightIds,
+                      selectAllChecked,
+                      onChange,
+                    );
+                  }
+                }}
               />
               {rightItems.map((it) => (
                 <CheckRow

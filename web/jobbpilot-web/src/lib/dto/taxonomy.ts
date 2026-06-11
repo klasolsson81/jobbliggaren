@@ -10,8 +10,11 @@ import { z } from "zod";
  * Sök-ytan visar svenska namn i hierarkiska väljare; concept-id försvinner
  * ur UI:t (Anticorruption Layer, Evans 2003 kap. 14). `onChange` emitterar
  * fortfarande concept-id `string[]` till URL/VO — ADR 0042 Beslut B-
- * domänkontraktet är OFÖRÄNDRAT. Variant A-scope (ADR 0043 Beslut E): Län
- * (enkelnivå, ingen kommun) + Yrkesområde→Yrke (tvånivå).
+ * domänkontraktet är OFÖRÄNDRAT. Fas E2b (ADR 0043-amendment 2026-06-08):
+ * Län→Kommun (tvånivå) + Yrkesområde→Yrkesgrupp (tvånivå). Backend-trädet
+ * bär även `occupations` (occupation-name, ~2300) — det fältet modelleras
+ * MEDVETET INTE här (zod strippar): occupation-name är recall-substrat
+ * backend-side, ingen FE-konsument (E2a-architect-dom).
  */
 
 // Concept-id-format speglar backend `SearchCriteria`/validator-mönstret
@@ -19,11 +22,21 @@ import { z } from "zod";
 // backend är sanningskälla.
 const conceptIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/);
 
-// Län (JobTech `region`, ~21). Enkelnivå — ingen kommun (ADR 0043
-// Beslut E payload-verifierings-trigger).
+// Kommun (JobTech `municipality`, 290). conceptId matchar
+// `job_ads.municipality_concept_id` (ADR 0043-amendment 2026-06-08, Fas E2b).
+export const taxonomyMunicipalitySchema = z.object({
+  conceptId: conceptIdSchema,
+  label: z.string().min(1),
+});
+export type TaxonomyMunicipality = z.infer<typeof taxonomyMunicipalitySchema>;
+
+// Län (JobTech `region`, 21) med underordnade kommuner. `municipalities` är
+// REQUIRED (ej .default([])) — backend C1 garanterar arrayen; tolerant
+// default skulle maskera kontraktsdrift (E2b-architect-dom fråga 3).
 export const taxonomyRegionSchema = z.object({
   conceptId: conceptIdSchema,
   label: z.string().min(1),
+  municipalities: z.array(taxonomyMunicipalitySchema),
 });
 export type TaxonomyRegion = z.infer<typeof taxonomyRegionSchema>;
 

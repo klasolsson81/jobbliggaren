@@ -20,10 +20,12 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     id: "11111111-1111-1111-1111-111111111111",
     q: "backend",
     occupationGroupList: ["MVqp_eS8_kDZ"],
+    municipalityList: [],
     regionList: ["CifL_Rzy_Mku"],
     occupationGroupLabels: [
       { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
     ],
+    municipalityLabels: [],
     regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
     sortBy: "PublishedAtDesc",
     label: "backend i Mjukvaruutveckling, Stockholms län",

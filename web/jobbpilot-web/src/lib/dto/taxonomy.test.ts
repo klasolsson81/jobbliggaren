@@ -6,7 +6,16 @@ import {
 } from "./taxonomy";
 
 const validTree = {
-  regions: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
+  regions: [
+    {
+      conceptId: "CifL_Rzy_Mku",
+      label: "Stockholms län",
+      municipalities: [
+        { conceptId: "AvNB_uwa_6n6", label: "Stockholm" },
+        { conceptId: "zHxw_uJZ_NNh", label: "Solna" },
+      ],
+    },
+  ],
   occupationFields: [
     {
       conceptId: "apaJ_2ja_LuF",
@@ -33,16 +42,51 @@ describe("taxonomyTreeSchema", () => {
   it("rejects a region concept-id outside the 1–32 [A-Za-z0-9_-] format", () => {
     const bad = {
       ...validTree,
-      regions: [{ conceptId: "bad id!", label: "X" }],
+      regions: [{ conceptId: "bad id!", label: "X", municipalities: [] }],
     };
     expect(taxonomyTreeSchema.safeParse(bad).success).toBe(false);
   });
 
   it("rejects an empty label (UI must always have a name to show)", () => {
     expect(
-      taxonomyRegionSchema.safeParse({ conceptId: "CifL_Rzy_Mku", label: "" })
-        .success
+      taxonomyRegionSchema.safeParse({
+        conceptId: "CifL_Rzy_Mku",
+        label: "",
+        municipalities: [],
+      }).success
     ).toBe(false);
+  });
+
+  it("rejects a region WITHOUT municipalities array (REQUIRED — contract drift must fail loud, E2b)", () => {
+    const missing = {
+      ...validTree,
+      regions: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
+    };
+    expect(taxonomyTreeSchema.safeParse(missing).success).toBe(false);
+  });
+
+  it("rejects a municipality concept-id outside the format (defense-in-depth)", () => {
+    const bad = {
+      ...validTree,
+      regions: [
+        {
+          conceptId: "CifL_Rzy_Mku",
+          label: "Stockholms län",
+          municipalities: [{ conceptId: "bad id!", label: "X" }],
+        },
+      ],
+    };
+    expect(taxonomyTreeSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("accepts a region with empty municipalities (backend guarantees the array, may be empty)", () => {
+    const emptyMunis = {
+      ...validTree,
+      regions: [
+        { conceptId: "CifL_Rzy_Mku", label: "Stockholms län", municipalities: [] },
+      ],
+    };
+    expect(taxonomyTreeSchema.safeParse(emptyMunis).success).toBe(true);
   });
 
   it("rejects PascalCase keys (guards against ADR 0020 casing drift)", () => {

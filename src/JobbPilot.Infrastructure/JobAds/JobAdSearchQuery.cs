@@ -174,13 +174,30 @@ internal sealed class JobAdSearchQuery(
             source = source.Where(j => groupValues.Contains(EF.Property<string?>(j, "OccupationGroupConceptId")));
         }
 
-        if (criteria.Municipality.Count > 0)
+        // ADR 0067 implementerings-notat E2b (CTO VAL 1, 2026-06-11) — Ort är
+        // EN dimension i två granulariteter (län ⊃ kommun, inte ortogonala
+        // axlar). När BÅDA listorna är icke-tomma: inkluderande union
+        // (kommun-träff ELLER region-träff) — speglar JobTech/Platsbankens
+        // web-verifierade geografi-semantik ("most local promoted" = union,
+        // GettingStartedJobSearchEN.md). Sekventiella AND-Where gav noll
+        // träffar för region=län-X + kommun-i-län-Y. Ensam lista: oförändrad
+        // gren (OR-inom-dimension via IN(...) som förut). AND mot övriga
+        // dimensioner (yrke/q) består — ADR 0067 Beslut 5-invarianten gäller
+        // ortogonala dimensioner.
+        if (criteria.Municipality.Count > 0 && criteria.Region.Count > 0)
+        {
+            var municipalityValues = criteria.Municipality;
+            var regionValues = criteria.Region;
+            source = source.Where(j =>
+                municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId"))
+                || regionValues.Contains(EF.Property<string?>(j, "RegionConceptId")));
+        }
+        else if (criteria.Municipality.Count > 0)
         {
             var municipalityValues = criteria.Municipality;
             source = source.Where(j => municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId")));
         }
-
-        if (criteria.Region.Count > 0)
+        else if (criteria.Region.Count > 0)
         {
             var regionValues = criteria.Region;
             source = source.Where(j => regionValues.Contains(EF.Property<string?>(j, "RegionConceptId")));

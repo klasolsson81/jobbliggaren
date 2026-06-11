@@ -11,27 +11,24 @@ namespace JobbPilot.Application.RecentJobSearches.Queries;
 /// är live-räknat per row (cap=20 håller N+1 under kontroll, CTO Variant A).
 /// <see cref="NewCount"/> = <c>max(0, CurrentCount - LastSeenCount)</c>.
 ///
-/// <para><b>Fas C2 (ADR 0067, architect F5 2026-06-09) — ADDITIV form:</b>
-/// <see cref="SsykList"/>/<see cref="SsykLabels"/> är <b>deprecated — alltid
-/// tomma sedan C2</b> (occupation-name-dimensionen utgick ur entiteten) men
-/// behålls i wire-kontraktet: FE-zod-schemat (recent-searches.ts) har
-/// <c>ssykList</c> REQUIRED och C2 får inte röra FE. Nya fält tillkommer SIST
-/// (zod stripper okända nycklar → osynliga för FE tills Fas E). Tas bort i
-/// Fas E tillsammans med FE-zod-schemat + ?ssyk=→?occupationGroup=-bytet.</para>
+/// <para><b>Fas E2b (ADR 0067, CTO-direktiv commit 3 2026-06-11):</b>
+/// C2-shimmets deprecated alltid-tomma <c>SsykList</c>/<c>SsykLabels</c> är
+/// BORTTAGNA — FE-zod-schemat frikopplades från <c>ssykList</c> i E2a
+/// (architect F5: "tas bort i Fas E"). Dimensionerna ordnas yrkesgrupp →
+/// kommun → region (samma ordning som filter-SPOT:en); wire-kontraktet är
+/// namnbaserat (camelCase, zod) så positionsordningen är intern.</para>
 /// </summary>
 public sealed record RecentJobSearchDto(
     Guid Id,
     string? Q,
-    IReadOnlyList<string> SsykList,
+    IReadOnlyList<string> OccupationGroupList,
+    IReadOnlyList<string> MunicipalityList,
     IReadOnlyList<string> RegionList,
-    IReadOnlyList<TaxonomyLabelDto> SsykLabels,
+    IReadOnlyList<TaxonomyLabelDto> OccupationGroupLabels,
+    IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels,
     IReadOnlyList<TaxonomyLabelDto> RegionLabels,
     JobAdSortBy SortBy,
     string Label,
     int CurrentCount,
     int NewCount,
-    DateTimeOffset LastViewedAt,
-    IReadOnlyList<string> OccupationGroupList,
-    IReadOnlyList<string> MunicipalityList,
-    IReadOnlyList<TaxonomyLabelDto> OccupationGroupLabels,
-    IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels);
+    DateTimeOffset LastViewedAt);

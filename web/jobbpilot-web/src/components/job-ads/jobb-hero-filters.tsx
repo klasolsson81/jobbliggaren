@@ -308,8 +308,9 @@ export function JobbHeroFilters({
         key={openPop === "ort" ? "ort-open" : "ort-closed"}
         open={openPop === "ort"}
         leftTitle="Län"
+        dialogLabel="Ort"
         rightTitle="Kommuner"
-        selectAllLabel="Hela länet"
+        selectAllLabel={(g) => `Hela ${g.label}`}
         emptyText="Län kunde inte laddas just nu. Du kan söka på sökord ändå."
         rightEmptyText="Välj ett län till vänster."
         groups={regionGroups}
@@ -333,8 +334,9 @@ export function JobbHeroFilters({
         key={openPop === "yrke" ? "yrke-open" : "yrke-closed"}
         open={openPop === "yrke"}
         leftTitle="Yrkesområde"
+        dialogLabel="Yrke"
         rightTitle="Yrkesgrupper"
-        selectAllLabel="Välj alla yrkesgrupper"
+        selectAllLabel={() => "Välj alla yrkesgrupper"}
         emptyText="Yrkesområden kunde inte laddas just nu. Du kan söka på sökord ändå."
         rightEmptyText="Välj ett yrkesområde till vänster."
         groups={occupationFieldGroups}

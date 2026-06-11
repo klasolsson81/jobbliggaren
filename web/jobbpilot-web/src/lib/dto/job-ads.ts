@@ -136,6 +136,14 @@ export type SuggestJobAdTermsResult = z.infer<
 export const SUGGEST_MIN_PREFIX = 2;
 export const SUGGEST_DEBOUNCE_MS = 300;
 
+// Speglar backend `SearchCriteria.QMaxLength` (=100). FE-guard (E2h):
+// chip-tokenizern vägrar committa fritext-ord som tar joinad q över taket —
+// backend-VALIDATORN avvisar annars hela list-queryn (400) mitt i live-
+// skrivflödet (parserns trunkering nås aldrig på valid-vägen). Synk-krav
+// vid ändring backend-side (samma cross-ref-disciplin som badge-labels,
+// memory `project_crossref_badge_status`).
+export const Q_MAX_LENGTH = 100;
+
 // ADR 0042 Beslut B — maxantal-cap per taxonomilista. Speglar backend
 // SearchCriteria.MaxConceptIds (=400, höjt 10→400 i ADR 0042-amendment
 // 2026-06-09 / ADR 0067 Fas C1 så "Välj alla yrkesgrupper" (~400 ssyk-

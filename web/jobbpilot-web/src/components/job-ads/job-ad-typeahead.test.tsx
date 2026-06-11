@@ -22,6 +22,31 @@ function ControlledHarness({
   );
 }
 
+// E2h-harness: selectOnTab + onEmptyBackspace aktiva, plus ett efterföljande
+// fokuserbart element så Tab-fokus-flytt kan asserteras.
+function SelectOnTabHarness({
+  onSelect,
+  onEmptyBackspace,
+}: {
+  onSelect: (s: SuggestionDto) => void;
+  onEmptyBackspace: () => void;
+}) {
+  const [value, setValue] = useState("");
+  return (
+    <>
+      <JobAdTypeahead
+        id="q"
+        value={value}
+        onChange={setValue}
+        onSelect={onSelect}
+        selectOnTab
+        onEmptyBackspace={onEmptyBackspace}
+      />
+      <button type="button">Nästa fält</button>
+    </>
+  );
+}
+
 /**
  * Real timers (ingen fake) — debouncen är 300ms; waitFor med generös timeout
  * täcker det utan fake-timer/userEvent-deadlock.
@@ -143,6 +168,96 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       conceptId: null,
       label: "Fullstack-utvecklare",
     });
+  });
+
+  it("Tab is NOT intercepted without a marked option (no focus trap)", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <SelectOnTabHarness onSelect={onSelect} onEmptyBackspace={vi.fn()} />,
+    );
+    await user.type(screen.getByRole("combobox"), "fr");
+    await screen.findByRole("option", { name: "Frontend" }, { timeout: 2000 });
+
+    // Ingen markering (active = -1) → Tab flyttar fokus normalt.
+    await user.tab();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByRole("combobox")).not.toHaveFocus();
+  });
+
+  it("Shift+Tab is never intercepted, even with a marked option", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <SelectOnTabHarness onSelect={onSelect} onEmptyBackspace={vi.fn()} />,
+    );
+    await user.type(screen.getByRole("combobox"), "fr");
+    await screen.findByRole("option", { name: "Frontend" }, { timeout: 2000 });
+    await user.keyboard("{ArrowDown}");
+    await user.tab({ shift: true });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("Tab with a marked option does nothing special WITHOUT selectOnTab (OCP — default consumers unaffected)", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+
+    render(<ControlledHarness onSelect={onSelect} />);
+    await user.type(screen.getByRole("combobox"), "fr");
+    await screen.findByRole("option", { name: "Frontend" }, { timeout: 2000 });
+    await user.keyboard("{ArrowDown}");
+    await user.tab();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("Backspace with text does NOT trigger onEmptyBackspace", async () => {
+    const onEmptyBackspace = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SelectOnTabHarness onSelect={vi.fn()} onEmptyBackspace={onEmptyBackspace} />,
+    );
+    const input = screen.getByRole("combobox");
+    await user.type(input, "ab{Backspace}");
+    expect(onEmptyBackspace).not.toHaveBeenCalled();
+    expect(input).toHaveValue("a");
+  });
+
+  it("Backspace in an EMPTY field triggers onEmptyBackspace", async () => {
+    const onEmptyBackspace = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SelectOnTabHarness onSelect={vi.fn()} onEmptyBackspace={onEmptyBackspace} />,
+    );
+    const input = screen.getByRole("combobox");
+    await user.click(input);
+    await user.keyboard("{Backspace}");
+    expect(onEmptyBackspace).toHaveBeenCalledTimes(1);
   });
 
   it("handles a 429 rateLimited response civilly", async () => {

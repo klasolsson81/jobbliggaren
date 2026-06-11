@@ -119,6 +119,25 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend");
   });
 
+  it("Rensa alla filter bevarar icke-default sortBy (E2e, code-reviewer Minor 1)", async () => {
+    const user = userEvent.setup();
+    render(
+      <JobbResultsToolbar
+        totalCount={3}
+        occupationGroup={["MVqp_eS8_kDZ"]}
+        region={[]}
+        municipality={[]}
+        resolvedLabels={resolvedLabels}
+        q="backend"
+        sortBy="ExpiresAtAsc"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rensa alla filter" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend&sortBy=ExpiresAtAsc");
+  });
+
   it("Rensa alla filter visas inte utan aktiva chips (E2e)", () => {
     render(
       <JobbResultsToolbar

@@ -1276,10 +1276,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   letter-spacing: 0.06em;
   color: var(--jp-ink-2);
 }
-.jp-popover__clear {
+/* E2e (ADR 0067 rad 109): Rensa = röd text-länk per sektion (ej knapp).
+   Kanonisk klass för rensa-affordances i popover-kolumnhuvuden OCH
+   results-toolbaren — danger-färgen markerar destruktiv handling
+   (#BE1B1B på vit/surface ≥5.9:1 light; dark-paret på mörk surface,
+   WCAG AA för 13px-text). Ersätter .jp-popover__clear (accent-grön). */
+.jp-clearlink {
   background: transparent;
   border: 0;
-  color: var(--jp-accent-700);
+  color: var(--jp-danger);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;

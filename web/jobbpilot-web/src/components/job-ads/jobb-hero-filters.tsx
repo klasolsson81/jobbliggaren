@@ -267,8 +267,9 @@ export function JobbHeroFilters({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
-      {/* key-remount vid öppning → activeLeft re-initieras till första
-          länet (src-v3 FilterPopover-paritet) utan setState-i-effect. */}
+      {/* key-remount vid öppning → activeLeft re-initieras till TOM (E2f
+          Platsbanken-paritet — höger kolumn tom tills län valts) utan
+          setState-i-effect. */}
       <JobbFilterPopover
         key={openPop === "ort" ? "ort-open" : "ort-closed"}
         open={openPop === "ort"}

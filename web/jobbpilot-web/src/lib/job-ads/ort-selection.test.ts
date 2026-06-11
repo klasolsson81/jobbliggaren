@@ -120,6 +120,27 @@ describe("toggleMunicipalityInRegion — E2f Platsbanken-semantik", () => {
     expect(next.region).toEqual(["X"]);
     expect(next.municipality).toEqual(["y1"]);
   });
+
+  it("tom kommun-lista (taxonomi-degradering) kollapsar ALDRIG till region-id", () => {
+    // length > 0-vakten (code-reviewer Minor 2a) — markering utan känd
+    // kommun-lista får inte felaktigt bli ett helläns-val.
+    const next = toggleMunicipalityInRegion(empty, "x1", "X", []);
+    expect(next.region).toEqual([]);
+    expect(next.municipality).toEqual(["x1"]);
+  });
+
+  it("denormaliserat state (region + egen kommun samtidigt): klicket rensar BÅDA (Minor 1)", () => {
+    // Handredigerad URL kan bära region X + x2 samtidigt. Klick på x2 under
+    // helläns-valet = "hela länet minus x2" — x2 får inte ligga kvar.
+    const next = toggleMunicipalityInRegion(
+      { region: ["X"], municipality: ["x2"] },
+      "x2",
+      "X",
+      xMunis,
+    );
+    expect(next.region).toEqual([]);
+    expect(next.municipality).toEqual(["x1", "x3"]);
+  });
 });
 
 describe("toggleWholeRegion", () => {

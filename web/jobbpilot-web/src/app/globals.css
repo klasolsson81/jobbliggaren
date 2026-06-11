@@ -39,7 +39,10 @@
   --jp-accent-900: #0B2A1E;
   --jp-accent-800: #15603F;        /* FILL: primärknapp, checked — EJ dark-skiftad */
   --jp-accent-800-hover: #1E6B4C;  /* fill-hover båda teman */
-  --jp-accent-700: #15603F;        /* TEXT/BORDER: länkar, aktiv nav, titlar, fokus (light) */
+  --jp-accent-700: #15603F;        /* TEXT/BORDER: länkar, fokus, selektion/aktiv rad,
+                                      indikator-barer (nav/drawer — texten är ink).
+                                      Rubriker/titlar/tal = ink (E2f 2026-06-11:
+                                      grönt = interaktion, inte information). */
   --jp-accent-600: #1E6B4C;        /* länk-hover */
   --jp-accent-500: #2E8B63;
   --jp-accent-300: #74C29A;

@@ -71,12 +71,18 @@ export function toggleMunicipalityInRegion(
 ): OrtSelection {
   if (current.region.includes(regionConceptId)) {
     // "Hela länet minus denna kommun" — materialisera övriga (bounded).
+    // Den klickade kommunen rensas även ur befintliga listan (denormaliserat
+    // state från handredigerad URL kan bära region + kommun samtidigt —
+    // code-reviewer Minor 1 E2f; annars ser klicket ut som no-op).
     const others = municipalityIdsOfRegion.filter(
       (m) => m !== municipalityConceptId && !current.municipality.includes(m),
     );
     return {
       region: current.region.filter((r) => r !== regionConceptId),
-      municipality: [...current.municipality, ...others],
+      municipality: [
+        ...current.municipality.filter((m) => m !== municipalityConceptId),
+        ...others,
+      ],
     };
   }
 

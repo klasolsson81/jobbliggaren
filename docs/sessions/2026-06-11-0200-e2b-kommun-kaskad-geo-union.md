@@ -95,9 +95,23 @@ design-reviewer 0 VETO, code-reviewer 0 Block/0 oåtgärdat Major, security
 - Architect-rapportens cap-siffra (×2=800) var stale mot on-disk (×4=1600)
   — verifierad och korrigerad i kommentaren.
 
+## E2e-leverans (samma natt-session, efter E2b-merge #46)
+
+- E2b mergad `cb42575`; post-merge-ops körda (CodeQL-dispatch på main,
+  branch raderad, stack verifierad).
+- **Rensa = röd text-länk (rad 109):** `.jp-clearlink` (danger, underline,
+  button) ersätter `.jp-popover__clear`; + "Rensa alla filter" i toolbaren
+  (tre axlar nollas, q/sortBy/pageSize bevaras, gated på chips).
+- **Sort-labels:** "Relevans / Datum (nyast) / Ansökningsdatum (sista
+  ansökan)" — "(CV-match)"-faktafelet rättat (ts_rank ≠ CV-match);
+  ExpiresAtAsc on-disk-verifierad (asc NULLS LAST).
+- **Reviews:** code-reviewer Approved 0/0 (2 Minor — sortBy-test in-block;
+  label-vs-ADR-ordalydelse dokumenterad i E2e-notatet), design-reviewer
+  Approved 0/0 (3 Minor — kontrasttabell = spec-edit till Klas). 739 vitest.
+
 ## Nästa (samma natt-session)
 
-1. E2e — Rensa-textlänkar + sortering (ExpiresAt-mappning verifieras).
-2. E2c — FacetCounts query/handler/endpoint (VAL 4-semantiken) + FE
-   "Visa N annonser" + NBomber observe-only (HALT vid >300ms p95).
-3. E2d — HALT + morgonrapport (chip/residual-bekräftelse saknas).
+1. E2c — FacetCounts query/handler/endpoint (VAL 4-semantiken +
+   ExcludeDimension-fixen) + FE live-count + NBomber observe-only
+   (HALT vid >300ms p95). Architect-spec beställd.
+2. E2d — HALT + morgonrapport (chip/residual-bekräftelse saknas).

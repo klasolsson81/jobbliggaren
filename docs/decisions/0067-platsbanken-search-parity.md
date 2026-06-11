@@ -174,6 +174,14 @@ Session 1 levererar **endast Fas A** (CLAUDE.md §9.2 — fas-skifte till kod-mo
 - **"Obestämd ort/Utomlands" DEFERRAD med payload-verifierings-trigger (CTO VAL 2):** snapshotten saknar noderna (DB-verifierat 21 län/290 kommuner, inga pseudo-noder); de 1 293 ortlösa annonserna saknar BÅDA dimensionerna (globalt ortlösa — per-län-rad vore död UI-yta, ADR 0042 Beslut F); `IS NULL`-filterklass + `country_concept_id` overifierade. Trigger: riktad raw_payload-discovery + observation av region-only-annonser i snapshot-cron. **Explicit rest mot Beslut 7 rad 109:s uppräkning** — TD-100-stängning vid Fas E-slut kräver att resten är löst eller Klas-accepterad. De 1 293 nås via sök utan ort-filter under tiden.
 - **E2c-facett-låsning (CTO VAL 4):** Municipality-facetten i `FacetCountsAsync` ska exkludera **hela ort-dimensionen** (både region- och municipality-listan) ur WHERE — samma dimensions-läsning som unionen; att exkludera bara municipality vore semantisk inkonsekvens (Evans kap. 2). Låser E2c-spec.
 
+### Implementerings-notat 2026-06-11 (Fas E2e) — Rensa-röda-textlänkar + sorterings-labels
+
+**Källa:** code-reviewer + design-reviewer (`docs/reviews/2026-06-11-sok-paritet-e2e-*.md`), båda Approved 0 Block/0 Major. Additivt notat — Beslut 7 rad 109 orörd. Klas-förauktoriserad natt-körning 2026-06-11.
+
+- **Rensa = röd text-länk (rad 109 levererad):** ny kanonisk `.jp-clearlink` (`--jp-danger`, 13px/600/underline, `<button>` stylad som text-länk — "ej knapp" avser visuell behandling) ersätter accent-gröna `.jp-popover__clear`. Popover-kolumnernas Rensa + ny "Rensa alla filter" i results-toolbaren (nollar tre filter-axlar, bevarar q + sortBy/pageSize; synlig endast vid aktiva chips). WCAG AA verifierad i båda teman (light ≥5.7:1, dark ≥6.1:1).
+- **Sorterings-labels (rad 109 "Sortering" levererad):** "Relevans / Datum (nyast) / Ansökningsdatum (sista ansökan)" — Klas-promptens E2e-ordalydelse 2026-06-11 (överrider rad 109:s "Datum (publicering)"-skiss; code-reviewer Minor 2 dokumenterad här). Gamla "Mest relevant (CV-match)" var FAKTAFEL: Relevance är ts_rank-FTS (ADR 0062), inte CV-matchning (ADR 0040 Fas 4+; ADR 0042 Beslut F förbjuder CV-placeholder). **ExpiresAtAsc-mappningen on-disk-verifierad:** `ORDER BY ExpiresAt ASC NULLS LAST` + Id-tiebreak = kortast kvar till sista ansökningsdag först.
+- **Design-reviewer-rest (spec-edit, Klas-gated):** kontrasttabellen i tokens-skillen saknar danger-på-surface/canvas-paren i dark — design-skill-edit kräver `approve-spec-edit.sh`; lyft i morgonrapporten, ej autonomt.
+
 ## Konsekvenser
 
 ### Positiva

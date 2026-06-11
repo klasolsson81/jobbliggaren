@@ -169,6 +169,10 @@ Beslut E ("Ny"-badge via `ListJobAdsQuery.Since`) konkretiseras: fönstret är *
 
 Full dom: `docs/reviews/2026-06-09-sok-paritet-c1-cto.md`. Konsekvens: ADR 0043 reverse-lookup-cap-multiplikator följde med 2→4 (se ADR 0043 implementerings-notat 2026-06-09).
 
+### Klargörande-not 2026-06-11 — Beslut B och region×kommun-semantiken (per ADR 0067 Fas E2b)
+
+Beslut B:s multi-värde-mekanik (list-form + fyra invarianter) **beslutade aldrig kombinationssemantik mellan region- och kommun-dimensionerna** — kommun existerade inte i ADR 0042 (tillkom via ADR 0043-amendment 2026-06-08/ADR 0067). "AND-mellan-dimensioner / OR-inom-dimension"-invarianten (ADR 0067 Beslut 5) avser **ortogonala** dimensioner (yrke × ort); län ⊃ kommun är EN dimension (Ort) i två granulariteter. Fas E2b implementerar därför region∪kommun som inkluderande union i `JobAdSearchQuery.ApplyCriteria` (Platsbanken/JobTech-verifierad semantik) — det är **inte** ett undantag från Beslut B utan ligger utanför dess beslutsyta. Full dom: senior-cto-advisor 2026-06-11 (`docs/reviews/2026-06-11-sok-paritet-e2b-cto.md`) + ADR 0067 implementerings-notat 2026-06-11 (Fas E2b). Beslut A–F + invarianterna består oförändrade.
+
 ### Korsreferenser
 
 - ADR 0032-amendment 2026-05-16 (snapshot-trunkerings-resiliens/hybrid) — stream-cron-skrivlasten som motiverar att `pg_trgm` GIN-write-overhead avvisas.

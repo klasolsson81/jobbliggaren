@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
 const resolvedLabels: Record<string, string> = {
   CifL_Rzy_Mku: "Stockholms län",
   MVqp_eS8_kDZ: "Systemutvecklare",
+  zHxw_uJZ_NNh: "Solna",
 };
 
 beforeEach(() => {
@@ -25,6 +26,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         totalCount={1234}
         occupationGroup={[]}
         region={[]}
+        municipality={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -41,6 +43,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         totalCount={3}
         occupationGroup={["MVqp_eS8_kDZ"]}
         region={["CifL_Rzy_Mku"]}
+        municipality={[]}
         resolvedLabels={resolvedLabels}
         q="backend"
         sortBy="PublishedAtDesc"
@@ -58,12 +61,35 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     );
   });
 
+  it("kommun-chip renderas och × tar bort rätt axel (E2b)", async () => {
+    const user = userEvent.setup();
+    render(
+      <JobbResultsToolbar
+        totalCount={2}
+        occupationGroup={[]}
+        region={["CifL_Rzy_Mku"]}
+        municipality={["zHxw_uJZ_NNh"]}
+        resolvedLabels={resolvedLabels}
+        q=""
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(screen.getByText("Solna")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Ta bort filter Solna" }),
+    );
+    // municipality bort, region bevarad.
+    expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku");
+  });
+
   it("fallback-label för okänd conceptId", () => {
     render(
       <JobbResultsToolbar
         totalCount={1}
         occupationGroup={[]}
         region={["XX_unknown"]}
+        municipality={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -80,6 +106,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         totalCount={5}
         occupationGroup={[]}
         region={[]}
+        municipality={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -97,6 +124,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         totalCount={5}
         occupationGroup={[]}
         region={[]}
+        municipality={[]}
         resolvedLabels={{}}
         q="ab"
         sortBy="PublishedAtDesc"
@@ -115,6 +143,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         totalCount={5}
         occupationGroup={["MVqp_eS8_kDZ"]}
         region={[]}
+        municipality={[]}
         resolvedLabels={resolvedLabels}
         q="data"
         sortBy="PublishedAtDesc"

@@ -37,12 +37,14 @@ export const recentJobSearchDtoSchema = z.object({
   q: z.string().nullable(),
   // ADR 0067 Fas E2a — yrke-dimensionen är yrkesgrupp (ssyk-level-4), ej
   // occupation-name. Backend `RecentJobSearchDto` bär `occupationGroupList`
-  // (C2-reverse-lookup-migrerade ids) + deprecated alltid-tomma `ssykList`;
-  // FE konsumerar yrkesgrupp-fältet. (Municipality-dimensionen tillkommer
-  // i E2b med Län→Kommun-kaskaden.)
+  // (C2-reverse-lookup-migrerade ids); FE konsumerar yrkesgrupp-fältet.
+  // Fas E2b: municipality-dimensionen (Län→Kommun-kaskaden) konsumeras —
+  // backend-fälten fanns sedan C2.
   occupationGroupList: z.array(z.string()),
+  municipalityList: z.array(z.string()),
   regionList: z.array(z.string()),
   occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
+  municipalityLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),
   sortBy: sortByFromWire,
   label: z.string(),

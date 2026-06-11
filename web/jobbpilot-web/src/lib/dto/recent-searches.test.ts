@@ -8,10 +8,12 @@ const wireBase = {
   id: "33333333-3333-3333-3333-333333333333",
   q: "backend",
   occupationGroupList: ["MVqp_eS8_kDZ"],
+  municipalityList: ["zHxw_uJZ_NNh"],
   regionList: ["CifL_Rzy_Mku"],
   occupationGroupLabels: [
     { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
   ],
+  municipalityLabels: [{ conceptId: "zHxw_uJZ_NNh", label: "Solna" }],
   regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
   sortBy: 0,
   label: "backend",

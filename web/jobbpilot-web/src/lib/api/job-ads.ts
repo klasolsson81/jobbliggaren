@@ -19,9 +19,11 @@ export interface ListJobAdsQuery {
   // ADR 0042 Beslut B — multi: skickas som upprepad query-string
   // (?occupationGroup=a&occupationGroup=b). ASP.NET Core minimal API binder
   // till string[]. ADR 0067 Fas E2a: yrke-filtret är yrkesgrupp (ssyk-
-  // level-4); backend tog bort `?ssyk=` i C2.
+  // level-4). Fas E2b: ?municipality= (kommun) — backend unionerar
+  // region∪municipality (Ort = en dimension, ADR 0067 impl-notat E2b).
   occupationGroup?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
+  municipality?: ReadonlyArray<string>;
   q?: string;
   // ADR 0042 Beslut E — "ny sedan"-fönster (ISO 8601). Driver JobAdDto.isNew.
   since?: string;
@@ -43,6 +45,7 @@ function buildQuery(query: ListJobAdsQuery): string {
   for (const v of query.occupationGroup ?? [])
     params.append("occupationGroup", v);
   for (const v of query.region ?? []) params.append("region", v);
+  for (const v of query.municipality ?? []) params.append("municipality", v);
   if (query.q) params.set("q", query.q);
   if (query.since) params.set("since", query.since);
   return params.toString();

@@ -21,8 +21,8 @@ namespace JobbPilot.Application.UnitTests.RecentJobSearches.Queries;
 // r.OccupationGroup/r.Municipality/r.Region/r.Q in i JobAdFilterCriteria
 // (täpper C1:s tomma listor), resolvar occupationGroupLabels +
 // municipalityLabels, och DeriveLabel-fallback är q → yrkesgrupp → kommun →
-// region → "Alla annonser". DTO:n är ADDITIV: deprecated SsykList/SsykLabels
-// matas ALLTID med [].
+// region → "Alla annonser". E2b: C2-shimmet (SsykList/SsykLabels) borttaget
+// ur DTO:n — vakthund i RecentJobSearchDtoContractTests.
 public class ListRecentSearchesQueryHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -198,8 +198,8 @@ public class ListRecentSearchesQueryHandlerTests
     }
 
     // ---------------------------------------------------------------
-    // DTO-projektion — additiv form (architect F5): deprecated SsykList/
-    // SsykLabels ALLTID tomma; nya OccupationGroup-/Municipality-fält bär data.
+    // DTO-projektion — slutgiltig E2b-form (C2-shimmet SsykList/SsykLabels
+    // borttaget; vakthund i RecentJobSearchDtoContractTests).
     // ---------------------------------------------------------------
 
     [Fact]
@@ -221,26 +221,6 @@ public class ListRecentSearchesQueryHandlerTests
         dto.MunicipalityLabels.ShouldContain(l =>
             l.ConceptId == "sthlm_kn" && l.Label == "Label-sthlm_kn");
         dto.RegionList.ShouldBe(["stockholm"]);
-    }
-
-    [Fact]
-    public async Task Handle_ProjectsDeprecatedSsykFieldsAsAlwaysEmpty()
-    {
-        // F5-kontraktet: FE-zod kräver ssykList (REQUIRED) → fältet består men
-        // matas ALLTID med []. Tas bort i Fas E tillsammans med zod-schemat.
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(CaptureRow(seeker.Id, "backend", FakeDateTimeProvider.Default.UtcNow));
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-
-        var dto = result.ShouldHaveSingleItem();
-        dto.SsykList.ShouldNotBeNull();
-        dto.SsykList.ShouldBeEmpty();
-        dto.SsykLabels.ShouldNotBeNull();
-        dto.SsykLabels.ShouldBeEmpty();
     }
 
     // ---------------------------------------------------------------

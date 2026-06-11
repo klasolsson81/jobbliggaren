@@ -257,28 +257,35 @@ public class ListJobAdsOccupationGroupFilterTests(ApiFactory factory)
     }
 
     // ---------------------------------------------------------------
-    // Kombination — OR inom lista, AND mellan listor
+    // Kombination — yrke AND ort; ort = union region∪kommun (Fas E2b,
+    // ADR 0067 impl-notat 2026-06-11: län ⊃ kommun är EN dimension i två
+    // granulariteter — geo-union ersatte det tidigare sekventiella AND:et
+    // mellan region- och municipality-listorna).
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task ApplyCriteria_OccupationGroupAndMunicipalityAndRegion_AppliesAndAcrossListsOrWithin()
+    public async Task ApplyCriteria_OccupationGroupAndGeoUnion_AppliesAndAgainstOrtUnion()
     {
         var ct = TestContext.Current.CancellationToken;
         var grpA = $"grp{Guid.NewGuid():N}"[..16];
         var grpB = $"grp{Guid.NewGuid():N}"[..16];
+        var grpOther = $"grp{Guid.NewGuid():N}"[..16];
         var knX = $"kn{Guid.NewGuid():N}"[..16];
         var knY = $"kn{Guid.NewGuid():N}"[..16];
         var region = $"reg{Guid.NewGuid():N}"[..16];
 
-        // Matchar: grupp i {A,B} OCH kommun i {X,Y} OCH region.
+        // Matchar: grupp i {A,B} OCH (kommun i {X,Y} ELLER region).
         await SeedImportedJobAdAsync("Match1", grpA, knX, region, $"ext-{Guid.NewGuid():N}", ct);
         await SeedImportedJobAdAsync("Match2", grpB, knY, region, $"ext-{Guid.NewGuid():N}", ct);
-        // Grupp + kommun ok men annan region.
+        // Kommun i {X,Y} men annan region → matchar via kommun-grenen (union).
         await SeedImportedJobAdAsync(
-            "FelRegion", grpA, knX, $"reg{Guid.NewGuid():N}"[..16], $"ext-{Guid.NewGuid():N}", ct);
-        // Grupp + region ok men kommun utanför {X,Y}.
+            "ViaKommun", grpA, knX, $"reg{Guid.NewGuid():N}"[..16], $"ext-{Guid.NewGuid():N}", ct);
+        // Region ok men kommun utanför {X,Y} → matchar via region-grenen (union).
         await SeedImportedJobAdAsync(
-            "FelKommun", grpA, $"kn{Guid.NewGuid():N}"[..16], region, $"ext-{Guid.NewGuid():N}", ct);
+            "ViaRegion", grpA, $"kn{Guid.NewGuid():N}"[..16], region, $"ext-{Guid.NewGuid():N}", ct);
+        // Ort ok (region) men FEL yrkesgrupp → matchar EJ (AND mot yrke består).
+        await SeedImportedJobAdAsync(
+            "FelYrke", grpOther, knX, region, $"ext-{Guid.NewGuid():N}", ct);
 
         using var scope = _factory.Services.CreateScope();
         var handler = CreateHandler(scope);
@@ -288,8 +295,8 @@ public class ListJobAdsOccupationGroupFilterTests(ApiFactory factory)
             Municipality: [knX, knY],
             Region: [region]), ct);
 
-        result.Items.Select(i => i.Title).OrderBy(t => t)
-            .ShouldBe(["Match1", "Match2"]);
-        result.TotalCount.ShouldBe(2);
+        result.Items.Select(i => i.Title)
+            .ShouldBe(["Match1", "Match2", "ViaKommun", "ViaRegion"], ignoreOrder: true);
+        result.TotalCount.ShouldBe(4);
     }
 }

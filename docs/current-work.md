@@ -1,21 +1,31 @@
 # Current work — JobbPilot
 
-**Status:** **FAS G4 (LANDING-REDESIGN) BYGGD + design-reviewer APPROVED 2026-06-10 (branch `feat/design-g4-landing-redesign`, rebasad på main `08abb7b`). KLAS RENDERED-GO KVARSTÅR.** G1–G3 MERGADE (#42 `7140c6b` / #43 `74a25a9` / #44 `08abb7b`). Klas fynd: landing "gröna boxen ful, snyggare landingpage" → valde "CC tar fram förslag". CTO låste **Riktning A (produkt-forward ljus hero):** grön box BORT → ljus canvas-hero (content-first, Mercury-doktrin); login-formulär BORT från hero (DRY-brott — `/logga-in` finns som egen sida) → "Logga in"-länk i topbaren; AuthCard+oauth-mark RADERADE (LoginForm orört); statisk produkt-peek (grön mini-banner + 2 resultatkort, visar produkten); grönt = accent (primär-CTA/topbar-login/peek-fragment), ingen grön box; Features+footer ORÖRDA. design-reviewer APPROVED (0 VETO/0 Major/2 Minor FYI). tsc/eslint/build gröna, 716 vitest gröna. Light+dark egen-verifierade (skärmdump — rejält lyft). **KVARSTÅR: Klas rendered-GO (Vercel-preview); två CTO-flaggor i preview (peek vs typografisk hero; login helt bort från `/`).**
+**Status:** **PLATSBANKEN SÖK-PARITET ÅTERUPPTAGEN — FAS E2b (LÄN→KOMMUN-KASKAD + GEO-UNION) LEVERERAD 2026-06-11 (autonom natt-körning, branch `feat/sok-paritet-fe-kommun-kaskad-e2b`, PR mot main, bas-HEAD `c43a9d8`).** Design-fasen G1–G4 är KLAR och MERGAD (#42–#45; G4 landing-redesign mergad `c43a9d8` — current-works tidigare "G4 pending Klas-GO" var stale). E2b byggd under Klas-förauktoriserad autonom automerge-auktoritet (natt-prompt 2026-06-11): kritiskt architect-fynd (backend-AND region×kommun ≠ Platsbankens verifierade union-semantik) → CTO VAL 1 = **Variant D backend geo-union** (region∪kommun när båda satta; ort = EN dimension i två granulariteter) + per-län-normalisering FE; "Hela länet"-rad togglar ETT region-id (aldrig materialiserade kommun-ids). Reviews: code-reviewer 1 Block/1 Major — **båda åtgärdade in-block** + 3 Minor (2 fixade, 1 = pre-existing saved-searches-zod-drift till Klas-triage); security-auditor **APPROVED 0 fynd**; design-reviewer **Approved 0 VETO/0 Major** ("Hela länet"-label explicit godkänd). Full backend-svit 1771 grön efter test-uppdatering; 735 vitest, tsc/eslint/build gröna. Nästa: E2e (Rensa/sortering) → E2c (facet-counts + NBomber observe-only) per natt-promptens ordning; E2d = HÅRD STOPP (chip/residual-bekräftelse saknas).
 
-**Levererat denna session (Fas E2a-PR — pending Klas rendered-GO):**
+**Levererat denna session 2026-06-11 (Fas E2b-PR — autonom natt-körning):**
+
+- **Backend geo-union (CTO VAL 1 Variant D, ~10 rader + 5 Testcontainers-tester):** `ApplyCriteria` unionerar region∪kommun när BÅDA listorna är icke-tomma (sekventiellt AND gav noll träffar för region=län-X + kommun-i-län-Y). Web-verifierat (architect + CTO oberoende): JobTech/Platsbanken kombinerar geografi-filter inkluderande ("most local promoted"). Ensamma grenar oförändrade; AND mot yrke/q består; SPOT bevarad. Recall-garanti test-låst med syntetisk region-only-annons. Mekanik-konkretisering inom Accepted ADR 0067 (ingen ADR 0042-amendment — Beslut B beslutade aldrig region×kommun; klargörande-not tillagd i ADR 0042).
+- **Ort-pickern Län→Kommun (TD-100 kommun-paritet):** två-kolumns kaskad via samma `JobbFilterPopover`; **dual-axis-kontrakt** (CTO VAL 3 — `groupAxis`-props, Yrke = degenererat enaxel-fall, ingen mode-flagga; enkelkolumns-läget borttaget, noll konsumenter). "Hela länet"-raden togglar region-id (en chip, 414-skydd); kommun-rader togglar `?municipality=`. **Per-län-normalisering** (`lib/job-ads/ort-selection.ts`, ren funktion + 12 unit-tester): kommun-val släcker länets helläns-val och vice versa — UX-kosmetik ovanpå unionen, ingen korrekthets-bärare.
+- **`?municipality=` atomiskt (E2a-mönstret, EN commit):** taxonomy-zod (`municipalities` REQUIRED, occupations strippas fortsatt), buildJobbHref + buildPageHref (paginering — F3-felklassen täppt) + hidden inputs + Suspense-key + selectedConceptIds + toolbar-chips (region → kommun → yrkesgrupp, delad MapPin) + recent-shim (`municipalityList`/`municipalityLabels` konsumeras, fanns wire-side sedan C2).
+- **C2-shimmet borttaget:** `RecentJobSearchDto.SsykList`/`SsykLabels` raderade (architect F5-planen "tas bort i Fas E" utförd); kontraktstest-vakthund mot återuppståndelse; wire-frånvaro asserterad i integ-tester.
+- **"Obestämd ort/Utomlands" DEFERRAD med payload-trigger (CTO VAL 2):** snapshotten saknar noderna; de 1 293 ortlösa annonserna saknar BÅDA dimensionerna (per-län-rad vore död UI-yta). Explicit rest mot ADR 0067 rad 109 — TD-100-stängning kräver löst/Klas-accepterad.
+- **E2c-spec låst (CTO VAL 4):** ort-facetten i `FacetCountsAsync` ska exkludera HELA ort-dimensionen (region+municipality) ur WHERE — dagens `ExcludeDimension` tömmer bara municipality (latent, noll konsumenter; byggs rätt i E2c).
+- **Agent-domar (`docs/reviews/2026-06-11-sok-paritet-e2b-*.md`):** dotnet-architect (variant-analys A/B/B′/C/D + web-verifierad JobTech-semantik), senior-cto-advisor (VAL 1–4, INGEN HALT — inom Accepted mandat), code-reviewer (1 Block + 1 Major åtgärdade in-block), security-auditor (APPROVED 0 fynd), design-reviewer (Approved; "Hela länet"-dom; 2 Minor → E2d-touchen). ADR 0067 implementerings-notat (Fas E2b) + ADR 0042 klargörande-not skrivna.
+
+**Tidigare session 2026-06-10 (Fas E2a-PR — MERGAD #41):**
 
 - **Yrke-nivå-skifte (TD-100-kärna):** FE-taxonomy-DTO `occupationFields[].occupations` → `occupationGroups` (ssyk-level-4); occupation-name droppad ur FE (ACL — recall-substrat backend-side). Pickern matar yrkesgrupp-ids. Empiriskt verifierat: 400 yrkesgrupper populerade (t.ex. "Advokater", "Arbetsförmedlare").
 - **Atomisk `?ssyk=`→`?occupationGroup=`** över buildJobbHref/buildQuery/page/picker/results+toolbar/recent (Fowler Rename Field, TS-säkrad). recent-shim `ssykList`→`occupationGroupList`. Cap 10→400.
 - **Agent-domar** (`docs/reviews/2026-06-10-sok-paritet-e2a-reviews.md`): architect (E2a-spec), code-reviewer/security-auditor/design-reviewer APPROVED. ADR 0067 impl-notat (Fas E2a) skrivet.
 
-**Levererat denna session (Fas E1a-PR — pending Klas-GO):**
+**Tidigare session 2026-06-10 (Fas E1a-PR — MERGAD #40):**
 
 - **/jobb-hero "Papperskontoret" (riktning A):** navy-banner → varm papperston-canvas. Ny `--jp-hero-canvas` (#FAF9F6 light, ärver `--jp-canvas` #0B1525 dark, /jobb-scoped — rör ej app-wide `--jp-canvas`; architect-dom). `.jp-pagehero` (inre sidor) orörd. Alla hero-barn flippade vit-på-navy → ink-på-papper via tokens. Sök-knapp navy-800 primary (ADR 0052). Dark: ljust sökfält + mörk text.
 - **Regel-1-fixar:** drop-shadow → border (papper); 40px-titel → 28px H1-token; 12px verifierat redan compliant (6px, oförändrat — ärligt rapporterat). Microcopy: H1 "Lediga jobb", label "Sök efter yrke, arbetsgivare eller ort", placeholder "t.ex. systemutvecklare Göteborg".
 - **Ny `--jp-placeholder`-token (#626B78):** WCAG AA ≥4.5:1 (#FFFFFF 5.39:1, #F0F4FB 4.89:1) → löste design-reviewer-VETO (2 Blockers placeholder-kontrast light+dark).
 - **Agent-domar:** nextjs-ui-engineer (bygge), dotnet-architect (token-arkitektur), design-reviewer VETO→APPROVED (`docs/reviews/2026-06-10-sok-paritet-e1a-design-review.md`). ADR 0067 impl-notat (Fas E1a) skrivet.
 
-**Levererat denna session (Fas E1b-PR — MERGAD #39):**
+**Tidigare session 2026-06-10 (Fas E1b-PR — MERGAD #39):**
 
 - **Suggest-kontrakt migrerat (ADR 0067 Beslut 5a):** `lib/dto/job-ads.ts` — nytt `suggestionDtoSchema` (`kind`/`conceptId`/`label`) + `suggestionKindFromWire` (wire-heltal Title=0..OccupationGroup=4 → namn via `SUGGESTION_KIND_ORDER`; defensivt int|string-union). Verifierat on-disk: `SuggestionKind` är native C#-enum utan `JsonStringEnumConverter` → serialiseras som HELTAL (samma int-konvention som `JobAdSortBy` i recent-searches `sortByFromWire`).
 - **`JobAdTypeahead` konsumerar `SuggestionDto[]`:** renderar `item.label` (React-escapad text), `key=${kind}:${conceptId??label}`, `choose(item.label)` (behåller `onSelect(string)`-kontrakt). `kind`/`conceptId` parsas som kontraktsfält men chip-komposition är E2 (CTO-dom). Komponenten ej wirad live → noll UI-regression, visual-verify ej triggad.
@@ -52,18 +62,20 @@
 | `7140c6b` | #42 | Fas G1 — grön accent-identitet + F4-banner (ADR 0068) |
 | `74a25a9` | #43 | Fas G2 — banner-konsekvens (Sök jobb, 1136-alignment, F4-platta-rollout) |
 | `08abb7b` | #44 | Fas G3 — konsekvensfixar (Sök jobb top-left, vit pagehero-CTA, a:hover-rotfix) |
-| (denna) | — | feat/design-g4-landing-redesign — produkt-forward ljus hero, login→topbar (pending Klas-GO) |
+| `c43a9d8` | #45 | Fas G4 — landing-redesign (produkt-forward ljus hero, login → topbar) |
+| (denna) | — | feat/sok-paritet-fe-kommun-kaskad-e2b — Län→Kommun-kaskad + geo-union region∪kommun |
 
 ---
 
 ## Pending operativt för Klas
 
-1. **KLAS RENDERED-GO — G4 landing-redesign:** granska Vercel-preview (G4-PR) light+dark: ljus hero, grön primär-CTA "Anmäl till väntelista", produkt-peek (grön mini-banner + 2 jobbkort), "Logga in" i topbaren. Två val för ditt öga: (a) produkt-peek vs ren typografisk hero (fallback finns); (b) login helt bort från `/` (topbar-länk → /logga-in; egen sida finns). Ge GO → automerge. *(G1/G2/G3 redan mergade.)*
-2. **Logo-översyn (separat, Klas-ägd):** guld `#FFCD00` (nuvarande kompass-prick) vs handoffens `#E8C77B` (token finns nu) + og/twitter-image-wordmark-färgerna — tas när du vill.
-3. **KLAS-STOPP — chip/residual-kombinationssemantik (ADR 0067 Beslut 5):** krävs INNAN E2d wirar chip+residual. Bekräfta `(dim-predikat) AND (FTS ∨ title-LIKE ∨ synonym)`.
-4. **E2b–E2e (återupptas efter G1-merge, Klas-GO per split):** E2b Län→Kommun-kaskad + municipality-DTO; E2c live facet-count (`FacetCountsAsync`-endpoint + NBomber-gate ADR 0045 BLOCKING); E2d chip-komponist (efter semantik-GO); E2e Rensa-textlänkar + sortering. Byggs nu i GRÖN identitet (G1-poängen).
+1. **Post-merge-granskning E2b (ADR 0065 automerge):** PR-diffen + Vercel-rendering av Ort-pickern (Län→Kommun, "Hela länet"-label) — design-reviewer godkände mot kod/diff; rendered-verifiering var pending live-deploy per runbook (auth-gated /jobb). Notera ram-utvidgningen: ~10 backend-rader geo-union (CTO-dom — Platsbanken-semantik var union, inte AND; full motivering i `docs/reviews/2026-06-11-sok-paritet-e2b-cto.md`).
+2. **KLAS-STOPP — chip/residual-kombinationssemantik (ADR 0067 Beslut 5):** krävs INNAN E2d wirar chip+residual. Bekräfta `(dim-predikat) AND (FTS ∨ title-LIKE ∨ synonym)`. Natt-promptens bekräftelse-rad lämnades tom → E2d HALT.
+3. **Klas-triage — `saved-searches.ts`-zod-drift (pre-existing, code-reviewer Minor):** FE-schemat kräver `ssyk`/`ssykLabels` men backend `SavedSearchDto` bär OccupationGroup/Municipality/Region sedan C2 — latent hård zod-fail för första FE-konsument av sparade sökningar. Egen touch innan saved-search-FE-ytan byggs.
+4. **Logo-översyn (separat, Klas-ägd):** guld `#FFCD00` vs handoffens `#E8C77B` + og/twitter-wordmark — tas när du vill.
 5. **Re-ingest Klass 2** (`POST /api/v1/admin/job-ads/backfill-klass2`, ~2,5h) — blockerar Anställningsform/Omfattning-filter (gated tills körd). Kör EJ utan Klas-GO.
-6. **CLAUDE.md §11.3-drift** (`make dev`/`pnpm dev:up` finns ej) — skapa-vs-stryk-beslut vid nästa spec-touch (kvarstår). *(Docs-drift-punkten för tokens-skillen är STÄNGD — skillen synkad direkt till grön kanon i G1, ADR 0068.)*
+6. **CLAUDE.md §11.3-drift** (`make dev`/`pnpm dev:up` finns ej) — skapa-vs-stryk-beslut vid nästa spec-touch (kvarstår).
+7. **"Obestämd ort/Utomlands"** — deferrad med payload-verifierings-trigger (ADR 0067 impl-notat E2b); explicit rest mot TD-100-stängningen.
 
 ---
 

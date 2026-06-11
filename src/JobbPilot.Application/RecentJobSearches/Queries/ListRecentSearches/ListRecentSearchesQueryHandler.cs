@@ -22,8 +22,8 @@ namespace JobbPilot.Application.RecentJobSearches.Queries.ListRecentSearches;
 ///
 /// <para><b>Fas C2 (ADR 0067):</b> entiteten bär OccupationGroup + Municipality
 /// (occupation-name/Ssyk utgick) — mappas in i filter-SPOT:en (täpper C1:s
-/// tomma listor). DTO:ns SsykList/SsykLabels är deprecated alltid-tomma
-/// (wire-kontrakt-shim tills Fas E, architect F5).</para>
+/// tomma listor). <b>Fas E2b:</b> C2-shimmets deprecated SsykList/SsykLabels
+/// borttagna (FE-zod frikopplad sedan E2a — architect F5-planen utförd).</para>
 /// </summary>
 public sealed class ListRecentSearchesQueryHandler(
     IAppDbContext db,
@@ -92,19 +92,17 @@ public sealed class ListRecentSearchesQueryHandler(
             dtos.Add(new RecentJobSearchDto(
                 r.Id.Value,
                 r.Q,
-                SsykList: [],
+                OccupationGroupList: r.OccupationGroup,
+                MunicipalityList: r.Municipality,
                 RegionList: r.Region,
-                SsykLabels: [],
+                OccupationGroupLabels: occupationGroupLabels,
+                MunicipalityLabels: municipalityLabels,
                 RegionLabels: regionLabels,
                 r.SortBy,
                 label,
                 currentCount,
                 newCount,
-                r.LastViewedAt,
-                OccupationGroupList: r.OccupationGroup,
-                MunicipalityList: r.Municipality,
-                OccupationGroupLabels: occupationGroupLabels,
-                MunicipalityLabels: municipalityLabels));
+                r.LastViewedAt));
         }
 
         return dtos;

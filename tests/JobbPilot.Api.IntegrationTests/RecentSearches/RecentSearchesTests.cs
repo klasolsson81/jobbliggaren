@@ -15,8 +15,8 @@ namespace JobbPilot.Api.IntegrationTests.RecentSearches;
 //
 // C2 (ADR 0067, CTO-dom (d) + architect F5/F6): yrkesgrupp-only- och
 // kommun-only-sökningar capture:as nu (stänger C1:s LIVE-gap där guarden bara
-// räknade Q/Ssyk/Region). DTO:n är additiv: deprecated ssykList/ssykLabels är
-// ALLTID tomma; nya occupationGroupList/municipalityList + labels bär data.
+// räknade Q/Ssyk/Region). E2b: C2-shimmet (ssykList/ssykLabels) är borttaget
+// ur wire-formen — frånvaron vakthund-asserteras nedan (TryGetProperty).
 [Collection("Api")]
 public class RecentSearchesTests(ApiFactory factory)
 {
@@ -86,9 +86,10 @@ public class RecentSearchesTests(ApiFactory factory)
         row.GetProperty("occupationGroupList").EnumerateArray()
             .Select(e => e.GetString())
             .ShouldContain(group);
-        // Deprecated fält består i wire-formen (FE-zod REQUIRED) men är ALLTID tomma.
-        row.GetProperty("ssykList").GetArrayLength().ShouldBe(0);
-        row.GetProperty("ssykLabels").GetArrayLength().ShouldBe(0);
+        // E2b: C2-shimmet (ssykList/ssykLabels) borttaget ur wire-formen —
+        // fälten får INTE återuppstå (FE-zod frikopplad sedan E2a).
+        row.TryGetProperty("ssykList", out _).ShouldBeFalse();
+        row.TryGetProperty("ssykLabels", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -112,7 +113,7 @@ public class RecentSearchesTests(ApiFactory factory)
         row.GetProperty("municipalityList").EnumerateArray()
             .Select(e => e.GetString())
             .ShouldContain(municipality);
-        row.GetProperty("ssykList").GetArrayLength().ShouldBe(0);
+        row.TryGetProperty("ssykList", out _).ShouldBeFalse();
     }
 
     [Fact]

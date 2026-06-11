@@ -14,15 +14,17 @@ import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-sear
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
 // searchParams-värden kan vara string | string[] | undefined.
-// occupationGroup/region är upprepade query-params (ADR 0042 Beslut B) →
-// string[] vid flera värden. occupationGroup = ssyk-level-4/yrkesgrupp
-// (ADR 0067 Fas E2a nivå-skifte; `?ssyk=` borttagen backend-side i C2).
+// occupationGroup/region/municipality är upprepade query-params (ADR 0042
+// Beslut B) → string[] vid flera värden. occupationGroup = ssyk-level-4/
+// yrkesgrupp (E2a nivå-skifte); municipality = kommun (E2b — backend
+// unionerar region∪municipality, ADR 0067 impl-notat E2b).
 type JobbSearchParams = {
   page?: string;
   pageSize?: string;
   sortBy?: string;
   occupationGroup?: string | string[];
   region?: string | string[];
+  municipality?: string | string[];
   q?: string;
 };
 
@@ -63,6 +65,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const sortBy = parseSortBy(params.sortBy);
   const occupationGroup = toStringList(params.occupationGroup);
   const region = toStringList(params.region);
+  const municipality = toStringList(params.municipality);
   const q = emptyToUndefined(params.q);
 
   const since = newWindowSince();
@@ -111,6 +114,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   ).toString();
   const occupationGroupKey = occupationGroup.join(",");
   const regionKey = region.join(",");
+  const municipalityKey = municipality.join(",");
 
   return (
     <>
@@ -190,6 +194,14 @@ export default async function JobbPage({ searchParams }: PageProps) {
                     value={v}
                   />
                 ))}
+                {municipality.map((v) => (
+                  <input
+                    key={`municipality-${v}`}
+                    type="hidden"
+                    name="municipality"
+                    value={v}
+                  />
+                ))}
                 {sortBy !== "PublishedAtDesc" && (
                   <input type="hidden" name="sortBy" value={sortBy} />
                 )}
@@ -211,6 +223,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 taxonomy={taxonomy}
                 initialOccupationGroup={occupationGroup}
                 initialRegion={region}
+                initialMunicipality={municipality}
                 q={q ?? ""}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
@@ -226,7 +239,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -235,6 +248,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             sortBy={sortBy}
             occupationGroup={occupationGroup}
             region={region}
+            municipality={municipality}
             q={q ?? ""}
             since={since}
             rawParams={params}

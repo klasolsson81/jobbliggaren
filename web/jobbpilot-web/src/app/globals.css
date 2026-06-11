@@ -1016,6 +1016,19 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-hero__searchblock {
   margin: 0;
   min-width: 0;
+  /* E2d: positioneringskontext för typeahead-dropdownen. Dropdownen ligger
+     DOM-mässigt inuti searchrowen (overflow:hidden) men positioneras mot detta
+     block → escapar klippningen (containing-block är förfader till overflow-
+     elementet). */
+  position: relative;
+}
+/* E2d: typeahead-wrappern ersätter den direkta inputen i searchrowen. */
+.jp-hero__searchfield {
+  flex: 1;
+  min-width: 0;
+}
+.jp-hero__searchfield .jp-hero__input {
+  width: 100%;
 }
 .jp-hero__searchlabels {
   display: block;

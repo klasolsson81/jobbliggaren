@@ -53,10 +53,21 @@ interface JobbFilterPopoverProps {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   /** Vänster kolumn-titel (t.ex. "Yrkesområde", "Län"). */
   leftTitle: string;
+  /**
+   * Dialogens `aria-label` (E2d-Minor): bör matcha TRIGGERNS namn ("Ort"/
+   * "Yrke") så skärmläsaren annonserar samma sak som pillen. Utelämnad →
+   * faller till `leftTitle` (bakåtkompat).
+   */
+  dialogLabel?: string;
   /** Höger kolumn-titel (t.ex. "Yrkesgrupper", "Kommuner"). */
   rightTitle: string;
-  /** "Välj alla X"-radens text (höger kolumn). */
-  selectAllLabel: string;
+  /**
+   * "Välj alla X"-radens text, GRUPP-specifik (E2d-Minor): Ort ger
+   * "Hela Stockholms län" per aktivt län; Yrke ger statiskt "Välj alla
+   * yrkesgrupper". Funktion av aktiv grupp i stället för en enda statisk
+   * sträng (per-grupp-precision, jobbpilot-design-copy).
+   */
+  selectAllLabel: (group: PopoverGroup) => string;
   groups: ReadonlyArray<PopoverGroup>;
   /** Civil degradering när grupperna inte kunde laddas. */
   emptyText: string;
@@ -161,6 +172,7 @@ function CheckRow({
   onToggle,
   isAll,
   count,
+  indeterminate,
 }: {
   label: string;
   checked: boolean;
@@ -168,12 +180,18 @@ function CheckRow({
   isAll?: boolean;
   /** Per-option-count (E2c) — undefined = counts ej laddade, inget tal. */
   count?: number;
+  /**
+   * Tri-state (E2d-Minor): vid partiellt val annonserar "Välj alla"-raden
+   * `aria-checked="mixed"` (WAI-ARIA tri-state-checkbox) i stället för
+   * false — skärmläsaren hör "delvis markerad", inte "omarkerad".
+   */
+  indeterminate?: boolean;
 }) {
   return (
     <div
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
       role="checkbox"
-      aria-checked={checked}
+      aria-checked={indeterminate ? "mixed" : checked}
       tabIndex={0}
       onClick={onToggle}
       onKeyDown={(e) => {
@@ -204,6 +222,7 @@ export function JobbFilterPopover({
   onClearAll,
   triggerRef,
   leftTitle,
+  dialogLabel,
   rightTitle,
   selectAllLabel,
   groups,
@@ -251,6 +270,8 @@ export function JobbFilterPopover({
   const selectAllChecked = groupAxis
     ? activeGroupChecked
     : rightItems.length > 0 && rightIds.every((id) => selectedSet.has(id));
+  // Tri-state (E2d-Minor): partiellt val = något valt men inte allt → "mixed".
+  const selectAllMixed = !selectAllChecked && rightAnySelected;
   const anySelectedAnywhere =
     selected.length > 0 || (groupAxis?.selected.length ?? 0) > 0;
 
@@ -259,7 +280,7 @@ export function JobbFilterPopover({
       ref={ref}
       className="jp-popover"
       role="dialog"
-      aria-label={leftTitle}
+      aria-label={dialogLabel ?? leftTitle}
       style={style}
     >
       <div className="jp-popover__body">
@@ -384,8 +405,9 @@ export function JobbFilterPopover({
           ) : (
             <>
               <CheckRow
-                label={selectAllLabel}
+                label={activeGroup ? selectAllLabel(activeGroup) : ""}
                 checked={selectAllChecked}
+                indeterminate={selectAllMixed}
                 isAll
                 // "Hela länet"-radens count = gruppens eget id i grupp-
                 // facetten (region). Enaxel-fallet (Yrke) har ingen

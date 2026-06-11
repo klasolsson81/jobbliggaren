@@ -133,8 +133,32 @@ design-reviewer 0 VETO, code-reviewer 0 Block/0 oåtgärdat Major, security
   strippad (e980046). FE-dev `.next` clobbrad av pnpm build × 2 → rensad
   + omstartad.
 
+## E2f-leverans (samma session — Klas rendered-feedback på morgonen)
+
+- Klas tre fynd mot Platsbanken-screenshots: (1) höger kaskad-kolumn TOM
+  tills vänster-val (ingen auto-vald första grupp); (2) kommun-rader
+  renderas MARKERADE vid helläns-val + "hela länet minus en kommun"
+  (region-id bort, övriga materialiseras ≤48 — preciserar CTO VAL 1 till
+  PÅ-toggling; komplettering kollapsar tillbaka); (3) de-gröna rubriker
+  (CC-rekommendation "grönt = interaktion, inte information" — Klas-GO):
+  nav/drawer-aktiv → ink + accent-bar, jobb-/app-titlar/räknar-tal/
+  peek-titlar/översikts-datum → ink.
+- Ny `toggleMunicipalityInRegion` + `groupAxis.onToggleItem`-kontrakt;
+  7 nya/omskrivna unit-fall + flödes-tester uppdaterade (klick vänster
+  först). 755+ vitest, tsc/eslint/build gröna.
+- Reviews: code Approved 0/0 (4 Minor — m1 denorm-state-fix + m2 kant-
+  fall-tester + m4 stale kommentar in-block; m3 opportunistisk), design
+  0 VETO/1 Major spec-sync (globals.css-kommentar + ADR 0068-notat
+  in-block; DESIGN.md + tokens-skill = Klas approve-spec-edit) + 4 Minor
+  (3 de-grönings-rester = Klas-dom; tri-state mixed = E2d).
+- ADR 0067 impl-notat (E2f) + ADR 0068 impl-notat (accent-text-rollen).
+
 ## Nästa
 
-1. E2d — HALT + morgonrapport (chip/residual-bekräftelse saknas; promptens
-   bekräftelse-rad var tom). Spec-edit-rester till Klas (kontrasttabell-
-   dark-par; saved-searches-zod-drift-triage).
+1. E2d — HALT (chip/residual-bekräftelse saknas; promptens bekräftelse-
+   rad var tom). E2d-touchen ärver: "Hela {länsnamn}"-label, dialogLabel,
+   tri-state aria-checked="mixed".
+2. Spec-edits till Klas approve-hook: DESIGN.md accent-rollraden +
+   tokens-skillen (accent-700-texten + kontrasttabellens dark-danger-par).
+3. Klas-dom: tre de-grönings-rester (land-top is-active, land-feature__key,
+   summary-highlight-värdet) + saved-searches-zod-drift-triage.

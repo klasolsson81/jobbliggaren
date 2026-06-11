@@ -8,6 +8,7 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
 import {
   applyMunicipalityChange,
+  toggleMunicipalityInRegion,
   toggleWholeRegion,
   clearRegionColumn,
   type OrtSelection,
@@ -138,9 +139,28 @@ export function JobbHeroFilters({
     setOrt(next);
     push(occupationGroup, next);
   }
+  // Defensiv list-väg (popoverns onChange-kontrakt) — i dual-axis-läget går
+  // item-klick via toggleMunicipality nedan; denna nås aldrig vid runtime
+  // men håller kontraktet semantiskt korrekt om popovern någonsin emitterar.
   function changeMunicipality(nextMunicipality: string[]) {
     commitOrt(
       applyMunicipalityChange(ort, nextMunicipality, regionOfMunicipality),
+    );
+  }
+  // E2f — per-kommun-toggle med Platsbanken-semantik ("hela länet minus en
+  // kommun" materialiserar länets övriga; komplettering kollapsar tillbaka
+  // till region-id:t). Föräldern äger semantiken — den kräver båda axlarna.
+  function toggleMunicipality(
+    municipalityConceptId: string,
+    regionConceptId: string,
+  ) {
+    commitOrt(
+      toggleMunicipalityInRegion(
+        ort,
+        municipalityConceptId,
+        regionConceptId,
+        municipalityIdsOfRegion.get(regionConceptId) ?? [],
+      ),
     );
   }
   function toggleRegion(regionConceptId: string) {
@@ -247,8 +267,9 @@ export function JobbHeroFilters({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
-      {/* key-remount vid öppning → activeLeft re-initieras till första
-          länet (src-v3 FilterPopover-paritet) utan setState-i-effect. */}
+      {/* key-remount vid öppning → activeLeft re-initieras till TOM (E2f
+          Platsbanken-paritet — höger kolumn tom tills län valts) utan
+          setState-i-effect. */}
       <JobbFilterPopover
         key={openPop === "ort" ? "ort-open" : "ort-closed"}
         open={openPop === "ort"}
@@ -264,6 +285,7 @@ export function JobbHeroFilters({
           selected: ort.region,
           onToggleGroup: toggleRegion,
           onClearColumn: clearOrtColumn,
+          onToggleItem: toggleMunicipality,
         }}
         counts={municipalityCounts}
         groupCounts={regionCounts}

@@ -109,9 +109,32 @@ design-reviewer 0 VETO, code-reviewer 0 Block/0 oåtgärdat Major, security
   label-vs-ADR-ordalydelse dokumenterad i E2e-notatet), design-reviewer
   Approved 0/0 (3 Minor — kontrasttabell = spec-edit till Klas). 739 vitest.
 
-## Nästa (samma natt-session)
+## E2c-leverans (samma natt-session, efter E2e-merge #47)
 
-1. E2c — FacetCounts query/handler/endpoint (VAL 4-semantiken +
-   ExcludeDimension-fixen) + FE live-count + NBomber observe-only
-   (HALT vid >300ms p95). Architect-spec beställd.
-2. E2d — HALT + morgonrapport (chip/residual-bekräftelse saknas).
+- **Architect-spec + CTO-dom:** endpoint-form entydig (egen route); CTO VAL 1
+  = FacetCountsPolicy 30/10s (least common mechanism — delad ListRead-budget
+  hade svält LISTAN; löste samtidigt D1:s NBomber-kalibrerings-fel
+  strukturellt); VAL 2 = A (per-option-counts + "Visa N annonser"-knapp på
+  PagedResult.TotalCount — aldrig facett-summa). Ingen Klas-HALT (fördelegerat
+  + implementerar Accepted rad 109).
+- **Backend:** GetFacetCountsQuery (residual-parser-konsistens; ej
+  ICapturesRecentSearch; ingen Total) + IsInEnum-skydd + VAL 4-ort-
+  exkludering + 22 nya/uppdaterade tester.
+- **NBomber FÖRE FE-wiring (Beslut 4-gaten):** p95 26,8/25,0 ms ≪ 300 ms
+  (×11-marginal, 0 fails, dev-korpus ~43k) — fallback-trappan obehövd.
+- **FE:** counts i popover-raderna (tre-tillstånds: känd nolla ≠ okänt),
+  "Hela länet"-region-count, Visa N annonser-knapp via total-count-store
+  (useSyncExternalStore över streaming-ö-gränsen).
+- **Reviews in-block:** security APPROVED + 30/10s BLOCKING-fastställt;
+  design 0 VETO/1 Major (singular "Visa 1 annons") + 1 Minor (13px);
+  code 0 Block/2 Major (fel-gren 200+{} → 502 — "(0)"-desinformation;
+  abort i effect-cleanup) + 3 Minor. Alla åtgärdade (85dee89).
+- **Detour:** NUL-byte smög in i en teststräng → filen git-binär →
+  strippad (e980046). FE-dev `.next` clobbrad av pnpm build × 2 → rensad
+  + omstartad.
+
+## Nästa
+
+1. E2d — HALT + morgonrapport (chip/residual-bekräftelse saknas; promptens
+   bekräftelse-rad var tom). Spec-edit-rester till Klas (kontrasttabell-
+   dark-par; saved-searches-zod-drift-triage).

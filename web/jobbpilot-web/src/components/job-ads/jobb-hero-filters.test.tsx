@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JobbHeroFilters } from "./jobb-hero-filters";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
@@ -254,6 +254,48 @@ describe("JobbHeroFilters — facet-counts + Visa N annonser (E2c)", () => {
 
     expect(screen.getByText("Solna")).toBeInTheDocument();
     expect(screen.queryByText(/\(\d/)).toBeNull();
+  });
+
+  it("backend-fel (502) ger INGA '(0)'-rader — fel ≠ känd nolla (code-reviewer Major 1)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({}), { status: 502 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      setup();
+      await user.click(screen.getByRole("button", { name: /^Ort/ }));
+
+      // Vänta in debounce + svar; därefter får INGA count-parenteser finnas
+      // ("(0)" vid backend-fel vore desinformation — tom dict är tvetydig).
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(screen.getByText("Solna")).toBeInTheDocument();
+      expect(screen.queryByText(/\(\d/)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("Visa-knappen singular-böjs vid totalCount 1 (design-reviewer Major 1)", async () => {
+    const user = userEvent.setup();
+    const { publishTotalCount, resetTotalCountForTest } = await import(
+      "@/lib/job-ads/total-count-store"
+    );
+    resetTotalCountForTest();
+    setup();
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+
+    act(() => publishTotalCount(1));
+    expect(
+      screen.getByRole("button", { name: "Visa 1 annons" }),
+    ).toBeInTheDocument();
+
+    act(() => publishTotalCount(2));
+    expect(
+      screen.getByRole("button", { name: "Visa 2 annonser" }),
+    ).toBeInTheDocument();
+    resetTotalCountForTest();
   });
 
   it("Visa annonser-knappen stänger popovern (totalCount opublicerad → utan tal)", async () => {

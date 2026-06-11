@@ -36,12 +36,21 @@ export function useFacetCounts(
   const abortRef = useRef<AbortController | null>(null);
 
   // Stabil dependency-nyckel — listorna är nya referenser per render.
+  // Värdena läses ur ref-spegeln nedan (synkron med nyckeln när effekten
+  // kör) — ingen JSON-rundtur/cast (code-reviewer Minor 1 E2c).
   const filterKey = JSON.stringify([
     filter.occupationGroup,
     filter.municipality,
     filter.region,
     filter.q,
   ]);
+  const filterRef = useRef(filter);
+  // Ref-spegeln uppdateras i en effect (react-hooks/refs förbjuder skrivning
+  // under render). Deklarerad FÖRE fetch-effekten → körs först i samma
+  // commit-fas, så fetch-effekten alltid läser färska värden.
+  useEffect(() => {
+    filterRef.current = filter;
+  });
 
   useEffect(() => {
     if (!enabled) {
@@ -56,14 +65,13 @@ export function useFacetCounts(
       const controller = new AbortController();
       abortRef.current = controller;
 
+      const current = filterRef.current;
       const params = new URLSearchParams({ dimension });
-      const [occupationGroup, municipality, region, q] = JSON.parse(
-        filterKey,
-      ) as [string[], string[], string[], string];
-      for (const v of occupationGroup) params.append("occupationGroup", v);
-      for (const v of municipality) params.append("municipality", v);
-      for (const v of region) params.append("region", v);
-      const trimmedQ = q.trim();
+      for (const v of current.occupationGroup)
+        params.append("occupationGroup", v);
+      for (const v of current.municipality) params.append("municipality", v);
+      for (const v of current.region) params.append("region", v);
+      const trimmedQ = current.q.trim();
       if (trimmedQ.length >= 2) params.set("q", trimmedQ);
 
       try {
@@ -82,7 +90,14 @@ export function useFacetCounts(
       }
     }, FACET_COUNTS_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    // Cleanup vid dep-change OCH unmount: rensa debounce-timern OCH avbryt
+    // in-flight (typeahead-prejudikatets CTO-krav — annars kan ett gammalt
+    // svar för FEL filter landa transient, och setState köras mot
+    // avmonterad komponent; code-reviewer Major 2 E2c).
+    return () => {
+      clearTimeout(timer);
+      abortRef.current?.abort();
+    };
   }, [dimension, filterKey, enabled]);
 
   return counts;

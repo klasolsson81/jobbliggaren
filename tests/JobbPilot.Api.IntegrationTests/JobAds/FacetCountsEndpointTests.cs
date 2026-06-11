@@ -89,6 +89,17 @@ public class FacetCountsEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task GET_facet_counts_without_dimension_returns_400()
+    {
+        // Minimal-API:s binding-fel för utelämnad non-nullable värdetyp-param
+        // → 400 (code-reviewer Minor 2 — låser bindnings-beteendet).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var response = await _client.GetAsync("/api/v1/job-ads/facet-counts", ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task GET_facet_counts_with_cap_exceeding_list_returns_400()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -10,9 +10,12 @@ import { facetDimensionSchema } from "@/lib/dto/job-ads";
  * (allowlist — okänd dimension träffar aldrig backend), delegera till
  * server-fetchern, mappa `ApiResult` → HTTP-status.
  *
- * Degraderings-kontrakt (E2c-architect §5): alla fel-utfall → tomt objekt.
- * Klienten visar då inga counts men popovern förblir fullt användbar —
- * counts är en hint, aldrig en förutsättning (civic-utility).
+ * Degraderings-kontrakt (E2c-architect §5, skärpt av code-reviewer Major 1):
+ * fel-utfall → NON-2xx så hookens !res.ok-gren ger counts=null → INGA tal
+ * renderas. Ett 200 + tomt objekt vore desinformation — "(0)" på varje rad
+ * påstår noll annonser när backend är nere; tom dict är tvetydig (legitim
+ * tom korpus går inte att skilja från fel). Counts är en hint, aldrig en
+ * förutsättning — popovern förblir fullt användbar utan dem.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -45,8 +48,10 @@ export async function GET(request: NextRequest) {
           headers: { "Retry-After": String(result.retryAfterSeconds) },
         }
       );
-    // forbidden/notFound/error → tomt objekt, 200: counts degraderar tyst.
+    // forbidden/notFound/error → 502: hooken nollar counts (null), inga
+    // tal renderas. ALDRIG 200 + tomt objekt (code-reviewer Major 1 —
+    // "(0)" vid backend-fel vore aktiv desinformation).
     default:
-      return NextResponse.json({}, { status: 200 });
+      return NextResponse.json({}, { status: 502 });
   }
 }

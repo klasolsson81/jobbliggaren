@@ -1364,7 +1364,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-checkitem__count {
   margin-left: auto;
   font-family: var(--jp-font-mono);
-  font-size: 12.5px;
+  /* 13px = chip-count-precedenten (design-reviewer Minor 1 E2c — inga
+     off-scale-fraktioner). */
+  font-size: 13px;
   color: var(--jp-ink-2);
   flex-shrink: 0;
 }

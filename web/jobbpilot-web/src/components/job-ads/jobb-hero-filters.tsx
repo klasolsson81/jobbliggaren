@@ -191,9 +191,11 @@ export function JobbHeroFilters({
   // som toolbaren publicerar (SPOT — noll extra requests; ALDRIG en summa av
   // facett-counts). null innan första list-svaret → "Visa annonser".
   const totalCount = useTotalCount();
+  // Singular-böjning (design-reviewer Major 1 E2c) — samma grammatikregel
+  // som träffräknaren ("träff"/"träffar").
   const showResultsLabel =
     totalCount !== null
-      ? `Visa ${totalCount.toLocaleString("sv-SE")} annonser`
+      ? `Visa ${totalCount.toLocaleString("sv-SE")} ${totalCount === 1 ? "annons" : "annonser"}`
       : "Visa annonser";
   const showResultsFooter = (
     <button

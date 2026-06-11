@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   applyMunicipalityChange,
+  toggleMunicipalityInRegion,
   toggleWholeRegion,
   clearRegionColumn,
   type OrtSelection,
@@ -64,6 +65,60 @@ describe("applyMunicipalityChange — per-län-normalisering", () => {
     );
     expect(next.region).toEqual([]);
     expect(next.municipality).toEqual(["x1", "y1"]);
+  });
+});
+
+describe("toggleMunicipalityInRegion — E2f Platsbanken-semantik", () => {
+  const xMunis = ["x1", "x2", "x3"];
+
+  it("hela länet valt + kommun-klick = 'hela länet minus den' (övriga materialiseras)", () => {
+    const next = toggleMunicipalityInRegion(
+      { region: ["X"], municipality: [] },
+      "x2",
+      "X",
+      xMunis,
+    );
+    expect(next.region).toEqual([]);
+    expect(next.municipality).toEqual(["x1", "x3"]);
+  });
+
+  it("hela länet minus en — andra läns val orörda", () => {
+    const next = toggleMunicipalityInRegion(
+      { region: ["X", "Y"], municipality: ["y1"] },
+      "x1",
+      "X",
+      xMunis,
+    );
+    expect(next.region).toEqual(["Y"]);
+    expect(next.municipality).toEqual(["y1", "x2", "x3"]);
+  });
+
+  it("vald kommun avmarkeras (utan helläns-val)", () => {
+    const next = toggleMunicipalityInRegion(
+      { region: [], municipality: ["x1", "x2"] },
+      "x1",
+      "X",
+      xMunis,
+    );
+    expect(next.region).toEqual([]);
+    expect(next.municipality).toEqual(["x2"]);
+  });
+
+  it("ovald kommun markeras (utan helläns-val)", () => {
+    const next = toggleMunicipalityInRegion(empty, "x1", "X", xMunis);
+    expect(next.region).toEqual([]);
+    expect(next.municipality).toEqual(["x1"]);
+  });
+
+  it("markering som kompletterar länets alla kommuner kollapsar till region-id", () => {
+    const next = toggleMunicipalityInRegion(
+      { region: [], municipality: ["x1", "x2", "y1"] },
+      "x3",
+      "X",
+      xMunis,
+    );
+    expect(next.region).toEqual(["X"]);
+    expect(next.municipality).toEqual(["y1"]);
   });
 });
 

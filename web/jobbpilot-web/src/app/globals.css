@@ -1022,13 +1022,60 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      elementet). */
   position: relative;
 }
-/* E2d: typeahead-wrappern ersätter den direkta inputen i searchrowen. */
-.jp-hero__searchfield {
+/* E2h: chips-i-sökfältet. Chipfielden bär chips + typeahead-inputen i samma
+   visuella fält; raden växer (wrap) vid många chips. Typeahead-wrappern är
+   STATIC (ingen position) så dropdownen fortsatt förankras mot
+   .jp-hero__searchblock och escapar searchrowens overflow:hidden. */
+.jp-chipfield {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
 }
-.jp-hero__searchfield .jp-hero__input {
+.jp-chipfield__typeahead {
+  flex: 1;
+  min-width: 140px;
+}
+.jp-chipfield__input {
   width: 100%;
+  padding: 0 8px;
+}
+/* Kompaktare chip-variant inne i fältet (samma anatomi som toolbar-chipen).
+   TEMA-STABILA banner-lokala literaler (design-reviewer M1 E2h): sökfältet
+   är vitt i BÅDA teman (--jp-hero-pill-bg) — chipsen får inte tema-skifta
+   till mörka navy-chips i dark. Literalerna = light-temats surface-2/
+   border/ink (samma princip som "alla kontroller i plattan är tema-
+   stabila", G1-blocket ovan). */
+.jp-filterchip--field {
+  height: 28px;
+  padding: 0 6px 0 10px;
+  font-size: 13px;
+  background: #F4F6FA;
+  border-color: #C9D2E0;
+  color: #0C1A2E;
+}
+.jp-filterchip--field .jp-filterchip__rm {
+  color: #455366;
+}
+.jp-filterchip--field .jp-filterchip__rm:hover {
+  color: #0C1A2E;
+}
+/* WCAG 2.4.7 (design-reviewer B1 E2h): plattan scopar --jp-focus vit →
+   global fokus-ring blir osynlig mot det vita fältet. Inåtvänd ink-ring,
+   samma lösning som .jp-hero__input:focus-visible. */
+.jp-filterchip--field .jp-filterchip__rm:focus-visible {
+  outline: 2px solid var(--jp-hero-sok-bg);
+  outline-offset: 0;
+}
+/* Hjälptext under sökraden — bär Tab-/tagg-instruktionen (aldrig
+   placeholder). Ink-soft på plattan, läsbar i båda teman. */
+.jp-hero__searchhelp {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--jp-hero-ink-soft);
 }
 .jp-hero__searchlabels {
   display: block;

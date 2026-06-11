@@ -53,6 +53,17 @@ public sealed class ListRecentSearchesQueryHandler(
             .OrderByDescending(r => r.LastViewedAt)
             .ToListAsync(cancellationToken);
 
+        // E2g (Klas-direktiv 2026-06-11): hel-områdes-kollaps i labeln kräver
+        // fält→grupp-trädet. In-memory-snapshot (ADR 0043 — ingen extern hop);
+        // hämtas EN gång per Handle (CTO-krav), och bara när någon rad har >1
+        // yrkesgrupp (enda fallet kollapsen kan slå in).
+        IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields = null;
+        if (items.Any(r => r.OccupationGroup.Count > 1))
+        {
+            occupationFields =
+                (await taxonomy.GetTreeAsync(cancellationToken))?.OccupationFields;
+        }
+
         var dtos = new List<RecentJobSearchDto>(items.Count);
         foreach (var r in items)
         {
@@ -87,7 +98,8 @@ public sealed class ListRecentSearchesQueryHandler(
 
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);
             var label = DeriveLabel(
-                r.Q, occupationGroupLabels, municipalityLabels, regionLabels);
+                r.Q, r.OccupationGroup, occupationGroupLabels,
+                municipalityLabels, regionLabels, occupationFields);
 
             dtos.Add(new RecentJobSearchDto(
                 r.Id.Value,
@@ -110,20 +122,48 @@ public sealed class ListRecentSearchesQueryHandler(
 
     // Fallback-kedja per architect F6: q → yrkesgrupp → kommun → region →
     // "Alla annonser" (defensive dead code så länge Empty-invarianten håller).
+    //
+    // E2g (Klas-direktiv 2026-06-11, CTO-bekräftad mekanik): "första labeln"
+    // var missvisande vid multi-val ("Drifttekniker, IT" när hela Data/IT
+    // valts). Ny regel per dimension: (i) selektion = EXAKT alla grupper i
+    // ETT yrkesområde (mängd-likhet mot trädet) → områdets namn; (ii) ett
+    // val → namnet; (iii) annars → "{första} +{N−1} till". Blandfall (helt
+    // område + extra grupper) → (iii) räknat på grupper. Taxonomi-drift →
+    // (i)-matchen faller gracefully till (iii). "{första}" är deterministisk
+    // (resolvad label-ordning = persisterad sorterad id-ordning).
     private static string DeriveLabel(
         string? q,
+        IReadOnlyList<string> occupationGroupIds,
         IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
         IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
-        IReadOnlyList<TaxonomyLabelDto> regionLabels)
+        IReadOnlyList<TaxonomyLabelDto> regionLabels,
+        IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
         if (!string.IsNullOrWhiteSpace(q))
             return q;
         if (occupationGroupLabels.Count > 0)
-            return occupationGroupLabels[0].Label;
+        {
+            if (occupationGroupIds.Count > 1 && occupationFields is not null)
+            {
+                var selected = occupationGroupIds.ToHashSet(StringComparer.Ordinal);
+                var wholeField = occupationFields.FirstOrDefault(f =>
+                    f.OccupationGroups.Count == selected.Count
+                    && f.OccupationGroups.All(g => selected.Contains(g.ConceptId)));
+                if (wholeField is not null)
+                    return wholeField.Label;
+            }
+            return WithMoreSuffix(occupationGroupLabels);
+        }
         if (municipalityLabels.Count > 0)
-            return municipalityLabels[0].Label;
+            return WithMoreSuffix(municipalityLabels);
         if (regionLabels.Count > 0)
-            return regionLabels[0].Label;
+            return WithMoreSuffix(regionLabels);
         return "Alla annonser";
     }
+
+    // "{första} +{N−1} till" — +N räknar samma enhet som första namnet anger.
+    private static string WithMoreSuffix(IReadOnlyList<TaxonomyLabelDto> labels) =>
+        labels.Count == 1
+            ? labels[0].Label
+            : $"{labels[0].Label} +{labels.Count - 1} till";
 }

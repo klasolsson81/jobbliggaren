@@ -93,6 +93,14 @@ Identitetsbytet tas som egen fas **"G1"** (egen PR) FÖRE ADR 0067:s återståen
 
 **G3-tillägg (Klas rendered-fynd 2026-06-10, design-reviewer Approved 0 fynd):** (1) `.jp-hero__title` "Lediga jobb./I lugn och ro." → **"Sök jobb"**; `.jp-hero__plate align-items: end → start` (rubrik top-left, konsekvent med pagehero-titlarna). (2) Pagehero-CTA ("Ny ansökan"/"Nytt CV") alltid **vit** (`.jp-pagehero .jp-btn--primary`) — G2:s villkorade ghost läste som grön-genomskinlig på gradienten; banner-kontroller är vita (handoff-doktrinen), grön primär bor i det vita empty-kortet (en-primary bibehållen). (3) **Rotfix app-wide:** global `a`/`a:hover`-färg scopad till `a:not(.jp-btn)` — knapp-`<a>` (`.jp-btn`) ärvde annars länkfärgen i hover (specificitet `a:hover` 0,1,1 > `.jp-btn--primary` 0,1,0; knappens hover satte bara bakgrund) → grön text på grön knapp. Lagar även latent `.jp-btn--secondary`-`<a>`-hover-bug.
 
+### Implementerings-notat 2026-06-11 (E2f) — accent-700:s text-roll preciseras: grönt = interaktion, inte information
+
+**Källa:** Klas rendered-feedback 2026-06-11 (sök-paritets-fasen E2f — samma process som G2/G3-notaten ovan) + design-reviewer (`docs/reviews/2026-06-11-sok-paritet-e2f-design-review.md`). Additivt notat; Beslut 1-tabellens mekanik består men **text-rollen preciseras**:
+
+- **"titlar" och "aktiv nav" utgår ur accent-700:s TEXT-roll för informations-ytor:** jobb-/app-titlar, träffräknar-tal, landing-peek-titlar, översiktens datum-siffra → `--jp-ink-1`; aktiv nav-länk + drawer-item → ink-text där **accent-baren/border-left bär plats-indikationen ensam** (GOV.UK-mönstret; 3 oberoende cues — bar/border + weight + aria-current).
+- **Accent-700 som text består för INTERAKTION:** länkar (`a:not(.jp-btn)`), fokus, selektion/aktiv rad (`aria-selected`), kontroll-states (`.jp-save[data-saved]`, checked), semantiska brand-badges/tags/pills, notice-kategorisystemet.
+- **Spec-sync-status:** globals.css-tokenkommentaren uppdaterad i E2f-PR:n; **DESIGN.md §-raden + jobbpilot-design-tokens-skillen är spec-edits som väntar Klas `approve-spec-edit.sh`** (lyft i E2f-rapporten — token-tabellen får inte fortsätta säga "titlar = accent-700"). Tre kvarvarande de-grönings-kandidater (`.jp-land-top__link.is-active`, `.jp-land-feature__key`, `.jp-summary__row--highlight`-värdet) = Klas-dom, listade i design-review-rapporten.
+
 ## Implementation
 
 G1-PR: token-block + alias-flip + mekanisk rename + F4-banner (/jobb) + pagehero/empty-brand/landing-gradient + fokus-scoping + spec-filer + skills-sync. Referens-facit: `docs/handoff-banner/referens/F4-banner-referens.html` (komposition; neutraler/placeholder per CTO Beslut 1 + Klas-regel). Reviews: design-reviewer (med dessa dokumenterade undantag som granskningsbas), code-reviewer, security-auditor.

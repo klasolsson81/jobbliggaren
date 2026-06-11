@@ -153,6 +153,22 @@ design-reviewer 0 VETO, code-reviewer 0 Block/0 oåtgärdat Major, security
   (3 de-grönings-rester = Klas-dom; tri-state mixed = E2d).
 - ADR 0067 impl-notat (E2f) + ADR 0068 impl-notat (accent-text-rollen).
 
+## E2g-leverans (samma session — Klas bugg-rapport + label-direktiv)
+
+- **Bugg (Klas-screenshot):** chip-× rensade filtret men popovern visade
+  länet markerat. Rotorsak: hero-öns useState-kopior synkade aldrig vid
+  externa URL-ändringar (ön remountas aldrig — utanför Suspense). CTO-dom
+  Variant A: `useOptimistic` med props som bas (key-remount stänger
+  popovern per toggle; effect-synk lint-förbjuden; derive regresserar
+  toggle-responsen). Nytt bugg-test (rerender med nya props). 22/22.
+- **Recent-labels (Klas-regel):** DeriveLabel — helt yrkesområde →
+  områdets namn ("Data/IT"); ett val → namnet; annars "{första} +N till";
+  kommuner/regioner samma mönster; graceful vid taxonomi-drift. Trädet
+  (in-memory) en gång per Handle. +5 unit-tester, Application 745.
+- Reviews: design Approved 0/0 (2 FYI: komma-läsbarhet i "+N till",
+  isPending-affordance), code-reviewer (rapport i docs/reviews/).
+- ADR 0067 impl-notat (E2g) skrivet.
+
 ## Nästa
 
 1. E2d — HALT (chip/residual-bekräftelse saknas; promptens bekräftelse-

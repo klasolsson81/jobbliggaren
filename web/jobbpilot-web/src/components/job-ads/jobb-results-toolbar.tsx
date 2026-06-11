@@ -42,11 +42,16 @@ interface JobbResultsToolbarProps {
   pageSize?: string;
 }
 
-// Locked F4-spec: exakt tre alternativ, i denna ordning.
+// Exakt tre alternativ, i denna ordning. Labels per Klas-prompt E2e
+// 2026-06-11. "(CV-match)"-suffixet UTGICK — Relevance är ts_rank-FTS-
+// relevans (ADR 0062), inte CV-matchning (ADR 0040 Fas 4+, ADR 0042
+// Beslut F: ingen CV-match-placeholder i UI). ExpiresAtAsc-mappningen
+// on-disk-verifierad: ORDER BY ExpiresAt ASC NULLS LAST (JobAdSearchQuery.
+// ApplySort) = kortast kvar till sista ansökningsdag först.
 const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string }> = [
-  { value: "Relevance", label: "Mest relevant (CV-match)" },
-  { value: "PublishedAtDesc", label: "Nyast först" },
-  { value: "ExpiresAtAsc", label: "Sista ansökan" },
+  { value: "Relevance", label: "Relevans" },
+  { value: "PublishedAtDesc", label: "Datum (nyast)" },
+  { value: "ExpiresAtAsc", label: "Ansökningsdatum (sista ansökan)" },
 ];
 
 function labelFor(
@@ -126,6 +131,16 @@ export function JobbResultsToolbar({
     }
   }
 
+  // E2e (ADR 0067 rad 109): "Rensa alla filter" = röd text-länk (ej knapp)
+  // som nollar alla tre filter-axlarna. q bevaras — söktermen ägs av
+  // hero-formuläret och är inte ett filter-chip.
+  function clearAllFilters() {
+    setOccupationGroup([]);
+    setRegion([]);
+    setMunicipality([]);
+    pushState([], [], []);
+  }
+
   function onSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value as JobAdSortBy;
     startTransition(() => {
@@ -203,6 +218,13 @@ export function JobbResultsToolbar({
                 </button>
               </span>
             ))}
+            <button
+              type="button"
+              className="jp-clearlink"
+              onClick={clearAllFilters}
+            >
+              Rensa alla filter
+            </button>
           </div>
         )}
       </div>

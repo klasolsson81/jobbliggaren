@@ -251,7 +251,7 @@ export function JobbFilterPopover({
             {anySelectedAnywhere && (
               <button
                 type="button"
-                className="jp-popover__clear"
+                className="jp-clearlink"
                 onClick={onClearAll}
               >
                 Rensa
@@ -329,7 +329,7 @@ export function JobbFilterPopover({
             {rightAnySelected && activeGroup && (
               <button
                 type="button"
-                className="jp-popover__clear"
+                className="jp-clearlink"
                 onClick={() => {
                   if (groupAxis) {
                     groupAxis.onClearColumn(activeGroup.conceptId);

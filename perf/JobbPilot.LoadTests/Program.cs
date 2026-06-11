@@ -96,6 +96,21 @@ if (scenarioSelector is "landing-stats" or "all")
     scenarioBudgets[landingCold.ScenarioName] = LandingStatsScenarios.Class_A_P95_BudgetMs;
 }
 
+// Fas E2c (ADR 0067 Beslut 4) — facet-counts-endpointen är rest; D1-parkerade
+// scenariot aktiveras. Kräver LOADTEST_BEARER_TOKEN (auth-gated) — utan den
+// blir requests 401 → fail-count → BudgetReporter-warning (avsiktligt synligt).
+if (scenarioSelector is "facet-counts" or "all")
+{
+    var facetHeavy = FacetCountsScenarios.OccupationGroupHeavy(httpClient, baseUrl);
+    var facetReflected = FacetCountsScenarios.ReflectedWithActiveFilter(httpClient, baseUrl);
+
+    scenarios.Add(facetHeavy);
+    scenarios.Add(facetReflected);
+
+    scenarioBudgets[facetHeavy.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
+    scenarioBudgets[facetReflected.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
+}
+
 Console.WriteLine(
     $"::notice::Load-test runner startar — baseUrl={baseUrl}, " +
     $"scenarios=[{string.Join(", ", scenarios.Select(s => s.ScenarioName))}], " +

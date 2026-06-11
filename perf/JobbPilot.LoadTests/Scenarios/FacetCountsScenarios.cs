@@ -1,17 +1,11 @@
-// JobbPilot perf fitness function — per-option facet-counts (PLANERAD Fas E-endpoint).
+// JobbPilot perf fitness function — per-option facet-counts (Fas E2c-endpoint).
 //
 // ADR 0067 Beslut 4 + senior-cto-advisor 2026-06-10 (Väg B): NBomber-gaten är
-// BLOCKING "före per-option går live". I Fas D1 levereras facet-counts som
-// PORT-ONLY (IJobAdSearchQuery.FacetCountsAsync) — ingen Mediator-query, ingen
-// endpoint. Mediator-query + endpoint tillkommer i Fas E. Därför är detta
-// scenario AUTHORED men EJ AKTIVERAT: det är inte registrerat i Program.cs aktiva
-// körlista, eftersom det inte finns någon route att träffa i D1 (en aktiv körning
-// skulle ge connection-refused/404 → röd körning + falsk "perf-verifierad"-signal).
-//
-// >>> INGEN p95-DOM FALLER I D1. <<< Instrumentet existerar; mätningen sker först
-// när Fas E reser endpointen och avkommenterar aktiveringen i Program.cs (se
-// "FAS E-AKTIVERING" längst ned). Att läsa D1 som "perf verifierad" vore falsk-klar
-// (CLAUDE.md §9.6, anti-falsk-klar).
+// BLOCKING "före per-option går live" — uppfylls PROCEDURELLT i E2c
+// (backend → lokal mätning → p95 i PR-body → FÖRST därefter FE-live-wiring;
+// E2c-architect §6). I Fas D1 var scenariot authored-men-parkerat (port-only,
+// ingen route); Fas E2c (2026-06-11) reste endpointen och AKTIVERADE
+// scenariot i Program.cs (selektor "facet-counts" / "all").
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // BUDGET (verbatim ur ADR 0045 Beslut 1 — aldrig uppfunnen):
@@ -24,9 +18,10 @@
 // över loopback approximerar handler-latensen tätt (sub-ms loopback-overhead).
 // Edge-to-edge mäts INTE — medvetet (ADR 0045 Beslut 1).
 //
-// ENDPOINT-PROFIL (PLANERAD Fas E — INTE byggd än, allt nedan är provisoriskt):
-//   - Auth-gated (till skillnad från anonyma landing-stats). Klass ListReadPolicy
-//     eller egen facet-policy — rate-limit-tak EJ låst (CTO: tas med FE-vyn i E).
+// ENDPOINT-PROFIL (Fas E2c — byggd):
+//   - Auth-gated (till skillnad från anonyma landing-stats). Dedikerad
+//     FacetCountsPolicy 30/10s per user (CTO VAL 1 2026-06-11 — least common
+//     mechanism; IOptions-bunden i RateLimitingOptions.FacetCounts).
 //   - Tung dimension OccupationGroup = GROUP BY på STORED shadow-column
 //     occupation_group_concept_id över ~44k rader, ~400 yrkesgrupper i resultat.
 //     Detta är den primära p95-signalen (värsta GROUP BY-kardinaliteten).
@@ -35,12 +30,15 @@
 //     FacetCountsAsync-doc) → sekundärt scenario som mäter den vägen.
 //
 // LAST-KALIBRERING (CTO-disciplin: kalibrera mot fakta, inte gissning):
-//   Auth-gated read → rate-limit per användare (ListReadPolicy ~60/min/user-klass,
-//   EJ låst). Spegla landing-stats konservativa form: sustained låg RPS strikt
-//   under det förväntade taket, single-source runner → en bucket. 1 RPS i 120s =
-//   120 lyckade samples, strikt under 60/min/user × 2 fönster, statistiskt stabil
-//   p95 (Tukey: n≥100 räcker för observe-only trend-signal Fas 1). Höjning av tak
-//   eller token-rotation = miljö-config-fråga, inte scenario-designval.
+//   Fas E2c LÅST (CTO VAL 1 2026-06-11): endpointen kör dedikerad
+//   FacetCountsPolicy 30 req/10s per user (fixed window) — INTE ListReadPolicy.
+//   Aritmetik vid parallell-körning av båda scenarierna i samma user-bucket:
+//   scenario 1 (1 RPS = 10 req/10s-fönster) + scenario 2 (0,5 RPS = 5 req/10s)
+//   = 15 req/10s — strikt under 30/10s-taket, noll 429-förorening av p95
+//   (D1-utkastets ListRead-antagande gav 90/min > 60/min = kalibrerings-fel;
+//   löst strukturellt av policy-domen, CTO VAL 1-konsekvens (c)).
+//   1 RPS i 120s = 120 lyckade samples, statistiskt stabil p95 (Tukey: n≥100
+//   räcker för observe-only trend-signal Fas 1).
 //
 // AUTH-HEADER (Fas E-aktiveringsdetalj, INTE ett scenario-designval):
 //   Facet-counts kräver Authorization: Bearer <JWT> (auth-gated). Hur en test-JWT
@@ -71,13 +69,18 @@ internal static class FacetCountsScenarios
     /// </summary>
     public const int Class_A_P99_ObserveMs = LandingStatsScenarios.Class_A_P99_ObserveMs;
 
-    // PROVISORISK route-konstant. Route-/query-kontraktet är INTE låst i D1 — det
-    // tas med FE-vyn i Fas E (CTO 2026-06-10). Fas E justerar denna sträng till den
-    // faktiska routen. Form speglar /api/v1-konventionen i landing-stats:
+    // Route-/query-kontraktet LÅST i Fas E2c (architect §1 + CTO 2026-06-11):
     //   GET /api/v1/job-ads/facet-counts
     //       ?dimension=<OccupationGroup|Municipality|Region>
     //       &occupationGroup=&municipality=&region=&q=
+    // Endpointen rest i JobAdsEndpoints (FacetCountsPolicy 30/10s, private
+    // no-store). D1-utkastets provisoriska form visade sig exakt.
     private const string FacetCountsPath = "/api/v1/job-ads/facet-counts";
+
+    // Reellt region-concept-id för reflektion-scenariot (Stockholms län,
+    // DB-verifierat 2026-06-11 mot taxonomy_concepts). Ersatte D1:s
+    // PLACEHOLDER — ett reellt id ger en meningsfull reflektions-mängd.
+    private const string ReflectedRegionConceptId = "CifL_Rzy_Mku";
 
     /// <summary>
     /// Läser en valfri Bearer-token ur miljön (Fas E-aktiveringsdetalj). Saknas
@@ -140,12 +143,9 @@ internal static class FacetCountsScenarios
 
     /// <summary>
     /// SEKUNDÄR signal — reflektion-vägen: facett mot OccupationGroup med ETT annat
-    /// aktivt filter (region) kvar. Mäter SPOT-mekaniken (dimensionens egen lista
-    /// tömd, övriga filter kvar) i IJobAdSearchQuery.FacetCountsAsync.
-    ///
-    /// Region-värdet nedan är ett PLACEHOLDER concept-id — Fas E byter till ett
-    /// reellt id ur taxonomin (eller parametriserar via env). En tom/ogiltig
-    /// region ger bara ett mindre resultat, inte ett fel — signalen håller.
+    /// aktivt filter (region) kvar. Mäter SPOT-mekaniken (den facetterade
+    /// dimensionens listor tömda, övriga filter kvar) i
+    /// IJobAdSearchQuery.FacetCountsAsync. Reellt Stockholms-läns-id (E2c).
     /// </summary>
     public static ScenarioProps ReflectedWithActiveFilter(HttpClient httpClient, string baseUrl)
     {
@@ -156,14 +156,14 @@ internal static class FacetCountsScenarios
                 var response = await SendFacetRequestAsync(
                     httpClient,
                     baseUrl,
-                    "dimension=OccupationGroup&region=PLACEHOLDER_REGION_CONCEPT_ID");
+                    $"dimension=OccupationGroup&region={ReflectedRegionConceptId}");
                 return response;
             })
             .WithoutWarmUp()
             .WithLoadSimulations(
-                // Lägre RPS (1 per 2s = 30/min) → headroom mot per-user-taket när
-                // båda facet-scenarierna delar HttpClient/socket → samma bucket
-                // (summa ≤ 90/min, strikt under två 60/min-fönster).
+                // 0,5 RPS = 5 req/10s-fönster; tillsammans med primär-scenariots
+                // 10 req/10s = 15 req/10s i den delade user-bucketen — strikt
+                // under FacetCountsPolicy 30/10s (CTO VAL 1, E2c-omkalibrering).
                 Simulation.Inject(
                     rate: 1,
                     interval: TimeSpan.FromSeconds(2),
@@ -174,31 +174,13 @@ internal static class FacetCountsScenarios
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FAS E-AKTIVERING (gör INTE detta i D1 — endpointen finns inte än).
+// AKTIVERAD i Fas E2c (2026-06-11): selektor-grenen "facet-counts" or "all"
+// finns i perf/JobbPilot.LoadTests/Program.cs; route-/query-kontraktet låst
+// (architect §1); LOADTEST_BEARER_TOKEN wireas per körning (lokalt: dev-test-
+// kontot, se docs/runbooks/frontend-visual-verification.md cred-path).
 //
-// När Fas E reser GET-endpointen, lås route-/query-kontraktet och token-källan,
-// gör följande i perf/JobbPilot.LoadTests/Program.cs — exakt speglat mot hur
-// landing-stats redan registreras i `if (scenarioSelector is "landing-stats" or "all")`:
-//
-//   1. Lägg till en selektor-gren (eller utöka "all"):
-//
-//        if (scenarioSelector is "facet-counts" or "all")
-//        {
-//            var facetHeavy     = FacetCountsScenarios.OccupationGroupHeavy(httpClient, baseUrl);
-//            var facetReflected = FacetCountsScenarios.ReflectedWithActiveFilter(httpClient, baseUrl);
-//
-//            scenarios.Add(facetHeavy);
-//            scenarios.Add(facetReflected);
-//
-//            scenarioBudgets[facetHeavy.ScenarioName]     = FacetCountsScenarios.Class_A_P95_BudgetMs;
-//            scenarioBudgets[facetReflected.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
-//        }
-//
-//   2. Justera FacetCountsPath ovan till den låsta routen + query-formen.
-//   3. Wira LOADTEST_BEARER_TOKEN (eller test-JWT-mint) i loadtest-jobbet/lokalt.
-//
-// BudgetReporter är redan generell (matchar scenarioBudgets-dicten) → ::warning::
-// vid p95-överskridande, exit 0 ovillkorligt (observe-only Fas 1). Flip till
-// BLOCKING gate (ADR 0067 Beslut 4 "före live") = medveten Klas-GO-ratchet
-// (ADR 0045 Beslut 6), aldrig en tyst default i denna fil.
+// BudgetReporter emitterar ::warning:: vid p95-överskridande, exit 0
+// ovillkorligt (observe-only Fas 1). Flip till BLOCKING gate (ADR 0067
+// Beslut 4 "före live") = medveten Klas-GO-ratchet (ADR 0045 Beslut 6),
+// aldrig en tyst default i denna fil.
 // ─────────────────────────────────────────────────────────────────────────────

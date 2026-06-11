@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
 import {
   SUGGEST_MIN_PREFIX,
   SUGGEST_DEBOUNCE_MS,
@@ -13,9 +12,19 @@ interface JobAdTypeaheadProps {
   id: string;
   value: string;
   onChange: (next: string) => void;
-  // Anropas när användaren väljer ett förslag (Enter/klick) — föräldern kan
-  // då tillämpa det som aktivt sökord (ADR 0042 Beslut C: "förslag → filter").
-  onSelect: (term: string) => void;
+  /**
+   * Anropas när användaren väljer ett förslag (klick / Enter på markerad rad).
+   * Får HELA `SuggestionDto` (kind + conceptId + label) så föräldern kan
+   * komponera rätt filter-chip (ADR 0067 Beslut 5b / Fas E2d) — taxonomi-träff
+   * → dimension-param, Title → fri q.
+   */
+  onSelect: (suggestion: SuggestionDto) => void;
+  /** `name` på inputen (no-JS GET-form-fältet — föräldern bär en `<form>`). */
+  name?: string;
+  /** Styling-override för inputen (t.ex. `jp-hero__input`). */
+  inputClassName?: string;
+  /** Styling-override för wrappern (t.ex. `relative flex-1`). */
+  wrapperClassName?: string;
   ariaInvalid?: boolean;
   ariaDescribedBy?: string;
 }
@@ -27,21 +36,20 @@ type SuggestState =
   | { status: "rateLimited" };
 
 /**
- * ADR 0042 Beslut C — live-typeahead mot `/api/jobb/suggest` (proxy →
- * backend ILIKE-prefix). Debounce ≥300ms + min 2 tecken (skickar ej request
- * under det; backend-validator + SuggestPolicy är sista barriär). In-flight-
- * request avbryts vid ny keystroke (AbortController) så svar inte race:ar.
+ * ADR 0042 Beslut C + ADR 0067 Beslut 5a/5b — live-typeahead-combobox mot
+ * `/api/jobb/suggest` (proxy → backend taxonomi-union + titel-ILIKE-prefix).
+ * Debounce ≥300ms + min 2 tecken; in-flight-request avbryts vid ny keystroke
+ * (AbortController) så svar inte race:ar.
  *
- * Ingen TanStack Query: codebase-konventionen (JobAdFilters-kommentar
- * "ingen TanStack — YAGNI för Fas 2-volym") + ingen QueryClientProvider-
- * infra finns; att introducera den i en LÅST session vore en otillåten
- * top-level-dependency utan diskussion (CLAUDE.md §9.2). Self-contained
- * debounce-hook uppfyller Beslut C:s DoS-krav. senior-cto-advisor
- * 2026-05-16 (Variant A): valet står — YAGNI + §9.1 (existerande mönster)
- * + §9.2 (dep-disciplin); §4.3 reglerar mutations/pollar, ej typeahead-read.
+ * Tangentbord (WAI-ARIA combobox + listbox-popup, jobbpilot-design-a11y):
+ * Pil ned/upp flyttar `aria-activedescendant` i listan, Enter väljer markerad
+ * rad (annars bubblar Enter till förälderns `<form>` = fri sökning), Escape
+ * stänger. Optionerna är `role="option"` (fokus stannar i inputen — inga
+ * separata tab-stopp), `onMouseDown` förhindrar blur så klicket hinner före.
  *
- * Civic-utility: förslagslistan är en flat lista (regel 1, ingen drop-
- * shadow utöver popover-lager), ingen ikon-dekoration, saklig copy.
+ * Ingen TanStack Query (codebase-konvention + ingen QueryClientProvider-infra;
+ * self-contained debounce uppfyller DoS-kravet — senior-cto-advisor 2026-05-16
+ * Variant A). Civic-utility: flat lista, ingen ikon-dekoration, saklig copy;
  * rateLimited degraderar tyst med en informativ rad (regel 6).
  */
 export function JobAdTypeahead({
@@ -49,13 +57,19 @@ export function JobAdTypeahead({
   value,
   onChange,
   onSelect,
+  name,
+  inputClassName,
+  wrapperClassName,
   ariaInvalid,
   ariaDescribedBy,
 }: JobAdTypeaheadProps) {
   const listId = useId();
   const statusId = useId();
+  const optionBaseId = useId();
   const [state, setState] = useState<SuggestState>({ status: "idle" });
   const [open, setOpen] = useState(false);
+  // Markerad rad för tangentbordsnavigering (-1 = ingen → Enter = fri sökning).
+  const [active, setActive] = useState(-1);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -63,11 +77,13 @@ export function JobAdTypeahead({
 
     // Under min-prefix: ingen request, ingen synkron setState i effect-
     // kroppen (react-hooks/set-state-in-effect). Idle-reset schemaläggs på
-    // microtask så lint-regeln (synkron setState i effect) inte triggas och
-    // tidigare förslag rensas när användaren raderar ner under 2 tecken.
+    // microtask så lint-regeln inte triggas och tidigare förslag rensas.
     if (prefix.length < SUGGEST_MIN_PREFIX) {
       abortRef.current?.abort();
-      const id = setTimeout(() => setState({ status: "idle" }), 0);
+      const id = setTimeout(() => {
+        setState({ status: "idle" });
+        setActive(-1);
+      }, 0);
       return () => clearTimeout(id);
     }
 
@@ -80,7 +96,7 @@ export function JobAdTypeahead({
       try {
         const res = await fetch(
           `/api/jobb/suggest?prefix=${encodeURIComponent(prefix)}`,
-          { signal: controller.signal }
+          { signal: controller.signal },
         );
         if (res.status === 429) {
           setState({ status: "rateLimited" });
@@ -91,12 +107,14 @@ export function JobAdTypeahead({
           return;
         }
         const parsed = suggestJobAdTermsResultSchema.safeParse(
-          await res.json()
+          await res.json(),
         );
         setState({
           status: "ready",
           items: parsed.success ? parsed.data : [],
         });
+        // Ny resultatmängd → nollställ markeringen (annars pekar den på fel rad).
+        setActive(-1);
       } catch (err) {
         // AbortError = avsiktlig avbrytning vid ny keystroke — ignorera.
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -104,36 +122,65 @@ export function JobAdTypeahead({
       }
     }, SUGGEST_DEBOUNCE_MS);
 
-    // Cleanup vid value-ändring OCH unmount: rensa debounce-timern och
-    // avbryt ev. in-flight fetch (annars setState-on-unmounted vid unmount
-    // mitt i await — senior-cto-advisor 2026-05-16 in-block). AbortError
-    // fångas/ignoreras i catch ovan.
+    // Cleanup vid value-ändring OCH unmount: rensa debounce-timern och avbryt
+    // ev. in-flight fetch (annars setState-on-unmounted vid unmount mitt i
+    // await — senior-cto-advisor 2026-05-16 in-block).
     return () => {
       clearTimeout(timer);
       abortRef.current?.abort();
     };
   }, [value]);
 
-  function choose(term: string) {
-    onSelect(term);
+  const items = state.status === "ready" ? state.items : [];
+  const showList = open && items.length > 0;
+
+  function choose(item: SuggestionDto) {
+    onSelect(item);
     setOpen(false);
+    setActive(-1);
     setState({ status: "idle" });
   }
 
-  const showList =
-    open && state.status === "ready" && state.items.length > 0;
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      setOpen(false);
+      setActive(-1);
+      return;
+    }
+    if (!showList) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => (i + 1) % items.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => (i <= 0 ? items.length - 1 : i - 1));
+    } else if (e.key === "Enter" && active >= 0) {
+      // Markerad rad → välj den (och låt INTE Enter bubbla till form-submit).
+      e.preventDefault();
+      choose(items[active]!);
+    }
+    // Enter utan markerad rad: ingen preventDefault → förälderns <form>
+    // submittar den fria söktexten (q).
+  }
+
+  const optionId = (i: number) => `${optionBaseId}-${i}`;
 
   return (
-    <div className="relative flex flex-col gap-1.5">
-      <Input
+    <div className={wrapperClassName ?? "relative flex flex-col gap-1.5"}>
+      <input
         id={id}
+        name={name}
         type="search"
         inputMode="search"
         autoComplete="off"
+        className={inputClassName}
         role="combobox"
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
+        aria-activedescendant={
+          showList && active >= 0 ? optionId(active) : undefined
+        }
         aria-invalid={ariaInvalid ? true : undefined}
         aria-describedby={
           [ariaDescribedBy, statusId].filter(Boolean).join(" ") || undefined
@@ -144,46 +191,55 @@ export function JobAdTypeahead({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setOpen(false);
-        }}
+        onKeyDown={onKeyDown}
       />
 
-      <p
-        id={statusId}
-        role="status"
-        aria-live="polite"
-        className="sr-only"
-      >
+      <p id={statusId} role="status" aria-live="polite" className="sr-only">
         {state.status === "loading"
           ? "Hämtar förslag…"
-          : state.status === "ready" && state.items.length > 0
-            ? `${state.items.length} förslag`
+          : items.length > 0
+            ? `${items.length} förslag`
             : ""}
       </p>
 
       {state.status === "rateLimited" && (
-        <p className="text-body-sm text-text-secondary">
-          För många sökningar på kort tid. Förslagen pausas en stund. Du
-          kan fortsätta skriva och söka ändå.
+        // Absolut-positionerad (som listan) så degraderingsraden escapar en
+        // ev. overflow:hidden-wrapper (hero-searchrowen) och blir läsbar på
+        // surface-primary i stället för pill-bakgrunden (design-reviewer
+        // Minor 1 E2d). Listan och rateLimited är ömsesidigt uteslutande.
+        <p className="absolute top-full left-0 z-10 mt-1 w-full rounded-md border border-border-default bg-surface-primary px-3 py-2 text-body-sm text-text-secondary shadow-md">
+          För många sökningar på kort tid. Förslagen pausas en stund. Du kan
+          fortsätta skriva och söka ändå.
         </p>
       )}
 
       {showList && (
         <ul
           id={listId}
-          className="absolute top-full z-10 mt-1 w-full overflow-hidden rounded-md border border-border-default bg-surface-primary shadow-md"
+          role="listbox"
+          className="absolute top-full left-0 z-10 mt-1 w-full overflow-hidden rounded-md border border-border-default bg-surface-primary shadow-md"
           aria-label="Sökförslag"
         >
-          {state.items.map((item) => (
-            <li key={`${item.kind}:${item.conceptId ?? item.label}`}>
-              <button
-                type="button"
-                onClick={() => choose(item.label)}
-                className="block w-full px-3 py-2 text-left text-body-sm text-text-primary hover:bg-surface-tertiary"
-              >
-                {item.label}
-              </button>
+          {items.map((item, i) => (
+            <li
+              key={`${item.kind}:${item.conceptId ?? item.label}`}
+              id={optionId(i)}
+              role="option"
+              aria-selected={i === active}
+              className={`cursor-pointer px-3 py-2 text-body-sm ${
+                i === active
+                  ? "bg-surface-tertiary text-text-primary"
+                  : "text-text-primary"
+              }`}
+              // onMouseDown (ej onClick) → preventDefault behåller inputens
+              // fokus så blur inte stänger listan före valet registreras.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                choose(item);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              {item.label}
             </li>
           ))}
         </ul>

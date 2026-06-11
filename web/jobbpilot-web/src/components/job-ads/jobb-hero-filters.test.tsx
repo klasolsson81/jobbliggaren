@@ -68,7 +68,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     setup();
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
 
-    const dialog = screen.getByRole("dialog", { name: "Län" });
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
     expect(within(dialog).getByText("Stockholms län")).toBeInTheDocument();
     // Ingen auto-vald första grupp — tomtext + inga kommun-rader.
     expect(
@@ -78,7 +78,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
 
     // Klick på län → kommuner + Hela länet-raden visas.
     await user.click(within(dialog).getByText("Stockholms län"));
-    expect(within(dialog).getByText("Hela länet")).toBeInTheDocument();
+    expect(within(dialog).getByText("Hela Stockholms län")).toBeInTheDocument();
     expect(within(dialog).getByText("Stockholm")).toBeInTheDocument();
     expect(within(dialog).getByText("Solna")).toBeInTheDocument();
   });
@@ -98,7 +98,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     setup();
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
     await user.click(screen.getByText("Stockholms län"));
-    await user.click(screen.getByText("Hela länet"));
+    await user.click(screen.getByText("Hela Stockholms län"));
 
     expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku");
   });
@@ -111,11 +111,24 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
 
     // Alla kommun-rader + Hela länet-raden visas ikryssade (tydligt vad
     // valet omfattar — Platsbanken-paritet).
-    const dialog = screen.getByRole("dialog", { name: "Län" });
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
     const checked = within(dialog)
       .getAllByRole("checkbox")
       .filter((el) => el.getAttribute("aria-checked") === "true");
     expect(checked.length).toBe(3); // Hela länet + Stockholm + Solna
+  });
+
+  it("Hela {länsnamn}-raden är tri-state 'mixed' vid partiellt val (E2d-Minor)", async () => {
+    const user = userEvent.setup();
+    // Bara Solna vald (inte hela länet, inte Stockholm) → partiellt.
+    setup({ initialMunicipality: ["zHxw_uJZ_NNh"] });
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    await user.click(screen.getByText("Stockholms län"));
+
+    const selectAll = screen.getByText("Hela Stockholms län").closest(
+      '[role="checkbox"]',
+    );
+    expect(selectAll).toHaveAttribute("aria-checked", "mixed");
   });
 
   it("kommun-klick under helläns-val = hela länet minus den kommunen (E2f)", async () => {
@@ -145,7 +158,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     setup({ initialMunicipality: ["zHxw_uJZ_NNh", "PVZL_BQT_XtL"] });
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
     await user.click(screen.getByText("Stockholms län"));
-    await user.click(screen.getByText("Hela länet"));
+    await user.click(screen.getByText("Hela Stockholms län"));
 
     // Solna (Sthlm) rensad; Göteborg (VG) kvar; region Sthlm in.
     expect(pushMock).toHaveBeenCalledWith(
@@ -173,7 +186,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     });
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
 
-    const dialog = screen.getByRole("dialog", { name: "Län" });
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
     // Vänster-kolumnens (header-)Rensa är den första.
     const [rensa] = within(dialog).getAllByRole("button", { name: "Rensa" });
     expect(rensa).toBeDefined();
@@ -228,7 +241,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
 
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
     await user.click(screen.getByText("Stockholms län"));
-    const dialog = screen.getByRole("dialog", { name: "Län" });
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
     const checked = within(dialog)
       .getAllByRole("checkbox")
       .filter((el) => el.getAttribute("aria-checked") === "true");
@@ -239,10 +252,10 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     const user = userEvent.setup();
     setup();
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
-    expect(screen.getByRole("dialog", { name: "Län" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Ort" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Län" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Ort" })).toBeNull();
   });
 });
 
@@ -252,7 +265,7 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
     setup();
     await user.click(screen.getByRole("button", { name: /^Yrke/ }));
 
-    const dialog = screen.getByRole("dialog", { name: "Yrkesområde" });
+    const dialog = screen.getByRole("dialog", { name: "Yrke" });
     expect(
       within(dialog).getByText("Välj ett yrkesområde till vänster."),
     ).toBeInTheDocument();
@@ -393,7 +406,7 @@ describe("JobbHeroFilters — facet-counts + Visa N annonser (E2c)", () => {
 
     const btn = screen.getByRole("button", { name: "Visa annonser" });
     await user.click(btn);
-    expect(screen.queryByRole("dialog", { name: "Län" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Ort" })).toBeNull();
     // Stängning är navigations-fri — inga router-pushes från knappen.
     expect(pushMock).not.toHaveBeenCalled();
   });

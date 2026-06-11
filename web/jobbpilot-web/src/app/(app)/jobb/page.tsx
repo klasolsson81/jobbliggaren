@@ -5,8 +5,8 @@ import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
-import { Search } from "lucide-react";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
+import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 import { MarkJobbVisited } from "@/components/job-ads/mark-jobb-visited";
@@ -158,61 +158,22 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 <SavedJobAdsHeroChip items={savedJobAds} />
               </div>
 
-              <form
-                action="/jobb"
-                method="get"
-                className="jp-hero__searchblock"
-              >
-                <label htmlFor="jobb-q" className="jp-hero__searchlabels">
-                  Sök efter yrke, arbetsgivare eller ort
-                </label>
-                <div className="jp-hero__searchrow">
-                  <input
-                    id="jobb-q"
-                    name="q"
-                    type="search"
-                    defaultValue={q ?? ""}
-                    className="jp-hero__input"
-                  />
-                  <button type="submit" className="jp-hero__searchbtn">
-                    <Search size={18} aria-hidden="true" /> Sök
-                  </button>
-                </div>
-                {occupationGroup.map((v) => (
-                  <input
-                    key={`occupationGroup-${v}`}
-                    type="hidden"
-                    name="occupationGroup"
-                    value={v}
-                  />
-                ))}
-                {region.map((v) => (
-                  <input
-                    key={`region-${v}`}
-                    type="hidden"
-                    name="region"
-                    value={v}
-                  />
-                ))}
-                {municipality.map((v) => (
-                  <input
-                    key={`municipality-${v}`}
-                    type="hidden"
-                    name="municipality"
-                    value={v}
-                  />
-                ))}
-                {sortBy !== "PublishedAtDesc" && (
-                  <input type="hidden" name="sortBy" value={sortBy} />
-                )}
-                {params.pageSize && (
-                  <input
-                    type="hidden"
-                    name="pageSize"
-                    value={params.pageSize}
-                  />
-                )}
-              </form>
+              {/* Hero-sökruta (client-ö, ADR 0067 Fas E2d): typeahead-chip-
+                  komponist. Taxonomi-förslag → strukturerat dimension-chip
+                  via router.push; fri text → q. No-JS: ön server-renderar en
+                  äkta `<form action="/jobb" method="get">` med hidden inputs
+                  som bär aktiva filter (progressive enhancement, §5.2).
+                  INGEN placeholder (Klas hård regel 2026-06-10 — labeln bär
+                  instruktionen). */}
+              <JobbHeroSearch
+                taxonomy={taxonomy}
+                q={q ?? ""}
+                occupationGroup={occupationGroup}
+                region={region}
+                municipality={municipality}
+                sortBy={sortBy}
+                pageSize={params.pageSize}
+              />
 
               {/* Hero-filter-pills + Platsbanken-popovers (client-island,
                   F4/ADR 0055). Serialiserbara props: taxonomy-träd, valda

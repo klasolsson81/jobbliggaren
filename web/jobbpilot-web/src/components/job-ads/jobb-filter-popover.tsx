@@ -73,6 +73,12 @@ interface JobbFilterPopoverProps {
     selected: ReadonlyArray<string>;
     onToggleGroup: (groupConceptId: string) => void;
     onClearColumn: (groupConceptId: string) => void;
+    /**
+     * E2f (Klas rendered-feedback 2026-06-11): item-klick i dual-axis-läget
+     * går till föräldern med BÅDA id:na — föräldern äger semantiken
+     * ("hela länet minus kommun X" kräver kunskap om båda axlarna).
+     */
+    onToggleItem: (itemConceptId: string, groupConceptId: string) => void;
   };
   /**
    * Fas E2c (ADR 0067 Beslut 4) — per-option-counts för höger-kolumnens
@@ -211,14 +217,12 @@ export function JobbFilterPopover({
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePopoverPosition(open, triggerRef);
 
-  // Aktiv grupp (vänsterrad). Lazy-initieras till första gruppen. Reset
-  // till första gruppen vid varje öppning sker via `key`-remount i
-  // föräldern (JobbHeroFilters) — INTE setState i en effect
-  // (react-hooks/set-state-in-effect). Pixel-/beteende-paritet med src-v3
-  // FilterPopover (som re-initierar activeLeft vid open) behålls.
-  const [activeLeft, setActiveLeft] = useState<string | null>(
-    () => groups[0]?.conceptId ?? null,
-  );
+  // Aktiv grupp (vänsterrad). E2f (Klas rendered-feedback 2026-06-11,
+  // Platsbanken-paritet): startar TOM — höger kolumn visas först när
+  // användaren valt ett län/yrkesområde (ingen auto-vald första grupp).
+  // Reset till tom vid varje öppning via `key`-remount i föräldern — INTE
+  // setState i en effect (react-hooks/set-state-in-effect).
+  const [activeLeft, setActiveLeft] = useState<string | null>(null);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const groupSelectedSet = useMemo(
@@ -233,8 +237,9 @@ export function JobbFilterPopover({
     : // Innan mätning: håll utanför viewport (ingen flimmer-hopp).
       { top: -9999, left: -9999, width: 580 };
 
+  // Ingen groups[0]-fallback (E2f) — null tills användaren klickar vänster.
   const activeGroup =
-    groups.find((g) => g.conceptId === activeLeft) ?? groups[0] ?? null;
+    groups.find((g) => g.conceptId === activeLeft) ?? null;
   const rightItems = activeGroup?.items ?? [];
   const rightIds = rightItems.map((it) => it.conceptId);
   const activeGroupChecked =
@@ -407,11 +412,27 @@ export function JobbFilterPopover({
                 <CheckRow
                   key={it.conceptId}
                   label={it.label}
-                  checked={selectedSet.has(it.conceptId)}
+                  // E2f: när hela länet är valt RENDERAS alla kommun-rader
+                  // markerade (Platsbanken-paritet — tydligt vad valet
+                  // omfattar); klick på en sådan rad = "hela länet minus
+                  // denna" (förälderns semantik via onToggleItem).
+                  checked={
+                    selectedSet.has(it.conceptId) ||
+                    (groupAxis !== undefined && activeGroupChecked)
+                  }
                   // Saknad nyckel = 0 träffar (counts laddade); null/undefined
                   // counts = inget tal alls (tyst degradering).
                   count={counts ? (counts[it.conceptId] ?? 0) : undefined}
-                  onToggle={() => toggle(selected, it.conceptId, onChange)}
+                  onToggle={() => {
+                    if (groupAxis && activeGroup) {
+                      groupAxis.onToggleItem(
+                        it.conceptId,
+                        activeGroup.conceptId,
+                      );
+                    } else {
+                      toggle(selected, it.conceptId, onChange);
+                    }
+                  }}
                 />
               ))}
             </>

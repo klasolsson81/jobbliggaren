@@ -39,7 +39,10 @@
   --jp-accent-900: #0B2A1E;
   --jp-accent-800: #15603F;        /* FILL: primärknapp, checked — EJ dark-skiftad */
   --jp-accent-800-hover: #1E6B4C;  /* fill-hover båda teman */
-  --jp-accent-700: #15603F;        /* TEXT/BORDER: länkar, aktiv nav, titlar, fokus (light) */
+  --jp-accent-700: #15603F;        /* TEXT/BORDER: länkar, fokus, selektion/aktiv rad,
+                                      indikator-barer (nav/drawer — texten är ink).
+                                      Rubriker/titlar/tal = ink (E2f 2026-06-11:
+                                      grönt = interaktion, inte information). */
   --jp-accent-600: #1E6B4C;        /* länk-hover */
   --jp-accent-500: #2E8B63;
   --jp-accent-300: #74C29A;
@@ -651,7 +654,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-3);
 }
 .jp-nav__link[aria-current="page"] {
-  color: var(--jp-accent-700);
+  /* E2f (Klas rendered-feedback 2026-06-11): ink-text — accent-baren
+     (::after nedan) bär plats-indikationen ensam (GOV.UK-mönstret;
+     grönt reserveras för interaktion, inte rubriker). */
+  color: var(--jp-ink-1);
   font-weight: 600;
 }
 .jp-nav__link[aria-current="page"]::after {
@@ -906,8 +912,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-drawer__item:hover { background: var(--jp-surface-3); }
 .jp-drawer__item[aria-current="page"] {
+  /* E2f: ink-text — accent-border-left bär plats-indikationen
+     (samma mönster som .jp-nav__link[aria-current]). */
   border-left-color: var(--jp-accent-700);
-  color: var(--jp-accent-700);
+  color: var(--jp-ink-1);
+  font-weight: 600;
 }
 
 /* ── Hero (F4 Hybrid — G1, ADR 0068) ─────────────────────────────────
@@ -1686,7 +1695,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: var(--jp-accent-700);
+  /* E2f: ink — titlar är information, inte interaktion (dark hade redan
+     ink-1; light blir nu konsekvent). Grönt = knappar/checked/aktiv/fokus. */
+  color: var(--jp-ink-1);
   letter-spacing: -0.01em;
   line-height: 1.3;
   display: flex;
@@ -1786,7 +1797,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-results-count b {
   font-family: var(--jp-font-mono);
   font-weight: 700;
-  color: var(--jp-accent-700);
+  /* E2f: ink — talet är information, inte interaktion. */
+  color: var(--jp-ink-1);
 }
 
 /* Active filter chips */
@@ -2956,7 +2968,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  color: var(--jp-accent-700);
+  /* E2f: ink — peeken avbildar jobbkorten, vars titlar nu är ink. */
+  color: var(--jp-ink-1);
 }
 .jp-land-peek__card-meta {
   margin-top: 3px;
@@ -3284,7 +3297,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-family: var(--jp-font-mono);
   font-size: 30px;
   font-weight: 700;
-  color: var(--jp-accent-700);
+  /* E2f: ink — datumet är information, inte interaktion. */
+  color: var(--jp-ink-1);
   line-height: 1;
   letter-spacing: -0.02em;
   font-feature-settings: "tnum" 1;

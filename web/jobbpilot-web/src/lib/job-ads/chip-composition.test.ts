@@ -59,6 +59,16 @@ describe("composeSuggestionChip (ADR 0067 Fas E2d)", () => {
     expect(next.occupationGroup).toEqual(["MVqp_eS8_kDZ"]);
   });
 
+  it("Title APPENDAR till befintlig q med ci-dedupe (E2i — ersätter aldrig)", () => {
+    const next = composeSuggestionChip(
+      s("Title", null, "AI Engineer"),
+      { ...empty, q: "volvo ai" },
+      taxonomy,
+    );
+    // "ai" finns redan (ci) → bara "Engineer" appendas; "volvo" bevaras.
+    expect(next.q).toBe("volvo ai Engineer");
+  });
+
   it("OccupationGroup → läggs till (OR-inom), bevarar q + andra dimensioner", () => {
     const next = composeSuggestionChip(
       s("OccupationGroup", "MVqp_eS8_kDZ", "Systemutvecklare"),

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, MapPin, X } from "lucide-react";
+import { Briefcase, MapPin, Search, X } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import {
   buildJobbHref,
@@ -122,25 +122,33 @@ export function JobbResultsToolbar({
     commit(removeChipFromState(urlState, chip));
   }
 
-  // E2e (ADR 0067 rad 109): "Rensa alla filter" = röd text-länk (ej knapp)
-  // som nollar alla tre filter-axlarna. q bevaras — söktermen ägs av
-  // hero-fältet och representeras inte i toolbarens chips.
+  // E2i (Klas-beslut 2026-06-11, ersätter E2e-domen "q bevaras"): q-orden
+  // visas nu som taggar i samma rad → "Rensa alla filter" nollar ALLT
+  // inkl. sökorden (least surprise — allt med × i raden försvinner; hero-
+  // fältet töms via extern-divergens-synken).
   function clearAllFilters() {
-    commit({ ...urlState, occupationGroup: [], region: [], municipality: [] });
+    commit({
+      ...urlState,
+      occupationGroup: [],
+      region: [],
+      municipality: [],
+      q: "",
+    });
   }
 
   function onSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
     commit({ ...urlState, sortBy: e.target.value as JobAdSortBy });
   }
 
-  // Chips-ordning: region → municipality → occupationGroup (geografin
-  // samlad — E2b-architect-dom fråga 5; ordningen ägs av buildChipModels).
-  // q-orden visas INTE här (söktermen är inte ett filter-chip i toolbaren).
+  // Chips-ordning: region → municipality → occupationGroup → q-ord
+  // (ordningen ägs av buildChipModels). E2i (Klas-spec): ALLA taggar —
+  // även fritext-sökorden — visas här med ×; raden är sökets TOTALA spegel
+  // (hero-fältet är best-effort, C′-modellen).
   const chips = buildChipModels(
     urlState,
     (_axis, conceptId) =>
       resolvedLabels[conceptId] ?? `Okänd kod (${conceptId})`,
-    { includeQ: false },
+    { includeQ: true },
   );
 
   return (
@@ -160,15 +168,23 @@ export function JobbResultsToolbar({
             </>
           )}
         </div>
+        {/* role="group" krävs för att aria-label ska exponeras på en
+            generisk container (design Mi3 E2i); namnet täcker både
+            sökord och filter (M2). */}
         {chips.length > 0 && (
           <div
             className="jp-filterchips"
-            aria-label="Aktiva filter"
+            role="group"
+            aria-label="Aktiva sökord och filter"
           >
             {chips.map((chip) => (
               <span key={`${chip.axis}-${chip.value}`} className="jp-filterchip">
+                {/* Ikon per tagg-typ: yrke = Briefcase, ort = MapPin,
+                    fritext-sökord = Search (E2i — q-taggar särskiljs). */}
                 {chip.axis === "occupationGroup" ? (
                   <Briefcase size={12} aria-hidden="true" />
+                ) : chip.axis === "q" ? (
+                  <Search size={12} aria-hidden="true" />
                 ) : (
                   <MapPin size={12} aria-hidden="true" />
                 )}
@@ -177,18 +193,25 @@ export function JobbResultsToolbar({
                   type="button"
                   className="jp-filterchip__rm"
                   onClick={() => removeChip(chip)}
-                  aria-label={`Ta bort filter ${chip.label}`}
+                  aria-label={
+                    chip.axis === "q"
+                      ? `Ta bort sökordet ${chip.label}`
+                      : `Ta bort filter ${chip.label}`
+                  }
                 >
                   <X size={12} aria-hidden="true" />
                 </button>
               </span>
             ))}
+            {/* Länktexten säger vad den gör (design M2 E2i — ADR 0047:
+                handlingen raderar även egenskrivna sökord och ska
+                kommunicera det före klicket). */}
             <button
               type="button"
               className="jp-clearlink"
               onClick={clearAllFilters}
             >
-              Rensa alla filter
+              Rensa sökord och filter
             </button>
           </div>
         )}

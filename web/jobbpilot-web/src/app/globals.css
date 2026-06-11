@@ -1022,53 +1022,16 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      elementet). */
   position: relative;
 }
-/* E2h: chips-i-sökfältet. Chipfielden bär chips + typeahead-inputen i samma
-   visuella fält; raden växer (wrap) vid många chips. Typeahead-wrappern är
-   STATIC (ingen position) så dropdownen fortsatt förankras mot
-   .jp-hero__searchblock och escapar searchrowens overflow:hidden. */
-.jp-chipfield {
+/* E2i: spegel-sökfältet (Klas-val 2026-06-11 "Normal ruta som speglar
+   söket" — E2h:s chips-i-fältet revs). Typeahead-wrappern är STATIC så
+   dropdownen förankras mot .jp-hero__searchblock och escapar searchrowens
+   overflow:hidden. */
+.jp-hero__searchfield {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding-left: 10px;
 }
-.jp-chipfield__typeahead {
-  flex: 1;
-  min-width: 140px;
-}
-.jp-chipfield__input {
+.jp-hero__searchfield .jp-hero__input {
   width: 100%;
-  padding: 0 8px;
-}
-/* Kompaktare chip-variant inne i fältet (samma anatomi som toolbar-chipen).
-   TEMA-STABILA banner-lokala literaler (design-reviewer M1 E2h): sökfältet
-   är vitt i BÅDA teman (--jp-hero-pill-bg) — chipsen får inte tema-skifta
-   till mörka navy-chips i dark. Literalerna = light-temats surface-2/
-   border/ink (samma princip som "alla kontroller i plattan är tema-
-   stabila", G1-blocket ovan). */
-.jp-filterchip--field {
-  height: 28px;
-  padding: 0 6px 0 10px;
-  font-size: 13px;
-  background: #F4F6FA;
-  border-color: #C9D2E0;
-  color: #0C1A2E;
-}
-.jp-filterchip--field .jp-filterchip__rm {
-  color: #455366;
-}
-.jp-filterchip--field .jp-filterchip__rm:hover {
-  color: #0C1A2E;
-}
-/* WCAG 2.4.7 (design-reviewer B1 E2h): plattan scopar --jp-focus vit →
-   global fokus-ring blir osynlig mot det vita fältet. Inåtvänd ink-ring,
-   samma lösning som .jp-hero__input:focus-visible. */
-.jp-filterchip--field .jp-filterchip__rm:focus-visible {
-  outline: 2px solid var(--jp-hero-sok-bg);
-  outline-offset: 0;
 }
 /* Hjälptext under sökraden — bär Tab-/tagg-instruktionen (aldrig
    placeholder). Ink-soft på plattan, läsbar i båda teman. */
@@ -1885,7 +1848,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: transparent;
   color: var(--jp-ink-2);
   cursor: pointer;
-  padding: 2px;
+  /* Hit-area fyller chipens 32px-höjd (a11y-skillens 32×32-golv —
+     design-reviewer M1 E2i; × är primär borttagnings-affordance även för
+     sökord nu). Negativ högermarginal äter chipens padding så ikonen
+     sitter visuellt oförändrat. */
+  align-self: stretch;
+  align-items: center;
+  padding: 0 8px;
+  margin-right: -10px;
   display: inline-flex;
 }
 .jp-filterchip__rm:hover { color: var(--jp-ink-1); }

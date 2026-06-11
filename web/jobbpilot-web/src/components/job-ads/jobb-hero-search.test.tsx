@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JobbHeroSearch } from "./jobb-hero-search";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
@@ -64,43 +64,207 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("JobbHeroSearch — chips deriveras ur URL:en (E2h, CTO VAL 1=A)", () => {
-  it("renderar dimension- och q-ord-chips ur props", () => {
-    setup({
-      q: "volvo lastbil",
-      municipality: ["PVZL_BQT_XtL"],
-      occupationGroup: ["MVqp_eS8_kDZ"],
-    });
-    // Ordning: ort → yrkesgrupp → q-ord (buildChipModels).
-    expect(screen.getByText("Göteborg")).toBeInTheDocument();
-    expect(screen.getByText("Systemutvecklare")).toBeInTheDocument();
-    expect(screen.getByText("volvo")).toBeInTheDocument();
-    expect(screen.getByText("lastbil")).toBeInTheDocument();
+describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", () => {
+  it("initieras till kanonisk spegel av URL-staten", () => {
+    setup({ q: "volvo", municipality: ["PVZL_BQT_XtL"] });
+    expect(screen.getByRole("combobox")).toHaveValue("Göteborg volvo");
   });
 
-  it("chip-× tar bort ur rätt axel via router.replace (samma operation som toolbar-×)", async () => {
+  it("taxonomi-ord + mellanslag → dimension committas, TEXTEN STÅR KVAR", async () => {
     const user = userEvent.setup();
-    setup({ q: "volvo", municipality: ["PVZL_BQT_XtL"] });
-    await user.click(
-      screen.getByRole("button", { name: "Ta bort Göteborg" }),
+    setup();
+    await user.type(screen.getByRole("combobox"), "göteborg ");
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/jobb?municipality=PVZL_BQT_XtL",
+      { scroll: false },
     );
+    // E2d/E2h-felklassen död: ordet försvinner ALDRIG ur fältet.
+    expect(screen.getByRole("combobox")).toHaveValue("göteborg ");
+  });
+
+  it("omatchat ord + mellanslag → fritext-q committas, texten kvar", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "hogia ");
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=hogia", {
+      scroll: false,
+    });
+    expect(screen.getByRole("combobox")).toHaveValue("hogia ");
+  });
+
+  it("Klas-flödet: 'göteborg volvo heltid ' → ort + två q-ord, allt kvar i fältet", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "göteborg volvo heltid ");
+    expect(replaceMock).toHaveBeenLastCalledWith(
+      "/jobb?municipality=PVZL_BQT_XtL&q=volvo+heltid",
+      { scroll: false },
+    );
+    expect(screen.getByRole("combobox")).toHaveValue(
+      "göteborg volvo heltid ",
+    );
+  });
+
+  it("pågående ord (caret i ordet) committas INTE", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "volvo");
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("Enter finaliserar pågående ord", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "volvo{Enter}");
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
+      scroll: false,
+    });
+    expect(screen.getByRole("combobox")).toHaveValue("volvo");
+  });
+
+  it("Sök-knappen finaliserar", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "volvo");
+    await user.click(screen.getByRole("button", { name: /Sök/ }));
     expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
       scroll: false,
     });
   });
 
-  it("q-ord-chip-× tar bort bara det ordet ur q", async () => {
+  it("radering av ord + Enter släpper anspråket (delta-remove)", async () => {
     const user = userEvent.setup();
-    setup({ q: "volvo lastbil" });
-    await user.click(screen.getByRole("button", { name: "Ta bort volvo" }));
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=lastbil", {
-      scroll: false,
-    });
+    const { rerender } = setup();
+    const input = screen.getByRole("combobox");
+    await user.type(input, "göteborg ");
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/jobb?municipality=PVZL_BQT_XtL",
+      { scroll: false },
+    );
+    // Egen RSC-roundtrip landar (base ikapp) — texten ska INTE röras
+    // (own-commit-detektionen via lastCommitted).
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q=""
+        occupationGroup={[]}
+        region={[]}
+        municipality={["PVZL_BQT_XtL"]}
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(input).toHaveValue("göteborg ");
+
+    await user.clear(input);
+    await user.keyboard("{Enter}");
+    expect(replaceMock).toHaveBeenLastCalledWith("/jobb", { scroll: false });
   });
 
-  it("extern URL-ändring (nya props) speglas i chipsen — ingen lokal kopia", () => {
-    const { rerender } = setup({ municipality: ["PVZL_BQT_XtL"] });
-    expect(screen.getByText("Göteborg")).toBeInTheDocument();
+  it("delta rör ALDRIG dimensioner texten inte gör anspråk på (I1 — popover-valda)", async () => {
+    const user = userEvent.setup();
+    // region kom utifrån (popover/URL) — serialiseras till texten; vi
+    // verifierar att ett NYTT ord inte raderar den.
+    setup({ region: ["CifL_Rzy_Mku"] });
+    await user.type(screen.getByRole("combobox"), " volvo ");
+    expect(replaceMock).toHaveBeenLastCalledWith(
+      "/jobb?region=CifL_Rzy_Mku&q=volvo",
+      { scroll: false },
+    );
+  });
+
+  it("q-max-guard: ordet vägras, notisen visas, texten kvar", async () => {
+    const user = userEvent.setup();
+    setup({ q: "a".repeat(95) });
+    await user.type(screen.getByRole("combobox"), " jättelångt ");
+    expect(
+      screen.getByText(/Söktexten är full \(max 100 tecken\)/),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
+  it("mellanliggande egen props-leverans serialiserar INTE om texten (två commits i flykt)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    const input = screen.getByRole("combobox");
+    // Två commits i flykt: S1 = {Göteborg}, S2 = {Göteborg, q:volvo}.
+    await user.type(input, "göteborg volvo ");
+    expect(input).toHaveValue("göteborg volvo ");
+
+    // S1-props landar EFTER S2 committats — mellanliggande EGEN leverans
+    // får inte mis-klassas som extern (texten skulle re-serialiseras
+    // kanoniskt mitt under skrivning — E2d/E2h-felklassen).
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q=""
+        occupationGroup={[]}
+        region={[]}
+        municipality={["PVZL_BQT_XtL"]}
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(input).toHaveValue("göteborg volvo ");
+
+    // S2 landar — fortfarande egen, texten orörd.
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q="volvo"
+        occupationGroup={[]}
+        region={[]}
+        municipality={["PVZL_BQT_XtL"]}
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(input).toHaveValue("göteborg volvo ");
+  });
+});
+
+describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
+  it("extern navigering (nya props) → texten serialiseras om", () => {
+    const { rerender } = setup({ q: "volvo" });
+    expect(screen.getByRole("combobox")).toHaveValue("volvo");
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q="sjuksköterska"
+        occupationGroup={[]}
+        region={["CifL_Rzy_Mku"]}
+        municipality={[]}
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(screen.getByRole("combobox")).toHaveValue(
+      "Stockholms län sjuksköterska",
+    );
+  });
+
+  it("toolbar-× (ren borttagning) → kirurgisk text-edit som bevarar ordningen", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    await user.type(
+      screen.getByRole("combobox"),
+      "volvo göteborg lastbil ",
+    );
+    // Extern borttagning av Göteborg (toolbar-×) → bara det ordet plockas.
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q="volvo lastbil"
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("volvo lastbil");
+  });
+
+  it("Rensa allt → fältet töms", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    await user.type(screen.getByRole("combobox"), "göteborg volvo ");
     rerender(
       <JobbHeroSearch
         taxonomy={taxonomy}
@@ -111,129 +275,57 @@ describe("JobbHeroSearch — chips deriveras ur URL:en (E2h, CTO VAL 1=A)", () =
         sortBy="PublishedAtDesc"
       />,
     );
-    expect(screen.queryByText("Göteborg")).toBeNull();
-  });
-});
-
-describe("JobbHeroSearch — tokenisering vid skrivning (E2h)", () => {
-  it("mellanslag efter taxonomi-ord → dimension-chip live-committas (replace)", async () => {
-    const user = userEvent.setup();
-    setup();
-    await user.type(screen.getByRole("combobox"), "göteborg ");
-    expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL",
-      { scroll: false },
-    );
-    // Utkastet är tömt — ordet blev chip.
     expect(screen.getByRole("combobox")).toHaveValue("");
   });
-
-  it("mellanslag efter omatchat ord → fritext-q-chip", async () => {
-    const user = userEvent.setup();
-    setup();
-    await user.type(screen.getByRole("combobox"), "hogia ");
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=hogia", {
-      scroll: false,
-    });
-  });
-
-  it("pågående ord committas INTE förrän avgränsare/Enter", async () => {
-    const user = userEvent.setup();
-    setup();
-    await user.type(screen.getByRole("combobox"), "volvo");
-    expect(replaceMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("combobox")).toHaveValue("volvo");
-  });
-
-  it("Enter finaliserar utkastet som fritext (Sök = utkast-commit)", async () => {
-    const user = userEvent.setup();
-    setup();
-    await user.type(screen.getByRole("combobox"), "volvo{Enter}");
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
-      scroll: false,
-    });
-  });
-
-  it("Sök-knappen finaliserar utkastet", async () => {
-    const user = userEvent.setup();
-    setup();
-    await user.type(screen.getByRole("combobox"), "volvo");
-    await user.click(screen.getByRole("button", { name: /Sök/ }));
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
-      scroll: false,
-    });
-  });
-
-  it("nytt ord ovanpå befintliga filter bevarar dem (param-bevarande)", async () => {
-    const user = userEvent.setup();
-    setup({ q: "volvo", municipality: ["PVZL_BQT_XtL"] });
-    await user.type(screen.getByRole("combobox"), "lastbil ");
-    expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL&q=volvo+lastbil",
-      { scroll: false },
-    );
-  });
-
-  it("q-max-guard: ordet vägras, stannar i fältet och hjälptexten skiftar", async () => {
-    const user = userEvent.setup();
-    setup({ q: "a".repeat(95) });
-    await user.type(screen.getByRole("combobox"), "jättelångt ");
-    expect(replaceMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("combobox")).toHaveValue("jättelångt");
-    expect(
-      screen.getByText(/Söktexten är full \(max 100 tecken\)/),
-    ).toBeInTheDocument();
-  });
-
-  it("Backspace i tomt fält tar bort sista chipen", async () => {
-    const user = userEvent.setup();
-    setup({ q: "volvo", municipality: ["PVZL_BQT_XtL"] });
-    const input = screen.getByRole("combobox");
-    await user.click(input);
-    await user.keyboard("{Backspace}");
-    // Sista chipen är q-ordet "volvo" (ordning: dimensioner → q-ord).
-    expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL",
-      { scroll: false },
-    );
-  });
 });
 
-describe("JobbHeroSearch — förslags-val → chip i fältet (E2d-buggen död)", () => {
-  it("val av taxonomi-förslag committar chip och tömmer BARA utkastet", async () => {
+describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {
+  it("val ersätter pågående ord med labeln; dimension committas; annons", async () => {
     stubSuggest([{ kind: 2, conceptId: "PVZL_BQT_XtL", label: "Göteborg" }]);
     const user = userEvent.setup();
     setup({ q: "volvo" });
     const input = screen.getByRole("combobox");
-    await user.type(input, "göte");
+    // Fältet speglar "volvo"; skriv vidare.
+    await user.type(input, " göte");
     await user.click(
       await screen.findByRole("option", { name: "Göteborg" }, {
         timeout: 2000,
       }),
     );
-    // Chip committad med bevarad q — INGEN direkt-sök-och-töm-av-allt.
     expect(replaceMock).toHaveBeenCalledWith(
       "/jobb?municipality=PVZL_BQT_XtL&q=volvo",
       { scroll: false },
     );
-    // Utkastet ("göte") ersattes av chipet; committade chips står kvar.
-    expect(input).toHaveValue("");
-    expect(screen.getByText("volvo")).toBeInTheDocument();
-    // aria-live-annonsen (F4-mitigering 3, kongruensfri form per
-    // design-reviewer M3).
+    expect(input).toHaveValue("volvo Göteborg ");
     expect(screen.getByText("Lade till Göteborg")).toBeInTheDocument();
   });
 
-  it("chip-borttagning annonseras via aria-live", async () => {
+  it("Title-label MED taxonomi-ord skrivs INTE in i texten (I1 — code-reviewer Major 2)", async () => {
+    // "Säljare Göteborg" som Title: parse av labeln skulle claima
+    // Municipality:Göteborg medan staten får q-ord → permanent I1-brott om
+    // labeln skrevs in. Gaten utelämnar insättningen; staten får orden.
+    stubSuggest([{ kind: 0, conceptId: null, label: "Säljare Göteborg" }]);
     const user = userEvent.setup();
-    setup({ municipality: ["PVZL_BQT_XtL"] });
+    setup();
+    const input = screen.getByRole("combobox");
+    await user.type(input, "sälj");
     await user.click(
-      screen.getByRole("button", { name: "Ta bort Göteborg" }),
+      await screen.findByRole(
+        "option",
+        { name: "Säljare Göteborg" },
+        { timeout: 2000 },
+      ),
     );
-    expect(screen.getByText("Tog bort Göteborg")).toBeInTheDocument();
+    // q får båda orden (compose Title-append) — ingen municipality-param.
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/jobb?q=S%C3%A4ljare+G%C3%B6teborg",
+      { scroll: false },
+    );
+    // Texten claimar INTE labeln (utkastet borttaget, ingen insättning).
+    expect(input).toHaveValue("");
   });
 
-  it("Tab väljer markerat förslag (Klas-spec tabba-klart)", async () => {
+  it("Tab väljer markerat förslag (Klas-spec)", async () => {
     stubSuggest([{ kind: 2, conceptId: "PVZL_BQT_XtL", label: "Göteborg" }]);
     const user = userEvent.setup();
     setup();
@@ -246,41 +338,41 @@ describe("JobbHeroSearch — förslags-val → chip i fältet (E2d-buggen död)"
       "/jobb?municipality=PVZL_BQT_XtL",
       { scroll: false },
     );
+    expect(input).toHaveValue("Göteborg ");
   });
 });
 
 describe("JobbHeroSearch — no-JS-stöd", () => {
-  it("formen är GET mot /jobb med hidden inputs för aktiva filter + committad q", () => {
+  it("GET-form med hidden inputs för committade params; synliga inputen namnlös", () => {
     const { container } = setup({
       q: "volvo",
       occupationGroup: ["MVqp_eS8_kDZ"],
-      region: ["CifL_Rzy_Mku"],
     });
     const form = container.querySelector("form");
     expect(form).toHaveAttribute("action", "/jobb");
     expect(form).toHaveAttribute("method", "get");
+    // Spegel-texten får ALDRIG vara q (dubbel-filtrering) — committad q
+    // bärs som hidden input.
+    expect(screen.getByRole("combobox")).not.toHaveAttribute("name");
     expect(
       container.querySelector('input[type="hidden"][name="q"]'),
     ).toHaveValue("volvo");
     expect(
       container.querySelector('input[type="hidden"][name="occupationGroup"]'),
     ).toHaveValue("MVqp_eS8_kDZ");
-    expect(
-      container.querySelector('input[type="hidden"][name="region"]'),
-    ).toHaveValue("CifL_Rzy_Mku");
   });
 
-  it("hjälptexten bär tagg-/Tab-instruktionen (ingen placeholder)", () => {
+  it("hjälptexten bär tagg-/Tab-instruktionen; ingen placeholder", () => {
     setup();
     expect(
-      screen.getByText(/Ord blir taggar när du skriver mellanslag/),
+      screen.getByText(/Ord blir taggar i filterraden vid träffarna/),
     ).toBeInTheDocument();
     expect(screen.getByRole("combobox")).not.toHaveAttribute("placeholder");
   });
 });
 
 describe("JobbHeroSearch — degraderad taxonomi", () => {
-  it("fungerar utan träd: ord blir fritext-chips", async () => {
+  it("utan träd blir orden fritext-q", async () => {
     const user = userEvent.setup();
     render(
       <JobbHeroSearch
@@ -293,7 +385,6 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
       />,
     );
     await user.type(screen.getByRole("combobox"), "göteborg ");
-    // URLSearchParams percent-encodar icke-ASCII (ö → %C3%B6).
     expect(replaceMock).toHaveBeenCalledWith("/jobb?q=g%C3%B6teborg", {
       scroll: false,
     });

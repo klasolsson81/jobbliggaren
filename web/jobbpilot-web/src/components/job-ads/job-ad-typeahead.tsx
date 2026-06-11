@@ -11,7 +11,9 @@ import {
 interface JobAdTypeaheadProps {
   id: string;
   value: string;
-  onChange: (next: string) => void;
+  /** `caretIndex` = selectionStart efter ändringen (E2i spegel-fältet
+   * parsar caret-medvetet — ordet under caret är pågående). */
+  onChange: (next: string, caretIndex: number | null) => void;
   /**
    * Anropas när användaren väljer ett förslag (klick / Enter på markerad rad).
    * Får HELA `SuggestionDto` (kind + conceptId + label) så föräldern kan
@@ -30,16 +32,11 @@ interface JobAdTypeaheadProps {
    */
   selectOnTab?: boolean;
   /**
-   * E2h: Backspace i TOMT fält — föräldern tar bort sista chipen
-   * (etablerat chip-input-mönster).
+   * E2i (spegel-fältet): strängen som används för SUGGEST-hämtningen i
+   * stället för hela `value` — fältet bär hela söktexten men förslagen ska
+   * gälla ordet under caret. Utelämnad → `value` (bakåtkompat).
    */
-  onEmptyBackspace?: () => void;
-  /**
-   * E2h (design-reviewer B2): ref till själva input-elementet så föräldern
-   * kan återföra fokus efter chip-×-borttagning (WCAG 2.4.3 — chipen
-   * försvinner ur DOM, fokus får inte falla till body).
-   */
-  inputRef?: React.Ref<HTMLInputElement>;
+  suggestQuery?: string;
   /** Styling-override för inputen (t.ex. `jp-hero__input`). */
   inputClassName?: string;
   /** Styling-override för wrappern (t.ex. `relative flex-1`). */
@@ -78,8 +75,7 @@ export function JobAdTypeahead({
   onSelect,
   name,
   selectOnTab,
-  onEmptyBackspace,
-  inputRef,
+  suggestQuery,
   inputClassName,
   wrapperClassName,
   ariaInvalid,
@@ -94,8 +90,10 @@ export function JobAdTypeahead({
   const [active, setActive] = useState(-1);
   const abortRef = useRef<AbortController | null>(null);
 
+  const effectivePrefix = suggestQuery ?? value;
+
   useEffect(() => {
-    const prefix = value.trim();
+    const prefix = effectivePrefix.trim();
 
     // Under min-prefix: ingen request, ingen synkron setState i effect-
     // kroppen (react-hooks/set-state-in-effect). Idle-reset schemaläggs på
@@ -151,7 +149,7 @@ export function JobAdTypeahead({
       clearTimeout(timer);
       abortRef.current?.abort();
     };
-  }, [value]);
+  }, [effectivePrefix]);
 
   const items = state.status === "ready" ? state.items : [];
   const showList = open && items.length > 0;
@@ -167,11 +165,6 @@ export function JobAdTypeahead({
     if (e.key === "Escape") {
       setOpen(false);
       setActive(-1);
-      return;
-    }
-    // Backspace i tomt fält → föräldern tar bort sista chipen (E2h).
-    if (e.key === "Backspace" && value === "" && onEmptyBackspace) {
-      onEmptyBackspace();
       return;
     }
     if (!showList) return;
@@ -202,7 +195,6 @@ export function JobAdTypeahead({
   return (
     <div className={wrapperClassName ?? "relative flex flex-col gap-1.5"}>
       <input
-        ref={inputRef}
         id={id}
         name={name}
         type="search"
@@ -222,7 +214,7 @@ export function JobAdTypeahead({
         }
         value={value}
         onChange={(e) => {
-          onChange(e.target.value);
+          onChange(e.target.value, e.target.selectionStart);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}

@@ -1,5 +1,6 @@
-import type { SuggestionDto } from "@/lib/dto/job-ads";
+import { Q_MAX_LENGTH, type SuggestionDto } from "@/lib/dto/job-ads";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
+import { splitQWords } from "./chip-models";
 import { applyMunicipalityChange } from "./ort-selection";
 import type { JobbUrlState } from "./search-params";
 
@@ -40,10 +41,22 @@ export function composeSuggestionChip(
   const conceptId = suggestion.conceptId;
 
   switch (suggestion.kind) {
-    case "Title":
-      // Residual fritext → q. Hela råförslags-labeln blir söktermen; backend
-      // SearchQueryParser normaliserar och kör recall-bevarande FTS-hybrid.
-      return { ...current, q: suggestion.label };
+    case "Title": {
+      // Residual fritext → q. E2i (CTO VAL 4b): APPEND med ci-dedupe — inte
+      // ersätt. q-orden är nu taggar (en per ord); att ersätta hela q vid
+      // ett Title-val skulle tyst radera användarens övriga sök-taggar.
+      // Q_MAX_LENGTH-guarden bryter PER ORD: ord som ryms appendas, resten
+      // släpps (backend-validatorn skulle annars 400:a hela list-queryn).
+      let q = current.q;
+      for (const w of splitQWords(suggestion.label)) {
+        const words = splitQWords(q);
+        if (words.some((x) => x.toLowerCase() === w.toLowerCase())) continue;
+        const nextQ = [...words, w].join(" ");
+        if (nextQ.length > Q_MAX_LENGTH) break;
+        q = nextQ;
+      }
+      return { ...current, q };
+    }
 
     case "OccupationGroup":
       // Yrkesgrupp (ssyk-level-4) = primärt yrke-filter. OR-inom + dedupe.

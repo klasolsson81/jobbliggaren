@@ -100,7 +100,29 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     ).toBeInTheDocument();
   });
 
-  it("Rensa alla filter nollar alla tre axlarna men bevarar q (E2e)", async () => {
+  it("q-orden visas som taggar med Search-semantik och × tar bort ordet (E2i)", async () => {
+    const user = userEvent.setup();
+    render(
+      <JobbResultsToolbar
+        totalCount={3}
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        resolvedLabels={{}}
+        q="volvo lastbil"
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    expect(screen.getByText("volvo")).toBeInTheDocument();
+    expect(screen.getByText("lastbil")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Ta bort sökordet volvo" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?q=lastbil");
+  });
+
+  it("Rensa sökord och filter nollar ALLT inkl. q (E2i Klas-beslut — ersätter E2e-domen)", async () => {
     const user = userEvent.setup();
     render(
       <JobbResultsToolbar
@@ -114,12 +136,12 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       />,
     );
     await user.click(
-      screen.getByRole("button", { name: "Rensa alla filter" }),
+      screen.getByRole("button", { name: "Rensa sökord och filter" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend");
+    expect(pushMock).toHaveBeenCalledWith("/jobb");
   });
 
-  it("Rensa alla filter bevarar icke-default sortBy (E2e, code-reviewer Minor 1)", async () => {
+  it("Rensa-länken bevarar icke-default sortBy (E2e, code-reviewer Minor 1)", async () => {
     const user = userEvent.setup();
     render(
       <JobbResultsToolbar
@@ -133,12 +155,12 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       />,
     );
     await user.click(
-      screen.getByRole("button", { name: "Rensa alla filter" }),
+      screen.getByRole("button", { name: "Rensa sökord och filter" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?q=backend&sortBy=ExpiresAtAsc");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?sortBy=ExpiresAtAsc");
   });
 
-  it("Rensa alla filter visas inte utan aktiva chips (E2e)", () => {
+  it("Rensa-länken visas inte utan aktiva chips (E2e)", () => {
     render(
       <JobbResultsToolbar
         totalCount={5}
@@ -151,7 +173,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "Rensa alla filter" }),
+      screen.queryByRole("button", { name: "Rensa sökord och filter" }),
     ).toBeNull();
   });
 

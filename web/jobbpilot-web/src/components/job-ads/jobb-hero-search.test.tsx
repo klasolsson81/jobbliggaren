@@ -112,24 +112,40 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     expect(replaceMock).not.toHaveBeenCalled();
   });
 
-  it("Enter finaliserar pågående ord", async () => {
+  it("Enter finaliserar pågående ord + commit-intent (E2j ?commit=1)", async () => {
     const user = userEvent.setup();
     setup();
     await user.type(screen.getByRole("combobox"), "volvo{Enter}");
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
+    // E2j: Enter är en commit-punkt → ?commit=1 så backend auto-capturerar.
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo&commit=1", {
       scroll: false,
     });
     expect(screen.getByRole("combobox")).toHaveValue("volvo");
   });
 
-  it("Sök-knappen finaliserar", async () => {
+  it("Sök-knappen finaliserar + commit-intent (E2j ?commit=1)", async () => {
     const user = userEvent.setup();
     setup();
     await user.type(screen.getByRole("combobox"), "volvo");
-    await user.click(screen.getByRole("button", { name: /Sök/ }));
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
+    await user.click(screen.getByRole("button", { name: /^Sök/ }));
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo&commit=1", {
       scroll: false,
     });
+  });
+
+  it("live-typing (mellanslag) committar UTAN commit-intent — ingen capture", async () => {
+    const user = userEvent.setup();
+    setup();
+    // Mellanslag = live-förhandsvisning → router.replace UTAN ?commit=1
+    // (annars återinförs E2i:s mellanstegsspam i Senaste sökningar).
+    await user.type(screen.getByRole("combobox"), "hogia ");
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=hogia", {
+      scroll: false,
+    });
+    expect(replaceMock).not.toHaveBeenCalledWith(
+      "/jobb?q=hogia&commit=1",
+      { scroll: false },
+    );
   });
 
   it("radering av ord + Enter släpper anspråket (delta-remove)", async () => {
@@ -157,7 +173,11 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
 
     await user.clear(input);
     await user.keyboard("{Enter}");
-    expect(replaceMock).toHaveBeenLastCalledWith("/jobb", { scroll: false });
+    // Enter = commit-punkt → ?commit=1 (tom sökning; backend browse-guard
+    // capturerar ändå inte, men navigeringen bär commit-intent).
+    expect(replaceMock).toHaveBeenLastCalledWith("/jobb?commit=1", {
+      scroll: false,
+    });
   });
 
   it("delta rör ALDRIG dimensioner texten inte gör anspråk på (I1 — popover-valda)", async () => {
@@ -293,7 +313,7 @@ describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {
       }),
     );
     expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL&q=volvo",
+      "/jobb?municipality=PVZL_BQT_XtL&q=volvo&commit=1",
       { scroll: false },
     );
     expect(input).toHaveValue("volvo Göteborg ");
@@ -318,7 +338,7 @@ describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {
     );
     // q får båda orden (compose Title-append) — ingen municipality-param.
     expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?q=S%C3%A4ljare+G%C3%B6teborg",
+      "/jobb?q=S%C3%A4ljare+G%C3%B6teborg&commit=1",
       { scroll: false },
     );
     // Texten claimar INTE labeln (utkastet borttaget, ingen insättning).
@@ -335,10 +355,47 @@ describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {
     await user.keyboard("{ArrowDown}");
     await user.tab();
     expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL",
+      "/jobb?municipality=PVZL_BQT_XtL&commit=1",
       { scroll: false },
     );
     expect(input).toHaveValue("Göteborg ");
+  });
+});
+
+describe("JobbHeroSearch — ×-clear (E2j, CTO VAL 4 = semantik ii)", () => {
+  it("×-knappen visas bara när det finns text", async () => {
+    const user = userEvent.setup();
+    setup();
+    expect(
+      screen.queryByRole("button", { name: "Rensa sökfältet" }),
+    ).not.toBeInTheDocument();
+    await user.type(screen.getByRole("combobox"), "vo");
+    expect(
+      screen.getByRole("button", { name: "Rensa sökfältet" }),
+    ).toBeInTheDocument();
+  });
+
+  it("× rensar texten + de filter texten gjorde anspråk på (commit-intent)", async () => {
+    const user = userEvent.setup();
+    setup();
+    // Live-commit: municipality (göteborg) + q (volvo).
+    await user.type(screen.getByRole("combobox"), "göteborg volvo ");
+    await user.click(
+      screen.getByRole("button", { name: "Rensa sökfältet" }),
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("");
+    // Båda text-claimen borttagna; ×-clear bär commit-intent (CTO VAL 5).
+    expect(replaceMock).toHaveBeenLastCalledWith("/jobb?commit=1", {
+      scroll: false,
+    });
+  });
+
+  it("native ::-webkit-search-cancel-button är inte den enda clear-vägen — egen knapp finns", () => {
+    setup({ q: "volvo" });
+    // Den kontrollerade knappen (inte native ×) bär clear-semantiken.
+    expect(
+      screen.getByRole("button", { name: "Rensa sökfältet" }),
+    ).toHaveAttribute("type", "button");
   });
 });
 
@@ -360,6 +417,11 @@ describe("JobbHeroSearch — no-JS-stöd", () => {
     expect(
       container.querySelector('input[type="hidden"][name="occupationGroup"]'),
     ).toHaveValue("MVqp_eS8_kDZ");
+    // E2j: no-JS-submit ÄR en commit → statiskt hidden commit=1 så backend
+    // auto-capturerar (JS-vägen interceptar submit och bär commit som suffix).
+    expect(
+      container.querySelector('input[type="hidden"][name="commit"]'),
+    ).toHaveValue("1");
   });
 
   it("hjälptexten bär tagg-/Tab-instruktionen; ingen placeholder", () => {

@@ -8,7 +8,7 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import {
   Q_MAX_LENGTH,
   type JobAdSortBy,
@@ -18,6 +18,7 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
+  withCommitFlag,
   type JobbUrlState,
 } from "@/lib/job-ads/search-params";
 import { composeSuggestionChip } from "@/lib/job-ads/chip-composition";
@@ -25,6 +26,7 @@ import { buildTaxonomyLabelResolver } from "@/lib/job-ads/chip-models";
 import {
   applyClaimsDelta,
   buildLabelIndex,
+  EMPTY_CLAIMS,
   enforceClaims,
   getTokenRange,
   isTextRepresentable,
@@ -146,12 +148,12 @@ export function JobbHeroSearch({
   const [prevBase, setPrevBase] = useState(base);
   if (base !== prevBase) {
     const hitIndex = recentCommits.findIndex((s) => sameUrlState(base, s));
-    if (hitIndex >= 0) {
-      setRecentCommits(recentCommits.slice(hitIndex + 1));
+    const adoptSortPageSize = () => {
       // Adoptera sort/pageSize ur basen — sameUrlState jämför dem inte, så
-      // en extern sort-ändring vars filter-axlar matchar en in-flight-post
-      // får inte lämna stale sortBy i delta-basen (code-reviewer re-review
-      // Minor: nästa text-commit skulle annars tyst revertera sort-valet).
+      // en extern sort-ändring vars filter-axlar matchar (in-flight-post
+      // eller oförändrad state) får inte lämna stale sortBy i delta-basen
+      // (code-reviewer re-review Minor: nästa text-commit skulle annars
+      // tyst revertera sort-valet).
       if (
         lastCommitted.sortBy !== base.sortBy ||
         lastCommitted.pageSize !== base.pageSize
@@ -161,6 +163,23 @@ export function JobbHeroSearch({
           sortBy: base.sortBy,
           pageSize: base.pageSize,
         });
+    };
+    if (hitIndex >= 0) {
+      // Egen roundtrip (in-flight-commit landar) — texten orörd.
+      setRecentCommits(recentCommits.slice(hitIndex + 1));
+      adoptSortPageSize();
+    } else if (sameUrlState(base, lastCommitted)) {
+      // E2j skip-guard: den inkommande basens filter-state (q + dimensioner)
+      // matchar vad vi SENAST committade — endast en icke-state-param
+      // (commit-flaggan, sort eller pageSize) skiftade. Texten speglar redan
+      // den staten → ingen resync, ingen extern-divergens-klassning. Detta
+      // skyddar strip-efter-mount (?commit=1-borttagning, StripCommitParam)
+      // från att felaktigt serialisera om användarens text (E2d/E2h-felklassen).
+      // Jämförs mot lastCommitted (hero:ns auktoritativa state), INTE prevBase
+      // — prevBase kan vara stale (props uppdateras inte synkront med egna
+      // commits) och en äkta extern "Rensa allt" till tomt får då inte
+      // miss-klassas som no-op. sort/pageSize adopteras fortfarande.
+      adoptSortPageSize();
     } else {
       // EXTERN divergens (toolbar-×/Rensa/recent-nav): synka texten,
       // nollställ delta-bokföringen + caret/notis/annons (annars kan en
@@ -184,11 +203,19 @@ export function JobbHeroSearch({
     setPrevBase(base);
   }
 
-  function commit(next: JobbUrlState, announce: string) {
+  // markCommit (E2j) = avsiktlig commit (Enter/Sök/förslags-val/×-clear) →
+  // ?commit=1-suffix så backend auto-capturerar. Live-delta (onFieldChange)
+  // utelämnar det. commit-flaggan ligger UTANFÖR JobbUrlState/buildJobbHref/
+  // sameUrlState (transient signal) — den adderas bara på navigerings-
+  // strängen och strippas efter mount (StripCommitParam).
+  function commit(next: JobbUrlState, announce: string, markCommit = false) {
     setLastCommitted(next);
     setRecentCommits((prev) => [...prev, next].slice(-10));
     startTransition(() => {
-      router.replace(buildJobbHref(next), { scroll: false });
+      const href = buildJobbHref(next);
+      router.replace(markCommit ? withCommitFlag(href) : href, {
+        scroll: false,
+      });
     });
     if (announce) setAnnouncement(announce);
   }
@@ -262,14 +289,45 @@ export function JobbHeroSearch({
     setCaret(null);
     setPrevClaims(delta.appliedClaims);
     setLimitNotice(delta.rejectedQ.length > 0);
-    if (!sameUrlState(withSelection, lastCommitted))
-      commit(withSelection, `Lade till ${suggestion.label}`);
+    // Förslags-val är en commit-punkt (E2j): committa ALLTID med commit-intent
+    // så sökningen auto-capturas — även i det sällsynta fall valet inte
+    // ändrar filter-staten (re-val av redan applicerat förslag = "kör igen").
+    commit(withSelection, `Lade till ${suggestion.label}`, true);
   }
 
   // Sök/Enter utan markerat förslag: finalisera HELA texten (inget caret-
-  // undantag) — pågående ord committas.
+  // undantag) — pågående ord committas. E2j: detta är den primära commit-
+  // punkten → committa ALLTID med commit-intent (?commit=1), även när filter-
+  // staten är oförändrad. "Sök" betyder "kör/spara den här sökningen" — en
+  // re-sökning på samma filter ska bumpa recency, inte vara en no-op.
   function onSubmitText() {
-    runDelta(text, null);
+    const claims = parseSearchText(text, labelIndex, null);
+    const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
+    setPrevClaims(result.appliedClaims);
+    setLimitNotice(result.rejectedQ.length > 0);
+    commit(
+      result.next,
+      [
+        ...result.addedLabels.map((l) => `Lade till ${l}`),
+        ...result.removedLabels.map((l) => `Tog bort ${l}`),
+      ].join(". "),
+      true,
+    );
+  }
+
+  // ×-clear (E2j, CTO VAL 4 = semantik ii): rensa texten + de filter texten
+  // gjorde anspråk på (parse(text)-delmängden) — INTE popover-valda
+  // dimensioner (I1: state får bära mer än texten). Delta mot tomma claims
+  // tar bort exakt prevClaims ur staten; popover-dim överlever. Egen commit
+  // via commit()-vägen (recentCommits-registrering) så texten inte
+  // serialiseras om vid props-retur. commit-intent satt (CTO VAL 5 punkt 3).
+  function onClear() {
+    const delta = applyClaimsDelta(lastCommitted, prevClaims, EMPTY_CLAIMS, taxonomy);
+    setText("");
+    setCaret(null);
+    setPrevClaims(EMPTY_CLAIMS);
+    setLimitNotice(false);
+    commit(delta.next, "Rensade sökfältet", true);
   }
 
   // Suggest-prefix = ordet under caret (fältet bär hela söktexten — förslag
@@ -320,6 +378,21 @@ export function JobbHeroSearch({
             aria-describedby={helpId}
           />
         )}
+        {/* Kontrollerad ×-clear (E2j): ersätter native
+            ::-webkit-search-cancel-button (suppress:ad i CSS) som bara
+            rensade texten utan att committa en delta → filtren överlevde.
+            Denna går genom onClear → applyClaimsDelta(EMPTY_CLAIMS) (semantik
+            ii). Visas bara när det finns text att rensa. */}
+        {hydrated && text.length > 0 && (
+          <button
+            type="button"
+            className="jp-hero__clearbtn"
+            onClick={onClear}
+            aria-label="Rensa sökfältet"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        )}
         <button type="submit" className="jp-hero__searchbtn">
           <Search size={18} aria-hidden="true" /> Sök
         </button>
@@ -368,6 +441,11 @@ export function JobbHeroSearch({
         <input type="hidden" name="sortBy" value={sortBy} />
       )}
       {pageSize && <input type="hidden" name="pageSize" value={pageSize} />}
+      {/* E2j — no-JS-submit ÄR per definition en commit (användaren tryckte
+          Sök) → statiskt commit=1 så backend auto-capturerar. Vid hydration
+          interceptas submit (onSubmit preventDefault) och router-vägen bär
+          commit som transient suffix istället — denna åker då aldrig. */}
+      <input type="hidden" name="commit" value="1" />
     </form>
   );
 }

@@ -10,6 +10,7 @@ import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 import { MarkJobbVisited } from "@/components/job-ads/mark-jobb-visited";
+import { StripCommitParam } from "@/components/job-ads/strip-commit-param";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
@@ -26,6 +27,8 @@ type JobbSearchParams = {
   region?: string | string[];
   municipality?: string | string[];
   q?: string;
+  // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
+  commit?: string;
 };
 
 interface PageProps {
@@ -67,6 +70,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const region = toStringList(params.region);
   const municipality = toStringList(params.municipality);
   const q = emptyToUndefined(params.q);
+  // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
+  // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
+  const commit = params.commit === "1";
 
   const since = newWindowSince();
 
@@ -123,6 +129,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
           publishedAt > lastSeen vid NÄSTA sid-besök (Klas-direktiv
           2026-05-20). Render-null, ingen visuell yta. */}
       <MarkJobbVisited />
+      {/* E2j — strippar ?commit=1 ur URL:en efter mount (transient capture-
+          signal; delad länk får inte re-capturera). Render-null. */}
+      <StripCommitParam active={commit} />
       {/* G1 "F4 Hybrid"-banner (ADR 0068) — inramad mörkgrön gradient-
           platta på canvas-wrapper, asymmetrisk komposition: display-rubrik
           vänster, sök + actions höger (kompositions-facit:
@@ -212,6 +221,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             municipality={municipality}
             q={q ?? ""}
             since={since}
+            commit={commit}
             rawParams={params}
           />
         </Suspense>

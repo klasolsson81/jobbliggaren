@@ -26,4 +26,11 @@ public sealed record ListJobAdsQuery(
     string? Q = null,
     // ADR 0042 Beslut E — "Ny sedan"-fönster (runtime-kontext, ej i
     // SearchCriteria; analog Page/PageSize). Driver JobAdDto.IsNew.
-    DateTimeOffset? Since = null) : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch;
+    DateTimeOffset? Since = null,
+    // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate för
+    // auto-capture. Default false: live-förhandsvisning (router.replace per
+    // ord) fångas ej; FE sätter ?commit=1 vid Enter/Sök/förslags-val/toolbar.
+    // record-property matchar ICapturesRecentSearch.Commit automatiskt
+    // (paritet Since/Page). Påverkar ENDAST capture-behaviorns no-op-gate —
+    // ingår inte i SearchCriteria/filter-identiteten.
+    bool Commit = false) : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch;

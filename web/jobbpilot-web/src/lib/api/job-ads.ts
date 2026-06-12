@@ -30,6 +30,10 @@ export interface ListJobAdsQuery {
   q?: string;
   // ADR 0042 Beslut E — "ny sedan"-fönster (ISO 8601). Driver JobAdDto.isNew.
   since?: string;
+  // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=1
+  // skickas och backend auto-capturerar sökningen till Senaste sökningar.
+  // Default (live-förhandsvisning) fångas EJ. Transient signal, ej filter.
+  commit?: boolean;
 }
 
 function authHeaders(sessionId: string): HeadersInit {
@@ -51,6 +55,8 @@ function buildQuery(query: ListJobAdsQuery): string {
   for (const v of query.municipality ?? []) params.append("municipality", v);
   if (query.q) params.set("q", query.q);
   if (query.since) params.set("since", query.since);
+  // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend).
+  if (query.commit) params.set("commit", "1");
   return params.toString();
 }
 

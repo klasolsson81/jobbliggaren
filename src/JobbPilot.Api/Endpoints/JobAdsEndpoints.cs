@@ -46,6 +46,11 @@ public static class JobAdsEndpoints
             string? q = null,
             // ADR 0042 Beslut E — "ny sedan"-fönster (runtime-kontext).
             DateTimeOffset? since = null,
+            // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate:
+            // ?commit=1 vid avsiktlig sökning (Enter/Sök/förslags-val/toolbar)
+            // → auto-capture; utelämnad (live-förhandsvisning) → ingen capture.
+            // Transient signal-param, ingår EJ i filter-identiteten.
+            bool commit = false,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -55,7 +60,8 @@ public static class JobAdsEndpoints
                     Municipality: municipality,
                     Region: region,
                     Q: q,
-                    Since: since), ct);
+                    Since: since,
+                    Commit: commit), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);

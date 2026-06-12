@@ -45,6 +45,14 @@ interface JobbResultsProps {
   municipality: string[];
   q: string;
   since: string;
+  /**
+   * E2j (ADR 0060 amend 2026-06-12) — commit-intent: när URL:en bär
+   * ?commit=1 (avsiktlig sökning via Enter/Sök/förslags-val/toolbar) skickas
+   * det vidare till list-queryn så backend auto-capturerar sökningen.
+   * Live-förhandsvisning (utan flaggan) fångas EJ. Transient — strippas ur
+   * URL:en efter mount av `StripCommitParam`.
+   */
+  commit: boolean;
   /** Råa searchParams — endast för att bygga paginerings-href. */
   rawParams: {
     page?: string;
@@ -66,6 +74,7 @@ export async function JobbResults({
   municipality,
   q,
   since,
+  commit,
   rawParams,
 }: JobbResultsProps) {
   // Chip-labels hör ihop med resultatet — hämtas parallellt med listan.
@@ -86,6 +95,7 @@ export async function JobbResults({
       municipality,
       q,
       since,
+      commit,
     }),
     resolveTaxonomyLabels(selectedConceptIds),
   ]);

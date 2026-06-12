@@ -39,6 +39,15 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         if (message is not ICapturesRecentSearch capt)
             return response;
 
+        // Commit-intent-guard (Fas E2j, ADR 0060 amendment 2026-06-12):
+        // capture ENDAST vid avsiktlig commit. Live-förhandsvisning per ord
+        // (router.replace, commit=false) får aldrig fångas — annars återinförs
+        // E2i:s mellanstegsspam + data-minimerings-regression (Art. 5(1)(c)).
+        // Additiv till default-browse-guarden nedan, ersätter den inte:
+        // en commit på tom sökning capture:as fortfarande aldrig.
+        if (!capt.Commit)
+            return response;
+
         if (response is not IRecentSearchCaptureResponse capResp)
             return response;
 

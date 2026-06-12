@@ -1071,6 +1071,39 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   outline: 2px solid var(--jp-hero-sok-bg);
   outline-offset: -2px;
 }
+/* E2j: suppress native ::-webkit-search-cancel-button (WebKit/Blink). Den
+   rensade bara textens value utan att committa en filter-delta → filtren
+   överlevde i URL:en (cross-browser-inkonsekvent — Firefox visar den aldrig).
+   Ersatt av en kontrollerad .jp-hero__clearbtn med korrekt clear-semantik. */
+.jp-hero__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+/* Kontrollerad ×-clear-knapp i sökraden (E2j). Flex-syskon mellan fältet och
+   Sök-knappen — delar searchrow-pillens bakgrund så den läser som "i fältet".
+   Grön fokusring (interaktion); ink-× på pill-bakgrunden (ej grön — grönt =
+   interaktion, inte dekoration, E2f-domen). */
+.jp-hero__clearbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 52px;
+  border: 0;
+  background: transparent;
+  color: var(--jp-hero-pill-ink);
+  cursor: pointer;
+  opacity: 0.65;
+}
+.jp-hero__clearbtn:hover {
+  opacity: 1;
+}
+.jp-hero__clearbtn:focus-visible {
+  outline: 2px solid var(--jp-hero-sok-bg);
+  outline-offset: -2px;
+  opacity: 1;
+}
 .jp-hero__searchbtn {
   display: inline-flex;
   align-items: center;

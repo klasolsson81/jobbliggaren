@@ -47,7 +47,7 @@ public class RecentSearchesTests(ApiFactory factory)
 
         // Trigga auto-capture genom att söka /api/v1/job-ads med kriterier.
         var searchResponse = await _client.GetAsync(
-            "/api/v1/job-ads?q=backend&page=1&pageSize=20", ct);
+            "/api/v1/job-ads?q=backend&commit=1&page=1&pageSize=20", ct);
         searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
@@ -63,6 +63,27 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Live_search_without_commit_flag_does_not_capture()
+    {
+        // E2j (ADR 0060 amend 2026-06-12): live-`router.replace` per ord
+        // (commit utelämnad) får ALDRIG capturera — det var E2i:s defekt
+        // (cap=20 fylldes av mellanstegsspam, data-minimerings-regression).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var searchResponse = await _client.GetAsync(
+            "/api/v1/job-ads?q=systemutvecklare&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
+        listResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        items.ValueKind.ShouldBe(JsonValueKind.Array);
+        items.GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Searching_jobs_with_occupation_group_only_captures_a_recent_search_row()
     {
         // C1:s LIVE-gap: en ?occupationGroup=-sökning utan q capture:ades
@@ -72,7 +93,7 @@ public class RecentSearchesTests(ApiFactory factory)
 
         var group = $"grp{Guid.NewGuid():N}"[..16];
         var searchResponse = await _client.GetAsync(
-            $"/api/v1/job-ads?occupationGroup={group}&page=1&pageSize=20", ct);
+            $"/api/v1/job-ads?occupationGroup={group}&commit=1&page=1&pageSize=20", ct);
         searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
@@ -100,7 +121,7 @@ public class RecentSearchesTests(ApiFactory factory)
 
         var municipality = $"kn{Guid.NewGuid():N}"[..16];
         var searchResponse = await _client.GetAsync(
-            $"/api/v1/job-ads?municipality={municipality}&page=1&pageSize=20", ct);
+            $"/api/v1/job-ads?municipality={municipality}&commit=1&page=1&pageSize=20", ct);
         searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
@@ -122,9 +143,9 @@ public class RecentSearchesTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        await _client.GetAsync("/api/v1/job-ads?q=devops&page=1&pageSize=20", ct);
-        await _client.GetAsync("/api/v1/job-ads?q=devops&page=1&pageSize=20", ct);
-        await _client.GetAsync("/api/v1/job-ads?q=devops&page=1&pageSize=20", ct);
+        await _client.GetAsync("/api/v1/job-ads?q=devops&commit=1&page=1&pageSize=20", ct);
+        await _client.GetAsync("/api/v1/job-ads?q=devops&commit=1&page=1&pageSize=20", ct);
+        await _client.GetAsync("/api/v1/job-ads?q=devops&commit=1&page=1&pageSize=20", ct);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -138,7 +159,7 @@ public class RecentSearchesTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        await _client.GetAsync("/api/v1/job-ads?q=qa&page=1&pageSize=20", ct);
+        await _client.GetAsync("/api/v1/job-ads?q=qa&commit=1&page=1&pageSize=20", ct);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -160,7 +181,7 @@ public class RecentSearchesTests(ApiFactory factory)
 
         // User A skapar en RecentJobSearch
         await AuthenticateAsync(ct);
-        await _client.GetAsync("/api/v1/job-ads?q=sales&page=1&pageSize=20", ct);
+        await _client.GetAsync("/api/v1/job-ads?q=sales&commit=1&page=1&pageSize=20", ct);
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         var aId = items[0].GetProperty("id").GetString()!;

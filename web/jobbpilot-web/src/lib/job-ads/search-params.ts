@@ -29,6 +29,25 @@ export interface JobbUrlState {
 
 export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
 
+/**
+ * Fas E2j (ADR 0060 amendment 2026-06-12) — commit-intent-signalen.
+ * `commit` är en TRANSIENT signal-param, INTE ett tillstånd: den ingår
+ * ALDRIG i `JobbUrlState`, `sameUrlState`, `buildJobbHref` eller
+ * `serializeSearchText` (annars bryts spegel-fältets own-roundtrip-detektor
+ * + förorenar delningsbara URL:er). Den adderas endast som suffix på
+ * commit-punkternas navigering (Enter/Sök/förslags-val/toolbar) och strippas
+ * efter mount. Backend (`ICapturesRecentSearch.Commit`) gatar auto-capturen
+ * på den.
+ */
+export const COMMIT_PARAM = "commit";
+
+/** Adderar commit-intent-suffixet på en redan byggd href (utanför state). */
+export function withCommitFlag(href: string): string {
+  return href.includes("?")
+    ? `${href}&${COMMIT_PARAM}=1`
+    : `${href}?${COMMIT_PARAM}=1`;
+}
+
 export function buildJobbHref(state: JobbUrlState): string {
   const params = new URLSearchParams();
   for (const v of state.occupationGroup)

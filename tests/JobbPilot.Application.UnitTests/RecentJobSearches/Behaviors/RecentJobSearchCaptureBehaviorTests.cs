@@ -27,12 +27,16 @@ namespace JobbPilot.Application.UnitTests.RecentJobSearches.Behaviors;
 public class RecentJobSearchCaptureBehaviorTests
 {
     // Fake-message som matchar nya ICapturesRecentSearch-shapen.
+    // E2j (ADR 0060 amend 2026-06-12): Commit-markören gatar capturen —
+    // default = true här så de befintliga capture-väntande testerna
+    // (commit-intent) består; commit-guarden testas explicit nedan.
     public sealed record FakeSearchQuery(
         string? Q,
         IReadOnlyList<string>? OccupationGroup,
         IReadOnlyList<string>? Municipality,
         IReadOnlyList<string>? Region,
-        JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc)
+        JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
+        bool Commit = true)
         : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
 
     // Message UTAN markören — behaviorn ska vara no-op.
@@ -201,6 +205,54 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     // ---------------------------------------------------------------
+    // Commit-guard (E2j, ADR 0060 amend 2026-06-12) — capture endast vid
+    // commit-intent. Live-typing (router.replace per ord) sätter commit=false
+    // och får ALDRIG fångas (over-capture + data-minimerings-regression,
+    // Art. 5(1)(c)). Sök/Enter/förslags-val/toolbar sätter commit=true.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_CommitFalse_DoesNotCapture()
+    {
+        // Live-förhandsvisning (commit=false) med fullt giltigt filter får
+        // INTE captureras — annars återinförs mellanstegsspammen.
+        await HandleAsync(new FakeSearchQuery(
+            Q: "backend", OccupationGroup: ["grp1"], Municipality: null, Region: null,
+            Commit: false));
+
+        await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_CommitTrue_CapturesSearch()
+    {
+        // Explicit commit-intent (Sök/Enter/förslags-val) → capture.
+        await HandleAsync(new FakeSearchQuery(
+            Q: "backend", OccupationGroup: null, Municipality: null, Region: null,
+            Commit: true));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_CommitTrueButAllDimensionsEmpty_DoesNotCapture()
+    {
+        // Commit-guard OCH default-browse-guard är additiva: en commit på
+        // tom sökning ("Sök" utan filter) capture:as fortfarande aldrig
+        // (Mekanik-not 2 består — browse-guarden ersätts inte av commit-guarden).
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Commit: true));
+
+        await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ---------------------------------------------------------------
     // Övriga no-op-vägar + best-effort
     // ---------------------------------------------------------------
 
@@ -291,5 +343,7 @@ public class RecentJobSearchCaptureBehaviorTests
         typeof(ICapturesRecentSearch).GetProperty("Region").ShouldNotBeNull();
         typeof(ICapturesRecentSearch).GetProperty("Q").ShouldNotBeNull();
         typeof(ICapturesRecentSearch).GetProperty("SortBy").ShouldNotBeNull();
+        // E2j (ADR 0060 amend 2026-06-12): commit-intent-markören.
+        typeof(ICapturesRecentSearch).GetProperty("Commit").ShouldNotBeNull();
     }
 }

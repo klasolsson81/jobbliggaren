@@ -7,6 +7,7 @@ import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
+  withCommitFlag,
   type JobbUrlState,
 } from "@/lib/job-ads/search-params";
 import {
@@ -111,10 +112,14 @@ export function JobbResultsToolbar({
     ? urlState.sortBy
     : DEFAULT_SORT_BY;
 
+  // E2j (Klas-val 2026-06-12 = ja): toolbar-handlingar (ta bort chip / Rensa /
+  // byt sort) är avsiktliga, diskreta sökningar → bär commit-intent (?commit=1)
+  // så de auto-capturas till Senaste sökningar. commit-flaggan ligger UTANFÖR
+  // JobbUrlState (transient suffix på push-strängen) och strippas efter mount.
   function commit(next: JobbUrlState) {
     startTransition(() => {
       setOptimisticState(next);
-      router.push(buildJobbHref(next));
+      router.push(withCommitFlag(buildJobbHref(next)));
     });
   }
 

@@ -9,9 +9,10 @@ namespace JobbPilot.Application.RecentJobSearches.Common;
 /// markören (paritet med <c>IRequiresFieldEncryptionKey</c>-mönstret).
 ///
 /// <para>Interface exponerar de fält som tillsammans definierar filter-identitet
-/// (Q, OccupationGroup, Municipality, Region, SortBy — Fas C2/ADR 0067:
-/// occupation-name-dimensionen Ssyk utgick med VO-expansionen). Record-typer
-/// (t.ex. <c>ListJobAdsQuery</c>) matchar shape automatiskt via
+/// (Q, OccupationGroup, Municipality, Region, EmploymentType, WorktimeExtent,
+/// SortBy — Fas C2/ADR 0067: occupation-name-dimensionen Ssyk utgick med VO-
+/// expansionen; Fas B2 2026-06-12: Klass 2 anställningsform/omfattning tillkom).
+/// Record-typer (t.ex. <c>ListJobAdsQuery</c>) matchar shape automatiskt via
 /// primary-ctor-properties.</para>
 ///
 /// <para><b>Auth-invariant (security-auditor F6 P4a Medium-3 2026-05-20):</b>
@@ -30,6 +31,8 @@ public interface ICapturesRecentSearch
     IReadOnlyList<string>? OccupationGroup { get; }
     IReadOnlyList<string>? Municipality { get; }
     IReadOnlyList<string>? Region { get; }
+    IReadOnlyList<string>? EmploymentType { get; }
+    IReadOnlyList<string>? WorktimeExtent { get; }
     JobAdSortBy SortBy { get; }
 
     /// <summary>

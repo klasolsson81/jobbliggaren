@@ -48,6 +48,8 @@ public sealed class UpdateSavedSearchCommandHandler(
                 occupationGroup: c.OccupationGroup,
                 municipality: c.Municipality,
                 region: c.Region,
+                employmentType: c.EmploymentType,
+                worktimeExtent: c.WorktimeExtent,
                 q: c.Q,
                 sortBy: c.SortBy);
             if (criteriaResult.IsFailure)

@@ -287,6 +287,16 @@ Fullständig optionsanalys i `docs/reviews/2026-06-08-sok-paritet-architect.md` 
 - **Facet-counts:** ny port avvisad (SPOT-brott); N separata counts avvisade (N+1); full defer avvisad (kärn-UX).
 - **ADR-struktur:** split i flera ADR:er avvisad — REP/CCP-brott, cross-ref-spindelnät (ADR 0045-precedens).
 
+### Implementerings-notat 2026-06-12 (Fas B2 query-wiring) — Klass 2 (anställningsform + omfattning) sökbar
+
+Beslut 6:s två kvarvarande VO-dimensioner (`EmploymentType`/`WorktimeExtent`) wirade end-to-end mot re-ingestad data (~79 % av Active populerad — re-ingest empiriskt utförd via snapshot-cron + backfill, se `docs/research/2026-06-12-fas-b2-state-discovery.md`). Sekvenserings-gaten i C2-notatet (CTO (a) — "VO-fält utan ApplyCriteria-gren/data vore tyst-noll-bevakningar") är därmed uppfylld: data + filter-gren + query-param landar i samma PR.
+
+- **Scope-beslut (Klas-override av CTO-rek):** senior-cto-advisor dömde **Variant B-i-PR + genuin TD** för RecentJobSearch-rippeln (CCP/SRP — sökbarhet vs. recent-identitet = olika change-reasons; `recent_job_searches`-migration utanför "ingen migration"-GO). **Klas valde Variant A** (AskUserQuestion) — hela ripplet i samma PR. CTO erbjöd själv override-noten (roadmap-kunskap om hur snart recent-Klass-2 måste vara live).
+- **Klass 2 = ORTOGONALA dimensioner.** Enkel `IN(...)`-equality, AND mot allt annat — till skillnad mot Municipality/Region (län ⊃ kommun = geo-union). `ApplyCriteria` får två oberoende grenar; `ExcludeDimension` (facett) exkluderar endast egen lista (employment ⊥ worktime).
+- **Full ripple:** `SearchCriteria`-VO (2 fält + cap/regex/normalisering/equality/hashcode), `FilterHashCalculator` (canonical-JSON: emp/wt **mellan** region och sortBy — additiv format-bump, benign cache-dubblett, ingen versionering), `RecentJobSearch` (+ 2 `text[]`-kolumner via migration `20260612120000_B2RecentJobSearchKlass2Columns`, NOT NULL DEFAULT `'{}'`), `ICapturesRecentSearch` + capture-behavior-guard, `JobAdFilterCriteria` + alla 5 konsumenter, `FacetDimension` (enum-append + ShadowColumn + ExcludeDimension), `SearchCriteriaConverters` (jsonb missing-key→tom lista, additivt = ingen `saved_searches`-migration), Create/Update SavedSearch + validatorer, `?employmentType=`/`?worktimeExtent=`-bindning på GET / + /facet-counts. SavedSearchDto/RecentJobSearchDto bär råa Klass 2-listor **utan** taxonomi-labels (Fas E presentations-concern).
+- **FE:** `saved-searches.ts` zod-drift städad i samma svep (ssyk→occupationGroup/municipality + Klass 2, `MAX_CONCEPT_IDS` 10→400). Inga Filter-panel-ändringar (Fas E).
+- **Gates:** Domain 471 / Application 789 / Api.Integration 473 (Testcontainers — EJ InMemory, VO-Contains-fällan) / Worker 70 / Architecture 78 / FE vitest 839 — alla gröna. Reviews: code-reviewer ✓ (0/0/1), dotnet-architect (0/0/2), security-auditor ✓ APPROVED (0/0/0) — Minor in-block-fixade.
+
 ## Implementation
 
 Se Beslut 7-fastabellen. Fas A (denna ADR + ADR 0043-amendment + agent-rapporter + TD-86-split + TD-100/TD-93-korsref + docs-sync) levereras i en PR (ADR 0065-flöde). Efterföljande faser: egna PR:er, Klas-GO per fas-skifte.

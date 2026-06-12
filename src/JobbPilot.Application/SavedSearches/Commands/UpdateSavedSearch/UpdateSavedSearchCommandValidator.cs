@@ -66,6 +66,27 @@ public sealed class UpdateSavedSearchCommandValidator
                 .Matches(ConceptIdPattern)
                 .When(c => c.Criteria!.Region is not null)
                 .WithMessage("Region måste vara en giltig JobTech location-concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+            // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
+            RuleFor(c => c.Criteria!.EmploymentType!)
+                .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+                .When(c => c.Criteria!.EmploymentType is not null)
+                .WithMessage($"Max {SearchCriteria.MaxConceptIds} anställningsformer per sökning.");
+
+            RuleForEach(c => c.Criteria!.EmploymentType)
+                .Matches(ConceptIdPattern)
+                .When(c => c.Criteria!.EmploymentType is not null)
+                .WithMessage("Anställningsform måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+            RuleFor(c => c.Criteria!.WorktimeExtent!)
+                .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+                .When(c => c.Criteria!.WorktimeExtent is not null)
+                .WithMessage($"Max {SearchCriteria.MaxConceptIds} omfattningar per sökning.");
+
+            RuleForEach(c => c.Criteria!.WorktimeExtent)
+                .Matches(ConceptIdPattern)
+                .When(c => c.Criteria!.WorktimeExtent is not null)
+                .WithMessage("Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
         });
     }
 }

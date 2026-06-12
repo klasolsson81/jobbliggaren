@@ -68,6 +68,9 @@ public sealed class RunSavedSearchQueryHandler(
                     OccupationGroup: criteria.OccupationGroup,
                     Municipality: criteria.Municipality,
                     Region: criteria.Region,
+                    // ADR 0067 Beslut 6 (Fas B2) — VO:ts Klass 2 reproducerar filtret.
+                    EmploymentType: criteria.EmploymentType,
+                    WorktimeExtent: criteria.WorktimeExtent,
                     Q: criteria.Q),
                 criteria.SortBy,
                 query.Page,

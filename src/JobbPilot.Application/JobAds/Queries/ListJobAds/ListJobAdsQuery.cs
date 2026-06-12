@@ -23,6 +23,11 @@ public sealed record ListJobAdsQuery(
     IReadOnlyList<string>? OccupationGroup = null,
     IReadOnlyList<string>? Municipality = null,
     IReadOnlyList<string>? Region = null,
+    // ADR 0067 Beslut 6 (Fas B2, 2026-06-12) — Klass 2 anställningsform +
+    // omfattning. Bunds från ?employmentType=/?worktimeExtent=; ortogonala
+    // IN-filter (ej geo-union). Matchar ICapturesRecentSearch automatiskt.
+    IReadOnlyList<string>? EmploymentType = null,
+    IReadOnlyList<string>? WorktimeExtent = null,
     string? Q = null,
     // ADR 0042 Beslut E — "Ny sedan"-fönster (runtime-kontext, ej i
     // SearchCriteria; analog Page/PageSize). Driver JobAdDto.IsNew.

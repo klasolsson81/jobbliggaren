@@ -206,6 +206,34 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         saved.Criteria.Region.ShouldBe(["y"]);
     }
 
+    [Fact]
+    public async Task MissingNewDimensionKeys_ReadAsEmptyLists_CreatePasses()
+    {
+        // B2 (ADR 0067 Beslut 6/7) bakåtkompat: en rad lagrad FÖRE
+        // EmploymentType/WorktimeExtent infördes (varken nyckel finns) ska läsas
+        // som tomma listor → Create passerar (saknad nyckel → tom lista, samma
+        // tolerans-mönster som OccupationGroup/Municipality i (3)).
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        // Pre-B2-rad: nya dimensions-nycklar saknas helt; minst ett annat
+        // kriterium (OccupationGroup) håller raden giltig.
+        var json = """{"OccupationGroup":["g1"],"Municipality":[],"Region":[],"Q":null,"SortBy":0}""";
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
+
+        using var readScope = _factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await readDb.SavedSearches
+            .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
+
+        saved.Criteria.EmploymentType.ShouldBeEmpty();
+        saved.Criteria.WorktimeExtent.ShouldBeEmpty();
+        saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
+    }
+
     // ---------------------------------------------------------------
     // (4) Write-form on-disk — nya nycklar skrivs, "Ssyk" skrivs ALDRIG.
     // OBS: jsonb normaliserar nyckelordning i lagrad form — Write-blockets
@@ -226,6 +254,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
 
         var criteria = SearchCriteria.Create(
             occupationGroup: ["g1"], municipality: ["m1"], region: ["r1"],
+            employmentType: ["et_fast"], worktimeExtent: ["wt_heltid"],
             q: "backend", sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Write-form", criteria, false, clock).Value;
         db.SavedSearches.Add(saved);
@@ -238,6 +267,10 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         raw.ShouldContain("\"OccupationGroup\"");
         raw.ShouldContain("\"Municipality\"");
         raw.ShouldContain("\"Region\"");
+        // B2 (ADR 0067 Beslut 6/7): de två nya dimensionerna skrivs alltid
+        // (array-form, mellan Region och Q).
+        raw.ShouldContain("\"EmploymentType\"");
+        raw.ShouldContain("\"WorktimeExtent\"");
         raw.ShouldContain("\"Q\"");
         raw.ShouldContain("\"SortBy\"");
     }
@@ -259,6 +292,8 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
             occupationGroup: ["grpB", "grpA"],
             municipality: ["uppsala_kn", "sthlm_kn"],
             region: ["stockholm", "uppsala"],
+            employmentType: ["et_vikariat", "et_fast"],
+            worktimeExtent: ["wt_heltid"],
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Roundtrip-rad", criteria, false, clock).Value;
@@ -273,6 +308,8 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         reloaded.Criteria.OccupationGroup.ShouldBe(["grpA", "grpB"]); // sorterad ordinal
         reloaded.Criteria.Municipality.ShouldBe(["sthlm_kn", "uppsala_kn"]);
         reloaded.Criteria.Region.ShouldBe(["stockholm", "uppsala"]);
+        reloaded.Criteria.EmploymentType.ShouldBe(["et_fast", "et_vikariat"]); // sorterad ordinal
+        reloaded.Criteria.WorktimeExtent.ShouldBe(["wt_heltid"]);
         reloaded.Criteria.Q.ShouldBe("backend");
         reloaded.Criteria.ShouldBe(criteria); // strukturell equality bevarad
     }

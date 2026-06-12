@@ -53,6 +53,8 @@ public class RunSavedSearchQueryHandlerTests
             occupationGroup: groupList,
             municipality: municipalityList,
             region: regionList,
+            employmentType: null,
+            worktimeExtent: null,
             q: q,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Kör mig", criteria, false,

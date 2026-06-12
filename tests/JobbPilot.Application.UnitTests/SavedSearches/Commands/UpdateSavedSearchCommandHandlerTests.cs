@@ -28,7 +28,8 @@ public class UpdateSavedSearchCommandHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
-            region: ["stockholm"], q: "backend",
+            region: ["stockholm"], employmentType: null, worktimeExtent: null,
+            q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Originalnamn", criteria, false,
             FakeDateTimeProvider.Default).Value;
@@ -65,7 +66,8 @@ public class UpdateSavedSearchCommandHandlerTests
             new UpdateSavedSearchCommand(saved.Id.Value, null, null,
                 new SavedSearchCriteriaInput(
                     OccupationGroup: ["grp_99999"], Municipality: null,
-                    Region: null, Q: null, SortBy: JobAdSortBy.PublishedAtAsc)),
+                    Region: null, EmploymentType: null, WorktimeExtent: null,
+                    Q: null, SortBy: JobAdSortBy.PublishedAtAsc)),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
@@ -98,7 +100,8 @@ public class UpdateSavedSearchCommandHandlerTests
             new UpdateSavedSearchCommand(saved.Id.Value, null, null,
                 new SavedSearchCriteriaInput(
                     OccupationGroup: ["has space"], Municipality: null,
-                    Region: null, Q: null, SortBy: JobAdSortBy.PublishedAtDesc)),
+                    Region: null, EmploymentType: null, WorktimeExtent: null,
+                    Q: null, SortBy: JobAdSortBy.PublishedAtDesc)),
             CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();

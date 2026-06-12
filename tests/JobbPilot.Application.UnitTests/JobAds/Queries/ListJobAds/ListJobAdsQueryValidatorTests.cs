@@ -238,6 +238,81 @@ public class ListJobAdsQueryValidatorTests
     }
 
     // ---------------------------------------------------------------
+    // EmploymentType + WorktimeExtent (NYA dimensioner — B2, ADR 0067 Beslut 6/7)
+    // Samma cap + per-element-regex-mönster som OccupationGroup.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Validate_EmploymentType_SingleValidConceptId_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(EmploymentType: ["et_fast"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_EmploymentType_MultipleValidConceptIds_Passes()
+    {
+        var result = _validator.Validate(
+            new ListJobAdsQuery(EmploymentType: ["et_fast", "et_vikariat"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("bad id!")]
+    [InlineData("has space")]
+    [InlineData("åäö")]
+    [InlineData("0123456789ABCDEFabcdef_-_-_-_-123")] // 33 tecken
+    public void Validate_EmploymentType_AnyInvalidElement_Fails(string bad)
+    {
+        var result = _validator.Validate(
+            new ListJobAdsQuery(EmploymentType: ["et_fast", bad]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_EmploymentType_Null_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(EmploymentType: null));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_EmploymentType_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"et{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(EmploymentType: overMax));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_WorktimeExtent_SingleValidConceptId_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(WorktimeExtent: ["wt_heltid"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("bad id!")]
+    [InlineData("has space")]
+    [InlineData("0123456789ABCDEFabcdef_-_-_-_-123")]
+    public void Validate_WorktimeExtent_AnyInvalidElement_Fails(string bad)
+    {
+        var result = _validator.Validate(
+            new ListJobAdsQuery(WorktimeExtent: ["wt_heltid", bad]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_WorktimeExtent_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"wt{i}").ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(WorktimeExtent: overMax));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    // ---------------------------------------------------------------
     // Q oförändrat — 2-100 tecken
     // ---------------------------------------------------------------
 

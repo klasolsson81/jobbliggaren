@@ -86,7 +86,82 @@ public class GetFacetCountsQueryValidatorTests
                 FacetDimension.OccupationGroup,
                 OccupationGroup: maxList,
                 Municipality: maxList,
-                Region: maxList));
+                Region: maxList,
+                EmploymentType: maxList,
+                WorktimeExtent: maxList));
         result.IsValid.ShouldBeTrue();
+    }
+
+    // --- B2 (ADR 0067 Beslut 6/7) — EmploymentType + WorktimeExtent ---
+
+    [Fact]
+    public void EmploymentType_valid_list_passes()
+    {
+        var result = _validator.Validate(
+            new GetFacetCountsQuery(
+                FacetDimension.EmploymentType, EmploymentType: ["et_fast"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void EmploymentType_exceeding_MaxConceptIds_fails()
+    {
+        var tooMany = Enumerable.Range(0, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"et{i}")
+            .ToList();
+        var result = _validator.Validate(
+            new GetFacetCountsQuery(
+                FacetDimension.EmploymentType, EmploymentType: tooMany));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EmploymentType_invalid_concept_id_format_fails()
+    {
+        var result = _validator.Validate(
+            new GetFacetCountsQuery(
+                FacetDimension.EmploymentType, EmploymentType: ["bad id!"]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void WorktimeExtent_valid_list_passes()
+    {
+        var result = _validator.Validate(
+            new GetFacetCountsQuery(
+                FacetDimension.WorktimeExtent, WorktimeExtent: ["wt_heltid"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void WorktimeExtent_exceeding_MaxConceptIds_fails()
+    {
+        var tooMany = Enumerable.Range(0, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"wt{i}")
+            .ToList();
+        var result = _validator.Validate(
+            new GetFacetCountsQuery(
+                FacetDimension.WorktimeExtent, WorktimeExtent: tooMany));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void WorktimeExtent_invalid_concept_id_format_fails()
+    {
+        var result = _validator.Validate(
+            new GetFacetCountsQuery(
+                FacetDimension.WorktimeExtent, WorktimeExtent: ["bad id!"]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void New_dimension_enum_members_are_in_range()
+    {
+        // B2: EmploymentType/WorktimeExtent är definierade enum-medlemmar →
+        // IsInEnum() släpper igenom (regression om de råkar tas bort).
+        _validator.Validate(
+            new GetFacetCountsQuery(FacetDimension.EmploymentType)).IsValid.ShouldBeTrue();
+        _validator.Validate(
+            new GetFacetCountsQuery(FacetDimension.WorktimeExtent)).IsValid.ShouldBeTrue();
     }
 }

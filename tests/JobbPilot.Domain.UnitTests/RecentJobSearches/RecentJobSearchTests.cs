@@ -25,6 +25,8 @@ public class RecentJobSearchTests
             occupationGroup: ["grp_12345"],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
+            employmentType: null,
+            worktimeExtent: null,
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
@@ -33,6 +35,8 @@ public class RecentJobSearchTests
             occupationGroup: ["grp_67890"],
             municipality: ["gbg_kn"],
             region: ["goteborg"],
+            employmentType: null,
+            worktimeExtent: null,
             q: "frontend",
             sortBy: JobAdSortBy.PublishedAtAsc).Value;
 
@@ -66,6 +70,7 @@ public class RecentJobSearchTests
         // captureras — övriga listor projiceras som tomma.
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_only"], municipality: null, region: null,
+            employmentType: null, worktimeExtent: null,
             q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
         var aggregate = RecentJobSearch.Capture(
@@ -135,10 +140,12 @@ public class RecentJobSearchTests
         // SearchCriteria.NormalizeList sorterar/dedupar → samma hash trots olika input-ordning.
         var c1 = SearchCriteria.Create(
             occupationGroup: ["zzz", "aaa"], municipality: ["kkk", "jjj"],
-            region: ["bbb", "ccc"], q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
+            region: ["bbb", "ccc"], employmentType: null, worktimeExtent: null,
+            q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var c2 = SearchCriteria.Create(
             occupationGroup: ["aaa", "zzz"], municipality: ["jjj", "kkk"],
-            region: ["ccc", "bbb"], q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
+            region: ["ccc", "bbb"], employmentType: null, worktimeExtent: null,
+            q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
         var a = RecentJobSearch.Capture(ValidJobSeekerId, c1, 1, Clock.UtcNow);
         var b = RecentJobSearch.Capture(ValidJobSeekerId, c2, 1, Clock.UtcNow);

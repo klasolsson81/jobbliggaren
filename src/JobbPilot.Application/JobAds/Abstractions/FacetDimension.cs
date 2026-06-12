@@ -6,13 +6,11 @@ namespace JobbPilot.Application.JobAds.Abstractions;
 /// 1:1 mot en filtrerbar STORED shadow-column i <c>JobAdSearchQuery</c> och mot
 /// en lista i <see cref="JobAdFilterCriteria"/>.
 /// <para>
-/// <b>Scope (senior-cto-advisor 2026-06-10, VAL 1 = Variant A):</b> endast de tre
-/// dimensioner som har populerad data OCH en equality-gren i <c>ApplyCriteria</c>
-/// idag. Anställningsform/omfattning (B2-dims) UTESLUTS medvetet tills full
-/// re-ingest populerat <c>employment_type_concept_id</c>/<c>worktime_extent_concept_id</c>
-/// (~44k rader är NULL tills dess) — en facett mot NULL-data vore "falsk klar"
-/// (CLAUDE.md §9.6, C1-CTO-dom c). De tillkommer additivt (non-breaking enum-append)
-/// i samma PR som re-ingestens data, med GROUP BY-gren + Testcontainers-rad.
+/// <b>ADR 0067 Beslut 6 (Fas B2, 2026-06-12):</b> Anställningsform/omfattning
+/// (Klass 2-dims) tillkom (non-breaking enum-append) i samma PR som re-ingestad
+/// data (~79% av Active populerad). Tidigare uteslutna tills data fanns — gaten
+/// uppfylld empiriskt. Båda är ORTOGONALA dimensioner (egen lista exkluderas i
+/// facetten, INTE hela en geo-union à la Municipality/Region).
 /// </para>
 /// </summary>
 public enum FacetDimension
@@ -26,4 +24,10 @@ public enum FacetDimension
 
     /// <summary>Län (<c>RegionConceptId</c>).</summary>
     Region,
+
+    /// <summary>Anställningsform (<c>EmploymentTypeConceptId</c>) — ADR 0067 Beslut 6.</summary>
+    EmploymentType,
+
+    /// <summary>Omfattning/arbetstid (<c>WorktimeExtentConceptId</c>) — ADR 0067 Beslut 6.</summary>
+    WorktimeExtent,
 }

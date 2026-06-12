@@ -53,6 +53,27 @@ public sealed class GetFacetCountsQueryValidator : AbstractValidator<GetFacetCou
             .When(q => q.Region is not null)
             .WithMessage("Region måste vara en giltig JobTech location-concept-id (1-32 tecken, alfanumeriskt + _-).");
 
+        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 filterkontext, samma yta.
+        RuleFor(q => q.EmploymentType!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.EmploymentType is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} anställningsformer per sökning.");
+
+        RuleForEach(q => q.EmploymentType)
+            .Matches(ConceptIdPattern)
+            .When(q => q.EmploymentType is not null)
+            .WithMessage("Anställningsform måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        RuleFor(q => q.WorktimeExtent!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.WorktimeExtent is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} omfattningar per sökning.");
+
+        RuleForEach(q => q.WorktimeExtent)
+            .Matches(ConceptIdPattern)
+            .When(q => q.WorktimeExtent is not null)
+            .WithMessage("Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
         // Samma Q-gränser som list-vägen (Domain-konstanter, single source) —
         // residual-konsistensen kräver att även valideringen är symmetrisk.
         RuleFor(q => q.Q)

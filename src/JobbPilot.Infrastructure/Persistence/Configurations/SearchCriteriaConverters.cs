@@ -41,6 +41,8 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         List<string> occupationGroup = [];
         List<string> municipality = [];
         List<string> region = [];
+        List<string> employmentType = [];
+        List<string> worktimeExtent = [];
         string? q = null;
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc;
 
@@ -64,6 +66,16 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
                     break;
                 case "Region":
                     region = ReadStringOrStringArray(ref reader, "Region");
+                    break;
+                // ADR 0067 Beslut 6 (Fas B2): Klass 2-nycklar. Saknad nyckel
+                // (gammal rad sparad före B2) → tom lista via switch-default →
+                // Create passerar tom-invarianten additivt (samma bakåtkompat-
+                // mönster som C1/C2-dimensionerna). Property-namn = jsonb-kontrakt.
+                case "EmploymentType":
+                    employmentType = ReadStringOrStringArray(ref reader, "EmploymentType");
+                    break;
+                case "WorktimeExtent":
+                    worktimeExtent = ReadStringOrStringArray(ref reader, "WorktimeExtent");
                     break;
                 case "Q":
                     q = reader.TokenType switch
@@ -100,6 +112,8 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
             occupationGroup: occupationGroup,
             municipality: municipality,
             region: region,
+            employmentType: employmentType,
+            worktimeExtent: worktimeExtent,
             q: q,
             sortBy: sortBy);
         if (result.IsFailure)
@@ -133,6 +147,19 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         writer.WriteStartArray();
         foreach (var r in value.Region)
             writer.WriteStringValue(r);
+        writer.WriteEndArray();
+
+        // ADR 0067 Beslut 6 (Fas B2) — Klass 2-dimensioner (alltid array-form).
+        writer.WritePropertyName("EmploymentType");
+        writer.WriteStartArray();
+        foreach (var e in value.EmploymentType)
+            writer.WriteStringValue(e);
+        writer.WriteEndArray();
+
+        writer.WritePropertyName("WorktimeExtent");
+        writer.WriteStartArray();
+        foreach (var w in value.WorktimeExtent)
+            writer.WriteStringValue(w);
         writer.WriteEndArray();
 
         if (value.Q is null)

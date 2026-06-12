@@ -13,12 +13,19 @@ namespace JobbPilot.Application.SavedSearches.Queries;
 // SavedSearch-API:t konsumeras inte av FE (ADR 0039-amendment 2026-05-20) →
 // DTO:n renamead fritt till kanonisk dimensionsordning (OccupationGroup,
 // Municipality, Region; architect F1), labels per dimension sist.
+// ADR 0067 Beslut 6 (Fas B2, 2026-06-12): EmploymentType + WorktimeExtent
+// (Klass 2) tillkom som råa listor. MEDVETET UTAN *Labels — taxonomi-
+// reverse-lookup för anställningsform/omfattning är ett Fas E presentations-
+// concern (ITaxonomyReadModel bär occupation/geo-trädet, ej Klass 2). De råa
+// listorna räcker för att reproducera filtret (RunSavedSearch).
 public sealed record SavedSearchDto(
     Guid Id,
     string Name,
     IReadOnlyList<string> OccupationGroup,
     IReadOnlyList<string> Municipality,
     IReadOnlyList<string> Region,
+    IReadOnlyList<string> EmploymentType,
+    IReadOnlyList<string> WorktimeExtent,
     string? Q,
     JobAdSortBy SortBy,
     bool NotificationEnabled,

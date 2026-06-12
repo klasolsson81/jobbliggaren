@@ -43,6 +43,11 @@ public static class JobAdsEndpoints
             string[]? occupationGroup = null,
             string[]? municipality = null,
             string[]? region = null,
+            // ADR 0067 Beslut 6 (Fas B2) — Klass 2: ?employmentType= (anställnings-
+            // form) + ?worktimeExtent= (omfattning). Ortogonala IN-filter; upprepad
+            // query-string binds till string[] (samma som dims ovan).
+            string[]? employmentType = null,
+            string[]? worktimeExtent = null,
             string? q = null,
             // ADR 0042 Beslut E — "ny sedan"-fönster (runtime-kontext).
             DateTimeOffset? since = null,
@@ -59,6 +64,8 @@ public static class JobAdsEndpoints
                     OccupationGroup: occupationGroup,
                     Municipality: municipality,
                     Region: region,
+                    EmploymentType: employmentType,
+                    WorktimeExtent: worktimeExtent,
                     Q: q,
                     Since: since,
                     Commit: commit), ct);
@@ -97,6 +104,9 @@ public static class JobAdsEndpoints
             string[]? occupationGroup = null,
             string[]? municipality = null,
             string[]? region = null,
+            // ADR 0067 Beslut 6 (Fas B2) — Klass 2-filterkontext för facetten.
+            string[]? employmentType = null,
+            string[]? worktimeExtent = null,
             string? q = null,
             CancellationToken ct = default) =>
         {
@@ -107,6 +117,8 @@ public static class JobAdsEndpoints
                     OccupationGroup: occupationGroup,
                     Municipality: municipality,
                     Region: region,
+                    EmploymentType: employmentType,
+                    WorktimeExtent: worktimeExtent,
                     Q: q), ct);
             return Results.Ok(result);
         })

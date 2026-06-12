@@ -32,5 +32,8 @@ public sealed record SavedSearchCriteriaInput(
     IReadOnlyList<string>? OccupationGroup,
     IReadOnlyList<string>? Municipality,
     IReadOnlyList<string>? Region,
+    // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
+    IReadOnlyList<string>? EmploymentType,
+    IReadOnlyList<string>? WorktimeExtent,
     string? Q,
     JobAdSortBy SortBy);

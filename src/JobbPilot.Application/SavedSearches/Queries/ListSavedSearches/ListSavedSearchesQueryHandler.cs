@@ -64,6 +64,9 @@ public sealed class ListSavedSearchesQueryHandler(
                 OccupationGroup: s.Criteria.OccupationGroup,
                 Municipality: s.Criteria.Municipality,
                 Region: s.Criteria.Region,
+                // ADR 0067 Beslut 6 (Fas B2) — råa Klass 2-listor (inga labels, Fas E).
+                EmploymentType: s.Criteria.EmploymentType,
+                WorktimeExtent: s.Criteria.WorktimeExtent,
                 s.Criteria.Q,
                 s.Criteria.SortBy,
                 s.NotificationEnabled,

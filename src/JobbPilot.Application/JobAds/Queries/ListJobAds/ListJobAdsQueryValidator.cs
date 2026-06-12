@@ -57,6 +57,29 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
             .When(q => q.Region is not null)
             .WithMessage("Region måste vara en giltig JobTech location-concept-id (1-32 tecken, alfanumeriskt + _-).");
 
+        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
+        // Samma defense-in-depth-yta (cap + per-element-regex) som dimensionerna
+        // ovan; Domain SearchCriteria.Create är sanningskälla.
+        RuleFor(q => q.EmploymentType!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.EmploymentType is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} anställningsformer per sökning.");
+
+        RuleForEach(q => q.EmploymentType)
+            .Matches(ConceptIdPattern)
+            .When(q => q.EmploymentType is not null)
+            .WithMessage("Anställningsform måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        RuleFor(q => q.WorktimeExtent!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.WorktimeExtent is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} omfattningar per sökning.");
+
+        RuleForEach(q => q.WorktimeExtent)
+            .Matches(ConceptIdPattern)
+            .When(q => q.WorktimeExtent is not null)
+            .WithMessage("Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
         // q MinLength(2) hindrar `?q=a` (matchar närapå hela tabellen → DoS-yta).
         // MaxLength(100) räcker för normal söksträng + safety margin mot injection-
         // stuffing. CTO-rond 2026-05-13 Q7c. Refererar Domain-konstanterna

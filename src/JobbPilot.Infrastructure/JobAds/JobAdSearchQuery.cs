@@ -116,6 +116,9 @@ internal sealed class JobAdSearchQuery(
         FacetDimension.OccupationGroup => "OccupationGroupConceptId",
         FacetDimension.Municipality => "MunicipalityConceptId",
         FacetDimension.Region => "RegionConceptId",
+        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 STORED-kolumner.
+        FacetDimension.EmploymentType => "EmploymentTypeConceptId",
+        FacetDimension.WorktimeExtent => "WorktimeExtentConceptId",
         _ => throw new ArgumentOutOfRangeException(
             nameof(dimension), dimension, "Unknown FacetDimension — enum out of sync with ApplyCriteria."),
     };
@@ -136,6 +139,13 @@ internal sealed class JobAdSearchQuery(
             FacetDimension.OccupationGroup => criteria with { OccupationGroup = [] },
             FacetDimension.Municipality or FacetDimension.Region =>
                 criteria with { Municipality = [], Region = [] },
+            // ADR 0067 Beslut 6 (Fas B2) — Klass 2 är ORTOGONALA dimensioner:
+            // varje facett exkluderar ENDAST sin egen lista ur WHERE (till
+            // skillnad mot ort, där län ⊃ kommun = en dimension i två
+            // granulariteter). När man facetterar anställningsform gäller alltså
+            // ett aktivt omfattnings-filter fortfarande, och tvärtom.
+            FacetDimension.EmploymentType => criteria with { EmploymentType = [] },
+            FacetDimension.WorktimeExtent => criteria with { WorktimeExtent = [] },
             _ => throw new ArgumentOutOfRangeException(
                 nameof(dimension), dimension, "Unknown FacetDimension — enum out of sync with ApplyCriteria."),
         };
@@ -208,6 +218,26 @@ internal sealed class JobAdSearchQuery(
         {
             var regionValues = criteria.Region;
             source = source.Where(j => regionValues.Contains(EF.Property<string?>(j, "RegionConceptId")));
+        }
+
+        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
+        // ORTOGONALA dimensioner (oberoende axlar, ej geo-union à la kommun/län):
+        // var lista är ett eget IN(...)-villkor AND mot allt annat. STORED
+        // generated columns (employment_type_concept_id / worktime_extent_concept_id),
+        // B-tree-indexerade, NULL för annons utan key i payload (purgad/saknad)
+        // → matchas ej (paritet med övriga taxonomi-dims; "0 träff" ≠ bug).
+        if (criteria.EmploymentType.Count > 0)
+        {
+            var employmentTypeValues = criteria.EmploymentType;
+            source = source.Where(j =>
+                employmentTypeValues.Contains(EF.Property<string?>(j, "EmploymentTypeConceptId")));
+        }
+
+        if (criteria.WorktimeExtent.Count > 0)
+        {
+            var worktimeExtentValues = criteria.WorktimeExtent;
+            source = source.Where(j =>
+                worktimeExtentValues.Contains(EF.Property<string?>(j, "WorktimeExtentConceptId")));
         }
 
         if (!string.IsNullOrWhiteSpace(criteria.Q))

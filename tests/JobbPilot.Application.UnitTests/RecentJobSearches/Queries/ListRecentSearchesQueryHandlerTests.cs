@@ -69,6 +69,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: ["grp_12345"],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
+            employmentType: null,
+            worktimeExtent: null,
             q: q,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         return RecentJobSearch.Capture(seekerId, criteria, lastSeenCount, viewedAt);
@@ -175,6 +177,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: ["grp_54321"],
             municipality: ["gbg_kn"],
             region: ["goteborg"],
+            employmentType: null,
+            worktimeExtent: null,
             q: "lärare",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -253,6 +257,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: ["grp_77777"],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
+            employmentType: null,
+            worktimeExtent: null,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -275,6 +281,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: null,
             municipality: ["gbg_kn"],
             region: ["goteborg"],
+            employmentType: null,
+            worktimeExtent: null,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -297,6 +305,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: null,
             municipality: null,
             region: ["stockholm"],
+            employmentType: null,
+            worktimeExtent: null,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -341,6 +351,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: groups,
             municipality: null,
             region: null,
+            employmentType: null,
+            worktimeExtent: null,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         return RecentJobSearch.Capture(
@@ -414,6 +426,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: null,
             municipality: ["kn_a", "kn_b", "kn_c"],
             region: null,
+            employmentType: null,
+            worktimeExtent: null,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(RecentJobSearch.Capture(
@@ -459,6 +473,8 @@ public class ListRecentSearchesQueryHandlerTests
             occupationGroup: null,
             municipality: null,
             region: ["reg_a", "reg_b"],
+            employmentType: null,
+            worktimeExtent: null,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(RecentJobSearch.Capture(

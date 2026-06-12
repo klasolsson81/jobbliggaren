@@ -34,6 +34,8 @@ public class CreateSavedSearchCommandHandlerTests
             OccupationGroup: ["grp_12345"],
             Municipality: ["sthlm_kn"],
             Region: ["stockholm"],
+            EmploymentType: null,
+            WorktimeExtent: null,
             Q: "backend",
             SortBy: JobAdSortBy.PublishedAtDesc,
             NotificationEnabled: true);
@@ -94,6 +96,8 @@ public class CreateSavedSearchCommandHandlerTests
             OccupationGroup: null,
             Municipality: null,
             Region: null,
+            EmploymentType: null,
+            WorktimeExtent: null,
             Q: null,
             SortBy: JobAdSortBy.PublishedAtDesc,
             NotificationEnabled: false);
@@ -119,6 +123,8 @@ public class CreateSavedSearchCommandHandlerTests
             OccupationGroup: ["grp_12345"],
             Municipality: null,
             Region: null,
+            EmploymentType: null,
+            WorktimeExtent: null,
             Q: null,
             SortBy: JobAdSortBy.PublishedAtDesc,
             NotificationEnabled: false);

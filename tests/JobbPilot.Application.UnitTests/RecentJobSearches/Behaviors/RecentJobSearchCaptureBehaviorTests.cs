@@ -35,6 +35,8 @@ public class RecentJobSearchCaptureBehaviorTests
         IReadOnlyList<string>? OccupationGroup,
         IReadOnlyList<string>? Municipality,
         IReadOnlyList<string>? Region,
+        IReadOnlyList<string>? EmploymentType = null,
+        IReadOnlyList<string>? WorktimeExtent = null,
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
         bool Commit = true)
         : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
@@ -140,10 +142,52 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_EmploymentTypeOnly_CapturesSearch()
+    {
+        // B2 (ADR 0067 Beslut 6/7): default-browse-guarden räknar nu alla FEM
+        // dims → en commit:ad sökning med ENBART EmploymentType släpps igenom.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            EmploymentType: ["et_fast"], WorktimeExtent: null));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured!.EmploymentType.ShouldBe(["et_fast"]);
+        captured.WorktimeExtent.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WorktimeExtentOnly_CapturesSearch()
+    {
+        // B2: spegelbild — enbart WorktimeExtent (Q + övriga tomma, Commit=true).
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            EmploymentType: null, WorktimeExtent: ["wt_heltid"]));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured!.WorktimeExtent.ShouldBe(["wt_heltid"]);
+    }
+
+    [Fact]
     public async Task Handle_MapsDimensionsToCorrectCriteriaFields()
     {
         // Positionell tyst-fel-grind (architect F1: named args obligatoriskt):
         // distinkta värden per dimension bevisar att inget fält förväxlats.
+        // B2: utökad till alla fem listor.
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), Arg.Any<int>(),
@@ -155,12 +199,16 @@ public class RecentJobSearchCaptureBehaviorTests
             OccupationGroup: ["dim-grp"],
             Municipality: ["dim-kn"],
             Region: ["dim-reg"],
+            EmploymentType: ["dim-et"],
+            WorktimeExtent: ["dim-wt"],
             SortBy: JobAdSortBy.PublishedAtAsc));
 
         captured.ShouldNotBeNull();
         captured!.OccupationGroup.ShouldBe(["dim-grp"]);
         captured.Municipality.ShouldBe(["dim-kn"]);
         captured.Region.ShouldBe(["dim-reg"]);
+        captured.EmploymentType.ShouldBe(["dim-et"]);
+        captured.WorktimeExtent.ShouldBe(["dim-wt"]);
         captured.Q.ShouldBe("lärare");
         captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtAsc);
     }
@@ -345,5 +393,8 @@ public class RecentJobSearchCaptureBehaviorTests
         typeof(ICapturesRecentSearch).GetProperty("SortBy").ShouldNotBeNull();
         // E2j (ADR 0060 amend 2026-06-12): commit-intent-markören.
         typeof(ICapturesRecentSearch).GetProperty("Commit").ShouldNotBeNull();
+        // B2 (ADR 0067 Beslut 6/7): de två nya filter-dimensionerna.
+        typeof(ICapturesRecentSearch).GetProperty("EmploymentType").ShouldNotBeNull();
+        typeof(ICapturesRecentSearch).GetProperty("WorktimeExtent").ShouldNotBeNull();
     }
 }

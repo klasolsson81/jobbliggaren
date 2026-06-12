@@ -20,7 +20,8 @@ namespace JobbPilot.Domain.RecentJobSearches;
 /// <list type="number">
 /// <item><b>Identitet via FilterHash:</b> UNIQUE(JobSeekerId, FilterHash) på persistens-yta.
 /// <see cref="FilterHashCalculator"/> är canonical-källan; Q/OccupationGroup/Municipality/
-/// Region/SortBy är derivat av hash och får aldrig divergera (Bump muterar dem ej).</item>
+/// Region/EmploymentType/WorktimeExtent/SortBy är derivat av hash och får aldrig divergera
+/// (Bump muterar dem ej).</item>
 /// <item><b>Cap per seeker:</b> <see cref="MaxPerSeeker"/> — affärsregel, enforce:as i
 /// <c>IRecentJobSearchCapturer</c>-implementationen (evict äldsta LastViewedAt vid
 /// overflow). Konstanten deklareras i Domain (CLAUDE.md §5.1 — ingen magic number).</item>
@@ -55,6 +56,16 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
     private readonly List<string> _region = [];
     public IReadOnlyList<string> Region => _region.AsReadOnly();
 
+    // ADR 0067 Beslut 6 (Fas B2, 2026-06-12) — Klass 2-dimensioner. Persisteras
+    // som text[]-kolumner (employment_type_list/worktime_extent_list) i samma
+    // shadow-backing-field-mönster som de tre ovan; ingår i FilterHash → en
+    // recent-rad reproducerar exakt sökningen inkl. Klass 2.
+    private readonly List<string> _employmentType = [];
+    public IReadOnlyList<string> EmploymentType => _employmentType.AsReadOnly();
+
+    private readonly List<string> _worktimeExtent = [];
+    public IReadOnlyList<string> WorktimeExtent => _worktimeExtent.AsReadOnly();
+
     public JobAdSortBy SortBy { get; private set; }
     public DateTimeOffset LastViewedAt { get; private set; }
     public int LastSeenCount { get; private set; }
@@ -77,6 +88,8 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
         _occupationGroup.AddRange(criteria.OccupationGroup);
         _municipality.AddRange(criteria.Municipality);
         _region.AddRange(criteria.Region);
+        _employmentType.AddRange(criteria.EmploymentType);
+        _worktimeExtent.AddRange(criteria.WorktimeExtent);
         SortBy = criteria.SortBy;
         LastViewedAt = now;
         LastSeenCount = currentCount;

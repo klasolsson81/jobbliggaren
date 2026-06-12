@@ -51,6 +51,9 @@ public static class SavedSearchesEndpoints
                         OccupationGroup: body.Criteria.OccupationGroup,
                         Municipality: body.Criteria.Municipality,
                         Region: body.Criteria.Region,
+                        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
+                        EmploymentType: body.Criteria.EmploymentType,
+                        WorktimeExtent: body.Criteria.WorktimeExtent,
                         Q: body.Criteria.Q,
                         SortBy: body.Criteria.SortBy));
             var result = await mediator.Send(command, ct);
@@ -97,6 +100,9 @@ public static class SavedSearchesEndpoints
         IReadOnlyList<string>? OccupationGroup,
         IReadOnlyList<string>? Municipality,
         IReadOnlyList<string>? Region,
+        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
+        IReadOnlyList<string>? EmploymentType,
+        IReadOnlyList<string>? WorktimeExtent,
         string? Q,
         JobAdSortBy SortBy);
 }

@@ -4,14 +4,20 @@ import {
   createSavedSearchSchema,
   sortByToIndex,
   SAVED_SEARCH_SORT_ORDER,
+  MAX_CONCEPT_IDS,
 } from "./saved-searches";
 
-// ADR 0042 Beslut B — ssyk/region är arrays på wire (aldrig null från VO).
+// ADR 0067 Fas C2/B2 — list-dimensionerna är arrays på wire (aldrig null från
+// VO:t): occupationGroup/municipality/region + Klass 2 employmentType/
+// worktimeExtent. Backend camelCase (System.Text.Json), SortBy som heltal.
 const wireBase = {
   id: "11111111-1111-1111-1111-111111111111",
   name: "Java i Stockholm",
-  ssyk: ["MVqp_eS8_kDZ"],
+  occupationGroup: ["MVqp_eS8_kDZ"],
+  municipality: ["dMFa_Rsm_4aA"],
   region: ["CifL_Rzy_Mku"],
+  employmentType: ["PFZr_Syz_cUq"],
+  worktimeExtent: ["6YE1_gAC_R2G"],
   q: "java",
   notificationEnabled: false,
   lastRunAt: null,
@@ -42,12 +48,15 @@ describe("savedSearchDtoSchema", () => {
   it("accepts empty criteria arrays + null q (only sort set is still valid)", () => {
     const parsed = savedSearchDtoSchema.parse({
       ...wireBase,
-      ssyk: [],
+      occupationGroup: [],
+      municipality: [],
       region: [],
+      employmentType: [],
+      worktimeExtent: [],
       q: null,
       sortBy: 0,
     });
-    expect(parsed.ssyk).toEqual([]);
+    expect(parsed.occupationGroup).toEqual([]);
     expect(parsed.region).toEqual([]);
   });
 
@@ -56,24 +65,37 @@ describe("savedSearchDtoSchema", () => {
     expect(parsed.sortBy).toBe("Relevance");
   });
 
-  it("accepts multiple ssyk/region values (OR-bevakning)", () => {
+  it("accepts multiple occupationGroup/region values (OR-bevakning)", () => {
     const parsed = savedSearchDtoSchema.parse({
       ...wireBase,
-      ssyk: ["a1", "b2"],
+      occupationGroup: ["a1", "b2"],
       region: ["r1", "r2"],
       sortBy: 0,
     });
-    expect(parsed.ssyk).toEqual(["a1", "b2"]);
+    expect(parsed.occupationGroup).toEqual(["a1", "b2"]);
   });
 
-  it("parses additive ssykLabels/regionLabels (ADR 0043 Approach A)", () => {
+  it("parses Klass 2 employmentType/worktimeExtent arrays (ADR 0067 Beslut 6)", () => {
+    const parsed = savedSearchDtoSchema.parse({
+      ...wireBase,
+      employmentType: ["et1", "et2"],
+      worktimeExtent: ["wt1"],
+      sortBy: 0,
+    });
+    expect(parsed.employmentType).toEqual(["et1", "et2"]);
+    expect(parsed.worktimeExtent).toEqual(["wt1"]);
+  });
+
+  it("parses additive per-dimension labels (ADR 0043 Approach A)", () => {
     const parsed = savedSearchDtoSchema.parse({
       ...wireBase,
       sortBy: 0,
-      ssykLabels: [{ conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" }],
+      occupationGroupLabels: [
+        { conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" },
+      ],
       regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
     });
-    expect(parsed.ssykLabels).toEqual([
+    expect(parsed.occupationGroupLabels).toEqual([
       { conceptId: "MVqp_eS8_kDZ", label: "Systemutvecklare" },
     ]);
     expect(parsed.regionLabels[0]?.label).toBe("Stockholms län");
@@ -81,7 +103,8 @@ describe("savedSearchDtoSchema", () => {
 
   it("defaults label lists to [] when absent (detalj-endpoint scope)", () => {
     const parsed = savedSearchDtoSchema.parse({ ...wireBase, sortBy: 0 });
-    expect(parsed.ssykLabels).toEqual([]);
+    expect(parsed.occupationGroupLabels).toEqual([]);
+    expect(parsed.municipalityLabels).toEqual([]);
     expect(parsed.regionLabels).toEqual([]);
   });
 
@@ -89,17 +112,22 @@ describe("savedSearchDtoSchema", () => {
     const parsed = savedSearchDtoSchema.parse({
       ...wireBase,
       sortBy: 0,
-      ssykLabels: [{ conceptId: "gone_99", label: "Okänd kod (gone_99)" }],
+      occupationGroupLabels: [
+        { conceptId: "gone_99", label: "Okänd kod (gone_99)" },
+      ],
     });
-    expect(parsed.ssykLabels[0]?.label).toBe("Okänd kod (gone_99)");
+    expect(parsed.occupationGroupLabels[0]?.label).toBe("Okänd kod (gone_99)");
   });
 });
 
 describe("createSavedSearchSchema", () => {
   const ok = {
     name: "Min sökning",
-    ssyk: [] as string[],
+    occupationGroup: [] as string[],
+    municipality: [] as string[],
     region: [] as string[],
+    employmentType: [] as string[],
+    worktimeExtent: [] as string[],
     q: "java",
     sortBy: "PublishedAtDesc" as const,
   };
@@ -121,38 +149,51 @@ describe("createSavedSearchSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("accepts multiple ssyk/region values (ADR 0042 Beslut B OR-bevakning)", () => {
+  it("accepts multiple occupationGroup/region values (ADR 0042 Beslut B OR-bevakning)", () => {
     const r = createSavedSearchSchema.safeParse({
       ...ok,
       q: "",
-      ssyk: ["MVqp_eS8_kDZ", "CifL_Rzy_Mku"],
+      occupationGroup: ["MVqp_eS8_kDZ", "CifL_Rzy_Mku"],
       region: ["a1"],
     });
     expect(r.success).toBe(true);
   });
 
-  it("rejects empty criteria (no ssyk/region/q) — mirrors backend SearchCriteria invariant", () => {
+  it("accepts a Klass 2-only criterion (employmentType, ADR 0067 Beslut 6)", () => {
     const r = createSavedSearchSchema.safeParse({
       ...ok,
       q: "",
-      ssyk: [],
-      region: [],
+      employmentType: ["et1"],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects empty criteria (no list/q) — mirrors backend SearchCriteria invariant", () => {
+    const r = createSavedSearchSchema.safeParse({
+      ...ok,
+      q: "",
     });
     expect(r.success).toBe(false);
   });
 
-  it("rejects invalid SSYK concept-id format", () => {
+  it("rejects invalid concept-id format", () => {
     const r = createSavedSearchSchema.safeParse({
       ...ok,
       q: "",
-      ssyk: ["inv alid!"],
+      occupationGroup: ["inv alid!"],
     });
     expect(r.success).toBe(false);
   });
 
-  it("rejects more than 10 ssyk values (cap mirrors backend)", () => {
-    const eleven = Array.from({ length: 11 }, (_, i) => `code${i}`);
-    const r = createSavedSearchSchema.safeParse({ ...ok, ssyk: eleven });
+  it(`rejects more than ${MAX_CONCEPT_IDS} values (cap mirrors backend)`, () => {
+    const tooMany = Array.from(
+      { length: MAX_CONCEPT_IDS + 1 },
+      (_, i) => `code${i}`
+    );
+    const r = createSavedSearchSchema.safeParse({
+      ...ok,
+      occupationGroup: tooMany,
+    });
     expect(r.success).toBe(false);
   });
 

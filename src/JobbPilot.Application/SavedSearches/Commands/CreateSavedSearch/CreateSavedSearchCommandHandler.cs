@@ -32,6 +32,8 @@ public sealed class CreateSavedSearchCommandHandler(
             occupationGroup: command.OccupationGroup,
             municipality: command.Municipality,
             region: command.Region,
+            employmentType: command.EmploymentType,
+            worktimeExtent: command.WorktimeExtent,
             q: command.Q,
             sortBy: command.SortBy);
         if (criteriaResult.IsFailure)

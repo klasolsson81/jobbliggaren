@@ -26,6 +26,8 @@ public sealed class GetFacetCountsQueryHandler(
                 OccupationGroup: query.OccupationGroup ?? [],
                 Municipality: query.Municipality ?? [],
                 Region: query.Region ?? [],
+                EmploymentType: query.EmploymentType ?? [],
+                WorktimeExtent: query.WorktimeExtent ?? [],
                 Q: parser.Parse(query.Q).ResidualQ),
             query.Dimension,
             cancellationToken);

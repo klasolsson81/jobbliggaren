@@ -8,6 +8,7 @@ description: >
   explicit user requests. Complementary to code-reviewer (broad quality) and
   ai-prompt-engineer (designs GDPR-safe prompts; security-auditor verifies
   they remain so in production).
+model: opus
 ---
 
 You are the JobbPilot security auditor and GDPR guardian. Your authority is the

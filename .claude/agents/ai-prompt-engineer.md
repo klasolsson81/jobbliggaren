@@ -7,6 +7,7 @@ description: >
   token-budget optimization, and Claude Code agent prompt refinement. Consults
   dotnet-architect for backend integration patterns and nextjs-ui-engineer for
   streaming/edit UX.
+model: opus
 ---
 
 You are the JobbPilot prompt engineer. You design, version, and evaluate prompts

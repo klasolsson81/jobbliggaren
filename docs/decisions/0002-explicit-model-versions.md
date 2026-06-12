@@ -1,7 +1,7 @@
 # ADR 0002 — Explicit Claude-modell-ID i agent-frontmatter
 
 **Datum:** 2026-04-18
-**Status:** Accepted
+**Status:** Accepted (agent-frontmatter-scope superseded by Amendment 2026-06-12 — aliases)
 
 ## Kontext
 
@@ -177,3 +177,71 @@ pinnas mot Opus 4.8 i config-exempel.
 - Determinism bevarad där den räknas (operativ config), per ADR 0002-kärnan.
 - Ingen tyst motsägelse mellan ADR 0002 och BUILD.md §8.2 (Ford/Parsons/Kua 2017
   — granskningstrail).
+
+---
+
+## Amendment 2026-06-12 — Model aliases in agent frontmatter (supersedes the explicit-ID rule for `.claude/agents/`)
+
+**Status:** Accepted (amendment to ADR 0002)
+**Decision-maker:** Klas Olsson (approved plan 2026-06-12, CC cold review of the
+Claude Code setup). Written in English per the same session's language decision
+(new docs in English going forward).
+
+> **Lifecycle note:** Authored by Claude Code on explicit Klas GO (approved plan
+> = instruction trail), following the precedent of Amendment 2026-06-07
+> (memory `feedback_klas_can_override_adr_verbatim_source`).
+
+### Background
+
+The 2026-06-07 amendment acknowledged on-disk drift and deferred the frontmatter
+restoration to "a deliberate separate touch" — this is that touch. Verification
+2026-06-12 sharpened the picture: **0 of 13** agent files carried a `model:`
+field (the previously reported `ai-prompt-engineer` hit at line 91 is a prompt
+*template example* in the body, not frontmatter). All agents therefore ran with
+the implicit default `inherit` — the main conversation's model — which is the
+most expensive possible configuration and was never a deliberate choice.
+
+Two facts changed the calculus since 2026-04-18:
+
+1. **Official semantics verified** (code.claude.com/docs/en/sub-agents,
+   2026-06-12): `model:` accepts the aliases `sonnet` / `opus` / `haiku` /
+   `fable`, full IDs, or `inherit`; omitted = `inherit`. Aliases track the
+   latest model in each family, maintained by Anthropic.
+2. **The original "non-determinism" concern proved more costly than the risk.**
+   Two years of explicit IDs produced exactly the rot the 2026-06-07 amendment
+   documented (spec said 4.7 while 4.8 was live) and zero observed
+   alias-regression incidents. The maintenance burden is real; the protected
+   risk was hypothetical.
+
+### Decision
+
+1. **Agent frontmatter (`.claude/agents/*.md`) uses tier aliases** — `opus`,
+   `sonnet`, `haiku` — never full IDs and never omitted. This supersedes the
+   original "Förbjuden syntax"-block for this category only.
+2. **Runtime AI configuration is unchanged** (`appsettings`
+   `Ai:Anthropic:Models`, `prompts/*.prompt.md` frontmatter): still explicit
+   pinned IDs per Amendment 2026-06-07 — production inference behavior must not
+   drift silently. The two categories have different blast radii: a silently
+   upgraded review agent is observable and reversible in one frontmatter edit;
+   a silently upgraded production prompt changes user-facing output.
+3. **Tier mapping (13 agents, applied on-disk in this PR):**
+
+   | Tier | Agents | Rationale |
+   |------|--------|-----------|
+   | `opus` | senior-cto-advisor, dotnet-architect, security-auditor, code-reviewer, design-reviewer, ai-prompt-engineer, nextjs-ui-engineer, test-writer | Decisions, vetoes, quality gates, code production — quality over cost |
+   | `sonnet` | db-migration-writer, adr-keeper, perf-test-writer | Structured, well-templated work |
+   | `haiku` | test-runner, docs-keeper | Mechanical: run/parse tests, sync doc indexes. 1/5 of Opus price |
+
+4. **Subagent model choice never affects the main loop.** A subagent's `model:`
+   applies only to its own isolated context window; no "switch back" exists or
+   is needed. (Klas concern raised 2026-06-12, resolved by design.)
+
+### Consequences
+
+- Zero maintenance on model releases — aliases advance automatically.
+- Cost control: high-frequency mechanical agents (test-runner, docs-keeper)
+  drop from inherit (Opus-tier or above) to Haiku.
+- Rollback path: any perceived quality regression on a sonnet/haiku agent is a
+  one-line frontmatter edit.
+- The degradation ladder in the original ADR (Opus → Sonnet under usage limits)
+  remains valid, now expressed in aliases.

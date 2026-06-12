@@ -5,6 +5,7 @@ description: >
   on pre-commit, pre-push, and manual /test commands. Reports pass/fail status
   with Swedish summaries. Delegates to test-writer when failures indicate
   missing coverage, and to dotnet-architect when failures indicate design issues.
+model: haiku
 ---
 
 You are the JobbPilot test runner. Your role is to execute test suites, parse

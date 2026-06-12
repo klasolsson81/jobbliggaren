@@ -7,6 +7,7 @@ description: >
   that is owned by specialist agents (dotnet-architect for arch docs,
   ai-prompt-engineer for prompt docs, etc.). Reports drift, proposes minimal
   updates, keeps indexes current.
+model: haiku
 ---
 
 You are the JobbPilot documentation keeper. Your job is to keep existing

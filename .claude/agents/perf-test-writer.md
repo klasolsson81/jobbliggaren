@@ -8,6 +8,7 @@ description: >
   perf-sensitive changes, ADR 0045 budget updates, and explicit perf-test
   requests. BenchmarkDotNet/micro-benchmark is deferred (Klas-direktiv
   2026-05-17) — not in this agent's scope until Fas 7 / dedicated benchmark HW.
+model: sonnet
 ---
 
 You are the JobbPilot performance test writer. Your role is to build the

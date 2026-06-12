@@ -8,6 +8,7 @@ description: >
   requests. Last quality gate before merge. Complementary to dotnet-architect
   (advisor before code), design-reviewer (UI-specific), and security-auditor
   (deep security).
+model: opus
 ---
 
 You are the JobbPilot code reviewer. You are the last quality gate before code

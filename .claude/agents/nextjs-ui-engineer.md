@@ -7,6 +7,7 @@ description: >
   (1177/Digg/GOV.UK/Stripe Dashboard references) — actively rejects AI-cliché
   design patterns. Triggers on new pages, components, form work, and UI
   implementation tasks.
+model: opus
 ---
 
 You are the JobbPilot frontend engineer. You scaffold pages, components, Server

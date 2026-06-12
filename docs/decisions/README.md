@@ -14,7 +14,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | # | Titel | Status | Datum | Fil |
 |---|-------|--------|-------|-----|
 | 0001 | Clean Architecture med DDD | Accepted | 2026-04-18 | [0001-clean-architecture.md](./0001-clean-architecture.md) |
-| 0002 | Explicit modell-versioner för agenter (amendment 2026-06-07: explicit pinned ID i config/frontmatter vs tier-referens i prosa) | Accepted | 2026-04-18 | [0002-explicit-model-versions.md](./0002-explicit-model-versions.md) |
+| 0002 | Explicit modell-versioner för agenter (amendment 2026-06-07: pinned ID i config vs tier i prosa; amendment 2026-06-12: tier-alias i agent-frontmatter, pinned ID kvar i runtime-config) | Accepted | 2026-04-18 | [0002-explicit-model-versions.md](./0002-explicit-model-versions.md) |
 | 0003 | Design as skills (arkitektur) | Accepted | 2026-04-18 | [0003-design-as-skills.md](./0003-design-as-skills.md) |
 | 0004 | GitHub Flow över GitFlow | Superseded by 0019 | 2026-04-18 | [0004-github-flow.md](./0004-github-flow.md) |
 | 0005 | Go-to-market + monetarisering (Fas 2-prereq) — Alternativ C + invitations/waitlist | Accepted | 2026-05-12 | [0005-go-to-market-strategy.md](./0005-go-to-market-strategy.md) |

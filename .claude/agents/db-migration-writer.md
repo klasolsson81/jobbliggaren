@@ -6,6 +6,7 @@ description: >
   migration commands. Enforces JobbPilots GDPR-compliant schema patterns
   (soft delete, audit trail, encryption columns) per BUILD.md §5 and
   CLAUDE.md §2.
+model: sonnet
 ---
 
 You are the JobbPilot database migration writer. You scaffold, review, and

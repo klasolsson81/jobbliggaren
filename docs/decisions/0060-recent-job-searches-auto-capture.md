@@ -166,3 +166,41 @@ Per ADR 0060 Beslut 1: frontend slutar konsumera SavedSearch-domänen i samma co
 Per ADR 0060 Beslut 8 (RecentJobSearches API-yta) är backend-stödet för "Senaste sökningar"-hero-chip nu levererat. ADR 0055:s tidigare deferral av Senaste-chip (i amendment 2026-05-19 — "deferrad tills BE-stöd") flyttas från deferral-listan. Frontend-rendering av Senaste-chip kan aktiveras i F6 P4a frontend-batch.
 
 **"Sparade"-chip kvar deferred** tills F6 P4b SavedJobAds-domänen är levererad (per-annons-bookmark, separat backend-prompt).
+
+---
+
+# Amendment 2026-06-12 — Beslut 3 preciseras: capture-trigger blir commit-intent-gatad (Platsbanken sök-paritet Fas E2j)
+
+**Status:** Accepted (Klas-GO på amendment-substansen 2026-06-12 via AskUserQuestion — capture-trigger Variant B).
+**Beslutsunderlag:** dotnet-architect-dom (`docs/reviews/2026-06-12-sok-paritet-e2j-architect.md`) + senior-cto-advisor-dom (`docs/reviews/2026-06-12-sok-paritet-e2j-cto.md`, decision-maker). Empiriskt fynd bekräftat i dev-DB 2026-06-12: `recent_job_searches` full vid cap=20 för en seeker, fylld av live-mellanstegsspam.
+
+> **Livscykel-/proveniens-not:** Författad av Claude Code grundad i E2j architect- + CTO-domarna (samma proveniens-mönster som ADR 0060:s ursprungliga not + E2b/D2-notaten i ADR 0067). Klas gav GO på amendment-substansen; mekaniken är CTO-bestämd. Inga nya arkitekturbeslut konstruerade utöver dom-substansen.
+
+## (a) Premissen "en query = en intention" revs av E2i:s live-sök
+
+Beslut 3 (2026-05-20) skrevs i en värld där en sökning motsvarade ett `router.push` per användarintention. ADR 0067 Fas E2i (2026-06-11, spegel-sökfältet) införde **live-sök**: hero-fältets text committas till URL:en via `router.replace` per ord medan användaren skriver. Eftersom `/jobb`:s resultat-RSC (`JobbResults`) kör `ListJobAdsQuery` vid varje URL-ändring, triggade varje mellansteg en ny auto-capture. Beslut 3:s implicita premiss — "varje lyckad `ICapturesRecentSearch`-query ≈ en avsiktlig sökning" — höll inte längre. Cap=20 fylldes av mellanstegsvarianter ("system", "systemut", "systemutvecklare", "systemutvecklare göt"…) som evictade äkta committade sökningar, och funktionen levererade motsatsen till sitt syfte (snabbåtkomst till sökningar man faktiskt kört).
+
+## (b) Trigger preciseras: `ICapturesRecentSearch.Commit` (commit-intent-gate)
+
+Markör-interfacet får en `bool Commit { get; }`-property. `RecentJobSearchCaptureBehavior` no-op:ar när `Commit == false`. FE sätter `?commit=1` ENDAST vid avsiktlig commit (Enter/Sök/förslags-val/toolbar-handlingar); live-förhandsvisning per ord (`router.replace`) utelämnar flaggan. Backend kan inte skilja `router.replace` från `router.push` (båda är `GET /api/v1/job-ads` med identiska parametrar) — commit-intentet måste bäras explicit (att gissa serverside vore Programming by Coincidence, Hunt/Thomas 1999 kap. 6).
+
+**Detta är INTE Beslut 3:s avvisade Variant B** ("explicit `CaptureRecentSearchCommand` från FE"). De fyra avvisnings-grunderna prövades verbatim mot commit-flaggan och träffar inte:
+
+| Beslut 3-invändning mot avvisade Variant B | Gäller commit-flaggan? |
+|---|---|
+| "Trust-flytt till klient" | Nej materiellt. Enda trust som flyttas är NÄR användarens EGEN historik fångas. JobSeeker-lookup sker fortfarande server-side via `ICurrentUser.UserId` (Capturer-invarianten orörd). Klienten kan inte capture:a för annan seeker, injicera annan data eller kringgå auth. Worst case benignt: över-/under-capture av egen bekvämlighets-historik. |
+| "Dubbla round-trips" | Eliminerad. Flaggan rider på list-queryn som ändå körs. Noll extra HTTP. |
+| "Race mellan list-render och capture" | Eliminerad. Samma query, samma pipeline, samma post-UnitOfWork-ordning (Mekanik-not 1). |
+| "FE måste persistera filter-shape" | Falskt. Filter-shapen ligger redan i URL:en (ADR 0042/E2g). FE sätter en boolean på en query den redan bygger. |
+
+Commit-flaggan ligger arkitektoniskt **närmare Beslut 3:s accepterade Variant A** (post-handler-behavior, markör-driven) än dess avvisade B: behaviorn, markör-patternet, best-effort-semantiken och UoW-ordningen behålls — ett commit-predikat adderas till markör-kontraktet (open/closed, Martin 2017 kap. 8). `SearchCriteria`-VO:t och Capturer-invarianten är orörda; `Commit` ingår INTE i filter-identiteten (FilterHash, Beslut 2) — det är en transient signal-param, inte en del av sökningens identitet.
+
+## (c) Mekanik-not 2 (default-browse-guard) får sällskap av en commit-guard
+
+Behaviorns no-op-kedja blir: ingen markör → no-op · **`Commit == false` → no-op (NY)** · anonym användare → no-op · alla fyra dimensioner tomma (default-browse) → no-op · `SearchCriteria.Create` failar → no-op. Commit-guarden är **additiv, inte ersättande**: en commit på tom sökning ("Sök" utan filter) capture:as fortfarande aldrig (browse-guarden består — Mekanik-not 2 oförändrad i sak).
+
+## (d) GDPR Art. 5(1)(c) — data-minimering stärkt
+
+Commit-gaten är inte bara en UX-fix utan en materiell data-minimerings-förstärkning (Mekanik-not 5/6-grannskapet). Vi persisterar nu endast de söktermer (PII) användaren explicit committade — den minimala mängd ändamålet (snabbåtkomst till avsiktliga sökningar) kräver — i stället för varje mellanstegs-keystroke-variant. Det stärker också Art. 13-disclosurens sanningshalt: "vi sparar sökningar du kör" blir bokstavligt sant. Insamlings-minimering (inte retention-städning) är rätt GDPR-mekanism (Art. 5(1)(c) reglerar insamling). security-auditor verifierade PII-insamlingsväg-ändringen (`docs/reviews/2026-06-12-sok-paritet-e2j-security-audit.md`).
+
+**FE-mekanik (utanför denna ADR:s domän, dokumenterad i ADR 0067 impl-notat E2j):** `commit` hålls strikt utanför `JobbUrlState`/`sameUrlState`/`buildJobbHref` (signal, inte tillstånd — Martin 2017 kap. 7); commit-punkterna adderar `?commit=1` som transient suffix på `router.push`/`replace`; live-`router.replace` utelämnar; no-JS-formet bär statiskt hidden `commit=1` (no-JS-submit ÄR per definition en commit); FE strippar `?commit=1` efter mount så en delad/bokmärkt länk inte re-capture:ar.

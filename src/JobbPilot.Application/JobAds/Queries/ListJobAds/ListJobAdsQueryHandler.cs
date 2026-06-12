@@ -35,6 +35,9 @@ public sealed class ListJobAdsQueryHandler(IJobAdSearchQuery search, ISearchQuer
                     OccupationGroup: query.OccupationGroup ?? [],
                     Municipality: query.Municipality ?? [],
                     Region: query.Region ?? [],
+                    // ADR 0067 Beslut 6 (Fas B2) — Klass 2 ortogonala dims.
+                    EmploymentType: query.EmploymentType ?? [],
+                    WorktimeExtent: query.WorktimeExtent ?? [],
                     // ADR 0067 Fas D2 — residual-normalisering före FTS-hybriden.
                     Q: parser.Parse(query.Q).ResidualQ),
                 query.SortBy,

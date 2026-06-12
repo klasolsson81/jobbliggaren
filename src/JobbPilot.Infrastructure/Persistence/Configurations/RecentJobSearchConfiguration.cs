@@ -85,11 +85,34 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
             .IsRequired();
         region.Metadata.SetValueComparer(stringListComparer);
 
+        // ADR 0067 Beslut 6 (Fas B2, 2026-06-12): employment_type_list +
+        // worktime_extent_list (Klass 2). Additiv migration på en levande
+        // cache-tabell — nya kolumner NOT NULL default '{}' (befintliga rader
+        // får tom lista; FilterHash-format-bump → benign dubblett, cap-20
+        // självläker). Samma shadow-backing-field-mönster som ovan.
+        var employmentType = builder.Property<List<string>>("_employmentType")
+            .HasField("_employmentType")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasColumnName("employment_type_list")
+            .HasColumnType("text[]")
+            .IsRequired();
+        employmentType.Metadata.SetValueComparer(stringListComparer);
+
+        var worktimeExtent = builder.Property<List<string>>("_worktimeExtent")
+            .HasField("_worktimeExtent")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasColumnName("worktime_extent_list")
+            .HasColumnType("text[]")
+            .IsRequired();
+        worktimeExtent.Metadata.SetValueComparer(stringListComparer);
+
         // Public IReadOnlyList<string>-getters är beräknade wrappers — EF
         // ska inte försöka mappa dem (skulle duplicera shadow-kolumnerna).
         builder.Ignore(r => r.OccupationGroup);
         builder.Ignore(r => r.Municipality);
         builder.Ignore(r => r.Region);
+        builder.Ignore(r => r.EmploymentType);
+        builder.Ignore(r => r.WorktimeExtent);
 
         builder.Property(r => r.SortBy)
             .HasConversion<int>()

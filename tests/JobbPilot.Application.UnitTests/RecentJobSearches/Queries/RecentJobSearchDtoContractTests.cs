@@ -30,6 +30,11 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(RecentJobSearchDto.RegionList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 råa listor (inga labels, Fas E).
+        t.GetProperty(nameof(RecentJobSearchDto.EmploymentTypeList))!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        t.GetProperty(nameof(RecentJobSearchDto.WorktimeExtentList))!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(RecentJobSearchDto.OccupationGroupLabels))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
         t.GetProperty(nameof(RecentJobSearchDto.MunicipalityLabels))!
@@ -69,10 +74,13 @@ public class RecentJobSearchDtoContractTests
 
         var names = ctor.GetParameters().Select(p => p.Name).ToArray();
 
+        // ADR 0067 Beslut 6 (Fas B2): EmploymentTypeList/WorktimeExtentList efter
+        // RegionList (kanonisk dimensionsordning), labels-blocket fortsatt sist.
         names.ShouldBe(
         [
             "Id", "Q",
             "OccupationGroupList", "MunicipalityList", "RegionList",
+            "EmploymentTypeList", "WorktimeExtentList",
             "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
             "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
         ]);

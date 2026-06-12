@@ -17,8 +17,15 @@ namespace JobbPilot.Domain.SavedSearches;
 /// (Ssyk UTGICK — sparade rader reverse-lookup-migrerades occupation-name →
 /// parent ssyk-level-4; senior-cto-advisor-dom (a)/(f) 2026-06-09).
 /// occupation-name-substratet bevaras i job_ads (synonym-/recall-väg via Q) —
-/// inte i VO:t. EmploymentType/WorktimeExtent-VO-fält följer sin query-wiring
-/// post re-ingest (CTO (a) — sekvensering, ej omprövning av Beslut 6).
+/// inte i VO:t.
+/// </para>
+///
+/// <para>
+/// <b>ADR 0067 Beslut 6 (Fas B2, 2026-06-12) — Klass 2 wirad:</b>
+/// <see cref="EmploymentType"/> (anställningsform) + <see cref="WorktimeExtent"/>
+/// (omfattning) är nu fullvärdiga VO-dimensioner (query-wiring landad mot
+/// re-ingestad data — ~79% av Active populerad). Ortogonala axlar (oberoende
+/// av varandra och övriga dims), enkel IN-equality i ApplyCriteria.
 /// </para>
 ///
 /// <para>
@@ -72,6 +79,16 @@ public sealed record SearchCriteria
     public IReadOnlyList<string> OccupationGroup { get; private init; } = [];
     public IReadOnlyList<string> Municipality { get; private init; } = [];
     public IReadOnlyList<string> Region { get; private init; } = [];
+
+    // ADR 0067 Beslut 6 (Fas B2, 2026-06-12) — Klass 2 anställningsform +
+    // omfattning är fullvärdiga VO-dimensioner (del av sökningens identitet, ej
+    // runtime-kontext). De är ORTOGONALA mot varandra och mot övriga dims —
+    // till skillnad från Municipality/Region (län ⊃ kommun, geo-union) är
+    // employment-type och worktime-extent oberoende axlar (enkel IN-equality,
+    // AND mot allt annat; se ApplyCriteria).
+    public IReadOnlyList<string> EmploymentType { get; private init; } = [];
+    public IReadOnlyList<string> WorktimeExtent { get; private init; } = [];
+
     public string? Q { get; private init; }
     public JobAdSortBy SortBy { get; private init; }
 
@@ -82,6 +99,8 @@ public sealed record SearchCriteria
         IEnumerable<string>? occupationGroup,
         IEnumerable<string>? municipality,
         IEnumerable<string>? region,
+        IEnumerable<string>? employmentType,
+        IEnumerable<string>? worktimeExtent,
         string? q,
         JobAdSortBy sortBy)
     {
@@ -92,18 +111,21 @@ public sealed record SearchCriteria
         var normOccupationGroup = NormalizeList(occupationGroup);
         var normMunicipality = NormalizeList(municipality);
         var normRegion = NormalizeList(region);
+        var normEmploymentType = NormalizeList(employmentType);
+        var normWorktimeExtent = NormalizeList(worktimeExtent);
         var normQ = NormalizeString(q);
 
         if (normOccupationGroup.Length == 0 && normMunicipality.Length == 0
-            && normRegion.Length == 0 && normQ is null)
+            && normRegion.Length == 0 && normEmploymentType.Length == 0
+            && normWorktimeExtent.Length == 0 && normQ is null)
         {
             return Result.Failure<SearchCriteria>(DomainError.Validation(
                 "SearchCriteria.Empty",
-                "Minst ett sökkriterium (yrkesgrupp, kommun, region eller fritext) krävs."));
+                "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning eller fritext) krävs."));
         }
 
         // Cap + per-element-regex per dimension (invariant 2 + default-deny).
-        // Helper bevarar per-dimension-felkoder utan tre duplicerade block (DRY).
+        // Helper bevarar per-dimension-felkoder utan duplicerade block (DRY).
         var error =
             ValidateConceptList(
                 normOccupationGroup,
@@ -122,7 +144,19 @@ public sealed record SearchCriteria
                 "SearchCriteria.TooManyRegion",
                 $"Max {MaxConceptIds} regioner per sökning.",
                 "SearchCriteria.InvalidRegion",
-                "Region måste vara en giltig JobTech location-concept-id (1-32 tecken, alfanumeriskt + _-).");
+                "Region måste vara en giltig JobTech location-concept-id (1-32 tecken, alfanumeriskt + _-).")
+            ?? ValidateConceptList(
+                normEmploymentType,
+                "SearchCriteria.TooManyEmploymentType",
+                $"Max {MaxConceptIds} anställningsformer per sökning.",
+                "SearchCriteria.InvalidEmploymentType",
+                "Anställningsform måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).")
+            ?? ValidateConceptList(
+                normWorktimeExtent,
+                "SearchCriteria.TooManyWorktimeExtent",
+                $"Max {MaxConceptIds} omfattningar per sökning.",
+                "SearchCriteria.InvalidWorktimeExtent",
+                "Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
 
         if (error is not null)
             return Result.Failure<SearchCriteria>(error);
@@ -143,6 +177,8 @@ public sealed record SearchCriteria
             OccupationGroup = normOccupationGroup,
             Municipality = normMunicipality,
             Region = normRegion,
+            EmploymentType = normEmploymentType,
+            WorktimeExtent = normWorktimeExtent,
             Q = normQ,
             SortBy = sortBy,
         });
@@ -191,7 +227,8 @@ public sealed record SearchCriteria
     // default REFERENS-equality → SavedSearch jsonb-dedupe skulle aldrig hitta
     // dubbletter. Listorna är redan normaliserade (sorterad+distinct ordinal)
     // i Create → sekvensjämförelse är deterministisk. Kanonisk dimensions-
-    // ordning: OccupationGroup, Municipality, Region (architect F1).
+    // ordning: OccupationGroup, Municipality, Region, EmploymentType,
+    // WorktimeExtent (architect F1; Klass 2 tillagt Fas B2, ADR 0067 Beslut 6).
     public bool Equals(SearchCriteria? other)
     {
         if (other is null)
@@ -203,7 +240,9 @@ public sealed record SearchCriteria
             && string.Equals(Q, other.Q, StringComparison.Ordinal)
             && OccupationGroup.SequenceEqual(other.OccupationGroup, StringComparer.Ordinal)
             && Municipality.SequenceEqual(other.Municipality, StringComparer.Ordinal)
-            && Region.SequenceEqual(other.Region, StringComparer.Ordinal);
+            && Region.SequenceEqual(other.Region, StringComparer.Ordinal)
+            && EmploymentType.SequenceEqual(other.EmploymentType, StringComparer.Ordinal)
+            && WorktimeExtent.SequenceEqual(other.WorktimeExtent, StringComparer.Ordinal);
     }
 
     public override int GetHashCode()
@@ -217,6 +256,10 @@ public sealed record SearchCriteria
             hash.Add(m, StringComparer.Ordinal);
         foreach (var r in Region)
             hash.Add(r, StringComparer.Ordinal);
+        foreach (var e in EmploymentType)
+            hash.Add(e, StringComparer.Ordinal);
+        foreach (var w in WorktimeExtent)
+            hash.Add(w, StringComparer.Ordinal);
         return hash.ToHashCode();
     }
 }

@@ -93,6 +93,9 @@ public sealed class ListRecentSearchesQueryHandler(
                         OccupationGroup: r.OccupationGroup,
                         Municipality: r.Municipality,
                         Region: r.Region,
+                        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 i count-filtret.
+                        EmploymentType: r.EmploymentType,
+                        WorktimeExtent: r.WorktimeExtent,
                         Q: r.Q),
                     cancellationToken);
             }
@@ -108,6 +111,9 @@ public sealed class ListRecentSearchesQueryHandler(
                 OccupationGroupList: r.OccupationGroup,
                 MunicipalityList: r.Municipality,
                 RegionList: r.Region,
+                // ADR 0067 Beslut 6 (Fas B2) — råa Klass 2-listor (inga labels, Fas E).
+                EmploymentTypeList: r.EmploymentType,
+                WorktimeExtentList: r.WorktimeExtent,
                 OccupationGroupLabels: occupationGroupLabels,
                 MunicipalityLabels: municipalityLabels,
                 RegionLabels: regionLabels,

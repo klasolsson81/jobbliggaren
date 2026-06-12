@@ -27,6 +27,8 @@ public class CreateSavedSearchCommandValidatorTests
             OccupationGroup: occupationGroup,
             Municipality: municipality,
             Region: region,
+            EmploymentType: null,
+            WorktimeExtent: null,
             Q: q,
             SortBy: sortBy,
             NotificationEnabled: notificationEnabled);
@@ -151,6 +153,8 @@ public class UpdateSavedSearchCommandValidatorTests
         new(OccupationGroup: occupationGroup,
             Municipality: municipality,
             Region: region,
+            EmploymentType: null,
+            WorktimeExtent: null,
             Q: q,
             SortBy: sortBy);
 

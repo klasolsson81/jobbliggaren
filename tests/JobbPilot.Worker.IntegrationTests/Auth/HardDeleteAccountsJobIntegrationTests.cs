@@ -148,7 +148,8 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             var clock = new FixedClock(oldDeletedAt.AddDays(-2));
             var criteria = SearchCriteria.Create(
                 occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
-                region: ["stockholm"], q: "developer",
+                region: ["stockholm"], employmentType: null, worktimeExtent: null,
+                q: "developer",
                 sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
             var saved = SavedSearch.Create(jobSeekerId, "Mitt sök", criteria, false, clock).Value;

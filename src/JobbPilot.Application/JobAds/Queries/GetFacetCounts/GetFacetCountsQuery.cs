@@ -21,4 +21,9 @@ public sealed record GetFacetCountsQuery(
     IReadOnlyList<string>? OccupationGroup = null,
     IReadOnlyList<string>? Municipality = null,
     IReadOnlyList<string>? Region = null,
+    // ADR 0067 Beslut 6 (Fas B2) — Klass 2-filterkontext måste kunna anges så
+    // facett-counten för en annan dimension reflekterar aktiva employment/
+    // worktime-filter (annars räknar facetten mot en annan WHERE än listan).
+    IReadOnlyList<string>? EmploymentType = null,
+    IReadOnlyList<string>? WorktimeExtent = null,
     string? Q = null) : IQuery<IReadOnlyDictionary<string, int>>;

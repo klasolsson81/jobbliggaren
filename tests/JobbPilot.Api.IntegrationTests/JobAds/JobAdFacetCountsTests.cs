@@ -43,7 +43,9 @@ public class JobAdFacetCountsTests(ApiFactory factory)
         string? municipality,
         string? region,
         CancellationToken ct,
-        bool archived = false)
+        bool archived = false,
+        string? employmentType = null,
+        string? worktimeExtent = null)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -65,9 +67,21 @@ public class JobAdFacetCountsTests(ApiFactory factory)
             ? "null"
             : "{" + string.Join(",", addressFields) + "}";
 
+        // B2 (ADR 0067 Beslut 6/7): Klass 2-nycklar är TOP-LEVEL. worktime via
+        // wire-key "working_hours_type" → worktime_extent_concept_id (namnglapp
+        // medvetet).
+        var employmentTypeJson = employmentType is null
+            ? "null"
+            : $"{{\"concept_id\":\"{employmentType}\"}}";
+        var worktimeExtentJson = worktimeExtent is null
+            ? "null"
+            : $"{{\"concept_id\":\"{worktimeExtent}\"}}";
+
         var rawPayload =
             $"{{\"id\":\"{externalId}\"," +
             $"\"occupation_group\":{occupationGroupJson}," +
+            $"\"employment_type\":{employmentTypeJson}," +
+            $"\"working_hours_type\":{worktimeExtentJson}," +
             $"\"workplace_address\":{workplaceAddressJson}}}";
 
         var jobAd = JobAd.Import(
@@ -97,11 +111,15 @@ public class JobAdFacetCountsTests(ApiFactory factory)
         IReadOnlyList<string>? occupationGroup = null,
         IReadOnlyList<string>? municipality = null,
         IReadOnlyList<string>? region = null,
-        string? q = null) =>
+        string? q = null,
+        IReadOnlyList<string>? employmentType = null,
+        IReadOnlyList<string>? worktimeExtent = null) =>
         new(
             OccupationGroup: occupationGroup ?? [],
             Municipality: municipality ?? [],
             Region: region ?? [],
+            EmploymentType: employmentType ?? [],
+            WorktimeExtent: worktimeExtent ?? [],
             Q: q);
 
     [Fact]
@@ -367,5 +385,134 @@ public class JobAdFacetCountsTests(ApiFactory factory)
             Criteria(region: [unusedRegion]), FacetDimension.OccupationGroup, ct);
 
         counts.ShouldBeEmpty();
+    }
+
+    // ===============================================================
+    // B2 (ADR 0067 Beslut 6/7) — EmploymentType + WorktimeExtent-facetter.
+    // Till skillnad från ort (geo-granulariteter) är dessa två ORTOGONALA:
+    // EmploymentType-facetten exkluderar BARA sin egen lista (inte worktime).
+    // ===============================================================
+
+    [Fact]
+    public async Task FacetCountsAsync_ShouldCountPerEmploymentType_WhenDimensionIsEmploymentType()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var etA = $"et{Guid.NewGuid():N}"[..16];
+        var etB = $"et{Guid.NewGuid():N}"[..16];
+
+        await SeedAsync("E-A1", null, null, null, ct, employmentType: etA);
+        await SeedAsync("E-A2", null, null, null, ct, employmentType: etA);
+        await SeedAsync("E-B1", null, null, null, ct, employmentType: etB);
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        var counts = await sut.FacetCountsAsync(
+            Criteria(), FacetDimension.EmploymentType, ct);
+
+        counts[etA].ShouldBe(2);
+        counts[etB].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task FacetCountsAsync_ShouldCountPerWorktimeExtent_WhenDimensionIsWorktimeExtent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var wtA = $"wt{Guid.NewGuid():N}"[..16];
+        var wtB = $"wt{Guid.NewGuid():N}"[..16];
+
+        await SeedAsync("W-A1", null, null, null, ct, worktimeExtent: wtA);
+        await SeedAsync("W-B1", null, null, null, ct, worktimeExtent: wtB);
+        await SeedAsync("W-B2", null, null, null, ct, worktimeExtent: wtB);
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        var counts = await sut.FacetCountsAsync(
+            Criteria(), FacetDimension.WorktimeExtent, ct);
+
+        counts[wtA].ShouldBe(1);
+        counts[wtB].ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task FacetCountsAsync_EmploymentTypeFacet_ExcludesOnlyOwnList_NotWorktime()
+    {
+        // KÄRNAN (B2, ortogonalitet): EmploymentType-facetten exkluderar sin EGEN
+        // lista (annars vore alla andra anställningsformer 0) MEN — till skillnad
+        // från ort — exkluderar INTE worktime. Ett aktivt WorktimeExtent-filter
+        // ska fortfarande begränsa employment-countsen.
+        var ct = TestContext.Current.CancellationToken;
+        var etA = $"et{Guid.NewGuid():N}"[..16];
+        var etB = $"et{Guid.NewGuid():N}"[..16];
+        var wtHel = $"wt{Guid.NewGuid():N}"[..16];
+        var wtDel = $"wt{Guid.NewGuid():N}"[..16];
+
+        // etA finns med heltid OCH deltid; etB endast deltid.
+        await SeedAsync("AHel", null, null, null, ct, employmentType: etA, worktimeExtent: wtHel);
+        await SeedAsync("ADel", null, null, null, ct, employmentType: etA, worktimeExtent: wtDel);
+        await SeedAsync("BDel", null, null, null, ct, employmentType: etB, worktimeExtent: wtDel);
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        // Facett över EmploymentType MED ett EmploymentType-filter (egen lista →
+        // exkluderas) OCH ett WorktimeExtent=heltid-filter (annan dimension →
+        // består).
+        var counts = await sut.FacetCountsAsync(
+            Criteria(employmentType: [etA], worktimeExtent: [wtHel]),
+            FacetDimension.EmploymentType, ct);
+
+        // Endast heltidsannonser räknas (worktime-filtret består): etA=1 (AHel),
+        // etB saknas helt (bara deltid). Egen etA-lista exkluderad → etA ändå med.
+        counts[etA].ShouldBe(1);
+        counts.ShouldNotContainKey(etB);
+    }
+
+    [Fact]
+    public async Task FacetCountsAsync_WorktimeExtentFacet_ExcludesOnlyOwnList_NotEmployment()
+    {
+        // Spegelbild: WorktimeExtent-facetten exkluderar sin egen lista men
+        // INTE employment — ett aktivt EmploymentType-filter består.
+        var ct = TestContext.Current.CancellationToken;
+        var etMatch = $"et{Guid.NewGuid():N}"[..16];
+        var etOther = $"et{Guid.NewGuid():N}"[..16];
+        var wtA = $"wt{Guid.NewGuid():N}"[..16];
+        var wtB = $"wt{Guid.NewGuid():N}"[..16];
+
+        await SeedAsync("MA", null, null, null, ct, employmentType: etMatch, worktimeExtent: wtA);
+        await SeedAsync("MB", null, null, null, ct, employmentType: etMatch, worktimeExtent: wtB);
+        await SeedAsync("OtherA", null, null, null, ct, employmentType: etOther, worktimeExtent: wtA);
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        var counts = await sut.FacetCountsAsync(
+            Criteria(employmentType: [etMatch], worktimeExtent: [wtA]),
+            FacetDimension.WorktimeExtent, ct);
+
+        // Bara etMatch-annonser räknas (employment-filtret består); egen
+        // worktime-lista exkluderad → både wtA och wtB med för etMatch.
+        counts[wtA].ShouldBe(1);
+        counts[wtB].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task FacetCountsAsync_EmploymentTypeFacet_ExcludesNullKey_WhenSomeJobAdsLackTheDimension()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var et = $"et{Guid.NewGuid():N}"[..16];
+
+        await SeedAsync("HasEt", null, null, null, ct, employmentType: et);
+        await SeedAsync("NoEt", null, null, null, ct, employmentType: null);
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        var counts = await sut.FacetCountsAsync(
+            Criteria(), FacetDimension.EmploymentType, ct);
+
+        counts[et].ShouldBe(1);
+        counts.Keys.ShouldNotContain(k => string.IsNullOrEmpty(k));
     }
 }

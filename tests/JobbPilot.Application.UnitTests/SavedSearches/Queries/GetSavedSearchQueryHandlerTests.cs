@@ -27,7 +27,8 @@ public class GetSavedSearchQueryHandlerTests
         db.JobSeekers.Add(seeker);
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
-            region: ["stockholm"], q: "backend",
+            region: ["stockholm"], employmentType: null, worktimeExtent: null,
+            q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Mitt sök", criteria, true,
             FakeDateTimeProvider.Default).Value;

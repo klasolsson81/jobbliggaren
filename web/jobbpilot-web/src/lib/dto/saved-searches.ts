@@ -38,25 +38,35 @@ const sortByFromWire = z
     return z.NEVER;
   });
 
-// Backend SavedSearchDto (ADR 0042 Beslut B): Id, Name, Ssyk[], Region[],
-// Q?, SortBy(int), NotificationEnabled, LastRunAt?, CreatedAt, UpdatedAt.
-// Ssyk/Region är nu IReadOnlyList (aldrig null från VO:t — tom lista =
-// inget filter). Datum är ISO 8601 på wire (ADR 0020 §6).
+// Backend SavedSearchDto (ADR 0042 Beslut B + ADR 0067): id, name,
+// occupationGroup[], municipality[], region[], employmentType[],
+// worktimeExtent[], q?, sortBy(int), notificationEnabled, lastRunAt?,
+// createdAt, updatedAt. Alla list-fält är IReadOnlyList (aldrig null från
+// VO:t — tom lista = inget filter). Datum är ISO 8601 på wire (ADR 0020 §6).
 //
-// ADR 0043 Approach A (additivt): ssykLabels/regionLabels är taxonomi-
-// reverse-lookup ({conceptId, label}) som backend resolvar i listan
-// (ListSavedSearches). Stale id → backend "Okänd kod (<id>)" (graceful
-// degradation, aldrig null/throw). Råa ssyk/region (concept-id) är
-// OFÖRÄNDRADE — labels är ett rent UI-presentationslager (ADR 0042
-// Beslut B-domänkontraktet rörs ej). Detalj-endpointen GetSavedSearch
-// returnerar tomma label-listor (CTO-scope: bara listan), därför
+// ADR 0067 Fas C2 (2026-06-09): Ssyk (occupation-name) utgick → occupationGroup
+// (ssyk-level-4) + municipality. Fas B2 (Beslut 6, 2026-06-12): employmentType
+// (anställningsform) + worktimeExtent (omfattning) tillkom som råa concept-id-
+// listor — MEDVETET UTAN *Labels (taxonomi-reverse-lookup för Klass 2 är ett
+// Fas E presentations-concern; backend emitterar inga Klass 2-labels ännu).
+//
+// ADR 0043 Approach A (additivt): occupationGroupLabels/municipalityLabels/
+// regionLabels är taxonomi-reverse-lookup ({conceptId, label}) som backend
+// resolvar i listan (ListSavedSearches). Stale id → backend "Okänd kod (<id>)"
+// (graceful degradation, aldrig null/throw). Råa concept-id-listor är
+// OFÖRÄNDRADE — labels är ett rent UI-presentationslager. Detalj-endpointen
+// GetSavedSearch returnerar tomma label-listor (CTO-scope: bara listan), därför
 // `.default([])` — schemat är robust om fältet saknas helt på wire.
 export const savedSearchDtoSchema = z.object({
   id: z.string(),
   name: z.string(),
-  ssyk: z.array(z.string()),
+  occupationGroup: z.array(z.string()),
+  municipality: z.array(z.string()),
   region: z.array(z.string()),
-  ssykLabels: z.array(taxonomyLabelSchema).default([]),
+  employmentType: z.array(z.string()),
+  worktimeExtent: z.array(z.string()),
+  occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
+  municipalityLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),
   q: z.string().nullable(),
   sortBy: sortByFromWire,
@@ -81,10 +91,13 @@ const conceptIdPattern = /^[A-Za-z0-9_-]{1,32}$/;
 
 export const NAME_MAX_LENGTH = 120;
 
-// ADR 0042 Beslut B — Ssyk/Region är nu arrays. Per-element-regex +
+// ADR 0042 Beslut B — list-dimensioner är arrays. Per-element-regex +
 // maxantal-cap speglar CreateSavedSearchCommandValidator + SearchCriteria
 // (Domain = sanningskälla; detta = defense-in-depth).
-export const MAX_CONCEPT_IDS = 10;
+// ADR 0042-amendment 2026-06-09 (ADR 0067 Fas C1): 10 → 400 (= ssyk-level-4-
+// universumets storlek så "Välj alla yrkesgrupper" aldrig träffar taket;
+// speglar Domain SearchCriteria.MaxConceptIds).
+export const MAX_CONCEPT_IDS = 400;
 
 const conceptIdListSchema = z
   .array(z.string())
@@ -94,6 +107,8 @@ const conceptIdListSchema = z
       "Varje kod måste vara 1–32 tecken (bokstäver, siffror, _ eller -).",
   });
 
+// ADR 0067 Fas C2: occupationGroup + municipality ersätter ssyk. Fas B2
+// (Beslut 6): employmentType + worktimeExtent (Klass 2) tillkom.
 export const createSavedSearchSchema = z
   .object({
     name: z
@@ -101,8 +116,11 @@ export const createSavedSearchSchema = z
       .trim()
       .min(1, "Namn är obligatoriskt.")
       .max(NAME_MAX_LENGTH, `Namn får vara max ${NAME_MAX_LENGTH} tecken.`),
-    ssyk: conceptIdListSchema,
+    occupationGroup: conceptIdListSchema,
+    municipality: conceptIdListSchema,
     region: conceptIdListSchema,
+    employmentType: conceptIdListSchema,
+    worktimeExtent: conceptIdListSchema,
     q: z
       .string()
       .refine((v) => v === "" || (v.length >= 2 && v.length <= 100), {
@@ -112,10 +130,16 @@ export const createSavedSearchSchema = z
   })
   // Tom-invariant (ADR 0042 Beslut B.3): minst en icke-tom lista ELLER q.
   .refine(
-    (v) => v.ssyk.length > 0 || v.region.length > 0 || v.q !== "",
+    (v) =>
+      v.occupationGroup.length > 0 ||
+      v.municipality.length > 0 ||
+      v.region.length > 0 ||
+      v.employmentType.length > 0 ||
+      v.worktimeExtent.length > 0 ||
+      v.q !== "",
     {
       message:
-        "Minst ett sökkriterium (sökord, yrkesområde eller region) måste anges för att spara sökningen.",
+        "Minst ett sökkriterium (sökord, yrkesgrupp, kommun, region, anställningsform eller omfattning) måste anges för att spara sökningen.",
       path: ["name"],
     }
   );

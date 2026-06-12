@@ -18,18 +18,24 @@ namespace JobbPilot.Domain.UnitTests.SavedSearches;
 // Kompilerar mot mål-API:t (annars blockeras impl-bygget).
 public class SearchCriteriaTests
 {
-    // Helper — named arguments obligatoriskt (tre likatypade listor i rad,
-    // architect F1-disciplin).
+    // Helper — named arguments obligatoriskt (nu FEM likatypade listor i rad,
+    // architect F1-disciplin). B2 (ADR 0067 Beslut 6/7): EmploymentType
+    // (anställningsform) + WorktimeExtent (omfattning) tillkommer som de fjärde/
+    // femte list-dimensionerna i kanonisk dimensionsordning EFTER region, FÖRE q.
     private static Result<SearchCriteria> Create(
         IEnumerable<string>? occupationGroup = null,
         IEnumerable<string>? municipality = null,
         IEnumerable<string>? region = null,
+        IEnumerable<string>? employmentType = null,
+        IEnumerable<string>? worktimeExtent = null,
         string? q = null,
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc) =>
         SearchCriteria.Create(
             occupationGroup: occupationGroup,
             municipality: municipality,
             region: region,
+            employmentType: employmentType,
+            worktimeExtent: worktimeExtent,
             q: q,
             sortBy: sortBy);
 
@@ -392,9 +398,10 @@ public class SearchCriteriaTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("SearchCriteria.Empty");
-        // Copy-kontrakt per architect F1 (nämner alla fyra kriterietyper).
+        // Copy-kontrakt per architect F1. B2 (ADR 0067 Beslut 6/7): meddelandet
+        // nämner nu även anställningsform + omfattning (de två nya dimensionerna).
         result.Error.Message.ShouldBe(
-            "Minst ett sökkriterium (yrkesgrupp, kommun, region eller fritext) krävs.");
+            "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning eller fritext) krävs.");
     }
 
     [Fact]
@@ -570,5 +577,259 @@ public class SearchCriteriaTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.SortBy.ShouldBe(JobAdSortBy.Relevance);
         result.Value.Q.ShouldBe("backend");
+    }
+
+    // ===============================================================
+    // B2 (ADR 0067 Beslut 6/7 Fas B2) — EmploymentType (anställningsform)
+    // + WorktimeExtent (omfattning) som nya list-dimensioner. Samma fyra
+    // ADR 0042 Beslut B-invarianter som de befintliga listorna; nya felkoder
+    // SearchCriteria.{TooMany,Invalid}{EmploymentType,WorktimeExtent}.
+    // RÖD tills SearchCriteria.cs har de två nya properties + Create-paramen.
+    // ===============================================================
+
+    // --- Happy path + tom-invariant (minst EN av fem listor ELLER Q) ---
+
+    [Fact]
+    public void Create_WithEmploymentTypeOnly_ReturnsSuccess()
+    {
+        // Tom-invarianten utökad: enbart EmploymentType (alla andra tomma, Q
+        // null) räcker → giltig sökning.
+        var result = Create(employmentType: ["et_fast"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.EmploymentType.ShouldBe(["et_fast"]);
+        result.Value.WorktimeExtent.ShouldBeEmpty();
+        result.Value.OccupationGroup.ShouldBeEmpty();
+        result.Value.Municipality.ShouldBeEmpty();
+        result.Value.Region.ShouldBeEmpty();
+        result.Value.Q.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Create_WithWorktimeExtentOnly_ReturnsSuccess()
+    {
+        var result = Create(worktimeExtent: ["wt_heltid"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.WorktimeExtent.ShouldBe(["wt_heltid"]);
+        result.Value.EmploymentType.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Create_NewDimensions_DefaultToEmpty_WhenNotSupplied()
+    {
+        // De två nya listorna defaultar till [] (aldrig null) precis som de
+        // befintliga list-dimensionerna.
+        var result = Create(occupationGroup: ["grp1"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.EmploymentType.ShouldBeEmpty();
+        result.Value.WorktimeExtent.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Create_WithAllFiveDimensionsAndQ_ReturnsSuccess()
+    {
+        var result = Create(
+            occupationGroup: ["grp1"],
+            municipality: ["sthlm_kn"],
+            region: ["stockholm"],
+            employmentType: ["et_fast", "et_vikariat"],
+            worktimeExtent: ["wt_heltid"],
+            q: "backend");
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.EmploymentType.ShouldBe(["et_fast", "et_vikariat"]);
+        result.Value.WorktimeExtent.ShouldBe(["wt_heltid"]);
+    }
+
+    // --- Invariant 1 — normalisering (trim/distinct/sort ordinal) ---
+
+    [Fact]
+    public void Create_NormalizesEmploymentType_SortedDistinctOrdinal()
+    {
+        var result = Create(employmentType: ["b", "a", "b", " c "]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.EmploymentType.ShouldBe(["a", "b", "c"]);
+    }
+
+    [Fact]
+    public void Create_NormalizesWorktimeExtent_SortedDistinctOrdinal()
+    {
+        var result = Create(worktimeExtent: ["wt_deltid", "wt_heltid", "wt_deltid"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.WorktimeExtent.ShouldBe(["wt_deltid", "wt_heltid"]);
+    }
+
+    // --- Invariant 2 — equality inkluderar de två nya listorna ---
+
+    [Fact]
+    public void TwoCriteria_DifferentEmploymentType_AreNotValueEqual()
+    {
+        var a = Create(employmentType: ["et_fast"]).Value;
+        var b = Create(employmentType: ["et_vikariat"]).Value;
+
+        a.Equals(b).ShouldBeFalse();
+        (a == b).ShouldBeFalse();
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void TwoCriteria_DifferentWorktimeExtent_AreNotValueEqual()
+    {
+        var a = Create(worktimeExtent: ["wt_heltid"]).Value;
+        var b = Create(worktimeExtent: ["wt_deltid"]).Value;
+
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void TwoCriteria_SameValueInEmploymentVsWorktimeDimension_AreNotValueEqual()
+    {
+        // Dimension-förväxlingsgrind: samma concept-id i de TVÅ nya dimensionerna
+        // får aldrig vara lika (jsonb-dedupe-säkerhet).
+        var a = Create(employmentType: ["x1"]).Value;
+        var b = Create(worktimeExtent: ["x1"]).Value;
+
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void TwoCriteria_NewDimensionsSameElementsDifferentOrder_AreValueEqual()
+    {
+        // Normalisering → strukturell likhet trots input-ordning (jsonb-dedupe).
+        var a = Create(
+            employmentType: ["b", "a"], worktimeExtent: ["y", "x"]).Value;
+        var b = Create(
+            employmentType: ["a", "b"], worktimeExtent: ["x", "y"]).Value;
+
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void TwoCriteria_IdenticalIncludingNewDimensions_AreValueEqual()
+    {
+        var a = Create(
+            occupationGroup: ["grp1"], employmentType: ["et_fast"],
+            worktimeExtent: ["wt_heltid"], q: "backend").Value;
+        var b = Create(
+            occupationGroup: ["grp1"], employmentType: ["et_fast"],
+            worktimeExtent: ["wt_heltid"], q: "backend").Value;
+
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+    }
+
+    // --- Invariant 3 — maxantal-cap per ny lista (MaxConceptIds) ---
+
+    [Fact]
+    public void Create_WithExactlyMaxEmploymentType_ReturnsSuccess()
+    {
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"et{i}").ToArray();
+
+        var result = Create(employmentType: max);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.EmploymentType.Count.ShouldBe(SearchCriteria.MaxConceptIds);
+    }
+
+    [Fact]
+    public void Create_WithOneOverMaxEmploymentType_ReturnsFailure()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"et{i}").ToArray();
+
+        var result = Create(employmentType: overMax);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.TooManyEmploymentType");
+    }
+
+    [Fact]
+    public void Create_WithOneOverMaxWorktimeExtent_ReturnsFailure()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"wt{i}").ToArray();
+
+        var result = Create(worktimeExtent: overMax);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.TooManyWorktimeExtent");
+    }
+
+    // --- Invariant 4 — tom-invariant generaliserad till FEM listor ---
+
+    [Fact]
+    public void Create_WithAllFiveListsEmptyAndNullQ_ReturnsEmptyFailure()
+    {
+        var result = Create(
+            occupationGroup: [], municipality: [], region: [],
+            employmentType: [], worktimeExtent: [], q: null);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.Empty");
+    }
+
+    [Fact]
+    public void Create_WithOnlyEmploymentTypeAndEmptyOthers_ReturnsSuccess()
+    {
+        var result = Create(
+            occupationGroup: [], municipality: [], region: [],
+            employmentType: ["et_fast"], worktimeExtent: []);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Create_WithOnlyWorktimeExtentAndEmptyOthers_ReturnsSuccess()
+    {
+        var result = Create(
+            occupationGroup: [], municipality: [], region: [],
+            employmentType: [], worktimeExtent: ["wt_heltid"]);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    // --- Invariant 5 — per-element-regex ^[A-Za-z0-9_-]{1,32}$ ---
+
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("åäö")]
+    [InlineData("dot.notation")]
+    [InlineData("123456789012345678901234567890123")] // 33 tecken
+    public void Create_WithInvalidEmploymentTypeElement_ReturnsFailure(string bad)
+    {
+        var result = Create(employmentType: ["et_fast", bad]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.InvalidEmploymentType");
+    }
+
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("åäö")]
+    [InlineData("123456789012345678901234567890123")]
+    public void Create_WithInvalidWorktimeExtentElement_ReturnsFailure(string bad)
+    {
+        var result = Create(worktimeExtent: ["wt_heltid", bad]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.InvalidWorktimeExtent");
+    }
+
+    [Theory]
+    [InlineData("a")]
+    [InlineData("ABC-123_xyz")]
+    [InlineData("12345678901234567890123456789012")] // exakt 32 tecken
+    public void Create_WithValidEmploymentTypeElementFormat_ReturnsSuccess(string et)
+    {
+        var result = Create(employmentType: [et]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.EmploymentType.ShouldBe([et]);
     }
 }

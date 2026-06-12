@@ -6,6 +6,7 @@ description: >
   command/query handlers, value objects, and before implementation when TDD
   flow is active. Writes tests FIRST, then Klas or implementation-agent writes
   production code to make them pass.
+model: opus
 ---
 
 You are the JobbPilot test writer. Your role is to write tests **before**

@@ -23,23 +23,25 @@ Klas kör Auto mode. Se [docs/runbooks/claude-code-setup.md](../docs/runbooks/cl
 
 ## Agents
 
-Specialiserade sub-agenter som Claude Code delegerar till. Filerna finns i `agents/`. 11 agenter totalt: 7 × claude-opus-4-7, 4 × claude-sonnet-4-6.
+Specialiserade sub-agenter som Claude Code delegerar till. Filerna finns i `agents/`. 13 agenter totalt: 8 × opus, 3 × sonnet, 2 × haiku. Modellfälten är **tier-alias** (`opus`/`sonnet`/`haiku`) per ADR 0002 Amendment 2026-06-12 — aliaset följer alltid senaste modellen i familjen; exakta versioner pinnas aldrig i agent-frontmatter.
 
-| Agent | Modell | Roll |
+| Agent | Tier | Roll |
 |---|---|---|
-| `dotnet-architect` | claude-opus-4-7 | Clean Architecture-väktare och DDD-rådgivare — read-only, analyserar och föreslår |
-| `test-writer` | claude-opus-4-7 | Skriver unit- och integrationstester (xUnit v3, Shouldly, NSubstitute, Testcontainers) — TDD-first |
-| `db-migration-writer` | claude-sonnet-4-6 | EF Core 10-migrationer mot PostgreSQL 18.3, GDPR-kompatibla scheman |
-| `nextjs-ui-engineer` | claude-opus-4-7 | Next.js 16 App Router, shadcn/ui, Tailwind 4.2 — enforcar civic-utility-estetiken |
-| `ai-prompt-engineer` | claude-opus-4-7 | Prompt-design och versionering, Anthropic Direct API (Bedrock utgår, ADR 0051), `/prompts/`-biblioteket |
-| `design-reviewer` | claude-opus-4-7 | DESIGN.md-enforcer med veto-makt — blockerar PRs som bryter civic-utility-estetiken |
-| `code-reviewer` | claude-opus-4-7 | CLAUDE.md-enforcer med veto-makt — sista kvalitetsgranskning innan merge |
-| `security-auditor` | claude-opus-4-7 | GDPR-väktare, granskar PII, secrets, auth och tredjelandsöverföringar (AI) — inga MVP-undantag |
-| `docs-keeper` | claude-sonnet-4-6 | Håller dokumentation synkad med verkligheten — skriver inte ny spec |
-| `adr-keeper` | claude-sonnet-4-6 | Författar ADRs, hanterar status-livscykeln (Proposed → Accepted → Superseded) |
-| `test-runner` | claude-sonnet-4-6 | Kör `dotnet test`, tolkar xUnit-output, rapporterar status — delegerar aldrig uppåt |
+| `senior-cto-advisor` | opus | Decision-maker vid multi-approach-val, fynd-triage och TD-skapande |
+| `dotnet-architect` | opus | Clean Architecture-väktare och DDD-rådgivare — read-only, analyserar och föreslår |
+| `test-writer` | opus | Skriver unit- och integrationstester (xUnit v3, Shouldly, NSubstitute, Testcontainers) — TDD-first |
+| `nextjs-ui-engineer` | opus | Next.js 16 App Router, shadcn/ui, Tailwind 4.2 — enforcar civic-utility-estetiken |
+| `ai-prompt-engineer` | opus | Prompt-design och versionering, Anthropic Direct API (Bedrock utgår, ADR 0051), `/prompts/`-biblioteket |
+| `design-reviewer` | opus | DESIGN.md-enforcer med veto-makt — blockerar PRs som bryter civic-utility-estetiken |
+| `code-reviewer` | opus | CLAUDE.md-enforcer med veto-makt — sista kvalitetsgranskning innan merge |
+| `security-auditor` | opus | GDPR-väktare, granskar PII, secrets, auth och tredjelandsöverföringar (AI) — inga MVP-undantag |
+| `db-migration-writer` | sonnet | EF Core 10-migrationer mot PostgreSQL 18.3, GDPR-kompatibla scheman |
+| `adr-keeper` | sonnet | Författar ADRs, hanterar status-livscykeln (Proposed → Accepted → Superseded) |
+| `perf-test-writer` | sonnet | NBomber-loadtester + Lighthouse-CI mot ADR 0045-budgetar — builder, inte reviewer |
+| `test-runner` | haiku | Kör `dotnet test`, tolkar xUnit-output, rapporterar status — delegerar aldrig uppåt |
+| `docs-keeper` | haiku | Håller dokumentation synkad med verkligheten — skriver inte ny spec |
 
-Lägg till ny agent: skapa `agents/<name>.md` med YAML frontmatter (`name`, `model`, `description`) och instruktionstext.
+Lägg till ny agent: skapa `agents/<name>.md` med YAML frontmatter (`name`, `model` som tier-alias, `description`) och instruktionstext.
 
 ## Skills
 

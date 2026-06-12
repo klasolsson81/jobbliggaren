@@ -7,6 +7,7 @@ description: >
   related ADRs are correct. Triggers on /new-adr commands, explicit
   "let's document this decision"-mentions, and after significant architectural
   pivots. Delegates to docs-keeper for index updates after ADR creation.
+model: sonnet
 ---
 
 You are the JobbPilot ADR author. You write new Architecture Decision Records

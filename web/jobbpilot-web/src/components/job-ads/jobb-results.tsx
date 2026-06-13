@@ -43,6 +43,9 @@ interface JobbResultsProps {
   occupationGroup: string[];
   region: string[];
   municipality: string[];
+  // Klass 2 (2026-06-13) — anställningsform + omfattning.
+  employmentType: string[];
+  worktimeExtent: string[];
   q: string;
   since: string;
   /**
@@ -61,6 +64,8 @@ interface JobbResultsProps {
     occupationGroup?: string | string[];
     region?: string | string[];
     municipality?: string | string[];
+    employmentType?: string | string[];
+    worktimeExtent?: string | string[];
     q?: string;
   };
 }
@@ -72,6 +77,8 @@ export async function JobbResults({
   occupationGroup,
   region,
   municipality,
+  employmentType,
+  worktimeExtent,
   q,
   since,
   commit,
@@ -84,7 +91,16 @@ export async function JobbResults({
   // MaxConceptIds × 4 = 1600; teoretiskt max här = 400 yrkesgrupper +
   // 21 län + 290 kommuner = 711 — täcker, men marginalen krymper om en
   // fjärde dimension (employmentType, B2) någonsin chip-resolvas.
-  const selectedConceptIds = [...occupationGroup, ...region, ...municipality];
+  // Klass 2 — anställningsform/omfattning chip-resolvas via samma server-
+  // reverse-lookup (kind-agnostisk sedan PR-1). Cap-aritmetik (E2b fråga 5):
+  // backend-resolve-capet MaxConceptIds×4 = 1600 täcker även de ~8+2 nya.
+  const selectedConceptIds = [
+    ...occupationGroup,
+    ...region,
+    ...municipality,
+    ...employmentType,
+    ...worktimeExtent,
+  ];
   const [result, labelsResult] = await Promise.all([
     getJobAds({
       page,
@@ -93,6 +109,8 @@ export async function JobbResults({
       occupationGroup,
       region,
       municipality,
+      employmentType,
+      worktimeExtent,
       q,
       since,
       commit,
@@ -130,6 +148,8 @@ export async function JobbResults({
             occupationGroup={occupationGroup}
             region={region}
             municipality={municipality}
+            employmentType={employmentType}
+            worktimeExtent={worktimeExtent}
             resolvedLabels={resolvedLabels}
             q={q}
             sortBy={sortBy}
@@ -218,6 +238,13 @@ function buildPageHref(
   // sidan av buildJobbHref — architect-dom fråga 4.1).
   for (const v of toStringList(params.municipality))
     url.append("municipality", v);
+  // Klass 2 — utan dessa tappar sida-2-klicket anställningsform/omfattning
+  // (samma felklass som municipality ovan; buildPageHref är en andra URL-
+  // builder vid sidan av buildJobbHref).
+  for (const v of toStringList(params.employmentType))
+    url.append("employmentType", v);
+  for (const v of toStringList(params.worktimeExtent))
+    url.append("worktimeExtent", v);
   if (params.q) url.set("q", params.q);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";

@@ -69,3 +69,45 @@ verifierad on-disk.
 PR-2 (FE Klass-2 filterpanel) mot PR-1:s `/taxonomy`-fält. Hård dependency
 PR-1→PR-2→PR-3. Kurerings-frågan (8 rå vs Platsbankens 5) avgörs i PR-2
 rendered-review med Klas.
+
+---
+
+## PR-2 (samma session) — FE Klass 2 filterpanel
+
+Branch `feat/klass2-filter-panel` (off main efter PR-1 #61-merge).
+
+**Klas-beslut (AskUserQuestion):** anställningsform-val = **ärliga 8** (vår korpus
+1:1, riktiga JobTech-labels, ingen kurering/mappning) — ej Platsbankens kurerade 5.
+Eliminerar mis-mapping-risk; ACL ärlig. Omfattning = radio (Platsbanken-bild),
+Anställningsform = checkbox-multi.
+
+**Bygge (nextjs-ui-engineer):** ny `jobb-klass2-panel.tsx` (enkolumns popover,
+`role="radiogroup"` roving-tabindex för Omfattning + `role="group"` checkbox för
+Anställningsform, per-sektion `.jp-clearlink`, `useDismissable`, "Visa N"-footer).
+Plumbing: `JobbUrlState`/`buildJobbHref`/`ListJobAdsQuery`/`buildQuery`/`chip-models`
+(DimensionAxis +2 + buildChipModels + buildTaxonomyLabelResolver) + tredje "Filter"-
+pill i `jobb-hero-filters` (`useOptimistic` FilterSelection +2) + toolbar-chips
+(Clock=omfattning, FileText=anställningsform) + page.tsx-parsning + no-JS hidden
+inputs + "Rensa alla filter" +2. CSS `.jp-panel*`/`.jp-radioitem*` (accent-800-fyll =
+checkitem-paritet). NO facet-counts (PR-3).
+
+**Reviews:**
+- code-reviewer: **1 Major + 1 Minor → in-block-fixade.**
+  - Major: recent-search-replay tappade tyst Klass 2. Premissen "DTO bär inte
+    fälten" var FEL — backend `RecentJobSearchDto.EmploymentTypeList/WorktimeExtentList`
+    finns sedan B2/#60. Fix: FE-zod `recent-searches.ts` +2 fält; `recent-search-row`
+    + `recent-searches-hero-chip` konsumerar dem; replay-test.
+  - Minor: `sameUrlState` (tokenize.ts) kompletterad med de 2 dims.
+- design-reviewer: **✓ Approved 0/0/2** (border-strong-indikatorkontrast 2,52:1 =
+  pre-existing `.jp-checkitem`-baseline → TD-kandidat, ej in-block; worktime-ordning =
+  rendered-review). FAS-DEFERRAL-MANIFEST för rendered (auth-gated /jobb, stack nere).
+
+**Gates:** tsc rent, vitest 128 (bygge) + recent/tokenize/search-params 63 (efter fix),
+pnpm build grön, eslint rent.
+
+**Rendered-flaggor till Klas (lokalt/post-deploy):** (1) Omfattning Deltid-före-Heltid
+(Label Ordinal) vs Platsbankens Heltid-först; (2) pill-namn "Filter"; (3) "Vanlig
+anställning" (24k) synlig i honest-8; (4) dark/fokus/pilnav/NVDA per manifest.
+
+**Känd uppföljning:** border-strong-indikatorkontrast (radio+checkbox-kontrakt,
+tvärgående) — design-reviewer TD-kandidat, ej denna PR.

@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, MapPin, Search, X } from "lucide-react";
+import {
+  Briefcase,
+  Clock,
+  FileText,
+  MapPin,
+  Search,
+  X,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import {
   buildJobbHref,
@@ -43,6 +51,11 @@ interface JobbResultsToolbarProps {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
+  // Klass 2 (2026-06-13) — anställningsform + omfattning. Renderas som
+  // borttagbara chips i samma rad (server-resolverade labels via
+  // /taxonomy/labels, kind-agnostisk sedan PR-1).
+  employmentType: ReadonlyArray<string>;
+  worktimeExtent: ReadonlyArray<string>;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -62,11 +75,26 @@ const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string }> = [
   { value: "ExpiresAtAsc", label: "Ansökningsdatum (sista ansökan)" },
 ];
 
+// Ikon per chip-axel (civic-restrained, lucide). yrke = Briefcase, ort =
+// MapPin, anställningsform = FileText, omfattning = Clock, fritext = Search.
+// Briefcase är upptaget av yrke → Klass-2-axlarna får egna ikoner (FileText
+// för "form/avtal", Clock för "tid/omfattning").
+const CHIP_ICON: Record<SearchChip["axis"], LucideIcon> = {
+  region: MapPin,
+  municipality: MapPin,
+  occupationGroup: Briefcase,
+  employmentType: FileText,
+  worktimeExtent: Clock,
+  q: Search,
+};
+
 export function JobbResultsToolbar({
   totalCount,
   occupationGroup,
   region,
   municipality,
+  employmentType,
+  worktimeExtent,
   resolvedLabels,
   q,
   sortBy,
@@ -94,10 +122,21 @@ export function JobbResultsToolbar({
       occupationGroup: [...occupationGroup],
       region: [...region],
       municipality: [...municipality],
+      employmentType: [...employmentType],
+      worktimeExtent: [...worktimeExtent],
       sortBy,
       pageSize,
     }),
-    [q, occupationGroup, region, municipality, sortBy, pageSize],
+    [
+      q,
+      occupationGroup,
+      region,
+      municipality,
+      employmentType,
+      worktimeExtent,
+      sortBy,
+      pageSize,
+    ],
   );
   const [urlState, setOptimisticState] = useOptimistic(
     base,
@@ -137,6 +176,10 @@ export function JobbResultsToolbar({
       occupationGroup: [],
       region: [],
       municipality: [],
+      // Klass 2 — "Rensa sökord och filter" nollar ALLA axlar inkl.
+      // anställningsform/omfattning (least surprise — allt med × försvinner).
+      employmentType: [],
+      worktimeExtent: [],
       q: "",
     });
   }
@@ -182,17 +225,13 @@ export function JobbResultsToolbar({
             role="group"
             aria-label="Aktiva sökord och filter"
           >
-            {chips.map((chip) => (
+            {chips.map((chip) => {
+              // Ikon per tagg-typ (CHIP_ICON — Klass 2 lade employmentType/
+              // worktimeExtent; E2i — q-taggar särskiljs som Search).
+              const ChipIcon = CHIP_ICON[chip.axis];
+              return (
               <span key={`${chip.axis}-${chip.value}`} className="jp-filterchip">
-                {/* Ikon per tagg-typ: yrke = Briefcase, ort = MapPin,
-                    fritext-sökord = Search (E2i — q-taggar särskiljs). */}
-                {chip.axis === "occupationGroup" ? (
-                  <Briefcase size={12} aria-hidden="true" />
-                ) : chip.axis === "q" ? (
-                  <Search size={12} aria-hidden="true" />
-                ) : (
-                  <MapPin size={12} aria-hidden="true" />
-                )}
+                <ChipIcon size={12} aria-hidden="true" />
                 {chip.label}
                 <button
                   type="button"
@@ -207,7 +246,8 @@ export function JobbResultsToolbar({
                   <X size={12} aria-hidden="true" />
                 </button>
               </span>
-            ))}
+              );
+            })}
             {/* Länktexten säger vad den gör (design M2 E2i — ADR 0047:
                 handlingen raderar även egenskrivna sökord och ska
                 kommunicera det före klicket). */}

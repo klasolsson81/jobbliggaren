@@ -72,6 +72,13 @@ interface JobbHeroSearchProps {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
+  // Klass 2 (2026-06-13) — panel-valda anställningsform/omfattning. Aldrig
+  // text-representabla i fältet (som popover-dimensionerna, CTO VAL 4a) —
+  // de bärs bara genom delta-/commit-vägen så en sökord-ändring inte raderar
+  // ett aktivt Klass-2-filter (buildJobbHref kräver dem; utan denna tråd
+  // skulle fältets commit bygga en href som tappar dem).
+  employmentType: ReadonlyArray<string>;
+  worktimeExtent: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -84,6 +91,8 @@ export function JobbHeroSearch({
   occupationGroup,
   region,
   municipality,
+  employmentType,
+  worktimeExtent,
   sortBy,
   pageSize,
 }: JobbHeroSearchProps) {
@@ -109,10 +118,21 @@ export function JobbHeroSearch({
       occupationGroup: [...occupationGroup],
       region: [...region],
       municipality: [...municipality],
+      employmentType: [...employmentType],
+      worktimeExtent: [...worktimeExtent],
       sortBy,
       pageSize,
     }),
-    [q, occupationGroup, region, municipality, sortBy, pageSize],
+    [
+      q,
+      occupationGroup,
+      region,
+      municipality,
+      employmentType,
+      worktimeExtent,
+      sortBy,
+      pageSize,
+    ],
   );
 
   // Fältets text — användarens buffert. Initieras till kanonisk spegel av
@@ -434,6 +454,24 @@ export function JobbHeroSearch({
           key={`municipality-${v}`}
           type="hidden"
           name="municipality"
+          value={v}
+        />
+      ))}
+      {/* Klass 2 — no-JS-submit bär aktiva anställningsform/omfattning-filter
+          så en sökord-sökning utan JS inte tappar panelvalen. */}
+      {lastCommitted.employmentType.map((v) => (
+        <input
+          key={`employmentType-${v}`}
+          type="hidden"
+          name="employmentType"
+          value={v}
+        />
+      ))}
+      {lastCommitted.worktimeExtent.map((v) => (
+        <input
+          key={`worktimeExtent-${v}`}
+          type="hidden"
+          name="worktimeExtent"
           value={v}
         />
       ))}

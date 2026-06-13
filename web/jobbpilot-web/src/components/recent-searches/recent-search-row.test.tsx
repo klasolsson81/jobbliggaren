@@ -22,6 +22,8 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     occupationGroupList: ["MVqp_eS8_kDZ"],
     municipalityList: [],
     regionList: ["CifL_Rzy_Mku"],
+    employmentTypeList: ["gro4_cWF_6D7"],
+    worktimeExtentList: ["6YE1_gAC_R2G"],
     occupationGroupLabels: [
       { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
     ],
@@ -56,6 +58,20 @@ describe("RecentSearchRow", () => {
     expect(screen.getByText(/42/)).toBeInTheDocument();
     expect(screen.getByText(/träffar/)).toBeInTheDocument();
     expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
+  });
+
+  it("replay href carries Klass 2 (employmentType + worktimeExtent) so 'Kör igen' keeps the filter", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto()}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    const href =
+      screen.getByRole("link", { name: /Kör igen/ }).getAttribute("href") ?? "";
+    expect(href).toContain("employmentType=gro4_cWF_6D7");
+    expect(href).toContain("worktimeExtent=6YE1_gAC_R2G");
   });
 
   it("renders 'varav (M) nya' when newCount > 0", () => {

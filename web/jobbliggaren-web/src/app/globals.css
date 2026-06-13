@@ -1474,7 +1474,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   width: 20px;
   height: 20px;
   border-radius: var(--jp-r-sm);
-  border: 2px solid var(--jp-border-strong);
+  /* WCAG 1.4.11: --jp-border-input (#7C8AA0, 3.5:1 on paper) not
+     --jp-border-strong (#97A4B8, 2.52:1 — sub-3:1 fail in light).
+     Dark unchanged (both #6F86A8, 3.81:1). Form controls = input token. */
+  border: 2px solid var(--jp-border-input);
   background: var(--jp-surface);
   display: inline-flex;
   align-items: center;
@@ -1553,7 +1556,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  border: 2px solid var(--jp-border-strong);
+  /* WCAG 1.4.11 — see .jp-checkitem__box note (same indicator-border fix). */
+  border: 2px solid var(--jp-border-input);
   background: var(--jp-surface);
   display: inline-flex;
   align-items: center;

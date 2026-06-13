@@ -142,6 +142,49 @@ describe("JobbKlass2Panel — Anställningsform (checkbox multi-select)", () => 
   });
 });
 
+describe("JobbKlass2Panel — facet-counts (PR-3)", () => {
+  it("renderar per-option-tal på Heltid/Deltid men INTE på 'Alla'", () => {
+    setup({ worktimeExtentCounts: { wt_heltid: 100, wt_deltid: 25 } });
+    expect(
+      screen.getByRole("radio", { name: /Heltid/ }).textContent,
+    ).toContain("(100)");
+    expect(
+      screen.getByRole("radio", { name: /Deltid/ }).textContent,
+    ).toContain("(25)");
+    // "Alla" bär aldrig ett tal (summan ägs av list-svarets totalCount, SPOT).
+    expect(screen.getByRole("radio", { name: "Alla" }).textContent).not.toMatch(
+      /\(\d/,
+    );
+  });
+
+  it("renderar per-option-tal på anställningsform-checkboxar", () => {
+    setup({ employmentTypeCounts: { et_vanlig: 24, et_vikariat: 7 } });
+    expect(
+      screen.getByRole("checkbox", { name: /Vanlig anställning/ }).textContent,
+    ).toContain("(24)");
+    expect(
+      screen.getByRole("checkbox", { name: /Vikariat/ }).textContent,
+    ).toContain("(7)");
+  });
+
+  it("saknad nyckel i count-dicten → 0 (degraderar inte raden)", () => {
+    setup({ employmentTypeCounts: { et_vanlig: 24 } });
+    expect(
+      screen.getByRole("checkbox", { name: /Sommarjobb/ }).textContent,
+    ).toContain("(0)");
+  });
+
+  it("null counts → inga tal renderas (degraderad/pre-fetch, panelen användbar)", () => {
+    setup({ employmentTypeCounts: null, worktimeExtentCounts: null });
+    expect(
+      screen.getByRole("checkbox", { name: "Vikariat" }).textContent,
+    ).not.toMatch(/\(\d/);
+    expect(
+      screen.getByRole("radio", { name: "Heltid" }).textContent,
+    ).not.toMatch(/\(\d/);
+  });
+});
+
 describe("JobbKlass2Panel — a11y + degradering", () => {
   it("panelen exponeras som dialog med aria-label 'Filter'", () => {
     setup();

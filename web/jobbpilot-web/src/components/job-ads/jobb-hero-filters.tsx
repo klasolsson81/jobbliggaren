@@ -261,6 +261,10 @@ export function JobbHeroFilters({
     occupationGroup,
     municipality: ort.municipality,
     region: ort.region,
+    // PR-3 — Klass 2 ingår i facett-filtret så Ort/Yrke-facetterna reflekterar
+    // anställningsform/omfattning OCH vice versa (backend exkluderar egen dim).
+    employmentType: selection.employmentType,
+    worktimeExtent: selection.worktimeExtent,
     q,
   };
   const municipalityCounts = useFacetCounts(
@@ -273,6 +277,17 @@ export function JobbHeroFilters({
     "OccupationGroup",
     facetFilter,
     openPop === "yrke",
+  );
+  // PR-3 — Klass 2-facetter, gated på "Filter"-panelen öppen.
+  const employmentTypeCounts = useFacetCounts(
+    "EmploymentType",
+    facetFilter,
+    openPop === "filter",
+  );
+  const worktimeExtentCounts = useFacetCounts(
+    "WorktimeExtent",
+    facetFilter,
+    openPop === "filter",
   );
 
   // "Visa N annonser"-stängknappen (CTO VAL 2): N = list-svarets totalCount
@@ -416,6 +431,8 @@ export function JobbHeroFilters({
         worktimeExtentOptions={taxonomy?.worktimeExtents ?? []}
         employmentType={selection.employmentType}
         worktimeExtent={selection.worktimeExtent}
+        employmentTypeCounts={employmentTypeCounts}
+        worktimeExtentCounts={worktimeExtentCounts}
         onEmploymentTypeChange={changeEmploymentType}
         onWorktimeExtentChange={changeWorktimeExtent}
         emptyText="Filter kunde inte laddas just nu. Du kan söka på sökord ändå."

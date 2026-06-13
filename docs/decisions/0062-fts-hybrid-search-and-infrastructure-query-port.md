@@ -229,3 +229,83 @@ Detta amendment dokumenterar enbart filter-tillägget i `IJobAdSearchQuery`-port
 - senior-cto-advisor 2026-05-23 (`a8e277380b446bb02`) — Q4=(W) ApplyCriteria-SPOT-val
 - ADR 0062 Beslut 1–3 (FTS-hybrid + port-kontrakt — oförändrade)
 - ADR 0048 (cross-aggregat join vs port — global query-filter avvisad här på samma grund)
+
+---
+
+## Amendment 2026-06-13 — title-LIKE branch gated on `q.Length >= 3` (TD-94 perf-ratchet)
+
+**Datum:** 2026-06-13
+**Källa:** TD-94 root fix — free-text q-COUNT violated ADR 0045 Klass (a) 300 ms p95 warm.
+**Trigger:** `CountAsync` (and by extension `FacetCountsAsync` and `SearchAsync`'s internal `totalCount`) measured 777 ms warm / 9 310 ms OS-cold for q = "ai" (2-char), far exceeding the 300 ms p95 budget. EXPLAIN ANALYZE isolated the root cause to the planner choosing a Seq Scan that de-TOASTs the wide STORED `search_vector` column (521 MB TOAST, ~3 198 B/row) for every row when the title-LIKE branch forces a full-corpus evaluation for queries too short to use the GIN trigram index.
+**Beslutsfattare:** senior-cto-advisor 2026-06-13 (agentId `a0472fa5783cdf9ea`) + dotnet-architect 2026-06-13 (root-cause isolation, agentId `a1ce174943247863e`); Klas Olsson (Accepted-direktiv, TD-94 Klas-direktiv session 2026-06-13 — Klas reviews prose post-hoc).
+**Status:** Accepted 2026-06-13.
+
+> **Livscykel-/proveniens-not:** Written 2026-06-13 by Claude Code (adr-keeper) on explicit Klas-direktiv for TD-94 root fix, following the same proveniens-mönster established at ADR 0062 rad 9 (memory `feedback_klas_can_override_adr_verbatim_source`). Decision substance grounded in agent verdicts: dotnet-architect root-cause isolation (agentId `a1ce174943247863e`, 2026-06-13) and senior-cto-advisor ruling that the filter-semantic change must be documented as an ADR 0062 amendment (agentId `a0472fa5783cdf9ea`, 2026-06-13). Klas reviews prose post-hoc.
+
+### Beslut
+
+**Beslut 1 Amendment** — The title-LIKE branch in Beslut 1's q-hybrid is now gated on `q.Length >= 3`:
+
+```
+-- q >= 3 chars (unchanged):
+search_vector @@ websearch_to_tsquery('swedish', q)  OR  lower(title) LIKE '%q%'
+
+-- q < 3 chars (new — FTS-only, no title-LIKE):
+search_vector @@ websearch_to_tsquery('swedish', q)
+```
+
+This gate lives in `ApplyCriteria` inside `Jobbliggaren.Infrastructure/JobAds/JobAdSearchQuery.cs` — the ADR 0039 Beslut 1 SPOT. Because all three consumers (`SearchAsync`, `CountAsync`, `FacetCountsAsync`) pass through the same shared `ApplyCriteria`, the gate applies identically to list, count, and facets. There is no list↔count divergence.
+
+### Root cause (dotnet-architect isolation, 2026-06-13)
+
+The planner chose a Seq Scan when the q-length was below 3. The isolation proof:
+
+- Forced seq scan + `lower(title) LIKE '%utvecklare%'` → 44 ms / 7 274 buffers.
+- Forced seq scan + `search_vector @@ 'utvecklare'` → 531 ms / 223 335 buffers → **487 ms delta = pure TOAST-detoast** of the `search_vector` STORED column.
+
+A GIN trigram index physically cannot serve a `LIKE '%q%'` predicate for a query shorter than 3 characters (trigrams are 3-grams). For a 2-char q such as "ai" the title-LIKE branch therefore forced a btree-prefix/seq scan over the full corpus (42 873 rows, 346 ms warm) even though FTS alone was highly selective (1 907 rows, < 20 ms). The planner's cost model does not account for TOAST-detoast cost, so it mis-selected Seq Scan over the GIN bitmap when the title-LIKE predicate was present.
+
+Gating title-LIKE to `q.Length >= 3` lets short queries use the GIN `search_vector` bitmap directly, avoiding full-corpus TOAST-detoast.
+
+### Companion mechanism: `SET LOCAL enable_seqscan = off` for count paths
+
+`CountAsync`, `FacetCountsAsync`, and `SearchAsync`'s internal `totalCount` now wrap the pure-count query in a transaction with `SET LOCAL enable_seqscan = off` (implemented as `CountWithBitmapPlanAsync` in `JobAdSearchQuery.cs`). This coaxes the planner to the GIN Bitmap(Or) plan even when it would otherwise mis-cost it due to the TOAST-detoast gap in its cost model.
+
+This is an **execution-budget concern, not a filter-semantic change** — it does not alter which rows match. ADR 0039 Beslut 1's SPOT on filter-semantics is intact. The list's `ts_rank`-ordered items query is deliberately left on the default planner (its ordered scan benefits from planner freedom). This mechanism does not require a separate Beslut; it is documented here so a future reader understands why count and list paths have different execution hints.
+
+### Trade-off accepted
+
+Mid-word substring matching on the `title` for queries shorter than 3 characters is dropped (from list, count, and facets uniformly). The UI contract established in Beslut 1 (`systemut` → `systemutvecklare`) requires at least 3 characters and is unaffected. A 2-char title-substring match is marginal recall in practice: short FTS lexemes cover the same tokens, and the prior behavior for < 3-char queries was carrying a full-corpus Seq Scan (346 ms warm) regardless of result selectivity.
+
+senior-cto-advisor (2026-06-13, agentId `a0472fa5783cdf9ea`) ruled this a net improvement with no functional regression against the documented UI contract, and mandated it be documented as an ADR 0062-amendment because it changes the filter-semantics of the shared SPOT.
+
+### Verified results (warm / shared-cold, local dev corpus 42 711 active job_ads)
+
+| Query | Before | After | ADR 0045 Klass (a) budget |
+|---|---|---|---|
+| ai (2-char, now FTS-only) | 777 ms warm / 9 310 ms OS-cold | 15 ms / 16 ms | 300 ms p95 |
+| utvecklare (≥3, BitmapOr) | 294–413 ms | 96 ms / 157 ms | 300 ms p95 |
+| lärare (≥3, BitmapOr) | 332 ms | 116 ms | 300 ms p95 |
+
+All results within ADR 0045 Klass (a) 300 ms p95 warm. 169 integration tests green (JobAds + RecentSearches + SavedSearches). OS-cold cliff structurally reduced (bitmap reads ~1 700–42 000 buffers vs 177 000 for seq scan); full OS-cold mitigation (pg_prewarm) is a separate fas-tillhörig TD per CTO ruling.
+
+### Implementations-trail
+
+- `src/Jobbliggaren.Infrastructure/JobAds/JobAdSearchQuery.cs` — `ApplyCriteria` q-predicate gated on `q.Length >= 3`; `CountWithBitmapPlanAsync` wraps count queries with `SET LOCAL enable_seqscan = off`.
+
+### Konsekvenser
+
+- **ADR 0045 Klass (a) 300 ms p95 warm restored** — all measured q-terms now within budget.
+- **SPOT preserved** — the `q.Length >= 3` gate sits in the single shared `ApplyCriteria`; list, count, and facets cannot diverge.
+- **Beslut 1–5 of ADR 0062 are otherwise unchanged.** The FTS-hybrid architecture, `IJobAdSearchQuery` port, `JobAdFilterCriteria` SPOT, and cross-references to ADR 0039/0061 remain in force.
+- **Trade-off accepted** — < 3-char title-LIKE substring dropped; marginal recall loss against a structural perf win. Documented explicitly so a future reader does not remove the gate assuming it is an oversight.
+
+### Referenser
+
+- [ADR 0045](./0045-performance-budget-and-fitness-functions.md) Beslut 1 Klass (a) — 300 ms p95 warm budget (violated before this fix)
+- [ADR 0039](./0039-savedsearch-aggregate-and-query-run-semantics.md) Beslut 1 — `ApplyCriteria` SPOT (gate lives here; SPOT integrity preserved)
+- [ADR 0061](./0061-job-ad-search-perf-strategy.md) — GIN trigram-index precedent (trigrams cannot serve < 3-char LIKE predicates)
+- TD-94 — free-text COUNT perf-ratchet (re-opened after initial FTS-hybrid deploy; closed by this amendment)
+- dotnet-architect 2026-06-13 (agentId `a1ce174943247863e`) — root-cause isolation, TOAST-detoast delta proof
+- senior-cto-advisor 2026-06-13 (agentId `a0472fa5783cdf9ea`) — net-improvement ruling + mandate to document as ADR 0062-amendment
+- `src/Jobbliggaren.Infrastructure/JobAds/JobAdSearchQuery.cs` — q-predicate gate + `CountWithBitmapPlanAsync`

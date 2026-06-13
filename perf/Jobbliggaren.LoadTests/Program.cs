@@ -27,6 +27,9 @@
 //   LOADTEST_SCENARIOS=landing-stats dotnet run ...
 //     → kör baseline + landing-stats-scenarierna.
 //
+//   LOADTEST_SCENARIOS=q-count dotnet run ...
+//     → kör baseline + q-COUNT-hot-path-scenariot (TD-94 regression guard).
+//
 //   LOADTEST_SCENARIOS=all dotnet run ...
 //     → kör allt.
 
@@ -109,6 +112,19 @@ if (scenarioSelector is "facet-counts" or "all")
 
     scenarioBudgets[facetHeavy.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
     scenarioBudgets[facetReflected.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
+}
+
+// TD-94 (perf-ratchet) — q-COUNT hot path. Vaktar mot regression av
+// enable_seqscan=off-GUC:en + title-LIKE≥3-gate i JobAdSearchQuery.cs.
+// Kräver LOADTEST_BEARER_TOKEN (auth-gated ListReadPolicy) — utan den
+// blir requests 401 → fail-count → BudgetReporter-warning (avsiktligt synligt).
+if (scenarioSelector is "q-count" or "all")
+{
+    var qCount = FreeTextCountScenarios.QCountHotPath(httpClient, baseUrl);
+
+    scenarios.Add(qCount);
+
+    scenarioBudgets[qCount.ScenarioName] = FreeTextCountScenarios.Class_A_P95_BudgetMs;
 }
 
 Console.WriteLine(

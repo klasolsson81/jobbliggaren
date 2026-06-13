@@ -2670,3 +2670,75 @@ dotnet-architect-rond + index-strategi då naturligt ingår i återstarts-scope.
 blocker för) är också vilande tills återstart.
 
 **Commits:** PR `chore/aws-dev-stack-teardown-2026-05-26` (denna stängning).
+
+---
+
+## TD-94 (RE-STÄNGNING 2026-06-13): fritext-q-COUNT perf — rotfix levererad
+
+**Återöppnad:** 2026-06-13 (empiriskt bekräftad mot lokal post-ADR-0067-stack,
+42 711 Active job_ads — CTO-rond recent-search-count-defekt, agentId
+`a16f38885e1dcb379`). Ursprungs-body + 2026-05-26-obsolet-stängningen står kvar
+ovan (audit-trail; ADR 0066-teardown är ett daterat record).
+
+**Stängd på riktigt:** 2026-06-13 — rotfix levererad i samma PR.
+
+### Empiri (före fix, lokal dev, 42 711 Active job_ads)
+
+COUNT med produktionspredikatet `status='Active' AND (search_vector @@
+websearch_to_tsquery('swedish',q) OR lower(title) LIKE '%q%')`:
+- Strukturerad (occupation_group, ingen fritext): ~31 ms.
+- Fritext varm: "utvecklare" 294–413 ms, "lärare" 332 ms.
+- Fritext "ai": **777 ms varm / 9 310 ms OS-cold**.
+
+### Rotorsak (dotnet-architect-rond, agentId `a1ce174943247863e`)
+
+Planeraren valde **Seq Scan**, som de-TOAST:ar den breda STORED `search_vector`-
+kolumnen (521 MB TOAST, ~3 198 B/rad) per rad för att evaluera `@@`.
+Isolationsbevis (forcerad seqscan, samma tabell): `lower(title) LIKE
+'%utvecklare%'` = 44 ms / 7 274 buffers vs `search_vector @@ 'utvecklare'` =
+531 ms / 223 335 buffers → 487 ms delta = ren TOAST-detoast. När GIN-bitmappen
+serverar `@@` (ingen full-table-detoast) är varje term < 160 ms. Planeraren
+mis-kostar bitmappen eftersom TOAST-detoast-kostnaden inte finns i dess
+kostnadsmodell. GIN-trigram kan dessutom fysiskt inte serva en < 3-teckens
+`LIKE '%q%'` → 2-tecken-q ("ai") tvingade full-korpus-scan trots selektiv FTS.
+Motbevisat (kör ej): `random_page_cost`/`cpu_operator_cost`-tuning flippar inte
+planeraren; OR→UNION-omskrivning gav värre plan.
+
+### CTO-vald lösning (agentId `a0472fa5783cdf9ea`) — C1 + C3
+
+- **C3 (filter-semantik):** title-LIKE-grenen villkoras på `q.Length >= 3` i
+  delade `ApplyCriteria` (ADR 0039 SPOT) → list + count + facets delar grinden,
+  ingen list↔count-divergens. Avvisade "släpp title-LIKE bara ur count" (skapar
+  totalCount ≠ listrader — SPOT-brott).
+- **C1 (exekverings-budget):** `CountAsync`, `FacetCountsAsync` och
+  `SearchAsync.totalCount` wrappar count-queryn i en transaktion med
+  `SET LOCAL enable_seqscan = off` (`CountWithBitmapPlanAsync`) → tvingar GIN
+  Bitmap(Or)-planen. Rör inte filter-predikatet → SPOT intakt.
+- Ingen migration. ADR 0062-amendment 2026-06-13 dokumenterar C3:s semantik-
+  ändring.
+
+### Verifierat (efter fix, warm / shared-cold)
+
+| q | före | efter |
+|---|---|---|
+| ai (2-tecken, FTS-only) | 777 ms / 9 310 ms OS-cold | 15 ms / 16 ms |
+| utvecklare (≥3, BitmapOr) | 294–413 ms | 96 ms / 157 ms |
+| lärare (≥3, BitmapOr) | 332 ms | 116 ms |
+
+Alla inom ADR 0045 Klass (a) 300 ms p95 warm. 169 integrationstester gröna
+(JobAds + RecentSearches + SavedSearches; +2 nya TD-94-tester). NBomber
+`free_text_q_count`-scenario tillagt (observe-only, ADR 0045 Beslut 5).
+
+### Cold-svans → TD-110
+
+OS-cache-kallstart (9 310 ms före) tryckt ned strukturellt (bitmap läser
+~1 700–42 000 buffers vs ~177 000 för seq scan), men ej helt eliminerad —
+pg_prewarm/cache-warming lyft som **TD-110** (Hetzner-deploy-fas, samma drift-
+rum som TD-104).
+
+### Reviews
+
+dotnet-architect (rotorsak + kandidat-rangordning), senior-cto-advisor
+(C1+C3-dom), code-reviewer + security-auditor (se PR-body).
+
+**Commits:** PR `feat/td94-qcount-bitmap-plan` (denna stängning).

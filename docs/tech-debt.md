@@ -64,7 +64,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-106 | Hetzner Docker-Compose-stack + reverse-proxy (Caddy) + deploy-sekvens + VPS-härdning | **Major** | Hetzner-deploy | Infra/Deploy |
 | TD-107 | Krypterad offsite-backup (Hetzner-EU Storage Box) + restore-runbook + retention | **Major** | Hetzner-deploy | Infra/GDPR/Backup |
 | TD-103 | Application-assembly-split för isolerad Worker-jobb-scan (återinför ValidateOnBuild=true) | Minor | Trigger | Architecture/Code quality |
-| TD-94 | `ListJobAdsQuery`/recent-search COUNT perf — fritext-Q-COUNT slow (leading-wildcard title-LIKE i OR med GIN-FTS); ADR 0045-violation **återöppnad 2026-06-13** (empiriskt bekräftad post-ADR-0067) | **Major** | Trigger (perf-ratchet) | Performance/Backend/Search |
+| TD-110 | q-COUNT OS-cache-kallstart (pg_prewarm/cache-warming) — bitmap-fixen (TD-94) tryckte ned klippet men eliminerar det inte helt | Minor | Hetzner-deploy | Performance/Operations |
 
 ---
 
@@ -96,7 +96,7 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 
 ## Major — F6 P5 Punkt 2-fas-stängning
 
-*(Sektionen tom 2026-05-26 — TD-94 stängd som obsolet i AWS dev-stack teardown semester-pause Fas B per ADR 0066. **TD-94 återöppnad 2026-06-13** och omklassad till `## Major — Trigger (perf-ratchet)` — se översiktstabellen + den aktiva posten.)*
+*(Sektionen tom 2026-05-26 — TD-94 stängd som obsolet i AWS dev-stack teardown semester-pause Fas B per ADR 0066. TD-94 återöppnades 2026-06-13 och **stängdes på riktigt samma dag** (rotfix: bitmap-plan-tvång + title-LIKE≥3-grind, ADR 0062-amendment 2026-06-13) — se arkivet. Cold-svansen lyft som TD-110.)*
 
 ---
 
@@ -266,50 +266,6 @@ av Redis-nyckel) så cache-hit-scenariot inte träffar Floor-fallback hela tiden
 0045 Beslut 6-ratchet närmar sig (flip observe-only → blockerande kräver
 faktisk runtime-mätning), eller (c) någon annan fitness-function-yta behöver
 samma stack.
-
-
-## Major — Trigger (perf-ratchet)
-
-## TD-94: `ListJobAdsQuery`/recent-search COUNT perf — slow fritext-Q-COUNT (ADR 0045-violation)
-
-**Kategori:** Performance/Backend/Search
-**Severity:** Major
-**Fas:** Trigger (perf-ratchet — fix när native-snabb COUNT krävs, eller när
-ADR 0045-fitness-funktionerna ratchas observe-only → blockerande)
-**Källa:** Ursprungligen senior-cto-advisor F6 P5 P4-rond 2026-05-24; **stängd
-som obsolet 2026-05-26** vid AWS-RDS-teardown (ADR 0066) med uttrycklig not
-"re-öppna vid återstart om rot kvarstår". **Återöppnad 2026-06-13** —
-empiriskt bekräftad mot lokal post-ADR-0067-stack (CTO-rond recent-search-
-count-defekt, agentId `a16f38885e1dcb379`). Full ursprungs-body + stängningsnot
-bevarad i `tech-debt-archive.md` (audit-trail; ADR 0066-stängningen står kvar
-som daterat record).
-
-**Empiri (2026-06-13, lokal dev, 42 703 Active job_ads):** COUNT med produktions-
-predikatet `status='Active' AND (search_vector @@ websearch_to_tsquery('swedish',q)
-OR lower(title) LIKE '%q%')`:
-- Strukturerad (occupation_group, ingen fritext): **~31 ms** — snabb.
-- Fritext varm: "utvecklare" 413 ms, "lärare" 332 ms, "sjuksköterska" 332 ms.
-- Fritext "ai": **777 ms varm / 9 310 ms kall**.
-
-**Rotorsak:** leading-wildcard `LOWER(title) LIKE '%q%'` i OR-gren med GIN-
-tsvector-matchen → trigram-indexet (≥3 tecken) hjälper inte 2-tecken-ord ("ai")
-och OR:en hindrar en ren index-plan → scan. cap=20 recent-searches × sekventiell
-N+1-COUNT återskapar 8s-FE-timeouten (Npgsql 57014) — därav `IncludeCount=false`
-överallt och den (nu interimt borttagna) `(0)`-träffräknaren.
-
-**Föreslagen åtgärd:**
-1. dotnet-architect-rond: EXPLAIN ANALYZE mot lokal korpus, index-/predikat-strategi.
-2. Kandidat: trigram-only för title-LIKE-grenen vid ≥3 tecken, ELLER släpp
-   title-LIKE ur COUNT-grenen men behåll i list (semantik-skillnaden list↔count
-   måste då vägas + dokumenteras — risk för avvikande totalCount vs listrader).
-3. NBomber-scenario för regression-skydd per ADR 0045.
-
-**Relation till recent-search-count (separat arbete, EJ denna TD):** den synliga
-träffräknaren restaureras via lat klient-hämtning (B, useFacetCounts-mönstret,
-CTO-beslut 2026-06-13) — det gör perf till en UX-icke-blockerare oberoende av
-denna rotfix. Interim-fixen (ta bort falsk `(0)`) levererades 2026-06-13.
-
-**Beroenden:** Inga blockerande (verktyg + agenter finns lokalt).
 
 
 ## Major — Fas 3+
@@ -1118,6 +1074,44 @@ ingen Secrets Manager, så den nuvarande migrations-runnern kan inte köras.
 **Cross-refs:** ADR 0050 (VPS-exit), ADR 0066 (AWS-exit), TD-72 (Migrate bootstrap-auto-trigger, deploy-CI).
 
 
+## TD-110: q-COUNT OS-cache-kallstart (pg_prewarm / cache-warming)
+
+**Kategori:** Performance / Operations
+**Severity:** Minor
+**Fas:** Hetzner-deploy (samma drift-fas som TD-104 observability — prewarm-
+strategi/cron-infrastruktur finns ej i nuvarande lokal-dev-fas)
+**Källa:** senior-cto-advisor-dom 2026-06-13 (agentId `a0472fa5783cdf9ea`) i
+TD-94-stängningen — explicit lyft som separat fas-tillhörig TD.
+
+TD-94 stängde warm-budget-brottet (fritext-q-COUNT < 300 ms p95 warm via
+bitmap-plan-tvång + title-LIKE≥3-grind). Den **OS-cache-kalla** worst-casen —
+en första fritext-COUNT efter att OS-page-cachen vräkts (t.ex. efter box-
+omstart) — uppmättes till 9 310 ms för "ai" före fixen. Bitmap-planen tryckte
+ned klippet **strukturellt** (bitmap läser ~1 700–42 000 buffers vs ~177 000
+för seq scan → ~10–25× färre disk-reads, OS-cold worst-case faller från ~9 s
+till sub-sekund), men eliminerar det inte helt: en GIN-bitmap-heap-scan måste
+fortfarande läsa matchade heap-sidor från disk vid kallstart.
+
+**Föreslagen åtgärd (vid Hetzner-deploy):**
+
+1. `pg_prewarm`-extension + en warming-strategi/cron som värmer `job_ads`-
+   heap + GIN-indexen (`ix_job_ads_search_vector`, `ix_job_ads_title_lower_trgm`)
+   efter box-/Postgres-omstart, så första riktiga användartrafiken möter en
+   varm cache.
+2. Alternativt/komplement: `shared_buffers`-/`effective_cache_size`-tuning för
+   VPS-box-RAM (CAX31, ADR 0050) så hot-korpusen ryms residens.
+3. Verifiera mot ADR 0045-budget under OS-cold-villkor på faktisk VPS-HW
+   (samma fitness-function-trend-disciplin som TD-104/observability-passet).
+
+**Beroenden:** Hetzner-box + Postgres provisionerad; prewarm-cron-infrastruktur
+(delar drift-fas-rum med TD-104). Inga blockerande lokalt.
+**Trigger:** Hetzner-cutover, eller om OS-cold-latensen blir ett observerat
+problem i beta-drift.
+**Cross-refs:** TD-94 (warm-budget-stängningen — denna TD är cold-svansen),
+ADR 0045 (perf-budget + fitness-functions), ADR 0062-amendment 2026-06-13
+(bitmap-plan-tvång), TD-104 (observability, samma drift-fas).
+
+
 ## Minor — Efter MVP / Trigger-baserade
 
 Adresseras vid faktisk användarsignal, skala-tröskel eller opportunistisk touch.
@@ -1756,7 +1750,7 @@ ADR-cross-references och granskningsbevis.
 | TD-82 | Översikt/Dashboard-sida (post-login-landningsvy) | 2026-05-24 | F6 P5 Punkt 4 — `/oversikt`-route levererad per HANDOVER-oversikt.md + CTO-dom Variant A (direkt RSC `Promise.all`) |
 | TD-95 | "Senaste sökning"-rad tom i Översikt-sammanfattning | 2026-05-24 | F6 P5 P4 svans-PR4 — rot=ListRecentSearchesQueryHandler:60 N+1 COUNT timeout → fix via IncludeCount-parameter |
 | TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl) | 2026-05-26 | AWS dev-stack teardown semester-pause Fas B (ADR 0066) — RDS raderas, drift försvinner naturligt |
-| TD-94 | ~~`ListJobAdsQuery` perf p50 ~1.2s / max 6.7s (ADR 0045 violation)~~ — **ÅTERÖPPNAD 2026-06-13** (rot kvarstår empiriskt post-ADR-0067; se aktiv post i översiktstabellen) | 2026-05-26 → återöppnad 2026-06-13 | AWS dev-stack teardown (ADR 0066); re-open-villkoret i stängningsnoten uppfyllt |
+| TD-94 | `ListJobAdsQuery`/recent-search fritext-q-COUNT perf (ADR 0045-violation) | 2026-05-26 (obsolet) → återöppnad + **stängd på riktigt 2026-06-13** | Rotfix: bitmap-plan-tvång (`SET LOCAL enable_seqscan=off` på count-vägen) + title-LIKE≥3-grind i delade ApplyCriteria; ai 777→15 ms, utvecklare 413→96 ms, lärare 332→116 ms (alla < 300 ms p95 warm). ADR 0062-amendment 2026-06-13. Cold-svans → TD-110 |
 
 ---
 

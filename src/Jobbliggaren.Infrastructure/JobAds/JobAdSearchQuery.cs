@@ -1,8 +1,8 @@
 using Jobbliggaren.Application.Common;
-using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NpgsqlTypes;
 
@@ -27,7 +27,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// </para>
 /// </summary>
 internal sealed class JobAdSearchQuery(
-    IAppDbContext db,
+    AppDbContext db,
     IOccupationSynonymExpander synonymExpander) : IJobAdSearchQuery
 {
     // PostgreSQL text-search-config för svensk stemming. Måste matcha EXAKT
@@ -41,8 +41,13 @@ internal sealed class JobAdSearchQuery(
         var baseQuery = ApplyCriteria(db.JobAds.AsNoTracking(), criteria.Filter, synonymExpander);
 
         // Separat count-query (CLAUDE.md §3.6). Filter appliceras före count så
-        // totalen reflekterar filtrerad mängd, inte hela korpusen.
-        var totalCount = await baseQuery.CountAsync(cancellationToken);
+        // totalen reflekterar filtrerad mängd, inte hela korpusen. TD-94 —
+        // samma bitmap-plan-tvång som CountAsync/FacetCountsAsync: denna count
+        // är ListJobAdsQuery:s fritext-totalCount (TD-94:s headline-konsument)
+        // och lider av identisk TOAST-detoast-seqscan. Den efterföljande items-
+        // queryn (ts_rank-ordering + paginering) körs UTANFÖR transaktionen och
+        // är medvetet orörd (enable_seqscan=off vore fel för ts_rank-vägen).
+        var totalCount = await CountWithBitmapPlanAsync(baseQuery.CountAsync, cancellationToken);
 
         var ordered = ApplySort(baseQuery, criteria.SortBy, criteria.Filter.Q);
 
@@ -73,11 +78,13 @@ internal sealed class JobAdSearchQuery(
 
     public async ValueTask<int> CountAsync(
         JobAdFilterCriteria criteria, CancellationToken cancellationToken)
+    {
         // Ren count — ingen sortering, paginering eller projektion. Samma
         // ApplyCriteria-väg som SearchAsync (SPOT). ADR 0060 Beslut 4 N+1
-        // capped vid 20; q-FTS gör count-vägen snabb (ADR 0061 Beslut 3).
-        => await ApplyCriteria(db.JobAds.AsNoTracking(), criteria, synonymExpander)
-            .CountAsync(cancellationToken);
+        // capped vid 20.
+        var query = ApplyCriteria(db.JobAds.AsNoTracking(), criteria, synonymExpander);
+        return await CountWithBitmapPlanAsync(query.CountAsync, cancellationToken);
+    }
 
     // ADR 0067 Beslut 4 (Fas D1) — per-option facet-counts.
     public async ValueTask<IReadOnlyDictionary<string, int>> FacetCountsAsync(
@@ -99,13 +106,44 @@ internal sealed class JobAdSearchQuery(
         // Npgsql-assemblyn ⊂ Infrastructure (ADR 0062 Beslut 4 provider-assembly-
         // axel). NULL-shadow exkluderas (annons utan värde på dimensionen) →
         // ingen null-nyckel; predikatet matchar partial-indexet WHERE col IS NOT NULL.
-        var grouped = await baseQuery
+        var groupedQuery = baseQuery
             .Where(j => EF.Property<string?>(j, column) != null)
             .GroupBy(j => EF.Property<string?>(j, column))
-            .Select(g => new { ConceptId = g.Key!, Count = g.Count() })
-            .ToListAsync(cancellationToken);
+            .Select(g => new { ConceptId = g.Key!, Count = g.Count() });
+
+        // TD-94 (CTO-utvidgning 2026-06-13) — facet-counten kör samma
+        // ApplyCriteria-q-väg och lider av samma TOAST-detoast-seqscan vid
+        // fritext. Samma bitmap-plan-tvång som CountAsync.
+        var grouped = await CountWithBitmapPlanAsync(
+            ct => groupedQuery.ToListAsync(ct), cancellationToken);
 
         return grouped.ToDictionary(x => x.ConceptId, x => x.Count, StringComparer.Ordinal);
+    }
+
+    // TD-94 (perf-ratchet, ADR 0045 Klass (a) 300 ms p95 warm) — coax the
+    // planner to the GIN bitmap for the q-COUNT. A bare COUNT over the
+    // FTS-hybrid q-predikatet otherwise Seq Scans and de-TOASTs the wide STORED
+    // search_vector column per row (~300–2451 ms warm / ~9 s OS-cold; isolerat
+    // bevisat: detoast-delta 487 ms, dotnet-architect-rond 2026-06-13). The GIN
+    // Bitmap(Or) plan avoids the detoast (<150 ms warm) men planeraren mis-kostar
+    // den eftersom TOAST-detoast-kostnaden inte finns i dess kostnadsmodell.
+    //
+    // SET LOCAL enable_seqscan = off är transaktions-scopad: den MÅSTE köras på
+    // SAMMA pinnade connection som counten (annars no-op utanför transaktionsblock)
+    // och återställs vid commit → läcker aldrig till den poolade connectionen
+    // (Npgsql pooling-hygien). Rör inte filter-predikatet → ADR 0039 Beslut 1
+    // SPOT på filter-semantik intakt; detta är en exekverings-budget-concern, ett
+    // annat ansvar (SoC, senior-cto-advisor-dom 2026-06-13, agentId a0472fa5783cdf9ea).
+    private async ValueTask<TResult> CountWithBitmapPlanAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> count, CancellationToken cancellationToken)
+    {
+        await using var transaction =
+            await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(
+            "SET LOCAL enable_seqscan = off", cancellationToken);
+        var result = await count(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     // FacetDimension → STORED shadow-column (kolumnnamn är Infrastructure-hemlighet;
@@ -261,22 +299,39 @@ internal sealed class JobAdSearchQuery(
             var pattern = $"%{q.ToLowerInvariant()}%";
             var expandedSsyks = synonymExpander.Expand(q);
 
+            // TD-94 (perf-ratchet, ADR 0045) / ADR 0062-amendment 2026-06-13 —
+            // title-LIKE-grenen körs ENDAST för q ≥ 3 tecken. GIN-trigram kan
+            // fysiskt inte serva en <3-teckens LIKE '%q%' (trigram = 3-grams) →
+            // för korta q tvingas en btree-prefix-/seq-scan över hela korpusen
+            // (42 873 rader, ~346 ms) trots att FTS-grenen ensam är selektiv.
+            // FTS-lexem-matchningen täcker korta vanliga termer ändå (search_vector
+            // spänner title+description). Grinden bor i delade ApplyCriteria → den
+            // gäller list + count + facets samtidigt (ADR 0039 Beslut 1 SPOT —
+            // ingen list↔count-divergens). Marginell trade-off: <3-teckens mitt-i-
+            // ord-substring i titel matchas inte längre; UI-kontraktet (`systemut`
+            // → `systemutvecklare`, ADR 0062 Beslut 1) är ≥3 tecken och opåverkat.
+            var includeTitleLike = q.Length >= 3;
+
 #pragma warning disable CA1304, CA1311
-            if (expandedSsyks.Count > 0)
+            source = (includeTitleLike, hasSsyks: expandedSsyks.Count > 0) switch
             {
-                source = source.Where(j =>
+                (true, true) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
                     || EF.Functions.Like(j.Title.ToLower(), pattern)
-                    || expandedSsyks.Contains(EF.Property<string?>(j, "SsykConceptId")));
-            }
-            else
-            {
-                source = source.Where(j =>
+                    || expandedSsyks.Contains(EF.Property<string?>(j, "SsykConceptId"))),
+                (true, false) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || EF.Functions.Like(j.Title.ToLower(), pattern));
-            }
+                    || EF.Functions.Like(j.Title.ToLower(), pattern)),
+                (false, true) => source.Where(j =>
+                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
+                    || expandedSsyks.Contains(EF.Property<string?>(j, "SsykConceptId"))),
+                (false, false) => source.Where(j =>
+                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))),
+            };
 #pragma warning restore CA1304, CA1311
         }
 

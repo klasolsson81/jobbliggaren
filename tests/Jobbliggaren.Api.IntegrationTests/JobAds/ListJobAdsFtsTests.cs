@@ -378,4 +378,67 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         result.Items.Select(i => i.Title).ShouldBe(
             [$"{token} ExpiresLater", $"{token} ExpiresSoon", $"{token} NoExpiry"]);
     }
+
+    // 8. TD-94 / ADR 0062-amendment 2026-06-13 — title-LIKE-grenen körs ENDAST
+    //    för q ≥ 3 tecken (perf: GIN-trigram kan inte serva en <3-teckens LIKE →
+    //    tvingar seq-scan/detoast). Ett 2-teckens-q som bara matchar mitt-i-ord i
+    //    titeln (ej FTS-lexem) ger 0 träffar; ett ≥3-teckens-q mot samma substring
+    //    matchar fortfarande. Grinden bor i delade ApplyCriteria → list + count
+    //    delar den (ingen list↔count-divergens).
+    [Fact]
+    public async Task ApplyCriteria_TitleLikeFallback_SkippedForTwoCharQuery_Td94()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var marker = $"shortq{Guid.NewGuid():N}"[..14];
+
+        // "qz" är en mitt-i-ord-delsträng av titelordet "Maqzon" (inget lexem,
+        // ej i description). marker isolerar mot den delade [Collection("Api")]-DB:n.
+        await SeedJobAdAsync($"Maqzon {marker} sökes", "Beskrivning utan token", ct);
+
+        using var scope = _factory.Services.CreateScope();
+        var handler = CreateHandler(scope);
+
+        // 2-teckens-q "qz": title-LIKE skippas (TD-94-grind) → FTS-only. "qz" är
+        // inget lexem i titeln → annonsen matchar inte.
+        var shortQ = await handler.Handle(new ListJobAdsQuery(Q: "qz"), ct);
+        shortQ.Items.ShouldNotContain(i => i.Title == $"Maqzon {marker} sökes");
+
+        // 3-teckens-q "aqz": title-LIKE aktiv igen → matchar "Maqzon" mitt-i-ord.
+        var longQ = await handler.Handle(new ListJobAdsQuery(Q: "aqz"), ct);
+        longQ.Items.ShouldContain(i => i.Title == $"Maqzon {marker} sökes");
+    }
+
+    // 9. TD-94 — CountAsync kör samma filter-väg som SearchAsync men i en
+    //    enable_seqscan=off-transaktion (bitmap-plan-tvång mot TOAST-detoast-
+    //    seqscan). Verifiera att counten är korrekt OCH identisk med
+    //    SearchAsync.TotalCount (ADR 0039 Beslut 1 SPOT — ingen list↔count-divergens).
+    [Fact]
+    public async Task CountAsync_MatchesSearchTotalCount_Td94()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var word = $"counttoken{Guid.NewGuid():N}"[..18];
+
+        await SeedJobAdAsync($"{word} annons ett", "Beskrivning", ct);
+        await SeedJobAdAsync($"{word} annons två", "Beskrivning", ct);
+        await SeedJobAdAsync("Orelaterad annons", "Ingen matchning här.", ct);
+
+        using var scope = _factory.Services.CreateScope();
+        var search = new JobAdSearchQuery(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<IOccupationSynonymExpander>());
+
+        var filter = new JobAdFilterCriteria(
+            OccupationGroup: [], Municipality: [], Region: [],
+            EmploymentType: [], WorktimeExtent: [], Q: word);
+
+        // CountAsync (recent-search-konsumentens väg) i bitmap-plan-transaktionen.
+        var count = await search.CountAsync(filter, ct);
+        count.ShouldBe(2);
+
+        // Samma filter via SearchAsync → identisk TotalCount (SPOT).
+        var searchCriteria = new JobAdSearchCriteria(
+            filter, JobAdSortBy.PublishedAtDesc, Page: 1, PageSize: 20, Since: null);
+        var page = await search.SearchAsync(searchCriteria, ct);
+        page.TotalCount.ShouldBe(count);
+    }
 }

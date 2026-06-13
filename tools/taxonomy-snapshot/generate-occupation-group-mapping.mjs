@@ -26,7 +26,7 @@ const FETCHED_AT = '2026-06-09';
 const here = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = resolve(
   here,
-  '../../src/JobbPilot.Infrastructure/Persistence/Migrations/Resources/occupation-name-to-ssyk-level-4.v30.json',
+  '../../src/Jobbliggaren.Infrastructure/Persistence/Migrations/Resources/occupation-name-to-ssyk-level-4.v30.json',
 );
 
 async function main() {

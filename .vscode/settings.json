@@ -35,7 +35,7 @@
     "files.trimTrailingWhitespace": false
   },
 
-  "eslint.workingDirectories": ["web/jobbpilot-web"],
+  "eslint.workingDirectories": ["web/jobbliggaren-web"],
 
   // Error Lens: visa det som annars först bryter bygget (TreatWarningsAsErrors).
   "errorLens.enabledDiagnosticLevels": ["error", "warning"]

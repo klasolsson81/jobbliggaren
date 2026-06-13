@@ -1,4 +1,4 @@
-# JobbPilot .editorconfig — per CLAUDE.md §11.2 + CTO-dom 2026-06-10 (Variant B).
+# Jobbliggaren .editorconfig — per CLAUDE.md §11.2 + CTO-dom 2026-06-10 (Variant B).
 # Princip: endast regler spårbara till CLAUDE.md §3 får warning-severity
 # (EnforceCodeStyleInBuild + TreatWarningsAsErrors gör warning = byggfel).
 # Övrigt = suggestion (IDE-vägledning, auto-fixas ej av dotnet format default).
@@ -24,7 +24,7 @@ indent_size = 2
 
 # EF Core-scaffoldade migrationer är genererad kod (block-scoped namespace är
 # EF-default) — stilregler ska inte gälla dem.
-[src/JobbPilot.Infrastructure/**/Migrations/*.cs]
+[src/Jobbliggaren.Infrastructure/**/Migrations/*.cs]
 generated_code = true
 
 # ---------------------------------------------------------------------------

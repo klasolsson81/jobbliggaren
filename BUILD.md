@@ -1,4 +1,4 @@
-# JobbPilot — Build Specification
+# Jobbliggaren — Build Specification
 
 > **Version:** 1.0 · draft
 > **Status:** approved by product owner (Klas Olsson)
@@ -11,18 +11,18 @@
 
 ### 1.1 Vision
 
-JobbPilot är en komplett jobbsök- och ansökningshanterare för den svenska arbetsmarknaden. Appen kombinerar JobTech/Platsbanken-integration med modern AI-assistans men positioneras medvetet som en *civic utility* — ett verktyg som signalerar tillit, pålitlighet och professionalism snarare än hajp. Målet är att stressade jobbsökare får ett verktyg som känns som en förlängning av svensk offentlig digital service (1177, Försäkringskassan, Digg) snarare än ett av hundra AI-produkter som alla ser likadana ut.
+Jobbliggaren är en komplett jobbsök- och ansökningshanterare för den svenska arbetsmarknaden. Appen kombinerar JobTech/Platsbanken-integration med modern AI-assistans men positioneras medvetet som en *civic utility* — ett verktyg som signalerar tillit, pålitlighet och professionalism snarare än hajp. Målet är att stressade jobbsökare får ett verktyg som känns som en förlängning av svensk offentlig digital service (1177, Försäkringskassan, Digg) snarare än ett av hundra AI-produkter som alla ser likadana ut.
 
 ### 1.2 Positionering
 
-**JobbPilot är:**
+**Jobbliggaren är:**
 - Svensk-först (Platsbanken, SCB, svenska rekryteringskultur)
 - Kvalitet över volym — inga auto-apply-funktioner
 - AI-assisterad där det ger tydligt värde, aldrig "AI-genererat för syns skull"
 - GDPR-säker med äkta EU-datalokalisering
 - Öppen för att låta användaren koppla egna AI-nycklar (BYOK)
 
-**JobbPilot är inte:**
+**Jobbliggaren är inte:**
 - Ännu en ChatGPT-wrapper
 - Ett mass-apply-verktyg som LoopCV eller Sonara
 - En ATS-keyword-stuffer
@@ -210,11 +210,11 @@ miljö-topologi fastställs i ADR 0050 när den flippas till Accepted.
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Presentation / Interfaces                          │
-│  ├─ JobbPilot.Api          (REST endpoints)         │
-│  ├─ JobbPilot.Worker       (Hangfire host)          │
-│  └─ JobbPilot.Web          (Next.js, extern)        │
+│  ├─ Jobbliggaren.Api          (REST endpoints)         │
+│  ├─ Jobbliggaren.Worker       (Hangfire host)          │
+│  └─ Jobbliggaren.Web          (Next.js, extern)        │
 ├─────────────────────────────────────────────────────┤
-│  JobbPilot.Infrastructure                           │
+│  Jobbliggaren.Infrastructure                           │
 │  ├─ Persistence (EF Core, migrations)               │
 │  ├─ Identity                                        │
 │  ├─ JobSources.Platsbanken                          │
@@ -226,7 +226,7 @@ miljö-topologi fastställs i ADR 0050 när den flippas till Accepted.
 │  ├─ Salary.Scb                                      │
 │  └─ BackgroundJobs (Hangfire setup)                 │
 ├─────────────────────────────────────────────────────┤
-│  JobbPilot.Application                              │
+│  Jobbliggaren.Application                              │
 │  ├─ Common (interfaces, behaviors, exceptions)      │
 │  ├─ JobSeekers                                      │
 │  ├─ Resumes                                         │
@@ -240,7 +240,7 @@ miljö-topologi fastställs i ADR 0050 när den flippas till Accepted.
 │  ├─ AiAssist                                        │
 │  └─ Admin                                           │
 ├─────────────────────────────────────────────────────┤
-│  JobbPilot.Domain  (PURE, no external deps)         │
+│  Jobbliggaren.Domain  (PURE, no external deps)         │
 │  ├─ Common (AggregateRoot, Entity, ValueObject)     │
 │  ├─ JobSeekers                                      │
 │  ├─ Resumes                                         │
@@ -267,21 +267,21 @@ Verifieras via ArchUnit.NET eller NetArchTest-regler i Domain.ArchitectureTests-
 ### 4.3 Solution-struktur
 
 ```
-/JobbPilot.sln
+/Jobbliggaren.sln
 /src
-  /JobbPilot.Domain
-  /JobbPilot.Application
-  /JobbPilot.Infrastructure
-  /JobbPilot.Api
-  /JobbPilot.Worker
+  /Jobbliggaren.Domain
+  /Jobbliggaren.Application
+  /Jobbliggaren.Infrastructure
+  /Jobbliggaren.Api
+  /Jobbliggaren.Worker
 /web
-  /jobbpilot-web             (Next.js)
+  /jobbliggaren-web             (Next.js)
 /tests
-  /JobbPilot.Domain.UnitTests
-  /JobbPilot.Application.UnitTests
-  /JobbPilot.Api.IntegrationTests    (Testcontainers + WebApplicationFactory)
-  /JobbPilot.Architecture.Tests
-  /jobbpilot-web-tests       (Playwright e2e)
+  /Jobbliggaren.Domain.UnitTests
+  /Jobbliggaren.Application.UnitTests
+  /Jobbliggaren.Api.IntegrationTests    (Testcontainers + WebApplicationFactory)
+  /Jobbliggaren.Architecture.Tests
+  /jobbliggaren-web-tests       (Playwright e2e)
 /infra
   /terraform
     /modules
@@ -882,7 +882,7 @@ Alla FK-kolumner har index. Utöver det:
 
 ### 7.4 Migrations
 
-- EF Core migrations i `JobbPilot.Infrastructure/Persistence/Migrations/`
+- EF Core migrations i `Jobbliggaren.Infrastructure/Persistence/Migrations/`
 - Namn: `20260418_InitialSchema`, `20260420_AddImpersonationClaim`, etc.
 - Aldrig redigera applied migration — skapa ny
 - Migration körs automatiskt i Api-startup i dev/staging, manuellt i prod
@@ -895,7 +895,7 @@ Alla FK-kolumner har index. Utöver det:
 ### 8.1 Interface
 
 ```csharp
-namespace JobbPilot.Application.Common.Interfaces;
+namespace Jobbliggaren.Application.Common.Interfaces;
 
 public interface IAiProvider
 {
@@ -1080,7 +1080,7 @@ Runtime laddar prompts via `IPromptLibrary`, gör token-substitution, och skicka
 
 - Google Workspace OAuth 2.0 flow
 - Scopes: `gmail.readonly` (minimal)
-- User-consent-skärm visar exakt vad vi gör: "JobbPilot läser inkomna mejl från adresser du märkt som rekryterare för att automatiskt logga uppföljningar"
+- User-consent-skärm visar exakt vad vi gör: "Jobbliggaren läser inkomna mejl från adresser du märkt som rekryterare för att automatiskt logga uppföljningar"
 - Implementation: `IGmailSyncService`
 - Sync-strategi: Pub/Sub via Gmail API history (`users.history.list`), fallback till polling var 15:e min
 - Hantering av tokens: refresh token lagras envelope-krypterat i `oauth_connections`
@@ -1134,7 +1134,7 @@ Runtime laddar prompts via `IPromptLibrary`, gör token-substitution, och skicka
 ### 10.1 Next.js 16 App Router-struktur
 
 ```
-/web/jobbpilot-web
+/web/jobbliggaren-web
   /app
     /(marketing)               -- publika sidor
       /page.tsx               -- landing
@@ -1355,7 +1355,7 @@ och permanent infra aktiveras; listan nedan speglar **planerad** uppsättning):
 - Secrets aldrig i kod — allt via managed secrets-store eller miljövariabler (lokalt: `appsettings.Local.json`, gitignored)
 - `dotnet format` + ESLint/Prettier i pre-commit (Husky)
 - Rate limiting per IP + per user på alla endpoints (AspNetCoreRateLimit eller custom middleware)
-- CORS restriktivt: bara `jobbpilot.se`-domäner
+- CORS restriktivt: bara `jobbliggaren.se`-domäner
 - CSP: strict, script-src 'self' + Vercel CDN
 - Weekly dependency update via Dependabot
 
@@ -1495,32 +1495,32 @@ Triggas av handlers för:
 
 ### 17.1 Test-pyramiden
 
-**Domain unit tests** (JobbPilot.Domain.UnitTests, ~70% av antalet tester)
+**Domain unit tests** (Jobbliggaren.Domain.UnitTests, ~70% av antalet tester)
 - Aggregate-invariants, state machines, value objects
 - Ingen databas, ingen I/O
 - Använder xUnit + Shouldly (ersätter FluentAssertions efter dess kommersialisering 2025)
 - Target coverage på Domain: **>90%**
 
-**Application unit tests** (JobbPilot.Application.UnitTests, ~20%)
+**Application unit tests** (Jobbliggaren.Application.UnitTests, ~20%)
 - Handlers mot in-memory fakes/mocks (NSubstitute)
 - xUnit + Shouldly + NSubstitute
 - Testar use case-logik utan Infrastructure
 
-**Integration tests** (JobbPilot.Api.IntegrationTests, ~10%)
+**Integration tests** (Jobbliggaren.Api.IntegrationTests, ~10%)
 - Testcontainers för Postgres + Redis (ephemeral per test-klass)
 - WebApplicationFactory
 - Shouldly för assertions
 - Happy-path + nyckel-felscenarion per endpoint
 - Kör i CI med `dotnet test --filter Category=Integration`
 
-**Architecture tests** (JobbPilot.Architecture.Tests)
+**Architecture tests** (Jobbliggaren.Architecture.Tests)
 - NetArchTest-regler:
   - Domain beror inte på Infrastructure/Application/Api
   - Application beror inte på Infrastructure
   - Alla endpoints har auth-attribute (eller explicit `[AllowAnonymous]`)
   - Alla aggregates ärver `AggregateRoot<>`
 
-**E2E tests** (jobbpilot-web-tests, Playwright)
+**E2E tests** (jobbliggaren-web-tests, Playwright)
 - Kritiska användarflöden: registrera → skapa sökning → söka jobb → submit ansökan → logga follow-up
 - Kör i CI mot staging-miljö, nattligt
 - Max 15-20 tester (dyra att underhålla, håll tight)
@@ -1561,7 +1561,7 @@ Ingen hård deadline, men mjuka milstolpar för att driva framåt:
 - CLAUDE.md + DESIGN.md committade
 - Bootstrap-IAM-user raderas som sista steg när SSO-profilen fungerar för Terraform
 
-**Milstolpe:** Du kan registrera dig + logga in på dev.jobbpilot.se.
+**Milstolpe:** Du kan registrera dig + logga in på dev.jobbliggaren.se.
 
 ### Fas 1 — Core Domain (~3 veckor)
 - Domain-projekt: alla aggregates, entities, VOs med >80% test coverage
@@ -1696,8 +1696,8 @@ Saker som inte är beslutade och behöver stängas under fas 0–1:
 
 - **Branding-färg exakt hex:** `#0B5CAD` är förslag, verifiera mot A11y-kontrastkrav på all körtext. Kan behöva justeras.
 - **Logotyp:** ska designas (eventuellt ett litet projekt med AI-assistans à la KalasKoll-identitet, eller leja in designbyrå)
-- **Domän:** `jobbpilot.se` — DNS-host TBD (ADR 0050: Cloudflare)
-- **E-post-adress för support:** `hej@jobbpilot.se` förslag
+- **Domän:** `jobbliggaren.se` — DNS-host TBD (ADR 0050: Cloudflare)
+- **E-post-adress för support:** `hej@jobbliggaren.se` förslag
 - **Integritetspolicy + TOS:** behöver skrivas (svenska, med GDPR-explicit text)
 - **Onboarding-video eller hjälpcenter:** skjuts till v1.1
 - **Rate limits per plan:** rimligt förslag är 60 req/min Bas, 120 Premium

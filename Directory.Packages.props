@@ -27,7 +27,7 @@
     <!-- Load-test (ADR 0045 Beslut 4, BUILD.md §3.1, Klas-GO 2026-05-17).
          NBomber = .NET-native load-test, ren C#, xUnit/MTP-stack-koherent
          (k6 avvisat — ny JS-toolchain bryter CLAUDE.md §1/§3.1 + CCP).
-         Endast perf/JobbPilot.LoadTests (utanför JobbPilot.sln → backend-
+         Endast perf/Jobbliggaren.LoadTests (utanför Jobbliggaren.sln → backend-
          testjobb + coverage-gate ADR 0044 orörda). Observe-only Fas 1.
          Web-verifierad senaste stabila 2026-05-17 (nuget.org: NBomber 6.3.0).
          BenchmarkDotNet medvetet EJ adderat (Klas-deferral 2026-05-17 —
@@ -72,12 +72,12 @@
     <PackageVersion Include="Hangfire.Core" Version="1.8.23" />
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
-    <!-- JobbPilot.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
+    <!-- Jobbliggaren.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
          (Application använder bara DbSet<T>-abstraktionen via EF Core). AWSSDK.SecretsManager
          används av Migrate för att hämta master-creds + skriva final connection-strings.
          Microsoft.Extensions.Logging.Console för stdout → CloudWatch. -->
     <!-- Npgsql 10.0.2 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1
-         (kräver Npgsql >= 10.0.2). Direkt-referens från JobbPilot.Migrate. -->
+         (kräver Npgsql >= 10.0.2). Direkt-referens från Jobbliggaren.Migrate. -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="AWSSDK.SecretsManager" Version="4.0.4.20" />
     <!-- AWS KMS — TD-13 (ADR 0049) per-användare-DEK envelope encryption.

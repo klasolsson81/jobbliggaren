@@ -13,7 +13,7 @@
 # Förkrav: .env-fil i repo-roten med POSTGRES_PASSWORD_DEV + POSTGRES_PASSWORD_TEST.
 # Se .env.example för mall.
 
-name: jobbpilot
+name: jobbliggaren
 
 services:
 
@@ -23,19 +23,19 @@ services:
 
   postgres-dev:
     image: postgres:18.3
-    container_name: jobbpilot-postgres-dev
+    container_name: jobbliggaren-postgres-dev
     environment:
-      POSTGRES_DB: jobbpilot
-      POSTGRES_USER: jobbpilot
+      POSTGRES_DB: jobbliggaren
+      POSTGRES_USER: jobbliggaren
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_DEV:?POSTGRES_PASSWORD_DEV måste sättas i .env}
     ports:
       - "5435:5432"
     volumes:
       # Postgres 18+: mount /var/lib/postgresql (inte .../data) så att
       # version-specifika subkataloger skapas — krävs för pg_upgrade --link.
-      - jobbpilot_postgres_dev_data:/var/lib/postgresql
+      - jobbliggaren_postgres_dev_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jobbpilot -d jobbpilot"]
+      test: ["CMD-SHELL", "pg_isready -U jobbliggaren -d jobbliggaren"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -44,11 +44,11 @@ services:
 
   redis-dev:
     image: redis:8.6-alpine
-    container_name: jobbpilot-redis-dev
+    container_name: jobbliggaren-redis-dev
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - jobbpilot_redis_dev_data:/data
+      - jobbliggaren_redis_dev_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -59,7 +59,7 @@ services:
 
   seq:
     image: datalust/seq:latest
-    container_name: jobbpilot-seq
+    container_name: jobbliggaren-seq
     environment:
       ACCEPT_EULA: "Y"
       # Seq 2025.2+ kräver explicit firstRun-konfig. För localhost-dev
@@ -70,7 +70,7 @@ services:
       - "5341:80"      # Seq UI + API (unified http-port)
       - "5342:5341"    # Seq ingestion-port (separat listener enligt Seq-startlog)
     volumes:
-      - jobbpilot_seq_data:/data
+      - jobbliggaren_seq_data:/data
     restart: unless-stopped
 
   # ==============================================================
@@ -79,18 +79,18 @@ services:
 
   postgres-test:
     image: postgres:18.3
-    container_name: jobbpilot-postgres-test
+    container_name: jobbliggaren-postgres-test
     profiles: ["test", "full"]
     environment:
-      POSTGRES_DB: jobbpilot_test
-      POSTGRES_USER: jobbpilot
+      POSTGRES_DB: jobbliggaren_test
+      POSTGRES_USER: jobbliggaren
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_TEST:?POSTGRES_PASSWORD_TEST måste sättas i .env}
     ports:
       - "5433:5432"
     volumes:
-      - jobbpilot_postgres_test_data:/var/lib/postgresql
+      - jobbliggaren_postgres_test_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jobbpilot -d jobbpilot_test"]
+      test: ["CMD-SHELL", "pg_isready -U jobbliggaren -d jobbliggaren_test"]
       interval: 3s
       timeout: 2s
       retries: 15
@@ -99,12 +99,12 @@ services:
 
   redis-test:
     image: redis:8.6-alpine
-    container_name: jobbpilot-redis-test
+    container_name: jobbliggaren-redis-test
     profiles: ["test", "full"]
     ports:
       - "6380:6379"
     volumes:
-      - jobbpilot_redis_test_data:/data
+      - jobbliggaren_redis_test_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -114,8 +114,8 @@ services:
     restart: unless-stopped
 
 volumes:
-  jobbpilot_postgres_dev_data:
-  jobbpilot_redis_dev_data:
-  jobbpilot_seq_data:
-  jobbpilot_postgres_test_data:
-  jobbpilot_redis_test_data:
+  jobbliggaren_postgres_dev_data:
+  jobbliggaren_redis_dev_data:
+  jobbliggaren_seq_data:
+  jobbliggaren_postgres_test_data:
+  jobbliggaren_redis_test_data:

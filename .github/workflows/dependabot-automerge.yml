@@ -86,7 +86,7 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+          cache-dependency-path: web/jobbliggaren-web/pnpm-lock.yaml
 
       # Blockerande NuGet-gate. dotnet list package --vulnerable returnerar exit 0
       # även med fynd → vi greppar Severity-kolumnen och failar vid High/Critical.
@@ -95,8 +95,8 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          dotnet restore JobbPilot.sln
-          out=$(dotnet list JobbPilot.sln package --vulnerable --include-transitive 2>&1 || true)
+          dotnet restore Jobbliggaren.sln
+          out=$(dotnet list Jobbliggaren.sln package --vulnerable --include-transitive 2>&1 || true)
           echo "$out"
           if echo "$out" | grep -Eiq '\b(High|Critical)\b'; then
             echo "::error::NuGet High/Critical-CVE — auto-merge blockeras. Granska manuellt."
@@ -108,12 +108,12 @@ jobs:
       # vid High/Critical → jobbet failar → auto-merge aktiveras ej.
       - name: Install (pnpm, för audit)
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        working-directory: web/jobbpilot-web
+        working-directory: web/jobbliggaren-web
         run: pnpm install --frozen-lockfile
 
       - name: Blockerande pnpm vuln-gate (High/Critical)
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        working-directory: web/jobbpilot-web
+        working-directory: web/jobbliggaren-web
         run: pnpm audit --audit-level=high
 
       - name: Aktivera auto-merge (patch/minor, vuln-gate passerad)

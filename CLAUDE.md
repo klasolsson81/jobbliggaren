@@ -1,11 +1,11 @@
-# CLAUDE.md — JobbPilot coding conventions
+# CLAUDE.md — Jobbliggaren coding conventions
 
 > Instruction file for Claude Code — read on every invocation before writing
 > code. Main spec: [`BUILD.md`](./BUILD.md) · Design: [`DESIGN.md`](./DESIGN.md)
 
 ## 1. Identity
 
-JobbPilot is a Swedish job-application manager built as a **civic utility** —
+Jobbliggaren is a Swedish job-application manager built as a **civic utility** —
 think 1177 or Digg in tone, never Linear or Vercel. When unsure, choose what
 feels *serious and trustworthy* over fun or trendy.
 
@@ -176,8 +176,8 @@ stable components; E2E updated when critical flows change.
 
 ```bash
 dotnet test                                  # backend
-cd web/jobbpilot-web && pnpm test            # frontend
-cd web/jobbpilot-web && pnpm playwright test # E2E
+cd web/jobbliggaren-web && pnpm test            # frontend
+cd web/jobbliggaren-web && pnpm playwright test # E2E
 dotnet test --filter "Category=Architecture" # architecture
 ```
 

@@ -1,6 +1,6 @@
 # taxonomy-snapshot-generator
 
-Off-build, manuellt körd generator för `src/JobbPilot.Infrastructure/Taxonomy/taxonomy-snapshot.json`.
+Off-build, manuellt körd generator för `src/Jobbliggaren.Infrastructure/Taxonomy/taxonomy-snapshot.json`.
 
 ## Varför
 
@@ -41,7 +41,7 @@ Krav: Node 18+ (inbyggd `fetch`). Ingen npm-dependency.
 
 1. Granska diffen mot `taxonomy-snapshot.json` (ska vara additiv + version-bump).
 2. Kör seeder-/snapshot-testerna:
-   `dotnet test --project tests/JobbPilot.Application.UnitTests` (MapRows/LoadSnapshot)
+   `dotnet test --project tests/Jobbliggaren.Application.UnitTests` (MapRows/LoadSnapshot)
    + `TaxonomyReadModelIntegrationTests` (seed mot Testcontainers).
 3. Committa både snapshot och ev. script-ändring. Seedern (`TaxonomySnapshotSeeder`,
    idempotent + version-gated) re-seedar vid app-start eftersom `taxonomyVersion` bumpats.

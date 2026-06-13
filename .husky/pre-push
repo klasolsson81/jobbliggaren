@@ -35,7 +35,7 @@ fi
 
 # Scaffold-gate för tester
 SLN=$(find . -maxdepth 2 -name "*.sln" 2>/dev/null | head -1)
-WEB_DIR="web/jobbpilot-web"
+WEB_DIR="web/jobbliggaren-web"
 
 if [ -z "$SLN" ] && [ ! -d "$WEB_DIR" ]; then
     echo "[pre-push] Inget scaffold än — hoppar över full test-suite."

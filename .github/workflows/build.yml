@@ -47,10 +47,10 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore JobbPilot.sln
+        run: dotnet restore Jobbliggaren.sln
 
       - name: Build
-        run: dotnet build JobbPilot.sln --no-restore -c Release
+        run: dotnet build Jobbliggaren.sln --no-restore -c Release
 
       # Microsoft.Testing.Platform-runner aktiveras via global.json.
       #
@@ -72,7 +72,7 @@ jobs:
       - name: Test
         env:
           ASPNETCORE_ENVIRONMENT: Development
-        run: dotnet test --solution JobbPilot.sln --no-build -c Release
+        run: dotnet test --solution Jobbliggaren.sln --no-build -c Release
 
   # Coverage-mätning + blockerande regressions-gate (ADR 0044, Accepted
   # 2026-05-17). Per-lager icke-regression-ratchet — golv = floor(uppmätt
@@ -148,17 +148,17 @@ jobs:
           }
 
           # Line-golv: Domain/Application/Infrastructure/Api.
-          check JobbPilot.Domain         coverage        93
-          check JobbPilot.Application    coverage        95
-          check JobbPilot.Infrastructure coverage        82
-          check JobbPilot.Api            coverage        91
+          check Jobbliggaren.Domain         coverage        93
+          check Jobbliggaren.Application    coverage        95
+          check Jobbliggaren.Infrastructure coverage        82
+          check Jobbliggaren.Api            coverage        91
           # Branch-golv: endast Domain + Application (invariant-bärande).
-          check JobbPilot.Domain         branchcoverage  91
-          check JobbPilot.Application    branchcoverage  89
+          check Jobbliggaren.Domain         branchcoverage  91
+          check Jobbliggaren.Application    branchcoverage  89
 
           # Worker: observe-only Fas 1 (ADR 0044 Beslut 4/5) — log, gejta ej.
-          worker=$(jq -r '.coverage.assemblies[] | select(.name=="JobbPilot.Worker") | .coverage' "$summary")
-          echo "INFO JobbPilot.Worker coverage=${worker}% (observe-only Fas 1 — ingen gate)"
+          worker=$(jq -r '.coverage.assemblies[] | select(.name=="Jobbliggaren.Worker") | .coverage' "$summary")
+          echo "INFO Jobbliggaren.Worker coverage=${worker}% (observe-only Fas 1 — ingen gate)"
 
           # Global first-party för trend/audit (ej gejtad — per-lager räcker, ADR Avvisat 5).
           line=$(jq -r '.summary.linecoverage' "$summary")
@@ -178,13 +178,13 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: web/jobbpilot-web
+        working-directory: web/jobbliggaren-web
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       # pnpm-version pinnad — pnpm-lock.yaml är lockfileVersion 9.0 (pnpm 9.x).
-      # När ./web/jobbpilot-web/package.json får `"packageManager": "pnpm@..."`-
+      # När ./web/jobbliggaren-web/package.json får `"packageManager": "pnpm@..."`-
       # fält kan version-pinnen härifrån tas bort (action läser då därifrån).
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -193,13 +193,13 @@ jobs:
           run_install: false
 
       # Next.js 16 kräver Node >=20.18. Använd 22 LTS för långt support-fönster.
-      # När .nvmrc införs i web/jobbpilot-web: byt till `node-version-file`.
+      # När .nvmrc införs i web/jobbliggaren-web: byt till `node-version-file`.
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: pnpm
-          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+          cache-dependency-path: web/jobbliggaren-web/pnpm-lock.yaml
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -239,7 +239,7 @@ jobs:
     continue-on-error: true
     defaults:
       run:
-        working-directory: web/jobbpilot-web
+        working-directory: web/jobbliggaren-web
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -255,7 +255,7 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+          cache-dependency-path: web/jobbliggaren-web/pnpm-lock.yaml
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -264,7 +264,7 @@ jobs:
         run: pnpm build
 
       # treosh/lighthouse-ci-action — startServerCommand/assertions/budget
-      # läses ur web/jobbpilot-web/lighthouserc.json (+ budget.json).
+      # läses ur web/jobbliggaren-web/lighthouserc.json (+ budget.json).
       # Observe-only: jobbets continue-on-error gör att assert-fail aldrig
       # blockerar CI Fas 1; resultatet finns i artefakt + summary.
       - name: Lighthouse CI
@@ -272,7 +272,7 @@ jobs:
         continue-on-error: true
         uses: treosh/lighthouse-ci-action@v12
         with:
-          configPath: web/jobbpilot-web/lighthouserc.json
+          configPath: web/jobbliggaren-web/lighthouserc.json
           uploadArtifacts: true
 
       - name: Observe-only-not
@@ -281,7 +281,7 @@ jobs:
           echo "::notice::Lighthouse-CI observe-only Fas 1 (ADR 0045 Beslut 2/5) — LCP/CLS/page-weight assert-intent, INP/composite observe. Blockerar ej merge; ratchet→blockerande vid Klas-GO (Beslut 6)."
 
   # Load-test (NBomber) — ADR 0045 Beslut 4. Fas 1: compile-verifierar
-  # baslinje-scaffoldet (perf/JobbPilot.LoadTests, utanför sln). Faktiska
+  # baslinje-scaffoldet (perf/Jobbliggaren.LoadTests, utanför sln). Faktiska
   # hot-path-scenarier + runtime-exekvering mot ephemeral API skrivs/wiras
   # av perf-test-writer-agenten (steg 4). Observe-only — exit 0 ovillkorligt.
   loadtest:
@@ -313,7 +313,7 @@ jobs:
       # API → connection-refused, men exit 0 hålls via Program.cs).
       - name: Build load-test project
         continue-on-error: true
-        run: dotnet build perf/JobbPilot.LoadTests/JobbPilot.LoadTests.csproj -c Release
+        run: dotnet build perf/Jobbliggaren.LoadTests/Jobbliggaren.LoadTests.csproj -c Release
 
       # Kör NBomber-runnern i "baseline-only"-läge. Hot-path-scenarier (landing-
       # stats m.fl., klass (a)/(b)/(c)) skrivna av perf-test-writer-agenten kräver
@@ -324,7 +324,7 @@ jobs:
         env:
           LOADTEST_SCENARIOS: baseline-only
           LOADTEST_BASE_URL: http://127.0.0.1:8080
-        run: dotnet run --project perf/JobbPilot.LoadTests/JobbPilot.LoadTests.csproj -c Release --no-build
+        run: dotnet run --project perf/Jobbliggaren.LoadTests/Jobbliggaren.LoadTests.csproj -c Release --no-build
 
       # Ladda upp NBomber-rapporter + JSON-trend-artefakter. Behövs för
       # Beslut 6-ratchet-utvärderingen (stabil distribution över N runs).
@@ -342,7 +342,7 @@ jobs:
       - name: Observe-only-not
         if: always()
         run: |
-          echo "::notice::Load-test observe-only Fas 1 (ADR 0045 Beslut 4/5). NBomber-projekt compile-verifierat + baseline-runner exekverad. Hot-path-scenarier mot p95-budgetar (Beslut 1) finns implementerade (perf/JobbPilot.LoadTests/Scenarios/) men kräver ephemeral API-stack i CI för runtime-exekvering. Blockerar ej merge; flip→gate = Klas-GO-ratchet (Beslut 6)."
+          echo "::notice::Load-test observe-only Fas 1 (ADR 0045 Beslut 4/5). NBomber-projekt compile-verifierat + baseline-runner exekverad. Hot-path-scenarier mot p95-budgetar (Beslut 1) finns implementerade (perf/Jobbliggaren.LoadTests/Scenarios/) men kräver ephemeral API-stack i CI för runtime-exekvering. Blockerar ej merge; flip→gate = Klas-GO-ratchet (Beslut 6)."
 
   # Supply-chain audit — ADR 0045 Beslut 4/7. CVE-scan (CI-/Dependabot-formad
   # per security-auditor.md:292). Fail-signal vid High/Critical men OBSERVE-
@@ -373,10 +373,10 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-          cache-dependency-path: web/jobbpilot-web/pnpm-lock.yaml
+          cache-dependency-path: web/jobbliggaren-web/pnpm-lock.yaml
 
       - name: Restore (NuGet)
-        run: dotnet restore JobbPilot.sln
+        run: dotnet restore Jobbliggaren.sln
 
       # dotnet list package --vulnerable: High/Critical → ::warning::, exit 0
       # (observe-only Fas 1, ADR 0045 Beslut 7). Moderate/Low ignoreras
@@ -385,7 +385,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          out=$(dotnet list JobbPilot.sln package --vulnerable --include-transitive 2>&1 || true)
+          out=$(dotnet list Jobbliggaren.sln package --vulnerable --include-transitive 2>&1 || true)
           echo "$out"
           if echo "$out" | grep -Eiq '\b(High|Critical)\b'; then
             echo "::warning::NuGet High/Critical CVE upptäckt (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR. security-auditor manuellt Blocker-veto kvarstår."
@@ -394,11 +394,11 @@ jobs:
           fi
 
       - name: Install (pnpm)
-        working-directory: web/jobbpilot-web
+        working-directory: web/jobbliggaren-web
         run: pnpm install --frozen-lockfile
 
       - name: pnpm audit (observe-only)
-        working-directory: web/jobbpilot-web
+        working-directory: web/jobbliggaren-web
         shell: bash
         run: |
           set -uo pipefail

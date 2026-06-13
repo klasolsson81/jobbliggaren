@@ -1,0 +1,3904 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dark mode: attribut-baserad (data-theme="dark" på <html>) — INTE .dark-klass. */
+/* Verifierad Tailwind v4-syntax (web-search 2026-05-16). Matchar ThemeProvider  */
+/* + ThemeScript som sätter/tar bort attributet. Re-introducerad i designsystem  */
+/* v2 med Klas-godkännande 2026-05-16 + ADR (ersätter Fas 0-borttagningen — den  */
+/* skedde pga shadcn nova-presetens oklch indigo-violetter; v2 använder en       */
+/* civic slate-skala utan dekorativ hue).                                        */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ────────────────────────────────────────────────────────────
+   v3 KANON (ADR 0052 — designsystem v3 modern civic, navy-palett).
+   Källa: docs/jobbliggaren-v3-bundle/jobbliggaren-v3.css §2 (light).
+   v2-namnrymden (--jp-surface-primary/-text-primary/-brand-*) finns
+   kvar som tunna ALIAS → v3-kanon (branch-by-abstraction, CTO
+   Beslut 3 / Fowler 2018) så strukturella .jp-*-klasser + Tailwind-
+   @theme-bryggan + shadcn fortsätter resolva. v2-alias städas i
+   egen F-städ-fas efter grep-verifierad nollkonsumtion.
+   ──────────────────────────────────────────────────────────── */
+:root {
+  /* Brand — djup navy (v3-kanon). G1 (ADR 0068): navy är LOGO-ONLY —
+     kompassen i BrandLogo förblir blå (+ gulprick --jp-brand-accent).
+     Som interaktionsfärg är navy ersatt av accent-rampen nedan; rampen
+     behålls här tills logo-översynen och städas i egen fas. */
+  --jp-navy-900: #08213F;
+  --jp-navy-800: #0A2647;
+  --jp-navy-700: #133F73;
+  --jp-navy-600: #1B5396;
+  --jp-navy-500: #2E6CC2;
+  --jp-navy-300: #7FA9DF;
+  --jp-navy-100: #D6E3F4;
+  --jp-navy-50:  #EAF1FA;
+
+  /* Accent — mörkgrön (G1, ADR 0068; ersätter navy som interaktionsfärg).
+     Hue-neutral namnrymd. 800/800-hover/900 dark-skiftas ALDRIG
+     (knapp-kontraktet "aldrig ljus knapp/mörk text"). */
+  --jp-accent-900: #0B2A1E;
+  --jp-accent-800: #15603F;        /* FILL: primärknapp, checked — EJ dark-skiftad */
+  --jp-accent-800-hover: #1E6B4C;  /* fill-hover båda teman */
+  --jp-accent-700: #15603F;        /* TEXT/BORDER: länkar, fokus, selektion/aktiv rad,
+                                      indikator-barer (nav/drawer — texten är ink).
+                                      Rubriker/titlar/tal = ink (E2f 2026-06-11:
+                                      grönt = interaktion, inte information). */
+  --jp-accent-600: #1E6B4C;        /* länk-hover */
+  --jp-accent-500: #2E8B63;
+  --jp-accent-300: #74C29A;
+  --jp-accent-100: #D3E7DC;
+  --jp-accent-50:  #E9F2ED;
+  --jp-gold: #E8C77B;              /* signatur — INGEN konsument ännu (logo-översyn separat) */
+
+  /* Surfaces (v3-kanon) */
+  --jp-surface:    #FFFFFF;   /* kort, popovers, modal */
+  --jp-surface-2:  #F4F6FA;   /* page bg under canvas */
+  --jp-surface-3:  #E8EDF4;   /* hover, rader */
+  --jp-canvas:     #F4F6FA;   /* sidans baslager */
+
+  /* Text (v3-kanon) */
+  --jp-ink-1: #0C1A2E;
+  --jp-ink-2: #455366;
+  --jp-ink-3: #7C8AA0;
+  --jp-ink-inverse: #FFFFFF;
+
+  /* Borders (v3-kanon — synliga, inte hairlines) */
+  --jp-border:        #C9D2E0;
+  --jp-border-soft:   #E3E8F0;
+  --jp-border-strong: #97A4B8;
+  /* Klas pre-F6 Prompt 3 (2026-05-20) — vila-kontrasten höjd ett steg
+     från #94A3B8 (~63% lightness) till #7C8AA0 (~55% lightness) så att
+     input-fält syns tydligt mot vit/surface-2 utan att bli dominerande.
+     Fokus-stilen (navy + ring) oförändrad. Samma värde som ink-3 —
+     medveten tonalitet, inte alias (input-border är separat semantik). */
+  --jp-border-input:  #7C8AA0;
+
+  /* Status (v3-kanon) */
+  --jp-success:    #16793B;  --jp-success-bg: #DFF3E5;
+  --jp-warning:    #B4540B;  --jp-warning-bg: #FCE9D1;
+  --jp-danger:     #BE1B1B;  --jp-danger-bg:  #FBE0E0;
+  --jp-info:       #1B5396;  --jp-info-bg:    #DEE9F8;
+
+  /* Accenter (v3-kanon) */
+  --jp-leaf-600:  #2C8A3F;   --jp-leaf-50:  #DFF3E5;
+  --jp-coral-600: #DA2A47;   --jp-coral-50: #FCE4E9;
+  --jp-amber-500: #E89A1A;   --jp-amber-50: #FBEBC8;
+
+  /* Hero (G1 "F4 Hybrid", ADR 0068 — mörkgrön diagonal gradient, tema-
+     stabil i light + dark). Gradient + 6px-radie på plattan är MEDVETNA,
+     dokumenterade undantag från civic-utility-reglerna — gäller ENBART
+     hero-plattan/.jp-pagehero/.jp-empty--brand. Ersätter E1a:s varma
+     papperston-canvas (--jp-hero-canvas UTGÅR; wrappern läser --jp-canvas). */
+  --jp-hero-from: #0B2A1E;
+  --jp-hero-mid:  #14503A;
+  --jp-hero-to:   #1E6B4C;
+  --jp-hero-gradient: linear-gradient(118deg, var(--jp-hero-from) 0%, var(--jp-hero-mid) 60%, var(--jp-hero-to) 100%);
+  --jp-hero-bg:          #14503A;  /* SOLID ankare — pagehero-knapp-text/border läser denna */
+  --jp-hero-ink:         #FFFFFF;
+  --jp-hero-ink-soft:    rgba(255, 255, 255, 0.78);
+  /* Banner-LOKALA kontroll-värden (CTO Beslut 1, 2026-06-10): vita tema-
+     stabila kontroller på gradienten — hero-scopade, INTE globala neutraler. */
+  --jp-hero-pill-bg:     #FFFFFF;
+  --jp-hero-pill-ink:    #0C1A2E;  /* v3-ink */
+  --jp-hero-pill-border: #CBD5E1;
+  --jp-hero-sok-bg:      #0C1A2E;  /* Sök-knapp = v3-ink, tema-stabil — INTE grön */
+
+  /* Placeholder-ton (design-reviewer-rotfix 2026-06-10): WCAG AA ≥4.5:1 mot
+     båda fält-bakgrunderna (#FFFFFF ≈ 5.4:1, #F0F4FB ≈ 4.9:1). OBS: inga fält
+     har exempel-placeholder (Klas hård regel, ADR 0068) — tokenen är STANDARDEN
+     för ev. framtida funktionella placeholder (t.ex. datumformat) och för
+     .jp-input-instansernas planerade a11y-touch (ersätter ink-3 3.5:1). */
+  --jp-placeholder: #626B78;
+
+  /* Focus (G1, ADR 0068): följer accent-700 — #15603F light, #6EE7A8 dark
+     (accent-700 skiftar själv i dark-blocket; ingen separat dark-fokus-hex).
+     Gradient-ytor scopar om till vit ring (se .jp-hero__plate m.fl.). */
+  --jp-focus: var(--jp-accent-700);
+
+  /* Radius (v3-kanon — ADR 0052: 6 rad/kort, 4 inputs, 8 modal, 12 ENDAST hero) */
+  --jp-r-sm:   4px;
+  --jp-r-md:   6px;
+  --jp-r-lg:   8px;
+  --jp-r-xl:  12px;
+  --jp-r-pill: 9999px;
+
+  /* Typografi — font-familjer kommer från next/font (--font-sans/--font-mono) */
+  --jp-font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
+
+  /* Density-multiplikator — v2-system, behålls (v3 har ingen density men
+     befintliga .jp-*-klasser konsumerar tokens; harmlöst, städas senare) */
+  --jp-density:   1;
+  --jp-row-h:     calc(36px * var(--jp-density));
+  --jp-section-y: calc(28px * var(--jp-density));
+  --jp-pad-x:     calc(28px * var(--jp-density));
+
+  /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
+  --jp-shadow-card:  0 1px 2px rgba(15, 27, 45, 0.05), 0 1px 0 rgba(15, 27, 45, 0.04);
+  --jp-shadow-pop:   0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
+  --jp-shadow-modal: 0 30px 80px rgba(8, 23, 48, 0.35);
+  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);  /* v2-alias-nivå (bridge/inline) */
+  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);  /* v2-alias-nivå (bridge/inline) */
+
+  /* ── v2-kompat-alias → v3-kanon (städas i F-städ efter nollkonsumtion) ── */
+  --jp-surface-primary:   var(--jp-surface);
+  --jp-surface-secondary: var(--jp-surface-2);
+  --jp-surface-tertiary:  var(--jp-surface-3);
+  --jp-surface-sunken:    var(--jp-surface-2);
+  --jp-surface-inverse:   var(--jp-ink-1);
+  --jp-text-primary:      var(--jp-ink-1);
+  --jp-text-secondary:    var(--jp-ink-2);
+  --jp-text-tertiary:     var(--jp-ink-3);
+  --jp-text-inverse:      var(--jp-ink-inverse);
+  /* G1 alias-flip (ADR 0068): brand-aliasen pekar på accent-rampen så
+     Tailwind-@theme-bryggan + shadcn följer gratis. --jp-brand-accent
+     (#FFCD00, kompass-prick) RÖRS EJ. */
+  --jp-brand-50:  var(--jp-accent-50);
+  --jp-brand-100: var(--jp-accent-100);
+  --jp-brand-300: var(--jp-accent-300);
+  --jp-brand-500: var(--jp-accent-500);
+  --jp-brand-600: var(--jp-accent-800);   /* primary = accent-800 (fill-kontrakt, EJ dark-skiftad) */
+  --jp-brand-700: var(--jp-accent-700);   /* länk/hover */
+  --jp-brand-900: var(--jp-accent-900);
+  --jp-brand-accent: #FFCD00;           /* compass-center-dot (Klas-val C4 2026-05-25) */
+  --jp-success-50:  var(--jp-success-bg);
+  --jp-success-500: var(--jp-success);
+  --jp-success-600: var(--jp-success);
+  --jp-success-700: var(--jp-success);
+  --jp-warning-50:  var(--jp-warning-bg);
+  --jp-warning-500: var(--jp-warning);
+  --jp-warning-600: var(--jp-warning);
+  --jp-warning-700: var(--jp-warning);
+  --jp-danger-50:   var(--jp-danger-bg);
+  --jp-danger-500:  var(--jp-danger);
+  --jp-danger-600:  var(--jp-danger);
+  --jp-danger-700:  var(--jp-danger);
+  --jp-info-50:     var(--jp-info-bg);
+  --jp-info-500:    var(--jp-info);
+  --jp-info-600:    var(--jp-info);
+  --jp-info-700:    var(--jp-info);
+  --jp-border-hairline: var(--jp-border-soft);
+  --jp-border-modal:      var(--jp-border);  /* ADR 0041-token re-homed på v3-border (skiftar med tema) */
+  --jp-border-structural: var(--jp-border);  /* ADR 0041-amendment-token re-homed på v3-border */
+}
+
+[data-density="compact"]  { --jp-density: 0.85; }
+[data-density="standard"] { --jp-density: 1;    }
+[data-density="luftig"]   { --jp-density: 1.18; }
+
+/* ── Dark mode (v3-kanon — mörk navy-grå canvas, ljusa input-fält) ──
+   Källa: jobbliggaren-v3.css §2.2. navy-800/-900 omdefinieras INTE i dark
+   (primärknapp förblir djup navy med vit text — ADR 0052, aldrig
+   "ljusblå knapp med mörk text"). v2-alias ärver via :root-aliasen. ── */
+[data-theme="dark"] {
+  --jp-surface:    #1B2B47;
+  --jp-surface-2:  #142136;
+  --jp-surface-3:  #283C5E;
+  --jp-canvas:     #0B1525;        /* mörk navy-grå, INTE svart */
+
+  --jp-ink-1: #F4F7FC;
+  --jp-ink-2: #C2CFE2;
+  --jp-ink-3: #8DA0BD;
+  --jp-ink-inverse: #0C1A2E;
+
+  --jp-border:        #44598A;     /* synliga, inte hairlines */
+  --jp-border-soft:   #2C3F65;
+  --jp-border-strong: #6F86A8;
+  --jp-border-input:  #6F86A8;
+
+  /* Navy-ramp ljusare i dark — G1: navy är LOGO-ONLY (BrandLogo via
+     .jp-brand currentColor); inga interaktions-konsumenter kvar.
+     800/900 medvetet ej skiftade. Städas vid logo-översynen. */
+  --jp-navy-700: #4F8AD0;
+  --jp-navy-600: #6FA4E3;
+  --jp-navy-500: #3D75B8;
+  --jp-navy-300: #2C5894;
+  --jp-navy-100: #1F3866;
+  --jp-navy-50:  #1F3866;
+
+  /* Accent-ramp i dark (G1, ADR 0068): #6EE7A8 ENDAST text/länk/fokus/
+     border — ALDRIG fill bakom vit text. 800/800-hover/900 skiftas EJ
+     (knapp-kontraktet: primärknapp förblir mörkgrön med vit text). */
+  --jp-accent-700: #6EE7A8;
+  --jp-accent-600: #A7F3D0;
+  --jp-accent-500: #3E8E68;
+  --jp-accent-300: #2E5C46;
+  --jp-accent-100: #0E2A1E;
+  --jp-accent-50:  #0E2A1E;
+
+  /* Statusfärger — ljusare ramp så de syns mot mörk canvas */
+  --jp-success: #5DD894;  --jp-success-bg: #143E29;
+  --jp-warning: #FBC267;  --jp-warning-bg: #3F2A0B;
+  --jp-danger:  #FB8989;  --jp-danger-bg:  #3F1419;
+  --jp-info:    #8FBEEF;  --jp-info-bg:    #1B3358;
+
+  --jp-leaf-600:  #5BCB7B;  --jp-leaf-50:  #143E29;
+  --jp-coral-600: #F47185;  --jp-coral-50: #3A1722;
+
+  /* --jp-focus omdefinieras EJ här (G1): :root-värdet var(--jp-accent-700)
+     resolvar själv till #6EE7A8 i dark via accent-skiftet ovan. */
+
+  --jp-shadow-card:  0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.4);
+  --jp-shadow-pop:   0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --jp-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.7);
+  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);  /* v2-alias-nivå */
+  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.7);  /* v2-alias-nivå */
+}
+
+/* ── Tailwind @theme inline — utilities (bg-surface-primary m.fl.) ──── */
+/* inline = utility använder var() vid runtime → light/dark följer med.  */
+@theme inline {
+  /* Surfaces */
+  --color-surface-primary:   var(--jp-surface-primary);
+  --color-surface-secondary: var(--jp-surface-secondary);
+  --color-surface-tertiary:  var(--jp-surface-tertiary);
+  --color-surface-sunken:    var(--jp-surface-sunken);
+  --color-surface-inverse:   var(--jp-surface-inverse);
+
+  /* Text */
+  --color-text-primary:   var(--jp-text-primary);
+  --color-text-secondary: var(--jp-text-secondary);
+  --color-text-tertiary:  var(--jp-text-tertiary);
+  --color-text-inverse:   var(--jp-text-inverse);
+
+  /* Brand */
+  --color-brand-50:  var(--jp-brand-50);
+  --color-brand-100: var(--jp-brand-100);
+  --color-brand-300: var(--jp-brand-300);
+  --color-brand-500: var(--jp-brand-500);
+  --color-brand-600: var(--jp-brand-600);
+  --color-brand-700: var(--jp-brand-700);
+  --color-brand-900: var(--jp-brand-900);
+
+  /* Status */
+  --color-success-50:  var(--jp-success-50);
+  --color-success-600: var(--jp-success-600);
+  --color-success-700: var(--jp-success-700);
+  --color-warning-50:  var(--jp-warning-50);
+  --color-warning-600: var(--jp-warning-600);
+  --color-warning-700: var(--jp-warning-700);
+  --color-danger-50:   var(--jp-danger-50);
+  --color-danger-600:  var(--jp-danger-600);
+  --color-danger-700:  var(--jp-danger-700);
+  --color-info-50:     var(--jp-info-50);
+  --color-info-600:    var(--jp-info-600);
+  --color-info-700:    var(--jp-info-700);
+
+  /* Borders */
+  --color-border-default: var(--jp-border);
+  --color-border-strong:  var(--jp-border-strong);
+  --color-border-modal:   var(--jp-border-modal);
+  --color-border-structural: var(--jp-border-structural);
+  --color-border-brand:   var(--jp-brand-600);
+
+  /* Focus */
+  --color-focus-ring:        var(--jp-focus);
+  --color-focus-ring-offset: var(--jp-surface-primary);
+
+  /* Typografi-familjer */
+  --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
+}
+
+@theme {
+  /* ── Shadows ───────────────────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* ── Typography scale ──────────────────────────── */
+  --text-display:  56px;   /* landing hero (v2) */
+  --text-h1:       28px;
+  --text-h2:       20px;
+  --text-h3:       18px;
+  --text-h4:       16px;
+  --text-body-lg:  17px;
+  --text-body:     16px;
+  --text-body-sm:  14px;
+  --text-caption:  13px;
+  --text-label:    14px;
+  --text-mono:     13px;
+}
+
+/* ── Base styles ──────────────────────────────────── */
+/* Höjd-kedja: .jp-shell { min-height: 100% } behöver upplöst höjd-ancestor
+   annars kollapsar shellen till innehållshöjd och <body>-bakgrunden syns
+   under på korta (app)-sidor (design-reviewer F4 Blocker 2026-05-19). */
+html,
+body {
+  height: 100%;
+}
+body {
+  /* Sidans BASLAGER = canvas (ej surface-primary/kort-färg). I dark är
+     canvas #0B1525 och surface #1B2B47 — body måste matcha .jp-shell:s
+     canvas så ingen tvåtonad bakgrunds-söm uppstår där shellen slutar
+     (DESIGN.md §3 papper-metafor; design-reviewer F4 Blocker). */
+  background-color: var(--jp-canvas);
+  color: var(--jp-text-primary);
+  font-family: var(--jp-font-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Global focus ring ────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+  border-radius: var(--jp-r-sm);
+}
+
+/* ── Länkar (B5-reparation, CTO 2026-05-19) ──────────
+   v3-källans `a{}`-regel utelämnades i F1b-porten → bara-ankare föll
+   tillbaka på arv. v3 §2.2: länk = navy-700 (#133F73 light / #4F8AD0
+   dark — bright, WCAG AA mot dark canvas). Återinförd här (utanför
+   @layer base — ingen base-reset-konflikt, bara färg).
+   Scopad dark-override för Tailwind-klassade `text-brand-600`-länkar:
+   brand-600 → --jp-accent-800 (G1; medvetet EJ skiftad i dark — fill-
+   kontraktet) blir för mörk som länktext på dark canvas (B5-mönstret).
+   Höjer dem till accent-700 i dark UTAN att röra knapp-tokenen
+   eller F6-auth-filerna (CTO B-SCOPE: ingen F6-läcka). */
+/* G3 rotfix: scopa bort knappar (.jp-btn = ofta <Link>/<a>). Annars vinner
+   `a:hover` (0,1,1) över `.jp-btn--primary`s `color:#fff` (0,1,0) i hover-läge
+   — knappens hover sätter bara bakgrund, inte color → grön text på grön knapp
+   (Klas-fynd 2026-06-10). Länkfärgen ska aldrig gälla knappar. */
+a:not(.jp-btn) { color: var(--jp-accent-700); }
+a:not(.jp-btn):hover { color: var(--jp-accent-600); }
+[data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
+[data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
+
+/* ── Reduced motion ───────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── shadcn/ui bridge ──────────────────────────────── */
+@theme inline {
+  --font-heading:                       var(--font-sans);
+  --color-background:                   var(--background);
+  --color-foreground:                   var(--foreground);
+  --color-card:                         var(--card);
+  --color-card-foreground:              var(--card-foreground);
+  --color-popover:                      var(--popover);
+  --color-popover-foreground:           var(--popover-foreground);
+  --color-primary:                      var(--primary);
+  --color-primary-foreground:           var(--primary-foreground);
+  --color-secondary:                    var(--secondary);
+  --color-secondary-foreground:         var(--secondary-foreground);
+  --color-muted:                        var(--muted);
+  --color-muted-foreground:             var(--muted-foreground);
+  --color-accent:                       var(--accent);
+  --color-accent-foreground:            var(--accent-foreground);
+  --color-destructive:                  var(--destructive);
+  --color-border:                       var(--border);
+  --color-input:                        var(--input);
+  --color-ring:                         var(--ring);
+  --color-chart-1:                      var(--chart-1);
+  --color-chart-2:                      var(--chart-2);
+  --color-chart-3:                      var(--chart-3);
+  --color-chart-4:                      var(--chart-4);
+  --color-chart-5:                      var(--chart-5);
+  --color-sidebar:                      var(--sidebar);
+  --color-sidebar-foreground:           var(--sidebar-foreground);
+  --color-sidebar-primary:              var(--sidebar-primary);
+  --color-sidebar-primary-foreground:   var(--sidebar-primary-foreground);
+  --color-sidebar-accent:               var(--sidebar-accent);
+  --color-sidebar-accent-foreground:    var(--sidebar-accent-foreground);
+  --color-sidebar-border:               var(--sidebar-border);
+  --color-sidebar-ring:                 var(--sidebar-ring);
+  /* Radius: pekar på v3 --jp-r-* (ADR 0052). --radius-xl cappas till
+     --jp-r-lg (8px) — 12px är ENDAST hero (.jp-hero, ej shadcn-primitiv). */
+  --radius-sm:   var(--jp-r-sm);
+  --radius-md:   var(--jp-r-md);
+  --radius-lg:   var(--jp-r-lg);
+  --radius-xl:   var(--jp-r-lg);
+  --radius-pill: var(--jp-r-pill);
+}
+
+/* shadcn light-värden (slate v2) — bryggas mot --jp-* där det matchar */
+:root {
+  --background:                 var(--jp-surface-primary);
+  --foreground:                 var(--jp-text-primary);
+  --card:                       var(--jp-surface-primary);
+  --card-foreground:            var(--jp-text-primary);
+  --popover:                    var(--jp-surface-primary);
+  --popover-foreground:         var(--jp-text-primary);
+  --primary:                    var(--jp-brand-600);
+  --primary-foreground:         #FFFFFF;
+  --secondary:                  var(--jp-surface-secondary);
+  --secondary-foreground:       var(--jp-text-primary);
+  --muted:                      var(--jp-surface-tertiary);
+  --muted-foreground:           var(--jp-text-secondary);
+  --accent:                     var(--jp-surface-secondary);
+  --accent-foreground:          var(--jp-text-primary);
+  --destructive:                var(--jp-danger-600);
+  --border:                     var(--jp-border);
+  --input:                      var(--jp-border);
+  /* G1 WCAG-fix: ring följer --jp-focus (skiftar i dark) — brand-600/
+     accent-800 är EJ dark-skiftad och blev osynlig ring i dark. */
+  --ring:                       var(--jp-focus);
+  --radius:                     0.25rem;
+  --chart-1:                    var(--jp-brand-600);
+  --chart-2:                    var(--jp-brand-500);
+  --chart-3:                    var(--jp-brand-300);
+  --chart-4:                    var(--jp-brand-100);
+  --chart-5:                    var(--jp-brand-50);
+  --sidebar:                    var(--jp-surface-secondary);
+  --sidebar-foreground:         var(--jp-text-primary);
+  --sidebar-primary:            var(--jp-brand-600);
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent:             var(--jp-surface-tertiary);
+  --sidebar-accent-foreground:  var(--jp-text-primary);
+  --sidebar-border:             var(--jp-border);
+  --sidebar-ring:               var(--jp-focus);  /* G1 WCAG-fix, se --ring */
+}
+
+/* shadcn dark-värden: ärvs automatiskt — alla bryggor refererar --jp-*    */
+/* som redan skiftar i [data-theme="dark"]. --primary = --jp-brand-600 =   */
+/* alias → --jp-accent-800 (#15603F, EJ skiftad i dark — G1 fill-kontrakt) */
+/* → vit foreground i båda teman, aldrig "ljus knapp med mörk text".       */
+[data-theme="dark"] {
+  --primary-foreground:         #FFFFFF;
+  --sidebar-primary-foreground: #FFFFFF;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* ============================================================
+   .jp-* komponent-system — Jobbliggaren v3 modern civic (ADR 0052/0054).
+   Verbatim-portad från docs/jobbliggaren-v3-bundle/jobbliggaren-v3.css
+   (§Base→§Landing). Globala base-resets (*,body,*:focus-visible)
+   ägs av @layer base ovan och dupliceras INTE här (v3:s 3px-focus
+   ersätts medvetet av globals 2px — WCAG AA-kompatibelt, undviker
+   @layer base-konflikt). Light/dark följer --jp-* automatiskt.
+   ============================================================ */
+
+.jp-mono {
+  font-family: var(--jp-font-mono);
+  font-feature-settings: "tnum" 1;
+}
+
+/* ── Layout ──────────────────────────────────────── */
+.jp-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--jp-canvas);
+}
+.jp-content {
+  flex: 1;
+  width: 100%;
+}
+/* Transitionell bredd-container (CTO 2026-05-19, B1-reparation). v3-shellen
+   (.jp-content) har medvetet ingen bredd-constraint — v3-sidor wrappar i
+   .jp-container/.jp-page själva (F3/F5/F6). Tills dess wrappar app-shell
+   un-refaktorerade (app)-sidor i denna container så de inte renderar
+   edge-to-edge (branch-by-abstraction, samma doktrin som F1a v2-alias /
+   F1b v2-shim). v3-native routes (CTO D1, Variant B 2026-05-19) opt-out:ar
+   redan via app-shell V3_NATIVE_ROUTES-listan så heron går edge-to-edge.
+   BORTTAGNINGS-TRIGGER: när F3/F5/F6 gett alla (app)-sidor egna
+   .jp-container/.jp-page tas denna .jp-shell-transitional-container OCH
+   app-shell V3_NATIVE_ROUTES-listan bort tillsammans (ADR 0052-trail). */
+.jp-shell-transitional-container {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 40px 32px 96px;
+}
+@media (max-width: 720px) {
+  .jp-shell-transitional-container { padding: 32px 20px 64px; }
+}
+.jp-container {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 0 32px;
+}
+@media (max-width: 720px) {
+  .jp-container { padding: 0 20px; }
+}
+.jp-page {
+  /* G2: padding-block (ej shorthand) — shorthandens 0:a skrev över
+     .jp-container:s horisontella 32px när klasserna kombineras →
+     innehållet blev 1200px och alignade inte med platta/header (1136). */
+  padding-block: 40px 96px;
+}
+.jp-page__title-block {
+  margin-bottom: 32px;
+}
+.jp-page__title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--jp-ink-1);
+}
+.jp-page__lede {
+  font-size: 17px;
+  color: var(--jp-ink-2);
+  margin: 8px 0 0;
+  max-width: 60ch;
+}
+
+/* ── Header ──────────────────────────────────────── */
+.jp-header {
+  background: var(--jp-surface);
+  border-bottom: 1px solid var(--jp-border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+/* Header förblir ljus även i dark mode — en vit remsa förstör inte mörkt tema */
+[data-theme="dark"] .jp-header {
+  background: #FFFFFF;
+  border-bottom-color: #C9D2E0;
+  /* Scoped token-override så alla barn (nav-länkar, ikoner, popovers) renderas i ljust läge */
+  --jp-surface:    #FFFFFF;
+  --jp-surface-2:  #F4F6FA;
+  --jp-surface-3:  #E8EDF4;
+  --jp-ink-1: #0C1A2E;
+  --jp-ink-2: #455366;
+  --jp-ink-3: #7C8AA0;
+  --jp-border:      #C9D2E0;
+  --jp-border-soft: #E3E8F0;
+  /* Navy-pins behålls för .jp-brand (logo currentColor) på vit remsa */
+  --jp-navy-700: #133F73;
+  --jp-navy-600: #1B5396;
+  --jp-navy-100: #D6E3F4;
+  --jp-navy-50:  #EAF1FA;
+  /* G1: light-accent-pins — utan dessa skulle dark-accent (#6EE7A8) ge
+     ljusgröna länkar/aktiv-nav på den vita headern (AA-fail). */
+  --jp-accent-700: #15603F;
+  --jp-accent-600: #1E6B4C;
+  --jp-accent-100: #D3E7DC;
+  --jp-accent-50:  #E9F2ED;
+  /* Re-deklaration krävs: --jp-focus ärvs som FÄRDIGBERÄKNAT dark-värde
+     (#6EE7A8, AA-fail på vit remsa) — re-substituerar mot pinnad light. */
+  --jp-focus: var(--jp-accent-700);
+  --jp-shadow-pop: 0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
+  color: #0C1A2E;
+}
+
+.jp-header__inner {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 0 32px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.jp-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  /* F-Pre Punkt 6 (CTO Beslut 2-rev): navy-700 → currentColor på <BrandLogo>-SVG;
+     dark-mode flippar automatiskt via befintlig navy-700-token-skift (ADR 0052).
+     G1-UNDANTAG: logon förblir NAVY (kompassen byter inte färg, ADR 0068) —
+     enda kvarvarande navy-konsumenten utöver scoped-pins/dark-ramp-defs.
+     Override för scoped-vit-header se [data-theme="dark"] .jp-land-top .jp-brand nedan. */
+  color: var(--jp-navy-700);
+}
+.jp-brand:focus-visible {
+  /* design-reviewer m2 2026-05-25: WCAG 2.4.7 paritet med .jp-btn-focus-stil.
+     G1: ringen följer --jp-focus (accent) — logon är navy men fokus är systemets. */
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.jp-brand__mark {
+  flex-shrink: 0;
+  display: block;
+}
+.jp-brand__word {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.jp-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 16px;
+}
+.jp-nav__link {
+  position: relative;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--jp-ink-2);
+  text-decoration: none;
+  border-radius: var(--jp-r-md);
+  transition: background 80ms linear, color 80ms linear;
+  white-space: nowrap;
+}
+.jp-nav__link:hover {
+  color: var(--jp-ink-1);
+  background: var(--jp-surface-3);
+}
+.jp-nav__link[aria-current="page"] {
+  /* E2f (Klas rendered-feedback 2026-06-11): ink-text — accent-baren
+     (::after nedan) bär plats-indikationen ensam (GOV.UK-mönstret;
+     grönt reserveras för interaktion, inte rubriker). */
+  color: var(--jp-ink-1);
+  font-weight: 600;
+}
+.jp-nav__link[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -19px;
+  height: 3px;
+  background: var(--jp-accent-700);
+  border-radius: 2px 2px 0 0;
+}
+
+.jp-header__spacer { flex: 1; }
+
+.jp-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jp-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--jp-r-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--jp-ink-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 80ms linear, color 80ms linear;
+}
+.jp-icon-btn:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+}
+
+.jp-lang {
+  display: inline-flex;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+  height: 32px;
+}
+.jp-lang__btn {
+  width: 36px;
+  height: 32px;
+  background: transparent;
+  border: 0;
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jp-ink-2);
+  cursor: pointer;
+}
+.jp-lang__btn[aria-pressed="true"] {
+  background: var(--jp-ink-1);
+  color: var(--jp-ink-inverse);
+}
+
+.jp-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-accent-100);
+  color: var(--jp-accent-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  border: 1px solid var(--jp-border);
+  cursor: pointer;
+}
+
+/* Mobile drawer trigger */
+.jp-drawer-trigger { display: none; }
+@media (max-width: 900px) {
+  .jp-nav { display: none; }
+  .jp-drawer-trigger { display: inline-flex; }
+}
+
+/* App-header live-stats (ADR 0064 — inloggad-paritet med landing-topbar).
+   Klient-polling var 10:e min i HeaderStats.tsx; delta-pill fade-in:as när
+   newToday ökar sedan senaste polling (Klas-direktiv 2026-05-24 — variant
+   "Fade-in + stay"). Storlek + flex-column-layout är exakt paritet med
+   .jp-land-top__stat* (CSS rad 2366-2391) per Klas-direktiv 2026-05-24
+   "samma stil, font, färger, placering till höger". Döljs på <900px
+   paritet med .jp-nav. */
+.jp-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.jp-header-stats__item {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  position: relative;
+}
+.jp-header-stats__num {
+  font-family: var(--jp-font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+  letter-spacing: -0.01em;
+}
+.jp-header-stats__label {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  margin-top: 2px;
+}
+.jp-header-stats__sep {
+  width: 1px;
+  height: 28px;
+  background: var(--jp-border);
+}
+.jp-header-stats__delta {
+  position: absolute;
+  top: -10px;
+  right: 0;
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--jp-success);
+  white-space: nowrap;
+  animation: jp-header-stats-delta-in 200ms ease-out both;
+}
+@keyframes jp-header-stats-delta-in {
+  from { opacity: 0; transform: translateY(-1px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-header-stats__delta { animation: none; }
+}
+@media (max-width: 900px) {
+  .jp-header-stats { display: none; }
+}
+
+/* User menu (popover) */
+.jp-usermenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 240px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  box-shadow: var(--jp-shadow-pop);
+  padding: 8px;
+  z-index: 50;
+}
+.jp-usermenu__head {
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  margin-bottom: 6px;
+}
+.jp-usermenu__name {
+  font-weight: 600;
+  color: var(--jp-ink-1);
+  font-size: 14.5px;
+}
+.jp-usermenu__email {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+  margin-top: 2px;
+}
+.jp-usermenu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: var(--jp-r-sm);
+  font-size: 14.5px;
+  color: var(--jp-ink-1);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+.jp-usermenu__item:hover { background: var(--jp-surface-3); }
+.jp-usermenu__sep {
+  height: 1px;
+  background: var(--jp-border-soft);
+  margin: 6px 4px;
+}
+
+/* ── Drawer (mobile nav) ─────────────────────────── */
+.jp-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 23, 48, 0.55);
+  z-index: 99;
+  animation: jp-fade 150ms ease;
+}
+.jp-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(340px, 88vw);
+  background: var(--jp-surface);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--jp-shadow-modal);
+  animation: jp-slide-r 200ms ease;
+}
+.jp-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--jp-border);
+}
+.jp-drawer__close {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 0;
+  color: var(--jp-ink-1);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.jp-drawer__list {
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+}
+.jp-drawer__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  text-decoration: none;
+  border-radius: var(--jp-r-md);
+  border-left: 4px solid transparent;
+}
+.jp-drawer__item:hover { background: var(--jp-surface-3); }
+.jp-drawer__item[aria-current="page"] {
+  /* E2f: ink-text — accent-border-left bär plats-indikationen
+     (samma mönster som .jp-nav__link[aria-current]). */
+  border-left-color: var(--jp-accent-700);
+  color: var(--jp-ink-1);
+  font-weight: 600;
+}
+
+/* ── Hero (F4 Hybrid — G1, ADR 0068) ─────────────────────────────────
+   Inramad platta (inte full-bleed): canvas-wrapper med inset, mörkgrön
+   diagonal gradient på plattan, 6px radie. Asymmetrisk komposition:
+   display-rubrik vänster, sök + actions höger. Kompositions-facit:
+   docs/handoff-banner/referens/F4-banner-referens.html. Gradient + 44px-
+   rubriken är DOKUMENTERADE undantag från civic-utility-reglerna och
+   gäller ENBART hero-plattan. Alla kontroller i plattan är TEMA-STABILA
+   (vita, ink-text) — bannern bär färgen, kontrollerna gör det inte. */
+.jp-hero {
+  background: var(--jp-canvas);
+}
+.jp-hero__inner {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 24px 32px 0;
+}
+.jp-hero__plate {
+  background: var(--jp-hero-gradient);
+  border-radius: var(--jp-r-md);
+  padding: 44px 48px 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  /* G3 (Klas-fynd 2026-06-10): rubriken top-left, konsekvent med pagehero-
+     titlarna på övriga sidor (var `end` = botten-/centrerad). */
+  align-items: start;
+  color: var(--jp-hero-ink);
+}
+/* Dark: 1px hairline avgränsar plattan mot mörk canvas */
+[data-theme="dark"] .jp-hero__plate {
+  border: 1px solid var(--jp-border-soft);
+}
+
+.jp-hero__title {
+  /* DOKUMENTERAT undantag (ADR 0068): display-rubrik 44px/800 — gäller
+     ENBART hero-plattan, inte H1-token-skalan (28px). */
+  margin: 0;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--jp-hero-ink);
+}
+.jp-hero__lede {
+  margin: 14px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 42ch;
+  color: var(--jp-hero-ink-soft);
+}
+
+/* Höger-panel: actions-rad + sök-block + filter-pills (stack, gap 14) */
+.jp-hero__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.jp-hero__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Neutrala kontroller i plattan — vita solida, tema-stabila (banner-
+   LOKALA värden per CTO Beslut 1; ALDRIG genomskinliga/gröna). */
+.jp-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  background: var(--jp-hero-pill-bg);
+  border: 1px solid var(--jp-hero-pill-border);
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-hero-pill-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.jp-hero-chip:hover {
+  /* Banner-lokala hover-värden (tema-stabila — ljus slate, ej token) */
+  background: #E8EDF4;
+  border-color: #97A4B8;
+}
+.jp-hero-chip__count {
+  font-family: var(--jp-font-mono);
+  color: #455366; /* banner-lokal v3-light-ink-2 — tema-stabil på vit chip */
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: -2px;
+}
+
+.jp-hero__searchblock {
+  margin: 0;
+  min-width: 0;
+  /* E2d: positioneringskontext för typeahead-dropdownen. Dropdownen ligger
+     DOM-mässigt inuti searchrowen (overflow:hidden) men positioneras mot detta
+     block → escapar klippningen (containing-block är förfader till overflow-
+     elementet). */
+  position: relative;
+}
+/* E2i: spegel-sökfältet (Klas-val 2026-06-11 "Normal ruta som speglar
+   söket" — E2h:s chips-i-fältet revs). Typeahead-wrappern är STATIC så
+   dropdownen förankras mot .jp-hero__searchblock och escapar searchrowens
+   overflow:hidden. */
+.jp-hero__searchfield {
+  flex: 1;
+  min-width: 0;
+}
+.jp-hero__searchfield .jp-hero__input {
+  width: 100%;
+}
+/* Hjälptext under sökraden — bär Tab-/tagg-instruktionen (aldrig
+   placeholder). Ink-soft på plattan, läsbar i båda teman. */
+.jp-hero__searchhelp {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--jp-hero-ink-soft);
+}
+.jp-hero__searchlabels {
+  display: block;
+  font-size: 13px;
+  color: var(--jp-hero-ink-soft);
+  margin-bottom: 6px;
+}
+.jp-hero__searchrow {
+  display: flex;
+  background: var(--jp-hero-pill-bg);
+  border-radius: var(--jp-r-sm);
+  overflow: hidden;
+  /* Ingen border — plattan ger kontrasten (F4-referens) */
+}
+.jp-hero__input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 0 16px;
+  height: 52px;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--jp-hero-pill-ink);
+  background: transparent;
+  min-width: 0;
+}
+/* WCAG 2.4.7: searchrow har overflow:hidden → yttre ring klipps. Inåtvänd
+   ink-ring (tema-stabil, ~16:1 mot vitt fält) istället för vit plate-ring. */
+.jp-hero__input:focus-visible {
+  outline: 2px solid var(--jp-hero-sok-bg);
+  outline-offset: -2px;
+}
+/* E2j: suppress native ::-webkit-search-cancel-button (WebKit/Blink). Den
+   rensade bara textens value utan att committa en filter-delta → filtren
+   överlevde i URL:en (cross-browser-inkonsekvent — Firefox visar den aldrig).
+   Ersatt av en kontrollerad .jp-hero__clearbtn med korrekt clear-semantik. */
+.jp-hero__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+/* Kontrollerad ×-clear-knapp i sökraden (E2j). Flex-syskon mellan fältet och
+   Sök-knappen — delar searchrow-pillens bakgrund så den läser som "i fältet".
+   Grön fokusring (interaktion); ink-× på pill-bakgrunden (ej grön — grönt =
+   interaktion, inte dekoration, E2f-domen). */
+.jp-hero__clearbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 52px;
+  border: 0;
+  background: transparent;
+  color: var(--jp-hero-pill-ink);
+  cursor: pointer;
+  opacity: 0.65;
+}
+.jp-hero__clearbtn:hover {
+  opacity: 1;
+}
+.jp-hero__clearbtn:focus-visible {
+  outline: 2px solid var(--jp-hero-sok-bg);
+  outline-offset: -2px;
+  opacity: 1;
+}
+.jp-hero__searchbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* Ink — INTE grön (CTO Beslut 1: handoffens #0F172A → v3-ink #0C1A2E) */
+  background: var(--jp-hero-sok-bg);
+  color: #fff;
+  border: 0;
+  height: 52px;
+  padding: 0 26px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+.jp-hero__searchbtn:hover { background: #233650; color: #fff; } /* ljusare ink-nyans */
+.jp-hero__searchbtn:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: -3px; /* inåtvänd — yttre ring klipps av searchrow-overflow */
+}
+
+.jp-hero__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 14px;
+  background: var(--jp-hero-pill-bg);
+  color: var(--jp-hero-pill-ink);
+  border: 1px solid var(--jp-hero-pill-border);
+  border-radius: var(--jp-r-sm);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.jp-hero-pill[data-active="true"] {
+  /* accent-800 är tema-stabil (EJ dark-skiftad) — rätt token för vit pill
+     (accent-700 flippar till #6EE7A8 i dark = för svag på vitt). */
+  border-color: var(--jp-accent-800);
+  box-shadow: inset 0 0 0 1px var(--jp-accent-800);
+}
+.jp-hero-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: #2C8A3F; /* banner-lokal light-leaf — tema-stabil på vit pill */
+}
+.jp-hero-pill__count {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--jp-accent-800); /* EJ dark-skiftad — tema-stabil fill */
+  color: #fff;
+  padding: 1px 7px;
+  border-radius: var(--jp-r-pill);
+}
+
+/* Mobil (≤768px): en kolumn (rubrik först), tightare platta, hit-targets
+   ≥44px (WCAG 2.5.5 touch). Sökrad är redan 52px. */
+@media (max-width: 768px) {
+  .jp-hero__inner { padding: 20px 20px 0; }
+  .jp-hero__plate {
+    grid-template-columns: 1fr;
+    padding: 28px 24px;
+    gap: 28px;
+  }
+  .jp-hero__title { font-size: 32px; }
+  .jp-hero__actions { justify-content: flex-start; }
+  .jp-hero-chip,
+  .jp-hero-pill { min-height: 44px; }
+}
+
+/* ── Page-hero för inre sidor (G2: F4-platta-rollout) ─────────
+   Samma inramade gradient-platta som /jobb-bannern (Klas G2-direktiv
+   2026-06-10: samma stil + typografi på alla sidor — kant-till-kant-
+   banden utgår). Wrapper = canvas + inset; inner = 1136-platta
+   (= exakt jobb-plattans bredd och innehållsbredden efter
+   .jp-page-fixen). */
+.jp-pagehero {
+  background: var(--jp-canvas);
+  color: var(--jp-hero-ink);
+  position: relative;
+  padding: 24px 32px 0;
+}
+.jp-pagehero__inner {
+  max-width: 1136px; margin-inline: auto;
+  background: var(--jp-hero-gradient);
+  border-radius: var(--jp-r-md);
+  padding: 36px 40px 40px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 32px; flex-wrap: wrap;
+}
+[data-theme="dark"] .jp-pagehero__inner {
+  /* Avgränsning mot mörk canvas — paritet med .jp-hero__plate (G1). */
+  border: 1px solid var(--jp-border-soft);
+}
+@media (max-width: 720px) {
+  .jp-pagehero { padding: 16px 20px 0; }
+  .jp-pagehero__inner { padding: 28px 24px; }
+  .jp-pagehero__title { font-size: 32px; }
+}
+.jp-pagehero__main { flex: 1 1 320px; min-width: 0; }
+.jp-pagehero__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--jp-hero-ink-soft); margin: 0 0 8px;
+}
+.jp-pagehero__title {
+  /* G2: samma display-skala som .jp-hero__title (ADR 0068-undantaget) —
+     konsekvent rubrik-typografi över alla banners. */
+  font-size: 44px; font-weight: 800;
+  letter-spacing: -0.025em; line-height: 1.1;
+  margin: 0; color: var(--jp-hero-ink);
+}
+.jp-pagehero__lede {
+  margin: 8px 0 0; font-size: 16px;
+  color: var(--jp-hero-ink-soft); max-width: 60ch;
+}
+.jp-pagehero__aside {
+  flex: 0 0 auto; display: flex; align-items: center;
+  gap: 12px; flex-wrap: wrap;
+}
+.jp-pagehero-chip {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--jp-r-md);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: var(--jp-hero-ink);
+}
+.jp-pagehero-chip__value {
+  font-family: var(--jp-font-mono); font-weight: 700;
+  font-size: 18px; letter-spacing: -0.01em;
+  color: var(--jp-hero-ink);
+}
+.jp-pagehero-chip__label {
+  font-family: var(--jp-font-mono); font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--jp-hero-ink-soft);
+}
+.jp-pagehero .jp-btn {
+  white-space: nowrap;
+}
+.jp-pagehero .jp-btn--primary {
+  background: #fff; color: var(--jp-hero-bg); border-color: #fff;
+}
+.jp-pagehero .jp-btn--primary:hover {
+  background: var(--jp-accent-50); color: var(--jp-accent-900); border-color: var(--jp-accent-50);
+}
+.jp-pagehero .jp-btn--ghost {
+  color: var(--jp-hero-ink); background: transparent;
+  border-color: rgba(255,255,255,0.24);
+}
+.jp-pagehero .jp-btn--ghost:hover {
+  background: rgba(255,255,255,0.08); color: #fff;
+}
+/* G1 fokus-scoping (WCAG 2.4.7): gradient-ytor får vit ring via property-
+   scoping av --jp-focus (grön ring syns inte mot grönt). Ersätter de
+   tidigare :focus-visible-specialreglerna för pagehero/empty--brand. */
+/* G2 (design-reviewer Minor 1): scopet sitter på GRADIENT-ELEMENTEN
+   (inner-plattorna), inte wrappers — wrappers är numera canvas och ett
+   framtida fokuserbart element mellan wrapper-kant och platta ska INTE
+   få vit ring mot ljus canvas. .jp-empty--brand behålls definierad
+   (sanktionerad gradient-konsument; 0 konsumenter efter G2 M2). */
+.jp-hero__plate,
+.jp-pagehero__inner,
+.jp-empty--brand {
+  --jp-focus: #FFFFFF;
+}
+/* G4: .jp-land-hero__inner är inte längre en gradient-yta (ljus canvas) —
+   borttagen ur vit-ring-scopet så hero-CTA:ernas fokusring blir grön mot
+   ljus bakgrund. Peek-bandets gradient innehåller inga fokuserbara element
+   (aria-hidden, ren markup) → behöver ingen ring-override. */
+/* Tema-stabilitets-pins för gradient-ytornas vita knappar: accent-50/-100
+   skiftar mörkgrönt i dark — det hade gjort vit-knapp-hovern oläsbar. */
+.jp-pagehero__inner,
+.jp-empty--brand {
+  --jp-accent-50:  #E9F2ED;
+  --jp-accent-100: #D3E7DC;
+}
+/* Popovers är flytande, tema-följande ytor — återställ fokus-färgen om en
+   popover renderas inom en gradient-scope (t.ex. filter-popover i plattan). */
+.jp-popover {
+  --jp-focus: var(--jp-accent-700);
+}
+
+/* ── Popover (filter, dropdown chips) ─────────────── */
+.jp-popover {
+  position: absolute;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  box-shadow: var(--jp-shadow-pop);
+  z-index: 40;
+  color: var(--jp-ink-1);
+}
+.jp-popover__colhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  position: sticky;
+  top: 0;
+  background: var(--jp-surface);
+  z-index: 1;
+}
+.jp-popover__group {
+  padding-bottom: 4px;
+}
+.jp-popover__group + .jp-popover__group {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-checkitem--all {
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-weight: 600;
+}
+.jp-popover__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-popover__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-ink-2);
+}
+/* E2e (ADR 0067 rad 109): Rensa = röd text-länk per sektion (ej knapp).
+   Kanonisk klass för rensa-affordances i popover-kolumnhuvuden OCH
+   results-toolbaren — danger-färgen markerar destruktiv handling
+   (#BE1B1B på vit/surface ≥5.9:1 light; dark-paret på mörk surface,
+   WCAG AA för 13px-text). Ersätter .jp-popover__clear (accent-grön). */
+.jp-clearlink {
+  background: transparent;
+  border: 0;
+  color: var(--jp-danger);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.jp-popover__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 360px;
+  max-height: 60vh;
+}
+.jp-popover__col {
+  overflow: auto;
+  padding: 6px 0;
+  /* min-height:0 krävs för att en grid-item ska kunna krympa under sitt
+     innehåll och låta overflow:auto engagera inom .jp-popover__body:s
+     max-height:60vh. Utan detta (CSS-Grid default min-height:auto) växer
+     kolumnen förbi panelen och flödar ut över hela sidhöjden
+     (design-reviewer F4 Blocker 2026-05-19 — Yrke-popoverns högerkolumn).
+     Ort enkelkolumns har redan explicit maxHeight/overflow-div (referens). */
+  min-height: 0;
+}
+.jp-popover__col:first-child {
+  border-right: 1px solid var(--jp-border-soft);
+}
+
+.jp-popover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-size: 15px;
+  border-left: 4px solid transparent;
+}
+.jp-popover-row:hover { background: var(--jp-surface-3); }
+.jp-popover-row[aria-selected="true"] {
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+  font-weight: 600;
+  border-left-color: var(--jp-accent-700);
+}
+.jp-popover-row__chev {
+  color: var(--jp-ink-3);
+}
+
+.jp-checkitem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-size: 15px;
+}
+.jp-checkitem:hover { background: var(--jp-surface-3); }
+.jp-checkitem__box {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--jp-r-sm);
+  border: 2px solid var(--jp-border-strong);
+  background: var(--jp-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.jp-checkitem[aria-checked="true"] .jp-checkitem__box {
+  /* G1: checked = FILL bakom vit bock → accent-800 (fill-kontraktet,
+     EJ dark-skiftad — accent-700 hade gett #6EE7A8-fyll i dark). */
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+  color: #fff;
+}
+/* E2c (ADR 0067 Beslut 4) — per-option-count efter rad-labeln,
+   "Solna (12)". Mono + ink-2 = samma sekundärtals-konvention som
+   träffräknaren/hero-chip-counts. */
+.jp-checkitem__count,
+.jp-radioitem__count {
+  margin-left: auto;
+  font-family: var(--jp-font-mono);
+  /* 13px = chip-count-precedenten (design-reviewer Minor 1 E2c — inga
+     off-scale-fraktioner). */
+  font-size: 13px;
+  color: var(--jp-ink-2);
+  flex-shrink: 0;
+}
+.jp-popover__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--jp-border-soft);
+  background: var(--jp-surface-2);
+}
+
+/* ── Klass-2-filterpanel (enkelkolumn) ─────────────
+   ADR 0067 Fas E (2026-06-13). Staplade sektioner (Omfattning radio +
+   Anställningsform checkbox) — INTE den tvåkolumns-kaskade .jp-popover__body.
+   Återanvänder .jp-popover-skalet (yta/border/skugga/fokus-scope). */
+.jp-panel__body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.jp-panel__section {
+  padding: 6px 0 8px;
+}
+.jp-panel__section + .jp-panel__section {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-panel__sectionhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+}
+.jp-panel__group {
+  display: flex;
+  flex-direction: column;
+}
+/* Radio-rad: cirkel + fyll (jp-checkitem-paritet i layout/target/hover men
+   rund indikator). Civic-utility: ingen gradient/glow — accent-800-fyll. */
+.jp-radioitem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-size: 15px;
+}
+.jp-radioitem:hover { background: var(--jp-surface-3); }
+.jp-radioitem:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
+.jp-radioitem__dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid var(--jp-border-strong);
+  background: var(--jp-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.jp-radioitem[aria-checked="true"] .jp-radioitem__dot {
+  border-color: var(--jp-accent-800);
+}
+.jp-radioitem__fill {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--jp-accent-800);
+}
+/* Checkbox-raden i panelen får synligt fokus (jp-checkitem saknar egen
+   focus-ring — popovern förlitar sig på roving men panelens checkboxar är
+   alla tab-stops). */
+.jp-panel .jp-checkitem:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
+
+/* ── Buttons ─────────────────────────────────────── */
+.jp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: var(--jp-r-md);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background 90ms linear, color 90ms linear, border-color 90ms linear;
+}
+.jp-btn--primary {
+  background: var(--jp-accent-800);
+  color: #FFFFFF;
+  border-color: var(--jp-accent-800);
+}
+.jp-btn--primary:hover { background: var(--jp-accent-800-hover); border-color: var(--jp-accent-800-hover); }
+[data-theme="dark"] .jp-btn--primary {
+  background: var(--jp-accent-800);
+  color: #FFFFFF;
+  border-color: var(--jp-accent-800);
+}
+[data-theme="dark"] .jp-btn--primary:hover {
+  background: var(--jp-accent-800-hover);
+  border-color: var(--jp-accent-800-hover);
+}
+
+.jp-btn--secondary {
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  border-color: var(--jp-border-input);
+}
+.jp-btn--secondary:hover {
+  background: var(--jp-surface-3);
+}
+.jp-btn--ghost {
+  background: transparent;
+  color: var(--jp-ink-2);
+}
+.jp-btn--ghost:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+}
+.jp-btn--danger {
+  background: var(--jp-danger);
+  color: #fff;
+  border-color: var(--jp-danger);
+}
+.jp-btn--sm { height: 36px; padding: 0 14px; font-size: 14px; }
+.jp-btn--lg { height: 52px; padding: 0 24px; font-size: 16px; }
+.jp-btn--block { width: 100%; }
+
+/* ── Forms ───────────────────────────────────────── */
+.jp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jp-ink-1);
+}
+.jp-hint {
+  font-size: 13px;
+  color: var(--jp-ink-2);
+}
+.jp-input,
+.jp-select,
+.jp-textarea {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: var(--jp-r-md);
+  border: 1.5px solid var(--jp-border-input);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  font-family: inherit;
+  font-size: 16px;
+  outline: 0;
+  transition: border-color 80ms, box-shadow 80ms;
+}
+.jp-textarea {
+  height: auto;
+  min-height: 110px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+.jp-input:focus,
+.jp-select:focus,
+.jp-textarea:focus {
+  border-color: var(--jp-accent-700);
+  /* G1: glow-tint = accent-500 #2E8B63 i rgb (var navy-500 rgb(46,108,194)) */
+  box-shadow: 0 0 0 3px rgba(46, 139, 99, 0.20);
+}
+[data-theme="dark"] .jp-input,
+[data-theme="dark"] .jp-select,
+[data-theme="dark"] .jp-textarea {
+  /* User-krav: ljusa input-fält med mörk text i dark mode */
+  background: #F0F4FB;
+  color: #0C1A2E;
+  border-color: #94A3B8;
+}
+[data-theme="dark"] .jp-input::placeholder,
+[data-theme="dark"] .jp-textarea::placeholder { color: var(--jp-ink-3); }
+
+/* B4/M1-reparation (CTO 2026-05-19): HANDOVER §5.2 "icke-förhandlingsbart:
+   dark input ljus bg #F0F4FB" gäller ALLA inputs, men shadcn-primitiverna
+   (components/ui/{input,textarea,select}) använder Tailwind-semantik
+   (bg-surface-primary + dark:bg-input/30), ej .jp-input. Token-bryggans
+   (F1b) ansvar att täcka konsumenten via data-slot — DIP, fixa
+   abstraktionen ej komponenten. !important krävs för att vinna mot
+   Tailwinds dark:-utility-kaskad; smalt scopat till dark + data-slot. */
+[data-theme="dark"] [data-slot="input"],
+[data-theme="dark"] [data-slot="textarea"],
+[data-theme="dark"] [data-slot="select-trigger"] {
+  background: #F0F4FB !important;
+  color: #0C1A2E !important;
+  border-color: #94A3B8 !important;
+}
+[data-theme="dark"] [data-slot="input"]::placeholder,
+[data-theme="dark"] [data-slot="textarea"]::placeholder { color: var(--jp-ink-3); }
+
+/* ── Job/Application result list ──────────────────────
+   jp-job ≡ jp-app: DELAD selektor — HANDOVER §5.3/§9 är
+   ICKE-FÖRHANDLINGSBAR ("Båda måste se identiska ut. Avvik
+   aldrig"; "får ALDRIG drifta isär"). Spec-text + §0-veto >
+   jobbliggaren-v3.css-källans separata block (CTO-dom 2026-05-19:
+   källans gap 8≠10 / align start≠center var käll-bugg, ej
+   medveten design). F5 B1: .jp-app__statusbadge tillhör MODALEN/
+   detaljen, EJ raden — ansökningsraden = exakt 2 grid-barn
+   (body + actions), prototyp-exakt, ingen topologi-avvikelse mot
+   .jp-job. Titel/company/meta är DELADE selektorer (F5 B2 nedan).
+   Återinför ALDRIG separata .jp-job/.jp-app-chassi-block. */
+.jp-jobs,
+.jp-applist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-job,
+.jp-app {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 18px 22px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: start;
+  cursor: pointer;
+  transition: border-color 80ms, transform 80ms;
+}
+/* position:relative endast jp-job (jobb-specifik __newflag-behållare,
+   ej row-mönster-drift — app-raden har inget absolut-positionerat barn). */
+.jp-job {
+  position: relative;
+}
+.jp-job:hover,
+.jp-app:hover {
+  border-color: var(--jp-accent-700);
+}
+.jp-job__newflag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--jp-leaf-50);
+  color: var(--jp-leaf-600);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--jp-r-sm);
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+/* ── Tagg-system (pre-F6 Prompt 1, 2026-05-20) ─────────
+   Generisk rektangulär tagg-rad för rad-komponenter (.jp-job /
+   .jp-app i Prompt 2+). Placeras inom .jp-job__title h3 och
+   högerjusteras via margin-left:auto — utnyttjar h3:s befintliga
+   flex/flex-wrap-kontrakt (CTO-dom 2026-05-20, Variant D). Klas-
+   mandat: civic-utility-stil, INGA pills, INGA pastell-chips,
+   INGA ikoner-i-taggar (HANDOVER §0 / CLAUDE.md §5.2). .jp-tag
+   ärver färgvarianter via .jp-tag--accent (leaf framhävt, NY),
+   .jp-tag--neutral (border-only, färskhet), .jp-tag--brand
+   (navy svag fyll, match). Återanvänds över rad-komponenter. */
+.jp-job-tags {
+  margin-left: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.jp-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--jp-r-sm);
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.jp-tag--accent {
+  background: var(--jp-leaf-50);
+  color: var(--jp-leaf-600);
+  font-weight: 700;
+}
+.jp-tag--neutral {
+  background: transparent;
+  color: var(--jp-ink-2);
+  border-color: var(--jp-border);
+  font-weight: 600;
+}
+.jp-tag--brand {
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+  font-weight: 600;
+}
+[data-theme="dark"] .jp-tag--neutral {
+  color: var(--jp-ink-2);
+  border-color: var(--jp-border);
+}
+[data-theme="dark"] .jp-tag--brand {
+  background: transparent;
+  color: var(--jp-ink-1);
+  border-color: var(--jp-accent-700);
+}
+/* PR5 (Klas-feedback 2026-05-23) — Sparad/Ansökt-status-taggar får
+   kraftigare navy-kantlinje + ink för att stå ut från färskhet/freshness
+   utan att bryta civic-utility (inga pastellchips, ingen färgad fyll,
+   bara förstärkt outline). Override mot jp-tag--neutral default. */
+.jp-tag[data-tag="saved"],
+.jp-tag[data-tag="applied"] {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+  font-weight: 700;
+}
+[data-theme="dark"] .jp-tag[data-tag="saved"],
+[data-theme="dark"] .jp-tag[data-tag="applied"] {
+  border-color: var(--jp-accent-300);
+  color: var(--jp-ink-1);
+}
+.jp-matchchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--jp-font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--jp-ink-2);
+  padding: 3px 9px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border);
+  line-height: 1.4;
+}
+.jp-matchchip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--jp-r-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+.jp-matchchip--high {
+  color: var(--jp-success);
+  background: var(--jp-success-bg);
+  border-color: var(--jp-success);
+}
+.jp-matchchip--mid {
+  /* G1 (architect-fynd): mid får INTE bli accent-grön — skulle kollidera
+     med success-/high-semantiken. Neutral variant; flaggad för
+     design-reviewer/Klas. */
+  color: var(--jp-ink-2);
+  background: var(--jp-surface-2);
+  border-color: var(--jp-border-strong);
+}
+.jp-matchchip--low {
+  color: var(--jp-ink-3);
+  background: var(--jp-surface-3);
+  border-color: var(--jp-border);
+}
+.jp-job__body { min-width: 0; }
+/* jp-job ≡ jp-app titel/company/meta: DELADE selektorer (HANDOVER §9
+   "får ALDRIG drifta isär"). Extension av F4 CTO-domen 2026-05-19
+   (jp-job/jp-app source-divergens = käll-bugg; spec/§0 > källfil;
+   konsolidera till DELAD selektor med jp-job:s värden) från radchassit
+   till radens inre text-element (F5 B2, design-reviewer). jp-job:s
+   line-height/flex på __title är ofarligt på app-rader utan __newflag
+   (ger §9-paritet). Återinför ALDRIG separata .jp-app__title/company/
+   meta/meta-b-block — radens visuella paritet hänger på dessa delade
+   regler. App-specifika element (.jp-app__id-chip, .jp-app__actions)
+   är genuint app-unika och konsolideras EJ. */
+.jp-job__title,
+.jp-app__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  /* E2f: ink — titlar är information, inte interaktion (dark hade redan
+     ink-1; light blir nu konsekvent). Grönt = knappar/checked/aktiv/fokus. */
+  color: var(--jp-ink-1);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-job__company,
+.jp-app__company {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--jp-ink-1);
+  font-weight: 500;
+}
+.jp-job__meta,
+.jp-app__meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+  align-items: center;
+}
+.jp-job__meta b,
+.jp-app__meta b {
+  font-family: var(--jp-font-mono);
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  margin-left: 4px;
+}
+.jp-job__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* Dark mode: job- och application-titel byter till fet vit */
+[data-theme="dark"] .jp-job__title,
+[data-theme="dark"] .jp-app__title {
+  color: var(--jp-ink-1);
+  font-weight: 700;
+}
+[data-theme="dark"] .jp-save[data-saved="true"] {
+  /* G1: fill bakom vit text → accent-800 (EJ dark-skiftad; accent-700
+     hade gett #6EE7A8-fyll bakom vit text = kontraktsbrott). */
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+  color: #FFFFFF;
+}
+.jp-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  color: var(--jp-ink-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.jp-save:hover { background: var(--jp-surface-3); color: var(--jp-ink-1); }
+.jp-save[data-saved="true"] {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+
+@media (max-width: 720px) {
+  .jp-job {
+    grid-template-columns: 1fr;
+  }
+  .jp-job__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* Result toolbar */
+.jp-results-toolbar {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+}
+.jp-results-count {
+  font-size: 17px;
+  color: var(--jp-ink-1);
+}
+.jp-results-count b {
+  font-family: var(--jp-font-mono);
+  font-weight: 700;
+  /* E2f: ink — talet är information, inte interaktion. */
+  color: var(--jp-ink-1);
+}
+
+/* Active filter chips */
+.jp-filterchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.jp-filterchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px 0 12px;
+  background: var(--jp-surface-3);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-pill);
+  font-size: 13.5px;
+  color: var(--jp-ink-1);
+}
+.jp-filterchip__rm {
+  border: 0;
+  background: transparent;
+  color: var(--jp-ink-2);
+  cursor: pointer;
+  /* Hit-area fyller chipens 32px-höjd (a11y-skillens 32×32-golv —
+     design-reviewer M1 E2i; × är primär borttagnings-affordance även för
+     sökord nu). Negativ högermarginal äter chipens padding så ikonen
+     sitter visuellt oförändrat. */
+  align-self: stretch;
+  align-items: center;
+  padding: 0 8px;
+  margin-right: -10px;
+  display: inline-flex;
+}
+.jp-filterchip__rm:hover { color: var(--jp-ink-1); }
+
+/* Saved-search row */
+.jp-savedsearch-bar {
+  margin-top: 18px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ── Modal ───────────────────────────────────────── */
+.jp-modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 23, 48, 0.55);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  animation: jp-fade 140ms ease;
+}
+.jp-modal {
+  background: var(--jp-surface);
+  border-radius: var(--jp-r-lg);
+  width: min(760px, 100%);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--jp-shadow-modal);
+  animation: jp-rise 200ms ease;
+}
+.jp-modal__head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-modal__title {
+  flex: 1;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--jp-ink-1);
+}
+.jp-modal__company {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--jp-ink-2);
+}
+.jp-modal__body {
+  padding: 20px 24px 24px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.jp-modal__metarow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 24px;
+  padding: 14px 16px;
+  background: var(--jp-surface-2);
+  border-radius: var(--jp-r-md);
+  border: 1px solid var(--jp-border-soft);
+}
+.jp-modal__metaitem dt {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-ink-2);
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.jp-modal__metaitem dd {
+  margin: 0;
+  font-size: 15px;
+  color: var(--jp-ink-1);
+  font-family: var(--jp-font-mono);
+  font-weight: 500;
+}
+.jp-modal__match {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--jp-r-md);
+  border: 1px solid var(--jp-border-soft);
+  background: var(--jp-surface-2);
+}
+.jp-modal__match__ring {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--jp-r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--jp-font-mono);
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.jp-modal__match__expl b {
+  color: var(--jp-ink-1);
+  font-weight: 600;
+}
+.jp-modal__description {
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--jp-ink-1);
+}
+/* ── Annonsbeskrivning — parsad markup (pre-F6 Prompt 2) ─────
+   Genererad av formatAdDescription(). h3 ärver typografi från
+   ANNONSBESKRIVNING-labeln men något större och med markant
+   spacing före (Klas-direktiv). p använder white-space:pre-line
+   så enkla radbrytningar inom stycken bevaras. ul-stilning är
+   civic-utility (disc, modest indrag). INGA nya färgkoder —
+   alla tokens från jobbliggaren-v3.css. */
+.jp-ad-desc__h3 {
+  margin: 28px 0 8px 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-ink-2);
+  line-height: 1.3;
+}
+.jp-ad-desc__h3:first-child {
+  margin-top: 0;
+}
+.jp-ad-desc__p {
+  margin: 0 0 14px 0;
+  white-space: pre-line;
+}
+.jp-ad-desc__p:last-child {
+  margin-bottom: 0;
+}
+.jp-ad-desc__list {
+  margin: 0 0 14px 0;
+  padding-left: 22px;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-ad-desc__list:last-child {
+  margin-bottom: 0;
+}
+.jp-ad-desc__list li {
+  padding-left: 2px;
+}
+
+/* ── Disclosure-mönster för ansökansvyns sektioner (pre-F6 Prompt 4) ──
+   Kompakt klickbar rad + expanderbar body. Används av FollowUpsSection
+   och NotesSection (single-expand inom resp. sektion). Hover-feedback
+   signalerar klickbarhet utan att vara dominant. Civic-utility — inga
+   gradienter, ingen drop-shadow, ingen animerad accent. */
+.jp-disclosure-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 80ms, border-color 80ms;
+}
+.jp-disclosure-row:hover {
+  background: var(--jp-surface-2);
+  border-color: var(--jp-border);
+}
+.jp-disclosure-row:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+}
+.jp-disclosure-row[aria-expanded="true"] {
+  background: var(--jp-surface-2);
+  border-color: var(--jp-border);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.jp-disclosure-row__primary {
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  flex-shrink: 0;
+}
+.jp-disclosure-row__pill {
+  flex-shrink: 0;
+}
+.jp-disclosure-row__note {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--jp-ink-2);
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jp-disclosure-row__date {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  color: var(--jp-ink-3);
+}
+.jp-disclosure-row__chevron {
+  flex-shrink: 0;
+  color: var(--jp-ink-3);
+}
+.jp-disclosure-body {
+  padding: 14px 16px 16px 16px;
+  border: 1px solid var(--jp-border);
+  border-top: 0;
+  border-radius: 0 0 var(--jp-r-md) var(--jp-r-md);
+  background: var(--jp-surface);
+  margin-top: -1px;
+}
+
+/* ── Segment (radiogroup-pill) — F6 Prompt 2 Inställningar ────
+   Aktiv option = navy-800 fyll + vit text i båda lägena (primary-
+   knappens "aldrig inverterad"-regel, HANDOVER §5.1). Disabled =
+   opacity 0.55 + cursor not-allowed. Container är 1px border-input
+   + radius md + overflow hidden så aktiv-pillen får skarpa kanter
+   mot containerns inre. */
+.jp-segment {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--jp-border-input);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface);
+  overflow: hidden;
+  width: fit-content;
+}
+.jp-segment__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background 80ms, color 80ms;
+}
+.jp-segment__opt + .jp-segment__opt {
+  border-left: 1px solid var(--jp-border-input);
+}
+.jp-segment__opt:hover:not([data-active="true"]):not(:disabled) {
+  background: var(--jp-surface-3);
+}
+.jp-segment__opt:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
+.jp-segment__opt[data-active="true"] {
+  background: var(--jp-accent-800);
+  color: #FFFFFF;
+}
+.jp-segment__opt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.jp-segment__icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── ToggleRow (switch-rad) — F6 Prompt 2 Inställningar ────
+   Hela raden är klickbar via switch-button (rätt target-storlek).
+   Switch = button med track (32px×18px) + thumb (14px) som skiftar
+   position med transform. Civic-utility: ingen drop-shadow, ingen
+   gradient — bara navy-800-fyll vid checked. */
+.jp-togglerow {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+}
+.jp-togglerow + .jp-togglerow {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-togglerow__text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.jp-togglerow__label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  line-height: 1.4;
+}
+.jp-togglerow__desc {
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+  line-height: 1.45;
+}
+.jp-togglerow__switch {
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--jp-surface-3);
+  border: 1px solid var(--jp-border-input);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  transition: background 100ms, border-color 100ms;
+}
+.jp-togglerow__switch:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+}
+.jp-togglerow__switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.jp-togglerow__switch[data-checked="true"] {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+}
+.jp-togglerow__thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--jp-surface);
+  transition: transform 120ms ease;
+}
+.jp-togglerow__switch[data-checked="true"] .jp-togglerow__thumb {
+  transform: translateX(16px);
+  background: #FFFFFF;
+}
+
+/* ── Inställningar-grid + field-block — F6 Prompt 2 ──────────
+   Två kolumner (1fr 1fr) på desktop, en kolumn under 900px.
+   Alla kort staplas inom respektive kolumn med 20px gap. */
+.jp-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.jp-settings-grid__col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .jp-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.jp-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-settings-field + .jp-settings-field {
+  margin-top: 20px;
+}
+.jp-settings-field__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+}
+.jp-settings-field__hint {
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+  margin: 0;
+}
+.jp-modal__foot {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--jp-border-soft);
+  background: var(--jp-surface-2);
+  border-bottom-left-radius: var(--jp-r-lg);
+  border-bottom-right-radius: var(--jp-r-lg);
+  flex-wrap: wrap;
+}
+.jp-modal__foot__spacer { flex: 1; }
+
+/* ── Status pills (för ansökningar) ──────────────── */
+.jp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: var(--jp-r-pill);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+  border: 1px solid transparent;
+}
+.jp-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: currentColor;
+}
+.jp-pill--neutral { background: var(--jp-surface-3); color: var(--jp-ink-2); border-color: var(--jp-border); }
+.jp-pill--info    { background: var(--jp-info-bg);    color: var(--jp-info);    border-color: var(--jp-info); }
+.jp-pill--brand   { background: var(--jp-accent-50);    color: var(--jp-accent-700); border-color: var(--jp-accent-700); }
+.jp-pill--success { background: var(--jp-success-bg); color: var(--jp-success); border-color: var(--jp-success); }
+.jp-pill--warning { background: var(--jp-warning-bg); color: var(--jp-warning); border-color: var(--jp-warning); }
+.jp-pill--danger  { background: var(--jp-danger-bg);  color: var(--jp-danger);  border-color: var(--jp-danger); }
+
+/* ── Applications: status tabs + sections ────────── */
+.jp-statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 32px;
+  padding: 14px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-statusbar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--jp-r-pill);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--jp-ink-1);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.jp-statusbar__item:hover { background: var(--jp-surface-3); }
+.jp-statusbar__item[data-active="true"] {
+  background: var(--jp-ink-1);
+  color: var(--jp-ink-inverse);
+}
+.jp-statusbar__count {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.jp-section {
+  margin-top: 32px;
+}
+.jp-section__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--jp-border);
+}
+.jp-section__title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.jp-section__count {
+  font-family: var(--jp-font-mono);
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+
+/* ── Application row (mina ansökningar) ───────────
+   .jp-applist/.jp-app chassi delas med .jp-jobs/.jp-job ovan
+   (HANDOVER §9 — se delad-selektor-kommentaren där). Endast
+   app-specifik statusbadge nedan. */
+.jp-app__statusbadge {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--jp-r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border: 2px solid;
+}
+.jp-app__statusbadge svg { width: 24px; height: 24px; }
+
+/* .jp-app__title/company/meta/meta-b: konsoliderade till DELADE
+   .jp-job__*,.jp-app__*-selektorer ovan (F5 B2, HANDOVER §9 /
+   F4 CTO-doktrin 2026-05-19). Separata block borttagna här —
+   återinför dem ALDRIG (skulle drifta isär jp-job≡jp-app). Endast
+   genuint app-unika element (id-chip, actions-layout) nedan. */
+.jp-app__id {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  padding: 2px 8px;
+  border-radius: var(--jp-r-sm);
+}
+.jp-app__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+@media (max-width: 720px) {
+  .jp-app { grid-template-columns: 1fr; }
+  .jp-app__actions { flex-direction: row; flex-wrap: wrap; align-items: center; }
+}
+
+/* ── CV cards ────────────────────────────────────── */
+.jp-cvgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.jp-cv {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-cv__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jp-cv__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-cv__role {
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  margin-top: 2px;
+}
+.jp-cv__meta {
+  display: flex;
+  gap: 14px;
+  font-family: var(--jp-font-mono);
+  font-size: 12.5px;
+  color: var(--jp-ink-2);
+  border-top: 1px solid var(--jp-border-soft);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.jp-cv__actions {
+  display: flex;
+  gap: 8px;
+}
+/* HANDOVER §3 — "sektioner" är inte ren data, ska EJ vara mono. Override
+   container-defaulten för enbart sektioner-spannet (språk + datum förblir
+   mono som data-fält). */
+.jp-cv__meta__sections {
+  font-family: var(--jp-font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+}
+
+/* ── Skill-chips på CV-kort (F6 P3a) ────────────────
+   Diskreta, rektangulära. Klas-prompt §E: "INTE rundade pillar med stark
+   färg. Diskret, rektangulärt med soft border." */
+.jp-cv__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.jp-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+  font-size: 12px;
+  color: var(--jp-ink-1);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* ── Anpassa CV mot annons-banner (F6 P3a) ─────────
+   Navy-50-bg auto-mappar till mörkare navy i dark mode via token-skift
+   (HANDOVER §2.2). Edit-ikon (INTE Sparkles, §0 punkt 4). */
+.jp-cv-banner {
+  margin-top: 28px;
+  padding: 20px;
+  background: var(--jp-accent-50);
+  border: 1px solid var(--jp-accent-700);
+  border-radius: var(--jp-r-md);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.jp-cv-banner__icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--jp-accent-700);
+  background: var(--jp-surface);
+  border-radius: var(--jp-r-md);
+  border: 1px solid var(--jp-border-soft);
+}
+.jp-cv-banner__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jp-cv-banner__title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--jp-ink-1);
+  line-height: 1.3;
+}
+.jp-cv-banner__body {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+  line-height: 1.5;
+}
+
+/* ── Animations ──────────────────────────────────── */
+@keyframes jp-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes jp-rise {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes jp-slide-r {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jp-modal-scrim, .jp-modal, .jp-drawer, .jp-drawer-scrim, .jp-toast {
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ── Empty state ─────────────────────────────────── */
+.jp-empty {
+  text-align: center;
+  padding: 80px 24px;
+  background: var(--jp-surface);
+  border: 1px dashed var(--jp-border);
+  border-radius: var(--jp-r-md);
+  color: var(--jp-ink-2);
+}
+.jp-empty__title {
+  color: var(--jp-ink-1);
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+/* ── v4: brand-tonad empty-state (CV / pipeline tomma)
+   Modifier på .jp-empty. Används när hela sidan annars vore vit
+   (CV-listan tom, pipeline tom). HANDOVER-v4 §1.2 + §2.1. */
+.jp-empty--brand {
+  background: var(--jp-hero-gradient);
+  border: 1px solid var(--jp-hero-bg);
+  color: var(--jp-hero-ink-soft);
+  padding: 56px 32px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; text-align: center;
+}
+.jp-empty--brand .jp-empty__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--jp-hero-ink-soft); margin: 0;
+}
+.jp-empty--brand .jp-empty__title {
+  color: var(--jp-hero-ink);
+  font-size: 20px; font-weight: 700;
+  letter-spacing: -0.015em; margin: 0;
+  text-wrap: balance;
+}
+.jp-empty--brand .jp-empty__body {
+  color: var(--jp-hero-ink-soft);
+  max-width: 52ch; margin: 0;
+  font-size: 15px; line-height: 1.5;
+}
+.jp-empty--brand .jp-empty__actions {
+  display: flex; gap: 10px; margin-top: 6px;
+  flex-wrap: wrap; justify-content: center;
+}
+.jp-empty--brand .jp-btn--primary {
+  background: #fff; color: var(--jp-hero-bg); border-color: #fff;
+}
+.jp-empty--brand .jp-btn--primary:hover {
+  background: var(--jp-accent-50); color: var(--jp-accent-900); border-color: var(--jp-accent-50);
+}
+.jp-empty--brand .jp-btn--ghost {
+  color: var(--jp-hero-ink); background: transparent;
+  border-color: rgba(255,255,255,0.30);
+}
+.jp-empty--brand .jp-btn--ghost:hover {
+  background: rgba(255,255,255,0.08); color: #fff;
+  border-color: rgba(255,255,255,0.45);
+}
+/* :focus-visible-specialregeln borttagen (G1) — vit ring kommer via
+   --jp-focus-scopingen i gradient-blocket (se .jp-pagehero-sektionen). */
+
+/* ── Skeleton (laddningstillstånd) ───────────────────
+   Platt neutral platshållare för /jobb-sökresultatet (F6 P4).
+   Civic-utility: ingen shimmer, ingen puls, ingen gradient, ingen
+   glow (jobbliggaren-design-principles regel 1 + anti-pattern-katalog).
+   Rent statiskt block — `surface-3` är den lugnaste fyllytan i båda
+   teman (light + dark följer --jp-* automatiskt). Inget animeras, så
+   prefers-reduced-motion behöver ingen särregel här. */
+.jp-skeleton {
+  background: var(--jp-surface-3);
+  border-radius: var(--jp-r-sm);
+}
+/* jp-job-skeleton speglar .jp-job-radens mått (padding/border/radius)
+   så resultat-ytan inte hoppar när riktiga annonser ersätter den. */
+.jp-job-skeleton {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jp-skeleton--title {
+  height: 18px;
+  width: 60%;
+}
+.jp-skeleton--company {
+  height: 14px;
+  width: 35%;
+}
+.jp-job-skeleton__meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 2px;
+}
+.jp-skeleton--meta {
+  height: 12px;
+  width: 120px;
+}
+/* Toolbar-rad i laddningstillståndet (F6 P4):
+   - .jp-skeleton__status-text: synlig "Söker bland annonser…" vänster, samma
+     slot där .jp-results-count landar — undviker layout-shift. Stil matchar
+     .jp-results-count (17px, --jp-ink-1) så texten visuellt motsvarar den
+     träffräknare den ersätter under laddning. Ingen animation.
+   - .jp-skeleton--sort: speglar .jp-select-höjden (40px) + en bredd som
+     rymmer label + select. */
+.jp-skeleton__status-text {
+  margin: 0;
+  font-size: 17px;
+  color: var(--jp-ink-1);
+}
+.jp-skeleton--sort {
+  height: 40px;
+  width: 232px;
+}
+
+/* Notifications dropdown */
+.jp-notif {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 320px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  box-shadow: var(--jp-shadow-pop);
+  z-index: 50;
+}
+.jp-notif__head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jp-ink-2);
+}
+.jp-notif__list { padding: 4px; max-height: 320px; overflow: auto; }
+.jp-notif__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 12px;
+  border-radius: var(--jp-r-sm);
+  font-size: 14px;
+}
+.jp-notif__item:hover { background: var(--jp-surface-3); }
+.jp-notif__item__time {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  color: var(--jp-ink-3);
+}
+
+/* Toast */
+.jp-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--jp-ink-1);
+  color: var(--jp-ink-inverse);
+  padding: 12px 20px;
+  border-radius: var(--jp-r-md);
+  box-shadow: var(--jp-shadow-pop);
+  font-size: 14.5px;
+  z-index: 200;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  animation: jp-rise 180ms ease;
+}
+
+/* Auth screen */
+.jp-auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: var(--jp-canvas);
+}
+.jp-auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  padding: 36px 36px 32px;
+  box-shadow: var(--jp-shadow-card);
+}
+.jp-auth-card h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.jp-auth-card p.lede {
+  margin: 0 0 24px;
+  color: var(--jp-ink-2);
+}
+.jp-auth-form { display: flex; flex-direction: column; gap: 14px; }
+.jp-auth-foot {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  text-align: center;
+}
+
+/* Cards generic */
+.jp-card {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 24px;
+}
+.jp-card__title {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+
+/* ============================================================
+   Landing page (v3)
+   ============================================================ */
+.jp-land-top {
+  background: var(--jp-surface);
+  border-bottom: 1px solid var(--jp-border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+[data-theme="dark"] .jp-land-top {
+  background: #FFFFFF;
+  border-bottom-color: #C9D2E0;
+  --jp-surface:    #FFFFFF;
+  --jp-surface-3:  #E8EDF4;
+  --jp-ink-1: #0C1A2E;
+  --jp-ink-2: #455366;
+  --jp-ink-3: #7C8AA0;
+  --jp-border: #C9D2E0;
+  /* G1: light-accent-pins (paritet med [data-theme="dark"] .jp-header) —
+     dark-accent #6EE7A8 vore AA-fail som länk/aktiv-färg på vit remsa. */
+  --jp-accent-700: #15603F;
+  --jp-accent-600: #1E6B4C;
+  --jp-accent-100: #D3E7DC;
+  --jp-accent-50:  #E9F2ED;
+  --jp-focus: var(--jp-accent-700); /* se .jp-header-pin-kommentaren */
+  color: #0C1A2E;
+}
+[data-theme="dark"] .jp-land-top .jp-brand {
+  /* design-reviewer M2 2026-05-25: scoped-vit-topbar i dark får INTE skifta brand
+     till ljusare navy-700 (#4F8AD0, 3.2:1 mot vit = WCAG-borderline). Lås till
+     light-värdet (#133F73, ~10:1) eftersom topbar är vit-på-vit oavsett tema. */
+  color: #133F73;
+}
+.jp-land-top__inner {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 0 32px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.jp-land-top__nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Höger-grupp: live-stats + login-länk (G4). */
+.jp-land-top__right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.jp-land-top__stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.jp-land-top__stat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.jp-land-top__stat__num {
+  font-family: var(--jp-font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+  letter-spacing: -0.01em;
+}
+.jp-land-top__stat__label {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  margin-top: 2px;
+}
+.jp-land-top__stat__sep {
+  width: 1px;
+  height: 28px;
+  background: var(--jp-border);
+}
+@media (max-width: 560px) {
+  .jp-land-top__stats { display: none; }
+}
+.jp-land-foot__settings {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.jp-land-top__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 0;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--jp-ink-2);
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--jp-r-md);
+}
+.jp-land-top__link:hover { background: var(--jp-surface-3); color: var(--jp-accent-700); }
+.jp-land-top__link.is-active { color: var(--jp-accent-700); font-weight: 600; }
+
+@media (max-width: 720px) {
+  .jp-land-top__inner { padding: 0 20px; }
+}
+
+/* Hero (G4-redesign — produkt-forward LJUS hero, CTO Riktning A) ──────
+   Tidigare gröna gradient-platta bakom H1 är BORTTAGEN: canvasen är ljus
+   (`--jp-surface`), inga gröna bakgrundsboxar. Den enda gröna ytan i hero
+   är primär-CTA:ns fill plus ett scoped band-fragment INUTI produkt-peeken
+   (ADR 0068-undantaget, se .jp-land-peek__band). */
+.jp-land-hero {
+  background: var(--jp-surface);
+  padding: 56px 32px 64px;
+}
+.jp-land-hero__inner {
+  max-width: 1136px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 64px;
+  align-items: center;
+}
+.jp-land-hero__copy {
+  min-width: 0;
+}
+.jp-land-hero__title {
+  margin: 0;
+  font-size: clamp(40px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--jp-ink-1);
+}
+.jp-land-hero__lede {
+  margin: 24px 0 0;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--jp-ink-2);
+  max-width: 56ch;
+}
+.jp-land-hero__ctas {
+  margin-top: 28px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 980px) {
+  .jp-land-hero { padding: 36px 24px 44px; }
+  .jp-land-hero__inner { grid-template-columns: 1fr; gap: 40px; }
+}
+
+/* Produkt-peek (G4) — STATISK dekorativ produkt-illustration (aria-hidden).
+   Visar produkten i miniatyr: scoped grönt band-fragment + sökfält-attrapp
+   ovanför två flat/papper-resultatkort. Ingen interaktivitet, ingen JS. */
+.jp-land-peek {
+  min-width: 0;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  background: var(--jp-surface);
+  overflow: hidden;
+}
+/* Scoped hero-band-fragment — ADR 0068-undantaget (gradient ENDAST här). */
+.jp-land-peek__band {
+  background: var(--jp-hero-gradient);
+  padding: 20px 20px 22px;
+}
+.jp-land-peek__band-kicker {
+  display: block;
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--jp-hero-ink-soft);
+  margin-bottom: 12px;
+}
+/* Sökfält-ATTRAPP — ren markup (ingen riktig input), tema-stabilt vitt
+   fält + ink-knapp (samma mönster som /jobb-bannerns sökrad). */
+.jp-land-peek__search {
+  display: flex;
+  align-items: stretch;
+  background: var(--jp-hero-pill-bg);
+  border-radius: var(--jp-r-sm);
+  overflow: hidden;
+}
+.jp-land-peek__search-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 44px;
+  font-size: 14px;
+  color: var(--jp-hero-pill-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jp-land-peek__search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--jp-hero-sok-bg);
+  color: #fff;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+/* Resultat-kort: flat/papper, hairline-separerade (regel 1 + 2). */
+.jp-land-peek__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.jp-land-peek__card {
+  padding: 14px 20px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-land-peek__card:first-child {
+  border-top: 0;
+}
+.jp-land-peek__card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+  margin-bottom: 6px;
+}
+.jp-land-peek__card-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  /* E2f: ink — peeken avbildar jobbkorten, vars titlar nu är ink. */
+  color: var(--jp-ink-1);
+}
+.jp-land-peek__card-meta {
+  margin-top: 3px;
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+}
+
+@media (max-width: 980px) {
+  /* Peek under copy på mobil — behåll den (statisk, billig); CTO-spec
+     staplar i stället för att gömma. */
+  .jp-land-peek { max-width: 420px; }
+}
+
+/* Sektioner */
+.jp-land-section {
+  padding: 80px 0;
+}
+.jp-land-section--alt { background: var(--jp-surface-2); }
+.jp-land-section__head { text-align: center; margin-bottom: 48px; }
+.jp-land-kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--jp-ink-2);
+  margin-bottom: 10px;
+}
+.jp-land-section__title {
+  margin: 0;
+  font-size: clamp(28px, 3.5vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--jp-ink-1);
+}
+
+/* Features */
+.jp-land-features {
+  max-width: 880px;
+  margin-inline: auto;
+  border-top: 1px solid var(--jp-border);
+}
+.jp-land-feature {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  padding: 22px 8px;
+  border-bottom: 1px solid var(--jp-border);
+  align-items: baseline;
+}
+.jp-land-feature__key {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--jp-accent-700);
+}
+.jp-land-feature__val {
+  font-size: 16px;
+  color: var(--jp-ink-1);
+  line-height: 1.6;
+  max-width: 60ch;
+}
+@media (max-width: 700px) {
+  .jp-land-feature { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* Footer */
+.jp-land-foot {
+  background: var(--jp-surface-2);
+  border-top: 1px solid var(--jp-border);
+  padding: 22px 0;
+}
+.jp-land-foot__inner {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.jp-land-foot__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+}
+.jp-land-foot__links a {
+  color: var(--jp-ink-2);
+  text-decoration: none;
+  padding: 4px 0;
+}
+.jp-land-foot__links a:hover { color: var(--jp-ink-1); text-decoration: underline; }
+.jp-land-foot__dot { padding: 0 10px; color: var(--jp-border); }
+.jp-land-foot__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--jp-ink-2);
+  font-family: var(--jp-font-mono);
+}
+.jp-land-foot__dot-on {
+  width: 7px; height: 7px; border-radius: 999px;
+  background: var(--jp-success); margin-right: 6px;
+}
+.jp-land-foot__sep { padding: 0 8px; color: var(--jp-border); }
+
+/* ============================================================
+   v2 STRUKTURELL KOMPAT-SHIM (branch-by-abstraction, CTO Beslut 3).
+   Verbatim-bevarade v2-klasser som ännu konsumeras av sidor/komponenter
+   som refaktoreras i F3-F6 (jobb/ansökningar/cv/mig/sökningar +
+   match-bar/status-dot/status-pill/applications-pipeline) samt admin-
+   granskning (utanför v3-scope, HANDOVER §7 = 5 användarrouter).
+   Tas bort per sida när dess fas refaktorerar; helt borta vid F-städ.
+   ============================================================ */
+
+/* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/mig/sokningar/admin) */
+.jp-h1 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--jp-text-primary);
+  line-height: 1.2;
+  margin: 0;
+}
+.jp-h1--display {
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+.jp-h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--jp-text-primary);
+  margin: 0;
+}
+.jp-h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--jp-text-primary);
+  margin: 0;
+}
+.jp-lede {
+  color: var(--jp-text-secondary);
+  font-size: 17px;
+  max-width: 60ch;
+  margin: 8px 0 0;
+  line-height: 1.55;
+}
+
+/* jp-iconbtn (v2, ingen bindestreck) — theme-toggle.tsx + marketing.
+   v3-motsvarighet = .jp-icon-btn (med bindestreck). Alias-styling. */
+.jp-iconbtn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--jp-r-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--jp-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 80ms linear, color 80ms linear;
+}
+.jp-iconbtn:hover {
+  background: var(--jp-surface-tertiary);
+  color: var(--jp-text-primary);
+}
+
+/* jp-sidebar__tag — marketing v2 versions-chip (refaktoreras F6) */
+.jp-sidebar__tag {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  color: var(--jp-text-secondary);
+  letter-spacing: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--jp-border-hairline);
+  border-radius: var(--jp-r-sm);
+}
+
+/* jp-statusDot — status-dot.tsx (refaktoreras i F3/F5 till v3-mönster) */
+.jp-statusDot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  color: var(--jp-text-primary);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.jp-statusDot__d {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--jp-r-pill);
+  flex: 0 0 auto;
+}
+.jp-statusDot--brand    .jp-statusDot__d { background: var(--jp-brand-600); }
+.jp-statusDot--info     .jp-statusDot__d { background: var(--jp-info-600); }
+.jp-statusDot--success  .jp-statusDot__d { background: var(--jp-success-600); }
+.jp-statusDot--warning  .jp-statusDot__d { background: var(--jp-warning-600); }
+.jp-statusDot--danger   .jp-statusDot__d { background: var(--jp-danger-600); }
+.jp-statusDot--neutral  .jp-statusDot__d { background: var(--jp-text-tertiary); }
+
+/* jp-match — match-bar.tsx (refaktoreras F3 till v3 jp-matchchip) */
+.jp-match {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--jp-font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
+}
+.jp-match__bar {
+  width: 72px;
+  height: 6px;
+  background: var(--jp-surface-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.jp-match__fill {
+  height: 100%;
+  background: var(--jp-brand-600);
+  border-radius: 2px;
+}
+.jp-match__fill--low { background: var(--jp-warning-600); }
+.jp-match__fill--mid { background: var(--jp-info-600); }
+
+/* jp-table — admin-granskning ledger (utanför v3-scope, behålls v2) */
+.jp-table { width: 100%; border-collapse: collapse; font-size: 16px; }
+.jp-table thead th {
+  text-align: left;
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--jp-text-secondary);
+  font-weight: 600;
+  padding: 12px 12px 10px;
+  border-top: 2px solid var(--jp-border-strong);
+  border-bottom: 1px solid var(--jp-border-strong);
+}
+.jp-table tbody td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--jp-border);
+  color: var(--jp-text-primary);
+  vertical-align: middle;
+}
+.jp-table tbody tr:hover td { background: var(--jp-surface-tertiary); }
+.jp-table tbody tr:last-child td { border-bottom: 2px solid var(--jp-border-strong); }
+
+/* ============================================================
+   F6 P5 Punkt 4 — Översikt (civic dossier)
+   Källa: docs/jobbliggaren-v3-bundle/Jobbliggaren/handoff-oversikt/
+          jobbliggaren-v3.css rad 1461-1879 (VERBATIM-klon per ADR 0052 —
+          jp-*-klasser är källan, ej refaktorerat till Tailwind).
+   Civic-utility-ledger — inga AI-dashboard-kort. ADR 0064-paritet
+   gäller INTE här (per-user auth-gated, ej publik anonym).
+   ============================================================ */
+
+.jp-oversikt__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.jp-oversikt__head > :first-child {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.jp-oversikt__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  margin-bottom: 8px;
+}
+/* "I dag" — kalenderblock i toppen.
+   Visar dagens planerade händelser (mockas; senare Google Calendar). */
+.jp-oversikt__today {
+  width: 320px;
+  max-width: 100%;
+  border: 1px solid var(--jp-border);
+  background: var(--jp-surface);
+  border-radius: var(--jp-r-md);
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jp-oversikt__today__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-oversikt__today__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+.jp-oversikt__today__date {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.jp-oversikt__today__day {
+  font-family: var(--jp-font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  /* E2f: ink — datumet är information, inte interaktion. */
+  color: var(--jp-ink-1);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-feature-settings: "tnum" 1;
+}
+.jp-oversikt__today__rest {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+.jp-oversikt__today__weekday {
+  font-weight: 600;
+  color: var(--jp-ink-1);
+  text-transform: lowercase;
+}
+.jp-oversikt__today__month {
+  color: var(--jp-ink-3);
+  text-transform: lowercase;
+}
+
+.jp-oversikt__today__empty {
+  font-size: 14px;
+  color: var(--jp-ink-3);
+  font-style: italic;
+  padding: 4px 0 6px;
+}
+
+.jp-oversikt__today__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-oversikt__today__event {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  column-gap: 12px;
+  row-gap: 0;
+  align-items: baseline;
+  padding-left: 10px;
+  border-left: 2px solid var(--jp-accent-700);
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.jp-oversikt__today__event--google {
+  border-left-color: var(--jp-info);
+}
+.jp-oversikt__today__time {
+  font-family: var(--jp-font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--jp-ink-1);
+  font-feature-settings: "tnum" 1;
+}
+.jp-oversikt__today__title {
+  color: var(--jp-ink-1);
+  font-weight: 500;
+}
+.jp-oversikt__today__where {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--jp-ink-3);
+}
+
+.jp-oversikt__today__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--jp-ink-3);
+  border-top: 1px dashed var(--jp-border);
+  padding-top: 8px;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+@media (max-width: 720px) {
+  .jp-oversikt__today { width: 100%; }
+}
+
+/* Notiser */
+.jp-notice-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-notice {
+  display: grid;
+  grid-template-columns: 4px 130px 1fr auto 120px 36px;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px 0 0;
+  min-height: 64px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-notice:first-child { border-top: 0; }
+.jp-notice__strip {
+  align-self: stretch;
+  width: 4px;
+  background: var(--jp-border);
+}
+.jp-notice--info .jp-notice__strip    { background: var(--jp-info); }
+.jp-notice--warning .jp-notice__strip { background: var(--jp-warning); }
+.jp-notice--brand .jp-notice__strip   { background: var(--jp-accent-700); }
+.jp-notice--success .jp-notice__strip { background: var(--jp-success); }
+
+.jp-notice__label {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--jp-ink-2);
+  padding: 14px 0 14px 8px;
+}
+.jp-notice--info .jp-notice__label    { color: var(--jp-info); }
+.jp-notice--warning .jp-notice__label { color: var(--jp-warning); }
+.jp-notice--brand .jp-notice__label   { color: var(--jp-accent-700); }
+.jp-notice--success .jp-notice__label { color: var(--jp-success); }
+
+.jp-notice__text {
+  font-size: 15px;
+  color: var(--jp-ink-1);
+  line-height: 1.45;
+  padding: 14px 0;
+}
+.jp-notice__text b {
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-notice__text em {
+  font-style: normal;
+  font-family: var(--jp-font-mono);
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+}
+
+.jp-notice__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--jp-accent-700);
+  font-weight: 600;
+  font-size: 13.5px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 6px 4px;
+}
+.jp-notice__cta:hover {
+  color: var(--jp-accent-600);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.jp-notice__time {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-3);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.jp-notice__dismiss {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--jp-r-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--jp-ink-3);
+  cursor: pointer;
+}
+.jp-notice__dismiss:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+}
+
+@media (max-width: 880px) {
+  .jp-notice {
+    grid-template-columns: 4px 1fr 32px;
+    grid-template-areas:
+      "strip label   dismiss"
+      "strip text    text"
+      "strip cta     time";
+    column-gap: 14px;
+    row-gap: 4px;
+    padding: 12px 14px 14px 0;
+  }
+  .jp-notice__strip { grid-area: strip; }
+  .jp-notice__label { grid-area: label; padding: 14px 0 0 4px; }
+  .jp-notice__text  { grid-area: text; padding: 0 4px; }
+  .jp-notice__cta   { grid-area: cta; padding: 6px 4px 14px; }
+  .jp-notice__time  { grid-area: time; justify-self: end; padding: 0 4px 14px; align-self: end; }
+  .jp-notice__dismiss { grid-area: dismiss; align-self: start; margin-top: 8px; }
+}
+
+/* Sammanfattning — dossier-tabell */
+.jp-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-summary__group {
+  padding: 18px 22px 14px;
+  border-right: 1px solid var(--jp-border-soft);
+  display: flex;
+  flex-direction: column;
+}
+.jp-summary__group:last-child { border-right: 0; }
+.jp-summary__group__title {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--jp-ink-2);
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  border-bottom: 1.5px solid var(--jp-border);
+}
+.jp-summary__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 14px;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 0 10px;
+  border-bottom: 1px dotted var(--jp-border);
+  font-size: 14.5px;
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  width: 100%;
+  text-align: left;
+  color: var(--jp-ink-1);
+  font-family: inherit;
+  cursor: default;
+}
+.jp-summary__group .jp-summary__row:last-of-type {
+  border-bottom: 0;
+}
+.jp-summary__row--btn {
+  cursor: pointer;
+}
+.jp-summary__row--btn:hover .jp-summary__row__label {
+  color: var(--jp-accent-700);
+}
+.jp-summary__row--btn:hover .jp-summary__row__leader {
+  border-bottom-color: var(--jp-accent-700);
+}
+.jp-summary__row__label {
+  color: var(--jp-ink-1);
+  font-weight: 500;
+  min-width: 0;
+  /* Tillåt wrap så hela texten syns ("Senaste sökning",
+     "Profilen synlig för", "Nya matchningar i dag · profil"
+     trunkerades tidigare vid 880–1200px). */
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+.jp-summary__row__hint {
+  font-family: var(--jp-font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--jp-ink-3);
+  letter-spacing: 0;
+}
+.jp-summary__row__leader {
+  align-self: end;
+  margin-bottom: 5px;
+  border-bottom: 1px dotted var(--jp-border-strong);
+  height: 0;
+}
+.jp-summary__row__value {
+  font-family: var(--jp-font-mono);
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--jp-ink-1);
+  letter-spacing: -0.01em;
+  font-feature-settings: "tnum" 1;
+}
+.jp-summary__row--highlight .jp-summary__row__value {
+  color: var(--jp-accent-700);
+}
+.jp-summary__row__chev {
+  color: var(--jp-ink-3);
+  align-self: center;
+}
+.jp-summary__row--btn:hover .jp-summary__row__chev {
+  color: var(--jp-accent-700);
+}
+
+@media (max-width: 880px) {
+  .jp-summary { grid-template-columns: 1fr; }
+  .jp-summary__group {
+    border-right: 0;
+    border-bottom: 1px solid var(--jp-border-soft);
+  }
+  .jp-summary__group:last-child { border-bottom: 0; }
+}
+
+/* Notice-grupp rubriker — "Kräver åtgärd" / "Information" */
+.jp-notice-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 6px;
+  padding-bottom: 4px;
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+.jp-notice-group:first-child {
+  margin-top: 4px;
+}
+.jp-notice-group__title {
+  color: var(--jp-ink-1);
+}
+.jp-notice-group--info .jp-notice-group__title {
+  color: var(--jp-ink-2);
+}
+.jp-notice-group__count {
+  color: var(--jp-ink-3);
+  font-weight: 600;
+}
+.jp-notice-group__count::before {
+  content: "(";
+}
+.jp-notice-group__count::after {
+  content: ")";
+}
+
+/* ------------------------------------------------------------------
+   .jp-demo-banner — DEMO-bandet ovanför inre gäst-sidor (F-Pre Punkt 5,
+   2026-05-24). Civic-utility: lugn navy-stripe + tydlig "DEMO"-etikett.
+   Ingen emoji, inget utropstecken, ingen gradient/glow. CTA på höger sida
+   leder till /vantelista (konvertering).
+   ------------------------------------------------------------------ */
+.jp-demo-banner {
+  /* G1: fill bakom vit text → accent-800 (tema-stabil); border ett snäpp
+     mörkare (accent-900) — bevarar v3-intentionen "mörkare underkant". */
+  background: var(--jp-accent-800);
+  color: #fff;
+  border-bottom: 1px solid var(--jp-accent-900);
+}
+.jp-demo-banner__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.jp-demo-banner__label {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: #fff;
+  /* G1: accent-800 (tema-stabil) — accent-700 flippar till #6EE7A8 i dark
+     vilket vore oläsbart på den vita etiketten. */
+  color: var(--jp-accent-800);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.jp-demo-banner__text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  flex: 1 1 auto;
+  min-width: 240px;
+  color: rgba(255, 255, 255, 0.92);
+}
+.jp-demo-banner__cta {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.jp-demo-banner__cta:hover {
+  text-decoration-thickness: 2px;
+}
+.jp-demo-banner :focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* design-reviewer M4 2026-05-24: explicit fokusring för CTA-länken — bredare
+   offset + lätt bakgrundskontrast så ringen syns tydligt mot navy-700-bg
+   (WCAG 2.4.7 Focus Visible). */
+.jp-demo-banner__cta:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------------------
+   Gäst-mode komponent-stilar (F-Pre Punkt 5, 2026-05-24) — paritet med
+   `.jp-card`. Ersätter tidigare inline-styles per design-reviewer M1+M2.
+   ------------------------------------------------------------------ */
+.jp-guest-resume__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.jp-guest-resume__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.jp-guest-resume__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 14px;
+  margin: 8px 0;
+}
+.jp-guest-resume__meta dt {
+  color: var(--jp-ink-2);
+}
+.jp-guest-resume__meta dd {
+  margin: 0;
+}
+.jp-guest-resume__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.jp-guest-applist__empty {
+  color: var(--jp-ink-2);
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+[data-theme="dark"] .jp-demo-banner {
+  background: var(--jp-accent-800);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+@media (max-width: 600px) {
+  .jp-demo-banner__inner {
+    padding: 10px 16px;
+    gap: 10px;
+  }
+}

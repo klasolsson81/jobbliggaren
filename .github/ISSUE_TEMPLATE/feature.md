@@ -1,6 +1,6 @@
 ---
 name: Feature-request
-about: Förslag på ny funktionalitet eller förbättring i JobbPilot
+about: Förslag på ny funktionalitet eller förbättring i Jobbliggaren
 title: "[FEATURE] "
 labels: ["enhancement"]
 ---

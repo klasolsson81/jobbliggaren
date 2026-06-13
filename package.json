@@ -1,8 +1,8 @@
 {
-  "name": "jobbpilot",
+  "name": "jobbliggaren",
   "version": "0.0.0",
   "private": true,
-  "description": "JobbPilot monorepo root — Husky anchor. Web app scaffolded later under web/jobbpilot-web/.",
+  "description": "Jobbliggaren monorepo root — Husky anchor. Web app scaffolded later under web/jobbliggaren-web/.",
   "scripts": {
     "prepare": "husky"
   },

@@ -1,4 +1,4 @@
-# JobbPilot ADR-index
+# Jobbliggaren ADR-index
 
 Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverkar fler än ett lager eller som skulle vara svåra att reversera. De är **immutable** — en beslutsändring skapas som ny ADR som superseder den gamla (se adr-keeper-agenten i `.claude/agents/adr-keeper.md`).
 
@@ -27,7 +27,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0012 | Auth-stack: ASP.NET Core Identity + JWT (RS256) | Accepted | 2026-04-19 | [0012-auth-stack-identity-jwt.md](./0012-auth-stack-identity-jwt.md) |
 | 0013 | Separat AppIdentityDbContext för Identity-tabeller | Accepted | 2026-04-19 | [0013-separate-identity-dbcontext.md](./0013-separate-identity-dbcontext.md) |
 | 0014 | Refresh tokens i DB + Redis för access-token jti (avviker från BUILD.md §11.2) | Accepted | 2026-04-19 | [0014-refresh-token-strategy.md](./0014-refresh-token-strategy.md) |
-| 0015 | Frontend-stack för JobbPilot (STEG 4a) | Accepted | 2026-05-06 | [0015-frontend-stack.md](./0015-frontend-stack.md) |
+| 0015 | Frontend-stack för Jobbliggaren (STEG 4a) | Accepted | 2026-05-06 | [0015-frontend-stack.md](./0015-frontend-stack.md) |
 | 0016 | Civic design language som arkitekturkrav (amended 2026-05-19 av [ADR 0052](./0052-design-system-v3-modern-civic.md) — radius-golv; civic-ton bevarad) | Accepted | 2026-05-06 | [0016-civic-design-language.md](./0016-civic-design-language.md) |
 | 0017 | Frontend Authentication Pattern (Custom, Cookie-Based) | Accepted | 2026-05-06 | [0017-frontend-auth-pattern.md](./0017-frontend-auth-pattern.md) |
 | 0018 | Cookie and CSRF Strategy for Frontend Auth | Accepted | 2026-05-06 | [0018-cookie-and-csrf-strategy.md](./0018-cookie-and-csrf-strategy.md) |
@@ -45,7 +45,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0030 | Frontend API result kind-union convention | Accepted | 2026-05-11 | [0030-frontend-api-result-kind-union.md](./0030-frontend-api-result-kind-union.md) |
 | 0031 | Failed cross-user access detection: strukturerad loggning + CloudWatch-aggregat | Accepted | 2026-05-12 | [0031-failed-access-detection.md](./0031-failed-access-detection.md) |
 | 0032 | JobTech-integration: resilience-stack, dedup-strategi, sync-flöde (amended 2026-05-12 §8 PII-stripping + 2026-05-13 v2 path + 2026-05-16 §5 child-scope + §9 X4 admin-410 + 2026-05-16 snapshot-trunkerings-resiliens/hybrid + 2026-05-23 snapshot-retention defense-in-depth — miss-cleanup + ExpiresAt-cron + ApplyCriteria Status=Active SPOT-filter + post-archive circuit-breaker) | Accepted | 2026-05-12 | [0032-jobtech-integration.md](./0032-jobtech-integration.md) |
-| 0033 | JobbPilot.Migrate CLI-mode-dispatch (init vs schema) | Accepted | 2026-05-12 | [0033-migrate-cli-mode-dispatch.md](./0033-migrate-cli-mode-dispatch.md) |
+| 0033 | Jobbliggaren.Migrate CLI-mode-dispatch (init vs schema) | Accepted | 2026-05-12 | [0033-migrate-cli-mode-dispatch.md](./0033-migrate-cli-mode-dispatch.md) |
 | 0034 | DB-role privilege-separation: runtime vs migration-time creds | Accepted | 2026-05-12 | [0034-db-role-privilege-separation.md](./0034-db-role-privilege-separation.md) |
 | 0035 | System-event audit-pipeline (bypass-port parallell till IAuditTrailEraser) | Accepted | 2026-05-13 | [0035-system-event-audit-pipeline.md](./0035-system-event-audit-pipeline.md) |
 | 0036 | Prod-stack deferred + cloudwatch_ops_alarms-modul (v0.2-prod-launch-checklist-leverans) | Accepted | 2026-05-13 | [0036-prod-stack-deferred-and-ops-alarms.md](./0036-prod-stack-deferred-and-ops-alarms.md) |

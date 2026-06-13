@@ -112,8 +112,8 @@ jobs:
       - name: Build (C#, manual build-mode)
         if: matrix.language == 'csharp'
         run: |
-          dotnet restore JobbPilot.sln
-          dotnet build JobbPilot.sln --no-restore -c Release
+          dotnet restore Jobbliggaren.sln
+          dotnet build Jobbliggaren.sln --no-restore -c Release
 
       # --- CodeQL analyze ----------------------------------------------------
       - name: Perform CodeQL analysis

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Load-test-projekt (ADR 0045 Beslut 4). MEDVETET utanför Jobbliggaren.sln,
+       så att backend-jobbet och coverage-gaten (ADR 0044, ci.needs) inte
+       plockar upp det. Körs enbart av det observe-only loadtest-jobbet i
+       build.yml plus lokalt vid kalibrering. Console-app (NBomberRunner.Run),
+       inte ett MTP-testprojekt; ärver därför inte tests/Directory.Build.props
+       CodeCoverage-referensen. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Jobbliggaren.LoadTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NBomber" />
+    <PackageReference Include="NBomber.Http" />
+  </ItemGroup>
+
+</Project>

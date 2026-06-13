@@ -1,6 +1,6 @@
-# DESIGN.md — JobbPilot design system
+# DESIGN.md — Jobbliggaren design system
 
-> Pedagogisk inramning för JobbPilots civic-utility-design.
+> Pedagogisk inramning för Jobbliggarens civic-utility-design.
 > Fullständiga specer finns i Claude Code-skills under `.claude/skills/jobbpilot-design-*`.
 >
 > **Huvudspec:** [`BUILD.md`](./BUILD.md)
@@ -12,7 +12,7 @@
 
 ### 1.1 Grundprincip
 
-JobbPilot är ett verktyg för stressade jobbsökare. UI:t ska signalera **tillit och pålitlighet**, inte imponera eller underhålla. Målet är att en 55-årig processoperatör i Alingsås som söker sitt nästa jobb ska känna att appen är byggd för att fungera, inte för att sälja.
+Jobbliggaren är ett verktyg för stressade jobbsökare. UI:t ska signalera **tillit och pålitlighet**, inte imponera eller underhålla. Målet är att en 55-årig processoperatör i Alingsås som söker sitt nästa jobb ska känna att appen är byggd för att fungera, inte för att sälja.
 
 Referenser som ska kännas i allt vi bygger:
 - **GOV.UK Design System** — typografisk hierarki, content-first, minimal dekoration

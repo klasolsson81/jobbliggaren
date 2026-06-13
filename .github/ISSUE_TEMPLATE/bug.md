@@ -1,6 +1,6 @@
 ---
 name: Buggrapport
-about: Rapportera ett fel i JobbPilot
+about: Rapportera ett fel i Jobbliggaren
 title: "[BUG] "
 labels: ["bug"]
 ---

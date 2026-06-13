@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Jobbliggaren.Worker.IntegrationTests</RootNamespace>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- TD-13 C2: UserDataKeyStore-integrationstester fakar KMS via NSubstitute
+         och refererar Amazon.KeyManagementService-modeller. -->
+    <PackageReference Include="AWSSDK.KeyManagementService" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="xunit.v3.mtp-v2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Jobbliggaren.Domain\Jobbliggaren.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Jobbliggaren.Application\Jobbliggaren.Application.csproj" />
+    <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Jobbliggaren.Worker\Jobbliggaren.Worker.csproj" />
+  </ItemGroup>
+
+</Project>

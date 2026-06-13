@@ -6,7 +6,7 @@ echo "[pre-commit] Kör gates..."
 
 # Scaffold-gate: om inget .NET- eller web-projekt finns, hoppa över kod-gates
 SLN=$(find . -maxdepth 2 -name "*.sln" 2>/dev/null | head -1)
-WEB_DIR="web/jobbpilot-web"
+WEB_DIR="web/jobbliggaren-web"
 
 if [ -z "$SLN" ] && [ ! -d "$WEB_DIR" ]; then
     echo "[pre-commit] Inget scaffold än (.sln + $WEB_DIR saknas) — hoppar över format/test-gates."
@@ -30,14 +30,14 @@ if [ -n "$SLN" ] && [ -n "$DOTNET_CHANGED" ]; then
         echo "✗ dotnet format fel. Kör 'dotnet format' och stega in igen." >&2
         exit 1
     }
-    dotnet test --project tests/JobbPilot.Domain.UnitTests/JobbPilot.Domain.UnitTests.csproj --verbosity minimal || exit 1
-    dotnet test --project tests/JobbPilot.Application.UnitTests/JobbPilot.Application.UnitTests.csproj --verbosity minimal || exit 1
-    dotnet test --project tests/JobbPilot.Architecture.Tests/JobbPilot.Architecture.Tests.csproj --verbosity minimal || exit 1
+    dotnet test --project tests/Jobbliggaren.Domain.UnitTests/Jobbliggaren.Domain.UnitTests.csproj --verbosity minimal || exit 1
+    dotnet test --project tests/Jobbliggaren.Application.UnitTests/Jobbliggaren.Application.UnitTests.csproj --verbosity minimal || exit 1
+    dotnet test --project tests/Jobbliggaren.Architecture.Tests/Jobbliggaren.Architecture.Tests.csproj --verbosity minimal || exit 1
 elif [ -n "$SLN" ]; then
     echo "[pre-commit] Inga .NET-filer stage:ade — hoppar över .NET-gates (CI är gaten, ADR 0065)."
 fi
 
-# Web-gates (aktiveras när web/jobbpilot-web/ finns OCH web-filer är stage:ade)
+# Web-gates (aktiveras när web/jobbliggaren-web/ finns OCH web-filer är stage:ade)
 if [ -d "$WEB_DIR" ] && [ -n "$WEB_CHANGED" ]; then
     echo "[pre-commit] Web lint + typecheck..."
     (cd "$WEB_DIR" && pnpm lint && pnpm tsc --noEmit) || exit 1

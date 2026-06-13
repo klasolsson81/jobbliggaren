@@ -18,7 +18,7 @@ dotnet tool restore
 # TestResults/ får egen coverage.cobertura.xml; ReportGenerator globbar ihop.
 # ASPNETCORE_ENVIRONMENT=Development speglar CI (ForwardedHeaders-fail-loud).
 $env:ASPNETCORE_ENVIRONMENT = 'Development'
-dotnet test --solution (Join-Path $root 'JobbPilot.sln') -c Release `
+dotnet test --solution (Join-Path $root 'Jobbliggaren.sln') -c Release `
   -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
 
 Set-Location $root
@@ -26,8 +26,8 @@ dotnet tool run reportgenerator `
   "-reports:tests/**/coverage.cobertura.xml" `
   "-targetdir:$artifacts" `
   "-reporttypes:Html;Cobertura;JsonSummary;TextSummary;MarkdownSummaryGithub" `
-  "-assemblyfilters:+JobbPilot.Domain;+JobbPilot.Application;+JobbPilot.Infrastructure;+JobbPilot.Api;+JobbPilot.Worker;-JobbPilot.Migrate;-*.UnitTests;-*.IntegrationTests;-*.Architecture.Tests" `
-  "-classfilters:-JobbPilot.Api.Migrations.*;-*.Migrations.*;-Mediator.*;-*.OpenApi.Generated.*" `
+  "-assemblyfilters:+Jobbliggaren.Domain;+Jobbliggaren.Application;+Jobbliggaren.Infrastructure;+Jobbliggaren.Api;+Jobbliggaren.Worker;-Jobbliggaren.Migrate;-*.UnitTests;-*.IntegrationTests;-*.Architecture.Tests" `
+  "-classfilters:-Jobbliggaren.Api.Migrations.*;-*.Migrations.*;-Mediator.*;-*.OpenApi.Generated.*" `
   "-filefilters:-**/Migrations/*.cs;-**/obj/**;-**/*.g.cs;-**/*.Generated.cs;-**/Program.cs"
 
 Write-Host ""

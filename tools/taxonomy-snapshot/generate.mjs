@@ -29,7 +29,7 @@ const FETCHED_AT = '2026-06-08';
 const here = dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_PATH = resolve(
   here,
-  '../../src/JobbPilot.Infrastructure/Taxonomy/taxonomy-snapshot.json',
+  '../../src/Jobbliggaren.Infrastructure/Taxonomy/taxonomy-snapshot.json',
 );
 
 function groupByParent(children) {

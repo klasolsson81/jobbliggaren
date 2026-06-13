@@ -44,7 +44,7 @@ beforeEach(() => {
 });
 
 describe("RecentSearchRow", () => {
-  it("renders label as h3 with NO match-count meta (interim — TD-94, count removed until lazy fetch)", () => {
+  it("renders NO match-count meta when count prop is absent (lazy — not yet fetched / timeout / error)", () => {
     render(
       <RecentSearchRow
         item={makeDto({ currentCount: 42, newCount: 0 })}
@@ -55,8 +55,22 @@ describe("RecentSearchRow", () => {
     expect(
       screen.getByRole("heading", { name: /backend i Mjukvaruutveckling/ }),
     ).toBeInTheDocument();
-    // No false "(0) träffar" while currentCount is 0 (TD-94).
+    // currentCount on the DTO is ignored — no count prop → no meta, never "(0)".
     expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
+  });
+
+  it("renders '(N) träffar' from the lazy count prop when newCount === 0", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto()}
+        count={{ currentCount: 42, newCount: 0 }}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    expect(screen.getByText(/42/)).toBeInTheDocument();
+    expect(screen.getByText(/träffar/)).toBeInTheDocument();
     expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
   });
 
@@ -74,17 +88,19 @@ describe("RecentSearchRow", () => {
     expect(href).toContain("worktimeExtent=6YE1_gAC_R2G");
   });
 
-  it("renders NO match-count meta even when newCount > 0 (interim — count removed until lazy fetch)", () => {
+  it("renders 'varav (M) nya' from the lazy count prop when newCount > 0", () => {
     render(
       <RecentSearchRow
-        item={makeDto({ currentCount: 42, newCount: 7 })}
+        item={makeDto()}
+        count={{ currentCount: 42, newCount: 7 }}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
       />,
     );
-    expect(screen.queryByText(/varav/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
+    expect(screen.getByText(/42/)).toBeInTheDocument();
+    expect(screen.getByText(/varav/)).toBeInTheDocument();
+    expect(screen.getByText(/7/)).toBeInTheDocument();
+    expect(screen.getByText(/nya/)).toBeInTheDocument();
   });
 
   it("renders NO 'NY'/'Nya'-pill (Klas-direktiv 2026-05-20 anti-AI-trope)", () => {

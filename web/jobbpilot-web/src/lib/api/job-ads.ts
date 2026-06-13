@@ -27,6 +27,11 @@ export interface ListJobAdsQuery {
   occupationGroup?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
+  // Klass 2 (2026-06-13) — anställningsform + omfattning. Upprepad query-
+  // string (?employmentType=a&employmentType=b), string[]-bindning backend
+  // (B2/#60). worktimeExtent bär 0–1 element (radio-single i panelen).
+  employmentType?: ReadonlyArray<string>;
+  worktimeExtent?: ReadonlyArray<string>;
   q?: string;
   // ADR 0042 Beslut E — "ny sedan"-fönster (ISO 8601). Driver JobAdDto.isNew.
   since?: string;
@@ -53,6 +58,11 @@ function buildQuery(query: ListJobAdsQuery): string {
     params.append("occupationGroup", v);
   for (const v of query.region ?? []) params.append("region", v);
   for (const v of query.municipality ?? []) params.append("municipality", v);
+  // Klass 2 — upprepad nyckel per element (samma som dimensionerna ovan).
+  for (const v of query.employmentType ?? [])
+    params.append("employmentType", v);
+  for (const v of query.worktimeExtent ?? [])
+    params.append("worktimeExtent", v);
   if (query.q) params.set("q", query.q);
   if (query.since) params.set("since", query.since);
   // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend). Värdet
@@ -164,6 +174,10 @@ export interface FacetCountsFilter {
   occupationGroup?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
+  // ADR 0067 PR-3 — Klass 2-filterkontext för facetten (backend exkluderar
+  // den facetterade dimensionen själv ur WHERE).
+  employmentType?: ReadonlyArray<string>;
+  worktimeExtent?: ReadonlyArray<string>;
   q?: string;
 }
 
@@ -190,6 +204,10 @@ export async function getFacetCounts(
     params.append("occupationGroup", v);
   for (const v of filter.municipality ?? []) params.append("municipality", v);
   for (const v of filter.region ?? []) params.append("region", v);
+  for (const v of filter.employmentType ?? [])
+    params.append("employmentType", v);
+  for (const v of filter.worktimeExtent ?? [])
+    params.append("worktimeExtent", v);
   if (filter.q) params.set("q", filter.q);
 
   try {

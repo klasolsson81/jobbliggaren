@@ -15,7 +15,15 @@ import type { JobbUrlState } from "./search-params";
  * per-ord-borttagning (Klas-spec: allt blir taggar).
  */
 
-export type DimensionAxis = "occupationGroup" | "region" | "municipality";
+export type DimensionAxis =
+  | "occupationGroup"
+  | "region"
+  | "municipality"
+  // Klass 2 (2026-06-13) — anställningsform + omfattning. removeChipFromState
+  // är generisk över DimensionAxis (state[chip.axis]) — JobbUrlState bär nu
+  // dessa nycklar, så borttagning fungerar utan en egen gren.
+  | "employmentType"
+  | "worktimeExtent";
 export type ChipAxis = DimensionAxis | "q";
 
 export interface SearchChip {
@@ -38,7 +46,8 @@ export function splitQWords(q: string): string[] {
 /**
  * Bygger chip-listan ur URL-staten (E2g-principen — chips DERIVERAS, ingen
  * egen lista). Ordning: region → municipality → occupationGroup (geografin
- * samlad, E2b-architect-dom) → q-ord sist.
+ * samlad, E2b-architect-dom) → employmentType → worktimeExtent (Klass 2) →
+ * q-ord sist.
  */
 export function buildChipModels(
   state: JobbUrlState,
@@ -60,6 +69,16 @@ export function buildChipModels(
       axis: "occupationGroup",
       value: id,
       label: resolveLabel("occupationGroup", id),
+    })),
+    ...state.employmentType.map<SearchChip>((id) => ({
+      axis: "employmentType",
+      value: id,
+      label: resolveLabel("employmentType", id),
+    })),
+    ...state.worktimeExtent.map<SearchChip>((id) => ({
+      axis: "worktimeExtent",
+      value: id,
+      label: resolveLabel("worktimeExtent", id),
     })),
   ];
   if (opts?.includeQ) {
@@ -121,6 +140,12 @@ export function buildTaxonomyLabelResolver(
     map.set(f.conceptId, f.label);
     for (const g of f.occupationGroups) map.set(g.conceptId, g.label);
   }
+  // Klass 2 — platta listor (anställningsform/omfattning). Råa JobTech-labels
+  // (Klas "honest 8" — ingen kurering). Fält-sidans resolver; toolbaren
+  // injicerar i stället sina server-resolverade labels (/taxonomy/labels är
+  // kind-agnostisk sedan PR-1).
+  for (const e of taxonomy?.employmentTypes ?? []) map.set(e.conceptId, e.label);
+  for (const w of taxonomy?.worktimeExtents ?? []) map.set(w.conceptId, w.label);
   return (_axis, conceptId) =>
     map.get(conceptId) ?? `Okänd kod (${conceptId})`;
 }

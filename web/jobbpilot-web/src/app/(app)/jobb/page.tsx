@@ -26,6 +26,9 @@ type JobbSearchParams = {
   occupationGroup?: string | string[];
   region?: string | string[];
   municipality?: string | string[];
+  // Klass 2 (2026-06-13) — anställningsform + omfattning, upprepade params.
+  employmentType?: string | string[];
+  worktimeExtent?: string | string[];
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -69,6 +72,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const occupationGroup = toStringList(params.occupationGroup);
   const region = toStringList(params.region);
   const municipality = toStringList(params.municipality);
+  // Klass 2 — anställningsform (multi) + omfattning (radio → 0–1 element).
+  const employmentType = toStringList(params.employmentType);
+  const worktimeExtent = toStringList(params.worktimeExtent);
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -121,6 +127,10 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const occupationGroupKey = occupationGroup.join(",");
   const regionKey = region.join(",");
   const municipalityKey = municipality.join(",");
+  // Klass 2 — ingår i Suspense-keyn så resultat-skeletonen visas även när
+  // bara anställningsform/omfattning ändras (samma princip som dimensionerna).
+  const employmentTypeKey = employmentType.join(",");
+  const worktimeExtentKey = worktimeExtent.join(",");
 
   return (
     <>
@@ -180,6 +190,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 occupationGroup={occupationGroup}
                 region={region}
                 municipality={municipality}
+                employmentType={employmentType}
+                worktimeExtent={worktimeExtent}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
               />
@@ -194,6 +206,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 initialOccupationGroup={occupationGroup}
                 initialRegion={region}
                 initialMunicipality={municipality}
+                initialEmploymentType={employmentType}
+                initialWorktimeExtent={worktimeExtent}
                 q={q ?? ""}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
@@ -209,7 +223,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -219,6 +233,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
             occupationGroup={occupationGroup}
             region={region}
             municipality={municipality}
+            employmentType={employmentType}
+            worktimeExtent={worktimeExtent}
             q={q ?? ""}
             since={since}
             commit={commit}

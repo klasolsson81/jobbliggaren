@@ -157,6 +157,25 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
                     : []))
             .ToList();
 
+        // ADR 0043-amendment 2026-06-13 — Klass 2: platta, föräldralösa
+        // dimensioner (anställningsform + omfattning). Sorteras på Label Ordinal
+        // som övriga dimensioner (konsekvent läs-modell); Platsbanken-paritets-
+        // ordning/-kurering är FE-presentation (PR-2).
+        var employmentTypes = concepts
+            .Where(c => c.Kind == TaxonomyConceptKind.EmploymentType)
+            .OrderBy(c => c.Label, StringComparer.Ordinal)
+            .Select(c => new TaxonomyOptionDto(c.ConceptId, c.Label))
+            .ToList();
+
+        var worktimeExtents = concepts
+            .Where(c => c.Kind == TaxonomyConceptKind.WorktimeExtent)
+            .OrderBy(c => c.Label, StringComparer.Ordinal)
+            .Select(c => new TaxonomyOptionDto(c.ConceptId, c.Label))
+            .ToList();
+
+        // Kind-agnostisk reverse-lookup → Klass 2-concept-ids resolveras
+        // automatiskt (toolbar-chips + recent-/saved-search-labels) utan
+        // resolver-ändring (CTO BESLUT 1).
         var labelByConceptId = concepts
             .GroupBy(c => c.ConceptId)
             .ToDictionary(g => g.Key, g => g.First().Label, StringComparer.Ordinal);
@@ -174,7 +193,7 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             .ToList();
 
         return new CacheState(
-            new TaxonomyTreeDto(regions, occupationFields),
+            new TaxonomyTreeDto(regions, occupationFields, employmentTypes, worktimeExtents),
             labelByConceptId,
             suggestable);
     }

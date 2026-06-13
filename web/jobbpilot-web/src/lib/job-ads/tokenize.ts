@@ -537,7 +537,12 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
     a.q === b.q &&
     sameList(a.occupationGroup, b.occupationGroup) &&
     sameList(a.region, b.region) &&
-    sameList(a.municipality, b.municipality)
+    sameList(a.municipality, b.municipality) &&
+    // Klass 2 (ADR 0067 B2) — panel-dimensionerna ingår i "samma filter-state".
+    // Inte text-representabla i hero-fältet, men kanoniska komparatorn ska
+    // vara komplett så framtida skip-guards inte ger false-negative-drop.
+    sameList(a.employmentType, b.employmentType) &&
+    sameList(a.worktimeExtent, b.worktimeExtent)
   );
 }
 

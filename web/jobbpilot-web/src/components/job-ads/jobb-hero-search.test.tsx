@@ -11,6 +11,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 const taxonomy: TaxonomyTree = {
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — required; not exercised here.
+  employmentTypes: [],
+  worktimeExtents: [],
   regions: [
     {
       conceptId: "CifL_Rzy_Mku",
@@ -43,6 +46,8 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       occupationGroup={[]}
       region={[]}
       municipality={[]}
+      employmentType={[]}
+      worktimeExtent={[]}
       sortBy="PublishedAtDesc"
       {...extra}
     />,
@@ -166,6 +171,8 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         occupationGroup={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
+        employmentType={[]}
+        worktimeExtent={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -221,6 +228,8 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
+        employmentType={[]}
+        worktimeExtent={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -234,6 +243,8 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
+        employmentType={[]}
+        worktimeExtent={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -252,6 +263,8 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         occupationGroup={[]}
         region={["CifL_Rzy_Mku"]}
         municipality={[]}
+        employmentType={[]}
+        worktimeExtent={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -275,6 +288,8 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={[]}
+        employmentType={[]}
+        worktimeExtent={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -292,6 +307,8 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={[]}
+        employmentType={[]}
+        worktimeExtent={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -443,6 +460,8 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         occupationGroup={[]}
         region={[]}
         municipality={[]}
+        employmentType={[]}
+        worktimeExtent={[]}
         sortBy="PublishedAtDesc"
       />,
     );

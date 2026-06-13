@@ -12,6 +12,9 @@ vi.mock("next/navigation", () => ({
 
 // useTransition i jsdom kör startTransition synkront nog för push-assert.
 const taxonomy: TaxonomyTree = {
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — required; not exercised here.
+  employmentTypes: [],
+  worktimeExtents: [],
   regions: [
     {
       conceptId: "CifL_Rzy_Mku",
@@ -55,6 +58,8 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroFilters>[0]>) {
       initialOccupationGroup={[]}
       initialRegion={[]}
       initialMunicipality={[]}
+      initialEmploymentType={[]}
+      initialWorktimeExtent={[]}
       q=""
       sortBy="PublishedAtDesc"
       {...extra}
@@ -215,6 +220,8 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialOccupationGroup={[]}
         initialRegion={["CifL_Rzy_Mku"]}
         initialMunicipality={[]}
+        initialEmploymentType={[]}
+        initialWorktimeExtent={[]}
         q=""
         sortBy="PublishedAtDesc"
       />,
@@ -231,6 +238,8 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialOccupationGroup={[]}
         initialRegion={[]}
         initialMunicipality={[]}
+        initialEmploymentType={[]}
+        initialWorktimeExtent={[]}
         q=""
         sortBy="PublishedAtDesc"
       />,
@@ -421,6 +430,8 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
         initialOccupationGroup={[]}
         initialRegion={[]}
         initialMunicipality={[]}
+        initialEmploymentType={[]}
+        initialWorktimeExtent={[]}
         q=""
         sortBy="PublishedAtDesc"
       />,

@@ -43,6 +43,12 @@ export const recentJobSearchDtoSchema = z.object({
   occupationGroupList: z.array(z.string()),
   municipalityList: z.array(z.string()),
   regionList: z.array(z.string()),
+  // ADR 0067 Beslut 6 (Fas B2) — Klass 2: anställningsform + omfattning. Råa
+  // concept-id-listor (UTAN labels — taxonomi-reverse-lookup för Klass 2 är
+  // Fas E PR-4-concern). Konsumeras för replay (buildHrefFor) så "Kör igen"
+  // bär Klass 2-filtret. Backend `RecentJobSearchDto` bär dem sedan B2/#60.
+  employmentTypeList: z.array(z.string()),
+  worktimeExtentList: z.array(z.string()),
   occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
   municipalityLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),

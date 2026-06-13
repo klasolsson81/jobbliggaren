@@ -330,7 +330,9 @@ public class ListRecentSearchesQueryHandlerTests
         _taxonomy.GetTreeAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(new TaxonomyTreeDto(
                 Regions: [],
-                OccupationFields: fields)));
+                OccupationFields: fields,
+                EmploymentTypes: [],
+                WorktimeExtents: [])));
 #pragma warning restore CA2012
     }
 

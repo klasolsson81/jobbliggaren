@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
     occupationGroup: params.getAll("occupationGroup"),
     municipality: params.getAll("municipality"),
     region: params.getAll("region"),
+    employmentType: params.getAll("employmentType"),
+    worktimeExtent: params.getAll("worktimeExtent"),
     q: params.get("q") ?? undefined,
   });
 

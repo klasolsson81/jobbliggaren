@@ -12,6 +12,7 @@ import { ChevronDown } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
+import { JobbKlass2Panel } from "./jobb-klass2-panel";
 import {
   applyMunicipalityChange,
   toggleMunicipalityInRegion,
@@ -52,13 +53,17 @@ interface JobbHeroFiltersProps {
   initialOccupationGroup: ReadonlyArray<string>;
   initialRegion: ReadonlyArray<string>;
   initialMunicipality: ReadonlyArray<string>;
+  // Klass 2 (2026-06-13) — anställningsform (checkbox-multi) + omfattning
+  // (radio-single). Driver "Filter"-pillen + Klass-2-panelen.
+  initialEmploymentType: ReadonlyArray<string>;
+  initialWorktimeExtent: ReadonlyArray<string>;
   /** Hero-sökordet — bärs vidare så filter-klick inte raderar q. */
   q: string;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
 
-type OpenPop = "ort" | "yrke" | null;
+type OpenPop = "ort" | "yrke" | "filter" | null;
 
 // Öns filterval-vy (E2g): bas = props (URL-sanningen), optimistiskt
 // overlay under pågående router.push-transition.
@@ -66,6 +71,10 @@ interface FilterSelection {
   occupationGroup: string[];
   region: string[];
   municipality: string[];
+  // Klass 2 — anställningsform + omfattning bärs i samma optimistiska overlay
+  // så pill-count + panel-markeringar svarar omedelbart under transitionen.
+  employmentType: string[];
+  worktimeExtent: string[];
 }
 
 export function JobbHeroFilters({
@@ -73,6 +82,8 @@ export function JobbHeroFilters({
   initialOccupationGroup,
   initialRegion,
   initialMunicipality,
+  initialEmploymentType,
+  initialWorktimeExtent,
   q,
   sortBy,
   pageSize,
@@ -92,8 +103,16 @@ export function JobbHeroFilters({
       occupationGroup: [...initialOccupationGroup],
       region: [...initialRegion],
       municipality: [...initialMunicipality],
+      employmentType: [...initialEmploymentType],
+      worktimeExtent: [...initialWorktimeExtent],
     }),
-    [initialOccupationGroup, initialRegion, initialMunicipality],
+    [
+      initialOccupationGroup,
+      initialRegion,
+      initialMunicipality,
+      initialEmploymentType,
+      initialWorktimeExtent,
+    ],
   );
   const [selection, setOptimisticSelection] = useOptimistic(
     base,
@@ -106,6 +125,7 @@ export function JobbHeroFilters({
 
   const ortBtnRef = useRef<HTMLButtonElement>(null);
   const yrkeBtnRef = useRef<HTMLButtonElement>(null);
+  const filterBtnRef = useRef<HTMLButtonElement>(null);
 
   // Taxonomi → popover-form. Län→Kommuner (E2b-kaskad) + Yrkesområde→
   // Yrkesgrupper (ssyk-level-4, E2a nivå-skifte).
@@ -156,6 +176,8 @@ export function JobbHeroFilters({
           occupationGroup: next.occupationGroup,
           region: next.region,
           municipality: next.municipality,
+          employmentType: next.employmentType,
+          worktimeExtent: next.worktimeExtent,
           sortBy,
           pageSize,
         }),
@@ -168,10 +190,18 @@ export function JobbHeroFilters({
   }
   function commitOrt(next: OrtSelection) {
     commit({
-      occupationGroup: selection.occupationGroup,
+      ...selection,
       region: [...next.region],
       municipality: [...next.municipality],
     });
+  }
+  // Klass 2 — anställningsform (checkbox-multi) + omfattning (radio-single).
+  // Speglar changeOccupationGroup: byt EN axel, bevara resten via spread.
+  function changeEmploymentType(next: string[]) {
+    commit({ ...selection, employmentType: next });
+  }
+  function changeWorktimeExtent(next: string[]) {
+    commit({ ...selection, worktimeExtent: next });
   }
   // Defensiv list-väg (popoverns onChange-kontrakt) — i dual-axis-läget går
   // item-klick via toggleMunicipality nedan; denna nås aldrig vid runtime
@@ -217,6 +247,10 @@ export function JobbHeroFilters({
   }
 
   const ortCount = ort.region.length + ort.municipality.length;
+  // Klass 2 — "Filter"-pillens count = summan av aktiva anställningsform-
+  // + omfattning-val (omfattning bär 0–1, anställningsform 0–8).
+  const filterCount =
+    selection.employmentType.length + selection.worktimeExtent.length;
 
   // E2c (ADR 0067 Beslut 4, CTO VAL 2 = A) — per-option-counts hämtas
   // debouncat när respektive popover är öppen (enabled-gated, ingen
@@ -227,6 +261,10 @@ export function JobbHeroFilters({
     occupationGroup,
     municipality: ort.municipality,
     region: ort.region,
+    // PR-3 — Klass 2 ingår i facett-filtret så Ort/Yrke-facetterna reflekterar
+    // anställningsform/omfattning OCH vice versa (backend exkluderar egen dim).
+    employmentType: selection.employmentType,
+    worktimeExtent: selection.worktimeExtent,
     q,
   };
   const municipalityCounts = useFacetCounts(
@@ -239,6 +277,17 @@ export function JobbHeroFilters({
     "OccupationGroup",
     facetFilter,
     openPop === "yrke",
+  );
+  // PR-3 — Klass 2-facetter, gated på "Filter"-panelen öppen.
+  const employmentTypeCounts = useFacetCounts(
+    "EmploymentType",
+    facetFilter,
+    openPop === "filter",
+  );
+  const worktimeExtentCounts = useFacetCounts(
+    "WorktimeExtent",
+    facetFilter,
+    openPop === "filter",
   );
 
   // "Visa N annonser"-stängknappen (CTO VAL 2): N = list-svarets totalCount
@@ -301,6 +350,29 @@ export function JobbHeroFilters({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
+      {/* Klass-2-pillen (ADR 0067 Fas E rad 109 "Filter-panel"). "Filter"
+          valt som tydligast civic-label: pillen samlar två dimensioner
+          (anställningsform + omfattning) — en enskild dimensions-label hade
+          varit missvisande. Speglar Ort/Yrke-pillarnas dot+count-mönster. */}
+      <button
+        ref={filterBtnRef}
+        type="button"
+        className="jp-hero-pill"
+        data-active={openPop === "filter" || filterCount > 0}
+        aria-haspopup="dialog"
+        aria-expanded={openPop === "filter"}
+        onClick={() => setOpenPop(openPop === "filter" ? null : "filter")}
+      >
+        {filterCount > 0 && (
+          <span className="jp-hero-pill__dot" aria-hidden="true" />
+        )}
+        Filter
+        {filterCount > 0 && (
+          <span className="jp-hero-pill__count">{filterCount}</span>
+        )}
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+
       {/* key-remount vid öppning → activeLeft re-initieras till TOM (E2f
           Platsbanken-paritet — höger kolumn tom tills län valts) utan
           setState-i-effect. */}
@@ -347,6 +419,26 @@ export function JobbHeroFilters({
         onClose={() => setOpenPop(null)}
         onClearAll={() => changeOccupationGroup([])}
         triggerRef={yrkeBtnRef}
+      />
+
+      {/* Klass-2-panel (enkelkolumn): Omfattning (radio) + Anställningsform
+          (checkbox). Live-commit per val (changeWorktimeExtent/
+          changeEmploymentType → router.push i transition, samma mönster som
+          popovrarna). Footer = samma "Visa N annonser"-knapp (SPOT). */}
+      <JobbKlass2Panel
+        open={openPop === "filter"}
+        employmentTypeOptions={taxonomy?.employmentTypes ?? []}
+        worktimeExtentOptions={taxonomy?.worktimeExtents ?? []}
+        employmentType={selection.employmentType}
+        worktimeExtent={selection.worktimeExtent}
+        employmentTypeCounts={employmentTypeCounts}
+        worktimeExtentCounts={worktimeExtentCounts}
+        onEmploymentTypeChange={changeEmploymentType}
+        onWorktimeExtentChange={changeWorktimeExtent}
+        emptyText="Filter kunde inte laddas just nu. Du kan söka på sökord ändå."
+        footer={showResultsFooter}
+        onClose={() => setOpenPop(null)}
+        triggerRef={filterBtnRef}
       />
     </div>
   );

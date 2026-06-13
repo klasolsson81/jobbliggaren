@@ -64,9 +64,26 @@ export type TaxonomyOccupationField = z.infer<
   typeof taxonomyOccupationFieldSchema
 >;
 
+// Platt taxonomi-option (concept-id → namn) för en föräldralös filter-
+// dimension. ADR 0043-amendment 2026-06-13 (Klass 2). Speglar backend
+// `TaxonomyOptionDto`. conceptId matchar `job_ads.employment_type_concept_id`
+// resp. `worktime_extent_concept_id`.
+export const taxonomyOptionSchema = z.object({
+  conceptId: conceptIdSchema,
+  label: z.string().min(1),
+});
+export type TaxonomyOption = z.infer<typeof taxonomyOptionSchema>;
+
 export const taxonomyTreeSchema = z.object({
   regions: z.array(taxonomyRegionSchema),
   occupationFields: z.array(taxonomyOccupationFieldSchema),
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — anställningsform + omfattning,
+  // platta listor (ingen kaskad). REQUIRED (ej .default([])): backend
+  // garanterar fälten; tolerant default skulle maskera kontraktsdrift (samma
+  // dom som `municipalities`). Råa JobTech-labels — Platsbanken-kurering
+  // (utelämna/om-etikettera) sker i panel-presentationen (PR-2).
+  employmentTypes: z.array(taxonomyOptionSchema),
+  worktimeExtents: z.array(taxonomyOptionSchema),
 });
 export type TaxonomyTree = z.infer<typeof taxonomyTreeSchema>;
 

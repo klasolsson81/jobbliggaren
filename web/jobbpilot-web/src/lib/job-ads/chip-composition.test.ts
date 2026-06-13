@@ -5,6 +5,9 @@ import type { SuggestionDto } from "@/lib/dto/job-ads";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 
 const taxonomy: TaxonomyTree = {
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — required; not exercised here.
+  employmentTypes: [],
+  worktimeExtents: [],
   regions: [
     {
       conceptId: "CifL_Rzy_Mku",
@@ -37,6 +40,8 @@ const empty: JobbUrlState = {
   occupationGroup: [],
   region: [],
   municipality: [],
+  employmentType: [],
+  worktimeExtent: [],
   sortBy: "PublishedAtDesc",
 };
 

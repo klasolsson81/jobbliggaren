@@ -9,6 +9,9 @@ import type { JobbUrlState } from "./search-params";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 
 const taxonomy: TaxonomyTree = {
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — anställningsform + omfattning.
+  employmentTypes: [{ conceptId: "et_vikariat", label: "Vikariat" }],
+  worktimeExtents: [{ conceptId: "wt_heltid", label: "Heltid" }],
   regions: [
     {
       conceptId: "CifL_Rzy_Mku",
@@ -32,18 +35,22 @@ const state: JobbUrlState = {
   occupationGroup: ["MVqp_eS8_kDZ"],
   region: ["CifL_Rzy_Mku"],
   municipality: ["zHxw_uJZ_NNh"],
+  employmentType: ["et_vikariat"],
+  worktimeExtent: ["wt_heltid"],
   sortBy: "PublishedAtDesc",
 };
 
 const resolve = buildTaxonomyLabelResolver(taxonomy);
 
 describe("buildChipModels (E2h SPOT)", () => {
-  it("ordning: region → municipality → occupationGroup → q-ord", () => {
+  it("ordning: region → municipality → occupationGroup → employmentType → worktimeExtent → q-ord", () => {
     const chips = buildChipModels(state, resolve, { includeQ: true });
     expect(chips.map((c) => c.label)).toEqual([
       "Stockholms län",
       "Solna",
       "Systemutvecklare",
+      "Vikariat",
+      "Heltid",
       "volvo",
       "lastbil",
     ]);
@@ -55,7 +62,25 @@ describe("buildChipModels (E2h SPOT)", () => {
       "region",
       "municipality",
       "occupationGroup",
+      "employmentType",
+      "worktimeExtent",
     ]);
+  });
+
+  it("Klass 2 — anställningsform/omfattning-chips bär rätt axel + label", () => {
+    const chips = buildChipModels(state, resolve);
+    const et = chips.find((c) => c.axis === "employmentType");
+    const wt = chips.find((c) => c.axis === "worktimeExtent");
+    expect(et).toEqual({
+      axis: "employmentType",
+      value: "et_vikariat",
+      label: "Vikariat",
+    });
+    expect(wt).toEqual({
+      axis: "worktimeExtent",
+      value: "wt_heltid",
+      label: "Heltid",
+    });
   });
 
   it("okänt conceptId → 'Okänd kod' (graceful, ADR 0043)", () => {
@@ -79,6 +104,26 @@ describe("removeChipFromState (E2h SPOT — fält-× = toolbar-×)", () => {
     expect(next.q).toBe("volvo lastbil");
   });
 
+  it("Klass 2 — employmentType-chip filtreras bort ur rätt axel (generisk väg)", () => {
+    const next = removeChipFromState(state, {
+      axis: "employmentType",
+      value: "et_vikariat",
+      label: "Vikariat",
+    });
+    expect(next.employmentType).toEqual([]);
+    expect(next.worktimeExtent).toEqual(["wt_heltid"]);
+  });
+
+  it("Klass 2 — worktimeExtent-chip filtreras bort ur rätt axel", () => {
+    const next = removeChipFromState(state, {
+      axis: "worktimeExtent",
+      value: "wt_heltid",
+      label: "Heltid",
+    });
+    expect(next.worktimeExtent).toEqual([]);
+    expect(next.employmentType).toEqual(["et_vikariat"]);
+  });
+
   it("q-chip: tar bort ordet (case-insensitivt) och joinar om", () => {
     const next = removeChipFromState(state, {
       axis: "q",
@@ -95,6 +140,17 @@ describe("removeChipFromState (E2h SPOT — fält-× = toolbar-×)", () => {
       label: "saknas",
     });
     expect(next).toBe(state);
+  });
+});
+
+describe("buildTaxonomyLabelResolver Klass 2", () => {
+  it("resolverar employmentTypes + worktimeExtents ur trädet", () => {
+    expect(resolve("employmentType", "et_vikariat")).toBe("Vikariat");
+    expect(resolve("worktimeExtent", "wt_heltid")).toBe("Heltid");
+  });
+
+  it("okänt Klass-2-id → 'Okänd kod' (graceful, ADR 0043)", () => {
+    expect(resolve("employmentType", "STALE")).toBe("Okänd kod (STALE)");
   });
 });
 

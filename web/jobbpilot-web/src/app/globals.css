@@ -1426,7 +1426,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 /* E2c (ADR 0067 Beslut 4) — per-option-count efter rad-labeln,
    "Solna (12)". Mono + ink-2 = samma sekundärtals-konvention som
    träffräknaren/hero-chip-counts. */
-.jp-checkitem__count {
+.jp-checkitem__count,
+.jp-radioitem__count {
   margin-left: auto;
   font-family: var(--jp-font-mono);
   /* 13px = chip-count-precedenten (design-reviewer Minor 1 E2c — inga
@@ -1442,6 +1443,73 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   padding: 12px 16px;
   border-top: 1px solid var(--jp-border-soft);
   background: var(--jp-surface-2);
+}
+
+/* ── Klass-2-filterpanel (enkelkolumn) ─────────────
+   ADR 0067 Fas E (2026-06-13). Staplade sektioner (Omfattning radio +
+   Anställningsform checkbox) — INTE den tvåkolumns-kaskade .jp-popover__body.
+   Återanvänder .jp-popover-skalet (yta/border/skugga/fokus-scope). */
+.jp-panel__body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.jp-panel__section {
+  padding: 6px 0 8px;
+}
+.jp-panel__section + .jp-panel__section {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-panel__sectionhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+}
+.jp-panel__group {
+  display: flex;
+  flex-direction: column;
+}
+/* Radio-rad: cirkel + fyll (jp-checkitem-paritet i layout/target/hover men
+   rund indikator). Civic-utility: ingen gradient/glow — accent-800-fyll. */
+.jp-radioitem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-size: 15px;
+}
+.jp-radioitem:hover { background: var(--jp-surface-3); }
+.jp-radioitem:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
+.jp-radioitem__dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid var(--jp-border-strong);
+  background: var(--jp-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.jp-radioitem[aria-checked="true"] .jp-radioitem__dot {
+  border-color: var(--jp-accent-800);
+}
+.jp-radioitem__fill {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--jp-accent-800);
+}
+/* Checkbox-raden i panelen får synligt fokus (jp-checkitem saknar egen
+   focus-ring — popovern förlitar sig på roving men panelens checkboxar är
+   alla tab-stops). */
+.jp-panel .jp-checkitem:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
 }
 
 /* ── Buttons ─────────────────────────────────────── */

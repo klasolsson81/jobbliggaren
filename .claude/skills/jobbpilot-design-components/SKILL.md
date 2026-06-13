@@ -281,12 +281,33 @@ Ansökningar / Klarna Backend Engineer / Intervjuförberedelse
 
 ### Skeleton
 
-Loading state for predictable content shapes (lists, detail views).
+Loading state for predictable content shapes (lists, detail views, cards).
 
 - Use flat neutral gray: `bg-surface-tertiary` — no shimmer animation
 - Match the approximate shape of what will load (row height, column widths)
-- Prefer Skeleton over Spinner for first renders
-- Use Spinner only for inline button loading or short indeterminate waits
+- Skeleton is the **default** for content loading — it shows the shape that fills in
+
+### Spinner (BrandSpinner) — spinner-vs-skeleton doctrine
+
+`BrandSpinner` ("Sigillet i rörelse", ADR 0070 Fas 2) is the civic loading mark:
+the register rows pulse while a gold arc rotates the inner ring. Motion here
+carries information — a real wait — never decoration.
+
+- **Use BrandSpinner only for known-slow, formless waits (> ~1–2 s)** where there
+  is no predictable shape to skeleton. Open the surface **instantly**, then show
+  the spinner + a Swedish status line inside it (e.g. "Jobbannonsen läses in…").
+- First consumers: the **job-ad modal** and **saved-application modal** loading
+  states — `ModalLoadingShell`, rendered as the `loading.tsx` Suspense fallback
+  while the intercepted modal's server detail streams in.
+- **Never put a spinner where it is already fast** — page/route changes, tab
+  switches, light nav. A spinner on a fast action reads as jank and erodes the
+  serious/trustworthy feel.
+- **Skeleton stays the default (~90 %); the spinner is the narrow exception.**
+  When a shape is known (a list, a card, a detail layout), skeleton it. Reach for
+  the spinner only when the wait is genuinely formless and known-slow.
+- `prefers-reduced-motion` → BrandSpinner falls back to a static seal (no
+  rotation/pulse). It carries `role="status"` + `aria-live="polite"` + an sr-only
+  label so the wait is announced to screen readers.
 
 ---
 

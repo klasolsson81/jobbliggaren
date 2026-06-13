@@ -635,6 +635,51 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   letter-spacing: -0.02em;
 }
 
+/* Brand-spinner "Sigillet i rörelse" (logo-översyn 2026-06-13, Fas 2): registret
+   pulserar (raderna tänds i sekvens) medan en guldbåge roterar längs inre ringen. Ren
+   CSS-animation (ingen JS/lib). prefers-reduced-motion → stillastående sigill. */
+.jp-brand-spinner {
+  display: block;
+  flex-shrink: 0;
+}
+.jp-brand-spinner__arc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jp-spin 1.15s linear infinite;
+}
+.jp-brand-spinner__row {
+  animation: jp-row-pulse 1.5s ease-in-out infinite;
+}
+.jp-brand-spinner__row--2 {
+  animation-delay: 0.25s;
+}
+.jp-brand-spinner__row--3 {
+  animation-delay: 0.5s;
+}
+@keyframes jp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes jp-row-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-brand-spinner__arc {
+    animation: none;
+  }
+  .jp-brand-spinner__row {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 .jp-nav {
   display: flex;
   align-items: center;
@@ -2020,6 +2065,27 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+/* Modal loading chrome (logo Fas 2, ADR 0070) — Suspense fallback while the
+   modal detail streams in (ModalLoadingShell). Reuses the .jp-modal-scrim /
+   .jp-modal surface; reserves a stable panel height so the swap to content does
+   not jump (CLS). Spinner + status line centered. */
+.jp-modal--loading {
+  min-height: 220px;
+}
+.jp-modal-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 24px;
+}
+.jp-modal-loading__text {
+  margin: 0;
+  font-size: 15px;
+  color: var(--jp-ink-2);
 }
 .jp-modal__metarow {
   display: grid;

@@ -19,6 +19,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 |---|---|---|---|---|
 | TD-26 | AI-kostnadstak: token-limit + per-user spend-cap | **Major** | 4 (AI) | Säkerhet/Kostnad |
 | TD-108 | Pre-existing kontrast-borderlines i v3-tokenpar (warning-pill-text 4.2:1 + border-strong 2.5:1) | Minor | 1 | A11y/Design tokens |
+| TD-109 | Dark-mode: hero-plattans gröna gradient skär sig mot dark navy canvas | Minor | Pre-MVP polish (Trigger) | A11y/Design |
 | TD-19 | Worker orchestrator + DI-pattern: defense-in-depth | Minor | 2 | Code quality |
 | TD-23 | RedisSessionStore atomicitet via MULTI/EXEC eller Lua | Minor | 2 | Säkerhet/Robusthet |
 | TD-24 | DeleteAccountCommand cascade-paginering vid power-user | Minor | 2 | Skalbarhet |
@@ -1120,6 +1121,34 @@ ingen Secrets Manager, så den nuvarande migrations-runnern kan inte köras.
 ## Minor — Efter MVP / Trigger-baserade
 
 Adresseras vid faktisk användarsignal, skala-tröskel eller opportunistisk touch.
+
+## TD-109: Dark-mode — hero-plattans gröna gradient skär sig mot dark navy canvas
+
+**Kategori:** A11y/Design
+**Severity:** Minor
+**Fas:** Pre-MVP design-polish (innan Fas 8 klass-launch) — Trigger: dark-mode
+QA-/polish-pass före launch
+**Källa:** Klas rendered-verify 2026-06-13 (/jobb, dark mode) under PR #78
+(recent-search lazy counts). "Dark navy skär sig mot vår gröna färg." Klas:
+inget prio nu, kör light mode i dev.
+
+I dark mode skär den gröna hero-plattan (`--jp-hero-gradient`, scoped undantag
+per ADR 0068 — `#0B2A1E`→`#14503A`→`#1E6B4C`) sig mot den mörka navy-grå
+canvasen (`--jp-canvas` dark `#0B1525`). Plattans gröntoner och canvas-navyn
+ligger för nära i ton/luminans → kanten/kontrasten mellan platta och bakgrund
+läser inte rent. Light mode är opåverkad (verifierad OK).
+
+**Föreslagen åtgärd:**
+1. design-reviewer-rond mot dark-mode-renderingen (kontrast platta↔canvas,
+   ev. plattans gradient-stopp eller en hairline/border-strong-kant i dark).
+2. Möjliga vägar: dark-skiftad hero-gradient-variant, en subtil platt-kant i
+   dark, eller justerad canvas-ton bakom plattan — väljs i ronden (ADR 0068
+   scoped-gradient-undantaget får inte vidgas okontrollerat).
+3. Verifieras i dark + light parallellt (DESIGN.md dark-mode-stance — aldrig
+   dark som efterhandstillägg).
+
+**Trigger:** pre-launch dark-mode-polish-pass (dark mode är dev-bekvämlighet nu,
+inte launch-default — Klas kör light i dev). Tas innan MVP/klass-launch.
 
 ## TD-85: github_oidc prod-drift (OIDC-provider + deploy_dev-roll)
 **Kategori:** Infra/IaC

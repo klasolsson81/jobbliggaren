@@ -1426,7 +1426,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 /* E2c (ADR 0067 Beslut 4) — per-option-count efter rad-labeln,
    "Solna (12)". Mono + ink-2 = samma sekundärtals-konvention som
    träffräknaren/hero-chip-counts. */
-.jp-checkitem__count {
+.jp-checkitem__count,
+.jp-radioitem__count {
   margin-left: auto;
   font-family: var(--jp-font-mono);
   /* 13px = chip-count-precedenten (design-reviewer Minor 1 E2c — inga

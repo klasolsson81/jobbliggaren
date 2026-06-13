@@ -174,6 +174,10 @@ export interface FacetCountsFilter {
   occupationGroup?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
+  // ADR 0067 PR-3 — Klass 2-filterkontext för facetten (backend exkluderar
+  // den facetterade dimensionen själv ur WHERE).
+  employmentType?: ReadonlyArray<string>;
+  worktimeExtent?: ReadonlyArray<string>;
   q?: string;
 }
 
@@ -200,6 +204,10 @@ export async function getFacetCounts(
     params.append("occupationGroup", v);
   for (const v of filter.municipality ?? []) params.append("municipality", v);
   for (const v of filter.region ?? []) params.append("region", v);
+  for (const v of filter.employmentType ?? [])
+    params.append("employmentType", v);
+  for (const v of filter.worktimeExtent ?? [])
+    params.append("worktimeExtent", v);
   if (filter.q) params.set("q", filter.q);
 
   try {

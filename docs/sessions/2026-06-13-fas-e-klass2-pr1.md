@@ -111,3 +111,28 @@ anställning" (24k) synlig i honest-8; (4) dark/fokus/pilnav/NVDA per manifest.
 
 **Känd uppföljning:** border-strong-indikatorkontrast (radio+checkbox-kontrakt,
 tvärgående) — design-reviewer TD-kandidat, ej denna PR.
+
+---
+
+## PR-3 (samma session) — Klass 2 facet-counts (FE-only)
+
+Branch `feat/klass2-facet-counts` (off main efter PR-2 #63-merge). Backend stödde
+redan EmploymentType/WorktimeExtent i `FacetDimension` + `GetFacetCountsQuery` (B2).
+
+- `FACET_DIMENSIONS` (job-ads.ts) +2; `facetDimensionSchema = z.enum(...)` följer →
+  route-handler-allowlist auto-utökad.
+- `FacetCountsFilterState` (hook) + `FacetCountsFilter` (api) + route-handler +
+  `getFacetCounts`-buildQuery + hook-params: +employmentType/worktimeExtent. Klass 2
+  ingår i facett-filtret → Ort/Yrke-facetterna reflekterar nu också Klass 2 (backend
+  `ExcludeDimension` exkluderar egen dim). `filterKey` +2 (ingen stale count).
+- `jobb-hero-filters`: `facetFilter` +2, 2 nya `useFacetCounts` gated på
+  `openPop === "filter"`, props till panelen.
+- `JobbKlass2Panel`: count-props + render `({n.toLocaleString("sv-SE")})` per
+  Heltid/Deltid-radio + anställningsform-checkbox. "Alla"-radion bär INGET tal
+  (SPOT = totalCount). null/saknad-nyckel-degradering = E2c-paritet.
+- CSS `.jp-radioitem__count` co-selektor med `.jp-checkitem__count` (noll nya tokens).
+- Tester: 4 nya count-tester (per-option, "Alla"-undantag, saknad-nyckel→0, null).
+
+**Reviews:** code-reviewer **✓ 0/0/0**; design-reviewer **✓ 0/0/1** (moot — E2c
+renderar också "(0)" för saknad nyckel när dicten finns). FAS-DEFERRAL-MANIFEST
+rendered. Gates: tsc rent, vitest 38 (panel+hero), pnpm build grön.

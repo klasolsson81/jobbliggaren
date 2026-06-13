@@ -7,9 +7,17 @@ import { Clock, Search, Trash2 } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
 import { deleteRecentSearchAction } from "@/lib/actions/recent-searches";
+import type { RecentSearchCount } from "@/lib/hooks/use-recent-search-counts";
 
 interface RecentSearchRowProps {
   item: RecentJobSearchDto;
+  /**
+   * Lat-hämtad träffräknare (B, CTO 2026-06-13). `undefined` = ännu inte
+   * laddad / timeout / fel → ingen siffra renderas (ALDRIG falsk "(0)").
+   * Kommer från `useRecentSearchCounts` i listan, INTE från `item.currentCount`
+   * (som är 0 vid sidladdning, `includeCount=false`).
+   */
+  count?: RecentSearchCount;
   onDeleted: (id: string) => void;
   onDeleteFailed: (id: string, error: string) => void;
 }
@@ -29,14 +37,32 @@ function buildHrefFor(item: RecentJobSearchDto): string {
 }
 
 // Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på raden.
+// Format: "(N) träffar" om newCount === 0, "(N) träffar, varav (M) nya"
+// om newCount > 0. Mono via `.jp-job__meta b`, ink-2 via `.jp-job__meta`.
 //
-// Träffräknaren ("(N) träffar" / "varav (M) nya") är TILLFÄLLIGT borttagen:
-// `currentCount`/`newCount` är 0 så länge listan hämtas med `includeCount=false`
-// (slow N+1-COUNT, TD-94). En synlig "(0) träffar" vore desinformation (husets
-// degraderingskontrakt) — hellre ingen siffra. Återinförs via lat klient-
-// hämtning (CTO-beslut 2026-06-13, samma mönster som useFacetCounts).
+// Talet hämtas LAT klient-side (B, CTO 2026-06-13) via `useRecentSearchCounts`
+// i listan och skickas in som `count`-prop. Saknas det (laddar/timeout/fel)
+// renderas ingen siffra — ALDRIG en falsk "(0)" (husets degraderingskontrakt).
+function CountMeta({ currentCount, newCount }: RecentSearchCount) {
+  if (newCount > 0) {
+    return (
+      <div className="jp-job__meta" style={{ marginTop: 8 }}>
+        <span>
+          <b>{currentCount.toLocaleString("sv-SE")}</b> träffar, varav <b>{newCount.toLocaleString("sv-SE")}</b> nya
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="jp-job__meta" style={{ marginTop: 8 }}>
+      <span>
+        <b>{currentCount.toLocaleString("sv-SE")}</b> träffar
+      </span>
+    </div>
+  );
+}
 
-export function RecentSearchRow({ item, onDeleted, onDeleteFailed }: RecentSearchRowProps) {
+export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: RecentSearchRowProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const href = buildHrefFor(item);
@@ -79,6 +105,9 @@ export function RecentSearchRow({ item, onDeleted, onDeleteFailed }: RecentSearc
         </div>
         <div className="jp-job__body">
           <h3 className="jp-job__title">{item.label}</h3>
+          {count !== undefined && (
+            <CountMeta currentCount={count.currentCount} newCount={count.newCount} />
+          )}
         </div>
         <div className="jp-job__actions" style={{ flexDirection: "row" }}>
           <Link href={href} className="jp-btn jp-btn--primary jp-btn--sm">

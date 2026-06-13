@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
 import { HeroChip } from "@/components/job-ads/hero-chip";
+import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 
 interface RecentSearchesHeroChipProps {
   items: ReadonlyArray<RecentJobSearchDto>;
@@ -29,15 +31,20 @@ function buildHrefFor(item: RecentJobSearchDto): string {
  * Auto-fångade sökningar; klick på rad → kör om sökningen med samma filter.
  * Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på rader.
  *
- * Per-sökning-träffräknaren ("(N)" / "(N, M nya)") är TILLFÄLLIGT borttagen:
- * `currentCount`/`newCount` på DTO:n är 0 så länge sidan hämtar med
- * `includeCount=false` (slow N+1-COUNT, TD-94 — se ListRecentSearchesQueryHandler).
- * En synlig "(0)" vore desinformation (husets degraderingskontrakt,
- * facet-counts/route.ts) — hellre ingen siffra. Återinförs via lat klient-
- * hämtning (CTO-beslut 2026-06-13, samma mönster som useFacetCounts).
+ * Per-sökning-träffräknaren ("(N)" / "(N, M nya)") hämtas LAT klient-side
+ * (B, CTO-beslut 2026-06-13) — först när dropdownen öppnas, via
+ * `useRecentSearchCounts` (off-critical-path; den slow N+1-COUNT:en är TD-94).
+ * `currentCount`/`newCount` på DTO:n är 0 vid sidladdning (`includeCount=false`)
+ * och används INTE här — talet kommer enbart från hook-map:en. Saknas det
+ * (laddar/timeout/fel) visas ingen siffra — ALDRIG en falsk "(0)" (husets
+ * degraderingskontrakt, facet-counts/route.ts).
  */
 export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
+  // Lat hämtning: counten beräknas först när panelen öppnas (slow N+1 undviks
+  // på /jobb-laddningar där användaren aldrig öppnar chippen).
+  const counts = useRecentSearchCounts(open);
 
   return (
     <HeroChip
@@ -49,8 +56,16 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
       emptyText="Inga senaste sökningar än. Sök under Jobb så sparas de här."
       footerHref="/sokningar"
       footerLabel="Visa alla senaste sökningar"
+      onOpenChange={setOpen}
       renderItem={(item, onClose) => {
         const href = buildHrefFor(item);
+        const count = counts?.get(item.id);
+        const countText =
+          count === undefined
+            ? null
+            : count.newCount > 0
+              ? `(${count.currentCount}, ${count.newCount} nya)`
+              : `(${count.currentCount})`;
         return (
           <button
             type="button"
@@ -61,6 +76,10 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
             style={{
               display: "flex",
               alignItems: "center",
+              // Konstant space-between (även innan counten laddat) så label-
+              // positionen inte hoppar när talet poppar in (civic = lugn, inga
+              // shifts — design-reviewer Minor B).
+              justifyContent: "space-between",
               width: "100%",
               padding: "10px 16px",
               background: "transparent",
@@ -80,6 +99,18 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
           >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {item.label}
+            </span>
+            {/* Spannet renderas alltid (tomt tills counten laddat) så raden inte
+                reflowar vid pop-in. */}
+            <span
+              style={{
+                fontFamily: "var(--jp-font-mono)",
+                fontSize: 12,
+                color: "var(--jp-ink-2)",
+                flexShrink: 0,
+              }}
+            >
+              {countText ?? ""}
             </span>
           </button>
         );

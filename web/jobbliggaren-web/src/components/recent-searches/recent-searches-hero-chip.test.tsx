@@ -5,9 +5,16 @@ import { RecentSearchesHeroChip } from "./recent-searches-hero-chip";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 
 const pushMock = vi.fn();
+const countsMock = vi.fn<() => ReadonlyMap<string, { currentCount: number; newCount: number }> | null>(
+  () => null,
+);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+}));
+
+vi.mock("@/lib/hooks/use-recent-search-counts", () => ({
+  useRecentSearchCounts: () => countsMock(),
 }));
 
 function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
@@ -33,6 +40,8 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
 
 beforeEach(() => {
   pushMock.mockClear();
+  countsMock.mockReset();
+  countsMock.mockReturnValue(null);
 });
 
 describe("RecentSearchesHeroChip", () => {
@@ -51,8 +60,9 @@ describe("RecentSearchesHeroChip", () => {
     expect(screen.getByText("(2)")).toBeInTheDocument();
   });
 
-  it("dropdown-rad visar label utan per-sökning-träffräknare (interim — TD-94, count borttagen tills lat hämtning)", async () => {
+  it("dropdown-rad visar INGEN träffräknare när hooken ännu inte laddat (graceful null — aldrig falsk (0))", async () => {
     const user = userEvent.setup();
+    countsMock.mockReturnValue(null);
     render(
       <RecentSearchesHeroChip
         items={[
@@ -64,10 +74,31 @@ describe("RecentSearchesHeroChip", () => {
     await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
     expect(screen.getByText("backend")).toBeInTheDocument();
     expect(screen.getByText("designer")).toBeInTheDocument();
-    // Ingen falsk "(0)"/"(N)"-träffräknare medan currentCount är 0 (TD-94).
+    // DTO:ns currentCount ignoreras — utan hook-data, ingen siffra (aldrig "(0)").
     expect(screen.queryByText("(42)")).not.toBeInTheDocument();
     expect(screen.queryByText("(8, 3 nya)")).not.toBeInTheDocument();
     expect(screen.queryByText(/nya\)/)).not.toBeInTheDocument();
+  });
+
+  it("dropdown-rad visar lat-hämtad '(N)' / '(N, M nya)' från hook-map:en", async () => {
+    const user = userEvent.setup();
+    countsMock.mockReturnValue(
+      new Map([
+        ["a1", { currentCount: 42, newCount: 0 }],
+        ["a2", { currentCount: 8, newCount: 3 }],
+      ]),
+    );
+    render(
+      <RecentSearchesHeroChip
+        items={[
+          makeDto({ id: "a1", label: "backend" }),
+          makeDto({ id: "a2", label: "designer" }),
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+    expect(screen.getByText("(42)")).toBeInTheDocument();
+    expect(screen.getByText("(8, 3 nya)")).toBeInTheDocument();
   });
 
   it("INGEN 'NY'-pill renderas i dropdown (Klas-direktiv anti-AI-trope)", async () => {

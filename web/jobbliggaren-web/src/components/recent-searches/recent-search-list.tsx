@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
+import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 import { RecentSearchRow } from "./recent-search-row";
 
 interface RecentSearchListProps {
@@ -18,6 +19,9 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
     () => new Set()
   );
   const [error, setError] = useState<DeleteError | null>(null);
+  // Lat-hämtad träffräknare on mount (B, CTO 2026-06-13) — off-critical-path,
+  // graceful null. Listan visas direkt; talen "poppar in" när de laddats.
+  const counts = useRecentSearchCounts(true);
 
   const visibleItems = useMemo(
     () => items.filter((it) => !optimisticDeletedIds.has(it.id)),
@@ -61,6 +65,7 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
           <RecentSearchRow
             key={item.id}
             item={item}
+            count={counts?.get(item.id)}
             onDeleted={handleDeleted}
             onDeleteFailed={handleDeleteFailed}
           />

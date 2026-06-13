@@ -63,7 +63,7 @@ Filosofi-sammanfattningar finns i denna fil. Fullständiga specer med tokens, va
 
 Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens — fler färger skapar kognitiv belastning. Kanon = `globals.css` (v3-neutraler + grön accent per ADR 0068); fullständiga värden i `jobbpilot-design-tokens`-skillen.
 
-- **Accent (mörkgrön, ADR 0068):** `--jp-accent-800` `#15603F` fill (primärknapp, EJ dark-skiftad, vit text — aldrig ljus knapp/mörk text); `--jp-accent-700` `#15603F` light / `#6EE7A8` dark för länkar, aktiv nav, fokus (`#6EE7A8` ALDRIG som fill); `--jp-accent-50` selektion. Ersätter tidigare blå/navy. Logotypens kompass förblir navy + guldprick — varumärket byter inte färg.
+- **Accent (mörkgrön, ADR 0068):** `--jp-accent-800` `#15603F` fill (primärknapp, EJ dark-skiftad, vit text — aldrig ljus knapp/mörk text); `--jp-accent-700` `#15603F` light / `#6EE7A8` dark för länkar, aktiv nav, fokus (`#6EE7A8` ALDRIG som fill); `--jp-accent-50` selektion. Ersätter tidigare blå/navy. Logo-marken (Sigillet, ADR 0070) bär grön skiva + guldsignatur `--jp-gold` `#E8C77B` — egen färgsättning utanför interaktions-accenten.
 - **Hero-gradient (scoped undantag, ADR 0068):** `--jp-hero-gradient` (118° `#0B2A1E`→`#14503A`→`#1E6B4C`) ENBART på hero-banner-plattan/pagehero/empty-brand/landing-hero — gradients förbjudna överallt annars.
 - **Neutraler (v3, ADR 0052 — oförändrade av G1):** ink `#0C1A2E` / `#455366` / `#7C8AA0`, surfaces `#FFFFFF` / `#F4F6FA` / `#E8EDF4`, canvas `#F4F6FA` light / `#0B1525` dark (mörk navy-grå, inte svart), placeholder `#626B78` (WCAG-motiverad).
 - **Statusfärger:** success `#16793B`, warning `#B4540B`, danger `#BE1B1B`, info `#1B5396` + bg-varianter — endast för status (aldrig dekoration); oförändrade av accentbytet.
@@ -187,9 +187,11 @@ Komplett WCAG-checklist (20 punkter), screen reader-testplaybook (NVDA + VoiceOv
 
 ## 11. Logotyp
 
-Prioriteras senare — designas inför klass-launch (fas 8). Krav: SVG, fungerar på ljus och mörk bakgrund, en-tonig + positiv/negativ-variant, monokrom fallback, civic-ton (geometrisk, stabil, inte lekfull).
+Logo-marken är **Sigillet** ([ADR 0070](./docs/decisions/0070-sigillet-brand-mark-och-spinner.md), 2026-06-13): ett fyllt civilt registersigill — slät grön skiva (`--jp-accent-800` `#15603F`) + tunn vit inre ring + tre liggar-rader, mittenraden guld (`--jp-gold` `#E8C77B`) med en bock = en loggad post. Semantiskt knutet till namnet Jobbliggaren (liggare = register) och `.jp-table--flat`-formspråket. Ersätter den tidigare 4-uddiga kompassen; ADR 0068:s "kompassen förblir navy + guldprick"-not är därmed superseded.
 
-Föreslagna riktningar: stiliserad kompass (pilot-metafor), monogram "JP", Platsbanken-aktig cirkel med subtil twist.
+SSOT: `web/jobbliggaren-web/src/components/brand/brand-mark-svg.tsx` (`BrandMarkSvg`, 3-färgskontrakt primär/accent/papper via `--jp-mark-*`). Wordmark "Jobbliggaren" i ink. Laddningsindikator: `BrandSpinner` ("Sigillet i rörelse" — pulserande register + roterande guldbåge; ren CSS, `prefers-reduced-motion` → stillastående) — beslutad, levereras i separat följ-PR (wire + spinner-vs-skeleton-doktrin + visual-verify). Ytor: `icon.svg`, `apple-icon`, `opengraph-image`, `twitter-image`, `manifest.ts` (theme_color grön `#15603F`).
+
+Krav (uppfyllda): SVG; fungerar på ljus och mörk bakgrund; monokrom fallback (sätt accent = papper); civic-ton (geometrisk, stabil, inte lekfull).
 
 ---
 

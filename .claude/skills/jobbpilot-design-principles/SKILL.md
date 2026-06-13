@@ -127,8 +127,9 @@ tidigare blå/navy) är produktens enda dekorativa färg, reserverad för primä
 åtgärd, aktiv selektion (rader/flikar/navigation), länkar och "idag"-markering.
 Knapp-kontrakt: fill = `--jp-accent-800` (`#15603F`, EJ dark-skiftad) + vit
 text — aldrig ljus knapp med mörk text; `#6EE7A8` är ENDAST text/länk/fokus/
-border i dark, aldrig fill. Logotypens kompass förblir navy + guldprick
-(varumärket byter inte färg). Status-färgerna används **endast** för status:
+border i dark, aldrig fill. Logo-marken (Sigillet, ADR 0070) bär grön skiva +
+guldsignatur (`--jp-gold`) — varumärkets egen färgsättning, utanför interaktions-
+accenten. Status-färgerna används **endast** för status:
 `success` → erbjudande/drift/klar; `warning` → deadlines/uppmärksamhet;
 `danger` → avslag/fel/destruktivt; `info` → neutral info (skickad/bekräftad).
 **Aldrig** för temamarkering, dekoration eller "brand expression".

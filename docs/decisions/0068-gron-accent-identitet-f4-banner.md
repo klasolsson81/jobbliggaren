@@ -1,7 +1,7 @@
 # ADR 0068 — Grön accent-identitet + F4 hero-banner
 
 **Datum:** 2026-06-10
-**Status:** Accepted 2026-06-10 (Klas-beslut via Claude Design-utforskning "Banner-utforskning v2", handoff `docs/handoff-banner/` + chat-direktiv samma dag: temat gäller alla sidor + landingpage; CC-mandat att uppdatera spec-filer)
+**Status:** Accepted 2026-06-10 (Klas-beslut via Claude Design-utforskning "Banner-utforskning v2", handoff `docs/handoff-banner/` + chat-direktiv samma dag: temat gäller alla sidor + landingpage; CC-mandat att uppdatera spec-filer) — **Beslut 1 logo-mark-noten delvis superseded av [ADR 0070](./0070-sigillet-brand-mark-och-spinner.md) 2026-06-13** (kompassen ersatt av Sigillet; `--jp-gold` aktiverad; Beslut 1–5 i övrigt oförändrade)
 **Beslutsfattare:** Klas Olsson (produktägare)
 **Supersedes (delvis):** [ADR 0052](./0052-design-system-v3-modern-civic.md) **Beslut 6** (navy-800-primärknapp + navy-länkkontrakt → grön-accent-kontrakt; ADR 0052 Beslut 1–5 — neutraler, token-brygga, hybrid-strategi, radius-skala, typografi — **består oförändrade**). Superseder även E1a-implementeringen "Papperskontoret" content-first-hero på /jobb (ADR 0067 impl-notat Fas E1a, mergad #40 samma dag — varm hero-canvas ersätts av F4-banner-plattan).
 **Amends:** ADR 0016/design-principles gradient-förbud + "myndighetsblå"-identiteten (scoped undantag: mörkgrön gradient ENBART hero-plattan; accent-hue blå→grön).

@@ -37,7 +37,7 @@ names, not class sets.
 
 /* ── v3-kanon (ADR 0052) + G1 grön accent (ADR 0068) ───────── */
 :root {
-  /* Navy — LOGO-ONLY sedan G1 (kompassen i BrandLogo + guldprick) */
+  /* Navy — utan konsument sedan ADR 0070 (kompassen pensionerad); städas F-städ */
   --jp-navy-900:#08213F; --jp-navy-800:#0A2647; --jp-navy-700:#133F73;
   --jp-navy-600:#1B5396; --jp-navy-500:#2E6CC2; --jp-navy-300:#7FA9DF;
   --jp-navy-100:#D6E3F4; --jp-navy-50:#EAF1FA;
@@ -49,7 +49,7 @@ names, not class sets.
   --jp-accent-700:#15603F;        /* TEXT/BORDER: länkar, aktiv nav, fokus */
   --jp-accent-600:#1E6B4C; --jp-accent-500:#2E8B63; --jp-accent-300:#74C29A;
   --jp-accent-100:#D3E7DC; --jp-accent-50:#E9F2ED;
-  --jp-gold:#E8C77B;              /* signatur — INGEN konsument ännu */
+  --jp-gold:#E8C77B;              /* signatur — sigillets guldrad (--jp-mark-accent, ADR 0070) */
 
   /* Surfaces + canvas */
   --jp-surface:#FFFFFF; --jp-surface-2:#F4F6FA; --jp-surface-3:#E8EDF4;
@@ -123,7 +123,7 @@ names, not class sets.
   --jp-brand-600:var(--jp-accent-800); /* primary = fill-kontraktet, EJ dark-skiftad */
   --jp-brand-700:var(--jp-accent-700); /* länk/hover */
   --jp-brand-900:var(--jp-accent-900);
-  --jp-brand-accent:#FFCD00;           /* kompass-prick — RÖRS EJ av G1 */
+  --jp-brand-accent:#FFCD00;           /* kompass-prick — UTGÅR (ADR 0070) */
   /* status-alias: *-50 → *-bg; *-500/600/700 → bastoken (alla tre samma) */
   --jp-success-50:var(--jp-success-bg); --jp-success-600:var(--jp-success); /* … */
   --jp-border-hairline:var(--jp-border-soft);

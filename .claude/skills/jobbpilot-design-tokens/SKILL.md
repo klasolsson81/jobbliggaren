@@ -78,7 +78,7 @@ hex; in prose use the token name, not raw hex.
 | `--jp-accent-300` | `#74C29A` | `#2E5C46` | — |
 | `--jp-accent-100` | `#D3E7DC` | `#0E2A1E` | Avatar-bg |
 | `--jp-accent-50` | `#E9F2ED` | `#0E2A1E` | Tinted bg (selekterad rad, popover-selektion) |
-| `--jp-gold` | `#E8C77B` | — | **Signatur — INGEN konsument ännu** (logo-översyn separat) |
+| `--jp-gold` | `#E8C77B` | — | **Signatur — sigillets guldrad** via `--jp-mark-accent` (ADR 0070) |
 
 **Knapp-kontraktet:** 800/800-hover/900 dark-skiftas ALDRIG — primärknappen
 förblir mörkgrön med vit text i båda teman. `#6EE7A8` är ENDAST
@@ -89,13 +89,15 @@ text/länk/fokus/border, aldrig fill.
 `--jp-accent-50` osv. — v2-brand-namnrymden är en tunn alias-brygga till
 accent-rampen (G1 alias-flip). Full mappning → `references/tokens-full.md`.
 
-### Logo-undantaget (navy)
+### Logo-marken (Sigillet, ADR 0070)
 
-Navy-rampen (`--jp-navy-*`, 50–900) är **LOGO-ONLY** sedan G1: kompassen i
-`BrandLogo` förblir navy (`--jp-navy-700` via currentColor) med guldprick
-`--jp-brand-accent: #FFCD00`. Navy används ALDRIG som interaktionsfärg —
-rampen är logo-substrat och städas vid logo-översynen. Full ramp →
-`references/tokens-full.md`.
+Logo-marken är **Sigillet** (grön skiva + guld + papper) och sätter sina fyll via
+`--jp-mark-primary` (= `--jp-accent-800` `#15603F`), `--jp-mark-accent`
+(= `--jp-gold` `#E8C77B`) och `--jp-mark-paper` (`#FFFFFF`, tema-stabil — ring/rader
+sitter på den gröna skivan, ej på sid-ytan). Den tidigare navy-kompassen + guldpricken
+`#FFCD00` (`--jp-brand-accent`) är pensionerade (ADR 0070 supersederar ADR 0068:s
+logo-mark-not). Navy-rampen (`--jp-navy-*`) är därmed helt utan konsument och städas i
+egen F-städ-fas. Full ramp → `references/tokens-full.md`.
 
 ### Surfaces
 

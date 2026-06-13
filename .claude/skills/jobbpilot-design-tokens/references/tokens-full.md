@@ -25,16 +25,16 @@ input-fält) via `data-theme="dark"` on `<html>` — see `dark-mode.md`.
 | `--jp-accent-300` | `#74C29A` | `#2E5C46` | — |
 | `--jp-accent-100` | `#D3E7DC` | `#0E2A1E` | Avatar-bg |
 | `--jp-accent-50` | `#E9F2ED` | `#0E2A1E` | Selektions-bg (popover-rad, selekterad) |
-| `--jp-gold` | `#E8C77B` | — | **Signatur — INGEN konsument ännu** (logo-översyn separat) |
+| `--jp-gold` | `#E8C77B` | — | **Signatur — sigillets guldrad** via `--jp-mark-accent` (ADR 0070) |
 
 `#6EE7A8` (dark-accent-700) används ENDAST som text/länk/fokus/border —
 ALDRIG fill bakom vit text.
 
-## Navy (LOGO-ONLY sedan G1)
+## Navy (utan konsument sedan ADR 0070)
 
-Kompassen i `BrandLogo` förblir navy + guldprick `--jp-brand-accent #FFCD00`.
-Inga interaktions-konsumenter — rampen är logo-substrat, städas vid
-logo-översynen.
+Den gamla kompassen är pensionerad (ADR 0070 — Sigillet bär grön + guld via
+`--jp-mark-*`). Navy-rampen har därmed inga konsumenter kvar och städas i egen
+F-städ-fas.
 
 | Token | Light | Dark |
 |---|---|---|
@@ -239,7 +239,7 @@ Hårdkoda aldrig padding där density gäller.
 | `--jp-brand-600` | **`var(--jp-accent-800)`** (primary = fill-kontraktet, EJ dark-skiftad) |
 | `--jp-brand-700` | `var(--jp-accent-700)` (länk/hover) |
 | `--jp-brand-900` | `var(--jp-accent-900)` |
-| `--jp-brand-accent` | `#FFCD00` (kompass-prick — RÖRS EJ av G1) |
+| `--jp-brand-accent` | `#FFCD00` (kompass-prick — UTGÅR, ADR 0070; sigillet använder `--jp-gold`) |
 | `--jp-success-50` | `var(--jp-success-bg)` — `-500/-600/-700` → `var(--jp-success)` |
 | `--jp-warning-50` | `var(--jp-warning-bg)` — `-500/-600/-700` → `var(--jp-warning)` |
 | `--jp-danger-50` | `var(--jp-danger-bg)` — `-500/-600/-700` → `var(--jp-danger)` |

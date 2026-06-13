@@ -196,6 +196,11 @@ export const FACET_DIMENSIONS = [
   "OccupationGroup",
   "Municipality",
   "Region",
+  // ADR 0067 Beslut 4 (Fas E PR-3) — Klass 2 facet-counts. Backend
+  // FacetDimension-enum + GetFacetCountsQuery stödjer dem sedan B2; ExcludeDimension
+  // exkluderar endast EGEN lista (ortogonala IN-dims, ej geo-union).
+  "EmploymentType",
+  "WorktimeExtent",
 ] as const;
 export type FacetDimension = (typeof FACET_DIMENSIONS)[number];
 export const facetDimensionSchema = z.enum(FACET_DIMENSIONS);

@@ -19,8 +19,10 @@ import { useDismissable } from "@/lib/hooks/use-dismissable";
  *   options ur `taxonomy.employmentTypes` med deras RIKTIGA JobTech-labels
  *   ("honest 8" — ingen kurering/om-etikettering/utelämning).
  *
- * INGA facet-counts i denna PR (counts = PR-3). Panelen är fullt funktionell
- * utan dem.
+ * Facet-counts (PR-3): per-option-antal ("Heltid (29 427)") via debouncade
+ * `useFacetCounts`-hooks (föräldern äger). null → inga tal renderas (degraderad/
+ * pre-fetch); panelen är fullt funktionell utan dem. "Alla"-radion bär INGET tal
+ * (summan ägs av list-svarets totalCount, SPOT — samma som Yrkes "Välj alla").
  *
  * Shell-infrastruktur (DRY, CLAUDE.md §9.1): återanvänder `useDismissable`
  * (Esc stänger + fokus-retur till triggern, klick-utanför) och samma
@@ -42,6 +44,9 @@ interface JobbKlass2PanelProps {
   employmentType: ReadonlyArray<string>;
   /** Valt omfattning-conceptId (radio-single → 0–1 element). */
   worktimeExtent: ReadonlyArray<string>;
+  /** Per-option facet-counts (PR-3) — null = inga tal (degraderad/pre-fetch). */
+  employmentTypeCounts?: Record<string, number> | null;
+  worktimeExtentCounts?: Record<string, number> | null;
   /** Live-commit: hela nästa anställningsform-listan. */
   onEmploymentTypeChange: (next: string[]) => void;
   /** Live-commit: 0 eller 1 omfattning-conceptId (radio). */
@@ -107,6 +112,8 @@ export function JobbKlass2Panel({
   worktimeExtentOptions,
   employmentType,
   worktimeExtent,
+  employmentTypeCounts,
+  worktimeExtentCounts,
   onEmploymentTypeChange,
   onWorktimeExtentChange,
   onClose,
@@ -232,6 +239,12 @@ export function JobbKlass2Panel({
                       {checked && <span className="jp-radioitem__fill" />}
                     </span>
                     {opt.label}
+                    {/* "Alla"-radion bär inget tal (summan = totalCount, SPOT). */}
+                    {opt.value !== WORKTIME_ALL && worktimeExtentCounts && (
+                      <span className="jp-radioitem__count">
+                        ({(worktimeExtentCounts[opt.value] ?? 0).toLocaleString("sv-SE")})
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -284,6 +297,11 @@ export function JobbKlass2Panel({
                       {checked && <Check size={14} aria-hidden="true" />}
                     </span>
                     {opt.label}
+                    {employmentTypeCounts && (
+                      <span className="jp-checkitem__count">
+                        ({(employmentTypeCounts[opt.conceptId] ?? 0).toLocaleString("sv-SE")})
+                      </span>
+                    )}
                   </div>
                 );
               })}

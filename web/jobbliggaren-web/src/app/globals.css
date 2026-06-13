@@ -635,6 +635,51 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   letter-spacing: -0.02em;
 }
 
+/* Brand-spinner "Sigillet i rörelse" (logo-översyn 2026-06-13, Fas 2): registret
+   pulserar (raderna tänds i sekvens) medan en guldbåge roterar längs inre ringen. Ren
+   CSS-animation (ingen JS/lib). prefers-reduced-motion → stillastående sigill. */
+.jp-brand-spinner {
+  display: block;
+  flex-shrink: 0;
+}
+.jp-brand-spinner__arc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jp-spin 1.15s linear infinite;
+}
+.jp-brand-spinner__row {
+  animation: jp-row-pulse 1.5s ease-in-out infinite;
+}
+.jp-brand-spinner__row--2 {
+  animation-delay: 0.25s;
+}
+.jp-brand-spinner__row--3 {
+  animation-delay: 0.5s;
+}
+@keyframes jp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes jp-row-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-brand-spinner__arc {
+    animation: none;
+  }
+  .jp-brand-spinner__row {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 .jp-nav {
   display: flex;
   align-items: center;

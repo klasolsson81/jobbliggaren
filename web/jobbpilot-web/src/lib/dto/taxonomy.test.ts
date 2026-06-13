@@ -25,6 +25,9 @@ const validTree = {
       ],
     },
   ],
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — platta options.
+  employmentTypes: [{ conceptId: "PFZr_Syz_cUq", label: "Vanlig anställning" }],
+  worktimeExtents: [{ conceptId: "6YE1_gAC_R2G", label: "Heltid" }],
 };
 
 describe("taxonomyTreeSchema", () => {
@@ -34,9 +37,33 @@ describe("taxonomyTreeSchema", () => {
 
   it("accepts empty region/field arrays (degraded snapshot is still valid)", () => {
     expect(
-      taxonomyTreeSchema.safeParse({ regions: [], occupationFields: [] })
-        .success
+      taxonomyTreeSchema.safeParse({
+        regions: [],
+        occupationFields: [],
+        employmentTypes: [],
+        worktimeExtents: [],
+      }).success
     ).toBe(true);
+  });
+
+  it("rejects a tree WITHOUT employmentTypes (REQUIRED — Klass 2 contract drift must fail loud)", () => {
+    const { employmentTypes, ...missing } = validTree;
+    void employmentTypes;
+    expect(taxonomyTreeSchema.safeParse(missing).success).toBe(false);
+  });
+
+  it("rejects a tree WITHOUT worktimeExtents (REQUIRED — Klass 2 contract drift must fail loud)", () => {
+    const { worktimeExtents, ...missing } = validTree;
+    void worktimeExtents;
+    expect(taxonomyTreeSchema.safeParse(missing).success).toBe(false);
+  });
+
+  it("rejects a Klass 2 option concept-id outside the 1–32 format (defense-in-depth)", () => {
+    const bad = {
+      ...validTree,
+      worktimeExtents: [{ conceptId: "bad id!", label: "Heltid" }],
+    };
+    expect(taxonomyTreeSchema.safeParse(bad).success).toBe(false);
   });
 
   it("rejects a region concept-id outside the 1–32 [A-Za-z0-9_-] format", () => {

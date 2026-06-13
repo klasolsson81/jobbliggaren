@@ -308,6 +308,94 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTreeAsync_ShouldExposeEmploymentTypesAndWorktimeExtents_WhenKlass2Seeded()
+    {
+        // Fas E Klass 2 (ADR 0043-amendment 2026-06-13) — platta, föräldralösa
+        // dimensioner exponeras som topp-nivå-listor i trädet (ingen syntetisk
+        // rot). Frusen embedded källa (klass2-taxonomy.json) seedas av samma
+        // seeder. Mot riktig Postgres (ALDRIG InMemory — enum→string + read-model-
+        // projektion måste verifieras relationellt).
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var tree = await sut.GetTreeAsync(ct);
+
+        // Frusen mängd: 8 anställningsformer + 2 omfattningar.
+        tree.EmploymentTypes.Count.ShouldBe(8);
+        tree.WorktimeExtents.Count.ShouldBe(2);
+        tree.EmploymentTypes.ShouldAllBe(e =>
+            !string.IsNullOrWhiteSpace(e.ConceptId)
+            && !string.IsNullOrWhiteSpace(e.Label));
+        tree.WorktimeExtents.ShouldAllBe(w =>
+            !string.IsNullOrWhiteSpace(w.ConceptId)
+            && !string.IsNullOrWhiteSpace(w.Label));
+
+        // Spot-check kända corpus-värden.
+        tree.WorktimeExtents.ShouldContain(w =>
+            w.ConceptId == "6YE1_gAC_R2G" && w.Label == "Heltid");
+        tree.EmploymentTypes.ShouldContain(e =>
+            e.ConceptId == "PFZr_Syz_cUq" && e.Label == "Vanlig anställning");
+
+        // Label Ordinal-sortering (konsekvent läs-modell, samma som övriga dims).
+        var employmentLabels = tree.EmploymentTypes.Select(e => e.Label).ToList();
+        employmentLabels.ShouldBe(
+            employmentLabels.OrderBy(l => l, StringComparer.Ordinal).ToList());
+        var worktimeLabels = tree.WorktimeExtents.Select(w => w.Label).ToList();
+        worktimeLabels.ShouldBe(
+            worktimeLabels.OrderBy(l => l, StringComparer.Ordinal).ToList());
+    }
+
+    [Fact]
+    public async Task Seeder_ShouldPersistKlass2RowsWithoutParent_WhenSnapshotSeeded()
+    {
+        // Klass 2-rader landar i taxonomy_concepts med Kind=EmploymentType/
+        // WorktimeExtent och ParentConceptId = null (platta/föräldralösa, till
+        // skillnad mot kommun/yrkesgrupp). Verifierar enum→string-konvertering
+        // mot riktig Postgres.
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var employmentTypes = await db.Set<TaxonomyConcept>()
+            .Where(c => c.Kind == TaxonomyConceptKind.EmploymentType)
+            .ToListAsync(ct);
+        var worktimeExtents = await db.Set<TaxonomyConcept>()
+            .Where(c => c.Kind == TaxonomyConceptKind.WorktimeExtent)
+            .ToListAsync(ct);
+
+        employmentTypes.Count.ShouldBe(8);
+        worktimeExtents.Count.ShouldBe(2);
+        employmentTypes.ShouldAllBe(e => e.ParentConceptId == null);
+        worktimeExtents.ShouldAllBe(w => w.ParentConceptId == null);
+    }
+
+    [Fact]
+    public async Task ResolveLabelsAsync_ShouldResolveKlass2ConceptId_WhenSeeded()
+    {
+        // HÖGT VÄRDE (PR-direktiv): kind-agnostisk reverse-lookup måste täcka
+        // Klass 2 utan resolver-ändring (toolbar-chips + recent-/saved-search-
+        // labels). Ett Klass 2-concept-id ska resolva till sitt riktiga namn,
+        // ALDRIG fallback "Okänd kod".
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var result = await sut.ResolveLabelsAsync(
+            ["6YE1_gAC_R2G", "PFZr_Syz_cUq"], ct);
+
+        result.Count.ShouldBe(2);
+        result[0].ConceptId.ShouldBe("6YE1_gAC_R2G");
+        result[0].Label.ShouldBe("Heltid");
+        result[0].Label.ShouldNotStartWith("Okänd kod");
+        result[1].ConceptId.ShouldBe("PFZr_Syz_cUq");
+        result[1].Label.ShouldBe("Vanlig anställning");
+        result[1].Label.ShouldNotStartWith("Okänd kod");
+    }
+
+    [Fact]
     public async Task Seeder_ShouldBeIdempotent_WhenRunTwiceWithSameVersion()
     {
         var ct = TestContext.Current.CancellationToken;

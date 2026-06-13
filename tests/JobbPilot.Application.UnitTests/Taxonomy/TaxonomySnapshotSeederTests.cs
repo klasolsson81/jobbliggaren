@@ -10,6 +10,28 @@ namespace JobbPilot.Application.UnitTests.Taxonomy;
 // Speglar IdempotentAdminRoleSeederTests grace-period-mönstret.
 public class TaxonomySnapshotSeederTests
 {
+    // Tom Klass 2-fixtur — speglar TaxonomySnapshotFile-byggstilen ovan, men för
+    // de syntetiska region-/occupation-projektions-testen som inte bryr sig om
+    // anställningsform/omfattning. Default:as till tomma listor så befintliga
+    // rad-räkningar/projektions-assertions förblir giltiga (MapRows kräver nu
+    // ett andra Klass2-argument). EmptyKlass2() håller region/occupation-testen
+    // ortogonala mot Klass 2 (lägger 0 rader).
+    private static Klass2TaxonomyFile EmptyKlass2() => new()
+    {
+        Version = "test",
+        EmploymentTypes = [],
+        WorktimeExtents = [],
+    };
+
+    private static Klass2TaxonomyFile Klass2(
+        IReadOnlyList<Klass2TaxonomyFile.Klass2Option> employmentTypes,
+        IReadOnlyList<Klass2TaxonomyFile.Klass2Option> worktimeExtents) => new()
+        {
+            Version = "test",
+            EmploymentTypes = employmentTypes,
+            WorktimeExtents = worktimeExtents,
+        };
+
     [Theory]
     [InlineData("Development", true)]
     [InlineData("Test", true)]
@@ -91,7 +113,7 @@ public class TaxonomySnapshotSeederTests
             OccupationFields = [],
         };
 
-        var rows = TaxonomySnapshotSeeder.MapRows(file);
+        var rows = TaxonomySnapshotSeeder.MapRows(file, EmptyKlass2());
 
         var region = rows.ShouldHaveSingleItem();
         region.ConceptId.ShouldBe("r-1");
@@ -118,7 +140,7 @@ public class TaxonomySnapshotSeederTests
             ],
         };
 
-        var rows = TaxonomySnapshotSeeder.MapRows(file);
+        var rows = TaxonomySnapshotSeeder.MapRows(file, EmptyKlass2());
 
         var field = rows
             .Where(r => r.Kind == TaxonomyConceptKind.OccupationField)
@@ -155,7 +177,7 @@ public class TaxonomySnapshotSeederTests
             ],
         };
 
-        var rows = TaxonomySnapshotSeeder.MapRows(file);
+        var rows = TaxonomySnapshotSeeder.MapRows(file, EmptyKlass2());
 
         var expected = file.Regions.Count
             + file.OccupationFields.Count
@@ -172,7 +194,10 @@ public class TaxonomySnapshotSeederTests
         // `?? []` håller bakåtkompat om nested-listorna skulle vara null.
         var snapshot = TaxonomySnapshotSeeder.LoadSnapshot();
 
-        var rows = TaxonomySnapshotSeeder.MapRows(snapshot);
+        // EmptyKlass2(): denna invariant räknar bara region/occupation-hierarkin
+        // (Klass 2-rad-räkningen verifieras separat i MapRows_ShouldEmit…Klass2-
+        // testen nedan), så de plattа dimensionerna hålls utanför totalen här.
+        var rows = TaxonomySnapshotSeeder.MapRows(snapshot, EmptyKlass2());
 
         var expectedMunicipalities =
             snapshot.Regions.Sum(r => (r.Municipalities ?? []).Count);
@@ -221,7 +246,7 @@ public class TaxonomySnapshotSeederTests
             OccupationFields = [],
         };
 
-        var rows = TaxonomySnapshotSeeder.MapRows(file);
+        var rows = TaxonomySnapshotSeeder.MapRows(file, EmptyKlass2());
 
         // Regionen själv emitteras alltjämt utan parent.
         var region = rows
@@ -260,7 +285,7 @@ public class TaxonomySnapshotSeederTests
             ],
         };
 
-        var rows = TaxonomySnapshotSeeder.MapRows(file);
+        var rows = TaxonomySnapshotSeeder.MapRows(file, EmptyKlass2());
 
         // Fältet själv är oförändrat (rot, ingen parent).
         var field = rows
@@ -297,7 +322,7 @@ public class TaxonomySnapshotSeederTests
             ],
         };
 
-        var rows = TaxonomySnapshotSeeder.MapRows(file);
+        var rows = TaxonomySnapshotSeeder.MapRows(file, EmptyKlass2());
 
         rows.ShouldNotContain(r => r.Kind == TaxonomyConceptKind.Municipality);
         rows.ShouldNotContain(r => r.Kind == TaxonomyConceptKind.OccupationGroup);
@@ -336,7 +361,7 @@ public class TaxonomySnapshotSeederTests
             ],
         };
 
-        var rows = TaxonomySnapshotSeeder.MapRows(file);
+        var rows = TaxonomySnapshotSeeder.MapRows(file, EmptyKlass2());
 
         rows.Count(r => r.Kind == TaxonomyConceptKind.Region).ShouldBe(1);
         rows.Count(r => r.Kind == TaxonomyConceptKind.Municipality).ShouldBe(2);
@@ -356,7 +381,7 @@ public class TaxonomySnapshotSeederTests
         // Platsbanken-paritets-baseline vid B1).
         var snapshot = TaxonomySnapshotSeeder.LoadSnapshot();
 
-        var rows = TaxonomySnapshotSeeder.MapRows(snapshot);
+        var rows = TaxonomySnapshotSeeder.MapRows(snapshot, EmptyKlass2());
 
         var municipalityRows = rows.Count(r => r.Kind == TaxonomyConceptKind.Municipality);
         var groupRows = rows.Count(r => r.Kind == TaxonomyConceptKind.OccupationGroup);
@@ -405,5 +430,231 @@ public class TaxonomySnapshotSeederTests
 
         var fieldIds = snapshot.OccupationFields.Select(f => f.ConceptId).ToHashSet();
         groups.ShouldAllBe(x => fieldIds.Contains(x.field.ConceptId));
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // Fas E Klass 2 (ADR 0043-amendment 2026-06-13): anställningsform +
+    // omfattning. PLATTA/föräldralösa dimensioner från en SEPARAT frusen
+    // embedded resurs (klass2-taxonomy.json). MapRows får ett andra Klass2-
+    // argument och appenderar EmploymentType-/WorktimeExtent-rader EFTER
+    // region/occupation-raderna. Inga parent-relationer (till skillnad mot
+    // kommun/yrkesgrupp). Region/occupation-projektionen är OFÖRÄNDRAD.
+    // ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void MapRows_ShouldEmitEmploymentTypeRowsWithoutParentAndEmploymentTypeKind_WhenKlass2HasEmploymentTypes()
+    {
+        var snapshot = new TaxonomySnapshotFile
+        {
+            TaxonomyVersion = "test",
+            Regions = [],
+            OccupationFields = [],
+        };
+        var klass2 = Klass2(
+            employmentTypes:
+            [
+                new Klass2TaxonomyFile.Klass2Option("PFZr_Syz_cUq", "Vanlig anställning"),
+                new Klass2TaxonomyFile.Klass2Option("gro4_cWF_6D7", "Vikariat"),
+            ],
+            worktimeExtents: []);
+
+        var rows = TaxonomySnapshotSeeder.MapRows(snapshot, klass2);
+
+        var employmentTypes = rows
+            .Where(r => r.Kind == TaxonomyConceptKind.EmploymentType).ToList();
+        employmentTypes.Count.ShouldBe(2);
+        // Platta/föräldralösa — ingen ParentConceptId (till skillnad mot kommun/grupp).
+        employmentTypes.ShouldAllBe(e => e.ParentConceptId == null);
+        employmentTypes.ShouldContain(e =>
+            e.ConceptId == "PFZr_Syz_cUq" && e.Label == "Vanlig anställning");
+        employmentTypes.ShouldContain(e =>
+            e.ConceptId == "gro4_cWF_6D7" && e.Label == "Vikariat");
+        // Inga worktime-/region-/occupation-rader läckte in.
+        rows.ShouldAllBe(r => r.Kind == TaxonomyConceptKind.EmploymentType);
+    }
+
+    [Fact]
+    public void MapRows_ShouldEmitWorktimeExtentRowsWithoutParentAndWorktimeExtentKind_WhenKlass2HasWorktimeExtents()
+    {
+        var snapshot = new TaxonomySnapshotFile
+        {
+            TaxonomyVersion = "test",
+            Regions = [],
+            OccupationFields = [],
+        };
+        var klass2 = Klass2(
+            employmentTypes: [],
+            worktimeExtents:
+            [
+                new Klass2TaxonomyFile.Klass2Option("6YE1_gAC_R2G", "Heltid"),
+                new Klass2TaxonomyFile.Klass2Option("947z_JGS_Uk2", "Deltid"),
+            ]);
+
+        var rows = TaxonomySnapshotSeeder.MapRows(snapshot, klass2);
+
+        var worktimeExtents = rows
+            .Where(r => r.Kind == TaxonomyConceptKind.WorktimeExtent).ToList();
+        worktimeExtents.Count.ShouldBe(2);
+        worktimeExtents.ShouldAllBe(w => w.ParentConceptId == null);
+        worktimeExtents.ShouldContain(w =>
+            w.ConceptId == "6YE1_gAC_R2G" && w.Label == "Heltid");
+        worktimeExtents.ShouldContain(w =>
+            w.ConceptId == "947z_JGS_Uk2" && w.Label == "Deltid");
+        rows.ShouldAllBe(r => r.Kind == TaxonomyConceptKind.WorktimeExtent);
+    }
+
+    [Fact]
+    public void MapRows_ShouldEmitRowCountAcrossAllSevenKinds_WhenFullyPopulatedWithKlass2()
+    {
+        // Total rad-räkning = region + kommun + yrkesområde + yrke + yrkesgrupp
+        // + anställningsform + omfattning. Klass 2-raderna är ADDITIVA ovanpå den
+        // befintliga hierarkin (CTO BESLUT 1 — appenderas efter occupation-raderna).
+        var snapshot = new TaxonomySnapshotFile
+        {
+            TaxonomyVersion = "test",
+            Regions =
+            [
+                new TaxonomySnapshotFile.SnapshotRegion("r-1", "Skåne län",
+                    Municipalities:
+                    [
+                        new TaxonomySnapshotFile.SnapshotMunicipality("m-1", "Malmö"),
+                        new TaxonomySnapshotFile.SnapshotMunicipality("m-2", "Lund"),
+                    ]),
+            ],
+            OccupationFields =
+            [
+                new TaxonomySnapshotFile.SnapshotOccupationField("f-1", "Data/IT",
+                    Occupations:
+                    [
+                        new TaxonomySnapshotFile.SnapshotOccupation("o-1", "A"),
+                        new TaxonomySnapshotFile.SnapshotOccupation("o-2", "B"),
+                    ],
+                    OccupationGroups:
+                    [
+                        new TaxonomySnapshotFile.SnapshotOccupationGroup("g-1", "G1"),
+                    ]),
+            ],
+        };
+        var klass2 = Klass2(
+            employmentTypes:
+            [
+                new Klass2TaxonomyFile.Klass2Option("PFZr_Syz_cUq", "Vanlig anställning"),
+                new Klass2TaxonomyFile.Klass2Option("gro4_cWF_6D7", "Vikariat"),
+                new Klass2TaxonomyFile.Klass2Option("sTu5_NBQ_udq", "Tidsbegränsad"),
+            ],
+            worktimeExtents:
+            [
+                new Klass2TaxonomyFile.Klass2Option("6YE1_gAC_R2G", "Heltid"),
+                new Klass2TaxonomyFile.Klass2Option("947z_JGS_Uk2", "Deltid"),
+            ]);
+
+        var rows = TaxonomySnapshotSeeder.MapRows(snapshot, klass2);
+
+        rows.Count(r => r.Kind == TaxonomyConceptKind.Region).ShouldBe(1);
+        rows.Count(r => r.Kind == TaxonomyConceptKind.Municipality).ShouldBe(2);
+        rows.Count(r => r.Kind == TaxonomyConceptKind.OccupationField).ShouldBe(1);
+        rows.Count(r => r.Kind == TaxonomyConceptKind.Occupation).ShouldBe(2);
+        rows.Count(r => r.Kind == TaxonomyConceptKind.OccupationGroup).ShouldBe(1);
+        rows.Count(r => r.Kind == TaxonomyConceptKind.EmploymentType).ShouldBe(3);
+        rows.Count(r => r.Kind == TaxonomyConceptKind.WorktimeExtent).ShouldBe(2);
+
+        var expected = snapshot.Regions.Count
+            + snapshot.Regions.Sum(r => (r.Municipalities ?? []).Count)
+            + snapshot.OccupationFields.Count
+            + snapshot.OccupationFields.Sum(f => f.Occupations.Count)
+            + snapshot.OccupationFields.Sum(f => (f.OccupationGroups ?? []).Count)
+            + klass2.EmploymentTypes.Count
+            + klass2.WorktimeExtents.Count;
+        rows.Count.ShouldBe(expected); // 1 + 2 + 1 + 2 + 1 + 3 + 2 = 12
+    }
+
+    [Fact]
+    public void MapRows_ShouldEmitNoKlass2Rows_WhenKlass2IsEmpty()
+    {
+        // Bakåtkompat/ortogonalitet: en tom Klass2-fil ska INTE addera rader —
+        // region/occupation-projektionen står oförändrad (skyddar EmptyKlass2()-
+        // antagandet som de äldre projektions-testen bygger på).
+        var snapshot = new TaxonomySnapshotFile
+        {
+            TaxonomyVersion = "test",
+            Regions = [new TaxonomySnapshotFile.SnapshotRegion("r-1", "Skåne län")],
+            OccupationFields = [],
+        };
+
+        var rows = TaxonomySnapshotSeeder.MapRows(snapshot, EmptyKlass2());
+
+        rows.ShouldNotContain(r => r.Kind == TaxonomyConceptKind.EmploymentType);
+        rows.ShouldNotContain(r => r.Kind == TaxonomyConceptKind.WorktimeExtent);
+        rows.Count.ShouldBe(1); // endast regionen
+    }
+
+    [Fact]
+    public void LoadKlass2_ShouldDeserializeEmbeddedResource_WhenCalled()
+    {
+        // Bevisar att klass2-taxonomy.json är registrerad som <EmbeddedResource>
+        // i JobbPilot.Infrastructure.csproj OCH parsar mot Klass2TaxonomyFile.
+        // Drift-robust mot label-redigeringar (assert:ar antal + en stabil
+        // spot-check-relation, ej hela corpus-listan).
+        var klass2 = TaxonomySnapshotSeeder.LoadKlass2();
+
+        klass2.ShouldNotBeNull();
+        klass2.Version.ShouldBe("1");
+        // Frusen, legaldefinierad mängd (CTO BESLUT 1) — exakta tal är stabila här
+        // (till skillnad mot den kvartalsregenererade snapshoten): 8 + 2.
+        klass2.EmploymentTypes.Count.ShouldBe(8);
+        klass2.WorktimeExtents.Count.ShouldBe(2);
+
+        // Spot-check: en känd concept-id/label-relation ur dev-corpus.
+        klass2.WorktimeExtents.ShouldContain(w =>
+            w.ConceptId == "6YE1_gAC_R2G" && w.Label == "Heltid");
+        klass2.EmploymentTypes.ShouldContain(e =>
+            e.ConceptId == "PFZr_Syz_cUq" && e.Label == "Vanlig anställning");
+
+        // Alla optioner ska bära giltiga concept-id + label (ingen tom rad).
+        klass2.EmploymentTypes.ShouldAllBe(e =>
+            !string.IsNullOrWhiteSpace(e.ConceptId)
+            && !string.IsNullOrWhiteSpace(e.Label));
+        klass2.WorktimeExtents.ShouldAllBe(w =>
+            !string.IsNullOrWhiteSpace(w.ConceptId)
+            && !string.IsNullOrWhiteSpace(w.Label));
+    }
+
+    [Fact]
+    public void CompositeVersion_ShouldCombineSnapshotAndKlass2Versions_WhenCalled()
+    {
+        // Idempotens-nyckel: "{taxonomyVersion}+klass2-{klass2Version}". Bump av
+        // endera versionen ändrar nyckeln → re-seed triggas (meta-jämförelsen
+        // i StartAsync). Verifierar exakt format mot sample-inputs.
+        var snapshot = new TaxonomySnapshotFile
+        {
+            TaxonomyVersion = "30",
+            Regions = [],
+            OccupationFields = [],
+        };
+        var klass2 = Klass2(employmentTypes: [], worktimeExtents: []);
+
+        var version = TaxonomySnapshotSeeder.CompositeVersion(snapshot, klass2);
+
+        version.ShouldBe("30+klass2-test");
+    }
+
+    [Fact]
+    public void CompositeVersion_ShouldReflectKlass2VersionBump_WhenKlass2VersionDiffers()
+    {
+        var snapshot = new TaxonomySnapshotFile
+        {
+            TaxonomyVersion = "30",
+            Regions = [],
+            OccupationFields = [],
+        };
+
+        var v1 = TaxonomySnapshotSeeder.CompositeVersion(
+            snapshot, new Klass2TaxonomyFile { Version = "1" });
+        var v2 = TaxonomySnapshotSeeder.CompositeVersion(
+            snapshot, new Klass2TaxonomyFile { Version = "2" });
+
+        v1.ShouldBe("30+klass2-1");
+        v2.ShouldBe("30+klass2-2");
+        v1.ShouldNotBe(v2); // bump → ny idempotens-nyckel → re-seed
     }
 }

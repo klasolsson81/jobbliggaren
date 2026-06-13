@@ -29,9 +29,14 @@ internal sealed partial class TaxonomySnapshotSeeder(
     private const string ResourceName =
         "JobbPilot.Infrastructure.Taxonomy.taxonomy-snapshot.json";
 
+    private const string Klass2ResourceName =
+        "JobbPilot.Infrastructure.Taxonomy.klass2-taxonomy.json";
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var snapshot = LoadSnapshot();
+        var klass2 = LoadKlass2();
+        var version = CompositeVersion(snapshot, klass2);
 
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -41,9 +46,9 @@ internal sealed partial class TaxonomySnapshotSeeder(
             var meta = await db.Set<TaxonomySnapshotMeta>()
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (meta is not null && meta.TaxonomyVersion == snapshot.TaxonomyVersion)
+            if (meta is not null && meta.TaxonomyVersion == version)
             {
-                LogUpToDate(logger, snapshot.TaxonomyVersion);
+                LogUpToDate(logger, version);
                 return;
             }
 
@@ -58,35 +63,35 @@ internal sealed partial class TaxonomySnapshotSeeder(
             // Re-läs meta inom låset (annan task kan ha seedat medan vi väntade).
             meta = await db.Set<TaxonomySnapshotMeta>()
                 .FirstOrDefaultAsync(cancellationToken);
-            if (meta is not null && meta.TaxonomyVersion == snapshot.TaxonomyVersion)
+            if (meta is not null && meta.TaxonomyVersion == version)
             {
-                LogUpToDate(logger, snapshot.TaxonomyVersion);
+                LogUpToDate(logger, version);
                 return;
             }
 
             await db.Set<TaxonomyConcept>().ExecuteDeleteAsync(cancellationToken);
 
-            var rows = MapRows(snapshot);
+            var rows = MapRows(snapshot, klass2);
             db.Set<TaxonomyConcept>().AddRange(rows);
 
             if (meta is null)
             {
                 db.Set<TaxonomySnapshotMeta>().Add(new TaxonomySnapshotMeta
                 {
-                    TaxonomyVersion = snapshot.TaxonomyVersion,
+                    TaxonomyVersion = version,
                     SeededAt = DateTimeOffset.UtcNow,
                 });
             }
             else
             {
-                meta.TaxonomyVersion = snapshot.TaxonomyVersion;
+                meta.TaxonomyVersion = version;
                 meta.SeededAt = DateTimeOffset.UtcNow;
             }
 
             await db.SaveChangesAsync(cancellationToken);
             await tx.CommitAsync(cancellationToken);
 
-            LogSeeded(logger, rows.Count, snapshot.TaxonomyVersion);
+            LogSeeded(logger, rows.Count, version);
         }
         catch (PostgresException ex)
             when (ex.SqlState == "42P01" && IsSchemaInitGracePeriod(hostEnvironment))
@@ -118,15 +123,41 @@ internal sealed partial class TaxonomySnapshotSeeder(
                 "taxonomy-snapshot.json deserialiserade till null.");
     }
 
-    internal static List<TaxonomyConcept> MapRows(TaxonomySnapshotFile snapshot)
+    // ADR 0043-amendment 2026-06-13 — frusen Klass 2 (anställningsform +
+    // omfattning). Separat embedded resource (CTO BESLUT 1 Variant B).
+    internal static Klass2TaxonomyFile LoadKlass2()
     {
-        // Kapacitets-hint: regioner + kommuner + yrkesområden + yrken + yrkesgrupper.
+        var asm = typeof(TaxonomySnapshotSeeder).Assembly;
+        using var stream = asm.GetManifestResourceStream(Klass2ResourceName)
+            ?? throw new InvalidOperationException(
+                $"Embedded Klass 2-taxonomi saknas: {Klass2ResourceName}. " +
+                "Verifiera <EmbeddedResource> i JobbPilot.Infrastructure.csproj.");
+        return JsonSerializer.Deserialize<Klass2TaxonomyFile>(stream)
+            ?? throw new InvalidOperationException(
+                "klass2-taxonomy.json deserialiserade till null.");
+    }
+
+    // Komposit-idempotens-nyckel: båda resursernas versioner. När Klass 2
+    // adderas (eller bumpas) ändras nyckeln → re-seed triggas på redan-seedade
+    // DB:er (meta lagrar t.ex. "30" → "30+klass2-1"). Bump endera versionen
+    // för att tvinga om-seed.
+    internal static string CompositeVersion(
+        TaxonomySnapshotFile snapshot, Klass2TaxonomyFile klass2)
+        => $"{snapshot.TaxonomyVersion}+klass2-{klass2.Version}";
+
+    internal static List<TaxonomyConcept> MapRows(
+        TaxonomySnapshotFile snapshot, Klass2TaxonomyFile klass2)
+    {
+        // Kapacitets-hint: regioner + kommuner + yrkesområden + yrken +
+        // yrkesgrupper + Klass 2 (anställningsform + omfattning).
         var rows = new List<TaxonomyConcept>(
             snapshot.Regions.Count
             + snapshot.Regions.Sum(r => r.Municipalities?.Count ?? 0)
             + snapshot.OccupationFields.Count
             + snapshot.OccupationFields.Sum(f =>
-                f.Occupations.Count + (f.OccupationGroups?.Count ?? 0)));
+                f.Occupations.Count + (f.OccupationGroups?.Count ?? 0))
+            + klass2.EmploymentTypes.Count
+            + klass2.WorktimeExtents.Count);
 
         foreach (var r in snapshot.Regions)
         {
@@ -182,6 +213,29 @@ internal sealed partial class TaxonomySnapshotSeeder(
                     ParentConceptId = f.ConceptId,
                 });
             }
+        }
+
+        // ADR 0043-amendment 2026-06-13 — Klass 2: anställningsform + omfattning.
+        // PLATTA/föräldralösa (ingen ParentConceptId) — till skillnad mot kommun/
+        // yrkesgrupp. Frusen embedded källa (CTO BESLUT 1 Variant B).
+        foreach (var e in klass2.EmploymentTypes)
+        {
+            rows.Add(new TaxonomyConcept
+            {
+                ConceptId = e.ConceptId,
+                Kind = TaxonomyConceptKind.EmploymentType,
+                Label = e.Label,
+            });
+        }
+
+        foreach (var w in klass2.WorktimeExtents)
+        {
+            rows.Add(new TaxonomyConcept
+            {
+                ConceptId = w.ConceptId,
+                Kind = TaxonomyConceptKind.WorktimeExtent,
+                Label = w.Label,
+            });
         }
 
         return rows;

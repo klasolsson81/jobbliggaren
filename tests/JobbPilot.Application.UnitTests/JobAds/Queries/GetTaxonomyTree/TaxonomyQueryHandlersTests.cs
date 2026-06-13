@@ -30,7 +30,9 @@ public class TaxonomyQueryHandlersTests
                 [new TaxonomyMunicipalityDto("kn1", "Stockholm")])],
             [new TaxonomyOccupationFieldDto("f1", "Data/IT",
                 [new TaxonomyOccupationDto("o1", "Backend-utvecklare")],
-                [new TaxonomyOccupationGroupDto("g1", "Mjukvaru- och systemutvecklare")])]);
+                [new TaxonomyOccupationGroupDto("g1", "Mjukvaru- och systemutvecklare")])],
+            [new TaxonomyOptionDto("emp1", "Vanlig anställning")],
+            [new TaxonomyOptionDto("wt1", "Heltid")]);
         _taxonomy.GetTreeAsync(Arg.Any<CancellationToken>())
             .Returns(new ValueTask<TaxonomyTreeDto>(tree));
         var sut = new GetTaxonomyTreeQueryHandler(_taxonomy);
@@ -46,7 +48,7 @@ public class TaxonomyQueryHandlersTests
         var ct = TestContext.Current.CancellationToken;
         _taxonomy.GetTreeAsync(Arg.Any<CancellationToken>())
             .Returns(new ValueTask<TaxonomyTreeDto>(
-                new TaxonomyTreeDto([], [])));
+                new TaxonomyTreeDto([], [], [], [])));
         var sut = new GetTaxonomyTreeQueryHandler(_taxonomy);
 
         await sut.Handle(new GetTaxonomyTreeQuery(), ct);

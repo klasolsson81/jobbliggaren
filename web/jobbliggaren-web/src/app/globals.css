@@ -602,7 +602,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   max-width: 1200px;
   margin-inline: auto;
   padding: 0 32px;
-  height: 68px;
+  height: 88px;
   display: flex;
   align-items: center;
   gap: 24px;
@@ -629,10 +629,27 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   flex-shrink: 0;
   display: block;
 }
+/* Header lockup (logo Fas 3, ADR 0070 amendment): mark + stacked [wordmark /
+   tagline]. The tagline mirrors the OG/social lockup (opengraph-image.tsx) —
+   sentence-case, muted ink-2, under the wordmark, like Platsbanken's
+   "SWEDISH PUBLIC EMPLOYMENT SERVICE" subline. */
+.jp-brand__lockup {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
 .jp-brand__word {
-  font-size: 19px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1;
+}
+.jp-brand__tagline {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--jp-ink-2);
 }
 
 /* Brand-spinner "Sigillet i rörelse" (logo-översyn 2026-06-13, Fas 2): registret
@@ -2958,7 +2975,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   max-width: 1200px;
   margin-inline: auto;
   padding: 0 32px;
-  height: 68px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: space-between;

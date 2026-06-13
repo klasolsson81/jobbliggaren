@@ -115,4 +115,29 @@ animerad) och visual-verifierad. Komponent-koden är prototypad och låst i chat
 
 ---
 
+## Amendment 2026-06-13 — Fas 3: header-lockup + tagline
+
+Fas 1 levererade den statiska marken; Fas 2 (#72) wirade BrandSpinner. **Fas 3**
+förstorar headern och lägger taglinen i lockupen — Klas: vår wordmark/mark var
+mycket mindre än Platsbankens header.
+
+- `BrandLogo` `full`-varianten är nu den fulla header-lockupen: mark + en staplad
+  [wordmark / tagline]. Taglinen "Den svenska jobbansökningshanteraren" (= OG-/
+  social-taglinen, Klas-STOPP A val H2 2026-05-25) sätts som under-rad, likt
+  Platsbankens "SWEDISH PUBLIC EMPLOYMENT SERVICE".
+- **Behandling (Klas-val 2026-06-13 efter visual-verify):** sentence-case (12px,
+  vikt 500, `--jp-ink-2`) — konsekvent med `opengraph-image.tsx`, INTE versal.
+  Variant B (versal/tecken-spärrad, Platsbanken-trogen) övervägdes och valdes bort.
+- Mark 32 → 40px, wordmark 19 → 24px, båda header-barerna (`.jp-header__inner` =
+  app + gäst-shell, `.jp-land-top__inner` = landing + site-header) 68 → 88px.
+  Appliceras konsekvent på alla fyra brand-headers via `BrandLogo` (Platsbanken
+  visar taglinen överallt).
+- `mark`-varianten (minimala kontexter) oförändrad — bara sigillet, ingen tagline.
+- a11y: taglinen `aria-hidden` (dekorativ; `.jp-brand`-länken bär accessible name).
+
+Levererad i logo-Fas-3-PR (egen change-reason, SoC). Inga nya tokens; rena
+brand-/header-CSS-ändringar. DESIGN.md §11-spegling pending Klas approve-spec-edit.
+
+---
+
 *ADR-index underhålls av docs-keeper. ADR 0070 fastställer Sigillet som Jobbliggarens brand-mark, supersederar ADR 0068 Beslut 1:s logo-mark-undantag (kompassen pensionerad, `--jp-gold` aktiverad), och introducerar BrandSpinner som ren CSS-animation.*

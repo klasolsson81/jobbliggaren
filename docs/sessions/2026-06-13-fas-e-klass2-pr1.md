@@ -136,3 +136,27 @@ redan EmploymentType/WorktimeExtent i `FacetDimension` + `GetFacetCountsQuery` (
 **Reviews:** code-reviewer **✓ 0/0/0**; design-reviewer **✓ 0/0/1** (moot — E2c
 renderar också "(0)" för saknad nyckel när dicten finns). FAS-DEFERRAL-MANIFEST
 rendered. Gates: tsc rent, vitest 38 (panel+hero), pnpm build grön.
+
+---
+
+## PR-4 (triage — EJ byggd) — saved-search Klass 2-labels DEFERRAD
+
+CTO-split (BESLUT 4) hade PR-4 = saved-search Klass 2-`*Labels`. **Discovery-fynd
+(§9.4) före bygge:** saved-search-listans labels har INGEN FE-konsument —
+`/sokningar` renderar RecentSearch (ADR 0039-amendment), ingen `getSavedSearches`-
+klient, `savedSearchDtoSchema` konsumeras av ingen komponent; de befintliga
+occupationGroup/municipality/region-labels renderas redan ingenstans.
+
+Klas valde **CTO-triage** (AskUserQuestion). **senior-cto-advisor-dom:
+DEFERRA-MED-TRIGGER** (`docs/reviews/2026-06-13-sok-paritet-e-klass2-pr4-triage-cto.md`)
+— PR-4 = Speculative Generality mot odöd label-yta (Fowler kap. 3 / §5 / YAGNI);
+korrigerar BESLUT 4 (vägde ej in att FE-konsument saknas). Klass 2-labels levereras
+i CCP-svep med de tre befintliga labelsen när saved-search-list-UI byggs (Pending #3).
+EJ numrerad TD. Den prematura `feat/klass2-saved-search-labels`-grenen raderades
+(noll commits).
+
+## Fas E Klass 2 — slutsumma (denna session)
+- **3 PR mergade:** #61 (backend options-källa) · #63 (FE-panel) · #64 (facet-counts).
+- **1 PR deferrad:** PR-4 (saved-search-labels, trigger i Pending #3).
+- Klass 2-filtret fungerar end-to-end på /jobb. Rendered-verifiering pending Klas.
+- Memory: `project_klass2_honest_data_over_platsbanken_curation`.

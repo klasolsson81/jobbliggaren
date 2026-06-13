@@ -10,6 +10,8 @@ const wireBase = {
   occupationGroupList: ["MVqp_eS8_kDZ"],
   municipalityList: ["zHxw_uJZ_NNh"],
   regionList: ["CifL_Rzy_Mku"],
+  employmentTypeList: ["gro4_cWF_6D7"],
+  worktimeExtentList: ["6YE1_gAC_R2G"],
   occupationGroupLabels: [
     { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
   ],

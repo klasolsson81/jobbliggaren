@@ -20,6 +20,10 @@ function buildHrefFor(item: RecentJobSearchDto): string {
     occupationGroup: item.occupationGroupList,
     region: item.regionList,
     municipality: item.municipalityList,
+    // Klass 2 (ADR 0067 B2) — replay bär anställningsform/omfattning så
+    // "Kör igen" inte tyst tappar filtret (backend-DTO bär listorna sedan #60).
+    employmentType: item.employmentTypeList,
+    worktimeExtent: item.worktimeExtentList,
     sortBy: item.sortBy,
   });
 }

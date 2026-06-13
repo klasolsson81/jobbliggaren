@@ -58,6 +58,8 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroFilters>[0]>) {
       initialOccupationGroup={[]}
       initialRegion={[]}
       initialMunicipality={[]}
+      initialEmploymentType={[]}
+      initialWorktimeExtent={[]}
       q=""
       sortBy="PublishedAtDesc"
       {...extra}
@@ -218,6 +220,8 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialOccupationGroup={[]}
         initialRegion={["CifL_Rzy_Mku"]}
         initialMunicipality={[]}
+        initialEmploymentType={[]}
+        initialWorktimeExtent={[]}
         q=""
         sortBy="PublishedAtDesc"
       />,
@@ -234,6 +238,8 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialOccupationGroup={[]}
         initialRegion={[]}
         initialMunicipality={[]}
+        initialEmploymentType={[]}
+        initialWorktimeExtent={[]}
         q=""
         sortBy="PublishedAtDesc"
       />,
@@ -424,6 +430,8 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
         initialOccupationGroup={[]}
         initialRegion={[]}
         initialMunicipality={[]}
+        initialEmploymentType={[]}
+        initialWorktimeExtent={[]}
         q=""
         sortBy="PublishedAtDesc"
       />,

@@ -40,6 +40,8 @@ const empty: JobbUrlState = {
   occupationGroup: [],
   region: [],
   municipality: [],
+  employmentType: [],
+  worktimeExtent: [],
   sortBy: "PublishedAtDesc",
 };
 

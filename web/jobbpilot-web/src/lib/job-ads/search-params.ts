@@ -23,6 +23,16 @@ export interface JobbUrlState {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
+  // Klass 2 (ADR 0067 Fas E, 2026-06-13) — Klass-2-filterpanelens dimensioner.
+  // `employmentType` = anställningsform (JobTech `employment-type`, ~8,
+  // checkbox-multi). `worktimeExtent` = omfattning (JobTech `worktime-extent`,
+  // Heltid/Deltid, radio-single → 0 eller 1 element). Upprepade query-params
+  // (samma kontrakt som occupationGroup/region/municipality, ADR 0042 Beslut
+  // B). Backend filtrerar på ?employmentType=/?worktimeExtent= (B2/#60).
+  // Panel-valda (aldrig text-representabla i hero-fältet — som popover-
+  // dimensionerna, CTO VAL 4a; lever bara i URL-state + filter-raden).
+  employmentType: ReadonlyArray<string>;
+  worktimeExtent: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -61,6 +71,10 @@ export function buildJobbHref(state: JobbUrlState): string {
     params.append("occupationGroup", v);
   for (const v of state.region) params.append("region", v);
   for (const v of state.municipality) params.append("municipality", v);
+  // Klass 2 — upprepade params, samma som dimensionerna ovan (ADR 0042
+  // Beslut B). Ordnade efter ort/yrke så delningsbara URL:er får stabil form.
+  for (const v of state.employmentType) params.append("employmentType", v);
+  for (const v of state.worktimeExtent) params.append("worktimeExtent", v);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);

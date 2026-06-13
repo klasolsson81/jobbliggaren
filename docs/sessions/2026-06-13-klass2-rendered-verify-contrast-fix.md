@@ -74,10 +74,11 @@ live dev `.next`).
 
 ## Open / next (Klas)
 
-- **Omfattning order — product decision.** Render confirms `Alla / Deltid /
-  Heltid` (Swedish Label-Ordinal). Platsbanken shows Heltid first. Keep honest
-  alphabetical (consistent with the "honest data over Platsbanken curation"
-  Klass 2 choice) or flip to Heltid-first for parity? If flip → separate small PR.
+- **Omfattning order — DECIDED 2026-06-13 (Klas, AskUserQuestion): keep
+  Deltid-first.** Render confirmed `Alla / Deltid / Heltid` (Swedish
+  Label-Ordinal). Platsbanken shows Heltid first; Klas chose to keep the honest
+  alphabetical order (consistent with the "honest data over Platsbanken
+  curation" Klass 2 choice). No change, no follow-up PR.
 - **NVDA audio pass** — the ARIA is correct (automatable proxy passes); true
   screen-reader audio is Klas's manual check.
 - **shadcn `radio-group.tsx` primitive** still uses `--jp-border-strong` —

@@ -1,4 +1,4 @@
-# Local dev-setup — JobbPilot
+# Local dev-setup — Jobbliggaren
 
 Lokal utveckling bygger på Docker Compose-stack:en i [`docker-compose.yml`](../../docker-compose.yml).
 Denna fil beskriver hur du kommer igång från nyklonad repo.
@@ -23,8 +23,8 @@ Starta Docker Desktop innan du kör compose-kommandon.
 ### 2.1 Klona + .env-setup
 
 ```bash
-git clone https://github.com/klasolsson81/jobbpilot.git
-cd jobbpilot
+git clone https://github.com/klasolsson81/jobbliggaren.git
+cd jobbliggaren
 cp .env.example .env
 ```
 
@@ -61,10 +61,10 @@ git check-ignore -v .env
 docker compose up -d
 ```
 
-Tre containrar startar:
-- `jobbpilot-postgres-dev` på `5432` (db: `jobbpilot`, user: `jobbpilot`)
-- `jobbpilot-redis-dev` på `6379`
-- `jobbpilot-seq` på `5341` (UI + API) och `5342` (ingestion)
+Tre containrar startar (namn/portar per `docker-compose.yml`):
+- `jobbliggaren-postgres-dev` på `5435` (db: `jobbliggaren`, user: `jobbliggaren`)
+- `jobbliggaren-redis-dev` på `6379`
+- `jobbliggaren-seq` på `5341` (UI + API) och `5342` (ingestion)
 
 ### 2.3 Verifiera
 
@@ -73,11 +73,11 @@ Tre containrar startar:
 docker compose ps
 
 # Postgres
-docker exec jobbpilot-postgres-dev psql -U jobbpilot -d jobbpilot -tAc "SELECT version();"
+docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc "SELECT version();"
 # → PostgreSQL 18.3 ...
 
 # Redis
-docker exec jobbpilot-redis-dev redis-cli ping
+docker exec jobbliggaren-redis-dev redis-cli ping
 # → PONG
 
 # Seq UI
@@ -208,9 +208,74 @@ https://github.com/docker-library/postgres/issues/37.
 
 ---
 
-## 7. Vad som EJ ingår (än)
+## 7. App-stacken (.NET API + Worker + FE) — start & restart
 
-- Ingen .NET- eller Next.js-kod körs i compose än — det kommer i Fas 1.
-- Inga migrations (Postgres-dbs är tomma, vilket är korrekt nu).
-- Ingen Azurite/Minio — vi kör riktig S3 när det behövs.
-- Ingen app-container för backend/worker — Fas 1-arbete.
+> **CC äger den lokala stacken helt** (Klas-direktiv 2026-06-13): CC startar, håller
+> uppe och startar om Api + Worker + FE. Klas startar INTE egna terminaler. Vid
+> `/api/ready ≠ 200`, död Worker, eller FE som visar fel data/login-fel → kör blocket
+> nedan. Memory: `feedback_restart_stack_after_commit_stop`.
+
+API + Worker körs **utanför** Docker Compose (compose kör bara Postgres/Redis/Seq, §2).
+Alla tre startas av CC som bakgrundsprocesser.
+
+### Fällor (varför en naiv omstart misslyckas)
+
+1. **`${...}` expanderas INTE av .NET-config.** `appsettings.Development.json` har
+   `ConnectionStrings:Postgres` med `Password=${POSTGRES_PASSWORD_DEV}`, och det finns
+   **ingen** `appsettings.Local.json`. Ge därför den fulla connection-stringen via
+   env-var-override (`ConnectionStrings__Postgres`), byggd från `.env`:s
+   `POSTGRES_PASSWORD_DEV`. Utan den → DB-auth-fel.
+2. **Worker kräver `ConnectionStrings__Redis`** (ADR 0064 — RefreshLandingStatsJob).
+   API:t har Redis i appsettings; Worker:n får den bara via env. Startfel
+   `ConnectionStrings:Redis saknas` = denna glömd.
+3. **FE kräver `BACKEND_URL`.** FE:ns server-side-actions + `getLandingStats`
+   (`src/lib/api/landing.ts`) läser `process.env.BACKEND_URL`. Det finns **ingen**
+   `.env.local`. Startar du `pnpm dev` UTAN `BACKEND_URL=http://localhost:5049` →
+   sidan svarar 200 men **login misslyckas** och landing visar **fallback-siffror**
+   (t.ex. "40 000" / "0" i stället för verkliga ~42 700 / 105). Detta såg ut som
+   "servern är nere" 2026-06-13.
+
+### Portar (matchar `docker-compose.yml`)
+
+| Tjänst | Port | Not |
+|---|---|---|
+| API | 5049 | `--launch-profile http` |
+| FE (Next dev) | 3000 | `pnpm dev` |
+| Postgres dev | 5435 | db/user `jobbliggaren`, container `jobbliggaren-postgres-dev` |
+| Redis dev | 6379 | container `jobbliggaren-redis-dev` |
+
+### Start / omstart (Git Bash, från repo-roten)
+
+```bash
+# Förkrav: docker compose up -d (Postgres/Redis/Seq uppe — §2).
+PW=$(grep -E '^POSTGRES_PASSWORD_DEV=' .env | cut -d= -f2-)
+export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$PW"
+export ConnectionStrings__Redis="localhost:6379"
+export ASPNETCORE_ENVIRONMENT=Development
+
+# API + Worker (.NET) — starta var och en som bakgrundsprocess (CC: Bash run_in_background).
+dotnet run --project src/Jobbliggaren.Api --launch-profile http   # → http://localhost:5049
+dotnet run --project src/Jobbliggaren.Worker                      # Hangfire, ingen HTTP-yta
+
+# FE (Next dev) — MÅSTE ha BACKEND_URL, annars login/stats-fel (fälla 3):
+cd web/jobbliggaren-web && BACKEND_URL=http://localhost:5049 pnpm dev   # → http://localhost:3000
+```
+
+Hänger en gammal instans på porten: `netstat -ano | grep ':5049.*LISTENING'` →
+`taskkill //F //PID <pid>`. FE stale dev-server (Jest-worker-overlay) = `taskkill`
+PID + `rm -rf .next` + omstart (kodbugg uteslöts om `pnpm build` är grön; memory
+`feedback_stale_devserver_jest_worker_mask`).
+
+### Verifiera
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5049/api/ready  # → 200 (+ /api/live)
+curl -s http://localhost:5049/api/v1/landing/stats                        # → {"activeCount":...,"newToday":...}
+curl -s http://localhost:3000/ | grep -oE 'stat__num">[^<]*'              # → riktiga siffror, EJ "40 000"/"0"
+tail -3 /c/tmp/worker-dev.log                                             # → "...Job: klart — ..."
+```
+
+### EJ i stacken
+
+- Ingen Azurite/Minio — fält-kryptering lokalt via `LocalDataKeyProvider` (ADR 0066,
+  AES-256-GCM); e-post via `ConsoleEmailSender`. AWS retired (ADR 0066).

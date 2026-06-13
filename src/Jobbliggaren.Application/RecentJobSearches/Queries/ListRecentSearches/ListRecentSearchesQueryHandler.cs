@@ -77,12 +77,17 @@ public sealed class ListRecentSearchesQueryHandler(
 
             // F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback /oversikt 7-10s):
             // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20
-            // N+1). När `IncludeCount=false` skippar vi COUNT — kallas av
-            // /oversikt-konsumenten som bara använder Label + LastViewedAt.
-            // /jobb hero-chip behåller IncludeCount=true för "(N nya)"-affordance.
-            // Eliminerar /oversikt-fanout-blockern (5 rader × ~1.5s sekventiellt
-            // = 7.5s → FE-timeout 8s → Npgsql 57014). Fundamental rotorsak
-            // (slow ListJobAds COUNT) kvarstår — TD-94 separat session.
+            // N+1). När `IncludeCount=false` skippar vi COUNT.
+            //
+            // 2026-06-13: ALLA FE-konsumenter (/oversikt, /sokningar, /jobb
+            // hero-chip) hämtar i praktiken med IncludeCount=false — den slow
+            // N+1-COUNT:en (TD-94, ej löst utan stängd-som-obsolet vid AWS-
+            // teardown; empiriskt återöppnad) återskapar annars 8s-timeouten
+            // (Npgsql 57014). currentCount/newCount är därför 0 och den synliga
+            // per-sökning-träffräknaren är TILLFÄLLIGT borttagen i UI:t (CTO-
+            // beslut 2026-06-13: hellre ingen siffra än falsk "(0)"). Återinförs
+            // via lat klient-hämtning (B, useFacetCounts-mönstret). Rotorsaken
+            // (slow ListJobAds COUNT) fixas i TD-94.
             int currentCount = 0;
             if (query.IncludeCount)
             {

@@ -44,7 +44,7 @@ beforeEach(() => {
 });
 
 describe("RecentSearchRow", () => {
-  it("renders label as h3 + count meta as '(N) träffar' when newCount === 0", () => {
+  it("renders label as h3 with NO match-count meta (interim — TD-94, count removed until lazy fetch)", () => {
     render(
       <RecentSearchRow
         item={makeDto({ currentCount: 42, newCount: 0 })}
@@ -55,8 +55,8 @@ describe("RecentSearchRow", () => {
     expect(
       screen.getByRole("heading", { name: /backend i Mjukvaruutveckling/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/42/)).toBeInTheDocument();
-    expect(screen.getByText(/träffar/)).toBeInTheDocument();
+    // No false "(0) träffar" while currentCount is 0 (TD-94).
+    expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
     expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
   });
 
@@ -74,7 +74,7 @@ describe("RecentSearchRow", () => {
     expect(href).toContain("worktimeExtent=6YE1_gAC_R2G");
   });
 
-  it("renders 'varav (M) nya' when newCount > 0", () => {
+  it("renders NO match-count meta even when newCount > 0 (interim — count removed until lazy fetch)", () => {
     render(
       <RecentSearchRow
         item={makeDto({ currentCount: 42, newCount: 7 })}
@@ -82,10 +82,9 @@ describe("RecentSearchRow", () => {
         onDeleteFailed={() => undefined}
       />,
     );
-    expect(screen.getByText(/42/)).toBeInTheDocument();
-    expect(screen.getByText(/varav/)).toBeInTheDocument();
-    expect(screen.getByText(/7/)).toBeInTheDocument();
-    expect(screen.getByText(/nya/)).toBeInTheDocument();
+    expect(screen.queryByText(/varav/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
   });
 
   it("renders NO 'NY'/'Nya'-pill (Klas-direktiv 2026-05-20 anti-AI-trope)", () => {

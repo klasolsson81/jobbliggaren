@@ -27,9 +27,14 @@ function buildHrefFor(item: RecentJobSearchDto): string {
 /**
  * ADR 0060 / ADR 0055 amend — "Senaste sökningar"-hero-chip på /jobb.
  * Auto-fångade sökningar; klick på rad → kör om sökningen med samma filter.
- * Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på rader. Format
- * "(N)" om newCount === 0, "(N, M nya)" om newCount > 0. Mono via
- * jp-hero-chip__count-stilen, ink-2-färg.
+ * Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på rader.
+ *
+ * Per-sökning-träffräknaren ("(N)" / "(N, M nya)") är TILLFÄLLIGT borttagen:
+ * `currentCount`/`newCount` på DTO:n är 0 så länge sidan hämtar med
+ * `includeCount=false` (slow N+1-COUNT, TD-94 — se ListRecentSearchesQueryHandler).
+ * En synlig "(0)" vore desinformation (husets degraderingskontrakt,
+ * facet-counts/route.ts) — hellre ingen siffra. Återinförs via lat klient-
+ * hämtning (CTO-beslut 2026-06-13, samma mönster som useFacetCounts).
  */
 export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
   const router = useRouter();
@@ -46,10 +51,6 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
       footerLabel="Visa alla senaste sökningar"
       renderItem={(item, onClose) => {
         const href = buildHrefFor(item);
-        const countText =
-          item.newCount > 0
-            ? `(${item.currentCount}, ${item.newCount} nya)`
-            : `(${item.currentCount})`;
         return (
           <button
             type="button"
@@ -60,7 +61,6 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
               width: "100%",
               padding: "10px 16px",
               background: "transparent",
@@ -80,16 +80,6 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
           >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {item.label}
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--jp-font-mono)",
-                fontSize: 12,
-                color: "var(--jp-ink-2)",
-                flexShrink: 0,
-              }}
-            >
-              {countText}
             </span>
           </button>
         );

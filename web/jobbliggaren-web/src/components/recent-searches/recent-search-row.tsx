@@ -29,26 +29,12 @@ function buildHrefFor(item: RecentJobSearchDto): string {
 }
 
 // Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på raden.
-// Format: "(N) träffar" om newCount === 0, "(N) träffar, varav (M) nya"
-// om newCount > 0. Mono via `.jp-job__meta b`, ink-2 via `.jp-job__meta`.
-function CountMeta({ currentCount, newCount }: { currentCount: number; newCount: number }) {
-  if (newCount > 0) {
-    return (
-      <div className="jp-job__meta" style={{ marginTop: 8 }}>
-        <span>
-          <b>{currentCount.toLocaleString("sv-SE")}</b> träffar, varav <b>{newCount.toLocaleString("sv-SE")}</b> nya
-        </span>
-      </div>
-    );
-  }
-  return (
-    <div className="jp-job__meta" style={{ marginTop: 8 }}>
-      <span>
-        <b>{currentCount.toLocaleString("sv-SE")}</b> träffar
-      </span>
-    </div>
-  );
-}
+//
+// Träffräknaren ("(N) träffar" / "varav (M) nya") är TILLFÄLLIGT borttagen:
+// `currentCount`/`newCount` är 0 så länge listan hämtas med `includeCount=false`
+// (slow N+1-COUNT, TD-94). En synlig "(0) träffar" vore desinformation (husets
+// degraderingskontrakt) — hellre ingen siffra. Återinförs via lat klient-
+// hämtning (CTO-beslut 2026-06-13, samma mönster som useFacetCounts).
 
 export function RecentSearchRow({ item, onDeleted, onDeleteFailed }: RecentSearchRowProps) {
   const router = useRouter();
@@ -93,7 +79,6 @@ export function RecentSearchRow({ item, onDeleted, onDeleteFailed }: RecentSearc
         </div>
         <div className="jp-job__body">
           <h3 className="jp-job__title">{item.label}</h3>
-          <CountMeta currentCount={item.currentCount} newCount={item.newCount} />
         </div>
         <div className="jp-job__actions" style={{ flexDirection: "row" }}>
           <Link href={href} className="jp-btn jp-btn--primary jp-btn--sm">

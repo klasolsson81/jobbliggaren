@@ -31,4 +31,21 @@ internal enum TaxonomyConceptKind
     /// Platsbanken-paritet (ADR 0067 Beslut 1 — namnglapp: annons-fältet heter
     /// occupation_group men pekar på ssyk-level-4).</summary>
     OccupationGroup,
+
+    /// <summary>JobTech <c>employment-type</c> — anställningsform (~8: Vanlig
+    /// anställning, Tillsvidare, Behovs, Tidsbegränsad, Sommarjobb, Säsong,
+    /// Vikariat, Arbete utomlands). PLATT/föräldralös (ingen rot till skillnad
+    /// mot kommun/yrkesgrupp); concept-id matchar
+    /// <c>job_ads.employment_type_concept_id</c>. Ortogonal IN-filter-dimension
+    /// (ADR 0067 Beslut 6 / B2). Frusen embedded seed (ADR 0043-amendment
+    /// 2026-06-13, CTO BESLUT 1 Variant B).</summary>
+    EmploymentType,
+
+    /// <summary>JobTech <c>worktime-extent</c> — omfattning (~2: Heltid,
+    /// Deltid). PLATT/föräldralös; concept-id matchar
+    /// <c>job_ads.worktime_extent_concept_id</c> (payload-key
+    /// <c>working_hours_type</c> — namnglapp, se JobAdConfiguration). Ortogonal
+    /// IN-filter-dimension (ADR 0067 Beslut 6 / B2). Frusen embedded seed
+    /// (ADR 0043-amendment 2026-06-13).</summary>
+    WorktimeExtent,
 }

@@ -14,10 +14,30 @@ namespace JobbPilot.Application.JobAds.Queries.GetTaxonomyTree;
 /// (<see cref="TaxonomyOccupationFieldDto.Occupations"/>) BEHÅLLS additivt
 /// (Open-Closed; occupation-name-substrat för recall + CV-matchning TD-93).
 /// </para>
+/// <para>
+/// ADR 0043-amendment 2026-06-13 (Klass 2 options) — additivt: två PLATTA,
+/// föräldralösa dimensioner (<see cref="EmploymentTypes"/> anställningsform,
+/// <see cref="WorktimeExtents"/> omfattning) exponeras som topp-nivå-listor
+/// (ingen syntetisk rot — ärlig ACL-modell, Evans 2003 §14). Frusen embedded
+/// källa (CTO BESLUT 1 Variant B). Råa JobTech preferred-labels — Platsbanken-
+/// paritets-kurering (utelämna/om-etikettera) är ett FE-presentationslager
+/// (Fas E PR-2), inte ett ACL-concern.
+/// </para>
 /// </summary>
 public sealed record TaxonomyTreeDto(
     IReadOnlyList<TaxonomyRegionDto> Regions,
-    IReadOnlyList<TaxonomyOccupationFieldDto> OccupationFields);
+    IReadOnlyList<TaxonomyOccupationFieldDto> OccupationFields,
+    IReadOnlyList<TaxonomyOptionDto> EmploymentTypes,
+    IReadOnlyList<TaxonomyOptionDto> WorktimeExtents);
+
+/// <summary>Platt taxonomi-option (concept-id → visningsnamn) för en
+/// föräldralös filter-dimension. ADR 0043-amendment 2026-06-13. EGEN typ
+/// (ej återanvänd kommun/yrkesgrupp-DTO) — anställningsform och kommun delar
+/// ingen change-reason trots identisk form (DRY = kunskaps-enhet, ej kod-
+/// likhet; CTO BESLUT 2). Concept-id matchar
+/// <c>job_ads.employment_type_concept_id</c> resp.
+/// <c>worktime_extent_concept_id</c>.</summary>
+public sealed record TaxonomyOptionDto(string ConceptId, string Label);
 
 /// <summary>Län (JobTech <c>region</c>, ~21) med underordnade kommuner
 /// (ADR 0043-amendment 2026-06-08).</summary>

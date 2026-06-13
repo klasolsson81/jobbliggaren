@@ -11,6 +11,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 const taxonomy: TaxonomyTree = {
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — required; not exercised here.
+  employmentTypes: [],
+  worktimeExtents: [],
   regions: [
     {
       conceptId: "CifL_Rzy_Mku",

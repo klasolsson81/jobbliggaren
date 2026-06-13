@@ -212,3 +212,49 @@ Beslut E:s yrke-granularitet (occupation-field → **occupation-name**) ändras 
 ADR 0043 Beslut D:s reverse-lookup-cap (`ResolveTaxonomyLabelsQueryValidator.MaxConceptIdsPerCall`) är härledd ur `SearchCriteria.MaxConceptIds` (DRY single-source). Multiplikatorn antog **2 dimensioner** (Ssyk + Region). Fas C1 inför OccupationGroup + Municipality → upp till **4 filterbara dimensioner** en chip-render kan materialisera i den platta `ConceptIds`-listan (legacy-Ssyk inkluderat — gamla sparade sökningar bär occupation-name-ids som måste label-resolvas tills Fas C2 reverse-lookup-migrerar dem). Multiplikatorn justeras **2 → 4** (= 1600 med MaxConceptIds=400). Beslut D-mekaniken (cap = MaxConceptIds × dimensioner, deriverad konstant) **består** — detta är en mekanik-konkretisering, inte ett amendment. Säkert: O(n) in-memory dict-lookup, auth + rate-limited (TaxonomyReadPolicy), per-element MaximumLength(32). senior-cto-advisor-dom 2026-06-09 (`docs/reviews/2026-06-09-sok-paritet-c1-cto.md`).
 
 **Fas C2-uppdatering 2026-06-09 (CTO-dom (e)):** legacy-Ssyk-skälet för den fjärde dimensionen utgick med C2-reverse-lookup-migrationen (occupation-name-ids finns inte längre i sparade sökningar), men **×4 består** — dims = OccupationGroup + Municipality + Region + headroom för B2-dimensionerna (employment_type/worktime_extent, resolverbara post re-ingest). Capen är ett tak, inte en exakt summa; churn 4→3→5 vore poänglös (`docs/reviews/2026-06-09-sok-paritet-c2-cto.md`).
+
+## Amendment 2026-06-13 — Klass 2 options (anställningsform + omfattning) som platta taxonomi-dimensioner; frusen embedded seed (per ADR 0067 Fas E)
+
+**Datum:** 2026-06-13
+**Källa:** Platsbanken-sök-paritets-initiativet ([ADR 0067](./0067-platsbanken-search-parity.md)), Fas E Filter-panel. Additivt amendment-notat — ADR-immutabilitet: all brödtext ovan (inkl. Beslut A–E + amendment 2026-06-08) är medvetet orörd.
+**Beslutsfattare:** Klas Olsson (GO backend+FE-scope Fas E, AskUserQuestion 2026-06-13) + senior-cto-advisor (decision-maker, BESLUT 1–5 `docs/reviews/2026-06-13-sok-paritet-e-klass2-cto.md`) + dotnet-architect (advisor, `-e-klass2-architect.md`).
+**Status:** ADR 0043 förblir **Accepted** — superseras **inte**. ACL-kärnan (lokal snapshot, concept-id aldrig i UI, `ITaxonomyReadModel`-port, `IAppDbContext` växer ej) består oförändrad. Detta amendment **utökar ACL:n med två nya `TaxonomyConceptKind`** och **ändrar den publika `TaxonomyTreeDto`-formen additivt** — samma karaktär som amendment 2026-06-08 (kommun + yrkesgrupp).
+
+ADR 0067 B2 (PR #60) gjorde Klass 2 (`employment_type`/`worktime_extent`) **filtrerbar + facetterbar** end-to-end (STORED-kolumner, `ApplyCriteria`-grenar, `?employmentType=`/`?worktimeExtent=`-bind, `FacetDimension`-enum), men **options-discovery + label-resolution saknades** i ACL:n: en FE-filterpanel hade inga val att rendera och toolbar-chips hade gett "Okänd kod (...)". Fas E löser det.
+
+### 1. Två nya platta, föräldralösa taxonomi-dimensioner
+
+- `TaxonomyConceptKind += EmploymentType` (concept-id matchar `job_ads.employment_type_concept_id`) + `WorktimeExtent` (matchar `job_ads.worktime_extent_concept_id`; payload-key `working_hours_type` — namnglapp, se `JobAdConfiguration`). **PLATTA/föräldralösa** (`ParentConceptId == null`) — till skillnad mot kommun→län och yrkesgrupp→yrkesområde (1:1-relationer).
+- `TaxonomyTreeDto` växer additivt med två topp-nivå-listor: `IReadOnlyList<TaxonomyOptionDto> EmploymentTypes` + `WorktimeExtents`. **Ingen syntetisk rot** — föräldralösa mängder modelleras ärligt som platta listor (Evans 2003 §14: ACL distorderar inte källmodellen). Egen `TaxonomyOptionDto(ConceptId, Label)` — återanvänder INTE kommun/yrkesgrupp-DTO trots identisk form (DRY = kunskaps-enhet, ej kod-likhet; CTO BESLUT 2). Port-signaturen `GetTreeAsync` oförändrad (rikare DTO, inget nytt kontrakt).
+- `LoadAsync`-grupperingen blir `Kind`-medveten för Klass 2 (Where Kind == …, OrderBy Label Ordinal — konsekvent läs-modell). `labelByConceptId` + `ResolveLabelsAsync` är **kind-agnostiska** → Klass 2-reverse-lookup (toolbar-chips + recent-/saved-search-labels) fungerar **utan resolver-ändring**.
+
+### 2. Frusen embedded seed — INTE generate.mjs (CTO BESLUT 1 Variant B)
+
+Klass 2 seedas från en **separat, frusen, handkurerad** embedded resource `klass2-taxonomy.json` — medvetet **utanför** den generator-producerade `taxonomy-snapshot.json` och utan `generate.mjs`-integration.
+
+- **Motiv (CTO BESLUT 1, Beslut B-dispositionen):** generatorns enda värde är granskningsbar **aktualitet**. `employment-type`/`worktime-extent` är ~8 respektive ~2 legaldefinierade, aldrig-växande noder → aktualitets-vinsten är noll. Att bygga en generator-primitiv (`fetchByType`, föräldralös) för 10 statiska noder vore Speculative Generality (Fowler 2018 kap. 3) — samma klass som Beslut B redan avvisade cron-synk för. Precedens: `occupation-name-to-ssyk-level-4.v30.json` (frusen, migrations-ägd, ADR 0067 notat 2026-06-09).
+- **Härkomst-disciplin:** separat fil med "frozen, hand-curated, see ADR"-header hindrar en framtida `generate.mjs`-körning från att skriva över handkurerad data. concept-id + svenska preferred-labels härleddes ur dev-korpusen (`job_ads.raw_payload->'employment_type'/'working_hours_type'`, distinkta värden 2026-06-13) = exakt de värden som kan förekomma i de STORED-kolumnerna.
+- **Idempotens:** seederns version-nyckel blir komposit (`{taxonomyVersion}+klass2-{klass2Version}`) → Klass 2-tillägget tvingar re-seed på redan-seedade DB:er; bump endera versionen för framtida ändringar. **Ingen DDL/migration** — `taxonomy_concepts.Kind` är `string`-persisterad (max 20, ingen CHECK-enumerering), Klass 2 = enbart nya rader (CTO BESLUT 3; verifierat on-disk).
+
+### 3. Råa labels — Platsbanken-kurering är FE-presentation
+
+Seeden bär **JobTech preferred-labels** (sanningskälla, korrekt reverse-lookup). Platsbankens filterpanel kurerar anställningsform (visar 5 etiketter, om-etiketterar t.ex. "Behovs- eller timanställning", **utelämnar** "Vanlig anställning" — vår största bucket, 24k annonser). Den kureringen (utelämna/om-etikettera/gruppera) är ett **FE-presentationslager** (Fas E PR-2, rendered-review med Klas), **inte** ett ACL-/data-concern (CTO BESLUT 5; ACL:n förblir ärlig).
+
+### Konsekvenser
+
+- ACL-principen (Beslut A–D) består: svenska namn i UI, concept-id aldrig exponerat, lokal in-memory-snapshot, ingen extern hop. Klass 2 = nya **dimensioner inom samma ACL**.
+- **Härkomst-inkonsekvens dokumenterad:** kommun/yrkesgrupp genereras via `generate.mjs`; Klass 2 fryses embedded. Skälet (noll aktualitets-vinst för legaldefinierade mängder) är motiverat ovan per CTO BESLUT 3 — en framtida granskare ser inte en oförklarad avvikelse.
+- **Reverse-lookup-cap oförändrad:** `ResolveTaxonomyLabelsQueryValidator` ×4-cap (= 1600) var redan provisionerad för B2-dimensionerna (notat 2026-06-09 "headroom för employment_type/worktime_extent"). Klass 2 lägger ≤10 ids till ett resolve-anrop; realistisk all-dims-materialisering (~721 ids) ligger långt under taket. Ingen bump.
+- **Suggestable orörd:** Klass 2 ingår INTE i typeahead-suggest ("Heltid" som fritext-förslag är facett-checkbox, inte sök-term — konsekvent med VAL 4-logiken). `SuggestionKind` oförändrad.
+
+### Implementations-trail (ADR 0067 Fas E)
+- **PR-1 (denna leverans):** `TaxonomyConceptKind` +2, frusen `klass2-taxonomy.json` + `Klass2TaxonomyFile`, seeder (komposit-version + platta rader), `TaxonomyTreeDto` + `TaxonomyOptionDto`, `TaxonomyReadModel`-projektion, FE `taxonomy.ts`-schema. test-writer: unit (MapRows/LoadKlass2/CompositeVersion) + Testcontainers-integration (tree-exponering + reverse-lookup resolverar Klass 2).
+- **PR-2:** FE Klass-2 filter-panel (Omfattning radio / Anställningsform checkbox-multi + Platsbanken-kurering) + `JobbUrlState`/`buildJobbHref`/chip-models.
+- **PR-3:** facet-counts-wiring (`FACET_DIMENSIONS` +2 + `useFacetCounts`).
+- **PR-4:** saved-searches Klass 2-`*Labels` (`ListSavedSearches`-resolver).
+
+### Referenser
+- [ADR 0067](./0067-platsbanken-search-parity.md) Beslut 6 (VO-expansion) + Fas E + notat 2026-06-12 (B2 query-wiring)
+- Agent-domar: `docs/reviews/2026-06-13-sok-paritet-e-klass2-{architect,cto}.md`
+- ADR 0043 Beslut B (snapshot-källa Variant A-vs-B-disposition — Klass 2 är linje med den mindre dynamiska dispositionen), Beslut C (ACL-port), amendment 2026-06-08 (additiv `TaxonomyTreeDto`-precedens)
+- Evans DDD (2003) kap. 14 (ärlig ACL-modell, ingen syntetisk rot); Fowler (2018) kap. 3 (Speculative Generality — generator-primitiv avvisad); Hunt/Thomas (1999) DRY (egen `TaxonomyOptionDto`, kunskaps-enhet ej kod-likhet); Beck YAGNI/KISS (frusen seed)

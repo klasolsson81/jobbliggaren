@@ -63,6 +63,7 @@ tidsbegränsning per touch — fas-tillhörighet styr. Default = fixa in-block.
 | TD-106 | Hetzner Docker-Compose-stack + reverse-proxy (Caddy) + deploy-sekvens + VPS-härdning | **Major** | Hetzner-deploy | Infra/Deploy |
 | TD-107 | Krypterad offsite-backup (Hetzner-EU Storage Box) + restore-runbook + retention | **Major** | Hetzner-deploy | Infra/GDPR/Backup |
 | TD-103 | Application-assembly-split för isolerad Worker-jobb-scan (återinför ValidateOnBuild=true) | Minor | Trigger | Architecture/Code quality |
+| TD-94 | `ListJobAdsQuery`/recent-search COUNT perf — fritext-Q-COUNT slow (leading-wildcard title-LIKE i OR med GIN-FTS); ADR 0045-violation **återöppnad 2026-06-13** (empiriskt bekräftad post-ADR-0067) | **Major** | Trigger (perf-ratchet) | Performance/Backend/Search |
 
 ---
 
@@ -94,7 +95,7 @@ det att fas-regeln bryts (TDs lyfts som dumpning istället för att fixas in-blo
 
 ## Major — F6 P5 Punkt 2-fas-stängning
 
-*(Sektionen tom 2026-05-26 — TD-94 stängd som obsolet i AWS dev-stack teardown semester-pause Fas B per ADR 0066.)*
+*(Sektionen tom 2026-05-26 — TD-94 stängd som obsolet i AWS dev-stack teardown semester-pause Fas B per ADR 0066. **TD-94 återöppnad 2026-06-13** och omklassad till `## Major — Trigger (perf-ratchet)` — se översiktstabellen + den aktiva posten.)*
 
 ---
 
@@ -264,6 +265,50 @@ av Redis-nyckel) så cache-hit-scenariot inte träffar Floor-fallback hela tiden
 0045 Beslut 6-ratchet närmar sig (flip observe-only → blockerande kräver
 faktisk runtime-mätning), eller (c) någon annan fitness-function-yta behöver
 samma stack.
+
+
+## Major — Trigger (perf-ratchet)
+
+## TD-94: `ListJobAdsQuery`/recent-search COUNT perf — slow fritext-Q-COUNT (ADR 0045-violation)
+
+**Kategori:** Performance/Backend/Search
+**Severity:** Major
+**Fas:** Trigger (perf-ratchet — fix när native-snabb COUNT krävs, eller när
+ADR 0045-fitness-funktionerna ratchas observe-only → blockerande)
+**Källa:** Ursprungligen senior-cto-advisor F6 P5 P4-rond 2026-05-24; **stängd
+som obsolet 2026-05-26** vid AWS-RDS-teardown (ADR 0066) med uttrycklig not
+"re-öppna vid återstart om rot kvarstår". **Återöppnad 2026-06-13** —
+empiriskt bekräftad mot lokal post-ADR-0067-stack (CTO-rond recent-search-
+count-defekt, agentId `a16f38885e1dcb379`). Full ursprungs-body + stängningsnot
+bevarad i `tech-debt-archive.md` (audit-trail; ADR 0066-stängningen står kvar
+som daterat record).
+
+**Empiri (2026-06-13, lokal dev, 42 703 Active job_ads):** COUNT med produktions-
+predikatet `status='Active' AND (search_vector @@ websearch_to_tsquery('swedish',q)
+OR lower(title) LIKE '%q%')`:
+- Strukturerad (occupation_group, ingen fritext): **~31 ms** — snabb.
+- Fritext varm: "utvecklare" 413 ms, "lärare" 332 ms, "sjuksköterska" 332 ms.
+- Fritext "ai": **777 ms varm / 9 310 ms kall**.
+
+**Rotorsak:** leading-wildcard `LOWER(title) LIKE '%q%'` i OR-gren med GIN-
+tsvector-matchen → trigram-indexet (≥3 tecken) hjälper inte 2-tecken-ord ("ai")
+och OR:en hindrar en ren index-plan → scan. cap=20 recent-searches × sekventiell
+N+1-COUNT återskapar 8s-FE-timeouten (Npgsql 57014) — därav `IncludeCount=false`
+överallt och den (nu interimt borttagna) `(0)`-träffräknaren.
+
+**Föreslagen åtgärd:**
+1. dotnet-architect-rond: EXPLAIN ANALYZE mot lokal korpus, index-/predikat-strategi.
+2. Kandidat: trigram-only för title-LIKE-grenen vid ≥3 tecken, ELLER släpp
+   title-LIKE ur COUNT-grenen men behåll i list (semantik-skillnaden list↔count
+   måste då vägas + dokumenteras — risk för avvikande totalCount vs listrader).
+3. NBomber-scenario för regression-skydd per ADR 0045.
+
+**Relation till recent-search-count (separat arbete, EJ denna TD):** den synliga
+träffräknaren restaureras via lat klient-hämtning (B, useFacetCounts-mönstret,
+CTO-beslut 2026-06-13) — det gör perf till en UX-icke-blockerare oberoende av
+denna rotfix. Interim-fixen (ta bort falsk `(0)`) levererades 2026-06-13.
+
+**Beroenden:** Inga blockerande (verktyg + agenter finns lokalt).
 
 
 ## Major — Fas 3+
@@ -1682,7 +1727,7 @@ ADR-cross-references och granskningsbevis.
 | TD-82 | Översikt/Dashboard-sida (post-login-landningsvy) | 2026-05-24 | F6 P5 Punkt 4 — `/oversikt`-route levererad per HANDOVER-oversikt.md + CTO-dom Variant A (direkt RSC `Promise.all`) |
 | TD-95 | "Senaste sökning"-rad tom i Översikt-sammanfattning | 2026-05-24 | F6 P5 P4 svans-PR4 — rot=ListRecentSearchesQueryHandler:60 N+1 COUNT timeout → fix via IncludeCount-parameter |
 | TD-91 | RDS param-group `apply_method`-drift (pending-reboot → immediate för rds.force_ssl) | 2026-05-26 | AWS dev-stack teardown semester-pause Fas B (ADR 0066) — RDS raderas, drift försvinner naturligt |
-| TD-94 | `ListJobAdsQuery` perf p50 ~1.2s / max 6.7s (ADR 0045 violation) | 2026-05-26 | AWS dev-stack teardown semester-pause Fas B (ADR 0066) — RDS raderas, query slutar köras; re-öppna vid återstart om rot kvarstår |
+| TD-94 | ~~`ListJobAdsQuery` perf p50 ~1.2s / max 6.7s (ADR 0045 violation)~~ — **ÅTERÖPPNAD 2026-06-13** (rot kvarstår empiriskt post-ADR-0067; se aktiv post i översiktstabellen) | 2026-05-26 → återöppnad 2026-06-13 | AWS dev-stack teardown (ADR 0066); re-open-villkoret i stängningsnoten uppfyllt |
 
 ---
 

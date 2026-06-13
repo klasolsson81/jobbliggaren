@@ -21,15 +21,18 @@ function authHeaders(sessionId: string): HeadersInit {
  * TD-94 löser rotorsaken (ListJobAds COUNT-perf p50 1.2s/max 6.7s).
  *
  * <p>Konsumenter som anropar med <code>includeCount=false</code> behöver ingen
- * slow COUNT-loop → kan använda kortare default-timeout. Konsumenter med
- * <code>includeCount=true</code> (hero-chip, /sokningar-list) behöver längre
- * timeout för worst-case cap=20×1.5s=30s.</p>
+ * slow COUNT-loop → kortare default-timeout. <b>2026-06-13: INGEN konsument
+ * anropar med <code>true</code> idag</b> (/oversikt, /sokningar, /jobb hero-chip
+ * hämtar alla med <code>false</code>). <code>LIST_TIMEOUT_WITH_COUNT_MS</code>
+ * är reserverad för den framtida lat-count-vägen (B) — den långa timeouten
+ * skulle annars åter-exponera worst-case cap=20×1.5s.</p>
  *
  * <p>F6 P5 P4 svans-PR5 (2026-05-24, Klas-feedback /sokningar + /jobb-hero-chip
  * "Inga senaste sökningar än"): tidigare statiskt 8s blockerade /sokningar +
  * hero-chip när Klas hade flera RecentSearches.</p>
  */
 const LIST_TIMEOUT_COMPACT_MS = 8_000;
+// Reserverad för framtida lat-count-väg (B) — ingen konsument når true-grenen idag.
 const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
 
 /**
@@ -45,10 +48,12 @@ const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
  * Min PR5-fix 25s räcker inte; /sokningar + hero-chip 500-failade i Klas-
  * session, cascade-fel drog även hero-chip till tom-state.</p>
  *
- * <p><b>Förlust:</b> hero-chip + /sokningar visar nu bara namn utan
- * "(N nya)"-affordance tills TD-94 löser rotorsaken (slow ListJobAds COUNT).
+ * <p><b>Förlust:</b> hero-chip + /sokningar visar nu bara namn utan per-sökning-
+ * träffräknare. Den (tidigare felaktigt renderade "(0)") siffran togs bort i UI:t
+ * 2026-06-13 (CTO-beslut: hellre ingen siffra än falsk "(0)") och återinförs via
+ * lat klient-hämtning (B, useFacetCounts-mönstret) — oberoende av TD-94:s rotfix.
  * Civic-utility acceptabelt: namn + klickbar rad ger fortfarande funktionell
- * "kör om sökning"-yta. Counts kan återställas i samma deploy som TD-94-fix.</p>
+ * "kör om sökning"-yta.</p>
  *
  * <p>Konsumenter som explicit behöver counts kan sätta <code>true</code> — de
  * tar då 15-25s slow load + risk för timeout. Inte rekommenderat för någon

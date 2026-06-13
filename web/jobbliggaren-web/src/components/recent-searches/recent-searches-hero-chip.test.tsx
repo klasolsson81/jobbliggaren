@@ -51,7 +51,7 @@ describe("RecentSearchesHeroChip", () => {
     expect(screen.getByText("(2)")).toBeInTheDocument();
   });
 
-  it("dropdown-rad visar '(N)' när newCount === 0 och '(N, M nya)' när newCount > 0", async () => {
+  it("dropdown-rad visar label utan per-sökning-träffräknare (interim — TD-94, count borttagen tills lat hämtning)", async () => {
     const user = userEvent.setup();
     render(
       <RecentSearchesHeroChip
@@ -62,8 +62,12 @@ describe("RecentSearchesHeroChip", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
-    expect(screen.getByText("(42)")).toBeInTheDocument();
-    expect(screen.getByText("(8, 3 nya)")).toBeInTheDocument();
+    expect(screen.getByText("backend")).toBeInTheDocument();
+    expect(screen.getByText("designer")).toBeInTheDocument();
+    // Ingen falsk "(0)"/"(N)"-träffräknare medan currentCount är 0 (TD-94).
+    expect(screen.queryByText("(42)")).not.toBeInTheDocument();
+    expect(screen.queryByText("(8, 3 nya)")).not.toBeInTheDocument();
+    expect(screen.queryByText(/nya\)/)).not.toBeInTheDocument();
   });
 
   it("INGEN 'NY'-pill renderas i dropdown (Klas-direktiv anti-AI-trope)", async () => {

@@ -99,14 +99,14 @@ docker compose --profile test up -d
 ```
 
 Två extra containrar:
-- `jobbpilot-postgres-test` på `5433` (db: `jobbpilot_test`)
-- `jobbpilot-redis-test` på `6380`
+- `jobbliggaren-postgres-test` på `5433` (db: `jobbliggaren_test`, user: `jobbliggaren`)
+- `jobbliggaren-redis-test` på `6380`
 
 Verifiera:
 
 ```bash
-docker exec jobbpilot-postgres-test psql -U jobbpilot -d jobbpilot_test -tAc "SELECT version();"
-docker exec jobbpilot-redis-test redis-cli ping
+docker exec jobbliggaren-postgres-test psql -U jobbliggaren -d jobbliggaren_test -tAc "SELECT version();"
+docker exec jobbliggaren-redis-test redis-cli ping
 ```
 
 Stäng ner:
@@ -192,7 +192,7 @@ aktivera auth lokalt:
 
 ### 6.5 Postgres 18+ volym-mount
 
-JobbPilot:s compose mountar `jobbpilot_postgres_dev_data` på
+Jobbliggaren:s compose mountar `jobbliggaren_postgres_dev_data` på
 `/var/lib/postgresql` (**inte** `.../data`). Detta är det nya 18+-mönstret
 som tillåter `pg_upgrade --link` vid major-uppgraderingar. Om du migrerar
 från en tidigare 17-volym till 18 → läs

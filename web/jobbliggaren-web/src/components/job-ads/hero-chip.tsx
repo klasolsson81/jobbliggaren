@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
@@ -28,6 +28,12 @@ interface HeroChipProps<T> {
   footerLabel?: string;
   /** Max antal items i dropdown (slice + footer). Default 5. */
   maxItems?: number;
+  /**
+   * Notifieras när dropdownen öppnas/stängs. Låter konsumenten lat-hämta
+   * on-demand-data (t.ex. recent-search-counts) först när panelen visas —
+   * undviker kostnad på sidor där användaren aldrig öppnar chippen.
+   */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function HeroChip<T>({
@@ -41,6 +47,7 @@ export function HeroChip<T>({
   footerHref,
   footerLabel,
   maxItems = 5,
+  onOpenChange,
 }: HeroChipProps<T>) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -49,6 +56,11 @@ export function HeroChip<T>({
     () => setOpen(false),
     triggerRef,
   );
+
+  // Notifiera konsumenten om öppna-tillståndet (lat on-demand-hämtning).
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   const close = () => setOpen(false);
   const visible = items.slice(0, maxItems);

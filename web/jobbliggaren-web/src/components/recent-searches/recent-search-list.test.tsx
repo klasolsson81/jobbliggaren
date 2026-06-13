@@ -5,6 +5,9 @@ import { RecentSearchList } from "./recent-search-list";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 
 const deleteActionMock = vi.fn();
+const countsMock = vi.fn<() => ReadonlyMap<string, { currentCount: number; newCount: number }> | null>(
+  () => null,
+);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -12,6 +15,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/actions/recent-searches", () => ({
   deleteRecentSearchAction: (...args: unknown[]) => deleteActionMock(...args),
+}));
+
+// Mocka lat-count-hooken (annars läcker ett riktigt fetch ur unit-testet).
+vi.mock("@/lib/hooks/use-recent-search-counts", () => ({
+  useRecentSearchCounts: () => countsMock(),
 }));
 
 function makeDto(id: string, label: string, newCount = 0): RecentJobSearchDto {
@@ -36,6 +44,8 @@ function makeDto(id: string, label: string, newCount = 0): RecentJobSearchDto {
 
 beforeEach(() => {
   deleteActionMock.mockReset();
+  countsMock.mockReset();
+  countsMock.mockReturnValue(null);
 });
 
 describe("RecentSearchList", () => {
@@ -63,6 +73,24 @@ describe("RecentSearchList", () => {
     expect(
       screen.getByRole("heading", { name: /designer Göteborg/ }),
     ).toBeInTheDocument();
+  });
+
+  it("feeds the lazy count into the matching row when the hook map has resolved", () => {
+    countsMock.mockReturnValue(
+      new Map([["a1", { currentCount: 1234, newCount: 0 }]]),
+    );
+    render(
+      <RecentSearchList
+        items={[
+          makeDto("a1", "backend Stockholm"),
+          makeDto("a2", "designer Göteborg"),
+        ]}
+      />,
+    );
+    // a1 får sin lat-hämtade siffra (sv-SE tusenavgränsare), a2 saknas i map:en
+    // → ingen siffra (aldrig falsk "(0)"). Anchored så bara <b>-talet matchas.
+    expect(screen.getByText(/^1\s?234$/)).toBeInTheDocument();
+    expect(screen.getByText(/träffar/)).toBeInTheDocument();
   });
 
   it("optimistically removes a row after a successful delete-action", async () => {

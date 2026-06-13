@@ -2066,10 +2066,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   flex-direction: column;
   gap: 20px;
 }
-/* Modal-laddnings-chrome (logo Fas 2, ADR 0070) — Suspense-fallback medan
-   modal-detaljen streamas (ModalLoadingShell). Återanvänder .jp-modal-scrim/
-   .jp-modal-ytan; reserverar en stabil panelhöjd så att swap till innehåll
-   inte hoppar (CLS). Spinner + statustext centreras. */
+/* Modal loading chrome (logo Fas 2, ADR 0070) — Suspense fallback while the
+   modal detail streams in (ModalLoadingShell). Reuses the .jp-modal-scrim /
+   .jp-modal surface; reserves a stable panel height so the swap to content does
+   not jump (CLS). Spinner + status line centered. */
 .jp-modal--loading {
   min-height: 220px;
 }

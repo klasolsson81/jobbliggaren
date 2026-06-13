@@ -6,7 +6,7 @@ import { BrandSpinner } from "@/components/brand/brand-spinner";
  * server component (JobAdDetail / ApplicationDetail) streams in — so the modal
  * surface paints instantly with a BrandSpinner + Swedish status line, then the
  * real content swaps in ("open the empty surface instantly + spinner", logo
- * Fas 2 / ADR 0070, spinner-vs-skeleton doctrine in DESIGN.md §11).
+ * Fas 2 / ADR 0070).
  *
  * Deliberately NO client mechanics (senior-cto-advisor Variant A, 2026-06-13):
  * the fallback shows for a known-short (<1–2s) wait until the real client shell
@@ -18,10 +18,13 @@ import { BrandSpinner } from "@/components/brand/brand-spinner";
  * sync with the two content shells. Doctrine (when spinner vs skeleton): see the
  * `jobbpilot-design-components` skill, "Spinner (BrandSpinner)" section.
  *
- * a11y: the panel is role=dialog + aria-modal + aria-busy, named by the status
- * text (aria-label). BrandSpinner carries the role=status live region (the
- * screen-reader "loading" announcement). The visible status line is aria-hidden
- * (sighted-only) so the text is not announced twice.
+ * a11y: the panel is role=dialog + aria-busy, named by the status text
+ * (aria-label). It deliberately does NOT set aria-modal — the transient fallback
+ * is not inert (no focus-trap; focus stays on the trigger until the real shell
+ * mounts), so claiming a modal barrier would be untrue (design-reviewer Fas 2).
+ * BrandSpinner carries the role=status live region (the screen-reader "loading"
+ * announcement, kept specific to convey what is loading). The visible status
+ * line is aria-hidden (sighted-only) so the text is not announced twice.
  */
 export function ModalLoadingShell({ statusText }: { statusText: string }) {
   return (
@@ -29,7 +32,6 @@ export function ModalLoadingShell({ statusText }: { statusText: string }) {
       <div
         className="jp-modal jp-modal--loading"
         role="dialog"
-        aria-modal="true"
         aria-busy="true"
         aria-label={statusText}
       >

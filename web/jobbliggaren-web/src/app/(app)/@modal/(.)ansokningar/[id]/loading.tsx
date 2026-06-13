@@ -1,12 +1,12 @@
 import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 
-// Suspense-fallback för @modal/(.)ansokningar/[id] (logo Fas 2, ADR 0070). Next
-// lindar page.tsx i en <Suspense> → denna fallback målas direkt medan
-// serverkomponenten (getServerSession + getApplicationById) streamas in, varefter
-// ApplicationDetail swapas in. = "öppna tom modal direkt + spinner + statustext"
-// (spinner-vs-skeleton-doktrinen — jobbpilot-design-components-skillen).
-// Modal-laddning är en känt-lång formlös väntan — rätt plats för BrandSpinner,
-// inte skeleton.
+// Suspense fallback for @modal/(.)ansokningar/[id] (logo Fas 2, ADR 0070). Next
+// wraps page.tsx in a <Suspense>, so this fallback paints instantly while the
+// server component (getServerSession + getApplicationById) streams in, then
+// ApplicationDetail swaps in. = "open the empty modal instantly + spinner +
+// status line" (spinner-vs-skeleton doctrine — jobbpilot-design-components skill).
+// Modal loading is a known-slow formless wait — the right place for BrandSpinner,
+// not a skeleton.
 export default function Loading() {
   return <ModalLoadingShell statusText="Ansökan läses in…" />;
 }

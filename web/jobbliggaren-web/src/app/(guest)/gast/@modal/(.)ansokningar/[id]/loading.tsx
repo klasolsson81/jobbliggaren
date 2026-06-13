@@ -1,10 +1,10 @@
 import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 
-// Suspense-fallback för gäst-tree @modal/(.)ansokningar/[id] (logo Fas 2, ADR
-// 0070). Speglar den inloggade vägen för symmetri (de fyra parallella
-// @modal-mapparna hålls lika) och ger en no-auth-väg för visual-verify. NB:
-// gäst-data är synkron mock (findGuestApplication) → suspendar knappt, så
-// fallbacken syns sällan här; den inloggade vägen är den verkligt känt-långa.
+// Suspense fallback for the guest-tree @modal/(.)ansokningar/[id] (logo Fas 2,
+// ADR 0070). Mirrors the authenticated route for symmetry (the four parallel
+// @modal folders stay aligned) and gives a no-auth path for visual-verify. NB:
+// guest data is a synchronous mock (findGuestApplication) → barely suspends, so
+// the fallback rarely shows here; the authenticated route is the truly known-slow one.
 export default function Loading() {
   return <ModalLoadingShell statusText="Ansökan läses in…" />;
 }

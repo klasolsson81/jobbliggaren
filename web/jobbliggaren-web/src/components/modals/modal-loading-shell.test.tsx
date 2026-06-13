@@ -3,12 +3,14 @@ import { render } from "@testing-library/react";
 import { ModalLoadingShell } from "./modal-loading-shell";
 
 describe("ModalLoadingShell", () => {
-  it("renderar en dialog med aria-modal och aria-busy (loading-chrome)", () => {
+  it("renderar en dialog med aria-busy men UTAN aria-modal (transient, icke-inert fallback)", () => {
     const { getByRole } = render(<ModalLoadingShell statusText="Laddar annons" />);
     const dialog = getByRole("dialog");
     expect(dialog).not.toBeNull();
-    expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.getAttribute("aria-busy")).toBe("true");
+    // Ingen focus-trap/inert appliceras under den korta fallbacken → aria-modal
+    // vore osant (design-reviewer Fas 2). Den riktiga shell:en bär aria-modal.
+    expect(dialog.getAttribute("aria-modal")).toBeNull();
   });
 
   it("namnger dialogen via status-texten (aria-label === statusText)", () => {

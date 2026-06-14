@@ -128,5 +128,24 @@
          CentralPackageTransitivePinningEnabled (Directory.Build.props). -->
     <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <!-- Fas 4 lokal NLP-tier (ADR 0071 Beslut 6, BUILD.md §3.1 — INLÅST Pre-4 STEG 4;
+         version-pin = Fas 4 STEG 0/F4-0). Deterministisk svensk NLP, ingen AI/LLM, körs
+         lokalt på VPS:en. Catalyst medvetet UTE v1 (ADR 0071 Open Question 1, CTO-dom:
+         Snowball/libstemmer-only; YAGNI + 512 MiB Worker-minnesbudget ADR 0045 + paritet
+         mot Postgres to_tsvector('swedish') — läggs till reaktivt först om ett mätt
+         F4-9/10-kriterium bevisar POS/lemma-behov). PackageReference + faktisk användning
+         följer i F4-2 (NLP-grund); F4-0 = endast version-pin (gate-clearing). En oanvänd
+         central PackageVersion är inert (ingen restore-/build-effekt utan PackageReference).
+         sv_SE-ordlistan (DSSO, LGPL-3.0) är ett oförändrat separat data-asset, EJ NuGet —
+         kan ej pinnas som PackageVersion; reds ut/wiras i F4-2.
+         Copyleft-separation (security-auditor 2026-06-14, BUILD.md §3.1-notis): produkten
+         distribueras inte som binär (server-side, ADR 0050) → ingen copyleft på produktkoden;
+         Hunspell-trilicens → MPL 1.1 vald (LGPL 2.1 fallback, ALDRIG GPL 2.0); oförändrad
+         NuGet-binär. THIRD-PARTY-NOTICES samlas vid Fas 4 build-time.
+         net10-resolution re-verifierad (CLAUDE.md §9.5, nuget.org 2026-06-14):
+         WeCantSpell.Hunspell 7.0.1 = net8.0/netstandard2.0-asset (forward-compat, 0 transitiv
+         konflikt); libstemmer.net 2.2.3 = netstandard2.0, INGA beroenden. -->
+    <PackageVersion Include="libstemmer.net" Version="2.2.3" />
+    <PackageVersion Include="WeCantSpell.Hunspell" Version="7.0.1" />
   </ItemGroup>
 </Project>

@@ -150,6 +150,70 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// Auth-gated GET-ytor under /me/* + /applications/pipeline + /resumes
+    /// (Pre-4 STEG 5, TD-92) — partitionerat per UserId (claim "sub"), anonym
+    /// → NoLimiter (alla är RequireAuthorization-gated → 401 före endpoint).
+    /// Egen policy (ej ListRead-återanvändning) — least common mechanism
+    /// (Saltzer/Schroeder): /oversikt avfyrar 6 parallella BE-anrop (Promise.all)
+    /// per sidladdning = 6× request-amplifiering mot tyngre objekt-grafer
+    /// (pipeline/resumes/profile) än publika job-ads-listan, så denna yta får
+    /// en egen, snävare budget än ListRead (60/min) och svälter inte den
+    /// publika sök-listan vid kompromissat konto (bulkhead, Nygard). 40/min ger
+    /// headroom över en /oversikt-render (6 anrop) + normal navigation, kapar
+    /// OWASP API4:2023-style multi-query-DoS. dotnet-architect + senior-cto-
+    /// advisor 2026-06-14 — riktvärde, security-auditor verifierar/justerar
+    /// (BLOCKING).
+    /// </summary>
+    public PolicyOptions MeListRead { get; init; } = new()
+    {
+        PermitLimit = 40,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
+    /// POST /api/v1/me/job-ad-status (per-user-overlay-status batch, ADR 0063,
+    /// Pre-4 STEG 5, TD-87) — <strong>dual-partition</strong>: sub närvarande →
+    /// user:-bucket, annars → ip:-bucket. Endpointen är anonym-tolerant (INTE
+    /// RequireAuthorization-gated — handler returnerar tom DTO utan UserId), så
+    /// den vanliga UserId→NoLimiter-bypassen skulle lämna ytan helt oskyddad
+    /// mot anonym batch-enumeration/DoS; ip:-fallbacken är därför TD-87:s
+    /// bärande skyddsegenskap. Batch är taklagd (validator-cap = 100 IDs → en
+    /// query, ej N+1). 60/min speglar LandingPublicRead (enda jämförbara
+    /// öppna-internet-IP-prejudikat): generöst för en list-render-dekoration
+    /// (FE anropar en gång per job-ads-render) + scroll/multi-tab, stramt nog
+    /// mot hammering. Bakom reverse-proxy kräver ip:-bucketen UseForwardedHeaders
+    /// (redan wired, Program.cs) annars hamnar alla i proxy-IP-bucketen.
+    /// senior-cto-advisor 2026-06-14 (Beslut B) — Klas-låsbart (kostnads-/
+    /// exponeringsdimension); security-auditor kan ratcha ned (BLOCKING).
+    /// </summary>
+    public PolicyOptions JobAdStatusBatch { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
+    /// Användarägda /me/*-mutationer (saved-job-ads POST/DELETE, recent-searches
+    /// DELETE) (Pre-4 STEG 5, TD-87) — partitionerat per UserId (claim "sub"),
+    /// anonym → NoLimiter (alla RequireAuthorization-gated). Egen policy (ej
+    /// AuthWrite-återanvändning) — AuthWrite är IP-partitionerad för anonym
+    /// login/register-spam; att återanvända den hade läckt IP-axel-semantik in
+    /// på en auth-gated användarägd yta och straffat NAT/CGN-delade IP:n
+    /// (Saltzer/Schroeder least common mechanism). Konsistent med AccountDeletion
+    /// (DELETE /me) som redan är en UserId-partitionerad skriv-policy. Egen
+    /// budget (ej fold-in i MeListRead) så en /oversikt-läs-burst inte svälter
+    /// en spara/ta-bort-mutation (bulkhead, Nygard). 30/min är gott om utrymme
+    /// för bokmärknings-/rensnings-interaktion. dotnet-architect + senior-cto-
+    /// advisor 2026-06-14 (Beslut A1) — riktvärde, security-auditor verifierar/
+    /// justerar (BLOCKING).
+    /// </summary>
+    public PolicyOptions MeWrite { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

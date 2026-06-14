@@ -28,6 +28,9 @@ public static partial class RateLimitingExtensions
     public const string TaxonomyReadPolicy = "taxonomy-read";
     public const string FacetCountsPolicy = "facet-counts";
     public const string LandingPublicReadPolicy = "landing-public-read";
+    public const string MeListReadPolicy = "me-list-read";
+    public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
+    public const string MeWritePolicy = "me-write";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -254,6 +257,82 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.LandingPublicRead.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.LandingPublicRead.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Auth-gated GET-ytor under /me/* +
+            // /applications/pipeline + /resumes (Pre-4 STEG 5, TD-92). Egen policy
+            // (ej ListRead-återanvändning) — /oversikt avfyrar 6 parallella BE-anrop
+            // (Promise.all) per sidladdning mot tyngre objekt-grafer → 6× amplifiering
+            // får en egen, snävare budget och svälter inte den publika sök-listan
+            // (bulkhead, Nygard; OWASP API4:2023). Auth-gated → anonym fångas av
+            // RequireAuthorization (NoLimiter bypass). dotnet-architect + senior-cto-
+            // advisor 2026-06-14. Parametrar IOptions-bundna (§5.1). security-auditor
+            // BLOCKING verifierar tal (riktvärde 40/min).
+            options.AddPolicy(MeListReadPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-me-list-read");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.MeListRead.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.MeListRead.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // DUAL partition: sub närvarande → user:-bucket, annars → ip:-bucket.
+            // POST /me/job-ad-status (ADR 0063 per-user-overlay-batch, Pre-4 STEG 5,
+            // TD-87) är anonym-tolerant (INTE RequireAuthorization-gated — handler
+            // returnerar tom DTO utan UserId), så den vanliga UserId→NoLimiter-bypassen
+            // hade lämnat ytan helt oskyddad mot anonym batch-enumeration/DoS. ip:-
+            // fallbacken är därför TD-87:s bärande skyddsegenskap. Prefixen user:/ip:
+            // håller de två partition-rummen disjunkta (en sub kan aldrig kollidera
+            // med en IP-sträng). Bakom reverse-proxy kräver ip:-grenen
+            // UseForwardedHeaders (redan wired, Program.cs) annars hamnar alla i
+            // proxy-IP-bucketen. senior-cto-advisor 2026-06-14 Beslut B (60/min,
+            // speglar LandingPublicRead). security-auditor BLOCKING verifierar tal.
+            options.AddPolicy(JobAdStatusBatchPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                var partitionKey = string.IsNullOrEmpty(userId)
+                    ? $"ip:{ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous"}"
+                    : $"user:{userId}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.JobAdStatusBatch.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.JobAdStatusBatch.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Användarägda /me/*-mutationer
+            // (saved-job-ads POST/DELETE, recent-searches DELETE) (Pre-4 STEG 5,
+            // TD-87). Egen policy (ej AuthWrite-återanvändning) — AuthWrite är
+            // IP-partitionerad för anonym login/register-spam; återanvändning hade
+            // läckt IP-axel in på auth-gated användarägd yta och straffat NAT/CGN
+            // (Saltzer/Schroeder). Konsistent med AccountDeletion (UserId-partitionerad
+            // skriv-policy). Egen budget (ej fold-in i MeListRead) så en läs-burst
+            // inte svälter en mutation (bulkhead, Nygard). Auth-gated → anonym fångas
+            // av RequireAuthorization (NoLimiter bypass). senior-cto-advisor 2026-06-14
+            // Beslut A1. security-auditor BLOCKING verifierar tal (riktvärde 30/min).
+            options.AddPolicy(MeWritePolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-me-write");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.MeWrite.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.MeWrite.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

@@ -24,7 +24,8 @@ public static class MeEndpoints
         {
             var result = await mediator.Send(new GetMyProfileQuery(), ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         group.MapPatch("/profile", async (
             UpdateMyProfileCommand command, IMediator mediator, CancellationToken ct) =>

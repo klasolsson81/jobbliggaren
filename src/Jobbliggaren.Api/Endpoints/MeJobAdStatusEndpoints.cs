@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.UserStatus.Queries.GetJobAdStatusBatch;
 using Jobbliggaren.Application.UserStatus.Queries.HasApplied;
 using Mediator;
@@ -28,7 +29,8 @@ public static class MeJobAdStatusEndpoints
                     new GetJobAdStatusBatchQuery(body.JobAdIds ?? []), ct);
                 return Results.Ok(result);
             })
-            .WithTags("Me");
+            .WithTags("Me")
+            .RequireRateLimiting(RateLimitingExtensions.JobAdStatusBatchPolicy);
 
         app.MapGet("/api/v1/me/applications/has-applied/{jobAdId:guid}", async (
                 Guid jobAdId, IMediator mediator, CancellationToken ct) =>
@@ -37,6 +39,7 @@ public static class MeJobAdStatusEndpoints
                 return Results.Ok(new { hasApplied });
             })
             .WithTags("Me")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
     }
 }

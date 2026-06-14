@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Applications.Commands.AddFollowUp;
 using Jobbliggaren.Application.Applications.Commands.AddNote;
 using Jobbliggaren.Application.Applications.Commands.CreateApplication;
@@ -32,7 +33,8 @@ public static class ApplicationsEndpoints
         {
             var result = await mediator.Send(new GetPipelineQuery(), ct);
             return Results.Ok(result);
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {

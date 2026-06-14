@@ -146,6 +146,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", "60");
+        // Pre-4 STEG 5 (TD-87 + TD-92): höj de tre nya /me-policyerna så delade
+        // [Collection("Api")]-tester inte rate-limit:as. MeListRead/MeWrite är
+        // UserId-partitionerade (unik user per test → unik bucket, vanligen säkra)
+        // men JobAdStatusBatch:s anonyma ip:-fallback delar 127.0.0.1-bucketen över
+        // alla tester som anonymt träffar POST /me/job-ad-status → måste höjas.
+        Environment.SetEnvironmentVariable("RateLimiting__MeListRead__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__MeListRead__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", "60");
 
         // Default öppen registrering i integration-tester. Kill-switch testas
         // isolerat av ClosedRegistrationsApiFactory.
@@ -206,6 +217,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__MeListRead__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__MeListRead__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);

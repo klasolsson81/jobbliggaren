@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.RecentJobSearches.Commands.DeleteRecentSearch;
 using Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches;
 using Mediator;
@@ -29,7 +30,7 @@ public static class RecentSearchesEndpoints
         {
             var result = await mediator.Send(new ListRecentSearchesQuery(includeCount), ct);
             return Results.Ok(result);
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         group.MapDelete("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {
@@ -40,6 +41,6 @@ public static class RecentSearchesEndpoints
                     detail: result.Error.Message,
                     title: result.Error.Code,
                     statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 }

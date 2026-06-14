@@ -20,13 +20,20 @@ Existing Swedish docs are not mass-translated.
 
 ## 1.5 Session protocol (mandatory)
 
-**Start:** read `docs/current-work.md` + latest `docs/sessions/` log; verify
-HEAD via `git log --oneline -8`; confirm the session-start hook ran.
+**Start (mandatory roadmap-grounding — be tracker-driven, not prompt-driven):**
+read `docs/current-work.md` **in full** + the `docs/steg-tracker.md` framåtplan
+section + latest `docs/sessions/` log (the session-start hook's preview is not a
+substitute for reading the files); verify HEAD via `git log --oneline -8`;
+confirm the session-start hook ran. **Then confirm the session's task is the
+right next step per the tracker before starting work — if the prompt diverges
+from the tracker, flag it to Klas** rather than silently following either.
 **During:** track multi-step work with TodoWrite; mark todos completed only
 when verified; ask Klas before deviating from the planned step.
 **After each STEG (not only session end):** sync `docs/current-work.md`,
 `docs/steg-tracker.md`, and a session log — as separate logical commits **in
-the same PR as the scope** (ADR 0065; never a docs-only PR).
+the same PR as the scope** (ADR 0065; never a docs-only PR) — and **proactively
+anchor where we are in the roadmap and what the next step is per the tracker**
+(don't wait for Klas to ask).
 **Session end only:** generate the next-session start prompt per
 `docs/runbooks/session-start-template.md` (4 sections, copy-paste block in
 chat, never a repo file).

@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.SavedJobAds.Commands.SaveJobAd;
 using Jobbliggaren.Application.SavedJobAds.Commands.UnsaveJobAd;
 using Jobbliggaren.Application.SavedJobAds.Queries.ListSavedJobAds;
@@ -24,7 +25,7 @@ public static class SavedJobAdsEndpoints
         {
             var result = await mediator.Send(new ListSavedJobAdsQuery(), ct);
             return Results.Ok(result);
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         group.MapPost("/{jobAdId:guid}", async (
             Guid jobAdId, IMediator mediator, CancellationToken ct) =>
@@ -36,7 +37,7 @@ public static class SavedJobAdsEndpoints
                     detail: result.Error.Message,
                     title: result.Error.Code,
                     statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
         group.MapDelete("/{jobAdId:guid}", async (
             Guid jobAdId, IMediator mediator, CancellationToken ct) =>
@@ -48,6 +49,6 @@ public static class SavedJobAdsEndpoints
                     detail: result.Error.Message,
                     title: result.Error.Code,
                     statusCode: 400);
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 }

@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobSeekers.Commands.SetPrimaryResume;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
@@ -26,7 +27,8 @@ public static class ResumesEndpoints
         {
             var result = await mediator.Send(new GetResumesQuery(page, pageSize), ct);
             return Results.Ok(result);
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {

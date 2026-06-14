@@ -1,4 +1,4 @@
-# ADR 0050 — Deployment-migration: full AWS-exit → Hetzner CAX31 + Vercel + Cloudflare
+# ADR 0050 — Deployment-migration: full AWS-exit → Hetzner CAX31 + Cloudflare
 
 **Status:** Accepted
 **Datum:** 2026-05-19 (Proposed); **Accepted 2026-06-08** (efter targeted amendment, se Livscykel-not + Amendment 2026-06-08)
@@ -65,11 +65,16 @@ enklare ops-yta och eliminerar AWS-SDK-beroenden på driftboxen.
 
 Hetzner Cloud **CAX31** (8 vCPU shared ARM Ampere Altra / 16 GB RAM / 160 GB
 NVMe / 20 TB trafik, ~€15,99/mån, EU-datacenter Falkenstein/Nuremberg/Helsinki,
-pris-verifierat 2026-06-08). En box kör hela backend-stacken i Docker Compose:
-.NET API + .NET Worker + PostgreSQL + Redis + Caddy (reverse proxy, auto-TLS).
-**Detta är den totala backend-compute-kostnaden — Postgres är co-tenant i
+pris-verifierat 2026-06-08). En box kör hela stacken (backend + frontend) i Docker Compose:
+.NET API + .NET Worker + PostgreSQL + Redis + Caddy (reverse proxy, auto-TLS) + Next.js (next start).
+**Detta är den totala compute-kostnaden — Postgres är co-tenant i
 container på boxen, ingen separat managed-DB-kostnad** (Ubicloud managed-PG
 ~$15/mån avvisad, se Alternativ).
+
+FE-tillägget (`next start`, ~0,5 GB under last) ryms inom CAX31:s 16 GB headroom; den
+dimensionerande vektorn förblir ingestion-OOM (Worker-minnesprofil), inte FE steady-state.
+**Bindande regel: `next build` körs i CI — enbart den byggda imagen skickas till boxen;
+build-peaken (~2–4 GB) belastar aldrig boxens RAM-feldomän.**
 
 **Sizing-motivering (CAX31 över CX32/CAX21):** På en single-box samsas API +
 Worker + Postgres + Redis om samma RAM-feldomän (AWS isolerade RDS/Redis
@@ -89,11 +94,34 @@ Fas-4-PDF-gated och ej aktuell vid cutover. ~€9/mån merkostnad mot CX32 köpe
 bort den största single-box-risken (Nygard *Release It!* — Bulkheads/Steady
 State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 
-### Beslut 3 — Frontend: Vercel behålls
+### Beslut 3 — Frontend: co-tenant container på CAX31 (Vercel-exit)
 
-Next.js-frontend kvar på Vercel (EU). Ingen ändring — Vercel free/Pro-nivå
-bär frontend; ingen anledning att flytta in den på VPS-boxen och därmed öka
-dess RAM-/ops-börda.
+> **Amenderad 2026-06-14 (Klas-direktiv):** ursprungsbeslutet **"Vercel behålls"**
+> är supersederat — Next.js-frontend flyttar in som `next start`-container i samma
+> Compose-stack bakom Caddy på CAX31.
+>
+> **Ursprungligt Beslut 3 (supersederat):** *"Next.js-frontend kvar på Vercel (EU). Ingen
+> ändring — Vercel free/Pro-nivå bär frontend; ingen anledning att flytta in den på
+> VPS-boxen och därmed öka dess RAM-/ops-börda."*
+>
+> **Varför supersederat:** Det ursprungliga argumentet (RAM-/ops-börda → behåll FE off
+> the box) vägde aldrig jurisdiktions-/konsolideringsvinsten. FE:s verkliga fotavtryck
+> (~0,5 GB under last) ryms komfortabelt inom CAX31:s headroom (se Beslut 2,
+> FE-sizing-meningen). Vercel är ett US-bolag — att behålla applikationshosting hos
+> en US-leverantör skapar en inkonsekvens med Beslut 4:s avvisning av Cloudflare R2
+> (CLOUD Act / Schrems II / GDPR Kap. V). Den distinktionen görs nu fullt konsekvent:
+> **Cloudflare behålls = edge-only** (TLS/DNS/proxy/DDoS — ingen applikationshosting,
+> inget data-at-rest hos ett US-bolag; bara edge-transit passerar ett US-bolag);
+> **Vercel lämnar = applikations-tier + data-at-rest blir EU-resident** (Hetzner-EU),
+> enbart edge-transit kvarstår hos ett US-bolag. Detta är en strikt konsekvensstärkning
+> av samma Schrems II / Kap. V-logik som motiverade R2-avvisningen — inte en
+> komplikation.
+>
+> **Sizing re-validerad (dotnet-architect, 2026-06-14):** CAX31 (16 GB) håller med
+> ~8 GB headroom även i worst-case-samvaro (ingestion-spik + SSR-last), **förutsatt**
+> att `next build` körs i CI och enbart den byggda imagen skickas till boxen —
+> build-peaken (~2–4 GB) får aldrig belasta boxens RAM-feldomän. **Build-in-CI är den
+> bindande regeln.**
 
 ### Beslut 4 — Cloudflare-proxy + Hetzner-EU-backup-offload
 
@@ -108,7 +136,9 @@ dess RAM-/ops-börda.
 Cloudflare gratis-tier framför boxen (TLS-edge/DNS/CDN/DDoS) — **Cloudflare-proxy
 "Full (strict)"** mot ett giltigt origin-cert på Caddy (aldrig "Flexible" =
 klartext på sista benet) + origin-IP-lockdown (origin accepterar bara
-Cloudflare-IP:er på 443) + HSTS.
+Cloudflare-IP:er på 443) + HSTS. Caddy reverse-proxiar nu **både** API:et (`/api/*`)
+och Next.js-servern (`localhost:3000`, övriga routes); origin-cert + origin-IP-lockdown
+("Full (strict)") är oförändrade och täcker hela origin.
 
 Nattlig `pg_dump` → **Hetzner-EU Storage Box** (~€3,20/mån/1 TB,
 samma EU-jurisdiktion som boxen) — backups ligger INTE på boxens 160 GB (håller
@@ -124,20 +154,24 @@ byggas). Detaljerna = **TD-107**.
 ### Positiva
 
 - Återkommande kostnad ~€16/mån (CAX31, inkl. co-tenant-DB) + ~€3/mån EU-backup
-  ≈ ~€19/mån totalt, vs ~$45+/mån AWS-trajektoria — **~80% reduktion**, materiell
+  ≈ **~€19/mån totalt**, vs ~$45+/mån AWS-trajektoria — **~80% reduktion**, materiell
   på studentbudget. (Amenderat 2026-06-08: ursprungstexten angav ~€6,80 för CX32.)
+  Vercel var på free/Pro-nivå och utgör ingen €-post i ADR:ns totalkostnad — FE
+  flyttar in på den redan betalda CAX31, ingen ny återkommande compute-kostnad tillkommer.
 - Ren ops-yta: en box, Docker Compose, inga moln-SDK-/IAM-tethers.
 - Eliminerar AWS-SDK-beroenden i kodbasen (jfr ADR 0051 — `AWSSDK.BedrockRuntime`
   byggs aldrig).
+- En färre extern subprocessor och US-bolags-beroende (Vercel-exit).
 - ADR 0005:s kostnadsskydds-apparat (Budget Actions, Bedrock-deny,
   registrations_open-gating) blir **i stort sett moot post-migration** —
   relevans-skifte, ej supersession (ADR 0005-text orörd; flaggas i Block 4).
 
 ### Negativa
 
-- **Singel-box blast-radius:** API/Worker/Postgres/Redis delar OS, RAM och
+- **Singel-box blast-radius:** API/Worker/Postgres/Redis/Next.js (next start) delar OS, RAM och
   feldomän. En OOM eller box-incident tar hela produkten, inte en isolerad
-  container (kontrast mot AWS managed-isolering).
+  container (kontrast mot AWS managed-isolering). Next.js-tillägget är ett
+  medvetet utökat SPOF-val, kompenserat av CAX31:s headroom och build-in-CI-regeln.
 - Självhanterad Postgres + Redis + backups: ingen managed RDS-HA, ingen
   point-in-time-restore out-of-the-box, patch-/vacuum-/WAL-ansvar på Klas.
 - Ops-börda flyttas från AWS-managed till Klas-manuell (Docker Compose-deploy,
@@ -261,6 +295,17 @@ denna amendment re-validerar mot nuläget och flippar Proposed→Accepted.
 4. **Rollback-story:** "behåll AWS körande"-modellen ersatt (AWS rivet) med
    lokal-Compose-paritets-baseline.
 
+### Amendment 2026-06-14 — Vercel-exit, FE co-tenant på CAX31
+
+5. **Beslut 3 (Vercel-exit):** ursprungsbeslutet "Vercel behålls" supersederat — FE
+   flyttar in som `next start`-container i Compose-stacken bakom Caddy. Titel uppdaterad
+   (+ Vercel borttaget). CLOUD Act-konsekvensstärkning: Cloudflare kvarstår som edge-only
+   (ingen applikationshosting, inget data-at-rest), Vercel lämnar (applikations-tier +
+   data-at-rest EU-resident). Caddy reverse-proxiar nu hela origin (API + Next.js).
+   Beslut 2-prosan generaliserad till "hela stacken (backend + frontend)";
+   TD-106-scope utvidgad till FE-container + Caddy-FE-route + CI FE-build-steg.
+   Beslutsfattare: Klas Olsson (direktiv 2026-06-14); sizing re-validerad av dotnet-architect.
+
 ### mem_limit-mekanik (konsekvens-not till Beslut 2)
 
 Compose-stacken sätter **hybrid `mem_limit`**: hård cap på Worker + Redis (skydda
@@ -269,6 +314,11 @@ Postgres mot Worker-ingestion-OOM), generös/osatt cap på Postgres
 (Nygard *Release It!*): cappa angriparen (Worker-burst, Hangfire-Postgres-storage
 → dödad spik retryas durabelt), inte offret (PG). CAX31:s 16 GB upplöser det
 nollsummespel detta vore på 8 GB. Mekanik-detaljer = TD-106.
+
+**TD-106 scope-utvidgning (Beslut 3-amendment 2026-06-14):** TD-106:s Compose-stack-scope
+vidgas till att inkludera FE-containern (`next start`, healthcheck, `mem_limit`),
+Caddy-FE-routen (`localhost:3000`-proxying), samt ett CI FE-build-steg
+(`next build` → image) som bindande pre-requisite för deployment till boxen.
 
 ### Pre-beta-data-gates (security-auditor 2026-06-08 — MÅSTE grönt före första real-PII)
 

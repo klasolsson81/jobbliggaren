@@ -21,6 +21,14 @@
          (ingen ASP.NET-koppling) → säkert i Infrastructure som Worker refererar utan
          att bryta WorkerLayerTests ASP.NET-fri-invariant (ADR 0023). -->
     <PackageReference Include="Seq.Extensions.Logging" />
+    <!-- Fas 4 STEG 2 (F4-2) — lokal svensk NLP-tier (ADR 0074, BUILD §3.1/§8.6).
+         Deterministisk: ingen AI/LLM. Versioner pinnade i Directory.Packages.props
+         (F4-0). libstemmer.net = Snowball-stemmer (PG to_tsvector('swedish')-paritet);
+         WeCantSpell.Hunspell = stavning via sv_SE DSSO-ordlistan (separat Content-fil,
+         ej inbäddad — LGPL-3.0-separation, BUILD §3.1). Körs JIT i container (ej AOT).
+         Catalyst medvetet UTE (OQ1). -->
+    <PackageReference Include="libstemmer.net" />
+    <PackageReference Include="WeCantSpell.Hunspell" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -48,6 +56,26 @@
     <EmbeddedResource Include="Persistence\Migrations\Resources\occupation-name-to-ssyk-level-4.v30.json">
       <LogicalName>Jobbliggaren.Infrastructure.Persistence.Migrations.Resources.occupation-name-to-ssyk-level-4.v30.json</LogicalName>
     </EmbeddedResource>
+    <!-- Fas 4 STEG 2 (F4-2) — PostgreSQL 18.3's Swedish stopword list, embedded
+         BYTE-IDENTICAL so SwedishTextAnalyzer drops exactly what to_tsvector('swedish')
+         drops (stopword parity, ADR 0074). BSD-3-Clause Snowball data (permissive →
+         embedding is fine, unlike the LGPL-3.0 DSSO dictionary which ships as Content). -->
+    <EmbeddedResource Include="TextAnalysis\swedish.stop">
+      <LogicalName>Jobbliggaren.Infrastructure.TextAnalysis.swedish.stop</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fas 4 STEG 2 (F4-2) — sv_SE DSSO Hunspell dictionary (LGPL-3.0). Shipped as a
+         SEPARATE, UNMODIFIED data file (Content, copied to output) — deliberately NOT
+         an <EmbeddedResource> so the LGPL-3.0 copyleft-separation argument holds
+         (BUILD §3.1: "oförändrad, separat datafil … ej inbäddad som resurs"; Klas +
+         security-auditor 2026-06-14). Source: wooorm/dictionaries 'sv' (generated from
+         the LibreOffice "Den stora svenska ordlistan" / DSSO), UTF-8, verbatim. Loaded
+         lazily at runtime via AppContext.BaseDirectory. CopyToOutputDirectory flows to
+         the Api/Worker hosts (and test projects). THIRD-PARTY-NOTICES carries the LGPL. -->
+    <Content Include="TextAnalysis\sv_SE.dic" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="TextAnalysis\sv_SE.aff" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

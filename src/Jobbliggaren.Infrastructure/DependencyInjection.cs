@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddInvitationsAndEmail(configuration, environment);
         services.AddJobSources(configuration);
         services.AddLandingStats();
+        services.AddTextAnalysis();
         return services;
     }
 
@@ -227,6 +228,60 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats.RefreshLandingStatsJob>();
         return services;
+    }
+
+    /// <summary>
+    /// Fas 4 STEG 2 (F4-2, ADR 0074) — registers the shared local Swedish NLP
+    /// tier: <see cref="TextAnalysis.SnowballSwedishStemmer"/> (Snowball stemmer,
+    /// to_tsvector('swedish') parity), <see cref="TextAnalysis.SwedishTextAnalyzer"/>
+    /// (lowercase → tokenise → stopword-filter → stem), and
+    /// <see cref="TextAnalysis.HunspellSwedishSpellChecker"/> (sv_SE DSSO).
+    /// Standalone module called by BOTH hosts (Api via <see cref="AddInfrastructure"/>,
+    /// Worker via <c>Program.cs</c>), mirroring <see cref="AddLandingStats"/> — NLP
+    /// has no persistence coupling, so it does not belong in <see cref="AddPersistence"/>.
+    /// All three impls are thread-safe singletons; the Hunspell WordList loads lazily
+    /// on first use. The packages are plain BCL (no ASP.NET) so the Worker's
+    /// HTTP-free invariant (ADR 0023) is preserved.
+    ///
+    /// <para>
+    /// A startup existence-check fails fast at composition if the DSSO Content files
+    /// did not reach the output directory — preventing a fail-late on the first
+    /// spell-check in production (CTO binding condition, ADR 0074 review).
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddTextAnalysis(this IServiceCollection services)
+    {
+        EnsureDssoDictionaryPresent();
+
+        services.AddSingleton<
+            Jobbliggaren.Application.Common.Abstractions.TextAnalysis.IStemmer,
+            TextAnalysis.SnowballSwedishStemmer>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ITextAnalyzer,
+            TextAnalysis.SwedishTextAnalyzer>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ISpellChecker,
+            TextAnalysis.HunspellSwedishSpellChecker>();
+        return services;
+    }
+
+    private static void EnsureDssoDictionaryPresent()
+    {
+        foreach (var path in new[]
+        {
+            TextAnalysis.HunspellSwedishSpellChecker.DictionaryPath,
+            TextAnalysis.HunspellSwedishSpellChecker.AffixPath,
+        })
+        {
+            if (!File.Exists(path))
+            {
+                throw new InvalidOperationException(
+                    $"sv_SE DSSO dictionary file missing: {path}. It ships as a Content " +
+                    "file (CopyToOutputDirectory) from Jobbliggaren.Infrastructure (BUILD " +
+                    "§3.1, LGPL-3.0 separate unmodified file). Verify the <Content> items " +
+                    "in Jobbliggaren.Infrastructure.csproj reached the output directory.");
+            }
+        }
     }
 
     // Process-wide rate-limiter för JobStream (1 req/min). FixedWindow är rätt val

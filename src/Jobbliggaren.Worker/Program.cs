@@ -105,6 +105,12 @@ builder.Services.AddStackExchangeRedisCache(opts =>
 });
 builder.Services.AddLandingStats();
 
+// Fas 4 STEG 2 (F4-2) — delad lokal svensk NLP-tier (stemmer/analyzer/spell-check).
+// Standalone-modul (speglar AddLandingStats); BCL-only paket → bryter ej Worker:s
+// HTTP-fria invariant (ADR 0023). Worker konsumerar den i CV-/matchnings-motorerna
+// (F4-4 och framåt). Startup-existens-check på DSSO-filerna körs här.
+builder.Services.AddTextAnalysis();
+
 builder.Services.AddApplication();
 
 // Worker-stubs av audit-portarna (per ADR 0022 + ADR 0023 / STEG 9).

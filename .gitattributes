@@ -1,0 +1,12 @@
+# Fas 4 STEG 2 (F4-2) — local Swedish NLP-tier data assets.
+#
+# The sv_SE DSSO Hunspell dictionary is an UNMODIFIED LGPL-3.0 data file shipped
+# verbatim (BUILD §3.1 copyleft separation). swedish.stop is embedded
+# byte-identical to PostgreSQL 18.3's swedish.stop (stopword parity, ADR 0074).
+# The repo default is core.autocrlf=true; these files MUST keep their exact LF
+# bytes through commit/checkout, or the SHA-256 integrity pin in
+# DssoDictionaryIntegrityTests breaks and the "unmodified" guarantee is voided.
+# -text disables all end-of-line conversion for them.
+*.dic -text
+*.aff -text
+src/Jobbliggaren.Infrastructure/TextAnalysis/swedish.stop -text

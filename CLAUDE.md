@@ -120,7 +120,7 @@ boundary (map explicitly) · `DateTime.Now/UtcNow` (inject `IDateTimeProvider`)
 · magic strings (use constants/enums/SmartEnums) · generic `*Service` names
 (name by what the class does) · primitive obsession (make value objects) ·
 stateful static helpers · `dynamic` · catch-all try/catch without action ·
-logging sensitive data in plaintext (CV content, prompts with PII, OAuth
+logging sensitive data in plaintext (CV content, parsed CV text, OAuth
 tokens) · hardcoded config (use `IOptions<T>` + gitignored
 `appsettings.Local.json` locally / managed secrets in ops) · sync I/O in the
 request pipeline · unpaginated list fetches · `SELECT *` via EF (project to
@@ -134,16 +134,23 @@ glassmorphism — **sole exception:** the hero plate's dark-green gradient
 · `localStorage` for sensitive data · hardcoded UI strings (use `next-intl` +
 `messages/sv.json`) · direct DOM manipulation.
 
-**AI layer:** prompts as strings in C# (always `/prompts/<name>.prompt.md`) ·
-hardcoded model names (config only) · AI ops without token tracking ·
-AI output rendered as HTML unsanitized · system key used for BYOK users ·
-BYOK keys logged or shown (fingerprint only) · user data to external inference
-without explicit opt-in (Anthropic Direct = US; opt-in per ADR 0051, never a
-silent default).
+**CV & matching engines (deterministic, no AI/LLM — ADR 0071):** any
+LLM/AI inference call in the product (no `IAiProvider`, no Anthropic/BYOK/credit
+system — ADR 0051 superseded) · hardcoded rubric thresholds, cliché lists, or
+action-verb lists in C# (versioned data/config per the knowledge bank, not
+inline strings) · a CV verdict without cited textual evidence (every
+PASS/WARN/FAIL cites the CV span; reduced-precision criteria are marked "not
+assessed v1", never mis-reported) · applying a CV change without an explicit
+propose-and-approve diff (a rule engine never rewrites silently) · synthesising
+prose the user did not write (determinism diagnoses and structures, never
+invents qualifications) · personnummer echoed to logs or surfaced un-flagged
+(the personnummer guard is highest-priority) · a match score as an opaque number
+(matched/missing keywords are always surfaced — explainable by design) · SSYK
+derivation without user confirmation (taxonomy lookup + confirm, ADR 0040).
 
 **Security:** secrets in committed `appsettings.json` or plaintext env —
 gitignored `appsettings.Local.json` locally, managed secrets store in ops;
-PII/BYOK via DEK envelope (`IDataKeyProvider`, ADR 0066/0049) · JWT in
+PII via DEK envelope (`IDataKeyProvider`, ADR 0066/0049) · JWT in
 localStorage · CORS `*` or broad credentials · raw SQL via concatenation
 (parameterize) · impersonation without an audit event · `User.Identity.Name`
 for authorization (use policies via `[Authorize(Policy = ...)]`).

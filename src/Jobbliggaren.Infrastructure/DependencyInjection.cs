@@ -144,6 +144,17 @@ public static class DependencyInjection
         services.AddHostedService<
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomySnapshotSeeder>();
 
+        // Fas 4 STEG 3 (F4-3, ADR 0040 amendment + ADR 0074) — deterministic SSYK
+        // level-4 derivation (yrkestitel → ssyk-4 yrkesgrupp; engine proposes, user
+        // confirms — ADR 0040 Beslut 4). Singleton with a lazy derivation cache
+        // (occupation-name index + label lexemes + the committed frozen
+        // occupation-name→ssyk-4 map), mirroring ITaxonomyReadModel; consumes
+        // ITaxonomyReadModel (GetTreeAsync) + ITextAnalyzer (AddTextAnalysis). DI in
+        // the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Abstractions.IOccupationCodeDeriver,
+            Jobbliggaren.Infrastructure.Taxonomy.OccupationCodeDeriver>();
+
         // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
         // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).

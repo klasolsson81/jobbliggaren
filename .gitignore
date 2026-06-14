@@ -79,7 +79,7 @@ infra/terraform/**/*.out
 
 # ── Docs-privacy: curated publik fasad (ADR 0072) ──────────────────────────
 # Operativ/strategisk dokumentation hålls lokalt, ej i publika repot.
-# Borttagning sker HEAD-only (git rm --cached) — historik ej rensad ännu.
+# Borttagning gjord via history-purge (git filter-repo, ADR 0072). Lokala kopior hålls ignorerade.
 docs/sessions/
 docs/research/
 docs/design/
@@ -91,7 +91,6 @@ docs/current-work-archive.md
 docs/steg-tracker.md
 docs/tech-debt.md
 docs/tech-debt-archive.md
-BUILD.md
 # Strategi-avslöjande ADR:er (go-to-market + interna riktningsbeslut)
 docs/decisions/0005-go-to-market-strategy.md
 docs/decisions/0071-*.md

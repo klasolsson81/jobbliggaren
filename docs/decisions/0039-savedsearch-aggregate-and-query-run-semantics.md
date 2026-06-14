@@ -3,7 +3,7 @@
 **Datum:** 2026-05-16
 **Status:** Accepted 2026-05-16 (Klas-GO 2026-05-16; senior-cto-advisor-beslut 2026-05-16, dotnet-architect-design samma datum) — *Beslut 3 delvis superseded 2026-05-16 av ADR 0042 (Ssyk/Region single→multi; SortBy-i-VO hålls)*
 **Beslutsfattare:** Klas Olsson
-**Relaterad:** ADR 0005 (go-to-market — JobAd/sök auth-gated, JobSeeker-scoped), ADR 0009 (ingen Repository — direkt `IAppDbContext`), ADR 0011 (strongly-typed IDs), ADR 0032 (JobTech-integration — `ListJobAds` ssyk/region/q-yta som `SearchCriteria` speglar), ADR 0049 (Accepted — TD-13 PII-fält-kryptering: Beslut 3 bevarar denna ADR:s `JobAdSearch`-taxonomi-SPOT orörd genom medveten `raw_payload`-exklusion), CLAUDE.md §2.3 (CQRS), §9.6 (in-block vs TD/fas-regeln), BUILD.md §5.1/§9.x/§16/§18 (Fas 2-milstolpe)
+**Relaterad:** JobAd/sök auth-gated, JobSeeker-scoped (Fas 2), ADR 0009 (ingen Repository — direkt `IAppDbContext`), ADR 0011 (strongly-typed IDs), ADR 0032 (JobTech-integration — `ListJobAds` ssyk/region/q-yta som `SearchCriteria` speglar), ADR 0049 (Accepted — TD-13 PII-fält-kryptering: Beslut 3 bevarar denna ADR:s `JobAdSearch`-taxonomi-SPOT orörd genom medveten `raw_payload`-exklusion), CLAUDE.md §2.3 (CQRS), §9.6 (in-block vs TD/fas-regeln), BUILD.md §5.1/§9.x/§16/§18 (Fas 2-milstolpe)
 
 ---
 

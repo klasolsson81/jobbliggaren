@@ -1,0 +1,11 @@
+# gitleaks config — extends the default ruleset (does NOT replace it).
+[extend]
+useDefault = true
+
+# False positive: hardcoded integration-test password (not a real secret).
+# Global allowlist keyed on the secret VALUE (SHA-independent) so it survives
+# history rewrites and the JobbPilot→Jobbliggaren rename. This supersedes the
+# SHA-keyed .gitleaksignore (whose fingerprints break on every history rewrite).
+[[allowlists]]
+description = "Integration-test password T3stlosen123456 — not a real secret"
+regexes = ['''T3stlosen123456''']

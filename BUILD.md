@@ -30,6 +30,10 @@
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
 | PDF generation | QuestPDF | 2026.2.x | Community MIT free under USD 1M revenue; `QuestPDF.Settings.License = LicenseType.Community` i startup |
 | DOCX generation | DocumentFormat.OpenXml | 3.x | Template-baserad |
+| NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket |
+| Stemmer (svenska) | libstemmer.net | 2.2.x | MIT-wrapper; Snowball-kärna BSD-3-Clause; svensk Snowball-stemmer |
+| Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
+| Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
@@ -54,12 +58,48 @@
 > ingår inte — produkten har ingen AI/LLM. PdfPig / DocumentFormat.OpenXml /
 > QuestPDF (ovan) täcker PDF/DOCX/render-tiern.
 >
-> **Pending §3.1-tillägg (lokal NLP, ej inlåst):** ADR 0071 Beslut 6 flaggar
-> Catalyst (MIT), libstemmer.net (BSD), WeCantSpell.Hunspell (MIT) + sv_SE
-> Hunspell-ordlista (LGPL-3.0, distribueras som **oförändrad separat datafil** —
-> ej statiskt länkad/inbäddad/modifierad, security-auditor-sign-off krävs). De
-> **låses ej in** i tabellen förrän dotnet-architect/CTO-GO + Klas
-> spec-edit-approve (Fas 4-design, Last Responsible Moment).
+> **Lokal NLP-tier (Fas 4, ADR 0071 Beslut 6) — INLÅST 2026-06-14.** Catalyst
+> (+ Catalyst.Models.Swedish), libstemmer.net och WeCantSpell.Hunspell driver den
+> deterministiska CV-/matchnings-motorns lokala NLP (tokenisering, svensk
+> stemming/lemmatisering, POS-taggning, stavning — ~26 % av kunskapsbankens
+> kriterier per ADR 0071). Ingen AI/LLM; all NLP körs lokalt på VPS:en.
+> Stemming (libstemmer/Snowball) och lemmatisering (Catalyst) är komplementära;
+> den slutliga stemming-vägen för title/keyword-overlap avgörs vid Fas 4-design
+> (ADR 0071 Open question 1) — båda inlåsta som beroende-kandidater, ej bindande
+> att båda används i v1.
+>
+> **AOT-/VPS-notis (Fas 4-design).** Catalyst laddar svenska modeller via
+> `Register()` + `DiskStorage` + MessagePack binär-deserialisering (runtime
+> typupplösning) → NLP-tiern är **inte verifierat Native-AOT/trimming-säker**; kör
+> JIT i container (ADR 0050, default). Mediator-AOT-kompatibiliteten (ovan) gäller
+> CQRS-pipelinen, inte NLP-tiern. Modellerna laddas dessutom residenta i
+> Worker-processen → cold-start-latens + statiskt minnesfotavtryck på CAX31
+> (16 GB co-tenant, ADR 0050); mät mot ADR 0045 Worker-minnesbudget vid Fas 4 och
+> överväg lazy-init (ladda vid första CV-operation, ej vid boot).
+>
+> **Copyleft-separation (security-auditor-sign-off 2026-06-14).** Jobbliggaren
+> distribueras **inte** som binär — produkten kör server-side på VPS:en (ADR 0050)
+> och konsumenten interagerar enbart över HTTP. MPL 1.1-, LGPL 2.1- och
+> LGPL-3.0-copyleft utlöses av *distribution* ("Distribute"/"convey"); ingen av
+> licenserna är AGPL (ingen network-use-klausul). Eftersom ingen binär lämnar
+> VPS:en utlöses ingen copyleft-förpliktelse på produktkoden. Som extra marginal
+> konsumeras de två copyleft-artefakterna ändå som **oförändrade, separerbara**
+> enheter:
+> 1. **WeCantSpell.Hunspell** ärver Hunspells **tri-licens MPL 1.1 / GPL 2.0 /
+>    LGPL 2.1** (ADR 0071 Beslut 6:s "MIT" var ett faktafel — korrigerat här efter
+>    licensverifiering 2026-06-14). Vi väljer **MPL 1.1** (file-level weak
+>    copyleft: förpliktelser fäster bara på de licensierade *källfilerna*, aldrig
+>    på vår egen kod i våra egna filer); LGPL 2.1 som fallback. Vi väljer **aldrig
+>    GPL 2.0**. Villkor: den publicerade NuGet-binären får ej modifieras och ingen
+>    produktkod får läggas in i eller härledas från de licensierade filerna.
+> 2. **sv_SE Hunspell-ordlista (DSSO)** är **LGPL-3.0**. Den konsumeras som en
+>    **oförändrad, separat datafil** (ej kompilerad in, ej inbäddad som resurs, ej
+>    modifierad) → LGPL-copyleft sträcker sig inte till applikationen.
+>
+> **Notice-förpliktelse vid distribution (Fas 4 build-time):** MIT (Catalyst,
+> libstemmer.net-wrapper), BSD-3-Clause (Snowball-kärnan), MPL 1.1 och LGPL-texten
+> kräver att respektive licens-/copyright-notis medföljer deploy-artefakten —
+> samla i `THIRD-PARTY-NOTICES`. Permissiva licenser är inte notis-fria.
 
 ### 3.2 Infrastruktur
 

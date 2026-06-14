@@ -1,8 +1,8 @@
 # Jobbliggaren
 
 > **Svensk jobbansökningshanterare byggd som civic utility — och ett portfolio-bevis på agent-orkestrerad ingenjörsdisciplin.**
-> Platsbanken-integration, AI-assisterad CV/brev-skräddarsydning, end-to-end pipeline-tracker.
-> Clean Architecture med maskinellt verifierade lager-gränser, EU-data-residens, GDPR-säker, Bring-Your-Own-Key för AI.
+> Platsbanken-integration, deterministisk CV-granskning och matchningsmotor, end-to-end pipeline-tracker.
+> Clean Architecture med maskinellt verifierade lager-gränser, dataminimering och fält-kryptering, GDPR-säker by default.
 
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![C#](https://img.shields.io/badge/C%23-14-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
@@ -12,11 +12,11 @@
 [![Dev](https://img.shields.io/badge/dev-lokal%20stack%20(Docker%20Compose)-2C3E50)](docs/decisions/0066-aws-dev-stack-teardown-semester-pause.md)
 [![Arkitektur](https://img.shields.io/badge/arkitektur-Clean%20%2B%20DDD-2C3E50)](docs/decisions/0001-clean-architecture.md)
 [![Tester](https://img.shields.io/badge/backend-1%20100%2B%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
-[![Vitest](https://img.shields.io/badge/vitest-686%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
+[![Vitest](https://img.shields.io/badge/vitest-grön-success)](docs/decisions/0044-test-coverage-policy.md)
 [![Coverage](https://img.shields.io/badge/first--party%20line-92,1%25-success)](docs/decisions/0044-test-coverage-policy.md)
-[![ADR](https://img.shields.io/badge/ADR-66%20beslut-informational)](docs/decisions/README.md)
-[![Status](https://img.shields.io/badge/fas-3%20klar%20·%204%20GDPR--gated-blue)](docs/steg-tracker.md)
-[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#licens)
+[![ADR](https://img.shields.io/badge/ADR-arkitekturbeslut-informational)](docs/decisions/README.md)
+[![Status](https://img.shields.io/badge/status-pre--MVP%20·%20work%20in%20progress-blue)](#status)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey)](LICENSE)
 
 ---
 
@@ -36,7 +36,7 @@
 - [Vanliga kommandon](#vanliga-kommandon)
 - [Miljöer](#miljöer)
 - [Säkerhet och GDPR](#säkerhet-och-gdpr)
-- [Status och roadmap](#status-och-roadmap)
+- [Status](#status)
 - [Dokumentation](#dokumentation)
 - [Författare](#författare)
 - [Licens](#licens)
@@ -45,20 +45,12 @@
 
 ## Vad är Jobbliggaren
 
-Jobbliggaren är en komplett jobbsök- och ansökningshanterare för den svenska arbetsmarknaden. Appen kombinerar JobTech/Platsbanken-integration med modern AI-assistans men positioneras medvetet som en *civic utility* — ett verktyg som signalerar tillit och pålitlighet snarare än hajp.
+Jobbliggaren är en jobbsök- och ansökningshanterare för den svenska arbetsmarknaden. Appen kombinerar JobTech/Platsbanken-integration med deterministiska, förklarbara motorer för CV-granskning och jobbmatchning — medvetet positionerad som en *civic utility*, ett verktyg som signalerar tillit och pålitlighet snarare än hajp.
 
-Målet är att stressade jobbsökare får ett verktyg som känns som en förlängning av svensk offentlig digital service (1177, Försäkringskassan, Digg) snarare än ett av hundra AI-produkter som alla ser likadana ut. Den medvetna icke-differentieringen är ett designval, inte en brist på ambition.
+Målet är att stressade jobbsökare får ett verktyg som känns som en förlängning av svensk offentlig digital service (1177, Försäkringskassan, Digg) snarare än ett av hundra produkter som alla ser likadana ut. Den medvetna icke-differentieringen är ett designval, inte en brist på ambition.
 
 > [!NOTE]
-> Detta repo är publikt för portfölj-syfte. Det är ett **pågående arbete** — Fas 0–3 är levererade, Fas 4 (AI-lager) är GDPR-gated bakom [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md) och fem icke-förhandlingsbara villkor. Pre-Fas-4-arbete pågår parallellt i `/oversikt`, `/sparade`, landing live-stats, closed-beta-väntelista m.m. (se [Status och roadmap](#status-och-roadmap)). README beskriver det faktiska tillståndet, inte ett mål-tillstånd.
-
-### Målgrupp
-
-| Tier | Användare |
-|------|-----------|
-| **v1 (primär)** | Aktiva jobbsökare i Sverige — initial kohort: produktägaren + ~20 klasskamrater på NBI/Handelsakademin |
-| **v2** | Bredare svensk arbetsmarknad — tjänstemän, utvecklare, kunskapsarbetare. Freemium. |
-| **framtid** | Internationella användare via `IJobSource`-adapters för NAV (Norge), Arbejdsformidlingen (Danmark), EURES (EU) |
+> Detta repo är publikt synligt för portfölj-syfte. Det är ett **pågående arbete** i pre-MVP-fas — kärn-domänen, Platsbanken-integrationen och ansökningshanteringen är på plats; CV-motorn och matchningsmotorn är under uppbyggnad. README beskriver det faktiska tillståndet, inte ett mål-tillstånd.
 
 ---
 
@@ -66,13 +58,13 @@ Målet är att stressade jobbsökare får ett verktyg som känns som en förlän
 
 Jag har byggt Jobbliggaren med **Claude Code som primär utvecklingspartner** i en agent-orkestrerad modell — inte "AI som autocompletear", utan en governance-struktur där specialiserade review-agenter har veto-rätt, en CTO-agent är decision-maker vid arkitektur-tradeoffs, och varje arkitekturbeslut historieförs som en immutable ADR. Modellen är dokumenterad i sin helhet i [`CLAUDE.md §9`](CLAUDE.md) och verifierbar mot katalogen [`.claude/`](.claude/).
 
-Positionen jag tränar i detta projekt: **AI-Augmented Fullstack Engineer med fokus på agent-orkestrering** över .NET, React och TypeScript. Differentiatorn är inte att AI används — det gör många. Differentiatorn är att utvecklingsflödet har *granskningsspärrar, beslutsdisciplin och spårbarhet* som håller för en kodgranskning på Mastercard-nivå. Resten av denna README är evidensen för det påståendet.
+Positionen jag tränar i detta projekt: **AI-Augmented Fullstack Engineer med fokus på agent-orkestrering** över .NET, React och TypeScript. Differentiatorn är inte att AI används i utvecklingsflödet — det gör många. Differentiatorn är att flödet har *granskningsspärrar, beslutsdisciplin och spårbarhet* som håller för en kodgranskning på Mastercard-nivå. Resten av denna README är evidensen för det påståendet.
 
 ---
 
 ## Agent-orkestrering
 
-Jobbliggaren kör **direct-push till `main` utan PR-flöde** ([ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md)). Granskningsvärdet ett PR-flöde ger ersätts inte av tillit — det ersätts av en orkestrerad agent-struktur med skrivna mandat. Roster verifierad i [`.claude/agents/`](.claude/agents/): **13 specialiserade agenter** med distinkta, icke-överlappande mandat.
+Jobbliggaren kör **PR-flöde mot skyddad `main` med CI-gate** ([ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md)). Granskningsvärdet förstärks av en orkestrerad agent-struktur med skrivna mandat. Roster verifierad i [`.claude/agents/`](.claude/agents/): specialiserade agenter med distinkta, icke-överlappande mandat.
 
 ```mermaid
 flowchart TB
@@ -80,7 +72,7 @@ flowchart TB
 
     CTO["senior-cto-advisor<br/>decision-maker (ej advisor)<br/>multi-approach-val · fynd-triage"]
 
-    subgraph Veto["Review-agenter — veto-rätt före commit"]
+    subgraph Veto["Review-agenter — veto-rätt före merge"]
         CR["code-reviewer<br/>Clean Arch / DDD / CQRS / coverage"]
         SA["security-auditor<br/>PII · auth · secrets · GDPR"]
         DR["design-reviewer<br/>civic-utility · WCAG 2.1 AA"]
@@ -95,7 +87,6 @@ flowchart TB
         TR["test-runner<br/>dotnet test · svensk summering"]
         DM["db-migration-writer<br/>EF Core-migrations · GDPR-schema"]
         UI["nextjs-ui-engineer<br/>RSC · shadcn · Tailwind 4"]
-        AP["ai-prompt-engineer<br/>Anthropic-prompts · token-budget"]
         PT["perf-test-writer<br/>NBomber · Lighthouse-CI"]
     end
 
@@ -109,19 +100,19 @@ flowchart TB
     CTO --> Advisor
     CTO --> Builders
     Klas --> Keepers
-    Veto -.->|blockerar commit| Klas
+    Veto -.->|blockerar merge| Klas
 ```
 
 ### Modellen i sex steg
 
 1. **Plan-design** — scope, sekvens, risker och alternativ designas i chat innan kod skrivs. Ingen kod utan plan.
-2. **STOPP-disciplin** — Claude Code stannar vid varje övergång. Inga `str_replace`, inga commits, ingen analys mellan STOPP och GO ([CLAUDE.md §6.3](CLAUDE.md)).
+2. **STOPP-disciplin** — Claude Code stannar vid varje övergång. Inga `str_replace`, inga commits, ingen analys mellan STOPP och GO ([CLAUDE.md §6](CLAUDE.md)).
 3. **Agent-veto** — `code-reviewer`, `security-auditor` och `design-reviewer` har **blockerande** veto vid relevant scope. En review-agents auktoritet är skriven regel (CLAUDE.md), inte konsensus eller deadline.
 4. **In-block-fix-disciplin** — fynd fixas i samma commit-batch som default. Teknisk skuld lyfts endast vid genuin fas- eller dependency-orsak ([CLAUDE.md §9.6](CLAUDE.md)) — TD-listan är inte ett dumpningsställe.
 5. **ADR-historik** — alla arkitekturbeslut är immutable ADRs. En ändring skapar en ny ADR som *superseder* den gamla, aldrig en tyst redigering ([docs/decisions/](docs/decisions/)).
-6. **Session-protokoll** — varje session börjar med `docs/current-work.md` + senaste session-logg + git-log-verifiering, och avslutas med synkroniserad docs-state ([CLAUDE.md §1.5](CLAUDE.md)).
+6. **Session-protokoll** — varje session börjar med state-verifiering + git-log-kontroll och avslutas med synkroniserad docs-state ([CLAUDE.md §1.5](CLAUDE.md)).
 
-Detta är governance-mognad — inte "jag använder AI". Chat-historiken (produktägare + webb-Claude) är den primära granskningstrailen; agent-rapporterna sparas i [`docs/reviews/`](docs/reviews/) och bifogas varje STOPP-rapport så att granskning sker parallellt.
+Detta är governance-mognad — inte "jag använder AI". Agent-rapporterna sparas i [`docs/reviews/`](docs/reviews/) och bifogas varje PR så att granskning sker parallellt.
 
 ---
 
@@ -208,9 +199,8 @@ ACL:n är formaliserad i [ADR 0043](docs/decisions/0043-taxonomy-acl-for-search-
 **Jobbliggaren är:**
 - Svensk-först (Platsbanken, SCB, svensk rekryteringskultur)
 - Kvalitet över volym — inga auto-apply-funktioner
-- AI-assisterad där det ger tydligt värde, aldrig "AI-genererat för syns skull"
-- GDPR-säker med dataminimering och fält-kryptering; AI-residens via Anthropic Direct opt-in (ADR 0051), permanent infra-region TBD (ADR 0050)
-- Öppen för Bring-Your-Own-Key (BYOK) för AI
+- Deterministisk och förklarbar — CV-granskning och matchning bygger på regler och taxonomi, inte en svart låda; varje utfall går att motivera
+- GDPR-säker med dataminimering och fält-kryptering; ingen tredjelandsöverföring av användardata
 
 **Jobbliggaren är inte:**
 - Ännu en ChatGPT-wrapper
@@ -222,15 +212,12 @@ ACL:n är formaliserad i [ADR 0043](docs/decisions/0043-taxonomy-acl-for-search-
 
 ## Funktioner
 
-Detaljerad scope finns i [`BUILD.md §2`](BUILD.md). Sammanfattning:
-
 ### Discovery
 
 - Hämta platsannonser från **JobTech JobSearch API** (Platsbanken)
 - Full-text-sökning och facetterad filtrering (region, yrke, SSYK, anställningsform, distans, datum)
 - Sparade sökningar med notifieringsinställning per sökning
-- **Taxonomi-baserad matchningsscore** (Fast mode) — gratis, beräknas för alla synliga annonser
-- **LLM-baserad matchningsscore** (Deep mode) — på begäran, kostar credits
+- **Taxonomi-baserad matchningsmotor** — beräknad, förklarbar score per annons (SSYK-overlap, titel-likhet, keyword-täckning, region/anställningsform); visar vilka kriterier som matchade och vilka som saknades
 - Lönestatistik-overlay per annons från **SCB**
 
 ### Application management
@@ -241,26 +228,22 @@ Detaljerad scope finns i [`BUILD.md §2`](BUILD.md). Sammanfattning:
 - Automatisk Ghosted-transition efter X dagar utan svar
 - Avslags-analys med trender över tid
 
-### AI-assistans
+### CV-motor (deterministisk)
 
-- **CV-parsing** från PDF/DOCX till strukturerad `ResumeContent` (PdfPig + OpenXml + Haiku LLM)
-- **Skräddarsytt CV** per annons (Sonnet) — original behålls, ny versioned `ResumeVersion` skapas
-- **AI-genererat personligt brev** (Sonnet) — på svenska, följer användarens skriv-DNA
-- **Anti-klyscha-detektor** (Haiku) — markerar "brinner för", "driven team-player" etc. med förslag
-- **Företagsresearch-brief** (Sonnet + web_search) — 1-pager med nyheter, teknik-stack, kulturell signal
+- **CV-granskning** — laddar upp PDF/DOCX; en regelmotor bedömer CV:t mot en versionerad svensk kvalitetsrubrik (mätbara resultat, handlingsverb, relevans mot målroll, struktur, ATS-parsbarhet, klyschor) och rapporterar per kriterium vad som är bra, vad som kan förbättras och vad som saknas — med citerad evidens ur texten
+- **CV-bygge** — färdiga mallar, egen färgpalett, ATS- eller visuell profil, svenska eller engelska; rendering av båda profiler från samma strukturerade källdata
+- **Deterministiska förbättringsförslag** — klyschdetektion, action-verb-förslag, struktur- och formatnormalisering, borttagning av personnummer/foto enligt svensk norm. Motorn **lägger aldrig till erfarenheter eller kunskaper användaren inte har** — den diagnostiserar och strukturerar, den hittar inte på
 
 ### Integrationer
 
-- Gmail-sync (OAuth) — auto-loggar ansökningssvar som Follow-Ups
 - Google Calendar (OAuth) — intervjuer som events
-- SCB lönestatistik — periodisk import per SSYK
 - iCal-export av intervjuer
+- SCB lönestatistik — periodisk import per SSYK
 
 ### Admin
 
 - Användarhantering, suspendering, mjukradering
 - **Impersonation** med audit-trail (`impersonating_by` claim, dubbel-taggning av handlingar)
-- Token-användning per användare med kostnad över tid
 - Audit-sökning och jobbkälla-statushälsa
 
 ---
@@ -289,7 +272,6 @@ flowchart TB
         JobTech["JobTech / Platsbanken"]
         SCB["SCB lönestatistik"]
         Gmail["Gmail / Calendar"]
-        Anthropic["Anthropic Direct API<br/>(system + BYOK, Fas 4, ADR 0051)"]
     end
 
     Browser -->|HTTPS| Api
@@ -297,7 +279,6 @@ flowchart TB
     Api -->|Sessions| Redis
     Api --> Seq
     Api --> DEK
-    Api -.->|Fas 4, opt-in| Anthropic
     Worker --> DB
     Worker --> JobTech
     Worker --> SCB
@@ -310,7 +291,7 @@ flowchart TB
 flowchart LR
     Api["Jobbliggaren.Api<br/>(composition root)"]
     Worker["Jobbliggaren.Worker<br/>(composition root)"]
-    Infra["Jobbliggaren.Infrastructure<br/>(EF Core, Anthropic, local crypto)"]
+    Infra["Jobbliggaren.Infrastructure<br/>(EF Core, local crypto)"]
     App["Jobbliggaren.Application<br/>(CQRS handlers, behaviors)"]
     Domain["Jobbliggaren.Domain<br/>(aggregates, VOs, events)"]
 
@@ -327,7 +308,7 @@ flowchart LR
 - `Application` definierar interfaces; `Infrastructure` implementerar
 - `Api` och `Worker` är separata komposition-rots ([ADR 0010](docs/decisions/0010-worker-composition-root.md)) — de bygger DI-containern; pipeline-ordningen delas så de inte driftar isär
 
-64 arkitekturbeslut är historieförda som ADRs under [`docs/decisions/`](docs/decisions/) — index i [`docs/decisions/README.md`](docs/decisions/README.md). Mer detaljerat: [`BUILD.md §4`](BUILD.md), [`CLAUDE.md §2`](CLAUDE.md).
+Arkitekturbeslut är historieförda som ADRs under [`docs/decisions/`](docs/decisions/) — index i [`docs/decisions/README.md`](docs/decisions/README.md). Konventioner: [`CLAUDE.md §2`](CLAUDE.md).
 
 ---
 
@@ -341,9 +322,9 @@ Jobbliggaren byggs med en uttalad kvalitetsstandard: varje commit ska kunna för
 - **Domänlogik testas utan databas.** Aggregat och value objects bär sina invarianter; handlers testas mot fake `IAppDbContext` med NSubstitute. Om något kräver en startad ASP.NET-host för att testas betraktas designen som fel ([CLAUDE.md §2.4](CLAUDE.md)).
 - **TDD där det bär.** Nya domäntyper och handlers får tester först; produktionskod skrivs för att passera.
 - **Integrationstester mot riktig Postgres.** Testcontainers startar PostgreSQL 18.3 och Valkey per integrations-svit — ingen in-memory-attrapp som döljer provider-skillnader.
-- **Granskningsspärrar utan PR-flöde.** Direct-push till `main` ([ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md)) kompenseras av plan-design, STOPP-disciplin, specialiserade review-agenter med veto-rätt (code-reviewer, security-auditor, design-reviewer), manuell diff-granskning och pre-push-hooks.
+- **Granskningsspärrar i PR-flödet.** PR mot skyddad `main` med CI-gate ([ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md)) kompletteras av plan-design, STOPP-disciplin, specialiserade review-agenter med veto-rätt (code-reviewer, security-auditor, design-reviewer), manuell diff-granskning och pre-push-hooks.
 
-Backend-sviten omfattar **1 100+ tester gröna** över Domain (422), Application (591), Architecture (78), Api-integration, Worker-integration och Migrate. Frontend-sviten kör **686 Vitest-tester** plus Playwright E2E för kritiska flöden.
+Backend-sviten omfattar **1 100+ tester gröna** över Domain, Application, Architecture (78), Api-integration, Worker-integration och Migrate. Frontend-sviten kör Vitest-tester plus Playwright E2E för kritiska flöden.
 
 ### Coverage — reproducerbar, ärlig, regressionsskyddad
 
@@ -375,7 +356,7 @@ CI-jobbet `coverage` blockerar `main` om något lager faller under sitt golv. Go
 
 ## Tech-stack
 
-Versioner är låsta. Full lista i [`BUILD.md §3`](BUILD.md).
+Versioner är låsta.
 
 ### Backend
 
@@ -391,7 +372,6 @@ Versioner är låsta. Full lista i [`BUILD.md §3`](BUILD.md).
 | Background jobs | Hangfire (Postgres-storage) | 1.8.x |
 | Logging | Serilog | 4.x |
 | Observability | OpenTelemetry | 1.15+ |
-| AI (system + BYOK) | Anthropic (officiell NuGet) — Anthropic Direct API (Bedrock utgår, ADR 0051) | 12.x |
 | PDF | PdfPig (parse) + QuestPDF (gen) | 0.1.14 / 2026.2 |
 
 ### Frontend
@@ -418,14 +398,12 @@ Versioner är låsta. Full lista i [`BUILD.md §3`](BUILD.md).
 | Databas | PostgreSQL 18.3 (Docker Compose) | TBD (ADR 0050) |
 | Cache | Redis 8 (Docker Compose) | TBD (ADR 0050) |
 | Compute | `dotnet run` lokalt | TBD — Hetzner (ADR 0050) |
-| AI inference | Anthropic Direct API (Fas 4, opt-in, ADR 0051) | Anthropic Direct API |
 | Object storage | lokal disk / ej aktiverat | TBD — S3-kompatibel (ADR 0050) |
-| Encryption | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | TBD — self-managed (TD-102) |
+| Encryption | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | TBD — self-managed |
 | Frontend hosting | `pnpm dev` (localhost) | TBD — Vercel (ADR 0050) |
 | DNS / CDN | — | TBD — Cloudflare (ADR 0050) |
-| Email | `ConsoleEmailSender` → Seq (ADR 0066) | TBD — transaktionell väg (TD-101) |
+| Email | `ConsoleEmailSender` → Seq (ADR 0066) | TBD — transaktionell väg |
 | Logs / metrics | Seq (lokalt) | TBD (ADR 0050) |
-| Errors | — | Sentry (EU) planerat |
 | IaC | `infra/terraform/` bevarad (reversibilitet, ADR 0066) | Hetzner-IaC TBD (ADR 0050) |
 | CI | GitHub Actions (build + test + coverage) | oförändrat |
 
@@ -532,7 +510,7 @@ jobbliggaren/
 ├── src/
 │   ├── Jobbliggaren.Domain/             # Aggregates, value objects, domain events
 │   ├── Jobbliggaren.Application/        # CQRS handlers, pipeline behaviors, abstractions
-│   ├── Jobbliggaren.Infrastructure/     # EF Core, Anthropic-klient, local/KMS crypto-providers
+│   ├── Jobbliggaren.Infrastructure/     # EF Core, local crypto-providers
 │   ├── Jobbliggaren.Api/                # ASP.NET Core Minimal API, composition root
 │   └── Jobbliggaren.Worker/             # Hangfire-server, schedulerade jobb
 │
@@ -548,26 +526,14 @@ jobbliggaren/
 │   └── Jobbliggaren.Migrate.UnitTests/         # Migrate-CLI + connection-string-fabriker
 │
 ├── infra/
-│   └── terraform/                    # AWS-stack bevarad men INAKTIV (ADR 0066); retireras via egen ADR vid Hetzner-cutover
-│       ├── modules/                  # network, rds, redis, alb, ecs, route53, acm, ...
-│       └── environments/
-│           ├── prod/                 # Baseline (historisk referens)
-│           └── dev/                  # avvecklad (ADR 0066)
-│
-├── prompts/                          # AI-prompts som .prompt.md-filer
+│   └── terraform/                    # AWS-stack bevarad men INAKTIV (ADR 0066)
 │
 ├── docs/
-│   ├── current-work.md               # Single source of truth för session-state
-│   ├── steg-tracker.md               # Långsiktig fas/STEG-progression
-│   ├── tech-debt.md                  # TD-register
 │   ├── decisions/                    # ADR (Architecture Decision Records)
-│   ├── reviews/                      # Auto-genererade agent-reviews
-│   ├── runbooks/                     # Operativa procedurer
-│   ├── sessions/                     # Per-session retrospektiv
-│   └── research/                     # Investigationer, planer
+│   ├── reviews/                      # Agent-reviews
+│   └── runbooks/                     # Operativa procedurer
 │
 ├── .claude/                          # Claude Code agent-configs + skills + hooks
-├── BUILD.md                          # Huvudspec — feature-scope, datamodell, integrationer
 ├── CLAUDE.md                         # Coding conventions för AI-assisterad utveckling
 ├── DESIGN.md                         # Design-system-index (specs i .claude/skills/)
 └── docker-compose.yml                # Lokal Postgres + Valkey + Seq
@@ -619,7 +585,7 @@ pnpm playwright test  # E2E-tests
 
 ### Infrastruktur (lokal dev)
 
-AWS-dev-stacken är avvecklad (ADR 0066). All utveckling kör lokalt på laptop:
+AWS-dev-stacken är avvecklad (ADR 0066). All utveckling kör lokalt:
 
 ```bash
 docker compose up -d         # postgres + redis + seq
@@ -639,7 +605,7 @@ Permanent deploy-infra (Hetzner/Vercel/Cloudflare) definieras i ADR 0050
 | `local` | Utveckling | Docker Compose | **Aktiv** |
 | `dev` / `staging` / `prod` | Integration / pre-prod / live | TBD (ADR 0050) | Avvecklad (ADR 0066) |
 
-Branch-strategi: **PR-flöde mot `main`** med Conventional Commits per [ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md) (superseder ADR 0019). `ci`-aggregatet (backend + frontend + coverage) måste vara grönt innan squash-merge; agent-reviews + manuell diff-review + pre-commit/pre-push-hooks kompletterar.
+Branch-strategi: **PR-flöde mot `main`** med Conventional Commits per [ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md). `ci`-aggregatet (backend + frontend + coverage) måste vara grönt innan squash-merge; agent-reviews + manuell diff-review + pre-commit/pre-push-hooks kompletterar.
 
 ---
 
@@ -647,41 +613,24 @@ Branch-strategi: **PR-flöde mot `main`** med Conventional Commits per [ADR 0065
 
 Jobbliggaren är byggd för svensk arbetsmarknad och är därför **GDPR-säker by default**. Nyckel-höjdpunkter:
 
-- **Datalokalisering:** PII och fält-data minimeras och krypteras lokalt; AI-prompter med användardata skickas till Anthropic Direct API (US) **endast vid opt-in** (ADR 0051, Bedrock/EU-routing utgår). Permanent infra-region TBD (ADR 0050)
-- **Encryption at rest:** PII-fält + OAuth-tokens + BYOK-nycklar via per-användar-DEK envelope (`IDataKeyProvider`: Local AES-256-GCM eller KMS, ADR 0066/0049); managed databas-/storage-kryptering på permanent host (TBD, ADR 0050)
+- **Dataminimering:** PII och fält-data minimeras; ingen tredjelandsöverföring av användardata — all behandling sker inom den egna stacken
+- **Encryption at rest:** PII-fält + OAuth-tokens via per-användar-DEK envelope (`IDataKeyProvider`: Local AES-256-GCM, ADR 0066/0049); managed databas-/storage-kryptering på permanent host (TBD, ADR 0050)
 - **Encryption in transit:** TLS 1.3 ([ADR 0027](docs/decisions/0027-https-aktiverat-supersession.md)); HSTS 365 dagar + includeSubDomains
-- **BYOK:** användare kan koppla egen Anthropic-API-nyckel; den envelope-krypteras med separat DEK och syns aldrig i klartext utanför inference-anrop
 - **Audit-trail:** alla state-transitioner i `Application`-aggregatet raisar domain events som lagras i `audit_log`. Impersonation dubbel-taggas
 - **Art. 17 cascade:** soft-delete på primära aggregates triggar 30-dagars anonymisering ([ADR 0024](docs/decisions/0024-audit-retention-and-art17-cascade.md))
 - **IP-anonymisering:** IPv4 /24 + IPv6 /48 i alla loggar
 - **Loggretention:** 30 dagar standard
 - **Rate-limiting:** auth-write 20/min/IP, auth-loose 30/min/IP, account-deletion 1/60s/UserId
-- **Subprocessor-kedja (planerad):** infra-host TBD (ADR 0050), Anthropic (Anthropic Direct, opt-in, US — Fas 4, ADR 0051), Sentry (EU), PostHog self-hosted, Vercel (EU). AWS utgår (ADR 0066)
 
-Detaljer: [`BUILD.md §13`](BUILD.md), [`docs/decisions/0024-*`](docs/decisions/), [`docs/decisions/0031-*`](docs/decisions/).
+Detaljer: [`docs/decisions/0024-*`](docs/decisions/), [`docs/decisions/0031-*`](docs/decisions/).
 
 ---
 
-## Status och roadmap
+## Status
 
-Jobbliggaren är ett **pågående arbete**. Faserna nedan följer den auktoritativa progressionen i [`docs/steg-tracker.md`](docs/steg-tracker.md); aktuell session-state alltid i [`docs/current-work.md`](docs/current-work.md).
+Jobbliggaren är ett **pågående arbete** i pre-MVP-fas, byggt av en solo-utvecklare. Kärn-domänen (auth, aggregat, audit), Platsbanken-integrationen (sök, sparade sökningar, taxonomi-ACL) och ansökningshanteringen (pipeline-tracker, follow-ups, ghosted-detection) är på plats. CV-motorn och matchningsmotorn är under uppbyggnad.
 
-| Fas | Innehåll | Milstolpe | Status |
-|-----|----------|-----------|--------|
-| **Fas 0** | Foundation — infra, container-pipeline, DNS + TLS, CI/CD (ursprungligen AWS; avvecklat ADR 0066) | Registrera + logga in på dev.jobbliggaren.se | **Klar 2026-05-10** |
-| **Fas 1** | Core Domain — auth, kärn-CRUD, aggregat, audit | CV manuellt + "fake" ansökningar i admin-audit | **Klar 2026-05-11** |
-| **Fas 2** | JobTech Integration — Platsbanken-sök, sparade sökningar, taxonomi-ACL | Söka jobb på Platsbanken via appen | **Klar 2026-05-17** |
-| **Fas 3** | Application Management — fullständig ansökningshantering (utan AI) | Pipeline-tracker end-to-end | **Klar 2026-05-18** |
-| **Pre-Fas-4** | Discovery- och UX-vertikaler — landing live-stats, översiktssida, jobbkort spara/har-ansökt, closed-beta-väntelista, sökningsperformance | Avskild från Fas 4 (AI) — körs medan AI-grinden är stängd | Pågående 2026-05 |
-| **Fas 4** | AI Layer — alla AI-features end-to-end + dogfood | CV/brev-skräddarsydning live | **GDPR-gated** — kräver 5 villkor per [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md) |
-| **Fas 5** | Integrationer — Gmail auto-logg, Google Calendar | Intervjuer i kalendern | Planerad |
-| **Fas 6** | Admin & Analytics — admin-panel komplett | Impersonation + token-statistik | Planerad |
-| **Fas 7** | Internal Beta — 3 användare aktivt 14 dagar | Dogfood-validering | Planerad |
-| **Fas 8** | Klass-launch — 20 klasskamrater onboardade | v1 klar | Planerad |
-
-**Pre-Fas-4-disciplin.** Fas 4 (AI) är låst bakom fem icke-förhandlingsbara GDPR-villkor i [ADR 0051](docs/decisions/0051-ai-provider-anthropic-direct-bedrock-retired.md): DPIA Art. 35, SCC + Schrems II-TIA + Anthropic-DPA + DPF-verifikation, versionerad privacy-policy, Art. 25-opt-in även för systemnyckel, och ADR 0049-decrypt-interaktion. Tills villkoren är gröna körs leveransen i avskilda pre-Fas-4-vertikaler: landing live-stats ([ADR 0064](docs/decisions/0064-public-aggregate-read-via-worker-precomputed-redis-cache.md)), översiktssida `/oversikt`, jobbkort Spara/Har-ansökt ([ADR 0063](docs/decisions/0063-per-user-overlay-status-batch-port.md)), FTS-hybridsök ([ADR 0062](docs/decisions/0062-fts-hybrid-search-and-infrastructure-query-port.md)), recent-job-searches auto-capture ([ADR 0060](docs/decisions/0060-recent-job-searches-auto-capture.md)) och closed-beta-väntelista per EDPB-tolkning ([ADR 0005 amendment](docs/decisions/0005-go-to-market-strategy.md)). Auktoritativ status: [`docs/current-work.md`](docs/current-work.md).
-
-Dev-miljön (`dev.jobbliggaren.se`) är avvecklad under semester-pausen (ADR 0066) — all utveckling kör lokalt. Permanent miljö återupprättas vid Hetzner-cutover (ADR 0050). Projektet är pre-MVP; inga publika användare ännu.
+Dev-miljön är avvecklad under en infra-paus (ADR 0066) — all utveckling kör lokalt. Permanent miljö återupprättas vid framtida cutover (ADR 0050). Projektet är pre-MVP; inga publika användare ännu.
 
 ---
 
@@ -689,18 +638,12 @@ Dev-miljön (`dev.jobbliggaren.se`) är avvecklad under semester-pausen (ADR 006
 
 | Fil | Syfte |
 |-----|-------|
-| [`BUILD.md`](BUILD.md) | Huvudspec — feature-scope, datamodell, API-design, integrationer, deployment |
 | [`CLAUDE.md`](CLAUDE.md) | Coding conventions, anti-patterns, agent-orkestrerings-workflow |
 | [`DESIGN.md`](DESIGN.md) | Design-system-index — civic-utility-tone, design tokens, komponenter |
-| [`docs/current-work.md`](docs/current-work.md) | Session-state, senaste commits, aktiv fas |
-| [`docs/steg-tracker.md`](docs/steg-tracker.md) | Långsiktig fas/STEG-progression |
-| [`docs/tech-debt.md`](docs/tech-debt.md) | TD-register med prioriteringar |
-| [`docs/decisions/`](docs/decisions/) | 66 Architecture Decision Records (ADRs) |
-| [`docs/reviews/`](docs/reviews/) | Auto-genererade agent-reviews |
-| [`docs/runbooks/`](docs/runbooks/) | Operativa procedurer (lokal-dev, TLS, etc.) |
-| [`docs/sessions/`](docs/sessions/) | Per-session retrospektiv-loggar |
+| [`docs/decisions/`](docs/decisions/) | Architecture Decision Records (ADRs) — index i [`README`](docs/decisions/README.md) |
+| [`docs/reviews/`](docs/reviews/) | Agent-reviews |
+| [`docs/runbooks/`](docs/runbooks/) | Operativa procedurer (lokal-dev, GDPR-register, release m.m.) |
 | [`.claude/`](.claude/) | Agent-definitioner, skills, hooks, slash-kommandon |
-| [`prompts/`](prompts/) | AI-prompts som versionerade `.prompt.md`-filer |
 
 ---
 
@@ -712,17 +655,15 @@ Dev-miljön (`dev.jobbliggaren.se`) är avvecklad under semester-pausen (ADR 006
 - GitHub: [@klasolsson81](https://github.com/klasolsson81)
 - Email: klasolsson81@gmail.com
 
-Jobbliggaren drivs av en solo-utvecklare i pre-MVP-fas. Externa bidrag accepteras inte i nuvarande fas; vid framtida öppning byts flödet från direct-push till PR-baserat (trigger dokumenterad i [ADR 0019](docs/decisions/0019-solo-direct-push-to-main.md)). Vill du diskutera kod, arkitektur eller designval — hör av dig direkt.
+Jobbliggaren drivs av en solo-utvecklare i pre-MVP-fas. Externa bidrag accepteras inte i nuvarande fas. Vill du diskutera kod, arkitektur eller designval — hör av dig direkt.
 
 ---
 
 ## Licens
 
-**Proprietär** — all rights reserved tills annat anges.
+**PolyForm Noncommercial License 1.0.0** — se [`LICENSE`](LICENSE).
 
-Detta repo är publikt synligt för portfölj-syfte men innehållet är inte fri programvara. Återanvändning, fork, eller derivat-arbete kräver explicit skriftligt godkännande från Klas Olsson.
-
-Under v1 kommer projektet sannolikt att förbli proprietärt. När produkten lanserats publikt kommer en formell licens-policy att antas (övervägs: AGPL-3.0 för server-koden, MIT för shadcn-komponenter, separat ToS för hostad tjänst).
+Detta repo är publikt synligt för portfölj-syfte. Källkoden får läsas, studeras och användas för **icke-kommersiella** ändamål (personligt bruk, forskning, utbildning) enligt licensvillkoren. **Kommersiell användning** — inklusive att driva en konkurrerande eller intäktsgenererande tjänst på koden — kräver explicit skriftligt avtal med Klas Olsson. Licensen ger ingen rätt att vidarelicensiera eller överföra rättigheter.
 
 ---
 

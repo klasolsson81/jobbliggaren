@@ -45,8 +45,8 @@ Details and formats: `docs/runbooks/session-protocol.md`.
 | `docs/tech-debt.md` (+`-archive.md`) | Active TDs (Severity × Fas) / closed TDs — mechanics in the `jobbpilot-td-lifecycle` skill |
 
 Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` are edited only on explicit Klas
-instruction (approval hook). Agents place new docs per this map; when unsure,
-ask.
+instruction (reviewed via PR diff). Agents place new docs per this map; when
+unsure, ask.
 
 ## 2. Core principles
 
@@ -201,8 +201,8 @@ commit → push branch, `gh pr create` with agent reports inline, set the
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; reads prompts from `/prompts/` (does not rewrite them);
 creates ADRs for its architecture decisions. CC does **not**: edit
-BUILD.md/CLAUDE.md/DESIGN.md without explicit Klas instruction (approval
-hook); deploy without Klas GO; add top-level dependencies without
+BUILD.md/CLAUDE.md/DESIGN.md without explicit Klas instruction (reviewed via
+PR diff); deploy without Klas GO; add top-level dependencies without
 justification or libraries outside BUILD.md §3.1 without discussion; violate
 §5; start a new session phase without explicit Klas GO.
 

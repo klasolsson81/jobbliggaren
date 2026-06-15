@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jobbliggaren.Domain.Privacy;
 
 /// <summary>
@@ -10,6 +12,10 @@ namespace Jobbliggaren.Domain.Privacy;
 /// </summary>
 public sealed record PersonnummerScanOutcome
 {
+    // [JsonConstructor]: this outcome is persisted as jsonb on ParsedResume (F4-8).
+    // The construction surface stays private (no public add/echo of PII), so STJ is
+    // told to use this ctor for round-trip deserialization.
+    [JsonConstructor]
     private PersonnummerScanOutcome(bool found, int count, IReadOnlyList<PersonnummerKind> kinds)
     {
         Found = found;

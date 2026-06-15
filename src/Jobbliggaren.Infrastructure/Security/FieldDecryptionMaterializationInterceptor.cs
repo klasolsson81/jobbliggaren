@@ -89,7 +89,9 @@ public sealed class FieldDecryptionMaterializationInterceptor : IMaterialization
                 property.SetValue(entity, fieldEncryptor.Decrypt(value, dek));
             }
 
-            return entity;
+            // INGEN early return: en entitet kan vara i BÅDE Form A och Form B
+            // (F4-8 ParsedResume: RawText Form A + Content Form B). Fall igenom till
+            // Form B-blocket — Form-A-only-entiteter no-op:ar där och når slut-return.
         }
 
         // Form B — C4 #1c (ADR 0049 Mekanik-not 6): krypterad text-shadow

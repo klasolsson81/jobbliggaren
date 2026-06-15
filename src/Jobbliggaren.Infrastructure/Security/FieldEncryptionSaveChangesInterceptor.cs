@@ -112,7 +112,10 @@ public sealed class FieldEncryptionSaveChangesInterceptor : SaveChangesIntercept
                     property.CurrentValue = fieldEncryptor.Encrypt(plaintext, dek);
                 }
 
-                continue;
+                // INGEN continue: en entitet kan vara registrerad i BÅDE Form A och
+                // Form B (F4-8 ParsedResume: RawText Form A + Content Form B). Fall
+                // igenom till Form B-blocket — Form-A-only-entiteter no-op:ar där
+                // (TryGetJsonSerializedFields → false).
             }
 
             // Form B — C4 #1c (ADR 0049 Mekanik-not 6): EF-Ignore:ad domän-VO

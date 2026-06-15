@@ -72,6 +72,9 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         // CvImprovementEncryptionTests can resolve ICvImprovementEngine against the real DEK
         // pipeline (parity AddCvReview). RED until AddCvImprovement() ships in Infrastructure.
         services.AddCvImprovement();
+        // F4-10 Phase B: the deterministic QuestPDF CV renderer, so CvRenderEncryptionTests can
+        // resolve ICvRenderer against the real DEK pipeline.
+        services.AddCvRendering();
         services.AddSingleton<ICurrentUser, WorkerSystemUser>();
         services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();

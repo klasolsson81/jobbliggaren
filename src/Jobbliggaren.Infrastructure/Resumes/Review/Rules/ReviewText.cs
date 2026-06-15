@@ -53,19 +53,6 @@ internal static class ReviewText
         return t.Length == p.Length || !char.IsLetter(t[p.Length]);
     }
 
-    /// <summary>The first whole word of <paramref name="text"/> (letters/digits run), or "".</summary>
-    public static string FirstWord(string text)
-    {
-        var trimmed = text.TrimStart();
-        var end = 0;
-        while (end < trimmed.Length && (char.IsLetterOrDigit(trimmed[end]) || trimmed[end] == '-'))
-        {
-            end++;
-        }
-
-        return trimmed[..end];
-    }
-
     // ── Cited-evidence builders (Invariant 2) ────────────────────────────
 
     /// <summary>A text-span citation: resolves the offset of <paramref name="quote"/> within

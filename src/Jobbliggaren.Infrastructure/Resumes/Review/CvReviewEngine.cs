@@ -19,6 +19,22 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review;
 /// </summary>
 internal sealed class CvReviewEngine : ICvReviewEngine
 {
+    // v1 threshold posture (senior-cto-advisor M1=(a), 2026-06-15 — documented v1, NO TD):
+    // each criterion's PASS/FAIL CONDITION is human-readable PROSE in the F4-7 rubric
+    // (AtsPassSignal/AtsFailSignal, F4-7 DQ8 by design); the per-criterion NUMERIC thresholds
+    // that operationalise those prose signals (e.g. A2 "≥80 %" → ratio >= 0.8) live as code in
+    // the rules. This is honest because the rubric is VERSIONED (rubric@x.y.z, §2.8 minor =
+    // tröskel) and the version rides on every CvReviewResult — a threshold change bumps the
+    // rubric minor AND the engine together, auditably. A machine-readable per-criterion
+    // threshold schema is a future rubric-vN / F4-10 forward-note (ADR 0074 discovery→STEG),
+    // NOT a TD. The §5-correct LISTS (cliché/verb) ARE data (consumed via IClicheLexicon/IVerbMapper).
+    //
+    // rubric.CategoryWeights (the cross-category ATS/Visual BLEND) is loaded by RubricLoader but
+    // DELIBERATELY UNCONSUMED in F4-9: a cross-category blend exists only to compute an opaque
+    // cross-category TOTAL, which ADR 0074 + §5 forbid (Goodhart). Each category bands
+    // independently from its own per-criterion weights; CategoryWeights' first consumer is a
+    // future F4-10 surface, if any (architect re-pass Note 1 — keep YAGNI observable, not silent).
+
     // Scoring-mechanism constant (NOT a rubric data-threshold — §5): a Warn earns half its
     // criterion weight toward the secondary category band. The verdict COUNTS are primary.
     private const double WarnCredit = 0.5;

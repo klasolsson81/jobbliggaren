@@ -199,6 +199,12 @@ internal sealed partial class B8FileNameRule : ICriterionRule
         var category = context.Criterion.Category;
         var fileName = context.Resume.SourceFileName ?? string.Empty;
 
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return CvCriterionVerdict.NotAssessed(
+                "B8", category, "Källfilens namn saknas — filnamnsrekommendationen bedöms ej.");
+        }
+
         if (RecommendedRegex().IsMatch(fileName))
         {
             return CvCriterionVerdict.Assessed("B8", category, CriterionVerdict.Pass,

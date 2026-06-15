@@ -77,11 +77,28 @@ public class ReviewParsedResumeQueryHandlerTests
             .Returns(new ValueTask<CvReviewResult>(result));
 
     // The engine returns the rich Application result; the handler maps it to the transport
-    // CvReviewDto. This handler test exercises the ownership / cross-user / null-return
-    // orchestration, so a minimal result suffices (the engine's verdicts are covered in
-    // CvReviewEngineTests; the DTO projection in the integration tests).
-    private static CvReviewResult SampleResult() =>
-        new(RubricVersion.Parse("1.0.0"), RenderProfile.Ats, [], [], [], AssessedCount: 0, TotalCount: 0);
+    // CvReviewDto. A RICH result (both evidence channels + assessed + NotAssessed + a category
+    // + a critical fail) so the happy-path test also exercises the full CvReviewResult→DTO
+    // projection (CvReviewDtoMapper) — the engine's verdict LOGIC is covered in CvReviewEngineTests.
+    private static CvReviewResult SampleResult()
+    {
+        var spanVerdict = CvCriterionVerdict.Assessed(
+            "A1", RubricCategory.Content, CriterionVerdict.Fail,
+            [new TextSpanEvidence(new TextSpan(0, 5, "Ledde"), "starkt verb")]);
+        var structuralVerdict = CvCriterionVerdict.Assessed(
+            "B3", RubricCategory.Structure, CriterionVerdict.Pass,
+            [new StructuralEvidence("kontaktsektion komplett")]);
+        var notAssessed = CvCriterionVerdict.NotAssessed("A5", RubricCategory.Content, "ej bedömt v1");
+
+        var verdicts = new[] { spanVerdict, structuralVerdict, notAssessed };
+        var category = new CvCategoryResult(
+            RubricCategory.Content, PassCount: 0, WarnCount: 0, FailCount: 1, NotAssessedCount: 1,
+            ScoreBandLabel.NeedsRework, [spanVerdict, notAssessed]);
+
+        return new CvReviewResult(
+            RubricVersion.Parse("1.0.0"), RenderProfile.Ats,
+            [category], verdicts, CriticalFails: [spanVerdict], AssessedCount: 2, TotalCount: 3);
+    }
 
     // ===============================================================
     // Happy path
@@ -98,6 +115,20 @@ public class ReviewParsedResumeQueryHandlerTests
             new ReviewParsedResumeQuery(parsed.Id.Value, "Ats"), TestContext.Current.CancellationToken);
 
         result.ShouldNotBeNull();
+        // The CvReviewResult → CvReviewDto projection: enums→names, version→string, evidence tagged.
+        result.RubricVersion.ShouldBe("1.0.0");
+        result.Profile.ShouldBe("Ats");
+        result.AssessedCount.ShouldBe(2);
+        result.TotalCount.ShouldBe(3);
+        result.Categories.Count.ShouldBe(1);
+        result.Categories[0].Band.ShouldBe("NeedsRework");
+        result.CriticalFails.Count.ShouldBe(1);
+        result.Verdicts.ShouldContain(v => v.Verdict == "Fail"
+            && v.Evidence.Any(e => e.Kind == "TextSpan" && e.Quote == "Ledde"));
+        result.Verdicts.ShouldContain(v => v.Evidence.Any(e => e.Kind == "Structural"
+            && e.Observation == "kontaktsektion komplett"));
+        result.Verdicts.ShouldContain(v => v.Verdict == "NotAssessed" && v.NotAssessedReason == "ej bedömt v1");
+
         await _engine.Received(1).ReviewAsync(
             Arg.Any<ParsedResume>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
     }

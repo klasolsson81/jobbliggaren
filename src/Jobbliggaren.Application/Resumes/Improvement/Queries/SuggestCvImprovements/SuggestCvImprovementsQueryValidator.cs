@@ -1,0 +1,25 @@
+using FluentValidation;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
+
+namespace Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
+
+/// <summary>
+/// Input-shape validation for the CV-improve query (Fas 4 STEG 10, F4-10). The
+/// <c>ParsedResumeId</c> must be a non-empty Guid and the <c>Profile</c> string must parse
+/// fail-loud to a <see cref="RenderProfile"/> member (case-sensitive exact match — a bad
+/// profile is a client bug, never silently coerced; parity
+/// <c>ReviewParsedResumeQueryValidator</c>). "Both" is a <c>RubricProfile</c> member, NOT a
+/// <see cref="RenderProfile"/>, so it is rejected here.
+/// </summary>
+public sealed class SuggestCvImprovementsQueryValidator : AbstractValidator<SuggestCvImprovementsQuery>
+{
+    public SuggestCvImprovementsQueryValidator()
+    {
+        RuleFor(q => q.ParsedResumeId)
+            .NotEmpty().WithMessage("ParsedResumeId krävs.");
+
+        RuleFor(q => q.Profile)
+            .Must(p => Enum.TryParse<RenderProfile>(p, ignoreCase: false, out _))
+            .WithMessage("Profilen måste vara 'Ats' eller 'Visual'.");
+    }
+}

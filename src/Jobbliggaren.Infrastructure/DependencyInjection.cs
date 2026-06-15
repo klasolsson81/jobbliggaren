@@ -181,6 +181,16 @@ public static class DependencyInjection
         // independently of the job-source HTTP wiring). See AddCvReview.
         services.AddCvReview();
 
+        // Fas 4 STEG 10 — the deterministic CV-build/improve engine (propose-and-approve diffs;
+        // consumes the knowledge bank + ITextAnalyzer, both already registered above). See
+        // AddCvImprovement. NO AI/LLM.
+        services.AddCvImprovement();
+
+        // Fas 4 STEG 10 — the deterministic CV renderer (QuestPDF ATS-plain + visual from the
+        // same JSON source). Own module (sets the QuestPDF Community licence once). See
+        // AddCvRendering. NO AI/LLM.
+        services.AddCvRendering();
+
         // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
         // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).
@@ -382,6 +392,46 @@ public static class DependencyInjection
             Jobbliggaren.Infrastructure.Resumes.Review.CvReviewEngine>();
         return services;
     }
+
+    /// <summary>
+    /// Fas 4 STEG 10 (F4-10, ADR 0071/0074) — the deterministic CV-build/improve engine that
+    /// proposes propose-and-approve diffs over a ParsedResume against the knowledge bank
+    /// (cliché/verb/date/heading/strip transforms, never synthesised — CTO V-B compute-on-demand,
+    /// no persistence). Stateless singleton (parity AddCvReview). Consumes the knowledge-bank
+    /// ports (<see cref="AddCvReview"/>) + the NLP-tier <c>ITextAnalyzer</c>
+    /// (<see cref="AddTextAnalysis"/>), so the caller must also register those. Standalone module
+    /// so every host AND the Worker test fixture register it without the job-source HTTP wiring.
+    /// NO AI/LLM. (The QuestPDF renderer is a separate Phase B module, AddCvRendering.)
+    /// </summary>
+    public static IServiceCollection AddCvImprovement(this IServiceCollection services)
+    {
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Improvement.Abstractions.ICvImprovementEngine,
+            Jobbliggaren.Infrastructure.Resumes.Improvement.CvImprovementEngine>();
+        return services;
+    }
+
+    /// <summary>
+    /// Fas 4 STEG 10 (F4-10, ADR 0071/0074, BUILD §3.1) — the deterministic CV renderer
+    /// (QuestPDF: ATS-plain + visual PDF from the same JSON source). Sets the QuestPDF Community
+    /// licence ONCE (fail-fast at registration, parity <see cref="EnsureDssoDictionaryPresent"/>)
+    /// before any render. Stateless singleton (parity AddCvReview). Standalone module so every
+    /// host AND the Worker test fixture register it. The QuestPDF SDK stays confined to
+    /// Infrastructure (the port <c>ICvRenderer</c> is BCL-only). NO AI/LLM.
+    /// </summary>
+    public static IServiceCollection AddCvRendering(this IServiceCollection services)
+    {
+        EnsureQuestPdfLicense();
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvRenderer,
+            Jobbliggaren.Infrastructure.Resumes.Rendering.CvRenderer>();
+        return services;
+    }
+
+    // QuestPDF requires the licence type to be declared once before any document is generated.
+    // Community (source-available, free under USD 1M revenue, non-copyleft vs ADR 0050).
+    private static void EnsureQuestPdfLicense() =>
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
     private static void EnsureDssoDictionaryPresent()
     {

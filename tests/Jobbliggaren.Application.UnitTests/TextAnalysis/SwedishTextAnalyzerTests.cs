@@ -6,7 +6,7 @@ namespace Jobbliggaren.Application.UnitTests.TextAnalysis;
 
 // Fas 4 STEG 2 (F4-2) — svensk text-analyzer (to_tsvector('swedish')-paritet).
 //
-// RED PHASE: written BEFORE SwedishTextAnalyzer exists. The analyzer pipeline
+// RED PHASE: written BEFORE LocalTextAnalyzer exists. The analyzer pipeline
 // is lowercase → tokenise → stopword-filter → stem, mirroring how PostgreSQL
 // builds search_vector. It consumes an IStemmer (composition) and loads the
 // embedded swedish.stop itself.
@@ -19,8 +19,8 @@ namespace Jobbliggaren.Application.UnitTests.TextAnalysis;
 // Naming: Method_Scenario_Expected.
 public class SwedishTextAnalyzerTests
 {
-    private static SwedishTextAnalyzer NewAnalyzer()
-        => new(new SnowballSwedishStemmer());
+    private static LocalTextAnalyzer NewAnalyzer()
+        => new(new SnowballStemmer());
 
     // ===============================================================
     // Lowercasing — to_tsvector lowercases before stemming
@@ -162,15 +162,18 @@ public class SwedishTextAnalyzerTests
     }
 
     // ===============================================================
-    // English fail-fast — F4-2 implements Swedish ONLY
+    // English analysis — wired in F4-9 (ADR 0074 F4-2 amendment). No longer
+    // throws; full to_tsvector('english') parity is EnglishStemmerPostgresParityTests.
     // ===============================================================
 
     [Fact]
-    public void ToLexemes_EnglishLanguage_ThrowsNotSupportedException()
+    public void ToLexemes_EnglishLanguage_AnalysesViaSnowball_F49()
     {
         var analyzer = NewAnalyzer();
 
-        Should.Throw<NotSupportedException>(
-            () => analyzer.ToLexemes("developer experience", TextLanguage.English));
+        // "experience" is not an English stopword → survives; "experienced" stems alike.
+        var lexemes = analyzer.ToLexemes("developer experience", TextLanguage.English);
+
+        lexemes.ShouldNotBeEmpty();
     }
 }

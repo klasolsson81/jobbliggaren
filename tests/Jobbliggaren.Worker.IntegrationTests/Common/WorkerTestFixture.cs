@@ -64,6 +64,10 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddPersistence(configuration);
         services.AddCoreIdentityForWorker(configuration);
         services.AddApplication();
+        // F4-9: the deterministic CV-review engine + its NLP tier (parity Program.cs), so the
+        // CvReviewEncryptionTests can resolve ICvReviewEngine against the real DEK pipeline.
+        services.AddTextAnalysis();
+        services.AddCvReview();
         services.AddSingleton<ICurrentUser, WorkerSystemUser>();
         services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();

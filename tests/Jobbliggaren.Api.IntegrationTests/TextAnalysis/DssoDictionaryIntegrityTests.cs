@@ -33,13 +33,27 @@ public class DssoDictionaryIntegrityTests
     private const string ExpectedAffSha256 =
         "ff8ddb979daa9f128e7489ece5edd666ada7af787933221543b7cecb2b3ed478";
 
+    // F4-9: en_US Hunspell dictionary (permissive SCOWL/Ispell BSD). This pin is
+    // defense-in-depth INTEGRITY (the asset ships unmodified, layout parity with sv_SE) —
+    // NOT an LGPL constraint (en_US permits modification). Lowercase hex SHA-256.
+    private const string EnUsDicFileName = "en_US.dic";
+    private const string EnUsAffFileName = "en_US.aff";
+    private const string ExpectedEnUsDicSha256 =
+        "f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647";
+    private const string ExpectedEnUsAffSha256 =
+        "8ae1f19d4840d957728ad90555d5a8dff6cc5c046279c95ff0c00fc0a0136c7b";
+
     // The DSSO Content files preserve their TextAnalysis subfolder in output
     // (<Content Include="TextAnalysis\sv_SE.dic" CopyToOutputDirectory>), matching
-    // HunspellSwedishSpellChecker.DictionaryPath / .AffixPath.
+    // HunspellSpellChecker.DictionaryPath / .AffixPath.
     private static string DicPath =>
         Path.Combine(AppContext.BaseDirectory, "TextAnalysis", DicFileName);
     private static string AffPath =>
         Path.Combine(AppContext.BaseDirectory, "TextAnalysis", AffFileName);
+    private static string EnUsDicPath =>
+        Path.Combine(AppContext.BaseDirectory, "TextAnalysis", EnUsDicFileName);
+    private static string EnUsAffPath =>
+        Path.Combine(AppContext.BaseDirectory, "TextAnalysis", EnUsAffFileName);
 
     // ===============================================================
     // Existence + non-empty (path built from AppContext.BaseDirectory,
@@ -136,6 +150,30 @@ public class DssoDictionaryIntegrityTests
         actual.ShouldBe(ExpectedAffSha256,
             "sv_SE.aff SHA-256 avviker från pinnen — filen har modifierats " +
             "(LGPL-villkor: oförändrad datafil).");
+    }
+
+    // ===============================================================
+    // F4-9: en_US (permissive) integrity pins — parity with sv_SE so the
+    // THIRD-PARTY-NOTICES/.gitattributes "ships unmodified" claim is guarded
+    // for BOTH dictionaries (code-reviewer m4 / security-auditor minor).
+    // ===============================================================
+
+    [Fact]
+    public void EnUsDicFile_Sha256_MatchesPinnedHash()
+    {
+        File.Exists(EnUsDicPath).ShouldBeTrue(
+            $"en_US.dic saknas på {EnUsDicPath} — <Content CopyToOutputDirectory>, F4-9.");
+        ComputeSha256(EnUsDicPath).ShouldBe(ExpectedEnUsDicSha256,
+            "en_US.dic SHA-256 avviker från pinnen — filen har modifierats (ship unmodified).");
+    }
+
+    [Fact]
+    public void EnUsAffFile_Sha256_MatchesPinnedHash()
+    {
+        File.Exists(EnUsAffPath).ShouldBeTrue(
+            $"en_US.aff saknas på {EnUsAffPath} — <Content CopyToOutputDirectory>, F4-9.");
+        ComputeSha256(EnUsAffPath).ShouldBe(ExpectedEnUsAffSha256,
+            "en_US.aff SHA-256 avviker från pinnen — filen har modifierats (ship unmodified).");
     }
 
     private static string ComputeSha256(string path)

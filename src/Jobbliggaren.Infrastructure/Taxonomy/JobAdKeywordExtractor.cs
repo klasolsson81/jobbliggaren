@@ -178,7 +178,7 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
         return string.CompareOrdinal(candidate.MatchedOn, current.MatchedOn) < 0;
     }
 
-    // Re-tokenize (lowercase → letter/digit runs, the SwedishTextAnalyzer
+    // Re-tokenize (lowercase → letter/digit runs, the LocalTextAnalyzer
     // tokenization) and stem each surface token with the same Snowball stemmer, so
     // a keyword's Display is a real surface form rather than a truncated stem. Only
     // stems present in the ad's lexeme set and not consumed by a skill are mapped;
@@ -211,7 +211,7 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
         }
     }
 
-    // Maximal runs of letters/digits, lowercased — mirrors SwedishTextAnalyzer's
+    // Maximal runs of letters/digits, lowercased — mirrors LocalTextAnalyzer's
     // tokenization (åäö are letters and stay in tokens).
     private static IEnumerable<string> Tokenize(string text)
     {

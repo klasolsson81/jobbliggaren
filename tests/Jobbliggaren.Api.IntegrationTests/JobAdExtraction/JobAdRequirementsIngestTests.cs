@@ -87,8 +87,8 @@ public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
 
     private static UpsertExternalJobAdCommandHandler NewHandler(IAppDbContext db)
     {
-        var stemmer = new SnowballSwedishStemmer();
-        var extractor = new JobAdKeywordExtractor(new SwedishTextAnalyzer(stemmer), stemmer);
+        var stemmer = new SnowballStemmer();
+        var extractor = new JobAdKeywordExtractor(new LocalTextAnalyzer(stemmer), stemmer);
         return new UpsertExternalJobAdCommandHandler(
             db,
             new DbExceptionInspector(),

@@ -1,0 +1,142 @@
+using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Privacy;
+using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.KnowledgeBank;
+
+namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
+
+/// <summary>
+/// Shared builders for the F4-9 CV-review engine tests. Two design choices, both
+/// deliberate and reported to CC:
+///
+/// <list type="number">
+/// <item>The knowledge-bank ports are wired to the REAL Infrastructure loaders
+/// (<see cref="RubricProvider"/> / <see cref="ClicheLexicon"/> / <see cref="VerbMapper"/>).
+/// Golden expectations are derived from the committed assets (rubric.v1.0.0.json etc.) —
+/// anti-stale, no guessed thresholds (the prompt's "derive from the real rubric asset"
+/// directive).</item>
+/// <item>The <see cref="ITextAnalyzer"/> is a real-ish stub. The engine consumes it for
+/// the NLP-tier criteria (A2/C3/C5 etc.); for the unit tests we feed a deterministic fake
+/// that lowercases + splits on whitespace so the assertions stay on the engine's RULE
+/// logic, not on Snowball/PG parity (which has its own integration gate).</item>
+/// </list>
+///
+/// Building a <see cref="ParsedResume"/> in-memory uses the real <see cref="ParsedResume.Create"/>
+/// factory (the aggregate accepts a degraded parse, OQ5), so the fixtures exercise the same
+/// construction path the import handler does.
+/// </summary>
+internal static class CvReviewFixtures
+{
+    internal sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
+    {
+        public DateTimeOffset UtcNow { get; } = utcNow;
+        public static FixedClock Default =>
+            new(new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero));
+    }
+
+    // ── Real knowledge-bank ports (committed assets — golden source) ─────
+
+    internal static IRubricProvider RealRubricProvider() => new RubricProvider();
+    internal static IClicheLexicon RealClicheLexicon() => new ClicheLexicon();
+    internal static IVerbMapper RealVerbMapper() => new VerbMapper();
+    internal static Rubric RealRubric() => RealRubricProvider().GetRubric();
+
+    // ── A deterministic ITextAnalyzer stub (lowercase + whitespace split) ─
+    // Not PG/Snowball parity — the engine's NLP-tier rules are exercised against a
+    // predictable lexeme stream so the RULE behaviour (not the stemmer) is under test.
+    internal sealed class WhitespaceTextAnalyzer : ITextAnalyzer
+    {
+        public IReadOnlyList<string> ToLexemes(string text, TextLanguage language)
+        {
+            ArgumentNullException.ThrowIfNull(text);
+            return text
+                .ToLowerInvariant()
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+        }
+    }
+
+    internal static ITextAnalyzer Analyzer() => new WhitespaceTextAnalyzer();
+
+    // ── ParsedResume builders ────────────────────────────────────────────
+
+    internal static ParsedExperience Experience(
+        string? title = "Backend-utvecklare",
+        string? organization = "Acme AB",
+        string? period = "2021–2024",
+        string? rawText = null) =>
+        new(title, organization, period, rawText ?? $"{title}, {organization}, {period}");
+
+    internal static ParsedEducation Education(
+        string? institution = "KTH",
+        string? degree = "Civilingenjör",
+        string? period = "2016–2021",
+        string? rawText = null) =>
+        new(institution, degree, period, rawText ?? $"{institution} {degree} {period}");
+
+    internal static ParsedContact CompleteContact() =>
+        new("Anna Andersson", "anna.andersson@example.com", "070-123 45 67", "Stockholm");
+
+    internal static ParseConfidence ConfidentConfidence() =>
+        ParseConfidence.FromSections(
+        [
+            new SectionConfidence(ParsedSectionKind.Contact, SectionConfidenceLevel.Confident, ["kontakt hittad"]),
+            new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, ["1 post"]),
+        ]);
+
+    /// <summary>
+    /// Builds a parsed CV with full control over the fields each criterion reads. Defaults
+    /// describe a strong CV (quantified bullets, action verbs, complete contact, no
+    /// personnummer, textual PDF). Override per-test to drive a specific criterion to
+    /// Warn/Fail.
+    /// </summary>
+    internal static ParsedResume Resume(
+        ParsedContact? contact = null,
+        string? profile = "Erfaren backend-utvecklare med 8 års erfarenhet inom betalsystem. Levererade 3 plattformsmigrationer.",
+        IReadOnlyList<ParsedExperience>? experience = null,
+        IReadOnlyList<ParsedEducation>? education = null,
+        IReadOnlyList<string>? skills = null,
+        IReadOnlyList<string>? languages = null,
+        string? rawText = null,
+        string sourceFileName = "CV_Anna_Andersson.pdf",
+        string sourceContentType = "application/pdf",
+        ResumeLanguage? detectedLanguage = null,
+        ParseConfidence? confidence = null,
+        PersonnummerScanOutcome? personnummer = null)
+    {
+        var content = new ParsedResumeContent(
+            contact ?? CompleteContact(),
+            profile,
+            experience ?? [Experience()],
+            education ?? [Education()],
+            skills ?? ["C#", "PostgreSQL", "Kubernetes"],
+            languages ?? ["Svenska", "Engelska"]);
+
+        var created = ParsedResume.Create(
+            JobSeekerId.New(),
+            sourceFileName,
+            sourceContentType,
+            detectedLanguage ?? ResumeLanguage.Sv,
+            content,
+            rawText ?? "Anna Andersson\nLedde teamet om 8 personer.",
+            confidence ?? ConfidentConfidence(),
+            personnummer ?? PersonnummerScanOutcome.None,
+            [],
+            FixedClock.Default);
+
+        return created.Value;
+    }
+
+    // ── Verdict lookup helpers ───────────────────────────────────────────
+
+    internal static CvCriterionVerdict Verdict(CvReviewResult result, string criterionId) =>
+        result.Verdicts.Single(v => v.CriterionId == criterionId);
+
+    internal static CriterionVerdict VerdictOf(CvReviewResult result, string criterionId) =>
+        Verdict(result, criterionId).Verdict;
+}

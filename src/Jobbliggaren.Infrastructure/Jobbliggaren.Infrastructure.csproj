@@ -73,11 +73,18 @@
       <LogicalName>Jobbliggaren.Infrastructure.Persistence.Migrations.Resources.occupation-name-to-ssyk-level-4.v30.json</LogicalName>
     </EmbeddedResource>
     <!-- Fas 4 STEG 2 (F4-2) — PostgreSQL 18.3's Swedish stopword list, embedded
-         BYTE-IDENTICAL so SwedishTextAnalyzer drops exactly what to_tsvector('swedish')
+         BYTE-IDENTICAL so LocalTextAnalyzer drops exactly what to_tsvector('swedish')
          drops (stopword parity, ADR 0074). BSD-3-Clause Snowball data (permissive →
          embedding is fine, unlike the LGPL-3.0 DSSO dictionary which ships as Content). -->
     <EmbeddedResource Include="TextAnalysis\swedish.stop">
       <LogicalName>Jobbliggaren.Infrastructure.TextAnalysis.swedish.stop</LogicalName>
+    </EmbeddedResource>
+    <!-- Fas 4 STEG 9 (F4-9) — PostgreSQL 18.3's English stopword list, embedded
+         BYTE-IDENTICAL so LocalTextAnalyzer drops exactly what to_tsvector('english')
+         drops (English stopword parity, ADR 0074 F4-2 amendment). BSD-3-Clause Snowball
+         data (permissive → embedding is fine, parity with swedish.stop). -->
+    <EmbeddedResource Include="TextAnalysis\english.stop">
+      <LogicalName>Jobbliggaren.Infrastructure.TextAnalysis.english.stop</LogicalName>
     </EmbeddedResource>
     <!-- Fas 4 STEG 7 (F4-7, ADR 0071/0074) — the versioned CV knowledge bank
          (rubric + cliché list + weak→strong verb mapping). INTERNALLY authored/curated
@@ -114,6 +121,15 @@
          the Api/Worker hosts (and test projects). THIRD-PARTY-NOTICES carries the LGPL. -->
     <Content Include="TextAnalysis\sv_SE.dic" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="TextAnalysis\sv_SE.aff" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Fas 4 STEG 9 (F4-9) — en_US Hunspell dictionary. PERMISSIVE (SCOWL/Kevin Atkinson
+         BSD + Geoff Kuenning Ispell BSD — NOT copyleft, even cleaner than the LGPL-3.0
+         sv_SE DSSO), so embedding would be legally fine; shipped as Content for LAYOUT
+         PARITY with sv_SE (same EnsureDssoDictionaryPresent existence-check, same lazy
+         WordList load). Source: wooorm/dictionaries 'en' (en_US), UTF-8, verbatim/unmodified.
+         THIRD-PARTY-NOTICES carries the BSD attribution. Wired but DORMANT in F4-9 (C1 is
+         NotAssessedV1, ADR 0071 OQ3 — no v1 ISpellChecker consumer). -->
+    <Content Include="TextAnalysis\en_US.dic" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="TextAnalysis\en_US.aff" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

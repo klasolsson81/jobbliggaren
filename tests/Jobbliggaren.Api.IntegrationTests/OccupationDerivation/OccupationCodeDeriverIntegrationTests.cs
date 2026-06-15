@@ -113,7 +113,7 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     private OccupationCodeDeriver NewDeriver()
     {
         var taxonomy = new TaxonomyReadModel(ScopeFactory);
-        var analyzer = new SwedishTextAnalyzer(new SnowballSwedishStemmer());
+        var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
         return new OccupationCodeDeriver(taxonomy, analyzer);
     }
 

@@ -65,10 +65,10 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         // The REAL deterministic extractor (parity the integration suite).
-        var stemmer = new SnowballSwedishStemmer();
+        var stemmer = new SnowballStemmer();
         services.AddSingleton<Jobbliggaren.Application.Common.Abstractions.TextAnalysis.IStemmer>(stemmer);
         services.AddSingleton<IJobAdKeywordExtractor>(
-            new JobAdKeywordExtractor(new SwedishTextAnalyzer(stemmer), stemmer));
+            new JobAdKeywordExtractor(new LocalTextAnalyzer(stemmer), stemmer));
 
         // Collaborators. The IJobSource substitute is the assertion subject — it
         // must remain untouched (local re-projection, NO JobTech re-fetch).

@@ -38,9 +38,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 ///   • English CV title → no language signal in F4-5 (CTO re-ruling 2026-06-15,
 ///     Resolution B) → Swedish-stemmed → disjoint → TitleSimilarity.NoMatch while
 ///     the concept-id dims still score. The NotSupportedException→NotAssessed catch
-///     is a dormant forward-compat guard (fires only when a non-Swedish language is
-///     requested, F4-8/9). The analyzer DOES throw for TextLanguage.English (proven
-///     below) — that is the guard's future trigger, not F4-5's active path.
+///     is a dormant forward-compat guard that never fires (the scorer always passes
+///     TextLanguage.Swedish). Since F4-9 wired the English analyzer (it no longer
+///     throws), the guard is now harmless dead-defense, not a live trigger.
 ///   • JobAd not found → NotFoundException.
 ///
 /// RED until IMatchScorer + MatchScore/MatchDimension/CandidateMatchProfile/
@@ -64,7 +64,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     {
         var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var analyzer = new SwedishTextAnalyzer(new SnowballSwedishStemmer());
+        var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
         return (scope, new MatchScorer(db, analyzer));
     }
 
@@ -73,7 +73,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     // (anti-stale, F4-2/F4-3 lesson). Returns Ordinal-distinct lexemes.
     private static List<string> SwedishLexemes(string text)
     {
-        var analyzer = new SwedishTextAnalyzer(new SnowballSwedishStemmer());
+        var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
         return analyzer.ToLexemes(text, TextLanguage.Swedish)
             .Distinct(StringComparer.Ordinal)
             .ToList();
@@ -426,16 +426,18 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task MatchScorer_RealAnalyzer_ThrowsNotSupportedException_ForEnglish()
+    public async Task MatchScorer_RealAnalyzer_HandlesEnglish_F49()
     {
-        // Proves the precondition the narrow-catch test relies on: the real
-        // analyzer genuinely throws for English (F4-2 amendment) — so the
-        // NotAssessed above can ONLY come from the scorer catching it, not from
-        // the analyzer silently degrading.
-        var analyzer = new SwedishTextAnalyzer(new SnowballSwedishStemmer());
+        // F4-9 wired the English analyzer (ADR 0074 F4-2 amendment); ToLexemes no longer
+        // throws for English. The scorer still passes Swedish hardcoded (F4-5 has no
+        // language signal), so the dormant NotSupportedException→NotAssessed guard simply
+        // never fires — harmless forward-compat — and the English-CV-title degradation above
+        // (Swedish-stemmed → disjoint → NoMatch) is unchanged.
+        var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
 
-        Should.Throw<NotSupportedException>(
-            () => analyzer.ToLexemes("Software Engineer", TextLanguage.English));
+        var lexemes = analyzer.ToLexemes("Software Engineer", TextLanguage.English);
+
+        lexemes.ShouldNotBeEmpty();
         await Task.CompletedTask;
     }
 

@@ -101,6 +101,15 @@ public sealed record CategoryWeights(
 /// <see cref="RubricProfile.Both"/> criterion (A/B/C) has all four. Signal text is
 /// human-readable Swedish copy verbatim from research §2.2–2.6, not a machine token.
 /// </para>
+/// <para>
+/// <b>v1 threshold posture (senior-cto-advisor M1=(a), 2026-06-15).</b> These prose signals
+/// carry the per-criterion thresholds as text (e.g. A2 "≥80 %"). The F4-9 review engine
+/// operationalises them as code (no machine-readable per-criterion threshold FIELD exists by
+/// F4-7 design — DQ8). This is honest because the rubric is versioned (rubric@x.y.z; §2.8
+/// minor = tröskel) and the version rides on every assessment. A structured per-criterion
+/// threshold schema is a future rubric-vN / F4-10 forward-note (ADR 0074 discovery→STEG), NOT
+/// a TD; the cliché/verb LISTS (§5) already ARE data.
+/// </para>
 /// </summary>
 public sealed record RubricCriterion(
     string Id,

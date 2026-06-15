@@ -1,0 +1,48 @@
+using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderCv;
+using Shouldly;
+
+namespace Jobbliggaren.Application.UnitTests.Resumes.Rendering;
+
+/// <summary>
+/// Fas 4 STEG 10 (F4-10) — input-shape validation for the CV-render query. Mirrors
+/// <c>ReviewParsedResumeQueryValidator</c>: the ParsedResumeId must be a non-empty Guid and the
+/// Profile string must parse fail-loud to a <c>RenderProfile</c> (no silent default).
+/// </summary>
+public class RenderCvQueryValidatorTests
+{
+    private readonly RenderCvQueryValidator _validator = new();
+
+    private static RenderCvQuery Query(Guid? id = null, string profile = "Ats") =>
+        new(id ?? Guid.NewGuid(), profile);
+
+    [Theory]
+    [InlineData("Ats")]
+    [InlineData("Visual")]
+    public void Validate_ValidQuery_Passes(string profile)
+    {
+        _validator.Validate(Query(profile: profile)).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_EmptyParsedResumeId_Fails()
+    {
+        var result = _validator.Validate(Query(id: Guid.Empty));
+
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(RenderCvQuery.ParsedResumeId));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("ats")]
+    [InlineData("Pdf")]
+    [InlineData("Both")]
+    public void Validate_UnparseableProfile_Fails(string profile)
+    {
+        var result = _validator.Validate(Query(profile: profile));
+
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(RenderCvQuery.Profile));
+    }
+}

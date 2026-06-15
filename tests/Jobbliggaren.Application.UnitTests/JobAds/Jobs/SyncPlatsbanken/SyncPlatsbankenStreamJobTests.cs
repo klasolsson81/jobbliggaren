@@ -38,7 +38,8 @@ public class SyncPlatsbankenStreamJobTests
         Url: "https://example.com/jobs/1",
         PublishedAt: Now.AddDays(-1),
         ExpiresAt: Now.AddDays(30),
-        SanitizedRawPayload: "{\"id\":\"ext-1\"}");
+        SanitizedRawPayload: "{\"id\":\"ext-1\"}",
+        Requirements: []);
 
     private static SyncPlatsbankenStreamJob CreateJob(
         IJobSource jobSource,

@@ -334,4 +334,134 @@ public class JobTechHitDeserializationTests
         sanitized.ShouldContain("\"concept_id\":\"6YE1_gAC_R2G\"");
         sanitized.ShouldNotContain("worktime_extent");
     }
+
+    // ── Fas 4 STEG 4b (F4-4b — employer requirement extraction) ───────────────
+    // POCO-grinden för must_have/nice_to_have. Om JobTechHit inte deserialiserar
+    // dessa keys producerar JsonSerializer.Serialize(hit) en payload UTAN dem →
+    // (a) ACL-mappningen ser inga requirements, och (b) re-ingest-predikatet
+    // (!JsonExists(raw_payload,'must_have')) flippar aldrig till skip (samma
+    // POCO-rotorsaks-mönster som B2 employment_type/working_hours_type).
+    // Sanitizer-allowlist:ar redan must_have/nice_to_have/skills/.../weight
+    // (JobTechPayloadSanitizer.cs:58-60) → no-op-passering.
+
+    [Fact]
+    public void Deserialize_PopulatesMustHaveAndNiceToHaveSkills()
+    {
+        // must_have/nice_to_have är TOP-LEVEL objekt med fem sub-arrayer; varje
+        // element delar shape {weight, concept_id, label, legacy_ams_taxonomy_id}.
+        // weight kan vara null (live-verifierat i sample) → POCO-property int?.
+        const string wireJson = """
+        {
+            "id": "31063032",
+            "must_have": {
+                "skills": [
+                    { "weight": 10, "concept_id": "Rq01_must_aaa", "label": "C#", "legacy_ams_taxonomy_id": "1" },
+                    { "weight": null, "concept_id": "Rq02_must_bbb", "label": "Java", "legacy_ams_taxonomy_id": "2" }
+                ]
+            },
+            "nice_to_have": {
+                "skills": [
+                    { "weight": 5, "concept_id": "Rq03_nice_ccc", "label": "Azure", "legacy_ams_taxonomy_id": "3" }
+                ]
+            }
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.MustHave.ShouldNotBeNull();
+        hit.MustHave.Skills.ShouldNotBeNull();
+        hit.MustHave.Skills.Count.ShouldBe(2);
+        hit.MustHave.Skills[0].ConceptId.ShouldBe("Rq01_must_aaa");
+        hit.MustHave.Skills[0].Label.ShouldBe("C#");
+        hit.MustHave.Skills[0].Weight.ShouldBe(10);
+        // weight: null → POCO Weight is null (the ACL maps it to the 0.0 floor later).
+        hit.MustHave.Skills[1].Weight.ShouldBeNull();
+
+        hit.NiceToHave.ShouldNotBeNull();
+        hit.NiceToHave.Skills.ShouldNotBeNull();
+        hit.NiceToHave.Skills.ShouldHaveSingleItem().ConceptId.ShouldBe("Rq03_nice_ccc");
+    }
+
+    [Fact]
+    public void Deserialize_GracefullyHandlesMissingMustHaveAndNiceToHave()
+    {
+        // Pre-F4-4b payload-form (alla importerade rader): saknar must_have +
+        // nice_to_have → null-properties, ingen krasch. Detta är raderna
+        // re-ingest-backfillen plockar (raw_payload saknar must_have).
+        const string wireJson = """
+        {
+            "id": "31063032",
+            "headline": "Backend Developer"
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.MustHave.ShouldBeNull();
+        hit.NiceToHave.ShouldBeNull();
+    }
+
+    [Fact]
+    public void RoundTripSerialize_PreservesMustHaveJsonKey()
+    {
+        // ROTORSAKS-REGRESSIONS-GRIND för F4-4b: PlatsbankenJobSource gör
+        // JsonSerializer.Serialize(hit) → raw_payload. Re-ingest-predikatet
+        // !JsonExists(raw_payload,'must_have') förlitar sig på att JsonPropertyName-
+        // attributen producerar EXAKT wire-keyn "must_have". Verifierar att en hit med
+        // must_have re-emitterar nyckeln (annars förblir raden "saknar must_have" för
+        // alltid → re-hämtas varje körning).
+        var hit = new JobTechHit
+        {
+            Id = "31063032",
+            MustHave = new JobTechRequirements
+            {
+                Skills = [new JobTechRequirementConcept { ConceptId = "Rq01_must_aaa", Label = "C#", Weight = 10 }],
+            },
+            NiceToHave = new JobTechRequirements
+            {
+                Skills = [new JobTechRequirementConcept { ConceptId = "Rq03_nice_ccc", Label = "Azure", Weight = 5 }],
+            },
+        };
+
+        var json = JsonSerializer.Serialize(hit);
+
+        json.ShouldContain("\"must_have\":{");
+        json.ShouldContain("\"nice_to_have\":{");
+        json.ShouldContain("\"skills\":[");
+        json.ShouldContain("\"concept_id\":\"Rq01_must_aaa\"");
+
+        // Roundtrip-bekräftelse.
+        var roundTripped = JsonSerializer.Deserialize<JobTechHit>(json);
+        roundTripped.ShouldNotBeNull();
+        roundTripped.MustHave!.Skills.ShouldHaveSingleItem().ConceptId.ShouldBe("Rq01_must_aaa");
+    }
+
+    [Fact]
+    public void RoundTripThroughSanitizer_PreservesMustHaveForReIngestPredicate()
+    {
+        // End-to-end PlatsbankenJobSource → JsonSerializer.Serialize(hit) →
+        // JobTechPayloadSanitizer. Sanitizer-allowlist:ar redan must_have/nice_to_have/
+        // skills/weight (JobTechPayloadSanitizer.cs:58-60) → must_have-nyckeln överlever
+        // till raw_payload. Detta är hela vägen som gör att re-ingest-predikatet
+        // (!JsonExists(raw_payload,'must_have')) korrekt skippar en re-ingestad rad.
+        var hit = new JobTechHit
+        {
+            Id = "31063032",
+            Headline = "Backend Developer",
+            MustHave = new JobTechRequirements
+            {
+                Skills = [new JobTechRequirementConcept { ConceptId = "Rq01_must_aaa", Label = "C#", Weight = 10 }],
+            },
+        };
+
+        var rawJson = JsonSerializer.Serialize(hit);
+        var sanitized = JobTechPayloadSanitizer.SanitizeForStorage(rawJson);
+
+        sanitized.ShouldContain("\"must_have\":{");
+        sanitized.ShouldContain("\"skills\":[");
+        sanitized.ShouldContain("\"concept_id\":\"Rq01_must_aaa\"");
+    }
 }

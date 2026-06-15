@@ -111,6 +111,24 @@ internal sealed class JobTechHit
 
     [JsonPropertyName("working_hours_type")]
     public JobTechWorkingHoursType? WorkingHoursType { get; set; }
+
+    // F4-4b (ADR 0071/0074/0075) — strukturerade arbetsgivar-krav. must_have +
+    // nice_to_have är TOP-LEVEL objekt med fem sub-arrayer (live-verifierat
+    // 2026-06-15 mot jobsearch.api.jobtechdev.se), varje element redan taxonomi-
+    // länkat {weight, concept_id, label, legacy_ams_taxonomy_id}. POCO:n
+    // deserialiserade dem INTE tidigare → JsonSerializer.Serialize(hit) i
+    // PlatsbankenJobSource producerade raw_payload UTAN must_have → (a) ACL:n såg
+    // inga krav OCH (b) re-ingest-predikatet (!JsonExists(raw_payload,'must_have'))
+    // flippade aldrig till skip (samma POCO-rotorsaks-mönster som F6 P4 occupation +
+    // B2 employment_type). Sanitizer-allowlist passerar redan must_have/nice_to_have/
+    // skills/.../weight → full raw_payload-fidelitet (alla fem sub-arrayer bevaras;
+    // ACL:n mappar bara skills → Requirement-termer v1, CTO Decision 1A — resten
+    // finns i raw_payload för framtida utvidgning utan ny re-ingest).
+    [JsonPropertyName("must_have")]
+    public JobTechRequirements? MustHave { get; set; }
+
+    [JsonPropertyName("nice_to_have")]
+    public JobTechRequirements? NiceToHave { get; set; }
 }
 
 internal sealed class JobTechDescription
@@ -233,4 +251,46 @@ internal sealed class JobTechWorkplaceAddress
 
     [JsonPropertyName("country")]
     public string? Country { get; set; }
+}
+
+// F4-4b — strukturerade arbetsgivar-krav (must_have/nice_to_have). Fem sub-arrayer
+// som delar element-shape med occupation-trion + ett {weight}. Varje sub-array pekar
+// mot en EGEN JobTech-taxonomi (skills→skill, work_experiences→occupation, languages→
+// language, education→education-field, education_level→SUN). Separata typer för
+// divergens-tålighet; POCO = ACL mot JobTech-wire-formatet (Evans 2003 §14).
+internal sealed class JobTechRequirements
+{
+    [JsonPropertyName("skills")]
+    public List<JobTechRequirementConcept>? Skills { get; set; }
+
+    [JsonPropertyName("languages")]
+    public List<JobTechRequirementConcept>? Languages { get; set; }
+
+    [JsonPropertyName("work_experiences")]
+    public List<JobTechRequirementConcept>? WorkExperiences { get; set; }
+
+    [JsonPropertyName("education")]
+    public List<JobTechRequirementConcept>? Educations { get; set; }
+
+    [JsonPropertyName("education_level")]
+    public List<JobTechRequirementConcept>? EducationLevel { get; set; }
+}
+
+// Ett krav-koncept. Samma {concept_id, label, legacy_ams_taxonomy_id}-shape som
+// occupation-trion, plus JobTechs relevans-vikt. weight kan vara null i live-
+// payloaden (en must_have-skill utan vikt) → ACL:n mappar null till golvet 0.0
+// (ExtractedTerm.Weight kräver ett finit, icke-negativt värde).
+internal sealed class JobTechRequirementConcept
+{
+    [JsonPropertyName("weight")]
+    public int? Weight { get; set; }
+
+    [JsonPropertyName("concept_id")]
+    public string? ConceptId { get; set; }
+
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
+    [JsonPropertyName("legacy_ams_taxonomy_id")]
+    public string? LegacyAmsTaxonomyId { get; set; }
 }

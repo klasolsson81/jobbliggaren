@@ -106,8 +106,8 @@ public class JobAdKeywordExtractorLayerTests
         var kind = typeof(Jobbliggaren.Domain.JobAds.ExtractedTermKind);
         kind.Assembly.ShouldBe(
             typeof(Jobbliggaren.Domain.Common.AggregateRoot<>).Assembly,
-            "ExtractedTermKind är jsonb-state-ordinaler (declaration-order = sort-nyckel " +
-            "+ jsonb-kontrakt) → Domain (ADR 0075).");
+            "ExtractedTermKind är jsonb-state-enum (stabila enum-värden = jsonb-kontrakt; " +
+            "sort-prioritet via ExtractedTerms.SortRank, F4-4b) → Domain (ADR 0075).");
     }
 
     [Fact]

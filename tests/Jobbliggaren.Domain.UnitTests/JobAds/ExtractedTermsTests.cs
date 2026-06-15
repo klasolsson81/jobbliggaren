@@ -4,21 +4,38 @@ using Shouldly;
 namespace Jobbliggaren.Domain.UnitTests.JobAds;
 
 /// <summary>
-/// Fas 4 STEG 4 (F4-4, ADR 0071/0074/0075) — the <see cref="ExtractedTerms"/>
-/// value object is the single normalization point for the persisted jsonb
-/// extraction. <see cref="ExtractedTerms.From"/> validates each term's invariants,
-/// deduplicates on (Lexeme, Kind, Source) keeping the highest weight, sorts
-/// deterministically (Kind → Weight desc → Lexeme Ordinal → Source) and caps at
-/// <see cref="ExtractedTerms.MaxTerms"/>. Empty is a valid "not-yet-extracted /
-/// nothing matched" state. Malformed terms throw <see cref="ArgumentException"/>
-/// (corrupt jsonb / extractor bug surfaces, never silently persists).
+/// Fas 4 STEG 4 (F4-4, ADR 0071/0074/0075) + STEG 4b (F4-4b) — the
+/// <see cref="ExtractedTerms"/> value object is the single normalization point for
+/// the persisted jsonb extraction. <see cref="ExtractedTerms.From"/> validates each
+/// term's invariants, deduplicates on (Lexeme, Kind, Source) keeping the highest
+/// weight, sorts deterministically and caps at <see cref="ExtractedTerms.MaxTerms"/>.
+/// Empty is a valid "not-yet-extracted / nothing matched" state. Malformed terms
+/// throw <see cref="ArgumentException"/> (corrupt jsonb / extractor bug surfaces,
+/// never silently persists).
+///
+/// <para>
+/// <b>F4-4b additions (RED until the F4-4b production change ships):</b>
+/// <list type="bullet">
+/// <item>A <see cref="ExtractedTermKind.Requirement"/> term carries a non-blank
+/// ConceptId, with <c>Lexeme == ConceptId</c> (concept-level overlap, same rule as
+/// Skill) and <c>Source ∈ {MustHave, NiceToHave}</c> — else
+/// <see cref="ArgumentException"/>.</item>
+/// <item>Skill/Keyword <c>Source</c> is TIGHTENED to <c>∈ {Title, Description}</c> —
+/// a Skill/Keyword with Source=MustHave/NiceToHave now throws (closes a silent bug).</item>
+/// <item>The primary sort key is NO LONGER raw <c>(int)Kind</c>; it is a Kind→rank:
+/// <b>Requirement (0) → Skill (1) → Keyword (2)</b> (CTO Decision 1c — employer
+/// requirements are the highest-authority match signal and must survive the cap
+/// before NLP-derived Skills/Keywords). Secondary keys unchanged: Weight desc →
+/// Lexeme Ordinal → Source.</item>
+/// </list>
+/// </para>
 ///
 /// Pure Domain — no DB, no NLP. Mirrors SearchCriteriaTests' normalization style.
 /// </summary>
 public class ExtractedTermsTests
 {
     // ---------------------------------------------------------------
-    // Term builders — a valid Skill and a valid Keyword by default; each
+    // Term builders — a valid Skill, Keyword and Requirement by default; each
     // factory exposes the field a given test wants to perturb.
     // ---------------------------------------------------------------
 
@@ -39,6 +56,18 @@ public class ExtractedTermsTests
         double weight = 1)
         // Keyword invariant: no ConceptId.
         => new(lexeme, display, ExtractedTermKind.Keyword, source, matchedOn, null, weight);
+
+    // F4-4b — a valid Requirement: Lexeme == ConceptId (concept-level overlap, same
+    // as Skill), Source ∈ {MustHave, NiceToHave}, MatchedOn cites the requirement
+    // label. ConceptId defaults to a different concept than Skill's so a (concept,
+    // Skill) and a (concept, Requirement) term are independent by default.
+    private static ExtractedTerm Requirement(
+        string conceptId = "Rq01_AbC_Def",
+        string display = "C#",
+        ExtractedTermSource source = ExtractedTermSource.MustHave,
+        string matchedOn = "C#",
+        double weight = 0)
+        => new(conceptId, display, ExtractedTermKind.Requirement, source, matchedOn, conceptId, weight);
 
     // ===============================================================
     // Empty / IsEmpty
@@ -139,8 +168,9 @@ public class ExtractedTermsTests
     [Fact]
     public void From_OrdersSkillsBeforeKeywords()
     {
-        // ExtractedTermKind declaration order is the primary sort key:
-        // Skill (0) before Keyword (1) — a high-value skill survives the cap first.
+        // The Kind→rank sort key puts Skill (rank 1) before Keyword (rank 2) — a
+        // high-value skill survives the cap before a generic keyword. (Still true
+        // under F4-4b's Requirement→Skill→Keyword rank; this test pins Skill<Keyword.)
         var keyword = Keyword(lexeme: "system", weight: 99);
         var skill = Skill(conceptId: "abc", weight: 1);
 
@@ -238,6 +268,216 @@ public class ExtractedTermsTests
                 $"Tung term '{h.Lexeme}' (vikt 100) ska överleva cappen före lätta termer.");
         // The first ten are exactly the heavy ones.
         result.Terms.Take(10).ShouldAllBe(t => t.Weight == 100);
+    }
+
+    // ===============================================================
+    // F4-4b — Requirement sort rank: Requirement → Skill → Keyword
+    // ===============================================================
+
+    [Fact]
+    public void From_OrdersRequirementsBeforeSkillsAndKeywords()
+    {
+        // CTO Decision 1c — the Kind→rank sort key is Requirement (0) → Skill (1) →
+        // Keyword (2). A high-weight keyword and a high-specificity skill must STILL
+        // sort after an employer requirement, regardless of weight: cap-survival
+        // mirrors match-authority (employer-stated > NLP-derived). Input order is
+        // shuffled (keyword, skill, requirement) to prove the sort, not insertion.
+        var keyword = Keyword(lexeme: "system", matchedOn: "system", weight: 99);
+        var skill = Skill(conceptId: "skill-concept", weight: 50);
+        var requirement = Requirement(conceptId: "req-concept", weight: 0);
+
+        var result = ExtractedTerms.From([keyword, skill, requirement]);
+
+        // Requirement first (rank 0), Skill second (rank 1), Keyword last (rank 2) —
+        // EVEN THOUGH the requirement has the lowest weight of the three.
+        result.Terms[0].Kind.ShouldBe(ExtractedTermKind.Requirement,
+            "Requirement har högst auktoritet → sort-rank 0 (CTO Decision 1c).");
+        result.Terms[1].Kind.ShouldBe(ExtractedTermKind.Skill);
+        result.Terms[2].Kind.ShouldBe(ExtractedTermKind.Keyword);
+    }
+
+    [Fact]
+    public void From_RequirementsWithinKind_StillOrderByWeightDescending()
+    {
+        // The Kind→rank change is the PRIMARY key only; the secondary key (Weight
+        // desc) is unchanged WITHIN the Requirement group. A must_have weight 10
+        // sorts before a must_have weight 0 (the JobTech intra-category weight).
+        var light = Requirement(conceptId: "req-a", matchedOn: "A", weight: 0);
+        var heavy = Requirement(conceptId: "req-b", matchedOn: "B", weight: 10);
+
+        var result = ExtractedTerms.From([light, heavy]);
+
+        result.Terms[0].Lexeme.ShouldBe("req-b", "tyngre requirement först (Weight desc inom Kind).");
+        result.Terms[1].Lexeme.ShouldBe("req-a");
+    }
+
+    // ===============================================================
+    // F4-4b — cap(64) survival: ALL requirements survive, keywords are cut
+    // ===============================================================
+
+    [Fact]
+    public void From_OverMaxTerms_KeepsAllRequirements_DroppingKeywords()
+    {
+        // THE F4-4b CORRECTNESS GUARANTEE (CTO Decision 1c): given far more than 64
+        // terms — a handful of requirements + many keywords — EVERY requirement
+        // survives the cap and the dropped terms are all keywords. This is the bug
+        // the Kind→rank change fixes: under the old raw (int)Kind sort, Requirement
+        // (enum value 2) sorted LAST and would be cut before incidental keywords.
+        var requirements = Enumerable.Range(0, 8)
+            .Select(i => Requirement(
+                conceptId: $"req-{i:D2}", display: $"Krav {i}", matchedOn: $"Krav {i}", weight: 0))
+            .ToList();
+        // 100 keywords, each HEAVIER than every requirement (weight 0) — proving the
+        // survival is driven by Kind-rank, NOT by weight (a naive Weight-only cap
+        // would keep the heavy keywords and drop the zero-weight requirements).
+        var keywords = Enumerable.Range(0, 100)
+            .Select(i => Keyword(lexeme: $"kw{i:D3}", display: $"kw{i:D3}", matchedOn: $"kw{i:D3}", weight: 100))
+            .ToList();
+
+        // Keywords first in input → proves it is the sort, not the input order.
+        var result = ExtractedTerms.From([.. keywords, .. requirements]);
+
+        result.Terms.Count.ShouldBe(ExtractedTerms.MaxTerms);
+        // Every requirement survived the cap.
+        foreach (var r in requirements)
+            result.Terms.ShouldContain(t => t.Lexeme == r.Lexeme && t.Kind == ExtractedTermKind.Requirement,
+                $"Requirement '{r.Lexeme}' ska överleva cappen före keywords (CTO Decision 1c).");
+        // The first 8 terms are exactly the requirements (rank 0).
+        result.Terms.Take(requirements.Count)
+            .ShouldAllBe(t => t.Kind == ExtractedTermKind.Requirement);
+        // The cut terms are all keywords — the requirement count plus the surviving
+        // keyword count equals the cap, and no requirement was dropped.
+        result.Terms.Count(t => t.Kind == ExtractedTermKind.Requirement)
+            .ShouldBe(requirements.Count, "inga requirements får kapas bort.");
+    }
+
+    // ===============================================================
+    // F4-4b — dedup keeps BOTH a (concept, Skill, Description) and a
+    //         (concept, Requirement, MustHave) term (different identity)
+    // ===============================================================
+
+    [Fact]
+    public void From_SameConceptAsSkillAndRequirement_AreNotDeduplicated()
+    {
+        // Identity is (Lexeme, Kind, Source). The SAME concept-id appearing both as a
+        // description-extracted Skill AND as an employer must_have Requirement yields
+        // TWO distinct terms — the description skill and the stated requirement are
+        // different facts about the ad (F4-6 reads both). They share Lexeme but differ
+        // in Kind (Skill vs Requirement), so the dedupe keeps both.
+        const string concept = "1TC7_x8s_V7V";
+        var skill = Skill(conceptId: concept, display: "JavaScript", matchedOn: "JavaScript");
+        var requirement = Requirement(
+            conceptId: concept, display: "JavaScript",
+            source: ExtractedTermSource.MustHave, matchedOn: "JavaScript", weight: 10);
+
+        var result = ExtractedTerms.From([skill, requirement]);
+
+        result.Terms.Count.ShouldBe(2, "samma concept som Skill och som Requirement = två olika termer.");
+        result.Terms.ShouldContain(t => t.Kind == ExtractedTermKind.Skill && t.Lexeme == concept);
+        result.Terms.ShouldContain(t => t.Kind == ExtractedTermKind.Requirement && t.Lexeme == concept);
+    }
+
+    // ===============================================================
+    // F4-4b — Requirement invariants (valid round-trip + the throw cases)
+    // ===============================================================
+
+    [Fact]
+    public void From_ValidRequirement_RoundTripsFields()
+    {
+        var result = ExtractedTerms.From([Requirement()]);
+
+        var term = result.Terms.ShouldHaveSingleItem();
+        term.Kind.ShouldBe(ExtractedTermKind.Requirement);
+        term.ConceptId.ShouldBe(term.Lexeme, "Requirement: Lexeme == ConceptId (concept-level overlap-token).");
+        term.Source.ShouldBe(ExtractedTermSource.MustHave);
+        term.MatchedOn.ShouldNotBeNullOrWhiteSpace("cited evidence (ADR 0074).");
+    }
+
+    [Fact]
+    public void From_ValidNiceToHaveRequirement_IsAllowed()
+    {
+        // NiceToHave is the other legal Requirement Source.
+        var result = ExtractedTerms.From(
+            [Requirement(source: ExtractedTermSource.NiceToHave)]);
+
+        result.Terms.ShouldHaveSingleItem().Source.ShouldBe(ExtractedTermSource.NiceToHave);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void From_RequirementWithoutConceptId_Throws(string conceptId)
+    {
+        // A Requirement term must carry a non-blank ConceptId (it is the overlap
+        // token). Build the malformed term directly (Lexeme kept == the blank
+        // ConceptId so this fails the ConceptId check, not the Lexeme check).
+        var malformed = new ExtractedTerm(
+            Lexeme: conceptId, Display: "C#",
+            Kind: ExtractedTermKind.Requirement, Source: ExtractedTermSource.MustHave,
+            MatchedOn: "C#", ConceptId: conceptId, Weight: 0);
+
+        Should.Throw<ArgumentException>(() => ExtractedTerms.From([malformed]));
+    }
+
+    [Fact]
+    public void From_RequirementConceptIdNotEqualLexeme_Throws()
+    {
+        // A Requirement's Lexeme must EQUAL its ConceptId (concept-level overlap,
+        // same rule as Skill).
+        var malformed = new ExtractedTerm(
+            Lexeme: "not-the-concept-id", Display: "C#",
+            Kind: ExtractedTermKind.Requirement, Source: ExtractedTermSource.MustHave,
+            MatchedOn: "C#", ConceptId: "the-concept-id", Weight: 0);
+
+        Should.Throw<ArgumentException>(() => ExtractedTerms.From([malformed]));
+    }
+
+    [Theory]
+    [InlineData(ExtractedTermSource.Title)]
+    [InlineData(ExtractedTermSource.Description)]
+    public void From_RequirementWithNonRequirementSource_Throws(ExtractedTermSource source)
+    {
+        // A Requirement's Source must be MustHave or NiceToHave — never Title/Description.
+        var malformed = new ExtractedTerm(
+            Lexeme: "req-concept", Display: "C#",
+            Kind: ExtractedTermKind.Requirement, Source: source,
+            MatchedOn: "C#", ConceptId: "req-concept", Weight: 0);
+
+        Should.Throw<ArgumentException>(() => ExtractedTerms.From([malformed]));
+    }
+
+    // ===============================================================
+    // F4-4b — TIGHTENED Skill/Keyword Source ∈ {Title, Description}
+    // ===============================================================
+
+    [Theory]
+    [InlineData(ExtractedTermSource.MustHave)]
+    [InlineData(ExtractedTermSource.NiceToHave)]
+    public void From_SkillWithRequirementSource_Throws(ExtractedTermSource source)
+    {
+        // F4-4b tightens the Skill invariant: a Skill's Source must be Title or
+        // Description. A Skill with Source=MustHave/NiceToHave is a bug that used to
+        // pass silently — now it throws.
+        var malformed = new ExtractedTerm(
+            Lexeme: "1TC7_x8s_V7V", Display: "JavaScript",
+            Kind: ExtractedTermKind.Skill, Source: source,
+            MatchedOn: "JavaScript", ConceptId: "1TC7_x8s_V7V", Weight: 1);
+
+        Should.Throw<ArgumentException>(() => ExtractedTerms.From([malformed]));
+    }
+
+    [Theory]
+    [InlineData(ExtractedTermSource.MustHave)]
+    [InlineData(ExtractedTermSource.NiceToHave)]
+    public void From_KeywordWithRequirementSource_Throws(ExtractedTermSource source)
+    {
+        // Same tightening for Keyword: Source must be Title or Description.
+        var malformed = new ExtractedTerm(
+            Lexeme: "system", Display: "system",
+            Kind: ExtractedTermKind.Keyword, Source: source,
+            MatchedOn: "system", ConceptId: null, Weight: 1);
+
+        Should.Throw<ArgumentException>(() => ExtractedTerms.From([malformed]));
     }
 
     // ===============================================================

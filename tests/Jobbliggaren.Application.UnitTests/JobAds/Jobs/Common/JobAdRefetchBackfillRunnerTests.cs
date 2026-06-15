@@ -67,7 +67,8 @@ public class JobAdRefetchBackfillRunnerTests
         Url: $"https://example.com/{externalId}",
         PublishedAt: Now.AddDays(-1),
         ExpiresAt: Now.AddDays(30),
-        SanitizedRawPayload: "{\"id\":\"" + externalId + "\",\"occupation\":{\"concept_id\":\"fg7B_yov_smw\"}}");
+        SanitizedRawPayload: "{\"id\":\"" + externalId + "\",\"occupation\":{\"concept_id\":\"fg7B_yov_smw\"}}",
+        Requirements: []);
 
     private sealed class FakeScopeFactory(IMediator mediator)
         : IServiceScopeFactory, IServiceScope, IServiceProvider

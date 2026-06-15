@@ -59,7 +59,7 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         }
 
         var newJobAd = importResult.Value;
-        ApplyExtraction(newJobAd); // F4-4 ingest hook — Add path (before SaveChanges below).
+        ApplyExtraction(newJobAd, item); // F4-4/F4-4b ingest hook — Add path (before SaveChanges below).
         db.JobAds.Add(newJobAd);
 
         try
@@ -102,21 +102,25 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
             return Result.Success(UpsertOutcome.Skipped);
         }
 
-        // F4-4 ingest hook — Update path. `existing` is persisted by
+        // F4-4/F4-4b ingest hook — Update path. `existing` is persisted by
         // UnitOfWorkBehavior's SaveChanges after this handler returns. Re-extract
-        // so an updated ad's terms track its (possibly changed) title/description
-        // — applying only on the Add path would leave updated ads with stale terms.
-        ApplyExtraction(existing);
+        // so an updated ad's terms track its (possibly changed) title/description +
+        // structured requirements — applying only on the Add path would leave updated
+        // ads with stale terms.
+        ApplyExtraction(existing, item);
         return Result.Success(UpsertOutcome.Updated);
     }
 
-    // F4-4 (ADR 0071/0074 Path C) — deterministic keyword/skill extraction at the
+    // F4-4 (ADR 0071/0074 Path C) + F4-4b — deterministic keyword/skill extraction
+    // from the public ad text PLUS the employer-stated structured requirements
+    // (must_have/nice_to_have skills the ACL parsed into item.Requirements) at the
     // single external-ad write funnel (both Add + Update paths). Pure/in-process:
-    // local NLP + the committed skill taxonomy, no external call, reads only public
-    // ad text (no PII). Worker-sync context → no request-latency budget (ADR 0045).
-    private void ApplyExtraction(JobAd jobAd) =>
-        jobAd.SetExtractedTerms(
-            keywordExtractor.Extract(new JobAdExtractionInput(jobAd.Title, jobAd.Description)));
+    // local NLP + the committed skill taxonomy + the pre-linked requirement concepts,
+    // no external call, reads only public ad data (no PII). Worker-sync context → no
+    // request-latency budget (ADR 0045).
+    private void ApplyExtraction(JobAd jobAd, JobAdImportItem item) =>
+        jobAd.SetExtractedTerms(keywordExtractor.Extract(
+            new JobAdExtractionInput(jobAd.Title, jobAd.Description, item.Requirements)));
 
     [LoggerMessage(EventId = 5101, Level = LogLevel.Information,
         Message = "UpsertExternalJobAd: UNIQUE-collision på ExternalId={ExternalId} — växlar till update.")]

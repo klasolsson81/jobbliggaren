@@ -239,6 +239,25 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsJob>();
 
+        // Fas 4 STEG 4b (F4-4b) — requirements re-ingest backfill (must_have/
+        // nice_to_have-skills → Requirement-termer). Tunn wrapper kring
+        // JobAdRefetchBackfillRunner (paritet Klass2). Predikatet behöver Npgsql
+        // jsonb ?-operatorn → kapslas i Infrastructure bakom
+        // IJobAdRequirementBackfillFilter så Application förblir Npgsql-fritt (CLAUDE.md
+        // §2.1, paritet IRecruiterPiiPurger). Filtret är stateless → Singleton; jobb +
+        // options paritet Klass2. DI i samma commit som jobb/endpoint
+        // (feedback_di_with_handlers_same_commit).
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Abstractions.IJobAdRequirementBackfillFilter,
+            JobAds.JobAdRequirementBackfillFilter>();
+        services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements.BackfillJobAdRequirementsOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements.BackfillJobAdRequirementsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements.BackfillJobAdRequirementsJob>();
+
         return services;
     }
 

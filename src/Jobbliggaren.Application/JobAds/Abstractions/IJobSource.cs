@@ -88,6 +88,9 @@ public sealed record JobAdRemoval(
 /// <summary>
 /// Transport-DTO för en JobAd som ska importeras. <see cref="SanitizedRawPayload"/>
 /// är redan sanerad enligt ADR 0032 §8-amendment (PII-stripping via allowlist).
+/// <see cref="Requirements"/> (F4-4b) är de strukturerade arbetsgivar-kraven
+/// (must_have/nice_to_have-skills) som ACL:n parsat ur JobTech-payloaden — tom
+/// lista när annonsen saknar krav eller källan inte bär dem.
 /// </summary>
 public sealed record JobAdImportItem(
     string ExternalId,
@@ -97,4 +100,5 @@ public sealed record JobAdImportItem(
     string Url,
     DateTimeOffset PublishedAt,
     DateTimeOffset? ExpiresAt,
-    string SanitizedRawPayload);
+    string SanitizedRawPayload,
+    IReadOnlyList<JobAdRequirement> Requirements);

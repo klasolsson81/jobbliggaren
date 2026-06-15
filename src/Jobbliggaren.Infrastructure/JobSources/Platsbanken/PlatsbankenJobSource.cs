@@ -246,7 +246,42 @@ internal sealed partial class PlatsbankenJobSource(
             Url: url,
             PublishedAt: publishedAt,
             ExpiresAt: expiresAt,
-            SanitizedRawPayload: sanitized);
+            SanitizedRawPayload: sanitized,
+            Requirements: MapRequirements(hit));
+    }
+
+    // F4-4b — ACL-översättning: JobTech must_have/nice_to_have-SKILLS → neutrala
+    // Application-Requirements (CTO Decision 1A: bara skills v1 — concept_id delar
+    // skill-namespace med title/description-extraktionen + framtida CV, så de är
+    // direkt jämförbara. languages/education/work_experiences bevaras i raw_payload
+    // av POCO:n men blir inga Requirement-termer ännu). De redan-länkade koncepten
+    // kräver ingen NLP/taxonomi-match (till skillnad mot description-skill-passet).
+    private static List<JobAdRequirement> MapRequirements(JobTechHit hit)
+    {
+        var requirements = new List<JobAdRequirement>();
+        AddSkillRequirements(hit.MustHave?.Skills, ExtractedTermSource.MustHave, requirements);
+        AddSkillRequirements(hit.NiceToHave?.Skills, ExtractedTermSource.NiceToHave, requirements);
+        return requirements;
+    }
+
+    // weight: null → golvet 0.0 (ExtractedTerm.Weight kräver finit ≥ 0 — null
+    // kraschar VO-invarianten). Krav med blank concept_id/label droppas (paritet
+    // hit-skip-disciplinen — ett kravkoncept utan id/label är inte matchbart).
+    private static void AddSkillRequirements(
+        List<JobTechRequirementConcept>? skills,
+        ExtractedTermSource source,
+        List<JobAdRequirement> into)
+    {
+        if (skills is null)
+            return;
+        foreach (var skill in skills)
+        {
+            var conceptId = skill.ConceptId?.Trim();
+            var label = skill.Label?.Trim();
+            if (string.IsNullOrWhiteSpace(conceptId) || string.IsNullOrWhiteSpace(label))
+                continue;
+            into.Add(new JobAdRequirement(source, conceptId, label, skill.Weight ?? 0.0));
+        }
     }
 
     private static string? FirstNonMailtoUrl(

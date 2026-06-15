@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -111,7 +112,10 @@ public sealed class FieldEncryptionSaveChangesInterceptor : SaveChangesIntercept
                     property.CurrentValue = fieldEncryptor.Encrypt(plaintext, dek);
                 }
 
-                continue;
+                // INGEN continue: en entitet kan vara registrerad i BÅDE Form A och
+                // Form B (F4-8 ParsedResume: RawText Form A + Content Form B). Fall
+                // igenom till Form B-blocket — Form-A-only-entiteter no-op:ar där
+                // (TryGetJsonSerializedFields → false).
             }
 
             // Form B — C4 #1c (ADR 0049 Mekanik-not 6): EF-Ignore:ad domän-VO
@@ -167,6 +171,11 @@ public sealed class FieldEncryptionSaveChangesInterceptor : SaveChangesIntercept
     {
         if (entry.Entity is DomainApplication application)
             return application.JobSeekerId;
+
+        // ParsedResume (F4-8, Form A raw_text + Form B parsed_content): aggregatroten
+        // bär sin egen JobSeekerId → direkt ägar-resolution (ingen barn→parent-walk).
+        if (entry.Entity is ParsedResume parsedResume)
+            return parsedResume.JobSeekerId;
 
         // ResumeVersion (Form B): saknar egen JobSeekerId → skugg-FK
         // "ResumeId" → spårad aggregatrot Resume → Resume.JobSeekerId

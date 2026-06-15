@@ -89,7 +89,9 @@ public sealed class FieldDecryptionMaterializationInterceptor : IMaterialization
                 property.SetValue(entity, fieldEncryptor.Decrypt(value, dek));
             }
 
-            return entity;
+            // INGEN early return: en entitet kan vara i BÅDE Form A och Form B
+            // (F4-8 ParsedResume: RawText Form A + Content Form B). Fall igenom till
+            // Form B-blocket — Form-A-only-entiteter no-op:ar där och når slut-return.
         }
 
         // Form B — C4 #1c (ADR 0049 Mekanik-not 6): krypterad text-shadow
@@ -140,12 +142,15 @@ public sealed class FieldDecryptionMaterializationInterceptor : IMaterialization
 
                 // Backfill-fallback: legacy klartext-JSON (ingen sentinel) →
                 // ingen decrypt/DEK/owner (lazy-tolerans, Beslut 4/5; alla
-                // scopes inkl. system).
-                var legacy = materializationData.GetPropertyValue<string>(
-                    field.LegacyShadowProperty);
-                if (legacy is { Length: > 0 })
+                // scopes inkl. system). Greenfield-entiteter (F4-8 ParsedResume)
+                // saknar legacy-shadow (null) → ingen fallback att läsa.
+                if (field.LegacyShadowProperty is { } legacyShadow)
                 {
-                    SetDomainProperty(type, field, entity, legacy);
+                    var legacy = materializationData.GetPropertyValue<string>(legacyShadow);
+                    if (legacy is { Length: > 0 })
+                    {
+                        SetDomainProperty(type, field, entity, legacy);
+                    }
                 }
             }
 

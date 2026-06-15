@@ -147,5 +147,17 @@
          konflikt); libstemmer.net 2.2.3 = netstandard2.0, INGA beroenden. -->
     <PackageVersion Include="libstemmer.net" Version="2.2.3" />
     <PackageVersion Include="WeCantSpell.Hunspell" Version="7.0.1" />
+    <!-- Fas 4 STEG 8 (F4-8, ADR 0071/0074, BUILD §3.1) — deterministic CV import/parse
+         tier (PDF/DOCX text extraction). NO AI/LLM. Version-pin gate-clearing; the
+         PackageReference lives ONLY in Jobbliggaren.Infrastructure (Clean Arch — the
+         SDK types never cross the Application port surface, parity ITextAnalyzer).
+         Both permissive (no copyleft vs ADR 0050): PdfPig = Apache-2.0, OpenXml = MIT.
+         Web-verified 2026-06-15 (nuget.org / GitHub LICENSE):
+           PdfPig 0.1.14 = latest STABLE (0.1.15 is alpha-only); netstandard2.0/net6.0
+             asset → net10.0 forward-compat (parity libstemmer.net/Hunspell), 0 transitive
+             conflict; sub-1.0 API-instability noted → exact pin, bump only under review.
+           DocumentFormat.OpenXml 3.5.1 = latest stable; NATIVE net10.0 asset. -->
+    <PackageVersion Include="PdfPig" Version="0.1.14" />
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
   </ItemGroup>
 </Project>

@@ -13,7 +13,9 @@ namespace Jobbliggaren.Infrastructure.Resumes.Rendering;
 /// read-handler), produces bytes in memory, and streams them compute-on-demand (CTO Q6 — no
 /// artifact persistence, nothing written to disk). The document metadata timestamps are PINNED
 /// (no wall-clock — §5 forbids DateTime.Now) so the same CV renders to a stable output. NO
-/// AI/LLM. The QuestPDF Community licence is set once in <c>AddCvRendering</c>.
+/// AI/LLM. The QuestPDF Community licence is set (idempotently) in this type's static
+/// constructor — so every construction path is covered (DI via <c>AddCvRendering</c> and
+/// direct construction in tests).
 /// </summary>
 internal sealed class CvRenderer : ICvRenderer
 {

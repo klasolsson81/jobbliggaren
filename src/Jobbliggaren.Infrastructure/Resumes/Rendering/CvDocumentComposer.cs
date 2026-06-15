@@ -31,7 +31,10 @@ internal static class CvDocumentComposer
         {
             page.Size(PageSizes.A4);
             page.Margin(2, Unit.Centimetre);
-            page.DefaultTextStyle(t => t.FontSize(10).FontColor(body));
+            // Pin the font explicitly to the QuestPDF-bundled Lato (an SDK asset, not a system
+            // font) — covers åäö and keeps the output deterministic + cross-platform (CI) stable
+            // regardless of host fonts or a future QuestPDF default change.
+            page.DefaultTextStyle(t => t.FontSize(10).FontColor(body).FontFamily(Fonts.Lato));
 
             page.Content().Column(col =>
             {

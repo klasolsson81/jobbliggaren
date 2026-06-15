@@ -25,7 +25,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private const int MaxLanguages = 50;
     private const int MaxEntries = 100;
 
-    // Reference data: immutable, loaded once (parity SwedishTextAnalyzer.LoadStopwords).
+    // Reference data: immutable, loaded once (parity LocalTextAnalyzer.LoadStopwords).
     private static readonly FrozenDictionary<string, ParsedSectionKind> HeadingMap;
     private static readonly FrozenSet<string> SwedishHints;
     private static readonly FrozenSet<string> EnglishHints;

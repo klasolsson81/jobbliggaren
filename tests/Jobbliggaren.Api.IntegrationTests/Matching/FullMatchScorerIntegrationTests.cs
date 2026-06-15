@@ -75,7 +75,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     {
         var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var analyzer = new SwedishTextAnalyzer(new SnowballSwedishStemmer());
+        var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
         return (scope, new MatchScorer(db, analyzer));
     }
 

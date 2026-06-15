@@ -28,8 +28,8 @@ public sealed class JobAdKeywordExtractorRequirementsTests
 {
     private static JobAdKeywordExtractor NewExtractor()
     {
-        var stemmer = new SnowballSwedishStemmer();
-        var analyzer = new SwedishTextAnalyzer(stemmer);
+        var stemmer = new SnowballStemmer();
+        var analyzer = new LocalTextAnalyzer(stemmer);
         return new JobAdKeywordExtractor(analyzer, stemmer);
     }
 
@@ -177,15 +177,15 @@ public sealed class JobAdKeywordExtractorRequirementsTests
 
     private sealed record SkillGolden(string ConceptId, string PreferredLabel);
 
-    private static readonly SnowballSwedishStemmer Stemmer = new();
-    private static readonly SwedishTextAnalyzer Analyzer = new(Stemmer);
+    private static readonly SnowballStemmer Stemmer = new();
+    private static readonly LocalTextAnalyzer Analyzer = new(Stemmer);
 
     private const string SkillTaxonomyResource =
         "Jobbliggaren.Infrastructure.Taxonomy.jobad-skill-taxonomy.v30.json";
 
     private static SkillGolden FirstSingleTokenSkillGolden()
     {
-        var asm = typeof(SwedishTextAnalyzer).Assembly;
+        var asm = typeof(LocalTextAnalyzer).Assembly;
         using var stream = asm.GetManifestResourceStream(SkillTaxonomyResource);
         stream.ShouldNotBeNull(
             $"Skill-taxonomi-resursen '{SkillTaxonomyResource}' ska vara en embedded resource.");

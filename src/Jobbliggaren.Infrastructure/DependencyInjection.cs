@@ -176,22 +176,10 @@ public static class DependencyInjection
             Jobbliggaren.Application.Matching.Abstractions.IMatchScorer,
             Jobbliggaren.Infrastructure.Matching.MatchScorer>();
 
-        // Fas 4 STEG 7 (F4-7, ADR 0071/0074) — the versioned CV knowledge bank:
-        // rubric (rubric@x.y.z) + cliché lexicon + weak→strong verb mapping, all as
-        // VERSIONED DATA embedded assets (CLAUDE.md §5 — never hardcoded C# strings).
-        // Three ISP ports (senior-cto-advisor DQ5=B); each impl loads + maps + validates
-        // its asset once at construction → singleton (bounded, immutable embedded data,
-        // parity ITaxonomyReadModel). NO AI/LLM; consumed later by F4-9/F4-10. DI in the
-        // same commit as the port-impls (feedback_di_with_handlers_same_commit).
-        services.AddSingleton<
-            Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider,
-            Jobbliggaren.Infrastructure.KnowledgeBank.RubricProvider>();
-        services.AddSingleton<
-            Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon,
-            Jobbliggaren.Infrastructure.KnowledgeBank.ClicheLexicon>();
-        services.AddSingleton<
-            Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper,
-            Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper>();
+        // Fas 4 STEG 7/9 — the CV knowledge bank + the deterministic review engine that
+        // consumes it (own module so both hosts AND the Worker test fixture register them
+        // independently of the job-source HTTP wiring). See AddCvReview.
+        services.AddCvReview();
 
         // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
         // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
@@ -312,11 +300,11 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Fas 4 STEG 2 (F4-2, ADR 0074) — registers the shared local Swedish NLP
-    /// tier: <see cref="TextAnalysis.SnowballSwedishStemmer"/> (Snowball stemmer,
-    /// to_tsvector('swedish') parity), <see cref="TextAnalysis.SwedishTextAnalyzer"/>
+    /// Fas 4 STEG 2 (F4-2, Swedish) + STEG 9 (F4-9, English) — registers the shared
+    /// local NLP tier: <see cref="TextAnalysis.SnowballStemmer"/> (Snowball stemmer,
+    /// to_tsvector('swedish')/('english') parity), <see cref="TextAnalysis.LocalTextAnalyzer"/>
     /// (lowercase → tokenise → stopword-filter → stem), and
-    /// <see cref="TextAnalysis.HunspellSwedishSpellChecker"/> (sv_SE DSSO).
+    /// <see cref="TextAnalysis.HunspellSpellChecker"/> (sv_SE DSSO + en_US).
     /// Standalone module called by BOTH hosts (Api via <see cref="AddInfrastructure"/>,
     /// Worker via <c>Program.cs</c>), mirroring <see cref="AddLandingStats"/> — NLP
     /// has no persistence coupling, so it does not belong in <see cref="AddPersistence"/>.
@@ -336,13 +324,13 @@ public static class DependencyInjection
 
         services.AddSingleton<
             Jobbliggaren.Application.Common.Abstractions.TextAnalysis.IStemmer,
-            TextAnalysis.SnowballSwedishStemmer>();
+            TextAnalysis.SnowballStemmer>();
         services.AddSingleton<
             Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ITextAnalyzer,
-            TextAnalysis.SwedishTextAnalyzer>();
+            TextAnalysis.LocalTextAnalyzer>();
         services.AddSingleton<
             Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ISpellChecker,
-            TextAnalysis.HunspellSwedishSpellChecker>();
+            TextAnalysis.HunspellSpellChecker>();
         return services;
     }
 
@@ -368,21 +356,51 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// Fas 4 STEG 7/9 (F4-7/F4-9, ADR 0071/0074) — the versioned CV knowledge bank (rubric +
+    /// cliché lexicon + weak→strong verb mapping, three ISP ports over embedded VERSIONED
+    /// DATA, §5) and the deterministic CV-review engine that scores a ParsedResume against
+    /// them. All stateless singletons (bounded immutable data, parity ITaxonomyReadModel).
+    /// The engine consumes the NLP-tier <c>ITextAnalyzer</c>, so the caller must also call
+    /// <see cref="AddTextAnalysis"/>. Standalone module (parity AddTextAnalysis) so every host
+    /// AND the Worker test fixture register it without the job-source HTTP wiring.
+    /// NO ISpellChecker on the engine (C1 is NotAssessedV1, V-F). NO AI/LLM.
+    /// </summary>
+    public static IServiceCollection AddCvReview(this IServiceCollection services)
+    {
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider,
+            Jobbliggaren.Infrastructure.KnowledgeBank.RubricProvider>();
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon,
+            Jobbliggaren.Infrastructure.KnowledgeBank.ClicheLexicon>();
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper,
+            Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Review.Abstractions.ICvReviewEngine,
+            Jobbliggaren.Infrastructure.Resumes.Review.CvReviewEngine>();
+        return services;
+    }
+
     private static void EnsureDssoDictionaryPresent()
     {
         foreach (var path in new[]
         {
-            TextAnalysis.HunspellSwedishSpellChecker.DictionaryPath,
-            TextAnalysis.HunspellSwedishSpellChecker.AffixPath,
+            TextAnalysis.HunspellSpellChecker.DictionaryPath,
+            TextAnalysis.HunspellSpellChecker.AffixPath,
+            TextAnalysis.HunspellSpellChecker.EnglishDictionaryPath,
+            TextAnalysis.HunspellSpellChecker.EnglishAffixPath,
         })
         {
             if (!File.Exists(path))
             {
                 throw new InvalidOperationException(
-                    $"sv_SE DSSO dictionary file missing: {path}. It ships as a Content " +
+                    $"Hunspell dictionary file missing: {path}. It ships as a Content " +
                     "file (CopyToOutputDirectory) from Jobbliggaren.Infrastructure (BUILD " +
-                    "§3.1, LGPL-3.0 separate unmodified file). Verify the <Content> items " +
-                    "in Jobbliggaren.Infrastructure.csproj reached the output directory.");
+                    "§3.1: sv_SE = LGPL-3.0 separate unmodified file; en_US = permissive " +
+                    "SCOWL/Ispell BSD). Verify the <Content> items in " +
+                    "Jobbliggaren.Infrastructure.csproj reached the output directory.");
             }
         }
     }

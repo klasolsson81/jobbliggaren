@@ -7,7 +7,7 @@ namespace Jobbliggaren.Api.IntegrationTests.TextAnalysis;
 // Fas 4 STEG 2 (F4-2) — Hunspell svensk stavningskontroll (DSSO sv_SE).
 //
 // RED PHASE on TWO fronts:
-//   1. HunspellSwedishSpellChecker does not exist yet (compile-fail).
+//   1. HunspellSpellChecker does not exist yet (compile-fail).
 //   2. The DSSO sv_SE.dic / sv_SE.aff Content files have not shipped yet —
 //      lazy WordList load on first Check/Suggest will fail until they land
 //      next to AppContext.BaseDirectory. Documented in the test-writer report.
@@ -23,7 +23,7 @@ namespace Jobbliggaren.Api.IntegrationTests.TextAnalysis;
 // Naming: Method_Scenario_Expected.
 public class SwedishSpellCheckerTests
 {
-    private static HunspellSwedishSpellChecker NewSpellChecker() => new();
+    private static HunspellSpellChecker NewSpellChecker() => new();
 
     // ===============================================================
     // Check — correct Swedish words pass
@@ -99,24 +99,27 @@ public class SwedishSpellCheckerTests
     }
 
     // ===============================================================
-    // English fail-fast — F4-2 implements Swedish ONLY
+    // English spell-checking — en_US wired in F4-9 (ADR 0074 F4-2 amendment).
+    // No longer throws (the asset is wired but dormant — no v1 review consumer,
+    // C1 is NotAssessedV1, V-F).
     // ===============================================================
 
     [Fact]
-    public void Check_EnglishLanguage_ThrowsNotSupportedException()
+    public void Check_EnglishLanguage_ChecksAgainstEnUs_F49()
     {
         var checker = NewSpellChecker();
 
-        Should.Throw<NotSupportedException>(
-            () => checker.Check("developer", TextLanguage.English));
+        checker.Check("developer", TextLanguage.English).ShouldBeTrue();
     }
 
     [Fact]
-    public void Suggest_EnglishLanguage_ThrowsNotSupportedException()
+    public void Suggest_EnglishLanguage_ReturnsCandidates_F49()
     {
         var checker = NewSpellChecker();
 
-        Should.Throw<NotSupportedException>(
-            () => checker.Suggest("developr", TextLanguage.English));
+        // A misspelling → en_US offers candidates that include the correct word.
+        var suggestions = checker.Suggest("developr", TextLanguage.English);
+
+        suggestions.ShouldContain("developer");
     }
 }

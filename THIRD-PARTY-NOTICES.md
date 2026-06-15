@@ -1,11 +1,12 @@
 # Third-party notices
 
 Jobbliggaren bundles the third-party components listed below. They are required
-for the local, deterministic Swedish NLP tier (Fas 4 STEG 2 / F4-2, ADR 0074):
-tokenisation, Snowball stemming, and Hunspell spell-checking. No AI/LLM is used
-(ADR 0071). This file is the notice obligation referenced in BUILD §3.1 —
-permissive licenses (MIT, BSD-3-Clause) are not notice-free, and the copyleft
-licenses (MPL 1.1, LGPL) require their notices to accompany the deploy artefact.
+for the local, deterministic NLP tier (Fas 4 STEG 2 / F4-2, Swedish; STEG 9 /
+F4-9, English): tokenisation, Snowball stemming, and Hunspell spell-checking. No
+AI/LLM is used (ADR 0071). This file is the notice obligation referenced in
+BUILD §3.1 — permissive licenses (MIT, BSD-3-Clause, SCOWL/Ispell BSD) are not
+notice-free, and the copyleft licenses (MPL 1.1, LGPL) require their notices to
+accompany the deploy artefact.
 
 ## Copyleft separation (server-side, non-distributed)
 
@@ -28,17 +29,19 @@ does not extend to the application.
 - **License:** MIT (the .NET packaging/wrapper).
 - **Copyright:** © Guoyu Wang.
 - **Source:** https://github.com/guoyu-wang/libstemmer.net
-- **Use:** Swedish Snowball stemmer (`Snowball.SwedishStemmer`), wired in
-  `Jobbliggaren.Infrastructure.TextAnalysis.SnowballSwedishStemmer`.
+- **Use:** Swedish + English Snowball stemmers (`Snowball.SwedishStemmer` /
+  `Snowball.EnglishStemmer`), wired in
+  `Jobbliggaren.Infrastructure.TextAnalysis.SnowballStemmer`.
 
 ### Snowball stemming algorithms (bundled inside libstemmer.net)
 - **License:** BSD-3-Clause.
 - **Copyright:** © Dr Martin Porter, Richard Boulton, and the Snowball
   contributors.
 - **Source:** https://snowballstem.org/ · https://github.com/snowballstem/snowball
-- **Use:** the Swedish stemming algorithm itself (generated C# inside
-  libstemmer.net). The same algorithm family backs PostgreSQL
-  `to_tsvector('swedish')`, against which our stemmer is consistency-tested.
+- **Use:** the Swedish and English stemming algorithms themselves (generated C#
+  inside libstemmer.net). The same algorithm family backs PostgreSQL
+  `to_tsvector('swedish')` / `to_tsvector('english')`, against which our stemmer is
+  consistency-tested.
 
 ### Swedish stopword list (`swedish.stop`)
 - **License:** BSD-3-Clause (Snowball stopword data).
@@ -49,6 +52,16 @@ does not extend to the application.
   byte-identical to PostgreSQL 18.3's built-in `swedish.stop` so the analyzer
   drops exactly the lexemes `to_tsvector('swedish')` drops (stopword parity).
 
+### English stopword list (`english.stop`) — Fas 4 STEG 9 (F4-9)
+- **License:** BSD-3-Clause (Snowball stopword data).
+- **Copyright:** © the Snowball project.
+- **Source:** https://snowballstem.org/algorithms/english/stop.txt (obtained
+  verbatim from the PostgreSQL 18 source tree, `src/backend/snowball/stopwords/english.stop`).
+- **Use:** embedded resource
+  `Jobbliggaren.Infrastructure.TextAnalysis.english.stop`, shipped byte-identical
+  to PostgreSQL 18.3's built-in `english.stop` so the analyzer drops exactly the
+  lexemes `to_tsvector('english')` drops (English stopword parity).
+
 ### WeCantSpell.Hunspell 7.0.1
 - **License:** tri-license **MPL 1.1 / GPL 2.0 / LGPL 2.1** (inherited from
   Hunspell). Jobbliggaren **elects MPL 1.1** (LGPL 2.1 as fallback) and **never
@@ -57,8 +70,9 @@ does not extend to the application.
 - **Source:** https://github.com/aarondandy/WeCantSpell.Hunspell
 - **License texts:** MPL 1.1 https://www.mozilla.org/MPL/1.1/ ·
   LGPL 2.1 https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
-- **Use:** Swedish spell-checking, wired in
-  `Jobbliggaren.Infrastructure.TextAnalysis.HunspellSwedishSpellChecker`.
+- **Use:** Swedish + English spell-checking, wired in
+  `Jobbliggaren.Infrastructure.TextAnalysis.HunspellSpellChecker` (the English path
+  is wired but dormant in F4-9 — C1 is NotAssessedV1, ADR 0071 OQ3).
 
 ### sv_SE Hunspell dictionary — "Den stora svenska ordlistan" (DSSO)
 - **License:** **LGPL-3.0.** License text: https://www.gnu.org/licenses/lgpl-3.0.html
@@ -70,6 +84,18 @@ does not extend to the application.
 - **Use:** the `sv_SE.dic` / `sv_SE.aff` files shipped **unmodified** as a
   separate Content data file (BUILD §3.1). SHA-256 of the shipped files is pinned
   in `DssoDictionaryIntegrityTests` to enforce the unmodified constraint.
+
+### en_US Hunspell dictionary (SCOWL) — Fas 4 STEG 9 (F4-9)
+- **License:** **permissive** — SCOWL/word-list BSD-style (© Kevin Atkinson,
+  *"Permission to use, copy, modify, distribute and sell these word lists … for any
+  purpose is hereby granted without fee"*) + the affix file under Geoff Kuenning's
+  Ispell BSD license. Incorporates public-domain sources (Moby Words II, 12dicts,
+  ENABLE) and the Princeton WordNet license. **Not copyleft.**
+- **Source:** obtained (UTF-8, verbatim) via
+  https://github.com/wooorm/dictionaries (`dictionaries/en`).
+- **Use:** the `en_US.dic` / `en_US.aff` files shipped **unmodified** as a separate
+  Content data file (layout parity with sv_SE). Wired but **dormant** in F4-9 (no
+  v1 `ISpellChecker` consumer — C1 is NotAssessedV1).
 
 ### JobTech Taxonomy (Arbetsmarknadstaxonomin) — labour-market reference data
 - **License:** **EPL-2.0** (Arbetsförmedlingen open data — free for anyone to

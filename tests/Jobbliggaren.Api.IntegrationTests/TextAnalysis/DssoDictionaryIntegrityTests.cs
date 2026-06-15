@@ -35,7 +35,7 @@ public class DssoDictionaryIntegrityTests
 
     // The DSSO Content files preserve their TextAnalysis subfolder in output
     // (<Content Include="TextAnalysis\sv_SE.dic" CopyToOutputDirectory>), matching
-    // HunspellSwedishSpellChecker.DictionaryPath / .AffixPath.
+    // HunspellSpellChecker.DictionaryPath / .AffixPath.
     private static string DicPath =>
         Path.Combine(AppContext.BaseDirectory, "TextAnalysis", DicFileName);
     private static string AffPath =>

@@ -11,9 +11,17 @@ namespace Jobbliggaren.Architecture.Tests;
 /// ITaxonomyReadModel / IJobAdSearchQuery); the three impls are
 /// <c>internal sealed</c> in Infrastructure; the NLP libraries (Snowball,
 /// WeCantSpell.Hunspell) MUST NOT leak across the Application or Domain
-/// boundary (BCL-only port surface). The ISpellChecker consumer-allowlist
-/// starts EMPTY (no F4-2 consumer) and is extended additively at F4-9 — the
-/// YAGNI surface is observable and guarded, not silent (CTO fråga 3, bindande).
+/// boundary (BCL-only port surface).
+///
+/// <para>F4-9 update: the impls are renamed to the language-agnostic
+/// <c>SnowballStemmer</c> / <c>LocalTextAnalyzer</c> / <c>HunspellSpellChecker</c>
+/// (English support is wired at F4-8/9, TextLanguage contract). The internal-to-
+/// Infrastructure namespace scan below is by NAMESPACE (<c>Jobbliggaren.Infrastructure
+/// .TextAnalysis</c>), not by type name, so the rename keeps it green without edits.
+/// The ISpellChecker consumer-allowlist STAYS EMPTY: the F4-9 review engine does NOT
+/// consume ISpellChecker because C1 (Stavning/grammatik) is pinned NotAssessedV1
+/// (ADR 0071 OQ3) — there is no v1 spell-check call-site. The YAGNI surface remains
+/// observable and guarded, not silent (CTO fråga 3, bindande).</para>
 ///
 /// Mirrors TaxonomyAclLayerTests + JobAdSearchLayerTests.
 /// </summary>
@@ -64,10 +72,11 @@ public class TextAnalysisLayerTests
     [Fact]
     public void TextAnalysis_impls_are_internal_to_Infrastructure()
     {
-        // SnowballSwedishStemmer / SwedishTextAnalyzer / HunspellSwedishSpellChecker
-        // (and any future helper) must be non-public — the Snowball/Hunspell-bound
-        // code may not be referenced from Application/Api/Worker (ACL-isolation,
-        // paritet med Taxonomy- och JobAdSearch-impl:erna).
+        // SnowballStemmer / LocalTextAnalyzer / HunspellSpellChecker (F4-9 rename from the
+        // Swedish-only F4-2 names; and any future helper) must be non-public — the
+        // Snowball/Hunspell-bound code may not be referenced from Application/Api/Worker
+        // (ACL-isolation, paritet med Taxonomy- och JobAdSearch-impl:erna). Scanned by
+        // NAMESPACE so the rename does not break this guard.
         var infrastructureAsm = typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
 
         var publicTextAnalysisTypes = infrastructureAsm.GetTypes()
@@ -125,17 +134,20 @@ public class TextAnalysisLayerTests
     }
 
     // ===============================================================
-    // 5. ISpellChecker consumer-allowlist — starts EMPTY (CTO fråga 3,
+    // 5. ISpellChecker consumer-allowlist — STAYS EMPTY at F4-9 (CTO fråga 3,
     //    bindande). Mirrors TaxonomyAclLayerTests.Only_*_consume_* but
-    //    asserts ShouldBeEmpty() — the YAGNI port has no F4-2 consumer,
-    //    so no type may inject it yet. Extended additively at F4-9.
+    //    asserts ShouldBeEmpty(). The F4-9 review engine does NOT inject
+    //    ISpellChecker: C1 (Stavning/grammatik) is pinned NotAssessedV1
+    //    (ADR 0071 OQ3), so there is no v1 spell-check call-site. The first
+    //    real consumer arrives only when C1 is promoted out of NotAssessedV1
+    //    (a later STEG) — extend this allowlist ADDITIVELY then, not now.
     // ===============================================================
 
     [Fact]
     public void No_type_outside_the_impl_and_DI_consumes_ISpellChecker()
     {
         // Build the actual constructor-consumer list across Application AND
-        // Infrastructure (the impl HunspellSwedishSpellChecker and the
+        // Infrastructure (the impl HunspellSpellChecker and the
         // AddTextAnalysis DI registration are NOT constructor-consumers of the
         // PORT — they construct the impl, they don't inject ISpellChecker). So
         // any constructor that takes ISpellChecker is a premature consumer.
@@ -157,8 +169,9 @@ public class TextAnalysisLayerTests
             .ToList();
 
         consumers.ShouldBeEmpty(
-            "ISpellChecker har ingen F4-2-konsument (CTO fråga 3 — tom allowlist " +
-            "bindande). Första konsument tråds in vid F4-9; uppdatera då detta " +
-            $"arch-test ADDITIVT. Oväntade konsumenter nu: {string.Join(", ", consumers)}");
+            "ISpellChecker har ingen konsument (CTO fråga 3 — tom allowlist bindande). " +
+            "C1 är NotAssessedV1 i F4-9, så review-motorn injicerar den INTE; första " +
+            "konsument tråds in först när C1 lämnar NotAssessedV1 (senare STEG) — " +
+            $"uppdatera då detta arch-test ADDITIVT. Oväntade konsumenter nu: {string.Join(", ", consumers)}");
     }
 }

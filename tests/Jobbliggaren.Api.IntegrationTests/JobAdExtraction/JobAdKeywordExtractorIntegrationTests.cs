@@ -46,16 +46,16 @@ public sealed class JobAdKeywordExtractorIntegrationTests
     // direct construction (parity OccupationCodeDeriverIntegrationTests.NewDeriver).
     private static JobAdKeywordExtractor NewExtractor()
     {
-        var stemmer = new SnowballSwedishStemmer();
-        var analyzer = new SwedishTextAnalyzer(stemmer);
+        var stemmer = new SnowballStemmer();
+        var analyzer = new LocalTextAnalyzer(stemmer);
         return new JobAdKeywordExtractor(analyzer, stemmer);
     }
 
     // Concrete types (CA1859 — these are the real Infrastructure impls used to
     // derive goldens live, parity OccupationCodeDeriverIntegrationTests' direct
     // construction of the concrete SUT).
-    private static readonly SnowballSwedishStemmer Stemmer = new();
-    private static readonly SwedishTextAnalyzer Analyzer = new(Stemmer);
+    private static readonly SnowballStemmer Stemmer = new();
+    private static readonly LocalTextAnalyzer Analyzer = new(Stemmer);
 
     // ===============================================================
     // (a) A skill label in the description → a Skill term with ConceptId + evidence
@@ -373,7 +373,7 @@ public sealed class JobAdKeywordExtractorIntegrationTests
 
     private static List<SkillConceptJson> ReadSkillConcepts()
     {
-        var asm = typeof(SwedishTextAnalyzer).Assembly; // Infrastructure assembly
+        var asm = typeof(LocalTextAnalyzer).Assembly; // Infrastructure assembly
         using var stream = asm.GetManifestResourceStream(SkillTaxonomyResource);
         stream.ShouldNotBeNull(
             $"Skill-taxonomi-resursen '{SkillTaxonomyResource}' ska vara en " +

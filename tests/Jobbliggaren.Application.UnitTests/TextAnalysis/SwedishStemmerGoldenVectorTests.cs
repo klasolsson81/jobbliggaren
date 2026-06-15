@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.UnitTests.TextAnalysis;
 
 // Fas 4 STEG 2 (F4-2) — svensk Snowball-stemmer (ADR 0074).
 //
-// RED PHASE: written BEFORE SnowballSwedishStemmer exists. References the
+// RED PHASE: written BEFORE SnowballStemmer exists. References the
 // to-be-created internal sealed type via InternalsVisibleTo (Infrastructure →
 // Jobbliggaren.Application.UnitTests). Every behavioural test is expected to
 // FAIL (compile-fail until the impl lands, then behaviour-fail until correct).
@@ -21,7 +21,7 @@ namespace Jobbliggaren.Application.UnitTests.TextAnalysis;
 // Naming: Method_Scenario_Expected.
 public class SwedishStemmerGoldenVectorTests
 {
-    private static SnowballSwedishStemmer NewStemmer() => new();
+    private static SnowballStemmer NewStemmer() => new();
 
     // ===============================================================
     // Golden vectors — word → expected stem (PG to_tsvector('swedish'))
@@ -128,16 +128,18 @@ public class SwedishStemmerGoldenVectorTests
     }
 
     // ===============================================================
-    // English fail-fast — F4-2 implements Swedish ONLY (ADR 0074)
+    // English stemming — wired in F4-9 (ADR 0074 F4-2 amendment). No longer
+    // throws; full to_tsvector('english') correctness is the parity gate
+    // (EnglishStemmerPostgresParityTests).
     // ===============================================================
 
     [Fact]
-    public void Stem_EnglishLanguage_ThrowsNotSupportedException()
+    public void Stem_EnglishLanguage_StemsViaSnowball_F49()
     {
         var stemmer = NewStemmer();
 
-        Should.Throw<NotSupportedException>(
-            () => stemmer.Stem("test", TextLanguage.English));
+        // Snowball English: "running" → "run" (the parity gate proves the full corpus).
+        stemmer.Stem("running", TextLanguage.English).ShouldBe("run");
     }
 
     // ===============================================================

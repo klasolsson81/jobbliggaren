@@ -1,0 +1,80 @@
+{
+  "clicheListVersion": "1",
+  "entries": [
+    {
+      "phrase": "Brinner för",
+      "why": "Tom passion-signal som alla använder",
+      "betterAlternative": "Beskriv ett konkret projekt eller initiativ. \"På fritiden underhåller jag open-source-biblioteket X med 4 000 nedladdningar/månad\""
+    },
+    {
+      "phrase": "Driven lagspelare",
+      "why": "Inget mätbart",
+      "betterAlternative": "\"Ledde tvärfunktionellt team på 6 personer som levererade Y före deadline\""
+    },
+    {
+      "phrase": "Prestigelös",
+      "why": "Ironisk självmotsägelse",
+      "betterAlternative": "\"Tog rollen som stödfunktion åt junior kollega under introduktionen och dokumenterade processen\""
+    },
+    {
+      "phrase": "Ansvarstagande",
+      "why": "Förväntat hos alla anställda",
+      "betterAlternative": "\"Ansvarade självständigt för budget om 4,2 MSEK och rapporterade till styrelse kvartalsvis\""
+    },
+    {
+      "phrase": "Social",
+      "why": "Personlig egenskap, inte jobbrelevant",
+      "betterAlternative": "\"Höll 12 kundpresentationer under 2024 med NPS-snitt 8,4/10\""
+    },
+    {
+      "phrase": "Noggrann",
+      "why": "Mätbart men inte mätt",
+      "betterAlternative": "\"Korrekturläste och kvalitetssäkrade årsredovisningar för 18 enheter med noll rättelser i extern revision\""
+    },
+    {
+      "phrase": "Stresstålig",
+      "why": "Säg det inte — visa det",
+      "betterAlternative": "\"Levererade migrationen av 28 system inom 6 veckor med samtidig daglig drift\""
+    },
+    {
+      "phrase": "Flexibel",
+      "why": "Säger inget om vad du faktiskt gör annorlunda",
+      "betterAlternative": "\"Roterade mellan tre roller under omorganisation 2024 — från utvecklare via produktledare till tech lead\""
+    },
+    {
+      "phrase": "Resultatorienterad",
+      "why": "Vag — kvantifiera istället",
+      "betterAlternative": "Skriv siffrorna direkt"
+    },
+    {
+      "phrase": "Lösningsorienterad",
+      "why": "Floskel",
+      "betterAlternative": "\"Identifierade flaskhals i deploypipelinen och förkortade build-tid från 18 till 4 min\""
+    },
+    {
+      "phrase": "Tänker utanför boxen",
+      "why": "Tomt",
+      "betterAlternative": "\"Föreslog och drev pilot med RAG-baserad kundsupportbot som minskade ärendetid med 38 %\""
+    },
+    {
+      "phrase": "Härmed söker jag tjänsten",
+      "why": "Trött standard-fras i personligt brev",
+      "betterAlternative": "Börja med en hook: starkaste resultat, koppling till företaget, eller relevant insikt"
+    },
+    {
+      "phrase": "Passionerad",
+      "why": "Översatt \"passionate\" — känns konstruerat",
+      "betterAlternative": "Specifikt: \"Har följt och bidragit till open-source-projekt X i 3 år\""
+    },
+    {
+      "phrase": "Hårt arbetande",
+      "why": "Förväntas av alla",
+      "betterAlternative": "Konkret prestation som visar arbetsmoral"
+    },
+    {
+      "phrase": "Self-starter",
+      "why": "Klyscha (även \"egen drivkraft\")",
+      "betterAlternative": "\"Initierade och drev pilotprojekt Y från idé till lansering på 4 månader utan dedikerad budget\""
+    }
+  ]
+}

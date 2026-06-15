@@ -71,6 +71,20 @@
     <EmbeddedResource Include="TextAnalysis\swedish.stop">
       <LogicalName>Jobbliggaren.Infrastructure.TextAnalysis.swedish.stop</LogicalName>
     </EmbeddedResource>
+    <!-- Fas 4 STEG 7 (F4-7, ADR 0071/0074) — the versioned CV knowledge bank
+         (rubric + cliché list + weak→strong verb mapping). INTERNALLY authored/curated
+         from public Swedish sources (research §2/§6, referenced not imported → no
+         third-party licence attaches). Embedded so the loaders read them deterministically
+         without file-deploy (hermetic build, parity with the taxonomy snapshot). NO AI/LLM. -->
+    <EmbeddedResource Include="KnowledgeBank\rubric.v1.0.0.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.0.0.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="KnowledgeBank\cliche-list.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.v1.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="KnowledgeBank\verb-mapping.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.v1.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>

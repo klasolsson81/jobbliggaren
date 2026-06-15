@@ -11,6 +11,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- F4-7 — synthetic N-1 (v0.9) rubric fixture for RubricBackcompatTests. Embedded
+         (not Content) so the test runs the real RubricLoader.Deserialize+Map path over a
+         Stream the TEST assembly owns, mirroring TaxonomySnapshotSeeder.LoadSnapshot().
+         LogicalName is pinned and referenced verbatim by RubricBackcompatTests. -->
+    <EmbeddedResource Include="KnowledgeBank\Fixtures\rubric.v0.9-synthetic.json">
+      <LogicalName>Jobbliggaren.Application.UnitTests.KnowledgeBank.Fixtures.rubric.v0.9-synthetic.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

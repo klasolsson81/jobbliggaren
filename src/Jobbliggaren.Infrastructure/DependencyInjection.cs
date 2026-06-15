@@ -175,6 +175,23 @@ public static class DependencyInjection
             Jobbliggaren.Application.Matching.Abstractions.IMatchScorer,
             Jobbliggaren.Infrastructure.Matching.MatchScorer>();
 
+        // Fas 4 STEG 7 (F4-7, ADR 0071/0074) — the versioned CV knowledge bank:
+        // rubric (rubric@x.y.z) + cliché lexicon + weak→strong verb mapping, all as
+        // VERSIONED DATA embedded assets (CLAUDE.md §5 — never hardcoded C# strings).
+        // Three ISP ports (senior-cto-advisor DQ5=B); each impl loads + maps + validates
+        // its asset once at construction → singleton (bounded, immutable embedded data,
+        // parity ITaxonomyReadModel). NO AI/LLM; consumed later by F4-9/F4-10. DI in the
+        // same commit as the port-impls (feedback_di_with_handlers_same_commit).
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider,
+            Jobbliggaren.Infrastructure.KnowledgeBank.RubricProvider>();
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon,
+            Jobbliggaren.Infrastructure.KnowledgeBank.ClicheLexicon>();
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper,
+            Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper>();
+
         // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
         // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).

@@ -1,0 +1,46 @@
+{
+  "rubricVersion": "0.9.0",
+  "effectiveDate": "2025-12-01",
+  "legacyNote": "Synthetic N-1 fixture for back-compat tests. NOT a real rubric. Uses the production Swedish token vocabulary (so it flows through the real strict loader) but PRE-DATES the assessability + bands/criticalFailIds fields. Carries a bogus top-level member ('legacyNote') and a bogus per-criterion member ('legacyUnknownPerCriterion') to assert skip-unknown; criteria WITHOUT 'assessability' (must default to not_assessed_v1); NO 'bands'/'criticalFailIds' (must map to empty lists, never null).",
+  "weights": { "Kritisk": 3, "Hög": 2, "Medel": 1, "Låg": 0.5 },
+  "categoryWeights": {
+    "ats": { "A": 0.4, "B": 0.3, "C": 0.2, "D": 0.1 },
+    "visual": { "A": 0.4, "B": 0.3, "C": 0.2, "E": 0.1 }
+  },
+  "criteria": [
+    {
+      "id": "A1",
+      "category": "Innehåll",
+      "name": "Syntetiskt innehållskriterium",
+      "weight": "Kritisk",
+      "profile": "Båda",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": "syntetisk visual-pass",
+      "visualFailSignal": "syntetisk visual-fail",
+      "legacyUnknownPerCriterion": "ignored too"
+    },
+    {
+      "id": "B1",
+      "category": "Struktur",
+      "name": "Syntetiskt strukturkriterium",
+      "weight": "Hög",
+      "profile": "Båda",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": "syntetisk visual-pass",
+      "visualFailSignal": "syntetisk visual-fail"
+    },
+    {
+      "id": "D1",
+      "category": "ATS-parsbarhet",
+      "name": "Syntetiskt ATS-kriterium",
+      "weight": "Kritisk",
+      "profile": "EndastAts",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": null,
+      "visualFailSignal": null
+    }
+  ]
+}

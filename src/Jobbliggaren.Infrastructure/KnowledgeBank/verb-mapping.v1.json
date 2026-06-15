@@ -1,0 +1,110 @@
+{
+  "verbMappingVersion": "1",
+  "strongVerbGroups": [
+    {
+      "group": "Ledarskap & ansvar",
+      "verbs": [
+        "ledde",
+        "drev",
+        "ansvarade för",
+        "koordinerade",
+        "samordnade",
+        "fattade beslut om",
+        "prioriterade",
+        "delegerade",
+        "mentorerade",
+        "coachade"
+      ]
+    },
+    {
+      "group": "Bygga & skapa",
+      "verbs": [
+        "byggde",
+        "etablerade",
+        "lanserade",
+        "grundade",
+        "utvecklade",
+        "designade",
+        "skapade",
+        "konceptualiserade",
+        "införde",
+        "implementerade",
+        "initierade"
+      ]
+    },
+    {
+      "group": "Förbättra & optimera",
+      "verbs": [
+        "ökade",
+        "förbättrade",
+        "optimerade",
+        "effektiviserade",
+        "accelererade",
+        "automatiserade",
+        "strömlinjeformade",
+        "höjde",
+        "dubblerade",
+        "halverade",
+        "reducerade"
+      ]
+    },
+    {
+      "group": "Leverera & genomföra",
+      "verbs": [
+        "levererade",
+        "genomförde",
+        "slutförde",
+        "verkställde",
+        "realiserade",
+        "sjösatte",
+        "rullade ut",
+        "driftsatte"
+      ]
+    },
+    {
+      "group": "Analys & beslut",
+      "verbs": [
+        "analyserade",
+        "utvärderade",
+        "kartlade",
+        "identifierade",
+        "definierade",
+        "validerade",
+        "prognostiserade",
+        "granskade"
+      ]
+    },
+    {
+      "group": "Sälj & relation",
+      "verbs": [
+        "sålde",
+        "förhandlade",
+        "slöt",
+        "vann",
+        "säkrade",
+        "omsatte",
+        "växte"
+      ]
+    },
+    {
+      "group": "Kommunikation",
+      "verbs": [
+        "presenterade",
+        "förespråkade",
+        "utbildade",
+        "faciliterade",
+        "författade"
+      ]
+    }
+  ],
+  "weakVerbs": [
+    { "weak": "var ansvarig för", "suggestedStrong": "ansvarade för", "group": "Ledarskap & ansvar" },
+    { "weak": "var med och", "suggestedStrong": "genomförde", "group": "Leverera & genomföra" },
+    { "weak": "hjälpte till med", "suggestedStrong": "samordnade", "group": "Ledarskap & ansvar" },
+    { "weak": "arbetade med", "suggestedStrong": "utvecklade", "group": "Bygga & skapa" },
+    { "weak": "deltog i", "suggestedStrong": "genomförde", "group": "Leverera & genomföra" },
+    { "weak": "fick möjlighet att", "suggestedStrong": "initierade", "group": "Bygga & skapa" },
+    { "weak": "hade hand om", "suggestedStrong": "ansvarade för", "group": "Ledarskap & ansvar" },
+    { "weak": "jobbade med", "suggestedStrong": "byggde", "group": "Bygga & skapa" }
+  ]
+}

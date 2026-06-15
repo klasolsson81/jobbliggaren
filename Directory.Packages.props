@@ -159,5 +159,16 @@
            DocumentFormat.OpenXml 3.5.1 = latest stable; NATIVE net10.0 asset. -->
     <PackageVersion Include="PdfPig" Version="0.1.14" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
+
+    <!-- Fas 4 STEG 10 (F4-10, ADR 0071/0074, BUILD §3.1) — deterministic CV render tier
+         (ATS-plain + visual PDF from the same JSON source). NO AI/LLM. The PackageReference
+         lives ONLY in Jobbliggaren.Infrastructure (Clean Arch — the QuestPDF SDK types never
+         cross the Application port surface, parity PdfPig/OpenXml). License = Community
+         (source-available, free under USD 1M revenue, NON-COPYLEFT vs ADR 0050; not OSI-MIT) —
+         set once via QuestPDF.Settings.License = LicenseType.Community in AddCvRendering.
+         Web-verified 2026-06-15 (nuget.org / questpdf.com/license): 2026.6.0 = latest stable,
+         native net8.0 asset → net10.0 forward-compat. Klas-chosen version (deviates from the
+         earlier 2026.2.x baseline; BUILD §3.1 updated in the same change). -->
+    <PackageVersion Include="QuestPDF" Version="2026.6.0" />
   </ItemGroup>
 </Project>

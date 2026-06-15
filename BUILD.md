@@ -29,7 +29,7 @@
 | Observability | OpenTelemetry | 1.15+ | Traces + metrics |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
-| PDF generation | QuestPDF | 2026.2.x | Community MIT free under USD 1M revenue; `QuestPDF.Settings.License = LicenseType.Community` i startup |
+| PDF generation | QuestPDF | 2026.6.0 | Community (source-available, free under USD 1M revenue, non-copyleft — ADR 0050-safe; not OSI-MIT); `QuestPDF.Settings.License = LicenseType.Community` i startup |
 | DOCX generation | DocumentFormat.OpenXml | 3.x | Template-baserad |
 | NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket |
 | Stemmer (svenska) | libstemmer.net | 2.2.x | MIT-wrapper; Snowball-kärna BSD-3-Clause; svensk Snowball-stemmer |

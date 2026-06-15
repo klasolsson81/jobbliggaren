@@ -37,6 +37,14 @@
          parity ITextAnalyzer / NetArchTest layer guard). -->
     <PackageReference Include="PdfPig" />
     <PackageReference Include="DocumentFormat.OpenXml" />
+
+    <!-- Fas 4 STEG 10 (F4-10, ADR 0071/0074, BUILD §3.1) — deterministic CV render tier
+         (QuestPDF: ATS-plain + visual PDF from the same JSON source). NO AI/LLM. Version
+         pinned in Directory.Packages.props. Community license (non-copyleft vs ADR 0050) set
+         once via QuestPDF.Settings.License = LicenseType.Community in AddCvRendering. Confined
+         to Infrastructure — the QuestPDF SDK types never cross the Application port surface
+         (ICvRenderer is BCL-only; NetArchTest layer guard). -->
+    <PackageReference Include="QuestPDF" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -140,12 +140,15 @@ public sealed class FieldDecryptionMaterializationInterceptor : IMaterialization
 
                 // Backfill-fallback: legacy klartext-JSON (ingen sentinel) →
                 // ingen decrypt/DEK/owner (lazy-tolerans, Beslut 4/5; alla
-                // scopes inkl. system).
-                var legacy = materializationData.GetPropertyValue<string>(
-                    field.LegacyShadowProperty);
-                if (legacy is { Length: > 0 })
+                // scopes inkl. system). Greenfield-entiteter (F4-8 ParsedResume)
+                // saknar legacy-shadow (null) → ingen fallback att läsa.
+                if (field.LegacyShadowProperty is { } legacyShadow)
                 {
-                    SetDomainProperty(type, field, entity, legacy);
+                    var legacy = materializationData.GetPropertyValue<string>(legacyShadow);
+                    if (legacy is { Length: > 0 })
+                    {
+                        SetDomainProperty(type, field, entity, legacy);
+                    }
                 }
             }
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Security;
 
@@ -38,12 +39,15 @@ internal static class EncryptedFieldRegistry
         WriteIndented = false,
     };
 
-    // Form A — C3 TEXT-kolumner (oförändrad).
+    // Form A — C3 TEXT-kolumner + F4-8 ParsedResume.RawText (greenfield, no legacy).
     private static readonly Dictionary<Type, string[]> Map = new()
     {
         [typeof(DomainApplication)] = ["CoverLetter"],
         [typeof(ApplicationNote)] = ["Content"],
         [typeof(FollowUp)] = ["Note"],
+        // F4-8 (ADR 0074 Invariant 3): the raw normalized CV text, retained for F4-9
+        // span citation, is a plain string → Form A (encrypted in-place into raw_text).
+        [typeof(ParsedResume)] = ["RawText"],
     };
 
     // Form B — C4 #1c: domän-VO JSON-serialiserad till krypterad text-shadow,
@@ -59,6 +63,19 @@ internal static class EncryptedFieldRegistry
                 ToJson: vo => JsonSerializer.Serialize(vo, ContentJsonOptions),
                 FromJson: json =>
                     JsonSerializer.Deserialize<ResumeContent>(json, ContentJsonOptions)!),
+        ],
+        // F4-8 (ADR 0074 Invariant 3): the structured parsed content is an EF-Ignore'd
+        // VO → JSON → encrypted shadow (parsed_content_enc). Greenfield table — no
+        // backfill window, so NO legacy plaintext shadow (LegacyShadowProperty = null).
+        [typeof(ParsedResume)] =
+        [
+            new JsonSerializedVoField(
+                DomainProperty: nameof(ParsedResume.Content),
+                ShadowProperty: "ParsedContentEnc",
+                LegacyShadowProperty: null,
+                ToJson: vo => JsonSerializer.Serialize(vo, ContentJsonOptions),
+                FromJson: json =>
+                    JsonSerializer.Deserialize<ParsedResumeContent>(json, ContentJsonOptions)!),
         ],
     };
 
@@ -80,6 +97,6 @@ internal static class EncryptedFieldRegistry
 internal sealed record JsonSerializedVoField(
     string DomainProperty,
     string ShadowProperty,
-    string LegacyShadowProperty,
+    string? LegacyShadowProperty,
     Func<object, string> ToJson,
     Func<string, object> FromJson);

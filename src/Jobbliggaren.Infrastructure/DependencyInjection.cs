@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddJobSources(configuration);
         services.AddLandingStats();
         services.AddTextAnalysis();
+        services.AddCvParsing();
         return services;
     }
 
@@ -342,6 +343,28 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ISpellChecker,
             TextAnalysis.HunspellSwedishSpellChecker>();
+        return services;
+    }
+
+    /// <summary>
+    /// Fas 4 STEG 8 (F4-8, ADR 0071/0074) — deterministic CV import/parse tier.
+    /// Registers <see cref="Resumes.Parsing.PdfPigOpenXmlCvTextExtractor"/>
+    /// (<c>ICvTextExtractor</c> — PdfPig/OpenXml confined here) and
+    /// <see cref="Resumes.Parsing.HeadingDrivenResumeSegmenter"/>
+    /// (<c>IResumeSegmenter</c> — pure string algorithm over the embedded lexicon).
+    /// Both are stateless singletons (only immutable reference data, parity
+    /// <see cref="AddTextAnalysis"/>). The lexicon ships as an <c>EmbeddedResource</c>,
+    /// so the manifest-resource lookup fails loudly at first load — no separate
+    /// file-existence check is needed (unlike the DSSO Content files). NO AI/LLM.
+    /// </summary>
+    public static IServiceCollection AddCvParsing(this IServiceCollection services)
+    {
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Abstractions.ICvTextExtractor,
+            Resumes.Parsing.PdfPigOpenXmlCvTextExtractor>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
+            Resumes.Parsing.HeadingDrivenResumeSegmenter>();
         return services;
     }
 

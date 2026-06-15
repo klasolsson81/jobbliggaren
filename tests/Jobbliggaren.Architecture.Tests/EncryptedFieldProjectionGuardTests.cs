@@ -3,6 +3,7 @@ using System.Reflection;
 using Jobbliggaren.Application.Applications.Queries.GetApplicationById;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
+using Jobbliggaren.Application.Resumes.Commands.ImportResume;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
 using Shouldly;
@@ -227,6 +228,25 @@ public class EncryptedFieldProjectionGuardTests
             .ShouldBeTrue(
                 "ContentJsonOptions-SPOT förväntas i EncryptedFieldRegistry " +
                 "(delad av Form B-delegater + interceptor-paret).");
+    }
+
+    /// <summary>
+    /// F4-8 (ADR 0074 Invariant 3): <see cref="ImportResumeCommand"/> persists encrypted
+    /// ParsedResume CV-PII (<c>parsed_content_enc</c> Form B + <c>raw_text</c> Form A) —
+    /// must carry <see cref="IRequiresFieldEncryptionKey"/> so
+    /// <c>FieldEncryptionKeyPrefetchBehavior</c> warms the owner DEK before the
+    /// SaveChanges interceptor encrypts the shadows (else fail-closed before DML).
+    /// </summary>
+    [Fact]
+    public void ImportResumeCommand_MustCarry_IRequiresFieldEncryptionKey()
+    {
+        typeof(IRequiresFieldEncryptionKey)
+            .IsAssignableFrom(typeof(ImportResumeCommand))
+            .ShouldBeTrue(
+                "ImportResumeCommand persists encrypted ParsedResume CV-PII " +
+                "(parsed_content_enc/raw_text) — must implement IRequiresFieldEncryptionKey " +
+                "(ADR 0074 Invariant 3 / ADR 0049). Without it FieldEncryptionKeyPrefetchBehavior " +
+                "never warms the owner DEK and the encrypt-on-write interceptor fail-closed-throws.");
     }
 
     private static string FindRepoRoot()

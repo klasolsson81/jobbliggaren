@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Domain.Waitlist;
@@ -22,6 +23,7 @@ public interface IAppDbContext
     DbSet<JobSeeker> JobSeekers { get; }
     DbSet<DomainApplication> Applications { get; }
     DbSet<Resume> Resumes { get; }
+    DbSet<ParsedResume> ParsedResumes { get; }
     DbSet<AuditLogEntry> AuditLogEntries { get; }
     DbSet<Invitation> Invitations { get; }
     DbSet<WaitlistEntry> WaitlistEntries { get; }

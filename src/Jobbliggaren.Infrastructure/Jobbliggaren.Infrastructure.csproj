@@ -29,6 +29,14 @@
          Catalyst medvetet UTE (OQ1). -->
     <PackageReference Include="libstemmer.net" />
     <PackageReference Include="WeCantSpell.Hunspell" />
+    <!-- Fas 4 STEG 8 (F4-8, ADR 0071/0074, BUILD §3.1) — deterministic CV import/parse
+         tier (PDF/DOCX text extraction). NO AI/LLM. Versions pinned in
+         Directory.Packages.props (F4-8). PdfPig = PDF text extraction (Apache-2.0);
+         DocumentFormat.OpenXml = DOCX text extraction (MIT). Both confined to
+         Infrastructure (the SDK types never cross the Application port surface,
+         parity ITextAnalyzer / NetArchTest layer guard). -->
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -84,6 +92,14 @@
     </EmbeddedResource>
     <EmbeddedResource Include="KnowledgeBank\verb-mapping.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.v1.json</LogicalName>
+    </EmbeddedResource>
+    <!-- Fas 4 STEG 8 (F4-8, ADR 0071/0074) — the versioned CV-segmentation lexicon
+         (Swedish + English section headings + language-detection function words).
+         OWN-authored from common CV conventions (no third-party data) — versioned data,
+         never inline C# strings (CLAUDE.md §5). Embedded so HeadingDrivenResumeSegmenter
+         reads it deterministically without file-deploy (hermetic build). NO AI/LLM. -->
+    <EmbeddedResource Include="Resumes\Parsing\cv-parsing-lexicon.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.Resumes.Parsing.cv-parsing-lexicon.v1.json</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

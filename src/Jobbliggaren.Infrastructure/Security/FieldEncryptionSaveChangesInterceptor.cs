@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -167,6 +168,11 @@ public sealed class FieldEncryptionSaveChangesInterceptor : SaveChangesIntercept
     {
         if (entry.Entity is DomainApplication application)
             return application.JobSeekerId;
+
+        // ParsedResume (F4-8, Form A raw_text + Form B parsed_content): aggregatroten
+        // bär sin egen JobSeekerId → direkt ägar-resolution (ingen barn→parent-walk).
+        if (entry.Entity is ParsedResume parsedResume)
+            return parsedResume.JobSeekerId;
 
         // ResumeVersion (Form B): saknar egen JobSeekerId → skugg-FK
         // "ResumeId" → spårad aggregatrot Resume → Resume.JobSeekerId

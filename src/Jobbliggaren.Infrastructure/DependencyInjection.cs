@@ -164,6 +164,17 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdKeywordExtractor,
             Jobbliggaren.Infrastructure.Taxonomy.JobAdKeywordExtractor>();
 
+        // Fas 4 STEG 5 (F4-5, ADR 0074 row U5a) — deterministic "Fast mode" match
+        // scorer. Scores one job ad against a caller-supplied CandidateMatchProfile
+        // over SSYK-4 overlap + stemmed title similarity + region/employment fit.
+        // Scoped (touches AppDbContext via the shadow-column read), unlike the
+        // singleton-cached deriver/extractor. Consumes ITextAnalyzer (AddTextAnalysis)
+        // for the title dimension. NO AI/LLM. DI in the same commit as the port-impl
+        // (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            Jobbliggaren.Application.Matching.Abstractions.IMatchScorer,
+            Jobbliggaren.Infrastructure.Matching.MatchScorer>();
+
         // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
         // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).

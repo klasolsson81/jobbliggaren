@@ -81,6 +81,120 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
     }
 
+    // Fas 4 STEG 6 (F4-6, ADR 0074 row U5b; senior-cto-advisor Decision A=A2 /
+    // B=B2 / C=C1 / D=DD-shape-1+DD-verdict-A / E=DE-combine-2(skill-only)+DE-display-1
+    // / F=F1) — the FULL match scorer. Built ON TOP of the Fast vertical: it loads
+    // the ad's title + the three STORED shadow columns + the extracted_terms VO in
+    // ONE round-trip (CTO C1 — single-ad scoring computes the overlap in-memory on
+    // the loaded VO; the extracted_lexemes GIN serves the DEFERRED multi-ad search,
+    // not this), builds the embedded Fast MatchScore via the SAME dim-1..4 helpers
+    // (so result.Fast equals ScoreAsync for the same ad + Fast profile), then adds
+    // three concept-id-coverage dimensions read from the VO:
+    //   SkillOverlap:       terms where Kind==Skill          vs profile.CvSkillConceptIds.
+    //   MustHaveCoverage:   terms where Kind==Requirement && Source==MustHave.
+    //   NiceToHaveCoverage: terms where Kind==Requirement && Source==NiceToHave (bonus).
+    // Each verdict derives from SET EMPTINESS only (parity ScoreTitle — no
+    // ratio/Jaccard threshold, CLAUDE.md §5); NotAssessed when the CV has no skill
+    // ids OR the ad has no terms of that kind/source (NULL/empty VO) — never NoMatch
+    // on absence. Matched/Missing are ALWAYS surfaced (ADR 0074 gate), as Display
+    // labels (DE-display-1, not raw concept-ids) Ordinal-sorted (deterministic).
+    // must_have is the binding requirement signal but it is just its own dimension's
+    // verdict — there is no opaque total it could gate (Goodhart guard, CTO D0).
+    // NotFoundException if the ad does not exist (parity ScoreAsync).
+    public async ValueTask<FullMatchScore> ScoreFullAsync(
+        JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        // One round-trip: the title + three shadows (the Fast inputs) + the
+        // extracted_terms VO (the Full inputs). The VO is materialized via its jsonb
+        // ValueConverter (parity GetJobAdExtractedTermsQueryHandler); EF.Property
+        // reads the Npgsql-bound shadows (stays in Infrastructure, ADR 0062).
+        var ad = await db.JobAds
+            .AsNoTracking()
+            .Where(j => j.Id == jobAdId)
+            .Select(j => new AdFullRow(
+                j.Title,
+                EF.Property<string?>(j, OccupationGroupColumn),
+                EF.Property<string?>(j, RegionColumn),
+                EF.Property<string?>(j, EmploymentTypeColumn),
+                j.ExtractedTerms))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (ad is null)
+        {
+            throw new NotFoundException($"JobAd {jobAdId.Value} hittades inte.");
+        }
+
+        // Embedded Fast — the SAME four helpers/inputs as ScoreAsync, so the result
+        // is identical (the regression contract).
+        var fast = profile.Fast;
+        var fastScore = new MatchScore(
+            SsykOverlap: ScoreMembership(fast.SsykGroupConceptIds, ad.OccupationGroupConceptId),
+            TitleSimilarity: ScoreTitle(fast.Title, ad.Title),
+            RegionFit: ScoreMembership(fast.PreferredRegionConceptIds, ad.RegionConceptId),
+            EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+
+        var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
+        var cvSkills = profile.CvSkillConceptIds.ToHashSet(StringComparer.Ordinal);
+
+        return new FullMatchScore(
+            Fast: fastScore,
+            SkillOverlap: ScoreConceptCoverage(
+                terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills),
+            MustHaveCoverage: ScoreConceptCoverage(
+                terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                    && t.Source == ExtractedTermSource.MustHave), cvSkills),
+            NiceToHaveCoverage: ScoreConceptCoverage(
+                terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                    && t.Source == ExtractedTermSource.NiceToHave), cvSkills));
+    }
+
+    // Concept-id coverage of one ad-side term partition (Skill / must_have /
+    // nice_to_have) against the CV's skill concept-ids. The overlap key is the
+    // concept-id (Lexeme == ConceptId for Skill/Requirement terms); the surfaced
+    // evidence is the human Display label (DE-display-1). NotAssessed if either side
+    // is absent (empty CV skills OR the ad has no terms of this partition) — parity
+    // ScoreMembership rule 1: NoMatch is reserved for "data present on both sides,
+    // disjoint", never absence. Verdict from set emptiness only (no threshold).
+    private static MatchDimension ScoreConceptCoverage(
+        IEnumerable<ExtractedTerm> adTerms, HashSet<string> cvSkillConceptIds)
+    {
+        // Distinct concept-id → Display. Terms arrive pre-sorted by ExtractedTerms.From
+        // (deterministic), so the first Display kept per concept-id is stable.
+        var byConcept = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var term in adTerms)
+        {
+            byConcept.TryAdd(term.ConceptId!, term.Display);
+        }
+
+        if (cvSkillConceptIds.Count == 0 || byConcept.Count == 0)
+        {
+            return NotAssessed();
+        }
+
+        // Partition the ad's concept-ids by CV coverage; surface Display labels
+        // (Ordinal-sorted). Missing = "what the ad wants that the CV lacks".
+        var matched = byConcept
+            .Where(kv => cvSkillConceptIds.Contains(kv.Key))
+            .Select(kv => kv.Value)
+            .OrderBy(d => d, StringComparer.Ordinal)
+            .ToList();
+        var missing = byConcept
+            .Where(kv => !cvSkillConceptIds.Contains(kv.Key))
+            .Select(kv => kv.Value)
+            .OrderBy(d => d, StringComparer.Ordinal)
+            .ToList();
+
+        var verdict = matched.Count == 0
+            ? MatchDimensionVerdict.NoMatch
+            : missing.Count == 0
+                ? MatchDimensionVerdict.Match
+                : MatchDimensionVerdict.Partial;
+
+        return new MatchDimension(verdict, matched, missing);
+    }
+
     // SSYK / region / employment: the CV holds a list, the ad holds a single value.
     // NotAssessed if either side is absent (empty CV list OR NULL ad shadow) — rule 1
     // (CTO Decision 3): NoMatch is reserved for "data present on both sides, disjoint".
@@ -156,4 +270,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string? OccupationGroupConceptId,
         string? RegionConceptId,
         string? EmploymentTypeConceptId);
+
+    // The Full row (F4-6) — the Fast inputs plus the extracted_terms VO (materialized
+    // via its jsonb ValueConverter). Constructor-projected; ExtractedTerms is nullable
+    // (NULL ⇒ never extracted ⇒ the three new dims read NotAssessed).
+    private sealed record AdFullRow(
+        string Title,
+        string? OccupationGroupConceptId,
+        string? RegionConceptId,
+        string? EmploymentTypeConceptId,
+        ExtractedTerms? ExtractedTerms);
 }

@@ -22,6 +22,15 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // ADR 0032 §4 — raw JobTech-payload för debug/replay (jsonb i DB).
     public string? RawPayload { get; private set; }
 
+    // F4-4 (ADR 0071/0074 Path C) — deterministic keyword/skill extraction
+    // (jsonb i DB). NULL = aldrig extraherat (alla rader importerade före F4-4
+    // tills backfillen kör); non-null (inkl. tom) = extraherat. Skillnaden bär
+    // backfill-idempotensen via den STORED genererade extracted_lexemes-skuggan
+    // (NULL ⟺ extracted_terms NULL). Skrivs aktivt i C# vid ingest + backfill —
+    // EJ en Postgres generated column (NLP+taxonomi-lookup går inte att uttrycka
+    // i SQL, till skillnad mot ssyk_concept_id/search_vector).
+    public ExtractedTerms? ExtractedTerms { get; private set; }
+
     // EF Core constructor
     private JobAd() { }
 
@@ -150,6 +159,17 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         RawPayload = rawPayload;
 
         return Result.Success();
+    }
+
+    // F4-4 — set the deterministic keyword/skill extraction (ADR 0071/0074).
+    // Invoked by the ingest hook (UpsertExternalJobAd, both Add + Update paths)
+    // and the local backfill. Idempotent: a re-extraction over the same text
+    // yields an equal value object. No domain event — extraction is derived
+    // state, not a business transition (parity UpdateFromSource).
+    public void SetExtractedTerms(ExtractedTerms terms)
+    {
+        ArgumentNullException.ThrowIfNull(terms);
+        ExtractedTerms = terms;
     }
 
     private static Result ValidateCore(

@@ -1,6 +1,7 @@
 using Hangfire;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.JobAds.Commands.RedactRecruiterPii;
+using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk;
 using Mediator;
@@ -102,6 +103,23 @@ public static class AdminJobAdsEndpoints
                 uri: null,
                 value: new BackfillKlass2Response(JobId: jobId));
         });
+
+        // Fas 4 STEG 4 (F4-4, ADR 0071/0074 Path C) — engångs-backfill av den
+        // deterministiska keyword/skill-extraktionen (extracted_terms) för JobAds
+        // importerade före F4-4. Till skillnad mot ssyk/Klass2 är detta en LOKAL
+        // re-projektion: INGEN JobTech-refetch (title/description finns redan) → ingen
+        // throttle, betydligt snabbare. Samma fire-and-forget-mönster: enqueue:as
+        // direkt mot Worker-processens HangfireServer, Api returnerar 202 + jobId.
+        // Idempotent restart-vänlig via extracted_lexemes IS NULL-filter. Engångs-
+        // operation, INTE i RecurringJobRegistrar.
+        group.MapPost("/backfill-extraction", (IBackgroundJobClient backgroundJobs) =>
+        {
+            var jobId = backgroundJobs.Enqueue<BackfillJobAdExtractedTermsJob>(
+                j => j.RunAsync(CancellationToken.None));
+            return Results.Accepted(
+                uri: null,
+                value: new BackfillExtractionResponse(JobId: jobId));
+        });
     }
 }
 
@@ -134,3 +152,9 @@ public sealed record BackfillSsykResponse(string JobId);
 /// för progress/completion).
 /// </summary>
 public sealed record BackfillKlass2Response(string JobId);
+
+/// <summary>
+/// Response-body för POST /api/v1/admin/job-ads/backfill-extraction (F4-4).
+/// JobId = Hangfire-jobb-id (inspekteras via Hangfire-storage / Worker-loggen).
+/// </summary>
+public sealed record BackfillExtractionResponse(string JobId);

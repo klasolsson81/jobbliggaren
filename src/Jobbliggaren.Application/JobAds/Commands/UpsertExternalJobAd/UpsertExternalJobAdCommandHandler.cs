@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
@@ -20,6 +21,7 @@ namespace Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
 public sealed partial class UpsertExternalJobAdCommandHandler(
     IAppDbContext db,
     IDbExceptionInspector dbExceptionInspector,
+    IJobAdKeywordExtractor keywordExtractor,
     IDateTimeProvider clock,
     ILogger<UpsertExternalJobAdCommandHandler> logger)
     : ICommandHandler<UpsertExternalJobAdCommand, Result<UpsertOutcome>>
@@ -57,6 +59,7 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         }
 
         var newJobAd = importResult.Value;
+        ApplyExtraction(newJobAd); // F4-4 ingest hook — Add path (before SaveChanges below).
         db.JobAds.Add(newJobAd);
 
         try
@@ -99,8 +102,21 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
             return Result.Success(UpsertOutcome.Skipped);
         }
 
+        // F4-4 ingest hook — Update path. `existing` is persisted by
+        // UnitOfWorkBehavior's SaveChanges after this handler returns. Re-extract
+        // so an updated ad's terms track its (possibly changed) title/description
+        // — applying only on the Add path would leave updated ads with stale terms.
+        ApplyExtraction(existing);
         return Result.Success(UpsertOutcome.Updated);
     }
+
+    // F4-4 (ADR 0071/0074 Path C) — deterministic keyword/skill extraction at the
+    // single external-ad write funnel (both Add + Update paths). Pure/in-process:
+    // local NLP + the committed skill taxonomy, no external call, reads only public
+    // ad text (no PII). Worker-sync context → no request-latency budget (ADR 0045).
+    private void ApplyExtraction(JobAd jobAd) =>
+        jobAd.SetExtractedTerms(
+            keywordExtractor.Extract(new JobAdExtractionInput(jobAd.Title, jobAd.Description)));
 
     [LoggerMessage(EventId = 5101, Level = LogLevel.Information,
         Message = "UpsertExternalJobAd: UNIQUE-collision på ExternalId={ExternalId} — växlar till update.")]

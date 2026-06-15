@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.JobAds;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NpgsqlTypes;
 
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
@@ -129,6 +130,40 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasColumnType("tsvector")
             .HasComputedColumnSql(
                 "to_tsvector('swedish', coalesce(title,'') || ' ' || coalesce(description,''))",
+                stored: true);
+
+        // F4-4 (ADR 0071/0074 Path C, dotnet-architect Variant A/3a) — deterministic
+        // keyword/skill extraction, jsonb VO. UNLIKE every shadow column above this
+        // is ACTIVELY WRITTEN in C# (the extractor at ingest + the local backfill) —
+        // NLP + taxonomi-lookup går inte att uttrycka som en Postgres generated
+        // column (till skillnad mot ssyk_concept_id/search_vector). NULL = aldrig
+        // extraherat; non-null (inkl. tom array) = extraherat. Property-level
+        // ValueConverter mot jsonb (speglar SearchCriteria-mappningen).
+        // Cast to the non-generic ValueConverter overload: the property is
+        // ExtractedTerms? (nullable) — EF maps NULL↔null natively and applies the
+        // non-null converter to present values (the documented nullable-property path).
+        builder.Property(j => j.ExtractedTerms)
+            .HasColumnName("extracted_terms")
+            .HasColumnType("jsonb")
+            .HasConversion(
+                (ValueConverter)ExtractedTermsConversion.Converter,
+                ExtractedTermsConversion.Comparer);
+
+        // STORED generated jsonb companion för F4-6:s overlap-pre-filter
+        // (extracted_lexemes ?| @cvLexemes via GIN). Härleds deterministiskt ur den
+        // C#-skrivna extracted_terms av Postgres (jsonb_path_query_array med konstant
+        // path = IMMUTABLE, verifierat PG 18.3) → drift omöjlig, ingen separat
+        // skrivväg. text[]-formen kräver subquery (ej tillåtet i generated columns)
+        // → jsonb-formen är den korrekta 3a-varianten. Shadow-property (provider-typ
+        // får ej ligga på Domain-aggregatet, CLAUDE.md §2.1); GIN-indexet skapas i
+        // migrationen (fluent API kan ej GIN:a en shadow-prop, samma skäl som
+        // SearchVector). extracted_lexemes IS NULL ⟺ extracted_terms IS NULL →
+        // backfill-predikatet (BackfillJobAdExtractedTermsJob).
+        builder.Property<string?>("ExtractedLexemes")
+            .HasColumnName("extracted_lexemes")
+            .HasColumnType("jsonb")
+            .HasComputedColumnSql(
+                "jsonb_path_query_array(extracted_terms, '$[*].Lexeme')",
                 stored: true);
 
         builder.HasQueryFilter(j => j.DeletedAt == null);

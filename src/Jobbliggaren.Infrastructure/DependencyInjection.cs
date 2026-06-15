@@ -155,6 +155,15 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationCodeDeriver,
             Jobbliggaren.Infrastructure.Taxonomy.OccupationCodeDeriver>();
 
+        // Fas 4 STEG 4 (F4-4, ADR 0071/0074 Path C) — deterministic per-job-ad
+        // keyword/skill extractor. Singleton with a lazily-built skill-taxonomy
+        // index (embedded jobad-skill-taxonomy.v30.json), mirroring the F4-3
+        // deriver; consumes ITextAnalyzer + IStemmer (AddTextAnalysis). NO AI/LLM.
+        // DI in the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Abstractions.IJobAdKeywordExtractor,
+            Jobbliggaren.Infrastructure.Taxonomy.JobAdKeywordExtractor>();
+
         // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
         // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).
@@ -216,6 +225,19 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2.BackfillJobAdKlass2Job>();
+
+        // Fas 4 STEG 4 (F4-4) — extraction-backfill (lokal re-projektion av
+        // extracted_terms; INGEN JobTech-refetch, till skillnad mot ssyk/Klass2
+        // som går via JobAdRefetchBackfillRunner). Self-scoped (paritet
+        // BackfillFieldEncryptionJob); tunables via IOptions. DI i samma commit som
+        // jobb/port (feedback_di_with_handlers_same_commit).
+        services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsJob>();
 
         return services;
     }

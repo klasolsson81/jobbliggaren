@@ -225,7 +225,14 @@ public class AuditingLayerTests
             // konsumerar ISystemEventAuditor direkt — bara runnern gör det.
             // Ratchet-tillägg (audit-bypass-disciplinen bevarad: runnern är
             // system-job-lagrets enda nya audit-consumer).
-            "JobAdRefetchBackfillRunner"
+            "JobAdRefetchBackfillRunner",
+            // F4-4 (2026-06-15, ADR 0071/0074 Path C): extraction-backfillen
+            // skriver JobAdsSynced-audit (JobType="backfill-extraction", GDPR
+            // Art. 30 accountability), paritet BackfillFieldEncryptionJob. Till
+            // skillnad mot ssyk/Klass2 går den INTE via JobAdRefetchBackfillRunner
+            // (lokal re-projektion, ingen JobTech-refetch) → konsumerar
+            // ISystemEventAuditor direkt. Ratchet-tillägg.
+            "BackfillJobAdExtractedTermsJob"
         };
         var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
 

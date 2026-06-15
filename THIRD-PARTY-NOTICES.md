@@ -70,3 +70,20 @@ does not extend to the application.
 - **Use:** the `sv_SE.dic` / `sv_SE.aff` files shipped **unmodified** as a
   separate Content data file (BUILD §3.1). SHA-256 of the shipped files is pinned
   in `DssoDictionaryIntegrityTests` to enforce the unmodified constraint.
+
+### JobTech Taxonomy (Arbetsmarknadstaxonomin) — labour-market reference data
+- **License:** **EPL-2.0** (Arbetsförmedlingen open data — free for anyone to
+  use). License text: https://www.eclipse.org/legal/epl-2.0/
+- **Copyright:** © Arbetsförmedlingen (the Swedish Public Employment Service).
+- **Source:** JobTech Taxonomy v1 GraphQL, https://taxonomy.api.jobtechdev.se ·
+  https://jobtechdev.se/en/products/jobtech-taxonomy
+- **Use:** committed, frozen reference-data snapshots derived from the public
+  taxonomy and reprojected into our own JSON shape — `taxonomy-snapshot.json`
+  (regions/occupations/ssyk-4, F2-P9/B1/B2) and `jobad-skill-taxonomy.v30.json`
+  (skill/competence + ESCO skill concepts, F4-4). Generated off-build by the
+  `tools/taxonomy-snapshot/` and `tools/jobad-skill-taxonomy/` scripts;
+  version-pinned `v30`. EPL-2.0 is a weak (file-level) copyleft with no
+  network-use clause; the product runs server-side and is **not distributed**
+  (ADR 0050), and the snapshots are our own reprojection, not modified EPL source
+  files — so no copyleft attaches to the application (same posture as the MPL/LGPL
+  components above).

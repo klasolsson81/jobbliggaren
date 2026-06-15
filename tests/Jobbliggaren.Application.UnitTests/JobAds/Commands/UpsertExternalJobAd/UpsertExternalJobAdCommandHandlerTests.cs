@@ -44,12 +44,24 @@ public class UpsertExternalJobAdCommandHandlerTests
 
     private static UpsertExternalJobAdCommandHandler CreateHandler(
         IAppDbContext db,
-        IDbExceptionInspector? inspector = null) =>
-        new(
+        IDbExceptionInspector? inspector = null,
+        IJobAdKeywordExtractor? extractor = null)
+    {
+        if (extractor is null)
+        {
+            // F4-4 ingest hook — default to a no-op extraction (Empty) so these
+            // upsert tests stay focused on the race-safe upsert behavior.
+            extractor = Substitute.For<IJobAdKeywordExtractor>();
+            extractor.Extract(Arg.Any<JobAdExtractionInput>()).Returns(ExtractedTerms.Empty);
+        }
+
+        return new(
             db,
             inspector ?? Substitute.For<IDbExceptionInspector>(),
+            extractor,
             new FakeDateTimeProvider(Now),
             NullLogger<UpsertExternalJobAdCommandHandler>.Instance);
+    }
 
     [Fact]
     public async Task Handle_WithNewExternalJobAd_AddsAndReturnsAddedOutcome()
@@ -213,6 +225,93 @@ public class UpsertExternalJobAdCommandHandlerTests
 
         await Should.ThrowAsync<ArgumentNullException>(
             () => handler.Handle(null!, TestContext.Current.CancellationToken).AsTask());
+    }
+
+    // ---------------------------------------------------------------
+    // F4-4 ingest hook — the deterministic extraction lands on the aggregate at
+    // the single external-ad write funnel, on BOTH the Add and the Update path
+    // (ApplyExtraction is called in both branches of the handler).
+    // ---------------------------------------------------------------
+
+    private static ExtractedTerms SampleTerms() =>
+        ExtractedTerms.From(
+        [
+            new ExtractedTerm(
+                Lexeme: "1TC7_x8s_V7V", Display: "JavaScript",
+                Kind: ExtractedTermKind.Skill, Source: ExtractedTermSource.Description,
+                MatchedOn: "JavaScript", ConceptId: "1TC7_x8s_V7V", Weight: 1),
+        ]);
+
+    [Fact]
+    public async Task Handle_OnAddPath_SetsExtractedTermsOnTheAggregate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var terms = SampleTerms();
+        var extractor = Substitute.For<IJobAdKeywordExtractor>();
+        extractor.Extract(Arg.Any<JobAdExtractionInput>()).Returns(terms);
+        var handler = CreateHandler(db, extractor: extractor);
+        var item = ValidItem("ext-extract-add");
+        var command = new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-extract-add", item);
+
+        var result = await handler.Handle(command, ct);
+
+        result.Value.ShouldBe(UpsertOutcome.Added);
+        // The extractor was invoked with the ad's text and the result was persisted.
+        extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
+            i => i.Title == item.Title && i.Description == item.Description));
+        var persisted = await db.JobAds.AsNoTracking()
+            .FirstAsync(j => j.External!.ExternalId == "ext-extract-add", ct);
+        persisted.ExtractedTerms.ShouldNotBeNull(
+            "Add-vägens ingest-hook ska sätta ExtractedTerms på aggregatet.");
+        persisted.ExtractedTerms!.ShouldBe(terms);
+    }
+
+    [Fact]
+    public async Task Handle_OnUpdatePath_SetsExtractedTermsOnTheExistingAggregate()
+    {
+        // Force the UNIQUE-collision → Update path, and assert the re-extraction
+        // lands on the reloaded `existing` aggregate (applying only on Add would
+        // leave updated ads with stale terms — the production comment's invariant).
+        var seedDb = TestAppDbContextFactory.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await SeedExistingExternalJobAdAsync(seedDb, "ext-extract-upd", "Old Title", ct);
+
+        var db = Substitute.For<IAppDbContext>();
+        db.JobAds.Returns(seedDb.JobAds);
+        var saveCallCount = 0;
+        db.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                saveCallCount++;
+                if (saveCallCount == 1)
+                    throw new DbUpdateException("UNIQUE-violation simulerad");
+                return Task.FromResult(1);
+            });
+        var inspector = Substitute.For<IDbExceptionInspector>();
+        inspector.IsUniqueConstraintViolation(Arg.Any<DbUpdateException>()).Returns(true);
+
+        var terms = SampleTerms();
+        var extractor = Substitute.For<IJobAdKeywordExtractor>();
+        extractor.Extract(Arg.Any<JobAdExtractionInput>()).Returns(terms);
+
+        var handler = CreateHandler(db, inspector, extractor);
+        var item = ValidItem("ext-extract-upd", title: "New Title", description: "Ny beskrivning");
+        var command = new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-extract-upd", item);
+
+        var result = await handler.Handle(command, ct);
+
+        result.Value.ShouldBe(UpsertOutcome.Updated);
+        // The reloaded existing aggregate (tracked in seedDb) carries the new terms.
+        var existing = await seedDb.JobAds
+            .FirstAsync(j => j.External!.ExternalId == "ext-extract-upd", ct);
+        existing.Title.ShouldBe("New Title", "Update-vägen uppdaterade titeln.");
+        existing.ExtractedTerms.ShouldNotBeNull(
+            "Update-vägens ingest-hook ska sätta ExtractedTerms på `existing`.");
+        existing.ExtractedTerms!.ShouldBe(terms);
+        // Re-extraction used the UPDATED text, not the stale seeded text.
+        extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
+            i => i.Title == "New Title" && i.Description == "Ny beskrivning"));
     }
 
     private static async Task SeedExistingExternalJobAdAsync(

@@ -44,12 +44,15 @@ public sealed record ExtractedTerm(
     double Weight);
 
 /// <summary>
-/// What an <see cref="ExtractedTerm"/> represents. Declaration order is
-/// load-bearing: it is the primary sort key for the bounded, deterministic term
-/// list (a high-value <see cref="Skill"/> survives the cap before a generic
-/// <see cref="Keyword"/>). <see cref="Requirement"/> is declared LAST so F4-4b
-/// can populate it additively without disturbing the persisted ordering of
-/// existing rows.
+/// What an <see cref="ExtractedTerm"/> represents. The bounded, deterministic term
+/// list is sorted primarily by a Kind→rank function (<see cref="ExtractedTerms"/>'s
+/// <c>SortRank</c>, NOT the raw declaration order below):
+/// <see cref="Requirement"/> → <see cref="Skill"/> → <see cref="Keyword"/> (F4-4b,
+/// CTO Decision 1c — an employer-stated requirement is the highest-authority match
+/// signal and must survive the cap before NLP-derived skills/keywords). The numeric
+/// declaration order is kept stable (Skill=0, Keyword=1, Requirement=2) so the
+/// persisted jsonb enum strings of existing rows never shift; the sort rank is
+/// applied independently.
 /// </summary>
 public enum ExtractedTermKind
 {

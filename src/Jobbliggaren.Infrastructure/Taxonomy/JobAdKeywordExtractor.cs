@@ -43,10 +43,30 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
     {
         ArgumentNullException.ThrowIfNull(input);
 
+        var terms = new List<ExtractedTerm>();
+
+        // ---- Requirement pass (F4-4b): employer-stated must_have/nice_to_have skills.
+        // Already taxonomy-concept-linked → NO NLP/taxonomy match (unlike the skill pass
+        // over free text). Text-independent, so it runs before the no-text short-circuits
+        // (requirements are never silently dropped). The overlap token IS the concept-id
+        // (concept-level, same as a Skill); Source cites must_have vs nice_to_have;
+        // MatchedOn cites the requirement label (explainable by design, CLAUDE.md §5).
+        foreach (var requirement in input.Requirements ?? [])
+        {
+            terms.Add(new ExtractedTerm(
+                Lexeme: requirement.ConceptId,
+                Display: requirement.Label,
+                Kind: ExtractedTermKind.Requirement,
+                Source: requirement.Source,
+                MatchedOn: requirement.Label,
+                ConceptId: requirement.ConceptId,
+                Weight: requirement.Weight));
+        }
+
         var title = input.Title ?? string.Empty;
         var description = input.Description ?? string.Empty;
         if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(description))
-            return ExtractedTerms.Empty;
+            return ExtractedTerms.From(terms);
 
         // Lexeme streams (Snowball, stopwords dropped) — title separately so a
         // term's Source can cite where it occurred. allLex keeps duplicates → the
@@ -57,7 +77,7 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
         var adSet = new HashSet<string>(titleLex, StringComparer.Ordinal);
         adSet.UnionWith(descLex);
         if (adSet.Count == 0)
-            return ExtractedTerms.Empty;
+            return ExtractedTerms.From(terms);
 
         var frequency = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var lexeme in titleLex)
@@ -91,7 +111,7 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
         foreach (var form in bestByConcept.Values)
             skillConsumed.UnionWith(form.Lexemes);
 
-        var terms = new List<ExtractedTerm>(bestByConcept.Count + adSet.Count);
+        terms.EnsureCapacity(terms.Count + bestByConcept.Count + adSet.Count);
 
         foreach (var form in bestByConcept.Values)
         {

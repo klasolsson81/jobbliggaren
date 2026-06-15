@@ -84,6 +84,10 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdKlass2Worker
 // extraction-backfill (lokal re-projektion). Wrappern registreras för framtida
 // cron-användning; Api enqueue:ar för triggern Application-jobbet direkt.
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdExtractedTermsWorker>();
+// Fas 4 STEG 4b (F4-4b, ADR 0071/0074/0075) — DisableConcurrentExecution-wrapper för
+// requirements re-ingest-backfill (must_have/nice_to_have → Requirement-termer; per-ID-
+// refetch, paritet Klass2). Engångs-op; Api enqueue:ar Application-jobbet direkt.
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdRequirementsWorker>();
 
 // ADR 0064 — Worker:s landing-stats-refresh-wrapper. Job-klassen registreras
 // av AddLandingStats() nedan; wrappern bär bara Hangfire-attributet

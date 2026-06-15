@@ -31,7 +31,8 @@ public class UpsertExternalJobAdCommandHandlerTests
         string title = "Backend-utvecklare",
         string companyName = "Klarna",
         string description = "Vi söker en backend-utvecklare.",
-        string url = "https://example.com/jobs/1") =>
+        string url = "https://example.com/jobs/1",
+        IReadOnlyList<JobAdRequirement>? requirements = null) =>
         new(
             ExternalId: externalId,
             Title: title,
@@ -40,7 +41,10 @@ public class UpsertExternalJobAdCommandHandlerTests
             Url: url,
             PublishedAt: Now.AddDays(-1),
             ExpiresAt: Now.AddDays(30),
-            SanitizedRawPayload: "{\"id\":\"ext-1\"}");
+            SanitizedRawPayload: "{\"id\":\"ext-1\"}",
+            // F4-4b — the last positional param. Defaults to empty so the existing
+            // upsert tests stay keyword/skill-only.
+            Requirements: requirements ?? []);
 
     private static UpsertExternalJobAdCommandHandler CreateHandler(
         IAppDbContext db,
@@ -312,6 +316,80 @@ public class UpsertExternalJobAdCommandHandlerTests
         // Re-extraction used the UPDATED text, not the stale seeded text.
         extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
             i => i.Title == "New Title" && i.Description == "Ny beskrivning"));
+    }
+
+    // ---------------------------------------------------------------
+    // F4-4b ingest hook — ApplyExtraction(jobAd, item) threads item.Requirements
+    // into the JobAdExtractionInput on BOTH the Add and the Update path (the hook
+    // signature gains the item so requirements — which live on the import DTO, not
+    // the aggregate — reach the extractor).
+    // ---------------------------------------------------------------
+
+    private static IReadOnlyList<JobAdRequirement> SampleRequirements() =>
+    [
+        new JobAdRequirement(ExtractedTermSource.MustHave, "Rq01_must_aaa", "C#", 10),
+        new JobAdRequirement(ExtractedTermSource.NiceToHave, "Rq02_nice_bbb", "Azure", 5),
+    ];
+
+    [Fact]
+    public async Task Handle_OnAddPath_PassesItemRequirementsToTheExtractor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var requirements = SampleRequirements();
+        var extractor = Substitute.For<IJobAdKeywordExtractor>();
+        extractor.Extract(Arg.Any<JobAdExtractionInput>()).Returns(ExtractedTerms.Empty);
+        var handler = CreateHandler(db, extractor: extractor);
+        var item = ValidItem("ext-req-add", requirements: requirements);
+        var command = new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-req-add", item);
+
+        var result = await handler.Handle(command, ct);
+
+        result.Value.ShouldBe(UpsertOutcome.Added);
+        // The extraction input carries the item's requirements (same instances).
+        extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
+            i => i.Requirements != null && i.Requirements.Count == 2
+                 && i.Requirements.Any(r => r.ConceptId == "Rq01_must_aaa" && r.Source == ExtractedTermSource.MustHave)
+                 && i.Requirements.Any(r => r.ConceptId == "Rq02_nice_bbb" && r.Source == ExtractedTermSource.NiceToHave)));
+    }
+
+    [Fact]
+    public async Task Handle_OnUpdatePath_PassesItemRequirementsToTheExtractor()
+    {
+        // Force the UNIQUE-collision → Update path; the re-extraction on `existing`
+        // must thread the (possibly changed) item.Requirements — applying only on
+        // Add would leave an updated ad with stale requirement terms.
+        var seedDb = TestAppDbContextFactory.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await SeedExistingExternalJobAdAsync(seedDb, "ext-req-upd", "Old Title", ct);
+
+        var db = Substitute.For<IAppDbContext>();
+        db.JobAds.Returns(seedDb.JobAds);
+        var saveCallCount = 0;
+        db.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                saveCallCount++;
+                if (saveCallCount == 1)
+                    throw new DbUpdateException("UNIQUE-violation simulerad");
+                return Task.FromResult(1);
+            });
+        var inspector = Substitute.For<IDbExceptionInspector>();
+        inspector.IsUniqueConstraintViolation(Arg.Any<DbUpdateException>()).Returns(true);
+
+        var extractor = Substitute.For<IJobAdKeywordExtractor>();
+        extractor.Extract(Arg.Any<JobAdExtractionInput>()).Returns(ExtractedTerms.Empty);
+
+        var handler = CreateHandler(db, inspector, extractor);
+        var item = ValidItem("ext-req-upd", title: "New Title", requirements: SampleRequirements());
+        var command = new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-req-upd", item);
+
+        var result = await handler.Handle(command, ct);
+
+        result.Value.ShouldBe(UpsertOutcome.Updated);
+        extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
+            i => i.Requirements != null && i.Requirements.Count == 2
+                 && i.Requirements.Any(r => r.ConceptId == "Rq01_must_aaa")));
     }
 
     private static async Task SeedExistingExternalJobAdAsync(

@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.JobAds.Commands.RedactRecruiterPii;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2;
+using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk;
 using Mediator;
 
@@ -120,6 +121,26 @@ public static class AdminJobAdsEndpoints
                 uri: null,
                 value: new BackfillExtractionResponse(JobId: jobId));
         });
+
+        // Fas 4 STEG 4b (F4-4b, ADR 0071/0074/0075) — engångs-re-ingest av
+        // arbetsgivar-kraven (must_have/nice_to_have-skills → Requirement-termer) för
+        // JobAds vars raw_payload saknar must_have (alla rader importerade före F4-4b:s
+        // POCO-expansion → 100% av tabellen tills körningen skett). Till SKILLNAD mot
+        // backfill-extraction (lokal re-projektion) går detta via JobTech per-ID-refetch
+        // (paritet ssyk/Klass2) — refetch re-skriver raw_payload → must_have landar +
+        // ingest-hooken kör full extraktion (Requirement + keyword/skill → SUBSUMERAR
+        // backfill-extraction). Samma fire-and-forget-mönster: enqueue:as direkt mot
+        // Worker-processens HangfireServer, Api returnerar 202 + jobId. Idempotent
+        // restart-vänlig via must_have-nyckel-filtret. Engångs-operation, INTE i
+        // RecurringJobRegistrar. Re-ingest-körningen är Klas-GO-grindad (paritet Klass2).
+        group.MapPost("/backfill-requirements", (IBackgroundJobClient backgroundJobs) =>
+        {
+            var jobId = backgroundJobs.Enqueue<BackfillJobAdRequirementsJob>(
+                j => j.RunAsync(CancellationToken.None));
+            return Results.Accepted(
+                uri: null,
+                value: new BackfillRequirementsResponse(JobId: jobId));
+        });
     }
 }
 
@@ -158,3 +179,9 @@ public sealed record BackfillKlass2Response(string JobId);
 /// JobId = Hangfire-jobb-id (inspekteras via Hangfire-storage / Worker-loggen).
 /// </summary>
 public sealed record BackfillExtractionResponse(string JobId);
+
+/// <summary>
+/// Response-body för POST /api/v1/admin/job-ads/backfill-requirements (F4-4b).
+/// JobId = Hangfire-jobb-id (inspekteras via Hangfire-storage / Worker-loggen).
+/// </summary>
+public sealed record BackfillRequirementsResponse(string JobId);

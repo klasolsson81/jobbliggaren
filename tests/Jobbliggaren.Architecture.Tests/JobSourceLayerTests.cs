@@ -65,4 +65,38 @@ public class JobSourceLayerTests
             "Wire-format-typer ska vara internal (JobTechOptions och JobTechPayloadSanitizer " +
             $"är medvetna undantag). Public: {string.Join(", ", publicJobTechTypes!)}");
     }
+
+    [Fact]
+    public void F4_4b_requirement_wire_POCOs_exist_and_are_internal_to_Infrastructure()
+    {
+        // Fas 4 STEG 4b (architect Note 4.1) — pin BY NAME that the new must_have/
+        // nice_to_have ACL POCOs (JobTechRequirements + JobTechRequirementConcept)
+        // exist AND are non-public, parity JobAdKeywordExtractor_and_loader_helpers_
+        // are_internal_to_Infrastructure. The general wire-type test above stays green
+        // whether or not they exist; THIS test is RED until they ship + forbids a
+        // future refactor from accidentally making them public.
+        var infrastructureAsm = typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
+
+        var requirementPocoTypes = infrastructureAsm.GetTypes()
+            .Where(t => t.Namespace == "Jobbliggaren.Infrastructure.JobSources.Platsbanken"
+                        && (t.Name.Contains("JobTechRequirement", StringComparison.Ordinal)))
+            .ToList();
+
+        requirementPocoTypes.ShouldContain(
+            t => t.Name.Contains("JobTechRequirements", StringComparison.Ordinal),
+            "JobTechRequirements-POCO saknas i Jobbliggaren.Infrastructure.JobSources.Platsbanken " +
+            "(F4-4b ACL-POCO ej skriven än — väntad RED).");
+        requirementPocoTypes.ShouldContain(
+            t => t.Name.Contains("JobTechRequirementConcept", StringComparison.Ordinal),
+            "JobTechRequirementConcept-POCO saknas (F4-4b ACL-POCO ej skriven än — väntad RED).");
+
+        var publicRequirementPocoTypes = requirementPocoTypes
+            .Where(t => t.IsPublic || (t.IsNested && t.IsNestedPublic))
+            .Select(t => t.FullName)
+            .ToList();
+
+        publicRequirementPocoTypes.ShouldBeEmpty(
+            "JobTechRequirements/JobTechRequirementConcept ska vara internal (ACL-isolation, " +
+            $"Evans 2003 §14). Public: {string.Join(", ", publicRequirementPocoTypes!)}");
+    }
 }

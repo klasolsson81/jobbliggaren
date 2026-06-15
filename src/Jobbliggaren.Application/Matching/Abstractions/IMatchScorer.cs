@@ -39,4 +39,28 @@ public interface IMatchScorer
     /// </summary>
     ValueTask<MatchScore> ScoreAsync(
         JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fas 4 STEG 6 (F4-6, ADR 0074 row U5b; senior-cto-advisor Decision A = A2 + Pa)
+    /// — scores the job ad <paramref name="jobAdId"/> against
+    /// <paramref name="profile"/> over the FULL set of dimensions: the four
+    /// embedded F4-5 Fast dimensions PLUS skill overlap, must-have coverage and
+    /// nice-to-have coverage (computed from the ad's F4-4/F4-4b extracted terms
+    /// vs the CV's skill concept-ids). NO AI/LLM (ADR 0071). A second method on
+    /// the same port (Pa); <see cref="ScoreAsync"/> is unchanged.
+    /// <para>
+    /// Throws <see cref="Common.Exceptions.NotFoundException"/> if the ad does not
+    /// exist (parity <see cref="ScoreAsync"/>). The embedded
+    /// <see cref="FullMatchScore.Fast"/> equals what <see cref="ScoreAsync"/> would
+    /// return for the same ad and <c>profile.Fast</c>. Each of the three new
+    /// dimensions reports <see cref="MatchDimensionVerdict.NotAssessed"/> (never
+    /// <see cref="MatchDimensionVerdict.NoMatch"/>) when the CV side has no skill
+    /// concept-ids OR the ad has no terms of that kind/source (NULL/empty
+    /// <c>extracted_terms</c>); matched/missing surface Display labels, not raw
+    /// concept-ids (explainable by design — ADR 0074). Deterministic: equal inputs
+    /// yield an equal score with Ordinal-stable evidence.
+    /// </para>
+    /// </summary>
+    ValueTask<FullMatchScore> ScoreFullAsync(
+        JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken);
 }

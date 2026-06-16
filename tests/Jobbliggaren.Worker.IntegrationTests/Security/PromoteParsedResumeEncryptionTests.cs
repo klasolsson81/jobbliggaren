@@ -227,7 +227,7 @@ public class PromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
 
         // A DIFFERENT authenticated user (with their own JobSeeker) attempts the promote.
         var attackerUserId = Guid.NewGuid();
-        await SeedJobSeekerAsync(attackerUserId, ct);
+        var attacker = await SeedJobSeekerAsync(attackerUserId, ct);
 
         Result<Guid> result;
         using (var scope = _fixture.Services.CreateScope())
@@ -245,8 +245,12 @@ public class PromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         using var verifyScope = _fixture.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // No Resume row exists at all.
-        var resumeCount = await RawScalarAsync(verifyDb, "SELECT count(*) FROM resumes", ct);
+        // No Resume was created for the attacker (the only owner a wrongly-succeeded promote
+        // could have produced — the handler resolves jobSeekerId from the caller). Scoped to
+        // the attacker's JobSeeker so the shared fixture DB's sibling-test rows don't pollute
+        // the count.
+        var resumeCount = await RawScalarAsync(
+            verifyDb, $"SELECT count(*) FROM resumes WHERE job_seeker_id = '{attacker.Id.Value}'", ct);
         resumeCount.ShouldBe("0");
 
         // The ParsedResume is untouched: still PendingReview, not soft-deleted.

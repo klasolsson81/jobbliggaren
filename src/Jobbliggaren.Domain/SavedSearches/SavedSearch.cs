@@ -70,6 +70,32 @@ public sealed class SavedSearch : AggregateRoot<SavedSearchId>
         return Result.Success(savedSearch);
     }
 
+    /// <summary>
+    /// Creates a SavedSearch from the user's CONFIRMED CV-derived occupation selection (ADR 0040
+    /// Beslut 4 — the user confirms; the engine never auto-creates). Identical to <see cref="Create"/>
+    /// plus a provenance event recording the source CV. There is NO stored DerivedFromResumeId:
+    /// ADR 0040 Beslut 3 defers that column to a future supersession-ADR, so the provenance rides
+    /// on the event only (no migration — parity with <c>Resume.CreateFromParsed</c>, STEG A). The
+    /// confirmed ssyk-4 ids are plain client input on <paramref name="criteria"/>, never the
+    /// deriver's result — so the bearing invariant (no auto-create from derivation output) holds.
+    /// </summary>
+    public static Result<SavedSearch> CreateFromResume(
+        JobSeekerId jobSeekerId,
+        string? name,
+        SearchCriteria criteria,
+        bool notificationEnabled,
+        Guid? sourceParsedResumeId,
+        IDateTimeProvider clock)
+    {
+        var result = Create(jobSeekerId, name, criteria, notificationEnabled, clock);
+        if (result.IsFailure)
+            return result;
+
+        result.Value.RaiseDomainEvent(new SavedSearchDerivedFromResumeDomainEvent(
+            result.Value.Id, jobSeekerId, sourceParsedResumeId, clock.UtcNow));
+        return result;
+    }
+
     public Result Rename(string? name, IDateTimeProvider clock)
     {
         var nameResult = ValidateName(name);

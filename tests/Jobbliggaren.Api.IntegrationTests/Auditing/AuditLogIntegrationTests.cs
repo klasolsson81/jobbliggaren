@@ -396,4 +396,57 @@ public class AuditLogIntegrationTests(ApiFactory factory)
         (await ReadEntriesAsync(_factory, unknownId, ct)).Count.ShouldBe(beforeForId);
         (await ReadEntryCountAsync(_factory, ct)).ShouldBe(beforeTotal);
     }
+
+    // ---------------------------------------------------------------
+    // SavedSearch — CV→SavedSearch confirm→create (Fas 4 STEG B / B4)
+    // ---------------------------------------------------------------
+
+    private static object ConfirmDerivedBody(params string[] occupationGroup) => new
+    {
+        name = "CV-härledd sökning",
+        occupationGroup = occupationGroup.Length == 0 ? Array.Empty<string>() : occupationGroup,
+        sourceParsedResumeId = (Guid?)null,
+        municipality = (string[]?)null,
+        region = (string[]?)null,
+        employmentType = (string[]?)null,
+        worktimeExtent = (string[]?)null,
+        q = (string?)null,
+        sortBy = 0,
+        notificationEnabled = true,
+    };
+
+    [Fact]
+    public async Task ConfirmDerived_OnSuccess_WritesAuditEntryWithCreatedFromResumeEventType()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await AuthenticateAsync(ct);
+
+        var post = await client.PostAsJsonAsync(
+            "/api/v1/saved-searches/confirm-derived", ConfirmDerivedBody("grp_aaa", "grp_bbb"), ct);
+        post.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var id = Guid.Parse((await post.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!);
+
+        var entries = await ReadEntriesAsync(_factory, id, ct);
+        entries.Count.ShouldBe(1);
+        entries[0].EventType.ShouldBe("SavedSearch.CreatedFromResume");
+        entries[0].AggregateType.ShouldBe("SavedSearch");
+        entries[0].AggregateId.ShouldBe(id);
+        entries[0].UserId.ShouldBe(userId);
+    }
+
+    [Fact]
+    public async Task ConfirmDerived_WhenValidationFails_DoesNotWriteAuditEntry()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, _) = await AuthenticateAsync(ct);
+
+        var beforeTotal = await ReadEntryCountAsync(_factory, ct);
+
+        // Empty occupationGroup → ValidationException → 400, no audit row.
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/saved-searches/confirm-derived", ConfirmDerivedBody(), ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        (await ReadEntryCountAsync(_factory, ct)).ShouldBe(beforeTotal);
+    }
 }

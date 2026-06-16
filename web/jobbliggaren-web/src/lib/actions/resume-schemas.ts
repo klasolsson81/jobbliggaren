@@ -136,7 +136,23 @@ export const updateMasterContentSchema = z.object({
   content: resumeContentSchema,
 });
 
+// Befordra en tolkad CV-stagingartefakt (F4-8 / STEG A) till en kanonisk Resume
+// (Fas 4 STEG B / F2). `content` återbrukar resumeContentSchema — exakt paritet
+// med domänens stränga Resume.ValidateContent (företag/roll/lärosäte/examen krävs,
+// strukturerade datum yyyy-MM-dd, slut >= start, färdighet 0–70 år). `name` är
+// CV-variantens interna namn (skilt från PersonalInfo.FullName).
+export const promoteParsedResumeSchema = z.object({
+  parsedResumeId: z.string().regex(GUID_REGEX, "Ogiltigt CV-ID."),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Namn på CV krävs.")
+    .max(200, "Namn får vara max 200 tecken."),
+  content: resumeContentSchema,
+});
+
 export type CreateResumeInput = z.infer<typeof createResumeSchema>;
 export type RenameResumeInput = z.infer<typeof renameResumeSchema>;
 export type ResumeContentInput = z.infer<typeof resumeContentSchema>;
 export type UpdateMasterContentInput = z.infer<typeof updateMasterContentSchema>;
+export type PromoteParsedResumeInput = z.infer<typeof promoteParsedResumeSchema>;

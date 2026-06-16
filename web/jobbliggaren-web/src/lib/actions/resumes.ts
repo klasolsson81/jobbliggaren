@@ -8,6 +8,7 @@ import {
   createResumeSchema,
   renameResumeSchema,
   updateMasterContentSchema,
+  promoteParsedResumeSchema,
 } from "./resume-schemas";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 import { createdResourceSchema } from "@/lib/dto/common";
@@ -189,6 +190,70 @@ export async function deleteResumeAction(
 
   revalidatePath("/cv");
   redirect("/cv");
+}
+
+/**
+ * Befordra en tolkad CV-stagingartefakt (F4-8 / STEG A) till en kanonisk Resume
+ * (Fas 4 STEG B / F2). `content` är den användar-godkända, gap-fillade
+ * `ResumeContentDto` (DQ1 Variant A — det godkända innehållet ÄR Resumen). Vid
+ * 201 navigerar vi till det nya CV:t. Backend re-skannar personnummer över all
+ * submittad fritext och syntetiserar aldrig (§5). Klient-validering via samma
+ * schema som server-actionen — server-validering är auktoritativ.
+ */
+export async function promoteParsedResumeAction(
+  parsedResumeId: string,
+  name: string,
+  content: ResumeContentDto
+): Promise<ActionResult> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+
+  const parsed = promoteParsedResumeSchema.safeParse({
+    parsedResumeId,
+    name,
+    content,
+  });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+    };
+  }
+
+  let newResumeId: string;
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(parsed.data.parsedResumeId)}/promote`,
+      {
+        method: "POST",
+        headers: authHeaders(sessionId),
+        body: JSON.stringify({
+          name: parsed.data.name,
+          content: parsed.data.content,
+        }),
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, "Kunde inte spara CV:t."),
+      };
+    }
+
+    const data = await parseResponse(
+      res,
+      createdResourceSchema,
+      "POST /api/v1/resumes/parsed/{id}/promote"
+    );
+    newResumeId = data.id;
+  } catch {
+    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+  }
+
+  revalidatePath("/cv");
+  redirect(`/cv/${newResumeId}`);
 }
 
 export async function deleteResumeVersionAction(

@@ -122,21 +122,14 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
 
       <CvReviewPanel review={review} parsedId={parsedId} profile={profile} />
 
-      {/* CTA-söm mot F2: spara-flödet (komplettera + promote) landar i nästa PR.
-          Knappen renderas avstängd med ärlig hjälptext (ingen falsk affordans). */}
+      {/* CTA-söm mot F2: spara-flödet (komplettera + promote). */}
       <div className="jp-cv-cta">
-        <button
-          type="button"
-          className="jp-btn jp-btn--secondary"
-          disabled
-          aria-disabled="true"
-          title="Spara aktiveras i nästa steg"
+        <Link
+          href={`/cv/granska/${parsedId}/komplettera`}
+          className="jp-btn jp-btn--primary"
         >
           Fortsätt och spara CV
-        </button>
-        <p className="jp-lede jp-cv-cta__hint">
-          Komplettera och spara aktiveras i nästa steg.
-        </p>
+        </Link>
       </div>
     </div>
   );

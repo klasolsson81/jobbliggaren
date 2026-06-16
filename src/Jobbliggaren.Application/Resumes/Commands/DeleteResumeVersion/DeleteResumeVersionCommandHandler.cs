@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 using Mediator;
@@ -45,13 +46,22 @@ public sealed class DeleteResumeVersionCommandHandler(
             throw new NotFoundException("CV hittades inte.");
         }
 
-        // TODO(Fas 4): När Application-aggregatet får ResumeVersionId-fält ska denna
-        // fråga slå upp om versionen är refererad av en icke-terminal Application
-        // (BUILD.md §5.6 invariant). Just nu finns inget sådant fält, så svaret är
-        // alltid false.
-        const bool isReferencedByOpenApplication = false;
-
+        // F4-11 (BUILD §5.6): a version cannot be deleted while a NON-TERMINAL
+        // application references it. "Non-terminal" = Status ∉ {Accepted, Rejected,
+        // Withdrawn}; Ghosted is reactivatable and therefore blocks deletion. The
+        // three terminals are listed explicitly — a SmartEnum property does not
+        // translate to SQL (the Status column is the converted .Name string). The
+        // soft-deleted-application query filter on db.Applications applies here.
         var versionId = new ResumeVersionId(command.VersionId);
+        var isReferencedByOpenApplication = await db.Applications
+            .AsNoTracking()
+            .AnyAsync(
+                a => a.ResumeVersionId == versionId
+                  && a.Status != ApplicationStatus.Accepted
+                  && a.Status != ApplicationStatus.Rejected
+                  && a.Status != ApplicationStatus.Withdrawn,
+                cancellationToken);
+
         return resume.DeleteVersion(versionId, isReferencedByOpenApplication, clock);
     }
 }

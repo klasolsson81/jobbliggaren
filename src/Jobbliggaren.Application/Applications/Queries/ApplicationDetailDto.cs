@@ -4,6 +4,7 @@ public sealed record ApplicationDetailDto(
     Guid Id,
     Guid JobSeekerId,
     Guid? JobAdId,
+    Guid? ResumeVersionId,
     string Status,
     string? CoverLetter,
     DateTimeOffset CreatedAt,

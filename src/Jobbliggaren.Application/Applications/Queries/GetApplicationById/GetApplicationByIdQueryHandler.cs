@@ -87,6 +87,7 @@ public sealed class GetApplicationByIdQueryHandler(
             app.Id.Value,
             app.JobSeekerId.Value,
             app.JobAdId?.Value,
+            app.ResumeVersionId?.Value,
             app.Status.Name,
             app.CoverLetter,
             app.CreatedAt,

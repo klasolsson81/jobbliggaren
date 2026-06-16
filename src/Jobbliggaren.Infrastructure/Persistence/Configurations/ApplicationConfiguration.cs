@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Resumes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -27,6 +28,17 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
             .HasConversion(
                 id => id == null ? (Guid?)null : id.Value.Value,
                 value => value == null ? (JobAdId?)null : new JobAdId(value.Value));
+
+        // F4-11 (BUILD §5.3): the exact CV version used when applying. Plain
+        // nullable converted column, NO cross-aggregate FK — parity with JobAdId
+        // (reference-by-id, CLAUDE.md §2.2). Nullable for backward compatibility
+        // (existing applications have no link); ResumeVersion is soft-delete only,
+        // so a real FK would add no anti-dangling value.
+        builder.Property(a => a.ResumeVersionId)
+            .HasConversion(
+                id => id == null ? (Guid?)null : id.Value.Value,
+                value => value == null ? (ResumeVersionId?)null : new ResumeVersionId(value.Value))
+            .HasColumnName("resume_version_id");
 
         // TD-13 (ADR 0049 C3): krypteras via FieldEncryptionSaveChangesInterceptor
         // (sentinel v1:+base64). HasMaxLength borttagen — ciphertext överskrider

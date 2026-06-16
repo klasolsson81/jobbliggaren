@@ -1638,6 +1638,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-btn--sm { height: 36px; padding: 0 14px; font-size: 14px; }
 .jp-btn--lg { height: 52px; padding: 0 24px; font-size: 16px; }
 .jp-btn--block { width: 100%; }
+/* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
+   Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).
+   Gäller både :disabled och aria-disabled (för länk-knappar). */
+.jp-btn:disabled,
+.jp-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* ── Forms ───────────────────────────────────────── */
 .jp-field {
@@ -4454,9 +4462,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-2);
   line-height: 1.5;
   max-width: 68ch;
-}
-.jp-criterion__note--reason {
-  font-style: italic;
 }
 
 /* ── CTA-söm mot F2 ──────────────────────────────── */

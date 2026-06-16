@@ -9,7 +9,7 @@ import type { OccupationProposalDto } from "@/lib/dto/parsed-resume";
 export function OccupationProposals({
   proposals,
 }: {
-  proposals: OccupationProposalDto[];
+  proposals: readonly OccupationProposalDto[];
 }) {
   if (proposals.length === 0) return null;
 

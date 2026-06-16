@@ -123,7 +123,7 @@ export type ApiResult<T> =
  */
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
-function parseRetryAfter(headerValue: string | null): number {
+export function parseRetryAfter(headerValue: string | null): number {
   if (!headerValue) return DEFAULT_RETRY_AFTER_SECONDS;
   // RFC 9110 §10.2.3 stödjer både "<seconds>" och HTTP-date. Backend skickar
   // sekund-format via ASP.NET Core rate-limiting middleware. HTTP-date faller

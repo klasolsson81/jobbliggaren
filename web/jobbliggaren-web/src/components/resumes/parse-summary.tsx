@@ -71,7 +71,10 @@ export function ParseSummary({
                 {section.evidence.length > 0 && (
                   <ul className="jp-parse-summary__evidence">
                     {section.evidence.map((line, index) => (
-                      <li key={index} className="jp-parse-summary__evidence-item">
+                      <li
+                        key={`${section.section}-${index}`}
+                        className="jp-parse-summary__evidence-item"
+                      >
                         {line}
                       </li>
                     ))}

@@ -11,7 +11,7 @@ export default function Loading() {
   return (
     <div className="jp-cv-loading">
       <BrandSpinner size={44} label="Läser in granskningen" />
-      <p className="jp-cv-loading__text">Läser in granskningen …</p>
+      <p className="jp-cv-loading__text">Läser in granskningen…</p>
     </div>
   );
 }

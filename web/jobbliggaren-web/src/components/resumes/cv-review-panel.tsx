@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { StatusPill } from "@/components/ui/status-pill";
+import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 import { CvProfileToggle } from "@/components/resumes/cv-profile-toggle";
 import { CvCriterionVerdict } from "@/components/resumes/cv-criterion-verdict";
 import { bandLabel, categoryLabel } from "@/lib/resumes/review-labels";
@@ -26,7 +26,7 @@ import type {
 /** Räknar-rad: visar alltid etikett + siffra (status aldrig enbart färg, WCAG
  * 1.4.1). Toner speglar verdict-tonerna för visuell koppling. */
 function CategoryCounts({ category }: { category: CvReviewCategoryDto }) {
-  const counts: ReadonlyArray<{ label: string; value: number; tone: string }> = [
+  const counts: ReadonlyArray<{ label: string; value: number; tone: PillTone }> = [
     { label: "Godkänt", value: category.passCount, tone: "success" },
     { label: "Delvis", value: category.warnCount, tone: "warning" },
     { label: "Underkänt", value: category.failCount, tone: "danger" },

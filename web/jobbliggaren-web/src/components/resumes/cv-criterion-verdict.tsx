@@ -55,15 +55,13 @@ export function CvCriterionVerdict({
       </div>
 
       {verdict.verdict === "NotAssessed" && verdict.notAssessedReason !== null && (
-        <p className="jp-criterion__note jp-criterion__note--reason">
-          {verdict.notAssessedReason}
-        </p>
+        <p className="jp-criterion__note">{verdict.notAssessedReason}</p>
       )}
 
       {hasEvidence && (
         <ul className="jp-criterion__evidence">
           {verdict.evidence.map((item, index) => (
-            <EvidenceItem key={index} evidence={item} />
+            <EvidenceItem key={`${item.kind}-${index}`} evidence={item} />
           ))}
         </ul>
       )}

@@ -127,9 +127,10 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
       <div className="jp-cv-cta">
         <button
           type="button"
-          className="jp-btn jp-btn--primary"
+          className="jp-btn jp-btn--secondary"
           disabled
           aria-disabled="true"
+          title="Spara aktiveras i nästa steg"
         >
           Fortsätt och spara CV
         </button>

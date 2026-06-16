@@ -1,7 +1,7 @@
-import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
-import { parseResponse } from "@/lib/dto/_helpers";
+import { getSessionId } from "@/lib/auth/session";
+import { parseResponse, parseRetryAfter } from "@/lib/dto/_helpers";
 import { importResumeResponseSchema } from "@/lib/dto/parsed-resume";
 
 /**
@@ -23,29 +23,19 @@ import { importResumeResponseSchema } from "@/lib/dto/parsed-resume";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SESSION_COOKIE_NAME = "__Host-jobbliggaren_session";
-
 /** Paritet med backendens `ImportResumeCommandValidator.MaxFileBytes` (10 MiB) plus
  * 1 MiB headroom — samma "+1 MiB"-relation som endpointens Kestrel-cap. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024;
 
-const DEFAULT_RETRY_AFTER_SECONDS = 60;
-
 // undici kräver `duplex: "half"` när request-kroppen är en ström. RequestInit
 // typar inte fältet ännu → en explicit intersektion (ingen `any`).
 type StreamingRequestInit = RequestInit & { duplex: "half" };
 
-function parseRetryAfter(headerValue: string | null): number {
-  if (!headerValue) return DEFAULT_RETRY_AFTER_SECONDS;
-  const seconds = Number.parseInt(headerValue.trim(), 10);
-  return Number.isFinite(seconds) && seconds > 0
-    ? seconds
-    : DEFAULT_RETRY_AFTER_SECONDS;
-}
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const sessionId = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  // SSOT-session via den delade getSessionId() (samma cookie-namn-källa som
+  // resten av appen — security-auditor Minor: ingen lokal cookie-namn-drift).
+  const sessionId = await getSessionId();
   if (!sessionId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

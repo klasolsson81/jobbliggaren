@@ -228,7 +228,7 @@ export function CvUploadForm() {
           className="jp-btn jp-btn--primary"
           disabled={isPending || !selectedFile}
         >
-          {isPending ? "Tolkar ditt CV …" : "Tolka och granska"}
+          {isPending ? "Tolkar ditt CV…" : "Tolka och granska CV"}
         </button>
       </div>
 
@@ -236,7 +236,7 @@ export function CvUploadForm() {
         <div className="jp-cvupload__pending">
           <BrandSpinner size={40} label="Tolkar ditt CV" />
           <p className="jp-cvupload__pending-text">
-            Tolkar ditt CV … Det här kan ta en liten stund.
+            Tolkar ditt CV… Det här kan ta en liten stund.
           </p>
         </div>
       )}

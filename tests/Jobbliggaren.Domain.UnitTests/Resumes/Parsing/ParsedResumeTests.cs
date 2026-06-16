@@ -286,6 +286,105 @@ public class ParsedResumeTests
     }
 
     // ===============================================================
+    // Promote — Fas 4 STEG A PR-2 (the promote transition). Promotion runs
+    // EnsureReadyForPromotion() internally: on success the artifact transitions
+    // to Promoted, is soft-deleted on promote (retained for audit/sweep, CTO DQ7),
+    // and raises ParsedResumePromotedDomainEvent. RED until Promote ships.
+    // ===============================================================
+
+    private static readonly DateTimeOffset Later =
+        new(2026, 6, 16, 14, 30, 0, TimeSpan.Zero);
+    private static readonly IDateTimeProvider LaterClock = new FixedClock(Later);
+
+    [Fact]
+    public void Promote_PendingReviewNoPersonnummer_TransitionsToPromoted_SoftDeletes_AdvancesUpdatedAt()
+    {
+        var parsed = CreateConfident().Value;
+
+        var result = parsed.Promote(LaterClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        parsed.Status.ShouldBe(ParsedResumeStatus.Promoted);
+        // Soft-delete on promote (CTO DQ7) — retained as Promoted for audit/sweep.
+        parsed.DeletedAt.ShouldBe(Later);
+        parsed.UpdatedAt.ShouldBe(Later);
+    }
+
+    [Fact]
+    public void Promote_PendingReviewNoPersonnummer_RaisesParsedResumePromotedDomainEvent_WithIds()
+    {
+        var parsed = CreateConfident().Value;
+        parsed.ClearDomainEvents();
+
+        parsed.Promote(LaterClock);
+
+        var evt = parsed.DomainEvents
+            .OfType<ParsedResumePromotedDomainEvent>()
+            .ShouldHaveSingleItem();
+        evt.ParsedResumeId.ShouldBe(parsed.Id);
+        evt.JobSeekerId.ShouldBe(Owner);
+        evt.OccurredAt.ShouldBe(Later);
+    }
+
+    [Fact]
+    public void Promote_WhenPersonnummerFlagged_ReturnsFailure_NoMutation_NoEvent()
+    {
+        var flagged = PersonnummerScanOutcome.FromMatches(
+            PersonnummerScanner.Scan("Pnr 811218-9876 i CV."));
+        var parsed = ParsedResume.Create(
+            Owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            flagged, [], Clock).Value;
+        parsed.ClearDomainEvents();
+
+        var result = parsed.Promote(LaterClock);
+
+        // The gate (EnsureReadyForPromotion) result is returned unchanged.
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ParsedResume.PersonnummerMustBeRemoved");
+        // No mutation: still PendingReview, not soft-deleted, no promote event.
+        parsed.Status.ShouldBe(ParsedResumeStatus.PendingReview);
+        parsed.DeletedAt.ShouldBeNull();
+        parsed.DomainEvents.OfType<ParsedResumePromotedDomainEvent>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Promote_WhenAlreadyDiscarded_ReturnsNotPendingReview_NoMutation()
+    {
+        var parsed = CreateConfident().Value;
+        parsed.Discard(Clock); // → Discarded
+        parsed.ClearDomainEvents();
+
+        var result = parsed.Promote(LaterClock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ParsedResume.NotPendingReview");
+        parsed.Status.ShouldBe(ParsedResumeStatus.Discarded);
+        parsed.DomainEvents.OfType<ParsedResumePromotedDomainEvent>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Promote_IsNotIdempotent_SecondPromoteReturnsNotPendingReview()
+    {
+        // Idempotency contract: a second Promote after a successful one is rejected
+        // by EnsureReadyForPromotion (Status is now Promoted, not PendingReview).
+        var parsed = CreateConfident().Value;
+        parsed.Promote(LaterClock).IsSuccess.ShouldBeTrue();
+        var deletedAtAfterFirst = parsed.DeletedAt;
+        parsed.ClearDomainEvents();
+
+        var secondClock = new FixedClock(Later.AddDays(1));
+        var result = parsed.Promote(secondClock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ParsedResume.NotPendingReview");
+        parsed.Status.ShouldBe(ParsedResumeStatus.Promoted);
+        // The second call must not overwrite the soft-delete timestamp or re-raise.
+        parsed.DeletedAt.ShouldBe(deletedAtAfterFirst);
+        parsed.DomainEvents.OfType<ParsedResumePromotedDomainEvent>().ShouldBeEmpty();
+    }
+
+    // ===============================================================
     // Discard — soft delete, idempotent
     // ===============================================================
 

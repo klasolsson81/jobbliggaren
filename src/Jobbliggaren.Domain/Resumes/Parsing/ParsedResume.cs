@@ -178,6 +178,32 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         return Result.Success();
     }
 
+    /// <summary>
+    /// Promotes this staging artifact to a canonical <c>Resume</c> (Fas 4 STEG A). The
+    /// promotion gate (<see cref="EnsureReadyForPromotion"/>) runs INSIDE the aggregate
+    /// (F4-8 design intent — never in a handler): only a <see cref="ParsedResumeStatus.PendingReview"/>
+    /// artifact with no flagged personnummer can be promoted. On success the artifact is
+    /// marked <see cref="ParsedResumeStatus.Promoted"/> and soft-deleted at the same time
+    /// (CTO DQ7 — retained for audit until the staging-retention sweep), mirroring
+    /// <see cref="Discard"/>. The actual <c>Resume</c> construction is the caller's
+    /// responsibility (the gap-filled content comes from the user-approved payload, not
+    /// from this artifact — CTO DQ1 Variant A, CLAUDE.md §5 "never synthesise").
+    /// Not idempotent: a second call returns <c>ParsedResume.NotPendingReview</c>.
+    /// </summary>
+    public Result Promote(IDateTimeProvider clock)
+    {
+        var gate = EnsureReadyForPromotion();
+        if (gate.IsFailure)
+            return gate;
+
+        Status = ParsedResumeStatus.Promoted;
+        var now = clock.UtcNow;
+        UpdatedAt = now;
+        DeletedAt = now;
+        RaiseDomainEvent(new ParsedResumePromotedDomainEvent(Id, JobSeekerId, now));
+        return Result.Success();
+    }
+
     /// <summary>The user rejected the import. Soft-deleted and marked
     /// <see cref="ParsedResumeStatus.Discarded"/>; retained for audit until the
     /// staging-retention sweep prunes it (retention TD).</summary>

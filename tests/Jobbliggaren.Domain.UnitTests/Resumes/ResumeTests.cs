@@ -3,6 +3,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Events;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.UnitTests.JobAds;
 using Shouldly;
 
@@ -173,6 +174,187 @@ public class ResumeTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.FullNameTooLong");
+    }
+
+    // ---------------------------------------------------------------
+    // CreateFromParsed — Fas 4 STEG A PR-2 (promote a ParsedResume into a
+    // canonical Resume). Unlike Create (which builds from ResumeContent.Empty),
+    // CreateFromParsed builds ONE Master version holding the FULL gap-filled
+    // content, applies the denormalized projection FROM that content, validates
+    // content via the SAME ValidateContent codes as UpdateMasterContent, and
+    // raises the provenance event linking to the source ParsedResumeId.
+    // RED until CreateFromParsed + ResumeCreatedFromParsedResumeDomainEvent ship.
+    // ---------------------------------------------------------------
+
+    private static readonly ParsedResumeId ValidSourceParsedId = ParsedResumeId.New();
+
+    // Rich, valid content that passes ValidateContent — exercises the denormalized
+    // projection (LatestRole/SectionCount/TopSkills must reflect THIS content).
+    private static ResumeContent GapFilledContent() => new(
+        new PersonalInfo("Anna Andersson", "anna@example.com", "0701234567", "Stockholm"),
+        experiences: new[]
+        {
+            new Experience("Acme AB", "Junior", new DateOnly(2018, 1, 1), new DateOnly(2020, 12, 31), null),
+            new Experience("Beta AB", "Backend-utvecklare", new DateOnly(2021, 1, 1), null, "Byggde betaltjänster."),
+        },
+        educations: new[]
+        {
+            new Education("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1)),
+        },
+        skills: new[]
+        {
+            new Skill("C#", 8),
+            new Skill("PostgreSQL", 5),
+        },
+        summary: "Erfaren backend-utvecklare.");
+
+    [Fact]
+    public void CreateFromParsed_WithValidContent_ReturnsSuccess_OneMasterHoldingFullContent()
+    {
+        var content = GapFilledContent();
+
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        var resume = result.Value;
+        resume.JobSeekerId.ShouldBe(ValidJobSeekerId);
+        resume.Name.ShouldBe(ValidName);
+        resume.CreatedAt.ShouldBe(Clock.UtcNow);
+        resume.UpdatedAt.ShouldBe(Clock.UtcNow);
+        resume.DeletedAt.ShouldBeNull();
+
+        // Exactly one Master version — holding the FULL content, NOT Empty.
+        resume.Versions.Count.ShouldBe(1);
+        var master = resume.MasterVersion;
+        master.Kind.ShouldBe(ResumeVersionKind.Master);
+        master.Content.ShouldBe(content);
+        master.Content.PersonalInfo.FullName.ShouldBe("Anna Andersson");
+        master.Content.Experiences.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void CreateFromParsed_TrimsName()
+    {
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, "  Mitt CV  ", GapFilledContent(), ValidSourceParsedId, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Name.ShouldBe("Mitt CV");
+    }
+
+    [Fact]
+    public void CreateFromParsed_AppliesDenormalizedProjectionFromContent()
+    {
+        // The projection must reflect the gap-filled content (NOT remain at the
+        // empty-Master defaults that Create leaves).
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        var resume = result.Value;
+        // Most-recent experience by StartDate (Beta AB, 2021) drives LatestRole.
+        resume.LatestRole.ShouldBe("Backend-utvecklare");
+        // summary + experiences + educations + skills = 4 sections.
+        resume.SectionCount.ShouldBe(4);
+        resume.TopSkills.Count.ShouldBe(2);
+        resume.TopSkills[0].ShouldBe("C#");
+        resume.TopSkills[1].ShouldBe("PostgreSQL");
+    }
+
+    [Fact]
+    public void CreateFromParsed_RaisesCreatedVersionCreatedAndProvenanceEvents()
+    {
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        var resume = result.Value;
+        var events = resume.DomainEvents;
+        events.Count.ShouldBe(3);
+
+        var created = events.OfType<ResumeCreatedDomainEvent>().ShouldHaveSingleItem();
+        created.ResumeId.ShouldBe(resume.Id);
+        created.JobSeekerId.ShouldBe(ValidJobSeekerId);
+        created.Name.ShouldBe(ValidName);
+        created.OccurredAt.ShouldBe(Clock.UtcNow);
+
+        var versionCreated = events.OfType<ResumeVersionCreatedDomainEvent>().ShouldHaveSingleItem();
+        versionCreated.ResumeId.ShouldBe(resume.Id);
+        versionCreated.VersionId.ShouldBe(resume.MasterVersion.Id);
+        versionCreated.Kind.ShouldBe(ResumeVersionKind.Master);
+
+        // Provenance event linking the new Resume to its source ParsedResume.
+        var provenance = events.OfType<ResumeCreatedFromParsedResumeDomainEvent>().ShouldHaveSingleItem();
+        provenance.ResumeId.ShouldBe(resume.Id);
+        provenance.SourceParsedResumeId.ShouldBe(ValidSourceParsedId);
+        provenance.JobSeekerId.ShouldBe(ValidJobSeekerId);
+        provenance.OccurredAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void CreateFromParsed_WithDefaultJobSeekerId_ReturnsFailure()
+    {
+        var result = Resume.CreateFromParsed(
+            default, ValidName, GapFilledContent(), ValidSourceParsedId, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.JobSeekerIdRequired");
+    }
+
+    [Fact]
+    public void CreateFromParsed_WithEmptyName_ReturnsFailure()
+    {
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, string.Empty, GapFilledContent(), ValidSourceParsedId, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.NameRequired");
+    }
+
+    [Fact]
+    public void CreateFromParsed_WithNameTooLong_ReturnsFailure()
+    {
+        var tooLong = new string('A', 201);
+
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, tooLong, GapFilledContent(), ValidSourceParsedId, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.NameTooLong");
+    }
+
+    [Fact]
+    public void CreateFromParsed_WithEmptyFullName_ReturnsFailure_NoSideEffects()
+    {
+        // Degraded content with an empty FullName fails with the SAME code as
+        // UpdateMasterContent (ValidateContent parity) — Result.Failure, no Resume.
+        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
+
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.FullNameRequired");
+    }
+
+    [Fact]
+    public void CreateFromParsed_WithExperienceCompanyMissing_ReturnsExperienceCompanyRequired()
+    {
+        // A degraded parse where an experience entry has no company → SAME code as
+        // UpdateMasterContent (ValidateContent is shared).
+        var content = new ResumeContent(
+            new PersonalInfo("Anna Andersson", null, null, null),
+            experiences: new[]
+            {
+                new Experience(string.Empty, "Backend-utvecklare", new DateOnly(2021, 1, 1), null, null),
+            });
+
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
     }
 
     // ---------------------------------------------------------------

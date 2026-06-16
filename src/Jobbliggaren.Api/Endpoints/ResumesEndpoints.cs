@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
+using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.RenameResume;
 using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
@@ -161,6 +162,22 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
 
+        // Promote a PendingReview parsed CV into a canonical Resume (Fas 4 STEG A). The body
+        // carries the full, user-approved gap-filled ResumeContentDto (DQ1 Variant A — the
+        // approved content IS the Resume; the handler re-scans personnummer over the submitted
+        // free text and never synthesises, §5). Owner-scoped, IDOR fail-closed (unknown/cross-
+        // user → 404). 201 → the new Resume.
+        group.MapPost("/parsed/{id:guid}/promote", async (
+            Guid id, PromoteParsedResumeBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new PromoteParsedResumeCommand(id, body.Name, body.Content), ct);
+            return result.IsSuccess
+                ? Results.Created($"/api/v1/resumes/{result.Value}", new { id = result.Value })
+                : Results.Problem(detail: result.Error.Message, title: result.Error.Code,
+                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
         group.MapPost("/", async (
             CreateResumeBody body, IMediator mediator, CancellationToken ct) =>
         {
@@ -228,4 +245,5 @@ public static class ResumesEndpoints
     private sealed record CreateResumeBody(string Name, string FullName);
     private sealed record RenameResumeBody(string Name);
     private sealed record SetLanguageBody(string Language);
+    private sealed record PromoteParsedResumeBody(string Name, ResumeContentDto Content);
 }

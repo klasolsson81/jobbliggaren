@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes.Events;
+using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.Domain.Resumes;
 
@@ -108,6 +109,56 @@ public sealed class Resume : AggregateRoot<ResumeId>
         resume.RaiseDomainEvent(new ResumeCreatedDomainEvent(id, jobSeekerId, resume.Name, now));
         resume.RaiseDomainEvent(new ResumeVersionCreatedDomainEvent(
             id, master.Id, ResumeVersionKind.Master, now));
+
+        return Result.Success(resume);
+    }
+
+    /// <summary>
+    /// Skapar ett kanoniskt <c>Resume</c> genom att befordra en <c>ParsedResume</c>
+    /// staging-artefakt (Fas 4 STEG A, CTO DQ5b). Till skillnad från <see cref="Create"/>
+    /// (som föder en tom Master) konstrueras Master-versionen direkt ur det
+    /// användar-godkända, gap-ifyllda <paramref name="content"/> i ETT validerat steg.
+    /// Innehållet valideras mot samma strikta <see cref="ValidateContent"/> som
+    /// Master-uppdateringar. Höjer ett provenance-event som länkar
+    /// <paramref name="sourceParsedResumeId"/> till det nya CV:t (DQ5b — enbart event,
+    /// ingen kolumn). Aggregatet konstrueras giltigt i ett steg (DDD §2.2).
+    /// </summary>
+    public static Result<Resume> CreateFromParsed(
+        JobSeekerId jobSeekerId,
+        string? name,
+        ResumeContent content,
+        ParsedResumeId sourceParsedResumeId,
+        IDateTimeProvider clock)
+    {
+        if (jobSeekerId == default)
+            return Result.Failure<Resume>(
+                DomainError.Validation("Resume.JobSeekerIdRequired", "JobSeekerId krävs."));
+
+        if (string.IsNullOrWhiteSpace(name))
+            return Result.Failure<Resume>(
+                DomainError.Validation("Resume.NameRequired", "Namn på CV är obligatoriskt."));
+
+        if (name.Length > 200)
+            return Result.Failure<Resume>(
+                DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
+
+        var contentValidation = ValidateContent(content);
+        if (contentValidation.IsFailure)
+            return Result.Failure<Resume>(contentValidation.Error);
+
+        var now = clock.UtcNow;
+        var id = ResumeId.New();
+        var resume = new Resume(id, jobSeekerId, name.Trim(), now);
+
+        var master = ResumeVersion.CreateMaster(content, clock);
+        resume._versions.Add(master);
+        resume.ApplyDenormalizedProjection(content);
+
+        resume.RaiseDomainEvent(new ResumeCreatedDomainEvent(id, jobSeekerId, resume.Name, now));
+        resume.RaiseDomainEvent(new ResumeVersionCreatedDomainEvent(
+            id, master.Id, ResumeVersionKind.Master, now));
+        resume.RaiseDomainEvent(new ResumeCreatedFromParsedResumeDomainEvent(
+            id, sourceParsedResumeId, jobSeekerId, now));
 
         return Result.Success(resume);
     }

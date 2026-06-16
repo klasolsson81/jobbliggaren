@@ -1,7 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
-using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 using Mediator;
@@ -46,30 +45,7 @@ public sealed class UpdateMasterContentCommandHandler(
             throw new NotFoundException("CV hittades inte.");
         }
 
-        var content = MapToDomain(command.Content);
+        var content = ResumeContentMapper.ToDomain(command.Content);
         return resume.UpdateMasterContent(content, clock);
-    }
-
-    private static ResumeContent MapToDomain(ResumeContentDto dto)
-    {
-        var personalInfo = new PersonalInfo(
-            dto.PersonalInfo.FullName,
-            dto.PersonalInfo.Email,
-            dto.PersonalInfo.Phone,
-            dto.PersonalInfo.Location);
-
-        var experiences = dto.Experiences
-            .Select(e => new Experience(e.Company, e.Role, e.StartDate, e.EndDate, e.Description))
-            .ToList();
-
-        var educations = dto.Educations
-            .Select(e => new Education(e.Institution, e.Degree, e.StartDate, e.EndDate))
-            .ToList();
-
-        var skills = dto.Skills
-            .Select(s => new Skill(s.Name, s.YearsExperience))
-            .ToList();
-
-        return new ResumeContent(personalInfo, experiences, educations, skills, dto.Summary);
     }
 }

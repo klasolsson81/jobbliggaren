@@ -1638,6 +1638,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-btn--sm { height: 36px; padding: 0 14px; font-size: 14px; }
 .jp-btn--lg { height: 52px; padding: 0 24px; font-size: 16px; }
 .jp-btn--block { width: 100%; }
+/* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
+   Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).
+   Gäller både :disabled och aria-disabled (för länk-knappar). */
+.jp-btn:disabled,
+.jp-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* ── Forms ───────────────────────────────────────── */
 .jp-field {
@@ -3991,4 +3999,495 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
     padding: 10px 16px;
     gap: 10px;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CV-import (Fas 4 STEG B, F1) — scopade jp-cv* / jp-pnr* / jp-criterion*
+   / jp-parse-summary* / jp-occupations* klasser. Endast befintliga tokens
+   (inga nya färger/radier/skuggor). Dark mode auto-skiftar via token-systemet.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Bas-layout för empty-state-actions (icke-brand) — multipla knappar.
+   --brand-varianten har egen regel ovan; detta är den neutrala basen. */
+.jp-empty__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+/* Sekundär-knapp i page-heron: outline-på-gradient (vit kant), så den civilt
+   skiljs från den solida vita primärknappen utan en andra fylld yta. */
+.jp-pagehero .jp-btn--secondary {
+  background: transparent;
+  color: var(--jp-hero-ink);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+.jp-pagehero .jp-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* ── Upload-form ─────────────────────────────────── */
+.jp-cvupload {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 560px;
+}
+.jp-cvupload__field {
+  position: relative;
+}
+/* Civic drop-zone-label: tangentbordsnåbar via det associerade <input>:et
+   (label[for]). Ingen drag-drop-only — input:et är den riktiga kontrollen. */
+.jp-cvupload__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 24px;
+  text-align: center;
+  background: var(--jp-surface-2);
+  border: 1px dashed var(--jp-border);
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+  transition: background 90ms linear, border-color 90ms linear;
+}
+.jp-cvupload__drop:hover {
+  background: var(--jp-surface-3);
+  border-color: var(--jp-accent-700);
+}
+/* Fokus-ring följer det dolda input:et (label är dess visuella proxy). */
+.jp-cvupload__input:focus-visible + .jp-cvupload__drop,
+.jp-cvupload__drop:has(+ .jp-cvupload__input:focus-visible) {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+}
+.jp-cvupload__drop-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-soft);
+  color: var(--jp-accent-700);
+}
+.jp-cvupload__drop-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--jp-ink-1);
+  word-break: break-word;
+}
+.jp-cvupload__drop-hint {
+  font-size: 13px;
+  color: var(--jp-ink-2);
+}
+/* Input:et är visuellt dolt men kvarstår fokuserbart + i tab-ordningen
+   (ingen display:none — det skulle ta bort det ur tangentbordsflödet). */
+.jp-cvupload__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.jp-cvupload__help {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+.jp-cvupload__error {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--jp-danger);
+  line-height: 1.5;
+}
+.jp-cvupload__actions {
+  display: flex;
+  gap: 10px;
+}
+.jp-cvupload__pending {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-md);
+}
+.jp-cvupload__pending-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--jp-ink-1);
+}
+
+/* ── Granska-vyns fil-meta ───────────────────────── */
+.jp-cv-meta {
+  margin: 0;
+  font-size: 13.5px;
+}
+.jp-cv-meta__file {
+  font-family: var(--jp-font-mono);
+  color: var(--jp-ink-2);
+}
+
+/* ── Personnummer-varning (flag-only, civic warning-ton) ── */
+.jp-pnr-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--jp-warning-bg);
+  border: 1px solid var(--jp-warning);
+  border-radius: var(--jp-r-md);
+}
+.jp-pnr-warning__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--jp-warning);
+  margin-top: 1px;
+}
+.jp-pnr-warning__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.jp-pnr-warning__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+  line-height: 1.3;
+}
+.jp-pnr-warning__body {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--jp-ink-1);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+
+/* ── Parse-sammanfattning ────────────────────────── */
+.jp-parse-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-parse-summary__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.jp-parse-summary__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-parse-summary__lede {
+  margin: 0;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+.jp-parse-summary__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--jp-info-bg);
+  border: 1px solid var(--jp-info);
+  border-radius: var(--jp-r-sm);
+  font-size: 13.5px;
+  color: var(--jp-ink-1);
+  line-height: 1.45;
+}
+.jp-parse-summary__note-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--jp-info);
+  margin-top: 1px;
+}
+.jp-parse-summary__sections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.jp-parse-summary__section {
+  padding: 12px 0;
+}
+.jp-parse-summary__section + .jp-parse-summary__section {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-parse-summary__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jp-parse-summary__section-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--jp-ink-1);
+}
+.jp-parse-summary__evidence {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jp-parse-summary__evidence-item {
+  font-size: 12.5px;
+  color: var(--jp-ink-2);
+  line-height: 1.45;
+}
+
+/* ── Yrkesgruppsförslag (display-only chips) ─────── */
+.jp-occupations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-occupations__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-occupations__lede {
+  margin: 0;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+.jp-occupations__list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── Granskningspanel ────────────────────────────── */
+.jp-cvreview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.jp-cvreview__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+  letter-spacing: -0.01em;
+}
+.jp-cvreview__profile {
+  display: flex;
+}
+.jp-cvreview__summary {
+  margin: 0;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  line-height: 1.55;
+  max-width: 68ch;
+}
+.jp-cvreview__rubric {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+}
+.jp-cvreview__unavailable {
+  margin: 0;
+  padding: 16px 18px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-md);
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  line-height: 1.55;
+  max-width: 68ch;
+}
+.jp-cvreview__critical {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  background: var(--jp-danger-bg);
+  border: 1px solid var(--jp-danger);
+  border-radius: var(--jp-r-md);
+}
+.jp-cvreview__critical-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-cvreview__critical-icon {
+  display: inline-flex;
+  color: var(--jp-danger);
+}
+.jp-cvreview__critical-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-cvreview__categories {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.jp-cvreview__band {
+  display: flex;
+}
+.jp-cvreview__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.jp-cvreview__count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 76px;
+  padding: 8px 12px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+}
+.jp-cvreview__count-label {
+  font-size: 12px;
+  color: var(--jp-ink-2);
+}
+.jp-cvreview__count-value {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-cvreview__count[data-tone="success"] .jp-cvreview__count-value { color: var(--jp-success); }
+.jp-cvreview__count[data-tone="warning"] .jp-cvreview__count-value { color: var(--jp-warning); }
+.jp-cvreview__count[data-tone="danger"]  .jp-cvreview__count-value { color: var(--jp-danger); }
+.jp-cvreview__verdicts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Enskilt kriterie-verdikt + citerad evidens ──── */
+.jp-criterion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+}
+.jp-criterion + .jp-criterion {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-criterion__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.jp-criterion__id {
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  padding: 2px 8px;
+  border-radius: var(--jp-r-sm);
+}
+.jp-criterion__evidence {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-criterion__evidence-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Citerad text ur användarens eget CV (redan pnr-redigerad vid choke point). */
+.jp-criterion__quote {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--jp-surface-2);
+  border-left: 3px solid var(--jp-border);
+  border-radius: var(--jp-r-sm);
+  font-size: 13.5px;
+  color: var(--jp-ink-1);
+  line-height: 1.5;
+}
+.jp-criterion__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--jp-ink-2);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+
+/* ── CTA-söm mot F2 ──────────────────────────────── */
+.jp-cv-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-cv-cta__hint {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+/* ── Granska-loading (Suspense-fallback) ─────────── */
+.jp-cv-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 80px 24px;
+}
+.jp-cv-loading__text {
+  margin: 0;
+  font-size: 15px;
+  color: var(--jp-ink-2);
 }

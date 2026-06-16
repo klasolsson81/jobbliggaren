@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getResumes } from "@/lib/api/resumes";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -67,13 +67,18 @@ export default async function CvListPage() {
           <div className="jp-pagehero__main">
             <h1 className="jp-pagehero__title">CV</h1>
             <p className="jp-pagehero__lede">
-              Hantera dina CV-varianter. AI-stöd hjälper dig anpassa innehållet
-              per ansökan, men du behåller alltid kontrollen.
+              Hantera dina CV-varianter. Importera ett befintligt CV för en
+              granskning, eller skapa ett nytt från grunden. Du behåller alltid
+              kontrollen.
             </p>
           </div>
           <div className="jp-pagehero__aside">
             {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
                 med /jobb-bannerns vita kontroller. */}
+            <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
+              <Upload size={16} aria-hidden="true" />
+              <span>Importera CV</span>
+            </Link>
             <Link href="/cv/ny" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" />
               <span>Nytt CV</span>
@@ -95,6 +100,9 @@ export default async function CvListPage() {
             <div className="jp-empty__actions">
               <Link href="/cv/ny" className="jp-btn jp-btn--primary">
                 <Plus size={14} aria-hidden="true" /> Skapa första CV
+              </Link>
+              <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
+                <Upload size={14} aria-hidden="true" /> Importera CV
               </Link>
             </div>
           </div>

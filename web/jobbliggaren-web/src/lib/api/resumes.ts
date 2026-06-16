@@ -8,6 +8,13 @@ import {
   type ResumeDetailDto,
 } from "@/lib/dto/resumes";
 import {
+  parsedResumeDetailDtoSchema,
+  cvReviewDtoSchema,
+  type ParsedResumeDetailDto,
+  type CvReviewDto,
+  type RenderProfile,
+} from "@/lib/dto/parsed-resume";
+import {
   responseToResult,
   type ApiResult,
 } from "@/lib/dto/_helpers";
@@ -65,6 +72,69 @@ export async function getResumeById(
       res,
       resumeDetailDtoSchema,
       `GET /api/v1/resumes/${id}`,
+      { includeNotFound: true }
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Hämtar staging-artefakten för ett importerat CV (F4-8) — driver granska- och
+ * gap-fill-vyerna (Fas 4 STEG B). Bär ägarens dekrypterade, löst tolkade CV-
+ * innehåll (CV-PII): denna funktion är `server-only` och anropas bara från RSC/
+ * server-actions, aldrig i klientbunten. Ägar-scope + IDOR fail-closed lever i
+ * backend (okänd/främmande/befordrad → 404, ingen enumererings-orakel).
+ */
+export async function getParsedResume(
+  id: string
+): Promise<ApiResult<ParsedResumeDetailDto>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(id)) return { kind: "notFound" };
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}`,
+      { headers: authHeaders(sessionId), cache: "no-store" }
+    );
+    return await responseToResult(
+      res,
+      parsedResumeDetailDtoSchema,
+      `GET /api/v1/resumes/parsed/${id}`,
+      { includeNotFound: true }
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Hämtar den deterministiska CV-granskningen (F4-9): PASS/WARN/FAIL + citerad
+ * evidens per kriterium, ägar-scopat. Evidensen är REDAN personnummer-redigerad
+ * vid motorns choke point (`CvReviewEngine`) — server-only, ingen ofiltrerad
+ * fritext når klienten. `profile` är `Ats`|`Visual` (backend-validatorn är
+ * case-sensitive); searchParam:n på granska-vyn bär det exakta värdet.
+ */
+export async function getCvReview(
+  id: string,
+  profile: RenderProfile
+): Promise<ApiResult<CvReviewDto>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(id)) return { kind: "notFound" };
+
+  const params = new URLSearchParams({ profile });
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}/review?${params}`,
+      { headers: authHeaders(sessionId), cache: "no-store" }
+    );
+    return await responseToResult(
+      res,
+      cvReviewDtoSchema,
+      `GET /api/v1/resumes/parsed/${id}/review`,
       { includeNotFound: true }
     );
   } catch {

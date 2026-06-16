@@ -180,4 +180,42 @@ public sealed record ProposedChange
             targetId, kind, category, criterionId, evidence, replacement,
             operation, rationale, provenance);
     }
+
+    /// <summary>
+    /// Builds a transmit-safe COPY of an ALREADY-VALIDATED change with personnummer redacted out of
+    /// its cited evidence + replacement strings (Fas 4 STEG B-2 hardening; ADR 0074 Invariant 1;
+    /// CLAUDE.md §5 — the personnummer guard is highest-priority). This is the ONLY non-synthesis
+    /// construction path: it carries <c>TargetId</c>/<c>Kind</c>/<c>Category</c>/<c>CriterionId</c>/
+    /// <c>Operation</c>/<c>Rationale</c>/<c>Provenance</c> VERBATIM from <paramref name="original"/>
+    /// (it has no parameters for them, so it cannot invent any) and swaps in only the redacted
+    /// <paramref name="redactedEvidence"/> + <paramref name="redactedReplacement"/>.
+    ///
+    /// <para>Redaction is NOT synthesis, so this path deliberately SKIPS the
+    /// <see cref="FromKnowledgeBank"/>/<see cref="FromStructuralOp"/> guards (CTO D3,
+    /// <c>docs/reviews/2026-06-17-f4-improvement-evidence-redaction-cto.md</c>): those guards
+    /// (<c>After == resolvedKbValue</c> / <c>After == pureTransform(Before)</c>) already held at the
+    /// original's truthful construction; re-validating MASKED strings is meaningless — and impossible
+    /// for a structural <c>After</c>, since <c>pureTransform(maskedBefore) != maskedAfter</c>. The
+    /// caller is the engine's single redaction choke point, which only ever passes masked copies of
+    /// the original's own strings — it cannot mint new provenance.</para>
+    /// </summary>
+    public static ProposedChange ForRedaction(
+        ProposedChange original,
+        CitedEvidence redactedEvidence,
+        ProposedReplacement? redactedReplacement)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        ArgumentNullException.ThrowIfNull(redactedEvidence);
+
+        return new ProposedChange(
+            original.TargetId,
+            original.Kind,
+            original.Category,
+            original.CriterionId,
+            redactedEvidence,
+            redactedReplacement,
+            original.Operation,
+            original.Rationale,
+            original.Provenance);
+    }
 }

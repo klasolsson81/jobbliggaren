@@ -5,8 +5,9 @@ using Mediator;
 namespace Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 
 // Fas 4 STEG 10 (F4-10, ADR 0071/0074). Produces deterministic propose-and-approve diffs for
-// the OWNING job seeker's parsed CV. Port-only this STEG (no HTTP endpoint/UI yet — parity
-// F4-8/F4-9); this Mediator query is the seam the integration tests drive.
+// the OWNING job seeker's parsed CV. Exposed over HTTP since STEG B (GET .../parsed/{id}/improvements,
+// PR #113); the transmitted result is personnummer-redacted at the engine choke point (STEG B-2,
+// ADR 0074 Inv. 1). This Mediator query is the seam the endpoint + integration tests drive.
 //
 // IRequiresFieldEncryptionKey: the engine reads the ParsedResume's decrypted CV-PII (Form A
 // raw_text + Form B parsed_content_enc) — FieldEncryptionKeyPrefetchBehavior warms the owner

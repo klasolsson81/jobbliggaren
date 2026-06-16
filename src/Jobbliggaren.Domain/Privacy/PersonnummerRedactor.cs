@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Jobbliggaren.Domain.Privacy;
 
 /// <summary>
@@ -30,7 +32,7 @@ public static class PersonnummerRedactor
 
         // Replace right-to-left so each replacement does not shift the offsets of the ones still
         // to come (a masked form may differ in length from the original separator-bearing token).
-        var buffer = new System.Text.StringBuilder(text);
+        var buffer = new StringBuilder(text);
         foreach (var match in matches.OrderByDescending(m => m.StartOffset))
             buffer.Remove(match.StartOffset, match.Length).Insert(match.StartOffset, match.Masked);
 

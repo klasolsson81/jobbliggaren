@@ -237,6 +237,25 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// GET /api/v1/resumes/parsed/{id}/render (deterministic QuestPDF CV-render, Fas 4 STEG B)
+    /// — partitionerat per UserId (claim "sub"), anonym → NoLimiter (RequireAuthorization-gated).
+    /// Egen policy (ej MeListRead-återanvändning) — least common mechanism (Saltzer/Schroeder) +
+    /// bulkhead (Nygard): render kör synkron PDF-generering + dubbel DEK-decrypt (Form A raw_text
+    /// + Form B parsed_content_enc) per anrop — en CPU+krypto-tung resursprofil en storleksordning
+    /// över de lätta in-memory-läsningarna /review och /improvements (som korrekt stannar på
+    /// MeListRead). Delad budget hade låtit 40 PDF-genereringar/min/användare svälta samma
+    /// MeListRead-budget som gatar /oversikt + /resumes. 8/min täcker iterativ förhandsgranska-
+    /// justera-cykel med marginal och kapar script-flod; sitter medvetet mellan ResumeImport
+    /// (5/min, tyngre sällan-op) och MeWrite (30/min, lätt mutation). senior-cto-advisor
+    /// 2026-06-16 (B2) — riktvärde, security-auditor verifierar/justerar (BLOCKING). IOptions (§5.1).
+    /// </summary>
+    public PolicyOptions ResumeRender { get; init; } = new()
+    {
+        PermitLimit = 8,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

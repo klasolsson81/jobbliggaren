@@ -78,6 +78,15 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_ResumeRender_Is8Per60s()
+    {
+        var sut = new RateLimitingOptions();
+
+        sut.ResumeRender.PermitLimit.ShouldBe(8);
+        sut.ResumeRender.WindowSeconds.ShouldBe(60);
+    }
+
+    [Fact]
     public void SectionName_IsRateLimiting()
     {
         RateLimitingOptions.SectionName.ShouldBe("RateLimiting");
@@ -156,5 +165,6 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.JobAdStatusBatchPolicy.ShouldBe("job-ad-status-batch");
         RateLimitingExtensions.MeWritePolicy.ShouldBe("me-write");
         RateLimitingExtensions.ResumeImportPolicy.ShouldBe("resume-import");
+        RateLimitingExtensions.ResumeRenderPolicy.ShouldBe("resume-render");
     }
 }

@@ -32,6 +32,7 @@ public static partial class RateLimitingExtensions
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string MeWritePolicy = "me-write";
     public const string ResumeImportPolicy = "resume-import";
+    public const string ResumeRenderPolicy = "resume-render";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -356,6 +357,28 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.ResumeImport.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.ResumeImport.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Dedikerad CV-render-policy (ej MeListRead-
+            // återanvändning) — least common mechanism (Saltzer/Schroeder) + bulkhead (Nygard):
+            // QuestPDF-generering + dubbel DEK-decrypt är CPU+krypto-tungt och delar inte budget
+            // med de lätta in-memory /review + /improvements (40 renders/min hade kunnat svälta
+            // MeListRead som gatar /oversikt + /resumes). Auth-gated → anonym fångas av
+            // RequireAuthorization (NoLimiter bypass). senior-cto-advisor 2026-06-16 (B2),
+            // riktvärde 8/min; security-auditor verifierar (BLOCKING). Parametrar IOptions (§5.1).
+            options.AddPolicy(ResumeRenderPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-resume-render");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.ResumeRender.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.ResumeRender.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

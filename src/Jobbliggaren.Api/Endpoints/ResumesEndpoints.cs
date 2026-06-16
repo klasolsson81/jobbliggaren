@@ -7,10 +7,13 @@ using Jobbliggaren.Application.Resumes.Commands.ImportResume;
 using Jobbliggaren.Application.Resumes.Commands.RenameResume;
 using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
+using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
+using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderCv;
+using Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
 using Mediator;
 using Microsoft.AspNetCore.Http.Features;
 
@@ -120,6 +123,43 @@ public static class ResumesEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // Deterministic CV review (F4-9): PASS/WARN/FAIL + cited evidence, owner-scoped. The
+        // ?profile= must be Ats|Visual (the validator fails loud → 400). The transmitted
+        // CvReviewDto carries verdicts whose evidence is ALREADY pnr-redacted at the engine
+        // choke point (CvReviewEngine.ReviewAsync) — this endpoint is the first surface to
+        // transmit it; the mapper introduces no un-redacted field.
+        group.MapGet("/parsed/{id:guid}/review", async (
+            Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new ReviewParsedResumeQuery(id, profile ?? string.Empty), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // Deterministic propose-and-approve CV improvements (F4-10): the diffs are never
+        // auto-applied (§5) — the FE proposes them and the user approves. Owner-scoped.
+        group.MapGet("/parsed/{id:guid}/improvements", async (
+            Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new SuggestCvImprovementsQuery(id, profile ?? string.Empty), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // Deterministic CV render (F4-10): the QuestPDF PDF (ATS-plain | visual), streamed
+        // compute-on-demand and never persisted (Invariant 3). Returned as the raw PDF body
+        // (Results.File), never JSON — a base64 byte[] in JSON would bloat ~33% and the browser
+        // could not open it. Owner-scoped; ?profile= must be Ats|Visual.
+        group.MapGet("/parsed/{id:guid}/render", async (
+            Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new RenderCvQuery(id, profile ?? string.Empty), ct);
+            return result is null
+                ? Results.NotFound()
+                : Results.File(result.PdfBytes, result.ContentType, $"cv-{result.Profile.ToLowerInvariant()}.pdf");
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
 
         group.MapPost("/", async (
             CreateResumeBody body, IMediator mediator, CancellationToken ct) =>

@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
 
@@ -114,9 +115,37 @@ public class DeleteResumeVersionCommandHandlerTests
         result.Error.Code.ShouldBe("ResumeVersion.NotFound");
     }
 
-    // OBS: Lyckad radering av Tailored-version kan inte testas i Fas 1 eftersom
-    // det inte finns någon publik factory på Resume för att skapa en Tailored-version
-    // (CreateTailored introduceras först i Fas 4 när AI-pipeline byggs ut).
-    // Domain-testet täcker DeleteVersion-flödet direkt på aggregate; här saknas
-    // alltså en motsvarande happy-path för handlern tills dess.
+    [Fact]
+    public async Task Handle_WhenDeletingUnreferencedTailoredVersion_ReturnsSuccessAndSoftDeletes()
+    {
+        // Fas 4 STEG A: CreateTailored öppnar happy-path-raderingen för handlern.
+        // Ingen refererande Application finns → guard-predikatet är FALSE → radering
+        // lyckas. EF InMemory räcker här (ingen SmartEnum→SQL-translation i denna
+        // path; den verifieras separat mot Npgsql i DeleteResumeVersionInUseHandlerTests).
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedResumeAsync(db, _userId);
+
+        var tailoredContent = new ResumeContent(
+            new PersonalInfo("Klas Olsson", "klas@example.com", null, "Stockholm"),
+            experiences: new[]
+            {
+                new Experience("Mastercard", "Backend Developer", new DateOnly(2022, 1, 1), null, null),
+            },
+            skills: new[] { new Skill("C#", 8) },
+            summary: "Skräddarsytt CV.");
+        var tailoredId = resume.CreateTailored(tailoredContent, FakeDateTimeProvider.Default).Value;
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new DeleteResumeVersionCommandHandler(
+            db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var command = new DeleteResumeVersionCommand(resume.Id.Value, tailoredId.Value);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var reloaded = await db.Resumes
+            .Include(r => r.Versions)
+            .FirstAsync(r => r.Id == resume.Id, CancellationToken.None);
+        reloaded.Versions.Single(v => v.Id == tailoredId).DeletedAt.ShouldNotBeNull();
+    }
 }

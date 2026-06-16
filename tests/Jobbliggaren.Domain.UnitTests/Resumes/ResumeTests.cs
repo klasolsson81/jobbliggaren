@@ -15,6 +15,16 @@ public class ResumeTests
     private const string ValidName = "Mitt CV";
     private const string ValidFullName = "Klas Olsson";
 
+    // Giltigt Tailored-innehåll som passerar ValidateContent (Fas 4 STEG A).
+    private static readonly ResumeContent ValidTailoredContent = new(
+        new PersonalInfo("Klas Olsson", "klas@example.com", null, "Stockholm"),
+        experiences: new[]
+        {
+            new Experience("Mastercard", "Backend Developer", new DateOnly(2022, 1, 1), null, null),
+        },
+        skills: new[] { new Skill("C#", 8) },
+        summary: "Skräddarsytt CV för en specifik annons.");
+
     // ---------------------------------------------------------------
     // Create — happy path
     // ---------------------------------------------------------------
@@ -518,10 +528,194 @@ public class ResumeTests
         result.Error.Code.ShouldBe("Resume.MasterCannotBeDeleted");
     }
 
-    // OBS: VersionInUse-grenen (isReferencedByOpenApplication=true för en
-    // Tailored-version) går inte att direkttesta i STEG 7 — det publika
-    // API:et exponerar inte CreateTailoredVersion ännu. Regression-skyddet
-    // för den path:en läggs till när Tailored-flödet öppnas i Fas 4.
+    [Fact]
+    public void DeleteVersion_WhenTargetIsTailoredAndReferenced_ReturnsVersionInUse()
+    {
+        // Fas 4 STEG A: VersionInUse-grenen är nu direkttestbar via det öppnade
+        // CreateTailored-flödet. Master-checken får INTE kortsluta den här —
+        // målet är en Tailored-version, så vi når VersionInUse-grenen.
+        var resume = CreateValidResume();
+        var tailoredId = resume.CreateTailored(ValidTailoredContent, Clock).Value;
+
+        var result = resume.DeleteVersion(tailoredId, isReferencedByOpenApplication: true, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.VersionInUse");
+        // Versionen är fortfarande aktiv — guarden raderar inte.
+        resume.Versions.ShouldContain(v => v.Id == tailoredId && v.DeletedAt == null);
+    }
+
+    [Fact]
+    public void DeleteVersion_WhenTargetIsTailoredAndNotReferenced_ReturnsSuccessAndSoftDeletes()
+    {
+        // Komplement till VersionInUse: en oreferenced Tailored-version kan raderas.
+        var resume = CreateValidResume();
+        var tailoredId = resume.CreateTailored(ValidTailoredContent, Clock).Value;
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
+
+        var result = resume.DeleteVersion(tailoredId, isReferencedByOpenApplication: false, laterClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        var tailored = resume.Versions.Single(v => v.Id == tailoredId);
+        tailored.DeletedAt.ShouldBe(laterClock.UtcNow);
+    }
+
+    // ---------------------------------------------------------------
+    // CreateTailored — happy path
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void CreateTailored_WithValidContent_AddsTailoredVersionAndReturnsItsId()
+    {
+        var resume = CreateValidResume();
+        var versionCountBefore = resume.Versions.Count;
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
+
+        var result = resume.CreateTailored(ValidTailoredContent, laterClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        resume.Versions.Count.ShouldBe(versionCountBefore + 1);
+
+        result.Value.ShouldNotBe(default);
+        var newVersion = resume.Versions.Single(v => v.Id == result.Value);
+        newVersion.Kind.ShouldBe(ResumeVersionKind.Tailored);
+        newVersion.DeletedAt.ShouldBeNull();
+        newVersion.Content.ShouldBe(ValidTailoredContent);
+        newVersion.CreatedAt.ShouldBe(laterClock.UtcNow);
+        newVersion.UpdatedAt.ShouldBe(laterClock.UtcNow);
+    }
+
+    [Fact]
+    public void CreateTailored_WithValidContent_AdvancesUpdatedAt()
+    {
+        var resume = CreateValidResume();
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(2));
+
+        resume.CreateTailored(ValidTailoredContent, laterClock);
+
+        resume.UpdatedAt.ShouldBe(laterClock.UtcNow);
+    }
+
+    [Fact]
+    public void CreateTailored_WithValidContent_KeepsMasterInvariantSatisfied()
+    {
+        // En Tailored-version får inte rubba "exakt en aktiv Master"-invarianten.
+        var resume = CreateValidResume();
+        var masterIdBefore = resume.MasterVersion.Id;
+
+        resume.CreateTailored(ValidTailoredContent, Clock);
+
+        var master = resume.MasterVersion; // får inte kasta MasterInvariantBroken
+        master.Id.ShouldBe(masterIdBefore);
+        master.Kind.ShouldBe(ResumeVersionKind.Master);
+    }
+
+    [Fact]
+    public void CreateTailored_DoesNotTouchDenormalizedProjection()
+    {
+        // ADR 0059: bara Master-innehåll driver LatestRole/SectionCount/TopSkills.
+        // En Tailored-version med rikt innehåll får INTE spegla in i projektionen.
+        var resume = CreateValidResume();
+        // Initialt (tom Master) projektionsläge.
+        resume.LatestRole.ShouldBeNull();
+        resume.SectionCount.ShouldBe(0);
+        resume.TopSkills.ShouldBeEmpty();
+
+        var richTailored = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience("Tailored AB", "Tailored Role", new DateOnly(2025, 1, 1), null, null),
+            },
+            skills: new[] { new Skill("Tailored-Skill", 3) },
+            summary: "Skräddarsydd sammanfattning.");
+
+        resume.CreateTailored(richTailored, Clock);
+
+        // Projektionen är oförändrad — Tailored-innehåll syns inte.
+        resume.LatestRole.ShouldBeNull();
+        resume.SectionCount.ShouldBe(0);
+        resume.TopSkills.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void CreateTailored_WithValidContent_RaisesResumeVersionCreatedEventForTailored()
+    {
+        var resume = CreateValidResume();
+        resume.ClearDomainEvents();
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(3));
+
+        var result = resume.CreateTailored(ValidTailoredContent, laterClock);
+
+        var evt = resume.DomainEvents.ShouldHaveSingleItem()
+            .ShouldBeOfType<ResumeVersionCreatedDomainEvent>();
+        evt.ResumeId.ShouldBe(resume.Id);
+        evt.VersionId.ShouldBe(result.Value);
+        evt.Kind.ShouldBe(ResumeVersionKind.Tailored);
+        evt.OccurredAt.ShouldBe(laterClock.UtcNow);
+    }
+
+    // ---------------------------------------------------------------
+    // CreateTailored — validering (delar ValidateContent med UpdateMasterContent)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void CreateTailored_WithEmptyFullName_ReturnsFailureAndAddsNoVersion()
+    {
+        var resume = CreateValidResume();
+        var versionCountBefore = resume.Versions.Count;
+        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
+
+        var result = resume.CreateTailored(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.FullNameRequired");
+        resume.Versions.Count.ShouldBe(versionCountBefore);
+    }
+
+    [Fact]
+    public void CreateTailored_WithExperienceCompanyEmpty_ReturnsFailureAndAddsNoVersion()
+    {
+        var resume = CreateValidResume();
+        var versionCountBefore = resume.Versions.Count;
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience(string.Empty, "Backend Developer", new DateOnly(2020, 1, 1), null, null)
+            });
+
+        var result = resume.CreateTailored(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
+        resume.Versions.Count.ShouldBe(versionCountBefore);
+    }
+
+    [Fact]
+    public void CreateTailored_WhenValidationFails_RaisesNoDomainEvent()
+    {
+        var resume = CreateValidResume();
+        resume.ClearDomainEvents();
+        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
+
+        resume.CreateTailored(content, Clock);
+
+        resume.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void CreateTailored_WhenValidationFails_DoesNotAdvanceUpdatedAt()
+    {
+        var resume = CreateValidResume();
+        var updatedAtBefore = resume.UpdatedAt;
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(4));
+        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
+
+        resume.CreateTailored(content, laterClock);
+
+        resume.UpdatedAt.ShouldBe(updatedAtBefore);
+    }
 
     // ---------------------------------------------------------------
     // SoftDelete

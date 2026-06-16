@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Applications.Commands.AddFollowUp;
 using Jobbliggaren.Application.Applications.Commands.AddNote;
+using Jobbliggaren.Application.Applications.Commands.AttachResumeVersion;
 using Jobbliggaren.Application.Applications.Commands.CreateApplication;
 using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
 using Jobbliggaren.Application.Applications.Commands.RecordFollowUpOutcome;
@@ -107,10 +108,27 @@ public static class ApplicationsEndpoints
                 ? Results.Created($"/api/v1/applications/{id}/notes/{result.Value}", new { id = result.Value })
                 : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
         }).RequireAuthorization();
+
+        // F4-11: link the exact ResumeVersion (Master/Tailored) used for this application
+        // (BUILD §5.3). Owner-scoped, IDOR fail-closed — the version must belong to the caller's
+        // OWN Resume; a cross-user or unknown application/version returns an identical 404 (no
+        // enumeration oracle) + a cross-user audit. Replaceable while the application is
+        // non-terminal. 204 on success.
+        group.MapPost("/{id:guid}/resume-version", async (
+            Guid id, AttachResumeVersionBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new AttachResumeVersionCommand(id, body.ResumeVersionId), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : Results.Problem(detail: result.Error.Message, title: result.Error.Code,
+                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 
     private sealed record TransitionToBody(string TargetStatus);
     private sealed record AddFollowUpBody(string Channel, DateTimeOffset ScheduledAt, string? Note);
     private sealed record AddNoteBody(string? Content);
     private sealed record RecordFollowUpOutcomeBody(string Outcome);
+    private sealed record AttachResumeVersionBody(Guid ResumeVersionId);
 }

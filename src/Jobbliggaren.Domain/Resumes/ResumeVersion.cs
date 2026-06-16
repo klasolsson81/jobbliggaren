@@ -31,6 +31,12 @@ public sealed class ResumeVersion : Entity<ResumeVersionId>
         return new ResumeVersion(ResumeVersionId.New(), ResumeVersionKind.Master, content, now);
     }
 
+    internal static ResumeVersion CreateTailored(ResumeContent content, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        return new ResumeVersion(ResumeVersionId.New(), ResumeVersionKind.Tailored, content, now);
+    }
+
     internal void UpdateContent(ResumeContent content, IDateTimeProvider clock)
     {
         Content = content;

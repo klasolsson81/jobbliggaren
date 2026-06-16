@@ -141,6 +141,28 @@ public sealed class Resume : AggregateRoot<ResumeId>
         return Result.Success();
     }
 
+    /// <summary>
+    /// Skapar en ny Tailored-version (en variant skräddarsydd mot en specifik annons)
+    /// med <paramref name="content"/>. Innehållet valideras mot samma strikta
+    /// <see cref="ValidateContent"/> som Master-innehåll. Påverkar varken Master-versionen,
+    /// invarianten "exakt en aktiv Master" eller de denormaliserade projektion-fälten
+    /// (ADR 0059 — endast Master-innehåll driver dem). Returnerar den nya versionens id
+    /// så att anroparen kan referera den (t.ex. <c>Application.AttachResumeVersion</c>).
+    /// </summary>
+    public Result<ResumeVersionId> CreateTailored(ResumeContent content, IDateTimeProvider clock)
+    {
+        var validation = ValidateContent(content);
+        if (validation.IsFailure)
+            return Result.Failure<ResumeVersionId>(validation.Error);
+
+        var tailored = ResumeVersion.CreateTailored(content, clock);
+        _versions.Add(tailored);
+        UpdatedAt = clock.UtcNow;
+        RaiseDomainEvent(new ResumeVersionCreatedDomainEvent(
+            Id, tailored.Id, ResumeVersionKind.Tailored, clock.UtcNow));
+        return Result.Success(tailored.Id);
+    }
+
     public Result SetLanguage(ResumeLanguage language, IDateTimeProvider clock)
     {
         if (language is null)

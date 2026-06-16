@@ -63,7 +63,8 @@ public static class SwedishCorpusLexicon
     public static readonly IReadOnlyList<string> ActionVerbs =
         ["Ledde", "Byggde", "Levererade", "Ökade", "Minskade", "Införde", "Ansvarade för", "Drev"];
 
-    /// <summary>Clichés (own-authored subset) so the review engine's A7 rule fires.</summary>
+    /// <summary>Clichés (own-authored subset) so the review engine's A7 rule fires.
+    /// Consumed by the reviewer frontend (PR 3); declared here with the rest of the lexicon.</summary>
     public static readonly IReadOnlyList<string> Cliches =
     [
         "teamplayer", "lösningsorienterad", "tänker utanför boxen", "driven och engagerad",

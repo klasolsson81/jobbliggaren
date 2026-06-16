@@ -342,8 +342,12 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
 
     // ── Shared helpers ───────────────────────────────────────────────────
 
-    /// <summary>Mirrors <c>ImportResumeCommandHandler.CollectFreeText</c>: concatenates the
-    /// user-bearing fields so the personnummer guard scans the same surface the product does.</summary>
+    /// <summary>Concatenates every user-bearing field so the personnummer guard scans a
+    /// BROADER surface than the import handler (which scans only <c>extraction.RawText</c>) —
+    /// the wider scan guarantees a fake pnr is caught wherever the generator places it
+    /// (raw text or any structured field). The scan/normalise chain itself is identical to
+    /// <c>ImportResumeCommandHandler</c> (Normalize → Scan → FromMatches); the outcome stays
+    /// PII-safe (Found/Count/Kinds only).</summary>
     private static string CollectFreeText(ParsedResumeContent content, string rawText)
     {
         var parts = new List<string?> { rawText, content.Profile,
@@ -358,7 +362,7 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
     private static string AdversarialText(Random rng) => rng.Next(4) switch
     {
         0 => new string('x', 50_000 + rng.Next(50_000)),                 // very long
-        1 => "titel  med\tkontrolltecken",        // control / null bytes
+        1 => "titel\u0000\u0001\u0002 med\tkontroll\u0007tecken",  // real control / NUL bytes (escaped in source)
         2 => "'; DROP TABLE taxonomy_concepts; -- {{7*7}} <script>",     // injection-shaped
         _ => string.Concat(Enumerable.Range(0, 200).Select(_ => Pick(SwedishCorpusLexicon.NoiseFragments, rng))),
     };

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Fas 4 STEG C — motor-stresstest (reproducerbart QA-harness, ADR 0071 — NO AI/LLM).
+    A deterministic, seeded corpus that edge-stresses the REAL derivation (F4-3) and
+    review (F4-9) engines as a whole — filling the gap left by the per-component,
+    example-based golden fixtures. CTO-bound (docs/reviews/2026-06-16-f4-steg-c-stresstest-cto.md):
+    Fork 1 = 1D (this single project hosts the shared generator module + thin frontends:
+    a DB-backed deriver frontend and an in-memory reviewer frontend, with separate
+    fixtures); Fork 2 = 2B (index-derived determinism) + 2-edge-C; Fork 7 = 7A (PR split).
+
+    PR 1 (generator + corpus model + own determinism tests) references Domain only:
+    the generator builds ParsedResume via the real ParsedResume.Create factory and emits
+    title strings — no Infrastructure/DB surface yet (the deriver frontend adds that in PR 2).
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Jobbliggaren.QA.Corpus</RootNamespace>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit.v3.mtp-v2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Jobbliggaren.Domain\Jobbliggaren.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

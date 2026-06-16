@@ -1,4 +1,6 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.JobAds.Queries.DeriveOccupationCodes;
+using Jobbliggaren.Application.SavedSearches.Commands.ConfirmDerivedSearch;
 using Jobbliggaren.Application.SavedSearches.Commands.CreateSavedSearch;
 using Jobbliggaren.Application.SavedSearches.Commands.DeleteSavedSearch;
 using Jobbliggaren.Application.SavedSearches.Commands.UpdateSavedSearch;
@@ -39,6 +41,29 @@ public static class SavedSearchesEndpoints
                 ? Results.Created($"/api/v1/saved-searches/{result.Value}", new { id = result.Value })
                 : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
         });
+
+        // CV→SavedSearch derive step (F4-3, ADR 0040 Beslut 4): deterministic taxonomy lookup —
+        // an occupational title maps to ranked ssyk-4 occupation-group candidates the user then
+        // CONFIRMS. Read-only; NOTHING is persisted here (no SavedSearch is created without the
+        // explicit confirm below). Typeahead-shaped → SuggestPolicy. No CV-PII (a plain title).
+        group.MapGet("/derive", async (string? title, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new DeriveOccupationCodesQuery(title ?? string.Empty), ct);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.SuggestPolicy);
+
+        // CV→SavedSearch confirm→create step (F4 STEG B, ADR 0040 Beslut 4): creates a SavedSearch
+        // from the user's CONFIRMED ssyk-4 ids (plain input — never the deriver's result, so the
+        // bearing invariant holds) + a derived-from-CV provenance event. 201 → the new SavedSearch.
+        group.MapPost("/confirm-derived", async (
+            ConfirmDerivedSearchCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.Created($"/api/v1/saved-searches/{result.Value}", new { id = result.Value })
+                : Results.Problem(detail: result.Error.Message, title: result.Error.Code,
+                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
         group.MapPatch("/{id:guid}", async (
             Guid id, UpdateSavedSearchBody body, IMediator mediator, CancellationToken ct) =>

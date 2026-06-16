@@ -145,6 +145,10 @@
     <InternalsVisibleTo Include="Jobbliggaren.Api.IntegrationTests" />
     <!-- TD-13 C2 Seam 3: ScopedUserDataKeyCache internal zeroing-observerbarhet -->
     <InternalsVisibleTo Include="Jobbliggaren.Worker.IntegrationTests" />
+    <!-- Fas 4 STEG C — the motor-stresstest harness constructs the REAL internal engines
+         (OccupationCodeDeriver / TaxonomyReadModel / TaxonomySnapshotSeeder / LocalTextAnalyzer /
+         CvReviewEngine) directly, parity with the integration suites above (no engine mocking). -->
+    <InternalsVisibleTo Include="Jobbliggaren.QA.Corpus" />
   </ItemGroup>
 
 </Project>

@@ -29,12 +29,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="NSubstitute" />
     <PackageReference Include="Shouldly" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.v3.mtp-v2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Jobbliggaren.Domain\Jobbliggaren.Domain.csproj" />
+    <!-- Infrastructure brings Domain + Application transitively. The deriver frontend (PR 2)
+         constructs the REAL internal engine + read model + seeder (InternalsVisibleTo below) and
+         runs them against a Testcontainers Postgres; the in-memory reviewer frontend (PR 3) uses
+         the same reference. -->
+    <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -8,6 +8,7 @@ using Jobbliggaren.Application.Resumes.Commands.RenameResume;
 using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
 using Mediator;
@@ -108,6 +109,17 @@ public static class ResumesEndpoints
                 : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.ResumeImportPolicy);
+
+        // The PendingReview parsed-CV staging artifact (F4-8), owner-scoped — drives the
+        // review + gap-fill UI. Returns the owner's decrypted, loosely-parsed content
+        // (IRequiresFieldEncryptionKey); cross-user/unknown → 404 (no enumeration oracle);
+        // a promoted/discarded artifact is invisible (global DeletedAt filter) → 404.
+        group.MapGet("/parsed/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetParsedResumeQuery(id), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         group.MapPost("/", async (
             CreateResumeBody body, IMediator mediator, CancellationToken ct) =>

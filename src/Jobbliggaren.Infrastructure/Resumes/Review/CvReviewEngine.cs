@@ -73,13 +73,18 @@ internal sealed class CvReviewEngine : ICvReviewEngine
 
         var inProfile = rubric.Criteria.Where(c => InProfile(c.Profile, profile)).ToList();
 
-        var verdicts = new List<CvCriterionVerdict>(inProfile.Count);
+        var scored = new List<CvCriterionVerdict>(inProfile.Count);
         foreach (var criterion in inProfile)
         {
             var context = new CvReviewContext(
                 parsedResume, criterion, profile, language, cliches, verbs, _analyzer, datedExperiences);
-            verdicts.Add(Evaluate(context));
+            scored.Add(Evaluate(context));
         }
+
+        // PII hardening (ADR 0074 Invariant 1, security-auditor binding obligation): strip any
+        // personnummer the user placed in CV text that a criterion's cited span quotes. Done HERE,
+        // before criticalFails + categories are derived, so all three views carry redacted verdicts.
+        var verdicts = EvidenceRedactor.Redact(scored);
 
         var criticalFailIds = rubric.CriticalFailIds.ToHashSet(StringComparer.Ordinal);
         var criticalFails = verdicts

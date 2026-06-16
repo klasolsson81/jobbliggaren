@@ -69,6 +69,15 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_ResumeImport_Is5Per60s()
+    {
+        var sut = new RateLimitingOptions();
+
+        sut.ResumeImport.PermitLimit.ShouldBe(5);
+        sut.ResumeImport.WindowSeconds.ShouldBe(60);
+    }
+
+    [Fact]
     public void SectionName_IsRateLimiting()
     {
         RateLimitingOptions.SectionName.ShouldBe("RateLimiting");
@@ -146,5 +155,6 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.MeListReadPolicy.ShouldBe("me-list-read");
         RateLimitingExtensions.JobAdStatusBatchPolicy.ShouldBe("job-ad-status-batch");
         RateLimitingExtensions.MeWritePolicy.ShouldBe("me-write");
+        RateLimitingExtensions.ResumeImportPolicy.ShouldBe("resume-import");
     }
 }

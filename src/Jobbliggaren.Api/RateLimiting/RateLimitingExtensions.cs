@@ -31,6 +31,7 @@ public static partial class RateLimitingExtensions
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string MeWritePolicy = "me-write";
+    public const string ResumeImportPolicy = "resume-import";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -333,6 +334,28 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.MeWrite.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.MeWrite.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Dedikerad CV-upload-policy (ej MeWrite-
+            // återanvändning) — least common mechanism (Saltzer/Schroeder) + bulkhead
+            // (Nygard): en 11 MiB-buffrande + parse-tung upload delar inte budget med
+            // lättviktiga /me-mutationer (330 MiB/min vid MeWrite-återbruk → svält av
+            // spara/ta-bort). Auth-gated → anonym fångas av RequireAuthorization
+            // (NoLimiter bypass). senior-cto-advisor 2026-06-16 (B1a), riktvärde 5/min;
+            // security-auditor verifierar (BLOCKING). Parametrar IOptions-bundna (§5.1).
+            options.AddPolicy(ResumeImportPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-resume-import");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.ResumeImport.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.ResumeImport.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

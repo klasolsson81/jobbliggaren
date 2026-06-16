@@ -214,6 +214,29 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// POST /api/v1/resumes/import (CV-upload + deterministisk parse, Fas 4 STEG B)
+    /// — partitionerat per UserId (claim "sub"), anonym → NoLimiter
+    /// (RequireAuthorization-gated → 401 före endpoint). Egen policy (ej MeWrite-
+    /// återanvändning) — least common mechanism (Saltzer/Schroeder) + bulkhead
+    /// (Nygard): en 11 MiB-buffrande-plus-extraherande upload har en helt annan
+    /// resursprofil än MeWrites lättviktiga bokmärknings-/rensnings-mutationer; delad
+    /// budget hade gett 30/min × 11 MiB = 330 MiB/min/användare och låtit en
+    /// upload-flod svälta spara/ta-bort-mutationerna (och vice versa). 5/min ger
+    /// ~1 import var 12:e sekund — täcker iterativ om-uppladdning vid en dålig parse
+    /// med marginal, kapar script-flod inom en minut, och håller buffer-taket till
+    /// 55 MiB/min/användare (en storleksordning under MeWrite-ekvivalenten).
+    /// Prejudikat: InvitationRedeem (5/fönster för dyr/känslig skriv-yta).
+    /// OWASP API4:2023 "Unrestricted Resource Consumption"; ADR 0045 Worker-512-MiB.
+    /// senior-cto-advisor 2026-06-16 (B1a) — riktvärde, security-auditor verifierar/
+    /// justerar (BLOCKING). IOptions-bundet (§5.1).
+    /// </summary>
+    public PolicyOptions ResumeImport { get; init; } = new()
+    {
+        PermitLimit = 5,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

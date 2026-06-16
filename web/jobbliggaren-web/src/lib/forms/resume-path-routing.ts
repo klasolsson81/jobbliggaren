@@ -33,3 +33,17 @@ export function pathToElementId(path: string): string | null {
   }
   return null;
 }
+
+/**
+ * Variant för `CvGapFillForm` (F2). `promoteParsedResumeSchema` ger PREFIXADE Zod-paths:
+ * `name` (CV-variantens namn, egen kontroll `cv-name`) och `content.<...>` (innehållet).
+ * `content.`-prefixet strippas och delegeras till {@link pathToElementId}; `null` → ingen
+ * focus-flytt. Extraherad ur komponenten per TD-46 för isolerade unit-test.
+ */
+export function gapFillPathToElementId(path: string): string | null {
+  if (path === "name") return "cv-name";
+  if (path.startsWith("content.")) {
+    return pathToElementId(path.slice("content.".length));
+  }
+  return null;
+}

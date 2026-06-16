@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { pathToElementId } from "./resume-path-routing";
+import {
+  pathToElementId,
+  gapFillPathToElementId,
+} from "./resume-path-routing";
 
 describe("resume-path-routing > pathToElementId", () => {
   describe("personalInfo.* → pi-* (per resume-schemas.ts:46-63)", () => {
@@ -66,6 +69,37 @@ describe("resume-path-routing > pathToElementId", () => {
       ["experiences.-1.role"], // negativ index ska inte matcha \d+
     ])("returnerar null för %s", (path) => {
       expect(pathToElementId(path)).toBeNull();
+    });
+  });
+});
+
+describe("resume-path-routing > gapFillPathToElementId (F2)", () => {
+  it("mappar CV-variantnamnet name → cv-name", () => {
+    expect(gapFillPathToElementId("name")).toBe("cv-name");
+  });
+
+  describe("content.<...> strippar prefixet och delegerar till pathToElementId", () => {
+    it.each([
+      ["content.personalInfo.fullName", "pi-fullName"],
+      ["content.summary", "summary"],
+      ["content.experiences.0.startDate", "exp-0-startDate"],
+      ["content.educations.1.degree", "edu-1-degree"],
+      ["content.skills.2.yearsExperience", "skill-2-years"],
+    ])("mappar %s → %s", (path, expected) => {
+      expect(gapFillPathToElementId(path)).toBe(expected);
+    });
+  });
+
+  describe("okända/ohanterade paths → null (ingen focus-flytt)", () => {
+    it.each([
+      [""],
+      ["parsedResumeId"], // schema-fält men ingen kontroll → ingen focus-flytt
+      ["content"], // saknar suffix
+      ["content.unknownField"],
+      ["personalInfo.fullName"], // saknar content.-prefix
+      ["Name"], // case-sensitive
+    ])("returnerar null för %s", (path) => {
+      expect(gapFillPathToElementId(path)).toBeNull();
     });
   });
 });

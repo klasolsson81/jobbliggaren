@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { promoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
 import { promoteParsedResumeAction } from "@/lib/actions/resumes";
-import { pathToElementId } from "@/lib/forms/resume-path-routing";
+import { gapFillPathToElementId } from "@/lib/forms/resume-path-routing";
 import type { ParsedContentDto } from "@/lib/dto/parsed-resume";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 
@@ -155,20 +155,6 @@ type FieldError = { path: string | null; message: string };
 
 const ERROR_ID = "gapfill-form-error";
 
-/**
- * Mappar ett Zod-issue-path från promoteParsedResumeSchema till HTML-`id`:t på
- * motsvarande kontroll. Paths är prefixade (`name`, `content.<...>`) jämfört med
- * resumeContentSchema — `name` har egen kontroll, `content.`-prefixet strippas
- * och delegeras till den delade `pathToElementId`. `null` → ingen focus-flytt.
- */
-function gapFillPathToElementId(path: string): string | null {
-  if (path === "name") return "cv-name";
-  if (path.startsWith("content.")) {
-    return pathToElementId(path.slice("content.".length));
-  }
-  return null;
-}
-
 export function CvGapFillForm({
   parsedId,
   sourceFileName,
@@ -239,7 +225,7 @@ export function CvGapFillForm({
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
       <section aria-label="CV-namn" className="flex flex-col gap-1.5">
         <Label htmlFor="cv-name">
-          Namn på CV <span aria-hidden="true">*</span>
+          Namn på CV <span aria-hidden="true" className="text-danger-600">*</span>
         </Label>
         <p id="cv-name-hint" className="text-body-sm text-text-secondary">
           Ett internt namn så att du hittar rätt CV-variant.
@@ -251,6 +237,7 @@ export function CvGapFillForm({
           {...fieldA11y("name")}
           maxLength={200}
           required
+          aria-required={true}
           disabled={isPending}
         />
       </section>
@@ -260,7 +247,7 @@ export function CvGapFillForm({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pi-fullName">
-              Fullständigt namn <span aria-hidden="true">*</span>
+              Fullständigt namn <span aria-hidden="true" className="text-danger-600">*</span>
             </Label>
             <Input
               id="pi-fullName"
@@ -268,6 +255,7 @@ export function CvGapFillForm({
               {...fieldA11y("content.personalInfo.fullName")}
               maxLength={200}
               required
+              aria-required={true}
               disabled={isPending}
             />
           </div>
@@ -355,7 +343,7 @@ export function CvGapFillForm({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`exp-${index}-company`}>
-                      Företag <span aria-hidden="true">*</span>
+                      Företag <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`exp-${index}-company`}
@@ -363,12 +351,13 @@ export function CvGapFillForm({
                       {...fieldA11y(`content.experiences.${index}.company`)}
                       maxLength={200}
                       required
+                      aria-required={true}
                       disabled={isPending}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`exp-${index}-role`}>
-                      Roll <span aria-hidden="true">*</span>
+                      Roll <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`exp-${index}-role`}
@@ -376,6 +365,7 @@ export function CvGapFillForm({
                       {...fieldA11y(`content.experiences.${index}.role`)}
                       maxLength={200}
                       required
+                      aria-required={true}
                       disabled={isPending}
                     />
                   </div>
@@ -386,7 +376,7 @@ export function CvGapFillForm({
                     aria-describedby={dateHintId}
                   >
                     <Label htmlFor={`exp-${index}-startDate`}>
-                      Startdatum <span aria-hidden="true">*</span>
+                      Startdatum <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`exp-${index}-startDate`}
@@ -394,6 +384,7 @@ export function CvGapFillForm({
                       {...register(`experiences.${index}.startDate`)}
                       {...fieldA11y(`content.experiences.${index}.startDate`)}
                       required
+                      aria-required={true}
                       disabled={isPending}
                     />
                     <Label htmlFor={`exp-${index}-endDate`}>
@@ -478,7 +469,7 @@ export function CvGapFillForm({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`edu-${index}-institution`}>
-                      Lärosäte <span aria-hidden="true">*</span>
+                      Lärosäte <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`edu-${index}-institution`}
@@ -486,12 +477,13 @@ export function CvGapFillForm({
                       {...fieldA11y(`content.educations.${index}.institution`)}
                       maxLength={200}
                       required
+                      aria-required={true}
                       disabled={isPending}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`edu-${index}-degree`}>
-                      Examen <span aria-hidden="true">*</span>
+                      Examen <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`edu-${index}-degree`}
@@ -499,6 +491,7 @@ export function CvGapFillForm({
                       {...fieldA11y(`content.educations.${index}.degree`)}
                       maxLength={200}
                       required
+                      aria-required={true}
                       disabled={isPending}
                     />
                   </div>
@@ -509,7 +502,7 @@ export function CvGapFillForm({
                     aria-describedby={dateHintId}
                   >
                     <Label htmlFor={`edu-${index}-startDate`}>
-                      Startdatum <span aria-hidden="true">*</span>
+                      Startdatum <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`edu-${index}-startDate`}
@@ -517,6 +510,7 @@ export function CvGapFillForm({
                       {...register(`educations.${index}.startDate`)}
                       {...fieldA11y(`content.educations.${index}.startDate`)}
                       required
+                      aria-required={true}
                       disabled={isPending}
                     />
                     <Label htmlFor={`edu-${index}-endDate`}>
@@ -584,7 +578,7 @@ export function CvGapFillForm({
               <legend className="sr-only">Färdighet {index + 1}</legend>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`skill-${index}-name`}>
-                  Namn <span aria-hidden="true">*</span>
+                  Namn <span aria-hidden="true" className="text-danger-600">*</span>
                 </Label>
                 <Input
                   id={`skill-${index}-name`}
@@ -592,6 +586,7 @@ export function CvGapFillForm({
                   {...fieldA11y(`content.skills.${index}.name`)}
                   maxLength={100}
                   required
+                  aria-required={true}
                   disabled={isPending}
                 />
               </div>

@@ -44,6 +44,11 @@ public static class CrashSweep
                 await probe(c, ct);
                 outcomes.Add(new CrashOutcome(label(c), stratum(c), Threw: false, ExceptionType: null));
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // A test-host cancellation is NOT an engine crash — abort the sweep, don't misreport it.
+                throw;
+            }
             catch (Exception ex) // QA crash-sweep: register + report the crashing case id (action), never swallow.
             {
                 outcomes.Add(new CrashOutcome(label(c), stratum(c), Threw: true, ex.GetType().FullName));

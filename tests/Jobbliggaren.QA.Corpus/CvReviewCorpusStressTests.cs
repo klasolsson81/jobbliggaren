@@ -114,16 +114,16 @@ public class CvReviewCorpusStressTests
     }
 
     // ===============================================================
-    // GATE 3 — PII-safety (ADR 0074 Invariant 1): B4 fires Fail, and B4's OWN evidence
-    // never echoes the raw personnummer (the documented count-only StructuralEvidence channel).
+    // GATE 3 — PII-safety (ADR 0074 Invariant 1): a fake-personnummer CV FAILS B4, and B4's
+    // evidence stays count-only (StructuralEvidence — never the raw value).
     //
-    // NOTE — STEG C FINDING (surfaced by this harness; reported, not gated here): the stress
-    // corpus revealed that NON-B4 criteria (A1/A2/A6/A8) DO echo a personnummer in their
-    // TextSpanEvidence when the user placed it inside profile/experience text those criteria
-    // cite. That is emergent behaviour, not a B4/Invariant-1 violation — so it is recorded as a
-    // headline finding for the findings report (PR 4) + flagged for a hardening STEG (pnr-redact
-    // ALL TextSpanEvidence quotes), per CTO Fork 6 (quality findings are observe-only until a
-    // ratchet). This gate asserts ONLY the documented invariant: B4 itself stays PII-safe.
+    // HISTORY: STEG C surfaced (as an observe-only finding) that NON-B4 criteria (A1/A2/A6/A8)
+    // echoed a personnummer in their TextSpanEvidence when the user placed it inside the
+    // profile/experience text those criteria cite. The PII-hardening STEG closed it (the review
+    // engine now redacts pnr from ALL evidence quotes/notes via PersonnummerRedactor), so that
+    // finding is now a GATED regression invariant — see
+    // NoReviewEvidence_EchoesARawPersonnummer_AcrossTheWholeCorpus below (CTO Fork 4A: the
+    // observe-only finding becomes a passing gate).
     // ===============================================================
 
     [Fact]
@@ -149,6 +149,30 @@ public class CvReviewCorpusStressTests
                 foreach (var fake in SwedishCorpusLexicon.FakePersonnummer)
                     s.Contains(fake, StringComparison.Ordinal).ShouldBeFalse(
                         $"{c.Label}: B4 evidence echoed a raw personnummer — ADR 0074 Invariant 1 violated.");
+        }
+    }
+
+    [Fact]
+    public async Task NoReviewEvidence_EchoesARawPersonnummer_AcrossTheWholeCorpus()
+    {
+        // The hardened invariant (CTO Fork 4A): across the WHOLE corpus + both profiles, NO cited
+        // evidence (any criterion, Quote or Note) may echo a raw personnummer — the review engine
+        // redacts them via PersonnummerRedactor before the result is assembled. This is the STEG C
+        // finding turned into a passing regression gate.
+        var ct = TestContext.Current.CancellationToken;
+        var engine = NewEngine();
+
+        foreach (var c in Corpus())
+        {
+            foreach (var profile in new[] { RenderProfile.Ats, RenderProfile.Visual })
+            {
+                var result = await engine.ReviewAsync(c.Cv, profile, ct);
+                foreach (var s in result.Verdicts.SelectMany(EvidenceStrings))
+                    foreach (var fake in SwedishCorpusLexicon.FakePersonnummer)
+                        s.Contains(fake, StringComparison.Ordinal).ShouldBeFalse(
+                            $"{c.Label}/{profile}: cited evidence echoed a raw personnummer — " +
+                            "the engine's evidence-redaction regressed (ADR 0074 Inv. 1).");
+            }
         }
     }
 

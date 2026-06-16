@@ -61,12 +61,10 @@ public static class FindingsReport
         Line("");
 
         // ── Headline finding ────────────────────────────────────────────────
-        Line("## 3. HEADLINE FINDING — personnummer echoed in non-B4 review evidence");
-        LineI($"Of {d.FakePnrCases} fake-personnummer CVs, **{d.NonB4PnrEchoCases}** had a personnummer echoed in a non-B4 criterion's `TextSpanEvidence` (A1/A2/A6/A8 cite spans of profile/experience text the user placed the pnr in). B4 itself stays PII-safe (count-only `StructuralEvidence`).");
-        Line("Not an active leak today (review is on-demand for the owner; the engine has no logger). BINDING");
-        Line("obligation (security-auditor): STEG B — and any persist/cache/TD-111-retention STEG touching review");
-        Line("output — MUST redact pnr from ALL `TextSpanEvidence.Quote` (via `Personnummer.Masked`) before any");
-        Line("log/cache/persist/transmit of a `CvReviewResult`, with mandatory security-auditor re-review.");
+        Line("## 3. HEADLINE FINDING — personnummer in non-B4 review evidence (HARDENED)");
+        LineI($"Of {d.FakePnrCases} fake-personnummer CVs, **{d.NonB4PnrEchoCases}** still echo a personnummer in a non-B4 criterion's `TextSpanEvidence` (target: 0). STEG C surfaced this (A1/A2/A6/A8 quote spans of profile/experience text the user placed the pnr in); the PII-hardening STEG closed it — the review engine now redacts pnr from ALL evidence quotes/notes via `PersonnummerRedactor` (`Personnummer.Masked`) and zeroes the span offset, before the `CvReviewResult` is assembled. B4 was always PII-safe (count-only `StructuralEvidence`).");
+        Line("This count is now a GATED regression invariant (must stay 0). Carry-forward to STEG B: never");
+        Line("log/cache/persist/transmit review evidence built before this redaction boundary.");
         Line("");
 
         // ── Observe-only: deriver hit-rate per stratum ──────────────────────

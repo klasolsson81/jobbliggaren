@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Improvement.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Domain.Privacy;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
@@ -252,6 +253,145 @@ public class ProposedChangeFactoryTests
             pureTransform: null);
 
         act.ShouldThrow<ArgumentException>();
+    }
+
+    // ===============================================================
+    // ForRedaction — the privileged, guard-free redaction-only construction path (Fas 4 STEG B-2;
+    // CTO D3, docs/reviews/2026-06-17-f4-improvement-evidence-redaction-cto.md). Takes an
+    // already-validated change + masked copies of its evidence/replacement, carries all metadata
+    // verbatim, and deliberately SKIPS the no-synthesis guards (re-validating masked strings is
+    // meaningless — and impossible for a structural After).
+    // ===============================================================
+
+    private const string Pnr = "811218-9876";
+    private const string Mask = "******-****";
+
+    private static ProposedChange OriginalKbChange()
+    {
+        const string before = "Brinner för";
+        const string after = "Beskriv ett konkret projekt eller initiativ.";
+        return ProposedChange.FromKnowledgeBank(
+            targetId: TargetId,
+            kind: ProposedChangeKind.ClicheReplacement,
+            category: RubricCategory.Content,
+            criterionId: "A7",
+            evidence: SpanEvidence(before),
+            replacement: new ProposedReplacement(before, after),
+            rationale: Rationale,
+            provenance: KbProvenance(before),
+            resolvedKbValue: after);
+    }
+
+    [Fact]
+    public void ForRedaction_ShouldCarryAllMetadataVerbatim_AndSwapOnlyEvidenceAndReplacement()
+    {
+        var original = OriginalKbChange();
+        var redactedEvidence = SpanEvidence("maskat citat");
+        var redactedReplacement = new ProposedReplacement("maskat citat", "ersättning");
+
+        var redacted = ProposedChange.ForRedaction(original, redactedEvidence, redactedReplacement);
+
+        // Provenance + metadata are reference/value-identical to the original (never re-minted).
+        redacted.Provenance.ShouldBeSameAs(original.Provenance);
+        redacted.TargetId.ShouldBe(original.TargetId);
+        redacted.Kind.ShouldBe(original.Kind);
+        redacted.Category.ShouldBe(original.Category);
+        redacted.CriterionId.ShouldBe(original.CriterionId);
+        redacted.Operation.ShouldBeSameAs(original.Operation);
+        redacted.Rationale.ShouldBe(original.Rationale);
+
+        // Only evidence + replacement are swapped — to the exact masked copies passed in.
+        redacted.Evidence.ShouldBeSameAs(redactedEvidence);
+        redacted.Replacement.ShouldBeSameAs(redactedReplacement);
+    }
+
+    [Fact]
+    public void ForRedaction_ShouldAcceptANullReplacement_ForAPureRemoval()
+    {
+        var original = ProposedChange.FromStructuralOp(
+            targetId: TargetId,
+            kind: ProposedChangeKind.PersonnummerStrip,
+            category: RubricCategory.Structure,
+            criterionId: "B4",
+            evidence: new StructuralEvidence("1 personnummer hittat"),
+            replacement: null,
+            operation: new StructuralOperation(StructuralTransformKind.RemovePersonnummer, Target: TargetId),
+            rationale: "Ta bort personnummer (GDPR)",
+            provenance: StructProvenance(StructuralTransformKind.RemovePersonnummer),
+            pureTransform: null);
+
+        var redacted = ProposedChange.ForRedaction(
+            original, new StructuralEvidence("1 personnummer hittat"), redactedReplacement: null);
+
+        redacted.Replacement.ShouldBeNull();
+        redacted.Operation!.Kind.ShouldBe(StructuralTransformKind.RemovePersonnummer);
+    }
+
+    [Fact]
+    public void ForRedaction_ShouldNotRunSynthesisGuards_WhenAfterNoLongerEqualsTheKbValue()
+    {
+        // The whole point: redaction must be able to produce an After that the FromKnowledgeBank
+        // guard would REJECT (e.g. a masked structural After, where pureTransform(maskedBefore) !=
+        // maskedAfter). ForRedaction bypasses the guards because the original already passed them.
+        var original = OriginalKbChange();
+        var afterThatWouldFailTheKbGuard = new ProposedReplacement("maskat", "en helt annan sträng");
+
+        var act = () => ProposedChange.ForRedaction(
+            original, SpanEvidence("maskat"), afterThatWouldFailTheKbGuard);
+
+        act.ShouldNotThrow();
+        act().Replacement!.After.ShouldBe("en helt annan sträng");
+    }
+
+    [Fact]
+    public void ForRedaction_ShouldProduceAPiiFreeChange_WhenGivenMaskedEvidenceAndReplacement()
+    {
+        // Anchor: the mask we use is the real scanner-masked form (anti-stale).
+        PersonnummerScanner.Scan(Pnr).ShouldHaveSingleItem().Masked.ShouldBe(Mask);
+
+        // An original that legitimately carried a pnr in its quote/before (e.g. a structural heading).
+        var withPnr = $"Rubrik {Pnr}";
+        var original = ProposedChange.FromStructuralOp(
+            targetId: "heading-0",
+            kind: ProposedChangeKind.HeadingNormalization,
+            category: RubricCategory.Structure,
+            criterionId: "D6",
+            evidence: SpanEvidence(withPnr),
+            replacement: new ProposedReplacement(withPnr, withPnr.ToLowerInvariant()),
+            operation: new StructuralOperation(StructuralTransformKind.NormalizeHeadingCase, Target: "rubrik"),
+            rationale: "Standardisera rubrik",
+            provenance: StructProvenance(StructuralTransformKind.NormalizeHeadingCase),
+            pureTransform: s => s.ToLowerInvariant());
+
+        var maskedQuote = PersonnummerRedactor.Redact(withPnr);
+        var redacted = ProposedChange.ForRedaction(
+            original,
+            new TextSpanEvidence(new TextSpan(0, 0, maskedQuote), Note: null),
+            new ProposedReplacement(maskedQuote, PersonnummerRedactor.Redact(withPnr.ToLowerInvariant())));
+
+        var quote = ((TextSpanEvidence)redacted.Evidence).Span.Quote;
+        quote.ShouldContain(Mask);
+        quote.ShouldNotContain(Pnr);
+        redacted.Replacement!.Before.ShouldNotContain(Pnr);
+        redacted.Replacement.After.ShouldNotContain(Pnr);
+    }
+
+    [Fact]
+    public void ForRedaction_ShouldThrow_WhenOriginalIsNull()
+    {
+        var act = () => ProposedChange.ForRedaction(
+            original: null!, SpanEvidence("x"), redactedReplacement: null);
+
+        act.ShouldThrow<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void ForRedaction_ShouldThrow_WhenRedactedEvidenceIsNull()
+    {
+        var act = () => ProposedChange.ForRedaction(
+            OriginalKbChange(), redactedEvidence: null!, redactedReplacement: null);
+
+        act.ShouldThrow<ArgumentNullException>();
     }
 
     [Fact]

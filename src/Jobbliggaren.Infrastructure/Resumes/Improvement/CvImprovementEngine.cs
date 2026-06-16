@@ -69,8 +69,13 @@ internal sealed class CvImprovementEngine : ICvImprovementEngine
             changes.AddRange(transform.Propose(context));
         }
 
+        // Single choke point (parity #110 CvReviewEngine): redact personnummer out of every change's
+        // user-text fields BEFORE assembling the result, so no logged/cached/transmitted proposal can
+        // echo a pnr (ADR 0074 Invariant 1; CTO docs/reviews/2026-06-17-f4-improvement-evidence-redaction-cto.md).
+        var redactedChanges = ImprovementEvidenceRedactor.Redact(changes);
+
         var result = new CvImprovementResult(
-            cliches.Version, verbs.Version, rubric.Version, profile, changes);
+            cliches.Version, verbs.Version, rubric.Version, profile, redactedChanges);
         return ValueTask.FromResult(result);
     }
 

@@ -2,6 +2,7 @@ using Jobbliggaren.Domain.Applications.Events;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Domain.Applications;
 
@@ -11,6 +12,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
     public JobAdId? JobAdId { get; private set; }
     public ManualPosting? ManualPosting { get; private set; }
     public string? CoverLetter { get; private set; }
+    public ResumeVersionId? ResumeVersionId { get; private set; }
     public ApplicationStatus Status { get; private set; } = null!;
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -106,6 +108,42 @@ public sealed class Application : AggregateRoot<ApplicationId>
         LastStatusChangeAt = clock.UtcNow;
         RaiseDomainEvent(
             new ApplicationGhostedDomainEvent(Id, JobSeekerId, previous, clock.UtcNow));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// True unless the application has reached a terminal status
+    /// (Accepted/Rejected/Withdrawn). Ghosted is reactivatable, so it remains
+    /// attachable. Used by <see cref="AttachResumeVersion"/>; the symmetrical
+    /// delete-guard (BUILD §5.6) lists the three terminals explicitly in SQL
+    /// because a SmartEnum property does not translate.
+    /// </summary>
+    public bool CanAttachResumeVersion() =>
+        Status != ApplicationStatus.Accepted &&
+        Status != ApplicationStatus.Rejected &&
+        Status != ApplicationStatus.Withdrawn;
+
+    /// <summary>
+    /// Links the exact CV version used for this application (F4-11, BUILD §5.3).
+    /// Replaceable while non-terminal (the "version used" is a single current
+    /// fact, not an event log). Cross-user ownership is enforced upstream in the
+    /// handler — the aggregate references the version by id only (CLAUDE.md §2.2).
+    /// </summary>
+    public Result AttachResumeVersion(ResumeVersionId versionId, IDateTimeProvider clock)
+    {
+        if (versionId == default)
+            return Result.Failure(DomainError.Validation(
+                "Application.ResumeVersionIdRequired", "ResumeVersionId krävs."));
+
+        if (!CanAttachResumeVersion())
+            return Result.Failure(DomainError.Validation(
+                "Application.ResumeVersionAttachNotAllowed",
+                "Det går inte att koppla en CV-version till en avslutad ansökan."));
+
+        ResumeVersionId = versionId;
+        UpdatedAt = clock.UtcNow;
+        RaiseDomainEvent(new ApplicationResumeVersionAttachedDomainEvent(
+            Id, JobSeekerId, versionId, clock.UtcNow));
         return Result.Success();
     }
 

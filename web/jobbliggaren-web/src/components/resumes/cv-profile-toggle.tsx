@@ -6,6 +6,9 @@ import type { RenderProfile } from "@/lib/dto/parsed-resume";
  * `.jp-segment` ger en server-re-render utan klient-JS. `aria-current` +
  * `data-active` markerar vald profil. Hrefs är fulla sökvägar så delning/
  * bokmärke bevarar profilvalet.
+ *
+ * `basePath` styr vilken route växeln länkar inom (default granska-vyn). Förbättra-
+ * vyn (F4-10) återanvänder samma växel med sin egen basePath — inte en fork.
  */
 
 const OPTIONS: ReadonlyArray<{ value: RenderProfile; label: string }> = [
@@ -16,10 +19,14 @@ const OPTIONS: ReadonlyArray<{ value: RenderProfile; label: string }> = [
 export function CvProfileToggle({
   parsedId,
   profile,
+  basePath,
 }: {
   parsedId: string;
   profile: RenderProfile;
+  /** Route-bas växeln länkar inom. Default: granska-vyn (`/cv/granska/{id}`). */
+  basePath?: string;
 }) {
+  const base = basePath ?? `/cv/granska/${parsedId}`;
   return (
     <div
       role="group"
@@ -31,7 +38,7 @@ export function CvProfileToggle({
         return (
           <Link
             key={option.value}
-            href={`/cv/granska/${parsedId}?profile=${option.value}`}
+            href={`${base}?profile=${option.value}`}
             className="jp-segment__opt"
             data-active={isActive}
             aria-current={isActive ? "true" : undefined}

@@ -122,14 +122,24 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
 
       <CvReviewPanel review={review} parsedId={parsedId} profile={profile} />
 
-      {/* CTA-söm mot F2: spara-flödet (komplettera + promote). */}
+      {/* CTA-söm mot F2: spara-flödet (komplettera + promote). Förbättra-CTA:n
+          (F4-10) ligger som sekundär knapp FÖRE den primära spara-knappen —
+          den är display-only vägledning, inte en del av spara-flödet. */}
       <div className="jp-cv-cta">
-        <Link
-          href={`/cv/granska/${parsedId}/komplettera`}
-          className="jp-btn jp-btn--primary"
-        >
-          Fortsätt och spara CV
-        </Link>
+        <div className="jp-cv-cta__actions">
+          <Link
+            href={`/cv/granska/${parsedId}/forbattra?profile=${profile}`}
+            className="jp-btn jp-btn--secondary"
+          >
+            Visa förbättringsförslag
+          </Link>
+          <Link
+            href={`/cv/granska/${parsedId}/komplettera`}
+            className="jp-btn jp-btn--primary"
+          >
+            Fortsätt och spara CV
+          </Link>
+        </div>
       </div>
     </div>
   );

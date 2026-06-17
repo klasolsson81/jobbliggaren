@@ -5,6 +5,8 @@ import type {
   ScoreBandLabel,
   OverallConfidenceLevel,
   SectionConfidenceLevel,
+  ProposedChangeKind,
+  StructuralTransformKind,
 } from "@/lib/dto/parsed-resume";
 
 /**
@@ -64,6 +66,35 @@ const SECTION_KIND: Record<string, string> = {
   Languages: "Språk",
 };
 
+/** Förbättringsförslagets typ (F4-10) → svensk etikett. Används i den strukturella
+ * observations-meningen ("Föreslagen ändring: {etikett} på {fält}"). Den korta
+ * pill-etiketten (Omformulering/Struktur) härleds separat ur om förslaget har en
+ * textersättning eller är en ren strukturell operation (se `changeKindPillLabel`). */
+const PROPOSED_CHANGE_KIND: Record<ProposedChangeKind, string> = {
+  ClicheReplacement: "Ersätt klyscha",
+  WeakVerbUpgrade: "Starkare verb",
+  DateNormalization: "Normalisera datum",
+  SectionReorder: "Ändra sektionsordning",
+  HeadingNormalization: "Normalisera rubrik",
+  PersonnummerStrip: "Ta bort personnummer",
+  PhotoStrip: "Ta bort foto",
+  GpaStrip: "Ta bort betyg",
+  AtsSanitization: "ATS-sanering",
+};
+
+/** Strukturell transform-typ (F4-10) → svensk etikett. Bär provenance-foten för
+ * strukturella regler ("Källa: strukturell regel ({etikett})"). Skild från
+ * ProposedChangeKind (`provenance.transform` är den faktiska regeln som kördes). */
+const STRUCTURAL_TRANSFORM: Record<StructuralTransformKind, string> = {
+  ReformatDate: "Normalisera datum",
+  NormalizeHeadingCase: "Normalisera rubrik",
+  RemovePersonnummer: "Ta bort personnummer",
+  RemovePhotoReference: "Ta bort foto",
+  RemoveGpa: "Ta bort betyg",
+  StripNonStandardChars: "Ta bort icke-standardtecken",
+  ReorderSection: "Ändra sektionsordning",
+};
+
 export function verdictLabel(verdict: CriterionVerdict): LabelWithTone {
   return VERDICT[verdict];
 }
@@ -91,4 +122,21 @@ export function sectionLevelLabel(
 /** Sektion-namn är en öppen sträng på wire → fall tillbaka till råvärdet. */
 export function sectionKindLabel(kind: string): string {
   return SECTION_KIND[kind] ?? kind;
+}
+
+/** Förbättringsförslagets typ → svensk etikett (för strukturella förslag). */
+export function proposedChangeKindLabel(kind: ProposedChangeKind): string {
+  return PROPOSED_CHANGE_KIND[kind];
+}
+
+/** Strukturell transform-typ → svensk etikett (för provenance-foten). */
+export function structuralTransformLabel(kind: StructuralTransformKind): string {
+  return STRUCTURAL_TRANSFORM[kind];
+}
+
+/** Den neutrala pill-etiketten för ett förslag: textbärande förslag visar
+ * "Omformulering", rena strukturella operationer visar "Struktur". Alltid neutral
+ * ton — typen bärs av texten, aldrig enbart av färg (WCAG 1.4.1). */
+export function changeKindPillLabel(hasReplacement: boolean): string {
+  return hasReplacement ? "Omformulering" : "Struktur";
 }

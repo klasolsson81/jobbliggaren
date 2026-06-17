@@ -217,3 +217,102 @@ export const cvReviewDtoSchema = z.object({
   totalCount: z.number().int().nonnegative(),
 });
 export type CvReviewDto = z.infer<typeof cvReviewDtoSchema>;
+
+// --- CV-förbättra (F4-10, propose-and-approve) ------------------------------
+
+/** Den LÅSTA mängden ändringstyper (paritet `ProposedChangeKind`). Strikt `z.enum`
+ * → drift fail-loud:ar (DtoParseError → `kind: "error"`). `SectionReorder`/`PhotoStrip`
+ * är "ej bedömt v1" (motorn emitterar dem ev. inte), men är legala wire-värden →
+ * måste finnas med för forward-compat. */
+export const proposedChangeKindSchema = z.enum([
+  "ClicheReplacement",
+  "WeakVerbUpgrade",
+  "DateNormalization",
+  "SectionReorder",
+  "HeadingNormalization",
+  "PersonnummerStrip",
+  "PhotoStrip",
+  "GpaStrip",
+  "AtsSanitization",
+]);
+export type ProposedChangeKind = z.infer<typeof proposedChangeKindSchema>;
+
+/** Den LÅSTA mängden strukturella transform-typer (paritet `StructuralTransformKind`).
+ * Strikt `z.enum` (samma drift-fail-loud-motiv). Bär både `operation.kind` och
+ * `provenance.transform`. */
+export const structuralTransformKindSchema = z.enum([
+  "ReformatDate",
+  "NormalizeHeadingCase",
+  "RemovePersonnummer",
+  "RemovePhotoReference",
+  "RemoveGpa",
+  "StripNonStandardChars",
+  "ReorderSection",
+]);
+export type StructuralTransformKind = z.infer<
+  typeof structuralTransformKindSchema
+>;
+
+/** En före→efter-textändring (`null` när ändringen är en ren strukturell borttagning).
+ * Öppna strängar (motorns redigerade CV-text — redan pnr-redigerad vid choke point). */
+export const proposedReplacementDtoSchema = z.object({
+  before: z.string(),
+  after: z.string(),
+});
+export type ProposedReplacementDto = z.infer<
+  typeof proposedReplacementDtoSchema
+>;
+
+/** En strukturell operation (`null` när ändringen är en ren textersättning). `target`
+ * är ett öppet fält (sektion-/fält-referens). */
+export const structuralOperationDtoSchema = z.object({
+  kind: structuralTransformKindSchema,
+  target: z.string(),
+});
+export type StructuralOperationDto = z.infer<
+  typeof structuralOperationDtoSchema
+>;
+
+/** Taggad transportform av proveniensen: `KnowledgeBank` (kunskapsbank-källa +
+ * version + key) eller `StructuralTransform` (deterministisk regel + transform-namn).
+ * `kind` är låst; övriga fält är öppna strängar och nullable (bara delmängden för
+ * respektive `kind` är satt). Detta är förklarbarhets-kontraktet. */
+export const changeProvenanceDtoSchema = z.object({
+  kind: z.enum(["KnowledgeBank", "StructuralTransform"]),
+  source: z.string().nullable(),
+  version: z.string().nullable(),
+  key: z.string().nullable(),
+  transform: structuralTransformKindSchema.nullable(),
+});
+export type ChangeProvenanceDto = z.infer<typeof changeProvenanceDtoSchema>;
+
+/** Ett föreslaget förbättringsförslag med citerad evidens + proveniens. `evidence`
+ * är ETT objekt (inte en array, till skillnad från granska-DTO:n). En ändring är
+ * ANTINGEN ersättnings-baserad (`replacement` satt, `operation` null) ELLER
+ * strukturell (`operation` satt, `replacement` null). Återanvänder
+ * `citedEvidenceDtoSchema` + `rubricCategorySchema` verbatim. */
+export const proposedChangeDtoSchema = z.object({
+  targetId: z.string(),
+  kind: proposedChangeKindSchema,
+  category: rubricCategorySchema,
+  criterionId: z.string().nullable(),
+  evidence: citedEvidenceDtoSchema,
+  replacement: proposedReplacementDtoSchema.nullable(),
+  operation: structuralOperationDtoSchema.nullable(),
+  rationale: z.string(),
+  provenance: changeProvenanceDtoSchema,
+});
+export type ProposedChangeDto = z.infer<typeof proposedChangeDtoSchema>;
+
+/** Resultatet av ett CV-förbättringspass (F4-10). Display-only i v1: varje förslag
+ * visas read-only som vägledning — inget apply-endpoint, ingen tyst omskrivning
+ * (CLAUDE.md §5). Ingen opak totalsumma (Goodhart) — bara per-kategori-räkning som
+ * skanninfo. Versions-fälten bär determinismens proveniens. */
+export const cvImprovementDtoSchema = z.object({
+  clicheListVersion: z.string(),
+  verbMappingVersion: z.string(),
+  rubricVersion: z.string(),
+  profile: renderProfileSchema,
+  changes: z.array(proposedChangeDtoSchema),
+});
+export type CvImprovementDto = z.infer<typeof cvImprovementDtoSchema>;

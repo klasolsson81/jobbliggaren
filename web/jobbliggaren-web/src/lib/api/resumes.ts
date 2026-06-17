@@ -10,8 +10,10 @@ import {
 import {
   parsedResumeDetailDtoSchema,
   cvReviewDtoSchema,
+  cvImprovementDtoSchema,
   type ParsedResumeDetailDto,
   type CvReviewDto,
+  type CvImprovementDto,
   type RenderProfile,
 } from "@/lib/dto/parsed-resume";
 import {
@@ -135,6 +137,41 @@ export async function getCvReview(
       res,
       cvReviewDtoSchema,
       `GET /api/v1/resumes/parsed/${id}/review`,
+      { includeNotFound: true }
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Hämtar de deterministiska CV-förbättringsförslagen (F4-10, propose-and-approve):
+ * före→efter-diffar + strukturella operationer med citerad evidens + proveniens,
+ * ägar-scopat. Display-only i v1 — det finns inget apply-endpoint; en regelmotor
+ * skriver aldrig om tyst (CLAUDE.md §5). Evidensen är REDAN personnummer-redigerad
+ * vid motorns choke point — server-only, ingen ofiltrerad fritext når klienten.
+ * `profile` är `Ats`|`Visual` (backend-validatorn är case-sensitive); searchParam:n
+ * på förbättra-vyn bär det exakta värdet.
+ */
+export async function getCvImprovements(
+  id: string,
+  profile: RenderProfile
+): Promise<ApiResult<CvImprovementDto>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(id)) return { kind: "notFound" };
+
+  const params = new URLSearchParams({ profile });
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}/improvements?${params}`,
+      { headers: authHeaders(sessionId), cache: "no-store" }
+    );
+    return await responseToResult(
+      res,
+      cvImprovementDtoSchema,
+      `GET /api/v1/resumes/parsed/${id}/improvements`,
       { includeNotFound: true }
     );
   } catch {

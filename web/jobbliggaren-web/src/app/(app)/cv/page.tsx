@@ -5,7 +5,6 @@ import { getServerSession } from "@/lib/auth/session";
 import { getResumes } from "@/lib/api/resumes";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ResumeCard } from "@/components/resumes/resume-card";
-import { AnpassaCvBanner } from "@/components/resumes/anpassa-cv-banner";
 
 /**
  * /cv-listvyn (F6 P3a, HANDOVER §7.4 + målbild 09-cv-light.png).
@@ -13,9 +12,11 @@ import { AnpassaCvBanner } from "@/components/resumes/anpassa-cv-banner";
  * Backend 19cde94 (Resume-DTO-utvidgning) gör att alla 5 nya fält
  * (isPrimary/language/latestRole/sectionCount/topSkills) finns på
  * `ResumeListItemDto` och kan renderas direkt via `<ResumeCard />` i
- * v3-grid. AnpassaCvBanner renderas under grid:en **endast** om listan
- * inte är tom (Klas-prompt §F: "Banner ska INTE renderas om CV-listan
- * är tom — skapa CV först").
+ * v3-grid.
+ *
+ * AnpassaCvBanner är BORTTAGEN (Fas 4 STEG B-2): den marknadsförde CvTailor /
+ * annons-skräddarsöm, en LLM-funktion som ADR 0071 garanterar aldrig byggs.
+ * Förbättra-CV-flödet (deterministiskt, F4-10) lever i stället på granska-vyn.
  */
 export default async function CvListPage() {
   const user = await getServerSession();
@@ -107,14 +108,11 @@ export default async function CvListPage() {
             </div>
           </div>
         ) : (
-          <>
-            <div className="jp-cvgrid">
-              {sorted.map((resume) => (
-                <ResumeCard key={resume.id} resume={resume} />
-              ))}
-            </div>
-            <AnpassaCvBanner />
-          </>
+          <div className="jp-cvgrid">
+            {sorted.map((resume) => (
+              <ResumeCard key={resume.id} resume={resume} />
+            ))}
+          </div>
         )}
       </div>
     </>

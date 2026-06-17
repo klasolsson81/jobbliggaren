@@ -2655,53 +2655,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   white-space: nowrap;
 }
 
-/* ── Anpassa CV mot annons-banner (F6 P3a) ─────────
-   Navy-50-bg auto-mappar till mörkare navy i dark mode via token-skift
-   (HANDOVER §2.2). Edit-ikon (INTE Sparkles, §0 punkt 4). */
-.jp-cv-banner {
-  margin-top: 28px;
-  padding: 20px;
-  background: var(--jp-accent-50);
-  border: 1px solid var(--jp-accent-700);
-  border-radius: var(--jp-r-md);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.jp-cv-banner__icon {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--jp-accent-700);
-  background: var(--jp-surface);
-  border-radius: var(--jp-r-md);
-  border: 1px solid var(--jp-border-soft);
-}
-.jp-cv-banner__text {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.jp-cv-banner__title {
-  margin: 0;
-  font-size: 15.5px;
-  font-weight: 600;
-  color: var(--jp-ink-1);
-  line-height: 1.3;
-}
-.jp-cv-banner__body {
-  margin: 0;
-  font-size: 13.5px;
-  color: var(--jp-ink-2);
-  line-height: 1.5;
-}
-
 /* ── Animations ──────────────────────────────────── */
 @keyframes jp-fade {
   from { opacity: 0; }
@@ -4475,6 +4428,112 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-cv-cta__hint {
   margin: 0;
   font-size: 13.5px;
+}
+/* Förbättra-CTA (sekundär) + spara-CTA (primär) sida vid sida; staplas på smal skärm. */
+.jp-cv-cta__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ── CV-förbättringsförslag (F4-10, propose-and-approve) ──────────
+   Display-only diffar. Återanvänder granskningens .jp-criterion__quote/__note/__id
+   och .jp-cvreview-skalet; egna klasser bara för diff-paret + provenance-foten. */
+.jp-improve__changes {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.jp-improve__change {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 0;
+}
+.jp-improve__change + .jp-improve__change {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-improve__change-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.jp-improve__count {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+}
+/* Före→efter-par: två märkta kolumner. Aldrig enbart färg som signal (WCAG 1.4.1) —
+   de synliga etiketterna Nuvarande/Förslag bär betydelsen; en diskret vänsterkant
+   ger sekundär, tema-säker accent i båda teman. */
+.jp-improve__diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.jp-improve__diff-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.jp-improve__diff-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jp-ink-2);
+}
+.jp-improve__diff-before {
+  border-left-color: var(--jp-warning);
+}
+.jp-improve__diff-after {
+  border-left-color: var(--jp-success);
+}
+.jp-improve__operation {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--jp-ink-1);
+  line-height: 1.5;
+}
+.jp-improve__evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jp-improve__provenance {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+}
+.jp-improve__empty {
+  margin: 0;
+  font-size: 14px;
+  /* Brödtext-kontrast: --jp-ink-2 (~7,8:1 light / ~11,6:1 dark), paritet med
+     .jp-cvreview__unavailable. --jp-ink-3 (~3,5:1) underkänns av WCAG 1.4.3 för
+     brödtext (contrast-table "Pairs that FAIL") — aldrig löpande prosa. */
+  color: var(--jp-ink-2);
+  line-height: 1.55;
+  max-width: 68ch;
+}
+.jp-improve__versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  /* Hairline-fot i paritet med .jp-cv-cta — förankrar versions-bandet som fot
+     under kategorikorten snarare än löst hängande mono-text (CTO Q3). */
+  padding-top: 8px;
+  border-top: 1px solid var(--jp-border-soft);
+  font-family: var(--jp-font-mono);
+  font-size: 12px;
+  color: var(--jp-ink-2);
+}
+@media (max-width: 720px) {
+  .jp-improve__diff {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Granska-loading (Suspense-fallback) ─────────── */

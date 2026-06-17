@@ -6,7 +6,14 @@ import {
   overallConfidenceLabel,
   sectionLevelLabel,
   sectionKindLabel,
+  proposedChangeKindLabel,
+  structuralTransformLabel,
+  changeKindPillLabel,
 } from "./review-labels";
+import {
+  proposedChangeKindSchema,
+  structuralTransformKindSchema,
+} from "@/lib/dto/parsed-resume";
 
 describe("review-labels", () => {
   it("mappar verdict → svensk etikett + ton (NotAssessed är neutral, aldrig fail)", () => {
@@ -58,5 +65,42 @@ describe("review-labels", () => {
     expect(sectionKindLabel("Languages")).toBe("Språk");
     // Okänt värde → råvärdet (robust mot framtida sektionstyper).
     expect(sectionKindLabel("Certifications")).toBe("Certifications");
+  });
+
+  // --- F4-10 förbättra-etiketter -------------------------------------------
+
+  it("mappar varje ProposedChangeKind → svensk etikett (alla låsta värden täckta)", () => {
+    expect(proposedChangeKindLabel("ClicheReplacement")).toBe("Ersätt klyscha");
+    expect(proposedChangeKindLabel("WeakVerbUpgrade")).toBe("Starkare verb");
+    expect(proposedChangeKindLabel("DateNormalization")).toBe("Normalisera datum");
+    expect(proposedChangeKindLabel("SectionReorder")).toBe("Ändra sektionsordning");
+    expect(proposedChangeKindLabel("HeadingNormalization")).toBe("Normalisera rubrik");
+    expect(proposedChangeKindLabel("PersonnummerStrip")).toBe("Ta bort personnummer");
+    expect(proposedChangeKindLabel("PhotoStrip")).toBe("Ta bort foto");
+    expect(proposedChangeKindLabel("GpaStrip")).toBe("Ta bort betyg");
+    expect(proposedChangeKindLabel("AtsSanitization")).toBe("ATS-sanering");
+    // Parity-pin: ingen låst kind saknar en etikett (drift fail-loud i CI).
+    for (const kind of proposedChangeKindSchema.options) {
+      expect(proposedChangeKindLabel(kind)).toBeTruthy();
+    }
+  });
+
+  it("mappar varje StructuralTransformKind → svensk etikett (alla låsta värden täckta)", () => {
+    expect(structuralTransformLabel("ReformatDate")).toBe("Normalisera datum");
+    expect(structuralTransformLabel("NormalizeHeadingCase")).toBe("Normalisera rubrik");
+    expect(structuralTransformLabel("RemovePersonnummer")).toBe("Ta bort personnummer");
+    expect(structuralTransformLabel("RemovePhotoReference")).toBe("Ta bort foto");
+    expect(structuralTransformLabel("RemoveGpa")).toBe("Ta bort betyg");
+    expect(structuralTransformLabel("StripNonStandardChars")).toBe("Ta bort icke-standardtecken");
+    expect(structuralTransformLabel("ReorderSection")).toBe("Ändra sektionsordning");
+    for (const kind of structuralTransformKindSchema.options) {
+      expect(structuralTransformLabel(kind)).toBeTruthy();
+    }
+  });
+
+  it("härleder den neutrala pill-etiketten ur om förslaget har en textersättning", () => {
+    // Texten bär typen (Omformulering/Struktur), aldrig enbart färg (WCAG 1.4.1).
+    expect(changeKindPillLabel(true)).toBe("Omformulering");
+    expect(changeKindPillLabel(false)).toBe("Struktur");
   });
 });

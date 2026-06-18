@@ -4418,6 +4418,25 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 
 /* ── CTA-söm mot F2 ──────────────────────────────── */
+/* Förhandsgranska-CTA-rad på de parsade ytorna (granska / förbättra). Liten
+   actions-rad direkt under sid-headern — sekundär knapp som öppnar CvPreview. */
+.jp-cv-preview-actions {
+  display: flex;
+}
+/* PDF-iframe i CvPreview-modalen. Civic-utility: 1px-kant via surface-2-fyll,
+   liten radie, ingen shadow/gradient. Höjd cappas så modalen inte spränger. */
+.jp-pdf-frame {
+  width: 100%;
+  height: min(70vh, 800px);
+  border: 0;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface-2);
+}
+.jp-pdf-frame__fallback {
+  margin: 0;
+  font-size: 14px;
+}
+
 .jp-cv-cta {
   display: flex;
   flex-direction: column;

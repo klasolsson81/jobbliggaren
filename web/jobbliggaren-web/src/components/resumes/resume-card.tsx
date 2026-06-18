@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Edit, Eye } from "lucide-react";
+import { Edit } from "lucide-react";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
 
 interface ResumeCardProps {
@@ -20,13 +20,18 @@ const MAX_VISIBLE_SKILLS = 5;
  *    den info; vi kan inte rendera "+N" utan content-fetch — utelämnas medvetet)
  *  - jp-cv__meta: "N sektioner" (NORMAL font) + språkkod "SV"/"EN" (MONO)
  *    + "Uppd. YYYY-MM-DD" (MONO) — per HANDOVER §3 (mono endast för data)
- *  - jp-cv__actions: Redigera → /cv/{id} (existing route), Förhandsgranska
- *    no-op stub (PDF-render i framtida fas)
+ *  - jp-cv__actions: Redigera → /cv/{id} (existing route)
+ *
+ * Ingen förhandsgranska-knapp här: den befordrade Resume-griden saknar parsedId
+ * och kan därför inte konsumera `/api/v1/resumes/parsed/{id}/render` (det finns
+ * ingen render-by-Resume-id-väg — uppskjuten backend-STEG). Den döda disabled-
+ * stuben togs bort per #119:s banner-precedent (annonsera aldrig en backend-väg
+ * som inte finns). PDF-förhandsgranskning lever på de parsade ytorna
+ * (`/cv/granska/[parsedId]`-familjen) via CvPreview.
  *
  * FAS-DEFERRAL (ADR 0058 amend):
  *  - "+N"-skill-chip när content.skills.length > 5: kräver content-fetch,
  *    skippas tills denormalisering av total-skills-count finns
- *  - Förhandsgranska: PDF-render-pipeline ej byggd, knappen är aria-disabled
  */
 export function ResumeCard({ resume }: ResumeCardProps) {
   const updatedAt = new Date(resume.updatedAt).toLocaleDateString("sv-SE");
@@ -76,19 +81,6 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           <Edit size={14} aria-hidden="true" />
           <span>Redigera</span>
         </Link>
-        {/* TODO: F6+ — wire mot PDF-render-pipeline. aria-disabled +
-            disabled-attribut räcker som no-op; ingen client-side onClick
-            (skulle kräva "use client"-direktiv på hela kortet). */}
-        <button
-          type="button"
-          className="jp-btn jp-btn--ghost jp-btn--sm"
-          disabled
-          aria-disabled="true"
-          title="Förhandsgranskning är inte aktiverad ännu"
-        >
-          <Eye size={14} aria-hidden="true" />
-          <span>Förhandsgranska</span>
-        </button>
       </div>
     </article>
   );

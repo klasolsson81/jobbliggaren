@@ -14,6 +14,7 @@ import { PersonnummerWarning } from "@/components/resumes/personnummer-warning";
 import { ParseSummary } from "@/components/resumes/parse-summary";
 import { OccupationProposals } from "@/components/resumes/occupation-proposals";
 import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
+import { CvPreview } from "@/components/resumes/cv-preview";
 
 interface Props {
   params: Promise<{ parsedId: string }>;
@@ -113,6 +114,10 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
           med citerad evidens ur din egen text.
         </p>
       </header>
+
+      <div className="jp-cv-preview-actions">
+        <CvPreview parsedId={parsedId} initialProfile={profile} />
+      </div>
 
       <PersonnummerWarning personnummer={parsed.personnummer} />
 

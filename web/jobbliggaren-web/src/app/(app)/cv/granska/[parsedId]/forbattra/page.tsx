@@ -11,6 +11,7 @@ import {
   type RenderProfile,
 } from "@/lib/dto/parsed-resume";
 import { CvImprovePanel } from "@/components/resumes/cv-improve-panel";
+import { CvPreview } from "@/components/resumes/cv-preview";
 
 interface Props {
   params: Promise<{ parsedId: string }>;
@@ -122,6 +123,10 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
           tar med när du skriver ditt CV.
         </p>
       </header>
+
+      <div className="jp-cv-preview-actions">
+        <CvPreview parsedId={parsedId} initialProfile={profile} />
+      </div>
 
       <CvImprovePanel
         improvements={improvements}

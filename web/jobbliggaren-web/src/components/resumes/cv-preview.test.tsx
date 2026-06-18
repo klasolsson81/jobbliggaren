@@ -9,11 +9,21 @@ const PARSED_ID = "11111111-1111-4111-8111-111111111111";
  * jsdom implementerar varken URL.createObjectURL / revokeObjectURL eller en
  * riktig PDF-iframe. Vi stubbar objekt-URL-API:erna (komponenten gör/revokar en
  * blob-URL) och mockar fetch per test. Stubbarna restaureras i afterEach.
+ *
+ * 200-svaret är ett MINIMALT mock-objekt (inte en riktig `Response` runt en
+ * `Blob`): komponenten läser bara `ok` + `blob()` på happy-path. En äkta
+ * `new Response(new Blob(...))` läses tillbaka via `Blob.stream()`, vars
+ * tillgänglighet skiljer sig mellan lokal Node och CI:s undici → "object.stream
+ * is not a function" i CI. Mock-objektet kringgår body-maskineriet helt och är
+ * miljöportabelt. `URL.createObjectURL` är ändå stubbad, så blob-innehållet
+ * spelar ingen roll.
  */
 function pdfResponse(): Response {
-  return new Response(new Blob(["pdf"], { type: "application/pdf" }), {
+  return {
+    ok: true,
     status: 200,
-  });
+    blob: async () => new Blob(["pdf"], { type: "application/pdf" }),
+  } as unknown as Response;
 }
 
 /** En kontrollerbar deferred för att hålla fetch pending (loading-state-test). */

@@ -78,9 +78,14 @@ describe("ResumeCard (F6 P3a v3)", () => {
     expect(link).toHaveAttribute("href", "/cv/resume-1");
   });
 
-  it("Förhandsgranska är aria-disabled (PDF-pipeline ej byggd)", () => {
+  it("renderar INGEN Förhandsgranska-knapp (stub borttagen, render-by-Resume-id uppskjuten)", () => {
     render(<ResumeCard resume={baseResume} />);
-    const btn = screen.getByRole("button", { name: /Förhandsgranska/ });
-    expect(btn).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.queryByRole("button", { name: /Förhandsgranska/ }),
+    ).not.toBeInTheDocument();
+    // Redigera-länken finns kvar som enda kort-action.
+    expect(
+      screen.getByRole("link", { name: /Redigera/ }),
+    ).toBeInTheDocument();
   });
 });

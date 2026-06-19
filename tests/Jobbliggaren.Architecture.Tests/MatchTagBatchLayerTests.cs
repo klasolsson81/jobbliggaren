@@ -181,4 +181,72 @@ public class MatchTagBatchLayerTests
             "MatchDimensionVerdict ska vara oförändrad { Match, Partial, NoMatch, " +
             $"NotAssessed }}. Faktiska: [{string.Join(", ", names)}].");
     }
+
+    // ===============================================================
+    // 5. F4-14 "Sortera efter matchning" (ADR 0076 Decision 4) — sort-nyckeln
+    //    (grad-ranken) lever ENBART i ORDER BY. Den list-wire-DTO som match-sorten
+    //    returnerar (JobAdDto) får INTE läcka ett score-format fält, och porten
+    //    introducerar INGEN match-formad DTO (samma JobAdDto som default-sorten).
+    //    Goodhart-vakten realiserad på match-sort-tråden.
+    // ===============================================================
+
+    [Fact]
+    public void JobAdDto_has_no_numeric_or_score_shaped_property()
+    {
+        // ADR 0076 Decision 4 — F4-14:s sort-nyckel (grad-ranken) lever ENBART i
+        // MatchSortedJobAdSearchQuery.OrderBy; den projiceras ALDRIG in i den list-
+        // wire-DTO som /jobb returnerar. JobAdDto är den exakt samma DTO:n vare sig
+        // sorten är PublishedAtDesc eller MatchDesc (Decision 5 — match-sorten
+        // reordnar, introducerar ingen match-shaped wire-form).
+        var dto = typeof(Jobbliggaren.Application.JobAds.Queries.JobAdDto);
+
+        var offending = PublicInstancePropertyNames(dto)
+            .Where(name => ForbiddenNumericName.IsMatch(name))
+            .ToList();
+
+        offending.ShouldBeEmpty(
+            "JobAdDto (list-wire-DTO:n för /jobb) får INTE bära ett numeriskt/score-" +
+            "format fält (Score/Value/Total/Percent/SortKey/Rank/Intensity/Points) — " +
+            "F4-14:s sort-nyckel läcker aldrig in i DTO:n (ADR 0076 Decision 4). " +
+            $"Otillåtna: [{string.Join(", ", offending)}].");
+    }
+
+    [Fact]
+    public void IMatchSortedJobAdSearchQuery_SearchByMatch_returns_PagedResult_of_JobAdDto()
+    {
+        // ADR 0076 Decision 4/5 — match-sort-porten returnerar EXAKT samma sida som
+        // default-sorten: PagedResult<JobAdDto>. Ingen match-formad DTO (med ett
+        // grad-/rank-fält) introduceras på tråden; ordningen är den enda skillnaden.
+        var method = typeof(Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery)
+            .GetMethod("SearchByMatchAsync", BindingFlags.Public | BindingFlags.Instance);
+
+        method.ShouldNotBeNull(
+            "IMatchSortedJobAdSearchQuery ska ha SearchByMatchAsync.");
+
+        var returnType = method!.ReturnType;
+        // ValueTask<PagedResult<JobAdDto>> — unwrap ValueTask<T> → T.
+        returnType.IsGenericType.ShouldBeTrue();
+        returnType.GetGenericTypeDefinition().ShouldBe(typeof(ValueTask<>));
+
+        var paged = returnType.GetGenericArguments()[0];
+        paged.IsGenericType.ShouldBeTrue();
+        paged.GetGenericTypeDefinition().ShouldBe(
+            typeof(Jobbliggaren.Application.Common.PagedResult<>),
+            "SearchByMatchAsync ska returnera PagedResult<…> (samma sid-form som " +
+            "default-sorten, ADR 0076 Decision 5).");
+        paged.GetGenericArguments()[0].ShouldBe(
+            typeof(Jobbliggaren.Application.JobAds.Queries.JobAdDto),
+            "Sid-elementet ska vara JobAdDto — ingen match-shaped DTO på tråden " +
+            "(Goodhart-vakten, ADR 0076 Decision 4).");
+    }
+
+    [Fact]
+    public void IMatchSortedJobAdSearchQuery_is_in_Application_layer()
+    {
+        // Match-sort-porten är en Application-abstraktion (impl internal i
+        // Infrastructure — Npgsql-bunden ORDER BY, ADR 0062 / CLAUDE.md §2.1).
+        var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery);
+        port.Assembly.ShouldBe(
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
+    }
 }

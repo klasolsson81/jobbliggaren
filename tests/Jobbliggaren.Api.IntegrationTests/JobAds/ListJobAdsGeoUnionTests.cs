@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.JobAds;
@@ -76,6 +77,8 @@ public class ListJobAdsGeoUnionTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return new ListJobAdsQueryHandler(
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
+            Substitute.For<IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<IMatchProfileBuilder>(),
             new SearchQueryParser());
     }
 

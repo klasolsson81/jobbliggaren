@@ -32,7 +32,12 @@ public static class JobAdsEndpoints
             IMediator mediator,
             int page = 1,
             int pageSize = 20,
-            JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc,
+            // F4-14 (ADR 0076) — read-side sort-ytan binds case-insensitivt per
+            // namn till ListJobAdsSort (5 rena + MatchDesc = "Sortera efter
+            // matchning"). Domän-enumen JobAdSortBy hålls match-ren; query:n
+            // härleder SortBy/SortByMatch. Validatorn IsInEnum() stoppar
+            // out-of-range numeriska värden med rent 400.
+            ListJobAdsSort sortBy = ListJobAdsSort.PublishedAtDesc,
             // ADR 0042 Beslut B — multi: upprepad query-string binds av
             // ASP.NET Core minimal API till string[].
             // ADR 0067 — dimensioner: ?occupationGroup= (ssyk-level-4/

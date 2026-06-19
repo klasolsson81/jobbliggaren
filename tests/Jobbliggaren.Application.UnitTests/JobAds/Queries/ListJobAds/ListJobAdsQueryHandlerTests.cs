@@ -3,6 +3,7 @@ using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.JobAds;
 using NSubstitute;
 using Shouldly;
@@ -25,10 +26,46 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.ListJobAds;
 // InternalsVisibleTo) snarare än en mock: det ger äkta integration av
 // parser→filter-SPOT:en utan DB. Parsern är idempotent på redan-rena värden
 // ("utvecklare" → "utvecklare") så befintliga assertions står kvar.
+//
+// F4-14 (ADR 0076 Decision 4/5/7) — ctor:n tar nu OCKSÅ den per-användar-match-
+// sort-porten (IMatchSortedJobAdSearchQuery) + IMatchProfileBuilder. Default-
+// vägen (icke-match-sort, ELLER match-sort med tom yrkesgrupp-gate) går
+// fortfarande genom IJobAdSearchQuery.SearchAsync med ett rent SortBy-värde.
+// matchSearch + profileBuilder mockas; profileBuilder ger som default en HONEST
+// EMPTY profil (tom SSYK) så att alla icke-match-tester träffar search.SearchAsync.
 public class ListJobAdsQueryHandlerTests
 {
     private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
+    private readonly IMatchSortedJobAdSearchQuery _matchSearch =
+        Substitute.For<IMatchSortedJobAdSearchQuery>();
+    private readonly IMatchProfileBuilder _profileBuilder =
+        Substitute.For<IMatchProfileBuilder>();
     private readonly ISearchQueryParser _parser = new SearchQueryParser();
+
+    public ListJobAdsQueryHandlerTests()
+    {
+        // Default: en honest EMPTY profil (tom SSYK-lista). Då faller även en
+        // MatchDesc-begäran tillbaka till search.SearchAsync (Decision 7) —
+        // alla adapter-/parser-tester nedan träffar därför den rena porten.
+        _profileBuilder.BuildFromPreferencesAsync(Arg.Any<CancellationToken>())
+            .Returns(EmptyProfile);
+    }
+
+    private static CandidateMatchProfile EmptyProfile =>
+        new(Title: string.Empty, SsykGroupConceptIds: [], PreferredRegionConceptIds: [], PreferredEmploymentTypeConceptIds: []);
+
+    private static CandidateMatchProfile ProfileWithOccupation(
+        IReadOnlyList<string>? ssyk = null,
+        IReadOnlyList<string>? regions = null,
+        IReadOnlyList<string>? employment = null) =>
+        new(
+            Title: string.Empty,
+            SsykGroupConceptIds: ssyk ?? ["grp-occupation"],
+            PreferredRegionConceptIds: regions ?? [],
+            PreferredEmploymentTypeConceptIds: employment ?? []);
+
+    private ListJobAdsQueryHandler NewHandler() =>
+        new(_search, _matchSearch, _profileBuilder, _parser);
 
     private static PagedResult<JobAdDto> EmptyPage(int page = 1, int pageSize = 20) =>
         new([], 0, page, pageSize);
@@ -39,7 +76,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(new ListJobAdsQuery(Region: null), TestContext.Current.CancellationToken);
 
@@ -53,7 +90,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(Region: ["stockholm", "uppsala"]),
@@ -79,7 +116,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(OccupationGroup: null), TestContext.Current.CancellationToken);
@@ -94,7 +131,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(Municipality: null), TestContext.Current.CancellationToken);
@@ -109,7 +146,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(
@@ -126,17 +163,18 @@ public class ListJobAdsQueryHandlerTests
     {
         // Q hör hemma i Filter-SPOT:en; SortBy/Page/PageSize/Since på
         // JobAdSearchCriteria. Verifierar att varje fält hamnar på rätt plats.
+        // F4-14: Sort=Relevance mappas till JobAdSortBy.Relevance via ToDomainSort.
         var since = new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero);
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage(page: 3, pageSize: 15));
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(
                 Page: 3,
                 PageSize: 15,
-                SortBy: JobAdSortBy.Relevance,
+                Sort: ListJobAdsSort.Relevance,
                 Q: "utvecklare",
                 Since: since),
             TestContext.Current.CancellationToken);
@@ -155,7 +193,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
 
@@ -181,7 +219,7 @@ public class ListJobAdsQueryHandlerTests
         var portResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);
         _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
             .Returns(portResult);
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         var result = await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
 
@@ -195,7 +233,7 @@ public class ListJobAdsQueryHandlerTests
     {
         _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
 
@@ -213,7 +251,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(Q: "  utvecklare  "), TestContext.Current.CancellationToken);
@@ -228,7 +266,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(Q: "system   utvecklare"), TestContext.Current.CancellationToken);
@@ -243,7 +281,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(new ListJobAdsQuery(Q: null), TestContext.Current.CancellationToken);
 
@@ -258,7 +296,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(new ListJobAdsQuery(Q: " a "), TestContext.Current.CancellationToken);
 
@@ -274,7 +312,7 @@ public class ListJobAdsQueryHandlerTests
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
-        var handler = new ListJobAdsQueryHandler(_search, _parser);
+        var handler = NewHandler();
 
         await handler.Handle(
             new ListJobAdsQuery(
@@ -289,5 +327,170 @@ public class ListJobAdsQueryHandlerTests
         captured.Filter.OccupationGroup.ShouldBe(["grp-1", "grp-2"]);
         captured.Filter.Municipality.ShouldBe(["sthlm_kn"]);
         captured.Filter.Region.ShouldBe(["stockholm"]);
+    }
+
+    // --- F4-14 (ADR 0076 Decision 4/5/7): match-sort-grenen ------------------
+    // SortByMatch + profil med angiven yrkesgrupp → matchSearch.SearchByMatchAsync.
+    // SortByMatch + tom yrkesgrupp → honest fallback till search.SearchAsync.
+    // Sort != MatchDesc → alltid search.SearchAsync.
+
+    [Fact]
+    public async Task Handle_SortByMatchWithOccupation_CallsMatchSearchExactlyOnce_NotDefaultSearch()
+    {
+        _profileBuilder.BuildFromPreferencesAsync(Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        _matchSearch.SearchByMatchAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<CandidateMatchProfile>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
+            TestContext.Current.CancellationToken);
+
+        await _matchSearch.Received(1).SearchByMatchAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<CandidateMatchProfile>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>());
+        await _search.DidNotReceive().SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_SortByMatchWithOccupation_PassesFilterPageSinceAndBuiltProfile()
+    {
+        // Match-grenen ska ärva EXAKT samma filter (incl. parsad Q) + page/pageSize/
+        // since som default-vägen, och den byggda profilen oförändrad.
+        var since = new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero);
+        var builtProfile = ProfileWithOccupation(
+            ssyk: ["grp-occupation"], regions: ["stockholm"], employment: ["et_fast"]);
+        _profileBuilder.BuildFromPreferencesAsync(Arg.Any<CancellationToken>())
+            .Returns(builtProfile);
+
+        JobAdFilterCriteria? capturedFilter = null;
+        CandidateMatchProfile? capturedProfile = null;
+        var capturedPage = 0;
+        var capturedPageSize = 0;
+        DateTimeOffset? capturedSince = null;
+        _matchSearch.SearchByMatchAsync(
+            Arg.Do<JobAdFilterCriteria>(f => capturedFilter = f),
+            Arg.Do<CandidateMatchProfile>(p => capturedProfile = p),
+            Arg.Do<int>(p => capturedPage = p),
+            Arg.Do<int>(ps => capturedPageSize = ps),
+            Arg.Do<DateTimeOffset?>(s => capturedSince = s),
+            Arg.Any<CancellationToken>())
+            .Returns(EmptyPage(page: 2, pageSize: 10));
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(
+                Page: 2,
+                PageSize: 10,
+                Sort: ListJobAdsSort.MatchDesc,
+                OccupationGroup: ["grp-1"],
+                Region: ["stockholm"],
+                Q: "  utvecklare  ",
+                Since: since),
+            TestContext.Current.CancellationToken);
+
+        capturedFilter.ShouldNotBeNull();
+        capturedFilter!.OccupationGroup.ShouldBe(["grp-1"]);
+        capturedFilter.Region.ShouldBe(["stockholm"]);
+        capturedFilter.Q.ShouldBe("utvecklare"); // parsad EN gång, samma som default-vägen
+        capturedProfile.ShouldBeSameAs(builtProfile);
+        capturedPage.ShouldBe(2);
+        capturedPageSize.ShouldBe(10);
+        capturedSince.ShouldBe(since);
+    }
+
+    [Fact]
+    public async Task Handle_SortByMatchWithEmptyOccupation_FallsBackToDefaultSearch_WithPublishedAtDesc()
+    {
+        // Decision 7 honest fallback: tom SSYK-gate → ingen annons kan få en grad →
+        // match-ordning vore meningslös → faller tillbaka till den rena default-sorten
+        // (PublishedAtDesc), aldrig en fejkad ordning. matchSearch anropas ALDRIG.
+        _profileBuilder.BuildFromPreferencesAsync(Arg.Any<CancellationToken>())
+            .Returns(EmptyProfile); // tom SSYK
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
+            TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
+        await _matchSearch.DidNotReceive().SearchByMatchAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<CandidateMatchProfile>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>());
+        await _search.Received(1).SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_SortNotMatchDesc_NeverConsultsProfileBuilderOrMatchSearch()
+    {
+        // Icke-match-sort: profilen byggs ALDRIG (ingen onödig DB-läsning), och
+        // matchSearch anropas aldrig — oavsett att en profil med yrkesgrupp finns.
+        _profileBuilder.BuildFromPreferencesAsync(Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.PublishedAtAsc),
+            TestContext.Current.CancellationToken);
+
+        await _profileBuilder.DidNotReceive().BuildFromPreferencesAsync(Arg.Any<CancellationToken>());
+        await _matchSearch.DidNotReceive().SearchByMatchAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<CandidateMatchProfile>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>());
+        await _search.Received(1).SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_SortByMatchWithOccupation_BuildsProfileAtMostOnce()
+    {
+        // Profilen byggs EN gång på match-grenen (ingen dubbel-läsning av preferenser).
+        _profileBuilder.BuildFromPreferencesAsync(Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        _matchSearch.SearchByMatchAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<CandidateMatchProfile>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
+            TestContext.Current.CancellationToken);
+
+        await _profileBuilder.Received(1).BuildFromPreferencesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_SortByMatchWithOccupation_ReturnsMatchPortResultUnchanged()
+    {
+        _profileBuilder.BuildFromPreferencesAsync(Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        var dto = new JobAdDto(
+            Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",
+            "https://example.com/1", "Manual", "Active",
+            DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, IsNew: false);
+        var matchResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);
+        _matchSearch.SearchByMatchAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<CandidateMatchProfile>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
+            .Returns(matchResult);
+        var handler = NewHandler();
+
+        var result = await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
+            TestContext.Current.CancellationToken);
+
+        result.ShouldBeSameAs(matchResult);
     }
 }

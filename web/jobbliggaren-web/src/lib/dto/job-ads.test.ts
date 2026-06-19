@@ -49,16 +49,21 @@ describe("jobSourceSchema", () => {
 });
 
 describe("jobAdSortBySchema", () => {
-  it("accepts the five sort-by values (incl. Relevance, ADR 0042 Beslut D)", () => {
+  it("accepts the six sort-by values (incl. Relevance ADR 0042 D + MatchDesc F4-14 ADR 0076)", () => {
     for (const v of [
       "PublishedAtDesc",
       "PublishedAtAsc",
       "ExpiresAtDesc",
       "ExpiresAtAsc",
       "Relevance",
+      "MatchDesc",
     ]) {
       expect(jobAdSortBySchema.safeParse(v).success).toBe(true);
     }
+  });
+
+  it("accepts MatchDesc (read-side ListJobAdsSort widening, F4-14)", () => {
+    expect(jobAdSortBySchema.safeParse("MatchDesc").success).toBe(true);
   });
 
   it("rejects unknown sort-by", () => {

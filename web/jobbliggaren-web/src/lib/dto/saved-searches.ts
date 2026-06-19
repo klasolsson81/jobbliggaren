@@ -8,8 +8,14 @@ import { taxonomyLabelSchema } from "./taxonomy";
 // SERIALISERAR SortBy som heltal (0-3) i SavedSearchDto och DESERIALISERAR
 // body-enum som heltal. Index = enum-ordinal nedan. Schemat accepterar även
 // strängnamn (robust om ett globalt converter läggs till i framtiden).
-// Index = backend `JobAdSortBy` enum-ordinal (PublishedAtDesc=0 …
-// Relevance=4, ADR 0042 Beslut D). Måste hållas i exakt enum-ordning.
+// Index = backend DOMAIN-enumen `JobAdSortBy` enum-ordinal (PublishedAtDesc=0 …
+// Relevance=4, ADR 0042 Beslut D). Måste hållas i exakt Domain-enum-ordning.
+//
+// MEDVETET 0–4: `MatchDesc` (F4-14, ADR 0076) tillhör read-side-sortytan
+// `ListJobAdsSort`, INTE Domain-enumen. Match-sort persisteras aldrig som en
+// anonym SavedSearch/recent-search-sort (backend mappar MatchDesc →
+// PublishedAtDesc), så den får ALDRIG en ordinal här. Lägg inte till "MatchDesc"
+// — det skulle skeva int↔namn-mappningen mot Domain-enumens ordinal.
 export const SAVED_SEARCH_SORT_ORDER: readonly JobAdSortBy[] = [
   "PublishedAtDesc",
   "PublishedAtAsc",

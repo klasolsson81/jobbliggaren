@@ -17,7 +17,9 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
     {
         RuleFor(q => q.Page).GreaterThanOrEqualTo(1);
         RuleFor(q => q.PageSize).InclusiveBetween(1, 100);
-        RuleFor(q => q.SortBy).IsInEnum();
+        // F4-14 — Sort är read-side-ytan (ListJobAdsSort: 5 rena + MatchDesc).
+        // q.SortBy/q.SortByMatch är härledda och alltid giltiga.
+        RuleFor(q => q.Sort).IsInEnum();
 
         // Maxantal-cap (invariant 2) — IN(...)-blowup/jsonb-stuffing-DoS-tak.
         // Refererar Domain-konstanten (single source).
@@ -92,10 +94,11 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
             .WithMessage("Söktext måste vara 2-100 tecken.");
 
         // ADR 0042 Beslut D — relevans-sortering kräver söktext (fail-fast,
-        // speglar SearchCriteria.Create-invarianten).
+        // speglar SearchCriteria.Create-invarianten). Match-sorten (MatchDesc)
+        // kräver INGEN söktext — den ordnar på profil-match, inte ts_rank.
         RuleFor(q => q.Q)
             .NotEmpty()
-            .When(q => q.SortBy == Domain.JobAds.JobAdSortBy.Relevance)
+            .When(q => q.Sort == ListJobAdsSort.Relevance)
             .WithMessage("Relevans-sortering kräver en söktext.");
     }
 }

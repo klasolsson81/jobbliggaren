@@ -18,16 +18,31 @@ export const jobSourceSchema = z.enum([
 ]);
 export type JobSource = z.infer<typeof jobSourceSchema>;
 
-// Sort-enum speglar backend `JobAdSortBy`. Värdena är sträng-namn (case-
-// känsligt) per Minimal API enum-binding-konvention. `Relevance` tillagd
-// ADR 0042 Beslut D — kräver q non-null (backend 400-skydd via
+// Sort-enum speglar backend READ-SIDE-sortytan `ListJobAdsSort` (Application-
+// nivå), INTE Domain-enumen `JobAdSortBy`. Värdena är sträng-namn (case-
+// okänsligt på wire per Minimal API enum-binding-konvention). `Relevance`
+// tillagd ADR 0042 Beslut D — kräver q non-null (backend 400-skydd via
 // ListJobAdsQueryValidator; UI får ej erbjuda Relevance utan söktext).
+//
+// `MatchDesc` tillagd F4-14 (ADR 0076 Decision 4/5, CTO-bind D2=Y 2026-06-19):
+// "Sortera efter matchning" — global grad-fallande ordning, tie-break nyaste
+// först. Backend binder den på `?sortBy=MatchDesc` (ListJobAdsSort = 5 rena
+// Domain-värden + MatchDesc); Domain `JobAdSortBy` hålls match-ren och
+// MatchDesc persisteras ALDRIG som anonym SavedSearch/recent-search-sort
+// (backend mappar MatchDesc → PublishedAtDesc för hash/fallback). Därför är
+// `SAVED_SEARCH_SORT_ORDER`/recent-search-ordinaltabellerna OFÖRÄNDRADE (0–4)
+// — de speglar Domain-enumens ordinal, inte denna read-side-yta.
+//
+// Ingen söktext krävs för MatchDesc (till skillnad från Relevance): match-
+// sorten faller honest tillbaka till PublishedAtDesc när ingen yrkespreferens
+// finns (Decision 7) — den disablas därför aldrig i sort-väljaren.
 export const jobAdSortBySchema = z.enum([
   "PublishedAtDesc",
   "PublishedAtAsc",
   "ExpiresAtDesc",
   "ExpiresAtAsc",
   "Relevance",
+  "MatchDesc",
 ]);
 export type JobAdSortBy = z.infer<typeof jobAdSortBySchema>;
 

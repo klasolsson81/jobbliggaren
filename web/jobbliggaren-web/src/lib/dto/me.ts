@@ -27,6 +27,13 @@ export type CurrentUserDto = z.infer<typeof currentUserSchema>;
  *
  * `createdAt` är ISO 8601-string på wire (DateTimeOffset). Ingen Date-cast
  * här — UI-formatering är konsumentansvar. Se ADR 0020 §6.
+ *
+ * F4-12 PR-B (ADR 0076): profilen bär nu även matchnings-önskemålen +
+ * `hasStatedDesiredOccupation` (härlett serverside: true så snart minst en
+ * yrkesgrupp angetts — driver setup-nudgen på /oversikt). Backend returnerar
+ * alltid fälten (required, ej optional — `IReadOnlyList<string>` aldrig null);
+ * `undefined` skulle maskera kontraktsdrift. `.readonly()` speglar
+ * `IReadOnlyList<string>`. Schemat förblir icke-strikt per ADR 0020 §4.
  */
 export const jobSeekerProfileSchema = z.object({
   id: z.string(),
@@ -35,6 +42,10 @@ export const jobSeekerProfileSchema = z.object({
   emailNotifications: z.boolean(),
   weeklySummary: z.boolean(),
   createdAt: z.string(),
+  hasStatedDesiredOccupation: z.boolean(),
+  preferredOccupationGroups: z.array(z.string()).readonly(),
+  preferredRegions: z.array(z.string()).readonly(),
+  preferredEmploymentTypes: z.array(z.string()).readonly(),
 });
 
 export type JobSeekerProfileDto = z.infer<typeof jobSeekerProfileSchema>;

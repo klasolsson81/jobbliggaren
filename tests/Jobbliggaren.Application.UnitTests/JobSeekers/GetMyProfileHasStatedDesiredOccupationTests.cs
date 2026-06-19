@@ -79,4 +79,55 @@ public class GetMyProfileHasStatedDesiredOccupationTests
         result.ShouldNotBeNull();
         result.HasStatedDesiredOccupation.ShouldBeFalse();
     }
+
+    // F4-12 PR-B — read-side projektion av de tre stated-preference-listorna på
+    // JobSeekerProfileDto. Krävs för att inställnings-kortet ska kunna förifylla
+    // användarens nuvarande val (PUT är full-replace; utan nuläget skulle redigering
+    // tyst nolla tidigare val). CTO-bunden: assertas i det BEFINTLIGA handler-testet
+    // (ingen ny handler → inget nytt coverage-golv). Verifierar att concept-id-
+    // projektionen är lika med det satta settet.
+    [Fact]
+    public async Task Handle_WhenAllPreferenceDimensionsStated_ProjectsAllThreeLists()
+    {
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_12345", "grp_67890"],
+            preferredRegions: ["stockholm_AB"],
+            preferredEmploymentTypes: ["et_fast"]).Value;
+
+        var result = await HandleForSeekerWithPrefsAsync(prefs);
+
+        result.ShouldNotBeNull();
+        result.PreferredOccupationGroups.ShouldBe(["grp_12345", "grp_67890"]);
+        result.PreferredRegions.ShouldBe(["stockholm_AB"]);
+        result.PreferredEmploymentTypes.ShouldBe(["et_fast"]);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPreferencesNeverSet_ProjectsEmptyLists()
+    {
+        var result = await HandleForSeekerWithPrefsAsync(prefs: null);
+
+        result.ShouldNotBeNull();
+        result.PreferredOccupationGroups.ShouldBeEmpty();
+        result.PreferredRegions.ShouldBeEmpty();
+        result.PreferredEmploymentTypes.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenOnlySomeDimensionsStated_ProjectsOnlyThoseLists()
+    {
+        // Regioner + anställningsformer satta, yrkesgrupper tomma → respektive
+        // lista projiceras oberoende (yrkesgrupper tom, övriga två fyllda).
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: null,
+            preferredRegions: ["stockholm_AB", "vastra_gotaland_VG"],
+            preferredEmploymentTypes: ["et_fast"]).Value;
+
+        var result = await HandleForSeekerWithPrefsAsync(prefs);
+
+        result.ShouldNotBeNull();
+        result.PreferredOccupationGroups.ShouldBeEmpty();
+        result.PreferredRegions.ShouldBe(["stockholm_AB", "vastra_gotaland_VG"]);
+        result.PreferredEmploymentTypes.ShouldBe(["et_fast"]);
+    }
 }

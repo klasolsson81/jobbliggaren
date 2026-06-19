@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { getMyProfile } from "@/lib/api/me";
+import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { SettingsForm } from "@/components/settings/settings-form";
 
 /**
@@ -20,8 +21,17 @@ export default async function InstallningarPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const profileResult = await getMyProfile();
+  // Profil + taxonomi parallellt (Promise.all) — taxonomin matar matchnings-
+  // kortets väljare. Taxonomi-fel ⇒ `null` (kortet degraderar civilt, kraschar
+  // inte); profilen styr fortfarande resten av sidan.
+  const [profileResult, taxonomyResult] = await Promise.all([
+    getMyProfile(),
+    getTaxonomyTree(),
+  ]);
   if (profileResult.kind === "unauthorized") redirect("/logga-in");
+
+  const taxonomy =
+    taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,6 +46,7 @@ export default async function InstallningarPage() {
         <SettingsForm
           initialProfile={profileResult.data}
           userEmail={user.email}
+          taxonomy={taxonomy}
         />
       ) : (
         <p className="text-body text-text-secondary">

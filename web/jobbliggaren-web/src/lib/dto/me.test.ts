@@ -51,6 +51,11 @@ describe("jobSeekerProfileSchema", () => {
     emailNotifications: true,
     weeklySummary: false,
     createdAt: "2026-05-11T10:00:00Z",
+    // F4-12 PR-B (ADR 0076) — matchnings-önskemål + härlett nudge-flagg.
+    hasStatedDesiredOccupation: false,
+    preferredOccupationGroups: [],
+    preferredRegions: [],
+    preferredEmploymentTypes: [],
   };
 
   it("accepts valid profile", () => {

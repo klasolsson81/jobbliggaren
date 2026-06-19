@@ -157,8 +157,32 @@ export function OversiktPage({
     });
   }
 
-  const infoNotices: NoticeData[] = [
-    {
+  // F4-12 PR-B (ADR 0076): setup-nudge ↔ mock-match-notis är ÖMSESIDIGT
+  // uteslutande och styrs av `hasStatedDesiredOccupation`. Du kan inte ha
+  // "annonser som matchar din profil" innan en profil finns — det vore
+  // ohederligt. Yrke angett → mock-match-notis. Ej angett → setup-nudge.
+  // Aldrig båda (undviker två motsägande "Matchning"-rader).
+  const hasStatedOccupation =
+    profile.kind === "ok" && profile.data.hasStatedDesiredOccupation;
+
+  const infoNotices: NoticeData[] = [];
+
+  if (!hasStatedOccupation) {
+    // Persistent, icke-avfärdbar nudge — stabilt id UTAN dateSlug (ska bestå
+    // tills användaren angett ett yrke, inte återkomma per dag). Tom `time`
+    // → NoticeRow renderar ingen tids-span.
+    infoNotices.push({
+      id: "n-setup-match",
+      kind: "info",
+      dismissible: false,
+      label: "Matchning",
+      text: "Du har inte angett vilka yrken du söker inom. Ställ in det för att se hur väl annonser matchar din profil.",
+      cta: "Ställ in matchning",
+      href: "/installningar#matchning",
+      time: "",
+    });
+  } else {
+    infoNotices.push({
       id: `n-match-${dateSlug}`,
       kind: "info",
       label: "Matchning",
@@ -173,8 +197,8 @@ export function OversiktPage({
       href: "/jobb",
       // MOCK: BE-port saknas för matchning-uppdaterings-stämpel
       time: "i dag",
-    },
-  ];
+    });
+  }
 
   if (recentInterviews.length > 0) {
     const interview = recentInterviews[0]!;

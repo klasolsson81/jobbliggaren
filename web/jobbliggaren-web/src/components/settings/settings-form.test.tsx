@@ -30,21 +30,30 @@ const baseProfile: JobSeekerProfileDto = {
   emailNotifications: true,
   weeklySummary: false,
   createdAt: "2026-05-01T08:00:00Z",
+  hasStatedDesiredOccupation: false,
+  preferredOccupationGroups: [],
+  preferredRegions: [],
+  preferredEmploymentTypes: [],
 };
 
 describe("SettingsForm — F6 Prompt 2 smoke", () => {
-  it("renderar alla 5 kort i rätt ordning", () => {
+  it("renderar alla kort i rätt ordning (Matchning efter Personuppgifter)", () => {
     render(
       <SettingsForm
         initialProfile={baseProfile}
         userEmail="klas@example.se"
+        taxonomy={null}
       />,
     );
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((h) => h.textContent);
+    // F4-12 PR-B (ADR 0076): Matchning-kortet ligger i första kolumnen efter
+    // Personuppgifter. `taxonomy={null}` → kortet degraderar men behåller sin
+    // h2-rubrik.
     expect(headings).toEqual([
       "Personuppgifter",
+      "Matchning",
       "Visning",
       "Aviseringar",
       "Sekretess och data",
@@ -57,6 +66,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       <SettingsForm
         initialProfile={baseProfile}
         userEmail="klas@example.se"
+        taxonomy={null}
       />,
     );
     const name = screen.getByLabelText("Namn") as HTMLInputElement;
@@ -72,6 +82,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       <SettingsForm
         initialProfile={baseProfile}
         userEmail="klas@example.se"
+        taxonomy={null}
       />,
     );
     expect(screen.queryByLabelText(/Telefon/i)).not.toBeInTheDocument();
@@ -82,6 +93,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       <SettingsForm
         initialProfile={baseProfile}
         userEmail="klas@example.se"
+        taxonomy={null}
       />,
     );
     const themeGroup = screen.getByRole("radiogroup", { name: "Tema" });
@@ -97,6 +109,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       <SettingsForm
         initialProfile={baseProfile}
         userEmail="klas@example.se"
+        taxonomy={null}
       />,
     );
     const switches = screen.getAllByRole("switch");
@@ -114,6 +127,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       <SettingsForm
         initialProfile={baseProfile}
         userEmail="klas@example.se"
+        taxonomy={null}
       />,
     );
     expect(screen.getByTestId("delete-account-stub")).toBeInTheDocument();
@@ -124,6 +138,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       <SettingsForm
         initialProfile={baseProfile}
         userEmail="klas@example.se"
+        taxonomy={null}
       />,
     );
     expect(

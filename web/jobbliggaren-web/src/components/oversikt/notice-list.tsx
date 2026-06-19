@@ -104,7 +104,12 @@ export function NoticeList({
   );
 
   const dismissAll = useCallback(() => {
-    const allIds = [...actionNotices, ...infoNotices].map((n) => n.id);
+    // F4-12 PR-B (ADR 0076): icke-avfärdbara notiser (setup-nudgen) får INTE
+    // markeras som lästa — de exkluderas ur id-insamlingen så "Markera alla
+    // som lästa" lämnar dem synliga.
+    const allIds = [...actionNotices, ...infoNotices]
+      .filter((n) => n.dismissible !== false)
+      .map((n) => n.id);
     const next = new Set(dismissed);
     for (const id of allIds) next.add(id);
     persist(next);
@@ -115,15 +120,29 @@ export function NoticeList({
     });
   }, [actionNotices, infoNotices, dismissed, persist]);
 
+  // En icke-avfärdbar notis är ALLTID synlig (filtreras aldrig av dismissed-
+  // mängden); en avfärdbar göms när dess id finns i dismissed.
+  const isVisible = useCallback(
+    (n: NoticeData) => n.dismissible === false || !dismissed.has(n.id),
+    [dismissed]
+  );
+
   const visibleAction = useMemo(
-    () => actionNotices.filter((n) => !dismissed.has(n.id)),
-    [actionNotices, dismissed]
+    () => actionNotices.filter(isVisible),
+    [actionNotices, isVisible]
   );
   const visibleInfo = useMemo(
-    () => infoNotices.filter((n) => !dismissed.has(n.id)),
-    [infoNotices, dismissed]
+    () => infoNotices.filter(isVisible),
+    [infoNotices, isVisible]
   );
   const visibleCount = visibleAction.length + visibleInfo.length;
+
+  // "Markera alla som lästa" visas bara när minst en SYNLIG notis faktiskt går
+  // att avfärda — annars vore knappen en no-op (t.ex. när bara den persistenta
+  // setup-nudgen finns kvar).
+  const hasDismissibleVisible =
+    visibleAction.some((n) => n.dismissible !== false) ||
+    visibleInfo.some((n) => n.dismissible !== false);
 
   return (
     <section className="jp-section" aria-labelledby="oversikt-notiser">
@@ -135,7 +154,7 @@ export function NoticeList({
           senast uppdaterad <span className="jp-mono">{lastUpdated}</span>
         </span>
         <span style={{ flex: 1 }} />
-        {visibleCount > 0 && (
+        {hasDismissibleVisible && (
           <button
             type="button"
             className="jp-btn jp-btn--ghost jp-btn--sm"

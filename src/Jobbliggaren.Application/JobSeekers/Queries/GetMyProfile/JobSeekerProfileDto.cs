@@ -10,9 +10,16 @@ public sealed record JobSeekerProfileDto(
     bool WeeklySummary,
     DateTimeOffset CreatedAt,
     // F4-12 (ADR 0076) — derived signal for the setup nudge: true once the user
-    // has stated at least one desired occupation-group. Drives the "du har inte
-    // angett ditt drömjobb"-affordance (no stored flag; empty preferences = false).
-    bool HasStatedDesiredOccupation)
+    // has stated at least one desired occupation-group. Drives the "ange vilka
+    // yrken du söker inom"-affordance (no stored flag; empty preferences = false).
+    bool HasStatedDesiredOccupation,
+    // F4-12 (ADR 0076) — the stated match preferences, projected so the settings
+    // card pre-fills the user's current selections. Required because the write is
+    // a full-replace PUT: without the current lists, editing would silently wipe
+    // prior selections. Concept-id projections of the VO (no domain leak, no PII).
+    IReadOnlyList<string> PreferredOccupationGroups,
+    IReadOnlyList<string> PreferredRegions,
+    IReadOnlyList<string> PreferredEmploymentTypes)
 {
     public static JobSeekerProfileDto FromDomain(JobSeeker js) => new(
         js.Id.Value,
@@ -21,5 +28,8 @@ public sealed record JobSeekerProfileDto(
         js.Preferences.EmailNotifications,
         js.Preferences.WeeklySummary,
         js.CreatedAt,
-        js.MatchPreferences.PreferredOccupationGroups.Count > 0);
+        js.MatchPreferences.PreferredOccupationGroups.Count > 0,
+        js.MatchPreferences.PreferredOccupationGroups,
+        js.MatchPreferences.PreferredRegions,
+        js.MatchPreferences.PreferredEmploymentTypes);
 }

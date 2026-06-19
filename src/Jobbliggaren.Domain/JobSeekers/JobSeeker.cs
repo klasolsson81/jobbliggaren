@@ -9,6 +9,13 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     public Guid UserId { get; private set; }
     public string DisplayName { get; private set; } = null!;
     public Preferences Preferences { get; private set; } = null!;
+
+    // F4-12 (ADR 0076) — the user's STATED job-search preferences (desired
+    // occupation-groups/regions/employment-types) that feed the deterministic
+    // match score. Distinct concern from notification/locale Preferences (SRP).
+    // Defaults to Empty so a freshly-registered seeker has a valid (empty) value.
+    public MatchPreferences MatchPreferences { get; private set; } = MatchPreferences.Empty;
+
     public ResumeId? PrimaryResumeId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
@@ -73,6 +80,19 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     public void UpdatePreferences(Preferences preferences, IDateTimeProvider clock)
     {
         Preferences = preferences;
+        UpdatedAt = clock.UtcNow;
+    }
+
+    /// <summary>
+    /// Sets the job-seeker's STATED job-search preferences (F4-12, ADR 0076).
+    /// Mirrors <see cref="UpdatePreferences"/>: replaces the value object + bumps
+    /// <see cref="UpdatedAt"/>. Raises NO domain event — there is no reactive
+    /// consumer (matching is compute-on-demand; CTO-bound). An empty
+    /// <see cref="MatchPreferences"/> is valid (clears stated preferences).
+    /// </summary>
+    public void UpdateMatchPreferences(MatchPreferences matchPreferences, IDateTimeProvider clock)
+    {
+        MatchPreferences = matchPreferences;
         UpdatedAt = clock.UtcNow;
     }
 

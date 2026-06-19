@@ -8,7 +8,11 @@ public sealed record JobSeekerProfileDto(
     string Language,
     bool EmailNotifications,
     bool WeeklySummary,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset CreatedAt,
+    // F4-12 (ADR 0076) — derived signal for the setup nudge: true once the user
+    // has stated at least one desired occupation-group. Drives the "du har inte
+    // angett ditt drömjobb"-affordance (no stored flag; empty preferences = false).
+    bool HasStatedDesiredOccupation)
 {
     public static JobSeekerProfileDto FromDomain(JobSeeker js) => new(
         js.Id.Value,
@@ -16,5 +20,6 @@ public sealed record JobSeekerProfileDto(
         js.Preferences.Language,
         js.Preferences.EmailNotifications,
         js.Preferences.WeeklySummary,
-        js.CreatedAt);
+        js.CreatedAt,
+        js.MatchPreferences.PreferredOccupationGroups.Count > 0);
 }

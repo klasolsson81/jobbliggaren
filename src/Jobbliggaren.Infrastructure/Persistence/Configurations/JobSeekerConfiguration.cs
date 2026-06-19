@@ -26,6 +26,19 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
             prefs.ToJson();
         });
 
+        // F4-12 (ADR 0076) — MatchPreferences as a jsonb column via a property-level
+        // ValueConverter (parity with SearchCriteria; OwnsOne().ToJson() does not map
+        // IReadOnlyList<string> stably, Npgsql #3129). Comparer carries the VO's
+        // structural equality. Column default '{}' → an existing row deserializes to
+        // MatchPreferences.Empty (the converter treats missing keys as empty lists).
+        var matchPreferences = builder.Property(js => js.MatchPreferences)
+            .HasConversion(MatchPreferencesConversion.Converter)
+            .HasColumnName("match_preferences")
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'{}'::jsonb")
+            .IsRequired();
+        matchPreferences.Metadata.SetValueComparer(MatchPreferencesConversion.Comparer);
+
         // ADR 0058 + ADR 0059: primary-state ägs av JobSeeker-aggregatet
         // (Alt A2 per senior-cto-advisor 2026-05-20). Ingen FK till resumes
         // — soft-delete-mönster + cascade-handler i DeleteResumeCommandHandler

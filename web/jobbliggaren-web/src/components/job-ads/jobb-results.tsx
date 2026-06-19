@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
+import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
 import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
+import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { assertNever } from "@/lib/dto/_helpers";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
@@ -133,9 +135,22 @@ export async function JobbResults({
       // på list-kort). Anonym/utan-auth → tomma set:n (degraderar civilt,
       // inga taggar visas). Max 100 IDs per anrop = validator-cap.
       const itemIds = result.data.items.map((it) => it.id);
-      const status = await getJobAdStatusBatch(itemIds);
+      const [status, matchTags] = await Promise.all([
+        getJobAdStatusBatch(itemIds),
+        // F4-13 (ADR 0076) — graderad match-tagg-overlay. Anonym/utan-auth →
+        // tom batch (degraderar civilt, inga taggar). POSITIVE-ONLY: bara
+        // annonser med positiv grad finns i `entries`.
+        getJobAdMatchTags(itemIds),
+      ]);
       const savedIdSet = new Set(status.savedIds);
       const appliedIdSet = new Set(status.appliedIds);
+      // Map<JobAdId, MatchGrade> — O(1)-lookup per kort (paritet med
+      // savedIdSet/appliedIdSet). `entries` är ett plain Record; bygg Map här.
+      const matchGradeById = new Map<string, MatchGrade>(
+        Object.entries(matchTags.entries).map(
+          ([id, entry]) => [id, entry.grade] as const
+        )
+      );
 
       return (
         <>
@@ -160,6 +175,7 @@ export async function JobbResults({
               jobAds={result.data.items}
               savedIdSet={savedIdSet}
               appliedIdSet={appliedIdSet}
+              matchGradeById={matchGradeById}
             />
             <JobAdPagination
               page={result.data.page}

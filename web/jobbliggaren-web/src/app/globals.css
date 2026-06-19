@@ -1869,14 +1869,18 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-matchchip--mid {
   /* G1 (architect-fynd): mid får INTE bli accent-grön — skulle kollidera
-     med success-/high-semantiken. Neutral variant; flaggad för
-     design-reviewer/Klas. */
+     med success-/high-semantiken. Neutral variant. Kant = --jp-border-input
+     (≥3:1 non-text-kontrast i light; --jp-border-strong mäter 2,52:1 och
+     föll design-reviewer M1, F4-13). */
   color: var(--jp-ink-2);
   background: var(--jp-surface-2);
-  border-color: var(--jp-border-strong);
+  border-color: var(--jp-border-input);
 }
 .jp-matchchip--low {
-  color: var(--jp-ink-3);
+  /* Text = --jp-ink-2 (body 4,5:1); --jp-ink-3 mäter ~3,0:1 på surface-3 och
+     når ej large-text-tröskeln vid 13px/700 → design-reviewer B1 (WCAG 1.4.3),
+     F4-13. Pricken ärver via currentColor. */
+  color: var(--jp-ink-2);
   background: var(--jp-surface-3);
   border-color: var(--jp-border);
 }

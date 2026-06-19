@@ -127,6 +127,30 @@ if (scenarioSelector is "q-count" or "all")
     scenarioBudgets[qCount.ScenarioName] = FreeTextCountScenarios.Class_A_P95_BudgetMs;
 }
 
+// F4-13 (ADR 0076 Decision 5) — POST /api/v1/me/job-ad-match-tags.
+// Klass (a) p95 ≤ 300 ms (ADR 0045 Beslut 1). Anonym-tolerant men kräver
+// LOADTEST_BEARER_TOKEN för autentiserad hot-path-mätning (2 DB-round-trips +
+// in-memory scoring). Utan token kör scenariot anonymt → handler short-circuit:ar
+// → latensen mäter pipeline-overhead men INTE 2 DB-round-trips (tyst svag signal).
+// Standard: 20-ID-payload (FE:s pageSize). Stress: 100-ID-payload (validator-cap).
+if (scenarioSelector is "match-tags" or "all")
+{
+    var matchTagsNormal = MatchTagBatchScenarios.NormalPageSizeBatch(httpClient, baseUrl);
+
+    scenarios.Add(matchTagsNormal);
+
+    scenarioBudgets[matchTagsNormal.ScenarioName] = MatchTagBatchScenarios.Class_A_P95_BudgetMs;
+}
+
+if (scenarioSelector is "match-tags-stress" or "all")
+{
+    var matchTagsStress = MatchTagBatchScenarios.StressCapBatch(httpClient, baseUrl);
+
+    scenarios.Add(matchTagsStress);
+
+    scenarioBudgets[matchTagsStress.ScenarioName] = MatchTagBatchScenarios.Class_A_P95_BudgetMs;
+}
+
 Console.WriteLine(
     $"::notice::Load-test runner startar — baseUrl={baseUrl}, " +
     $"scenarios=[{string.Join(", ", scenarios.Select(s => s.ScenarioName))}], " +

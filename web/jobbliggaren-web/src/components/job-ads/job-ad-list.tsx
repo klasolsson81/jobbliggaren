@@ -1,5 +1,6 @@
 import { JobAdCard } from "./job-ad-card";
 import type { JobAdDto } from "@/lib/dto/job-ads";
+import type { MatchGrade } from "@/lib/dto/job-ad-match";
 
 interface JobAdListProps {
   jobAds: ReadonlyArray<JobAdDto>;
@@ -10,12 +11,20 @@ interface JobAdListProps {
    */
   savedIdSet?: ReadonlySet<string>;
   appliedIdSet?: ReadonlySet<string>;
+  /**
+   * F4-13 (ADR 0076) — graderad match-tagg per kort. Map<JobAdId, MatchGrade>
+   * för O(1)-lookup (paritet med saved/applied-set:n). Saknad nyckel = ingen
+   * positiv grad ⇒ ingen chip (POSITIVE-ONLY). Tom/utelämnad map = anonym
+   * eller ingen match (chips visas inte).
+   */
+  matchGradeById?: ReadonlyMap<string, MatchGrade>;
 }
 
 export function JobAdList({
   jobAds,
   savedIdSet,
   appliedIdSet,
+  matchGradeById,
 }: JobAdListProps) {
   if (jobAds.length === 0) {
     // Ingen `role=status`/`aria-live` här — page.tsx har redan en live-region
@@ -38,6 +47,7 @@ export function JobAdList({
             jobAd={jobAd}
             isSaved={savedIdSet?.has(jobAd.id) ?? false}
             isApplied={appliedIdSet?.has(jobAd.id) ?? false}
+            matchGrade={matchGradeById?.get(jobAd.id)}
           />
         </li>
       ))}

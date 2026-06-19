@@ -50,6 +50,10 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     private const string RegionColumn = "RegionConceptId";
     private const string EmploymentTypeColumn = "EmploymentTypeConceptId";
 
+    // Shared empty result for the no-ids batch fast-path (no allocation per call).
+    private static readonly IReadOnlyDictionary<JobAdId, MatchScore> EmptyScores =
+        new Dictionary<JobAdId, MatchScore>();
+
     public async ValueTask<MatchScore> ScoreAsync(
         JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken)
     {
@@ -79,6 +83,66 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             TitleSimilarity: ScoreTitle(profile.Title, ad.Title),
             RegionFit: ScoreMembership(profile.PreferredRegionConceptIds, ad.RegionConceptId),
             EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+    }
+
+    // Fas 4 STEG 13 (F4-13, ADR 0076 Decision 5; senior-cto-advisor 2026-06-19
+    // Decision A=A1) — the zero-N+1 batch form of ScoreAsync (the page-scoped match-tag
+    // overlay, parity isSaved/isApplied per ADR 0063). It loads ALL requested ads' Fast
+    // shadow rows in ONE round-trip, then runs the SAME four dim-helpers in-memory per
+    // row (so each MatchScore equals ScoreAsync for that ad + profile — the regression
+    // contract). NO AI/LLM.
+    public async ValueTask<IReadOnlyDictionary<JobAdId, MatchScore>> ScoreBatchAsync(
+        IReadOnlyList<JobAdId> jobAdIds, CandidateMatchProfile profile, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(jobAdIds);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        if (jobAdIds.Count == 0)
+        {
+            return EmptyScores;
+        }
+
+        var ids = jobAdIds.Select(id => id.Value).Distinct().ToArray();
+
+        // ONE round-trip, filtered by id IN (...) via parameterized `= ANY`. EF Core 10 +
+        // Npgsql cannot translate Contains() over the strongly-typed JobAdId key (memory
+        // ef_strongly_typed_vo_contains — both `List<JobAdId>.Contains(j.Id)` AND the
+        // post-Select `.Value` form fail at runtime, verified in CI). job_ads is unbounded,
+        // so the status-batch "load-all-for-seeker-then-client-filter" escape does not
+        // apply. FromSql parameterizes the Guid[] (`= ANY(@p)`, injection-safe, NOT
+        // concatenation — CLAUDE.md §5), composes with the global soft-delete query filter
+        // (DeletedAt == null → soft-deleted ads are absent ⇒ no tag) and the EF.Property
+        // shadow projection (stays in Infrastructure, ADR 0062). The Testcontainers
+        // integration test is the oracle (InMemory hides the translation — same memory).
+        var rows = await db.JobAds
+            .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
+            .AsNoTracking()
+            .Select(j => new AdBatchShadowRow(
+                j.Id,
+                j.Title,
+                EF.Property<string?>(j, OccupationGroupColumn),
+                EF.Property<string?>(j, RegionColumn),
+                EF.Property<string?>(j, EmploymentTypeColumn)))
+            .ToListAsync(cancellationToken);
+
+        // Hoist the CV-title lexeme computation OUT of the per-ad loop (CTO Decision E):
+        // the profile — hence the CV title — is constant across the batch. For F4-13's
+        // preference profile Title is always empty ⇒ cvTitleLexemes is empty ⇒ every title
+        // dimension reads NotAssessed; the hoist keeps the port general (a future
+        // non-empty-title caller is not re-stemmed per ad).
+        var cvTitleLexemes = TryCvTitleLexemes(profile.Title);
+
+        var result = new Dictionary<JobAdId, MatchScore>(rows.Count);
+        foreach (var ad in rows)
+        {
+            result[ad.Id] = new MatchScore(
+                SsykOverlap: ScoreMembership(profile.SsykGroupConceptIds, ad.OccupationGroupConceptId),
+                TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
+                RegionFit: ScoreMembership(profile.PreferredRegionConceptIds, ad.RegionConceptId),
+                EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+        }
+
+        return result;
     }
 
     // Fas 4 STEG 6 (F4-6, ADR 0074 row U5b; senior-cto-advisor Decision A=A2 /
@@ -217,38 +281,63 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // threshold (CLAUDE.md §5). Match = all ad lexemes covered; Partial = overlap +
     // leftover; NoMatch = disjoint (both non-empty); NotAssessed = either side has no
     // lexemes (blank/all-stopword title) or a non-Swedish analysis request.
+    // The single-ad path stems the CV title inline; the batch path (ScoreBatchAsync)
+    // hoists it once. Both share the precomputed-CV overload below.
     private MatchDimension ScoreTitle(string cvTitle, string adTitle)
+        => ScoreTitle(TryCvTitleLexemes(cvTitle), adTitle);
+
+    // Stems the CV title once into its lexeme set (Swedish). Returns null when the
+    // analysis is unsupported — the forward-compat dormant guard (CTO re-ruling
+    // 2026-06-15): F4-5/F4-13 always request Swedish (the Platsbanken corpus is Swedish;
+    // the preference profile has no language signal and language detection is F4-8/9,
+    // ADR 0074 amendment) so this does not fire today. When the language-aware matcher
+    // contract arrives (ParsedResume carries a detected language), a non-Swedish request
+    // degrades every title dimension to NotAssessed instead of crashing. Caught NARROWLY
+    // around the analyzer call only (CLAUDE.md §5 — no catch-all).
+    private HashSet<string>? TryCvTitleLexemes(string cvTitle)
     {
-        IReadOnlyList<string> cvLexemes;
-        IReadOnlyList<string> adLexemes;
         try
         {
-            cvLexemes = analyzer.ToLexemes(cvTitle, TextLanguage.Swedish);
-            adLexemes = analyzer.ToLexemes(adTitle, TextLanguage.Swedish);
+            return analyzer.ToLexemes(cvTitle, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal);
         }
         catch (NotSupportedException)
         {
-            // Forward-compat dormant guard (CTO re-ruling 2026-06-15): F4-5 always
-            // requests Swedish (the Platsbanken corpus is Swedish; the profile has
-            // no language signal and language detection is F4-8/9, ADR 0074
-            // amendment) — so this does not fire in F4-5. When the language-aware
-            // matcher contract arrives at F4-8/9 (ParsedResume carries a detected
-            // language), a non-Swedish request degrades the title dimension to
-            // NotAssessed instead of crashing. Caught NARROWLY around the analyzer
-            // calls only (CLAUDE.md §5 — no catch-all).
-            return NotAssessed();
+            return null;
         }
+    }
 
-        var cv = cvLexemes.ToHashSet(StringComparer.Ordinal);
-        var ad = adLexemes.ToHashSet(StringComparer.Ordinal);
-
-        if (cv.Count == 0 || ad.Count == 0)
+    // Title similarity via stemmed lexeme overlap (F4-2), given the precomputed CV
+    // lexeme set (null ⇒ unsupported CV-side ⇒ NotAssessed). Matched = ad ∩ cv lexemes;
+    // Missing = ad \ cv (the civic-useful direction: "what the ad wants that you lack").
+    // Verdict derives from set emptiness ONLY — no hardcoded ratio/Jaccard threshold
+    // (CLAUDE.md §5). Match = all ad lexemes covered; Partial = overlap + leftover;
+    // NoMatch = disjoint (both non-empty); NotAssessed = either side has no lexemes
+    // (blank/all-stopword title) or a non-Swedish ad-title analysis request (caught
+    // NARROWLY around the analyzer call only).
+    private MatchDimension ScoreTitle(HashSet<string>? cvLexemes, string adTitle)
+    {
+        if (cvLexemes is null)
         {
             return NotAssessed();
         }
 
-        var matched = ad.Where(cv.Contains).OrderBy(l => l, StringComparer.Ordinal).ToList();
-        var missing = ad.Where(l => !cv.Contains(l)).OrderBy(l => l, StringComparer.Ordinal).ToList();
+        HashSet<string> ad;
+        try
+        {
+            ad = analyzer.ToLexemes(adTitle, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal);
+        }
+        catch (NotSupportedException)
+        {
+            return NotAssessed();
+        }
+
+        if (cvLexemes.Count == 0 || ad.Count == 0)
+        {
+            return NotAssessed();
+        }
+
+        var matched = ad.Where(cvLexemes.Contains).OrderBy(l => l, StringComparer.Ordinal).ToList();
+        var missing = ad.Where(l => !cvLexemes.Contains(l)).OrderBy(l => l, StringComparer.Ordinal).ToList();
 
         var verdict = matched.Count == 0
             ? MatchDimensionVerdict.NoMatch
@@ -266,6 +355,16 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // A constructor-projected type (EF maps the ctor); shadow values are nullable
     // (NULL ⇒ the ad has no value on that dimension ⇒ NotAssessed).
     private sealed record AdShadowRow(
+        string Title,
+        string? OccupationGroupConceptId,
+        string? RegionConceptId,
+        string? EmploymentTypeConceptId);
+
+    // The batch row (F4-13) — AdShadowRow plus the JobAdId key, so ScoreBatchAsync can
+    // key the result dictionary. j.Id materializes via its value converter (parity the
+    // single-ad equality filter); shadow values are nullable (NULL ⇒ NotAssessed).
+    private sealed record AdBatchShadowRow(
+        JobAdId Id,
         string Title,
         string? OccupationGroupConceptId,
         string? RegionConceptId,

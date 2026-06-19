@@ -14,6 +14,13 @@ export interface NoticeData {
   readonly cta: string;
   readonly href: string;
   readonly time: string;
+  /**
+   * F4-12 PR-B (ADR 0076): en notis kan vara icke-avfärdbar (default `true`).
+   * `false` på den persistenta setup-nudgen — den ska inte gå att markera som
+   * läst, den löses upp först när användaren angett ett yrke. Då renderas
+   * ingen dismiss-knapp (X).
+   */
+  readonly dismissible?: boolean;
 }
 
 interface NoticeRowProps {
@@ -30,16 +37,20 @@ export function NoticeRow({ notice, onDismiss }: NoticeRowProps) {
       <Link href={notice.href} className="jp-notice__cta">
         {notice.cta} <ArrowRight size={13} aria-hidden="true" />
       </Link>
-      <span className="jp-notice__time">{notice.time}</span>
-      <button
-        type="button"
-        className="jp-notice__dismiss"
-        aria-label="Markera som läst"
-        title="Markera som läst"
-        onClick={() => onDismiss(notice.id)}
-      >
-        <X size={16} aria-hidden="true" />
-      </button>
+      {notice.time !== "" && (
+        <span className="jp-notice__time">{notice.time}</span>
+      )}
+      {notice.dismissible !== false && (
+        <button
+          type="button"
+          className="jp-notice__dismiss"
+          aria-label="Markera som läst"
+          title="Markera som läst"
+          onClick={() => onDismiss(notice.id)}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      )}
     </li>
   );
 }

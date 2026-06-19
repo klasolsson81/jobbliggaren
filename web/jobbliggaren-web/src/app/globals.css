@@ -2440,6 +2440,25 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-2);
   margin: 0;
 }
+
+/* ── Matchnings-önskemål-kort (F4-12 PR-B, ADR 0076) ──
+   Återanvänder .jp-card-skalet + .jp-checkitem/.jp-clearlink-mönstret.
+   Endast två oundvikliga tillägg, båda på befintliga tokens:
+   1) en scroll-container för långa kryssrute-listor (~400 ssyk-4-grupper)
+   2) en synlig fokus-ring för .jp-checkitem i kort-kontext — den befintliga
+      regeln är scoped till `.jp-panel .jp-checkitem:focus-visible` och når
+      inte hit (WCAG 2.4.7). Speglar den regeln verbatim, om-scopad. */
+.jp-matchprefs__scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-matchprefs .jp-checkitem:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
+
 .jp-modal__foot {
   display: flex;
   gap: 10px;

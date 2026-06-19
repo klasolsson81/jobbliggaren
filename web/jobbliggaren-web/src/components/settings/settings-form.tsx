@@ -9,15 +9,23 @@ import {
 } from "@/lib/actions/me-schemas";
 import { updateMyProfileAction } from "@/lib/actions/me";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
+import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { PersonalInfoCard } from "./personal-info-card";
 import { DisplayCard } from "./display-card";
 import { NotificationsCard } from "./notifications-card";
+import { MatchPreferencesCard } from "./match-preferences-card";
 import { PrivacyCard } from "./privacy-card";
 import { LogoutCard } from "./logout-card";
 
 interface SettingsFormProps {
   initialProfile: JobSeekerProfileDto;
   userEmail: string;
+  /**
+   * Taxonomi-trädet för matchnings-kortets väljare. `null` när
+   * `getTaxonomyTree()` failade — kortet degraderar civilt (visar en lugn
+   * "kunde inte läsas in"-text i stället för väljarna).
+   */
+  taxonomy: TaxonomyTree | null;
 }
 
 type LanguageValue = "sv" | "en";
@@ -46,7 +54,11 @@ type LanguageValue = "sv" | "en";
  *  - "Exportera mina data" + "Radera konto" hänvisar till befintliga flöden
  *    (DeleteAccountSection) eller stub-handler
  */
-export function SettingsForm({ initialProfile, userEmail }: SettingsFormProps) {
+export function SettingsForm({
+  initialProfile,
+  userEmail,
+  taxonomy,
+}: SettingsFormProps) {
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [language, setLanguage] = useState<LanguageValue>(
@@ -136,6 +148,19 @@ export function SettingsForm({ initialProfile, userEmail }: SettingsFormProps) {
           savedAt={savedAt}
           onDisplayNameChange={setDisplayName}
           onSubmit={onSavePersonalInfo}
+        />
+        {/* F4-12 PR-B (ADR 0076): matchnings-önskemål. Kortet äger sin EGEN
+            save (egen action/endpoint, egen useTransition) — INTE den delade
+            applyChange/updateMyProfileSchema-flödet. `id="matchning"` på kortet
+            ankrar nudge-länken /installningar#matchning. */}
+        <MatchPreferencesCard
+          occupationFields={taxonomy?.occupationFields ?? []}
+          regions={taxonomy?.regions ?? []}
+          employmentTypes={taxonomy?.employmentTypes ?? []}
+          initialOccupationGroups={initialProfile.preferredOccupationGroups}
+          initialRegions={initialProfile.preferredRegions}
+          initialEmploymentTypes={initialProfile.preferredEmploymentTypes}
+          degraded={taxonomy === null}
         />
       </div>
 

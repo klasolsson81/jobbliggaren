@@ -2,6 +2,7 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateMyProfile;
 using Jobbliggaren.Application.JobSeekers.Queries.GetMyProfile;
 using Mediator;
@@ -35,6 +36,23 @@ public static class MeEndpoints
                 ? Results.Ok()
                 : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
         }).RequireAuthorization();
+
+        // F4-12 (ADR 0076) — stated match preferences SSOT (occupation-groups /
+        // regions / employment-types). PUT = idempotent full-replace of all three
+        // collections (the command carries the complete set; it does not merge).
+        // All-empty is a valid write (clears preferences / honest NotAssessed) — no
+        // CV/PII read (the profile-builder is preference-driven). MeWritePolicy
+        // (not the unrated PATCH /profile path) per the user-owned mutation precedent
+        // (saved-job-ads / recent-searches), senior-cto-advisor 2026-06-19.
+        group.MapPut("/match-preferences", async (
+            SetMatchPreferencesCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
         // GDPR Art. 17 — Right to erasure. Soft-deletar kontot + alla user-ägda
         // aggregat i samma transaction (DeleteAccountCommand → UnitOfWorkBehavior).

@@ -24,6 +24,10 @@ function makeProfile(
     emailNotifications: true,
     weeklySummary: false,
     createdAt: "2026-01-01T00:00:00Z",
+    hasStatedDesiredOccupation: false,
+    preferredOccupationGroups: [],
+    preferredRegions: [],
+    preferredEmploymentTypes: [],
     ...overrides,
   };
 }

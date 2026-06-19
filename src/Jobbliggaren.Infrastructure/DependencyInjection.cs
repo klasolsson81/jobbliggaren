@@ -176,6 +176,16 @@ public static class DependencyInjection
             Jobbliggaren.Application.Matching.Abstractions.IMatchScorer,
             Jobbliggaren.Infrastructure.Matching.MatchScorer>();
 
+        // Fas 4 STEG 12/13 (ADR 0076; senior-cto-advisor 2026-06-19 Decision B = B2) —
+        // the SSOT preference→CandidateMatchProfile mapper, shared by the explicit
+        // BuildMatchProfileFromPreferences query handler AND the F4-13 page-scoped
+        // match-tag batch handler (DRY, no handler-invokes-handler). Lives in the
+        // Application layer (touches only IAppDbContext + ICurrentUser — no Infra secret),
+        // registered here with the other matching ports. Scoped (touches AppDbContext).
+        services.AddScoped<
+            Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder,
+            Jobbliggaren.Application.Matching.Profiles.MatchProfileBuilder>();
+
         // Fas 4 STEG 7/9 — the CV knowledge bank + the deterministic review engine that
         // consumes it (own module so both hosts AND the Worker test fixture register them
         // independently of the job-source HTTP wiring). See AddCvReview.

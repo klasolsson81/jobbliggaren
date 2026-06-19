@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { getJobSourceLabel } from "@/lib/job-ads/status";
 import type { JobAdDto } from "@/lib/dto/job-ads";
+import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { JobTags } from "./job-tags";
+import { MatchChip } from "./match-chip";
 import { computeFreshnessLabel } from "./freshness";
 
 interface JobAdCardProps {
@@ -9,6 +11,12 @@ interface JobAdCardProps {
   /** PR5 — per-user overlay-status (ADR 0063 batch-port). */
   isSaved?: boolean;
   isApplied?: boolean;
+  /**
+   * F4-13 (ADR 0076) — graderad match-tagg (server-fetchad via
+   * `getJobAdMatchTags`). `undefined` = ingen positiv grad ⇒ ingen chip
+   * (POSITIVE-ONLY). Aldrig en siffra — graden är en namngiven kategori.
+   */
+  matchGrade?: MatchGrade;
 }
 
 function formatDate(iso: string): string {
@@ -68,7 +76,12 @@ function formatPublishedAtWithTime(iso: string): string {
  * markerad av `<MarkJobbVisited />`-island på sidnivå (Klas-direktiv
  * 2026-05-20 — per-annons "läst" gjorde gamla oöppnade annonser röriga).
  */
-export function JobAdCard({ jobAd, isSaved = false, isApplied = false }: JobAdCardProps) {
+export function JobAdCard({
+  jobAd,
+  isSaved = false,
+  isApplied = false,
+  matchGrade,
+}: JobAdCardProps) {
   const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
@@ -87,13 +100,14 @@ export function JobAdCard({ jobAd, isSaved = false, isApplied = false }: JobAdCa
             showNew={jobAd.isNew}
             publishedAtMs={publishedAtMs}
             freshnessLabel={freshnessLabel}
-            // TODO: Fas 4 — koppla mot CV-match-domän + tröskel-beslut
-            // Klas (ADR 0053 amendment: match-score är Fas 4-gated). I
-            // Prompt 1 alltid undefined → "Bra match"-taggen renderas aldrig.
-            matchScore={undefined}
             isSaved={isSaved}
             isApplied={isApplied}
           />
+          {/* F4-13 (ADR 0076) — graderad match-tagg. POSITIVE-ONLY: renderas
+              bara när annonsen har en grad. Lever i titel-radens flex-wrap
+              bredvid JobTags; `.jp-job-tags` har redan margin-left:auto, så
+              chip:en lägger sig efter tagg-blocket högerjusterat. */}
+          {matchGrade && <MatchChip grade={matchGrade} />}
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>
         <div className="jp-job__meta">

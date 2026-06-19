@@ -17,12 +17,18 @@ import { useLastSeenJobs } from "./use-last-seen-jobs";
  * med `publishedAtMs > lastSeen` (tidsstämpel för senaste sid-besök på /jobb).
  * Server-flagga `showNew` (= backend `isNew`, ≤7d-cap) består som defensivt
  * golv: även om lastSeen är gammalt visas aldrig NY på annonser äldre än 7d.
- * Färskhet och match-tröskel beräknas server-side i parent (JobAdCard).
+ * Färskhet beräknas server-side i parent (JobAdCard).
  *
  * PR5 (Klas-feedback 2026-05-23 + CTO Val 4 Variant A): utvidgad med
  * Sparad + Ansökt-taggar (per-user-overlay via ADR 0063 batch-port).
  * `isSaved`/`isApplied` är opt-in flaggor — utelämnas för anonyma/list-yta
  * utan auth → taggar visas inte. Civic-utility: ingen "Inte sparad"-tagg.
+ *
+ * F4-13 (ADR 0076, 2026-06-19): den pre-pivot numeriska `matchScore` +
+ * `MATCH_THRESHOLD`-tröskel-taggen ("Bra match" vid ≥75) är BORTTAGEN — en
+ * opak poäng/tröskel är den förbjudna Goodhart-modellen (ADR 0076). Den
+ * graderade match-taggen renderas nu av `MatchChip` (`.jp-matchchip`) direkt
+ * i `JobAdCard`, inte här.
  */
 
 export interface JobTagsProps {
@@ -39,13 +45,6 @@ export interface JobTagsProps {
    */
   freshnessLabel: string | null;
   /**
-   * Match-score från CV-domän. Renderar "Bra match" om >= MATCH_THRESHOLD.
-   * TODO: Fas 4 — koppla mot riktig match-domän + tröskel-beslut Klas
-   * (ADR 0053 amendment — match-score är Fas 4-gated, domän saknas idag).
-   * I Prompt 1 alltid `undefined` → taggen renderas aldrig live.
-   */
-  matchScore?: number;
-  /**
    * F6 P5 Punkt 2 PR5 — per-user-overlay-status (ADR 0063 batch-port).
    * Server-fetchad via `getJobAdStatusBatch` i list-page. Default false.
    */
@@ -53,29 +52,18 @@ export interface JobTagsProps {
   isApplied?: boolean;
 }
 
-const MATCH_THRESHOLD = 75;
-
 export function JobTags({
   showNew,
   publishedAtMs,
   freshnessLabel,
-  matchScore,
   isSaved = false,
   isApplied = false,
 }: JobTagsProps) {
   const lastSeen = useLastSeenJobs();
 
   const renderNew = showNew && publishedAtMs > lastSeen;
-  const renderMatch =
-    matchScore !== undefined && matchScore >= MATCH_THRESHOLD;
 
-  if (
-    !renderNew &&
-    !freshnessLabel &&
-    !renderMatch &&
-    !isSaved &&
-    !isApplied
-  ) {
+  if (!renderNew && !freshnessLabel && !isSaved && !isApplied) {
     return null;
   }
 
@@ -99,11 +87,6 @@ export function JobTags({
       {isApplied && (
         <span className="jp-tag jp-tag--neutral" data-tag="applied">
           Ansökt
-        </span>
-      )}
-      {renderMatch && (
-        <span className="jp-tag jp-tag--brand" data-tag="match">
-          Bra match
         </span>
       )}
     </span>

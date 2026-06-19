@@ -194,6 +194,25 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// POST /api/v1/me/job-ad-match-tags (F4-13 page-scoped match-tag batch-overlay,
+    /// ADR 0076 Decision 5) — <strong>dual-partition</strong>: sub närvarande →
+    /// user:-bucket, annars → ip:-bucket. Anonym-tolerant (INTE RequireAuthorization-
+    /// gated — handler returnerar tom map utan UserId), så ip:-fallbacken är det bärande
+    /// skyddet mot anonym batch-enumeration/DoS. Batch är taklagd (validator-cap = 100
+    /// IDs → en query, ej N+1). EGEN budget (ej fold-in i JobAdStatusBatch) eftersom en
+    /// /jobb-render avfyrar BÅDA overlay-anropen — delad bucket hade låtit det ena svälta
+    /// det andra (bulkhead, Nygard). 60/min speglar JobAdStatusBatch/LandingPublicRead
+    /// (generöst för en list-render-dekoration + scroll/multi-tab, stramt nog mot
+    /// hammering). Bakom reverse-proxy kräver ip:-bucketen UseForwardedHeaders (redan
+    /// wired, Program.cs). security-auditor kan ratcha ned (BLOCKING).
+    /// </summary>
+    public PolicyOptions JobAdMatchBatch { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
     /// Användarägda /me/*-mutationer (saved-job-ads POST/DELETE, recent-searches
     /// DELETE) (Pre-4 STEG 5, TD-87) — partitionerat per UserId (claim "sub"),
     /// anonym → NoLimiter (alla RequireAuthorization-gated). Egen policy (ej

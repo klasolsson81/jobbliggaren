@@ -75,12 +75,7 @@ describe("JobTags (high-water-mark NY-modell)", () => {
 
   it("renders NY when showNew=true and never-visited (lastSeen=0)", () => {
     render(
-      <JobTags
-        showNew={true}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        matchScore={undefined}
-      />,
+      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel={null} />,
     );
     expect(screen.getByText("Ny")).toBeInTheDocument();
   });
@@ -91,7 +86,6 @@ describe("JobTags (high-water-mark NY-modell)", () => {
         showNew={false}
         publishedAtMs={RECENT_MS}
         freshnessLabel={null}
-        matchScore={undefined}
       />,
     );
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
@@ -103,12 +97,7 @@ describe("JobTags (high-water-mark NY-modell)", () => {
       String(Date.parse("2026-05-20T00:00:00Z")),
     );
     render(
-      <JobTags
-        showNew={true}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        matchScore={undefined}
-      />,
+      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel={null} />,
     );
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
@@ -119,24 +108,14 @@ describe("JobTags (high-water-mark NY-modell)", () => {
       String(Date.parse("2026-05-15T00:00:00Z")),
     );
     render(
-      <JobTags
-        showNew={true}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        matchScore={undefined}
-      />,
+      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel={null} />,
     );
     expect(screen.getByText("Ny")).toBeInTheDocument();
   });
 
   it("server-cap (showNew=false) overrides high-water-mark even when lastSeen=0", () => {
     render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={OLD_MS}
-        freshnessLabel={null}
-        matchScore={undefined}
-      />,
+      <JobTags showNew={false} publishedAtMs={OLD_MS} freshnessLabel={null} />,
     );
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
@@ -147,46 +126,26 @@ describe("JobTags (high-water-mark NY-modell)", () => {
         showNew={false}
         publishedAtMs={RECENT_MS}
         freshnessLabel="2 dagar"
-        matchScore={undefined}
       />,
     );
     expect(screen.getByText("2 dagar")).toBeInTheDocument();
   });
 
-  it("renders 'Bra match' when matchScore >= 75 (Fas 4 placeholder)", () => {
-    render(
+  // F4-13 (ADR 0076) — den numeriska matchScore/MATCH_THRESHOLD-taggen är
+  // borttagen (Goodhart-förbud). Match-graden renderas nu av MatchChip i
+  // JobAdCard, inte här; JobTags känner inte längre till match alls.
+  it("does not render a match tag (numeric matchScore-modellen borttagen)", () => {
+    const { container } = render(
       <JobTags
-        showNew={false}
+        showNew={true}
         publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        matchScore={80}
-      />,
-    );
-    expect(screen.getByText("Bra match")).toBeInTheDocument();
-  });
-
-  it("does not render 'Bra match' when matchScore below threshold", () => {
-    render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        matchScore={74}
+        freshnessLabel="Idag"
+        isSaved={true}
+        isApplied={true}
       />,
     );
     expect(screen.queryByText("Bra match")).not.toBeInTheDocument();
-  });
-
-  it("does not render 'Bra match' when matchScore undefined (Prompt 1 default)", () => {
-    render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        matchScore={undefined}
-      />,
-    );
-    expect(screen.queryByText("Bra match")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-tag="match"]')).toBeNull();
   });
 
   it("renders nothing when all tags are absent (no empty container)", () => {
@@ -195,26 +154,19 @@ describe("JobTags (high-water-mark NY-modell)", () => {
         showNew={false}
         publishedAtMs={RECENT_MS}
         freshnessLabel={null}
-        matchScore={undefined}
       />,
     );
     expect(container.querySelector(".jp-job-tags")).toBeNull();
   });
 
-  it("renders all three tags in order: NY → freshness → match", () => {
+  it("renders both tags in order: NY → freshness", () => {
     const { container } = render(
-      <JobTags
-        showNew={true}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel="Idag"
-        matchScore={90}
-      />,
+      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel="Idag" />,
     );
     const tags = container.querySelectorAll(".jp-tag");
-    expect(tags).toHaveLength(3);
+    expect(tags).toHaveLength(2);
     expect(tags[0]).toHaveTextContent("Ny");
     expect(tags[1]).toHaveTextContent("Idag");
-    expect(tags[2]).toHaveTextContent("Bra match");
   });
 
   // PR5 — Sparad + Ansökt-taggar (ADR 0063 per-user-overlay).
@@ -270,23 +222,21 @@ describe("JobTags (high-water-mark NY-modell)", () => {
     expect(tags).toHaveLength(2);
   });
 
-  it("renderar alla 5 taggar i ordning: NY → freshness → Sparad → Ansökt → match", () => {
+  it("renderar alla 4 taggar i ordning: NY → freshness → Sparad → Ansökt", () => {
     const { container } = render(
       <JobTags
         showNew={true}
         publishedAtMs={RECENT_MS}
         freshnessLabel="Idag"
-        matchScore={90}
         isSaved={true}
         isApplied={true}
       />,
     );
     const tags = container.querySelectorAll(".jp-tag");
-    expect(tags).toHaveLength(5);
+    expect(tags).toHaveLength(4);
     expect(tags[0]).toHaveTextContent("Ny");
     expect(tags[1]).toHaveTextContent("Idag");
     expect(tags[2]).toHaveTextContent("Sparad");
     expect(tags[3]).toHaveTextContent("Ansökt");
-    expect(tags[4]).toHaveTextContent("Bra match");
   });
 });

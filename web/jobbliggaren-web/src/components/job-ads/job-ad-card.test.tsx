@@ -67,9 +67,20 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(screen.getByText("Ny")).toBeInTheDocument();
   });
 
-  it("does not render a match chip (no match domain — ADR 0053 amendment)", () => {
+  // F4-13 (ADR 0076) — POSITIVE-ONLY: utan matchGrade-prop renderas ingen chip.
+  it("does not render a match chip when matchGrade is absent (POSITIVE-ONLY)", () => {
     const { container } = render(<JobAdCard jobAd={baseAd} />);
     expect(container.querySelector(".jp-matchchip")).toBeNull();
+  });
+
+  it("renders a graded match chip when matchGrade is provided (F4-13)", () => {
+    const { container } = render(
+      <JobAdCard jobAd={baseAd} matchGrade="Strong" />
+    );
+    const chip = container.querySelector(".jp-matchchip");
+    expect(chip).not.toBeNull();
+    expect(chip).toHaveClass("jp-matchchip--high");
+    expect(chip).toHaveTextContent("Stark match");
   });
 
   it("does not render a save button (FE-action-fas deferrad)", () => {

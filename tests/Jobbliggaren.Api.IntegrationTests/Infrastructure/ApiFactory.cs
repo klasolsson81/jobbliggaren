@@ -155,6 +155,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__WindowSeconds", "60");
+        // F4-13 (ADR 0076 Decision 5): POST /me/job-ad-match-tags har samma anonym-toleranta
+        // dual-partition (JobAdMatchBatchPolicy) som status-batchen — den anonyma ip:-fallbacken
+        // delar 127.0.0.1-bucketen över ALLA tester som anonymt träffar /me/job-ad-match-tags,
+        // så även denna policy måste höjas för att inte rate-limit:a den delade [Collection("Api")].
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", "60");
 
@@ -221,6 +227,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jobbliggaren.Application.Matching.Abstractions;
 
 /// <summary>
@@ -14,7 +16,13 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// or the ad's value is absent (NULL shadow column / no lexemes). The honest
 /// "not assessed v1" state (CLAUDE.md §5) — never conflated with <see cref="NoMatch"/>.</item>
 /// </list>
+/// <para>
+/// Serialized by NAME, not ordinal (<c>[JsonStringEnumConverter]</c>) — F4-13's match
+/// batch DTO is the first surface to put this enum on the wire; named verdicts are
+/// self-documenting and reorder-safe (parity <see cref="Grading.MatchGrade"/>).
+/// </para>
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum MatchDimensionVerdict
 {
     Match,

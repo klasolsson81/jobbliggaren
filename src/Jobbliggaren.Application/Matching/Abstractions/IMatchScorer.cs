@@ -41,6 +41,29 @@ public interface IMatchScorer
         JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Fas 4 STEG 13 (F4-13, ADR 0076 Decision 5; senior-cto-advisor 2026-06-19
+    /// Decision A = A1) — scores MANY job ads against the SAME
+    /// <paramref name="profile"/> in ONE database round-trip (the page-scoped match-tag
+    /// batch-overlay: parity <c>isSaved</c>/<c>isApplied</c>, ADR 0063). It is the
+    /// zero-N+1 batch form of <see cref="ScoreAsync"/> — looping <see cref="ScoreAsync"/>
+    /// would issue one query per ad (forbidden by the F4-13 acceptance criterion). The
+    /// per-ad <see cref="MatchScore"/> equals what <see cref="ScoreAsync"/> would return
+    /// for that ad and the same profile (the same Fast dimension helpers run in-memory
+    /// over the single batch-loaded row set). NO AI/LLM (ADR 0071).
+    /// <para>
+    /// <b>Missing/soft-deleted ads are silently OMITTED</b> from the result (unlike
+    /// <see cref="ScoreAsync"/>, which throws <c>NotFoundException</c> for a single
+    /// missing ad) — a batch decoration must not fail a page render because one id is
+    /// stale. The result contains an entry only for each requested ad that exists; the
+    /// caller treats "absent from the map" as "no data" (parity the status batch).
+    /// Deterministic per key: equal inputs yield an equal score with Ordinal-stable
+    /// matched/missing evidence.
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyDictionary<JobAdId, MatchScore>> ScoreBatchAsync(
+        IReadOnlyList<JobAdId> jobAdIds, CandidateMatchProfile profile, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Fas 4 STEG 6 (F4-6, ADR 0074 row U5b; senior-cto-advisor Decision A = A2 + Pa)
     /// — scores the job ad <paramref name="jobAdId"/> against
     /// <paramref name="profile"/> over the FULL set of dimensions: the four

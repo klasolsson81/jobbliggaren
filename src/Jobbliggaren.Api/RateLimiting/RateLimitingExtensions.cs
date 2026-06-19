@@ -30,6 +30,7 @@ public static partial class RateLimitingExtensions
     public const string LandingPublicReadPolicy = "landing-public-read";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
+    public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
     public const string MeWritePolicy = "me-write";
     public const string ResumeImportPolicy = "resume-import";
     public const string ResumeRenderPolicy = "resume-render";
@@ -310,6 +311,33 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.JobAdStatusBatch.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.JobAdStatusBatch.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // DUAL partition (parity JobAdStatusBatch): sub närvarande → user:-bucket,
+            // annars → ip:-bucket. POST /me/job-ad-match-tags (F4-13 page-scoped match-tag
+            // batch-overlay, ADR 0076 Decision 5) är anonym-tolerant (INTE
+            // RequireAuthorization-gated — handler returnerar tom map utan UserId), så den
+            // vanliga UserId→NoLimiter-bypassen hade lämnat ytan oskyddad mot anonym
+            // batch-enumeration/DoS; ip:-fallbacken är det bärande skyddet. EGEN policy
+            // (ej JobAdStatusBatch-återanvändning) — en /jobb-render avfyrar BÅDA overlay-
+            // anropen, så en delad bucket hade låtit det ena svälta det andra (bulkhead,
+            // Nygard). 60/min speglar JobAdStatusBatch/LandingPublicRead. Bakom
+            // reverse-proxy kräver ip:-grenen UseForwardedHeaders (redan wired,
+            // Program.cs). security-auditor BLOCKING verifierar talet.
+            options.AddPolicy(JobAdMatchBatchPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                var partitionKey = string.IsNullOrEmpty(userId)
+                    ? $"ip:{ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous"}"
+                    : $"user:{userId}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.JobAdMatchBatch.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.JobAdMatchBatch.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

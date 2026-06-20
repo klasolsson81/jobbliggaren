@@ -1,5 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
@@ -137,9 +139,30 @@ public class GetJobAdMatchDetailQueryHandlerTests
         IReadOnlyList<string>? missing = null) =>
         new(v, matched ?? [], missing ?? []);
 
+    // Taxonomy read-model fake. Default = passthrough (label == concept-id) so existing
+    // tests are unaffected; pass a map to assert the concept-id → label resolution the
+    // modal handler applies to the SSYK / region / employment membership dimensions.
+    private sealed class FakeTaxonomy(IReadOnlyDictionary<string, string>? map = null) : ITaxonomyReadModel
+    {
+        public ValueTask<IReadOnlyList<TaxonomyLabelDto>> ResolveLabelsAsync(
+            IReadOnlyList<string> conceptIds, CancellationToken cancellationToken)
+            => new(conceptIds
+                .Select(id => new TaxonomyLabelDto(
+                    id, map is not null && map.TryGetValue(id, out var l) ? l : id))
+                .ToList());
+
+        public ValueTask<TaxonomyTreeDto> GetTreeAsync(CancellationToken cancellationToken)
+            => throw new NotSupportedException("GetTreeAsync ska inte anropas av modal-handlern.");
+
+        public ValueTask<IReadOnlyList<TaxonomySuggestionDto>> SuggestByPrefixAsync(
+            string prefix, int limit, CancellationToken cancellationToken)
+            => throw new NotSupportedException("SuggestByPrefixAsync ska inte anropas av modal-handlern.");
+    }
+
     private GetJobAdMatchDetailQueryHandler CreateHandler(
-        FakeProfileBuilder builder, FakeScorer scorer, ICurrentUser? user = null) =>
-        new(builder, scorer, user ?? _currentUser);
+        FakeProfileBuilder builder, FakeScorer scorer,
+        ICurrentUser? user = null, ITaxonomyReadModel? taxonomy = null) =>
+        new(builder, scorer, taxonomy ?? new FakeTaxonomy(), user ?? _currentUser);
 
     // =================================================================
     // Anonymous → null, builder + scorer never called (the modal is auth-gated)
@@ -210,6 +233,48 @@ public class GetJobAdMatchDetailQueryHandlerTests
         scorer.ScoreFullCallCount.ShouldBe(1);
         scorer.LastScoredId.ShouldBe(new JobAdId(jobAdId));
         builder.CvSkillsCallCount.ShouldBe(1);
+    }
+
+    // =================================================================
+    // The three membership dimensions (SSYK / region / employment) carry RAW taxonomy
+    // concept-ids in their evidence; the handler MUST resolve them to human labels (ADR
+    // 0043 ACL — a concept-id never reaches the user; CLAUDE.md §5 — an opaque id is the
+    // opposite of explainable). The skill/title dimensions already carry Display labels /
+    // lexemes and MUST pass through unchanged (never re-resolved).
+    // =================================================================
+
+    [Fact]
+    public async Task Handle_ShouldResolveMembershipConceptIdsToLabels_LeavingSkillEvidenceUntouched()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var score = new FullMatchScore(
+            Fast: new MatchScore(
+                SsykOverlap: Dim(MatchDimensionVerdict.Match, matched: ["grp_12345"]),
+                TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
+                RegionFit: Dim(MatchDimensionVerdict.Match, matched: ["region_AB"]),
+                EmploymentFit: Dim(MatchDimensionVerdict.NoMatch, missing: ["emp_999"])),
+            SkillOverlap: Dim(MatchDimensionVerdict.Match, matched: ["C#"]),
+            MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
+            NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
+        var map = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["grp_12345"] = "Mjukvaru- och systemutvecklare m.fl.",
+            ["region_AB"] = "Stockholms län",
+            ["emp_999"] = "Tillsvidareanställning",
+        };
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp"));
+        var scorer = new FakeScorer(score);
+        var sut = CreateHandler(builder, scorer, taxonomy: new FakeTaxonomy(map));
+
+        var result = await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct);
+
+        result.ShouldNotBeNull();
+        // Membership dims: concept-ids resolved to human labels (matched AND missing).
+        result!.SsykOverlap.Matched.ShouldBe(["Mjukvaru- och systemutvecklare m.fl."]);
+        result.RegionFit.Matched.ShouldBe(["Stockholms län"]);
+        result.EmploymentFit.Missing.ShouldBe(["Tillsvidareanställning"]);
+        // Skill dim already carries a Display label → passed through, never re-resolved.
+        result.SkillOverlap.Matched.ShouldBe(["C#"]);
     }
 
     // =================================================================

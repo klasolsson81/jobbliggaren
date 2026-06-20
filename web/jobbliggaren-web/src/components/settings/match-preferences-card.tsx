@@ -1,31 +1,33 @@
 "use client";
 
 // "use client": kortet håller lokal vald-mängd-state (tre dimensioner),
-// kryssrute-toggle via tangentbord, useTransition runt save-action samt en
-// härled-förslag-affordans med pending/error-state. Inget av detta går att
-// göra i en Server Component.
+// optimistisk chip-borttagning med useTransition runt save-action +
+// revert-vid-fel, tangentbords-borttagning med fokus-flytt till grannen, samt
+// en dialog-öppna-affordans. Inget av detta går i en Server Component.
 
-import { useMemo, useState, useTransition } from "react";
-import { Check } from "lucide-react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
-import {
-  deriveOccupationsAction,
-  updateMatchPreferencesAction,
-} from "@/lib/actions/match-preferences";
-import type { OccupationCandidate } from "@/lib/dto/match-preferences";
+import { updateMatchPreferencesAction } from "@/lib/actions/match-preferences";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  flattenOccupationGroups,
+  filterOptions,
+  labelsForSelected,
+  type Option,
+} from "./match-preferences-shared";
+import { PreferenceChip } from "./preference-chip";
+import { MatchPreferencesDialog } from "./match-preferences-dialog";
 
-/** Platt taxonomi-val (concept-id → svenskt namn). */
-interface Option {
-  readonly conceptId: string;
-  readonly label: string;
-}
+// Pure helpers re-exporteras så befintliga tester/konsumenter (som importerar
+// dem härifrån) inte bryts; definitionen bor i match-preferences-shared.
+export { flattenOccupationGroups, filterOptions };
+
+/** Yrken/Regioner/Anställningsformer — de tre facetterna kortet renderar. */
+type Facet = "occupations" | "regions" | "employment";
 
 interface MatchPreferencesCardProps {
   /** Yrkesområden (med underordnade yrkesgrupper) → kortet plattar själv. */
@@ -46,74 +48,20 @@ interface MatchPreferencesCardProps {
   readonly degraded: boolean;
 }
 
-/**
- * Plattar `occupationFields[].occupationGroups[]` till en enkel
- * `{conceptId,label}`-lista. Ren funktion (testbar utan rendering).
- */
-export function flattenOccupationGroups(
-  fields: ReadonlyArray<TaxonomyOccupationField>
-): ReadonlyArray<Option> {
-  return fields.flatMap((field) =>
-    field.occupationGroups.map((group) => ({
-      conceptId: group.conceptId,
-      label: group.label,
-    }))
-  );
-}
+const FACET_LABEL: Record<Facet, string> = {
+  occupations: "Yrken",
+  regions: "Regioner",
+  employment: "Anställningsformer",
+};
 
-/**
- * Substring-filtrerar options på label (case-insensitive, locale "sv").
- * Tom/blank query → hela listan. Ren funktion (testbar utan rendering).
- */
-export function filterOptions(
-  options: ReadonlyArray<Option>,
-  query: string
-): ReadonlyArray<Option> {
-  const q = query.trim().toLocaleLowerCase("sv");
-  if (q.length === 0) return options;
-  return options.filter((o) => o.label.toLocaleLowerCase("sv").includes(q));
-}
+const FACET_EMPTY: Record<Facet, string> = {
+  occupations: "Alla yrken (inget valt)",
+  regions: "Hela landet (ingen region vald)",
+  employment: "Alla anställningsformer (inget valt)",
+};
 
-function toggle(
-  selected: ReadonlyArray<string>,
-  conceptId: string
-): string[] {
-  return selected.includes(conceptId)
-    ? selected.filter((v) => v !== conceptId)
-    : [...selected, conceptId];
-}
-
-/** En kryssrute-rad. Speglar `.jp-checkitem`-mönstret från jobb-klass2-panel. */
-function CheckItem({
-  label,
-  checked,
-  onToggle,
-}: {
-  label: string;
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div
-      className="jp-checkitem"
-      role="checkbox"
-      aria-checked={checked}
-      tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === " " || e.key === "Enter") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
-    >
-      <span className="jp-checkitem__box">
-        {checked && <Check size={14} aria-hidden="true" />}
-      </span>
-      {label}
-    </div>
-  );
-}
+/** CV-importflödets route (verifierad on-disk: app/(app)/cv/importera). */
+const IMPORT_CV_HREF = "/cv/importera";
 
 export function MatchPreferencesCard({
   occupationFields,
@@ -129,81 +77,123 @@ export function MatchPreferencesCard({
     [occupationFields]
   );
   const regionOptions = useMemo<ReadonlyArray<Option>>(
-    () =>
-      regions.map((r) => ({ conceptId: r.conceptId, label: r.label })),
+    () => regions.map((r) => ({ conceptId: r.conceptId, label: r.label })),
     [regions]
   );
   const employmentOptions = useMemo<ReadonlyArray<Option>>(
     () =>
-      employmentTypes.map((e) => ({
-        conceptId: e.conceptId,
-        label: e.label,
-      })),
+      employmentTypes.map((e) => ({ conceptId: e.conceptId, label: e.label })),
     [employmentTypes]
   );
 
   const [occupationGroups, setOccupationGroups] = useState<
     ReadonlyArray<string>
   >(initialOccupationGroups);
-  const [selectedRegions, setSelectedRegions] = useState<ReadonlyArray<string>>(
-    initialRegions
-  );
+  const [selectedRegions, setSelectedRegions] =
+    useState<ReadonlyArray<string>>(initialRegions);
   const [selectedEmployment, setSelectedEmployment] = useState<
     ReadonlyArray<string>
   >(initialEmploymentTypes);
 
-  // Yrkesgrupp-filter (substring).
-  const [occupationFilter, setOccupationFilter] = useState("");
-  const filteredOccupations = useMemo(
-    () => filterOptions(occupationOptions, occupationFilter),
-    [occupationOptions, occupationFilter]
-  );
-
-  // Härled-förslag (propose-and-approve).
-  const [deriveTitle, setDeriveTitle] = useState("");
-  const [candidates, setCandidates] = useState<
-    ReadonlyArray<OccupationCandidate>
-  >([]);
-  const [deriveSubmitted, setDeriveSubmitted] = useState(false);
-  const [deriveError, setDeriveError] = useState<string | null>(null);
-  const [isDeriving, startDeriving] = useTransition();
-
-  // Save.
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [isSaving, startSaving] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  function onDerive(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const title = deriveTitle.trim();
-    if (title.length === 0) return;
-    setDeriveError(null);
-    startDeriving(async () => {
-      const result = await deriveOccupationsAction(title);
-      setDeriveSubmitted(true);
-      if (result.success) {
-        setCandidates(result.candidates);
-      } else {
-        setCandidates([]);
-        setDeriveError(result.error);
-      }
-    });
-  }
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  // Refs till varje chips ⨯-knapp, nyckel "facet:conceptId". Populeras ENBART
+  // via ref-callback (commit-tid) — aldrig läst/skriven under render (WCAG
+  // 2.4.3 fokus-flytt sker i en queueMicrotask EFTER commit).
+  const removeRefs = useRef(new Map<string, HTMLButtonElement | null>());
+  const refKey = (facet: Facet, conceptId: string) => `${facet}:${conceptId}`;
 
-  function onSave() {
+  const currentSets = (): {
+    occupations: ReadonlyArray<string>;
+    regions: ReadonlyArray<string>;
+    employment: ReadonlyArray<string>;
+  } => ({
+    occupations: occupationGroups,
+    regions: selectedRegions,
+    employment: selectedEmployment,
+  });
+
+  /** Persisterar HELA mängden (full-replace) med revert-vid-fel. */
+  function persist(
+    next: {
+      occupations: ReadonlyArray<string>;
+      regions: ReadonlyArray<string>;
+      employment: ReadonlyArray<string>;
+    },
+    revert: () => void
+  ) {
     setSaveError(null);
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
-        preferredOccupationGroups: [...occupationGroups],
-        preferredRegions: [...selectedRegions],
-        preferredEmploymentTypes: [...selectedEmployment],
+        preferredOccupationGroups: [...next.occupations],
+        preferredRegions: [...next.regions],
+        preferredEmploymentTypes: [...next.employment],
       });
       if (result.success) {
         setSavedAt(new Date());
       } else {
+        revert();
         setSaveError(result.error);
       }
     });
+  }
+
+  /**
+   * Optimistisk borttagning av en chip: ta bort lokalt direkt (ingen spinner),
+   * persistera hela nya mängden, revert vid fel. `keyboard` → flytta fokus till
+   * grannen (eller "Lägg till" om facetten blev tom), aldrig till body.
+   */
+  function removeChip(facet: Facet, conceptId: string, keyboard: boolean) {
+    const prev = currentSets();
+    const list = prev[facet];
+    const removedIndex = list.indexOf(conceptId);
+    const nextList = list.filter((v) => v !== conceptId);
+    const next = { ...prev, [facet]: nextList };
+
+    // Bestäm grannen att flytta fokus till (conceptId, inte index): nästa
+    // kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
+    // borttagningen mot den gamla listan.
+    const neighbourConceptId =
+      list[removedIndex + 1] ?? list[removedIndex - 1] ?? null;
+
+    if (facet === "occupations") setOccupationGroups(nextList);
+    else if (facet === "regions") setSelectedRegions(nextList);
+    else setSelectedEmployment(nextList);
+
+    if (keyboard) {
+      queueMicrotask(() => {
+        const target =
+          neighbourConceptId !== null
+            ? removeRefs.current.get(refKey(facet, neighbourConceptId))
+            : null;
+        if (target) target.focus();
+        else addButtonRef.current?.focus();
+      });
+    }
+
+    persist(next, () => {
+      if (facet === "occupations") setOccupationGroups(prev.occupations);
+      else if (facet === "regions") setSelectedRegions(prev.regions);
+      else setSelectedEmployment(prev.employment);
+    });
+  }
+
+  function onDialogSaved(saved: {
+    occupations: ReadonlyArray<string>;
+    regions: ReadonlyArray<string>;
+    employment: ReadonlyArray<string>;
+  }) {
+    // Dialogen skrev den fulla mängden (SSOT). Anta den lokalt så kortets chips
+    // är koherenta direkt, och visa status-raden. (revalidatePath om-renderar
+    // RSC men byter inte kortets useState-värden — därför adopterar vi här.)
+    setOccupationGroups(saved.occupations);
+    setSelectedRegions(saved.regions);
+    setSelectedEmployment(saved.employment);
+    setSavedAt(new Date());
   }
 
   if (degraded) {
@@ -218,6 +208,12 @@ export function MatchPreferencesCard({
     );
   }
 
+  const facetData: Record<Facet, ReadonlyArray<Option>> = {
+    occupations: labelsForSelected(occupationGroups, occupationOptions),
+    regions: labelsForSelected(selectedRegions, regionOptions),
+    employment: labelsForSelected(selectedEmployment, employmentOptions),
+  };
+
   return (
     <section className="jp-card jp-matchprefs" id="matchning">
       <h2 className="jp-card__title">Matchning</h2>
@@ -227,240 +223,100 @@ export function MatchPreferencesCard({
         frivilliga.
       </p>
 
-      <div className="flex flex-col gap-7 mt-6">
-        {/* ── Yrkesgrupper ───────────────────────────── */}
-        <div
-          role="group"
-          aria-label="Yrkesgrupper"
-          aria-describedby="match-occupation-help"
-        >
-          <div className="jp-panel__sectionhead">
-            <span className="jp-popover__title">Yrkesgrupper</span>
-            {occupationGroups.length > 0 && (
-              <button
-                type="button"
-                className="jp-clearlink"
-                onClick={() => setOccupationGroups([])}
-              >
-                Rensa
-              </button>
-            )}
-          </div>
-
-          {/* Härled-förslag ur en yrkestitel (förslag → bekräfta, skriver
-              aldrig direkt). Egen form så Enter triggar Föreslå, inte Spara. */}
-          <form onSubmit={onDerive} className="flex flex-col gap-1.5 mb-4">
-            <Label htmlFor="match-derive-title">
-              Föreslå utifrån en yrkestitel
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="match-derive-title"
-                type="text"
-                value={deriveTitle}
-                onChange={(e) => setDeriveTitle(e.target.value)}
-                maxLength={120}
-                disabled={isDeriving}
-                aria-describedby="match-derive-help"
-              />
-              <Button
-                type="submit"
-                variant="secondary"
-                disabled={isDeriving || deriveTitle.trim().length === 0}
-              >
-                {isDeriving ? "Söker…" : "Föreslå"}
-              </Button>
-            </div>
-            <p
-              id="match-derive-help"
-              className="text-body-sm text-text-secondary"
+      <div className="jp-matchprefs__facets mt-5">
+        {(["occupations", "regions", "employment"] as const).map((facet) => {
+          const chips = facetData[facet];
+          const headId = `match-facet-${facet}`;
+          return (
+            <section
+              key={facet}
+              className="jp-matchprefs__facet"
+              role="group"
+              aria-labelledby={headId}
             >
-              Skriv en yrkestitel så föreslår vi yrkesgrupper att lägga till. Du
-              väljer själv vilka som tas med.
-            </p>
-          </form>
-
-          {deriveError && (
-            <p role="alert" className="text-body-sm text-danger-600 mb-3">
-              {deriveError}
-            </p>
-          )}
-
-          {!deriveError && deriveSubmitted && candidates.length === 0 && (
-            <p className="text-body-sm text-text-secondary mb-3">
-              Inga förslag för den titeln. Du kan välja yrkesgrupper i listan
-              nedan i stället.
-            </p>
-          )}
-
-          {candidates.length > 0 && (
-            <div className="mb-4">
-              <p className="text-body-sm text-text-secondary mb-1.5">
-                Förslag — välj de som passar för att lägga till dem:
-              </p>
-              <div role="group" aria-label="Föreslagna yrkesgrupper">
-                {candidates.map((c) => (
-                  <CheckItem
-                    key={c.occupationGroupConceptId}
-                    label={c.occupationGroupLabel}
-                    checked={occupationGroups.includes(
-                      c.occupationGroupConceptId
-                    )}
-                    onToggle={() =>
-                      setOccupationGroups((prev) =>
-                        toggle(prev, c.occupationGroupConceptId)
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Filter + scrollbar lista (~400 ssyk-4-grupper). */}
-          <div className="flex flex-col gap-1.5 mb-2">
-            <Label htmlFor="match-occupation-filter">
-              Filtrera yrkesgrupper
-            </Label>
-            <Input
-              id="match-occupation-filter"
-              type="text"
-              value={occupationFilter}
-              onChange={(e) => setOccupationFilter(e.target.value)}
-              maxLength={80}
-            />
-          </div>
-          <p
-            id="match-occupation-help"
-            className="text-body-sm text-text-secondary mb-2"
-          >
-            Välj de yrkesgrupper du söker jobb inom. Lämnar du tomt matchar vi
-            inte på yrke — det är helt i sin ordning.
-          </p>
-
-          <div className="jp-matchprefs__scroll">
-            {filteredOccupations.length === 0 ? (
-              <p className="text-body-sm text-text-secondary px-4 py-3">
-                Ingen yrkesgrupp matchar filtret.
-              </p>
-            ) : (
-              filteredOccupations.map((o) => (
-                <CheckItem
-                  key={o.conceptId}
-                  label={o.label}
-                  checked={occupationGroups.includes(o.conceptId)}
-                  onToggle={() =>
-                    setOccupationGroups((prev) => toggle(prev, o.conceptId))
-                  }
-                />
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* ── Regioner ───────────────────────────────── */}
-        <div
-          role="group"
-          aria-label="Regioner"
-          aria-describedby="match-region-help"
-        >
-          <div className="jp-panel__sectionhead">
-            <span className="jp-popover__title">Regioner</span>
-            {selectedRegions.length > 0 && (
-              <button
-                type="button"
-                className="jp-clearlink"
-                onClick={() => setSelectedRegions([])}
+              <p
+                id={headId}
+                className="jp-popover__title jp-matchprefs__facethead"
               >
-                Rensa
-              </button>
-            )}
-          </div>
-          <p
-            id="match-region-help"
-            className="text-body-sm text-text-secondary mb-2"
-          >
-            Välj var du vill arbeta. Tomt fält betyder att du är öppen för hela
-            landet.
-          </p>
-          <div className="jp-matchprefs__scroll">
-            {regionOptions.map((o) => (
-              <CheckItem
-                key={o.conceptId}
-                label={o.label}
-                checked={selectedRegions.includes(o.conceptId)}
-                onToggle={() =>
-                  setSelectedRegions((prev) => toggle(prev, o.conceptId))
-                }
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Anställningsformer ──────────────────────── */}
-        <div
-          role="group"
-          aria-label="Anställningsformer"
-          aria-describedby="match-employment-help"
-        >
-          <div className="jp-panel__sectionhead">
-            <span className="jp-popover__title">Anställningsformer</span>
-            {selectedEmployment.length > 0 && (
-              <button
-                type="button"
-                className="jp-clearlink"
-                onClick={() => setSelectedEmployment([])}
-              >
-                Rensa
-              </button>
-            )}
-          </div>
-          <p
-            id="match-employment-help"
-            className="text-body-sm text-text-secondary mb-2"
-          >
-            Välj de anställningsformer som passar dig. Tomt fält betyder att alla
-            former visas.
-          </p>
-          <div>
-            {employmentOptions.map((o) => (
-              <CheckItem
-                key={o.conceptId}
-                label={o.label}
-                checked={selectedEmployment.includes(o.conceptId)}
-                onToggle={() =>
-                  setSelectedEmployment((prev) => toggle(prev, o.conceptId))
-                }
-              />
-            ))}
-          </div>
-        </div>
+                {FACET_LABEL[facet]}
+              </p>
+              {chips.length === 0 ? (
+                <p className="jp-matchprefs__empty text-body-sm text-text-secondary">
+                  {FACET_EMPTY[facet]}
+                </p>
+              ) : (
+                <ul className="jp-chiplist">
+                  {chips.map((chip) => (
+                    <li key={chip.conceptId}>
+                      <PreferenceChip
+                        ref={(el) => {
+                          removeRefs.current.set(
+                            refKey(facet, chip.conceptId),
+                            el
+                          );
+                        }}
+                        label={chip.label}
+                        onRemove={() =>
+                          removeChip(facet, chip.conceptId, false)
+                        }
+                        onRemoveKey={() =>
+                          removeChip(facet, chip.conceptId, true)
+                        }
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
       </div>
 
-      {/* ── Spara ──────────────────────────────────── */}
-      {saveError && (
-        <p role="alert" className="text-body-sm text-danger-600 mt-5">
-          {saveError}
-        </p>
-      )}
-      {savedAt && !saveError && (
-        <p
-          role="status"
-          aria-live="polite"
-          className="text-body-sm text-text-secondary mt-5"
+      <div className="jp-matchprefs__addrow">
+        <Button
+          ref={addButtonRef}
+          type="button"
+          variant="secondary"
+          aria-haspopup="dialog"
+          onClick={() => setDialogOpen(true)}
         >
-          Sparat {savedAt.toLocaleTimeString("sv-SE", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-          .
-        </p>
-      )}
-      <div className="mt-5">
-        <Button type="button" onClick={onSave} disabled={isSaving}>
-          {isSaving ? "Sparar…" : "Spara matchningsönskemål"}
+          Lägg till
         </Button>
+        {/* Ömsesidigt uteslutande live-regioner: fel = assertiv alert (cause +
+            action), annars artig status-kvittens "Sparat HH:mm". Aldrig en
+            alert nästlad i en status-region (inkonsekvent SR-annonsering). */}
+        {saveError ? (
+          <p role="alert" className="text-body-sm text-danger-600">
+            Ändringen kunde inte sparas. Försök igen.
+          </p>
+        ) : (
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-body-sm text-text-secondary"
+          >
+            {!isSaving && savedAt
+              ? `Sparat ${savedAt.toLocaleTimeString("sv-SE", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`
+              : ""}
+          </p>
+        )}
       </div>
+
+      <MatchPreferencesDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        occupationFields={occupationFields}
+        regions={regions}
+        employmentTypes={employmentTypes}
+        persistedOccupationGroups={occupationGroups}
+        persistedRegions={selectedRegions}
+        persistedEmploymentTypes={selectedEmployment}
+        onSaved={onDialogSaved}
+        importCvHref={IMPORT_CV_HREF}
+      />
     </section>
   );
 }

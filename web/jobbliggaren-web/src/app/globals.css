@@ -2555,22 +2555,257 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
 }
 
-/* ── Matchnings-önskemål-kort (F4-12 PR-B, ADR 0076) ──
-   Återanvänder .jp-card-skalet + .jp-checkitem/.jp-clearlink-mönstret.
-   Endast två oundvikliga tillägg, båda på befintliga tokens:
-   1) en scroll-container för långa kryssrute-listor (~400 ssyk-4-grupper)
-   2) en synlig fokus-ring för .jp-checkitem i kort-kontext — den befintliga
-      regeln är scoped till `.jp-panel .jp-checkitem:focus-visible` och når
-      inte hit (WCAG 2.4.7). Speglar den regeln verbatim, om-scopad. */
-.jp-matchprefs__scroll {
-  max-height: 280px;
+/* ── Matchnings-önskemål-kort (F4-12 PR-B / modern-civic RE-BIND 2026-06-20) ──
+   Kortet är nu en summering med borttagbara .jp-chip + "Lägg till" (väljarna
+   bor i dialogen, .jp-matchdialog nedan). Facet-layouten följer; chip-
+   primitiven likaså. (Den gamla scroll-containern + den kort-scopade checkitem-
+   fokusringen är borttagna — kortet renderar inga .jp-checkitem längre.) */
+
+/* ── Preference chip — .jp-chip / .jp-chip--removable ──
+   (Matchning modern-civic RE-BIND, 2026-06-20-matchning-modern-chips-design §1.4)
+   En NY klass-grupp som komponerar ENBART befintliga --jp-*-tokens (inga nya
+   tokens). EJ .jp-tag (11px uppercase = fel), EJ .jp-pill (status-dot = fel),
+   EJ .jp-matchchip (graderad read-only = fel). Innehållsnamn → mixed-case 13px,
+   outline (border-only) civic-read; pill-radie (det dokumenterade radie-
+   undantaget). Båda teman flippar gratis (token-drivna). */
+.jp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--jp-ink-1);
+  background: transparent;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-pill);
+  max-width: 100%;
+}
+/* Modifier: chippen bär en borttagnings-knapp → mindre höger-padding (⨯ äger
+   den sidan). Hela den interaktiva ytan lever i den nästlade .jp-chip__remove. */
+.jp-chip--removable {
+  padding-right: 4px;
+}
+.jp-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Borttagnings-kontrollen: en riktig <button>. Hit-area ≥32px via padding
+   (synlig ikon förblir 14px). Hover = danger-tint ENBART på knappen
+   (borttagning är mild-destruktiv — ärlig signal). Global fokus-ring behålls. */
+.jp-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  margin: -2px 0;
+  color: var(--jp-ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--jp-r-pill);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.jp-chip__remove:hover {
+  color: var(--jp-danger);
+  background: var(--jp-danger-bg);
+}
+@media (max-width: 768px) {
+  /* WCAG 2.5.5 — touch ≥44px (visuell ikon oförändrad, padding bär målet). */
+  .jp-chip__remove {
+    width: 32px;
+    height: 32px;
+    padding: 9px;
+  }
+}
+/* En wrappande chip-rad (8px gap), nollställd <ul>. */
+.jp-chiplist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Matchnings-summeringskort: facet-grupper + add-rad ──
+   (samma RE-BIND §1.1/§1.6). Hairlines mellan facet-grupperna (--jp-border-soft,
+   den lugna rytmen), add-rad med "Lägg till" vänster + status höger. */
+.jp-matchprefs__facets {
+  display: flex;
+  flex-direction: column;
+}
+.jp-matchprefs__facet {
+  padding: 16px 0;
+}
+.jp-matchprefs__facet:first-child {
+  padding-top: 8px;
+}
+.jp-matchprefs__facet + .jp-matchprefs__facet {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-matchprefs__facethead {
+  margin: 0 0 10px;
+}
+.jp-matchprefs__empty {
+  margin: 0;
+}
+.jp-matchprefs__addrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+
+/* ── Matchnings-dialog (shadcn DialogContent civic-stylad) ──
+   (RE-BIND §2). Speglar .jp-modal-tokens på shadcn-sloten så default-shadcn-
+   looken ALDRIG skeppas. Bredare variant min(840px) för tvåkolumns-kaskaden. */
+.jp-matchdialog {
+  width: min(840px, 100%);
+  max-width: min(840px, 100%);
+  max-height: 86vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  box-shadow: var(--jp-shadow-modal);
+}
+/* Den inbyggda shadcn/radix-Close ÄR dialogens stäng-kontroll, civic-restylad
+   (default-shadcn-looken får ej skeppas). En egen extra stäng-knapp vore en
+   dubblerad "Stäng" för skärmläsare; radix Close bär dessutom ESC/fokus-retur/
+   onOpenChange gratis. Radix renderar sin Close som det ENDA direkt-barn-
+   <button> till DialogContent (= .jp-matchdialog) — våra övriga knappar är alla
+   nästlade i __head/__body/__foot, så denna selektor träffar bara Close.
+   (Oskiktad CSS vinner över shadcns @layer-utilities → opacity/färg/position
+   överrids.) */
+.jp-matchdialog > button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  opacity: 1;
+  color: var(--jp-ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+}
+.jp-matchdialog > button:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+}
+.jp-matchdialog__head {
+  position: relative;
+  padding: 22px 56px 16px 24px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-matchdialog__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--jp-ink-1);
+}
+.jp-matchdialog__intro {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+.jp-matchdialog__body {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* Facet-sektioner i dialogen separeras av --jp-border-strong (informations-
+   bärande avgränsare, §2.3) — starkare än kortets -soft-rytm. */
+.jp-matchdialog__section {
+  padding: 20px 0;
+}
+.jp-matchdialog__section:first-child {
+  padding-top: 0;
+}
+.jp-matchdialog__section + .jp-matchdialog__section {
+  border-top: 1px solid var(--jp-border-strong);
+}
+.jp-matchdialog__sectionhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+/* Pinnade chips överst i sektionen + picker-väljaren under. */
+.jp-matchdialog__pinned {
+  margin-bottom: 14px;
+}
+.jp-matchdialog__cascade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-matchdialog__cascade-col {
+  max-height: 320px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.jp-matchdialog__cascade-col:first-child {
+  border-right: 1px solid var(--jp-border-soft);
+}
+.jp-matchdialog__cascade-colhead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 16px 8px;
+  background: var(--jp-surface);
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-matchdialog__list {
+  max-height: 320px;
   overflow-y: auto;
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
 }
-.jp-matchprefs .jp-checkitem:focus-visible {
+/* Synlig fokus-ring för .jp-checkitem i dialog-kontext (samma om-scoping som
+   .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). */
+.jp-matchdialog .jp-checkitem:focus-visible,
+.jp-matchdialog .jp-popover-row:focus-visible {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
+}
+.jp-matchdialog__suggest {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-matchdialog__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  border-top: 1px solid var(--jp-border-soft);
+  background: var(--jp-surface-2);
+  border-bottom-left-radius: var(--jp-r-lg);
+  border-bottom-right-radius: var(--jp-r-lg);
 }
 
 .jp-modal__foot {

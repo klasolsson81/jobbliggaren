@@ -29,6 +29,10 @@ import type {
 const MATCH_SETTINGS_HREF = "/installningar#matchning";
 const MATCH_SETTINGS_CTA = "Ställ in matchning";
 
+// CV-import-länk för signposten "ladda upp CV" (PR-B2). Samma route som
+// matchnings-kortets CV-förslag (importCvHref).
+const CV_IMPORT_HREF = "/cv/importera";
+
 // Verdict → svenskt civic ord (design-bind §2.B). NoMatch = "Saknas" (neutral,
 // ej röd-alarm); NotAssessed = "Ej bedömt"; Vacuous = "Inga angivna" (annonsen
 // anger inga krav/kompetenser av den sorten — neutral, ej fel). Vacuous får
@@ -103,6 +107,29 @@ function notAssessedReason(key: keyof Omit<JobAdMatchDetail, "grade">): string {
       return "Inga kompetenser kunde läsas ur ditt CV. Ladda upp ett CV under Profil.";
     default:
       return "Den här delen kunde inte bedömas.";
+  }
+}
+
+/**
+ * Must-have-sammanfattning (PR-B2, CTO G3.6) — en kort rad som kopplar graden
+ * till om annonsens ska-krav uppfylls (graden är nu requirement-aware: Stark/
+ * Topp kräver att ska-kraven är mötta). Returnerar `null` för `NotAssessed`
+ * (inget CV) → då visas "ladda upp CV"-signposten i stället. `Vacuous` =
+ * annonsen anger inga ska-krav (gate-öppen — därför kan den ändå nå Stark/Topp).
+ * Ingen siffra (Goodhart-vakt) — ren konstaterande civic-copy.
+ */
+function mustHaveSummary(verdict: MatchVerdict): string | null {
+  switch (verdict) {
+    case "Match":
+      return "Du uppfyller alla ska-krav i annonsen.";
+    case "Partial":
+      return "Du uppfyller några av annonsens ska-krav.";
+    case "NoMatch":
+      return "Du uppfyller inte annonsens ska-krav.";
+    case "Vacuous":
+      return "Annonsen anger inga särskilda ska-krav.";
+    case "NotAssessed":
+      return null;
   }
 }
 
@@ -205,6 +232,49 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
           />
         ))}
       </div>
+
+      {/* Foot (PR-B2): kopplar graden till ska-kraven. Utan CV kan man inte nå
+          Stark/Topp (kräver kompetens-/krav-bedömning) → en lugn signpost driver
+          CV-uppladdning; annars en kort must-have-sammanfattning. Text-only,
+          ingen siffra (Goodhart-vakt). */}
+      {match.mustHaveCoverage.verdict === "NotAssessed" ? (
+        <p
+          className="jp-modal__matchfoot"
+          style={{
+            margin: "12px 0 0",
+            paddingTop: 12,
+            borderTop: "1px solid var(--jp-border-soft)",
+            fontSize: 14,
+            color: "var(--jp-ink-2)",
+          }}
+        >
+          Ladda upp ett CV för att matcha på kompetenser och krav — det krävs för
+          Stark match och Toppmatch.{" "}
+          <Link
+            href={CV_IMPORT_HREF}
+            style={{
+              color: "var(--jp-accent-700)",
+              fontWeight: 600,
+              textDecoration: "underline",
+            }}
+          >
+            Ladda upp CV
+          </Link>
+        </p>
+      ) : (
+        <p
+          className="jp-modal__matchfoot"
+          style={{
+            margin: "12px 0 0",
+            paddingTop: 12,
+            borderTop: "1px solid var(--jp-border-soft)",
+            fontSize: 14,
+            color: "var(--jp-ink-2)",
+          }}
+        >
+          {mustHaveSummary(match.mustHaveCoverage.verdict)}
+        </p>
+      )}
     </section>
   );
 }

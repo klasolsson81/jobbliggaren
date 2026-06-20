@@ -111,6 +111,60 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(section?.textContent ?? "").not.toMatch(/\d+\s*%/);
   });
 
+  it("must-have-sammanfattning (PR-B2): Match → 'Du uppfyller alla ska-krav'", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({ mustHaveCoverage: row("Match", ["B-körkort"]) })}
+      />
+    );
+    expect(
+      screen.getByText("Du uppfyller alla ska-krav i annonsen.")
+    ).toBeInTheDocument();
+  });
+
+  it("must-have-sammanfattning (PR-B2): NoMatch → 'Du uppfyller inte annonsens ska-krav'", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({ mustHaveCoverage: row("NoMatch", [], ["Java"]) })}
+      />
+    );
+    expect(
+      screen.getByText("Du uppfyller inte annonsens ska-krav.")
+    ).toBeInTheDocument();
+  });
+
+  it("must-have-sammanfattning (PR-B2): Vacuous → 'Annonsen anger inga särskilda ska-krav'", () => {
+    render(
+      <JobAdMatchSection match={detail({ mustHaveCoverage: row("Vacuous") })} />
+    );
+    expect(
+      screen.getByText("Annonsen anger inga särskilda ska-krav.")
+    ).toBeInTheDocument();
+  });
+
+  it("utan CV (must-have NotAssessed) → 'ladda upp CV'-signpost → /cv/importera, ingen summering", () => {
+    // PR-B2: utan CV kan man inte nå Stark/Topp → signposten driver CV-upload.
+    render(
+      <JobAdMatchSection
+        match={detail({
+          grade: "Good",
+          mustHaveCoverage: row("NotAssessed"),
+          skillOverlap: row("NotAssessed"),
+          niceToHaveCoverage: row("NotAssessed"),
+        })}
+      />
+    );
+    expect(
+      screen.getByText(/det krävs för Stark match och Toppmatch/)
+    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Ladda upp CV" });
+    expect(link).toHaveAttribute("href", "/cv/importera");
+    // Must-have-summeringen visas INTE när CV saknas (signposten ersätter den).
+    expect(
+      screen.queryByText(/Du uppfyller/)
+    ).not.toBeInTheDocument();
+  });
+
   it("signpost-state: grade=null + yrke NotAssessed → Översikt-nudge-copy + kanonisk länk", () => {
     render(
       <JobAdMatchSection

@@ -11,6 +11,12 @@ import type {
  * verdikt. `TextSpan` renderas som citat (redan pnr-redigerat vid motorns
  * choke point); `Structural` som en strukturell observation. `NotAssessed`
  * visar den ärliga orsaken (aldrig ett påhittat utfall).
+ *
+ * Raden leds av den läsbara rubriken (`verdict.name`, t.ex. "Mätbara resultat")
+ * — inte koden. `criterionId` ("A1") behålls som en dämpad sekundär mono-
+ * referens för support-spårbarhet (B.3), aldrig som primär etikett.
+ * `categoryLabel` visas som en rad-kontext-tagg när verdiktet lyfts ut ur sitt
+ * kategori-kort (t.ex. i "Att åtgärda"-aggregatet).
  */
 
 function EvidenceItem({ evidence }: { evidence: CitedEvidenceDto }) {
@@ -41,8 +47,12 @@ function EvidenceItem({ evidence }: { evidence: CitedEvidenceDto }) {
 
 export function CvCriterionVerdict({
   verdict,
+  categoryLabel,
 }: {
   verdict: CvCriterionVerdictDto;
+  /** Kategori-etikett som rad-kontext (visas när verdiktet är utlyft ur sitt
+   * kategori-kort, t.ex. i "Att åtgärda"). Utelämnas inne i kategori-korten. */
+  categoryLabel?: string;
 }) {
   const { label, tone } = verdictLabel(verdict.verdict);
   const hasEvidence = verdict.evidence.length > 0;
@@ -50,8 +60,12 @@ export function CvCriterionVerdict({
   return (
     <div className="jp-criterion">
       <div className="jp-criterion__head">
-        <code className="jp-criterion__id">{verdict.criterionId}</code>
         <StatusPill tone={tone}>{label}</StatusPill>
+        <span className="jp-criterion__name">{verdict.name}</span>
+        {categoryLabel !== undefined && (
+          <span className="jp-criterion__category">{categoryLabel}</span>
+        )}
+        <code className="jp-criterion__id">{verdict.criterionId}</code>
       </div>
 
       {verdict.verdict === "NotAssessed" && verdict.notAssessedReason !== null && (

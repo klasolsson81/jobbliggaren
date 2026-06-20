@@ -21,7 +21,7 @@ describe("review-labels", () => {
     expect(verdictLabel("Warn")).toEqual({ label: "Delvis", tone: "warning" });
     expect(verdictLabel("Fail")).toEqual({ label: "Underkänt", tone: "danger" });
     expect(verdictLabel("NotAssessed")).toEqual({
-      label: "Ej bedömt v1",
+      label: "Ej bedömt",
       tone: "neutral",
     });
   });

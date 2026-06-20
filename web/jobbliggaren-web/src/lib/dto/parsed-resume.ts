@@ -190,6 +190,10 @@ export type CitedEvidenceDto = z.infer<typeof citedEvidenceDtoSchema>;
 
 export const cvCriterionVerdictDtoSchema = z.object({
   criterionId: z.string(),
+  /** Mänsklig svensk rubrik-rubrik (t.ex. "Mätbara resultat"), single source of
+   * truth backend-sidan. Bär rad-rubriken i UI; `criterionId` ("A1") demoteras
+   * till en dämpad sekundär referens (B.3). */
+  name: z.string(),
   category: rubricCategorySchema,
   verdict: criterionVerdictSchema,
   evidence: z.array(citedEvidenceDtoSchema),

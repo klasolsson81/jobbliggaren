@@ -4659,29 +4659,30 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   line-height: 1.55;
   max-width: 68ch;
 }
-.jp-cvreview__critical {
+/* Lager 1 — "Att åtgärda" (åtgärdbara verdikt, severitets-sorterade). Avgränsas
+   med en hairline-ram (border-strong är informationsbärande, WCAG 1.4.11), ingen
+   färgad larm-platta — severiteten bärs av varje rads verdict-pill (1.4.1). */
+.jp-cvreview__todo {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  background: var(--jp-danger-bg);
-  border: 1px solid var(--jp-danger);
+  gap: 8px;
+  padding: 16px 18px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-strong);
   border-radius: var(--jp-r-md);
 }
-.jp-cvreview__critical-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.jp-cvreview__critical-icon {
-  display: inline-flex;
-  color: var(--jp-danger);
-}
-.jp-cvreview__critical-title {
+.jp-cvreview__todo-title {
   margin: 0;
   font-size: 16px;
   font-weight: 700;
   color: var(--jp-ink-1);
+}
+.jp-cvreview__todo-empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  line-height: 1.55;
+  max-width: 68ch;
 }
 .jp-cvreview__categories {
   display: flex;
@@ -4728,6 +4729,38 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 0;
 }
 
+/* Lager 3 — "Ej bedömt" kollapsad disclosure (lågprioriterad, längst ned).
+   Stängd som default; honesty-invarianten (ADR 0074) — demoterad men aldrig dold. */
+.jp-cvreview__unassessed {
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface-2);
+}
+.jp-cvreview__unassessed-summary {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jp-ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+.jp-cvreview__unassessed-summary::-webkit-details-marker {
+  display: none;
+}
+.jp-cvreview__unassessed-summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--jp-ink-3);
+  transition: transform 150ms linear;
+}
+.jp-cvreview__unassessed[open] .jp-cvreview__unassessed-summary::before {
+  transform: rotate(90deg);
+}
+.jp-cvreview__unassessed .jp-cvreview__verdicts {
+  padding: 0 16px 8px;
+}
+
 /* ── Enskilt kriterie-verdikt + citerad evidens ──── */
 .jp-criterion {
   display: flex;
@@ -4744,13 +4777,44 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 10px;
   flex-wrap: wrap;
 }
-.jp-criterion__id {
-  font-family: var(--jp-font-mono);
+/* Primär rad-rubrik: den läsbara svenska rubrik-rubriken (B.3). */
+.jp-criterion__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--jp-ink-1);
+  line-height: 1.4;
+}
+/* Rad-kontext-tagg: kategori-etikett när verdiktet är utlyft ur sitt kort. */
+.jp-criterion__category {
   font-size: 12px;
   color: var(--jp-ink-2);
   background: var(--jp-surface-2);
   border: 1px solid var(--jp-border-soft);
   padding: 2px 8px;
+  border-radius: var(--jp-r-pill);
+}
+/* Dämpad sekundär kod-referens (A1) för support-spårbarhet — aldrig primär.
+   Skjuts längst ut till höger; mono som signal (regel 4), ej informationsbärare. */
+.jp-criterion__id {
+  margin-left: auto;
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  color: var(--jp-ink-3);
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  padding: 2px 6px;
+  border-radius: var(--jp-r-sm);
+}
+/* Improvement-suggestion target field rendered inline mid-sentence ("…på <target>").
+   Distinct from the demoted verdict id (.jp-criterion__id): here the code is essential
+   content, so it stays at readable --jp-ink-2 and does not float right. */
+.jp-improve__target {
+  font-family: var(--jp-font-mono);
+  font-size: 0.9em;
+  color: var(--jp-ink-2);
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  padding: 1px 5px;
   border-radius: var(--jp-r-sm);
 }
 .jp-criterion__evidence {

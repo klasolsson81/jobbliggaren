@@ -48,7 +48,9 @@ public sealed class JobAdKeywordExtractorIntegrationTests
     {
         var stemmer = new SnowballStemmer();
         var analyzer = new LocalTextAnalyzer(stemmer);
-        return new JobAdKeywordExtractor(analyzer, stemmer);
+        // F4-15 (ADR 0076 Decision 6) — the extractor now takes the shared SkillTaxonomyIndex
+        // (the SAME index the CV-side resolver reuses); the skill matching lives there.
+        return new JobAdKeywordExtractor(analyzer, stemmer, new SkillTaxonomyIndex(analyzer));
     }
 
     // Concrete types (CA1859 — these are the real Infrastructure impls used to

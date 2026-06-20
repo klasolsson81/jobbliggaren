@@ -66,9 +66,11 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
 
         // The REAL deterministic extractor (parity the integration suite).
         var stemmer = new SnowballStemmer();
+        var analyzer = new LocalTextAnalyzer(stemmer);
         services.AddSingleton<Jobbliggaren.Application.Common.Abstractions.TextAnalysis.IStemmer>(stemmer);
+        // F4-15 (ADR 0076 Decision 6) — shared SkillTaxonomyIndex (3rd ctor arg).
         services.AddSingleton<IJobAdKeywordExtractor>(
-            new JobAdKeywordExtractor(new LocalTextAnalyzer(stemmer), stemmer));
+            new JobAdKeywordExtractor(analyzer, stemmer, new SkillTaxonomyIndex(analyzer)));
 
         // Collaborators. The IJobSource substitute is the assertion subject — it
         // must remain untouched (local re-projection, NO JobTech re-fetch).

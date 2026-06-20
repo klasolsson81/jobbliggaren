@@ -86,4 +86,26 @@ public interface IMatchScorer
     /// </summary>
     ValueTask<FullMatchScore> ScoreFullAsync(
         JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — scores MANY job ads against the
+    /// SAME <paramref name="profile"/> over the FULL set of dimensions in ONE database
+    /// round-trip. The zero-N+1 batch form of <see cref="ScoreFullAsync"/> (the
+    /// page-scoped match-tag overlay upgraded to Full): looping
+    /// <see cref="ScoreFullAsync"/> would issue one query per ad. The per-ad
+    /// <see cref="FullMatchScore"/> equals what <see cref="ScoreFullAsync"/> would
+    /// return for that ad and the same profile (the same Fast helpers + the same
+    /// concept-coverage helpers run in-memory over the single batch-loaded VO set —
+    /// the regression contract). NO AI/LLM (ADR 0071).
+    /// <para>
+    /// <b>Missing/soft-deleted ads are silently OMITTED</b> from the result (parity
+    /// <see cref="ScoreBatchAsync"/>) — a batch decoration must not fail a page render
+    /// because one id is stale. Each of the three Full dimensions reports
+    /// <see cref="MatchDimensionVerdict.NotAssessed"/> (never <c>NoMatch</c>) when the
+    /// CV side has no skill concept-ids OR the ad has no terms of that kind/source.
+    /// Deterministic per key, with Ordinal-stable evidence.
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>> ScoreFullBatchAsync(
+        IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile, CancellationToken cancellationToken);
 }

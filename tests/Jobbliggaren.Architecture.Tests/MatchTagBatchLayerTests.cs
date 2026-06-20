@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
+using NetArchTest.Rules;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -89,19 +90,26 @@ public class MatchTagBatchLayerTests
     // ===============================================================
 
     [Fact]
-    public void JobAdMatchEntryDto_carries_exactly_grade_plus_four_verdicts()
+    public void JobAdMatchEntryDto_carries_exactly_grade_plus_seven_verdicts()
     {
+        // F4-15 (ADR 0076 Decision 6) — the entry DTO widens with the THREE new FULL
+        // verdicts (SkillOverlap, MustHaveCoverage, NiceToHaveCoverage) appended to the
+        // F4-13 four. Still NO number on the wire (the Goodhart guard, pinned below) — the
+        // grade remains the single named category, the seven dims are enum verdicts.
         var entry = typeof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch.JobAdMatchEntryDto);
 
         var propNames = PublicInstancePropertyNames(entry);
 
         propNames.ShouldBe(
-            ["Grade", "SsykOverlap", "TitleSimilarity", "RegionFit", "EmploymentFit"],
+            [
+                "Grade",
+                "SsykOverlap", "TitleSimilarity", "RegionFit", "EmploymentFit",
+                "SkillOverlap", "MustHaveCoverage", "NiceToHaveCoverage",
+            ],
             ignoreOrder: true,
-            "JobAdMatchEntryDto ska bära exakt { Grade, SsykOverlap, TitleSimilarity, " +
-            "RegionFit, EmploymentFit } — den namngivna kategorin + de fyra " +
-            "dimensions-verdikten, inget mer (ADR 0076 Decision 4). Faktiska: " +
-            $"[{string.Join(", ", propNames)}].");
+            "JobAdMatchEntryDto ska bära exakt { Grade + de fyra F4-13-verdikten + de tre " +
+            "F4-15-verdikten (SkillOverlap, MustHaveCoverage, NiceToHaveCoverage) } — inget " +
+            $"mer (ADR 0076 Decision 4/6). Faktiska: [{string.Join(", ", propNames)}].");
     }
 
     [Fact]
@@ -248,5 +256,98 @@ public class MatchTagBatchLayerTests
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery);
         port.Assembly.ShouldBe(
             typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
+    }
+
+    // ===============================================================
+    // 6. F4-15 (ADR 0076 Decision 6) — ONE shared skill index, NO parallel
+    //    resolver. The CV-side ISkillResolver reuses the SAME inverted index the
+    //    ad-side extractor uses; the loader of that index (JobAdSkillTaxonomyLoader)
+    //    must be referenced by EXACTLY ONE Infrastructure type — the shared
+    //    SkillTaxonomyIndex — never a second resolver that builds its own index.
+    // ===============================================================
+
+    [Fact]
+    public void ISkillResolver_is_in_Application_layer()
+    {
+        // The CV-side resolver port is a BCL-only Application abstraction (string in,
+        // concept-ids out); the impl is internal in Infrastructure (embedded taxonomy +
+        // Snowball NLP), parity IJobAdKeywordExtractor.
+        var port = typeof(Jobbliggaren.Application.Matching.Abstractions.ISkillResolver);
+        port.Assembly.ShouldBe(
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
+    }
+
+    [Fact]
+    public void Only_the_shared_SkillTaxonomyIndex_references_the_skill_taxonomy_loader()
+    {
+        // NO parallel skill index (ADR 0076 Decision 6): JobAdSkillTaxonomyLoader.Load is
+        // the single entry point to the embedded skill vocabulary. Exactly ONE type may
+        // depend on it — the shared SkillTaxonomyIndex (which both the ad-side extractor
+        // and the CV-side resolver reuse). If a SECOND type (e.g. a parallel resolver
+        // index) referenced the loader, the two indices could silently diverge.
+        const string loaderFullName =
+            "Jobbliggaren.Infrastructure.Taxonomy.JobAdSkillTaxonomyLoader";
+
+        var infrastructureAsm = typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
+
+        var referencingTypes = Types.InAssembly(infrastructureAsm)
+            .That()
+            .HaveDependencyOn(loaderFullName)
+            .GetTypes()
+            // Exclude the loader itself + compiler-generated closures/nested helpers.
+            .Where(t => t.FullName != loaderFullName && !t.Name.Contains('<', StringComparison.Ordinal))
+            .Select(t => t.Name)
+            .ToList();
+
+        referencingTypes.ShouldBe(["SkillTaxonomyIndex"], ignoreOrder: true,
+            "Exakt EN typ (SkillTaxonomyIndex) får referera JobAdSkillTaxonomyLoader — " +
+            "ingen parallell skill-resolver-index (ADR 0076 Decision 6). Faktiska: " +
+            $"[{string.Join(", ", referencingTypes)}].");
+    }
+
+    [Fact]
+    public void SkillResolver_does_not_reference_the_skill_taxonomy_loader_directly()
+    {
+        // Sharper: the resolver must go THROUGH the shared index, never build its own —
+        // so it must NOT reference the loader at all.
+        var infrastructureAsm = typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
+
+        var result = Types.InAssembly(infrastructureAsm)
+            .That()
+            .HaveName("SkillResolver")
+            .ShouldNot()
+            .HaveDependencyOn("Jobbliggaren.Infrastructure.Taxonomy.JobAdSkillTaxonomyLoader")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            "SkillResolver ska gå genom den delade SkillTaxonomyIndex, aldrig ladda " +
+            $"taxonomin själv (ADR 0076 Decision 6): {string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    [Fact]
+    public void SkillResolver_and_SkillTaxonomyIndex_are_internal_to_Infrastructure()
+    {
+        // Parity JobAdKeywordExtractor: the impls are internal sealed (ACL-isolation,
+        // ADR 0043). Proven BY NAME so RED requires the types to exist AND be non-public.
+        var infrastructureAsm = typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
+
+        var skillTypes = infrastructureAsm.GetTypes()
+            .Where(t => t.Namespace == "Jobbliggaren.Infrastructure.Taxonomy"
+                        && (t.Name == "SkillResolver" || t.Name == "SkillTaxonomyIndex"))
+            .ToList();
+
+        skillTypes.ShouldContain(t => t.Name == "SkillResolver",
+            "SkillResolver saknas i Jobbliggaren.Infrastructure.Taxonomy (F4-15 RED).");
+        skillTypes.ShouldContain(t => t.Name == "SkillTaxonomyIndex",
+            "SkillTaxonomyIndex saknas i Jobbliggaren.Infrastructure.Taxonomy (F4-15 RED).");
+
+        var publicSkillTypes = skillTypes
+            .Where(t => t.IsPublic || (t.IsNested && t.IsNestedPublic))
+            .Select(t => t.FullName)
+            .ToList();
+
+        publicSkillTypes.ShouldBeEmpty(
+            "SkillResolver + SkillTaxonomyIndex ska vara internal (ACL-isolation, ADR 0043). " +
+            $"Public: {string.Join(", ", publicSkillTypes!)}");
     }
 }

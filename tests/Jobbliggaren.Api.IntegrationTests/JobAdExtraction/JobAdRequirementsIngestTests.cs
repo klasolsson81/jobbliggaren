@@ -88,7 +88,9 @@ public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
     private static UpsertExternalJobAdCommandHandler NewHandler(IAppDbContext db)
     {
         var stemmer = new SnowballStemmer();
-        var extractor = new JobAdKeywordExtractor(new LocalTextAnalyzer(stemmer), stemmer);
+        var analyzer = new LocalTextAnalyzer(stemmer);
+        // F4-15 (ADR 0076 Decision 6) — shared SkillTaxonomyIndex (3rd ctor arg).
+        var extractor = new JobAdKeywordExtractor(analyzer, stemmer, new SkillTaxonomyIndex(analyzer));
         return new UpsertExternalJobAdCommandHandler(
             db,
             new DbExceptionInspector(),

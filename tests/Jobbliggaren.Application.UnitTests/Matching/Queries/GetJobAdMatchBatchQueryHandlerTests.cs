@@ -9,18 +9,26 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Matching.Queries;
 
 /// <summary>
-/// F4-13 (ADR 0076 Decision 5; senior-cto-advisor 2026-06-19 A1/B2/C2a) — the batch
-/// overlay handler composes the profile builder (SSOT), the batch scorer (zero N+1) and
-/// the deterministic <see cref="MatchGradeCalculator"/>. Honest + anonymous-tolerant: no
-/// user / no stated occupation → empty map; only ads earning a positive grade appear.
+/// F4-13 → F4-15 (ADR 0076 Decision 5/6) — the batch overlay handler, upgraded to FULL.
+/// It now builds the current user's FULL CV-skill profile
+/// (<see cref="IMatchProfileBuilder.BuildFullFromCvSkillsAsync"/>, the TAG path — DEK-warmed),
+/// FULL-scores all requested ads in ONE round-trip
+/// (<see cref="IMatchScorer.ScoreFullBatchAsync"/>, zero N+1), and grades each via the
+/// deterministic <see cref="MatchGradeCalculator"/> over the EMBEDDED Fast tuple (the grade
+/// ladder is unchanged — F4-15 adds NO visible MatchGrade member, ceilinged at Strong). The
+/// entry now carries the three new FULL verdicts (SkillOverlap, MustHaveCoverage,
+/// NiceToHaveCoverage) ALONGSIDE the four Fast verdicts. Honest + anonymous-tolerant: no
+/// user / no stated occupation (the gate reads <c>profile.Fast.SsykGroupConceptIds</c>) →
+/// empty map; only ads earning a positive grade appear.
 /// <para>
 /// <b>Why hand-rolled fakes, not NSubstitute, for the two ValueTask-returning ports:</b>
-/// setting up a ValueTask return with NSubstitute (<c>.Returns(new ValueTask&lt;T&gt;(x))</c>)
-/// trips analyzer CA2012 ("do not store/await a ValueTask multiple times") at the
-/// call-setup site in THIS project. A tiny class returning <c>new ValueTask&lt;T&gt;(...)</c>
-/// straight from the method body is the clean, warning-free form. <see cref="ICurrentUser"/>
-/// is a plain <c>Guid?</c> property (no ValueTask) so NSubstitute is fine there.
+/// a ValueTask return set via NSubstitute trips CA2012 at the call-setup site in THIS
+/// project; a tiny class returning <c>new ValueTask&lt;T&gt;(...)</c> straight from the body
+/// is the clean, warning-free form. <see cref="ICurrentUser"/> is a plain <c>Guid?</c>
+/// (no ValueTask) so NSubstitute is fine there.
 /// </para>
+/// RED until the handler is upgraded to BuildFullFromCvSkillsAsync + ScoreFullBatchAsync
+/// and JobAdMatchEntryDto widens to the seven verdicts.
 /// </summary>
 public class GetJobAdMatchBatchQueryHandlerTests
 {
@@ -33,72 +41,103 @@ public class GetJobAdMatchBatchQueryHandlerTests
     }
 
     // ---------------------------------------------------------------
-    // Hand-rolled ValueTask fakes (CA2012-safe) with call counters so we can
-    // assert short-circuit behaviour (the gate must not query when it bails).
+    // Hand-rolled ValueTask fakes (CA2012-safe) with call counters. The builder now
+    // serves the FULL (CV-skill) profile; the scorer now serves the FULL batch.
     // ---------------------------------------------------------------
-    private sealed class FakeProfileBuilder(CandidateMatchProfile profile) : IMatchProfileBuilder
+    private sealed class FakeProfileBuilder(FullCandidateMatchProfile fullProfile) : IMatchProfileBuilder
     {
-        public int CallCount { get; private set; }
+        public int FastCallCount { get; private set; }
+        public int TopSkillsCallCount { get; private set; }
+        public int CvSkillsCallCount { get; private set; }
 
-        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(
-            CancellationToken cancellationToken)
+        // Unchanged F4-12 method — never called by the batch handler.
+        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken)
         {
-            CallCount++;
-            return new ValueTask<CandidateMatchProfile>(profile);
+            FastCallCount++;
+            return new ValueTask<CandidateMatchProfile>(fullProfile.Fast);
+        }
+
+        // SORT path — not used by the TAG batch handler.
+        public ValueTask<FullCandidateMatchProfile> BuildFullFromTopSkillsAsync(CancellationToken cancellationToken)
+        {
+            TopSkillsCallCount++;
+            return new ValueTask<FullCandidateMatchProfile>(fullProfile);
+        }
+
+        // TAG path — the one the batch handler uses (DEK-warmed CV-skill profile).
+        public ValueTask<FullCandidateMatchProfile> BuildFullFromCvSkillsAsync(CancellationToken cancellationToken)
+        {
+            CvSkillsCallCount++;
+            return new ValueTask<FullCandidateMatchProfile>(fullProfile);
         }
     }
 
-    private sealed class FakeScorer(IReadOnlyDictionary<JobAdId, MatchScore> scores) : IMatchScorer
+    private sealed class FakeScorer(IReadOnlyDictionary<JobAdId, FullMatchScore> scores) : IMatchScorer
     {
-        public int BatchCallCount { get; private set; }
+        public int FullBatchCallCount { get; private set; }
         public IReadOnlyList<JobAdId>? LastBatchIds { get; private set; }
 
-        public ValueTask<IReadOnlyDictionary<JobAdId, MatchScore>> ScoreBatchAsync(
-            IReadOnlyList<JobAdId> jobAdIds, CandidateMatchProfile profile,
+        public ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>> ScoreFullBatchAsync(
+            IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile,
             CancellationToken cancellationToken)
         {
-            BatchCallCount++;
+            FullBatchCallCount++;
             LastBatchIds = jobAdIds;
-            return new ValueTask<IReadOnlyDictionary<JobAdId, MatchScore>>(scores);
+            return new ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>>(scores);
         }
 
-        // Unused by the batch handler — never called; return a completed dummy.
+        // The Fast batch must NOT be used by the upgraded handler.
+        public ValueTask<IReadOnlyDictionary<JobAdId, MatchScore>> ScoreBatchAsync(
+            IReadOnlyList<JobAdId> jobAdIds, CandidateMatchProfile profile, CancellationToken cancellationToken)
+            => throw new NotSupportedException("ScoreBatchAsync ska inte anropas av den FULL-uppgraderade handlern.");
+
         public ValueTask<MatchScore> ScoreAsync(
             JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken)
             => throw new NotSupportedException("ScoreAsync ska inte anropas av batch-handlern.");
 
         public ValueTask<FullMatchScore> ScoreFullAsync(
             JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
-            => throw new NotSupportedException("ScoreFullAsync ska inte anropas av batch-handlern.");
+            => throw new NotSupportedException("ScoreFullAsync (single) ska inte anropas av batch-handlern.");
     }
 
     // ---------------------------------------------------------------
     // Profile/score builders.
     // ---------------------------------------------------------------
-    private static CandidateMatchProfile ProfileWithOccupation() =>
+    private static FullCandidateMatchProfile FullProfileWithOccupation(params string[] cvSkillConceptIds) =>
         new(
-            Title: string.Empty,
-            SsykGroupConceptIds: ["grp_12345"],
-            PreferredRegionConceptIds: ["region_AB"],
-            PreferredEmploymentTypeConceptIds: []);
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: ["grp_12345"],
+                PreferredRegionConceptIds: ["region_AB"],
+                PreferredEmploymentTypeConceptIds: []),
+            cvSkillConceptIds);
 
-    private static CandidateMatchProfile EmptyProfile() =>
-        new(string.Empty, [], [], []);
+    private static FullCandidateMatchProfile EmptyFullProfile() =>
+        new(new CandidateMatchProfile(string.Empty, [], [], []), []);
 
     private static MatchDimension Dim(MatchDimensionVerdict v) => new(v, [], []);
+    private static MatchDimension Dim(MatchDimensionVerdict v, IReadOnlyList<string> matched) => new(v, matched, []);
 
-    private static MatchScore ScoreOf(
+    private static FullMatchScore FullScoreOf(
         MatchDimensionVerdict ssyk,
         MatchDimensionVerdict region,
-        MatchDimensionVerdict employment) =>
-        new(Dim(ssyk), Dim(MatchDimensionVerdict.NotAssessed), Dim(region), Dim(employment));
+        MatchDimensionVerdict employment,
+        MatchDimensionVerdict skill = MatchDimensionVerdict.NotAssessed,
+        MatchDimensionVerdict mustHave = MatchDimensionVerdict.NotAssessed,
+        MatchDimensionVerdict niceToHave = MatchDimensionVerdict.NotAssessed) =>
+        new(
+            Fast: new MatchScore(
+                Dim(ssyk), Dim(MatchDimensionVerdict.NotAssessed), Dim(region), Dim(employment)),
+            SkillOverlap: Dim(skill),
+            MustHaveCoverage: Dim(mustHave),
+            NiceToHaveCoverage: Dim(niceToHave));
 
     private GetJobAdMatchBatchQueryHandler CreateHandler(
         FakeProfileBuilder builder, FakeScorer scorer, ICurrentUser? user = null) =>
         new(builder, scorer, user ?? _currentUser);
 
     // =================================================================
-    // Anonymous → empty, builder + scorer never called (no UserId)
+    // Anonymous → empty, builder + scorer never called (gate unchanged)
     // =================================================================
 
     [Fact]
@@ -107,81 +146,76 @@ public class GetJobAdMatchBatchQueryHandlerTests
         var ct = TestContext.Current.CancellationToken;
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
-        var scorer = new FakeScorer(new Dictionary<JobAdId, MatchScore>());
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation());
+        var scorer = new FakeScorer(new Dictionary<JobAdId, FullMatchScore>());
         var sut = CreateHandler(builder, scorer, anon);
 
-        var result = await sut.Handle(
-            new GetJobAdMatchBatchQuery([Guid.NewGuid()]), ct);
+        var result = await sut.Handle(new GetJobAdMatchBatchQuery([Guid.NewGuid()]), ct);
 
         result.Entries.ShouldBeEmpty();
-        builder.CallCount.ShouldBe(0);
-        scorer.BatchCallCount.ShouldBe(0);
+        builder.CvSkillsCallCount.ShouldBe(0);
+        scorer.FullBatchCallCount.ShouldBe(0);
     }
-
-    // =================================================================
-    // Empty id list → empty, builder + scorer never called
-    // =================================================================
 
     [Fact]
     public async Task Handle_ShouldReturnEmptyEntries_WhenJobAdIdsIsEmpty()
     {
         var ct = TestContext.Current.CancellationToken;
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
-        var scorer = new FakeScorer(new Dictionary<JobAdId, MatchScore>());
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation());
+        var scorer = new FakeScorer(new Dictionary<JobAdId, FullMatchScore>());
         var sut = CreateHandler(builder, scorer);
 
         var result = await sut.Handle(new GetJobAdMatchBatchQuery([]), ct);
 
         result.Entries.ShouldBeEmpty();
-        builder.CallCount.ShouldBe(0);
-        scorer.BatchCallCount.ShouldBe(0);
+        builder.CvSkillsCallCount.ShouldBe(0);
+        scorer.FullBatchCallCount.ShouldBe(0);
     }
 
     // =================================================================
-    // Authed but no stated occupation → empty, scorer NOT called
-    // (the occupation gate short-circuits before the batch query)
+    // Authed but no stated occupation → empty, scorer NOT called. The gate
+    // now reads profile.Fast.SsykGroupConceptIds.
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldReturnEmptyEntries_WhenProfileHasNoOccupationGroups()
+    public async Task Handle_ShouldReturnEmptyEntries_WhenProfileFastHasNoOccupationGroups()
     {
         var ct = TestContext.Current.CancellationToken;
-        var builder = new FakeProfileBuilder(EmptyProfile());
-        var scorer = new FakeScorer(new Dictionary<JobAdId, MatchScore>());
+        var builder = new FakeProfileBuilder(EmptyFullProfile());
+        var scorer = new FakeScorer(new Dictionary<JobAdId, FullMatchScore>());
         var sut = CreateHandler(builder, scorer);
 
-        var result = await sut.Handle(
-            new GetJobAdMatchBatchQuery([Guid.NewGuid()]), ct);
+        var result = await sut.Handle(new GetJobAdMatchBatchQuery([Guid.NewGuid()]), ct);
 
         result.Entries.ShouldBeEmpty();
-        builder.CallCount.ShouldBe(1);          // profile WAS built
-        scorer.BatchCallCount.ShouldBe(0);      // but the batch query was short-circuited
+        builder.CvSkillsCallCount.ShouldBe(1);      // FULL profile WAS built (TAG path)
+        scorer.FullBatchCallCount.ShouldBe(0);      // but the batch query was short-circuited
     }
 
     // =================================================================
-    // Authed with occupation prefs → map each ad through the calculator,
-    // include ONLY non-null grades, carry the four verdicts + grade
+    // Authed with occupation → grade from the Fast tuple; include only graded;
+    // entry carries the four Fast verdicts AND the three FULL verdicts.
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldIncludeOnlyGradedAds_WhenSomeScoreBelowTheGate()
+    public async Task Handle_ShouldIncludeOnlyGradedAds_GradeFromFastTuple_CeilingedAtStrong()
     {
         var ct = TestContext.Current.CancellationToken;
-        var strongAd = new JobAdId(Guid.NewGuid());   // occ Match + both confirmed → Strong
-        var goodAd = new JobAdId(Guid.NewGuid());      // occ Match + 1 confirmed → Good
+        var strongAd = new JobAdId(Guid.NewGuid());   // occ + region + employment Match → Strong
+        var goodAd = new JobAdId(Guid.NewGuid());      // occ + region Match → Good
         var gatedAd = new JobAdId(Guid.NewGuid());     // occ NoMatch → null → omitted
 
-        var scores = new Dictionary<JobAdId, MatchScore>
+        var scores = new Dictionary<JobAdId, FullMatchScore>
         {
-            [strongAd] = ScoreOf(
-                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match),
-            [goodAd] = ScoreOf(
+            [strongAd] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match,
+                skill: MatchDimensionVerdict.Match),
+            [goodAd] = FullScoreOf(
                 MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed),
-            [gatedAd] = ScoreOf(
+            [gatedAd] = FullScoreOf(
                 MatchDimensionVerdict.NoMatch, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match),
         };
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
         var scorer = new FakeScorer(scores);
         var sut = CreateHandler(builder, scorer);
 
@@ -193,23 +227,28 @@ public class GetJobAdMatchBatchQueryHandlerTests
         result.Entries.ShouldContainKey(goodAd.Value);
         result.Entries.ShouldNotContainKey(gatedAd.Value);
 
+        // Grade is still computed from the embedded Fast tuple (ceilinged at Strong —
+        // F4-15 adds no new visible MatchGrade member).
         result.Entries[strongAd.Value].Grade.ShouldBe(MatchGrade.Strong);
         result.Entries[goodAd.Value].Grade.ShouldBe(MatchGrade.Good);
     }
 
     [Fact]
-    public async Task Handle_ShouldCarryAllFourDimensionVerdicts_OnAGradedEntry()
+    public async Task Handle_ShouldCarryAllSevenDimensionVerdicts_OnAGradedEntry()
     {
         var ct = TestContext.Current.CancellationToken;
         var ad = new JobAdId(Guid.NewGuid());
-        var scores = new Dictionary<JobAdId, MatchScore>
+        var scores = new Dictionary<JobAdId, FullMatchScore>
         {
-            [ad] = ScoreOf(
-                MatchDimensionVerdict.Match,
-                MatchDimensionVerdict.Match,
-                MatchDimensionVerdict.NotAssessed),
+            [ad] = FullScoreOf(
+                ssyk: MatchDimensionVerdict.Match,
+                region: MatchDimensionVerdict.Match,
+                employment: MatchDimensionVerdict.NotAssessed,
+                skill: MatchDimensionVerdict.Partial,
+                mustHave: MatchDimensionVerdict.Match,
+                niceToHave: MatchDimensionVerdict.NotAssessed),
         };
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
         var scorer = new FakeScorer(scores);
         var sut = CreateHandler(builder, scorer);
 
@@ -217,29 +256,35 @@ public class GetJobAdMatchBatchQueryHandlerTests
 
         var entry = result.Entries[ad.Value];
         entry.Grade.ShouldBe(MatchGrade.Good);
+        // Four Fast verdicts.
         entry.SsykOverlap.ShouldBe(MatchDimensionVerdict.Match);
+        entry.TitleSimilarity.ShouldBe(MatchDimensionVerdict.NotAssessed);
         entry.RegionFit.ShouldBe(MatchDimensionVerdict.Match);
         entry.EmploymentFit.ShouldBe(MatchDimensionVerdict.NotAssessed);
-        entry.TitleSimilarity.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        // Three FULL verdicts (the F4-15 additions).
+        entry.SkillOverlap.ShouldBe(MatchDimensionVerdict.Partial);
+        entry.MustHaveCoverage.ShouldBe(MatchDimensionVerdict.Match);
+        entry.NiceToHaveCoverage.ShouldBe(MatchDimensionVerdict.NotAssessed);
     }
 
     [Fact]
-    public async Task Handle_ShouldCallBatchScorerExactlyOnce_WhenOccupationStated()
+    public async Task Handle_ShouldCallFullBatchScorerExactlyOnce_WhenOccupationStated()
     {
         var ct = TestContext.Current.CancellationToken;
         var ad = new JobAdId(Guid.NewGuid());
-        var scores = new Dictionary<JobAdId, MatchScore>
+        var scores = new Dictionary<JobAdId, FullMatchScore>
         {
-            [ad] = ScoreOf(
+            [ad] = FullScoreOf(
                 MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed, MatchDimensionVerdict.NotAssessed),
         };
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
         var scorer = new FakeScorer(scores);
         var sut = CreateHandler(builder, scorer);
 
         await sut.Handle(new GetJobAdMatchBatchQuery([ad.Value]), ct);
 
-        scorer.BatchCallCount.ShouldBe(1);       // ONE round-trip (zero N+1)
+        scorer.FullBatchCallCount.ShouldBe(1);       // ONE round-trip (zero N+1)
+        builder.CvSkillsCallCount.ShouldBe(1);       // TAG path — full CV-skill profile
         scorer.LastBatchIds.ShouldNotBeNull();
         scorer.LastBatchIds!.ShouldContain(ad);
     }
@@ -249,16 +294,15 @@ public class GetJobAdMatchBatchQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var ad = new JobAdId(Guid.NewGuid());
-        var scores = new Dictionary<JobAdId, MatchScore>
+        var scores = new Dictionary<JobAdId, FullMatchScore>
         {
-            [ad] = ScoreOf(
+            [ad] = FullScoreOf(
                 MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed, MatchDimensionVerdict.NotAssessed),
         };
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
         var scorer = new FakeScorer(scores);
         var sut = CreateHandler(builder, scorer);
 
-        // Same id three times — the handler distincts before constructing JobAdIds.
         await sut.Handle(new GetJobAdMatchBatchQuery([ad.Value, ad.Value, ad.Value]), ct);
 
         scorer.LastBatchIds.ShouldNotBeNull();
@@ -266,7 +310,7 @@ public class GetJobAdMatchBatchQueryHandlerTests
     }
 
     // =================================================================
-    // Determinism — same input twice → equal Entries
+    // Determinism — same input twice → equal Entries (incl. the new verdicts)
     // =================================================================
 
     [Fact]
@@ -275,20 +319,22 @@ public class GetJobAdMatchBatchQueryHandlerTests
         var ct = TestContext.Current.CancellationToken;
         var ad1 = new JobAdId(Guid.NewGuid());
         var ad2 = new JobAdId(Guid.NewGuid());
-        var scores = new Dictionary<JobAdId, MatchScore>
+        var scores = new Dictionary<JobAdId, FullMatchScore>
         {
-            [ad1] = ScoreOf(
-                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match),
-            [ad2] = ScoreOf(
-                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed),
+            [ad1] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match,
+                skill: MatchDimensionVerdict.Match),
+            [ad2] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed,
+                mustHave: MatchDimensionVerdict.Partial),
         };
 
         var query = new GetJobAdMatchBatchQuery([ad1.Value, ad2.Value]);
 
         var first = await CreateHandler(
-            new FakeProfileBuilder(ProfileWithOccupation()), new FakeScorer(scores)).Handle(query, ct);
+            new FakeProfileBuilder(FullProfileWithOccupation("skill-x")), new FakeScorer(scores)).Handle(query, ct);
         var second = await CreateHandler(
-            new FakeProfileBuilder(ProfileWithOccupation()), new FakeScorer(scores)).Handle(query, ct);
+            new FakeProfileBuilder(FullProfileWithOccupation("skill-x")), new FakeScorer(scores)).Handle(query, ct);
 
         first.Entries.Count.ShouldBe(second.Entries.Count);
         foreach (var (id, entry) in first.Entries)
@@ -299,6 +345,9 @@ public class GetJobAdMatchBatchQueryHandlerTests
             second.Entries[id].RegionFit.ShouldBe(entry.RegionFit);
             second.Entries[id].EmploymentFit.ShouldBe(entry.EmploymentFit);
             second.Entries[id].TitleSimilarity.ShouldBe(entry.TitleSimilarity);
+            second.Entries[id].SkillOverlap.ShouldBe(entry.SkillOverlap);
+            second.Entries[id].MustHaveCoverage.ShouldBe(entry.MustHaveCoverage);
+            second.Entries[id].NiceToHaveCoverage.ShouldBe(entry.NiceToHaveCoverage);
         }
     }
 }

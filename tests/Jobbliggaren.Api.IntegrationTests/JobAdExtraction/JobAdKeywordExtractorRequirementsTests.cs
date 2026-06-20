@@ -30,7 +30,8 @@ public sealed class JobAdKeywordExtractorRequirementsTests
     {
         var stemmer = new SnowballStemmer();
         var analyzer = new LocalTextAnalyzer(stemmer);
-        return new JobAdKeywordExtractor(analyzer, stemmer);
+        // F4-15 (ADR 0076 Decision 6) — shared SkillTaxonomyIndex (3rd ctor arg).
+        return new JobAdKeywordExtractor(analyzer, stemmer, new SkillTaxonomyIndex(analyzer));
     }
 
     // A must_have / nice_to_have requirement concept already linked by JobTech.

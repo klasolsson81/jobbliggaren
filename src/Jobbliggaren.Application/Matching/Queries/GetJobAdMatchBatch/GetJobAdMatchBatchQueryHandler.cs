@@ -35,12 +35,16 @@ public sealed class GetJobAdMatchBatchQueryHandler(
         if (!currentUser.UserId.HasValue || query.JobAdIds.Count == 0)
             return Empty;
 
-        var profile = await profileBuilder.BuildFromPreferencesAsync(cancellationToken);
+        // F4-15 (ADR 0076 Decision 6 + R5-REBIND Option H): the page-scoped TAG path runs
+        // FULL — it reads the primary CV's COMPLETE skills (DEK-warmed, fail-closed) so the
+        // F4-16 modal's matched/missing is honest. No primary CV / no resolved skills →
+        // the three Full dimensions degrade to NotAssessed (never NoMatch).
+        var profile = await profileBuilder.BuildFullFromCvSkillsAsync(cancellationToken);
 
         // Occupation/SSYK is the gate of the grade ladder (MatchGradeCalculator): without
         // a stated occupation no ad can earn a tag. Short-circuit before the batch query —
         // honest empty (the Översikt setup nudge owns the "complete your profile" case).
-        if (profile.SsykGroupConceptIds.Count == 0)
+        if (profile.Fast.SsykGroupConceptIds.Count == 0)
             return Empty;
 
         var ids = query.JobAdIds
@@ -48,21 +52,27 @@ public sealed class GetJobAdMatchBatchQueryHandler(
             .Select(id => new JobAdId(id))
             .ToList();
 
-        var scores = await scorer.ScoreBatchAsync(ids, profile, cancellationToken);
+        var scores = await scorer.ScoreFullBatchAsync(ids, profile, cancellationToken);
 
         var entries = new Dictionary<Guid, JobAdMatchEntryDto>(scores.Count);
         foreach (var (jobAdId, score) in scores)
         {
-            var grade = MatchGradeCalculator.Grade(score);
+            // The VISIBLE grade stays Fast-ceilinged at Strong in F4-15 (ADR 0076 b-ii) —
+            // the golden rung is sort-key-only until F4-16 paints the chip. The three Full
+            // verdicts ride the DTO for the F4-16 modal (forward-compat).
+            var grade = MatchGradeCalculator.Grade(score.Fast);
             if (grade is null)
                 continue;
 
             entries[jobAdId.Value] = new JobAdMatchEntryDto(
                 Grade: grade.Value,
-                SsykOverlap: score.SsykOverlap.Verdict,
-                TitleSimilarity: score.TitleSimilarity.Verdict,
-                RegionFit: score.RegionFit.Verdict,
-                EmploymentFit: score.EmploymentFit.Verdict);
+                SsykOverlap: score.Fast.SsykOverlap.Verdict,
+                TitleSimilarity: score.Fast.TitleSimilarity.Verdict,
+                RegionFit: score.Fast.RegionFit.Verdict,
+                EmploymentFit: score.Fast.EmploymentFit.Verdict,
+                SkillOverlap: score.SkillOverlap.Verdict,
+                MustHaveCoverage: score.MustHaveCoverage.Verdict,
+                NiceToHaveCoverage: score.NiceToHaveCoverage.Verdict);
         }
 
         return new JobAdMatchBatchDto(entries);

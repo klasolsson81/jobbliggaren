@@ -156,14 +156,27 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationCodeDeriver,
             Jobbliggaren.Infrastructure.Taxonomy.OccupationCodeDeriver>();
 
+        // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the shared inverted skill-taxonomy
+        // index (embedded jobad-skill-taxonomy.v30.json), extracted from the extractor so
+        // BOTH the ad-side extractor AND the CV-side resolver reuse ONE index (no parallel
+        // resolver). Singleton (holds the Lazy index); consumes ITextAnalyzer.
+        services.AddSingleton<Jobbliggaren.Infrastructure.Taxonomy.SkillTaxonomyIndex>();
+
         // Fas 4 STEG 4 (F4-4, ADR 0071/0074 Path C) — deterministic per-job-ad
-        // keyword/skill extractor. Singleton with a lazily-built skill-taxonomy
-        // index (embedded jobad-skill-taxonomy.v30.json), mirroring the F4-3
-        // deriver; consumes ITextAnalyzer + IStemmer (AddTextAnalysis). NO AI/LLM.
+        // keyword/skill extractor. Singleton; consumes ITextAnalyzer + IStemmer
+        // (AddTextAnalysis) + the shared SkillTaxonomyIndex (F4-15). NO AI/LLM.
         // DI in the same commit as the port-impl (feedback_di_with_handlers_same_commit).
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdKeywordExtractor,
             Jobbliggaren.Infrastructure.Taxonomy.JobAdKeywordExtractor>();
+
+        // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the CV-side skill resolver
+        // (free-text CV skill names → JobTech concept-ids), reusing the SAME
+        // SkillTaxonomyIndex as the extractor (Decision 6: no parallel resolver).
+        // Singleton (depends only on the singleton index). NO AI/LLM.
+        services.AddSingleton<
+            Jobbliggaren.Application.Matching.Abstractions.ISkillResolver,
+            Jobbliggaren.Infrastructure.Taxonomy.SkillResolver>();
 
         // Fas 4 STEG 5 (F4-5, ADR 0074 row U5a) — deterministic "Fast mode" match
         // scorer. Scores one job ad against a caller-supplied CandidateMatchProfile

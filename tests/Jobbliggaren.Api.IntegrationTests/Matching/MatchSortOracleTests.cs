@@ -84,11 +84,17 @@ public class MatchSortOracleTests(ApiFactory factory)
         return (scope, search, scorer);
     }
 
-    private static CandidateMatchProfile Profile() => new(
-        Title: string.Empty,
-        SsykGroupConceptIds: [PrefGroup],
-        PreferredRegionConceptIds: [PrefRegion],
-        PreferredEmploymentTypeConceptIds: [PrefEmployment]);
+    // F4-15 (ADR 0076 Decision 6): SearchByMatchAsync now takes a FullCandidateMatchProfile.
+    // This F4-14-ladder oracle exercises the GRADE ladder only (no CV skills) → an EMPTY
+    // CvSkillConceptIds, which produces NO golden lift (order ≡ F4-14). The golden top tier
+    // is pinned separately in MatchSortGoldenRungOracleTests.
+    private static FullCandidateMatchProfile Profile() => new(
+        new CandidateMatchProfile(
+            Title: string.Empty,
+            SsykGroupConceptIds: [PrefGroup],
+            PreferredRegionConceptIds: [PrefRegion],
+            PreferredEmploymentTypeConceptIds: [PrefEmployment]),
+        CvSkillConceptIds: []);
 
     // Filter on the unique test-run municipality only → exactly the seeded ads,
     // untagged included (municipality is not a grade input).
@@ -238,10 +244,12 @@ public class MatchSortOracleTests(ApiFactory factory)
             "Match-sorten ska returnera HELA den filtrerade mängden (otaggade inkluderade, " +
             "bara sist) — ingen annons filtreras bort.");
 
-        // C# grade-SSOT: score every seeded ad with the SAME profile, grade it.
+        // C# grade-SSOT: score every seeded ad with the SAME (embedded Fast) profile,
+        // grade it. The grade ladder reads the Fast tuple (the match-sort's Full profile
+        // carries the same Fast).
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(seeded, profile, ct);
+        var scores = await scorer.ScoreBatchAsync(seeded, profile.Fast, ct);
 
         var expectedRankById = seeded.ToDictionary(
             id => id.Value,
@@ -392,7 +400,7 @@ public class MatchSortOracleTests(ApiFactory factory)
         // Confirm the C# SSOT agrees with the intended grades (proves the seed is right).
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync([notAssessed, noMatch], profile, ct);
+        var scores = await scorer.ScoreBatchAsync([notAssessed, noMatch], profile.Fast, ct);
         MatchGradeCalculator.Grade(scores[notAssessed]).ShouldBe(MatchGrade.Good,
             "NULL region-shadow med ANGIVEN region-preferens = NotAssessed → golvar EJ " +
             "(employment Match → Good).");

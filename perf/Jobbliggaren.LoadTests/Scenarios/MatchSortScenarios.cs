@@ -1,4 +1,4 @@
-// Jobbliggaren perf fitness function — GET /api/v1/job-ads?sortBy=MatchDesc (F4-14).
+// Jobbliggaren perf fitness function — GET /api/v1/job-ads?sortBy=MatchDesc (F4-14/F4-15).
 //
 // ADR 0076 Decision 4/5/7 + ADR 0045 Beslut 1 klass (a) read-query/list:
 //   p95 ≤ 300 ms (Klas-låst — produkt/UX/kostnad, Accepted 2026-05-17)
@@ -10,15 +10,21 @@
 // Edge-to-edge mäts INTE — medvetet (ADR 0045 Beslut 1).
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// ENDPOINT-PROFIL (F4-14 — byggd):
+// ENDPOINT-PROFIL (F4-14/F4-15 — uppdaterad med F4-15 CV-read-delta):
 //   GET /api/v1/job-ads?sortBy=5 (ListJobAdsSort.MatchDesc = 5)
 //   Auth-gated (RequireAuthorization via grupp, ADR 0005). LOADTEST_BEARER_TOKEN
 //   krävs — saknas den → 401 → fail-count → BudgetReporter-warning (signalen
 //   mäter INTE match-sort-hot-path).
 //
-//   Handler ListJobAdsQueryHandler (F4-14):
-//     1. IMatchProfileBuilder.BuildFromPreferencesAsync: 1 SELECT JobSeekers →
-//        CandidateMatchProfile (ssyk/region/employment-concept-id-listor).
+//   Handler ListJobAdsQueryHandler (F4-15, bygger på F4-14):
+//     1. IMatchProfileBuilder.BuildFullFromTopSkillsAsync (NY F4-15):
+//        - 1 SELECT JobSeekers (AsNoTracking) → JobSeeker + MatchPreferences.
+//        - 1 SELECT Resumes WHERE id = PrimaryResumeId (AsNoTracking, NO Include(Versions))
+//          → Resume.TopSkills (plaintext text[], ADR 0058/0059, NO DEK).
+//        - In-memory ISkillResolver.Resolve(TopSkills[≤5]) → IReadOnlySet<string> concept-ids.
+//        → FullCandidateMatchProfile (fast + top-5 skill concept-ids).
+//        Deltakostnad vs F4-14: +1 SELECT Resumes + in-memory resolver (sub-ms).
+//        INGEN DEK-uppvärmning (plaintext projection). INGEN interceptor-dekryptering.
 //     2. SSYK-gate (Decision 7 honest fallback): tom ssyk → fallback till
 //        PublishedAtDesc-sort (INGEN match-sort-overhead; IJobAdSearchQuery).
 //        NÄR SSYK är angiven (testets förväntade case — kräver autentiserad
@@ -28,26 +34,44 @@
 //          med SET LOCAL enable_seqscan=off (TD-94 bitmap-plan-tvång).
 //        - ApplyFilter (JobAdSearchComposition.ApplyFilter) → WHERE status='Active'
 //          (+ eventuella filter).
-//        - ORDER BY <grad-rank CASE> DESC, published_at DESC, id ASC: NON-SARGABLE
-//          rank-CASE over occupation_group_concept_id / region_concept_id /
-//          employment_type_concept_id shadow-columns. Postgres beräknar ranken
-//          per-rad på hela filtrerade mängden → Seq Scan + Sort (inget index kan
-//          serva ett non-sargable per-user rank-uttryck).
+//        - ORDER BY (F4-15 GOLDEN RUNG NY):
+//            CASE WHEN rank=3 AND extracted_lexemes ?| @cvConceptIds THEN 4 ELSE rank END DESC,
+//            published_at DESC, id ASC.
+//          GIN-index (ix_job_ads_extracted_lexemes_gin, ADR 0075) serverar ?| predikatet;
+//          rank-CASE forblir NON-SARGABLE (parity F4-14). Postgres beräknar rank + GIN-check
+//          per-rad på hela filtrerade mängden → Seq Scan + Sort.
+//          Deltakostnad vs F4-14: GIN ?| per rad tillkommer, men predikatet körs AFTER
+//          rank-beräkning (GIN ?| på jsonb är fast per rad, inte en GIN Index Scan i ORDER BY).
 //        - Skip/Take (paginering).
 //        - Select → JobAdDto.
 //
 //   Tre test-dimensioner (svarar mot "worst case", "typical case", "fallback"):
-//     (A) WorstCase: sortBy=MatchDesc + INGA filter + ANGIVEN preferens. Postgres
-//         måste scanna + sortera hela aktiva korpusen (~54k rader) med rank-CASE.
-//         Det är den maximala planner-kostnaden för match-sorten.
+//     (A) WorstCase: sortBy=MatchDesc + INGA filter + ANGIVEN preferens + PRIMARY CV
+//         MED TopSkills. Postgres måste scanna + sortera hela aktiva korpusen
+//         (~54k rader) med rank-CASE + GIN ?| per rad. Det är den maximala
+//         planner-kostnaden för match-sorten inkl. F4-15 golden-rung-delta.
+//         Kräver: LOADTEST_BEARER_TOKEN (JWT med preferens + primary CV med TopSkills).
 //     (B) Typical: sortBy=MatchDesc + EN occupationGroup-filter. Filter reducerar
-//         mängden; rank-CASE beräknas bara på träffmängden. Mer typisk prod-körning.
+//         mängden; rank-CASE + GIN ?| beräknas bara på träffmängden. Mer typisk
+//         prod-körning.
 //     (C) FallbackNoProfile: sortBy=MatchDesc men användaren har INGEN angiven
 //         yrkespreferens (tom SSYK-gate → handler faller tillbaka till
-//         PublishedAtDesc-sort via IJobAdSearchQuery.SearchAsync). Mäter
-//         fallback-latensspridning = baseline för default-sorten under
-//         match-sort-endpointens request-pipeline (samma som q-count-scenariot
-//         fast utan q-parameter).
+//         PublishedAtDesc-sort via IJobAdSearchQuery.SearchAsync). I F4-15 bygger
+//         BuildFullFromTopSkillsAsync ändå SSYK-check (1 SELECT JobSeekers);
+//         om PrimaryResumeId finns → 1 SELECT Resumes; sedan SSYK-gate → fallback.
+//         Mäter: F4-15:s BUILD-overhead (2 SELECT:s) + default-sort-kostnaden.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// F4-15 MÄTKRAV (CTO R5 / CLAUDE.md §2.5):
+//   Det autentiserade skill-bearing-profil-kravet är OFÖRÄNDRAT vs F4-14 — men nu
+//   KRÄVER en MENINGSFULL worst-case-mätning att testanvändaren har:
+//     (1) Angiven yrkespreferens (SsykGroupConceptIds icke-tom) — aktiverar match-sort.
+//     (2) Primary CV med ≥1 TopSkill (Resume.TopSkills icke-tom) — aktiverar golden rung.
+//   Utan (1): FallbackNoProfile-vägen (SSYK-gate → default-sort).
+//   Utan (2): Profilen byggs utan skill concept-ids → golden rung aktiveras ej (GIN ?|
+//             på en tom array returnerar false per-rad → ingen golden increment).
+//   WorstCase + Typical MED (1)+(2) = FULL F4-15 golden-rung-träff-mätning.
+//   WorstCase/Typical UTAN (2) = F4-14-likvärdig signal + +1 SELECT Resumes overhead.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH-KRAV (kritisk för meningsfull mätning):

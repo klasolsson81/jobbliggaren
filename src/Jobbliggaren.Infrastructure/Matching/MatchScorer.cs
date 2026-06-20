@@ -54,6 +54,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     private static readonly IReadOnlyDictionary<JobAdId, MatchScore> EmptyScores =
         new Dictionary<JobAdId, MatchScore>();
 
+    private static readonly IReadOnlyDictionary<JobAdId, FullMatchScore> EmptyFullScores =
+        new Dictionary<JobAdId, FullMatchScore>();
+
     public async ValueTask<MatchScore> ScoreAsync(
         JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken)
     {
@@ -212,6 +215,75 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             NiceToHaveCoverage: ScoreConceptCoverage(
                 terms.Where(t => t.Kind == ExtractedTermKind.Requirement
                     && t.Source == ExtractedTermSource.NiceToHave), cvSkills));
+    }
+
+    // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the zero-N+1 batch form of
+    // ScoreFullAsync (the page-scoped match-tag overlay upgraded to Full). It loads
+    // ALL requested ads' Fast shadows + the extracted_terms VO in ONE round-trip
+    // (the SAME `FromSql = ANY` shape as ScoreBatchAsync, extended with the VO
+    // projection of ScoreFullAsync), then runs the SAME Fast + concept-coverage
+    // helpers in-memory per row (so each FullMatchScore equals ScoreFullAsync for
+    // that ad + profile — the regression contract). NO AI/LLM.
+    public async ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>> ScoreFullBatchAsync(
+        IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(jobAdIds);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        if (jobAdIds.Count == 0)
+        {
+            return EmptyFullScores;
+        }
+
+        var ids = jobAdIds.Select(id => id.Value).Distinct().ToArray();
+
+        // ONE round-trip via parameterized `= ANY` (parity ScoreBatchAsync — Contains
+        // over the strongly-typed JobAdId key does not translate, ef_strongly_typed_vo_
+        // contains). The extracted_terms VO materializes via its jsonb ValueConverter
+        // exactly as in ScoreFullAsync's .Select; the global soft-delete filter composes
+        // (soft-deleted ads absent ⇒ no entry). Testcontainers is the oracle.
+        var rows = await db.JobAds
+            .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
+            .AsNoTracking()
+            .Select(j => new AdFullBatchRow(
+                j.Id,
+                j.Title,
+                EF.Property<string?>(j, OccupationGroupColumn),
+                EF.Property<string?>(j, RegionColumn),
+                EF.Property<string?>(j, EmploymentTypeColumn),
+                j.ExtractedTerms))
+            .ToListAsync(cancellationToken);
+
+        // Hoist the constant CV-side inputs out of the per-ad loop (parity the Fast
+        // batch's cvTitleLexemes hoist): the title lexemes and the skill-id set are
+        // the same for every ad in the batch.
+        var fast = profile.Fast;
+        var cvTitleLexemes = TryCvTitleLexemes(fast.Title);
+        var cvSkills = profile.CvSkillConceptIds.ToHashSet(StringComparer.Ordinal);
+
+        var result = new Dictionary<JobAdId, FullMatchScore>(rows.Count);
+        foreach (var ad in rows)
+        {
+            var fastScore = new MatchScore(
+                SsykOverlap: ScoreMembership(fast.SsykGroupConceptIds, ad.OccupationGroupConceptId),
+                TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
+                RegionFit: ScoreMembership(fast.PreferredRegionConceptIds, ad.RegionConceptId),
+                EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+
+            var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
+            result[ad.Id] = new FullMatchScore(
+                Fast: fastScore,
+                SkillOverlap: ScoreConceptCoverage(
+                    terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills),
+                MustHaveCoverage: ScoreConceptCoverage(
+                    terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                        && t.Source == ExtractedTermSource.MustHave), cvSkills),
+                NiceToHaveCoverage: ScoreConceptCoverage(
+                    terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                        && t.Source == ExtractedTermSource.NiceToHave), cvSkills));
+        }
+
+        return result;
     }
 
     // Concept-id coverage of one ad-side term partition (Skill / must_have /
@@ -374,6 +446,17 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // via its jsonb ValueConverter). Constructor-projected; ExtractedTerms is nullable
     // (NULL ⇒ never extracted ⇒ the three new dims read NotAssessed).
     private sealed record AdFullRow(
+        string Title,
+        string? OccupationGroupConceptId,
+        string? RegionConceptId,
+        string? EmploymentTypeConceptId,
+        ExtractedTerms? ExtractedTerms);
+
+    // The Full batch row (F4-15) — AdFullRow plus the JobAdId key, so ScoreFullBatchAsync
+    // can key the result dictionary. j.Id + the extracted_terms VO materialize via their
+    // value converters (parity ScoreBatchAsync + ScoreFullAsync).
+    private sealed record AdFullBatchRow(
+        JobAdId Id,
         string Title,
         string? OccupationGroupConceptId,
         string? RegionConceptId,

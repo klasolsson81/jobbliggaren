@@ -194,7 +194,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     ).toBeNull();
   });
 
-  it("sort-alternativen bär E2e-labels (Relevans / Datum (nyast) / Ansökningsdatum (sista ansökan))", () => {
+  it("sort-alternativen bär labels (Relevans / Sortera efter matchning / Datum (nyast) / Ansökningsdatum (sista ansökan))", () => {
     render(
       <JobbResultsToolbar
         totalCount={5}
@@ -210,11 +210,58 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     );
     expect(screen.getByRole("option", { name: "Relevans" })).toBeInTheDocument();
     expect(
+      screen.getByRole("option", { name: "Sortera efter matchning" }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("option", { name: "Datum (nyast)" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Ansökningsdatum (sista ansökan)" }),
     ).toBeInTheDocument();
+  });
+
+  it("match-sort-alternativet visas och är ALDRIG disablat utan söktext (F4-14, till skillnad från Relevance)", () => {
+    render(
+      <JobbResultsToolbar
+        totalCount={5}
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        employmentType={[]}
+        worktimeExtent={[]}
+        resolvedLabels={{}}
+        q=""
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    const opt = screen.getByRole("option", {
+      name: "Sortera efter matchning",
+    }) as HTMLOptionElement;
+    expect(opt.disabled).toBe(false);
+  });
+
+  it("match-sort-byte commit:ar sortBy=MatchDesc och bevarar q + filter (F4-14)", async () => {
+    const user = userEvent.setup();
+    render(
+      <JobbResultsToolbar
+        totalCount={5}
+        occupationGroup={["MVqp_eS8_kDZ"]}
+        region={[]}
+        municipality={[]}
+        employmentType={[]}
+        worktimeExtent={[]}
+        resolvedLabels={resolvedLabels}
+        q="data"
+        sortBy="PublishedAtDesc"
+      />,
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Sortera"),
+      "Sortera efter matchning",
+    );
+    expect(pushMock).toHaveBeenCalledWith(
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=MatchDesc&commit=true",
+    );
   });
 
   it("Relevance-alternativet är disablat utan söktext (ADR 0042 Beslut D)", () => {

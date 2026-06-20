@@ -63,14 +63,20 @@ interface JobbResultsToolbarProps {
   pageSize?: string;
 }
 
-// Exakt tre alternativ, i denna ordning. Labels per Klas-prompt E2e
-// 2026-06-11. "(CV-match)"-suffixet UTGICK — Relevance är ts_rank-FTS-
-// relevans (ADR 0062), inte CV-matchning (ADR 0040 Fas 4+, ADR 0042
-// Beslut F: ingen CV-match-placeholder i UI). ExpiresAtAsc-mappningen
+// Sort-alternativ i denna ordning. Labels per Klas-prompt E2e 2026-06-11 +
+// F4-14 (match-sort). "(CV-match)"-suffixet UTGICK på Relevance — Relevance är
+// ts_rank-FTS-relevans (ADR 0062), inte matchning. ExpiresAtAsc-mappningen
 // on-disk-verifierad: ORDER BY ExpiresAt ASC NULLS LAST (JobAdSearchQuery.
 // ApplySort) = kortast kvar till sista ansökningsdag först.
+//
+// "Sortera efter matchning" (F4-14, ADR 0076 Decision 4/5) placeras direkt
+// efter "Relevans" så de två avsikts-styrda ordningarna (vad som passar dig)
+// sitter samlade, före de rena datum-ordningarna. Den disablas ALDRIG på q
+// (till skillnad från Relevance): match-sorten kräver ingen söktext och faller
+// honest tillbaka till nyaste-ordning utan yrkespreferens (Decision 7).
 const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string }> = [
   { value: "Relevance", label: "Relevans" },
+  { value: "MatchDesc", label: "Sortera efter matchning" },
   { value: "PublishedAtDesc", label: "Datum (nyast)" },
   { value: "ExpiresAtAsc", label: "Ansökningsdatum (sista ansökan)" },
 ];

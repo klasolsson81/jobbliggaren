@@ -1,5 +1,4 @@
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
-using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.SavedSearches;
 using Shouldly;
 
@@ -46,9 +45,10 @@ public class ListJobAdsQueryValidatorTests
     }
 
     [Fact]
-    public void Validate_SortByUnknownEnum_IsInvalid()
+    public void Validate_SortUnknownEnum_IsInvalid()
     {
-        var result = _validator.Validate(new ListJobAdsQuery(SortBy: (JobAdSortBy)999));
+        // F4-14 — Sort är read-side-ytan (ListJobAdsSort). IsInEnum targetar Sort.
+        var result = _validator.Validate(new ListJobAdsQuery(Sort: (ListJobAdsSort)999));
         result.IsValid.ShouldBeFalse();
     }
 
@@ -361,7 +361,7 @@ public class ListJobAdsQueryValidatorTests
     public void Validate_AllFiltersNull_Passes()
     {
         var result = _validator.Validate(new ListJobAdsQuery(
-            Page: 1, PageSize: 20, SortBy: JobAdSortBy.PublishedAtDesc,
+            Page: 1, PageSize: 20, Sort: ListJobAdsSort.PublishedAtDesc,
             OccupationGroup: null, Municipality: null, Region: null, Q: null));
         result.IsValid.ShouldBeTrue();
     }
@@ -370,7 +370,7 @@ public class ListJobAdsQueryValidatorTests
     public void Validate_AllFiltersValid_Passes()
     {
         var result = _validator.Validate(new ListJobAdsQuery(
-            Page: 1, PageSize: 20, SortBy: JobAdSortBy.PublishedAtDesc,
+            Page: 1, PageSize: 20, Sort: ListJobAdsSort.PublishedAtDesc,
             OccupationGroup: ["grp-1", "grp-2"], Municipality: ["sthlm_kn"],
             Region: ["stockholm"], Q: "developer"));
         result.IsValid.ShouldBeTrue();
@@ -382,7 +382,7 @@ public class ListJobAdsQueryValidatorTests
     public void Validate_RelevanceSortWithoutQ_IsInvalid()
     {
         var result = _validator.Validate(new ListJobAdsQuery(
-            SortBy: JobAdSortBy.Relevance, OccupationGroup: ["12345"], Q: null));
+            Sort: ListJobAdsSort.Relevance, OccupationGroup: ["12345"], Q: null));
         result.IsValid.ShouldBeFalse();
     }
 
@@ -390,7 +390,28 @@ public class ListJobAdsQueryValidatorTests
     public void Validate_RelevanceSortWithQ_IsValid()
     {
         var result = _validator.Validate(new ListJobAdsQuery(
-            SortBy: JobAdSortBy.Relevance, Q: "developer"));
+            Sort: ListJobAdsSort.Relevance, Q: "developer"));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    // F4-14 (ADR 0076 Decision 4/7) — match-sorten (MatchDesc) kräver INGEN söktext
+    // (till skillnad mot Relevance som rankar på ts_rank). Den ordnar på profil-
+    // match, så Q: null är fullt giltigt.
+
+    [Fact]
+    public void Validate_MatchSortWithoutQ_IsValid()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(
+            Sort: ListJobAdsSort.MatchDesc, Q: null));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_MatchSortWithQ_IsValid()
+    {
+        // Söktext + match-sort är tillåtet (filter + match-ordning komponeras).
+        var result = _validator.Validate(new ListJobAdsQuery(
+            Sort: ListJobAdsSort.MatchDesc, Q: "developer"));
         result.IsValid.ShouldBeTrue();
     }
 }

@@ -73,6 +73,8 @@ public class ListJobAdsFtsTests(ApiFactory factory)
             new JobAdSearchQuery(
                 scope.ServiceProvider.GetRequiredService<AppDbContext>(),
                 Substitute.For<IOccupationSynonymExpander>()),
+            Substitute.For<Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder>(),
             new SearchQueryParser());
 
     // 1. FTS svensk stemming — websearch_to_tsquery('swedish', …) reducerar
@@ -214,7 +216,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         var handler = CreateHandler(scope);
 
         var result = await handler.Handle(
-            new ListJobAdsQuery(SortBy: JobAdSortBy.Relevance, Q: word), ct);
+            new ListJobAdsQuery(Sort: ListJobAdsSort.Relevance, Q: word), ct);
 
         result.TotalCount.ShouldBe(2);
         // FTS-träff (ts_rank > 0) först, title-LIKE-only-träff (ts_rank 0) sist.
@@ -242,7 +244,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         var handler = CreateHandler(scope);
 
         var result = await handler.Handle(
-            new ListJobAdsQuery(SortBy: JobAdSortBy.Relevance, Q: word), ct);
+            new ListJobAdsQuery(Sort: ListJobAdsSort.Relevance, Q: word), ct);
 
         result.TotalCount.ShouldBe(2);
         result.Items[0].Id.ShouldBe(newer);
@@ -299,7 +301,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         var handler = CreateHandler(scope);
 
         var result = await handler.Handle(
-            new ListJobAdsQuery(Q: token, SortBy: JobAdSortBy.PublishedAtDesc), ct);
+            new ListJobAdsQuery(Q: token, Sort: ListJobAdsSort.PublishedAtDesc), ct);
 
         result.Items.Select(i => i.Title)
             .ShouldBe([$"{token} Newest", $"{token} Middle", $"{token} Oldest"]);
@@ -323,7 +325,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         var handler = CreateHandler(scope);
 
         var result = await handler.Handle(
-            new ListJobAdsQuery(Q: token, SortBy: JobAdSortBy.PublishedAtAsc), ct);
+            new ListJobAdsQuery(Q: token, Sort: ListJobAdsSort.PublishedAtAsc), ct);
 
         result.Items.Select(i => i.Title)
             .ShouldBe([$"{token} Oldest", $"{token} Middle", $"{token} Newest"]);
@@ -348,7 +350,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         var handler = CreateHandler(scope);
 
         var result = await handler.Handle(
-            new ListJobAdsQuery(Q: token, SortBy: JobAdSortBy.ExpiresAtAsc), ct);
+            new ListJobAdsQuery(Q: token, Sort: ListJobAdsSort.ExpiresAtAsc), ct);
 
         result.Items.Select(i => i.Title).ShouldBe(
             [$"{token} ExpiresSoon", $"{token} ExpiresLater", $"{token} NoExpiry"]);
@@ -373,7 +375,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         var handler = CreateHandler(scope);
 
         var result = await handler.Handle(
-            new ListJobAdsQuery(Q: token, SortBy: JobAdSortBy.ExpiresAtDesc), ct);
+            new ListJobAdsQuery(Q: token, Sort: ListJobAdsSort.ExpiresAtDesc), ct);
 
         result.Items.Select(i => i.Title).ShouldBe(
             [$"{token} ExpiresLater", $"{token} ExpiresSoon", $"{token} NoExpiry"]);

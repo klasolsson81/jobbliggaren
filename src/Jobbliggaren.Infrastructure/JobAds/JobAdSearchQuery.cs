@@ -30,15 +30,11 @@ internal sealed class JobAdSearchQuery(
     AppDbContext db,
     IOccupationSynonymExpander synonymExpander) : IJobAdSearchQuery
 {
-    // PostgreSQL text-search-config för svensk stemming. Måste matcha EXAKT
-    // den config som search_vector-kolumnen genererades med (JobAdConfiguration
-    // — to_tsvector('swedish', …)); annars matchar @@ inte GIN-indexet.
-    private const string TextSearchConfig = "swedish";
-
     public async ValueTask<PagedResult<JobAdDto>> SearchAsync(
         JobAdSearchCriteria criteria, CancellationToken cancellationToken)
     {
-        var baseQuery = ApplyCriteria(db.JobAds.AsNoTracking(), criteria.Filter, synonymExpander);
+        var baseQuery = JobAdSearchComposition.ApplyFilter(
+            db.JobAds.AsNoTracking(), criteria.Filter, synonymExpander);
 
         // Separat count-query (CLAUDE.md §3.6). Filter appliceras före count så
         // totalen reflekterar filtrerad mängd, inte hela korpusen. TD-94 —
@@ -51,26 +47,10 @@ internal sealed class JobAdSearchQuery(
 
         var ordered = ApplySort(baseQuery, criteria.SortBy, criteria.Filter.Q);
 
-        // ADR 0042 Beslut E — IsNew = PublishedAt inom "Ny sedan"-fönstret.
-        // Lokalt fångad nullable → EF översätter jämförelsen (false när Since
-        // är null, t.ex. RunSavedSearch).
-        var since = criteria.Since;
-
         var items = await ordered
             .Skip((criteria.Page - 1) * criteria.PageSize)
             .Take(criteria.PageSize)
-            .Select(j => new JobAdDto(
-                j.Id.Value,
-                j.Title,
-                j.Company.Name,
-                j.Description,
-                j.Url,
-                j.Source.Value,
-                j.Status.Value,
-                j.PublishedAt,
-                j.ExpiresAt,
-                j.CreatedAt,
-                since != null && j.PublishedAt >= since))
+            .Select(JobAdSearchComposition.ToDto(criteria.Since))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, criteria.Page, criteria.PageSize);
@@ -82,7 +62,7 @@ internal sealed class JobAdSearchQuery(
         // Ren count — ingen sortering, paginering eller projektion. Samma
         // ApplyCriteria-väg som SearchAsync (SPOT). ADR 0060 Beslut 4 N+1
         // capped vid 20.
-        var query = ApplyCriteria(db.JobAds.AsNoTracking(), criteria, synonymExpander);
+        var query = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), criteria, synonymExpander);
         return await CountWithBitmapPlanAsync(query.CountAsync, cancellationToken);
     }
 
@@ -100,7 +80,7 @@ internal sealed class JobAdSearchQuery(
         var faceted = ExcludeDimension(criteria, dimension);
         var column = ShadowColumn(dimension);
 
-        var baseQuery = ApplyCriteria(db.JobAds.AsNoTracking(), faceted, synonymExpander);
+        var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), faceted, synonymExpander);
 
         // GROUP BY shadow-column → concept-id-count. GROUP BY-translation ligger i
         // Npgsql-assemblyn ⊂ Infrastructure (ADR 0062 Beslut 4 provider-assembly-
@@ -188,156 +168,6 @@ internal sealed class JobAdSearchQuery(
                 nameof(dimension), dimension, "Unknown FacetDimension — enum out of sync with ApplyCriteria."),
         };
 
-    // F2-P9 (TD-70). Filter via Postgres STORED generated columns (B-tree-
-    // indexerade, equality-lookup). Shadow-properties refereras via
-    // EF.Property<string?>(…) — de är inte top-level Domain-fält (Evans 2003
-    // §14 ACL — JobTech-taxonomi är inte Jobbliggarens ubiquitous language).
-    // ADR 0042 Beslut B — multi → SQL IN(…) via list.Contains.
-    //
-    // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1, Variant C) — yrke-
-    // nivåbyte: det explicita yrke-filtret targetar OccupationGroupConceptId
-    // (ssyk-level-4/yrkesgrupp) i stället för SsykConceptId (occupation-name).
-    // Den tidigare Ssyk-equality-grenen är BORTTAGEN. SsykConceptId-kolumnen
-    // lever vidare i q-vägens synonym-expansion nedan (recall-substrat bevarat).
-    // Municipality (kommun) tillkommer som ny dimension (analogt Region).
-    //
-    // ADR 0062 — q-FTS-hybrid. FTS-grenen (search_vector @@ websearch_to_tsquery)
-    // är den snabba primärvägen: GIN-index på tsvector + svensk stemming
-    // (lärare/läraren → samma lexem). title-LIKE-grenen är en billig
-    // substring-fallback för mitt-i-ord-matchning ("systemut" →
-    // "systemutvecklare") — titlar är korta, ingen TOAST, träffar
-    // ix_job_ads_title_lower_trgm. description-LIKE körs ALDRIG i q-grenen:
-    // det var perf-rotorsaken (EXPLAIN ANALYZE 2026-05-21 — de-TOAST av ~13k
-    // description-texter, trigram-selektivitet 7 581 falska positiva för
-    // "lärare"; ADR 0061 → ADR 0062).
-    //
-    // ADR 0032-amendment 2026-05-23 + ADR 0062-amendment 2026-05-23: Archived-
-    // JobAds (snapshot-retention + ExpiresAt-cron + stream-removal) får ALDRIG
-    // synas i sök-vägen. SPOT-filter här gör att alla tre konsumenter
-    // (ListJobAds, RunSavedSearch, ListRecentSearches CountAsync) ärver
-    // Status=Active-disciplinen automatiskt (ADR 0039 Beslut 1).
-    private static IQueryable<JobAd> ApplyCriteria(
-        IQueryable<JobAd> source, JobAdFilterCriteria criteria,
-        IOccupationSynonymExpander synonymExpander)
-    {
-        // ADR 0032-amendment 2026-05-23 — slutanvändar-vyer ser bara Active.
-        source = source.Where(j => j.Status == JobAdStatus.Active);
-
-        if (criteria.OccupationGroup.Count > 0)
-        {
-            var groupValues = criteria.OccupationGroup;
-            source = source.Where(j => groupValues.Contains(EF.Property<string?>(j, "OccupationGroupConceptId")));
-        }
-
-        // ADR 0067 implementerings-notat E2b (CTO VAL 1, 2026-06-11) — Ort är
-        // EN dimension i två granulariteter (län ⊃ kommun, inte ortogonala
-        // axlar). När BÅDA listorna är icke-tomma: inkluderande union
-        // (kommun-träff ELLER region-träff) — speglar JobTech/Platsbankens
-        // web-verifierade geografi-semantik ("most local promoted" = union,
-        // GettingStartedJobSearchEN.md). Sekventiella AND-Where gav noll
-        // träffar för region=län-X + kommun-i-län-Y. Ensam lista: oförändrad
-        // gren (OR-inom-dimension via IN(...) som förut). AND mot övriga
-        // dimensioner (yrke/q) består — ADR 0067 Beslut 5-invarianten gäller
-        // ortogonala dimensioner.
-        if (criteria.Municipality.Count > 0 && criteria.Region.Count > 0)
-        {
-            var municipalityValues = criteria.Municipality;
-            var regionValues = criteria.Region;
-            source = source.Where(j =>
-                municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId"))
-                || regionValues.Contains(EF.Property<string?>(j, "RegionConceptId")));
-        }
-        else if (criteria.Municipality.Count > 0)
-        {
-            var municipalityValues = criteria.Municipality;
-            source = source.Where(j => municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId")));
-        }
-        else if (criteria.Region.Count > 0)
-        {
-            var regionValues = criteria.Region;
-            source = source.Where(j => regionValues.Contains(EF.Property<string?>(j, "RegionConceptId")));
-        }
-
-        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
-        // ORTOGONALA dimensioner (oberoende axlar, ej geo-union à la kommun/län):
-        // var lista är ett eget IN(...)-villkor AND mot allt annat. STORED
-        // generated columns (employment_type_concept_id / worktime_extent_concept_id),
-        // B-tree-indexerade, NULL för annons utan key i payload (purgad/saknad)
-        // → matchas ej (paritet med övriga taxonomi-dims; "0 träff" ≠ bug).
-        if (criteria.EmploymentType.Count > 0)
-        {
-            var employmentTypeValues = criteria.EmploymentType;
-            source = source.Where(j =>
-                employmentTypeValues.Contains(EF.Property<string?>(j, "EmploymentTypeConceptId")));
-        }
-
-        if (criteria.WorktimeExtent.Count > 0)
-        {
-            var worktimeExtentValues = criteria.WorktimeExtent;
-            source = source.Where(j =>
-                worktimeExtentValues.Contains(EF.Property<string?>(j, "WorktimeExtentConceptId")));
-        }
-
-        if (!string.IsNullOrWhiteSpace(criteria.Q))
-        {
-            var q = criteria.Q;
-            // title-LIKE-fallbacken lower:as redan invariant-side (C#); EF/Npgsql
-            // translaterar .ToLower() (utan culture-arg) till SQL LOWER(col).
-            // CA1304/CA1311-suppress: LINQ-translation till SQL, inte runtime-
-            // string-op — culture är irrelevant. websearch_to_tsquery sköter
-            // sin egen normalisering (lexem-tokenisering, robust mot user-input,
-            // kastar aldrig på dålig syntax).
-            //
-            // STEG 6 Approach B (2026-05-24) — SSYK-expansion ovanpå FTS+title-LIKE.
-            // synonymExpander översätter fritext ("systemutvecklare") till JobTech
-            // occupation-concept_ids via konfigurerad mapping. OR-additiv: ökar
-            // recall utan att sänka precision för existing FTS-träffar. Q-fältet
-            // består — vi ENBART utvidgar matchnings-ytan med SSYK-träffar för
-            // annonser som har ssyk_concept_id satt. Backfill från Approach A ger
-            // ~88% av korpus med populerad ssyk_concept_id (CTO-rond Plan C-design,
-            // architect-rond 2026-05-24).
-            var pattern = $"%{q.ToLowerInvariant()}%";
-            var expandedSsyks = synonymExpander.Expand(q);
-
-            // TD-94 (perf-ratchet, ADR 0045) / ADR 0062-amendment 2026-06-13 —
-            // title-LIKE-grenen körs ENDAST för q ≥ 3 tecken. GIN-trigram kan
-            // fysiskt inte serva en <3-teckens LIKE '%q%' (trigram = 3-grams) →
-            // för korta q tvingas en btree-prefix-/seq-scan över hela korpusen
-            // (42 873 rader, ~346 ms) trots att FTS-grenen ensam är selektiv.
-            // FTS-lexem-matchningen täcker korta vanliga termer ändå (search_vector
-            // spänner title+description). Grinden bor i delade ApplyCriteria → den
-            // gäller list + count + facets samtidigt (ADR 0039 Beslut 1 SPOT —
-            // ingen list↔count-divergens). Marginell trade-off: <3-teckens mitt-i-
-            // ord-substring i titel matchas inte längre; UI-kontraktet (`systemut`
-            // → `systemutvecklare`, ADR 0062 Beslut 1) är ≥3 tecken och opåverkat.
-            var includeTitleLike = q.Length >= 3;
-
-#pragma warning disable CA1304, CA1311
-            source = (includeTitleLike, hasSsyks: expandedSsyks.Count > 0) switch
-            {
-                (true, true) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || EF.Functions.Like(j.Title.ToLower(), pattern)
-                    || expandedSsyks.Contains(EF.Property<string?>(j, "SsykConceptId"))),
-                (true, false) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || EF.Functions.Like(j.Title.ToLower(), pattern)),
-                (false, true) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || expandedSsyks.Contains(EF.Property<string?>(j, "SsykConceptId"))),
-                (false, false) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))),
-            };
-#pragma warning restore CA1304, CA1311
-        }
-
-        return source;
-    }
-
     // Alla enum-värden explicit listade + throw på unnamed (CS8524-disciplin).
     // Validators (ListJobAdsQueryValidator / SearchCriteria.Create) skyddar mot
     // invalid values innan denna metod — throw är defense-in-depth (fail-fast
@@ -381,7 +211,7 @@ internal sealed class JobAdSearchQuery(
         return source
             .OrderByDescending(j =>
                 EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                    .Rank(EF.Functions.WebSearchToTsQuery(TextSearchConfig, query)))
+                    .Rank(EF.Functions.WebSearchToTsQuery(JobAdSearchComposition.TextSearchConfig, query)))
             .ThenByDescending(j => j.PublishedAt)
             .ThenBy(j => j.Id);
     }

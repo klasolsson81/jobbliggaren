@@ -95,6 +95,8 @@ public class ListJobAdsResidualQueryTests(ApiFactory factory)
             new JobAdSearchQuery(
                 scope.ServiceProvider.GetRequiredService<AppDbContext>(),
                 Substitute.For<IOccupationSynonymExpander>()),
+            Substitute.For<Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder>(),
             new SearchQueryParser());
 
     // 1. Normalisering ändrar inte recall — omgivande whitespace ger samma

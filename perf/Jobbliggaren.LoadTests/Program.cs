@@ -127,6 +127,29 @@ if (scenarioSelector is "q-count" or "all")
     scenarioBudgets[qCount.ScenarioName] = FreeTextCountScenarios.Class_A_P95_BudgetMs;
 }
 
+// F4-14 (ADR 0076 Decision 4/5) — GET /api/v1/job-ads?sortBy=5 (MatchDesc).
+// Klass (a) p95 ≤ 300 ms (ADR 0045 Beslut 1). Auth-gated (ListReadPolicy
+// 60/min per UserId — kräver LOADTEST_BEARER_TOKEN). Tre dimensioner:
+//   WorstCase:            MatchDesc + inga filter (rank-CASE på ~54k rader).
+//   TypicalWithFilter:    MatchDesc + EN occupationGroup-filter (reducerad mängd).
+//   FallbackNoProfile:    MatchDesc utan angiven yrkespreferens → PublishedAtDesc-fallback.
+// Kräver LOADTEST_BEARER_TOKEN. WorstCase + TypicalWithFilter kräver dessutom
+// att testanvändaren har angiven yrkespreferens (SsykGroupConceptIds icke-tom).
+if (scenarioSelector is "match-sort" or "all")
+{
+    var matchSortWorst = MatchSortScenarios.WorstCase(httpClient, baseUrl);
+    var matchSortTypical = MatchSortScenarios.TypicalWithOccupationFilter(httpClient, baseUrl);
+    var matchSortFallback = MatchSortScenarios.FallbackNoProfile(httpClient, baseUrl);
+
+    scenarios.Add(matchSortWorst);
+    scenarios.Add(matchSortTypical);
+    scenarios.Add(matchSortFallback);
+
+    scenarioBudgets[matchSortWorst.ScenarioName] = MatchSortScenarios.Class_A_P95_BudgetMs;
+    scenarioBudgets[matchSortTypical.ScenarioName] = MatchSortScenarios.Class_A_P95_BudgetMs;
+    scenarioBudgets[matchSortFallback.ScenarioName] = MatchSortScenarios.Class_A_P95_BudgetMs;
+}
+
 // F4-13 (ADR 0076 Decision 5) — POST /api/v1/me/job-ad-match-tags.
 // Klass (a) p95 ≤ 300 ms (ADR 0045 Beslut 1). Anonym-tolerant men kräver
 // LOADTEST_BEARER_TOKEN för autentiserad hot-path-mätning (2 DB-round-trips +

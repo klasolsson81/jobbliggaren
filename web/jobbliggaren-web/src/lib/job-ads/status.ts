@@ -48,6 +48,12 @@ export const JOB_AD_SORT_LABELS: Record<JobAdSortBy, string> = {
   ExpiresAtAsc: "Stänger snart",
   // ADR 0042 Beslut D — endast valbar med söktext (se JobAdFilters).
   Relevance: "Mest relevant",
+  // F4-14 (ADR 0076) — "Sortera efter matchning". I praktiken visas denna
+  // label aldrig från recent-search-/SavedSearch-ytan: match-sorten
+  // persisteras aldrig som en anonym sparad sort (backend mappar
+  // MatchDesc → PublishedAtDesc för hash/capture). Posten finns för
+  // Record<JobAdSortBy>-uttömmande täckning + sort-väljarens label-spegel.
+  MatchDesc: "Bästa matchning",
 };
 
 export function getJobAdSortLabel(sortBy: JobAdSortBy): string {

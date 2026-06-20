@@ -289,10 +289,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // Concept-id coverage of one ad-side term partition (Skill / must_have /
     // nice_to_have) against the CV's skill concept-ids. The overlap key is the
     // concept-id (Lexeme == ConceptId for Skill/Requirement terms); the surfaced
-    // evidence is the human Display label (DE-display-1). NotAssessed if either side
-    // is absent (empty CV skills OR the ad has no terms of this partition) — parity
-    // ScoreMembership rule 1: NoMatch is reserved for "data present on both sides,
-    // disjoint", never absence. Verdict from set emptiness only (no threshold).
+    // evidence is the human Display label (DE-display-1). The two "absent" cases are
+    // now DISTINCT (ADR 0076 amendment 2026-06-20, requirement-aware grade):
+    //   - CV side empty (no CV / no resolved skills) → NotAssessed ("can't assess").
+    //   - CV present but THIS partition has no ad terms → Vacuous ("we looked; the ad
+    //     specifies none of this kind"). This per-partition distinction lets a
+    //     no-must-have ad be gate-OPEN for the grade while a no-CV user is gate-CLOSED.
+    // NoMatch stays reserved for "data present on both sides, disjoint" (parity
+    // ScoreMembership rule 1). Verdict from set emptiness only (no threshold).
     private static MatchDimension ScoreConceptCoverage(
         IEnumerable<ExtractedTerm> adTerms, HashSet<string> cvSkillConceptIds)
     {
@@ -304,9 +308,17 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             byConcept.TryAdd(term.ConceptId!, term.Display);
         }
 
-        if (cvSkillConceptIds.Count == 0 || byConcept.Count == 0)
+        // CV side empty → cannot assess (no CV). Checked FIRST so "no CV" always reads
+        // NotAssessed regardless of the ad partition.
+        if (cvSkillConceptIds.Count == 0)
         {
             return NotAssessed();
+        }
+
+        // CV present but the ad has no terms of this partition → Vacuous, NOT NotAssessed.
+        if (byConcept.Count == 0)
+        {
+            return Vacuous();
         }
 
         // Partition the ad's concept-ids by CV coverage; surface Display labels
@@ -422,6 +434,11 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
 
     private static MatchDimension NotAssessed() =>
         new(MatchDimensionVerdict.NotAssessed, [], []);
+
+    // CV present, but this concept-coverage partition has no ad terms ("nothing
+    // required, and we looked"). Distinct from NotAssessed — see MatchDimensionVerdict.
+    private static MatchDimension Vacuous() =>
+        new(MatchDimensionVerdict.Vacuous, [], []);
 
     // The minimal row the scorer needs — title + the three STORED shadow values.
     // A constructor-projected type (EF maps the ctor); shadow values are nullable

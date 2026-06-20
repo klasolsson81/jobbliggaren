@@ -72,35 +72,90 @@ public static class MatchGradeCalculator
     }
 
     /// <summary>
-    /// F4-16 (ADR 0076 Amendment (b) §1; CTO D1 + Klas 2026-06-20) — the golden-rung
-    /// overload. Computes the Fast grade via <see cref="Grade(MatchScore)"/>, then promotes
-    /// to <see cref="MatchGrade.Top"/> ("Toppmatch") iff the Fast grade is exactly
-    /// <see cref="MatchGrade.Strong"/> AND the CV's skills overlap the ad
-    /// (<see cref="FullMatchScore.SkillOverlap"/> is <c>Match</c> or <c>Partial</c>).
+    /// The <b>requirement-aware</b> grade overload (ADR 0076 amendment 2026-06-20; Klas
+    /// product decision + senior-cto-advisor G1 re-bind). This REVERSES the F4-16
+    /// Amendment (b) §1 "skills only extend upward, must-have is evidence-only" rule:
+    /// must-have coverage now GATES the upper rungs, so "Stark match"/"Toppmatch" genuinely
+    /// means <i>you meet the ad's binding requirements</i>, not merely that your preferences
+    /// fit. A pure, total function over the full verdict tuple — no I/O, equal inputs →
+    /// equal grade.
     /// <para>
-    /// <b>Positive-only, rework-free (Amendment (b) §1):</b> the skill signal only ever
-    /// LIFTS a Strong to Top — it never promotes a sub-Strong grade (a <c>null</c>/Basic/Good
-    /// base returns unchanged regardless of skill) and never demotes a Strong (a missing or
-    /// not-assessed skill set leaves Strong intact). The must-have / nice-to-have coverage
-    /// dimensions carry evidence for the F4-16 modal but do NOT gate the visible grade in v1
-    /// (Klas R4-E: any skill overlap counts, equal weight). A pure, total function over the
-    /// reachable verdict tuples — equal inputs yield an equal grade.
+    /// <b>The ladder (SSYK = Match assumed; read top-down):</b>
+    /// <list type="number">
+    /// <item><b>Gate:</b> <c>SsykOverlap != Match</c> → <c>null</c> (no tag).</item>
+    /// <item><b>Contradiction floor (RB1, FIRST):</b> a stated region/employment the ad
+    /// contradicts (<c>NoMatch</c>) → <see cref="MatchGrade.Basic"/> — a perfect requirement
+    /// match in the wrong city is still Basic (Klas 2026-06-19 "det sämsta är ... fel ort").</item>
+    /// <item><b>Requirement gate:</b> <c>mustHaveMet = MustHaveCoverage ∈ {Match, Vacuous}</c>.
+    /// <c>Match</c> = all must-haves covered; <c>Vacuous</c> = the ad states none (gate-OPEN,
+    /// Klas Reading 1 — a qualified candidate is not punished for a no-requirement ad). A
+    /// no-CV user (<c>NotAssessed</c>) or <c>Partial</c>/<c>NoMatch</c> coverage does NOT pass.</item>
+    /// <item><b>If the gate is met:</b> both secondaries confirmed AND a skill/nice-to-have
+    /// signal (<c>∈ {Match, Partial}</c>) → <see cref="MatchGrade.Top"/>; at least one
+    /// confirmed secondary → <see cref="MatchGrade.Strong"/> (the other <c>Match</c>, or
+    /// — open-secondary fallback — <c>NotAssessed</c>); no confirmed secondary →
+    /// <see cref="MatchGrade.Basic"/>.</item>
+    /// <item><b>If the gate is NOT met</b> (no CV / partial / disjoint must-have): a
+    /// preference-fit grade, NEVER Strong/Top — at least one confirmed secondary →
+    /// <see cref="MatchGrade.Good"/>, else <see cref="MatchGrade.Basic"/>. This is the honest
+    /// no-CV ceiling: <c>Good</c> ("Bra match") means "fits your preferences"; uploading a CV
+    /// is the only way to reach the requirement-backed rungs.</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The Fast <see cref="Grade(MatchScore)"/> overload is unchanged (it has no must-have
+    /// input); the VISIBLE grade is this Full overload, computed wherever the full CV skills
+    /// are in hand (the page tag + the modal). The F4-14 sort path cannot compute must-have
+    /// (top-5 plaintext, no DEK) so it ranks by the Fast band only — honestly DIFFERENT from
+    /// this grade in the must-have band (G3-OPT-A, documented + oracle-pinned). Still NO
+    /// opaque number anywhere (Goodhart guard) — the gate is a categorical condition on a
+    /// categorical verdict, not a magnitude.
     /// </para>
     /// </summary>
     public static MatchGrade? Grade(FullMatchScore score)
     {
         ArgumentNullException.ThrowIfNull(score);
 
-        var baseGrade = Grade(score.Fast);
+        var fast = score.Fast;
 
-        // Skill can only LIFT a Strong → Top; it never promotes a sub-Strong/null base and
-        // never demotes (positive-only ladder, ADR 0076 Amendment (b) §1).
-        if (baseGrade != MatchGrade.Strong)
-            return baseGrade;
+        // Gate: occupation/SSYK must Match to earn any tag.
+        if (fast.SsykOverlap.Verdict != MatchDimensionVerdict.Match)
+            return null;
 
-        return score.SkillOverlap.Verdict is MatchDimensionVerdict.Match
-            or MatchDimensionVerdict.Partial
-            ? MatchGrade.Top
-            : MatchGrade.Strong;
+        // Contradiction floor (RB1) — evaluated BEFORE the requirement gate, so a stated
+        // region/employment the ad contradicts caps at Basic even with must-haves met.
+        if (fast.RegionFit.Verdict == MatchDimensionVerdict.NoMatch
+            || fast.EmploymentFit.Verdict == MatchDimensionVerdict.NoMatch)
+            return MatchGrade.Basic;
+
+        // Requirement gate: must-have MET (all covered) OR VACUOUS (ad states none, gate
+        // -open). NotAssessed (no CV) / Partial / NoMatch do not pass → capped below Strong.
+        var mustHaveMet = score.MustHaveCoverage.Verdict
+            is MatchDimensionVerdict.Match or MatchDimensionVerdict.Vacuous;
+
+        // NoMatch on a secondary is already floored out above, so a Match here is the only
+        // positive; NotAssessed ("open"/not stated) neither confirms nor floors.
+        var confirmedSecondaries =
+            (fast.RegionFit.Verdict == MatchDimensionVerdict.Match ? 1 : 0)
+            + (fast.EmploymentFit.Verdict == MatchDimensionVerdict.Match ? 1 : 0);
+
+        if (mustHaveMet)
+        {
+            // Top: requirements met + BOTH secondaries confirmed + a positive skill/nice
+            // signal. Strong: requirements met + at least one confirmed secondary.
+            if (confirmedSecondaries == 2 && HasSkillOrNiceSignal(score))
+                return MatchGrade.Top;
+
+            return confirmedSecondaries >= 1 ? MatchGrade.Strong : MatchGrade.Basic;
+        }
+
+        // Requirements not met (no CV / partial / disjoint): preference-fit only.
+        return confirmedSecondaries >= 1 ? MatchGrade.Good : MatchGrade.Basic;
     }
+
+    // A positive skill OR nice-to-have signal (set overlap). Vacuous is deliberately NOT a
+    // signal — "the ad lists no skills" is not evidence of skill fit, so it cannot earn Top.
+    private static bool HasSkillOrNiceSignal(FullMatchScore score) =>
+        score.SkillOverlap.Verdict is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial
+        || score.NiceToHaveCoverage.Verdict is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial;
 }

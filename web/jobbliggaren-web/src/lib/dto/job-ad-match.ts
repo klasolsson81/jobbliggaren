@@ -30,16 +30,23 @@ export const matchGradeSchema = z.enum(["Strong", "Good", "Basic", "Top"]);
 export type MatchGrade = z.infer<typeof matchGradeSchema>;
 
 /**
- * Ordinalt delverdikt per matchnings-dimension. `NotAssessed` = dimensionen
- * kunde inte bedömas v1 (markeras ärligt, mis-rapporteras aldrig — CLAUDE.md §5
- * CV/matching-regeln). Konsumeras inte visuellt i F4-13-listan (förklarings-
- * lagret är F4-16); parsas för kontrakts-trohet och framtida bruk.
+ * Ordinalt delverdikt per matchnings-dimension. `NotAssessed` = CV-sidan saknas
+ * (inget CV) → kunde inte bedömas. `Vacuous` (ADR 0076 amendment 2026-06-20) =
+ * ad-sidan saknar termer av den här sorten MEN CV finns ("annonsen anger inga") —
+ * skilt från `NotAssessed`, och bärande för den requirement-aware graden (en
+ * annons utan skallkrav är gate-öppen). Mis-rapporteras aldrig (CLAUDE.md §5).
+ *
+ * KRITISKT: modal-detalj-DTO:n (`matchDimensionDetailSchema`) parsar `verdict`
+ * STRIKT — `Vacuous` MÅSTE finnas här atomiskt med backend som emitterar det,
+ * annars kastar `jobAdMatchDetailSchema.parse` och modal-hämtningen failar.
+ * (Batch-entryt strippar tyst de tre Full-verdikten, så batch-taggen påverkas ej.)
  */
 export const matchVerdictSchema = z.enum([
   "Match",
   "Partial",
   "NoMatch",
   "NotAssessed",
+  "Vacuous",
 ]);
 export type MatchVerdict = z.infer<typeof matchVerdictSchema>;
 

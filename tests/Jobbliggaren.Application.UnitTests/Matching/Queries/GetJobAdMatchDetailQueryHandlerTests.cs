@@ -17,10 +17,12 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Queries;
 /// (<see cref="IMatchProfileBuilder.BuildFullFromCvSkillsAsync"/>, the DEK-warmed,
 /// fail-closed verdict-bearing path), FULL-scores ONE ad
 /// (<see cref="IMatchScorer.ScoreFullAsync"/> — single-ad THROW semantics, NOT the
-/// silent-omit batch), grades it via the new <see cref="MatchGradeCalculator"/> Full
-/// overload (golden rung = <see cref="MatchGrade.Top"/>), and projects all SEVEN
-/// dimensions to <see cref="MatchDimensionDetailDto"/> rows carrying verdict +
-/// matched[] + missing[] (the modal's "what you're missing for this ad" evidence).
+/// silent-omit batch), grades it via the REQUIREMENT-AWARE
+/// <see cref="MatchGradeCalculator"/> Full overload (PR-B1 RE-BIND — must-have coverage
+/// GATES Strong/Top; <see cref="MatchGrade.Top"/> needs must-have Match/Vacuous + both
+/// secondaries + a skill/nice signal), and projects all SEVEN dimensions to
+/// <see cref="MatchDimensionDetailDto"/> rows carrying verdict + matched[] + missing[]
+/// (the modal's "what you're missing for this ad" evidence).
 /// <para>
 /// <b>Modal altitude differs from the batch handler in two bound ways (CTO D3):</b>
 /// (1) it does NOT short-circuit on an empty occupation — it returns an honest DTO with
@@ -191,7 +193,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldReturnTopGradeWithAllSevenDimensionRows_WhenStrongAndSkillMatch()
+    public async Task Handle_ShouldReturnTopGradeWithAllSevenDimensionRows_WhenMustHaveMatchAndStrongAndSkillMatch()
     {
         var ct = TestContext.Current.CancellationToken;
         var jobAdId = Guid.NewGuid();
@@ -211,7 +213,9 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var result = await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct);
 
         result.ShouldNotBeNull();
-        result!.Grade.ShouldBe(MatchGrade.Top); // Strong base + SkillOverlap Match → golden
+        // PR-B1 requirement-aware Top: must-have Match (gate OPEN) + both secondaries
+        // confirmed + SkillOverlap Match (the Top tie-break signal) → Top.
+        result!.Grade.ShouldBe(MatchGrade.Top);
 
         // Four Fast rows.
         result.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
@@ -278,12 +282,15 @@ public class GetJobAdMatchDetailQueryHandlerTests
     }
 
     // =================================================================
-    // Strong + SkillOverlap NoMatch → grade Strong (golden NOT awarded); the skill row's
-    // missing[] is surfaced so the modal can show what's lacking.
+    // PR-B1 (RE-BIND G1-c): Strong-Fast ad + must-have NoMatch (CV has skills, none cover
+    // the must-haves) → the requirement-aware grade CAPS at Good (NOT Strong, NOT Top).
+    // The must-have gate requires Match/Vacuous; NoMatch is the strongest failure signal →
+    // the modal grade now reflects must-have. The skill/must-have missing[] lists are
+    // surfaced so the modal shows what is lacking. THIS test FLIPPED from Strong → Good.
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldReturnStrongGrade_WhenStrongButSkillNoMatch()
+    public async Task Handle_ShouldCapAtGood_WhenStrongFastButMustHaveNoMatch_WithCvSkills()
     {
         var ct = TestContext.Current.CancellationToken;
         var jobAdId = Guid.NewGuid();
@@ -303,10 +310,15 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var result = await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct);
 
         result.ShouldNotBeNull();
-        // Positive-only ladder — a skill NoMatch never demotes an honest Strong.
-        result!.Grade.ShouldBe(MatchGrade.Strong);
+        // Requirement-aware: must-have NoMatch caps below Strong → Good (both secondaries
+        // confirm), never Top — the modal grade now reflects the binding requirement.
+        result!.Grade.ShouldBe(MatchGrade.Good);
+        result.Grade.ShouldNotBe(MatchGrade.Strong);
+        result.Grade.ShouldNotBe(MatchGrade.Top);
         result.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
         result.SkillOverlap.Missing.ShouldBe(["C#", "Azure"]); // the lacking skills surfaced
+        result.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        result.MustHaveCoverage.Missing.ShouldBe(["C#"]); // the unmet must-have surfaced
     }
 
     // =================================================================

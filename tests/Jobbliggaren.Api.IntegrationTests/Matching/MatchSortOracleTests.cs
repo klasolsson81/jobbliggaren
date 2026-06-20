@@ -42,6 +42,19 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// NOT municipality, so the isolation key never perturbs the grade — every seeded
 /// ad (incl. the untagged ones, SSYK not-Match) is in the filtered mass.
 /// </para>
+/// <para>
+/// <b>PR-B1 (RE-BIND G3-OPT-A) — the bound sort ≠ requirement-aware grade divergence:</b>
+/// the requirement-aware <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> now caps
+/// the visible grade on must-have coverage. The SQL match-sort, by contrast, ranks on the
+/// FAST band (+ the F4-15 golden top-5 skill lift) and structurally CANNOT assess must-have
+/// (binary GIN <c>?|</c> on top-5 plaintext skills, no requirement partition, no DEK —
+/// R5-REBIND Option H). The Fast <c>Grade(MatchScore)</c> overload is UNCHANGED, so the
+/// existing oracle (SQL rank ≡ Fast grade) STILL HOLDS. The new divergence test below pins
+/// the bound consequence: two ads with the SAME Fast tuple but DIFFERENT must-have coverage
+/// are NOT separated by the SQL sort (it cannot see must-have), while
+/// <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> WOULD grade them differently —
+/// "sort is an honest Fast-band coarsening; grade is the per-ad requirement-aware truth."
+/// </para>
 /// </summary>
 [Collection("Api")]
 public class MatchSortOracleTests(ApiFactory factory)
@@ -417,5 +430,163 @@ public class MatchSortOracleTests(ApiFactory factory)
             "NotAssessed (NULL-shadow) ska rangordnas HÖGRE än NoMatch (motsägande shadow) " +
             "— SQL-ranken får inte behandla NULL som 'inte i listan' (klassiska " +
             "!list.Contains(col)-buggen).");
+    }
+
+    // ===============================================================
+    // 5. PR-B1 (RE-BIND G3-OPT-A) — the bound "sort ≠ requirement-aware grade" divergence.
+    //    Two ads with the SAME Fast tuple (Strong: occ+region+employment all Match) but
+    //    DIFFERENT must-have coverage (one Match, one NoMatch), scored against a CV that
+    //    HAS skills. The SQL match-sort cannot see must-have → it does NOT separate them by
+    //    must-have (they tie on the Fast band, broken only by publishedAt/Id). Meanwhile
+    //    MatchGradeCalculator.Grade(FullMatchScore) WOULD grade them differently (Strong-ish
+    //    vs Good). This is the bound G3-OPT-A divergence — honest by construction, pinned,
+    //    never silent.
+    //
+    //    Provenance-safe overlap (F4-2/F4-3 lesson): we make BOTH ads carry the SAME skill
+    //    concept-id in extracted_terms and put that id in BOTH the CV-skill set AND the ad's
+    //    must_have requirement partition for the "must-have Match" ad, while the other ad
+    //    carries the skill term but a DISJOINT must_have term → must-have NoMatch. The CV
+    //    top-5 plaintext set (sort path) and the full CV-skill set (grade path) both contain
+    //    the shared skill, so the SORT sees equal skill overlap for both ads (no golden
+    //    split) and the GRADE sees different must-have coverage.
+    // ===============================================================
+
+    private const string SharedSkillConceptId = "skill-shared-diverge-1";
+    private const string SharedSkillDisplay = "Delad-skill";
+    private const string OtherMustHaveConceptId = "skill-other-musthave-1";
+    private const string OtherMustHaveDisplay = "Annat-skallkrav";
+
+    private static ExtractedTerm SkillTerm(string conceptId, string display) =>
+        new(
+            Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Skill,
+            Source: ExtractedTermSource.Description, MatchedOn: display,
+            ConceptId: conceptId, Weight: 1);
+
+    private static ExtractedTerm MustHaveTerm(string conceptId, string display) =>
+        new(
+            Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Requirement,
+            Source: ExtractedTermSource.MustHave, MatchedOn: display,
+            ConceptId: conceptId, Weight: 1);
+
+    // Same seeding as SeedJobAdAsync, plus an extracted_terms VO (→ STORED extracted_lexemes
+    // GIN for the sort's top-5 skill overlap AND the in-memory must-have partition the
+    // grade reads).
+    private async Task<JobAdId> SeedJobAdWithTermsAsync(
+        string runMunicipality,
+        string? occupationGroupConceptId,
+        string? regionConceptId,
+        string? employmentTypeConceptId,
+        DateTimeOffset publishedAt,
+        ExtractedTerms terms,
+        CancellationToken ct)
+    {
+        var externalId = $"ext-{Guid.NewGuid():N}";
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var rawPayload = BuildRawPayload(
+            externalId, occupationGroupConceptId, regionConceptId,
+            runMunicipality, employmentTypeConceptId);
+
+        var jobAd = JobAd.Import(
+            title: "Divergence-annons",
+            company: Company.Create("Test Company AB").Value,
+            description: "beskrivning",
+            url: $"https://example.com/jobs/{externalId}",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: rawPayload,
+            publishedAt: publishedAt,
+            expiresAt: clock.UtcNow.AddDays(30),
+            clock: clock).Value;
+
+        jobAd.SetExtractedTerms(terms);
+
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(ct);
+        return jobAd.Id;
+    }
+
+    // A FULL profile whose CV-skill set contains the shared skill (so BOTH ads overlap on
+    // skill for the sort path AND the grade's must-have set-difference is computable).
+    private static FullCandidateMatchProfile ProfileWithCvSkill(params string[] cvSkillConceptIds) =>
+        new(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: [PrefGroup],
+                PreferredRegionConceptIds: [PrefRegion],
+                PreferredEmploymentTypeConceptIds: [PrefEmployment]),
+            cvSkillConceptIds);
+
+    [Fact]
+    public async Task SearchByMatch_DoesNotSeparateSameFastTupleByMustHave_WhileGradeWould_DivergenceG3OptA()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunMunicipality();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // Both ads: SAME Fast tuple (occ + region + employment all Match → Strong-band) and
+        // BOTH carry the shared skill term (equal sort-path skill overlap → no golden split).
+        // mustHaveMatch:   must_have = the shared skill (CV covers it) → must-have Match.
+        // mustHaveNoMatch: must_have = a DISJOINT skill (CV does not cover it) → must-have NoMatch.
+        var mustHaveMatchTerms = ExtractedTerms.From(
+        [
+            SkillTerm(SharedSkillConceptId, SharedSkillDisplay),
+            MustHaveTerm(SharedSkillConceptId, SharedSkillDisplay),
+        ]);
+        var mustHaveNoMatchTerms = ExtractedTerms.From(
+        [
+            SkillTerm(SharedSkillConceptId, SharedSkillDisplay),
+            MustHaveTerm(OtherMustHaveConceptId, OtherMustHaveDisplay),
+        ]);
+
+        // Give mustHaveNoMatch the NEWER publishedAt so, IF the sort ignored must-have (the
+        // bound G3-OPT-A behaviour), the newer ad sorts FIRST despite its worse grade —
+        // proving the sort is a Fast-band coarsening, not the requirement-aware grade.
+        var mustHaveMatch = await SeedJobAdWithTermsAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(1), mustHaveMatchTerms, ct);
+        var mustHaveNoMatch = await SeedJobAdWithTermsAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(2), mustHaveNoMatchTerms, ct);
+
+        var profile = ProfileWithCvSkill(SharedSkillConceptId);
+
+        // ---- The GRADE axis (per-ad requirement-aware truth) WOULD separate them. ----
+        var (scoreScope, _, scorer) = NewSearchAndScorer();
+        using var __ = scoreScope;
+        var full = await scorer.ScoreFullBatchAsync([mustHaveMatch, mustHaveNoMatch], profile, ct);
+
+        var gradeMatch = MatchGradeCalculator.Grade(full[mustHaveMatch]);
+        var gradeNoMatch = MatchGradeCalculator.Grade(full[mustHaveNoMatch]);
+
+        // must-have Match + both secondaries + skill Match → Top; must-have NoMatch caps at
+        // Good. The point is only that they DIFFER (the grade sees must-have).
+        gradeMatch.ShouldBe(MatchGrade.Top,
+            "must-have Match + occ/region/employment Match + skill Match → Top (grade ser must-have).");
+        gradeNoMatch.ShouldBe(MatchGrade.Good,
+            "must-have NoMatch golvar grade-yta under Strong → Good (grade ser must-have).");
+        gradeMatch.ShouldNotBe(gradeNoMatch,
+            "Grade-axeln SEPARERAR de två annonserna på must-have-täckning.");
+
+        // ---- The SORT axis (fast coarse relevance) does NOT separate them by must-have. ----
+        var (sortScope, matchSort) = NewMatchSort();
+        using var ___ = sortScope;
+        var page = await matchSort.SearchByMatchAsync(
+            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.Count.ShouldBe(2, "Båda annonserna ska returneras.");
+
+        // The sort cannot see must-have → both share the Fast band + equal top-5 skill lift,
+        // so the tie-break (publishedAt DESC) wins: the NEWER must-have-NoMatch ad sorts
+        // FIRST — exactly the bound G3-OPT-A divergence (a higher-graded ad does NOT
+        // necessarily sort first, because the sort is a Fast-band coarsening, not the grade).
+        orderedIds.IndexOf(mustHaveNoMatch.Value)
+            .ShouldBeLessThan(orderedIds.IndexOf(mustHaveMatch.Value),
+                "G3-OPT-A: SQL-sorten ser INTE must-have → de två annonserna skiljs inte åt på " +
+                "must-have-täckning; tie-break (nyare publishedAt) avgör. Sorten är en ärlig " +
+                "Fast-band-coarsening, INTE den requirement-aware graden — graden (per-ad) " +
+                "skiljer dem (Top vs Good), sorten gör det inte. Detta är den bundna " +
+                "divergensen (G3-OPT-A), pinnad, aldrig tyst.");
     }
 }

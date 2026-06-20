@@ -342,12 +342,16 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
     }
 
     // =================================================================
-    // 2. Strong WITHOUT skill overlap — grade Strong, SkillOverlap NotAssessed
-    //    (honest on absence, never NoMatch).
+    // 2. Strong WITHOUT skill overlap, but with must-have VACUOUS — grade Strong.
+    //    PR-B1 (RE-BIND G1-b): the ad has no extracted terms (no must-have, no skill)
+    //    while the CV is present → all three FULL dims are Vacuous (gate-open Reading 1),
+    //    so the must-have gate is OPEN and the Strong Fast grade holds (confirmed==2, no
+    //    skill/nice {Match,Partial} signal → Strong, not Top). The skillOverlap verdict on
+    //    the wire is Vacuous, never NotAssessed (the CV WAS assessed; the ad specifies none).
     // =================================================================
 
     [Fact]
-    public async Task GET_match_detail_returns_strong_with_skill_overlap_not_assessed_when_ad_has_no_skill_terms()
+    public async Task GET_match_detail_returns_strong_with_skill_overlap_vacuous_when_ad_has_no_skill_terms_and_cv_present()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -357,21 +361,24 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         var emp = NewConceptId("emp");
         await SetPreferencesAsync([grp], [reg], [emp], ct);
 
-        // The user HAS a CV skill, but the ad has NO Skill term → the ad-side skill set is
-        // empty → SkillOverlap NotAssessed (honest), so the Strong Fast grade is NOT lifted.
+        // The user HAS a CV skill, but the ad has NO extracted terms → the ad-side skill /
+        // must-have / nice-to-have partitions are all empty while the CV is present →
+        // Vacuous. must-have Vacuous = gate-open → the Strong Fast grade is preserved.
         var (skillLabel, _) = ResolveGoldenSkill();
         await SeedPrimaryCvForStatedSeekerAsync(grp, [skillLabel], ct);
 
-        // Strong Fast ad, but terms: null → no extracted Skill terms.
+        // Strong Fast ad, but terms: null → no extracted Skill / Requirement terms.
         var adId = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, terms: null, ct);
 
         var response = await GetDetailAsync(adId, ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var dto = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
 
+        // Vacuous must-have is gate-open → Strong holds; no Top (no skill/nice signal).
         dto.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Strong));
-        // Honest absence — NotAssessed, never NoMatch.
-        DimVerdict(dto, "skillOverlap").ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
+        // The ad specifies no skills BUT we DID look (CV present) → Vacuous, never NotAssessed.
+        DimVerdict(dto, "skillOverlap").ShouldBe(Wire(MatchDimensionVerdict.Vacuous));
+        DimVerdict(dto, "mustHaveCoverage").ShouldBe(Wire(MatchDimensionVerdict.Vacuous));
         DimMatched(dto, "skillOverlap").ShouldBeEmpty();
     }
 

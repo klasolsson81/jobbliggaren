@@ -162,12 +162,16 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
     private static string Wire(MatchDimensionVerdict verdict) => verdict.ToString();
 
     // =================================================================
-    // EF translation oracle — authed user with preferences gets graded entries
-    // for the matching ads (proves the `= ANY` query translates on real Postgres)
+    // EF translation oracle — authed user with preferences but NO CV gets graded
+    // entries for the matching ads (proves the `= ANY` query translates on real
+    // Postgres). PR-B1 (RE-BIND G1-a): the requirement-aware grade CAPS at Good without
+    // a CV — must-have coverage is NotAssessed (no resolved CV skills) → the gate is not
+    // met → an occupation+both-secondaries ad is Good, NOT Strong. This is the
+    // load-bearing no-CV ceiling reversal on the wire.
     // =================================================================
 
     [Fact]
-    public async Task POST_match_tags_returns_graded_entries_for_matching_ads()
+    public async Task POST_match_tags_capsAtGood_withoutCv_forMatchingAds()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -177,8 +181,9 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         var emp = NewConceptId("emp");
         await SetPreferencesAsync([grp], [reg], [emp], ct);
 
-        // strongAd: occupation + both secondaries confirmed → Strong.
-        var strongAd = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, ct);
+        // ceilingAd: occupation + both secondaries confirmed, but NO CV → must-have
+        // NotAssessed → gate NOT met → caps at Good (PR-B1 reversal; pre-rebind = Strong).
+        var ceilingAd = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, ct);
         // goodAd: occupation + region confirmed, employment NULL (NotAssessed) → Good.
         var goodAd = await SeedJobAdAsync("Arkitekt", grp, reg, null, ct);
         // basicAd: occupation only, both secondaries NULL → Basic.
@@ -186,18 +191,21 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         // gatedAd: different occupation (no SSYK match) → omitted (no tag).
         var gatedAd = await SeedJobAdAsync("Sjuksköterska", NewConceptId("grp"), reg, emp, ct);
 
-        var dto = await PostMatchTagsAsync([strongAd, goodAd, basicAd, gatedAd], ct);
+        var dto = await PostMatchTagsAsync([ceilingAd, goodAd, basicAd, gatedAd], ct);
 
         // Only the three occupation-matching ads earn a tag; the gated ad is absent.
         EntriesCount(dto).ShouldBe(3);
 
-        TryGetEntry(dto, strongAd, out var strongEntry).ShouldBeTrue();
-        strongEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Strong));
-        strongEntry.GetProperty("ssykOverlap").GetString().ShouldBe(Wire(MatchDimensionVerdict.Match));
-        strongEntry.GetProperty("regionFit").GetString().ShouldBe(Wire(MatchDimensionVerdict.Match));
-        strongEntry.GetProperty("employmentFit").GetString().ShouldBe(Wire(MatchDimensionVerdict.Match));
-        // Title is always NotAssessed on the preference path (no CV title until F4-15).
-        strongEntry.GetProperty("titleSimilarity").GetString().ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
+        TryGetEntry(dto, ceilingAd, out var ceilingEntry).ShouldBeTrue();
+        // No CV → must-have gate not met → Good ceiling, never Strong (the reversal).
+        ceilingEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Good));
+        ceilingEntry.GetProperty("ssykOverlap").GetString().ShouldBe(Wire(MatchDimensionVerdict.Match));
+        ceilingEntry.GetProperty("regionFit").GetString().ShouldBe(Wire(MatchDimensionVerdict.Match));
+        ceilingEntry.GetProperty("employmentFit").GetString().ShouldBe(Wire(MatchDimensionVerdict.Match));
+        // No CV → must-have coverage NotAssessed (no resolved CV skills to assess against).
+        ceilingEntry.GetProperty("mustHaveCoverage").GetString().ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
+        // Title is always NotAssessed on the preference path.
+        ceilingEntry.GetProperty("titleSimilarity").GetString().ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
 
         TryGetEntry(dto, goodAd, out var goodEntry).ShouldBeTrue();
         goodEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Good));

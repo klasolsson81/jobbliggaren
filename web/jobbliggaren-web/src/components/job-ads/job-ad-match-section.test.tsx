@@ -55,6 +55,24 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(screen.getByText("Ej bedömt")).toBeInTheDocument(); // titel NotAssessed
   });
 
+  it("Vacuous = 'Inga angivna' (annonsen anger inga krav) — fylld prick, ej hålig, ej Match", () => {
+    // PR-B1 (ADR 0076 amendment 2026-06-20): den nya 5:e verdikten. Modalen MÅSTE
+    // rendera den (annars undefined-ord + bruten Record); den är neutral/definitiv,
+    // aldrig hålig (= NotAssessed) och aldrig success-grön (= Match).
+    const { container } = render(
+      <JobAdMatchSection match={detail({ mustHaveCoverage: row("Vacuous") })} />
+    );
+    expect(screen.getByText("Inga angivna")).toBeInTheDocument();
+    const vacuous = container.querySelector(
+      '.jp-modal__matchrow-verdict[data-verdict="Vacuous"]'
+    );
+    expect(vacuous).not.toBeNull();
+    // Fylld prick (definitivt "inget krävs"), aldrig hålig (NotAssessed-markören).
+    expect(
+      vacuous?.querySelector(".jp-modal__matchrow-dot--hollow")
+    ).toBeNull();
+  });
+
   it("renderar matched ('Du har:') och missing ('Annonsen efterfrågar även:')", () => {
     render(<JobAdMatchSection match={detail()} />);
     expect(screen.getByText("Du har: Java, SQL")).toBeInTheDocument();

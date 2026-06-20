@@ -189,7 +189,8 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         var ad2Terms = ExtractedTerms.From([SkillTerm(KubernetesConceptId, KubernetesDisplay)]);
         var ad2 = await SeedJobAdAsync("Plattformsingenjör", grp, reg, null, ad2Terms, ct);
 
-        // ad3: never-extracted (terms NULL) → all three new dims NotAssessed.
+        // ad3: never-extracted (terms NULL). The CV HAS skills → all three new dims
+        // Vacuous (PR-B1 RE-BIND G1-b: ad partition empty, CV present → "we looked").
         var ad3 = await SeedJobAdAsync("Lastbilschaufför", null, null, null, terms: null, ct);
 
         var fast = new CandidateMatchProfile(
@@ -220,10 +221,11 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         batch[ad1].NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
             "Enda nice_to_have (Kubernetes) saknas i CV-skill-setet → NoMatch.");
 
-        // ad3 (NULL extracted_terms): the three new dims are NotAssessed, never NoMatch.
-        batch[ad3].SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
-        batch[ad3].MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
-        batch[ad3].NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        // ad3 (NULL extracted_terms, CV present): the three new dims are Vacuous, never
+        // NoMatch, never NotAssessed (PR-B1 RE-BIND G1-b — ad partition empty, CV present).
+        batch[ad3].SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        batch[ad3].MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        batch[ad3].NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
     }
 
     [Fact]

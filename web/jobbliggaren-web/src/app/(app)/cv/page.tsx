@@ -3,8 +3,14 @@ import { redirect } from "next/navigation";
 import { Plus, Upload } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getResumes } from "@/lib/api/resumes";
+import { getMyProfile } from "@/lib/api/me";
+import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ResumeCard } from "@/components/resumes/resume-card";
+import { CvMatchSetup } from "@/components/resumes/cv-match-setup";
+
+/** Route till CV-importflödet (verifierad on-disk: app/(app)/cv/importera). */
+const IMPORT_CV_HREF = "/cv/importera";
 
 /**
  * /cv-listvyn (F6 P3a, HANDOVER §7.4 + målbild 09-cv-light.png).
@@ -18,11 +24,31 @@ import { ResumeCard } from "@/components/resumes/resume-card";
  * annons-skräddarsöm, en LLM-funktion som ADR 0071 garanterar aldrig byggs.
  * Förbättra-CV-flödet (deterministiskt, F4-10) lever i stället på granska-vyn.
  */
-export default async function CvListPage() {
+export default async function CvListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const result = await getResumes();
+  // Post-promote-prompten (design C.3) visas när /cv öppnas med ?matchning=1
+  // — sätts av promote-/upload-flödet vid redirect hit. Annars dold.
+  const { matchning } = await searchParams;
+  const showMatchPrompt = matchning === "1";
+
+  // CV-listan + taxonomi + profil parallellt. Taxonomi/profil matar
+  // match-setup-wizarden (samma BFF-fetches som /installningar). Båda
+  // degraderar civilt: utan taxonomi visas ingen wizard-trigger (yrkesväljaren
+  // vore tom), så match-setup utelämnas hellre än renderas trasig.
+  const [result, taxonomyResult, profileResult] = await Promise.all([
+    getResumes(),
+    getTaxonomyTree(),
+    getMyProfile(),
+  ]);
+  const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
+  const profile = profileResult.kind === "ok" ? profileResult.data : null;
+
   switch (result.kind) {
     case "ok":
       break;
@@ -89,6 +115,33 @@ export default async function CvListPage() {
       </section>
 
       <div className="jp-container jp-page">
+        {/* Match-setup-affordans (ADR 0077 STEG 5): trigger + dismissbar
+            post-promote-prompt. Visas när taxonomi + profil laddats och minst
+            ett CV finns (wizarden prefillar från CV:t). Klient-ö — wizarden bär
+            det enda MatchPreferences-PUT:et. */}
+        {taxonomy !== null && profile !== null && sorted.length > 0 && (
+          <div className="jp-cvmatch-bar">
+            <div className="jp-cvmatch-bar__lead">
+              <p className="jp-cvmatch-bar__title">Matchning mot ditt CV</p>
+              <p className="jp-cvmatch-bar__text">
+                Ställ in vilka yrken, regioner och anställningsformer du söker.
+                Vi föreslår utifrån ditt CV — du väljer själv vad som tas med.
+              </p>
+            </div>
+            <CvMatchSetup
+              occupationFields={taxonomy.occupationFields}
+              regions={taxonomy.regions}
+              employmentTypes={taxonomy.employmentTypes}
+              persistedOccupationGroups={profile.preferredOccupationGroups}
+              persistedRegions={profile.preferredRegions}
+              persistedEmploymentTypes={profile.preferredEmploymentTypes}
+              importCvHref={IMPORT_CV_HREF}
+              hasPreferences={profile.hasStatedDesiredOccupation}
+              showPrompt={showMatchPrompt}
+            />
+          </div>
+        )}
+
         {sorted.length === 0 ? (
           <div className="jp-empty">
             <div className="jp-empty__kicker">CV-varianter</div>

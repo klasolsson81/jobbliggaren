@@ -88,7 +88,18 @@ function validateFile(file: File): string | null {
   return null;
 }
 
-export function CvUploadForm() {
+interface CvUploadFormProps {
+  /**
+   * ADR 0077 STEG 5 — om satt anropas denna med `parsedResumeId` vid 201 i
+   * STÄLLET för `router.push('/cv/granska/${id}')`. Låter welcome-modalen stå
+   * kvar och visa bekräftelse-steget i stället för att navigera bort.
+   * Default-beteendet (navigera till granska-vyn) är oförändrat när proppen
+   * utelämnas.
+   */
+  readonly onUploaded?: (parsedResumeId: string) => void;
+}
+
+export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -140,6 +151,13 @@ export function CvUploadForm() {
       const parsedResumeId = readParsedResumeId(body);
       if (!parsedResumeId) {
         setError(ERROR_GENERIC);
+        return;
+      }
+      // ADR 0077 STEG 5: om värden tillhandahållit en callback (welcome-modalen),
+      // låt den styra nästa steg (bekräftelse i modalen) i stället för att
+      // navigera bort. Default = oförändrad navigation till granska-vyn.
+      if (onUploaded) {
+        onUploaded(parsedResumeId);
         return;
       }
       router.push(`/cv/granska/${parsedResumeId}`);

@@ -2924,6 +2924,100 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
 }
 
+/* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 ──
+   Smal standardmodal (.jp-stdmodal--narrow) med tre interna steg: upload →
+   confirm → choice. Återanvänder modal-skinet; egna klasser för head/body/
+   footer + confirm-steget (grön check + typografisk bekräftelse). Ingen glow,
+   ingen scale-in-bounce, ingen gradient. */
+.jp-welcome__head {
+  position: relative;
+  padding: 22px 56px 16px 24px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-welcome__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--jp-ink-1);
+}
+/* DialogTitle får programmatisk fokus vid stegbyte (tabIndex=-1, WCAG 2.4.3).
+   Den globala fokus-ringen gäller; ingen outline:none. */
+.jp-welcome__intro {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+.jp-welcome__body {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jp-welcome__skiprow {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+/* "Jag gör det senare"/"Hoppa över" — godartad, icke-destruktiv navigation.
+   Neutral ink, INTE .jp-clearlink (den primitiven är destruktiv röd): att
+   skippa får aldrig läsas som en varning (WCAG 1.4.1; samma doktrin som
+   .jp-wizard__skip). */
+.jp-welcome__skip {
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.jp-welcome__skip:hover {
+  color: var(--jp-ink-1);
+}
+/* Confirm-steget: stor grön check (status-token, ALDRIG emoji) + typografisk
+   rubrik. Status bärs av text + ikon, inte färg ensam (WCAG 1.4.1). Ingen glow,
+   ingen scale-in-bounce. (CSS bor HÄR — STEG 4 tog bort oanvänd .jp-wizard__confirm.) */
+.jp-welcome__confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 12px 0 8px;
+}
+.jp-welcome__confirm-icon {
+  color: var(--jp-success);
+}
+.jp-welcome__confirm-title {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--jp-ink-1);
+}
+.jp-welcome__confirm-note {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+/* Footer per steg: vänster ev. ghost-skip · spacer · höger primär. */
+.jp-welcome__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-welcome__foot-spacer {
+  flex: 1 1 auto;
+}
+
 /* ── /cv match-setup-bar + post-promote-prompt (ADR 0077 STEG 5) ──
    Bar = kort med ledtext + wizard-trigger; prompten wrap:ar full bredd under. */
 .jp-cvmatch-bar {

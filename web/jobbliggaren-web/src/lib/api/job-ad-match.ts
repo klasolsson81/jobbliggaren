@@ -3,7 +3,9 @@ import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import {
   jobAdMatchBatchSchema,
+  jobAdMatchDetailSchema,
   type JobAdMatchBatch,
+  type JobAdMatchDetail,
 } from "@/lib/dto/job-ad-match";
 
 const EMPTY_BATCH: JobAdMatchBatch = { entries: {} };
@@ -45,5 +47,38 @@ export async function getJobAdMatchTags(
     return jobAdMatchBatchSchema.parse(data);
   } catch {
     return EMPTY_BATCH;
+  }
+}
+
+/**
+ * F4-16 (ADR 0076, CTO D3) — matchnings-DETALJ för EN annons (modal/fullsida-
+ * sektionen). Speglar `getJobAdMatchTags`-degraderingsmönstret: utan session /
+ * !ok / parse-fail / throw → `null` (ingen matchnings-sektion, civil
+ * degradering — kastar aldrig, blockerar aldrig modal-renderingen).
+ *
+ * Backend `GET /api/v1/me/job-ad-match-tags/{jobAdId}` → `JobAdMatchDetailDto |
+ * null` (200 med `null`-body = "ingen matchnings-sektion": anonym / ingen
+ * träffdata). `.nullable()` fångar det `null`:et och degraderar identiskt med
+ * resten.
+ */
+export async function getJobAdMatchDetail(
+  jobAdId: string
+): Promise<JobAdMatchDetail | null> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return null;
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/me/job-ad-match-tags/${jobAdId}`,
+      {
+        headers: authHeaders(sessionId),
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    return jobAdMatchDetailSchema.nullable().parse(data);
+  } catch {
+    return null;
   }
 }

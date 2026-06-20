@@ -32,6 +32,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     // sv-SE grupperar med non-breaking space.
@@ -51,6 +52,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={resolvedLabels}
         q="backend"
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     expect(screen.getByText("Stockholms län")).toBeInTheDocument();
@@ -79,6 +81,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={resolvedLabels}
         q=""
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     expect(screen.getByText("Solna")).toBeInTheDocument();
@@ -102,6 +105,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     expect(
@@ -122,6 +126,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q="volvo lastbil"
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     expect(screen.getByText("volvo")).toBeInTheDocument();
@@ -146,6 +151,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={resolvedLabels}
         q="backend"
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     await user.click(
@@ -167,6 +173,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={resolvedLabels}
         q="backend"
         sortBy="ExpiresAtAsc"
+        hasStatedDesiredOccupation
       />,
     );
     await user.click(
@@ -187,6 +194,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     expect(
@@ -206,6 +214,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q="ab"
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     expect(screen.getByRole("option", { name: "Relevans" })).toBeInTheDocument();
@@ -232,6 +241,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     const opt = screen.getByRole("option", {
@@ -253,6 +263,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={resolvedLabels}
         q="data"
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     await user.selectOptions(
@@ -276,6 +287,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     const opt = screen.getByRole("option", {
@@ -296,6 +308,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={{}}
         q="ab"
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     const opt = screen.getByRole("option", {
@@ -317,6 +330,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         resolvedLabels={resolvedLabels}
         q="data"
         sortBy="PublishedAtDesc"
+        hasStatedDesiredOccupation
       />,
     );
     await user.selectOptions(
@@ -326,5 +340,112 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=Relevance&commit=true",
     );
+  });
+
+  // F4-16 (CTO D8) — in-/jobb-disclosure.
+  describe("in-/jobb-disclosure (match-sort utan angivet yrke)", () => {
+    const DISCLOSURE = /Matchningssortering kräver att du anger/;
+
+    it("visas när match-sort är aktiv OCH inget yrke angetts", () => {
+      render(
+        <JobbResultsToolbar
+          totalCount={5}
+          occupationGroup={[]}
+          region={[]}
+          municipality={[]}
+          employmentType={[]}
+          worktimeExtent={[]}
+          resolvedLabels={{}}
+          q=""
+          sortBy="MatchDesc"
+          hasStatedDesiredOccupation={false}
+        />,
+      );
+      expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+      const link = screen.getByRole("link", { name: "Ställ in matchning" });
+      expect(link).toHaveAttribute("href", "/installningar#matchning");
+    });
+
+    it("visas INTE när match-sort är aktiv men yrke ÄR angett", () => {
+      render(
+        <JobbResultsToolbar
+          totalCount={5}
+          occupationGroup={[]}
+          region={[]}
+          municipality={[]}
+          employmentType={[]}
+          worktimeExtent={[]}
+          resolvedLabels={{}}
+          q=""
+          sortBy="MatchDesc"
+          hasStatedDesiredOccupation
+        />,
+      );
+      expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+    });
+
+    it("visas INTE vid annan sort även utan angivet yrke", () => {
+      render(
+        <JobbResultsToolbar
+          totalCount={5}
+          occupationGroup={[]}
+          region={[]}
+          municipality={[]}
+          employmentType={[]}
+          worktimeExtent={[]}
+          resolvedLabels={{}}
+          q=""
+          sortBy="PublishedAtDesc"
+          hasStatedDesiredOccupation={false}
+        />,
+      );
+      expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+    });
+
+    it("self-clearing: försvinner när sorten inte längre är match-sort (efter navigering)", () => {
+      // Self-clearing-mekanismen: när användaren byter sort navigerar URL:en →
+      // servern re-renderar JobbResults med nytt sortBy-prop. Här bevisas
+      // villkoret direkt på propen (jsdom navigerar inte; optimistic-overlayt
+      // är transient och hör till den pågående transitionen).
+      const props = {
+        totalCount: 5,
+        occupationGroup: [] as string[],
+        region: [] as string[],
+        municipality: [] as string[],
+        employmentType: [] as string[],
+        worktimeExtent: [] as string[],
+        resolvedLabels: {},
+        q: "",
+        hasStatedDesiredOccupation: false,
+      };
+      const { rerender } = render(
+        <JobbResultsToolbar {...props} sortBy="MatchDesc" />,
+      );
+      expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+
+      rerender(<JobbResultsToolbar {...props} sortBy="PublishedAtDesc" />);
+      expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+    });
+
+    it("self-clearing: försvinner när yrke ställts in (propen blir true)", () => {
+      const props = {
+        totalCount: 5,
+        occupationGroup: [] as string[],
+        region: [] as string[],
+        municipality: [] as string[],
+        employmentType: [] as string[],
+        worktimeExtent: [] as string[],
+        resolvedLabels: {},
+        q: "",
+        sortBy: "MatchDesc" as const,
+      };
+      const { rerender } = render(
+        <JobbResultsToolbar {...props} hasStatedDesiredOccupation={false} />,
+      );
+      expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+
+      rerender(<JobbResultsToolbar {...props} hasStatedDesiredOccupation />);
+      expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+    });
   });
 });

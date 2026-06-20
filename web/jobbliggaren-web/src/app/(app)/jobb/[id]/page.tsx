@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
+import { getJobAdMatchDetail } from "@/lib/api/job-ad-match";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 
 interface PageProps {
@@ -31,9 +32,12 @@ export default async function JobbDetailPage({ params }: PageProps) {
     case "ok": {
       // F6 P5 Punkt 2 PR5 — parallell server-fetch av Spara + Har-ansökt-state.
       // Promise.all undviker waterfall; båda misslyckas civilt (returnerar false).
-      const [initialSaved, initialApplied] = await Promise.all([
+      // F4-16 — matchnings-detalj i samma Promise.all (degraderar till null =
+      // ingen sektion).
+      const [initialSaved, initialApplied, match] = await Promise.all([
         isJobAdSaved(id),
         hasAppliedJobAd(id),
+        getJobAdMatchDetail(id),
       ]);
       return (
         <div className="jp-container jp-page">
@@ -52,6 +56,7 @@ export default async function JobbDetailPage({ params }: PageProps) {
               jobAd={result.data}
               initialSaved={initialSaved}
               initialApplied={initialApplied}
+              match={match}
             />
           </div>
         </div>

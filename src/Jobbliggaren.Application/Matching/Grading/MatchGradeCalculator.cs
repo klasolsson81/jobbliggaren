@@ -70,4 +70,37 @@ public static class MatchGradeCalculator
             _ => MatchGrade.Basic,
         };
     }
+
+    /// <summary>
+    /// F4-16 (ADR 0076 Amendment (b) §1; CTO D1 + Klas 2026-06-20) — the golden-rung
+    /// overload. Computes the Fast grade via <see cref="Grade(MatchScore)"/>, then promotes
+    /// to <see cref="MatchGrade.Top"/> ("Toppmatch") iff the Fast grade is exactly
+    /// <see cref="MatchGrade.Strong"/> AND the CV's skills overlap the ad
+    /// (<see cref="FullMatchScore.SkillOverlap"/> is <c>Match</c> or <c>Partial</c>).
+    /// <para>
+    /// <b>Positive-only, rework-free (Amendment (b) §1):</b> the skill signal only ever
+    /// LIFTS a Strong to Top — it never promotes a sub-Strong grade (a <c>null</c>/Basic/Good
+    /// base returns unchanged regardless of skill) and never demotes a Strong (a missing or
+    /// not-assessed skill set leaves Strong intact). The must-have / nice-to-have coverage
+    /// dimensions carry evidence for the F4-16 modal but do NOT gate the visible grade in v1
+    /// (Klas R4-E: any skill overlap counts, equal weight). A pure, total function over the
+    /// reachable verdict tuples — equal inputs yield an equal grade.
+    /// </para>
+    /// </summary>
+    public static MatchGrade? Grade(FullMatchScore score)
+    {
+        ArgumentNullException.ThrowIfNull(score);
+
+        var baseGrade = Grade(score.Fast);
+
+        // Skill can only LIFT a Strong → Top; it never promotes a sub-Strong/null base and
+        // never demotes (positive-only ladder, ADR 0076 Amendment (b) §1).
+        if (baseGrade != MatchGrade.Strong)
+            return baseGrade;
+
+        return score.SkillOverlap.Verdict is MatchDimensionVerdict.Match
+            or MatchDimensionVerdict.Partial
+            ? MatchGrade.Top
+            : MatchGrade.Strong;
+    }
 }

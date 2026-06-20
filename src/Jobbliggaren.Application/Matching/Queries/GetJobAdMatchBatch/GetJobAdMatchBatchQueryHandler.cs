@@ -57,10 +57,10 @@ public sealed class GetJobAdMatchBatchQueryHandler(
         var entries = new Dictionary<Guid, JobAdMatchEntryDto>(scores.Count);
         foreach (var (jobAdId, score) in scores)
         {
-            // The VISIBLE grade stays Fast-ceilinged at Strong in F4-15 (ADR 0076 b-ii) —
-            // the golden rung is sort-key-only until F4-16 paints the chip. The three Full
-            // verdicts ride the DTO for the F4-16 modal (forward-compat).
-            var grade = MatchGradeCalculator.Grade(score.Fast);
+            // F4-16 (ADR 0076 Amendment (b) §1) — the VISIBLE grade is now the FULL grade:
+            // a Strong Fast match with CV-skill overlap is promoted to Top ("Toppmatch").
+            // The golden rung that was sort-key-only in F4-15 (b-ii) now paints the chip.
+            var grade = MatchGradeCalculator.Grade(score);
             if (grade is null)
                 continue;
 

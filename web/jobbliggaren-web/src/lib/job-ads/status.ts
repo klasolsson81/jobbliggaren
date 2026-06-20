@@ -38,6 +38,13 @@ export function getJobSourceLabel(source: JobSource): string {
   return JOB_SOURCE_LABELS[source] ?? source;
 }
 
+// F4-16 (design-reviewer F4-14 Minor, fold-now) — KANONISK match-sort-label.
+// Sort-väljarens live-`<option>` (JobbResultsToolbar) konsumerar SAMMA konstant,
+// så strängarna ALDRIG kan drifta isär (jobbpilot-design-copy: ett koncept = en
+// sträng). Tidigare divergens ("Bästa matchning" här vs "Sortera efter
+// matchning" i väljaren) var en latent fälla — nu en SPOT.
+export const MATCH_SORT_LABEL = "Sortera efter matchning";
+
 export const JOB_AD_SORT_LABELS: Record<JobAdSortBy, string> = {
   PublishedAtDesc: "Nyast först",
   PublishedAtAsc: "Äldst först",
@@ -48,12 +55,12 @@ export const JOB_AD_SORT_LABELS: Record<JobAdSortBy, string> = {
   ExpiresAtAsc: "Stänger snart",
   // ADR 0042 Beslut D — endast valbar med söktext (se JobAdFilters).
   Relevance: "Mest relevant",
-  // F4-14 (ADR 0076) — "Sortera efter matchning". I praktiken visas denna
-  // label aldrig från recent-search-/SavedSearch-ytan: match-sorten
-  // persisteras aldrig som en anonym sparad sort (backend mappar
-  // MatchDesc → PublishedAtDesc för hash/capture). Posten finns för
-  // Record<JobAdSortBy>-uttömmande täckning + sort-väljarens label-spegel.
-  MatchDesc: "Bästa matchning",
+  // F4-14/F4-16 (ADR 0076) — match-sort. I recent-search-/SavedSearch-ytan
+  // visas denna label aldrig (backend mappar MatchDesc → PublishedAtDesc för
+  // hash/capture). Posten finns för Record<JobAdSortBy>-uttömmande täckning;
+  // F4-16 folder den till den kanoniska strängen så väljaren och labeln aldrig
+  // kan drifta isär.
+  MatchDesc: MATCH_SORT_LABEL,
 };
 
 export function getJobAdSortLabel(sortBy: JobAdSortBy): string {

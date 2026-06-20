@@ -73,14 +73,19 @@ public class MatchTagBatchLayerTests
     }
 
     [Fact]
-    public void MatchGrade_is_the_locked_three_member_set()
+    public void MatchGrade_is_the_locked_four_member_set()
     {
-        // ADR 0076 Decision 4 — exactly { Basic, Good, Strong }. A numeric-band member
-        // (e.g. a "Score92"/percentage rung) would be the forbidden opaque total.
+        // F4-16 golden rung (ADR 0076 Amendment (b) §1 rework-free upward extension) —
+        // exactly { Basic, Good, Strong, Top }. Top ("Toppmatch", Klas-bound name) is the
+        // new highest rung ABOVE Strong; the F4-13 three are unchanged. Still NO
+        // numeric-band member (e.g. a "Score92"/percentage rung would be the forbidden
+        // opaque total — the Goodhart intent is preserved, the ladder just grew one
+        // named rung upward).
         var names = Enum.GetNames<Jobbliggaren.Application.Matching.Grading.MatchGrade>();
 
-        names.ShouldBe(["Basic", "Good", "Strong"], ignoreOrder: true,
-            "MatchGrade ska vara exakt { Basic, Good, Strong } (ADR 0076 Decision 4). " +
+        names.ShouldBe(["Basic", "Good", "Strong", "Top"], ignoreOrder: true,
+            "MatchGrade ska vara exakt { Basic, Good, Strong, Top } (F4-16 golden rung, " +
+            "ADR 0076 Amendment (b) §1 rework-free upward extension). " +
             $"Faktiska: [{string.Join(", ", names)}].");
     }
 
@@ -157,6 +162,67 @@ public class MatchTagBatchLayerTests
             typeof(Jobbliggaren.Application.Matching.Grading.MatchGrade),
             "Grade ska vara den namngivna MatchGrade-kategorin, aldrig en numerisk typ.");
         grade.PropertyType.IsEnum.ShouldBeTrue();
+    }
+
+    // ===============================================================
+    // 3b. F4-16 modal detail DTOs (ADR 0076 (b) §3; CTO 2026-06-20 D3) — the modal is
+    //     its OWN altitude: a single-ad DTO carrying the named grade + per-dimension
+    //     {verdict, matched[], missing[]}. They live in Application and carry NO
+    //     numeric/score field (the modal is the most tempting place for a "92%" to creep
+    //     back — ADR 0053 Beslut 5 forbids the ring by name; the arch pin makes it
+    //     structurally impossible). matched/missing are evidence string lists, not magnitude.
+    // ===============================================================
+
+    [Fact]
+    public void JobAdMatchDetailDto_is_in_Application_layer()
+    {
+        var dto = typeof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.JobAdMatchDetailDto);
+        dto.Assembly.ShouldBe(
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
+    }
+
+    [Fact]
+    public void MatchDimensionDetailDto_is_in_Application_layer()
+    {
+        var dto = typeof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.MatchDimensionDetailDto);
+        dto.Assembly.ShouldBe(
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
+    }
+
+    [Fact]
+    public void JobAdMatchDetailDto_has_no_numeric_or_score_shaped_property()
+    {
+        // The Goodhart guard ON THE MODAL WIRE: no opaque number may leak onto the modal
+        // detail. Grade is a named category, each dimension row is a verdict + two string
+        // lists — none matches the forbidden numeric-name regex.
+        var dto = typeof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.JobAdMatchDetailDto);
+
+        var offending = PublicInstancePropertyNames(dto)
+            .Where(name => ForbiddenNumericName.IsMatch(name))
+            .ToList();
+
+        offending.ShouldBeEmpty(
+            "JobAdMatchDetailDto får INTE bära ett numeriskt/score-format fält " +
+            "(Score/Value/Total/Percent/SortKey/Rank/Intensity/Points) — Goodhart-vakten " +
+            "på modal-tråden (ADR 0076 Decision 4 / ADR 0053 Beslut 5). " +
+            $"Otillåtna: [{string.Join(", ", offending)}].");
+    }
+
+    [Fact]
+    public void MatchDimensionDetailDto_has_no_numeric_or_score_shaped_property()
+    {
+        // The per-dimension row carries verdict + matched[] + missing[], NO number — the
+        // evidence IS the explanation, never a magnitude (CLAUDE.md §5 / ADR 0071).
+        var dto = typeof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.MatchDimensionDetailDto);
+
+        var offending = PublicInstancePropertyNames(dto)
+            .Where(name => ForbiddenNumericName.IsMatch(name))
+            .ToList();
+
+        offending.ShouldBeEmpty(
+            "MatchDimensionDetailDto får INTE bära ett numeriskt/score-format fält — " +
+            "raden är verdict + matched[] + missing[], aldrig en siffra (Goodhart-vakten, " +
+            $"ADR 0076 Decision 4). Otillåtna: [{string.Join(", ", offending)}].");
     }
 
     // ===============================================================

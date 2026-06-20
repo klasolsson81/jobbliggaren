@@ -1,5 +1,6 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch;
+using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -32,5 +33,24 @@ public static class MeJobAdMatchEndpoints
             })
             .WithTags("Me")
             .RequireRateLimiting(RateLimitingExtensions.JobAdMatchBatchPolicy);
+
+        // F4-16 (ADR 0076 Amendment (b) §5, ADR 0053 Beslut 5 amendment) — single-ad match
+        // detail for the job modal (grade + matched/missing per dimension). UNLIKE the
+        // anonymous-tolerant batch overlay above, this is `.RequireAuthorization()`-gated:
+        // the modal is auth-gated and the FE only fetches this for a logged-in user (the
+        // guest modal renders no match section), so there is no anonymous DoS surface to
+        // protect — a user-partitioned read bucket (MeListReadPolicy) suffices, and the
+        // DEK-reading handler is never reached anonymously. The handler still returns null
+        // for an absent UserId as defence-in-depth. A 200 with `null` body means "no match
+        // section" (the FE renders nothing); a missing ad → 404 (NotFoundException).
+        app.MapGet("/api/v1/me/job-ad-match-tags/{jobAdId:guid}", async (
+                Guid jobAdId, IMediator mediator, CancellationToken ct) =>
+            {
+                var result = await mediator.Send(new GetJobAdMatchDetailQuery(jobAdId), ct);
+                return Results.Ok(result);
+            })
+            .WithTags("Me")
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
     }
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
 import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
+import { getMyProfile } from "@/lib/api/me";
 import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
@@ -103,7 +104,11 @@ export async function JobbResults({
     ...employmentType,
     ...worktimeExtent,
   ];
-  const [result, labelsResult] = await Promise.all([
+  // F4-16 (CTO D8) — `hasStatedDesiredOccupation` hämtas här (samma parallella
+  // fetch, ingen waterfall, blockerar ej hero) och tråds in i toolbaren för
+  // in-/jobb-disclosuren. getMyProfile är `cache()`:ad (dedupar mot andra
+  // läsare i samma request). Fel/anonym → false (ingen falsk disclosure).
+  const [result, labelsResult, profileResult] = await Promise.all([
     getJobAds({
       page,
       pageSize,
@@ -118,7 +123,12 @@ export async function JobbResults({
       commit,
     }),
     resolveTaxonomyLabels(selectedConceptIds),
+    getMyProfile(),
   ]);
+
+  const hasStatedDesiredOccupation =
+    profileResult.kind === "ok" &&
+    profileResult.data.hasStatedDesiredOccupation;
 
   // Plain Record (EJ Map) — passas över RSC→client-gränsen till
   // JobbResultsToolbar (Map serialiseras inte i RSC-payloaden).
@@ -169,6 +179,7 @@ export async function JobbResults({
             q={q}
             sortBy={sortBy}
             pageSize={rawParams.pageSize}
+            hasStatedDesiredOccupation={hasStatedDesiredOccupation}
           />
           <div className="flex flex-col gap-2.5">
             <JobAdList

@@ -206,57 +206,62 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
 
   return (
     <form onSubmit={handleSubmit} className="jp-cvupload" noValidate>
-      <div className="jp-cvupload__field">
-        <label htmlFor={inputId} className="jp-cvupload__drop">
-          <span className="jp-cvupload__drop-icon" aria-hidden="true">
-            {selectedFile ? <FileText size={22} /> : <Upload size={22} />}
-          </span>
-          <span className="jp-cvupload__drop-text">
-            {selectedFile ? selectedFile.name : "Välj en fil att ladda upp"}
-          </span>
-          <span className="jp-cvupload__drop-hint">PDF eller Word (DOCX)</span>
-        </label>
-        <input
-          id={inputId}
-          name="file"
-          type="file"
-          accept={ACCEPT_ATTR}
-          className="jp-cvupload__input"
-          onChange={handleFileChange}
-          disabled={isPending}
-          aria-describedby={describedBy || undefined}
-          aria-invalid={error ? true : undefined}
-        />
-      </div>
-
-      <p id={helpId} className="jp-cvupload__help">
-        Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar
-        innehållet och visar en granskning — ditt CV ändras inte.
-      </p>
-
-      {error && (
-        <p id={errorId} role="alert" className="jp-cvupload__error">
-          {error}
-        </p>
-      )}
-
-      <div className="jp-cvupload__actions">
-        <button
-          type="submit"
-          className="jp-btn jp-btn--primary"
-          disabled={isPending || !selectedFile}
-        >
-          {isPending ? "Laddar upp CV…" : "Ladda upp och granska CV"}
-        </button>
-      </div>
-
-      {isPending && (
-        <div className="jp-cvupload__pending">
-          <BrandSpinner size={40} label="Tolkar ditt CV" />
+      {isPending ? (
+        // Spinner-doktrin (Klas 2026-06-20): under laddning visas ENBART spinnern
+        // + en text som beskriver vad som görs — aldrig formuläret runt omkring
+        // (undviker plottrig modal). Spinnern tar huvudytan. Minne:
+        // project_spinner_usage_doctrine.
+        <div className="jp-cvupload__pending" role="status" aria-live="polite">
+          <BrandSpinner size={48} label="Laddar upp och granskar ditt CV" />
           <p className="jp-cvupload__pending-text">
-            Tolkar ditt CV… Det här kan ta en liten stund.
+            Laddar upp och granskar ditt CV. Det kan ta en liten stund.
           </p>
         </div>
+      ) : (
+        <>
+          <div className="jp-cvupload__field">
+            <label htmlFor={inputId} className="jp-cvupload__drop">
+              <span className="jp-cvupload__drop-icon" aria-hidden="true">
+                {selectedFile ? <FileText size={22} /> : <Upload size={22} />}
+              </span>
+              <span className="jp-cvupload__drop-text">
+                {selectedFile ? selectedFile.name : "Välj en fil att ladda upp"}
+              </span>
+              <span className="jp-cvupload__drop-hint">PDF eller Word (DOCX)</span>
+            </label>
+            <input
+              id={inputId}
+              name="file"
+              type="file"
+              accept={ACCEPT_ATTR}
+              className="jp-cvupload__input"
+              onChange={handleFileChange}
+              aria-describedby={describedBy || undefined}
+              aria-invalid={error ? true : undefined}
+            />
+          </div>
+
+          <p id={helpId} className="jp-cvupload__help">
+            Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar
+            innehållet och visar en granskning. Ditt CV ändras inte.
+          </p>
+
+          {error && (
+            <p id={errorId} role="alert" className="jp-cvupload__error">
+              {error}
+            </p>
+          )}
+
+          <div className="jp-cvupload__actions">
+            <button
+              type="submit"
+              className="jp-btn jp-btn--primary"
+              disabled={!selectedFile}
+            >
+              Ladda upp och granska CV
+            </button>
+          </div>
+        </>
       )}
     </form>
   );

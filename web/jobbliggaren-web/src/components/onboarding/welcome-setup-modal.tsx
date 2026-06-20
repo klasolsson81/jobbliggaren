@@ -100,14 +100,18 @@ export function WelcomeSetupModal({
 
   /**
    * Öppna wizarden (welcome step 2). Markera sedd HÄR (användaren har engagerat
-   * sig → naggar aldrig igen, även om wizarden avbryts). persistSeen ligger
-   * ENBART här i wizard-grenen — wizardens onSaved/onOpenChange(false) rör inte
-   * cookien (undviker dubbel cookie-set + router.refresh vid spara/stäng).
+   * sig → naggar aldrig igen, även om wizarden avbryts) men UTAN router.refresh:
+   * en refresh skulle om-evaluera `showWelcome=false` på servern och AVMONTERA
+   * hela modalen (inkl. wizarden) mitt i övergången välkomst→wizard — då
+   * försvann modalen och inget öppnades (buggen Klas såg). Cookien räcker; sidan
+   * uppdateras när wizarden stängs (dess onOpenChange nedan).
    */
   function openWizard() {
     setWelcomeOpen(false);
-    persistSeen();
     setWizardOpen(true);
+    startTransition(async () => {
+      await markSetupWelcomeSeen();
+    });
   }
 
   return (
@@ -149,7 +153,7 @@ export function WelcomeSetupModal({
                   className="jp-welcome__confirm-note"
                 >
                   Vi har läst in och tolkat ditt CV. Inget är ändrat och ingen
-                  matchning är gjord ännu — nästa steg är att ställa in din
+                  matchning är gjord ännu. Nästa steg är att ställa in din
                   matchningsprofil.
                 </DialogDescription>
               </div>
@@ -218,12 +222,15 @@ export function WelcomeSetupModal({
       </Dialog>
 
       {/* Wizarden (welcome step 2) — samma komponent som /cv-prompten öppnar,
-          två ingångar (ADR 0077). Cookien markerades redan sedd i openWizard, så
-          varken onSaved eller onOpenChange rör den (en enda cookie-set per flöde,
-          ingen dubbel router.refresh vid spara). */}
+          två ingångar (ADR 0077). Cookien sattes redan i openWizard. När wizarden
+          STÄNGS (spara eller avbryt) är flödet klart → router.refresh uppdaterar
+          /oversikt (prefs satta + cookie satt → välkomsten visas inte igen). */}
       <MatchSetupWizard
         open={wizardOpen}
-        onOpenChange={setWizardOpen}
+        onOpenChange={(next) => {
+          setWizardOpen(next);
+          if (!next) startTransition(() => router.refresh());
+        }}
         occupationFields={occupationFields}
         regions={regions}
         employmentTypes={employmentTypes}

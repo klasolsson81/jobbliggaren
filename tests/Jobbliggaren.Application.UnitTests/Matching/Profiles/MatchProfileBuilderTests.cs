@@ -1,4 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Profiles;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -24,10 +26,23 @@ public class MatchProfileBuilderTests
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
 
+    // F4-15 (ADR 0076 Decision 6) widened the ctor with three collaborators (skill
+    // resolver + DEK warm-up). They are irrelevant to the UNCHANGED preference path
+    // (BuildFromPreferencesAsync reads no CV / no DEK) — stubbed here so these F4-12 cases
+    // keep pinning the preference mapping. The Full-path behaviour lives in
+    // MatchProfileBuilderFullTests.
+    private readonly ISkillResolver _skillResolver = Substitute.For<ISkillResolver>();
+    private readonly ICurrentDataOwner _dataOwner = Substitute.For<ICurrentDataOwner>();
+    private readonly IUserDataKeyStore _dataKeyStore = Substitute.For<IUserDataKeyStore>();
+
     public MatchProfileBuilderTests()
     {
         _currentUser.UserId.Returns(_userId);
     }
+
+    private MatchProfileBuilder NewBuilder(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, ICurrentUser? user = null) =>
+        new(db, user ?? _currentUser, _skillResolver, _dataOwner, _dataKeyStore);
 
     private static async Task<JobSeeker> SeedSeekerWithPrefsAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
@@ -50,7 +65,7 @@ public class MatchProfileBuilderTests
             preferredRegions: ["stockholm_AB"],
             preferredEmploymentTypes: ["et_fast"]).Value;
         await SeedSeekerWithPrefsAsync(db, _userId, prefs);
-        var builder = new MatchProfileBuilder(db, _currentUser);
+        var builder = NewBuilder(db);
 
         var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
 
@@ -71,7 +86,7 @@ public class MatchProfileBuilderTests
             preferredRegions: null,
             preferredEmploymentTypes: null).Value;
         await SeedSeekerWithPrefsAsync(db, _userId, prefs);
-        var builder = new MatchProfileBuilder(db, _currentUser);
+        var builder = NewBuilder(db);
 
         var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
 
@@ -84,7 +99,7 @@ public class MatchProfileBuilderTests
     {
         var db = TestAppDbContextFactory.Create();
         await SeedSeekerWithPrefsAsync(db, _userId, MatchPreferences.Empty);
-        var builder = new MatchProfileBuilder(db, _currentUser);
+        var builder = NewBuilder(db);
 
         var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
 
@@ -101,7 +116,7 @@ public class MatchProfileBuilderTests
         // Ingen JobSeeker → honest TOM profil (inte fel/null) — F4-5-paritet:
         // tom SSYK-lista → NotAssessed, aldrig NoMatch.
         var db = TestAppDbContextFactory.Create();
-        var builder = new MatchProfileBuilder(db, _currentUser);
+        var builder = NewBuilder(db);
 
         var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
 
@@ -118,7 +133,7 @@ public class MatchProfileBuilderTests
         var db = TestAppDbContextFactory.Create();
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
-        var builder = new MatchProfileBuilder(db, currentUser);
+        var builder = NewBuilder(db, currentUser);
 
         var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
 
@@ -146,7 +161,7 @@ public class MatchProfileBuilderTests
                 preferredOccupationGroups: ["grp_MINE"],
                 preferredRegions: null,
                 preferredEmploymentTypes: null).Value);
-        var builder = new MatchProfileBuilder(db, _currentUser);
+        var builder = NewBuilder(db);
 
         var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
 

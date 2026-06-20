@@ -9,7 +9,7 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// keyword/skill extractor. NO AI/LLM: the title + description are normalized via
 /// the F4-2 local NLP tier (<see cref="ITextAnalyzer.ToLexemes"/>, Snowball —
 /// <c>to_tsvector('swedish')</c> parity) and matched against the committed JobTech
-/// skill-taxonomy + synonym snapshot (<see cref="JobAdSkillTaxonomyLoader"/>).
+/// skill-taxonomy index (<see cref="SkillTaxonomyIndex"/>).
 /// <list type="number">
 /// <item><b>Skill</b> terms — a taxonomy skill concept whose label/synonym lexemes
 /// are all present in the ad (bag containment), resolved to its concept-id.</item>
@@ -21,22 +21,24 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// <see cref="ExtractedTerms.From"/>. The ad text is NEVER logged (this type takes
 /// no <c>ILogger</c>); only public ad text is read (no CV-PII, ADR 0074 inv. 3).
 /// <para>
-/// Singleton with a lazily-built skill index (inverted on each label form's rarest
-/// lexeme → bounded per-ad work over the ~54k corpus). Mirrors
-/// <see cref="OccupationCodeDeriver"/>; the index is immutable reference data.
+/// The inverted skill index lives in the shared singleton
+/// <see cref="SkillTaxonomyIndex"/> (F4-15 extraction, ADR 0076 Decision 6) — the
+/// SAME index the CV-side <see cref="SkillResolver"/> reuses, so ad-side extraction
+/// and CV-side resolution can never diverge. This type owns only the ad-shaped
+/// concerns (requirement pass, keyword fallback, title/description sourcing).
 /// </para>
 /// </summary>
 internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
 {
     private readonly ITextAnalyzer _analyzer;
     private readonly IStemmer _stemmer;
-    private readonly Lazy<SkillIndex> _index;
+    private readonly SkillTaxonomyIndex _index;
 
-    public JobAdKeywordExtractor(ITextAnalyzer analyzer, IStemmer stemmer)
+    public JobAdKeywordExtractor(ITextAnalyzer analyzer, IStemmer stemmer, SkillTaxonomyIndex index)
     {
         _analyzer = analyzer;
         _stemmer = stemmer;
-        _index = new Lazy<SkillIndex>(BuildIndex, LazyThreadSafetyMode.ExecutionAndPublication);
+        _index = index;
     }
 
     public ExtractedTerms Extract(JobAdExtractionInput input)
@@ -85,35 +87,18 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
         foreach (var lexeme in descLex)
             frequency[lexeme] = frequency.GetValueOrDefault(lexeme) + 1;
 
-        var index = _index.Value;
-
-        // ---- Skill pass: bag-containment against the inverted index. ----
-        // A form is only checked when its anchor (rarest) lexeme is in the ad; the
-        // strongest (most-specific = most lexemes) form per concept-id wins.
-        var bestByConcept = new Dictionary<string, SkillForm>(StringComparer.Ordinal);
-        foreach (var lexeme in adSet)
-        {
-            if (!index.ByAnchor.TryGetValue(lexeme, out var forms))
-                continue;
-            foreach (var form in forms)
-            {
-                if (!ContainsAll(adSet, form.Lexemes))
-                    continue;
-                if (!bestByConcept.TryGetValue(form.ConceptId, out var existing)
-                    || IsMoreSpecific(form, existing))
-                {
-                    bestByConcept[form.ConceptId] = form;
-                }
-            }
-        }
+        // ---- Skill pass: bag-containment against the shared inverted index
+        // (SkillTaxonomyIndex). The strongest (most-specific = most lexemes) form
+        // per concept-id wins — the SAME core the CV-side resolver reuses.
+        var bestForms = _index.MatchForms(adSet);
 
         var skillConsumed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var form in bestByConcept.Values)
+        foreach (var form in bestForms)
             skillConsumed.UnionWith(form.Lexemes);
 
-        terms.EnsureCapacity(terms.Count + bestByConcept.Count + adSet.Count);
+        terms.EnsureCapacity(terms.Count + bestForms.Count + adSet.Count);
 
-        foreach (var form in bestByConcept.Values)
+        foreach (var form in bestForms)
         {
             var source = AnyInTitle(form.Lexemes, titleSet)
                 ? ExtractedTermSource.Title
@@ -154,28 +139,12 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
         return ExtractedTerms.From(terms);
     }
 
-    private static bool ContainsAll(HashSet<string> ad, IReadOnlyCollection<string> formLexemes)
-    {
-        foreach (var lexeme in formLexemes)
-            if (!ad.Contains(lexeme))
-                return false;
-        return true;
-    }
-
     private static bool AnyInTitle(IReadOnlyCollection<string> formLexemes, HashSet<string> titleSet)
     {
         foreach (var lexeme in formLexemes)
             if (titleSet.Contains(lexeme))
                 return true;
         return false;
-    }
-
-    // More lexemes = more specific; deterministic tiebreak on the cited label.
-    private static bool IsMoreSpecific(SkillForm candidate, SkillForm current)
-    {
-        if (candidate.Lexemes.Count != current.Lexemes.Count)
-            return candidate.Lexemes.Count > current.Lexemes.Count;
-        return string.CompareOrdinal(candidate.MatchedOn, current.MatchedOn) < 0;
     }
 
     // Re-tokenize (lowercase → letter/digit runs, the LocalTextAnalyzer
@@ -233,79 +202,4 @@ internal sealed class JobAdKeywordExtractor : IJobAdKeywordExtractor
         if (start >= 0)
             yield return lower[start..];
     }
-
-    private SkillIndex BuildIndex()
-    {
-        var concepts = JobAdSkillTaxonomyLoader.Load();
-
-        // Flatten to label forms (preferred + synonyms), deduped per
-        // (concept, lexeme-set) so a redundant synonym does not double the work.
-        var forms = new List<SkillForm>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var concept in concepts)
-        {
-            AddForm(concept, concept.PreferredLabel, forms, seen);
-            foreach (var synonym in concept.Synonyms)
-                AddForm(concept, synonym, forms, seen);
-        }
-
-        // Document frequency of each lexeme across all forms → anchor each form on
-        // its RAREST lexeme so per-ad matching only probes selective lexemes.
-        var df = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var form in forms)
-            foreach (var lexeme in form.Lexemes)
-                df[lexeme] = df.GetValueOrDefault(lexeme) + 1;
-
-        var byAnchor = new Dictionary<string, List<SkillForm>>(StringComparer.Ordinal);
-        foreach (var form in forms)
-        {
-            var anchor = RarestLexeme(form.Lexemes, df);
-            if (!byAnchor.TryGetValue(anchor, out var list))
-                byAnchor[anchor] = list = [];
-            list.Add(form);
-        }
-
-        return new SkillIndex(byAnchor);
-    }
-
-    private void AddForm(SkillConcept concept, string label, List<SkillForm> forms, HashSet<string> seen)
-    {
-        if (string.IsNullOrWhiteSpace(label))
-            return;
-        var lexemes = _analyzer.ToLexemes(label, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal);
-        if (lexemes.Count == 0)
-            return;
-        // Dedupe identical (concept, lexeme-set) forms.
-        var key = concept.ConceptId + "|" + string.Join('|', lexemes.OrderBy(x => x, StringComparer.Ordinal));
-        if (!seen.Add(key))
-            return;
-        forms.Add(new SkillForm(concept.ConceptId, concept.PreferredLabel, label.Trim(), lexemes));
-    }
-
-    private static string RarestLexeme(IReadOnlyCollection<string> lexemes, Dictionary<string, int> df)
-    {
-        var rarest = string.Empty;
-        var min = int.MaxValue;
-        foreach (var lexeme in lexemes)
-        {
-            var count = df.GetValueOrDefault(lexeme, 0);
-            // Deterministic tiebreak on Ordinal so the anchor is reproducible.
-            if (count < min || (count == min && string.CompareOrdinal(lexeme, rarest) < 0))
-            {
-                min = count;
-                rarest = lexeme;
-            }
-        }
-        return rarest;
-    }
-
-    // One matchable skill label form: its concept-id (+ preferred label for
-    // display), the source label span (cited evidence) and its lexeme set.
-    private sealed record SkillForm(
-        string ConceptId,
-        string PreferredLabel,
-        string MatchedOn,
-        IReadOnlySet<string> Lexemes);
-
-    private sealed record SkillIndex(IReadOnlyDictionary<string, List<SkillForm>> ByAnchor);
 }

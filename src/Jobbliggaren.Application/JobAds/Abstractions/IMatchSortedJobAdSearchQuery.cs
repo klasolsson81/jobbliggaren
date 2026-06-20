@@ -32,12 +32,23 @@ public interface IMatchSortedJobAdSearchQuery
     /// Filtrerar (samma SPOT som <see cref="IJobAdSearchQuery.SearchAsync"/>),
     /// rangordnar efter match-grad fallande + <c>publishedAt</c> fallande, och
     /// paginerar. Returnerar samma <see cref="JobAdDto"/>-sida — ingen match-data
-    /// i DTO:n. Anropas endast med en profil som har minst en angiven yrkesgrupp
-    /// (grindas av handlern, Decision 7).
+    /// i DTO:n. Anropas endast med en profil vars <see cref="FullCandidateMatchProfile.Fast"/>
+    /// har minst en angiven yrkesgrupp (grindas av handlern, Decision 7).
+    /// <para>
+    /// <b>F4-15 (ADR 0076 Decision 6, R5-REBIND Option H):</b> profilen är nu
+    /// <see cref="FullCandidateMatchProfile"/> så att en GYLLENE topp-rung kan läggas
+    /// i <c>ORDER BY</c>: en Stark match (yrke+region+anställning bekräftade) som OCKSÅ
+    /// delar minst en CV-skill (<c>extracted_lexemes ?| CvSkillConceptIds</c>) sorteras
+    /// ÖVER en ren Stark match. Tom <see cref="FullCandidateMatchProfile.CvSkillConceptIds"/>
+    /// → ingen gyllene lyft (ordning ≡ F4-14). Sort-nyckeln (inkl. den gyllene rungen)
+    /// lever ENBART i <c>ORDER BY</c> — aldrig i <see cref="JobAdDto"/> (Goodhart,
+    /// Decision 4). CV-skills är top-5 plaintext på denna heta väg (ingen DEK) — en
+    /// binär rung utan verdikt kan bara under-lyfta, aldrig fel-lyfta (honest recall).
+    /// </para>
     /// </summary>
     ValueTask<PagedResult<JobAdDto>> SearchByMatchAsync(
         JobAdFilterCriteria filter,
-        CandidateMatchProfile profile,
+        FullCandidateMatchProfile profile,
         int page,
         int pageSize,
         DateTimeOffset? since,

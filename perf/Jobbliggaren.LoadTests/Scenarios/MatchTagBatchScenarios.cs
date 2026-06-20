@@ -1,4 +1,4 @@
-// Jobbliggaren perf fitness function — POST /api/v1/me/job-ad-match-tags (F4-13).
+// Jobbliggaren perf fitness function — POST /api/v1/me/job-ad-match-tags (F4-13/F4-15).
 //
 // ADR 0076 Decision 5 / ADR 0045 Beslut 1 klass (a) read-query/list:
 //   p95 ≤ 300 ms (Klas-låst — produkt/UX/kostnad, Accepted 2026-05-17)
@@ -10,21 +10,33 @@
 // Edge-to-edge mäts INTE — medvetet (ADR 0045 Beslut 1).
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// ENDPOINT-PROFIL (F4-13 — byggd):
+// ENDPOINT-PROFIL (F4-13/F4-15 — uppdaterad med F4-15 DEK + CV-read-delta):
 //   - Anonym-tolerant (INTE RequireAuthorization-gated). Handler returnerar tom
 //     map utan UserId / utan angiven occupation (SSYK-gate). Om LOADTEST_BEARER_
 //     TOKEN saknas → scenariot kör anonymt → handler short-circuit:ar → tom map
 //     → 200 OK men latensen mäter INTE den autentiserade hot-path-vägen. Token
-//     krävs för att mäta den meningsfulla handler-latensen (2 DB-round-trips +
-//     in-memory-scoring). BudgetReporter flaggar fail-count separat vid 429.
+//     krävs för att mäta den meningsfulla handler-latensen. BudgetReporter flaggar
+//     fail-count separat vid 429.
 //   - DUAL-partition rate-limit: JobAdMatchBatchPolicy 60/min (user:-bucket om
 //     auth, ip:-bucket annars). Parity JobAdStatusBatchPolicy (ADR 0063).
 //   - Batch-validator cap = 100 IDs (GetJobAdMatchBatchQueryValidator).
-//   - Handler: 2 DB-round-trips (BuildFromPreferencesAsync → 1 SELECT JobSeekers;
-//     ScoreBatchAsync → 1 SELECT FROM (SELECT * FROM job_ads WHERE id = ANY(@ids))
-//     WHERE deleted_at IS NULL) + ≤100 in-memory MatchGradeCalculator.Grade(score)
-//     anrop. CV-title hoistias som tom sträng i F4-13 (preference-profil bär inget
-//     titel-fält) → TitleSimilarity = NotAssessed per ad; stemmer-overhead ≈ 0.
+//   - Handler F4-15 (bygger på F4-13): BuildFullFromCvSkillsAsync (NY F4-15):
+//       1. SELECT JobSeekers (AsNoTracking) → 1 DB round-trip.
+//       2. currentDataOwner.SetOwner + dataKeyStore.GetOrCreateDataKeyAsync →
+//          DEK-uppvärmning (scope-memoized; KMS-/LocalDataKeyProvider-anrop).
+//          NY deltakostnad vs F4-13. Cached per request-scope (värsta fallet =
+//          förstakallad per request, scope-cache hit därefter).
+//       3. SELECT Resumes WHERE id = PrimaryResumeId WITH Include(Versions) →
+//          FieldDecryptionMaterializationInterceptor dekrypterar Content (AES-256-GCM).
+//          NY deltakostnad vs F4-13.
+//       4. In-memory ISkillResolver.Resolve(Content.Skills[alla]) → concept-ids.
+//       + ScoreFullBatchAsync (NY F4-15):
+//       5. SELECT job_ads WHERE id = ANY(@ids) WITH extracted_terms projected →
+//          1 round-trip inkl. ExtractedTerms (utökat vs F4-13:s ScoreBatchAsync).
+//       6. In-memory ScoreConceptCoverage per rad (≤100) med hoisted concept-ids.
+//     F4-13-banan (utan F4-15): 2 round-trips + in-memory Grade. F4-15 lägger till
+//     DEK-warm + encrypted-content-read + resolver + ScoreConceptCoverage-overhead.
+//     Worst-case för scenariot = kallt DEK (första request efter DEK-scope-init).
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // LAST-KALIBRERING (CTO-disciplin: kalibrera mot fakta, ej gissning):
@@ -69,6 +81,20 @@
 //   Prioritet: tom-ID-mätning är bättre än INGEN mätning (pipeline-overhead,
 //   Mediator-pipeline, validation, auth-short-circuit mäts korrekt). Seeding
 //   = Fas E-follow-up (samma väg som Facet-counts Bearer-token-wiring).
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// F4-15 MÄTKRAV (CTO R5 / CLAUDE.md §2.5):
+//   Meningsfull worst-case-mätning av DEK-warm + full CV-read + ScoreConceptCoverage
+//   kräver att testanvändaren (LOADTEST_BEARER_TOKEN) har:
+//     (1) Primary CV med ≥1 Content.Skills (encrypted → DEK-warm aktiveras).
+//     (2) LOADTEST_JOB_AD_IDS med verkliga job_ads-rader som har extracted_terms.
+//   Utan (1): BuildFullFromCvSkillsAsync returnerar tom skill-lista → ScoreConceptCoverage
+//             NotAssessed → ingen skill-scoring overhead. Mäter DEK-warm + Versions-SELECT
+//             men inte scoring. Delvis meningsfull.
+//   Utan (2): tom-ID-fallback (se ovan). Mäter DEK-warm + CV-read men INTE ScoreConceptCoverage.
+//   Korrekt instrument för F4-15-budgetdomen kräver (1)+(2). Utan dem rapporteras
+//   signalen som "konservativt golv" (DEK-warm-overhead utan scoring), EJ full worst-case.
+//   Denna deferral är parity F4-14:s honest-deferral-notat (dev-DB nere / ingen seeded fixture).
 
 using NBomber.Contracts;
 using NBomber.CSharp;

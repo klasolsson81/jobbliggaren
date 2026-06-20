@@ -26,16 +26,27 @@ public sealed record JobAdMatchBatchDto(IReadOnlyDictionary<Guid, JobAdMatchEntr
 /// qualify, does not exist, or is soft-deleted is simply absent (the FE renders no chip).
 /// </summary>
 /// <param name="Grade">The named match grade (the card's <c>.jp-matchchip</c> tag) —
-/// a bounded category, never a number.</param>
+/// a bounded category, never a number. F4-15 keeps the visible grade ceilinged at
+/// <c>Strong</c> (the golden rung is sort-key-only until F4-16, ADR 0076 b-ii).</param>
 /// <param name="SsykOverlap">The occupation-group dimension verdict (always Match for a
 /// present entry — the gate).</param>
 /// <param name="TitleSimilarity">The title dimension verdict (always NotAssessed on the
-/// preference path — no CV title until F4-15; carried for honest forward-compat).</param>
+/// preference path — no CV title; carried for honest forward-compat).</param>
 /// <param name="RegionFit">The region dimension verdict.</param>
 /// <param name="EmploymentFit">The employment-type dimension verdict.</param>
+/// <param name="SkillOverlap">F4-15 — the CV-skill ∩ ad-skill coverage verdict (from
+/// the FULL score over the complete CV skills). Carried for the F4-16 modal's
+/// matched/missing display; the F4-15 chip does not yet render it.</param>
+/// <param name="MustHaveCoverage">F4-15 — the ad's <c>must_have</c> requirement coverage
+/// verdict. Forward-compat with the F4-16 modal.</param>
+/// <param name="NiceToHaveCoverage">F4-15 — the ad's <c>nice_to_have</c> requirement
+/// coverage verdict. Forward-compat with the F4-16 modal.</param>
 public sealed record JobAdMatchEntryDto(
     MatchGrade Grade,
     MatchDimensionVerdict SsykOverlap,
     MatchDimensionVerdict TitleSimilarity,
     MatchDimensionVerdict RegionFit,
-    MatchDimensionVerdict EmploymentFit);
+    MatchDimensionVerdict EmploymentFit,
+    MatchDimensionVerdict SkillOverlap,
+    MatchDimensionVerdict MustHaveCoverage,
+    MatchDimensionVerdict NiceToHaveCoverage);

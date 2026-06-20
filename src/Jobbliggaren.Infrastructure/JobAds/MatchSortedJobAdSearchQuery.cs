@@ -45,9 +45,14 @@ internal sealed class MatchSortedJobAdSearchQuery(
     private const string RegionColumn = "RegionConceptId";
     private const string EmploymentTypeColumn = "EmploymentTypeConceptId";
 
+    // STORED generated jsonb companion (extracted_lexemes = Lexeme-array, GIN-indexerad)
+    // — bär skill-concept-ids (Lexeme == ConceptId för Skill/Requirement-termer). F4-15:s
+    // gyllene rung testar `extracted_lexemes ?| @cvSkillIds` (EF.Functions.JsonExistAny).
+    private const string ExtractedLexemesColumn = "ExtractedLexemes";
+
     public async ValueTask<PagedResult<JobAdDto>> SearchByMatchAsync(
         JobAdFilterCriteria filter,
-        CandidateMatchProfile profile,
+        FullCandidateMatchProfile profile,
         int page,
         int pageSize,
         DateTimeOffset? since,
@@ -63,22 +68,42 @@ internal sealed class MatchSortedJobAdSearchQuery(
         // Profil-listorna fångas lokalt → EF binder dem som parametrar (= ANY).
         // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma
         // (NotAssessed — varken bekräftar eller golvar, MatchScorer.ScoreMembership).
-        var ssyk = profile.SsykGroupConceptIds;
-        var regions = profile.PreferredRegionConceptIds;
-        var employment = profile.PreferredEmploymentTypeConceptIds;
+        var fast = profile.Fast;
+        var ssyk = fast.SsykGroupConceptIds;
+        var regions = fast.PreferredRegionConceptIds;
+        var employment = fast.PreferredEmploymentTypeConceptIds;
         var regionsStated = regions.Count > 0;
         var employmentStated = employment.Count > 0;
+
+        // F4-15 (ADR 0076 Decision 6, R5-REBIND Option H): den gyllene topp-rungen. CV-skills
+        // är top-5 plaintext (ingen DEK) på denna heta väg. Tom mängd → skillStated == false
+        // → den gyllene termen blir konstant 0 (EF prunes) → ordning ≡ F4-14 (ingen fel-lyft).
+        var cvSkillIds = profile.CvSkillConceptIds.ToArray();
+        var skillStated = cvSkillIds.Length > 0;
 
         var baseQuery = JobAdSearchComposition.ApplyFilter(
             db.JobAds.AsNoTracking(), filter, synonymExpander);
 
         var items = await baseQuery
+            // Gyllene topp-rung (F4-15): en Stark match (yrke+region+anställning ALLA
+            // bekräftade — samma villkor som grad-rank == 3) som OCKSÅ delar minst en
+            // CV-skill (`extracted_lexemes ?| @cvSkillIds`) sorteras ÖVER en ren Stark.
+            // En binär rung utan verdikt → top-5 kan bara under-lyfta, aldrig fel-lyfta
+            // (honest reduced-recall). NULL extracted_lexemes → ?| NULL → ELSE 0.
+            .OrderByDescending(j =>
+                skillStated
+                && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
+                && regions.Contains(EF.Property<string?>(j, RegionColumn))
+                && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                && EF.Functions.JsonExistAny(EF.Property<string>(j, ExtractedLexemesColumn), cvSkillIds)
+                    ? 1
+                    : 0)
             // Grad-rank fallande (3=Strong … 0=otaggad sist). NotAssessed≠NoMatch:
             // "motsäger" kräver en ANGIVEN preferens (regionsStated) OCH ett
             // icke-NULL shadow-värde som INTE finns i preferens-mängden. Ett tomt
             // preferens-set ger list.Contains == false (= NotAssessed → bidrar 0,
             // golvar ej). Speglar MatchGradeCalculator exakt (oracle-pinnad).
-            .OrderByDescending(j =>
+            .ThenByDescending(j =>
                 !ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
                     ? 0
                     : ((regionsStated

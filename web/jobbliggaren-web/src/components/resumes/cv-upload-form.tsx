@@ -228,7 +228,7 @@ export function CvUploadForm() {
           className="jp-btn jp-btn--primary"
           disabled={isPending || !selectedFile}
         >
-          {isPending ? "Tolkar ditt CV…" : "Tolka och granska CV"}
+          {isPending ? "Laddar upp CV…" : "Ladda upp och granska CV"}
         </button>
       </div>
 

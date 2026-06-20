@@ -11,7 +11,7 @@ vi.mock("@/lib/auth/session", () => ({
   getSessionId: getSessionIdMock,
 }));
 
-import { getJobAdMatchTags } from "./job-ad-match";
+import { getJobAdMatchDetail, getJobAdMatchTags } from "./job-ad-match";
 
 const ID_A = "11111111-1111-1111-1111-111111111111";
 const ID_B = "22222222-2222-2222-2222-222222222222";
@@ -116,5 +116,113 @@ describe("getJobAdMatchTags", () => {
 
     const result = await getJobAdMatchTags([ID_A]);
     expect(result).toEqual(EMPTY);
+  });
+
+  it("batch parsar 'Top' (golden-rungen) efter widening (F4-16 page-wipe-skydd)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        entries: {
+          [ID_A]: {
+            grade: "Top",
+            ssykOverlap: "Match",
+            titleSimilarity: "NotAssessed",
+            regionFit: "Match",
+            employmentFit: "Match",
+          },
+        },
+      })
+    );
+    global.fetch = fetchMock;
+
+    const result = await getJobAdMatchTags([ID_A]);
+    // Utan widening hade record-.catch:en blankat HELA mappen.
+    expect(result.entries[ID_A]?.grade).toBe("Top");
+  });
+});
+
+function detailRow(verdict: string) {
+  return { verdict, matched: [], missing: [] };
+}
+
+const validDetail = {
+  grade: "Top",
+  ssykOverlap: detailRow("Match"),
+  titleSimilarity: detailRow("NotAssessed"),
+  regionFit: detailRow("Match"),
+  employmentFit: detailRow("Match"),
+  skillOverlap: { verdict: "Partial", matched: ["Java"], missing: ["AWS"] },
+  mustHaveCoverage: detailRow("Match"),
+  niceToHaveCoverage: detailRow("NotAssessed"),
+};
+
+describe("getJobAdMatchDetail", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+  });
+
+  it("utan session → null UTAN backend-rundtur", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await getJobAdMatchDetail(ID_A)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 med giltig detalj → parsad; GET med Bearer mot /{jobAdId}", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(validDetail));
+    global.fetch = fetchMock;
+
+    const result = await getJobAdMatchDetail(ID_A);
+    expect(result?.grade).toBe("Top");
+    expect(result?.skillOverlap.matched).toEqual(["Java"]);
+    expect(result?.skillOverlap.missing).toEqual(["AWS"]);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`http://test-backend/api/v1/me/job-ad-match-tags/${ID_A}`);
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer sess-1"
+    );
+  });
+
+  it("200 med null-body → null (ingen matchnings-sektion)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(null));
+    expect(await getJobAdMatchDetail(ID_A)).toBeNull();
+  });
+
+  it("grade=null men rader finns → parsad (ärlig nedbrytning utan tagg)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ ...validDetail, grade: null })
+    );
+    global.fetch = fetchMock;
+
+    const result = await getJobAdMatchDetail(ID_A);
+    expect(result?.grade).toBeNull();
+    expect(result?.ssykOverlap.verdict).toBe("Match");
+  });
+
+  it("!ok (500) → null (civil degradering)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
+    expect(await getJobAdMatchDetail(ID_A)).toBeNull();
+  });
+
+  it("nätverksfel (throw) → null", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+    expect(await getJobAdMatchDetail(ID_A)).toBeNull();
+  });
+
+  it("kontraktsdrift (okänd grad) → null (parse-fail degraderar civilt)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ ...validDetail, grade: "Perfect" })
+    );
+    global.fetch = fetchMock;
+    expect(await getJobAdMatchDetail(ID_A)).toBeNull();
   });
 });

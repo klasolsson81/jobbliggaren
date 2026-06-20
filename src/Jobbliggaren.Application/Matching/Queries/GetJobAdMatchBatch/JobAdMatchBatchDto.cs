@@ -26,8 +26,8 @@ public sealed record JobAdMatchBatchDto(IReadOnlyDictionary<Guid, JobAdMatchEntr
 /// qualify, does not exist, or is soft-deleted is simply absent (the FE renders no chip).
 /// </summary>
 /// <param name="Grade">The named match grade (the card's <c>.jp-matchchip</c> tag) —
-/// a bounded category, never a number. F4-15 keeps the visible grade ceilinged at
-/// <c>Strong</c> (the golden rung is sort-key-only until F4-16, ADR 0076 b-ii).</param>
+/// a bounded category, never a number. F4-16 paints the golden rung: a Strong Fast match
+/// with CV-skill overlap is graded <c>Top</c> ("Toppmatch", ADR 0076 Amendment (b) §1).</param>
 /// <param name="SsykOverlap">The occupation-group dimension verdict (always Match for a
 /// present entry — the gate).</param>
 /// <param name="TitleSimilarity">The title dimension verdict (always NotAssessed on the

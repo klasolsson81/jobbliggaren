@@ -2,8 +2,10 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { getJobAdStatusLabel } from "@/lib/job-ads/status";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
+import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import { SaveJobAdToggle } from "@/components/saved-job-ads/save-job-ad-toggle";
 import { HarAnsoktButton } from "@/components/applications/har-ansokt-button";
+import { JobAdMatchSection } from "./job-ad-match-section";
 import { formatAdDescription } from "./format-ad-description";
 
 /**
@@ -36,6 +38,13 @@ interface JobAdDetailProps {
    */
   initialSaved?: boolean;
   initialApplied?: boolean;
+  /**
+   * F4-16 (ADR 0076, CTO D3) — matchnings-detalj mot användarens profil.
+   * `undefined`/`null` = ingen sektion renderas (anonym / ingen träffdata /
+   * gäst — frånvaro, ej teater, ADR 0053). Server-fetchad parallellt i
+   * page-handlern (parity initialSaved/initialApplied).
+   */
+  match?: JobAdMatchDetail | null;
 }
 
 // Active/Expired/Archived → .jp-pill-variant. Speglar
@@ -57,6 +66,7 @@ export function JobAdDetail({
   headless = false,
   initialSaved,
   initialApplied,
+  match,
 }: JobAdDetailProps) {
   // Typ-narrowing-pattern: bind till en `userActions`-konst som är non-null
   // när BÅDA props är definierade. Eliminerar `!`-suppressions i JSX nedan
@@ -107,6 +117,11 @@ export function JobAdDetail({
             <dd>{jobAd.id}</dd>
           </div>
         </dl>
+
+        {/* F4-16 — matchnings-sektionen ovanför Annonsbeskrivning (design §2.A:
+            "passar jobbet mig" är frågan modalen öppnas för → före annons-prosan).
+            Renderas bara när matchdata finns (anonym/gäst → match=undefined → null). */}
+        {match != null && <JobAdMatchSection match={match} />}
 
         <div>
           <div

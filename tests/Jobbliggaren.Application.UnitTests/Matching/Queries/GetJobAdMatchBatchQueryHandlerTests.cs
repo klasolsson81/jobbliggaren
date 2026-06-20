@@ -193,23 +193,29 @@ public class GetJobAdMatchBatchQueryHandlerTests
     }
 
     // =================================================================
-    // Authed with occupation → grade from the Fast tuple; include only graded;
-    // entry carries the four Fast verdicts AND the three FULL verdicts.
+    // Authed with occupation → grade from the FULL score (F4-16, ADR 0076 Amendment
+    // (b) §1 — the visible chip is no longer ceilinged at Strong): a Strong Fast match
+    // WITH CV-skill overlap is promoted to the golden Top rung; a Strong Fast match
+    // WITHOUT skill overlap stays Strong; sub-Strong grades pass through. Include only
+    // graded; entry carries the four Fast verdicts AND the three FULL verdicts.
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldIncludeOnlyGradedAds_GradeFromFastTuple_CeilingedAtStrong()
+    public async Task Handle_ShouldGradeFromFullScore_PromotingStrongWithSkillOverlapToTop()
     {
         var ct = TestContext.Current.CancellationToken;
-        var strongAd = new JobAdId(Guid.NewGuid());   // occ + region + employment Match → Strong
-        var goodAd = new JobAdId(Guid.NewGuid());      // occ + region Match → Good
-        var gatedAd = new JobAdId(Guid.NewGuid());     // occ NoMatch → null → omitted
+        var topAd = new JobAdId(Guid.NewGuid());          // occ+region+employment Match + skill Match → Top
+        var strongAd = new JobAdId(Guid.NewGuid());       // occ+region+employment Match, skill NotAssessed → Strong
+        var goodAd = new JobAdId(Guid.NewGuid());          // occ + region Match → Good
+        var gatedAd = new JobAdId(Guid.NewGuid());         // occ NoMatch → null → omitted
 
         var scores = new Dictionary<JobAdId, FullMatchScore>
         {
-            [strongAd] = FullScoreOf(
+            [topAd] = FullScoreOf(
                 MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match,
                 skill: MatchDimensionVerdict.Match),
+            [strongAd] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match),
             [goodAd] = FullScoreOf(
                 MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed),
             [gatedAd] = FullScoreOf(
@@ -220,15 +226,14 @@ public class GetJobAdMatchBatchQueryHandlerTests
         var sut = CreateHandler(builder, scorer);
 
         var result = await sut.Handle(
-            new GetJobAdMatchBatchQuery([strongAd.Value, goodAd.Value, gatedAd.Value]), ct);
+            new GetJobAdMatchBatchQuery([topAd.Value, strongAd.Value, goodAd.Value, gatedAd.Value]), ct);
 
-        result.Entries.Count.ShouldBe(2);
-        result.Entries.ShouldContainKey(strongAd.Value);
-        result.Entries.ShouldContainKey(goodAd.Value);
+        result.Entries.Count.ShouldBe(3);
         result.Entries.ShouldNotContainKey(gatedAd.Value);
 
-        // Grade is still computed from the embedded Fast tuple (ceilinged at Strong —
-        // F4-15 adds no new visible MatchGrade member).
+        // F4-16: the visible grade is the FULL grade. A Strong Fast match with CV-skill
+        // overlap is the golden Top; without overlap it stays Strong; Good passes through.
+        result.Entries[topAd.Value].Grade.ShouldBe(MatchGrade.Top);
         result.Entries[strongAd.Value].Grade.ShouldBe(MatchGrade.Strong);
         result.Entries[goodAd.Value].Grade.ShouldBe(MatchGrade.Good);
     }

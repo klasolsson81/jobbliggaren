@@ -304,6 +304,304 @@ public class MatchGradeCalculatorTests
     [Fact]
     public void Grade_ShouldThrowArgumentNullException_WhenScoreIsNull()
     {
-        Should.Throw<ArgumentNullException>(() => MatchGradeCalculator.Grade(null!));
+        Should.Throw<ArgumentNullException>(() => MatchGradeCalculator.Grade((MatchScore)null!));
+    }
+
+    // =================================================================
+    // F4-16 (ADR 0076 Amendment (b) §1; CTO 2026-06-20 D1; Klas: golden name = Top
+    // "Toppmatch") — the NEW Grade(FullMatchScore) overload. It delegates to the
+    // frozen Grade(MatchScore) ladder for the base, then promotes EXACTLY ONE rung
+    // (MatchGrade.Top) iff base == Strong AND SkillOverlap.Verdict ∈ {Match, Partial}.
+    // Sub-Strong/null bases pass through unchanged regardless of any Full verdict
+    // (skills never RESCUE below Strong and never DEMOTE — positive-only ladder).
+    // MustHaveCoverage/NiceToHaveCoverage do NOT affect the VISIBLE grade v1.
+    // The oracle below is an INDEPENDENT re-statement of the rule (it does not call
+    // the SUT), so a regression in either implementation diverges. RED until the
+    // overload + the MatchGrade.Top member exist.
+    // =================================================================
+
+    private static MatchDimension FullDim(MatchDimensionVerdict verdict) => new(verdict, [], []);
+
+    // Builds a FullMatchScore from a Fast verdict-tuple plus the three Full dimensions'
+    // verdicts. Matched/Missing are irrelevant to Grade() so we leave them empty.
+    private static FullMatchScore FullScore(
+        MatchDimensionVerdict ssyk,
+        MatchDimensionVerdict region,
+        MatchDimensionVerdict employment,
+        MatchDimensionVerdict skill,
+        MatchDimensionVerdict mustHave = MatchDimensionVerdict.NotAssessed,
+        MatchDimensionVerdict niceToHave = MatchDimensionVerdict.NotAssessed) =>
+        new(
+            Fast: Score(ssyk, region, employment),
+            SkillOverlap: FullDim(skill),
+            MustHaveCoverage: FullDim(mustHave),
+            NiceToHaveCoverage: FullDim(niceToHave));
+
+    // Independent oracle — the F4-16 golden rule restated from the spec, NOT delegating
+    // to the SUT. base = the frozen Fast ladder (re-used Expected above).
+    private static MatchGrade? ExpectedFull(
+        MatchDimensionVerdict ssyk,
+        MatchDimensionVerdict region,
+        MatchDimensionVerdict employment,
+        MatchDimensionVerdict skill)
+    {
+        var baseGrade = Expected(ssyk, region, employment);
+        if (baseGrade != MatchGrade.Strong)
+            return baseGrade; // null / Basic / Good / (a non-Strong) pass through unchanged
+
+        return skill is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial
+            ? MatchGrade.Top
+            : MatchGrade.Strong; // NoMatch / NotAssessed → no promotion, no demotion
+    }
+
+    // Full reachable space — (SsykOverlap × RegionFit × EmploymentFit) ∈
+    // {Match, NoMatch, NotAssessed}³  ×  SkillOverlap ∈ all four verdicts.
+    public static TheoryData<
+        MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchGrade?>
+        FullVerdictSpaceWithSkill()
+    {
+        var fastVerdicts = new[]
+        {
+            MatchDimensionVerdict.Match,
+            MatchDimensionVerdict.NoMatch,
+            MatchDimensionVerdict.NotAssessed,
+        };
+        var skillVerdicts = new[]
+        {
+            MatchDimensionVerdict.Match,
+            MatchDimensionVerdict.Partial,
+            MatchDimensionVerdict.NoMatch,
+            MatchDimensionVerdict.NotAssessed,
+        };
+
+        var data = new TheoryData<
+            MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchGrade?>();
+
+        foreach (var ssyk in fastVerdicts)
+            foreach (var region in fastVerdicts)
+                foreach (var employment in fastVerdicts)
+                    foreach (var skill in skillVerdicts)
+                        data.Add(ssyk, region, employment, skill,
+                            ExpectedFull(ssyk, region, employment, skill));
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(FullVerdictSpaceWithSkill))]
+    public void GradeFull_ShouldMatchTheGoldenLadderTable_AcrossTheFullReachableSpace(
+        MatchDimensionVerdict ssyk,
+        MatchDimensionVerdict region,
+        MatchDimensionVerdict employment,
+        MatchDimensionVerdict skill,
+        MatchGrade? expected)
+    {
+        var score = FullScore(ssyk, region, employment, skill);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(expected,
+            $"ssyk={ssyk}, region={region}, employment={employment}, skill={skill} ska ge {expected}.");
+    }
+
+    // --- The four golden-promotion cells, pinned by name (the heart of D1) ---
+
+    [Fact]
+    public void GradeFull_ShouldReturnTop_WhenBaseIsStrongAndSkillIsMatch()
+    {
+        // Occupation + region + employment Match → Strong base; SkillOverlap Match → Top.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnTop_WhenBaseIsStrongAndSkillIsPartial()
+    {
+        // SkillOverlap never reports Partial in practice (binary set-membership), but the
+        // function must promote on Partial too (defensive — CTO D1).
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Partial);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnStrong_WhenBaseIsStrongAndSkillIsNoMatch()
+    {
+        // A skill mismatch (CV skills present, disjoint from the ad) NEVER demotes an
+        // honest Strong — positive-only ladder. The mismatch is surfaced as modal
+        // evidence, not a chip demotion.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.NoMatch);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnStrong_WhenBaseIsStrongAndSkillIsNotAssessed()
+    {
+        // No resolved CV skills / ad has no skill terms → SkillOverlap NotAssessed →
+        // no promotion → stays Strong ("we could not assess skills, everything else tops").
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.NotAssessed);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+    }
+
+    // --- Skills never RESCUE a sub-Strong base (the floor invariant) ---
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.Partial)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldStayGood_RegardlessOfSkill_WhenBaseIsGood(
+        MatchDimensionVerdict skill)
+    {
+        // Occupation + region Match, employment NotAssessed → Good base. A perfect skill
+        // overlap must NOT lift a Good ad to Top — promotion applies only ATOP Strong.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.NotAssessed,
+            skill: skill);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+    }
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.Partial)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldStayBasic_RegardlessOfSkill_WhenBaseIsBasic(
+        MatchDimensionVerdict skill)
+    {
+        // Occupation Match but region contradicts → Basic base (Klas RB1 floor: "fel ort").
+        // Skills can never lift a wrong-city ad to Top.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NoMatch,
+            employment: MatchDimensionVerdict.Match,
+            skill: skill);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+    }
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.Partial)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldStayNull_RegardlessOfSkill_WhenOccupationGateFails(
+        MatchDimensionVerdict skill)
+    {
+        // Occupation NoMatch → null base (no tag). Skills never produce a tag below the gate.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.NoMatch,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: skill);
+
+        MatchGradeCalculator.Grade(score).ShouldBeNull();
+    }
+
+    // --- MustHave / NiceToHave do NOT change the VISIBLE grade v1 ---
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.Partial)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldAlwaysReturnTop_OnStrongPlusSkillMatch_RegardlessOfMustHave(
+        MatchDimensionVerdict mustHave)
+    {
+        // Strong + SkillOverlap Match → Top, no matter the must-have coverage verdict
+        // (equal-weight, evidence-only — must-have rides the modal DTO, not the grade).
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Match,
+            mustHave: mustHave);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+    }
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.Partial)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldAlwaysReturnTop_OnStrongPlusSkillMatch_RegardlessOfNiceToHave(
+        MatchDimensionVerdict niceToHave)
+    {
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Match,
+            niceToHave: niceToHave);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+    }
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.Partial)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldAlwaysReturnStrong_OnStrongPlusSkillNoMatch_RegardlessOfMustHave(
+        MatchDimensionVerdict mustHave)
+    {
+        // Strong + SkillOverlap NoMatch stays Strong; a covered must-have cannot promote
+        // (must-have is not a visible promoter v1) and a missing one cannot demote.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.NoMatch,
+            mustHave: mustHave);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+    }
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.Partial)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldAlwaysReturnStrong_OnStrongPlusSkillNoMatch_RegardlessOfNiceToHave(
+        MatchDimensionVerdict niceToHave)
+    {
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.NoMatch,
+            niceToHave: niceToHave);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+    }
+
+    // --- Null guard parity with the Fast overload ---
+
+    [Fact]
+    public void GradeFull_ShouldThrowArgumentNullException_WhenScoreIsNull()
+    {
+        Should.Throw<ArgumentNullException>(
+            () => MatchGradeCalculator.Grade((FullMatchScore)null!));
     }
 }

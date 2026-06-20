@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
+import { getJobAdMatchDetail } from "@/lib/api/job-ad-match";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 
@@ -34,9 +35,12 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
 
   switch (result.kind) {
     case "ok": {
-      const [initialSaved, initialApplied] = await Promise.all([
+      // F4-16 — matchnings-detalj parallellt med Spara/Har-ansökt (ingen
+      // waterfall). Degraderar civilt till null (ingen sektion) vid fel.
+      const [initialSaved, initialApplied, match] = await Promise.all([
         isJobAdSaved(id),
         hasAppliedJobAd(id),
+        getJobAdMatchDetail(id),
       ]);
       return (
         <JobAdModalShell
@@ -48,6 +52,7 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
             headless
             initialSaved={initialSaved}
             initialApplied={initialApplied}
+            match={match}
           />
         </JobAdModalShell>
       );

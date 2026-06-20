@@ -23,9 +23,14 @@ interface GradePresentation {
   readonly label: string;
 }
 
-// Grad → modifier + svensk civic label. Copy är F4-16-förfinbar (design-
-// reviewer §Copy); inga utropstecken, ingen emoji, ingen versalisering (§10).
+// Grad → modifier + svensk civic label (design-reviewer 2026-06-20, F4-16);
+// inga utropstecken, ingen emoji, ingen versalisering (§10). Ladder:
+// Grundmatch → Bra match → Stark match → Toppmatch. "Top" är den golden-rungen
+// (Klas-bind: ordet "Toppmatch", färgen djupare/solid grön — INGEN ny token,
+// INGEN guld-token); modifier `--top` ger solid `--jp-success`-fyllning över
+// `--high`:s tonade grön (hierarki via fyllvikt, ej ny hue).
 const GRADE_PRESENTATION: Record<MatchGrade, GradePresentation> = {
+  Top: { modifier: "jp-matchchip--top", label: "Toppmatch" },
   Strong: { modifier: "jp-matchchip--high", label: "Stark match" },
   Good: { modifier: "jp-matchchip--mid", label: "Bra match" },
   Basic: { modifier: "jp-matchchip--low", label: "Grundmatch" },

@@ -1867,6 +1867,23 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-success-bg);
   border-color: var(--jp-success);
 }
+/* F4-16 (design-reviewer 2026-06-20, Klas-bind A1) — golden/top-rungen.
+   Diskret namngivet tillstånd i success-familjen, SOLID fyllning. Läses ÖVER
+   --high (tonad grön) via fyllvikt, inte ny hue. INGEN ny token, INGEN
+   gradient/glow (CLAUDE.md §5).
+   Light: vit text på mörkgrön fyllning (knapp-kontraktet; #FFF på #16793B ~5,0:1 AA).
+   Dark:  mörk ink-text på ljusgrön fyllning (dark-input-regeln; --jp-canvas
+          #0B1525 på #5DD894 ~9:1 — vit text faller på ljusgrön, därför invertera). */
+.jp-matchchip--top {
+  color: #ffffff;
+  background: var(--jp-success);
+  border-color: var(--jp-success);
+}
+[data-theme="dark"] .jp-matchchip--top {
+  color: var(--jp-canvas);
+  background: var(--jp-success);
+  border-color: var(--jp-success);
+}
 .jp-matchchip--mid {
   /* G1 (architect-fynd): mid får INTE bli accent-grön — skulle kollidera
      med success-/high-semantiken. Neutral variant. Kant = --jp-border-input
@@ -1994,6 +2011,26 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 14px;
   align-items: center;
   justify-content: space-between;
+}
+/* F4-16 (design-reviewer 2026-06-20 §3.D) — in-/jobb-disclosure: platt civic
+   info-not under sort-toolbaren. INGEN boxad alert/skugga/gradient, ingen ny
+   färg. Vänster info-strip (--jp-info) + ink-text; länk = --jp-accent-700.
+   Sitter i toolbarens rytm (toolbar har margin-bottom 16px → noten flyttar upp
+   så den läses som "under sorteringen"). Tokens flippar själva i dark. */
+.jp-matchsort-note {
+  margin: -8px 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--jp-info);
+  background: var(--jp-info-bg);
+  border-radius: var(--jp-r-sm);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+}
+.jp-matchsort-note__link {
+  color: var(--jp-accent-700);
+  font-weight: 600;
+  text-decoration: underline;
 }
 .jp-results-count {
   font-size: 17px;
@@ -2153,21 +2190,94 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border: 1px solid var(--jp-border-soft);
   background: var(--jp-surface-2);
 }
-.jp-modal__match__ring {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--jp-r-pill);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--jp-font-mono);
-  font-weight: 700;
-  font-size: 18px;
-  flex-shrink: 0;
-}
+/* `.jp-modal__match__ring` (64px procent-ring med mono-siffror) RETIRERAD
+   F4-16: ADR 0053 Beslut 5 + Goodhart-linjen (V1) förbjuder procent-ring/mätare.
+   Var död v3-prototyp-kod — borttagen så ingen kan koppla in den igen. */
 .jp-modal__match__expl b {
   color: var(--jp-ink-1);
   font-weight: 600;
+}
+/* F4-16 (design-reviewer 2026-06-20 §2.F) — matchnings-sektionen i JobAdDetail
+   (modal + fullsida). Sitter i .jp-modal__body-flexkolumnen ovanför
+   Annonsbeskrivning. Token-only, ingen ny färg. */
+.jp-modal__matchsection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-modal__matchsection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.jp-modal__matchrows {
+  display: flex;
+  flex-direction: column;
+}
+/* En rad per dimension: label · verdict (prick+ord) · bevis. 3-kolumns grid på
+   4px-rastret, hårfin separator. Verdict-ord bär betydelsen (WCAG 1.4.1);
+   pricken är dekorativ. INGEN mätare/fyllning — Goodhart-linjen håller på
+   rad-altitud (design §2.B). */
+.jp-modal__matchrow {
+  display: grid;
+  grid-template-columns: 160px 116px 1fr;
+  gap: 4px 16px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid var(--jp-border-soft);
+  font-size: 14px;
+}
+.jp-modal__matchrow:first-child {
+  border-top: none;
+}
+.jp-modal__matchrow-label {
+  color: var(--jp-ink-2);
+  font-weight: 500;
+}
+.jp-modal__matchrow-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--jp-ink-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Verdict-prick: ärver currentColor (fylld). "Matchar" sätter success;
+   "Delvis"/"Saknas" stannar neutral ink (ett saknat meritvärde är inget fel —
+   ALDRIG röd, design §2.B). */
+.jp-modal__matchrow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+.jp-modal__matchrow-verdict[data-verdict="Match"] {
+  color: var(--jp-success);
+}
+/* "Ej bedömt" = HÅLIG prick (transparent fyllning + ring) — den ENDA håliga
+   pricken, så NotAssessed aldrig förväxlas med NoMatch (CLAUDE.md §5). */
+.jp-modal__matchrow-dot--hollow {
+  background: transparent;
+  border: 1.5px solid var(--jp-border-strong);
+}
+.jp-modal__matchrow-evidence {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--jp-ink-1);
+}
+.jp-modal__matchrow-evidence .jp-modal__matchrow-missing {
+  color: var(--jp-ink-2);
+}
+@media (max-width: 560px) {
+  .jp-modal__matchrow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }
 .jp-modal__description {
   font-size: 15.5px;

@@ -10,6 +10,8 @@ describe("MatchChip (F4-13 graderad match-tagg)", () => {
     modifier: string;
     label: string;
   }> = [
+    // F4-16 (Klas-bind) — golden-rungen: "Toppmatch" + --top (djupare solid grön).
+    { grade: "Top", modifier: "jp-matchchip--top", label: "Toppmatch" },
     { grade: "Strong", modifier: "jp-matchchip--high", label: "Stark match" },
     { grade: "Good", modifier: "jp-matchchip--mid", label: "Bra match" },
     { grade: "Basic", modifier: "jp-matchchip--low", label: "Grundmatch" },
@@ -39,6 +41,15 @@ describe("MatchChip (F4-13 graderad match-tagg)", () => {
     const chip = container.querySelector(".jp-matchchip");
     // Goodhart-vakt: ingen siffra/procent någonstans i den renderade chip:en.
     expect(chip?.textContent).toBe("Bra match");
+    expect(chip?.textContent).not.toMatch(/\d/);
+  });
+
+  it("golden-rungen (Top) renderar 'Toppmatch' + --top utan siffra (F4-16)", () => {
+    const { container } = render(<MatchChip grade="Top" />);
+    const chip = container.querySelector(".jp-matchchip");
+    expect(chip).toHaveClass("jp-matchchip--top");
+    expect(chip?.textContent).toBe("Toppmatch");
+    // Goodhart-vakt håller även på golden-rungen.
     expect(chip?.textContent).not.toMatch(/\d/);
   });
 });

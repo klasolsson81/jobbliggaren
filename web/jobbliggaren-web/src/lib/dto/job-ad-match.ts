@@ -15,8 +15,18 @@ import { z } from "zod";
  * bara graden; delverdikten bär förklaringslagret som först ytas i F4-16.
  */
 
-/** De tre POSITIVA graderna. Mappas 1:1 mot `.jp-matchchip --high/--mid/--low`. */
-export const matchGradeSchema = z.enum(["Strong", "Good", "Basic"]);
+/**
+ * De FYRA positiva graderna. `Top` är den golden-rungen F4-16 (ADR 0076
+ * Amendment (b) §5) tänder VISUELLT: occupation + region + anställning bekräftade
+ * OCH CV-kompetenser överlappar annonsens krav. Mappas 1:1 mot
+ * `.jp-matchchip --high/--mid/--low/--top`.
+ *
+ * KRITISKT (F4-16): batch-backend EMITTERAR nu "Top". `jobAdMatchBatchSchema`
+ * `.record` `.catch({})`:ar HELA mappen till tomt vid okänd grad — så denna
+ * widening MÅSTE skeppa atomiskt med backend, annars blankas ALLA taggar på
+ * sidan (CTO D2 page-wipe-fällan). Backend serialiserar by NAME.
+ */
+export const matchGradeSchema = z.enum(["Strong", "Good", "Basic", "Top"]);
 export type MatchGrade = z.infer<typeof matchGradeSchema>;
 
 /**
@@ -55,3 +65,40 @@ export const jobAdMatchBatchSchema = z.object({
     .catch({}),
 });
 export type JobAdMatchBatch = z.infer<typeof jobAdMatchBatchSchema>;
+
+/**
+ * F4-16 (ADR 0076 Amendment (b) §3, CTO D3) — detalj-altitud för EN annons,
+ * konsumerad av modal/fullsida-matchningssektionen. Skild DTO från batch:en
+ * (REP/CCP/CRP): batch:en utelämnar matched/missing-strängarna medvetet
+ * (list-altitud), detaljen bär dem (förklaringslagret). En rad per
+ * matchnings-dimension: ordinalt verdict + bevis (matched = "Du har:",
+ * missing = "Annonsen efterfrågar även:").
+ *
+ * matched/missing är Display-labels för JobTech-koncept-id:n + Snowball-stems —
+ * INTE rå CV-prosa (CTO D3 (d), security-auditor-bekräftad). Goodhart-vakt
+ * (ADR 0053 Beslut 5 + ADR 0076): INGEN siffra/procent/mätare i kontraktet.
+ */
+export const matchDimensionDetailSchema = z.object({
+  verdict: matchVerdictSchema,
+  matched: z.array(z.string()),
+  missing: z.array(z.string()),
+});
+export type MatchDimensionDetail = z.infer<typeof matchDimensionDetailSchema>;
+
+/**
+ * Modal-/fullsida-detaljsvaret. `grade` är `null` när annonsen inte tjänar in
+ * en positiv tagg (yrket matchade inte) — raderna finns ändå (ärlig
+ * nedbrytning). Hela svaret kan vara `null` (200 med `null`-body =
+ * "ingen matchnings-sektion": anonym / ingen träffdata).
+ */
+export const jobAdMatchDetailSchema = z.object({
+  grade: matchGradeSchema.nullable(),
+  ssykOverlap: matchDimensionDetailSchema,
+  titleSimilarity: matchDimensionDetailSchema,
+  regionFit: matchDimensionDetailSchema,
+  employmentFit: matchDimensionDetailSchema,
+  skillOverlap: matchDimensionDetailSchema,
+  mustHaveCoverage: matchDimensionDetailSchema,
+  niceToHaveCoverage: matchDimensionDetailSchema,
+});
+export type JobAdMatchDetail = z.infer<typeof jobAdMatchDetailSchema>;

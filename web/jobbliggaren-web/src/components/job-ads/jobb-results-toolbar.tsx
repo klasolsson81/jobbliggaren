@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useOptimistic, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Briefcase,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
+import { MATCH_SORT_LABEL } from "@/lib/job-ads/status";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
@@ -61,6 +63,14 @@ interface JobbResultsToolbarProps {
   q: string;
   sortBy: JobAdSortBy;
   pageSize?: string;
+  /**
+   * F4-16 (ADR 0076 Decision 7, CTO D8) — server-härlett: true så snart minst
+   * en yrkesgrupp angetts i matchnings-preferenserna. Driver in-/jobb-
+   * disclosuren: när användaren valt "Sortera efter matchning" UTAN angivet
+   * yrke faller listan honest tillbaka till nyaste-först — disclosuren förklarar
+   * det på sidan där kontrollen lever (F4-14 FAS-DEFERRAL-MANIFEST).
+   */
+  hasStatedDesiredOccupation: boolean;
 }
 
 // Sort-alternativ i denna ordning. Labels per Klas-prompt E2e 2026-06-11 +
@@ -76,7 +86,9 @@ interface JobbResultsToolbarProps {
 // honest tillbaka till nyaste-ordning utan yrkespreferens (Decision 7).
 const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string }> = [
   { value: "Relevance", label: "Relevans" },
-  { value: "MatchDesc", label: "Sortera efter matchning" },
+  // F4-16 — kanonisk match-sort-label (SPOT med JOB_AD_SORT_LABELS.MatchDesc;
+  // de kan aldrig drifta isär längre).
+  { value: "MatchDesc", label: MATCH_SORT_LABEL },
   { value: "PublishedAtDesc", label: "Datum (nyast)" },
   { value: "ExpiresAtAsc", label: "Ansökningsdatum (sista ansökan)" },
 ];
@@ -105,6 +117,7 @@ export function JobbResultsToolbar({
   q,
   sortBy,
   pageSize,
+  hasStatedDesiredOccupation,
 }: JobbResultsToolbarProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -157,6 +170,15 @@ export function JobbResultsToolbar({
     ? urlState.sortBy
     : DEFAULT_SORT_BY;
 
+  // F4-16 (CTO D8) — in-/jobb-disclosure: visas BARA när match-sort är aktiv
+  // OCH inget yrke angetts. Self-clearing — `selectValue` läser optimistiskt
+  // urlState, så noten försvinner direkt när användaren byter sort (eller när
+  // ett yrke ställs in → propen blir true vid nästa render). Icke-avfärdbar
+  // (paritet Översikt-nudgen): den enda förklaringen på sidan till varför
+  // ordningen är datum-baserad.
+  const showMatchSortDisclosure =
+    selectValue === "MatchDesc" && !hasStatedDesiredOccupation;
+
   // E2j (Klas-val 2026-06-12 = ja): toolbar-handlingar (ta bort chip / Rensa /
   // byt sort) är avsiktliga, diskreta sökningar → bär commit-intent (?commit=1)
   // så de auto-capturas till Senaste sökningar. commit-flaggan ligger UTANFÖR
@@ -206,6 +228,7 @@ export function JobbResultsToolbar({
   );
 
   return (
+    <>
     <div className="jp-results-toolbar">
       <div>
         <div
@@ -294,5 +317,20 @@ export function JobbResultsToolbar({
         </select>
       </div>
     </div>
+    {/* F4-16 (CTO D8) — in-/jobb-disclosure. Platt civic info-not (ingen
+        boxad alert, ingen skugga/gradient — design §3.D). Namnger orsak
+        (yrke saknas) + beteende (nyaste först) + handling (kanonisk länk,
+        IDENTISK med Översikt-nudgen). role="status" så skärmläsare aviseras
+        när noten dyker upp efter sort-bytet (aria-live). */}
+    {showMatchSortDisclosure && (
+      <p className="jp-matchsort-note" role="status">
+        Matchningssortering kräver att du anger vilka yrken du söker inom. Listan
+        visas med nyaste först tills du ställt in det.{" "}
+        <Link href="/installningar#matchning" className="jp-matchsort-note__link">
+          Ställ in matchning
+        </Link>
+      </p>
+    )}
+    </>
   );
 }

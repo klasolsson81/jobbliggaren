@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.JobAds;
@@ -27,6 +28,7 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 public sealed class GetJobAdMatchDetailQueryHandler(
     IMatchProfileBuilder profileBuilder,
     IMatchScorer scorer,
+    ITaxonomyReadModel taxonomy,
     ICurrentUser currentUser)
     : IQueryHandler<GetJobAdMatchDetailQuery, JobAdMatchDetailDto?>
 {
@@ -50,17 +52,54 @@ public sealed class GetJobAdMatchDetailQueryHandler(
 
         var grade = MatchGradeCalculator.Grade(score);
 
+        // The three membership dimensions (SSYK / region / employment) carry RAW
+        // taxonomy concept-ids in their evidence (MatchScorer.ScoreMembership). A
+        // concept-id must never reach the user — it is the external system's ubiquitous
+        // language (ADR 0043 ACL) and an opaque id is the opposite of explainable
+        // (CLAUDE.md §5). Resolve them to human labels via the taxonomy read-model
+        // (graceful fallback on drift). The skill/title dimensions already carry Display
+        // labels / lexemes, so they are passed through unchanged.
+        var labels = await ResolveMembershipLabelsAsync(score.Fast, cancellationToken);
+
         return new JobAdMatchDetailDto(
             Grade: grade,
-            SsykOverlap: ToRow(score.Fast.SsykOverlap),
+            SsykOverlap: ToLabelledRow(score.Fast.SsykOverlap, labels),
             TitleSimilarity: ToRow(score.Fast.TitleSimilarity),
-            RegionFit: ToRow(score.Fast.RegionFit),
-            EmploymentFit: ToRow(score.Fast.EmploymentFit),
+            RegionFit: ToLabelledRow(score.Fast.RegionFit, labels),
+            EmploymentFit: ToLabelledRow(score.Fast.EmploymentFit, labels),
             SkillOverlap: ToRow(score.SkillOverlap),
             MustHaveCoverage: ToRow(score.MustHaveCoverage),
             NiceToHaveCoverage: ToRow(score.NiceToHaveCoverage));
     }
 
+    private async ValueTask<IReadOnlyDictionary<string, string>> ResolveMembershipLabelsAsync(
+        MatchScore fast, CancellationToken cancellationToken)
+    {
+        var conceptIds = new[] { fast.SsykOverlap, fast.RegionFit, fast.EmploymentFit }
+            .SelectMany(d => d.Matched.Concat(d.Missing))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (conceptIds.Count == 0)
+            return EmptyLabels;
+
+        var resolved = await taxonomy.ResolveLabelsAsync(conceptIds, cancellationToken);
+        return resolved.ToDictionary(l => l.ConceptId, l => l.Label, StringComparer.Ordinal);
+    }
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyLabels =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     private static MatchDimensionDetailDto ToRow(MatchDimension dimension) =>
         new(dimension.Verdict, dimension.Matched, dimension.Missing);
+
+    private static MatchDimensionDetailDto ToLabelledRow(
+        MatchDimension dimension, IReadOnlyDictionary<string, string> labels) =>
+        new(dimension.Verdict, MapLabels(dimension.Matched, labels), MapLabels(dimension.Missing, labels));
+
+    private static IReadOnlyList<string> MapLabels(
+        IReadOnlyList<string> conceptIds, IReadOnlyDictionary<string, string> labels) =>
+        conceptIds.Count == 0
+            ? conceptIds
+            : conceptIds.Select(id => labels.TryGetValue(id, out var label) ? label : id).ToList();
 }

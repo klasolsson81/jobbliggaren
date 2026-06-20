@@ -105,8 +105,17 @@ public class TaxonomyAclLayerTests
             .OrderBy(n => n)
             .ToList();
 
+        // NB: jämförelsen är ordnings-känslig och `consumers` är OrderBy(namn) →
+        // listan nedan MÅSTE vara alfabetisk. Allowlisten utökas ADDITIVT.
         consumers.ShouldBe(
         [
+            // F4-16 (2026-06-20) — sjätte legitim konsument: jobbmodalens match-detalj
+            // resolvar SSYK/region/anställningsform-membership-evidensens RÅA concept-id
+            // till människo-labels (ADR 0043 ACL — ett concept-id når aldrig användaren;
+            // CLAUDE.md §5 — ett opakt id är motsatsen till förklarbart). Tunn query-
+            // handler, samma ResolveLabelsAsync-mönster; ingen Clean Arch-brott (§2.1).
+            // (Sorterar före GetTaxonomyTree: "GetJ" < "GetT".)
+            nameof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.GetJobAdMatchDetailQueryHandler),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree.GetTaxonomyTreeQueryHandler),
             // ADR 0060 (2026-05-20) — fjärde legitim konsument: RecentJobSearches-
             // listans label-berikning, identiskt mönster med SavedSearch-listan.

@@ -39,8 +39,6 @@ internal sealed class CvReviewEngine : ICvReviewEngine
     // criterion weight toward the secondary category band. The verdict COUNTS are primary.
     private const double WarnCredit = 0.5;
 
-    private static readonly string[] AdDependentCriteria = ["A3", "D8"];
-
     private readonly IRubricProvider _rubricProvider;
     private readonly IClicheLexicon _clicheLexicon;
     private readonly IVerbMapper _verbMapper;
@@ -103,17 +101,19 @@ internal sealed class CvReviewEngine : ICvReviewEngine
     {
         var criterion = context.Criterion;
 
-        // Pinned "not assessed v1" (A5/C1) — never a fabricated Pass/Fail (OQ3, §5).
+        // Pinned "not assessed" (A5/C1) — never a fabricated Pass/Fail (ADR 0071 OQ3, §5). The
+        // user-facing reason is versioned knowledge-bank DATA (criterion.NotAssessedReason), not
+        // an inline C# literal — relocated so no dev-jargon reaches the job-seeker (CLAUDE.md §10).
         if (criterion.Assessability == CriterionAssessability.NotAssessedV1)
         {
-            return CvCriterionVerdict.NotAssessed(criterion.Id, criterion.Category, PinnedReason(criterion.Id));
+            return CvCriterionVerdict.NotAssessed(criterion.Id, criterion.Category, NotAssessedReason(criterion));
         }
 
-        // A registered rule assesses it; anything without a v1 rule reports honest NotAssessed
-        // (missing input signal — layout/file metadata or a target ad).
+        // A registered rule assesses it; anything without a rule reports honest NotAssessed
+        // (missing input signal — layout/file metadata or a target ad), reason carried by data.
         return _rules.TryGetValue(criterion.Id, out var rule)
             ? rule.Evaluate(context)
-            : CvCriterionVerdict.NotAssessed(criterion.Id, criterion.Category, NoInputReason(criterion.Id));
+            : CvCriterionVerdict.NotAssessed(criterion.Id, criterion.Category, NotAssessedReason(criterion));
     }
 
     private static IEnumerable<ICriterionRule> BuildRules() =>
@@ -211,15 +211,12 @@ internal sealed class CvReviewEngine : ICvReviewEngine
     private static ScoreBandLabel LowestBand(Rubric rubric) =>
         rubric.Bands.OrderBy(b => b.MinInclusive).First().Label;
 
-    private static string PinnedReason(string criterionId) => criterionId switch
-    {
-        "A5" => "Karriärprogression kräver POS/NER-precision bortom v1 (ADR 0071 OQ3) — ej bedömt v1.",
-        "C1" => "Genuin stavning/grammatik kräver POS/NER bortom v1 (ADR 0071 OQ3) — ej bedömt v1.",
-        _ => "Ej bedömt v1 (reducerad precision, ADR 0071 OQ3).",
-    };
+    // The user-facing reason for a NotAssessed criterion is authored as versioned data in the
+    // rubric asset (ADR 0071: reasons-as-data, not inline C#). This code-side fallback is reached
+    // ONLY on an N-1 asset that omits the field — it stays civic and jargon-free (CLAUDE.md §10).
+    private const string NotAssessedFallbackReason =
+        "Det här bedöms inte i den här versionen av granskningen.";
 
-    private static string NoInputReason(string criterionId) =>
-        AdDependentCriteria.Contains(criterionId, StringComparer.Ordinal)
-            ? "Kräver en mål-annons att matcha mot (matchnings-motorns ansvar, F4-5/6) — ej bedömt v1."
-            : "Kräver layout-/fil-metadata som den text-baserade parsen inte fångar — ej bedömt v1.";
+    private static string NotAssessedReason(RubricCriterion criterion) =>
+        criterion.NotAssessedReason ?? NotAssessedFallbackReason;
 }

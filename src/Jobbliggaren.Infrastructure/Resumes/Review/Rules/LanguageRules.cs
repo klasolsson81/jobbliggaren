@@ -117,11 +117,11 @@ internal sealed class C5LanguageConsistencyRule : ICriterionRule
         // v1: the F4-8 language detector classified the document as a single language; C5
         // affirms consistency at that document level. Deeper sentence-level sv/en mixing
         // detection (function-word data) is a measured future refinement — reported honestly,
-        // never over-claimed.
-        var language = context.Resume.DetectedLanguage.Name;
+        // never over-claimed. The cited evidence is civic Swedish with no internal codenames
+        // or raw language tokens reaching the job-seeker (CLAUDE.md §10).
         return CvCriterionVerdict.Assessed("C5", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural(
-                $"CV:t bedöms konsekvent på ett språk ({language}, F4-8-språkdetektering).")));
+                "CV:t är konsekvent skrivet på ett och samma språk.")));
     }
 }
 

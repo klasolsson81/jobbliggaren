@@ -1,0 +1,56 @@
+{
+  "rubricVersion": "1.0.0",
+  "effectiveDate": "2026-05-17",
+  "legacyNote": "Synthetic N-1 fixture for the notAssessedReason back-compat test. NOT a real rubric. Represents a PRE-reason-relocation (v1.0.0) asset: it carries assessability + bands + criticalFailIds (so it is NOT the v0.9 fixture) but DELIBERATELY OMITS the new per-criterion 'notAssessedReason' field. A5 is authored not_assessed_v1 WITHOUT a reason — the loader must map RubricCriterion.NotAssessedReason == null (defaulted, N-1 tolerance) and must NOT throw, mirroring the existing missing-'assessability' tolerance. Also carries a bogus per-criterion member to assert skip-unknown is unaffected by the new field.",
+  "weights": { "Kritisk": 3, "Hög": 2, "Medel": 1, "Låg": 0.5 },
+  "categoryWeights": {
+    "ats": { "A": 0.5, "B": 0.2, "C": 0.15, "D": 0.15 },
+    "visual": { "A": 0.5, "B": 0.15, "C": 0.15, "E": 0.2 }
+  },
+  "bands": [
+    { "minInclusive": 0, "label": "EjRedo" },
+    { "minInclusive": 50, "label": "BehöverOmarbetning" },
+    { "minInclusive": 70, "label": "Konkurrenskraftigt" },
+    { "minInclusive": 85, "label": "Toppskikt" }
+  ],
+  "criticalFailIds": ["A1"],
+  "criteria": [
+    {
+      "id": "A1",
+      "category": "Innehåll",
+      "name": "Syntetiskt innehållskriterium",
+      "weight": "Kritisk",
+      "profile": "Båda",
+      "assessability": "deterministic",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": "syntetisk visual-pass",
+      "visualFailSignal": "syntetisk visual-fail"
+    },
+    {
+      "id": "A5",
+      "category": "Innehåll",
+      "name": "Syntetiskt karriärprogressionskriterium",
+      "weight": "Hög",
+      "profile": "Båda",
+      "assessability": "not_assessed_v1",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": "syntetisk visual-pass",
+      "visualFailSignal": "syntetisk visual-fail",
+      "legacyUnknownPerCriterion": "ignored too"
+    },
+    {
+      "id": "D1",
+      "category": "ATS-parsbarhet",
+      "name": "Syntetiskt ATS-kriterium",
+      "weight": "Kritisk",
+      "profile": "EndastAts",
+      "assessability": "deterministic",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": null,
+      "visualFailSignal": null
+    }
+  ]
+}

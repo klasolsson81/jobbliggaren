@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 
 /// <summary>
-/// Fas 4 STEG 7 (F4-7) — the committed CV-rubric (rubric.v1.0.0.json) loads through
+/// Fas 4 STEG 7 (F4-7) — the committed CV-rubric (rubric.v1.0.1.json) loads through
 /// the real <see cref="RubricProvider"/> and satisfies the architect's authoritative
 /// classification (ADR 0071 OQ3 / ADR 0074). The rubric is VERSIONED DATA, not C#
 /// literals — these tests prove the data file (not a hardcoded list) is the source of
@@ -33,8 +33,10 @@ public class RubricProviderTests
 
         rubric.ShouldNotBeNull();
         // The committed rubric is the v1 baseline (ADR 0074). Version is carried as
-        // DATA (RubricVersion), not a C# literal.
-        rubric.Version.ShouldBe(RubricVersion.Parse("1.0.0"));
+        // DATA (RubricVersion), not a C# literal. Bumped 1.0.0 → 1.0.1 by the
+        // reason-relocation STEG (§2.8 patch: notAssessedReason added to the asset,
+        // no threshold/criterion change) — asset renamed rubric.v1.0.1.json.
+        rubric.Version.ShouldBe(RubricVersion.Parse("1.0.1"));
         rubric.EffectiveDate.ShouldBeGreaterThan(default(DateOnly));
     }
 
@@ -126,6 +128,112 @@ public class RubricProviderTests
         rubric.Criteria
             .Count(c => c.Assessability == CriterionAssessability.Deterministic)
             .ShouldBeGreaterThan(0);
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // NotAssessedReason as DATA (reason-relocation STEG, ADR 0071: the
+    // "ej bedömt" copy is versioned rubric DATA, not an inline C# switch in
+    // CvReviewEngine; CLAUDE.md §10/§5: civic Swedish, never dev-jargon).
+    //
+    // RED until RubricCriterion gains `string? NotAssessedReason` (trailing
+    // optional param) and the asset (rubric.v1.0.1.json) authors the field.
+    // ───────────────────────────────────────────────────────────────────
+
+    // Test A — the loader maps the authored notAssessedReason JSON field through to
+    // the RubricCriterion contract (exact civic Swedish value from the asset).
+    [Fact]
+    public void GetRubric_ShouldMapNotAssessedReasonFromAsset_ForA5()
+    {
+        // A5 (Karriärprogression) is pinned NotAssessedV1. Its asset-authored
+        // notAssessedReason is the civic Swedish copy below — proving the reason now
+        // lives as DATA on the criterion (not in the engine's old PinnedReason switch).
+        var rubric = LoadRubric();
+
+        Criterion(rubric, "A5").NotAssessedReason
+            .ShouldBe("Vi bedömer inte karriärutveckling i den här versionen.");
+    }
+
+    [Fact]
+    public void GetRubric_ShouldMapNotAssessedReasonFromAsset_ForC1()
+    {
+        // C1 (Stavning/grammatik) is pinned NotAssessedV1 with its own civic reason.
+        var rubric = LoadRubric();
+
+        Criterion(rubric, "C1").NotAssessedReason
+            .ShouldBe("Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
+    }
+
+    // Test G (part 1) — the §10 DE-JARGON GUARD: no criterion's NotAssessedReason may
+    // leak developer jargon to a job-seeker. This is the regression-prevention test that
+    // keeps "ADR 0071 OQ3", "POS/NER", "F4-5/6", "v1" etc. out of the user surface forever.
+    [Fact]
+    public void GetRubric_ShouldNeverLeakDevJargonInAnyNotAssessedReason_WhenCalled()
+    {
+        var rubric = LoadRubric();
+
+        // Case-insensitive forbidden tokens (CLAUDE.md §10 civic tone, §5 no dev-jargon
+        // on the user surface). " v1"/"v1 " catch the old "ej bedömt v1" wording without
+        // tripping legitimate prose; the rest catch internal codenames/identifiers.
+        string[] forbidden =
+        [
+            "ADR", "POS", "NER", "OQ", "F4-", "F4-5", "F4-6",
+            " v1", "v1 ", "matchnings-motor", "parse", "POS/NER",
+        ];
+
+        var withReason = rubric.Criteria
+            .Where(c => c.NotAssessedReason is not null)
+            .ToList();
+
+        withReason.ShouldNotBeEmpty(
+            "Minst de NotAssessed-kriterierna ska bära ett civilt skäl i assetet.");
+
+        foreach (var criterion in withReason)
+        {
+            foreach (var token in forbidden)
+            {
+                criterion.NotAssessedReason!.Contains(token, StringComparison.OrdinalIgnoreCase)
+                    .ShouldBeFalse(
+                        $"Kriterium {criterion.Id} läcker dev-jargon '{token}' i NotAssessedReason: " +
+                        $"\"{criterion.NotAssessedReason}\". Skälet är användarvänd svensk copy (§10).");
+            }
+        }
+    }
+
+    // Test G (part 2) — every criterion that the engine reports as NotAssessed (pinned
+    // NotAssessedV1 OR no registered engine rule) MUST carry a non-null NotAssessedReason
+    // in the REAL asset, so production never silently falls back to the code default.
+    [Fact]
+    public void GetRubric_ShouldGiveEveryEngineNotAssessedCriterionANonNullReason_WhenCalled()
+    {
+        var rubric = LoadRubric();
+
+        // The criterion ids the engine has a registered ICriterionRule for (mirrors
+        // CvReviewEngine.BuildRules). Anything NOT in this set, plus the pinned
+        // NotAssessedV1 criteria, resolves to NotAssessed at review time and therefore
+        // needs an authored civic reason in the asset.
+        string[] ruleCriteria =
+        [
+            "A1", "A2", "A4", "A6", "A7", "A8", "A9", "A10",
+            "B1", "B3", "B4", "B6", "B7", "B8",
+            "C2", "C3", "C4", "C5", "C6",
+            "D1", "D6",
+        ];
+        var ruled = ruleCriteria.ToHashSet(StringComparer.Ordinal);
+
+        var notAssessedCriteria = rubric.Criteria
+            .Where(c =>
+                c.Assessability == CriterionAssessability.NotAssessedV1
+                || !ruled.Contains(c.Id))
+            .ToList();
+
+        notAssessedCriteria.ShouldNotBeEmpty();
+        foreach (var criterion in notAssessedCriteria)
+        {
+            criterion.NotAssessedReason.ShouldNotBeNullOrWhiteSpace(
+                $"Kriterium {criterion.Id} rapporteras NotAssessed av motorn och MÅSTE bära " +
+                "ett authored civilt skäl i assetet (annars faller produktionen tillbaka på " +
+                "kod-defaulten).");
+        }
     }
 
     // ───────────────────────────────────────────────────────────────────

@@ -18,6 +18,15 @@
     <EmbeddedResource Include="KnowledgeBank\Fixtures\rubric.v0.9-synthetic.json">
       <LogicalName>Jobbliggaren.Application.UnitTests.KnowledgeBank.Fixtures.rubric.v0.9-synthetic.json</LogicalName>
     </EmbeddedResource>
+    <!-- Reason-relocation STEG — synthetic N-1 (pre-notAssessedReason) v1.0.0 rubric
+         fixture for RubricNotAssessedReasonBackcompatTests. Embedded so the test runs the
+         real RubricLoader.LoadFrom(Stream) path over a stream the TEST assembly owns. A5
+         is authored not_assessed_v1 WITHOUT a 'notAssessedReason' field → must map to
+         NotAssessedReason == null (N-1 tolerance), never throw. LogicalName pinned +
+         referenced verbatim by the test. -->
+    <EmbeddedResource Include="KnowledgeBank\Fixtures\rubric.v1.0.0-no-reason-synthetic.json">
+      <LogicalName>Jobbliggaren.Application.UnitTests.KnowledgeBank.Fixtures.rubric.v1.0.0-no-reason-synthetic.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>

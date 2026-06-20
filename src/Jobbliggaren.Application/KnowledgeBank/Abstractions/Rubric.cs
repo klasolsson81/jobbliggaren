@@ -121,7 +121,13 @@ public sealed record RubricCriterion(
     string? AtsPassSignal,
     string? AtsFailSignal,
     string? VisualPassSignal,
-    string? VisualFailSignal);
+    string? VisualFailSignal,
+    // Versioned, civic-Swedish user-facing reason a criterion reports when it produces a
+    // NotAssessed verdict (ADR 0071: reasons are knowledge-bank DATA, never an inline C#
+    // literal — the engine reads this instead of hardcoding the copy; CLAUDE.md §10). Null
+    // for criteria that are always assessed, and tolerated null on an N-1 asset (the engine
+    // falls back to a generic civic default). Carries no dev-jargon (POS/NER, ADR refs, "v1").
+    string? NotAssessedReason = null);
 
 /// <summary>
 /// The versioned CV-quality rubric (F4-7, BUILD §8.1/§8.6, research §2). The whole

@@ -6,7 +6,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 
 /// <summary>
-/// Loads the committed, versioned CV-quality rubric (<c>rubric.v1.0.0.json</c>)
+/// Loads the committed, versioned CV-quality rubric (<c>rubric.v1.0.1.json</c>)
 /// embedded in this assembly (F4-7, BUILD §8.1/§8.6, research §2). Deserialises the
 /// Swedish-token <see cref="RubricFile"/> DTO and maps it to the English-enum
 /// <see cref="Rubric"/> contract — no <c>*File</c> type, no Swedish token, no
@@ -23,7 +23,7 @@ internal static class RubricLoader
 {
     // The SAME LogicalName the csproj declares for the embedded resource.
     private const string ResourceName =
-        "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.0.0.json";
+        "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.0.1.json";
 
     /// <summary>Loads the committed v1 rubric from the embedded resource.</summary>
     internal static Rubric Load()
@@ -98,7 +98,8 @@ internal static class RubricLoader
             c.AtsPassSignal,
             c.AtsFailSignal,
             c.VisualPassSignal,
-            c.VisualFailSignal);
+            c.VisualFailSignal,
+            c.NotAssessedReason);
     }
 
     private static Dictionary<RubricCategory, double> MapCategoryWeights(
@@ -215,5 +216,8 @@ internal sealed record RubricFile
         [property: JsonPropertyName("atsPassSignal")] string? AtsPassSignal = null,
         [property: JsonPropertyName("atsFailSignal")] string? AtsFailSignal = null,
         [property: JsonPropertyName("visualPassSignal")] string? VisualPassSignal = null,
-        [property: JsonPropertyName("visualFailSignal")] string? VisualFailSignal = null);
+        [property: JsonPropertyName("visualFailSignal")] string? VisualFailSignal = null,
+        // Nullable + defaulted = N-1 tolerance: an older asset without the field maps to a
+        // null reason and the engine falls back to a generic civic default (never throws).
+        [property: JsonPropertyName("notAssessedReason")] string? NotAssessedReason = null);
 }

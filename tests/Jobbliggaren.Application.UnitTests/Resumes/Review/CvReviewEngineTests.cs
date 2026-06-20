@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review;
+using NSubstitute;
 using Shouldly;
 using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 
@@ -13,7 +14,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// Fas 4 STEG 9 (F4-9, ADR 0071/0074) — the deterministic CV-review engine. NO AI/LLM:
 /// every verdict is a rule over the parsed CV + the versioned knowledge bank, with cited
 /// evidence (CLAUDE.md §5). Golden expectations are derived from the REAL committed assets
-/// (rubric.v1.0.0.json / cliche-list.v1.json / verb-mapping.v1.json) via the real loaders,
+/// (rubric.v1.0.1.json / cliche-list.v1.json / verb-mapping.v1.json) via the real loaders,
 /// so the tests can never drift from the data the engine actually reads.
 ///
 /// The internal sealed <see cref="CvReviewEngine"/> is constructed directly (Infrastructure
@@ -54,7 +55,9 @@ public class CvReviewEngineTests
     {
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        result.RubricVersion.ShouldBe(RubricVersion.Parse("1.0.0"));
+        // Bumped 1.0.0 → 1.0.1 by the reason-relocation STEG (asset renamed
+        // rubric.v1.0.1.json; §2.8 patch = notAssessedReason added, no threshold change).
+        result.RubricVersion.ShouldBe(RubricVersion.Parse("1.0.1"));
         result.Profile.ShouldBe(RenderProfile.Ats);
     }
 
@@ -416,6 +419,133 @@ public class CvReviewEngineTests
         var visual = result.Verdicts.Where(v => v.Category == RubricCategory.VisualQuality).ToList();
         visual.ShouldNotBeEmpty();
         visual.ShouldAllBe(v => v.Verdict == CriterionVerdict.NotAssessed);
+    }
+
+    // ===============================================================
+    // 11b. NotAssessed REASON comes from rubric DATA, not an inline switch
+    //      (reason-relocation STEG, ADR 0071; CLAUDE.md §10/§5). The engine's
+    //      old PinnedReason/NoInputReason/AdDependentCriteria members are gone —
+    //      Evaluate uses criterion.NotAssessedReason ?? <civic fallback>.
+    //      Exact-string asserts prove the dev-jargon switch is no longer the source.
+    // ===============================================================
+
+    // Test C — pinned NotAssessedV1 criteria (A5, C1) carry the ASSET-AUTHORED civic
+    // reason, not the old "...kräver POS/NER bortom v1 (ADR 0071 OQ3)..." dev-jargon.
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryAssetCivicReasonForA5_WhenPinnedNotAssessed()
+    {
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var a5 = Verdict(result, "A5");
+        a5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        a5.NotAssessedReason.ShouldBe(
+            "Vi bedömer inte karriärutveckling i den här versionen.");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryAssetCivicReasonForC1_WhenPinnedNotAssessed()
+    {
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var c1 = Verdict(result, "C1");
+        c1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        c1.NotAssessedReason.ShouldBe(
+            "Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
+    }
+
+    // Test D — ad-dependent no-rule criteria (A3, D8) carry the ad-dependent civic reason
+    // (replaces the old "matchnings-motorns ansvar, F4-5/6 — ej bedömt v1" string).
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryAdDependentCivicReasonForA3_WhenNoRule()
+    {
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var a3 = Verdict(result, "A3");
+        a3.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        a3.NotAssessedReason.ShouldBe(
+            "Det här bedöms mot en specifik jobbannons, inte i den allmänna granskningen.");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryAdDependentCivicReasonForD8_WhenNoRule()
+    {
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var d8 = Verdict(result, "D8");
+        d8.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        d8.NotAssessedReason.ShouldBe(
+            "Det här bedöms mot en specifik jobbannons, inte i den allmänna granskningen.");
+    }
+
+    // Test E — layout/no-rule criteria (e.g. E1, D9) carry the text-tolkning civic reason
+    // (replaces the old "Kräver layout-/fil-metadata... — ej bedömt v1" dev-jargon).
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryLayoutCivicReasonForE1_WhenNoRule()
+    {
+        // E1 (Hierarki) is VisualOnly → assess under the Visual profile.
+        var result = await ReviewAsync(Resume(), RenderProfile.Visual);
+
+        var e1 = Verdict(result, "E1");
+        e1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        e1.NotAssessedReason.ShouldBe(
+            "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryLayoutCivicReasonForD9_WhenNoRule()
+    {
+        // D9 (Filstorlek) is AtsOnly, no registered rule → layout civic reason.
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var d9 = Verdict(result, "D9");
+        d9.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        d9.NotAssessedReason.ShouldBe(
+            "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
+    }
+
+    // Test F — code-side civic FALLBACK when the asset omits notAssessedReason (N-1 asset).
+    // Driven via a substitute IRubricProvider whose A5 criterion has NotAssessedReason ==
+    // null, proving Evaluate resolves `criterion.NotAssessedReason ?? <civic fallback>` and
+    // never throws. The real v1.0.1 asset always authors the field (Test G part 2 guards
+    // that), so this fallback is only reachable through an older (N-1) provider — exactly
+    // the seam this test drives.
+    [Fact]
+    public async Task ReviewAsync_ShouldUseCivicFallback_WhenNotAssessedReasonIsNull()
+    {
+        var engine = new CvReviewEngine(
+            FakeRubricProviderWithNullReasonOnA5(),
+            RealClicheLexicon(),
+            RealVerbMapper(),
+            Analyzer());
+
+        var result = await engine.ReviewAsync(
+            Resume(), RenderProfile.Ats, TestContext.Current.CancellationToken);
+
+        var a5 = Verdict(result, "A5");
+        a5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        a5.NotAssessedReason.ShouldBe(
+            "Det här bedöms inte i den här versionen av granskningen.",
+            "När assetet (N-1) saknar notAssessedReason ska motorn falla tillbaka på " +
+            "den civila kod-defaulten, aldrig kasta eller läcka dev-jargon.");
+    }
+
+    /// <summary>
+    /// A substitute <see cref="IRubricProvider"/> serving the REAL rubric but with A5's
+    /// <see cref="RubricCriterion.NotAssessedReason"/> forced to null — simulating an N-1
+    /// asset that pre-dates the field, so the engine's code-side civic fallback is exercised.
+    /// </summary>
+    private static IRubricProvider FakeRubricProviderWithNullReasonOnA5()
+    {
+        var real = RealRubric();
+        var patched = real.Criteria
+            .Select(c => c.Id == "A5" ? c with { NotAssessedReason = null } : c)
+            .ToList();
+
+        var rubric = real with { Criteria = patched };
+
+        var provider = Substitute.For<IRubricProvider>();
+        provider.GetRubric().Returns(rubric);
+        return provider;
     }
 
     // ===============================================================

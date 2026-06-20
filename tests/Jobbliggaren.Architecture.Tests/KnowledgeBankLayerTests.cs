@@ -109,18 +109,22 @@ public class KnowledgeBankLayerTests
     // ===============================================================
 
     [Fact]
-    public void RubricCriterion_carries_exactly_the_ten_named_properties()
+    public void RubricCriterion_carries_exactly_the_eleven_named_properties()
     {
-        // Exactly the 10 architect-bound props — no more (a sneak field), no less.
+        // Exactly the 11 architect-bound props — no more (a sneak field), no less.
+        // NotAssessedReason added in rubric 1.0.1 (CV-UX wave STEG 1, CTO Decision D1):
+        // the versioned, civic-Swedish user-facing reason a NotAssessed verdict reports
+        // (ADR 0071 reasons-as-data) — a string, never a numeric (Goodhart pin below holds).
         var criterion = typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.RubricCriterion);
 
         PublicInstancePropNames(criterion).ShouldBe(
             [
                 "Id", "Category", "Name", "Weight", "Profile", "Assessability",
                 "AtsPassSignal", "AtsFailSignal", "VisualPassSignal", "VisualFailSignal",
+                "NotAssessedReason",
             ],
             ignoreOrder: true,
-            "RubricCriterion ska bära exakt de 10 namngivna properties — " +
+            "RubricCriterion ska bära exakt de 11 namngivna properties — " +
             $"faktiska: [{string.Join(", ", PublicInstancePropNames(criterion))}].");
     }
 

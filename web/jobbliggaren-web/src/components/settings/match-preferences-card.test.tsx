@@ -7,14 +7,16 @@ import type {
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
 
-// Mock båda action-modulens exports (server-actions körs aldrig i jsdom).
-const { updateMock, deriveMock } = vi.hoisted(() => ({
+// Mock action-modulens exports (server-actions körs aldrig i jsdom).
+const { updateMock, deriveMock, cvSuggestMock } = vi.hoisted(() => ({
   updateMock: vi.fn(),
   deriveMock: vi.fn(),
+  cvSuggestMock: vi.fn(),
 }));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
+  suggestOccupationsFromCvAction: cvSuggestMock,
 }));
 
 import {
@@ -69,15 +71,18 @@ function renderCard(
   );
 }
 
-// CheckItem renderar en role="checkbox" med label-texten som tillgängligt namn.
-function checkbox(name: string | RegExp) {
-  return screen.getByRole("checkbox", { name });
-}
+beforeEach(() => {
+  updateMock.mockReset();
+  deriveMock.mockReset();
+  cvSuggestMock.mockReset();
+  updateMock.mockResolvedValue({ success: true });
+  deriveMock.mockResolvedValue({ success: true, candidates: [] });
+  cvSuggestMock.mockResolvedValue({ kind: "noCv" });
+});
 
 describe("flattenOccupationGroups", () => {
   it("plattar nästlade yrkesgrupper till en enkel conceptId/label-lista", () => {
-    const flat = flattenOccupationGroups(occupationFields);
-    expect(flat).toEqual([
+    expect(flattenOccupationGroups(occupationFields)).toEqual([
       { conceptId: "grp_backend", label: "Backendutvecklare" },
       { conceptId: "grp_frontend", label: "Frontendutvecklare" },
       { conceptId: "grp_sjukskoterska", label: "Sjuksköterskor" },
@@ -93,11 +98,9 @@ describe("filterOptions", () => {
   const options = flattenOccupationGroups(occupationFields);
 
   it("substring-filtrerar case-insensitivt", () => {
-    const result = filterOptions(options, "UTVECKLARE");
-    expect(result.map((o) => o.conceptId)).toEqual([
-      "grp_backend",
-      "grp_frontend",
-    ]);
+    expect(filterOptions(options, "UTVECKLARE").map((o) => o.conceptId)).toEqual(
+      ["grp_backend", "grp_frontend"]
+    );
   });
 
   it("blank query → hela listan", () => {
@@ -109,235 +112,166 @@ describe("filterOptions", () => {
   });
 });
 
-describe("MatchPreferencesCard", () => {
-  beforeEach(() => {
-    updateMock.mockReset();
-    deriveMock.mockReset();
-    updateMock.mockResolvedValue({ success: true });
-    deriveMock.mockResolvedValue({ success: true, candidates: [] });
-  });
-
-  it("renderar de tre sektions-rubrikerna + introtext", () => {
+describe("MatchPreferencesCard — summary + chips", () => {
+  it("renderar de tre facet-grupperna med synliga mono-caps-labels via aria-labelledby", () => {
     renderCard();
+    // Varje facet är en role="group" med en synlig label kopplad via labelledby.
+    expect(screen.getByRole("group", { name: "Yrken" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Regioner" })).toBeInTheDocument();
     expect(
-      screen.getByText("Yrkesgrupper", { selector: ".jp-popover__title" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Regioner", { selector: ".jp-popover__title" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Anställningsformer", { selector: ".jp-popover__title" })
+      screen.getByRole("group", { name: "Anställningsformer" })
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Ange vilka yrken, regioner och anställningsformer/)
     ).toBeInTheDocument();
   });
 
-  it("förkryssar de initiala valen i rätt kryssrutor", () => {
+  it("tom facet visar en ärlig rad i stället för chips", () => {
+    renderCard();
+    expect(screen.getByText("Alla yrken (inget valt)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Hela landet (ingen region vald)")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Alla anställningsformer (inget valt)")
+    ).toBeInTheDocument();
+  });
+
+  it("valda värden renderas som borttagbara chips med svenska namn", () => {
     renderCard({
       initialOccupationGroups: ["grp_backend"],
-      initialRegions: ["region_vg"],
-      initialEmploymentTypes: ["et_fast"],
+      initialRegions: ["region_sthlm", "region_vg"],
     });
-    expect(checkbox("Backendutvecklare")).toHaveAttribute(
-      "aria-checked",
-      "true"
-    );
-    expect(checkbox("Frontendutvecklare")).toHaveAttribute(
-      "aria-checked",
-      "false"
-    );
-    expect(checkbox("Västra Götalands län")).toHaveAttribute(
-      "aria-checked",
-      "true"
-    );
-    expect(checkbox("Tillsvidareanställning")).toHaveAttribute(
-      "aria-checked",
-      "true"
-    );
-  });
-
-  it("toggling av en kryssruta uppdaterar valet", async () => {
-    const user = userEvent.setup();
-    renderCard();
-    const box = checkbox("Backendutvecklare");
-    expect(box).toHaveAttribute("aria-checked", "false");
-
-    await user.click(box);
-    expect(checkbox("Backendutvecklare")).toHaveAttribute(
-      "aria-checked",
-      "true"
-    );
-
-    await user.click(checkbox("Backendutvecklare"));
-    expect(checkbox("Backendutvecklare")).toHaveAttribute(
-      "aria-checked",
-      "false"
-    );
-  });
-
-  it("Rensa nollställer en dimension", async () => {
-    const user = userEvent.setup();
-    renderCard({ initialRegions: ["region_sthlm", "region_vg"] });
-
-    // Rensa-länken bor i Regioner-sektionens sectionhead.
+    const yrken = screen.getByRole("group", { name: "Yrken" });
+    expect(within(yrken).getByText("Backendutvecklare")).toBeInTheDocument();
+    // ⨯-knappen bär ett a11y-namn "Ta bort {namn}".
+    expect(
+      within(yrken).getByRole("button", { name: "Ta bort Backendutvecklare" })
+    ).toBeInTheDocument();
     const regionGroup = screen.getByRole("group", { name: "Regioner" });
-    const rensa = within(regionGroup).getByRole("button", { name: "Rensa" });
-    await user.click(rensa);
-
-    expect(checkbox("Stockholms län")).toHaveAttribute("aria-checked", "false");
-    expect(checkbox("Västra Götalands län")).toHaveAttribute(
-      "aria-checked",
-      "false"
-    );
+    expect(
+      within(regionGroup).getByRole("button", { name: "Ta bort Stockholms län" })
+    ).toBeInTheDocument();
   });
 
-  it("filter-inputen smalnar av yrkeslistan", async () => {
-    const user = userEvent.setup();
+  it("'Lägg till' är en dialog-affordans (aria-haspopup=dialog)", () => {
     renderCard();
-
-    expect(checkbox("Sjuksköterskor")).toBeInTheDocument();
-
-    const filter = screen.getByLabelText("Filtrera yrkesgrupper");
-    await user.type(filter, "utvecklare");
-
-    expect(screen.queryByRole("checkbox", { name: "Sjuksköterskor" })).toBeNull();
-    expect(checkbox("Backendutvecklare")).toBeInTheDocument();
-    expect(checkbox("Frontendutvecklare")).toBeInTheDocument();
+    const add = screen.getByRole("button", { name: "Lägg till" });
+    expect(add).toHaveAttribute("aria-haspopup", "dialog");
   });
 
-  it("Spara anropar updateMatchPreferencesAction med hela aktuella valet", async () => {
+  it("degraded → fallback-text, inga chips, ingen Lägg till", () => {
+    renderCard({ degraded: true });
+    expect(
+      screen.getByText(/Dina matchningsval kunde inte läsas in just nu/)
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Yrken" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Lägg till" })).toBeNull();
+  });
+});
+
+describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
+  it("klick på ⨯ tar bort chippen direkt och persisterar HELA nya mängden", async () => {
     const user = userEvent.setup();
     renderCard({
-      initialOccupationGroups: ["grp_backend"],
+      initialOccupationGroups: ["grp_backend", "grp_frontend"],
       initialRegions: ["region_sthlm"],
       initialEmploymentTypes: ["et_fast"],
     });
 
     await user.click(
-      screen.getByRole("button", { name: "Spara matchningsönskemål" })
+      screen.getByRole("button", { name: "Ta bort Backendutvecklare" })
     );
 
+    // Optimistiskt borta direkt.
+    expect(
+      screen.queryByRole("button", { name: "Ta bort Backendutvecklare" })
+    ).toBeNull();
+    // Full-replace: de andra facetterna oförändrade.
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
     expect(updateMock).toHaveBeenCalledWith({
-      preferredOccupationGroups: ["grp_backend"],
+      preferredOccupationGroups: ["grp_frontend"],
       preferredRegions: ["region_sthlm"],
       preferredEmploymentTypes: ["et_fast"],
     });
   });
 
-  it("Spara med allt tomt är tillåtet (action anropas ändå)", async () => {
+  it("lyckad save visar status-raden 'Sparat HH:mm'", async () => {
     const user = userEvent.setup();
-    renderCard();
+    renderCard({ initialRegions: ["region_sthlm"] });
 
     await user.click(
-      screen.getByRole("button", { name: "Spara matchningsönskemål" })
+      screen.getByRole("button", { name: "Ta bort Stockholms län" })
     );
 
-    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    expect(updateMock).toHaveBeenCalledWith({
-      preferredOccupationGroups: [],
-      preferredRegions: [],
-      preferredEmploymentTypes: [],
-    });
+    expect(await screen.findByText(/^Sparat \d{2}:\d{2}$/)).toBeInTheDocument();
   });
 
-  it("Föreslå anropar deriveOccupationsAction och renderar returnerade kandidater", async () => {
+  it("misslyckad save återställer chippen och visar role=alert", async () => {
     const user = userEvent.setup();
-    deriveMock.mockResolvedValue({
-      success: true,
-      candidates: [
-        {
-          occupationGroupConceptId: "grp_frontend",
-          occupationGroupLabel: "Frontendutvecklare",
-        },
-      ],
-    });
-    renderCard();
+    updateMock.mockResolvedValue({ success: false, error: "nope" });
+    renderCard({ initialRegions: ["region_sthlm"] });
 
-    await user.type(
-      screen.getByLabelText("Föreslå utifrån en yrkestitel"),
-      "frontend"
-    );
-    await user.click(screen.getByRole("button", { name: "Föreslå" }));
-
-    await waitFor(() => expect(deriveMock).toHaveBeenCalledWith("frontend"));
-    // Kandidat-blocket renderar sin egen role="group".
-    const candidateGroup = await screen.findByRole("group", {
-      name: "Föreslagna yrkesgrupper",
-    });
-    expect(
-      within(candidateGroup).getByRole("checkbox", {
-        name: "Frontendutvecklare",
-      })
-    ).toBeInTheDocument();
-  });
-
-  it("att välja en kandidat togglar dess yrkesgrupp", async () => {
-    const user = userEvent.setup();
-    deriveMock.mockResolvedValue({
-      success: true,
-      candidates: [
-        {
-          occupationGroupConceptId: "grp_backend",
-          occupationGroupLabel: "Backendutvecklare",
-        },
-      ],
-    });
-    renderCard();
-
-    await user.type(
-      screen.getByLabelText("Föreslå utifrån en yrkestitel"),
-      "backend"
-    );
-    await user.click(screen.getByRole("button", { name: "Föreslå" }));
-
-    const candidateGroup = await screen.findByRole("group", {
-      name: "Föreslagna yrkesgrupper",
-    });
-    const candidateBox = within(candidateGroup).getByRole("checkbox", {
-      name: "Backendutvecklare",
-    });
-    expect(candidateBox).toHaveAttribute("aria-checked", "false");
-
-    await user.click(candidateBox);
-
-    // Toggla kandidaten → spara → backend får yrkesgruppen.
     await user.click(
-      screen.getByRole("button", { name: "Spara matchningsönskemål" })
+      screen.getByRole("button", { name: "Ta bort Stockholms län" })
     );
-    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    expect(updateMock.mock.calls[0]![0]).toEqual({
-      preferredOccupationGroups: ["grp_backend"],
-      preferredRegions: [],
-      preferredEmploymentTypes: [],
-    });
-  });
 
-  it("noll kandidater → lugn inga-förslag-text", async () => {
+    // Chippen återinförd (revert) + alert.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Ta bort Stockholms län" })
+      ).toBeInTheDocument()
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Ändringen kunde inte sparas. Försök igen."
+    );
+  });
+});
+
+describe("MatchPreferencesCard — tangentbord", () => {
+  it("Delete på en fokuserad ⨯ tar bort chippen", async () => {
     const user = userEvent.setup();
-    deriveMock.mockResolvedValue({ success: true, candidates: [] });
-    renderCard();
+    renderCard({ initialRegions: ["region_sthlm", "region_vg"] });
 
-    await user.type(
-      screen.getByLabelText("Föreslå utifrån en yrkestitel"),
-      "obefintligt"
-    );
-    await user.click(screen.getByRole("button", { name: "Föreslå" }));
+    const first = screen.getByRole("button", { name: "Ta bort Stockholms län" });
+    first.focus();
+    await user.keyboard("{Delete}");
 
     expect(
-      await screen.findByText(/Inga förslag för den titeln/)
-    ).toBeInTheDocument();
-  });
-
-  it("degraded → fallback-text, inga väljare", () => {
-    renderCard({ degraded: true });
-    expect(
-      screen.getByText(/Dina matchningsval kunde inte läsas in just nu/)
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Spara matchningsönskemål" })
+      screen.queryByRole("button", { name: "Ta bort Stockholms län" })
     ).toBeNull();
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+  });
+
+  it("Backspace flyttar fokus till nästa chips ⨯ efter borttagning", async () => {
+    const user = userEvent.setup();
+    renderCard({ initialRegions: ["region_sthlm", "region_vg"] });
+
+    const first = screen.getByRole("button", { name: "Ta bort Stockholms län" });
+    first.focus();
+    await user.keyboard("{Backspace}");
+
+    // Fokus landar på grannen (Västra Götaland), aldrig på body.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Ta bort Västra Götalands län" })
+      ).toHaveFocus()
+    );
+    expect(document.body).not.toHaveFocus();
+  });
+
+  it("borttagning av den sista chippen flyttar fokus till 'Lägg till'", async () => {
+    const user = userEvent.setup();
+    renderCard({ initialEmploymentTypes: ["et_fast"] });
+
+    const only = screen.getByRole("button", {
+      name: "Ta bort Tillsvidareanställning",
+    });
+    only.focus();
+    await user.keyboard("{Delete}");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Lägg till" })).toHaveFocus()
+    );
   });
 });

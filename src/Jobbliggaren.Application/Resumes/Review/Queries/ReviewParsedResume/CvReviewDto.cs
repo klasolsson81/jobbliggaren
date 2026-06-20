@@ -27,9 +27,18 @@ public sealed record CvReviewCategoryDto(
     int NotAssessedCount,
     string Band);
 
-/// <summary>One criterion's verdict with its cited evidence, projected for transport.</summary>
+/// <summary>
+/// One criterion's verdict with its cited evidence, projected for transport.
+/// <para>
+/// <see cref="Name"/> is the human-readable Swedish criterion heading (from the rubric,
+/// e.g. "Mätbara resultat") — the UI leads with it instead of the cryptic id so the
+/// review reads for a job-seeker, not a developer (CLAUDE.md §10). <see cref="CriterionId"/>
+/// (e.g. "A1") rides along as a de-emphasised support reference, never the primary label.
+/// </para>
+/// </summary>
 public sealed record CvCriterionVerdictDto(
     string CriterionId,
+    string Name,
     string Category,
     string Verdict,
     IReadOnlyList<CitedEvidenceDto> Evidence,

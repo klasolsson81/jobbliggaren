@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
@@ -20,6 +21,7 @@ public sealed class ReviewParsedResumeQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     ICvReviewEngine engine,
+    IRubricProvider rubricProvider,
     IFailedAccessLogger failedAccessLogger)
     : IQueryHandler<ReviewParsedResumeQuery, CvReviewDto?>
 {
@@ -60,6 +62,11 @@ public sealed class ReviewParsedResumeQueryHandler(
         // The validator guarantees a parseable RenderProfile (fail-loud, case-sensitive).
         var profile = Enum.Parse<RenderProfile>(query.Profile);
         var result = await engine.ReviewAsync(resume, profile, cancellationToken);
-        return result.ToDto();
+
+        // Supply the criterionId→Name lookup from the rubric (the single source of truth for
+        // the human heading) so the DTO leads with a readable title, not the cryptic id.
+        var nameByCriterionId = rubricProvider.GetRubric().Criteria
+            .ToDictionary(c => c.Id, c => c.Name, StringComparer.Ordinal);
+        return result.ToDto(nameByCriterionId);
     }
 }

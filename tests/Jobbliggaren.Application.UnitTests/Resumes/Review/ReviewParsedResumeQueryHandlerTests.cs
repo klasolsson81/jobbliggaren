@@ -37,6 +37,9 @@ public class ReviewParsedResumeQueryHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly ICvReviewEngine _engine = Substitute.For<ICvReviewEngine>();
+    // Real rubric provider (committed asset) so the criterionId→Name heading lookup the handler
+    // performs resolves against the golden source (A1 → "Mätbara resultat" etc.).
+    private readonly IRubricProvider _rubricProvider = CvReviewFixtures.RealRubricProvider();
     private readonly IFailedAccessLogger _failedAccess = Substitute.For<IFailedAccessLogger>();
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -46,7 +49,7 @@ public class ReviewParsedResumeQueryHandlerTests
     }
 
     private ReviewParsedResumeQueryHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _engine, _failedAccess);
+        new(db, _currentUser, _engine, _rubricProvider, _failedAccess);
 
     private static ParsedResume BuildParsedResume(JobSeekerId owner)
     {
@@ -128,6 +131,10 @@ public class ReviewParsedResumeQueryHandlerTests
         result.Verdicts.ShouldContain(v => v.Evidence.Any(e => e.Kind == "Structural"
             && e.Observation == "kontaktsektion komplett"));
         result.Verdicts.ShouldContain(v => v.Verdict == "NotAssessed" && v.NotAssessedReason == "ej bedömt v1");
+        // Name (the human rubric heading) is surfaced from the rubric's single source of truth,
+        // resolved by criterion id — the UI leads with this, not the cryptic "A1".
+        result.Verdicts.ShouldContain(v => v.CriterionId == "A1" && v.Name == "Mätbara resultat");
+        result.Verdicts.ShouldContain(v => v.CriterionId == "B3" && v.Name == "Kontaktuppgifter kompletta");
 
         await _engine.Received(1).ReviewAsync(
             Arg.Any<ParsedResume>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
@@ -159,7 +166,7 @@ public class ReviewParsedResumeQueryHandlerTests
 
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var sut = new ReviewParsedResumeQueryHandler(db, anon, _engine, _failedAccess);
+        var sut = new ReviewParsedResumeQueryHandler(db, anon, _engine, _rubricProvider, _failedAccess);
 
         var result = await sut.Handle(
             new ReviewParsedResumeQuery(parsed.Id.Value, "Ats"), TestContext.Current.CancellationToken);

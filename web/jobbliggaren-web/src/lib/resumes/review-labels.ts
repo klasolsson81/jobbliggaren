@@ -27,7 +27,7 @@ const VERDICT: Record<CriterionVerdict, LabelWithTone> = {
   Pass: { label: "Godkänt", tone: "success" },
   Warn: { label: "Delvis", tone: "warning" },
   Fail: { label: "Underkänt", tone: "danger" },
-  NotAssessed: { label: "Ej bedömt v1", tone: "neutral" },
+  NotAssessed: { label: "Ej bedömt", tone: "neutral" },
 };
 
 const BAND: Record<ScoreBandLabel, LabelWithTone> = {

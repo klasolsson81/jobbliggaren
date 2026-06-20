@@ -62,6 +62,7 @@ const reviewFixture = {
   verdicts: [
     {
       criterionId: "A1",
+      name: "Kontaktuppgifter",
       category: "Content",
       verdict: "Pass",
       evidence: [

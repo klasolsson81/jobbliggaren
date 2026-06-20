@@ -103,7 +103,7 @@ export function CvProposedChange({ change }: { change: ProposedChangeDto }) {
       ) : change.operation !== null ? (
         <p className="jp-improve__operation">
           Föreslagen ändring: {proposedChangeKindLabel(change.kind)} på{" "}
-          <code className="jp-criterion__id">{change.operation.target}</code>
+          <code className="jp-improve__target">{change.operation.target}</code>
         </p>
       ) : null}
 

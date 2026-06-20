@@ -1,67 +1,41 @@
-// "use client" required for useActionState (React 19 form state hook)
-"use client";
-
 import Link from "next/link";
-import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { createResumeAction } from "@/lib/actions/resumes";
+import { redirect } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
+import { getServerSession } from "@/lib/auth/session";
+import { CreateResumeForm } from "@/components/resumes/create-resume-form";
 
-export default function NyCvPage() {
-  const [state, formAction, isPending] = useActionState(
-    createResumeAction,
-    null
-  );
+/**
+ * /cv/ny — skapa ett nytt CV, fullsida. RSC: auth-grind + civic page-hero,
+ * sedan den interaktiva `<CreateResumeForm />` (klient-ö för useActionState).
+ * Detta är hard-load- / no-JS- / delbar-länk-fallbacken; soft-nav från /cv
+ * fångas i stället av @modal/(.)cv/ny och visas som modal (ADR 0053). Samma
+ * `CreateResumeForm` i båda (DRY).
+ */
+export default async function NyCvPage() {
+  const user = await getServerSession();
+  if (!user) redirect("/logga-in");
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-h1 font-medium text-text-primary">Nytt CV</h1>
+      <Link
+        href="/cv"
+        className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
+      >
+        <ChevronLeft size={16} aria-hidden="true" />
+        <span>Tillbaka till CV</span>
+      </Link>
+
+      <header className="flex flex-col gap-2">
+        <h1 className="jp-h1">Nytt CV</h1>
+        <p className="jp-lede">
+          Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt
+          fullständiga namn — du kan ändra resten senare.
+        </p>
+      </header>
+
+      <div className="max-w-lg">
+        <CreateResumeForm />
       </div>
-
-      <form action={formAction} className="flex flex-col gap-5 max-w-lg">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="cv-name">Namn på CV</Label>
-          <p className="text-body-sm text-text-secondary">
-            Till exempel Master-CV eller Backend-utvecklare 2026.
-          </p>
-          <Input
-            id="cv-name"
-            name="name"
-            required
-            maxLength={200}
-            disabled={isPending}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="cv-fullname">Fullständigt namn</Label>
-          <p className="text-body-sm text-text-secondary">
-            Visas överst på ditt CV. Du kan ändra det senare.
-          </p>
-          <Input
-            id="cv-fullname"
-            name="fullName"
-            required
-            maxLength={200}
-            disabled={isPending}
-          />
-        </div>
-
-        {state && !state.success && (
-          <p className="text-body-sm text-danger-600">{state.error}</p>
-        )}
-
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={isPending}>
-            Skapa CV
-          </Button>
-          <Button asChild variant="ghost">
-            <Link href="/cv">Avbryt</Link>
-          </Button>
-        </div>
-      </form>
     </div>
   );
 }

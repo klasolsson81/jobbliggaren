@@ -2665,9 +2665,36 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-top: 1px solid var(--jp-border-soft);
 }
 
-/* ── Matchnings-dialog (shadcn DialogContent civic-stylad) ──
-   (RE-BIND §2). Speglar .jp-modal-tokens på shadcn-sloten så default-shadcn-
-   looken ALDRIG skeppas. Bredare variant min(840px) för tvåkolumns-kaskaden. */
+/* ── Standardmodal-skin (.jp-stdmodal) — ADR 0077 / design-bind A.2 ──
+   Kanonisk bred/smal modal-skin på shadcn DialogContent-sloten. Speglar
+   .jp-modal-tokens (yta/kant/radie/skugga) så default-shadcn-looken ALDRIG
+   skeppas. Generaliserad ur den tidigare ad-hoc .jp-matchdialog (CTO Decision
+   A in-block); .jp-matchdialog komponerar nu på .jp-stdmodal (alias, ingen
+   beteendeändring). Två bredd-varianter:
+     --wide   min(840px, 94vw) — preferens-editor / wizard-steg med kaskad
+     --narrow min(440px, 92vw) — confirm / welcome / smala val-steg
+   INGEN ny hex, ingen radie > 8px (modal-undantaget), ingen shadow-2xl/glow. */
+.jp-stdmodal {
+  max-height: 86vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  box-shadow: var(--jp-shadow-modal);
+}
+.jp-stdmodal--wide {
+  width: min(840px, 94vw);
+  max-width: min(840px, 94vw);
+}
+.jp-stdmodal--narrow {
+  width: min(440px, 92vw);
+  max-width: min(440px, 92vw);
+}
+
+/* Matchnings-dialogen (STEG A) komponerar på .jp-stdmodal. Behåller sin
+   tidigare exakta bredd min(840px, 100%) — oförändrad rendering. */
 .jp-matchdialog {
   width: min(840px, 100%);
   max-width: min(840px, 100%);
@@ -2688,7 +2715,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    nästlade i __head/__body/__foot, så denna selektor träffar bara Close.
    (Oskiktad CSS vinner över shadcns @layer-utilities → opacity/färg/position
    överrids.) */
-.jp-matchdialog > button {
+.jp-matchdialog > button,
+.jp-stdmodal > button {
   position: absolute;
   top: 16px;
   right: 16px;
@@ -2705,7 +2733,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-radius: var(--jp-r-md);
   cursor: pointer;
 }
-.jp-matchdialog > button:hover {
+.jp-matchdialog > button:hover,
+.jp-stdmodal > button:hover {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
@@ -2806,6 +2835,178 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-2);
   border-bottom-left-radius: var(--jp-r-lg);
   border-bottom-right-radius: var(--jp-r-lg);
+}
+
+/* ── Match-setup-wizard (ADR 0077 STEG 5 / design-bind A2) ──
+   Wide standardmodal med utbytbart steg-innehåll. Återanvänder
+   .jp-matchdialog__body/__section/__suggest/__pinned/__cascade/__list för
+   yrkes-/region-/anställningsform-stegen; egna klasser för stegräknare,
+   confirm-steg och footer-navigation. Ingen progress-bar-animation,
+   ingen gimmick (design-bind A2.i). */
+.jp-wizard__head {
+  position: relative;
+  padding: 22px 56px 16px 24px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+/* Stegräknare i mono (regel 4 "mono som signal"). Informationsbärande →
+   --jp-ink-2, aldrig --jp-ink-3. */
+.jp-wizard__counter {
+  display: block;
+  margin: 0 0 4px;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--jp-ink-1);
+}
+/* DialogTitle får programmatisk fokus vid stegbyte (tabIndex=-1, WCAG 2.4.3).
+   Den globala fokus-ringen gäller; ingen outline:none. */
+.jp-wizard__intro {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__step {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+/* Confirm-/klart-steget: stor grön check (status-token, ALDRIG emoji) +
+   typografisk rubrik. Ingen glow, ingen scale-in-bounce. */
+/* "Hoppa över det här steget" — a benign, non-destructive navigation affordance.
+   Neutral ink, NOT .jp-clearlink (that primitive is destructive --jp-danger red):
+   skipping a step must never read as a warning (WCAG 1.4.1; design-bind A2.iv,
+   skip ≠ destructive). */
+.jp-wizard__skip {
+  font-size: 14px;
+  color: var(--jp-ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.jp-wizard__skip:hover {
+  color: var(--jp-ink-1);
+}
+.jp-wizard__skip:disabled {
+  color: var(--jp-ink-3);
+  cursor: default;
+  text-decoration: none;
+}
+/* Footer: Tillbaka (vänster, ghost) · Hoppa över (mitten, neutral) ·
+   primär Nästa/Spara (höger). Skip ≠ nästa (design-bind A2.iv). */
+.jp-wizard__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  border-top: 1px solid var(--jp-border-soft);
+  background: var(--jp-surface-2);
+  border-bottom-left-radius: var(--jp-r-lg);
+  border-bottom-right-radius: var(--jp-r-lg);
+}
+.jp-wizard__foot-spacer {
+  flex: 1 1 auto;
+}
+.jp-wizard__error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* ── /cv match-setup-bar + post-promote-prompt (ADR 0077 STEG 5) ──
+   Bar = kort med ledtext + wizard-trigger; prompten wrap:ar full bredd under. */
+.jp-cvmatch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-cvmatch-bar__lead {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.jp-cvmatch-bar__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-cvmatch-bar__text {
+  margin: 4px 0 0;
+  max-width: 68ch;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+/* Post-promote-prompten: full bredd under baren, vänster accent-kant
+   (information bärs av text + struktur, inte enbart färg). Dismissbar. */
+.jp-matchnudge {
+  position: relative;
+  flex-basis: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 4px;
+  padding: 14px 44px 14px 16px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border);
+  border-left: 3px solid var(--jp-accent-700);
+  border-radius: var(--jp-r-md);
+}
+.jp-matchnudge__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.jp-matchnudge__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-matchnudge__text {
+  margin: 4px 0 0;
+  max-width: 68ch;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+.jp-matchnudge__actions {
+  margin-top: 12px;
+}
+.jp-matchnudge__dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--jp-ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+}
+.jp-matchnudge__dismiss:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
 }
 
 .jp-modal__foot {

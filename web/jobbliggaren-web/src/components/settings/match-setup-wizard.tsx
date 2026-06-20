@@ -296,7 +296,7 @@ export function MatchSetupWizard({
 function stepIntro(step: number): string {
   switch (step) {
     case 1:
-      return "Välj de yrken du söker. Vi föreslår utifrån ditt CV — ändra om det inte stämmer. Du väljer själv vilka som tas med.";
+      return "Välj de yrken du söker. Vi föreslår utifrån ditt CV. Ändra om det inte stämmer; du väljer själv vilka som tas med.";
     case 2:
       return "Välj de regioner du vill arbeta i. Lämna tomt för hela landet.";
     case 3:

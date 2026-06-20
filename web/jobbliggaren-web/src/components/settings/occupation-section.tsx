@@ -196,7 +196,7 @@ export function OccupationSection({
       {titleCandidates.length > 0 && (
         <div className="mb-3">
           <p className="text-body-sm text-text-secondary mb-1.5">
-            Förslag — välj de som passar för att lägga till dem:
+            Förslag: välj de som passar för att lägga till dem:
           </p>
           <div role="group" aria-label="Föreslagna yrken utifrån titel">
             {titleCandidates.map((c) => (
@@ -410,7 +410,7 @@ function CvSuggestPanel({
       return (
         <div>
           <p className="text-body-sm text-text-secondary mb-1.5">
-            Föreslår yrken utifrån ditt CV — du väljer vilka som tas med:
+            Föreslår yrken utifrån ditt CV. Du väljer vilka som tas med:
           </p>
           <div role="group" aria-label="Föreslagna yrkesgrupper">
             {result.candidates.map((c) => (

@@ -4731,19 +4731,23 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   gap: 10px;
 }
+/* Spinner-doktrin (Klas 2026-06-20): laddnings-vyn tar huvudytan — centrerad,
+   prominent, enbart spinner + beskrivande text (ingen box, inget formulär). */
 .jp-cvupload__pending {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border-soft);
-  border-radius: var(--jp-r-md);
+  justify-content: center;
+  text-align: center;
+  gap: 16px;
+  padding: 48px 24px;
+  min-height: 220px;
 }
 .jp-cvupload__pending-text {
   margin: 0;
-  font-size: 14px;
-  color: var(--jp-ink-1);
+  max-width: 36ch;
+  font-size: 15px;
+  color: var(--jp-ink-2);
 }
 
 /* ── Granska-vyns fil-meta ───────────────────────── */

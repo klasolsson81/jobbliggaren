@@ -12,9 +12,19 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// <item><see cref="Partial"/> — partial overlap with leftover (title dimension
 /// only; the set-membership dimensions are binary and never report Partial).</item>
 /// <item><see cref="NoMatch"/> — data present on <b>both</b> sides and disjoint.</item>
-/// <item><see cref="NotAssessed"/> — the CV-side input for the dimension is empty,
-/// or the ad's value is absent (NULL shadow column / no lexemes). The honest
-/// "not assessed v1" state (CLAUDE.md §5) — never conflated with <see cref="NoMatch"/>.</item>
+/// <item><see cref="NotAssessed"/> — the <b>CV side</b> for the dimension is empty
+/// (no CV / no resolved skills), so we cannot assess it. The honest "not assessed v1"
+/// state (CLAUDE.md §5) — never conflated with <see cref="NoMatch"/>.</item>
+/// <item><see cref="Vacuous"/> — the <b>ad side</b> for a concept-coverage dimension
+/// is empty WHILE the CV side is non-empty: we looked, and the ad specifies none of
+/// this kind (e.g. an ad with no <c>must_have</c> requirements at all). Distinct from
+/// <see cref="NotAssessed"/> (which is "we could not assess") — Vacuous is "there was
+/// nothing to require". This distinction is load-bearing for the requirement-aware
+/// grade (ADR 0076 amendment 2026-06-20, Klas Reading 1): a no-must-have ad is
+/// gate-OPEN (a qualified candidate CAN reach Stark/Topp), whereas a no-CV user
+/// (<see cref="NotAssessed"/> must-have) is gate-CLOSED (caps at the preference rung).
+/// Only the set-membership concept-coverage dimensions (skill / must-have /
+/// nice-to-have) can be Vacuous; the binary Fast dimensions never are.</item>
 /// </list>
 /// <para>
 /// Serialized by NAME, not ordinal (<c>[JsonStringEnumConverter]</c>) — F4-13's match
@@ -29,6 +39,14 @@ public enum MatchDimensionVerdict
     Partial,
     NoMatch,
     NotAssessed,
+
+    /// <summary>
+    /// The ad side of a concept-coverage dimension is empty while the CV side is
+    /// non-empty ("nothing required, and we looked") — see the type summary. Added
+    /// 2026-06-20 (ADR 0076 amendment) for the requirement-aware grade's vacuous-ad
+    /// gate-open case; never produced by the binary Fast membership dimensions.
+    /// </summary>
+    Vacuous,
 }
 
 /// <summary>

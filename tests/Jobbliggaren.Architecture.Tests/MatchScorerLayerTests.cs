@@ -89,17 +89,21 @@ public class MatchScorerLayerTests
     // ===============================================================
 
     [Fact]
-    public void MatchDimensionVerdict_is_the_locked_four_member_set()
+    public void MatchDimensionVerdict_is_the_locked_five_member_set()
     {
-        // CTO Decision 3 — exactly { Match, Partial, NoMatch, NotAssessed }.
-        // A forbidden extra member (e.g. a numeric-band kind) would signal a
-        // rejected scoring shape crept in.
+        // PR-B1 (senior-cto-advisor 2026-06-20 RE-BIND G1-b / G3.5; Klas Reading 1) —
+        // exactly { Match, Partial, NoMatch, NotAssessed, Vacuous }. Vacuous is the 5th
+        // member: the ad partition is empty BUT the CV is present ("nothing required, and
+        // we DID look"), kept distinct from NotAssessed ("we could not assess / no CV").
+        // It is a categorical verdict refinement, NOT a number — the Goodhart guard
+        // (no numeric-band member) is preserved.
         var names = Enum.GetNames<
             Jobbliggaren.Application.Matching.Abstractions.MatchDimensionVerdict>();
 
-        names.ShouldBe(["Match", "Partial", "NoMatch", "NotAssessed"], ignoreOrder: true,
+        names.ShouldBe(["Match", "Partial", "NoMatch", "NotAssessed", "Vacuous"], ignoreOrder: true,
             "MatchDimensionVerdict ska vara exakt { Match, Partial, NoMatch, " +
-            "NotAssessed } (CTO Decision 3). Faktiska: " +
+            "NotAssessed, Vacuous } (PR-B1 RE-BIND G1-b — Vacuous = annonsen anger inga " +
+            "krav men CV finns; gate-open Reading 1). Faktiska: " +
             $"[{string.Join(", ", names)}].");
     }
 

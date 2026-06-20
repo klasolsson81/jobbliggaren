@@ -14,12 +14,12 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Queries;
 /// (<see cref="IMatchProfileBuilder.BuildFullFromCvSkillsAsync"/>, the TAG path — DEK-warmed),
 /// FULL-scores all requested ads in ONE round-trip
 /// (<see cref="IMatchScorer.ScoreFullBatchAsync"/>, zero N+1), and grades each via the
-/// deterministic <see cref="MatchGradeCalculator"/> over the EMBEDDED Fast tuple (the grade
-/// ladder is unchanged — F4-15 adds NO visible MatchGrade member, ceilinged at Strong). The
-/// entry now carries the three new FULL verdicts (SkillOverlap, MustHaveCoverage,
-/// NiceToHaveCoverage) ALONGSIDE the four Fast verdicts. Honest + anonymous-tolerant: no
-/// user / no stated occupation (the gate reads <c>profile.Fast.SsykGroupConceptIds</c>) →
-/// empty map; only ads earning a positive grade appear.
+/// REQUIREMENT-AWARE <see cref="MatchGradeCalculator"/> Full overload (PR-B1 RE-BIND —
+/// must-have coverage GATES Strong/Top; no CV / must-have NotAssessed caps at Good; the
+/// page TAG reads the full CV so it CAN see must-have). The entry carries the three FULL
+/// verdicts (SkillOverlap, MustHaveCoverage, NiceToHaveCoverage) ALONGSIDE the four Fast
+/// verdicts. Honest + anonymous-tolerant: no user / no stated occupation (the gate reads
+/// <c>profile.Fast.SsykGroupConceptIds</c>) → empty map; only ads earning a positive grade appear.
 /// <para>
 /// <b>Why hand-rolled fakes, not NSubstitute, for the two ValueTask-returning ports:</b>
 /// a ValueTask return set via NSubstitute trips CA2012 at the call-setup site in THIS
@@ -193,48 +193,59 @@ public class GetJobAdMatchBatchQueryHandlerTests
     }
 
     // =================================================================
-    // Authed with occupation → grade from the FULL score (F4-16, ADR 0076 Amendment
-    // (b) §1 — the visible chip is no longer ceilinged at Strong): a Strong Fast match
-    // WITH CV-skill overlap is promoted to the golden Top rung; a Strong Fast match
-    // WITHOUT skill overlap stays Strong; sub-Strong grades pass through. Include only
-    // graded; entry carries the four Fast verdicts AND the three FULL verdicts.
+    // Authed with occupation → grade from the REQUIREMENT-AWARE FULL score (PR-B1
+    // RE-BIND G1): must-have coverage GATES the upper rungs. A must-have-Match ad with
+    // both secondaries confirmed AND a skill signal → Top; the same WITHOUT a skill/nice
+    // signal → Strong; a must-have-Match-but-one-secondary → Strong (open fallback); an
+    // ad whose must-have is NotAssessed (no CV skill coverage) caps at Good even with both
+    // secondaries Match (the load-bearing no-must-have ceiling); occupation NoMatch → null
+    // → omitted. Entry carries the four Fast verdicts AND the three FULL verdicts.
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldGradeFromFullScore_PromotingStrongWithSkillOverlapToTop()
+    public async Task Handle_ShouldGradeFromRequirementAwareFullScore_MustHaveGatesStrongAndTop()
     {
         var ct = TestContext.Current.CancellationToken;
-        var topAd = new JobAdId(Guid.NewGuid());          // occ+region+employment Match + skill Match → Top
-        var strongAd = new JobAdId(Guid.NewGuid());       // occ+region+employment Match, skill NotAssessed → Strong
-        var goodAd = new JobAdId(Guid.NewGuid());          // occ + region Match → Good
-        var gatedAd = new JobAdId(Guid.NewGuid());         // occ NoMatch → null → omitted
+        var topAd = new JobAdId(Guid.NewGuid());     // mustHave Match + occ+reg+emp Match + skill Match → Top
+        var strongAd = new JobAdId(Guid.NewGuid());  // mustHave Match + occ+reg+emp Match, no skill/nice signal → Strong
+        var cappedAd = new JobAdId(Guid.NewGuid());  // occ+reg+emp Match but mustHave NotAssessed → caps at Good
+        var goodAd = new JobAdId(Guid.NewGuid());     // occ + reg Match, mustHave NotAssessed → Good
+        var gatedAd = new JobAdId(Guid.NewGuid());    // occ NoMatch → null → omitted
 
         var scores = new Dictionary<JobAdId, FullMatchScore>
         {
             [topAd] = FullScoreOf(
                 MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match,
-                skill: MatchDimensionVerdict.Match),
+                skill: MatchDimensionVerdict.Match, mustHave: MatchDimensionVerdict.Match),
             [strongAd] = FullScoreOf(
-                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match),
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match,
+                skill: MatchDimensionVerdict.NoMatch, mustHave: MatchDimensionVerdict.Match),
+            [cappedAd] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match,
+                skill: MatchDimensionVerdict.NotAssessed, mustHave: MatchDimensionVerdict.NotAssessed),
             [goodAd] = FullScoreOf(
-                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed),
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed,
+                mustHave: MatchDimensionVerdict.NotAssessed),
             [gatedAd] = FullScoreOf(
-                MatchDimensionVerdict.NoMatch, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match),
+                MatchDimensionVerdict.NoMatch, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match,
+                skill: MatchDimensionVerdict.Match, mustHave: MatchDimensionVerdict.Match),
         };
         var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
         var scorer = new FakeScorer(scores);
         var sut = CreateHandler(builder, scorer);
 
         var result = await sut.Handle(
-            new GetJobAdMatchBatchQuery([topAd.Value, strongAd.Value, goodAd.Value, gatedAd.Value]), ct);
+            new GetJobAdMatchBatchQuery(
+                [topAd.Value, strongAd.Value, cappedAd.Value, goodAd.Value, gatedAd.Value]), ct);
 
-        result.Entries.Count.ShouldBe(3);
+        result.Entries.Count.ShouldBe(4);
         result.Entries.ShouldNotContainKey(gatedAd.Value);
 
-        // F4-16: the visible grade is the FULL grade. A Strong Fast match with CV-skill
-        // overlap is the golden Top; without overlap it stays Strong; Good passes through.
+        // Requirement-aware: must-have Match opens the gate; a skill signal lifts to Top;
+        // without it Strong; must-have NotAssessed caps at Good even with both secondaries.
         result.Entries[topAd.Value].Grade.ShouldBe(MatchGrade.Top);
         result.Entries[strongAd.Value].Grade.ShouldBe(MatchGrade.Strong);
+        result.Entries[cappedAd.Value].Grade.ShouldBe(MatchGrade.Good);   // no must-have → Good ceiling
         result.Entries[goodAd.Value].Grade.ShouldBe(MatchGrade.Good);
     }
 
@@ -260,7 +271,9 @@ public class GetJobAdMatchBatchQueryHandlerTests
         var result = await sut.Handle(new GetJobAdMatchBatchQuery([ad.Value]), ct);
 
         var entry = result.Entries[ad.Value];
-        entry.Grade.ShouldBe(MatchGrade.Good);
+        // PR-B1: must-have Match (gate OPEN) + one secondary confirmed (region Match,
+        // employment NotAssessed) → Strong via the open-secondary fallback (was Good).
+        entry.Grade.ShouldBe(MatchGrade.Strong);
         // Four Fast verdicts.
         entry.SsykOverlap.ShouldBe(MatchDimensionVerdict.Match);
         entry.TitleSimilarity.ShouldBe(MatchDimensionVerdict.NotAssessed);

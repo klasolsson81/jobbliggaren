@@ -12,7 +12,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// per-entry DTO live in Application, carry EXACTLY the named-category + four verdicts and
 /// NO numeric/score field (ADR 0076 Decision 4 / ADR 0071 / CLAUDE.md §5 — the Goodhart
 /// guard realised ON THE WIRE), and the <see cref="Jobbliggaren.Application.Matching.Grading.MatchGrade"/>
-/// enum is exactly the three named rungs (no numeric band). The existing
+/// enum is exactly the four named rungs (no numeric band). The existing
 /// MatchScore/MatchDimension/MatchDimensionVerdict shape pins stay in MatchScorerLayerTests.
 /// </summary>
 public class MatchTagBatchLayerTests
@@ -61,7 +61,7 @@ public class MatchTagBatchLayerTests
     }
 
     // ===============================================================
-    // 2. MatchGrade enum is EXACTLY the three named rungs (no numeric band)
+    // 2. MatchGrade enum is EXACTLY the four named rungs (no numeric band)
     // ===============================================================
 
     [Fact]
@@ -246,14 +246,17 @@ public class MatchTagBatchLayerTests
     }
 
     [Fact]
-    public void MatchDimensionVerdict_still_is_the_locked_four_member_set()
+    public void MatchDimensionVerdict_still_is_the_locked_five_member_set()
     {
+        // PR-B1 (senior-cto-advisor 2026-06-20 RE-BIND G1-b / G3.5) — the requirement-aware
+        // ladder adds the 5th verdict Vacuous (ad partition empty, CV present → gate-open).
+        // Still NO numeric-band member (the Goodhart guard holds).
         var names = Enum.GetNames<
             Jobbliggaren.Application.Matching.Abstractions.MatchDimensionVerdict>();
 
-        names.ShouldBe(["Match", "Partial", "NoMatch", "NotAssessed"], ignoreOrder: true,
-            "MatchDimensionVerdict ska vara oförändrad { Match, Partial, NoMatch, " +
-            $"NotAssessed }}. Faktiska: [{string.Join(", ", names)}].");
+        names.ShouldBe(["Match", "Partial", "NoMatch", "NotAssessed", "Vacuous"], ignoreOrder: true,
+            "MatchDimensionVerdict ska vara { Match, Partial, NoMatch, NotAssessed, " +
+            $"Vacuous }} (PR-B1 RE-BIND G1-b). Faktiska: [{string.Join(", ", names)}].");
     }
 
     // ===============================================================

@@ -17,8 +17,19 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <para>
 /// <b>Sort-nyckeln (grad-ranken) lever ENBART i <c>ORDER BY</c></b> (Goodhart,
 /// Decision 4): den projiceras aldrig in i <see cref="JobAdDto"/>, persisteras
-/// aldrig. Ranken är en kompilerad spegel av <c>MatchGradeCalculator</c>
-/// (ordnings-SSOT) + <c>MatchScorer.ScoreMembership</c>:
+/// aldrig. Ranken är en kompilerad spegel av den <b>Fast</b>
+/// <c>MatchGradeCalculator.Grade(MatchScore)</c>-stegen + <c>MatchScorer.ScoreMembership</c>:
+/// <para>
+/// <b>G3-OPT-A — sorten ser INTE must-have (medveten, bunden divergens, ADR 0076
+/// amendment 2026-06-20):</b> sedan graden blev requirement-aware
+/// (<c>Grade(FullMatchScore)</c> gatar Strong/Top på must-have-täckning) är denna sort en
+/// snabb, grov Fast-band-coarsening som ärligt SKILJER SIG från den synliga graden i
+/// must-have-bandet — den heta vägen läser top-5 plaintext-skills (ingen DEK, binär
+/// <c>?|</c>), kan inte beräkna must-have-täckning, och ska därför inte påstå sig spegla
+/// den synliga graden. UI-copy säger "Sortera efter matchning" (preferens+skill-relevans),
+/// aldrig "sortera efter grad exakt". Ett orakel pinnar Fast-spegeln; ett separat test
+/// pinnar divergensen (MatchSortOracleTests).</para>
+/// Fast-rank-spegeln:
 /// <list type="bullet">
 /// <item>0 = otaggad (SSYK ej Match) → sorteras sist;</item>
 /// <item>1 = Basic (SSYK Match, men en angiven region/anställningsform

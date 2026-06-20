@@ -275,10 +275,12 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task ScoreFull_SkillOverlap_AdHasNoSkillTerms_IsNotAssessed()
+    public async Task ScoreFull_SkillOverlap_AdHasNoSkillTerms_CvPresent_IsVacuous()
     {
         var ct = TestContext.Current.CancellationToken;
-        // Ad has ONLY a must_have requirement term, no Skill terms → NotAssessed.
+        // PR-B1 (RE-BIND G1-b): ad has ONLY a must_have requirement term, NO Skill terms,
+        // but the CV HAS skills → the ad SKILL partition is empty while the CV is present
+        // → Vacuous ("we looked; the ad specifies none of this kind"), NOT NotAssessed.
         var terms = ExtractedTerms.From(
         [
             RequirementTerm(CSharpConceptId, CSharpDisplay, ExtractedTermSource.MustHave),
@@ -290,7 +292,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
         var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
 
-        score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.SkillOverlap.Matched.ShouldBeEmpty();
         score.SkillOverlap.Missing.ShouldBeEmpty();
     }
@@ -363,11 +365,13 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task ScoreFull_MustHaveCoverage_AdHasNoMustHaveTerms_IsNotAssessed()
+    public async Task ScoreFull_MustHaveCoverage_AdHasNoMustHaveTerms_CvPresent_IsVacuous()
     {
         var ct = TestContext.Current.CancellationToken;
-        // Ad has a nice_to_have but no must_have → MustHaveCoverage NotAssessed
-        // (no must_have to cover — never NoMatch; honest "not assessed v1").
+        // PR-B1 (RE-BIND G1-b): ad has a nice_to_have but NO must_have, and the CV HAS
+        // skills → the ad must_have partition is empty while the CV is present → Vacuous
+        // (the gate-open "ad states no skall-krav" case, never NoMatch). This is the
+        // load-bearing distinction that lets a bare ad still reach Strong/Top (Reading 1).
         var terms = ExtractedTerms.From(
         [
             RequirementTerm(DockerConceptId, DockerDisplay, ExtractedTermSource.NiceToHave),
@@ -379,7 +383,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
         var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
 
-        score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.MustHaveCoverage.Matched.ShouldBeEmpty();
         score.MustHaveCoverage.Missing.ShouldBeEmpty();
     }
@@ -430,11 +434,13 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task ScoreFull_NiceToHaveCoverage_AdHasNoNiceToHaveTerms_IsNotAssessed()
+    public async Task ScoreFull_NiceToHaveCoverage_AdHasNoNiceToHaveTerms_CvPresent_IsVacuous()
     {
         var ct = TestContext.Current.CancellationToken;
-        // Ad has a must_have but no nice_to_have → NiceToHaveCoverage NotAssessed
-        // (the bonus bucket is empty — absence never penalises; never NoMatch).
+        // PR-B1 (RE-BIND G1-b): ad has a must_have but NO nice_to_have, and the CV HAS
+        // skills → the ad nice_to_have partition is empty while the CV is present →
+        // Vacuous (the bonus bucket is empty BUT we looked — never NoMatch). NiceToHave
+        // Vacuous is NOT in the Top tie-break set {Match,Partial}.
         var terms = ExtractedTerms.From(
         [
             RequirementTerm(CSharpConceptId, CSharpDisplay, ExtractedTermSource.MustHave),
@@ -446,21 +452,25 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
         var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
 
-        score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.NiceToHaveCoverage.Matched.ShouldBeEmpty();
         score.NiceToHaveCoverage.Missing.ShouldBeEmpty();
     }
 
     // =================================================================
-    // NULL extracted_terms (ad never extracted) → all 3 new dims NotAssessed
+    // NULL / empty extracted_terms (ad never extracted) WITH a CV present → all 3 new
+    // dims VACUOUS (PR-B1 RE-BIND G1-b: ad partition empty, CV present → "we looked,
+    // the ad specifies none"). The no-CV case stays NotAssessed (covered separately by
+    // ScoreFull_SkillOverlap_EmptyCvSkills_IsNotAssessed). Never NoMatch.
     // =================================================================
 
     [Fact]
-    public async Task ScoreFull_NullExtractedTerms_AllThreeNewDimensions_AreNotAssessed()
+    public async Task ScoreFull_NullExtractedTerms_CvPresent_AllThreeNewDimensions_AreVacuous()
     {
         var ct = TestContext.Current.CancellationToken;
         // terms null → extracted_terms NULL (never-extracted; ~76% of corpus
-        // pre-reingest). NotAssessed across the board, never NoMatch.
+        // pre-reingest). The CV HAS skills → each ad partition is empty while the CV is
+        // present → Vacuous across the board, never NoMatch, never NotAssessed.
         var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms: null, ct);
         var profile = FullProfile(CSharpConceptId, DockerConceptId);
 
@@ -468,9 +478,9 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
         var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
 
-        score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
-        score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
-        score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.SkillOverlap.Matched.ShouldBeEmpty();
         score.SkillOverlap.Missing.ShouldBeEmpty();
         score.MustHaveCoverage.Matched.ShouldBeEmpty();
@@ -480,14 +490,34 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task ScoreFull_EmptyExtractedTerms_AllThreeNewDimensions_AreNotAssessed()
+    public async Task ScoreFull_EmptyExtractedTerms_CvPresent_AllThreeNewDimensions_AreVacuous()
     {
         var ct = TestContext.Current.CancellationToken;
         // Extracted-to-empty ('[]') is distinct from NULL but still has no Skill /
-        // Requirement terms → all three NotAssessed.
+        // Requirement terms — and the CV HAS skills → all three Vacuous (ad partition
+        // empty, CV present).
         var jobAdId = await SeedJobAdAsync(
             "Titel", null, null, null, ExtractedTerms.Empty, ct);
         var profile = FullProfile(CSharpConceptId);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+    }
+
+    [Fact]
+    public async Task ScoreFull_NullExtractedTerms_NoCv_AllThreeNewDimensions_AreNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // PR-B1 boundary guard: ad partition empty AND the CV is empty → NotAssessed
+        // (we could not assess), NOT Vacuous. This pins that Vacuous is the ad-empty-but-
+        // CV-PRESENT case only; the no-CV case stays the honest "not assessed v1".
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms: null, ct);
+        var profile = FullProfile(); // empty CV-side skills
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;

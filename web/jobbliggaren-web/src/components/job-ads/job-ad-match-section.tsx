@@ -30,12 +30,16 @@ const MATCH_SETTINGS_HREF = "/installningar#matchning";
 const MATCH_SETTINGS_CTA = "Ställ in matchning";
 
 // Verdict → svenskt civic ord (design-bind §2.B). NoMatch = "Saknas" (neutral,
-// ej röd-alarm); NotAssessed = "Ej bedömt".
+// ej röd-alarm); NotAssessed = "Ej bedömt"; Vacuous = "Inga angivna" (annonsen
+// anger inga krav/kompetenser av den sorten — neutral, ej fel). Vacuous får
+// neutral ink + fylld prick (default), aldrig hålig (det är ett definitivt
+// "inget krävs", inte ett "kunde ej bedömas").
 const VERDICT_WORD: Record<MatchVerdict, string> = {
   Match: "Matchar",
   Partial: "Delvis",
   NoMatch: "Saknas",
   NotAssessed: "Ej bedömt",
+  Vacuous: "Inga angivna",
 };
 
 // Dimensions-ordning + svenska civic-labels (design §2.B). Fast-dimensionerna

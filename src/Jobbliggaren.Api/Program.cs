@@ -297,6 +297,13 @@ app.MapMeJobAdStatusEndpoints();
 app.MapMeJobAdMatchEndpoints();
 app.MapLandingEndpoints();
 
+// DEV-ONLY — not mapped in production; remove before launch (Klas). Throwaway
+// "reset my data" tool so onboarding can be re-tested from scratch. Gated on
+// IsDevelopment() so the /api/v1/dev/* routes never exist in a deployed env
+// (defense in depth — the FE button is dev-gated too).
+if (app.Environment.IsDevelopment())
+    app.MapDevEndpoints();
+
 app.Run();
 
 public partial class Program;

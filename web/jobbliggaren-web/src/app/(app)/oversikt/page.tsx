@@ -10,6 +10,7 @@ import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
 import { WelcomeSetupModal } from "@/components/onboarding/welcome-setup-modal";
+import { ResetMyDataNote } from "@/components/dev/reset-my-data-note";
 
 /** CV-importflödets route (wizardens yrkes-steg tom-state-länk). */
 const IMPORT_CV_HREF = "/cv/importera";
@@ -110,6 +111,9 @@ export default async function OversiktRoute() {
           importCvHref={IMPORT_CV_HREF}
         />
       )}
+      {/* DEV-ONLY — not rendered in production; remove before launch (Klas).
+          Lets Klas wipe his own test data and re-run onboarding from scratch. */}
+      {process.env.NODE_ENV !== "production" && <ResetMyDataNote />}
     </>
   );
 }

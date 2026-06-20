@@ -110,7 +110,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         </p>
         <p className="jp-lede">
           Det här är en deterministisk granskning av ditt importerade CV. Inget
-          har ändrats i filen — granskningen pekar bara ut vad du kan förbättra,
+          har ändrats i filen. Granskningen pekar bara ut vad du kan förbättra,
           med citerad evidens ur din egen text.
         </p>
       </header>

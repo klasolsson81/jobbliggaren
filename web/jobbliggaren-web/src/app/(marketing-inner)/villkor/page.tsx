@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Användarvillkor — Jobbliggaren",
+  title: "Användarvillkor",
   description:
-    "Jobbliggarens användarvillkor. Sluten beta — full text publiceras innan första öppna registrering.",
+    "Jobbliggarens användarvillkor. Sluten beta: full text publiceras innan första öppna registrering.",
 };
 
 /**
@@ -34,7 +34,7 @@ export default function VillkorPage() {
           </p>
           <ul className="flex flex-col gap-2 text-body text-text-secondary">
             <li>
-              Tjänsten levereras i befintligt skick — funktioner kan ändras
+              Tjänsten levereras i befintligt skick. Funktioner kan ändras
               eller tillkomma.
             </li>
             <li>

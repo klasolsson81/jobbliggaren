@@ -135,7 +135,7 @@ export function MatchPreferencesDialog({
             className="jp-matchdialog__intro"
           >
             Sök och välj yrken, regioner och anställningsformer. Valda visas
-            överst i varje del — ta bort med kryssikonen.
+            överst i varje del. Ta bort med kryssikonen.
           </DialogDescription>
           {/* Stäng-knappen = shadcn/radix Close inbyggd i DialogContent (civic-
               restylad i globals.css), inte en egen knapp — undviker dubblerad

@@ -61,12 +61,12 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
               </td>
               <td className="font-mono text-[11.5px] text-text-secondary">
                 {entry.ipAddress ?? (
-                  <span className="text-text-tertiary">—</span>
+                  <span className="text-text-tertiary">–</span>
                 )}
               </td>
               <td className="max-w-xs truncate text-text-secondary" title={entry.userAgent ?? undefined}>
                 {entry.userAgent ?? (
-                  <span className="text-text-tertiary">—</span>
+                  <span className="text-text-tertiary">–</span>
                 )}
               </td>
             </tr>

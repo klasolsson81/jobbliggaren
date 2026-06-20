@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Cookies — Jobbliggaren",
+  title: "Cookies",
   description:
     "Information om cookies på Jobbliggaren. Endast nödvändiga cookies används under sluten beta.",
 };

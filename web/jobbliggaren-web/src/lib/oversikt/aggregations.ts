@@ -121,7 +121,7 @@ const SV_MONTHS_SHORT = [
 
 /**
  * Svensk kortform "13 maj" (CLAUDE.md §10.2 — "14 apr 2026" eller "13 maj").
- * Returnerar "—" vid ogiltig input istället för att kasta.
+ * Returnerar "–" vid ogiltig input istället för att kasta.
  *
  * Lokal kalenderdag-trunkering: använder klientens lokala tidszon (server
  * körs UTC men UI:t serverrenderas och hydrerar identiskt — datum-strings
@@ -129,7 +129,7 @@ const SV_MONTHS_SHORT = [
  */
 export function formatSwedishShortDate(isoString: string): string {
   const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "–";
   return `${d.getDate()} ${SV_MONTHS_SHORT[d.getMonth()]}`;
 }
 

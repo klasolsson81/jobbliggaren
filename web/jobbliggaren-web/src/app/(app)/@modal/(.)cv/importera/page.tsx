@@ -26,7 +26,7 @@ export default async function InterceptedCvImportModal() {
   return (
     <RouteModalShell
       title="Importera CV"
-      description="Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning — ditt CV ändras inte."
+      description="Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte."
     >
       <div className="jp-modal__body">
         <CvUploadForm />

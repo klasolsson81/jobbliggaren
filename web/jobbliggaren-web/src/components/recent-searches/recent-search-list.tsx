@@ -45,7 +45,7 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
     return (
       <div className="jp-empty">
         <div className="jp-empty__title">Inga senaste sökningar</div>
-        Gör en sökning under Jobb — den sparas här automatiskt.
+        Gör en sökning under Jobb. Den sparas här automatiskt.
       </div>
     );
   }

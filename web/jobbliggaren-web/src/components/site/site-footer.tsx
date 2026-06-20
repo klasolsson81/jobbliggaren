@@ -11,7 +11,7 @@ export function SiteFooter() {
     <footer className="border-t border-border bg-surface-primary py-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-3 px-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-body-sm text-text-secondary">
-          © Jobbliggaren — sluten beta
+          © Jobbliggaren · sluten beta
         </p>
         <nav aria-label="Sidfot" className="flex flex-wrap gap-4">
           <Link

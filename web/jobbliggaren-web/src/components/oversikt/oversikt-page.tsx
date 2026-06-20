@@ -102,7 +102,7 @@ export function OversiktPage({
       text: (
         <>
           <b>{offerCompany}</b>
-          {offerTitle ? ` — ${offerTitle}` : ""}. Erbjudande väntar svar.
+          {offerTitle ? `: ${offerTitle}` : ""}. Erbjudande väntar svar.
         </>
       ),
       cta: "Granska erbjudande",
@@ -189,7 +189,7 @@ export function OversiktPage({
       text: (
         <>
           Det finns <b>{OVERSIKT_MOCK.matchCountThisWeek} nya annonser</b> som
-          matchar din profil sedan i tisdags — de flesta inom{" "}
+          matchar din profil sedan i tisdags, de flesta inom{" "}
           <em>{OVERSIKT_MOCK.matchSegmentLabel}</em>.
         </>
       ),

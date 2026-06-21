@@ -29,7 +29,7 @@ export function PersonnummerWarning({
         <p className="jp-pnr-warning__body">
           Vi hittade {personnummer.count}{" "}
           {personnummer.count === 1 ? "förekomst" : "förekomster"} av det som
-          ser ut som personnummer. Personnummer behövs inte i ett CV — ta bort
+          ser ut som personnummer. Personnummer behövs inte i ett CV. Ta bort
           det innan du sparar.
         </p>
       </div>

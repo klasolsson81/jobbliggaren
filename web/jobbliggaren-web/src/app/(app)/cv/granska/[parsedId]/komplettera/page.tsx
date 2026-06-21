@@ -82,7 +82,7 @@ export default async function CvGapFillPage({ params }: Props) {
         <h1 className="jp-h1">Komplettera och spara CV</h1>
         <p className="jp-lede">
           Vi har fyllt i det parsern hittade i din fil. Komplettera de fält som
-          krävs — särskilt datum, som parsern aldrig gissar — och spara för att
+          krävs (särskilt datum, som parsern aldrig gissar) och spara för att
           skapa ditt CV.
         </p>
       </header>

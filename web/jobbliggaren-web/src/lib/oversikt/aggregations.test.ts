@@ -120,7 +120,7 @@ describe("formatSwedishShortDate", () => {
   });
 
   it("returnerar streck för ogiltigt datum", () => {
-    expect(formatSwedishShortDate("not-a-date")).toBe("—");
+    expect(formatSwedishShortDate("not-a-date")).toBe("–");
   });
 });
 

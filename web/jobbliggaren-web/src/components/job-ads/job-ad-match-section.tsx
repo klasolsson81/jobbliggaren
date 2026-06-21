@@ -248,7 +248,7 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
             color: "var(--jp-ink-2)",
           }}
         >
-          Ladda upp ett CV för att matcha på kompetenser och krav — det krävs för
+          Ladda upp ett CV för att matcha på kompetenser och krav. Det krävs för
           Stark match och Toppmatch.{" "}
           <Link
             href={CV_IMPORT_HREF}

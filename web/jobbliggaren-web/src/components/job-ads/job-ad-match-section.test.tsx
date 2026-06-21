@@ -155,7 +155,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
       />
     );
     expect(
-      screen.getByText(/det krävs för Stark match och Toppmatch/)
+      screen.getByText(/Det krävs för Stark match och Toppmatch/)
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Ladda upp CV" });
     expect(link).toHaveAttribute("href", "/cv/importera");

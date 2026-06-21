@@ -55,7 +55,7 @@ export const OVERSIKT_MOCK: OversiktMock = {
     {
       id: "ev-1",
       time: "10:30",
-      title: "Telefonscreening — Klarna",
+      title: "Telefonscreening: Klarna",
       where: "Rebecca Lind, rekryterare",
       source: "jobbliggaren",
     },

@@ -29,7 +29,7 @@ export function LandingTopbar({ stats }: { stats: LandingStats }) {
   return (
     <header className="jp-land-top">
       <div className="jp-land-top__inner">
-        <Link href="/" className="jp-brand" aria-label="Jobbliggaren — startsida">
+        <Link href="/" className="jp-brand" aria-label="Jobbliggaren, startsida">
           <BrandLogo />
         </Link>
         <div className="jp-land-top__right">

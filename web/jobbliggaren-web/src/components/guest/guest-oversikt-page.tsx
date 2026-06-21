@@ -44,7 +44,7 @@ export function GuestOversiktPage() {
       label: "Erbjudande",
       text: (
         <>
-          <b>{latestOffer.company}</b> — {latestOffer.role}. Erbjudande
+          <b>{latestOffer.company}</b>: {latestOffer.role}. Erbjudande
           väntar svar.
         </>
       ),
@@ -91,7 +91,7 @@ export function GuestOversiktPage() {
     text: (
       <>
         Det finns <b>{OVERSIKT_MOCK.matchCountThisWeek} nya annonser</b>{" "}
-        som matchar profilen — de flesta inom{" "}
+        som matchar profilen, de flesta inom{" "}
         <em>{OVERSIKT_MOCK.matchSegmentLabel}</em>.
       </>
     ),
@@ -206,7 +206,7 @@ export function GuestOversiktPage() {
               />
               <SummaryRow
                 label="Senast uppdaterat CV"
-                value={resumes[0]?.updatedAtLabel ?? "—"}
+                value={resumes[0]?.updatedAtLabel ?? "–"}
               />
               <SummaryRow
                 label="Demo aktiv sedan"

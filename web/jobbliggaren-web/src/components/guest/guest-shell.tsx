@@ -45,7 +45,7 @@ export function GuestShell({ children }: { children: ReactNode }) {
           <Link
             href="/"
             className="jp-brand"
-            aria-label="Jobbliggaren — till startsidan"
+            aria-label="Jobbliggaren, startsida"
           >
             <BrandLogo />
           </Link>

@@ -58,7 +58,7 @@ export function GuestWelcomeModal({ showWelcome }: GuestWelcomeModalProps) {
           <DialogTitle>Välkommen till demoläget</DialogTitle>
           <DialogDescription>
             Du utforskar Jobbliggaren utan att logga in. Allt innehåll är
-            exempeldata — inga riktiga ansökningar eller CV.
+            exempeldata, inga riktiga ansökningar eller CV.
           </DialogDescription>
         </DialogHeader>
 

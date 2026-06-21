@@ -35,9 +35,23 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// </para>
 ///
 /// Mirrors <see cref="MatchSortOracleTests"/> (the F4-14 ladder oracle) for the shadow-column
-/// seeding + the unique-municipality test-run isolation, extended with
+/// seeding + the unique-worktime-extent test-run isolation, extended with
 /// <c>SetExtractedTerms</c> for the skill-overlap signal (parity
 /// <see cref="FullMatchScorerIntegrationTests"/>).
+///
+/// <para>
+/// <b>Spår 3 PR-C (ADR 0076-amendment 2026-06-21; architect NOTE-3) — run-isolation moved off
+/// municipality:</b> the SQL match-sort now reads the municipality shadow as part of the
+/// ort-union (region ∪ municipality). A municipality run-isolation key would therefore become a
+/// SPURIOUS ort signal (every isolated ad would share a preferred/non-preferred kommun and skew
+/// its grade). The run tag is now the grade-neutral worktime-extent (payload key
+/// <c>working_hours_type</c> → <c>worktime_extent_concept_id</c> shadow), which the grade never
+/// reads — EXACTLY the move PR-B made to <see cref="MatchSortOracleTests"/>. Municipality is left
+/// FREE as a genuine ort signal: the golden-via-municipality-hit case below proves the golden
+/// top-skill lift fires when the ort confirmation comes via a kommun hit, not only a region hit.
+/// All existing golden-rung semantics are preserved (the golden ads stay Strong-band via
+/// region = PrefRegion).
+/// </para>
 ///
 /// RED until F4-15 widens <c>SearchByMatchAsync</c> to FullCandidateMatchProfile AND adds
 /// the golden top tier to the ORDER BY.
@@ -71,16 +85,34 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
                 SsykGroupConceptIds: [PrefGroup],
                 PreferredRegionConceptIds: [PrefRegion],
                 PreferredEmploymentTypeConceptIds: [PrefEmployment],
-                // Spår 3 PR-A — 5:e dimension; tom (municipality testas i PR-B, ej här).
+                // Region-only ort preference; the municipality-hit golden case states a
+                // municipality pref via ProfileWithMunicipality (Spår 3 PR-C).
                 PreferredMunicipalityConceptIds: []),
             cvSkillConceptIds);
 
-    private static JobAdFilterCriteria FilterFor(string runMunicipality) => new(
+    // Spår 3 PR-C — the golden-via-municipality-hit profile: states a municipality ort
+    // preference (region pref EMPTY) so the Strong-band confirmation comes via the KOMMUN leg
+    // of the ort union, not the region leg. The CV skill set still drives the golden lift.
+    private static FullCandidateMatchProfile ProfileWithMunicipality(
+        string preferredMunicipality, params string[] cvSkillConceptIds) =>
+        new(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: [PrefGroup],
+                PreferredRegionConceptIds: [],
+                PreferredEmploymentTypeConceptIds: [PrefEmployment],
+                PreferredMunicipalityConceptIds: [preferredMunicipality]),
+            cvSkillConceptIds);
+
+    // Filter on the unique test-run worktime-extent only (Spår 3 PR-C: moved off municipality —
+    // the grade now reads municipality as an ort signal, so the run-isolation key rides the
+    // grade-neutral worktime-extent instead; mirrors MatchSortOracleTests.FilterFor).
+    private static JobAdFilterCriteria FilterFor(string runWorktimeExtent) => new(
         OccupationGroup: [],
-        Municipality: [runMunicipality],
+        Municipality: [],
         Region: [],
         EmploymentType: [],
-        WorktimeExtent: [],
+        WorktimeExtent: [runWorktimeExtent],
         Q: null);
 
     private static ExtractedTerm SkillTerm(string conceptId, string display) =>
@@ -89,16 +121,20 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
             Source: ExtractedTermSource.Description, MatchedOn: display,
             ConceptId: conceptId, Weight: 1);
 
-    // Seeds an ad with the test-run municipality (isolation), the grade shadows, and an
-    // optional skill term (→ STORED extracted_lexemes GIN for the ?| overlap).
+    // Seeds an ad with the test-run worktime-extent (grade-neutral isolation — Spår 3 PR-C),
+    // the grade shadows, an OPTIONAL genuine municipality ort value, and an optional skill term
+    // (→ STORED extracted_lexemes GIN for the ?| overlap). The run-isolation key rides the
+    // TOP-LEVEL working_hours_type → worktime_extent_concept_id shadow (which the grade never
+    // reads); municipality is now a FREE ort signal under workplace_address (default null).
     private async Task<JobAdId> SeedJobAdAsync(
-        string runMunicipality,
+        string runWorktimeExtent,
         string? occupationGroupConceptId,
         string? regionConceptId,
         string? employmentTypeConceptId,
         DateTimeOffset publishedAt,
         ExtractedTerms? terms,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? municipalityConceptId = null)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -108,7 +144,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
 
         var rawPayload = BuildRawPayload(
             externalId, occupationGroupConceptId, regionConceptId,
-            runMunicipality, employmentTypeConceptId);
+            runWorktimeExtent, employmentTypeConceptId, municipalityConceptId);
 
         var jobAd = JobAd.Import(
             title: "Golden-annons",
@@ -129,22 +165,24 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         return jobAd.Id;
     }
 
+    // occupation_group + employment_type + working_hours_type (the run-isolation worktime-extent)
+    // are TOP-LEVEL; region AND municipality (both ort-union grade inputs) live under
+    // workplace_address — only the present location key(s). Both location ids null →
+    // workplace_address null (both ort shadows NULL). Parity
+    // MatchScorerIntegrationTests.BuildWorkplaceAddressJson + MatchSortOracleTests.BuildRawPayload.
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,
         string? regionConceptId,
-        string municipalityConceptId,
-        string? employmentTypeConceptId)
+        string runWorktimeExtentConceptId,
+        string? employmentTypeConceptId,
+        string? municipalityConceptId = null)
     {
         var groupJson = occupationGroupConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
 
-        var regionPart = regionConceptId is null
-            ? string.Empty
-            : $"\"region_concept_id\":\"{regionConceptId}\",";
-        var addressJson =
-            $"{{{regionPart}\"municipality_concept_id\":\"{municipalityConceptId}\"}}";
+        var addressJson = BuildWorkplaceAddressJson(regionConceptId, municipalityConceptId);
 
         var employmentJson = employmentTypeConceptId is null
             ? "null"
@@ -154,10 +192,37 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
             $"{{\"id\":\"{externalId}\","
             + $"\"occupation_group\":{groupJson},"
             + $"\"workplace_address\":{addressJson},"
-            + $"\"employment_type\":{employmentJson}}}";
+            + $"\"employment_type\":{employmentJson},"
+            + $"\"working_hours_type\":{{\"concept_id\":\"{runWorktimeExtentConceptId}\"}}}}";
     }
 
-    private static string NewRunMunicipality() => $"kn-golden-{Guid.NewGuid():N}"[..20];
+    // workplace_address carries only the present location key(s): both null → "null" (both ort
+    // shadows NULL); region only → {"region_concept_id":...}; municipality only →
+    // {"municipality_concept_id":...}; both → both keys. Parity
+    // MatchScorerIntegrationTests.BuildWorkplaceAddressJson.
+    private static string BuildWorkplaceAddressJson(
+        string? regionConceptId, string? municipalityConceptId)
+    {
+        if (regionConceptId is null && municipalityConceptId is null)
+        {
+            return "null";
+        }
+
+        var keys = new List<string>(2);
+        if (regionConceptId is not null)
+        {
+            keys.Add($"\"region_concept_id\":\"{regionConceptId}\"");
+        }
+
+        if (municipalityConceptId is not null)
+        {
+            keys.Add($"\"municipality_concept_id\":\"{municipalityConceptId}\"");
+        }
+
+        return $"{{{string.Join(",", keys)}}}";
+    }
+
+    private static string NewRunWorktimeExtent() => $"wt-golden-{Guid.NewGuid():N}"[..20];
 
     // =================================================================
     // 10. The full ladder with the golden top tier:
@@ -168,7 +233,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
     public async Task SearchByMatch_WithCvSkills_GoldenStrongSortsAbovePlainStrong_ThenF4_14Ladder()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
@@ -211,7 +276,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
     public async Task SearchByMatch_WithEmptyCvSkills_NoGoldenLift_OrderEqualsF4_14()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
@@ -245,7 +310,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
     public async Task SearchByMatch_WithinGoldenTier_OrdersByPublishedAtDescThenId()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
@@ -277,6 +342,55 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         orderedIds.IndexOf(canonical[0].Value)
             .ShouldBeLessThan(orderedIds.IndexOf(canonical[1].Value),
                 "Lika publishedAt bryts deterministiskt på Id (.ThenBy(j => j.Id)).");
+    }
+
+    // =================================================================
+    // 13. Spår 3 PR-C — the golden top-skill lift fires when the ort confirmation comes via a
+    //     MUNICIPALITY hit (region null / non-preferred, municipality preferred) rather than a
+    //     region hit. PROVES the golden tier's Strong-band precondition reads the ort UNION
+    //     (region-hit OR municipality-hit), not a bare region hit — so a kommun-confirmed Strong
+    //     ad with a shared CV skill still earns the golden lift above a plain kommun-confirmed
+    //     Strong. The profile states a MUNICIPALITY ort pref (region pref empty).
+    // =================================================================
+
+    [Fact]
+    public async Task SearchByMatch_WithCvSkills_GoldenStrongViaMunicipalityHit_SortsAbovePlainMunicipalityStrong()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        const string prefMunicipality = "kn-golden-pref-0001";
+
+        // Both ads are Strong via the MUNICIPALITY leg of the ort union: region is non-preferred
+        // (the profile states NO region pref) but municipality = prefMunicipality (hit) →
+        // ort Match → occ + ort + employment all Match → Strong-band. The golden ad ALSO shares
+        // the CV skill; the plain ad does not. The golden ad is published OLDER, so if the golden
+        // lift did NOT fire (e.g. the precondition read region-only and missed the kommun hit),
+        // the NEWER plain ad would sort first. The golden lift must override the tie-break.
+        var goldenViaMunicipalityOlder = await SeedJobAdAsync(
+            run, PrefGroup, regionConceptId: null, PrefEmployment, t.AddDays(1), goldenTerms, ct,
+            municipalityConceptId: prefMunicipality);
+        var plainMunicipalityStrongNewer = await SeedJobAdAsync(
+            run, PrefGroup, regionConceptId: null, PrefEmployment, t.AddDays(2), terms: null, ct,
+            municipalityConceptId: prefMunicipality);
+
+        var (scope, matchSort) = NewMatchSort();
+        using var _ = scope;
+        var page = await matchSort.SearchByMatchAsync(
+            FilterFor(run), ProfileWithMunicipality(prefMunicipality, CvSkillConceptId),
+            page: 1, pageSize: 100, since: null, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.Count.ShouldBe(2, "Båda annonserna ska returneras.");
+        orderedIds.IndexOf(goldenViaMunicipalityOlder.Value)
+            .ShouldBeLessThan(orderedIds.IndexOf(plainMunicipalityStrongNewer.Value),
+                "Golden-lyften ska tända även när Strong-bandet bekräftas via en KOMMUN-träff " +
+                "(region ej föredragen) — golden-precondition läser ort-UNIONEN (region-träff " +
+                "ELLER kommun-träff), inte en bar region-träff. Den äldre golden-annonsen ska " +
+                "därför ligga ÖVER den nyare plain-Strong (golden-lyften överrider tie-breaken).");
     }
 
     private async Task<List<JobAdId>> CanonicalIdOrderAsync(

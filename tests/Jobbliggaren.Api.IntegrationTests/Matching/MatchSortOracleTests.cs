@@ -76,6 +76,13 @@ public class MatchSortOracleTests(ApiFactory factory)
     private const string OtherRegion = "reg-oracle-other";
     private const string OtherEmployment = "emp-oracle-other";
 
+    // Spår 3 PR-C — the ort-union (region ∪ municipality) constants. PrefMunicipality is the
+    // candidate's stated kommun preference; OtherMunicipality is a present-but-non-preferred
+    // kommun the ad can carry to force the "same län, different kommun" NoMatch (the ort
+    // floor) without ever touching the region dimension.
+    private const string PrefMunicipality = "mun-oracle-pref";
+    private const string OtherMunicipality = "mun-oracle-other";
+
     // ---------------------------------------------------------------
     // SUT factory — the REAL wired match-sort query from DI (proving the
     // registration + the EF translation of the rank ORDER BY), plus a held scope.
@@ -104,15 +111,33 @@ public class MatchSortOracleTests(ApiFactory factory)
     // F4-15 (ADR 0076 Decision 6): SearchByMatchAsync now takes a FullCandidateMatchProfile.
     // This F4-14-ladder oracle exercises the GRADE ladder only (no CV skills) → an EMPTY
     // CvSkillConceptIds, which produces NO golden lift (order ≡ F4-14). The golden top tier
-    // is pinned separately in MatchSortGoldenRungOracleTests.
+    // is pinned separately in MatchSortGoldenRungOracleTests. This base profile states a
+    // REGION ort preference but NO municipality (the legacy region-only cases); the ort-union
+    // cases below state both via ProfileWithOrt.
     private static FullCandidateMatchProfile Profile() => new(
         new CandidateMatchProfile(
             Title: string.Empty,
             SsykGroupConceptIds: [PrefGroup],
             PreferredRegionConceptIds: [PrefRegion],
             PreferredEmploymentTypeConceptIds: [PrefEmployment],
-            // Spår 3 PR-A — 5:e dimension; tom (municipality testas i PR-B, ej här).
+            // Region-only ort preference (the legacy cases); the union cases use ProfileWithOrt.
             PreferredMunicipalityConceptIds: []),
+        CvSkillConceptIds: []);
+
+    // Spår 3 PR-C — a profile that STATES the ort-union: a region preference AND a
+    // municipality preference (region ∪ municipality). The grade reads the ort-union RegionFit
+    // verdict from BOTH lists, so this drives the region-hit / municipality-hit / both-hit /
+    // floor / NotAssessed sort cases. SSYK + employment are stated as usual so the grade ladder
+    // is reachable; CvSkillConceptIds stays empty (no golden lift — pure F4-14 ladder).
+    private static FullCandidateMatchProfile ProfileWithOrt(
+        IReadOnlyList<string> preferredRegions,
+        IReadOnlyList<string> preferredMunicipalities) => new(
+        new CandidateMatchProfile(
+            Title: string.Empty,
+            SsykGroupConceptIds: [PrefGroup],
+            PreferredRegionConceptIds: preferredRegions,
+            PreferredEmploymentTypeConceptIds: [PrefEmployment],
+            PreferredMunicipalityConceptIds: preferredMunicipalities),
         CvSkillConceptIds: []);
 
     // Filter on the unique test-run worktime-extent only → exactly the seeded ads,
@@ -131,10 +156,19 @@ public class MatchSortOracleTests(ApiFactory factory)
     // ---------------------------------------------------------------
     // Seeding — raw_payload drives the STORED shadow columns. occupation_group +
     // employment_type + working_hours_type (the run-isolation worktime-extent) are
-    // TOP-LEVEL; region lives under workplace_address (parity MatchScorerIntegrationTests
-    // + JobAdGeneratedColumnsTests). null group/region/employment → key omitted → that
-    // shadow column is NULL (the NotAssessed-by-NULL path). publishedAt is explicit so we
-    // can prove the tie-break within a grade.
+    // TOP-LEVEL; region AND municipality live under workplace_address (parity
+    // MatchScorerIntegrationTests + JobAdGeneratedColumnsTests). null group/region/
+    // employment → key omitted → that shadow column is NULL (the NotAssessed-by-NULL
+    // path). publishedAt is explicit so we can prove the tie-break within a grade.
+    // <para>
+    // Spår 3 PR-C (ADR 0076-amendment 2026-06-21): the OPTIONAL municipalityConceptId
+    // (default null, LAST positional arg) re-adds the kommun seed dimension that PR-B
+    // moved off the run-isolation key. It is SEPARATE from the worktime-extent run tag
+    // (which stays the grade-neutral isolation): municipality is a GENUINE ort signal the
+    // ort-union grade reads, worktime-extent is the filter we isolate on. With
+    // municipalityConceptId == null every pre-existing case is byte-for-byte the old
+    // region-only payload (workplace_address carries only the present location key(s)).
+    // </para>
     // ---------------------------------------------------------------
     private async Task<JobAdId> SeedJobAdAsync(
         string runWorktimeExtent,
@@ -142,7 +176,8 @@ public class MatchSortOracleTests(ApiFactory factory)
         string? regionConceptId,
         string? employmentTypeConceptId,
         DateTimeOffset publishedAt,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? municipalityConceptId = null)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -152,7 +187,7 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var rawPayload = BuildRawPayload(
             externalId, occupationGroupConceptId, regionConceptId,
-            runWorktimeExtent, employmentTypeConceptId);
+            runWorktimeExtent, employmentTypeConceptId, municipalityConceptId);
 
         var jobAd = JobAd.Import(
             title: "Oracle-annons",
@@ -170,26 +205,27 @@ public class MatchSortOracleTests(ApiFactory factory)
         return jobAd.Id;
     }
 
-    // workplace_address carries region_concept_id (grade input) only; the test-run
+    // workplace_address carries region_concept_id AND/OR municipality_concept_id (both grade
+    // inputs to the ort-union RegionFit) — exactly the present location key(s); the test-run
     // isolation key rides the TOP-LEVEL working_hours_type → worktime_extent_concept_id
     // shadow (NAMNGLAPP: column worktime_extent ↔ payload working_hours_type), which the
-    // grade never reads. A null region → workplace_address null (region shadow NULL, the
-    // NotAssessed-by-NULL path); no municipality is seeded here (kept free for PR-C's
-    // genuine ort-union sort cases).
+    // grade never reads. Both location ids null → workplace_address null (both ort shadows
+    // NULL, the NotAssessed-by-NULL path); region-present + municipality-null is byte-for-byte
+    // the legacy single-key shape (so every pre-PR-C case is unaffected). Parity
+    // MatchScorerIntegrationTests.BuildWorkplaceAddressJson.
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,
         string? regionConceptId,
         string runWorktimeExtentConceptId,
-        string? employmentTypeConceptId)
+        string? employmentTypeConceptId,
+        string? municipalityConceptId = null)
     {
         var groupJson = occupationGroupConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
 
-        var addressJson = regionConceptId is null
-            ? "null"
-            : $"{{\"region_concept_id\":\"{regionConceptId}\"}}";
+        var addressJson = BuildWorkplaceAddressJson(regionConceptId, municipalityConceptId);
 
         var employmentJson = employmentTypeConceptId is null
             ? "null"
@@ -201,6 +237,33 @@ public class MatchSortOracleTests(ApiFactory factory)
             + $"\"workplace_address\":{addressJson},"
             + $"\"employment_type\":{employmentJson},"
             + $"\"working_hours_type\":{{\"concept_id\":\"{runWorktimeExtentConceptId}\"}}}}";
+    }
+
+    // workplace_address carries only the present location key(s): both null → "null" (both
+    // ort shadows NULL); region only → {"region_concept_id":...} (legacy shape, NULL
+    // municipality shadow — the impl-trap NULL-municipality case); municipality only →
+    // {"municipality_concept_id":...} (NULL region shadow); both → both keys. Parity
+    // MatchScorerIntegrationTests.BuildWorkplaceAddressJson.
+    private static string BuildWorkplaceAddressJson(
+        string? regionConceptId, string? municipalityConceptId)
+    {
+        if (regionConceptId is null && municipalityConceptId is null)
+        {
+            return "null";
+        }
+
+        var keys = new List<string>(2);
+        if (regionConceptId is not null)
+        {
+            keys.Add($"\"region_concept_id\":\"{regionConceptId}\"");
+        }
+
+        if (municipalityConceptId is not null)
+        {
+            keys.Add($"\"municipality_concept_id\":\"{municipalityConceptId}\"");
+        }
+
+        return $"{{{string.Join(",", keys)}}}";
     }
 
     private static string NewRunWorktimeExtent() => $"wt-oracle-{Guid.NewGuid():N}"[..20];
@@ -442,6 +505,250 @@ public class MatchSortOracleTests(ApiFactory factory)
             "NotAssessed (NULL-shadow) ska rangordnas HÖGRE än NoMatch (motsägande shadow) " +
             "— SQL-ranken får inte behandla NULL som 'inte i listan' (klassiska " +
             "!list.Contains(col)-buggen).");
+    }
+
+    // ===============================================================
+    // 4b. Spår 3 PR-C — the ORT-UNION grade-SSOT oracle. The SQL ORDER BY folds municipality
+    //     into the ort secondary, EXACTLY mirroring MatchScorer.ScoreOrtUnion: ortConfirmed =
+    //     (regions.Contains(adRegion) OR municipalities.Contains(adMunicipality)); ortContradicts
+    //     (floors to Basic) = (regionsStated OR municipalitiesStated) AND (adRegion!=null OR
+    //     adMunicipality!=null) AND NOT(regionHit OR municipalityHit). The profile states BOTH a
+    //     region AND a municipality preference, so the SQL rank must equal
+    //     MatchGradeCalculator.Grade(scorer output) over the FULL set of reachable ort-union
+    //     tuples — same anti-drift contract as #1, now exercised through the union.
+    // ===============================================================
+
+    [Fact]
+    public async Task SearchByMatch_OrtUnion_OrderingEqualsGradeSsot_AcrossEveryReachableOrtTuple()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // Profile STATES region=[PrefRegion] AND municipality=[PrefMunicipality] (the ort
+        // union) plus employment=[PrefEmployment]. Employment is held Match on every tagged ad
+        // so the grade varies ONLY on the ort dimension — the cleanest ort-union ladder:
+        //   ort Match (any union hit) + employment Match → 2 confirmed → Strong
+        //   ort NotAssessed (ad has neither ort value) + employment Match → 1 confirmed → Good
+        //   ort NoMatch (ad has ort value(s), no union hit) → RB1 floor → Basic
+        // Each seeded with a distinct municipality/region tuple covering every reachable ort
+        // verdict reachable through the union.
+        var seeded = new List<JobAdId>
+        {
+            // --- Strong via REGION hit (adRegion=PrefRegion, adMun=null).
+            await SeedJobAdAsync(run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(20), ct,
+                municipalityConceptId: null),
+            // --- Strong via MUNICIPALITY hit, region NULL (adRegion=null, adMun=PrefMunicipality).
+            await SeedJobAdAsync(run, PrefGroup, null, PrefEmployment, t.AddDays(19), ct,
+                municipalityConceptId: PrefMunicipality),
+            // --- Strong via MUNICIPALITY hit, region NON-preferred (adRegion=OtherRegion,
+            //     adMun=PrefMunicipality) — the union hit carries the Match even though the ad's
+            //     region is not preferred (the bare-region sort would WRONGLY miss this).
+            await SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, t.AddDays(18), ct,
+                municipalityConceptId: PrefMunicipality),
+            // --- Strong via BOTH hit (adRegion=PrefRegion, adMun=PrefMunicipality).
+            await SeedJobAdAsync(run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(17), ct,
+                municipalityConceptId: PrefMunicipality),
+
+            // --- Good — ort NotAssessed (ad has NEITHER ort value) + employment Match.
+            await SeedJobAdAsync(run, PrefGroup, null, PrefEmployment, t.AddDays(12), ct,
+                municipalityConceptId: null),
+
+            // --- Basic — same län different kommun: ad HAS a (non-preferred) region AND a
+            //     (non-preferred) municipality, no union hit → ort NoMatch → RB1 floor.
+            await SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, t.AddDays(8), ct,
+                municipalityConceptId: OtherMunicipality),
+            // --- Basic — municipality-only NoMatch: ad has a non-preferred municipality, NULL
+            //     region, no union hit → ort NoMatch → RB1 floor (the municipality NoMatch must
+            //     floor exactly like a region NoMatch).
+            await SeedJobAdAsync(run, PrefGroup, null, PrefEmployment, t.AddDays(7), ct,
+                municipalityConceptId: OtherMunicipality),
+
+            // --- Untagged (SSYK NoMatch) — sorts last regardless of ort.
+            await SeedJobAdAsync(run, OtherGroup, PrefRegion, PrefEmployment, t.AddDays(3), ct,
+                municipalityConceptId: PrefMunicipality),
+        };
+
+        var profile = ProfileWithOrt([PrefRegion], [PrefMunicipality]);
+        var filter = FilterFor(run);
+
+        var (sortScope, matchSort) = NewMatchSort();
+        using var _ = sortScope;
+        var page = await matchSort.SearchByMatchAsync(
+            filter, profile, page: 1, pageSize: 100, since: null, ct);
+
+        page.Items.Count.ShouldBe(seeded.Count,
+            "Match-sorten ska returnera HELA den filtrerade mängden (otaggade inkluderade).");
+
+        // C# grade-SSOT over the SAME (profile.Fast, ad-shadows) — the ort-union RegionFit the
+        // scorer computes flows into the UNCHANGED grade ladder.
+        var (scoreScope, _, scorer) = NewSearchAndScorer();
+        using var __ = scoreScope;
+        var scores = await scorer.ScoreBatchAsync(seeded, profile.Fast, ct);
+
+        var expectedRankById = seeded.ToDictionary(
+            id => id.Value,
+            id => RankOf(MatchGradeCalculator.Grade(scores[id])));
+
+        // Sanity: the ort-union seed spans Strong / Good / Basic / untagged (3,2,1,0).
+        var distinctRanks = expectedRankById.Values.Distinct().OrderBy(r => r).ToList();
+        distinctRanks.ShouldBe([0, 1, 2, 3],
+            "Ort-union-seeden ska täcka alla fyra rank-hinkar (otaggad/Basic/Good/Strong).");
+
+        // THE ORT-UNION ORACLE: SQL-ordered ranks non-increasing ≡ MatchGradeCalculator over
+        // the ort-union scorer output. If the SQL ORDER BY's ort fold drifts from
+        // MatchScorer.ScoreOrtUnion this breaks.
+        var sqlOrderedRanks = page.Items
+            .Select(dto => expectedRankById[dto.Id])
+            .ToList();
+
+        sqlOrderedRanks.ShouldBe(
+            sqlOrderedRanks.OrderByDescending(r => r).ToList(),
+            "SQL-rankens ort-union-ordning ska vara grad fallande och spegla " +
+            "MatchGradeCalculator över ScoreOrtUnion EXAKT (anti-drift-orakel för ort-unionen). " +
+            $"SQL-ordnade rank: [{string.Join(", ", sqlOrderedRanks)}].");
+    }
+
+    [Fact]
+    public async Task SearchByMatch_OrtUnion_MunicipalityHit_RegionNonPreferred_RanksAsStrong_NotFlooredByRegion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // The load-bearing union case: an ad whose REGION is non-preferred but whose
+        // MUNICIPALITY is preferred must rank as Strong (ort Match via the municipality leg),
+        // NOT be floored to Basic by a bare region-only NoMatch test. Paired against a genuine
+        // ort NoMatch (both ort values non-preferred → Basic) so the rank gap is asserted, not
+        // just the absolute grade.
+        var municipalityHit = await SeedJobAdAsync(
+            run, PrefGroup, OtherRegion, PrefEmployment, t.AddDays(2), ct,
+            municipalityConceptId: PrefMunicipality);
+        var ortNoMatch = await SeedJobAdAsync(
+            run, PrefGroup, OtherRegion, PrefEmployment, t.AddDays(1), ct,
+            municipalityConceptId: OtherMunicipality);
+
+        var profile = ProfileWithOrt([PrefRegion], [PrefMunicipality]);
+
+        // C# SSOT proves the seed: municipality hit → ort Match → Strong; both non-preferred →
+        // ort NoMatch → Basic.
+        var (scoreScope, _, scorer) = NewSearchAndScorer();
+        using var __ = scoreScope;
+        var scores = await scorer.ScoreBatchAsync([municipalityHit, ortNoMatch], profile.Fast, ct);
+        MatchGradeCalculator.Grade(scores[municipalityHit]).ShouldBe(MatchGrade.Strong,
+            "Kommun-träff (region ej föredragen) = ort Match → 2 bekräftade sekundärer → Strong.");
+        MatchGradeCalculator.Grade(scores[ortNoMatch]).ShouldBe(MatchGrade.Basic,
+            "Ingen union-träff (både region och kommun icke-föredragna) → ort NoMatch → Basic.");
+
+        var (sortScope, matchSort) = NewMatchSort();
+        using var ___ = sortScope;
+        var page = await matchSort.SearchByMatchAsync(
+            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.IndexOf(municipalityHit.Value)
+            .ShouldBeLessThan(orderedIds.IndexOf(ortNoMatch.Value),
+                "Kommun-träffen (Strong) ska rangordnas ÖVER ort-NoMatch (Basic) — SQL ORDER BY:n " +
+                "ska läsa kommun-leget i ort-unionen, inte golva på en bar region-NoMatch.");
+    }
+
+    // ===============================================================
+    // 4c. Spår 3 PR-C — the MUNICIPALITY NULL-shadow SQL guard (the TWIN of #4's region test).
+    //     With a STATED municipality preference, an ad with a NULL municipality shadow (and
+    //     NULL region) = ort NotAssessed (does NOT floor) must rank HIGHER than an ad whose
+    //     municipality CONTRADICTS (present, non-preferred) = ort NoMatch (floors to Basic).
+    //     This pins that the SQL ORDER BY does NOT treat a NULL municipality as
+    //     `not contained` (the classic `!list.Contains(col)` bug, which re-appears most easily
+    //     in SQL). The impl-trap pair then proves a region hit survives a NULL municipality.
+    // ===============================================================
+
+    [Fact]
+    public async Task SearchByMatch_StatedMunicipalityPref_NullMunicipalityShadow_RanksHigherThanContradictingShadow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // The profile states ONLY a municipality ort preference (no region) so the ONLY ort
+        // signal is the municipality leg — the cleanest twin of #4's region test.
+        //   notAssessed: region NULL + municipality NULL → ad has NO ort value → ort
+        //                NotAssessed → does NOT floor → employment Match → Good.
+        //   noMatch:     municipality = OtherMunicipality (present, non-preferred), region NULL
+        //                → ad HAS an ort value, no union hit → ort NoMatch → FLOORS to Basic.
+        // A naive `!preferredMunicipalities.Contains(adMunicipality)` in SQL treats the NULL
+        // municipality as "not contained" and would WRONGLY floor the notAssessed ad too.
+        var notAssessed = await SeedJobAdAsync(
+            run, PrefGroup, null, PrefEmployment, t.AddDays(2), ct, municipalityConceptId: null);
+        var noMatch = await SeedJobAdAsync(
+            run, PrefGroup, null, PrefEmployment, t.AddDays(1), ct,
+            municipalityConceptId: OtherMunicipality);
+
+        // Region pref EMPTY, municipality pref STATED → the ort union is municipality-only.
+        var profile = ProfileWithOrt([], [PrefMunicipality]);
+
+        var (scoreScope, _, scorer) = NewSearchAndScorer();
+        using var __ = scoreScope;
+        var scores = await scorer.ScoreBatchAsync([notAssessed, noMatch], profile.Fast, ct);
+        MatchGradeCalculator.Grade(scores[notAssessed]).ShouldBe(MatchGrade.Good,
+            "NULL kommun-shadow (och NULL region) med ANGIVEN kommun-preferens = ort NotAssessed " +
+            "→ golvar EJ (employment Match → Good).");
+        MatchGradeCalculator.Grade(scores[noMatch]).ShouldBe(MatchGrade.Basic,
+            "Motsägande kommun-shadow (present, icke-föredragen) → ort NoMatch → golvar till Basic.");
+
+        var (sortScope, matchSort) = NewMatchSort();
+        using var ___ = sortScope;
+        var page = await matchSort.SearchByMatchAsync(
+            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.IndexOf(notAssessed.Value).ShouldBeLessThan(orderedIds.IndexOf(noMatch.Value),
+            "NotAssessed (NULL kommun-shadow) ska rangordnas HÖGRE än NoMatch (motsägande " +
+            "kommun-shadow) — SQL ORDER BY:n får INTE behandla en NULL-kommun som 'inte i listan' " +
+            "(den klassiska !list.Contains(col)-buggen, som lättast återuppstår i SQL).");
+    }
+
+    [Fact]
+    public async Task SearchByMatch_StatedMunicipalityPref_RegionHit_NullMunicipality_StillRanksAsMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // The impl-trap pair: the profile states BOTH a region AND a municipality preference.
+        // An ad with a REGION hit but a NULL municipality must NOT be floored by the (NULL)
+        // municipality leg — the region hit alone makes the ort union a Match → Strong. Paired
+        // against a genuine ort NoMatch so the rank gap is asserted.
+        //   regionHitNullMun: region=PrefRegion (hit), municipality NULL → ort Match → Strong.
+        //   ortNoMatch:       region=OtherRegion, municipality=OtherMunicipality (both present,
+        //                     non-preferred) → ort NoMatch → Basic.
+        var regionHitNullMun = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(2), ct, municipalityConceptId: null);
+        var ortNoMatch = await SeedJobAdAsync(
+            run, PrefGroup, OtherRegion, PrefEmployment, t.AddDays(1), ct,
+            municipalityConceptId: OtherMunicipality);
+
+        var profile = ProfileWithOrt([PrefRegion], [PrefMunicipality]);
+
+        var (scoreScope, _, scorer) = NewSearchAndScorer();
+        using var __ = scoreScope;
+        var scores = await scorer.ScoreBatchAsync([regionHitNullMun, ortNoMatch], profile.Fast, ct);
+        MatchGradeCalculator.Grade(scores[regionHitNullMun]).ShouldBe(MatchGrade.Strong,
+            "Region-träff + NULL kommun = ort Match (NULL-kommunen får inte golva region-träffen) " +
+            "→ 2 bekräftade sekundärer → Strong.");
+        MatchGradeCalculator.Grade(scores[ortNoMatch]).ShouldBe(MatchGrade.Basic,
+            "Ingen union-träff (båda ort-värden icke-föredragna) → ort NoMatch → Basic.");
+
+        var (sortScope, matchSort) = NewMatchSort();
+        using var ___ = sortScope;
+        var page = await matchSort.SearchByMatchAsync(
+            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.IndexOf(regionHitNullMun.Value)
+            .ShouldBeLessThan(orderedIds.IndexOf(ortNoMatch.Value),
+                "Region-träff med NULL kommun (Strong) ska rangordnas ÖVER ort-NoMatch (Basic) — " +
+                "SQL ORDER BY:n får inte låta en NULL-kommun golva en region-träff (impl-trap CTO C: " +
+                "golvet är det KOMBINERADE predikatet, aldrig en bar !municipalities.Contains).");
     }
 
     // ===============================================================

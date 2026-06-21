@@ -114,7 +114,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         string? regionConceptId,
         string? employmentTypeConceptId,
         ExtractedTerms? terms,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? municipalityConceptId = null)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -123,7 +124,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var rawPayload = BuildRawPayload(
-            externalId, occupationGroupConceptId, regionConceptId, employmentTypeConceptId);
+            externalId, occupationGroupConceptId, regionConceptId, employmentTypeConceptId,
+            municipalityConceptId);
 
         var jobAd = JobAd.Import(
             title: title,
@@ -152,14 +154,13 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         string externalId,
         string? occupationGroupConceptId,
         string? regionConceptId,
-        string? employmentTypeConceptId)
+        string? employmentTypeConceptId,
+        string? municipalityConceptId = null)
     {
         var groupJson = occupationGroupConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
-        var addressJson = regionConceptId is null
-            ? "null"
-            : $"{{\"region_concept_id\":\"{regionConceptId}\"}}";
+        var addressJson = BuildWorkplaceAddressJson(regionConceptId, municipalityConceptId);
         var employmentJson = employmentTypeConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{employmentTypeConceptId}\"}}";
@@ -169,6 +170,30 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             + $"\"occupation_group\":{groupJson},"
             + $"\"workplace_address\":{addressJson},"
             + $"\"employment_type\":{employmentJson}}}";
+    }
+
+    // workplace_address carries only the present location key(s) (parity
+    // MatchScorerIntegrationTests): both null → "null"; region only → legacy single-key
+    // shape; municipality only → NULL region shadow; both → both keys.
+    private static string BuildWorkplaceAddressJson(
+        string? regionConceptId, string? municipalityConceptId)
+    {
+        if (regionConceptId is null && municipalityConceptId is null)
+        {
+            return "null";
+        }
+
+        var keys = new List<string>(2);
+        if (regionConceptId is not null)
+        {
+            keys.Add($"\"region_concept_id\":\"{regionConceptId}\"");
+        }
+        if (municipalityConceptId is not null)
+        {
+            keys.Add($"\"municipality_concept_id\":\"{municipalityConceptId}\"");
+        }
+
+        return $"{{{string.Join(",", keys)}}}";
     }
 
     // A FullCandidateMatchProfile with a minimal embedded Fast profile (only the
@@ -569,6 +594,77 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         fullScore.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         fullScore.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         fullScore.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+    }
+
+    // =================================================================
+    // Spår 3 PR-B (ADR 0076-amendment 2026-06-21) — the embedded Fast RegionFit in
+    // ScoreFullAsync is the ort-union (region ∪ municipality), identical to ScoreAsync's
+    // for the same ad + Fast profile. Pinned for a union MUNICIPALITY hit (the new
+    // granularity) and a union NoMatch — proving the Full path embeds the SAME union,
+    // not the legacy region-only ScoreMembership.
+    // =================================================================
+
+    [Fact]
+    public async Task ScoreFull_EmbeddedFast_RegionFit_IsOrtUnion_MunicipalityHit_EqualsScoreAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var prefMunicipality = $"mun-{Guid.NewGuid():N}"[..12];
+        // adReg not preferred, adMun == prefMunicipality → union Match via municipality.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, $"reg-{Guid.NewGuid():N}"[..12], null, terms: null, ct,
+            municipalityConceptId: prefMunicipality);
+
+        var fast = new CandidateMatchProfile(
+            Title: "Titel",
+            SsykGroupConceptIds: [],
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: [prefMunicipality]);
+        var full = new FullCandidateMatchProfile(fast, []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var fastScore = await scorer.ScoreAsync(jobAdId, fast, ct);
+        var fullScore = await scorer.ScoreFullAsync(jobAdId, full, ct);
+
+        // The embedded Fast RegionFit equals the standalone Fast ScoreAsync RegionFit.
+        AssertSameDimension(fastScore.RegionFit, fullScore.Fast.RegionFit);
+        // And it genuinely scored the union Match via the municipality (not region-only).
+        fullScore.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        fullScore.Fast.RegionFit.Matched.ShouldBe([prefMunicipality]);
+    }
+
+    [Fact]
+    public async Task ScoreFull_EmbeddedFast_RegionFit_IsOrtUnion_NoMatch_EqualsScoreAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = $"reg-{Guid.NewGuid():N}"[..12];
+        var adMunicipality = $"mun-{Guid.NewGuid():N}"[..12];
+        // ort stated (prefs below), ad has BOTH ort values, neither preferred → union NoMatch.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, terms: null, ct,
+            municipalityConceptId: adMunicipality);
+
+        var fast = new CandidateMatchProfile(
+            Title: "Titel",
+            SsykGroupConceptIds: [],
+            PreferredRegionConceptIds: [$"reg-{Guid.NewGuid():N}"[..12]],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: [$"mun-{Guid.NewGuid():N}"[..12]]);
+        var full = new FullCandidateMatchProfile(fast, []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var fastScore = await scorer.ScoreAsync(jobAdId, fast, ct);
+        var fullScore = await scorer.ScoreFullAsync(jobAdId, full, ct);
+
+        AssertSameDimension(fastScore.RegionFit, fullScore.Fast.RegionFit);
+        fullScore.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        // Missing = the ad's present ort values [adRegion, adMunicipality] Ordinal-sorted.
+        fullScore.Fast.RegionFit.Missing.ShouldBe(
+            new[] { adRegion, adMunicipality }.OrderBy(v => v, StringComparer.Ordinal).ToList());
     }
 
     // =================================================================

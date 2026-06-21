@@ -37,10 +37,14 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// </para>
 /// <para>
 /// <b>Isolation against the shared corpus:</b> all seeded ads carry a unique
-/// <c>municipality_concept_id</c> (the test-run tag) and the filter selects on
-/// that municipality only. The grade reads occupation/region/employment shadows,
-/// NOT municipality, so the isolation key never perturbs the grade — every seeded
-/// ad (incl. the untagged ones, SSYK not-Match) is in the filtered mass.
+/// <c>worktime_extent_concept_id</c> (the test-run tag, payload key
+/// <c>working_hours_type</c>) and the filter selects on that worktime-extent only.
+/// The grade reads occupation/region/employment/municipality shadows, NOT
+/// worktime-extent, so the isolation key never perturbs the grade — every seeded ad
+/// (incl. the untagged ones, SSYK not-Match) is in the filtered mass. (Before Spår 3
+/// the run tag was the municipality; the ort-union grade now reads municipality, so the
+/// isolation moved to the grade-neutral worktime-extent — CTO verdict D: separate the
+/// kommun signal from the run-isolation key.)
 /// </para>
 /// <para>
 /// <b>PR-B1 (RE-BIND G3-OPT-A) — the bound sort ≠ requirement-aware grade divergence:</b>
@@ -111,26 +115,29 @@ public class MatchSortOracleTests(ApiFactory factory)
             PreferredMunicipalityConceptIds: []),
         CvSkillConceptIds: []);
 
-    // Filter on the unique test-run municipality only → exactly the seeded ads,
-    // untagged included (municipality is not a grade input).
-    private static JobAdFilterCriteria FilterFor(string runMunicipality) => new(
+    // Filter on the unique test-run worktime-extent only → exactly the seeded ads,
+    // untagged included. Spår 3: the ort-union grade now reads municipality, so the
+    // run-isolation key moved off municipality to worktime-extent — a filterable
+    // dimension the scorer never reads (CTO verdict D: separate the kommun signal from
+    // the run-isolation key). Municipality is left free as a genuine ort signal.
+    private static JobAdFilterCriteria FilterFor(string runWorktimeExtent) => new(
         OccupationGroup: [],
-        Municipality: [runMunicipality],
+        Municipality: [],
         Region: [],
         EmploymentType: [],
-        WorktimeExtent: [],
+        WorktimeExtent: [runWorktimeExtent],
         Q: null);
 
     // ---------------------------------------------------------------
     // Seeding — raw_payload drives the STORED shadow columns. occupation_group +
-    // employment_type are TOP-LEVEL; region + municipality live under
-    // workplace_address (parity MatchScorerIntegrationTests + JobAdGeneratedColumnsTests).
-    // null group/region/employment → key omitted → that shadow column is NULL
-    // (the NotAssessed-by-NULL path). publishedAt is explicit so we can prove the
-    // tie-break within a grade.
+    // employment_type + working_hours_type (the run-isolation worktime-extent) are
+    // TOP-LEVEL; region lives under workplace_address (parity MatchScorerIntegrationTests
+    // + JobAdGeneratedColumnsTests). null group/region/employment → key omitted → that
+    // shadow column is NULL (the NotAssessed-by-NULL path). publishedAt is explicit so we
+    // can prove the tie-break within a grade.
     // ---------------------------------------------------------------
     private async Task<JobAdId> SeedJobAdAsync(
-        string runMunicipality,
+        string runWorktimeExtent,
         string? occupationGroupConceptId,
         string? regionConceptId,
         string? employmentTypeConceptId,
@@ -145,7 +152,7 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var rawPayload = BuildRawPayload(
             externalId, occupationGroupConceptId, regionConceptId,
-            runMunicipality, employmentTypeConceptId);
+            runWorktimeExtent, employmentTypeConceptId);
 
         var jobAd = JobAd.Import(
             title: "Oracle-annons",
@@ -163,24 +170,26 @@ public class MatchSortOracleTests(ApiFactory factory)
         return jobAd.Id;
     }
 
-    // workplace_address carries BOTH region_concept_id (grade input) and
-    // municipality_concept_id (the test-run isolation key).
+    // workplace_address carries region_concept_id (grade input) only; the test-run
+    // isolation key rides the TOP-LEVEL working_hours_type → worktime_extent_concept_id
+    // shadow (NAMNGLAPP: column worktime_extent ↔ payload working_hours_type), which the
+    // grade never reads. A null region → workplace_address null (region shadow NULL, the
+    // NotAssessed-by-NULL path); no municipality is seeded here (kept free for PR-C's
+    // genuine ort-union sort cases).
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,
         string? regionConceptId,
-        string municipalityConceptId,
+        string runWorktimeExtentConceptId,
         string? employmentTypeConceptId)
     {
         var groupJson = occupationGroupConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
 
-        var regionPart = regionConceptId is null
-            ? string.Empty
-            : $"\"region_concept_id\":\"{regionConceptId}\",";
-        var addressJson =
-            $"{{{regionPart}\"municipality_concept_id\":\"{municipalityConceptId}\"}}";
+        var addressJson = regionConceptId is null
+            ? "null"
+            : $"{{\"region_concept_id\":\"{regionConceptId}\"}}";
 
         var employmentJson = employmentTypeConceptId is null
             ? "null"
@@ -190,10 +199,11 @@ public class MatchSortOracleTests(ApiFactory factory)
             $"{{\"id\":\"{externalId}\","
             + $"\"occupation_group\":{groupJson},"
             + $"\"workplace_address\":{addressJson},"
-            + $"\"employment_type\":{employmentJson}}}";
+            + $"\"employment_type\":{employmentJson},"
+            + $"\"working_hours_type\":{{\"concept_id\":\"{runWorktimeExtentConceptId}\"}}}}";
     }
 
-    private static string NewRunMunicipality() => $"kn-oracle-{Guid.NewGuid():N}"[..20];
+    private static string NewRunWorktimeExtent() => $"wt-oracle-{Guid.NewGuid():N}"[..20];
 
     // Maps a positive grade to the SQL rank integer (higher = better). null grade
     // (untagged) → 0. The SQL ORDER BY produces this ordering server-side; this is
@@ -215,7 +225,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     public async Task SearchByMatch_OrderingEqualsGradeSsot_AcrossEveryReachableVerdictTuple()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         // Seed rows spanning every reachable verdict tuple, multiple per grade.
@@ -297,7 +307,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     public async Task SearchByMatch_WithinSameGrade_OrdersByPublishedAtDescThenId()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         // Three Strong ads with DISTINCT publishedAt → newest first.
@@ -359,7 +369,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     public async Task SearchByMatch_TotalCount_EqualsDefaultSortTotalCount_ForSameFilter()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         // Mixed grades incl. untagged — the untagged must STILL be counted (present,
@@ -397,7 +407,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     public async Task SearchByMatch_StatedRegionPref_NullRegionShadow_RanksHigherThanContradictingShadow()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         // Same SSYK Match + same employment Match on both → the ONLY difference is the
@@ -474,7 +484,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     // GIN for the sort's top-5 skill overlap AND the in-memory must-have partition the
     // grade reads).
     private async Task<JobAdId> SeedJobAdWithTermsAsync(
-        string runMunicipality,
+        string runWorktimeExtent,
         string? occupationGroupConceptId,
         string? regionConceptId,
         string? employmentTypeConceptId,
@@ -490,7 +500,7 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var rawPayload = BuildRawPayload(
             externalId, occupationGroupConceptId, regionConceptId,
-            runMunicipality, employmentTypeConceptId);
+            runWorktimeExtent, employmentTypeConceptId);
 
         var jobAd = JobAd.Import(
             title: "Divergence-annons",
@@ -527,7 +537,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     public async Task SearchByMatch_DoesNotSeparateSameFastTupleByMustHave_WhileGradeWould_DivergenceG3OptA()
     {
         var ct = TestContext.Current.CancellationToken;
-        var run = NewRunMunicipality();
+        var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         // Both ads: SAME Fast tuple (occ + region + employment all Match → Strong-band) and

@@ -18,7 +18,10 @@ namespace Jobbliggaren.Infrastructure.Matching;
 /// <item>title similarity — stemmed lexeme overlap of the ad title vs the CV title
 /// via <see cref="ITextAnalyzer"/> (F4-2 Snowball, <c>to_tsvector('swedish')</c>
 /// parity);</item>
-/// <item>region fit — the ad's <c>region_concept_id</c> shadow vs preferred ids;</item>
+/// <item>location ("ort") fit — the ad's <c>region_concept_id</c> ∪
+/// <c>municipality_concept_id</c> shadows vs the preferred region/municipality ids
+/// (Spår 3, ADR 0076-amendment 2026-06-21; the verdict keeps the name <c>RegionFit</c>,
+/// two granularities folded into one dimension — see <see cref="ScoreOrtUnion"/>);</item>
 /// <item>employment-type fit — the ad's <c>employment_type_concept_id</c> shadow vs
 /// preferred ids.</item>
 /// </list>
@@ -50,6 +53,11 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     private const string RegionColumn = "RegionConceptId";
     private const string EmploymentTypeColumn = "EmploymentTypeConceptId";
 
+    // Spår 3 (ADR 0076-amendment 2026-06-21) — the finer location granularity that folds
+    // into the SAME "ort" dimension (RegionFit) as the region shadow. STORED generated from
+    // raw_payload->'workplace_address'->>'municipality_concept_id' (JobAdConfiguration).
+    private const string MunicipalityColumn = "MunicipalityConceptId";
+
     // Shared empty result for the no-ids batch fast-path (no allocation per call).
     private static readonly IReadOnlyDictionary<JobAdId, MatchScore> EmptyScores =
         new Dictionary<JobAdId, MatchScore>();
@@ -73,7 +81,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 j.Title,
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
-                EF.Property<string?>(j, EmploymentTypeColumn)))
+                EF.Property<string?>(j, EmploymentTypeColumn),
+                EF.Property<string?>(j, MunicipalityColumn)))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (ad is null)
@@ -84,7 +93,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         return new MatchScore(
             SsykOverlap: ScoreMembership(profile.SsykGroupConceptIds, ad.OccupationGroupConceptId),
             TitleSimilarity: ScoreTitle(profile.Title, ad.Title),
-            RegionFit: ScoreMembership(profile.PreferredRegionConceptIds, ad.RegionConceptId),
+            RegionFit: ScoreOrtUnion(
+                profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
+                ad.RegionConceptId, ad.MunicipalityConceptId),
             EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
     }
 
@@ -125,7 +136,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 j.Title,
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
-                EF.Property<string?>(j, EmploymentTypeColumn)))
+                EF.Property<string?>(j, EmploymentTypeColumn),
+                EF.Property<string?>(j, MunicipalityColumn)))
             .ToListAsync(cancellationToken);
 
         // Hoist the CV-title lexeme computation OUT of the per-ad loop (CTO Decision E):
@@ -141,7 +153,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             result[ad.Id] = new MatchScore(
                 SsykOverlap: ScoreMembership(profile.SsykGroupConceptIds, ad.OccupationGroupConceptId),
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
-                RegionFit: ScoreMembership(profile.PreferredRegionConceptIds, ad.RegionConceptId),
+                RegionFit: ScoreOrtUnion(
+                    profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
+                    ad.RegionConceptId, ad.MunicipalityConceptId),
                 EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
         }
 
@@ -185,6 +199,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
                 EF.Property<string?>(j, EmploymentTypeColumn),
+                EF.Property<string?>(j, MunicipalityColumn),
                 j.ExtractedTerms))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -199,7 +214,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var fastScore = new MatchScore(
             SsykOverlap: ScoreMembership(fast.SsykGroupConceptIds, ad.OccupationGroupConceptId),
             TitleSimilarity: ScoreTitle(fast.Title, ad.Title),
-            RegionFit: ScoreMembership(fast.PreferredRegionConceptIds, ad.RegionConceptId),
+            RegionFit: ScoreOrtUnion(
+                fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
+                ad.RegionConceptId, ad.MunicipalityConceptId),
             EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
         var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
@@ -251,6 +268,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
                 EF.Property<string?>(j, EmploymentTypeColumn),
+                EF.Property<string?>(j, MunicipalityColumn),
                 j.ExtractedTerms))
             .ToListAsync(cancellationToken);
 
@@ -267,7 +285,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             var fastScore = new MatchScore(
                 SsykOverlap: ScoreMembership(fast.SsykGroupConceptIds, ad.OccupationGroupConceptId),
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
-                RegionFit: ScoreMembership(fast.PreferredRegionConceptIds, ad.RegionConceptId),
+                RegionFit: ScoreOrtUnion(
+                    fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
+                    ad.RegionConceptId, ad.MunicipalityConceptId),
                 EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
             var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
@@ -359,6 +379,82 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]);
     }
 
+    // Location ("ort") fit as a region ∪ municipality UNION (Spår 3, ADR 0076-amendment
+    // 2026-06-21; senior-cto-advisor verdict C). The two granularities fold into ONE
+    // dimension — the verdict keeps the name RegionFit (CTO B); there is no 5th dimension.
+    // Match = the ad's region is among the preferred regions OR the ad's municipality is
+    // among the preferred municipalities (a "hela länet" region preference matches any ad in
+    // that län; a specific municipality preference matches that kommun). NotAssessed when NO
+    // ort preference is stated (BOTH lists empty) OR the ad carries NEITHER ort value (BOTH
+    // shadows NULL) — the honest "can't assess" state, parity ScoreMembership rule 1.
+    // NoMatch (which floors the grade to Basic via the UNCHANGED MatchGradeCalculator RB1
+    // rule) ONLY when an ort preference IS stated AND the ad HAS at least one ort value AND
+    // there is no union hit (e.g. an ad in the same län but a non-preferred kommun — mirrors
+    // search). Matched/Missing carry the cited ort concept-ids (Ordinal-sorted); the modal
+    // (PR-D) resolves their granularity (kommun-träff vs län-träff) for the evidence copy.
+    //
+    // CRITICAL (CTO impl-trap): the NoMatch test is the COMBINED predicate
+    // `stated AND ad-has-some-ort-value AND no-union-hit` — NEVER a bare
+    // `!preferredMunicipalities.Contains(adMunicipality)`. A NULL municipality shadow on an
+    // ad that has a region must NOT read as a municipality-NoMatch, and must NOT appear in
+    // Missing (a municipality hit/miss is only ever considered when the ad HAS a municipality).
+    private static MatchDimension ScoreOrtUnion(
+        IReadOnlyList<string> preferredRegions,
+        IReadOnlyList<string> preferredMunicipalities,
+        string? adRegion,
+        string? adMunicipality)
+    {
+        var stated = preferredRegions.Count > 0 || preferredMunicipalities.Count > 0;
+        var hasAdRegion = !string.IsNullOrEmpty(adRegion);
+        var hasAdMunicipality = !string.IsNullOrEmpty(adMunicipality);
+
+        // NotAssessed: no ort preference stated, OR the ad has neither ort value.
+        if (!stated || (!hasAdRegion && !hasAdMunicipality))
+        {
+            return NotAssessed();
+        }
+
+        // A municipality hit/miss is only ever considered when the ad HAS a municipality
+        // (the impl-trap guard): a NULL municipality contributes nothing to either side.
+        var regionHit = hasAdRegion && preferredRegions.Contains(adRegion!, StringComparer.Ordinal);
+        var municipalityHit =
+            hasAdMunicipality && preferredMunicipalities.Contains(adMunicipality!, StringComparer.Ordinal);
+
+        if (regionHit || municipalityHit)
+        {
+            var matched = new List<string>(2);
+            if (regionHit)
+            {
+                matched.Add(adRegion!);
+            }
+
+            if (municipalityHit)
+            {
+                matched.Add(adMunicipality!);
+            }
+
+            matched.Sort(StringComparer.Ordinal);
+            return new MatchDimension(MatchDimensionVerdict.Match, matched, []);
+        }
+
+        // Stated AND the ad has at least one ort value AND no union hit → NoMatch. Missing =
+        // the ad's PRESENT ort value(s) the user did not select (the civic-useful "what the
+        // ad offers that you didn't pick" direction, parity ScoreMembership).
+        var missing = new List<string>(2);
+        if (hasAdRegion)
+        {
+            missing.Add(adRegion!);
+        }
+
+        if (hasAdMunicipality)
+        {
+            missing.Add(adMunicipality!);
+        }
+
+        missing.Sort(StringComparer.Ordinal);
+        return new MatchDimension(MatchDimensionVerdict.NoMatch, [], missing);
+    }
+
     // Title similarity via stemmed lexeme overlap (F4-2). Matched = ad ∩ cv lexemes;
     // Missing = ad \ cv (the civic-useful direction: "what the ad wants that you
     // lack"). Verdict derives from set emptiness ONLY — no hardcoded ratio/Jaccard
@@ -447,7 +543,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string Title,
         string? OccupationGroupConceptId,
         string? RegionConceptId,
-        string? EmploymentTypeConceptId);
+        string? EmploymentTypeConceptId,
+        string? MunicipalityConceptId);
 
     // The batch row (F4-13) — AdShadowRow plus the JobAdId key, so ScoreBatchAsync can
     // key the result dictionary. j.Id materializes via its value converter (parity the
@@ -457,7 +554,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string Title,
         string? OccupationGroupConceptId,
         string? RegionConceptId,
-        string? EmploymentTypeConceptId);
+        string? EmploymentTypeConceptId,
+        string? MunicipalityConceptId);
 
     // The Full row (F4-6) — the Fast inputs plus the extracted_terms VO (materialized
     // via its jsonb ValueConverter). Constructor-projected; ExtractedTerms is nullable
@@ -467,6 +565,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string? OccupationGroupConceptId,
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
+        string? MunicipalityConceptId,
         ExtractedTerms? ExtractedTerms);
 
     // The Full batch row (F4-15) — AdFullRow plus the JobAdId key, so ScoreFullBatchAsync
@@ -478,5 +577,6 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string? OccupationGroupConceptId,
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
+        string? MunicipalityConceptId,
         ExtractedTerms? ExtractedTerms);
 }

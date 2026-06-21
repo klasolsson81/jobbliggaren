@@ -66,7 +66,10 @@ public sealed record MatchDimension(
 /// <summary>
 /// The deterministic "Fast mode" match score (F4-5, BUILD §8.2, ADR 0074 row U5a).
 /// A thin vertical over exactly four dimensions — SSYK level-4 overlap, stemmed
-/// title similarity, region fit, employment-type fit. It consumes NEITHER F4-4/F4-4b
+/// title similarity, location ("ort") fit, employment-type fit. <see cref="RegionFit"/>
+/// is the location dimension: a region ∪ municipality union (Spår 3, ADR 0076-amendment
+/// 2026-06-21) — the property keeps the name <c>RegionFit</c> while its semantics widened
+/// to two granularities. It consumes NEITHER F4-4/F4-4b
 /// keyword/skill nor requirement extraction (those are F4-6's <c>skillMatch</c> /
 /// <c>requirementCoverage</c> dimensions, in a future full-match type) — they are
 /// deliberately absent here, not <c>NotAssessed</c> placeholders (CTO Decision 0).

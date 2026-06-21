@@ -30,4 +30,20 @@ public interface IOccupationCodeDeriver
     /// </summary>
     ValueTask<OccupationDerivationResult> DeriveAsync(
         string title, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Multi-signal derivation (Tier 1, Klas 2026-06-21): derives over a UNION of several
+    /// free-text source titles in ONE taxonomy-cache pass, deduplicated per ssyk-4 group
+    /// (strongest evidence kept). The caller passes <paramref name="titles"/> in PRIORITY order
+    /// and candidates from earlier (higher-priority) titles rank first within the same match
+    /// kind — so the F4-8 import can feed the current education degree before the work history
+    /// (the desired-occupation signal for a career-changer; Klas directive, overriding the
+    /// per-title-only default). Non-occupation strings (a company, a school) self-filter to no
+    /// match and contribute nothing. Blank/empty input ⇒ empty candidates; never throws on "no
+    /// match"; never auto-selects; persists nothing (ADR 0040 Beslut 4). Same PII boundary as
+    /// <see cref="DeriveAsync"/> — plain strings only, no CV PII, never logged.
+    /// <see cref="OccupationDerivationResult.Title"/> echoes the first non-blank title.
+    /// </summary>
+    ValueTask<OccupationDerivationResult> DeriveManyAsync(
+        IReadOnlyList<string> titles, CancellationToken cancellationToken);
 }

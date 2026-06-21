@@ -85,14 +85,18 @@ public sealed class ImportResumeCommandHandler(
                     : ParseFallbackReason.ExtractionFailed);
         }
 
-        // 4. SSYK derivation (F4-3 call-site): propose from the most-recent role; the
-        //    user confirms later (ADR 0040 Beslut 4 — never auto-selected/persisted as
-        //    confirmed). An empty list ⇒ manual selection.
-        var derivedTitle = content.Experience.Count > 0 ? content.Experience[0].Title : null;
+        // 4. SSYK derivation (F4-3 call-site, Tier 1 multi-signal — Klas 2026-06-21): propose
+        //    from a UNION of the CV's occupation-bearing strings, EDUCATION FIRST (what you
+        //    study now is the likely desired occupation — the career-changer signal a
+        //    work-history-only derivation misses), then work history. Non-occupation strings
+        //    (a company, a school) self-filter to no match. The user confirms later (ADR 0040
+        //    Beslut 4 — never auto-selected/persisted as confirmed). An empty list ⇒ manual
+        //    selection. English CVs are out of scope here (Swedish-only NLP/taxonomy) — Tier 2.
+        var sourceTitles = BuildDerivationSources(content);
         IReadOnlyList<OccupationCandidate> candidates = [];
-        if (!string.IsNullOrWhiteSpace(derivedTitle))
+        if (sourceTitles.Count > 0)
         {
-            var derivation = await occupationDeriver.DeriveAsync(derivedTitle, cancellationToken);
+            var derivation = await occupationDeriver.DeriveManyAsync(sourceTitles, cancellationToken);
             candidates = derivation.Candidates;
         }
 
@@ -150,5 +154,46 @@ public sealed class ImportResumeCommandHandler(
             confidence,
             personnummer,
             candidates);
+    }
+
+    // Tier 1 multi-signal sources (Klas 2026-06-21): the CV's occupation-bearing strings in
+    // PRIORITY order — every education Degree + Institution FIRST (current studies are the
+    // desired-occupation signal), then every experience Title + Organization. Title and
+    // Organization are BOTH fed because the layout-naive parser may put the role in either slot
+    // ("Plasman — Operatör" → the company can land in the Title slot); the deriver matches
+    // occupations and self-filters companies/schools to nothing. Trim + distinct (Ordinal
+    // ignore-case, preserving priority order), bounded to MaxDerivationSources so a long CV
+    // cannot fan out the in-memory taxonomy scan (the DoS/UX bound, CTO Decision 2).
+    private const int MaxDerivationSources = 40;
+
+    private static List<string> BuildDerivationSources(ParsedResumeContent content)
+    {
+        IEnumerable<string?> Ordered()
+        {
+            foreach (var edu in content.Education)
+            {
+                yield return edu.Degree;
+                yield return edu.Institution;
+            }
+            foreach (var exp in content.Experience)
+            {
+                yield return exp.Title;
+                yield return exp.Organization;
+            }
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var raw in Ordered())
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                continue;
+            var trimmed = raw.Trim();
+            if (seen.Add(trimmed))
+                result.Add(trimmed);
+            if (result.Count >= MaxDerivationSources)
+                break;
+        }
+        return result;
     }
 }

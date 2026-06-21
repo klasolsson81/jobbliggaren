@@ -63,7 +63,7 @@ public class ImportResumeCommandHandlerTests
         _segmenter.Segment(Arg.Any<string>()).Returns(result);
 
     private void StubDeriver(params OccupationCandidate[] candidates) =>
-        _deriver.DeriveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _deriver.DeriveManyAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<OccupationDerivationResult>(
                 new OccupationDerivationResult("title", candidates)));
 
@@ -159,7 +159,7 @@ public class ImportResumeCommandHandlerTests
     // ===============================================================
 
     [Fact]
-    public async Task Handle_FirstExperienceHasTitle_CallsDeriverOnceWithThatTitle()
+    public async Task Handle_HasOccupationSources_CallsDeriveManyOnceIncludingThem()
     {
         var db = TestAppDbContextFactory.Create();
         await SeedJobSeekerAsync(db);
@@ -169,20 +169,124 @@ public class ImportResumeCommandHandlerTests
 
         await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
 
-        await _deriver.Received(1).DeriveAsync("Systemutvecklare", Arg.Any<CancellationToken>());
+        // Tier 1 multi-signal: the union over the CV's occupation-bearing strings (here the
+        // single experience Title + its Organization), via DeriveManyAsync — not the old
+        // single-Experience[0].Title path.
+        await _deriver.Received(1).DeriveManyAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.Contains("Systemutvecklare")),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_NoExperience_DoesNotCallDeriver_ProposalsEmpty()
+    public async Task Handle_DerivesFromEducationDegreeBeforeWorkHistory()
+    {
+        // Klas 2026-06-21: current studies are the desired-occupation signal (a career-changer's
+        // CV says "Plasman — Operatör" but they want "Systemutvecklare"). The handler must feed
+        // the education Degree BEFORE the work history so it ranks first in the proposals.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(new ResumeSegmentationResult(
+            new ParsedResumeContent(
+                new ParsedContact("Klas", "klas@example.com", null, null),
+                experience: [new ParsedExperience("Plasman", "Operatör", "2005–nu", "raw")],
+                education: [new ParsedEducation("NBI", "Systemutvecklare .NET", "Pågående", "raw")]),
+            ResumeLanguage.Sv,
+            ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, []),
+                new SectionConfidence(ParsedSectionKind.Education, SectionConfidenceLevel.Confident, []),
+            ])));
+        StubDeriver();
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        await _deriver.Received(1).DeriveManyAsync(
+            Arg.Is<IReadOnlyList<string>>(s =>
+                s.Contains("Systemutvecklare .NET") && s.Contains("Operatör") &&
+                s.ToList().IndexOf("Systemutvecklare .NET") < s.ToList().IndexOf("Operatör")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_RepeatedOrganization_IsDistinctDeduplicated_InDerivationSources()
+    {
+        // BuildDerivationSources distinct (Ordinal ignore-case, priority-preserving):
+        // the same Organization repeated across several experience entries is fed to the
+        // deriver ONCE — a CV with "Acme AB" in five roles must not pass it five times.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(new ResumeSegmentationResult(
+            new ParsedResumeContent(
+                new ParsedContact("Anna", "anna@example.com", null, null),
+                experience:
+                [
+                    new ParsedExperience("Systemutvecklare", "Acme AB", "2023", "raw"),
+                    new ParsedExperience("Systemutvecklare", "Acme AB", "2022", "raw"),
+                    new ParsedExperience("Systemutvecklare", "acme ab", "2021", "raw"),
+                ]),
+            ResumeLanguage.Sv,
+            ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, []),
+            ])));
+        StubDeriver();
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        await _deriver.Received(1).DeriveManyAsync(
+            Arg.Is<IReadOnlyList<string>>(s =>
+                // "Systemutvecklare" once + "Acme AB" once (case-insensitive distinct) = 2.
+                s.Count == 2 &&
+                s.Count(x => x.Equals("Systemutvecklare", StringComparison.Ordinal)) == 1 &&
+                s.Count(x => x.Equals("Acme AB", StringComparison.OrdinalIgnoreCase)) == 1),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_VeryLongCv_CapsDerivationSourcesAtMax()
+    {
+        // BuildDerivationSources MaxDerivationSources cap (= 40): a long CV cannot fan
+        // out the in-memory taxonomy scan. 30 experience entries × 2 distinct fields each
+        // (Title + Organization) = 60 candidate sources; the handler caps the list at 40.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        var experience = Enumerable.Range(0, 30)
+            .Select(i => new ParsedExperience($"Roll {i}", $"Företag {i}", "2020", "raw"))
+            .ToList();
+        StubSegmenter(new ResumeSegmentationResult(
+            new ParsedResumeContent(
+                new ParsedContact("Anna", "anna@example.com", null, null),
+                experience: experience),
+            ResumeLanguage.Sv,
+            ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, []),
+            ])));
+        StubDeriver();
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        await _deriver.Received(1).DeriveManyAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.Count == 40),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_NoOccupationSources_DoesNotCallDeriver_ProposalsEmpty()
     {
         var db = TestAppDbContextFactory.Create();
         await SeedJobSeekerAsync(db);
         StubExtractor("text", CvExtractionStatus.Extracted);
+        // No experience and no education → no occupation-bearing strings → deriver not called.
         StubSegmenter(ConfidentSegmentation(experienceTitle: null));
 
         var result = await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
 
-        await _deriver.DidNotReceive().DeriveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _deriver.DidNotReceive().DeriveManyAsync(
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
         result.Value.OccupationProposal.ShouldBeEmpty();
         db.ParsedResumes.Local.ShouldHaveSingleItem().OccupationProposals.ShouldBeEmpty();
     }

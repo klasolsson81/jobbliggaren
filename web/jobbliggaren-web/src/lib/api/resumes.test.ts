@@ -11,7 +11,12 @@ vi.mock("@/lib/auth/session", () => ({
   getSessionId: getSessionIdMock,
 }));
 
-import { getParsedResume, getCvReview, getCvImprovements } from "./resumes";
+import {
+  getParsedResume,
+  getParsedResumeOccupations,
+  getCvReview,
+  getCvImprovements,
+} from "./resumes";
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -220,6 +225,106 @@ describe("getParsedResume", () => {
   it("mappar nätverksfel → error", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("network"));
     expect(await getParsedResume(VALID_ID)).toEqual({ kind: "error" });
+  });
+});
+
+describe("getParsedResumeOccupations", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+  });
+
+  it("returnerar unauthorized utan session (BFF läser aldrig utan Bearer)", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getParsedResumeOccupations(VALID_ID)).toEqual({
+      kind: "unauthorized",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returnerar notFound för ogiltigt (icke-GUID) id utan att nå backend", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getParsedResumeOccupations("inte-en-guid")).toEqual({
+      kind: "notFound",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("mappar wire {conceptId,label} → {occupationGroupConceptId,occupationGroupLabel} och anropar ägar-scopad occupations-endpoint med Bearer", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse([
+        // matchedOn finns på wire men strippas av icke-strikt Zod (kortet
+        // behöver bara conceptId + label för att toggla rätt yrkesgrupp).
+        { conceptId: "grp_backend", label: "Backendutvecklare", matchedOn: "Utvecklare" },
+        { conceptId: "grp_frontend", label: "Frontendutvecklare", matchedOn: "Webbutvecklare" },
+      ]),
+    );
+    global.fetch = fetchMock;
+
+    const result = await getParsedResumeOccupations(VALID_ID);
+
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data).toEqual([
+        { occupationGroupConceptId: "grp_backend", occupationGroupLabel: "Backendutvecklare" },
+        { occupationGroupConceptId: "grp_frontend", occupationGroupLabel: "Frontendutvecklare" },
+      ]);
+    }
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `http://test-backend/api/v1/resumes/parsed/${VALID_ID}/occupations`,
+    );
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer sess-1",
+    );
+  });
+
+  it("mappar tom array → ok med tom kandidatlista (CV läst, inget yrke härlett)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([]));
+    const result = await getParsedResumeOccupations(VALID_ID);
+    expect(result).toEqual({ kind: "ok", data: [] });
+  });
+
+  it("mappar 404 → notFound (okänt/främmande/befordrat artefakt; fail-closed i backend)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    expect(await getParsedResumeOccupations(VALID_ID)).toEqual({
+      kind: "notFound",
+    });
+  });
+
+  it("mappar 401 → unauthorized (passthrough, ej ok)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
+    expect(await getParsedResumeOccupations(VALID_ID)).toEqual({
+      kind: "unauthorized",
+    });
+  });
+
+  it("mappar 500 → error", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
+    expect(await getParsedResumeOccupations(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("mappar shape-mismatch (ogiltigt conceptId-format) → error", async () => {
+    // conceptId med otillåtna tecken bryter conceptIdSchema → fail-loud, ingen
+    // tyst fel-render (samma dom som getParsedResume shape-mismatch).
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse([{ conceptId: "inte giltigt!", label: "X" }]));
+    expect(await getParsedResumeOccupations(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("mappar nätverksfel (throw) → error", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+    expect(await getParsedResumeOccupations(VALID_ID)).toEqual({ kind: "error" });
   });
 });
 

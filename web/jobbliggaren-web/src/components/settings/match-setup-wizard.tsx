@@ -43,6 +43,13 @@ interface MatchSetupWizardProps {
   }) => void;
   /** CV-importflödets route (tom-state-länken i yrkes-steget). */
   readonly importCvHref: string;
+  /**
+   * Fas 4 onboarding (CTO Variant B): id för det just uppladdade `parsed_resume`:t
+   * (welcome-flödet). Vidarebefordras till yrkes-steget så CV-förslaget läses ur
+   * staging-artefakten i stället för ur ett ännu-icke-promotat Resume. Utelämnat från
+   * `/cv`- och `/installningar`-ingångarna (de har ett promotat Resume → latestRole-vägen).
+   */
+  readonly parsedResumeId?: string;
 }
 
 const TOTAL_STEPS = 4;
@@ -73,6 +80,7 @@ export function MatchSetupWizard({
   persistedEmploymentTypes,
   onSaved,
   importCvHref,
+  parsedResumeId,
 }: MatchSetupWizardProps) {
   const regionOptions: ReadonlyArray<Option> = regions.map((r) => ({
     conceptId: r.conceptId,
@@ -225,6 +233,7 @@ export function MatchSetupWizard({
                   idPrefix="match-wizard-occ"
                   headingId="match-wizard-step-1-head"
                   autoSuggestFromCv
+                  parsedResumeId={parsedResumeId}
                 />
               )}
               {step === 2 && (

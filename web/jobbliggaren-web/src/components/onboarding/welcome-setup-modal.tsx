@@ -73,6 +73,10 @@ export function WelcomeSetupModal({
   // Om ett CV faktiskt laddades upp (styr grön check + copy i "done"-steget;
   // "Fortsätt utan CV" hoppar till "done" UTAN check).
   const [uploaded, setUploaded] = useState(false);
+  // Fas 4 onboarding (CTO Variant B): id för det just uppladdade parsed_resume:t.
+  // Vidarebefordras till wizardens yrkes-steg så CV-förslaget läses ur staging-
+  // artefakten (en ny användare har ännu inget promotat Resume att läsa latestRole ur).
+  const [uploadedParsedId, setUploadedParsedId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   // Fokus till stegrubriken EFTER commit (WCAG 2.4.3 + 4.1.3). En effekt på
@@ -156,7 +160,8 @@ export function WelcomeSetupModal({
 
                 <div className="jp-welcome__body">
                   <CvUploadForm
-                    onUploaded={() => {
+                    onUploaded={(parsedResumeId) => {
+                      setUploadedParsedId(parsedResumeId);
                       setUploaded(true);
                       setStep("done");
                     }}
@@ -242,6 +247,7 @@ export function WelcomeSetupModal({
         persistedRegions={persistedRegions}
         persistedEmploymentTypes={persistedEmploymentTypes}
         importCvHref={importCvHref}
+        parsedResumeId={uploadedParsedId ?? undefined}
         onSaved={() => setWizardOpen(false)}
       />
     </>

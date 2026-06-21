@@ -17,6 +17,7 @@ import type { OccupationCandidate } from "@/lib/dto/match-preferences";
 import {
   deriveOccupationsAction,
   suggestOccupationsFromCvAction,
+  suggestOccupationsFromParsedResumeAction,
   type CvSuggestResult,
 } from "@/lib/actions/match-preferences";
 import {
@@ -49,6 +50,14 @@ interface OccupationSectionProps {
    * användaren (propose-and-approve). I dialogen är detta `false` (knapp-driven).
    */
   readonly autoSuggestFromCv?: boolean;
+  /**
+   * Fas 4 onboarding (CTO Variant B): id för det just uppladdade `parsed_resume`:t
+   * (welcome-flödet). När satt läses CV-förslaget ur den staging-artefakten
+   * (`occupation_proposals`, ingen DEK/CV-PII) i stället för ur det promotade
+   * `Resume`:ts `latestRole` — en ny användare har ännu inget promotat Resume.
+   * Utelämnat (dialog/`/cv`/`/installningar`) → faller tillbaka på latestRole-vägen.
+   */
+  readonly parsedResumeId?: string;
 }
 
 /**
@@ -65,6 +74,7 @@ export function OccupationSection({
   idPrefix = "match-dialog",
   headingId,
   autoSuggestFromCv = false,
+  parsedResumeId,
 }: OccupationSectionProps) {
   const occupationOptions = useMemo(
     () => flattenOccupationGroups(occupationFields),
@@ -90,7 +100,11 @@ export function OccupationSection({
   function runCvSuggest() {
     setCvResult(null);
     startCvSuggest(async () => {
-      const result = await suggestOccupationsFromCvAction();
+      // Welcome-flödet (parsedResumeId satt) → läs den just uppladdade staging-CV:ns
+      // proposals; annars promotade Resume:ts latestRole (dialog/`/cv`/`/installningar`).
+      const result = parsedResumeId
+        ? await suggestOccupationsFromParsedResumeAction(parsedResumeId)
+        : await suggestOccupationsFromCvAction();
       setCvResult(result);
     });
   }

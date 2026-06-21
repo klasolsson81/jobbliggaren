@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getSourceLabel } from "@/lib/applications/status";
+import { useTranslations } from "next-intl";
+import { applicationSourceLabel } from "@/lib/applications/status";
 import { buildGuestPipeline } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5 — Gäst-ansökningar-pipeline. Mockdata-driven, ingen
@@ -9,6 +10,8 @@ import { buildGuestPipeline } from "@/lib/guest/mock-data";
 // `(app)/ansokningar`).
 
 export function GuestAnsokningarPage() {
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("applications.enums");
   const groups = buildGuestPipeline();
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
@@ -56,7 +59,7 @@ export function GuestAnsokningarPage() {
                       <h3 className="jp-app__title">{app.role}</h3>
                       <div className="jp-app__company">{app.company}</div>
                       <div className="jp-app__meta">
-                        <span>{getSourceLabel(app.source)}</span>
+                        <span>{applicationSourceLabel(t, app.source)}</span>
                         <span aria-hidden="true"> · </span>
                         <span>{app.updatedAtLabel}</span>
                       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { transitionStatusAction } from "@/lib/actions/applications";
-import { getStatusLabel } from "@/lib/applications/status";
+import { applicationStatusLabel } from "@/lib/applications/status";
 import type { ApplicationStatus } from "@/lib/types/applications";
 
 interface WithdrawApplicationButtonProps {
@@ -39,12 +40,13 @@ export function WithdrawApplicationButton({
   applicationId,
   currentStatus,
 }: WithdrawApplicationButtonProps) {
+  const t = useTranslations("applications.enums");
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const currentLabel = getStatusLabel(currentStatus);
-  const withdrawnLabel = getStatusLabel("Withdrawn");
+  const currentLabel = applicationStatusLabel(t, currentStatus);
+  const withdrawnLabel = applicationStatusLabel(t, "Withdrawn");
 
   function confirm() {
     setError(null);

@@ -1,1 +1,23 @@
-{}
+{
+  "enums": {
+    "status": {
+      "Active": "Aktiv",
+      "Expired": "Utgången",
+      "Archived": "Arkiverad"
+    },
+    "source": {
+      "Manual": "Egen",
+      "Platsbanken": "Platsbanken",
+      "LinkedIn": "LinkedIn",
+      "Eures": "EURES"
+    },
+    "sort": {
+      "PublishedAtDesc": "Nyast först",
+      "PublishedAtAsc": "Äldst först",
+      "ExpiresAtDesc": "Stänger senare",
+      "ExpiresAtAsc": "Stänger snart",
+      "Relevance": "Mest relevant",
+      "MatchDesc": "Sortera efter matchning"
+    }
+  }
+}

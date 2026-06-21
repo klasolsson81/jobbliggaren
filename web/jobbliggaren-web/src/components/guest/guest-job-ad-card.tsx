@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getJobSourceLabel } from "@/lib/job-ads/status";
+import { useTranslations } from "next-intl";
+import { jobSourceLabel } from "@/lib/job-ads/status";
 import type { GuestMockJobAd } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5b 2026-05-24 — gäst-variant av JobAdCard. Länk pekar mot
@@ -24,6 +25,8 @@ function formatExpires(iso: string | null): string | null {
 }
 
 export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("jobads.enums");
   const publishedAt = formatPublishedAt(jobAd.publishedAtIso);
   const expiresAt = formatExpires(jobAd.expiresAtIso);
 
@@ -39,7 +42,7 @@ export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>
         <div className="jp-job__meta">
-          <span>{getJobSourceLabel(jobAd.source)}</span>
+          <span>{jobSourceLabel(t, jobAd.source)}</span>
           <span>
             Publicerad <b>{publishedAt}</b>
           </span>

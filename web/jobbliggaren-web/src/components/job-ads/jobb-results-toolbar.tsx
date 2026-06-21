@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useOptimistic, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   Briefcase,
   Clock,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
-import { MATCH_SORT_LABEL } from "@/lib/job-ads/status";
+import { jobAdSortLabel } from "@/lib/job-ads/status";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
@@ -84,11 +85,13 @@ interface JobbResultsToolbarProps {
 // sitter samlade, före de rena datum-ordningarna. Den disablas ALDRIG på q
 // (till skillnad från Relevance): match-sorten kräver ingen söktext och faller
 // honest tillbaka till nyaste-ordning utan yrkespreferens (Decision 7).
-const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string }> = [
+// Toolbar-specifika sort-etiketter. `MatchDesc` är den enda enum-labeln i denna
+// batch — den resolveras via next-intl (`sort.MatchDesc`) inne i komponenten;
+// `label: null` markerar att den fylls från `t`. De övriga strängarna är
+// toolbar-egna (ej delade enum-labels) och flyttas i en senare batch.
+const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string | null }> = [
   { value: "Relevance", label: "Relevans" },
-  // F4-16 — kanonisk match-sort-label (SPOT med JOB_AD_SORT_LABELS.MatchDesc;
-  // de kan aldrig drifta isär längre).
-  { value: "MatchDesc", label: MATCH_SORT_LABEL },
+  { value: "MatchDesc", label: null },
   { value: "PublishedAtDesc", label: "Datum (nyast)" },
   { value: "ExpiresAtAsc", label: "Ansökningsdatum (sista ansökan)" },
 ];
@@ -119,6 +122,7 @@ export function JobbResultsToolbar({
   pageSize,
   hasStatedDesiredOccupation,
 }: JobbResultsToolbarProps) {
+  const tEnum = useTranslations("jobads.enums");
   const router = useRouter();
   const [, startTransition] = useTransition();
 
@@ -311,7 +315,7 @@ export function JobbResultsToolbar({
               value={opt.value}
               disabled={opt.value === "Relevance" && !qReady}
             >
-              {opt.label}
+              {opt.label ?? jobAdSortLabel(tEnum, opt.value)}
             </option>
           ))}
         </select>

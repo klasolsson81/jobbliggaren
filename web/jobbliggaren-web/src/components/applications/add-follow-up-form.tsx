@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 /**
  * Lokal datetime-string i `datetime-local`-input-format (YYYY-MM-DDTHH:mm,
@@ -28,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { addFollowUpAction, type ActionResult } from "@/lib/actions/applications";
-import { CHANNEL_LABELS } from "@/lib/applications/status";
+import { CHANNEL_KEYS, channelLabel } from "@/lib/applications/status";
 
 interface AddFollowUpFormProps {
   applicationId: string;
@@ -43,6 +44,7 @@ export function AddFollowUpForm({
   onSuccess,
   onCancel,
 }: AddFollowUpFormProps) {
+  const t = useTranslations("applications.enums");
   const formRef = useRef<HTMLFormElement>(null);
   const [defaultScheduledAt] = useState(localDatetimeNow);
 
@@ -75,9 +77,9 @@ export function AddFollowUpForm({
               <SelectValue placeholder="Välj kanal" />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+              {CHANNEL_KEYS.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {label}
+                  {channelLabel(t, value)}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
+  applicationSourceLabel,
   formatSvDate,
-  getSourceLabel,
 } from "@/lib/applications/status";
 import type { JobAdSummaryDto } from "@/lib/types/applications";
 
@@ -21,12 +22,13 @@ interface JobInfoPanelProps {
  * shadow (regel 1 papper-ej-glas).
  */
 export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
+  const t = useTranslations("applications.enums");
   const [open, setOpen] = useState(false);
   const disclosureId = useId();
 
   const published = formatSvDate(jobAd.publishedAt);
   const expires = formatSvDate(jobAd.expiresAt);
-  const sourceLabel = getSourceLabel(jobAd.source);
+  const sourceLabel = applicationSourceLabel(t, jobAd.source);
 
   return (
     <section

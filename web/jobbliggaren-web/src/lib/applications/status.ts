@@ -1,18 +1,5 @@
 import type { ApplicationStatus, FollowUpOutcome } from "@/lib/types/applications";
 
-export const STATUS_LABELS: Record<ApplicationStatus, string> = {
-  Draft: "Utkast",
-  Submitted: "Skickad",
-  Acknowledged: "Bekräftad",
-  InterviewScheduled: "Intervju bokad",
-  Interviewing: "Pågående intervju",
-  OfferReceived: "Erbjudande",
-  Accepted: "Accepterad",
-  Rejected: "Nekad",
-  Withdrawn: "Återtagen",
-  Ghosted: "Inget svar",
-};
-
 export type BadgeVariant = "Info" | "Brand" | "Success" | "Warning" | "Danger" | "Neutral";
 
 export const STATUS_BADGE_VARIANT: Record<ApplicationStatus, BadgeVariant> = {
@@ -84,8 +71,55 @@ export function getStatusPillClass(status: ApplicationStatus): string {
   return `jp-pill jp-pill--${PILL_VARIANT_CLASS[variant]}`;
 }
 
-export function getStatusLabel(status: ApplicationStatus): string {
-  return STATUS_LABELS[status] ?? status;
+// User-facing enum labels resolve through next-intl. The same `t`-call
+// signature works for both client (`useTranslations("applications.enums")`)
+// and server (`useTranslations` in an RSC) — callers acquire `t` scoped to the
+// `"applications.enums"` namespace and pass it in. The Swedish values live in
+// `messages/sv/applications.json` (source of truth, typed via AppConfig).
+
+// ApplicationStatus is a literal union -> direct lookup, exhaustive (no fallback
+// needed). PIPELINE_ORDER above is the ordered key array for status dropdowns.
+export function applicationStatusLabel(
+  t: (key: `status.${ApplicationStatus}`) => string,
+  status: ApplicationStatus,
+): string {
+  return t(`status.${status}`);
+}
+
+export function followUpOutcomeLabel(
+  t: (key: `followUpOutcome.${FollowUpOutcome}`) => string,
+  outcome: FollowUpOutcome,
+): string {
+  return t(`followUpOutcome.${outcome}`);
+}
+
+// Free-string-keyed enums (channel/source arrive as `string` from the DTO) ->
+// validate against a known key tuple, fall back to the raw value.
+export const CHANNEL_KEYS = ["Email", "LinkedIn", "Phone", "Other"] as const;
+export type ChannelKey = (typeof CHANNEL_KEYS)[number];
+export function channelLabel(
+  t: (key: `channel.${ChannelKey}`) => string,
+  channel: string,
+): string {
+  return (CHANNEL_KEYS as readonly string[]).includes(channel)
+    ? t(`channel.${channel as ChannelKey}`)
+    : channel;
+}
+
+/**
+ * Svensk etikett för jobbannonsens källa. Backend skickar "Platsbanken" |
+ * "LinkedIn" | "Manual" (literal "Manual" projiceras för manuellt skapade
+ * ansökningar — Source-fältet är struket per Klas STOPP 3a-villkor).
+ */
+export const APPLICATION_SOURCE_KEYS = ["Platsbanken", "LinkedIn", "Manual"] as const;
+export type ApplicationSourceKey = (typeof APPLICATION_SOURCE_KEYS)[number];
+export function applicationSourceLabel(
+  t: (key: `source.${ApplicationSourceKey}`) => string,
+  source: string,
+): string {
+  return (APPLICATION_SOURCE_KEYS as readonly string[]).includes(source)
+    ? t(`source.${source as ApplicationSourceKey}`)
+    : source;
 }
 
 export function getAllowedTransitions(status: ApplicationStatus): ApplicationStatus[] {
@@ -94,34 +128,6 @@ export function getAllowedTransitions(status: ApplicationStatus): ApplicationSta
 
 export function isDestructiveTransition(target: ApplicationStatus): boolean {
   return DESTRUCTIVE_STATUSES.includes(target);
-}
-
-export const CHANNEL_LABELS: Record<string, string> = {
-  Email: "E-post",
-  LinkedIn: "LinkedIn",
-  Phone: "Telefon",
-  Other: "Övrigt",
-};
-
-export const FOLLOW_UP_OUTCOME_LABELS: Record<FollowUpOutcome, string> = {
-  Pending: "Inväntar svar",
-  Responded: "Svar mottaget",
-  NoResponse: "Inget svar",
-};
-
-/**
- * Svensk etikett för jobbannonsens källa. Backend skickar "Platsbanken" |
- * "LinkedIn" | "Manual" (literal "Manual" projiceras för manuellt skapade
- * ansökningar — Source-fältet är struket per Klas STOPP 3a-villkor).
- */
-const SOURCE_LABELS: Record<string, string> = {
-  Platsbanken: "Platsbanken",
-  LinkedIn: "LinkedIn",
-  Manual: "Manuellt",
-};
-
-export function getSourceLabel(source: string): string {
-  return SOURCE_LABELS[source] ?? source;
 }
 
 /**

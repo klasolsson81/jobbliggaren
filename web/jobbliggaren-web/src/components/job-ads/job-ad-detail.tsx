@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
-import { getJobAdStatusLabel } from "@/lib/job-ads/status";
+import { jobAdStatusLabel } from "@/lib/job-ads/status";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import { SaveJobAdToggle } from "@/components/saved-job-ads/save-job-ad-toggle";
@@ -68,6 +69,9 @@ export function JobAdDetail({
   initialApplied,
   match,
 }: JobAdDetailProps) {
+  // Synchronous next-intl translator — keeps JobAdDetail a non-async RSC (it is
+  // shared by the full page and the @modal serialized slot, with sync tests).
+  const t = useTranslations("jobads.enums");
   // Typ-narrowing-pattern: bind till en `userActions`-konst som är non-null
   // när BÅDA props är definierade. Eliminerar `!`-suppressions i JSX nedan
   // (code-reviewer Minor 6).
@@ -88,7 +92,7 @@ export function JobAdDetail({
           </div>
           <span className={STATUS_PILL_CLASS[jobAd.status]}>
             <span className="jp-pill__dot" aria-hidden="true" />
-            {getJobAdStatusLabel(jobAd.status)}
+            {jobAdStatusLabel(t, jobAd.status)}
           </span>
         </header>
       )}
@@ -97,7 +101,7 @@ export function JobAdDetail({
         {headless && (
           <span className={STATUS_PILL_CLASS[jobAd.status]} style={{ alignSelf: "flex-start" }}>
             <span className="jp-pill__dot" aria-hidden="true" />
-            {getJobAdStatusLabel(jobAd.status)}
+            {jobAdStatusLabel(t, jobAd.status)}
           </span>
         )}
 

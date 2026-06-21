@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getJobSourceLabel } from "@/lib/job-ads/status";
+import { useTranslations } from "next-intl";
+import { jobSourceLabel } from "@/lib/job-ads/status";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { JobTags } from "./job-tags";
@@ -82,6 +83,9 @@ export function JobAdCard({
   isApplied = false,
   matchGrade,
 }: JobAdCardProps) {
+  // Synchronous next-intl translator — keeps JobAdCard a non-async RSC (it
+  // renders as a serialized list slot and has synchronous render tests).
+  const t = useTranslations("jobads.enums");
   const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
@@ -111,7 +115,7 @@ export function JobAdCard({
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>
         <div className="jp-job__meta">
-          <span>{getJobSourceLabel(jobAd.source)}</span>
+          <span>{jobSourceLabel(t, jobAd.source)}</span>
           <span>
             Publicerad <b>{publishedAt}</b>
           </span>

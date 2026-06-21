@@ -1,6 +1,7 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
-  getJobAdStatusLabel,
+  jobAdStatusLabel,
   JOB_AD_STATUS_BADGE_VARIANT,
   type BadgeVariant,
 } from "@/lib/job-ads/status";
@@ -21,6 +22,8 @@ interface JobAdStatusBadgeProps {
 }
 
 export function JobAdStatusBadge({ status, className }: JobAdStatusBadgeProps) {
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("jobads.enums");
   const variant = JOB_AD_STATUS_BADGE_VARIANT[status];
   // Inget `role="status"` — badge är dekorativ label, inte live-region.
   // På list-sida med N badges skulle role=status ge N polite-announcements
@@ -33,7 +36,7 @@ export function JobAdStatusBadge({ status, className }: JobAdStatusBadgeProps) {
         className
       )}
     >
-      {getJobAdStatusLabel(status)}
+      {jobAdStatusLabel(t, status)}
     </span>
   );
 }

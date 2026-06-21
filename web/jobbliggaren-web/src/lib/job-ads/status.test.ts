@@ -1,19 +1,28 @@
 import { describe, it, expect } from "vitest";
+import { createTranslator } from "next-intl";
 import {
-  JOB_AD_STATUS_LABELS,
   JOB_AD_STATUS_BADGE_VARIANT,
-  JOB_SOURCE_LABELS,
-  JOB_AD_SORT_LABELS,
-  getJobAdStatusLabel,
-  getJobSourceLabel,
-  getJobAdSortLabel,
+  JOB_AD_SORT_KEYS,
+  jobAdStatusLabel,
+  jobSourceLabel,
+  jobAdSortLabel,
 } from "./status";
+import svJobAds from "../../../messages/sv/jobads.json";
 
-describe("JOB_AD_STATUS_LABELS", () => {
+// Real next-intl translator scoped to the `enums` namespace from the Swedish
+// catalog (the source of truth). In production it comes from
+// `useTranslations("jobads.enums")`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { jobads: svJobAds },
+  namespace: "jobads.enums",
+});
+
+describe("jobAdStatusLabel", () => {
   it("has labels for Active, Expired, Archived (cross-ref backend SmartEnum)", () => {
-    expect(JOB_AD_STATUS_LABELS.Active).toBe("Aktiv");
-    expect(JOB_AD_STATUS_LABELS.Expired).toBe("Utgången");
-    expect(JOB_AD_STATUS_LABELS.Archived).toBe("Arkiverad");
+    expect(jobAdStatusLabel(t, "Active")).toBe("Aktiv");
+    expect(jobAdStatusLabel(t, "Expired")).toBe("Utgången");
+    expect(jobAdStatusLabel(t, "Archived")).toBe("Arkiverad");
   });
 });
 
@@ -25,34 +34,36 @@ describe("JOB_AD_STATUS_BADGE_VARIANT", () => {
   });
 });
 
-describe("JOB_SOURCE_LABELS", () => {
+describe("jobSourceLabel", () => {
   it("has Swedish labels for known sources", () => {
-    expect(JOB_SOURCE_LABELS.Manual).toBe("Egen");
-    expect(JOB_SOURCE_LABELS.Platsbanken).toBe("Platsbanken");
-    expect(JOB_SOURCE_LABELS.LinkedIn).toBe("LinkedIn");
-    expect(JOB_SOURCE_LABELS.Eures).toBe("EURES");
+    expect(jobSourceLabel(t, "Manual")).toBe("Egen");
+    expect(jobSourceLabel(t, "Platsbanken")).toBe("Platsbanken");
+    expect(jobSourceLabel(t, "LinkedIn")).toBe("LinkedIn");
+    expect(jobSourceLabel(t, "Eures")).toBe("EURES");
   });
 });
 
-describe("JOB_AD_SORT_LABELS", () => {
-  it("has Swedish labels for the four sort options", () => {
-    expect(JOB_AD_SORT_LABELS.PublishedAtDesc).toBe("Nyast först");
-    expect(JOB_AD_SORT_LABELS.PublishedAtAsc).toBe("Äldst först");
-    expect(JOB_AD_SORT_LABELS.ExpiresAtDesc).toBe("Stänger senare");
-    expect(JOB_AD_SORT_LABELS.ExpiresAtAsc).toBe("Stänger snart");
-  });
-});
-
-describe("getter helpers", () => {
-  it("getJobAdStatusLabel returns label", () => {
-    expect(getJobAdStatusLabel("Active")).toBe("Aktiv");
+describe("jobAdSortLabel", () => {
+  it("has Swedish labels for the date/relevance sort options", () => {
+    expect(jobAdSortLabel(t, "PublishedAtDesc")).toBe("Nyast först");
+    expect(jobAdSortLabel(t, "PublishedAtAsc")).toBe("Äldst först");
+    expect(jobAdSortLabel(t, "ExpiresAtDesc")).toBe("Stänger senare");
+    expect(jobAdSortLabel(t, "ExpiresAtAsc")).toBe("Stänger snart");
   });
 
-  it("getJobSourceLabel returns label", () => {
-    expect(getJobSourceLabel("Platsbanken")).toBe("Platsbanken");
+  it("translates Relevance and the match-sort label", () => {
+    expect(jobAdSortLabel(t, "Relevance")).toBe("Mest relevant");
+    expect(jobAdSortLabel(t, "MatchDesc")).toBe("Sortera efter matchning");
   });
 
-  it("getJobAdSortLabel returns label", () => {
-    expect(getJobAdSortLabel("PublishedAtDesc")).toBe("Nyast först");
+  it("JOB_AD_SORT_KEYS preserves the declaration order", () => {
+    expect([...JOB_AD_SORT_KEYS]).toEqual([
+      "PublishedAtDesc",
+      "PublishedAtAsc",
+      "ExpiresAtDesc",
+      "ExpiresAtAsc",
+      "Relevance",
+      "MatchDesc",
+    ]);
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { getStatusLabel, PIPELINE_ORDER } from "@/lib/applications/status";
+import { useTranslations } from "next-intl";
+import { applicationStatusLabel, PIPELINE_ORDER } from "@/lib/applications/status";
 import type {
   ApplicationStatus,
   PipelineGroupDto,
@@ -40,6 +41,7 @@ export function ApplicationsPipeline({
   groups,
   rowSlots,
 }: ApplicationsPipelineProps) {
+  const tEnum = useTranslations("applications.enums");
   const [active, setActive] = useState<FilterValue>("All");
 
   const byStatus = useMemo(
@@ -73,7 +75,8 @@ export function ApplicationsPipeline({
         {tabs.map((t) => {
           const isActive = active === t;
           const count = t === "All" ? total : byStatus.get(t)?.count ?? 0;
-          const label = t === "All" ? "Alla" : getStatusLabel(t);
+          const label =
+            t === "All" ? "Alla" : applicationStatusLabel(tEnum, t);
           return (
             <button
               key={t}
@@ -100,7 +103,7 @@ export function ApplicationsPipeline({
         </div>
       ) : (
         sections.map((group) => {
-          const label = getStatusLabel(group.status);
+          const label = applicationStatusLabel(tEnum, group.status);
           return (
             <section
               key={group.status}

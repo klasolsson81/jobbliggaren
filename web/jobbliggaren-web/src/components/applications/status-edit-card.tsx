@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { StatusPill, type PillTone } from "@/components/ui/status-pill";
@@ -14,8 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { transitionStatusAction } from "@/lib/actions/applications";
 import {
+  applicationStatusLabel,
   getAllowedTransitions,
-  getStatusLabel,
   isDestructiveTransition,
   STATUS_BADGE_VARIANT,
   type BadgeVariant,
@@ -51,6 +52,7 @@ export function StatusEditCard({
   applicationId,
   currentStatus,
 }: StatusEditCardProps) {
+  const t = useTranslations("applications.enums");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ApplicationStatus | "">("");
@@ -85,7 +87,7 @@ export function StatusEditCard({
     executeTransition(target);
   }
 
-  const currentLabel = getStatusLabel(currentStatus);
+  const currentLabel = applicationStatusLabel(t, currentStatus);
   const selectedIsDestructive =
     selected !== "" && isDestructiveTransition(selected);
   const singleTransition = transitions.length === 1 ? transitions[0] : null;
@@ -126,7 +128,7 @@ export function StatusEditCard({
             >
               Nästa steg för den här ansökan är{" "}
               <span className="font-medium text-text-primary">
-                {getStatusLabel(singleTransition)}
+                {applicationStatusLabel(t, singleTransition)}
               </span>
               .
             </p>
@@ -138,7 +140,7 @@ export function StatusEditCard({
               >
                 {isPending
                   ? "Sparar…"
-                  : `Markera som ${getStatusLabel(singleTransition)}`}
+                  : `Markera som ${applicationStatusLabel(t, singleTransition)}`}
               </Button>
             </div>
             {error && (
@@ -181,15 +183,15 @@ export function StatusEditCard({
                   id={`status-${target}`}
                   value={target}
                 >
-                  {getStatusLabel(target)}
+                  {applicationStatusLabel(t, target)}
                 </RadioGroupItem>
               ))}
             </RadioGroup>
 
             {selectedIsDestructive && (
               <p className="text-body-sm text-danger-700">
-                {getStatusLabel(selected as ApplicationStatus)} avslutar
-                ansökan. Det går inte att ångra utan manuell åtgärd.
+                {applicationStatusLabel(t, selected as ApplicationStatus)}{" "}
+                avslutar ansökan. Det går inte att ångra utan manuell åtgärd.
               </p>
             )}
 
@@ -227,12 +229,13 @@ export function StatusEditCard({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Markera som {pendingTarget ? getStatusLabel(pendingTarget) : ""}?
+              Markera som{" "}
+              {pendingTarget ? applicationStatusLabel(t, pendingTarget) : ""}?
             </DialogTitle>
             <DialogDescription>
               Ansökan ändras från <strong>{currentLabel}</strong> till{" "}
               <strong>
-                {pendingTarget ? getStatusLabel(pendingTarget) : ""}
+                {pendingTarget ? applicationStatusLabel(t, pendingTarget) : ""}
               </strong>
               . Det går inte att ångra utan manuell åtgärd.
             </DialogDescription>
@@ -256,7 +259,7 @@ export function StatusEditCard({
               }
             >
               {pendingTarget
-                ? `Markera som ${getStatusLabel(pendingTarget)}`
+                ? `Markera som ${applicationStatusLabel(t, pendingTarget)}`
                 : "Bekräfta"}
             </Button>
           </DialogFooter>

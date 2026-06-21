@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { AddFollowUpForm } from "./add-follow-up-form";
 import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
 import {
-  CHANNEL_LABELS,
-  FOLLOW_UP_OUTCOME_LABELS,
+  channelLabel,
+  followUpOutcomeLabel,
   formatSvDate,
 } from "@/lib/applications/status";
 import type { FollowUpDto } from "@/lib/types/applications";
@@ -132,13 +133,13 @@ function FollowUpRow({
   onToggle,
   onClose,
 }: FollowUpRowProps) {
+  const t = useTranslations("applications.enums");
   const recorded = followUp.outcome !== "Pending";
-  const channel = CHANNEL_LABELS[followUp.channel] ?? followUp.channel;
+  const channel = channelLabel(t, followUp.channel);
   const scheduledLabel =
     formatSvDate(followUp.scheduledAt) ??
     new Date(followUp.scheduledAt).toLocaleDateString("sv-SE");
-  const outcomeLabel =
-    FOLLOW_UP_OUTCOME_LABELS[followUp.outcome] ?? followUp.outcome;
+  const outcomeLabel = followUpOutcomeLabel(t, followUp.outcome);
   const outcomeAt = recorded && followUp.outcomeAt
     ? formatSvDate(followUp.outcomeAt)
     : null;

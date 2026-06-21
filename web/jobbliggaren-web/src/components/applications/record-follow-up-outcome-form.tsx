@@ -10,11 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTranslations } from "next-intl";
 import {
   recordFollowUpOutcomeAction,
   type ActionResult,
 } from "@/lib/actions/applications";
-import { FOLLOW_UP_OUTCOME_LABELS } from "@/lib/applications/status";
+import { followUpOutcomeLabel } from "@/lib/applications/status";
 import type { FollowUpOutcome } from "@/lib/types/applications";
 
 interface RecordFollowUpOutcomeFormProps {
@@ -39,6 +40,7 @@ export function RecordFollowUpOutcomeForm({
   onSuccess,
   onCancel,
 }: RecordFollowUpOutcomeFormProps) {
+  const t = useTranslations("applications.enums");
   const action = recordFollowUpOutcomeAction.bind(
     null,
     applicationId,
@@ -62,7 +64,7 @@ export function RecordFollowUpOutcomeForm({
   const hasError = state ? !state.success : false;
 
   const outcomeLabel = outcome
-    ? FOLLOW_UP_OUTCOME_LABELS[outcome as FollowUpOutcome]
+    ? followUpOutcomeLabel(t, outcome as FollowUpOutcome)
     : "";
 
   return (

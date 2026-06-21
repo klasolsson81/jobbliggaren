@@ -1,6 +1,7 @@
+import { useTranslations } from "next-intl";
 import type { ApplicationStatus } from "@/lib/types/applications";
 import {
-  getStatusLabel,
+  applicationStatusLabel,
   getStatusPillClass,
 } from "@/lib/applications/status";
 import type {
@@ -47,6 +48,8 @@ export function GuestApplicationDetail({
 }: {
   application: GuestMockApplication;
 }) {
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("applications.enums");
   const liveStatus = GUEST_TO_LIVE_STATUS[application.status];
 
   return (
@@ -56,7 +59,7 @@ export function GuestApplicationDetail({
         style={{ alignSelf: "flex-start" }}
       >
         <span className="jp-pill__dot" aria-hidden="true" />
-        {getStatusLabel(liveStatus)}
+        {applicationStatusLabel(t, liveStatus)}
       </span>
 
       <dl className="jp-modal__metarow">

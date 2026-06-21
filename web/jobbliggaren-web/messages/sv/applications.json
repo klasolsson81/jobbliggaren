@@ -1,1 +1,32 @@
-{}
+{
+  "enums": {
+    "status": {
+      "Draft": "Utkast",
+      "Submitted": "Skickad",
+      "Acknowledged": "Bekräftad",
+      "InterviewScheduled": "Intervju bokad",
+      "Interviewing": "Pågående intervju",
+      "OfferReceived": "Erbjudande",
+      "Accepted": "Accepterad",
+      "Rejected": "Nekad",
+      "Withdrawn": "Återtagen",
+      "Ghosted": "Inget svar"
+    },
+    "channel": {
+      "Email": "E-post",
+      "LinkedIn": "LinkedIn",
+      "Phone": "Telefon",
+      "Other": "Övrigt"
+    },
+    "followUpOutcome": {
+      "Pending": "Inväntar svar",
+      "Responded": "Svar mottaget",
+      "NoResponse": "Inget svar"
+    },
+    "source": {
+      "Platsbanken": "Platsbanken",
+      "LinkedIn": "LinkedIn",
+      "Manual": "Manuellt"
+    }
+  }
+}

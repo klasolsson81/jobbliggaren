@@ -1,11 +1,12 @@
+import { useTranslations } from "next-intl";
 import { StatusEditCard } from "@/components/applications/status-edit-card";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
 import { NotesSection } from "@/components/applications/notes-section";
 import {
-  CHANNEL_LABELS,
-  FOLLOW_UP_OUTCOME_LABELS,
+  applicationStatusLabel,
+  channelLabel,
+  followUpOutcomeLabel,
   formatSvDate,
-  getStatusLabel,
   PILL_VARIANT_CLASS,
   STATUS_BADGE_VARIANT,
 } from "@/lib/applications/status";
@@ -73,6 +74,10 @@ export function ApplicationDetail({
   application,
   headless = false,
 }: ApplicationDetailProps) {
+  // next-intl `useTranslations` resolves synchronously in a Server Component
+  // (reads the per-request config), so ApplicationDetail stays a non-async RSC
+  // — its synchronous render tests and serialized @modal slot are unaffected.
+  const t = useTranslations("applications.enums");
   const { jobAd } = application;
   const hasIdentity = jobAd != null;
   const shortId = application.id.slice(0, 8);
@@ -82,7 +87,7 @@ export function ApplicationDetail({
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusColor = BADGE_COLOR_VAR[variant];
-  const statusLabel = getStatusLabel(application.status);
+  const statusLabel = applicationStatusLabel(t, application.status);
 
   // Nästa öppna uppföljning (tidigast schemalagd, ej besvarad) → "Nästa"-
   // raden i status-blocket. REAL fält (followUps[].scheduledAt), ej v3-mock.
@@ -110,7 +115,7 @@ export function ApplicationDetail({
     if (scheduled) {
       timeline.push({
         date: scheduled,
-        label: `Uppföljning (${CHANNEL_LABELS[fu.channel] ?? fu.channel}) schemalagd`,
+        label: `Uppföljning (${channelLabel(t, fu.channel)}) schemalagd`,
       });
     }
     if (fu.outcome !== "Pending" && fu.outcomeAt) {
@@ -118,7 +123,7 @@ export function ApplicationDetail({
       if (outcomeAt) {
         timeline.push({
           date: outcomeAt,
-          label: `Utfall: ${FOLLOW_UP_OUTCOME_LABELS[fu.outcome] ?? fu.outcome}`,
+          label: `Utfall: ${followUpOutcomeLabel(t, fu.outcome)}`,
         });
       }
     }

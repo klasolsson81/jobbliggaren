@@ -434,6 +434,20 @@ function CvSuggestStatus({
   readonly onCancelUpload: () => void;
   readonly onUploaded: (parsedResumeId: string) => void;
 }) {
+  // Fokus följer den nyöppnade upload-ytan (WCAG 2.4.3) — speglar "Lägg till
+  // yrken"-disclosurens fokus-flytt. queueMicrotask kör efter React-commit så
+  // filinputen är monterad.
+  const uploadGroupRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (uploadOpen) {
+      queueMicrotask(() =>
+        uploadGroupRef.current
+          ?.querySelector<HTMLElement>("input, button, [tabindex]")
+          ?.focus()
+      );
+    }
+  }, [uploadOpen]);
+
   return (
     <div className="jp-matchdialog__suggest">
       {showTrigger && !uploadOpen && (
@@ -463,19 +477,24 @@ function CvSuggestStatus({
           welcome-modalen. Importsidan finns kvar som sekundär utväg. */}
       {uploadOpen ? (
         <div
+          ref={uploadGroupRef}
           className="jp-matchdialog__cvupload"
           role="group"
           aria-label="Ladda upp CV"
         >
           <CvUploadForm onUploaded={onUploaded} />
           <div className="jp-matchdialog__cvupload-foot">
-            <button
+            {/* Neutral avbryt (backar bara ut — INGEN destruktiv handling, så
+                aldrig .jp-clearlink/röd, WCAG 1.4.1). Ghost-knapp = neutral och
+                tydligt en knapp, skild från navigations-länken bredvid. */}
+            <Button
               type="button"
-              className="jp-clearlink"
+              variant="ghost"
+              size="sm"
               onClick={onCancelUpload}
             >
               Avbryt
-            </button>
+            </Button>
             <a
               className="text-body-sm text-text-secondary underline underline-offset-2"
               href={importCvHref}

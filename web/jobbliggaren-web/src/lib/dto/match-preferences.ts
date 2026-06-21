@@ -40,3 +40,20 @@ export const occupationDerivationResultSchema = z.object({
 export type OccupationDerivationResult = z.infer<
   typeof occupationDerivationResultSchema
 >;
+
+/**
+ * Fas 4 onboarding (CTO Variant B 2026-06-21) — the non-PII SSYK occupation proposals returned
+ * by `GET /api/v1/resumes/parsed/{id}/occupations` (backend `OccupationProposalDto[]`, wire
+ * camelCase `{conceptId, label, matchedOn}`). Lets the match-setup wizard suggest occupations
+ * from a freshly-uploaded-but-not-yet-promoted CV (the `latestRole` path only covers promoted
+ * CVs). `matchedOn` is stripped by non-strict Zod (same as the title-derive candidates — the
+ * card only needs conceptId + label to toggle the right group). Mapped to `OccupationCandidate`
+ * at the api boundary so every consumer shares one candidate shape.
+ */
+export const parsedResumeOccupationProposalSchema = z.object({
+  conceptId: conceptIdSchema,
+  label: z.string().min(1),
+});
+export const parsedResumeOccupationsSchema = z.array(
+  parsedResumeOccupationProposalSchema
+);

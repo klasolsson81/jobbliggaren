@@ -11,6 +11,7 @@ using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
+using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeOccupations;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderCv;
@@ -121,6 +122,20 @@ public static class ResumesEndpoints
         group.MapGet("/parsed/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetParsedResumeQuery(id), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // The owner's non-PII SSYK occupation proposals for a PendingReview parsed CV (F4-8),
+        // derived deterministically at import and stored as plain jsonb. Drives the match-setup
+        // wizard's CV-suggest for a freshly-uploaded-but-not-yet-promoted CV. Projects the jsonb
+        // column ONLY — never reads/decrypts the CV-PII (PII-minimisation, CTO Variant B
+        // 2026-06-21). Cross-user/unknown/promoted → 404 (global DeletedAt filter + fail-closed
+        // handler, no enumeration oracle).
+        group.MapGet("/parsed/{id:guid}/occupations", async (
+            Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetParsedResumeOccupationsQuery(id), ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);

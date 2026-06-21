@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { deriveOccupations } from "@/lib/api/occupation-derive";
-import { getResumes } from "@/lib/api/resumes";
+import { getResumes, getParsedResumeOccupations } from "@/lib/api/resumes";
 import type { OccupationCandidate } from "@/lib/dto/match-preferences";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 import {
@@ -172,6 +172,42 @@ export async function suggestOccupationsFromCvAction(): Promise<CvSuggestResult>
         : { kind: "candidates", candidates: derived.data.candidates };
     case "unauthorized":
       return { kind: "unauthorized" };
+    default:
+      return { kind: "error" };
+  }
+}
+
+/**
+ * Fas 4 onboarding (ADR 0076, CTO Variant B 2026-06-21) — CV-suggest sourced from a SPECIFIC
+ * freshly-uploaded `parsed_resume` (the wizard receives its `parsedResumeId` from the welcome
+ * upload). Distinct from {@link suggestOccupationsFromCvAction}, which reads the promoted
+ * `Resume`'s `latestRole`: a brand-new user who just uploaded has NO promoted Resume yet (only a
+ * PendingReview parsed_resume), so the latestRole path returns `noCv`. This reads the non-PII
+ * `occupation_proposals` already derived at import — no DEK, no CV-PII egress (the backend
+ * projects the jsonb column).
+ *
+ * Maps to the SAME {@link CvSuggestResult} union so the YRKEN section renders unchanged: an
+ * empty proposal list → `noRole` (CV read, no occupation derivable — honest, not a failure); a
+ * missing/cross-user/promoted artifact → `noCv` (404 from the owner-scoped, fail-closed read).
+ * The proposal is never written (propose-and-approve, ADR 0040/0071).
+ */
+export async function suggestOccupationsFromParsedResumeAction(
+  parsedResumeId: string
+): Promise<CvSuggestResult> {
+  if (typeof parsedResumeId !== "string" || parsedResumeId.length === 0) {
+    return { kind: "noCv" };
+  }
+
+  const result = await getParsedResumeOccupations(parsedResumeId);
+  switch (result.kind) {
+    case "unauthorized":
+      return { kind: "unauthorized" };
+    case "notFound":
+      return { kind: "noCv" };
+    case "ok":
+      return result.data.length === 0
+        ? { kind: "noRole" }
+        : { kind: "candidates", candidates: result.data };
     default:
       return { kind: "error" };
   }

@@ -25,15 +25,19 @@ vi.mock("next/navigation", async () => {
 });
 
 // Wizardens preferens-actions (monteras i komponenten via MatchSetupWizard).
-const { updateMock, deriveMock, cvSuggestMock } = vi.hoisted(() => ({
-  updateMock: vi.fn(),
-  deriveMock: vi.fn(),
-  cvSuggestMock: vi.fn(),
-}));
+const { updateMock, deriveMock, cvSuggestMock, parsedSuggestMock } = vi.hoisted(
+  () => ({
+    updateMock: vi.fn(),
+    deriveMock: vi.fn(),
+    cvSuggestMock: vi.fn(),
+    parsedSuggestMock: vi.fn(),
+  })
+);
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
+  suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
 }));
 
 // CvUploadForm mockad: exponera dess onUploaded-callback via en knapp så
@@ -86,9 +90,13 @@ beforeEach(() => {
   updateMock.mockReset();
   deriveMock.mockReset();
   cvSuggestMock.mockReset();
+  parsedSuggestMock.mockReset();
   updateMock.mockResolvedValue({ success: true });
   deriveMock.mockResolvedValue({ success: true, candidates: [] });
   cvSuggestMock.mockResolvedValue({ kind: "noCv" });
+  // Welcome-flödet trär det uppladdade parsedResumeId till wizarden → steg 1
+  // auto-suggestar via parsed-vägen. Default lugn tom-state.
+  parsedSuggestMock.mockResolvedValue({ kind: "noCv" });
 });
 
 describe("WelcomeSetupModal — gating", () => {

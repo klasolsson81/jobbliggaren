@@ -3,11 +3,16 @@ import type { ResumeListItemDto } from "@/lib/dto/resumes";
 
 // getResumes + deriveOccupations är server-only-BFF:er; mocka dem så vi kan
 // driva alla diskriminerade grenar utan backend/Bearer-session.
-const { getResumesMock, deriveOccupationsMock } = vi.hoisted(() => ({
-  getResumesMock: vi.fn(),
-  deriveOccupationsMock: vi.fn(),
+const { getResumesMock, getParsedResumeOccupationsMock, deriveOccupationsMock } =
+  vi.hoisted(() => ({
+    getResumesMock: vi.fn(),
+    getParsedResumeOccupationsMock: vi.fn(),
+    deriveOccupationsMock: vi.fn(),
+  }));
+vi.mock("@/lib/api/resumes", () => ({
+  getResumes: getResumesMock,
+  getParsedResumeOccupations: getParsedResumeOccupationsMock,
 }));
-vi.mock("@/lib/api/resumes", () => ({ getResumes: getResumesMock }));
 vi.mock("@/lib/api/occupation-derive", () => ({
   deriveOccupations: deriveOccupationsMock,
 }));
@@ -16,8 +21,13 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 // getSessionId används av updateMatchPreferencesAction (ej testad här) — stubba.
 vi.mock("@/lib/auth/session", () => ({ getSessionId: vi.fn() }));
 
-import { suggestOccupationsFromCvAction } from "./match-preferences";
+import {
+  suggestOccupationsFromCvAction,
+  suggestOccupationsFromParsedResumeAction,
+} from "./match-preferences";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
+
+const VALID_ID = "11111111-1111-4111-8111-111111111111";
 
 function resume(over: Partial<ResumeListItemDto>): ResumeListItemDto {
   return {
@@ -160,5 +170,87 @@ describe("suggestOccupationsFromCvAction", () => {
   it("getResumes-fel → error", async () => {
     getResumesMock.mockResolvedValue({ kind: "error" });
     expect(await suggestOccupationsFromCvAction()).toEqual({ kind: "error" });
+  });
+});
+
+describe("suggestOccupationsFromParsedResumeAction", () => {
+  beforeEach(() => {
+    getParsedResumeOccupationsMock.mockReset();
+  });
+
+  it("tomt id → noCv utan att nå backend (vakt före BFF-anrop)", async () => {
+    expect(await suggestOccupationsFromParsedResumeAction("")).toEqual({
+      kind: "noCv",
+    });
+    expect(getParsedResumeOccupationsMock).not.toHaveBeenCalled();
+  });
+
+  it("icke-sträng id → noCv utan att nå backend", async () => {
+    // Runtime-vakt (typtvång): server-actions kan anropas med godtycklig input.
+    expect(
+      await suggestOccupationsFromParsedResumeAction(
+        null as unknown as string,
+      ),
+    ).toEqual({ kind: "noCv" });
+    expect(getParsedResumeOccupationsMock).not.toHaveBeenCalled();
+  });
+
+  it("utloggad → unauthorized", async () => {
+    getParsedResumeOccupationsMock.mockResolvedValue({ kind: "unauthorized" });
+    expect(await suggestOccupationsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "unauthorized",
+    });
+  });
+
+  it("notFound (okänt/främmande/befordrat artefakt) → noCv", async () => {
+    getParsedResumeOccupationsMock.mockResolvedValue({ kind: "notFound" });
+    expect(await suggestOccupationsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "noCv",
+    });
+  });
+
+  it("ok men tom proposal-lista → noRole (CV läst, inget yrke härlett)", async () => {
+    getParsedResumeOccupationsMock.mockResolvedValue({ kind: "ok", data: [] });
+    expect(await suggestOccupationsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "noRole",
+    });
+  });
+
+  it("ok med proposals → candidates (propose-and-approve, skrivs aldrig)", async () => {
+    getParsedResumeOccupationsMock.mockResolvedValue({
+      kind: "ok",
+      data: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+        },
+      ],
+    });
+    expect(await suggestOccupationsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "candidates",
+      candidates: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+        },
+      ],
+    });
+  });
+
+  it("övrigt fel (error) → error", async () => {
+    getParsedResumeOccupationsMock.mockResolvedValue({ kind: "error" });
+    expect(await suggestOccupationsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "error",
+    });
+  });
+
+  it("rateLimited (default-grenen) → error (lugn fel-rad, ingen läcka av status)", async () => {
+    getParsedResumeOccupationsMock.mockResolvedValue({
+      kind: "rateLimited",
+      retryAfterSeconds: 30,
+    });
+    expect(await suggestOccupationsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "error",
+    });
   });
 });

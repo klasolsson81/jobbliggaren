@@ -8,15 +8,19 @@ import type {
 } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
 
-const { updateMock, deriveMock, cvSuggestMock } = vi.hoisted(() => ({
-  updateMock: vi.fn(),
-  deriveMock: vi.fn(),
-  cvSuggestMock: vi.fn(),
-}));
+const { updateMock, deriveMock, cvSuggestMock, parsedSuggestMock } = vi.hoisted(
+  () => ({
+    updateMock: vi.fn(),
+    deriveMock: vi.fn(),
+    cvSuggestMock: vi.fn(),
+    parsedSuggestMock: vi.fn(),
+  })
+);
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
+  suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
 }));
 
 import { MatchSetupWizard } from "./match-setup-wizard";
@@ -65,10 +69,37 @@ beforeEach(() => {
   updateMock.mockReset();
   deriveMock.mockReset();
   cvSuggestMock.mockReset();
+  parsedSuggestMock.mockReset();
   updateMock.mockResolvedValue({ success: true });
   deriveMock.mockResolvedValue({ success: true, candidates: [] });
   // Default: inget CV (auto-suggest på steg 1 ger en lugn tom-state).
   cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
+  parsedSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
+});
+
+describe("MatchSetupWizard — CV-källa på steg 1", () => {
+  it("utan parsedResumeId auto-suggestar via det promotade Resume:ts latestRole-väg", async () => {
+    renderWizard();
+    await waitFor(() => expect(cvSuggestMock).toHaveBeenCalledTimes(1));
+    expect(parsedSuggestMock).not.toHaveBeenCalled();
+  });
+
+  it("med parsedResumeId auto-suggestar ur det just uppladdade parsed_resume:t", async () => {
+    parsedSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        { occupationGroupConceptId: "grp_backend", occupationGroupLabel: "Backendutvecklare" },
+      ],
+    } satisfies CvSuggestResult);
+
+    renderWizard({ parsedResumeId: "parsed-xyz" });
+
+    await waitFor(() =>
+      expect(parsedSuggestMock).toHaveBeenCalledWith("parsed-xyz")
+    );
+    // Welcome-flödet läser staging-CV:t — aldrig latestRole-vägen.
+    expect(cvSuggestMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("MatchSetupWizard — steg-navigering", () => {

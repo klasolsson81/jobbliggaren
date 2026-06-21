@@ -20,6 +20,10 @@ import {
   responseToResult,
   type ApiResult,
 } from "@/lib/dto/_helpers";
+import {
+  parsedResumeOccupationsSchema,
+  type OccupationCandidate,
+} from "@/lib/dto/match-preferences";
 import { isValidId } from "@/lib/validation/guid";
 
 function authHeaders(sessionId: string): HeadersInit {
@@ -51,6 +55,48 @@ export async function getResumes(
       getResumesResultSchema,
       "GET /api/v1/resumes"
     );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Fas 4 onboarding (CTO Variant B 2026-06-21) — the OWNER's non-PII SSYK occupation proposals
+ * for a PendingReview parsed CV (`GET /api/v1/resumes/parsed/{id}/occupations`). The backend
+ * PROJECTS the plain-jsonb proposals and never decrypts the CV-PII (the query is not
+ * `IRequiresFieldEncryptionKey`), so this read carries no CV-PII. Lets the match-setup wizard
+ * suggest occupations from a freshly-uploaded CV that has not yet been promoted to a Resume.
+ * Owner-scoped + IDOR fail-closed lives in backend (unknown/cross-user/promoted → 404).
+ * Maps the wire shape to the shared `OccupationCandidate` so the wizard toggles the right group.
+ */
+export async function getParsedResumeOccupations(
+  id: string
+): Promise<ApiResult<OccupationCandidate[]>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: reject non-GUID before it reaches the backend URL (SSRF barrier +
+  // path-injection); a malformed id cannot exist → 404.
+  if (!isValidId(id)) return { kind: "notFound" };
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}/occupations`,
+      { headers: authHeaders(sessionId), cache: "no-store" }
+    );
+    const result = await responseToResult(
+      res,
+      parsedResumeOccupationsSchema,
+      `GET /api/v1/resumes/parsed/${id}/occupations`,
+      { includeNotFound: true }
+    );
+    if (result.kind !== "ok") return result;
+    return {
+      kind: "ok",
+      data: result.data.map((p) => ({
+        occupationGroupConceptId: p.conceptId,
+        occupationGroupLabel: p.label,
+      })),
+    };
   } catch {
     return { kind: "error" };
   }

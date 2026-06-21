@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { ThemeProvider, ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -17,44 +19,54 @@ const jetBrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://dev.jobbliggaren.se"
-  ),
-  title: {
-    default: "Jobbliggaren",
-    template: "%s | Jobbliggaren",
-  },
-  description: "Den svenska jobbansökningshanteraren",
-  applicationName: "Jobbliggaren",
-  // icons/openGraph/twitter/manifest plockas upp automatiskt av Next.js 16
-  // file-conventions (app/icon.svg, app/apple-icon.tsx, app/opengraph-image.tsx,
-  // app/twitter-image.tsx, app/manifest.ts) — explicit metadata-fält behövs inte.
-  openGraph: {
-    type: "website",
-    locale: "sv_SE",
-    siteName: "Jobbliggaren",
-  },
-  twitter: {
-    card: "summary_large_image",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("metadata");
+  const locale = await getLocale();
 
-export default function RootLayout({
+  return {
+    metadataBase: new URL(
+      process.env.NEXT_PUBLIC_SITE_URL ?? "https://dev.jobbliggaren.se"
+    ),
+    title: {
+      default: t("titleDefault"),
+      template: t("titleTemplate"),
+    },
+    description: t("description"),
+    applicationName: t("applicationName"),
+    // icons/openGraph/twitter/manifest plockas upp automatiskt av Next.js 16
+    // file-conventions (app/icon.svg, app/apple-icon.tsx, app/opengraph-image.tsx,
+    // app/twitter-image.tsx, app/manifest.ts) — explicit metadata-fält behövs inte.
+    openGraph: {
+      type: "website",
+      locale: locale === "sv" ? "sv_SE" : "en_US",
+      siteName: t("applicationName"),
+    },
+    twitter: {
+      card: "summary_large_image",
+    },
+  };
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
     <html
-      lang="sv"
+      lang={locale}
       data-density="standard"
       suppressHydrationWarning
       className={`${hankenGrotesk.variable} ${jetBrainsMono.variable} h-full font-sans`}
     >
       <body className="min-h-full bg-surface-primary text-text-primary antialiased">
         <ThemeScript />
-        <ThemeProvider>{children}</ThemeProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ThemeProvider>{children}</ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

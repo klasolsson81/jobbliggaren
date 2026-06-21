@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// next-intl without i18n routing: the plugin wires the request config at
+// `src/i18n/request.ts` (locale resolved from the `NEXT_LOCALE` cookie). See ADR 0078.
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   // F6 Prompt 2 (ADR 0057) — /mig → /installningar permanent redirect.
@@ -21,4 +26,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

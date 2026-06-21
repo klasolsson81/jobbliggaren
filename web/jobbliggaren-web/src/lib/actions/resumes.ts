@@ -2,13 +2,14 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import {
-  createResumeSchema,
-  renameResumeSchema,
-  updateMasterContentSchema,
-  promoteParsedResumeSchema,
+  makeCreateResumeSchema,
+  makeRenameResumeSchema,
+  makeUpdateMasterContentSchema,
+  makePromoteParsedResumeSchema,
 } from "./resume-schemas";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 import { createdResourceSchema } from "@/lib/dto/common";
@@ -32,7 +33,8 @@ export async function createResumeAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = createResumeSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeCreateResumeSchema(t).safeParse({
     name: formData.get("name"),
     fullName: formData.get("fullName"),
   });
@@ -80,7 +82,8 @@ export async function renameResumeAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = renameResumeSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeRenameResumeSchema(t).safeParse({
     resumeId,
     name: formData.get("name"),
   });
@@ -124,7 +127,8 @@ export async function updateMasterContentAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = updateMasterContentSchema.safeParse({ resumeId, content });
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateMasterContentSchema(t).safeParse({ resumeId, content });
   if (!parsed.success) {
     return {
       success: false,
@@ -208,7 +212,8 @@ export async function promoteParsedResumeAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = promoteParsedResumeSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makePromoteParsedResumeSchema(t).safeParse({
     parsedResumeId,
     name,
     content,

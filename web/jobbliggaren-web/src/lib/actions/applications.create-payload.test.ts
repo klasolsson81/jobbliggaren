@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createTranslator } from "next-intl";
+import svValidation from "../../../messages/sv/validation.json";
 
 // createApplicationAction-payload-kontrakt: /ansokningar/ny skapar ALLTID en
 // manuell ansökan. Backend tar `manual: { title, company, url?, expiresAt? }`
@@ -29,6 +31,19 @@ const redirectMock = vi.fn((url: string) => {
 });
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
+}));
+
+// The action builds its schema via `getTranslations("validation")`. In this
+// unit-test (jsdom) context next-intl's server entry is unavailable, so mock it
+// to a real translator over the Swedish catalog (source of truth) — verbatim
+// validation messages keep flowing, identical to production.
+vi.mock("next-intl/server", () => ({
+  getTranslations: async () =>
+    createTranslator({
+      locale: "sv",
+      messages: { validation: svValidation },
+      namespace: "validation",
+    }),
 }));
 
 import { createApplicationAction } from "./applications";

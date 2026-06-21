@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { resumeContentSchema } from "@/lib/actions/resume-schemas";
+import { makeResumeContentSchema } from "@/lib/actions/resume-schemas";
 import {
   emptyEducation,
   emptyExperience,
@@ -144,6 +145,8 @@ export function ResumeContentForm({
   resumeId,
   initialContent,
 }: ResumeContentFormProps) {
+  const t = useTranslations("validation");
+  const schema = useMemo(() => makeResumeContentSchema(t), [t]);
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [serverError, setServerError] = useState<FieldError | null>(null);
@@ -176,7 +179,7 @@ export function ResumeContentForm({
     setSavedAt(null);
     const payload = toRawPayload(values);
     // Schema validates and transforms ("" → null) into a ResumeContentDto-compatible shape.
-    const parsed = resumeContentSchema.safeParse(payload);
+    const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       if (first) {

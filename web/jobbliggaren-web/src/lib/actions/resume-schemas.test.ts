@@ -1,11 +1,27 @@
 import { describe, it, expect } from "vitest";
+import { createTranslator } from "next-intl";
 import {
-  createResumeSchema,
-  renameResumeSchema,
-  resumeContentSchema,
-  updateMasterContentSchema,
+  makeCreateResumeSchema,
+  makeRenameResumeSchema,
+  makeResumeContentSchema,
+  makeUpdateMasterContentSchema,
 } from "./resume-schemas";
 import { pathToElementId } from "@/lib/forms/resume-path-routing";
+import svValidation from "../../../messages/sv/validation.json";
+
+// Real next-intl translator scoped to the `validation` namespace (Swedish
+// catalog = source of truth). In production the factories receive this `t` from
+// `useTranslations("validation")` / `getTranslations("validation")`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { validation: svValidation },
+  namespace: "validation",
+});
+
+const createResumeSchema = makeCreateResumeSchema(t);
+const renameResumeSchema = makeRenameResumeSchema(t);
+const resumeContentSchema = makeResumeContentSchema(t);
+const updateMasterContentSchema = makeUpdateMasterContentSchema(t);
 
 const VALID_GUID = "550e8400-e29b-41d4-a716-446655440000";
 

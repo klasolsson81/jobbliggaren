@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { deleteAccountAction } from "@/lib/actions/me";
 import {
-  deleteMyAccountSchema,
+  makeDeleteMyAccountSchema,
   type DeleteMyAccountInput,
 } from "@/lib/actions/me-schemas";
 
@@ -27,6 +28,8 @@ interface DeleteAccountDialogProps {
 const FORM_ERROR_ID = "delete-account-error";
 
 export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) {
+  const t = useTranslations("validation");
+  const schema = useMemo(() => makeDeleteMyAccountSchema(t), [t]);
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -61,7 +64,7 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
   }
 
   function onSubmit(values: DeleteMyAccountInput) {
-    const parsed = deleteMyAccountSchema.safeParse(values);
+    const parsed = schema.safeParse(values);
     if (!parsed.success) {
       setServerError(parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.");
       return;

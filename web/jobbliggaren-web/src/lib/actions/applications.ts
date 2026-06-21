@@ -2,14 +2,15 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import {
-  createApplicationSchema,
-  transitionStatusSchema,
-  addFollowUpSchema,
-  addNoteSchema,
-  recordFollowUpOutcomeSchema,
+  makeCreateApplicationSchema,
+  makeTransitionStatusSchema,
+  makeAddFollowUpSchema,
+  makeAddNoteSchema,
+  makeRecordFollowUpOutcomeSchema,
 } from "./application-schemas";
 import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
@@ -84,7 +85,8 @@ export async function createApplicationAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = createApplicationSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeCreateApplicationSchema(t).safeParse({
     title: formData.get("title") ?? "",
     company: formData.get("company") ?? "",
     url: formData.get("url") ?? "",
@@ -140,7 +142,8 @@ export async function transitionStatusAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = transitionStatusSchema.safeParse({ applicationId, targetStatus });
+  const t = await getTranslations("validation");
+  const parsed = makeTransitionStatusSchema(t).safeParse({ applicationId, targetStatus });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
   }
@@ -175,7 +178,8 @@ export async function addFollowUpAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = addFollowUpSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeAddFollowUpSchema(t).safeParse({
     applicationId,
     channel: formData.get("channel"),
     scheduledAt: formData.get("scheduledAt"),
@@ -218,7 +222,8 @@ export async function addNoteAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = addNoteSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeAddNoteSchema(t).safeParse({
     applicationId,
     content: formData.get("content"),
   });
@@ -256,7 +261,8 @@ export async function recordFollowUpOutcomeAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = recordFollowUpOutcomeSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeRecordFollowUpOutcomeSchema(t).safeParse({
     applicationId,
     followUpId,
     outcome: formData.get("outcome"),

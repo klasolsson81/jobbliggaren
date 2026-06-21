@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { updateMyProfileSchema } from "./me-schemas";
+import { createTranslator } from "next-intl";
+import { makeUpdateMyProfileSchema } from "./me-schemas";
+import svValidation from "../../../messages/sv/validation.json";
+
+// Real next-intl translator scoped to the `validation` namespace (Swedish
+// catalog = source of truth). In production the factory receives this `t` from
+// `useTranslations("validation")` / `getTranslations("validation")`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { validation: svValidation },
+  namespace: "validation",
+});
+
+const updateMyProfileSchema = makeUpdateMyProfileSchema(t);
 
 const base = {
   displayName: "Anna Andersson",

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  updateMyProfileSchema,
+  makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
 } from "@/lib/actions/me-schemas";
 import { updateMyProfileAction } from "@/lib/actions/me";
@@ -40,6 +41,8 @@ function normalizeLanguage(language: string): "sv" | "en" {
 }
 
 export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
+  const t = useTranslations("validation");
+  const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [serverError, setServerError] = useState<FieldError | null>(null);
@@ -72,7 +75,7 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
     setServerError(null);
     setSavedAt(null);
 
-    const parsed = updateMyProfileSchema.safeParse(values);
+    const parsed = schema.safeParse(values);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       if (first) {

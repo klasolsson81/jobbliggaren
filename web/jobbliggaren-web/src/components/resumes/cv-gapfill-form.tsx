@@ -4,14 +4,15 @@
 // onSubmit-handler, useTransition, programmatisk focus-flytt vid valideringsfel).
 // CV-PII tas emot som props från RSC:n (server-only läsning) men redigeras här.
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { promoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
+import { makePromoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
 import { promoteParsedResumeAction } from "@/lib/actions/resumes";
 import { gapFillPathToElementId } from "@/lib/forms/resume-path-routing";
 import type { ParsedContentDto } from "@/lib/dto/parsed-resume";
@@ -160,6 +161,8 @@ export function CvGapFillForm({
   sourceFileName,
   content,
 }: CvGapFillFormProps) {
+  const t = useTranslations("validation");
+  const schema = useMemo(() => makePromoteParsedResumeSchema(t), [t]);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<FieldError | null>(null);
 
@@ -191,7 +194,7 @@ export function CvGapFillForm({
     const rawPayload = toRawPayload(values);
     // Klient-validering speglar server-actionen (server-validering är auktoritativ).
     // Schemat validerar/transformerar ("" → null) till en ResumeContentDto-form.
-    const parsed = promoteParsedResumeSchema.safeParse({
+    const parsed = schema.safeParse({
       parsedResumeId: parsedId,
       name: values.name,
       content: rawPayload,

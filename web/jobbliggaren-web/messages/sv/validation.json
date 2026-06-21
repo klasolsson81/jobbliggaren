@@ -1,1 +1,54 @@
-{}
+{
+  "application": {
+    "titleRequired": "Jobbtitel krävs.",
+    "titleMax": "Jobbtitel får vara max 200 tecken.",
+    "companyRequired": "Företag krävs.",
+    "companyMax": "Företag får vara max 200 tecken.",
+    "urlInvalid": "Annonslänken måste vara en giltig webbadress.",
+    "urlScheme": "Annonslänken måste börja med http:// eller https://.",
+    "dateInvalid": "Ogiltigt datum.",
+    "coverLetterMax": "Personligt brev får vara max 5 000 tecken.",
+    "applicationIdInvalid": "Ogiltigt ansöknings-ID.",
+    "statusInvalid": "Ogiltig status.",
+    "channelInvalid": "Ogiltig kanal.",
+    "dateRequired": "Datum krävs.",
+    "noteMax": "Anteckning får vara max 1 000 tecken.",
+    "noteContentRequired": "Notering får inte vara tom.",
+    "noteContentMax": "Notering får vara max 5 000 tecken.",
+    "followUpIdInvalid": "Ogiltigt uppföljnings-ID.",
+    "outcomeInvalid": "Ogiltigt utfall."
+  },
+  "profile": {
+    "confirmEmailInvalid": "Ange en giltig e-postadress.",
+    "passwordRequired": "Lösenord krävs.",
+    "displayNameRequired": "Visningsnamn krävs.",
+    "displayNameMax": "Visningsnamn får vara max 200 tecken.",
+    "languageInvalid": "Välj ett giltigt språk."
+  },
+  "resume": {
+    "dateInvalid": "Ogiltigt datum (yyyy-MM-dd).",
+    "nameRequired": "Namn krävs.",
+    "nameMax": "Namn får vara max 200 tecken.",
+    "fullNameRequired": "Fullständigt namn krävs.",
+    "fullNameMax": "Fullständigt namn får vara max 200 tecken.",
+    "resumeIdInvalid": "Ogiltigt CV-ID.",
+    "emailInvalid": "Ogiltig e-postadress.",
+    "companyRequired": "Företag krävs.",
+    "companyMax": "Företag får vara max 200 tecken.",
+    "roleRequired": "Roll krävs.",
+    "roleMax": "Roll får vara max 200 tecken.",
+    "endBeforeStart": "Slutdatum kan inte vara före startdatum.",
+    "institutionRequired": "Lärosäte krävs.",
+    "institutionMax": "Lärosäte får vara max 200 tecken.",
+    "degreeRequired": "Examen krävs.",
+    "degreeMax": "Examen får vara max 200 tecken.",
+    "skillNameRequired": "Färdighet krävs.",
+    "skillNameMax": "Färdighet får vara max 100 tecken.",
+    "yearsInteger": "Ange antal år som heltal.",
+    "yearsNegative": "År kan inte vara negativt.",
+    "yearsMax": "Maxvärde för år är 70.",
+    "summaryMax": "Sammanfattning får vara max 2 000 tecken.",
+    "cvNameRequired": "Namn på CV krävs.",
+    "maxChars": "{label} får vara max {max} tecken."
+  }
+}

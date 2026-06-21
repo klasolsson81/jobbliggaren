@@ -1,6 +1,14 @@
 import { z } from "zod";
+import type { useTranslations } from "next-intl";
 import type { ApplicationStatus } from "@/lib/types/applications";
 import { GUID_REGEX } from "@/lib/validation/guid";
+
+// next-intl translator scoped to the `validation` namespace. The same call
+// signature works for both client (`useTranslations("validation")`) and server
+// (`getTranslations("validation")`); callers acquire `t` and build the schema
+// via the `make*`-factories below. The Swedish values live in
+// `messages/sv/validation.json` (source of truth, typed via AppConfig).
+export type ValidationTranslator = ReturnType<typeof useTranslations<"validation">>;
 
 const APPLICATION_STATUSES = [
   "Draft", "Submitted", "Acknowledged", "InterviewScheduled",
@@ -11,78 +19,113 @@ const APPLICATION_STATUSES = [
 // Annonslänk + Sista ansökningsdag frivilliga. Inget Källa-fält (Source
 // struken — manuell ansökan är implicit Source=Manual, projiceras i
 // read-vägen). coverLetter fortsatt frivillig.
-export const createApplicationSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, "Jobbtitel krävs.")
-    .max(200, "Jobbtitel får vara max 200 tecken."),
-  company: z
-    .string()
-    .trim()
-    .min(1, "Företag krävs.")
-    .max(200, "Företag får vara max 200 tecken."),
-  url: z
-    .union([
-      z
-        .string()
-        .trim()
-        .url("Annonslänken måste vara en giltig webbadress.")
-        .refine(
-          (v) => v.startsWith("http://") || v.startsWith("https://"),
-          "Annonslänken måste börja med http:// eller https://."
-        ),
-      z.literal("").transform(() => undefined),
-    ])
-    .optional(),
-  expiresAt: z
-    .union([
-      z
-        .string()
-        .trim()
-        .refine((v) => !isNaN(Date.parse(v)), "Ogiltigt datum."),
-      z.literal("").transform(() => undefined),
-    ])
-    .optional(),
-  coverLetter: z
-    .string()
-    .max(5000, "Personligt brev får vara max 5 000 tecken.")
-    .optional(),
-});
+export function makeCreateApplicationSchema(t: ValidationTranslator) {
+  return z.object({
+    title: z
+      .string()
+      .trim()
+      .min(1, t("application.titleRequired"))
+      .max(200, t("application.titleMax")),
+    company: z
+      .string()
+      .trim()
+      .min(1, t("application.companyRequired"))
+      .max(200, t("application.companyMax")),
+    url: z
+      .union([
+        z
+          .string()
+          .trim()
+          .url(t("application.urlInvalid"))
+          .refine(
+            (v) => v.startsWith("http://") || v.startsWith("https://"),
+            t("application.urlScheme")
+          ),
+        z.literal("").transform(() => undefined),
+      ])
+      .optional(),
+    expiresAt: z
+      .union([
+        z
+          .string()
+          .trim()
+          .refine((v) => !isNaN(Date.parse(v)), t("application.dateInvalid")),
+        z.literal("").transform(() => undefined),
+      ])
+      .optional(),
+    coverLetter: z
+      .string()
+      .max(5000, t("application.coverLetterMax"))
+      .optional(),
+  });
+}
 
-export const transitionStatusSchema = z.object({
-  applicationId: z.string().regex(GUID_REGEX, "Ogiltigt ansöknings-ID."),
-  targetStatus: z.enum(APPLICATION_STATUSES, { error: "Ogiltig status." }),
-});
+export function makeTransitionStatusSchema(t: ValidationTranslator) {
+  return z.object({
+    applicationId: z
+      .string()
+      .regex(GUID_REGEX, t("application.applicationIdInvalid")),
+    targetStatus: z.enum(APPLICATION_STATUSES, {
+      error: t("application.statusInvalid"),
+    }),
+  });
+}
 
-export const addFollowUpSchema = z.object({
-  applicationId: z.string().regex(GUID_REGEX, "Ogiltigt ansöknings-ID."),
-  channel: z.enum(["Email", "LinkedIn", "Phone", "Other"], {
-    error: "Ogiltig kanal.",
-  }),
-  scheduledAt: z
-    .string()
-    .min(1, "Datum krävs.")
-    .refine((v) => !isNaN(Date.parse(v)), "Ogiltigt datum."),
-  note: z.string().max(1000, "Anteckning får vara max 1 000 tecken.").optional(),
-});
+export function makeAddFollowUpSchema(t: ValidationTranslator) {
+  return z.object({
+    applicationId: z
+      .string()
+      .regex(GUID_REGEX, t("application.applicationIdInvalid")),
+    channel: z.enum(["Email", "LinkedIn", "Phone", "Other"], {
+      error: t("application.channelInvalid"),
+    }),
+    scheduledAt: z
+      .string()
+      .min(1, t("application.dateRequired"))
+      .refine((v) => !isNaN(Date.parse(v)), t("application.dateInvalid")),
+    note: z
+      .string()
+      .max(1000, t("application.noteMax"))
+      .optional(),
+  });
+}
 
-export const addNoteSchema = z.object({
-  applicationId: z.string().regex(GUID_REGEX, "Ogiltigt ansöknings-ID."),
-  content: z
-    .string()
-    .min(1, "Notering får inte vara tom.")
-    .max(5000, "Notering får vara max 5 000 tecken."),
-});
+export function makeAddNoteSchema(t: ValidationTranslator) {
+  return z.object({
+    applicationId: z
+      .string()
+      .regex(GUID_REGEX, t("application.applicationIdInvalid")),
+    content: z
+      .string()
+      .min(1, t("application.noteContentRequired"))
+      .max(5000, t("application.noteContentMax")),
+  });
+}
 
-export const recordFollowUpOutcomeSchema = z.object({
-  applicationId: z.string().regex(GUID_REGEX, "Ogiltigt ansöknings-ID."),
-  followUpId: z.string().regex(GUID_REGEX, "Ogiltigt uppföljnings-ID."),
-  outcome: z.enum(["Responded", "NoResponse"], { error: "Ogiltigt utfall." }),
-});
+export function makeRecordFollowUpOutcomeSchema(t: ValidationTranslator) {
+  return z.object({
+    applicationId: z
+      .string()
+      .regex(GUID_REGEX, t("application.applicationIdInvalid")),
+    followUpId: z
+      .string()
+      .regex(GUID_REGEX, t("application.followUpIdInvalid")),
+    outcome: z.enum(["Responded", "NoResponse"], {
+      error: t("application.outcomeInvalid"),
+    }),
+  });
+}
 
-export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
-export type TransitionStatusInput = z.infer<typeof transitionStatusSchema>;
-export type AddFollowUpInput = z.infer<typeof addFollowUpSchema>;
-export type AddNoteInput = z.infer<typeof addNoteSchema>;
-export type RecordFollowUpOutcomeInput = z.infer<typeof recordFollowUpOutcomeSchema>;
+export type CreateApplicationInput = z.infer<
+  ReturnType<typeof makeCreateApplicationSchema>
+>;
+export type TransitionStatusInput = z.infer<
+  ReturnType<typeof makeTransitionStatusSchema>
+>;
+export type AddFollowUpInput = z.infer<
+  ReturnType<typeof makeAddFollowUpSchema>
+>;
+export type AddNoteInput = z.infer<ReturnType<typeof makeAddNoteSchema>>;
+export type RecordFollowUpOutcomeInput = z.infer<
+  ReturnType<typeof makeRecordFollowUpOutcomeSchema>
+>;

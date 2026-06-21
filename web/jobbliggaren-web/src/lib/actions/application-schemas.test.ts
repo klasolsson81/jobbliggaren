@@ -1,10 +1,26 @@
 import { describe, it, expect } from "vitest";
+import { createTranslator } from "next-intl";
 import {
-  createApplicationSchema,
-  transitionStatusSchema,
-  addFollowUpSchema,
-  addNoteSchema,
+  makeCreateApplicationSchema,
+  makeTransitionStatusSchema,
+  makeAddFollowUpSchema,
+  makeAddNoteSchema,
 } from "./application-schemas";
+import svValidation from "../../../messages/sv/validation.json";
+
+// Real next-intl translator scoped to the `validation` namespace (Swedish
+// catalog = source of truth). In production the factories receive this `t` from
+// `useTranslations("validation")` / `getTranslations("validation")`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { validation: svValidation },
+  namespace: "validation",
+});
+
+const createApplicationSchema = makeCreateApplicationSchema(t);
+const transitionStatusSchema = makeTransitionStatusSchema(t);
+const addFollowUpSchema = makeAddFollowUpSchema(t);
+const addNoteSchema = makeAddNoteSchema(t);
 
 const VALID_GUID = "550e8400-e29b-41d4-a716-446655440000";
 

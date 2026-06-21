@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { deriveOccupations } from "@/lib/api/occupation-derive";
@@ -8,7 +9,7 @@ import { getResumes, getParsedResumeOccupations } from "@/lib/api/resumes";
 import type { OccupationCandidate } from "@/lib/dto/match-preferences";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 import {
-  setMatchPreferencesSchema,
+  makeSetMatchPreferencesSchema,
   type SetMatchPreferencesInput,
 } from "./match-preferences-schemas";
 import { mapActionError } from "./_action-error";
@@ -43,7 +44,8 @@ export async function updateMatchPreferencesAction(
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: "Du är inte inloggad." };
 
-  const parsed = setMatchPreferencesSchema.safeParse(input);
+  const t = await getTranslations("validation");
+  const parsed = makeSetMatchPreferencesSchema(t).safeParse(input);
   if (!parsed.success) {
     return {
       success: false,

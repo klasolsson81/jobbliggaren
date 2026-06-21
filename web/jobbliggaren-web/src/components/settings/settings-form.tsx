@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Moon, Sun } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "@/components/theme-provider";
 import {
-  updateMyProfileSchema,
+  makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
 } from "@/lib/actions/me-schemas";
 import { updateMyProfileAction } from "@/lib/actions/me";
@@ -59,6 +60,8 @@ export function SettingsForm({
   userEmail,
   taxonomy,
 }: SettingsFormProps) {
+  const t = useTranslations("validation");
+  const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [language, setLanguage] = useState<LanguageValue>(
@@ -91,7 +94,7 @@ export function SettingsForm({
     revert: () => void,
   ) {
     const payload = buildPayload(overrides);
-    const parsed = updateMyProfileSchema.safeParse(payload);
+    const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       setError(first?.message ?? "Ogiltiga uppgifter.");

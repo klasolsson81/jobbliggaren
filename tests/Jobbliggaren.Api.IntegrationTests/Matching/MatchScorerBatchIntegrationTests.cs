@@ -48,12 +48,15 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
 
     // Seeds an Imported JobAd whose raw_payload drives the STORED shadow columns
     // (parity MatchScorerIntegrationTests.SeedJobAdAsync). null → key omitted → shadow NULL.
+    // Spår 3 PR-B: the optional municipalityConceptId (5th-after-ct, default null) folds into
+    // workplace_address.municipality_concept_id — every legacy callsite reduces to region-only.
     private async Task<JobAdId> SeedJobAdAsync(
         string title,
         string? occupationGroupConceptId,
         string? regionConceptId,
         string? employmentTypeConceptId,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? municipalityConceptId = null)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -62,7 +65,8 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var rawPayload = BuildRawPayload(
-            externalId, occupationGroupConceptId, regionConceptId, employmentTypeConceptId);
+            externalId, occupationGroupConceptId, regionConceptId, employmentTypeConceptId,
+            municipalityConceptId);
 
         var jobAd = JobAd.Import(
             title: title,
@@ -99,14 +103,13 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
         string externalId,
         string? occupationGroupConceptId,
         string? regionConceptId,
-        string? employmentTypeConceptId)
+        string? employmentTypeConceptId,
+        string? municipalityConceptId = null)
     {
         var groupJson = occupationGroupConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
-        var addressJson = regionConceptId is null
-            ? "null"
-            : $"{{\"region_concept_id\":\"{regionConceptId}\"}}";
+        var addressJson = BuildWorkplaceAddressJson(regionConceptId, municipalityConceptId);
         var employmentJson = employmentTypeConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{employmentTypeConceptId}\"}}";
@@ -116,6 +119,30 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
             + $"\"occupation_group\":{groupJson},"
             + $"\"workplace_address\":{addressJson},"
             + $"\"employment_type\":{employmentJson}}}";
+    }
+
+    // workplace_address carries only the present location key(s): both null → "null";
+    // region only → legacy single-key shape (NULL municipality shadow); municipality only →
+    // NULL region shadow; both → both keys (parity MatchScorerIntegrationTests).
+    private static string BuildWorkplaceAddressJson(
+        string? regionConceptId, string? municipalityConceptId)
+    {
+        if (regionConceptId is null && municipalityConceptId is null)
+        {
+            return "null";
+        }
+
+        var keys = new List<string>(2);
+        if (regionConceptId is not null)
+        {
+            keys.Add($"\"region_concept_id\":\"{regionConceptId}\"");
+        }
+        if (municipalityConceptId is not null)
+        {
+            keys.Add($"\"municipality_concept_id\":\"{municipalityConceptId}\"");
+        }
+
+        return $"{{{string.Join(",", keys)}}}";
     }
 
     private static string NewConceptId(string prefix) =>
@@ -177,6 +204,60 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
         batch[ad1].SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         batch[ad1].RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         batch[ad1].EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+    }
+
+    // =================================================================
+    // Spår 3 PR-B (ADR 0076-amendment 2026-06-21) — the ort-union RegionFit equals
+    // ScoreAsync's for the same ad+profile through the batch path too (the embedded-
+    // helper regression contract extended to the union). One ad scores a union Match
+    // (municipality hit while the region is not preferred) and one a union NoMatch
+    // (ort stated, ad has both ort values, no hit) — both must match the single-ad path.
+    // =================================================================
+
+    [Fact]
+    public async Task ScoreBatchAsync_OrtUnion_RegionFit_EqualsScoreAsync_ForMatchAndNoMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = NewConceptId("grp");
+        var prefRegion = NewConceptId("reg");
+        var prefMunicipality = NewConceptId("mun");
+
+        // matchAd: municipality hit (adMun == prefMunicipality) while its region is NOT in the
+        // pref set → union Match carried by the municipality.
+        var matchAd = await SeedJobAdAsync(
+            "Systemutvecklare", grp, NewConceptId("reg"), null, ct,
+            municipalityConceptId: prefMunicipality);
+
+        // noMatchAd: ort stated (prefs below), ad has BOTH a region and a municipality, neither
+        // in the pref sets → union NoMatch; Missing = both present ad ort values.
+        var noMatchAd = await SeedJobAdAsync(
+            "Sjuksköterska", grp, NewConceptId("reg"), null, ct,
+            municipalityConceptId: NewConceptId("mun"));
+
+        var profile = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [grp],
+            PreferredRegionConceptIds: [prefRegion],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: [prefMunicipality]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var batch = await scorer.ScoreBatchAsync([matchAd, noMatchAd], profile, ct);
+
+        batch.Count.ShouldBe(2);
+        foreach (var id in new[] { matchAd, noMatchAd })
+        {
+            var single = await scorer.ScoreAsync(id, profile, ct);
+            AssertSameDimension(single.RegionFit, batch[id].RegionFit);
+        }
+
+        // Sanity: the batch genuinely exercised both union verdicts.
+        batch[matchAd].RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        batch[matchAd].RegionFit.Matched.ShouldBe([prefMunicipality]);
+        batch[noMatchAd].RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        batch[noMatchAd].RegionFit.Missing.ShouldNotBeEmpty();
     }
 
     // =================================================================

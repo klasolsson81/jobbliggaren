@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Matching;
@@ -80,16 +81,25 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // Seeds an Imported JobAd whose raw_payload drives the STORED shadow columns:
-    //   occupation_group.concept_id          → occupation_group_concept_id
-    //   workplace_address.region_concept_id  → region_concept_id
-    //   employment_type.concept_id           → employment_type_concept_id
+    //   occupation_group.concept_id               → occupation_group_concept_id
+    //   workplace_address.region_concept_id       → region_concept_id
+    //   workplace_address.municipality_concept_id → municipality_concept_id (Spår 3 PR-B)
+    //   employment_type.concept_id                → employment_type_concept_id
     // null → key omitted → that shadow column is NULL (the NotAssessed-by-NULL path).
+    //
+    // Spår 3 (ADR 0076-amendment 2026-06-21): the municipality shadow folds into the SAME
+    // "ort" dimension (RegionFit) as the region shadow — see ScoreOrtUnion. The municipality
+    // parameter is OPTIONAL (defaults to null) so every pre-existing callsite reduces EXACTLY
+    // to the old region-only behaviour: with municipalityConceptId == null AND regionConceptId
+    // present, the payload is byte-for-byte the old single-key workplace_address; with both
+    // null, workplace_address stays null (both shadows NULL).
     private async Task<JobAdId> SeedJobAdAsync(
         string title,
         string? occupationGroupConceptId,
         string? regionConceptId,
         string? employmentTypeConceptId,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? municipalityConceptId = null)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -98,7 +108,8 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var rawPayload = BuildRawPayload(
-            externalId, occupationGroupConceptId, regionConceptId, employmentTypeConceptId);
+            externalId, occupationGroupConceptId, regionConceptId, employmentTypeConceptId,
+            municipalityConceptId);
 
         var jobAd = JobAd.Import(
             title: title,
@@ -116,21 +127,25 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         return jobAd.Id;
     }
 
-    // occupation_group + employment_type are TOP-LEVEL; region lives under
-    // workplace_address (paritet JobAdGeneratedColumnsTests.BuildRawPayload).
+    // occupation_group + employment_type are TOP-LEVEL; region AND municipality live
+    // under workplace_address (paritet JobAdGeneratedColumnsTests.BuildRawPayload +
+    // JobAdConfiguration: region_concept_id / municipality_concept_id both read from
+    // raw_payload->'workplace_address'->>...). workplace_address is null ONLY when BOTH
+    // location ids are null (both shadows NULL); otherwise it carries exactly the present
+    // key(s) — so a region-present + municipality-null seed is byte-for-byte the legacy
+    // single-key payload (the old region-only tests are unaffected).
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,
         string? regionConceptId,
-        string? employmentTypeConceptId)
+        string? employmentTypeConceptId,
+        string? municipalityConceptId = null)
     {
         var groupJson = occupationGroupConceptId is null
             ? "null"
             : $"{{\"concept_id\":\"{occupationGroupConceptId}\"}}";
 
-        var addressJson = regionConceptId is null
-            ? "null"
-            : $"{{\"region_concept_id\":\"{regionConceptId}\"}}";
+        var addressJson = BuildWorkplaceAddressJson(regionConceptId, municipalityConceptId);
 
         var employmentJson = employmentTypeConceptId is null
             ? "null"
@@ -141,6 +156,31 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             + $"\"occupation_group\":{groupJson},"
             + $"\"workplace_address\":{addressJson},"
             + $"\"employment_type\":{employmentJson}}}";
+    }
+
+    // workplace_address carries only the present location key(s): both null → "null" (both
+    // shadows NULL); region only → {"region_concept_id":...} (legacy shape, NULL municipality
+    // shadow — the impl-trap NULL-municipality case); municipality only → {"municipality_
+    // concept_id":...} (NULL region shadow); both → both keys.
+    private static string BuildWorkplaceAddressJson(
+        string? regionConceptId, string? municipalityConceptId)
+    {
+        if (regionConceptId is null && municipalityConceptId is null)
+        {
+            return "null";
+        }
+
+        var keys = new List<string>(2);
+        if (regionConceptId is not null)
+        {
+            keys.Add($"\"region_concept_id\":\"{regionConceptId}\"");
+        }
+        if (municipalityConceptId is not null)
+        {
+            keys.Add($"\"municipality_concept_id\":\"{municipalityConceptId}\"");
+        }
+
+        return $"{{{string.Join(",", keys)}}}";
     }
 
     private static string NewConceptId(string prefix) =>
@@ -522,6 +562,263 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
+    // dim 3 (ort-union) — Spår 3 PR-B (ADR 0076-amendment 2026-06-21;
+    // senior-cto-advisor verdict C). The RegionFit dimension becomes a
+    // region ∪ municipality UNION: two location granularities fold into ONE
+    // dimension (the property keeps the name RegionFit). The verdict is pure
+    // set logic over { preferredRegions ∪ preferredMunicipalities } vs
+    // { adRegion ∪ adMunicipality } — NO threshold:
+    //   • Match    iff (adRegion ∈ prefRegions) OR (adMun ∈ prefMunicipalities).
+    //               Matched = the hit value(s), Ordinal-sorted; Missing = [].
+    //   • NoMatch  iff an ort pref IS stated AND the ad HAS ≥1 ort value AND no
+    //               union hit. Matched = []; Missing = the ad's PRESENT ort
+    //               value(s), Ordinal-sorted.
+    //   • NotAssessed iff NO ort pref stated (BOTH pref lists empty) OR the ad
+    //               carries NEITHER ort value (BOTH shadows NULL).
+    // CRITICAL impl-trap (CTO C): NoMatch is `stated AND ad-has-some-ort AND
+    // no-union-hit`, NEVER a bare `!prefMun.Contains(adMun)`. A NULL municipality
+    // shadow on an ad that HAS a region must NOT read as a municipality-NoMatch
+    // and must NOT appear in Missing.
+    //
+    // RED until ScoreOrtUnion replaces ScoreMembership for RegionFit in all four
+    // score paths and the AdShadowRow projects the MunicipalityConceptId shadow.
+    // =================================================================
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_RegionHitOnly_MunicipalityNull_IsMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = NewConceptId("reg");
+        // adReg=R, adMun=null; prefReg=[R], prefMun=[] → region hit → Match, Matched=[R].
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [adRegion, NewConceptId("reg")], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Matched.ShouldBe([adRegion]);
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_MunicipalityHitOnly_RegionNotPreferred_IsMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");
+        // prefReg=[] (region not preferred), prefMun=[M]; adReg=L, adMun=M → municipality
+        // hit carries the Match even though the ad's region is not in the (empty) pref set.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [], [], [adMunicipality, NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Matched.ShouldBe([adMunicipality]);
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_BothHit_MatchedIsRegionAndMunicipalityOrdinalSorted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");
+        // prefReg=[L], prefMun=[M]; adReg=L, adMun=M → BOTH hit → Match, Matched=[M,L]
+        // Ordinal-sorted (we assert the Ordinal-sorted union, not a fixed order).
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [adRegion], [], [adMunicipality]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        var expectedMatched = new[] { adRegion, adMunicipality }
+            .OrderBy(v => v, StringComparer.Ordinal).ToList();
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Matched.ShouldBe(expectedMatched);
+        score.RegionFit.Matched.ShouldBe(
+            score.RegionFit.Matched.OrderBy(v => v, StringComparer.Ordinal).ToList(),
+            "Matched-orterna ska vara Ordinal-sorterade (determinism).");
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_RegionHit_AdHasNonPreferredMunicipality_IsMatch_NoMissing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");
+        // prefReg=[L], prefMun=[]; adReg=L, adMun=M (M not preferred — prefMun empty).
+        // The region hit makes it a Match; the ad's non-preferred municipality must NOT
+        // surface in Missing (Match has Missing=[] by rule 2).
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [adRegion], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Matched.ShouldBe([adRegion]);
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_StatedButNoHit_BothAdOrtValuesPresent_IsNoMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");
+        // prefReg=[X], prefMun=[K] (X≠L, K≠M); adReg=L, adMun=M → ort stated, ad has both,
+        // no union hit → NoMatch; Missing = the ad's present ort values [L,M] Ordinal-sorted.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [NewConceptId("reg")], [], [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        var expectedMissing = new[] { adRegion, adMunicipality }
+            .OrderBy(v => v, StringComparer.Ordinal).ToList();
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBe(expectedMissing);
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_SameLanDifferentKommun_IsNoMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // CTO same-län-different-kommun edge: prefReg=[] (no region stated), prefMun=[K];
+        // adReg=L, adMun=K2 (K2≠K). The municipality differs and no region is preferred →
+        // NoMatch; Missing = the ad's present ort values [L,K2] Ordinal-sorted. This is the
+        // case that a bare `!prefMun.Contains(adMun)` would get RIGHT — but it is pinned to
+        // prove the union still surfaces BOTH present ad ort values in Missing, not just the
+        // municipality.
+        var adRegion = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [], [], [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        var expectedMissing = new[] { adRegion, adMunicipality }
+            .OrderBy(v => v, StringComparer.Ordinal).ToList();
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBe(expectedMissing);
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_NoOrtPreferenceStated_IsNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");
+        // prefReg=[], prefMun=[] → NO ort preference stated → NotAssessed even though the
+        // ad carries both ort values.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile("Titel", [], [], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_AdHasNeitherOrtValue_IsNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // adReg=null, adMun=null (workplace_address omitted → both shadows NULL); prefReg=[R],
+        // prefMun=[K] → ort stated but the ad carries NEITHER value → NotAssessed.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, null, null, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [NewConceptId("reg")], [], [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_NullMunicipality_RegionMiss_DoesNotFabricateMunicipalityMissing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // impl-trap A (CTO C): adReg=R, adMun=NULL; prefReg=[X] (X≠R), prefMun=[K]. The ad
+        // HAS a region (so it is assessed) but no municipality → NoMatch, and Missing must be
+        // [R] ONLY — a bare `!prefMun.Contains(adMun)` on a NULL adMun would (wrongly) add a
+        // municipality entry to Missing or even treat NULL as a disjoint value. The NULL
+        // municipality must contribute NOTHING to Missing.
+        var adRegion = NewConceptId("reg");
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [NewConceptId("reg")], [], [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBe([adRegion]);
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_NullMunicipality_RegionHit_StillMatches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // impl-trap B (CTO C): adReg=R, adMun=NULL; prefReg=[R], prefMun=[K]. The NULL
+        // municipality must NOT break the region Match — a bare municipality test on NULL
+        // could short-circuit to NoMatch. Region hit → Match, Matched=[R].
+        var adRegion = NewConceptId("reg");
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [adRegion], [], [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Matched.ShouldBe([adRegion]);
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    // =================================================================
     // dim 3b — Employment fit (Match / NoMatch / NotAssessed)
     // =================================================================
 
@@ -654,6 +951,82 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
                 AssertSameDimension(first.EmploymentFit, second.EmploymentFit);
             }
         }
+    }
+
+    // =================================================================
+    // Spår 3 PR-B (ADR 0076-amendment 2026-06-21) — grade flow-through. The ort-union
+    // RegionFit verdict flows into the UNCHANGED MatchGradeCalculator.Grade(MatchScore):
+    //   • an ort-union NoMatch RegionFit floors the grade to Basic (RB1, the
+    //     stated-region-the-ad-contradicts floor — a municipality-only NoMatch must
+    //     trigger the SAME floor as a region NoMatch);
+    //   • an ort-union Match RegionFit (via municipality) + SSYK Match + employment Match
+    //     yields Strong (both secondaries confirmed).
+    // The calculator is NOT changed by PR-B — these prove the union verdict it already
+    // reads is produced correctly by the new ScoreOrtUnion. End-to-end: real scorer → real
+    // grade. (The page/modal use the requirement-aware Grade(FullMatchScore) overload; this
+    // pins the Fast ladder the union feeds.)
+    // =================================================================
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_MunicipalityNoMatch_FloorsGradeToBasic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var adRegion = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");
+        var adEmployment = NewConceptId("emp");
+        // SSYK Match + employment Match, but ort stated (municipality) with no union hit and
+        // the ad carries both ort values → ort-union NoMatch → RB1 floor → Basic, even though
+        // employment is confirmed.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", adGroup, adRegion, adEmployment, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile(
+            Title: "Titel",
+            SsykGroupConceptIds: [adGroup],
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [adEmployment],
+            PreferredMunicipalityConceptIds: [NewConceptId("mun")]); // stated, no hit
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        // The union produced a NoMatch RegionFit ...
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        // ... which floors the (unchanged) Fast grade to Basic (RB1).
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_MunicipalityMatch_WithSsykAndEmploymentMatch_YieldsStrong()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var adMunicipality = NewConceptId("mun");
+        var adEmployment = NewConceptId("emp");
+        // SSYK Match + employment Match + ort-union Match via MUNICIPALITY (the ad's region is
+        // not preferred, the municipality is) → both secondaries confirmed → Strong.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", adGroup, NewConceptId("reg"), adEmployment, ct,
+            municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile(
+            Title: "Titel",
+            SsykGroupConceptIds: [adGroup],
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [adEmployment],
+            PreferredMunicipalityConceptIds: [adMunicipality]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Matched.ShouldBe([adMunicipality]);
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
     }
 
     private static void AssertSameDimension(MatchDimension a, MatchDimension b)

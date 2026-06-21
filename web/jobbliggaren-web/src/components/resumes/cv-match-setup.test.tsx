@@ -44,6 +44,7 @@ function renderSetup(
       employmentTypes={employmentTypes}
       persistedOccupationGroups={[]}
       persistedRegions={[]}
+      persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
       importCvHref="/cv/importera"
       hasPreferences={false}

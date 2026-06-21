@@ -55,11 +55,21 @@ describe("jobSeekerProfileSchema", () => {
     hasStatedDesiredOccupation: false,
     preferredOccupationGroups: [],
     preferredRegions: [],
+    // Spår 3 PR-D — kommun-axeln (required, ej optional).
+    preferredMunicipalities: [],
     preferredEmploymentTypes: [],
   };
 
   it("accepts valid profile", () => {
     expect(jobSeekerProfileSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("rejects when preferredMunicipalities missing (kontraktsdrift)", () => {
+    const withoutMunicipalities: Partial<typeof valid> = { ...valid };
+    delete withoutMunicipalities.preferredMunicipalities;
+    expect(
+      jobSeekerProfileSchema.safeParse(withoutMunicipalities).success
+    ).toBe(false);
   });
 
   it("rejects when emailNotifications is non-boolean", () => {

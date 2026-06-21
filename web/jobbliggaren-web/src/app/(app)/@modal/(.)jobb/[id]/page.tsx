@@ -4,6 +4,8 @@ import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
 import { getJobAdMatchDetail } from "@/lib/api/job-ad-match";
+import { getTaxonomyTree } from "@/lib/api/taxonomy";
+import { buildOrtGranularityMap } from "@/lib/job-ads/ort-granularity";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 
@@ -37,11 +39,22 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
     case "ok": {
       // F4-16 — matchnings-detalj parallellt med Spara/Har-ansökt (ingen
       // waterfall). Degraderar civilt till null (ingen sektion) vid fel.
-      const [initialSaved, initialApplied, match] = await Promise.all([
-        isJobAdSaved(id),
-        hasAppliedJobAd(id),
-        getJobAdMatchDetail(id),
-      ]);
+      // Spår 3 PR-D — taxonomin i samma Promise.all (cachad 1h) så RegionFit-
+      // beviset kan visa kommun-träff vs län-träff. Granularitets-kartan byggs
+      // FE-side (architect NOTE-2); taxonomi-fel → null → generisk bevisform.
+      const [initialSaved, initialApplied, match, taxonomyResult] =
+        await Promise.all([
+          isJobAdSaved(id),
+          hasAppliedJobAd(id),
+          getJobAdMatchDetail(id),
+          getTaxonomyTree(),
+        ]);
+      const ortGranularityByLabel =
+        match != null
+          ? buildOrtGranularityMap(
+              taxonomyResult.kind === "ok" ? taxonomyResult.data : null,
+            )
+          : undefined;
       return (
         <JobAdModalShell
           title={result.data.title}
@@ -53,6 +66,7 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
             initialSaved={initialSaved}
             initialApplied={initialApplied}
             match={match}
+            ortGranularityByLabel={ortGranularityByLabel}
           />
         </JobAdModalShell>
       );

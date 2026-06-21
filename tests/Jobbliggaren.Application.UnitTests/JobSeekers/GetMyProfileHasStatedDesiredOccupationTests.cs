@@ -87,12 +87,16 @@ public class GetMyProfileHasStatedDesiredOccupationTests
     // (ingen ny handler → inget nytt coverage-golv). Verifierar att concept-id-
     // projektionen är lika med det satta settet.
     [Fact]
-    public async Task Handle_WhenAllPreferenceDimensionsStated_ProjectsAllThreeLists()
+    public async Task Handle_WhenAllPreferenceDimensionsStated_ProjectsAllFourLists()
     {
+        // Spår 3 PR-D — municipalities project alongside the other three (the read-side
+        // partner of the full-replace PUT: the län→kommun cascade must round-trip them or
+        // saving would wipe stated municipalities).
         var prefs = MatchPreferences.Create(
             preferredOccupationGroups: ["grp_12345", "grp_67890"],
             preferredRegions: ["stockholm_AB"],
-            preferredEmploymentTypes: ["et_fast"]).Value;
+            preferredEmploymentTypes: ["et_fast"],
+            preferredMunicipalities: ["sthlm_kn"]).Value;
 
         var result = await HandleForSeekerWithPrefsAsync(prefs);
 
@@ -100,6 +104,7 @@ public class GetMyProfileHasStatedDesiredOccupationTests
         result.PreferredOccupationGroups.ShouldBe(["grp_12345", "grp_67890"]);
         result.PreferredRegions.ShouldBe(["stockholm_AB"]);
         result.PreferredEmploymentTypes.ShouldBe(["et_fast"]);
+        result.PreferredMunicipalities.ShouldBe(["sthlm_kn"]);
     }
 
     [Fact]
@@ -111,6 +116,7 @@ public class GetMyProfileHasStatedDesiredOccupationTests
         result.PreferredOccupationGroups.ShouldBeEmpty();
         result.PreferredRegions.ShouldBeEmpty();
         result.PreferredEmploymentTypes.ShouldBeEmpty();
+        result.PreferredMunicipalities.ShouldBeEmpty();
     }
 
     [Fact]

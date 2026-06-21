@@ -107,6 +107,7 @@ export default async function OversiktRoute() {
           employmentTypes={taxonomy.employmentTypes}
           persistedOccupationGroups={profile.data.preferredOccupationGroups}
           persistedRegions={profile.data.preferredRegions}
+          persistedMunicipalities={profile.data.preferredMunicipalities}
           persistedEmploymentTypes={profile.data.preferredEmploymentTypes}
           importCvHref={IMPORT_CV_HREF}
         />

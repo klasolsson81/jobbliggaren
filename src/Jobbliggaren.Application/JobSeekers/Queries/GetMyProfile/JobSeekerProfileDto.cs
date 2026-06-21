@@ -17,9 +17,15 @@ public sealed record JobSeekerProfileDto(
     // card pre-fills the user's current selections. Required because the write is
     // a full-replace PUT: without the current lists, editing would silently wipe
     // prior selections. Concept-id projections of the VO (no domain leak, no PII).
+    // PreferredMunicipalities is the Spår 3 read-side partner (ADR 0076-amendment
+    // 2026-06-21, PR-D): the län→kommun cascade's full-replace PUT MUST round-trip
+    // municipalities through this projection, or saving region preferences would wipe
+    // the user's stated municipalities (the one wipe-risk in the arc — landed here
+    // atomically with the FE send).
     IReadOnlyList<string> PreferredOccupationGroups,
     IReadOnlyList<string> PreferredRegions,
-    IReadOnlyList<string> PreferredEmploymentTypes)
+    IReadOnlyList<string> PreferredEmploymentTypes,
+    IReadOnlyList<string> PreferredMunicipalities)
 {
     public static JobSeekerProfileDto FromDomain(JobSeeker js) => new(
         js.Id.Value,
@@ -31,5 +37,6 @@ public sealed record JobSeekerProfileDto(
         js.MatchPreferences.PreferredOccupationGroups.Count > 0,
         js.MatchPreferences.PreferredOccupationGroups,
         js.MatchPreferences.PreferredRegions,
-        js.MatchPreferences.PreferredEmploymentTypes);
+        js.MatchPreferences.PreferredEmploymentTypes,
+        js.MatchPreferences.PreferredMunicipalities);
 }

@@ -600,8 +600,9 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     //     "operatör" cross-group fan-out; keeps qualified titles + the education signal.
     // =================================================================
 
-    // MUST mirror OccupationCodeDeriver.MaxGroupSpread (the gate drops spread >= G).
-    private const int GroupSpreadCutoff = 4;
+    // The SAME value the gate uses (internal const, InternalsVisibleTo) — no
+    // duplicated cutoff to drift out of sync with production.
+    private const int GroupSpreadCutoff = OccupationCodeDeriver.MaxGroupSpread;
 
     [Fact]
     public async Task DeriveAsync_QualifiedCncOperator_StillMatches_WhileBareOperatorIsFiltered()

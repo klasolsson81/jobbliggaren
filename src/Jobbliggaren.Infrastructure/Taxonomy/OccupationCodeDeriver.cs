@@ -63,7 +63,10 @@ internal sealed class OccupationCodeDeriver(
     // re-leaks. Build pattern mirrors SkillTaxonomyIndex (reuse — CLAUDE.md §9.1).
     // Explainable gate over a cited quantity ("token points to N unrelated
     // occupations"), not an opaque score (CLAUDE.md §5).
-    private const int MaxGroupSpread = 4;
+    // internal (not private) so the band-witness test reads the SAME value the gate
+    // uses — no duplicated test constant to drift out of sync (InternalsVisibleTo
+    // Api.IntegrationTests; code-reviewer + dotnet-architect Minor).
+    internal const int MaxGroupSpread = 4;
 
     // Cached once on first use; a fault leaves it null so the next call retries
     // (parity with TaxonomyReadModel — no permanent fail-cache).

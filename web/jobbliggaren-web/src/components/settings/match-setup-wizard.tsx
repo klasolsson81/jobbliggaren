@@ -181,10 +181,7 @@ export function MatchSetupWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="jp-stdmodal jp-stdmodal--wide"
-        aria-describedby="match-wizard-intro"
-      >
+      <DialogContent className="jp-stdmodal jp-stdmodal--wide">
         <div className="jp-wizard__head">
           <span className="jp-wizard__counter">
             Steg {step} av {TOTAL_STEPS}
@@ -192,7 +189,7 @@ export function MatchSetupWizard({
           <DialogTitle ref={titleRef} tabIndex={-1} className="jp-wizard__title">
             {STEP_TITLES[step - 1]}
           </DialogTitle>
-          <DialogDescription id="match-wizard-intro" className="jp-wizard__intro">
+          <DialogDescription className="jp-wizard__intro">
             {stepIntro(step)}
           </DialogDescription>
           {/* Stäng = inbyggd radix Close (civic-restylad). Esc stänger hela

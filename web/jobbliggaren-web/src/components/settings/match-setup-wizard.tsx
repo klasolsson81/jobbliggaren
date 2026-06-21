@@ -7,6 +7,7 @@
 // förkastad). Inget av detta går i en Server Component.
 
 import { useRef, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type {
@@ -54,14 +55,6 @@ interface MatchSetupWizardProps {
 
 const TOTAL_STEPS = 4;
 
-/** Stegens konkreta substantiv-rubriker (design-bind A2.i). */
-const STEP_TITLES: ReadonlyArray<string> = [
-  "Yrken",
-  "Regioner",
-  "Anställningsformer",
-  "Klart",
-];
-
 /**
  * Match-setup-wizard (ADR 0077 STEG 5) — en skippbar fyra-stegs wide
  * standardmodal som bygger matchnings-profilen ur CV:t. Skriver ENBART till
@@ -82,6 +75,14 @@ export function MatchSetupWizard({
   importCvHref,
   parsedResumeId,
 }: MatchSetupWizardProps) {
+  const t = useTranslations("settings");
+  // Stegens konkreta substantiv-rubriker (design-bind A2.i), via katalogen.
+  const stepTitles: ReadonlyArray<string> = [
+    t("matchPrefs.wizard.stepOccupations"),
+    t("matchPrefs.wizard.stepRegions"),
+    t("matchPrefs.wizard.stepEmployment"),
+    t("matchPrefs.wizard.stepDone"),
+  ];
   const regionOptions: ReadonlyArray<Option> = regions.map((r) => ({
     conceptId: r.conceptId,
     label: r.label,
@@ -192,7 +193,7 @@ export function MatchSetupWizard({
       <DialogContent className="jp-stdmodal jp-stdmodal--wide">
         <div className="jp-wizard__head">
           <span className="jp-wizard__counter">
-            Steg {step} av {TOTAL_STEPS}
+            {t("matchPrefs.wizard.counter", { step, total: TOTAL_STEPS })}
           </span>
           <DialogTitle
             ref={titleRef}
@@ -200,10 +201,10 @@ export function MatchSetupWizard({
             id={`match-wizard-step-${step}-head`}
             className="jp-wizard__title"
           >
-            {STEP_TITLES[step - 1]}
+            {stepTitles[step - 1]}
           </DialogTitle>
           <DialogDescription className="jp-wizard__intro">
-            {stepIntro(step)}
+            {stepIntro(t, step)}
           </DialogDescription>
           {/* Stäng = inbyggd radix Close (civic-restylad). Esc stänger hela
               wizarden utan bekräftelse — inget skrivs förrän "Spara matchning". */}
@@ -211,6 +212,17 @@ export function MatchSetupWizard({
 
         {step === 4 ? (
           <ReviewStep
+            labels={{
+              occupationsTitle: t("matchPrefs.facetOccupations"),
+              regionsTitle: t("matchPrefs.facetRegions"),
+              employmentTitle: t("matchPrefs.facetEmployment"),
+              occupationsEmpty: t("matchPrefs.emptyOccupations"),
+              regionsEmpty: t("matchPrefs.emptyRegions"),
+              employmentEmpty: t("matchPrefs.emptyEmployment"),
+              occupationsAria: t("matchPrefs.selectedOccupations"),
+              regionsAria: t("matchPrefs.selectedRegions"),
+              employmentAria: t("matchPrefs.selectedEmployment"),
+            }}
             occupations={labelsForSelected(draftOccupations, flattenOccupationGroups(occupationFields))}
             regions={labelsForSelected(draftRegions, regionOptions)}
             employment={labelsForSelected(draftEmployment, employmentOptions)}
@@ -244,23 +256,23 @@ export function MatchSetupWizard({
               )}
               {step === 2 && (
                 <FacetSection
-                  title="Regioner"
+                  title={t("matchPrefs.facetRegions")}
                   options={regionOptions}
                   selected={draftRegions}
                   onToggle={(id) => setDraftRegions((prev) => toggle(prev, id))}
                   onClear={() => setDraftRegions([])}
-                  pinnedAriaLabel="Valda regioner"
+                  pinnedAriaLabel={t("matchPrefs.selectedRegions")}
                   showHeading={false}
                 />
               )}
               {step === 3 && (
                 <FacetSection
-                  title="Anställningsformer"
+                  title={t("matchPrefs.facetEmployment")}
                   options={employmentOptions}
                   selected={draftEmployment}
                   onToggle={(id) => setDraftEmployment((prev) => toggle(prev, id))}
                   onClear={() => setDraftEmployment([])}
-                  pinnedAriaLabel="Valda anställningsformer"
+                  pinnedAriaLabel={t("matchPrefs.selectedEmployment")}
                   showHeading={false}
                 />
               )}
@@ -276,7 +288,7 @@ export function MatchSetupWizard({
               onClick={onBack}
               disabled={isSaving}
             >
-              Tillbaka
+              {t("matchPrefs.wizard.back")}
             </Button>
           )}
           <span className="jp-wizard__foot-spacer" />
@@ -287,11 +299,15 @@ export function MatchSetupWizard({
               onClick={onSkip}
               disabled={isSaving}
             >
-              Hoppa över det här steget
+              {t("matchPrefs.wizard.skipStep")}
             </button>
           )}
           <Button type="button" onClick={onPrimary} disabled={isSaving}>
-            {isLastStep ? (isSaving ? "Sparar…" : "Spara matchning") : "Nästa"}
+            {isLastStep
+              ? isSaving
+                ? t("matchPrefs.wizard.saving")
+                : t("matchPrefs.wizard.save")
+              : t("matchPrefs.wizard.next")}
           </Button>
           {saveError && (
             <p role="alert" className="text-body-sm text-danger-600 jp-wizard__error">
@@ -304,17 +320,20 @@ export function MatchSetupWizard({
   );
 }
 
+/** next-intl-translatorn för "settings"-namespacet (synkron i klient/sync RSC). */
+type SettingsTranslator = ReturnType<typeof useTranslations<"settings">>;
+
 /** Stegets hjälptext (bär instruktionen — aldrig placeholder-exempel). */
-function stepIntro(step: number): string {
+function stepIntro(t: SettingsTranslator, step: number): string {
   switch (step) {
     case 1:
-      return "Välj de yrken du söker. Vi föreslår utifrån ditt CV. Ändra om det inte stämmer; du väljer själv vilka som tas med.";
+      return t("matchPrefs.wizard.introOccupations");
     case 2:
-      return "Välj de regioner du vill arbeta i. Lämna tomt för hela landet.";
+      return t("matchPrefs.wizard.introRegions");
     case 3:
-      return "Välj de anställningsformer du är öppen för. Lämna tomt för alla.";
+      return t("matchPrefs.wizard.introEmployment");
     default:
-      return "Granska dina val. Du kan ta bort något här, eller gå tillbaka för att ändra.";
+      return t("matchPrefs.wizard.introReview");
   }
 }
 
@@ -323,7 +342,20 @@ function stepIntro(step: number): string {
  * Borttagbara (PreferenceChip) — sista chansen att rensa innan save. Tom
  * dimension visar en ärlig "inget valt"-rad (ej fejkat).
  */
+interface ReviewLabels {
+  readonly occupationsTitle: string;
+  readonly regionsTitle: string;
+  readonly employmentTitle: string;
+  readonly occupationsEmpty: string;
+  readonly regionsEmpty: string;
+  readonly employmentEmpty: string;
+  readonly occupationsAria: string;
+  readonly regionsAria: string;
+  readonly employmentAria: string;
+}
+
 function ReviewStep({
+  labels,
   occupations,
   regions,
   employment,
@@ -331,6 +363,7 @@ function ReviewStep({
   onRemoveRegion,
   onRemoveEmployment,
 }: {
+  readonly labels: ReviewLabels;
   readonly occupations: ReadonlyArray<Option>;
   readonly regions: ReadonlyArray<Option>;
   readonly employment: ReadonlyArray<Option>;
@@ -341,25 +374,25 @@ function ReviewStep({
   return (
     <div className="jp-wizard__step">
       <ReviewFacet
-        title="Yrken"
-        empty="Alla yrken (inget valt)"
+        title={labels.occupationsTitle}
+        empty={labels.occupationsEmpty}
         chips={occupations}
         onRemove={onRemoveOccupation}
-        ariaLabel="Valda yrken"
+        ariaLabel={labels.occupationsAria}
       />
       <ReviewFacet
-        title="Regioner"
-        empty="Hela landet (ingen region vald)"
+        title={labels.regionsTitle}
+        empty={labels.regionsEmpty}
         chips={regions}
         onRemove={onRemoveRegion}
-        ariaLabel="Valda regioner"
+        ariaLabel={labels.regionsAria}
       />
       <ReviewFacet
-        title="Anställningsformer"
-        empty="Alla anställningsformer (inget valt)"
+        title={labels.employmentTitle}
+        empty={labels.employmentEmpty}
         chips={employment}
         onRemove={onRemoveEmployment}
-        ariaLabel="Valda anställningsformer"
+        ariaLabel={labels.employmentAria}
       />
     </div>
   );

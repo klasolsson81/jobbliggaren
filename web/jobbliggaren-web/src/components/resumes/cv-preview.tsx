@@ -6,6 +6,7 @@
 // fokus-hantering — inget av detta kan göras i en Server Component.
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Eye, X } from "lucide-react";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
 import type { RenderProfile } from "@/lib/dto/parsed-resume";
@@ -42,24 +43,30 @@ type PreviewStatus =
   | "rateLimited"
   | "notFound";
 
-const PROFILE_OPTIONS: ReadonlyArray<{ value: RenderProfile; label: string }> =
-  [
-    { value: "Ats", label: "ATS-profil" },
-    { value: "Visual", label: "Visuell profil" },
-  ];
+const PROFILE_OPTIONS: ReadonlyArray<{
+  value: RenderProfile;
+  labelKey: "ats" | "visual";
+}> = [
+  { value: "Ats", labelKey: "ats" },
+  { value: "Visual", labelKey: "visual" },
+];
 
 /** Default rate-limit-retry-fönster (sekunder) om 429-svarets body saknar ett
  *  parsbart värde — speglar backend-policyns fönster (paritet med
  *  `parseRetryAfter` i `_helpers`). */
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
-function iframeTitle(profile: RenderProfile): string {
+function iframeTitle(
+  t: ReturnType<typeof useTranslations<"resumes.preview">>,
+  profile: RenderProfile,
+): string {
   return profile === "Ats"
-    ? "Förhandsgranskning av CV (ATS-profil)"
-    : "Förhandsgranskning av CV (Visuell profil)";
+    ? t("iframeTitleAts")
+    : t("iframeTitleVisual");
 }
 
 export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
+  const t = useTranslations("resumes.preview");
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<RenderProfile>(initialProfile);
   const [status, setStatus] = useState<PreviewStatus>("loading");
@@ -199,7 +206,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
         onClick={() => setOpen(true)}
       >
         <Eye size={16} aria-hidden="true" />
-        <span>Förhandsgranska</span>
+        <span>{t("trigger")}</span>
       </button>
 
       {open && (
@@ -214,13 +221,13 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
           >
             <header className="jp-modal__head">
               <h2 id={labelId} className="jp-modal__title">
-                Förhandsgranskning av CV
+                {t("title")}
               </h2>
               <button
                 ref={closeRef}
                 type="button"
                 className="jp-icon-btn"
-                aria-label="Stäng"
+                aria-label={t("close")}
                 onClick={close}
               >
                 <X size={20} aria-hidden="true" />
@@ -230,7 +237,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
             <div className="jp-modal__body">
               <div
                 role="group"
-                aria-label="Välj profil för förhandsgranskning"
+                aria-label={t("profileGroupLabel")}
                 className="jp-segment"
               >
                 {PROFILE_OPTIONS.map((option) => {
@@ -244,7 +251,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
                       aria-current={isActive ? "true" : undefined}
                       onClick={() => setProfile(option.value)}
                     >
-                      <span>{option.label}</span>
+                      <span>{t(option.labelKey)}</span>
                     </button>
                   );
                 })}
@@ -252,9 +259,9 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
 
               {status === "loading" && (
                 <div className="jp-modal-loading">
-                  <BrandSpinner size={48} label="CV:t läses in…" />
+                  <BrandSpinner size={48} label={t("loadingLabel")} />
                   <p className="jp-modal-loading__text" aria-hidden="true">
-                    CV:t läses in…
+                    {t("loadingText")}
                   </p>
                 </div>
               )}
@@ -263,7 +270,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
                 <>
                   <iframe
                     src={blobUrl}
-                    title={iframeTitle(profile)}
+                    title={iframeTitle(t, profile)}
                     className="jp-pdf-frame"
                   />
                   <p className="jp-pdf-frame__fallback">
@@ -272,7 +279,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Öppna i ny flik
+                      {t("openInNewTab")}
                     </a>
                   </p>
                 </>
@@ -280,23 +287,16 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
 
               {status === "rateLimited" && (
                 <p className="jp-lede">
-                  Du har gjort för många förfrågningar på kort tid. Försök igen
-                  om {retryAfterSeconds} sekunder.
+                  {t("rateLimited", { seconds: retryAfterSeconds })}
                 </p>
               )}
 
               {status === "notFound" && (
-                <p className="jp-lede">
-                  Förhandsgranskningen kunde inte hittas. Gå tillbaka till
-                  granskningen och försök igen.
-                </p>
+                <p className="jp-lede">{t("notFound")}</p>
               )}
 
               {status === "error" && (
-                <p className="jp-lede">
-                  Förhandsgranskningen kunde inte laddas. Försök igen om en
-                  stund eller gå tillbaka till granskningen.
-                </p>
+                <p className="jp-lede">{t("error")}</p>
               )}
             </div>
           </div>

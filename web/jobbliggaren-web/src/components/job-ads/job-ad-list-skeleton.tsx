@@ -28,12 +28,16 @@
  * element finns i fallbacken — tangentbordsfokus påverkas inte.
  */
 
+import { useTranslations } from "next-intl";
+
 // Antal skeleton-rader. Fyller resultat-ytan utan att bli en lång
 // platshållar-vägg. Inte prop-styrt: ingen anropare behöver variera
 // antalet, och resultat-ytan har en stabil default-pageSize (YAGNI).
 const SKELETON_ROWS = 6;
 
 export function JobAdListSkeleton() {
+  // Synchronous next-intl translator — keeps JobAdListSkeleton a non-async RSC.
+  const t = useTranslations("jobads.ui");
   return (
     <div role="status" aria-live="polite" aria-busy="true">
       {/* Toolbar-rad: synlig "Söker…"-text vänster (där träffräknaren
@@ -41,7 +45,7 @@ export function JobAdListSkeleton() {
           höger speglar select:ens mått. Texten är både visuell signal
           och innehållet som role="status" annonserar. */}
       <div className="jp-results-toolbar">
-        <p className="jp-skeleton__status-text">Söker bland annonser…</p>
+        <p className="jp-skeleton__status-text">{t("skeleton.searching")}</p>
         <div
           className="jp-skeleton jp-skeleton--sort"
           aria-hidden="true"

@@ -25,8 +25,10 @@ function formatExpires(iso: string | null): string | null {
 }
 
 export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
-  // Synchronous next-intl translator — keeps this a non-async RSC.
+  // Synchronous next-intl translators — keeps this a non-async RSC.
+  // `t` bär enum-etiketten (jobSourceLabel), `tg` bär gäst-kortets copy.
   const t = useTranslations("jobads.enums");
+  const tg = useTranslations("guest");
   const publishedAt = formatPublishedAt(jobAd.publishedAtIso);
   const expiresAt = formatExpires(jobAd.expiresAtIso);
 
@@ -34,7 +36,10 @@ export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
     <Link
       href={`/gast/jobb/${jobAd.id}`}
       className="jp-job"
-      aria-label={`${jobAd.title} – ${jobAd.companyName}`}
+      aria-label={tg("jobb.cardAriaLabel", {
+        title: jobAd.title,
+        company: jobAd.companyName,
+      })}
     >
       <div className="jp-job__body">
         <h3 className="jp-job__title">
@@ -44,11 +49,17 @@ export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
         <div className="jp-job__meta">
           <span>{jobSourceLabel(t, jobAd.source)}</span>
           <span>
-            Publicerad <b>{publishedAt}</b>
+            {tg.rich("jobb.cardPublished", {
+              date: publishedAt,
+              b: (chunks) => <b>{chunks}</b>,
+            })}
           </span>
           {expiresAt && (
             <span>
-              Sista ansökan <b>{expiresAt}</b>
+              {tg.rich("jobb.cardApplyBy", {
+                date: expiresAt,
+                b: (chunks) => <b>{chunks}</b>,
+              })}
             </span>
           )}
         </div>

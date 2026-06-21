@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import {
   Card,
   CardContent,
@@ -42,11 +43,6 @@ function categoriesWithChanges(
   return ordered;
 }
 
-/** Per-kategori-räkning som skanninfo — aldrig ett betyg. Grammatisk singular/plural. */
-function changeCountLabel(count: number): string {
-  return count === 1 ? "1 förslag" : `${count} förslag`;
-}
-
 export function CvImprovePanel({
   improvements,
   parsedId,
@@ -56,13 +52,15 @@ export function CvImprovePanel({
   parsedId: string;
   profile: RenderProfile;
 }) {
+  const t = useTranslations("resumes");
+  const tEnum = useTranslations("resumes.enums");
   const basePath = `/cv/granska/${parsedId}/forbattra`;
 
   if (improvements === null) {
     return (
       <section className="jp-cvreview" aria-labelledby="cvimprove-title">
         <h2 id="cvimprove-title" className="jp-cvreview__title">
-          Förbättringsförslag
+          {t("improve.title")}
         </h2>
         <div className="jp-cvreview__profile">
           <CvProfileToggle
@@ -72,8 +70,7 @@ export function CvImprovePanel({
           />
         </div>
         <p className="jp-cvreview__unavailable" role="status">
-          Förslagen kunde inte laddas just nu. Tolkningen av ditt CV och
-          granskningen påverkas inte. Försök ladda om sidan om en stund.
+          {t("improve.unavailable")}
         </p>
       </section>
     );
@@ -84,7 +81,7 @@ export function CvImprovePanel({
   return (
     <section className="jp-cvreview" aria-labelledby="cvimprove-title">
       <h2 id="cvimprove-title" className="jp-cvreview__title">
-        Förbättringsförslag
+        {t("improve.title")}
       </h2>
 
       <div className="jp-cvreview__profile">
@@ -96,10 +93,7 @@ export function CvImprovePanel({
       </div>
 
       {improvements.changes.length === 0 ? (
-        <p className="jp-improve__empty">
-          Inga förbättringsförslag för den här profilen. Granskningen visar vad
-          som redan bedömts.
-        </p>
+        <p className="jp-improve__empty">{t("improve.empty")}</p>
       ) : (
         <div className="jp-cvreview__categories">
           {orderedCategories.map((category) => {
@@ -110,10 +104,10 @@ export function CvImprovePanel({
               <Card key={category}>
                 <CardHeader>
                   <CardTitle asChild>
-                    <h3>{categoryLabel(category)}</h3>
+                    <h3>{categoryLabel(tEnum, category)}</h3>
                   </CardTitle>
                   <p className="jp-improve__count">
-                    {changeCountLabel(changes.length)}
+                    {t("improve.count", { count: changes.length })}
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -136,9 +130,9 @@ export function CvImprovePanel({
       )}
 
       <p className="jp-improve__versions">
-        <span>Rubrik {improvements.rubricVersion}</span>
-        <span>Klyschor {improvements.clicheListVersion}</span>
-        <span>Verb {improvements.verbMappingVersion}</span>
+        <span>{t("improve.rubricVersion", { version: improvements.rubricVersion })}</span>
+        <span>{t("improve.clicheVersion", { version: improvements.clicheListVersion })}</span>
+        <span>{t("improve.verbVersion", { version: improvements.verbMappingVersion })}</span>
       </p>
     </section>
   );

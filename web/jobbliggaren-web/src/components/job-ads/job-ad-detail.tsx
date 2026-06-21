@@ -69,9 +69,10 @@ export function JobAdDetail({
   initialApplied,
   match,
 }: JobAdDetailProps) {
-  // Synchronous next-intl translator — keeps JobAdDetail a non-async RSC (it is
+  // Synchronous next-intl translators — keep JobAdDetail a non-async RSC (it is
   // shared by the full page and the @modal serialized slot, with sync tests).
   const t = useTranslations("jobads.enums");
+  const tUi = useTranslations("jobads.ui");
   // Typ-narrowing-pattern: bind till en `userActions`-konst som är non-null
   // när BÅDA props är definierade. Eliminerar `!`-suppressions i JSX nedan
   // (code-reviewer Minor 6).
@@ -107,17 +108,17 @@ export function JobAdDetail({
 
         <dl className="jp-modal__metarow">
           <div className="jp-modal__metaitem">
-            <dt>Publicerad</dt>
+            <dt>{tUi("detail.published")}</dt>
             <dd>{publishedAt}</dd>
           </div>
           {expiresAt && (
             <div className="jp-modal__metaitem">
-              <dt>Sista ansökningsdag</dt>
+              <dt>{tUi("detail.lastApplicationDay")}</dt>
               <dd>{expiresAt}</dd>
             </div>
           )}
           <div className="jp-modal__metaitem">
-            <dt>Annons-ID</dt>
+            <dt>{tUi("detail.adId")}</dt>
             <dd>{jobAd.id}</dd>
           </div>
         </dl>
@@ -138,7 +139,7 @@ export function JobAdDetail({
               marginBottom: 8,
             }}
           >
-            Annonsbeskrivning
+            {tUi("detail.description")}
           </div>
           <div id="jp-modal-desc" className="jp-modal__description">
             {formatAdDescription(jobAd.description)}
@@ -161,7 +162,7 @@ export function JobAdDetail({
             rel="noopener noreferrer"
             className="jp-btn jp-btn--secondary"
           >
-            <ExternalLink size={14} aria-hidden="true" /> Öppna annonsen
+            <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.openAd")}
           </a>
         )}
       </div>
@@ -175,12 +176,12 @@ export function JobAdDetail({
             textAlign: "right",
           }}
         >
-          Du har markerat denna annons som ansökt. Se i{" "}
+          {tUi("detail.appliedNotice")}{" "}
           <Link
             href="/ansokningar"
             style={{ color: "var(--jp-link, currentColor)", textDecoration: "underline" }}
           >
-            Mina ansökningar
+            {tUi("detail.appliedNoticeLink")}
           </Link>
           .
         </p>

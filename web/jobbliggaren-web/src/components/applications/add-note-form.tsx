@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ export function AddNoteForm({
   onSuccess,
   onCancel,
 }: AddNoteFormProps) {
+  const tUi = useTranslations("applications.ui");
   const formRef = useRef<HTMLFormElement>(null);
 
   const action = addNoteAction.bind(null, applicationId);
@@ -38,7 +40,7 @@ export function AddNoteForm({
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="note-content">Notering</Label>
+        <Label htmlFor="note-content">{tUi("addNote.label")}</Label>
         <Textarea
           id="note-content"
           name="content"
@@ -52,7 +54,7 @@ export function AddNoteForm({
       )}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" size="sm" disabled={isPending}>
-          Spara notering
+          {tUi("addNote.submit")}
         </Button>
         {onCancel && (
           <Button
@@ -62,7 +64,7 @@ export function AddNoteForm({
             disabled={isPending}
             onClick={onCancel}
           >
-            Avbryt
+            {tUi("common.cancel")}
           </Button>
         )}
       </div>

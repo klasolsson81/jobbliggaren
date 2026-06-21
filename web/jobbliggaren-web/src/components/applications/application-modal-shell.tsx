@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
 /**
@@ -38,6 +39,7 @@ export function ApplicationModalShell({
   footer?: React.ReactNode;
 }) {
   const router = useRouter();
+  const tUi = useTranslations("applications.ui");
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
@@ -113,7 +115,7 @@ export function ApplicationModalShell({
             ref={closeRef}
             type="button"
             className="jp-icon-btn"
-            aria-label="Stäng dialogrutan"
+            aria-label={tUi("modalShell.closeAriaLabel")}
             onClick={close}
           >
             <X size={20} aria-hidden="true" />
@@ -128,7 +130,7 @@ export function ApplicationModalShell({
             className="jp-btn jp-btn--secondary"
             onClick={close}
           >
-            Stäng
+            {tUi("modalShell.close")}
           </button>
         </div>
       </div>

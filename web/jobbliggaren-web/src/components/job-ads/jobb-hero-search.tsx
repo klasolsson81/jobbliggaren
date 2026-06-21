@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Search, X } from "lucide-react";
 import {
   Q_MAX_LENGTH,
@@ -97,6 +98,7 @@ export function JobbHeroSearch({
   pageSize,
 }: JobbHeroSearchProps) {
   const router = useRouter();
+  const t = useTranslations("jobads.ui");
   const [, startTransition] = useTransition();
   const helpId = useId();
 
@@ -250,8 +252,12 @@ export function JobbHeroSearch({
       commit(
         result.next,
         [
-          ...result.addedLabels.map((l) => `Lade till ${l}`),
-          ...result.removedLabels.map((l) => `Tog bort ${l}`),
+          ...result.addedLabels.map((l) =>
+            t("heroSearch.announceAdded", { label: l }),
+          ),
+          ...result.removedLabels.map((l) =>
+            t("heroSearch.announceRemoved", { label: l }),
+          ),
         ].join(". "),
       );
     }
@@ -312,7 +318,11 @@ export function JobbHeroSearch({
     // Förslags-val är en commit-punkt (E2j): committa ALLTID med commit-intent
     // så sökningen auto-capturas — även i det sällsynta fall valet inte
     // ändrar filter-staten (re-val av redan applicerat förslag = "kör igen").
-    commit(withSelection, `Lade till ${suggestion.label}`, true);
+    commit(
+      withSelection,
+      t("heroSearch.announceAdded", { label: suggestion.label }),
+      true,
+    );
   }
 
   // Sök/Enter utan markerat förslag: finalisera HELA texten (inget caret-
@@ -328,8 +338,12 @@ export function JobbHeroSearch({
     commit(
       result.next,
       [
-        ...result.addedLabels.map((l) => `Lade till ${l}`),
-        ...result.removedLabels.map((l) => `Tog bort ${l}`),
+        ...result.addedLabels.map((l) =>
+          t("heroSearch.announceAdded", { label: l }),
+        ),
+        ...result.removedLabels.map((l) =>
+          t("heroSearch.announceRemoved", { label: l }),
+        ),
       ].join(". "),
       true,
     );
@@ -347,7 +361,7 @@ export function JobbHeroSearch({
     setCaret(null);
     setPrevClaims(EMPTY_CLAIMS);
     setLimitNotice(false);
-    commit(delta.next, "Rensade sökfältet", true);
+    commit(delta.next, t("heroSearch.announceCleared"), true);
   }
 
   // Suggest-prefix = ordet under caret (fältet bär hela söktexten — förslag
@@ -371,7 +385,7 @@ export function JobbHeroSearch({
       }}
     >
       <label htmlFor="jobb-q" className="jp-hero__searchlabels">
-        Sök efter yrke, arbetsgivare eller ort
+        {t("heroSearch.fieldLabel")}
       </label>
       <div className="jp-hero__searchrow">
         {hydrated ? (
@@ -408,21 +422,21 @@ export function JobbHeroSearch({
             type="button"
             className="jp-hero__clearbtn"
             onClick={onClear}
-            aria-label="Rensa sökfältet"
+            aria-label={t("heroSearch.clearField")}
           >
             <X size={18} aria-hidden="true" />
           </button>
         )}
         <button type="submit" className="jp-hero__searchbtn">
-          <Search size={18} aria-hidden="true" /> Sök
+          <Search size={18} aria-hidden="true" /> {t("heroSearch.submit")}
         </button>
       </div>
       {/* Hjälptext bär tagg-/Tab-instruktionen (ALDRIG placeholder — Klas
           hård regel). role="status" så q-max-skiftet annonseras. */}
       <p id={helpId} role="status" className="jp-hero__searchhelp">
         {limitNotice
-          ? `Söktexten är full (max ${Q_MAX_LENGTH} tecken). Ta bort en tagg för att lägga till fler ord.`
-          : "Ord blir taggar i filterraden vid träffarna när du skriver mellanslag eller komma. Välj förslag med piltangenterna och Tab."}
+          ? t("heroSearch.limitNotice", { max: Q_MAX_LENGTH })
+          : t("heroSearch.help")}
       </p>
 
       {/* aria-live-annons för tagg-tillägg/-borttagning — viktigare än i

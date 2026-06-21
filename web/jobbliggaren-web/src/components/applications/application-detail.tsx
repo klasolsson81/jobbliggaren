@@ -78,12 +78,13 @@ export function ApplicationDetail({
   // (reads the per-request config), so ApplicationDetail stays a non-async RSC
   // — its synchronous render tests and serialized @modal slot are unaffected.
   const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const { jobAd } = application;
   const hasIdentity = jobAd != null;
   const shortId = application.id.slice(0, 8);
   const title = hasIdentity
     ? jobAd.title
-    : `Ansökan #${shortId}`;
+    : tUi("detail.fallbackTitle", { shortId });
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusColor = BADGE_COLOR_VAR[variant];
@@ -104,18 +105,20 @@ export function ApplicationDetail({
   const timeline: TimelineEvent[] = [];
   const createdAt = formatSvDate(application.createdAt);
   if (createdAt) {
-    timeline.push({ date: createdAt, label: "Ansökan skapades" });
+    timeline.push({ date: createdAt, label: tUi("detail.eventCreated") });
   }
   for (const note of application.notes) {
     const d = formatSvDate(note.createdAt);
-    if (d) timeline.push({ date: d, label: "Anteckning tillagd" });
+    if (d) timeline.push({ date: d, label: tUi("detail.eventNoteAdded") });
   }
   for (const fu of application.followUps) {
     const scheduled = formatSvDate(fu.scheduledAt);
     if (scheduled) {
       timeline.push({
         date: scheduled,
-        label: `Uppföljning (${channelLabel(t, fu.channel)}) schemalagd`,
+        label: tUi("detail.eventFollowUpScheduled", {
+          channel: channelLabel(t, fu.channel),
+        }),
       });
     }
     if (fu.outcome !== "Pending" && fu.outcomeAt) {
@@ -123,7 +126,9 @@ export function ApplicationDetail({
       if (outcomeAt) {
         timeline.push({
           date: outcomeAt,
-          label: `Utfall: ${followUpOutcomeLabel(t, fu.outcome)}`,
+          label: tUi("detail.eventOutcome", {
+            outcome: followUpOutcomeLabel(t, fu.outcome),
+          }),
         });
       }
     }
@@ -132,7 +137,7 @@ export function ApplicationDetail({
   if (updatedAt) {
     timeline.push({
       date: updatedAt,
-      label: `Status: ${statusLabel}`,
+      label: tUi("detail.eventStatus", { status: statusLabel }),
       primary: true,
     });
   }
@@ -159,7 +164,8 @@ export function ApplicationDetail({
                    (duplikat); skapad-datum är informativ metadata istället
                    (design-reviewer F5 Major #2 2026-05-20). */
                 <>
-                  Skapad <span className="jp-mono">{createdAt}</span>
+                  {tUi("detail.createdPrefix")}{" "}
+                  <span className="jp-mono">{createdAt}</span>
                 </>
               )}
             </p>
@@ -198,7 +204,7 @@ export function ApplicationDetail({
                 marginBottom: 2,
               }}
             >
-              Status
+              {tUi("detail.statusLabel")}
             </div>
             <b style={{ fontSize: 16 }}>{statusLabel}</b>
             {nextDate && (
@@ -209,7 +215,7 @@ export function ApplicationDetail({
                   color: "var(--jp-ink-2)",
                 }}
               >
-                Nästa uppföljning:{" "}
+                {tUi("detail.nextFollowUp")}{" "}
                 <span
                   className="jp-mono"
                   style={{ color: "var(--jp-ink-1)", fontWeight: 600 }}
@@ -231,10 +237,10 @@ export function ApplicationDetail({
 
         {/* Tidslinje — REALA events, nyast först */}
         <div>
-          <div style={SECTION_LABEL_STYLE}>Tidslinje</div>
+          <div style={SECTION_LABEL_STYLE}>{tUi("detail.timelineLabel")}</div>
           {timeline.length === 0 ? (
             <p className="text-body-sm text-text-secondary">
-              Inga händelser registrerade ännu.
+              {tUi("detail.timelineEmpty")}
             </p>
           ) : (
             <ul
@@ -304,7 +310,7 @@ export function ApplicationDetail({
         {/* Personligt brev — endast om coverLetter finns */}
         {application.coverLetter && (
           <div>
-            <div style={SECTION_LABEL_STYLE}>Personligt brev</div>
+            <div style={SECTION_LABEL_STYLE}>{tUi("detail.coverLetterLabel")}</div>
             <p
               className="jp-modal__description"
               style={{ maxWidth: "68ch" }}

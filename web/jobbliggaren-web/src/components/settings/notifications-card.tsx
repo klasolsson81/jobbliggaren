@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ToggleRow } from "@/components/ui/toggle-row";
 
 interface NotificationsCardProps {
@@ -27,19 +28,20 @@ export function NotificationsCard({
   onWeeklySummaryChange,
   isPending,
 }: NotificationsCardProps) {
+  const t = useTranslations("settings");
   return (
     <section className="jp-card">
-      <h2 className="jp-card__title">Aviseringar</h2>
+      <h2 className="jp-card__title">{t("notifications.title")}</h2>
       <ToggleRow
-        label="E-postnotifikationer"
-        description="Få mejl vid viktiga händelser i ditt konto."
+        label={t("notifications.emailLabel")}
+        description={t("notifications.emailDescription")}
         checked={emailNotifications}
         onChange={onEmailNotificationsChange}
         disabled={isPending}
       />
       <ToggleRow
-        label="Veckosammanfattning via e-post"
-        description="Sammanfattning av dina ansökningar och nya annonser."
+        label={t("notifications.weeklyLabel")}
+        description={t("notifications.weeklyDescription")}
         checked={weeklySummary}
         onChange={onWeeklySummaryChange}
         disabled={isPending}

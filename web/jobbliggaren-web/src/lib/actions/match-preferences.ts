@@ -41,15 +41,17 @@ export type ActionResult =
 export async function updateMatchPreferencesAction(
   input: SetMatchPreferencesInput
 ): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId)
+    return { success: false, error: ts("matchPrefs.errors.notLoggedIn") };
 
   const t = await getTranslations("validation");
   const parsed = makeSetMatchPreferencesSchema(t).safeParse(input);
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+      error: parsed.error.issues[0]?.message ?? ts("matchPrefs.errors.invalidInput"),
     };
   }
 
@@ -64,13 +66,13 @@ export async function updateMatchPreferencesAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte spara dina matchningsönskemål."),
+        error: mapActionError(res, ts("matchPrefs.errors.saveFailed")),
       };
     }
   } catch {
     return {
       success: false,
-      error: "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
+      error: ts("matchPrefs.errors.network"),
     };
   }
 
@@ -94,8 +96,9 @@ export type DeriveResult =
 export async function deriveOccupationsAction(
   title: string
 ): Promise<DeriveResult> {
+  const ts = await getTranslations("settings");
   if (typeof title !== "string") {
-    return { success: false, error: "Ogiltig yrkestitel." };
+    return { success: false, error: ts("matchPrefs.errors.invalidTitle") };
   }
 
   const result = await deriveOccupations(title);
@@ -103,16 +106,16 @@ export async function deriveOccupationsAction(
     case "ok":
       return { success: true, candidates: result.data.candidates };
     case "unauthorized":
-      return { success: false, error: "Du är inte inloggad." };
+      return { success: false, error: ts("matchPrefs.errors.notLoggedIn") };
     case "rateLimited":
       return {
         success: false,
-        error: "För många försök. Vänta en stund och försök igen.",
+        error: ts("matchPrefs.errors.tooManyAttempts"),
       };
     default:
       return {
         success: false,
-        error: "Kunde inte hämta förslag just nu. Försök igen om en stund.",
+        error: ts("matchPrefs.errors.suggestFailed"),
       };
   }
 }

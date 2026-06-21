@@ -42,11 +42,12 @@ export type CreateApplicationFromJobAdResult =
 export async function createApplicationFromJobAdAction(
   jobAdId: string
 ): Promise<CreateApplicationFromJobAdResult> {
+  const t = await getTranslations("applications.ui");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: t("actions.notLoggedIn") };
   // Allowlist-guard: avvisa icke-GUID innan id:t når backend-URL:en (SSRF-
   // barrier + path-injektion-skydd).
-  if (!isValidId(jobAdId)) return { success: false, error: "Ogiltigt annons-ID." };
+  if (!isValidId(jobAdId)) return { success: false, error: t("actions.invalidJobAdId") };
 
   try {
     const res = await fetch(
@@ -61,7 +62,7 @@ export async function createApplicationFromJobAdAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte registrera ansökan."),
+        error: mapActionError(res, t("actions.createFromJobAdFailed")),
       };
     }
 
@@ -74,7 +75,7 @@ export async function createApplicationFromJobAdAction(
     revalidatePath("/jobb");
     return { success: true, applicationId: data.id };
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: t("actions.serverUnreachable") };
   }
 }
 
@@ -82,8 +83,9 @@ export async function createApplicationAction(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
   const t = await getTranslations("validation");
   const parsed = makeCreateApplicationSchema(t).safeParse({
@@ -94,7 +96,7 @@ export async function createApplicationAction(
     coverLetter: formData.get("coverLetter") || undefined,
   });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
+    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
   }
 
   // /ansokningar/ny skapar alltid en manuell ansökan (jobAdId == null).
@@ -118,7 +120,7 @@ export async function createApplicationAction(
     });
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, "Kunde inte spara ansökan.") };
+      return { success: false, error: mapActionError(res, tUi("actions.createApplicationFailed")) };
     }
 
     const data = await parseResponse(
@@ -128,7 +130,7 @@ export async function createApplicationAction(
     );
     applicationId = data.id;
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
   revalidatePath("/ansokningar");
@@ -139,13 +141,14 @@ export async function transitionStatusAction(
   applicationId: string,
   targetStatus: string
 ): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
   const t = await getTranslations("validation");
   const parsed = makeTransitionStatusSchema(t).safeParse({ applicationId, targetStatus });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
+    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
   }
 
   try {
@@ -160,10 +163,10 @@ export async function transitionStatusAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, "Statusbytet misslyckades.") };
+      return { success: false, error: mapActionError(res, tUi("actions.transitionFailed")) };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
   revalidatePath("/ansokningar");
@@ -175,8 +178,9 @@ export async function addFollowUpAction(
   applicationId: string,
   formData: FormData
 ): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
   const t = await getTranslations("validation");
   const parsed = makeAddFollowUpSchema(t).safeParse({
@@ -186,7 +190,7 @@ export async function addFollowUpAction(
     note: formData.get("note") || undefined,
   });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
+    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
   }
 
   try {
@@ -205,10 +209,10 @@ export async function addFollowUpAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, "Kunde inte spara uppföljningen.") };
+      return { success: false, error: mapActionError(res, tUi("actions.addFollowUpFailed")) };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
   revalidatePath(`/ansokningar/${applicationId}`);
@@ -219,8 +223,9 @@ export async function addNoteAction(
   applicationId: string,
   formData: FormData
 ): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
   const t = await getTranslations("validation");
   const parsed = makeAddNoteSchema(t).safeParse({
@@ -228,7 +233,7 @@ export async function addNoteAction(
     content: formData.get("content"),
   });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
+    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
   }
 
   try {
@@ -243,10 +248,10 @@ export async function addNoteAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, "Kunde inte spara noteringen.") };
+      return { success: false, error: mapActionError(res, tUi("actions.addNoteFailed")) };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
   revalidatePath(`/ansokningar/${applicationId}`);
@@ -258,8 +263,9 @@ export async function recordFollowUpOutcomeAction(
   followUpId: string,
   formData: FormData
 ): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
   const t = await getTranslations("validation");
   const parsed = makeRecordFollowUpOutcomeSchema(t).safeParse({
@@ -268,7 +274,7 @@ export async function recordFollowUpOutcomeAction(
     outcome: formData.get("outcome"),
   });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
+    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
   }
 
   try {
@@ -283,10 +289,10 @@ export async function recordFollowUpOutcomeAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, "Kunde inte registrera utfallet.") };
+      return { success: false, error: mapActionError(res, tUi("actions.recordOutcomeFailed")) };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
   revalidatePath(`/ansokningar/${applicationId}`);

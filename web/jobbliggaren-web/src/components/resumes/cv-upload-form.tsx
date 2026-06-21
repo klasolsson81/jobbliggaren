@@ -6,6 +6,7 @@
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { FileText, Upload } from "lucide-react";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
 
@@ -22,12 +23,15 @@ const ACCEPTED_MIME_TYPES = [
  * validerar ändå själva eftersom `accept` inte är en garanti). */
 const ACCEPT_ATTR = [...ACCEPTED_EXTENSIONS, ...ACCEPTED_MIME_TYPES].join(",");
 
-const ERROR_WRONG_TYPE = "Välj en PDF- eller Word-fil (DOCX).";
-const ERROR_TOO_LARGE = "Filen är för stor. Maxstorlek är 10 MB.";
-const ERROR_NO_FILE = "Välj en fil att importera.";
-const ERROR_GENERIC =
-  "Något gick fel vid importen. Försök igen om en stund.";
-const ERROR_UNAUTHORIZED = "Du är inte inloggad.";
+/** Fel-tillstånd som en stabil nyckel — den svenska texten resolvas via next-intl
+ * i komponenten (`resumes.upload.*`). Validerings-hjälparna nedan är rena (ingen
+ * `t`-bindning), så de returnerar nyckeln, inte den färdiga strängen. */
+type UploadErrorKey =
+  | "errorWrongType"
+  | "errorTooLarge"
+  | "errorNoFile"
+  | "errorGeneric"
+  | "errorUnauthorized";
 
 /** Smal läsning av BFF-svaret (`/api/cv/import`) via type-guards — vi litar
  * aldrig på okänd shape, men drar inte in zod i klientbunten. Guard:arna
@@ -81,10 +85,11 @@ function isAcceptedFile(file: File): boolean {
   return hasAcceptedExtension(file.name) && mimeOk;
 }
 
-/** Klient-validering före upload. Returnerar svenskt felmeddelande eller null. */
-function validateFile(file: File): string | null {
-  if (!isAcceptedFile(file)) return ERROR_WRONG_TYPE;
-  if (file.size > MAX_UPLOAD_BYTES) return ERROR_TOO_LARGE;
+/** Klient-validering före upload. Returnerar en fel-nyckel eller null (texten
+ * resolvas i komponenten via next-intl). */
+function validateFile(file: File): UploadErrorKey | null {
+  if (!isAcceptedFile(file)) return "errorWrongType";
+  if (file.size > MAX_UPLOAD_BYTES) return "errorTooLarge";
   return null;
 }
 
@@ -100,6 +105,7 @@ interface CvUploadFormProps {
 }
 
 export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
+  const t = useTranslations("resumes.upload");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -121,7 +127,7 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
       return;
     }
     const validationError = validateFile(file);
-    setError(validationError);
+    setError(validationError ? t(validationError) : null);
     setSelectedFile(validationError ? null : file);
   }
 
@@ -136,7 +142,7 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
         body: formData,
       });
     } catch {
-      setError(ERROR_GENERIC);
+      setError(t("errorGeneric"));
       return;
     }
 
@@ -150,7 +156,7 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
     if (response.status === 201) {
       const parsedResumeId = readParsedResumeId(body);
       if (!parsedResumeId) {
-        setError(ERROR_GENERIC);
+        setError(t("errorGeneric"));
         return;
       }
       // ADR 0077 STEG 5: om värden tillhandahållit en callback (welcome-modalen),
@@ -165,7 +171,7 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
     }
 
     if (response.status === 401) {
-      setError(ERROR_UNAUTHORIZED);
+      setError(t("errorUnauthorized"));
       return;
     }
 
@@ -173,13 +179,13 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
       const retryAfter = readRetryAfter(body);
       setError(
         retryAfter !== null
-          ? `För många uppladdningar. Vänta ${retryAfter} sekunder och försök igen.`
-          : ERROR_GENERIC,
+          ? t("errorRateLimited", { seconds: retryAfter })
+          : t("errorGeneric"),
       );
       return;
     }
 
-    setError(readErrorMessage(body) ?? ERROR_GENERIC);
+    setError(readErrorMessage(body) ?? t("errorGeneric"));
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -187,12 +193,12 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
     if (isPending) return;
 
     if (!selectedFile) {
-      setError(ERROR_NO_FILE);
+      setError(t("errorNoFile"));
       return;
     }
     const validationError = validateFile(selectedFile);
     if (validationError) {
-      setError(validationError);
+      setError(t(validationError));
       return;
     }
 
@@ -212,10 +218,8 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
         // (undviker plottrig modal). Spinnern tar huvudytan. Minne:
         // project_spinner_usage_doctrine.
         <div className="jp-cvupload__pending" role="status" aria-live="polite">
-          <BrandSpinner size={48} label="Laddar upp och granskar ditt CV" />
-          <p className="jp-cvupload__pending-text">
-            Laddar upp och granskar ditt CV. Det kan ta en liten stund.
-          </p>
+          <BrandSpinner size={48} label={t("pendingLabel")} />
+          <p className="jp-cvupload__pending-text">{t("pendingText")}</p>
         </div>
       ) : (
         <>
@@ -225,9 +229,9 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
                 {selectedFile ? <FileText size={22} /> : <Upload size={22} />}
               </span>
               <span className="jp-cvupload__drop-text">
-                {selectedFile ? selectedFile.name : "Välj en fil att ladda upp"}
+                {selectedFile ? selectedFile.name : t("dropText")}
               </span>
-              <span className="jp-cvupload__drop-hint">PDF eller Word (DOCX)</span>
+              <span className="jp-cvupload__drop-hint">{t("dropHint")}</span>
             </label>
             <input
               id={inputId}
@@ -242,8 +246,7 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
           </div>
 
           <p id={helpId} className="jp-cvupload__help">
-            Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar
-            innehållet och visar en granskning. Ditt CV ändras inte.
+            {t("help")}
           </p>
 
           {error && (
@@ -258,7 +261,7 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
               className="jp-btn jp-btn--primary"
               disabled={!selectedFile}
             >
-              Ladda upp och granska CV
+              {t("submit")}
             </button>
           </div>
         </>

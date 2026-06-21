@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/status-pill";
 import { verdictLabel } from "@/lib/resumes/review-labels";
 import type {
@@ -54,7 +55,8 @@ export function CvCriterionVerdict({
    * kategori-kort, t.ex. i "Att åtgärda"). Utelämnas inne i kategori-korten. */
   categoryLabel?: string;
 }) {
-  const { label, tone } = verdictLabel(verdict.verdict);
+  const tEnum = useTranslations("resumes.enums");
+  const { label, tone } = verdictLabel(tEnum, verdict.verdict);
   const hasEvidence = verdict.evidence.length > 0;
 
   return (

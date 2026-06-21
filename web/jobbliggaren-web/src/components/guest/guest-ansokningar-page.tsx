@@ -10,8 +10,10 @@ import { buildGuestPipeline } from "@/lib/guest/mock-data";
 // `(app)/ansokningar`).
 
 export function GuestAnsokningarPage() {
-  // Synchronous next-intl translator — keeps this a non-async RSC.
+  // Synchronous next-intl translators — keeps this a non-async RSC.
+  // `t` bär enum-etiketter (applicationSourceLabel), `tg` bär gäst-sidans copy.
   const t = useTranslations("applications.enums");
+  const tg = useTranslations("guest");
   const groups = buildGuestPipeline();
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
@@ -20,10 +22,12 @@ export function GuestAnsokningarPage() {
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <div className="jp-pagehero__kicker">Demopipeline</div>
-            <h1 className="jp-pagehero__title">Mina ansökningar</h1>
+            <div className="jp-pagehero__kicker">
+              {tg("ansokningar.kicker")}
+            </div>
+            <h1 className="jp-pagehero__title">{tg("ansokningar.title")}</h1>
             <p className="jp-pagehero__lede">
-              {total} exempelansökningar fördelade över alla statuslägen.
+              {tg("ansokningar.lede", { total })}
             </p>
           </div>
         </div>
@@ -34,7 +38,10 @@ export function GuestAnsokningarPage() {
           <section
             key={group.status}
             className="jp-section scroll-mt-6"
-            aria-label={`${group.statusLabel} (${group.count})`}
+            aria-label={tg("ansokningar.groupAriaLabel", {
+              statusLabel: group.statusLabel,
+              count: group.count,
+            })}
           >
             <div className="jp-section__head">
               <h2 className="jp-section__title">{group.statusLabel}</h2>
@@ -43,7 +50,7 @@ export function GuestAnsokningarPage() {
             <div className="jp-applist">
               {group.applications.length === 0 ? (
                 <p className="jp-guest-applist__empty">
-                  Inga ansökningar i den här statusen.
+                  {tg("ansokningar.emptyStatus")}
                 </p>
               ) : (
                 group.applications.map((app) => (
@@ -53,7 +60,11 @@ export function GuestAnsokningarPage() {
                     key={app.id}
                     href={`/gast/ansokningar/${app.id}`}
                     className="jp-app"
-                    aria-label={`${app.role} – ${app.company} – ${group.statusLabel}`}
+                    aria-label={tg("ansokningar.rowAriaLabel", {
+                      role: app.role,
+                      company: app.company,
+                      statusLabel: group.statusLabel,
+                    })}
                   >
                     <div className="jp-job__body">
                       <h3 className="jp-app__title">{app.role}</h3>

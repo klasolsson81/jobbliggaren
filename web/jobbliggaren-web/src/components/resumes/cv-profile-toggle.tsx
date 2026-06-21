@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { RenderProfile } from "@/lib/dto/parsed-resume";
 
 /**
@@ -11,9 +12,12 @@ import type { RenderProfile } from "@/lib/dto/parsed-resume";
  * vyn (F4-10) återanvänder samma växel med sin egen basePath — inte en fork.
  */
 
-const OPTIONS: ReadonlyArray<{ value: RenderProfile; label: string }> = [
-  { value: "Ats", label: "ATS-profil" },
-  { value: "Visual", label: "Visuell profil" },
+const OPTIONS: ReadonlyArray<{
+  value: RenderProfile;
+  labelKey: "ats" | "visual";
+}> = [
+  { value: "Ats", labelKey: "ats" },
+  { value: "Visual", labelKey: "visual" },
 ];
 
 export function CvProfileToggle({
@@ -26,13 +30,10 @@ export function CvProfileToggle({
   /** Route-bas växeln länkar inom. Default: granska-vyn (`/cv/granska/{id}`). */
   basePath?: string;
 }) {
+  const t = useTranslations("resumes.profileToggle");
   const base = basePath ?? `/cv/granska/${parsedId}`;
   return (
-    <div
-      role="group"
-      aria-label="Välj granskningsprofil"
-      className="jp-segment"
-    >
+    <div role="group" aria-label={t("groupLabel")} className="jp-segment">
       {OPTIONS.map((option) => {
         const isActive = option.value === profile;
         return (
@@ -44,7 +45,7 @@ export function CvProfileToggle({
             aria-current={isActive ? "true" : undefined}
             scroll={false}
           >
-            <span>{option.label}</span>
+            <span>{t(option.labelKey)}</span>
           </Link>
         );
       })}

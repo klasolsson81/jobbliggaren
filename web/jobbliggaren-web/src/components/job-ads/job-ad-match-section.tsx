@@ -1,10 +1,15 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { MatchChip } from "./match-chip";
 import type {
   JobAdMatchDetail,
   MatchDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
+
+// Scoped to the `match` subtree (next-intl typed-messages instantiate too
+// deeply when ICU-arg calls resolve against the whole `jobads.ui` namespace).
+type MatchTranslator = ReturnType<typeof useTranslations<"jobads.ui.match">>;
 
 /**
  * JobAdMatchSection — F4-16 (ADR 0076 Amendment (b) §3/§5, design-reviewer
@@ -23,51 +28,36 @@ import type {
  * INGEN sektion alls (frånvaro, ej teater — ADR 0053).
  */
 
-// Kanonisk länk + text — IDENTISK med Översikt setup-nudgen
-// (oversikt-page.tsx:181) och /jobb-disclosuren. Ett koncept, en sträng
-// (jobbpilot-design-copy — ingen drift mellan ytor).
+// Kanonisk länk — IDENTISK med Översikt setup-nudgen (oversikt-page.tsx:181)
+// och /jobb-disclosuren. Texten resolveras via next-intl (`ui.match.settingsCta`,
+// SPOT med Översikt-/toolbar-disclosuren — ingen drift mellan ytor).
 const MATCH_SETTINGS_HREF = "/installningar#matchning";
-const MATCH_SETTINGS_CTA = "Ställ in matchning";
 
 // CV-import-länk för signposten "ladda upp CV" (PR-B2). Samma route som
 // matchnings-kortets CV-förslag (importCvHref).
 const CV_IMPORT_HREF = "/cv/importera";
 
-// Verdict → svenskt civic ord (design-bind §2.B). NoMatch = "Saknas" (neutral,
-// ej röd-alarm); NotAssessed = "Ej bedömt"; Vacuous = "Inga angivna" (annonsen
-// anger inga krav/kompetenser av den sorten — neutral, ej fel). Vacuous får
-// neutral ink + fylld prick (default), aldrig hålig (det är ett definitivt
-// "inget krävs", inte ett "kunde ej bedömas").
-const VERDICT_WORD: Record<MatchVerdict, string> = {
-  Match: "Matchar",
-  Partial: "Delvis",
-  NoMatch: "Saknas",
-  NotAssessed: "Ej bedömt",
-  Vacuous: "Inga angivna",
-};
-
-// Dimensions-ordning + svenska civic-labels (design §2.B). Fast-dimensionerna
-// först (yrke/region/anställning), sedan CV-härledda (kompetenser/krav/
-// meriterande). Titel hålls "Ej bedömd" v1 (Klas-bind: title-dimensionen är
-// OUT of scope i F4-16 — CTO D7=A).
-const DIMENSIONS: ReadonlyArray<{
-  key: keyof Omit<JobAdMatchDetail, "grade">;
-  label: string;
-}> = [
-  { key: "ssykOverlap", label: "Yrke" },
-  { key: "titleSimilarity", label: "Titel" },
-  { key: "regionFit", label: "Region" },
-  { key: "employmentFit", label: "Anställningsform" },
-  { key: "skillOverlap", label: "Kompetenser" },
-  { key: "mustHaveCoverage", label: "Ska-krav" },
-  { key: "niceToHaveCoverage", label: "Meriterande" },
+// Dimensions-ordning (design §2.B). Fast-dimensionerna först (yrke/region/
+// anställning), sedan CV-härledda (kompetenser/krav/meriterande). Etiketterna
+// resolveras via next-intl (`ui.match.dimension.*`). Titel hålls "Ej bedömd" v1
+// (Klas-bind: title-dimensionen är OUT of scope i F4-16 — CTO D7=A).
+const DIMENSION_KEYS: ReadonlyArray<keyof Omit<JobAdMatchDetail, "grade">> = [
+  "ssykOverlap",
+  "titleSimilarity",
+  "regionFit",
+  "employmentFit",
+  "skillOverlap",
+  "mustHaveCoverage",
+  "niceToHaveCoverage",
 ];
 
-// Normal-case source; the heading element applies `text-transform: uppercase`
-// (parity "Annonsbeskrivning" — the style versalises, not the string).
-const HEADING = "Matchning mot din profil";
-
-function MatchSectionHeading({ children }: { children?: React.ReactNode }) {
+function MatchSectionHeading({
+  t,
+  children,
+}: {
+  t: MatchTranslator;
+  children?: React.ReactNode;
+}) {
   return (
     <div className="jp-modal__matchsection-head">
       <div
@@ -79,7 +69,9 @@ function MatchSectionHeading({ children }: { children?: React.ReactNode }) {
           color: "var(--jp-ink-2)",
         }}
       >
-        {HEADING}
+        {/* Normal-case source; the heading element applies
+            `text-transform: uppercase` (parity "Annonsbeskrivning"). */}
+        {t("heading")}
       </div>
       {children}
     </div>
@@ -91,22 +83,25 @@ function MatchSectionHeading({ children }: { children?: React.ReactNode }) {
  * aldrig en tyst blank. matched[]/missing[] är tomma för NotAssessed-rader, så
  * skälet härleds ur dimensionen.
  */
-function notAssessedReason(key: keyof Omit<JobAdMatchDetail, "grade">): string {
+function notAssessedReason(
+  key: keyof Omit<JobAdMatchDetail, "grade">,
+  t: MatchTranslator,
+): string {
   switch (key) {
     case "ssykOverlap":
-      return "Du har inte angett vilka yrken du söker inom.";
+      return t("notAssessedReason.ssykOverlap");
     case "titleSimilarity":
-      return "Titel jämförs inte mot din profil ännu.";
+      return t("notAssessedReason.titleSimilarity");
     case "regionFit":
-      return "Du har inte angett någon region.";
+      return t("notAssessedReason.regionFit");
     case "employmentFit":
-      return "Du har inte angett någon anställningsform.";
+      return t("notAssessedReason.employmentFit");
     case "skillOverlap":
     case "mustHaveCoverage":
     case "niceToHaveCoverage":
-      return "Inga kompetenser kunde läsas ur ditt CV. Ladda upp ett CV under Profil.";
+      return t("notAssessedReason.skills");
     default:
-      return "Den här delen kunde inte bedömas.";
+      return t("notAssessedReason.default");
   }
 }
 
@@ -118,16 +113,19 @@ function notAssessedReason(key: keyof Omit<JobAdMatchDetail, "grade">): string {
  * annonsen anger inga ska-krav (gate-öppen — därför kan den ändå nå Stark/Topp).
  * Ingen siffra (Goodhart-vakt) — ren konstaterande civic-copy.
  */
-function mustHaveSummary(verdict: MatchVerdict): string | null {
+function mustHaveSummary(
+  verdict: MatchVerdict,
+  t: MatchTranslator,
+): string | null {
   switch (verdict) {
     case "Match":
-      return "Du uppfyller alla ska-krav i annonsen.";
+      return t("mustHaveSummary.Match");
     case "Partial":
-      return "Du uppfyller några av annonsens ska-krav.";
+      return t("mustHaveSummary.Partial");
     case "NoMatch":
-      return "Du uppfyller inte annonsens ska-krav.";
+      return t("mustHaveSummary.NoMatch");
     case "Vacuous":
-      return "Annonsen anger inga särskilda ska-krav.";
+      return t("mustHaveSummary.Vacuous");
     case "NotAssessed":
       return null;
   }
@@ -137,12 +135,14 @@ function MatchRow({
   label,
   dimensionKey,
   detail,
+  t,
 }: {
   label: string;
   dimensionKey: keyof Omit<JobAdMatchDetail, "grade">;
   detail: MatchDimensionDetail;
+  t: MatchTranslator;
 }) {
-  const word = VERDICT_WORD[detail.verdict];
+  const word = t(`verdict.${detail.verdict}`);
   const isNotAssessed = detail.verdict === "NotAssessed";
 
   return (
@@ -165,16 +165,16 @@ function MatchRow({
       <span className="jp-modal__matchrow-evidence">
         {isNotAssessed ? (
           <span className="jp-modal__matchrow-missing">
-            {notAssessedReason(dimensionKey)}
+            {notAssessedReason(dimensionKey, t)}
           </span>
         ) : (
           <>
             {detail.matched.length > 0 && (
-              <span>Du har: {detail.matched.join(", ")}</span>
+              <span>{t("youHave", { items: detail.matched.join(", ") })}</span>
             )}
             {detail.missing.length > 0 && (
               <span className="jp-modal__matchrow-missing">
-                Annonsen efterfrågar även: {detail.missing.join(", ")}
+                {t("alsoRequested", { items: detail.missing.join(", ") })}
               </span>
             )}
           </>
@@ -189,6 +189,10 @@ export interface JobAdMatchSectionProps {
 }
 
 export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
+  // Synchronous next-intl translator — keeps JobAdMatchSection a non-async RSC
+  // (shared by the modal + full page as a serialized slot, with sync tests).
+  const t = useTranslations("jobads.ui.match");
+
   // Inloggad användare UTAN angivet yrke (yrket kan inte bedömas): visa EN
   // ärlig signpost-rad i stället för nedbrytningen, med kanonisk Översikt-copy
   // (design §2.E #2 — ingen string-drift mellan ytor).
@@ -197,11 +201,10 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
 
   if (noStatedOccupation) {
     return (
-      <section className="jp-modal__matchsection" aria-label="Matchning mot din profil">
-        <MatchSectionHeading />
+      <section className="jp-modal__matchsection" aria-label={t("heading")}>
+        <MatchSectionHeading t={t} />
         <p style={{ margin: 0, fontSize: 14, color: "var(--jp-ink-1)" }}>
-          Du har inte angett vilka yrken du söker inom. Ställ in det för att se
-          hur väl annonser matchar din profil.{" "}
+          {t("noStatedOccupation")}{" "}
           <Link
             href={MATCH_SETTINGS_HREF}
             style={{
@@ -210,7 +213,7 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
               textDecoration: "underline",
             }}
           >
-            {MATCH_SETTINGS_CTA}
+            {t("settingsCta")}
           </Link>
         </p>
       </section>
@@ -218,17 +221,18 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
   }
 
   return (
-    <section className="jp-modal__matchsection" aria-label="Matchning mot din profil">
-      <MatchSectionHeading>
+    <section className="jp-modal__matchsection" aria-label={t("heading")}>
+      <MatchSectionHeading t={t}>
         {match.grade !== null && <MatchChip grade={match.grade} />}
       </MatchSectionHeading>
       <div className="jp-modal__matchrows">
-        {DIMENSIONS.map(({ key, label }) => (
+        {DIMENSION_KEYS.map((key) => (
           <MatchRow
             key={key}
-            label={label}
+            label={t(`dimension.${key}`)}
             dimensionKey={key}
             detail={match[key]}
+            t={t}
           />
         ))}
       </div>
@@ -248,8 +252,7 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
             color: "var(--jp-ink-2)",
           }}
         >
-          Ladda upp ett CV för att matcha på kompetenser och krav. Det krävs för
-          Stark match och Toppmatch.{" "}
+          {t("uploadCvFoot")}{" "}
           <Link
             href={CV_IMPORT_HREF}
             style={{
@@ -258,7 +261,7 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
               textDecoration: "underline",
             }}
           >
-            Ladda upp CV
+            {t("uploadCvCta")}
           </Link>
         </p>
       ) : (
@@ -272,7 +275,7 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
             color: "var(--jp-ink-2)",
           }}
         >
-          {mustHaveSummary(match.mustHaveCoverage.verdict)}
+          {mustHaveSummary(match.mustHaveCoverage.verdict, t)}
         </p>
       )}
     </section>

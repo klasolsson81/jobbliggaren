@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { GuestShell } from "@/components/guest/guest-shell";
 import { GuestWelcomeModal } from "@/components/guest/guest-welcome-modal";
 import { hasSeenGuestWelcome } from "@/lib/guest/guest-mode";
@@ -22,6 +23,7 @@ export default async function GuestLayout({
   modal: React.ReactNode;
 }) {
   const welcomed = await hasSeenGuestWelcome();
+  const t = await getTranslations("guest");
 
   return (
     <>
@@ -29,7 +31,7 @@ export default async function GuestLayout({
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
       >
-        Hoppa till huvudinnehåll
+        {t("layout.skipToContent")}
       </a>
       <GuestShell>
         {children}

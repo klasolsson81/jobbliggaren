@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
   proposedChangeKindLabel,
@@ -8,6 +9,9 @@ import type {
   ProposedChangeDto,
   CitedEvidenceDto,
 } from "@/lib/dto/parsed-resume";
+
+type ResumesT = ReturnType<typeof useTranslations<"resumes">>;
+type ResumesEnumsT = ReturnType<typeof useTranslations<"resumes.enums">>;
 
 /**
  * Ett enskilt förbättringsförslag (F4-10, propose-and-approve). RSC, display-only:
@@ -51,28 +55,36 @@ function Evidence({ evidence }: { evidence: CitedEvidenceDto }) {
 /** Proveniens-fot: KnowledgeBank → "Källa: {source} {version}" (key utelämnas —
  * brus för slutanvändaren); StructuralTransform → "Källa: strukturell regel
  * ({transform})". Detta är förklarbarhets-kontraktet, alltid synligt. */
-function provenanceText(change: ProposedChangeDto): string {
+function provenanceText(
+  change: ProposedChangeDto,
+  t: ResumesT,
+  tEnum: ResumesEnumsT,
+): string {
   const { provenance } = change;
   if (provenance.kind === "KnowledgeBank") {
     const parts = [provenance.source, provenance.version].filter(
       (part): part is string => part !== null && part.length > 0,
     );
-    return parts.length > 0 ? `Källa: ${parts.join(" ")}` : "Källa: kunskapsbank";
+    return parts.length > 0
+      ? t("proposedChange.sourcePrefix", { value: parts.join(" ") })
+      : t("proposedChange.sourceKnowledgeBankFallback");
   }
   // StructuralTransform — visa den faktiska transform-regelns namn (svensk
   // etikett ur `provenance.transform`, inte change.kind).
   const transform =
     provenance.transform !== null
-      ? structuralTransformLabel(provenance.transform)
+      ? structuralTransformLabel(tEnum, provenance.transform)
       : null;
   return transform !== null
-    ? `Källa: strukturell regel (${transform})`
-    : "Källa: strukturell regel";
+    ? t("proposedChange.sourceStructuralRule", { transform })
+    : t("proposedChange.sourceStructuralRuleFallback");
 }
 
 export function CvProposedChange({ change }: { change: ProposedChangeDto }) {
+  const t = useTranslations("resumes");
+  const tEnum = useTranslations("resumes.enums");
   const hasReplacement = change.replacement !== null;
-  const pillLabel = changeKindPillLabel(hasReplacement);
+  const pillLabel = changeKindPillLabel(tEnum, hasReplacement);
 
   return (
     <div className="jp-improve__change">
@@ -88,13 +100,17 @@ export function CvProposedChange({ change }: { change: ProposedChangeDto }) {
       {change.replacement !== null ? (
         <div className="jp-improve__diff">
           <div className="jp-improve__diff-side">
-            <span className="jp-improve__diff-label">Nuvarande</span>
+            <span className="jp-improve__diff-label">
+              {t("proposedChange.current")}
+            </span>
             <blockquote className="jp-criterion__quote jp-improve__diff-before">
               {change.replacement.before}
             </blockquote>
           </div>
           <div className="jp-improve__diff-side">
-            <span className="jp-improve__diff-label">Förslag</span>
+            <span className="jp-improve__diff-label">
+              {t("proposedChange.suggestion")}
+            </span>
             <blockquote className="jp-criterion__quote jp-improve__diff-after">
               {change.replacement.after}
             </blockquote>
@@ -102,7 +118,9 @@ export function CvProposedChange({ change }: { change: ProposedChangeDto }) {
         </div>
       ) : change.operation !== null ? (
         <p className="jp-improve__operation">
-          Föreslagen ändring: {proposedChangeKindLabel(change.kind)} på{" "}
+          {t("proposedChange.operation", {
+            kind: proposedChangeKindLabel(tEnum, change.kind),
+          })}{" "}
           <code className="jp-improve__target">{change.operation.target}</code>
         </p>
       ) : null}
@@ -111,7 +129,9 @@ export function CvProposedChange({ change }: { change: ProposedChangeDto }) {
 
       <p className="jp-criterion__note">{change.rationale}</p>
 
-      <p className="jp-improve__provenance">{provenanceText(change)}</p>
+      <p className="jp-improve__provenance">
+        {provenanceText(change, t, tEnum)}
+      </p>
     </div>
   );
 }

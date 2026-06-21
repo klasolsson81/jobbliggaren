@@ -85,16 +85,21 @@ interface JobbResultsToolbarProps {
 // sitter samlade, före de rena datum-ordningarna. Den disablas ALDRIG på q
 // (till skillnad från Relevance): match-sorten kräver ingen söktext och faller
 // honest tillbaka till nyaste-ordning utan yrkespreferens (Decision 7).
-// Toolbar-specifika sort-etiketter. `MatchDesc` är den enda enum-labeln i denna
-// batch — den resolveras via next-intl (`sort.MatchDesc`) inne i komponenten;
-// `label: null` markerar att den fylls från `t`. De övriga strängarna är
-// toolbar-egna (ej delade enum-labels) och flyttas i en senare batch.
-const SORT_OPTIONS: ReadonlyArray<{ value: JobAdSortBy; label: string | null }> = [
-  { value: "Relevance", label: "Relevans" },
-  { value: "MatchDesc", label: null },
-  { value: "PublishedAtDesc", label: "Datum (nyast)" },
-  { value: "ExpiresAtAsc", label: "Ansökningsdatum (sista ansökan)" },
-];
+//
+// Etiketterna resolveras via next-intl inne i komponenten. `MatchDesc` är en
+// DELAD enum-label (`enums.sort.MatchDesc`, via `jobAdSortLabel`); `uiKey: null`
+// markerar det. De övriga är toolbar-egna ui-strängar (`ui.toolbar.sort*`) som
+// EJ delar enum-katalogen — Relevance-enumlabeln är "Mest relevant" medan
+// toolbaren visar "Relevans" (medveten divergens, Klas-prompt E2e).
+const SORT_OPTIONS = [
+  { value: "Relevance", uiKey: "toolbar.sortRelevance" },
+  { value: "MatchDesc", uiKey: null },
+  { value: "PublishedAtDesc", uiKey: "toolbar.sortPublishedDesc" },
+  { value: "ExpiresAtAsc", uiKey: "toolbar.sortExpiresAsc" },
+] as const satisfies ReadonlyArray<{
+  value: JobAdSortBy;
+  uiKey: string | null;
+}>;
 
 // Ikon per chip-axel (civic-restrained, lucide). yrke = Briefcase, ort =
 // MapPin, anställningsform = FileText, omfattning = Clock, fritext = Search.
@@ -123,6 +128,7 @@ export function JobbResultsToolbar({
   hasStatedDesiredOccupation,
 }: JobbResultsToolbarProps) {
   const tEnum = useTranslations("jobads.enums");
+  const t = useTranslations("jobads.ui");
   const router = useRouter();
   const [, startTransition] = useTransition();
 
@@ -241,11 +247,11 @@ export function JobbResultsToolbar({
           aria-live="polite"
         >
           {totalCount === 0 ? (
-            "Inga träffar"
+            t("toolbar.noHits")
           ) : (
             <>
               <b>{totalCount.toLocaleString("sv-SE")}</b>{" "}
-              {totalCount === 1 ? "träff" : "träffar"}
+              {t("toolbar.hits", { count: totalCount })}
             </>
           )}
         </div>
@@ -256,7 +262,7 @@ export function JobbResultsToolbar({
           <div
             className="jp-filterchips"
             role="group"
-            aria-label="Aktiva sökord och filter"
+            aria-label={t("toolbar.activeFiltersLabel")}
           >
             {chips.map((chip) => {
               // Ikon per tagg-typ (CHIP_ICON — Klass 2 lade employmentType/
@@ -272,8 +278,8 @@ export function JobbResultsToolbar({
                   onClick={() => removeChip(chip)}
                   aria-label={
                     chip.axis === "q"
-                      ? `Ta bort sökordet ${chip.label}`
-                      : `Ta bort filter ${chip.label}`
+                      ? t("toolbar.removeSearchTerm", { label: chip.label })
+                      : t("toolbar.removeFilter", { label: chip.label })
                   }
                 >
                   <X size={12} aria-hidden="true" />
@@ -289,7 +295,7 @@ export function JobbResultsToolbar({
               className="jp-clearlink"
               onClick={clearAllFilters}
             >
-              Rensa sökord och filter
+              {t("toolbar.clearAll")}
             </button>
           </div>
         )}
@@ -300,7 +306,7 @@ export function JobbResultsToolbar({
           htmlFor="jobb-sort"
           style={{ fontSize: 14, color: "var(--jp-ink-2)" }}
         >
-          Sortera
+          {t("toolbar.sortLabel")}
         </label>
         <select
           id="jobb-sort"
@@ -315,7 +321,7 @@ export function JobbResultsToolbar({
               value={opt.value}
               disabled={opt.value === "Relevance" && !qReady}
             >
-              {opt.label ?? jobAdSortLabel(tEnum, opt.value)}
+              {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
             </option>
           ))}
         </select>
@@ -328,10 +334,9 @@ export function JobbResultsToolbar({
         när noten dyker upp efter sort-bytet (aria-live). */}
     {showMatchSortDisclosure && (
       <p className="jp-matchsort-note" role="status">
-        Matchningssortering kräver att du anger vilka yrken du söker inom. Listan
-        visas med nyaste först tills du ställt in det.{" "}
+        {t("toolbar.matchSortDisclosure")}{" "}
         <Link href="/installningar#matchning" className="jp-matchsort-note__link">
-          Ställ in matchning
+          {t("toolbar.matchSortDisclosureLink")}
         </Link>
       </p>
     )}

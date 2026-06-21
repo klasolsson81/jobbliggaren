@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { JobAdCard } from "./job-ad-card";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
@@ -26,6 +27,8 @@ export function JobAdList({
   appliedIdSet,
   matchGradeById,
 }: JobAdListProps) {
+  // Synchronous next-intl translator — keeps JobAdList a non-async RSC.
+  const t = useTranslations("jobads.ui");
   if (jobAds.length === 0) {
     // Ingen `role=status`/`aria-live` här — page.tsx har redan en live-region
     // på resultat-räknaren. Två live-regions samtidigt riskerar dubbel-
@@ -33,14 +36,14 @@ export function JobAdList({
     // statiskt DOM-innehåll som läses upp vid navigation.
     return (
       <div className="jp-empty">
-        <div className="jp-empty__title">Inga jobb hittades</div>
-        Justera filtren eller töm sökrutan för att se fler annonser.
+        <div className="jp-empty__title">{t("list.emptyTitle")}</div>
+        {t("list.emptyBody")}
       </div>
     );
   }
 
   return (
-    <ul className="jp-jobs" aria-label="Jobbannonser">
+    <ul className="jp-jobs" aria-label={t("list.ariaLabel")}>
       {jobAds.map((jobAd) => (
         <li key={jobAd.id}>
           <JobAdCard

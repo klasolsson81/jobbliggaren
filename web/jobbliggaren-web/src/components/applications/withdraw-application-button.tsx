@@ -41,6 +41,7 @@ export function WithdrawApplicationButton({
   currentStatus,
 }: WithdrawApplicationButtonProps) {
   const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -72,7 +73,7 @@ export function WithdrawApplicationButton({
         className="text-danger-700"
         onClick={() => setOpen(true)}
       >
-        Återta ansökan
+        {tUi("withdraw.action")}
       </Button>
 
       <Dialog
@@ -86,11 +87,13 @@ export function WithdrawApplicationButton({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Återta ansökan?</DialogTitle>
+            <DialogTitle>{tUi("withdraw.confirmTitle")}</DialogTitle>
             <DialogDescription>
-              Ansökan ändras från <strong>{currentLabel}</strong> till{" "}
-              <strong>{withdrawnLabel}</strong>. En återtagen ansökan
-              avslutas och kan inte ändras vidare utan manuell åtgärd.
+              {tUi.rich("withdraw.confirmBody", {
+                from: currentLabel,
+                to: withdrawnLabel,
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </DialogDescription>
           </DialogHeader>
           {error && (
@@ -109,7 +112,7 @@ export function WithdrawApplicationButton({
                 setError(null);
               }}
             >
-              Avbryt
+              {tUi("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -118,7 +121,7 @@ export function WithdrawApplicationButton({
               disabled={isPending}
               onClick={confirm}
             >
-              {isPending ? "Återtar…" : "Återta ansökan"}
+              {isPending ? tUi("withdraw.withdrawing") : tUi("withdraw.action")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -28,5 +28,128 @@
       "LinkedIn": "LinkedIn",
       "Manual": "Manuellt"
     }
+  },
+  "ui": {
+    "common": {
+      "cancel": "Avbryt",
+      "saving": "Sparar…"
+    },
+    "addFollowUp": {
+      "channelLabel": "Kanal",
+      "channelPlaceholder": "Välj kanal",
+      "dateLabel": "Datum",
+      "noteLabel": "Anteckning (valfritt)",
+      "noteHint": "Till exempel vad som diskuterades.",
+      "submit": "Lägg till uppföljning"
+    },
+    "addNote": {
+      "label": "Notering",
+      "submit": "Spara notering"
+    },
+    "detail": {
+      "fallbackTitle": "Ansökan #{shortId}",
+      "createdPrefix": "Skapad",
+      "statusLabel": "Status",
+      "nextFollowUp": "Nästa uppföljning:",
+      "timelineLabel": "Tidslinje",
+      "timelineEmpty": "Inga händelser registrerade ännu.",
+      "eventCreated": "Ansökan skapades",
+      "eventNoteAdded": "Anteckning tillagd",
+      "eventFollowUpScheduled": "Uppföljning ({channel}) schemalagd",
+      "eventOutcome": "Utfall: {outcome}",
+      "eventStatus": "Status: {status}",
+      "coverLetterLabel": "Personligt brev"
+    },
+    "modalShell": {
+      "closeAriaLabel": "Stäng dialogrutan",
+      "close": "Stäng"
+    },
+    "row": {
+      "fallbackTitle": "Ansökan #{shortId}",
+      "ariaLabelWithIdentity": "{title} – {company} – {status}",
+      "ariaLabelFallback": "{title} – {status}",
+      "updated": "Uppdaterad",
+      "applyBy": "Sök senast"
+    },
+    "pipeline": {
+      "statusBarAriaLabel": "Status",
+      "all": "Alla",
+      "emptyTitle": "Inga ansökningar i den här statusen",
+      "emptyBody": "Välj en annan flik eller skapa en ny ansökan."
+    },
+    "followUps": {
+      "sectionLabel": "Uppföljningar",
+      "empty": "Inga uppföljningar registrerade.",
+      "add": "+ Lägg till uppföljning",
+      "addHeading": "Lägg till uppföljning",
+      "outcomeLabel": "Utfall:",
+      "noteLabel": "Anteckning:"
+    },
+    "harAnsokt": {
+      "applied": "Ansökt",
+      "markAsApplied": "Markera som ansökt",
+      "appliedAriaLabel": "Du har markerat denna annons som ansökt",
+      "markAriaLabel": "Markera annonsen som ansökt"
+    },
+    "jobInfo": {
+      "title": "Om annonsen",
+      "company": "Företag",
+      "published": "Publicerad",
+      "applyBy": "Sista ansökningsdag",
+      "source": "Källa",
+      "viewAdAriaLabel": "Visa annonsen hos {source} (öppnas i ny flik)",
+      "viewAd": "Visa annonsen",
+      "coverLetterLabel": "Personligt brev",
+      "hide": "Dölj",
+      "show": "Visa"
+    },
+    "notes": {
+      "sectionLabel": "Anteckningar",
+      "empty": "Inga anteckningar ännu.",
+      "add": "+ Lägg till anteckning",
+      "addHeading": "Lägg till anteckning"
+    },
+    "recordOutcome": {
+      "notice": "Utfallet kan inte ändras när det har sparats. Kontrollera att det stämmer innan du sparar.",
+      "outcomeLabel": "Utfall",
+      "outcomePlaceholder": "Välj utfall",
+      "optionResponded": "Svar mottaget",
+      "optionNoResponse": "Inget svar",
+      "save": "Spara utfall",
+      "confirmQuestion": "Spara utfallet <b>{outcome}</b>? Detta går inte att ändra efteråt.",
+      "savingOutcome": "Sparar…",
+      "saveOutcome": "Spara {outcome}"
+    },
+    "statusEdit": {
+      "title": "Status",
+      "currentStatus": "Nuvarande status:",
+      "closedNotice": "Den här ansökan är avslutad och kan inte ändras.",
+      "singleNextStep": "Nästa steg för den här ansökan är <b>{status}</b>.",
+      "markAs": "Markera som {status}",
+      "chooseInstruction": "Välj ny status. Nuvarande status är <b>{status}</b>.",
+      "destructiveNotice": "{status} avslutar ansökan. Det går inte att ångra utan manuell åtgärd.",
+      "save": "Spara",
+      "confirmTitle": "Markera som {status}?",
+      "confirmBody": "Ansökan ändras från <b>{from}</b> till <b>{to}</b>. Det går inte att ångra utan manuell åtgärd.",
+      "confirmFallback": "Bekräfta"
+    },
+    "withdraw": {
+      "action": "Återta ansökan",
+      "confirmTitle": "Återta ansökan?",
+      "confirmBody": "Ansökan ändras från <b>{from}</b> till <b>{to}</b>. En återtagen ansökan avslutas och kan inte ändras vidare utan manuell åtgärd.",
+      "withdrawing": "Återtar…"
+    },
+    "actions": {
+      "notLoggedIn": "Du är inte inloggad.",
+      "invalidJobAdId": "Ogiltigt annons-ID.",
+      "invalidInput": "Ogiltiga uppgifter.",
+      "serverUnreachable": "Kunde inte nå servern. Försök igen.",
+      "createFromJobAdFailed": "Kunde inte registrera ansökan.",
+      "createApplicationFailed": "Kunde inte spara ansökan.",
+      "transitionFailed": "Statusbytet misslyckades.",
+      "addFollowUpFailed": "Kunde inte spara uppföljningen.",
+      "addNoteFailed": "Kunde inte spara noteringen.",
+      "recordOutcomeFailed": "Kunde inte registrera utfallet."
+    }
   }
 }

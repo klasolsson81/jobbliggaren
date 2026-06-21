@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import { createResumeAction } from "@/lib/actions/resumes";
  * under labeln bär instruktionen.
  */
 export function CreateResumeForm() {
+  const t = useTranslations("resumes");
   const [state, formAction, isPending] = useActionState(
     createResumeAction,
     null
@@ -27,9 +29,9 @@ export function CreateResumeForm() {
   return (
     <form action={formAction} className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="cv-name">Namn på CV</Label>
+        <Label htmlFor="cv-name">{t("createForm.nameLabel")}</Label>
         <p id="cv-name-help" className="text-body-sm text-text-secondary">
-          Till exempel Master-CV eller Backend-utvecklare 2026.
+          {t("createForm.nameHelp")}
         </p>
         <Input
           id="cv-name"
@@ -42,9 +44,9 @@ export function CreateResumeForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="cv-fullname">Fullständigt namn</Label>
+        <Label htmlFor="cv-fullname">{t("createForm.fullNameLabel")}</Label>
         <p id="cv-fullname-help" className="text-body-sm text-text-secondary">
-          Visas överst på ditt CV. Du kan ändra det senare.
+          {t("createForm.fullNameHelp")}
         </p>
         <Input
           id="cv-fullname"
@@ -64,10 +66,10 @@ export function CreateResumeForm() {
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Skapar CV…" : "Skapa CV"}
+          {isPending ? t("createForm.submitPending") : t("createForm.submit")}
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/cv">Avbryt</Link>
+          <Link href="/cv">{t("createForm.cancel")}</Link>
         </Button>
       </div>
     </form>

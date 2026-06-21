@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Edit } from "lucide-react";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
 
@@ -34,6 +35,7 @@ const MAX_VISIBLE_SKILLS = 5;
  *    skippas tills denormalisering av total-skills-count finns
  */
 export function ResumeCard({ resume }: ResumeCardProps) {
+  const t = useTranslations("resumes");
   const updatedAt = new Date(resume.updatedAt).toLocaleDateString("sv-SE");
   const languageLabel = resume.language === "En" ? "EN" : "SV";
 
@@ -49,7 +51,7 @@ export function ResumeCard({ resume }: ResumeCardProps) {
         {resume.isPrimary && (
           <span className="jp-pill jp-pill--brand">
             <span className="jp-pill__dot" aria-hidden="true" />
-            Standard
+            {t("card.primary")}
           </span>
         )}
       </div>
@@ -66,11 +68,10 @@ export function ResumeCard({ resume }: ResumeCardProps) {
 
       <div className="jp-cv__meta">
         <span className="jp-cv__meta__sections">
-          {resume.sectionCount}{" "}
-          {resume.sectionCount === 1 ? "sektion" : "sektioner"}
+          {t("card.sections", { count: resume.sectionCount })}
         </span>
         <span>{languageLabel}</span>
-        <span>Uppd. {updatedAt}</span>
+        <span>{t("card.updated", { date: updatedAt })}</span>
       </div>
 
       <div className="jp-cv__actions">
@@ -79,7 +80,7 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           className="jp-btn jp-btn--secondary jp-btn--sm"
         >
           <Edit size={14} aria-hidden="true" />
-          <span>Redigera</span>
+          <span>{t("card.edit")}</span>
         </Link>
       </div>
     </article>

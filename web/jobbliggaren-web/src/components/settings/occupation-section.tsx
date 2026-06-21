@@ -9,6 +9,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronRight, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,6 +91,7 @@ export function OccupationSection({
   autoSuggestFromCv = false,
   parsedResumeId,
 }: OccupationSectionProps) {
+  const t = useTranslations("settings");
   const occupationOptions = useMemo(
     () => flattenOccupationGroups(occupationFields),
     [occupationFields]
@@ -219,11 +221,11 @@ export function OccupationSection({
       {showHeading ? (
         <div className="jp-matchdialog__sectionhead">
           <span id={headingId} className="jp-popover__title">
-            Yrken
+            {t("matchPrefs.facetOccupations")}
           </span>
           {selected.length > 0 && (
             <button type="button" className="jp-clearlink" onClick={onClear}>
-              Rensa
+              {t("matchPrefs.clear")}
             </button>
           )}
         </div>
@@ -231,13 +233,17 @@ export function OccupationSection({
         selected.length > 0 && (
           <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
             <button type="button" className="jp-clearlink" onClick={onClear}>
-              Rensa
+              {t("matchPrefs.clear")}
             </button>
           </div>
         )
       )}
 
-      <PinnedChips items={occupationChips} onRemove={onToggle} ariaLabel="Valda yrken" />
+      <PinnedChips
+        items={occupationChips}
+        onRemove={onToggle}
+        ariaLabel={t("matchPrefs.selectedOccupations")}
+      />
 
       {/* CV-förslagets honest states (pending/noCv/noRole/error/unauthorized).
           "candidates" renderas INTE här (de blev chips ovan via pre-add). I
@@ -264,7 +270,7 @@ export function OccupationSection({
           onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())}
         >
           <Plus size={16} aria-hidden="true" />
-          Lägg till yrken
+          {t("matchPrefs.occupation.addOccupations")}
         </button>
 
         {pickerOpen && (
@@ -273,11 +279,11 @@ export function OccupationSection({
             ref={panelRef}
             className="jp-occpicker__panel"
             role="group"
-            aria-label="Lägg till yrken"
+            aria-label={t("matchPrefs.occupation.addOccupations")}
           >
             <div className="flex flex-col gap-1.5 mb-2">
               <Label htmlFor={`${idPrefix}-occ-filter`}>
-                Filtrera yrkesgrupper
+                {t("matchPrefs.occupation.filterLabel")}
               </Label>
               <Input
                 id={`${idPrefix}-occ-filter`}
@@ -288,7 +294,7 @@ export function OccupationSection({
                 aria-describedby={filterHelpId}
               />
               <p id={filterHelpId} className="text-body-sm text-text-secondary">
-                Skriv för att smalna av listan, eller bläddra via yrkesområde.
+                {t("matchPrefs.occupation.filterHint")}
               </p>
             </div>
 
@@ -296,7 +302,7 @@ export function OccupationSection({
               <div className="jp-matchdialog__list">
                 {filteredOccupations.length === 0 ? (
                   <p className="text-body-sm text-text-secondary px-4 py-3">
-                    Ingen yrkesgrupp matchar filtret.
+                    {t("matchPrefs.occupation.noMatch")}
                   </p>
                 ) : (
                   filteredOccupations.map((o) => (
@@ -314,14 +320,16 @@ export function OccupationSection({
                 <div
                   className="jp-matchdialog__cascade-col"
                   role="listbox"
-                  aria-label="Yrkesområde"
+                  aria-label={t("matchPrefs.occupation.occupationField")}
                 >
                   <div className="jp-matchdialog__cascade-colhead">
-                    <span className="jp-popover__title">Yrkesområde</span>
+                    <span className="jp-popover__title">
+                      {t("matchPrefs.occupation.occupationField")}
+                    </span>
                   </div>
                   {occupationFields.length === 0 ? (
                     <p className="text-body-sm text-text-secondary px-4 py-3">
-                      Yrkesområdena kunde inte läsas in just nu.
+                      {t("matchPrefs.occupation.fieldsUnavailable")}
                     </p>
                   ) : (
                     occupationFields.map((f) => {
@@ -365,20 +373,22 @@ export function OccupationSection({
                 </div>
                 <div
                   className="jp-matchdialog__cascade-col"
-                  aria-label="Yrkesgrupper"
+                  aria-label={t("matchPrefs.occupation.occupationGroups")}
                 >
                   <div className="jp-matchdialog__cascade-colhead">
-                    <span className="jp-popover__title">Yrkesgrupper</span>
+                    <span className="jp-popover__title">
+                      {t("matchPrefs.occupation.occupationGroups")}
+                    </span>
                   </div>
                   {activeField === null ? (
                     <p className="text-body-sm text-text-secondary px-4 py-3">
-                      Välj ett yrkesområde till vänster.
+                      {t("matchPrefs.occupation.chooseField")}
                     </p>
                   ) : (
                     <>
                       {activeGroups.length > 0 && (
                         <CheckItem
-                          label="Välj alla yrkesgrupper"
+                          label={t("matchPrefs.occupation.selectAllGroups")}
                           checked={allActiveSelected}
                           indeterminate={someActiveSelected && !allActiveSelected}
                           isAll
@@ -434,6 +444,7 @@ function CvSuggestStatus({
   readonly onCancelUpload: () => void;
   readonly onUploaded: (parsedResumeId: string) => void;
 }) {
+  const t = useTranslations("settings");
   // Fokus följer den nyöppnade upload-ytan (WCAG 2.4.3) — speglar "Lägg till
   // yrken"-disclosurens fokus-flytt. queueMicrotask kör efter React-commit så
   // filinputen är monterad.
@@ -457,7 +468,9 @@ function CvSuggestStatus({
           disabled={pending}
           onClick={onTrigger}
         >
-          {pending ? "Läser ditt CV…" : "Föreslå utifrån mitt CV"}
+          {pending
+            ? t("matchPrefs.occupation.suggesting")
+            : t("matchPrefs.occupation.suggestFromCv")}
         </Button>
       )}
 
@@ -467,7 +480,7 @@ function CvSuggestStatus({
           aria-live="polite"
           className="text-body-sm text-text-secondary"
         >
-          Läser ditt CV…
+          {t("matchPrefs.occupation.suggesting")}
         </p>
       )}
 
@@ -480,7 +493,7 @@ function CvSuggestStatus({
           ref={uploadGroupRef}
           className="jp-matchdialog__cvupload"
           role="group"
-          aria-label="Ladda upp CV"
+          aria-label={t("matchPrefs.occupation.uploadGroup")}
         >
           <CvUploadForm onUploaded={onUploaded} />
           <div className="jp-matchdialog__cvupload-foot">
@@ -493,13 +506,13 @@ function CvSuggestStatus({
               size="sm"
               onClick={onCancelUpload}
             >
-              Avbryt
+              {t("matchPrefs.occupation.cancelUpload")}
             </Button>
             <a
               className="text-body-sm text-text-secondary underline underline-offset-2"
               href={importCvHref}
             >
-              Öppna importsidan i stället
+              {t("matchPrefs.occupation.openImportInstead")}
             </a>
           </div>
         </div>
@@ -520,6 +533,7 @@ function CvSuggestMessage({
   readonly result: CvSuggestResult;
   readonly onOpenUpload: () => void;
 }) {
+  const t = useTranslations("settings");
   switch (result.kind) {
     case "candidates":
       // Pre-addade som chips av föräldern — ingen separat checklista.
@@ -531,11 +545,10 @@ function CvSuggestMessage({
           className="rounded-md border border-border-default bg-surface-secondary p-3"
         >
           <p className="text-body-sm text-text-primary font-medium">
-            Inget CV uppladdat
+            {t("matchPrefs.occupation.noCvTitle")}
           </p>
           <p className="text-body-sm text-text-secondary mt-1">
-            Ladda upp ett CV så kan vi föreslå yrken utifrån din erfarenhet. Du
-            väljer själv vilka förslag som tas med.
+            {t("matchPrefs.occupation.noCvBody")}
           </p>
           {/* Spår 4: laddar upp inline i modalen i stället för att navigera bort. */}
           <Button
@@ -544,27 +557,26 @@ function CvSuggestMessage({
             className="mt-2.5"
             onClick={onOpenUpload}
           >
-            Ladda upp CV
+            {t("matchPrefs.occupation.uploadCv")}
           </Button>
         </div>
       );
     case "noRole":
       return (
         <p role="status" className="text-body-sm text-text-secondary">
-          Vi kunde inte läsa ett yrke ur ditt CV. Du kan välja yrken i listan i
-          stället.
+          {t("matchPrefs.occupation.noRole")}
         </p>
       );
     case "unauthorized":
       return (
         <p role="alert" className="text-body-sm text-danger-600">
-          Du är inte inloggad. Logga in och försök igen.
+          {t("matchPrefs.occupation.unauthorized")}
         </p>
       );
     case "error":
       return (
         <p role="alert" className="text-body-sm text-danger-600">
-          Kunde inte läsa ditt CV just nu. Försök igen om en stund.
+          {t("matchPrefs.occupation.error")}
         </p>
       );
   }

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { GUEST_MOCK } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5 — Gäst-CV-sida. Mockdata-grid, inga muterande knappar
@@ -7,6 +8,8 @@ import { GUEST_MOCK } from "@/lib/guest/mock-data";
 // + design-tokens.
 
 export function GuestCvPage() {
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("guest");
   const { resumes } = GUEST_MOCK;
 
   return (
@@ -14,12 +17,9 @@ export function GuestCvPage() {
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <div className="jp-pagehero__kicker">Demo-CV</div>
-            <h1 className="jp-pagehero__title">CV</h1>
-            <p className="jp-pagehero__lede">
-              Exempel på CV-varianter. När du har konto kan du skapa egna,
-              redigera fritt och ladda upp PDF.
-            </p>
+            <div className="jp-pagehero__kicker">{t("cv.kicker")}</div>
+            <h1 className="jp-pagehero__title">{t("cv.title")}</h1>
+            <p className="jp-pagehero__lede">{t("cv.lede")}</p>
           </div>
         </div>
       </section>
@@ -35,22 +35,28 @@ export function GuestCvPage() {
               <header className="jp-guest-resume__head">
                 <h2 className="jp-guest-resume__title">{resume.title}</h2>
                 {resume.isPrimary && (
-                  <span className="jp-tag jp-tag--brand">Primär</span>
+                  <span className="jp-tag jp-tag--brand">
+                    {t("cv.primaryTag")}
+                  </span>
                 )}
               </header>
 
               <dl className="jp-guest-resume__meta">
-                <dt>Språk</dt>
-                <dd>{resume.language === "sv" ? "Svenska" : "Engelska"}</dd>
+                <dt>{t("cv.languageLabel")}</dt>
+                <dd>
+                  {resume.language === "sv"
+                    ? t("cv.languageSwedish")
+                    : t("cv.languageEnglish")}
+                </dd>
                 {resume.latestRole && (
                   <>
-                    <dt>Senaste roll</dt>
+                    <dt>{t("cv.latestRoleLabel")}</dt>
                     <dd>{resume.latestRole}</dd>
                   </>
                 )}
-                <dt>Sektioner</dt>
+                <dt>{t("cv.sectionsLabel")}</dt>
                 <dd>{resume.sectionCount}</dd>
-                <dt>Uppdaterad</dt>
+                <dt>{t("cv.updatedLabel")}</dt>
                 <dd>{resume.updatedAtLabel}</dd>
               </dl>
 

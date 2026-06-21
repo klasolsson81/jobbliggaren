@@ -61,6 +61,7 @@ export function SettingsForm({
   taxonomy,
 }: SettingsFormProps) {
   const t = useTranslations("validation");
+  const ts = useTranslations("settings");
   const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
@@ -97,7 +98,7 @@ export function SettingsForm({
     const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
-      setError(first?.message ?? "Ogiltiga uppgifter.");
+      setError(first?.message ?? ts("account.invalidInput"));
       revert();
       return;
     }
@@ -175,8 +176,8 @@ export function SettingsForm({
           onLanguageChange={onLanguageChange}
           isPending={isPending}
           themeOptions={[
-            { value: "light", label: "Ljust", icon: <Sun size={16} /> },
-            { value: "dark", label: "Mörkt", icon: <Moon size={16} /> },
+            { value: "light", label: ts("display.themeLight"), icon: <Sun size={16} /> },
+            { value: "dark", label: ts("display.themeDark"), icon: <Moon size={16} /> },
           ]}
         />
         <NotificationsCard

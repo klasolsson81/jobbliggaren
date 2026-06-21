@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { CheckCircle2, Circle } from "lucide-react";
 import { createApplicationFromJobAdAction } from "@/lib/actions/applications";
 
@@ -36,6 +37,7 @@ export function HarAnsoktButton({
   jobAdId,
   initialApplied,
 }: HarAnsoktButtonProps) {
+  const tUi = useTranslations("applications.ui");
   const [applied, setApplied] = useState(initialApplied);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -54,10 +56,12 @@ export function HarAnsoktButton({
     });
   }
 
-  const label = applied ? "Ansökt" : "Markera som ansökt";
+  const label = applied
+    ? tUi("harAnsokt.applied")
+    : tUi("harAnsokt.markAsApplied");
   const ariaLabel = applied
-    ? "Du har markerat denna annons som ansökt"
-    : "Markera annonsen som ansökt";
+    ? tUi("harAnsokt.appliedAriaLabel")
+    : tUi("harAnsokt.markAriaLabel");
   const Icon = applied ? CheckCircle2 : Circle;
   const opacity = isPending ? 0.7 : 1;
 

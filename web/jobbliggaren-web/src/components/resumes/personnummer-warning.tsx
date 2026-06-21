@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ShieldAlert } from "lucide-react";
 import type { PersonnummerScanDto } from "@/lib/dto/parsed-resume";
 
@@ -13,24 +14,23 @@ export function PersonnummerWarning({
 }: {
   personnummer: PersonnummerScanDto;
 }) {
+  const t = useTranslations("resumes");
+
   if (!personnummer.found) return null;
 
   return (
     <section
       role="region"
-      aria-label="Personnummer hittat i ditt CV"
+      aria-label={t("personnummer.regionLabel")}
       className="jp-pnr-warning"
     >
       <span className="jp-pnr-warning__icon" aria-hidden="true">
         <ShieldAlert size={20} />
       </span>
       <div className="jp-pnr-warning__text">
-        <h2 className="jp-pnr-warning__title">Ta bort personnummer</h2>
+        <h2 className="jp-pnr-warning__title">{t("personnummer.title")}</h2>
         <p className="jp-pnr-warning__body">
-          Vi hittade {personnummer.count}{" "}
-          {personnummer.count === 1 ? "förekomst" : "förekomster"} av det som
-          ser ut som personnummer. Personnummer behövs inte i ett CV. Ta bort
-          det innan du sparar.
+          {t("personnummer.body", { count: personnummer.count })}
         </p>
       </div>
     </section>

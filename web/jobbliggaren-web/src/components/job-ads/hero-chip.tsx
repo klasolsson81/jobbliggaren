@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 
@@ -49,6 +50,7 @@ export function HeroChip<T>({
   maxItems = 5,
   onOpenChange,
 }: HeroChipProps<T>) {
+  const t = useTranslations("jobads.ui");
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useDismissable<HTMLDivElement, HTMLButtonElement>(
@@ -132,7 +134,7 @@ export function HeroChip<T>({
                   fontWeight: 600,
                 }}
               >
-                {footerLabel ?? "Visa alla"}
+                {footerLabel ?? t("heroChip.showAll")}
               </Link>
             </div>
           )}

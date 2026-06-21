@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 // F-Pre Punkt 5 — DEMO-banner ovanför inre gäst-sidor (Klas-direktiv §G +
 // CTO-dom 2026-05-24 Beslut 1).
@@ -13,17 +14,19 @@ import Link from "next/link";
 // data (ingen sådan i nuvarande gäst-tree).
 
 export function GuestDemoBanner() {
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("guest");
   return (
-    <div className="jp-demo-banner" role="region" aria-label="Demoläge">
+    <div
+      className="jp-demo-banner"
+      role="region"
+      aria-label={t("banner.regionAriaLabel")}
+    >
       <div className="jp-demo-banner__inner">
-        <span className="jp-demo-banner__label">DEMO</span>
-        <p className="jp-demo-banner__text">
-          Du utforskar Jobbliggaren som gäst. Innehållet är exempeldata. Anmäl
-          dig till väntelistan för att spara annonser och följa upp egna
-          ansökningar.
-        </p>
+        <span className="jp-demo-banner__label">{t("banner.label")}</span>
+        <p className="jp-demo-banner__text">{t("banner.text")}</p>
         <Link href="/vantelista" className="jp-demo-banner__cta">
-          Anmäl till väntelistan
+          {t("banner.cta")}
         </Link>
       </div>
     </div>

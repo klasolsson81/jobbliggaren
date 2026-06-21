@@ -42,6 +42,7 @@ function normalizeLanguage(language: string): "sv" | "en" {
 
 export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
   const t = useTranslations("validation");
+  const ts = useTranslations("settings");
   const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -82,7 +83,7 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
         const path = first.path.join(".");
         setServerError({ path: path || null, message: first.message });
       } else {
-        setServerError({ path: null, message: "Ogiltiga uppgifter." });
+        setServerError({ path: null, message: ts("account.invalidInput") });
       }
       return;
     }
@@ -102,7 +103,7 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="me-displayName">Visningsnamn</Label>
+        <Label htmlFor="me-displayName">{ts("account.displayNameLabel")}</Label>
         <Input
           id="me-displayName"
           {...register("displayName")}
@@ -112,12 +113,12 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
           disabled={isPending}
         />
         <p className="text-body-sm text-text-secondary">
-          Namnet som visas i appen och på dina ansökningar.
+          {ts("account.displayNameHint")}
         </p>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="me-language">Språk</Label>
+        <Label htmlFor="me-language">{ts("account.languageLabel")}</Label>
         <Controller
           control={control}
           name="language"
@@ -136,8 +137,8 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="sv">Svenska</SelectItem>
-                <SelectItem value="en">Engelska</SelectItem>
+                <SelectItem value="sv">{ts("account.languageSwedish")}</SelectItem>
+                <SelectItem value="en">{ts("account.languageEnglish")}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -146,7 +147,7 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
 
       <fieldset className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
         <legend className="px-1 text-label text-text-primary">
-          Notifieringar
+          {ts("account.notificationsLegend")}
         </legend>
         <div className="flex items-start gap-3">
           <input
@@ -159,10 +160,10 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
           />
           <div className="flex flex-col gap-0.5">
             <Label htmlFor="me-emailNotifications" className="cursor-pointer">
-              E-postnotifieringar
+              {ts("account.emailNotificationsLabel")}
             </Label>
             <p className="text-body-sm text-text-secondary">
-              Få mejl vid viktiga händelser i ditt konto.
+              {ts("account.emailNotificationsHint")}
             </p>
           </div>
         </div>
@@ -177,10 +178,10 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
           />
           <div className="flex flex-col gap-0.5">
             <Label htmlFor="me-weeklySummary" className="cursor-pointer">
-              Veckosammanfattning
+              {ts("account.weeklySummaryLabel")}
             </Label>
             <p className="text-body-sm text-text-secondary">
-              En veckovis översikt av dina aktiva ansökningar.
+              {ts("account.weeklySummaryHint")}
             </p>
           </div>
         </div>
@@ -188,16 +189,16 @@ export function MeProfileForm({ initialProfile }: MeProfileFormProps) {
 
       <div className="flex items-center gap-3 border-t border-border pt-6">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Sparar…" : "Spara profil"}
+          {isPending ? ts("account.saving") : ts("account.saveProfile")}
         </Button>
         {savedAt && !serverError && (
           <p className="text-body-sm text-text-secondary" role="status">
-            Sparat{" "}
-            {savedAt.toLocaleTimeString("sv-SE", {
-              hour: "2-digit",
-              minute: "2-digit",
+            {ts("account.savedAt", {
+              time: savedAt.toLocaleTimeString("sv-SE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
             })}
-            .
           </p>
         )}
         {serverError && (

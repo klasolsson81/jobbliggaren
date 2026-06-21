@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { DeleteAccountSection } from "@/components/me/delete-account-section";
 
 interface PrivacyCardProps {
@@ -15,12 +16,12 @@ interface PrivacyCardProps {
  * `aria-disabled` så användaren ser möjligheten men inte triggar något än.
  */
 export function PrivacyCard({ userEmail }: PrivacyCardProps) {
+  const t = useTranslations("settings");
   return (
     <section className="jp-card">
-      <h2 className="jp-card__title">Sekretess och data</h2>
+      <h2 className="jp-card__title">{t("privacy.title")}</h2>
       <p className="text-body-sm text-text-secondary">
-        Du har rätt att exportera all data vi har om dig, och att radera
-        ditt konto helt.
+        {t("privacy.description")}
       </p>
       <div className="flex flex-wrap gap-3" style={{ marginTop: 8 }}>
         <button
@@ -30,9 +31,9 @@ export function PrivacyCard({ userEmail }: PrivacyCardProps) {
           // TODO: Fas 7 — wire mot riktig GDPR-export-pipeline. Knappen är
           // synlig så GDPR-rätten kommuniceras, men flödet är inte byggt än.
           onClick={(e) => e.preventDefault()}
-          title="Export-flödet är inte aktiverat ännu"
+          title={t("privacy.exportTitle")}
         >
-          Exportera mina data
+          {t("privacy.export")}
         </button>
       </div>
       <div style={{ marginTop: 16 }}>

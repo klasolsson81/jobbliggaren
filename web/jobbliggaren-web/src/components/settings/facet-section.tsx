@@ -5,6 +5,7 @@
 // identiska: en platt option-lista + pinnade chips). Extraherad ur
 // match-preferences-dialog (ADR 0077 STEG 5), delad med match-setup-wizard.
 
+import { useTranslations } from "next-intl";
 import { labelsForSelected, type Option } from "./match-preferences-shared";
 import { CheckItem, PinnedChips } from "./section-helpers";
 
@@ -46,6 +47,7 @@ export function FacetSection({
   headingId,
   showHeading = true,
 }: FacetSectionProps) {
+  const t = useTranslations("settings");
   const chips = labelsForSelected(selected, options);
   return (
     <>
@@ -56,7 +58,7 @@ export function FacetSection({
           </span>
           {selected.length > 0 && (
             <button type="button" className="jp-clearlink" onClick={onClear}>
-              Rensa
+              {t("matchPrefs.clear")}
             </button>
           )}
         </div>
@@ -64,7 +66,7 @@ export function FacetSection({
         selected.length > 0 && (
           <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
             <button type="button" className="jp-clearlink" onClick={onClear}>
-              Rensa
+              {t("matchPrefs.clear")}
             </button>
           </div>
         )

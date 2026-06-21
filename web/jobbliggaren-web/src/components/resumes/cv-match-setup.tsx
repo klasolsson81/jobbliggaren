@@ -7,6 +7,7 @@
 // props. Inget av detta går i en Server Component.
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
@@ -56,6 +57,7 @@ export function CvMatchSetup({
   hasPreferences,
   showPrompt,
 }: CvMatchSetupProps) {
+  const t = useTranslations("resumes.match");
   const [open, setOpen] = useState(false);
   const [promptDismissed, setPromptDismissed] = useState(false);
 
@@ -68,8 +70,8 @@ export function CvMatchSetup({
 
   const hasAny = savedAny ? occupations.length > 0 : hasPreferences;
   const triggerLabel = hasAny
-    ? "Uppdatera matchning"
-    : "Skapa matchning från ditt CV";
+    ? t("triggerUpdate")
+    : t("triggerCreate");
 
   return (
     <>
@@ -90,22 +92,19 @@ export function CvMatchSetup({
         >
           <div className="jp-matchnudge__body">
             <p id="cv-match-nudge-title" className="jp-matchnudge__title">
-              Vill du uppdatera din matchning utifrån det här CV:t?
+              {t("nudgeTitle")}
             </p>
-            <p className="jp-matchnudge__text">
-              Vi kan föreslå yrken utifrån ditt CV. Du väljer själv vad som tas
-              med, och kan hoppa över det.
-            </p>
+            <p className="jp-matchnudge__text">{t("nudgeText")}</p>
             <div className="jp-matchnudge__actions">
               <Button type="button" onClick={() => setOpen(true)}>
-                Ställ in matchning
+                {t("nudgeAction")}
               </Button>
             </div>
           </div>
           <button
             type="button"
             className="jp-matchnudge__dismiss"
-            aria-label="Stäng"
+            aria-label={t("nudgeDismiss")}
             onClick={() => setPromptDismissed(true)}
           >
             <X size={16} aria-hidden="true" />

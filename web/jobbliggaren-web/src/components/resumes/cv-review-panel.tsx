@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import {
   Card,
   CardContent,
@@ -35,12 +36,22 @@ const SEVERITY_RANK: Record<"Fail" | "Warn", number> = { Fail: 0, Warn: 1 };
 
 /** Räknar-rad: visar alltid etikett + siffra (status aldrig enbart färg, WCAG
  * 1.4.1). Toner speglar verdict-tonerna för visuell koppling. */
-function CategoryCounts({ category }: { category: CvReviewCategoryDto }) {
+function CategoryCounts({
+  category,
+  t,
+}: {
+  category: CvReviewCategoryDto;
+  t: ReturnType<typeof useTranslations<"resumes">>;
+}) {
   const counts: ReadonlyArray<{ label: string; value: number; tone: PillTone }> = [
-    { label: "Godkänt", value: category.passCount, tone: "success" },
-    { label: "Delvis", value: category.warnCount, tone: "warning" },
-    { label: "Underkänt", value: category.failCount, tone: "danger" },
-    { label: "Ej bedömt", value: category.notAssessedCount, tone: "neutral" },
+    { label: t("review.counts.pass"), value: category.passCount, tone: "success" },
+    { label: t("review.counts.warn"), value: category.warnCount, tone: "warning" },
+    { label: t("review.counts.fail"), value: category.failCount, tone: "danger" },
+    {
+      label: t("review.counts.notAssessed"),
+      value: category.notAssessedCount,
+      tone: "neutral",
+    },
   ];
   return (
     <dl className="jp-cvreview__counts">
@@ -67,18 +78,20 @@ export function CvReviewPanel({
   parsedId: string;
   profile: RenderProfile;
 }) {
+  const t = useTranslations("resumes");
+  const tEnum = useTranslations("resumes.enums");
+
   if (review === null) {
     return (
       <section className="jp-cvreview" aria-labelledby="cvreview-title">
         <h2 id="cvreview-title" className="jp-cvreview__title">
-          Granskning
+          {t("review.title")}
         </h2>
         <div className="jp-cvreview__profile">
           <CvProfileToggle parsedId={parsedId} profile={profile} />
         </div>
         <p className="jp-cvreview__unavailable" role="status">
-          Granskningen kunde inte laddas just nu. Tolkningen av ditt CV ovan
-          påverkas inte. Försök ladda om sidan om en stund.
+          {t("review.unavailable")}
         </p>
       </section>
     );
@@ -111,7 +124,7 @@ export function CvReviewPanel({
   return (
     <section className="jp-cvreview" aria-labelledby="cvreview-title">
       <h2 id="cvreview-title" className="jp-cvreview__title">
-        Granskning
+        {t("review.title")}
       </h2>
 
       <div className="jp-cvreview__profile">
@@ -119,10 +132,13 @@ export function CvReviewPanel({
       </div>
 
       <p className="jp-cvreview__summary">
-        {review.assessedCount} av {review.totalCount} kriterier bedöms.
-        Kriterier som inte kan bedömas räknas ärligt som ej bedömda och drar
-        aldrig ner granskningen.{" "}
-        <span className="jp-cvreview__rubric">Rubrik {review.rubricVersion}</span>
+        {t("review.summary", {
+          assessedCount: review.assessedCount,
+          totalCount: review.totalCount,
+        })}{" "}
+        <span className="jp-cvreview__rubric">
+          {t("review.rubric", { version: review.rubricVersion })}
+        </span>
       </p>
 
       {/* Lager 1 — Att åtgärda */}
@@ -132,19 +148,17 @@ export function CvReviewPanel({
         aria-labelledby="cvreview-todo-title"
       >
         <h3 id="cvreview-todo-title" className="jp-cvreview__todo-title">
-          Att åtgärda ({actionable.length})
+          {t("review.todoTitle", { count: actionable.length })}
         </h3>
         {actionable.length === 0 ? (
-          <p className="jp-cvreview__todo-empty">
-            Inget kräver åtgärd just nu.
-          </p>
+          <p className="jp-cvreview__todo-empty">{t("review.todoEmpty")}</p>
         ) : (
           <div className="jp-cvreview__verdicts">
             {actionable.map((verdict) => (
               <CvCriterionVerdict
                 key={verdict.criterionId}
                 verdict={verdict}
-                categoryLabel={categoryLabel(verdict.category)}
+                categoryLabel={categoryLabel(tEnum, verdict.category)}
               />
             ))}
           </div>
@@ -154,7 +168,7 @@ export function CvReviewPanel({
       {/* Lager 2 — Per kategori (band + räknare + det som redan är godkänt) */}
       <div className="jp-cvreview__categories">
         {review.categories.map((category) => {
-          const band = bandLabel(category.band);
+          const band = bandLabel(tEnum, category.band);
           const passVerdicts = review.verdicts.filter(
             (verdict) =>
               verdict.category === category.category &&
@@ -164,14 +178,14 @@ export function CvReviewPanel({
             <Card key={category.category}>
               <CardHeader>
                 <CardTitle asChild>
-                  <h3>{categoryLabel(category.category)}</h3>
+                  <h3>{categoryLabel(tEnum, category.category)}</h3>
                 </CardTitle>
                 <div className="jp-cvreview__band">
                   <StatusPill tone={band.tone}>{band.label}</StatusPill>
                 </div>
               </CardHeader>
               <CardContent>
-                <CategoryCounts category={category} />
+                <CategoryCounts category={category} t={t} />
                 {passVerdicts.length > 0 && (
                   <div className="jp-cvreview__verdicts">
                     {passVerdicts.map((verdict) => (
@@ -192,14 +206,14 @@ export function CvReviewPanel({
       {notAssessed.length > 0 && (
         <details className="jp-cvreview__unassessed">
           <summary className="jp-cvreview__unassessed-summary">
-            Ej bedömt ({notAssessed.length})
+            {t("review.unassessedSummary", { count: notAssessed.length })}
           </summary>
           <div className="jp-cvreview__verdicts">
             {notAssessed.map((verdict) => (
               <CvCriterionVerdict
                 key={verdict.criterionId}
                 verdict={verdict}
-                categoryLabel={categoryLabel(verdict.category)}
+                categoryLabel={categoryLabel(tEnum, verdict.category)}
               />
             ))}
           </div>

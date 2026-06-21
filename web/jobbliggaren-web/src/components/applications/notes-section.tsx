@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { AddNoteForm } from "./add-note-form";
 import { formatSvDate } from "@/lib/applications/status";
@@ -32,6 +33,7 @@ const SECTION_LABEL_STYLE: React.CSSProperties = {
  *  - Esc kollapsar aktiv editor / aktiv expanderad rad.
  */
 export function NotesSection({ applicationId, notes }: NotesSectionProps) {
+  const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -53,11 +55,11 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
 
   return (
     <div>
-      <div style={SECTION_LABEL_STYLE}>Anteckningar</div>
+      <div style={SECTION_LABEL_STYLE}>{tUi("notes.sectionLabel")}</div>
 
       {sorted.length === 0 ? (
         <p className="text-body-sm text-text-secondary">
-          Inga anteckningar ännu.
+          {tUi("notes.empty")}
         </p>
       ) : (
         <ul className="flex flex-col gap-2" role="list">
@@ -83,12 +85,12 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
             className="jp-btn jp-btn--secondary"
             onClick={() => setAddOpen(true)}
           >
-            + Lägg till anteckning
+            {tUi("notes.add")}
           </button>
         ) : (
           <div className="jp-disclosure-body">
             <h3 className="mb-3 text-body font-medium text-text-primary">
-              Lägg till anteckning
+              {tUi("notes.addHeading")}
             </h3>
             <AddNoteForm
               applicationId={applicationId}

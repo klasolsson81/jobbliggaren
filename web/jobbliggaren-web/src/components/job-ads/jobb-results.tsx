@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
 import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
@@ -87,6 +88,8 @@ export async function JobbResults({
   commit,
   rawParams,
 }: JobbResultsProps) {
+  // Async Server Component → awaitable next-intl translator (jobads.ui).
+  const t = await getTranslations("jobads.ui");
   // Chip-labels hör ihop med resultatet — hämtas parallellt med listan.
   // Reverse-lookup-miss → chip faller till "Okänd kod (<id>)" i toolbaren
   // (ADR 0043 Beslut B graceful degradation).
@@ -209,11 +212,12 @@ export async function JobbResults({
           className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
         >
           <p className="text-body font-medium text-warning-700">
-            För många förfrågningar
+            {t("results.rateLimitedTitle")}
           </p>
           <p className="mt-1 text-body-sm text-warning-700">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
+            {t("results.rateLimitedBody", {
+              seconds: result.retryAfterSeconds,
+            })}
           </p>
         </div>
       );
@@ -226,10 +230,8 @@ export async function JobbResults({
     case "error":
       return (
         <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
-          <p className="text-body font-medium">Kunde inte ladda jobbannonser</p>
-          <p className="mt-1 text-body-sm">
-            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
-          </p>
+          <p className="text-body font-medium">{t("results.errorTitle")}</p>
+          <p className="mt-1 text-body-sm">{t("results.errorBody")}</p>
         </div>
       );
     default:

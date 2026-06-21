@@ -23,6 +23,7 @@ interface JobInfoPanelProps {
  */
 export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
   const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const [open, setOpen] = useState(false);
   const disclosureId = useId();
 
@@ -40,31 +41,31 @@ export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
           id="job-info-title"
           className="text-h3 font-semibold text-text-primary"
         >
-          Om annonsen
+          {tUi("jobInfo.title")}
         </h2>
       </div>
 
       <div className="px-4 py-4">
         <dl className="flex flex-col gap-3 text-body-sm">
           <div className="flex flex-col gap-0.5">
-            <dt className="text-text-secondary">Företag</dt>
+            <dt className="text-text-secondary">{tUi("jobInfo.company")}</dt>
             <dd className="text-text-primary">{jobAd.company}</dd>
           </div>
 
           {published && (
             <div className="flex flex-col gap-0.5">
-              <dt className="text-text-secondary">Publicerad</dt>
+              <dt className="text-text-secondary">{tUi("jobInfo.published")}</dt>
               <dd className="font-mono text-text-primary">{published}</dd>
             </div>
           )}
 
           <div className="flex flex-col gap-0.5">
-            <dt className="text-text-secondary">Sista ansökningsdag</dt>
+            <dt className="text-text-secondary">{tUi("jobInfo.applyBy")}</dt>
             <dd className="font-mono text-text-primary">{expires ?? "–"}</dd>
           </div>
 
           <div className="flex flex-col gap-0.5">
-            <dt className="text-text-secondary">Källa</dt>
+            <dt className="text-text-secondary">{tUi("jobInfo.source")}</dt>
             <dd className="text-text-primary">{sourceLabel}</dd>
           </div>
         </dl>
@@ -75,10 +76,10 @@ export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
               href={jobAd.url}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Visa annonsen hos ${sourceLabel} (öppnas i ny flik)`}
+              aria-label={tUi("jobInfo.viewAdAriaLabel", { source: sourceLabel })}
               className="text-body-sm text-brand-600 underline-offset-2 hover:underline"
             >
-              Visa annonsen{" "}
+              {tUi("jobInfo.viewAd")}{" "}
               <span aria-hidden="true">↗</span>
             </a>
           </p>
@@ -94,9 +95,9 @@ export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
             onClick={() => setOpen((v) => !v)}
             className="flex w-full items-center justify-between gap-2 rounded-sm py-1 text-left text-body-sm font-medium text-text-primary"
           >
-            <span>Personligt brev</span>
+            <span>{tUi("jobInfo.coverLetterLabel")}</span>
             <span aria-hidden="true" className="text-text-secondary">
-              {open ? "Dölj" : "Visa"}
+              {open ? tUi("jobInfo.hide") : tUi("jobInfo.show")}
             </span>
           </button>
           {open && (

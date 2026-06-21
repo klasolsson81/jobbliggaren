@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 interface JobAdPaginationProps {
   page: number;
@@ -22,6 +23,8 @@ export function JobAdPagination({
   totalCount,
   buildHref,
 }: JobAdPaginationProps) {
+  // Synchronous next-intl translator — keeps JobAdPagination a non-async RSC.
+  const t = useTranslations("jobads.ui");
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   if (totalPages <= 1) return null;
 
@@ -29,7 +32,7 @@ export function JobAdPagination({
 
   return (
     <nav
-      aria-label="Paginering"
+      aria-label={t("pagination.navLabel")}
       className="flex flex-col gap-3 border-t border-border pt-4"
     >
       <ol className="flex flex-wrap items-center gap-1">
@@ -40,7 +43,7 @@ export function JobAdPagination({
               rel="prev"
               className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary"
             >
-              Föregående
+              {t("pagination.previous")}
             </Link>
           </li>
         )}
@@ -59,7 +62,7 @@ export function JobAdPagination({
                 aria-current="page"
                 className="inline-flex min-w-[2.5rem] items-center justify-center rounded-md border border-brand-700 bg-brand-50 px-3 py-2 text-body-sm font-medium text-brand-700"
               >
-                <span className="sr-only">Sida </span>
+                <span className="sr-only">{t("pagination.pagePrefix")}</span>
                 {item}
               </span>
             </li>
@@ -69,7 +72,7 @@ export function JobAdPagination({
                 href={buildHref(item)}
                 className="inline-flex min-w-[2.5rem] items-center justify-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary"
               >
-                <span className="sr-only">Sida </span>
+                <span className="sr-only">{t("pagination.pagePrefix")}</span>
                 {item}
               </Link>
             </li>
@@ -82,13 +85,13 @@ export function JobAdPagination({
               rel="next"
               className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary"
             >
-              Nästa
+              {t("pagination.next")}
             </Link>
           </li>
         )}
       </ol>
       <p className="text-body-sm text-text-secondary">
-        Sida {page} av {totalPages} ({totalCount} träffar totalt)
+        {t("pagination.summary", { page, totalPages, totalCount })}
       </p>
     </nav>
   );

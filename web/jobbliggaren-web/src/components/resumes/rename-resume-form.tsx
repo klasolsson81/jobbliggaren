@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ export function RenameResumeForm({
   resumeId,
   currentName,
 }: RenameResumeFormProps) {
+  const t = useTranslations("resumes");
   const [open, setOpen] = useState(false);
 
   const action = renameResumeAction.bind(null, resumeId);
@@ -43,19 +45,17 @@ export function RenameResumeForm({
         size="sm"
         onClick={() => setOpen(true)}
       >
-        Byt namn
+        {t("rename.trigger")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Byt namn på CV</DialogTitle>
-            <DialogDescription>
-              Namnet visas i din CV-lista och i tailored versioner.
-            </DialogDescription>
+            <DialogTitle>{t("rename.title")}</DialogTitle>
+            <DialogDescription>{t("rename.description")}</DialogDescription>
           </DialogHeader>
           <form action={formAction} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rename-name">Namn</Label>
+              <Label htmlFor="rename-name">{t("rename.nameLabel")}</Label>
               <Input
                 id="rename-name"
                 name="name"
@@ -76,10 +76,10 @@ export function RenameResumeForm({
                 onClick={() => setOpen(false)}
                 disabled={isPending}
               >
-                Avbryt
+                {t("rename.cancel")}
               </Button>
               <Button type="submit" size="sm" disabled={isPending}>
-                Spara
+                {t("rename.save")}
               </Button>
             </DialogFooter>
           </form>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Segment, type SegmentOption } from "@/components/ui/segment";
 
 type Theme = "light" | "dark";
@@ -13,11 +14,6 @@ interface DisplayCardProps {
   isPending: boolean;
   themeOptions: ReadonlyArray<SegmentOption<Theme>>;
 }
-
-const LANGUAGE_OPTIONS: ReadonlyArray<SegmentOption<LanguageValue>> = [
-  { value: "sv", label: "Svenska" },
-  { value: "en", label: "English", disabled: true },
-];
 
 /**
  * Visning-kort. Tema-segment via `useTheme()` (klient-only, persisterad i
@@ -35,35 +31,41 @@ export function DisplayCard({
   isPending,
   themeOptions,
 }: DisplayCardProps) {
+  const t = useTranslations("settings");
+  // Språk-segmentets options. English är `disabled` (next-intl ej aktiverad
+  // ännu) — bara etiketterna är översatta, inte aktiverings-logiken (en senare
+  // batch äger den live språk-växlaren).
+  const languageOptions: ReadonlyArray<SegmentOption<LanguageValue>> = [
+    { value: "sv", label: t("display.languageSwedish") },
+    { value: "en", label: t("display.languageEnglish"), disabled: true },
+  ];
   return (
     <section className="jp-card">
-      <h2 className="jp-card__title">Visning</h2>
+      <h2 className="jp-card__title">{t("display.title")}</h2>
 
       <div className="jp-settings-field">
-        <span className="jp-settings-field__label">Tema</span>
+        <span className="jp-settings-field__label">{t("display.themeLabel")}</span>
         <Segment
-          aria-label="Tema"
+          aria-label={t("display.themeLabel")}
           value={theme}
           onChange={onThemeChange}
           options={themeOptions}
         />
-        <p className="jp-settings-field__hint">
-          Påverkar hela appen direkt. Sparas på din enhet.
-        </p>
+        <p className="jp-settings-field__hint">{t("display.themeHint")}</p>
       </div>
 
       <div className="jp-settings-field">
-        <span className="jp-settings-field__label">Språk</span>
+        <span className="jp-settings-field__label">
+          {t("display.languageLabel")}
+        </span>
         <Segment
-          aria-label="Språk"
+          aria-label={t("display.languageLabel")}
           value={language}
           onChange={onLanguageChange}
-          options={LANGUAGE_OPTIONS}
+          options={languageOptions}
           disabled={isPending}
         />
-        <p className="jp-settings-field__hint">
-          Engelska är ännu inte tillgängligt.
-        </p>
+        <p className="jp-settings-field__hint">{t("display.languageHint")}</p>
       </div>
     </section>
   );

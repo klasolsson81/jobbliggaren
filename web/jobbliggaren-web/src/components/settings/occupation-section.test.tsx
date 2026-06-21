@@ -231,3 +231,97 @@ describe("OccupationSection — CV-förslag pre-addas som chips", () => {
     expect(cvSuggestMock).not.toHaveBeenCalled();
   });
 });
+
+describe("OccupationSection — 'Välj alla yrkesgrupper'", () => {
+  async function openField(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
+    await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
+  }
+
+  it("markerar alla grupper i det aktiva yrkesområdet i ett klick", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness />);
+    await openField(user);
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "Välj alla yrkesgrupper" })
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Ta bort Backendutvecklare" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Ta bort Frontendutvecklare" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Välj alla yrkesgrupper" })
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("avmarkerar alla när allt redan är valt (toggle)", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness initial={["grp_backend", "grp_frontend"]} />);
+    await openField(user);
+
+    const selectAll = screen.getByRole("checkbox", {
+      name: "Välj alla yrkesgrupper",
+    });
+    expect(selectAll).toHaveAttribute("aria-checked", "true");
+    await user.click(selectAll);
+
+    expect(
+      screen.queryByRole("button", { name: "Ta bort Backendutvecklare" })
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Ta bort Frontendutvecklare" })
+    ).toBeNull();
+  });
+
+  it("annonserar tri-state 'mixed' vid partiellt val", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness initial={["grp_backend"]} />);
+    await openField(user);
+
+    expect(
+      screen.getByRole("checkbox", { name: "Välj alla yrkesgrupper" })
+    ).toHaveAttribute("aria-checked", "mixed");
+  });
+
+  it("bevarar val i andra yrkesområden (merge, inte ersätt)", async () => {
+    const twoFields: ReadonlyArray<TaxonomyOccupationField> = [
+      {
+        conceptId: "field_data",
+        label: "Data/IT",
+        occupationGroups: [
+          { conceptId: "grp_backend", label: "Backendutvecklare" },
+          { conceptId: "grp_frontend", label: "Frontendutvecklare" },
+        ],
+      },
+      {
+        conceptId: "field_vard",
+        label: "Hälsa och sjukvård",
+        occupationGroups: [
+          { conceptId: "grp_ssk", label: "Sjuksköterskor" },
+        ],
+      },
+    ];
+    const user = userEvent.setup();
+    render(
+      <HostHarness occupationFields={twoFields} initial={["grp_ssk"]} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
+    await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Välj alla yrkesgrupper" })
+    );
+
+    // Data/IT-gruppen valdes, men vård-valet finns kvar (merge via onReplace).
+    expect(
+      screen.getByRole("button", { name: "Ta bort Backendutvecklare" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Ta bort Sjuksköterskor" })
+    ).toBeInTheDocument();
+  });
+});

@@ -156,6 +156,27 @@ export function OccupationSection({
     occupationFields.find((f) => f.conceptId === activeField)?.occupationGroups ??
     [];
 
+  // "Välj alla yrkesgrupper" för det aktiva yrkesområdet (paritet med jobbsidans
+  // JobbFilterPopover "Välj alla X"-rad). Togglar HELA det aktiva fältets grupper
+  // i ETT klick men bevarar val i andra fält (merge/diff via onReplace, som
+  // skriver flera id på en gång). Tri-state: allt valt → checked, delvis →
+  // indeterminate ("mixed").
+  const activeFieldGroupIds = activeGroups.map((g) => g.conceptId);
+  const allActiveSelected =
+    activeFieldGroupIds.length > 0 &&
+    activeFieldGroupIds.every((id) => selected.includes(id));
+  const someActiveSelected = activeFieldGroupIds.some((id) =>
+    selected.includes(id)
+  );
+
+  function toggleAllActiveGroups() {
+    if (allActiveSelected) {
+      onReplace(selected.filter((id) => !activeFieldGroupIds.includes(id)));
+    } else {
+      onReplace([...new Set([...selected, ...activeFieldGroupIds])]);
+    }
+  }
+
   // Stabilt panel-id (aria-controls). useId ger ett hydration-säkert unikt id.
   const reactId = useId();
   const panelId = `${idPrefix}-occ-picker-${reactId}`;
@@ -331,14 +352,25 @@ export function OccupationSection({
                       Välj ett yrkesområde till vänster.
                     </p>
                   ) : (
-                    activeGroups.map((g) => (
-                      <CheckItem
-                        key={g.conceptId}
-                        label={g.label}
-                        checked={selected.includes(g.conceptId)}
-                        onToggle={() => onToggle(g.conceptId)}
-                      />
-                    ))
+                    <>
+                      {activeGroups.length > 0 && (
+                        <CheckItem
+                          label="Välj alla yrkesgrupper"
+                          checked={allActiveSelected}
+                          indeterminate={someActiveSelected && !allActiveSelected}
+                          isAll
+                          onToggle={toggleAllActiveGroups}
+                        />
+                      )}
+                      {activeGroups.map((g) => (
+                        <CheckItem
+                          key={g.conceptId}
+                          label={g.label}
+                          checked={selected.includes(g.conceptId)}
+                          onToggle={() => onToggle(g.conceptId)}
+                        />
+                      ))}
+                    </>
                   )}
                 </div>
               </div>

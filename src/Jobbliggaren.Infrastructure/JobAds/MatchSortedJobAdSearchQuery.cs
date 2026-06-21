@@ -18,7 +18,8 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <b>Sort-nyckeln (grad-ranken) lever ENBART i <c>ORDER BY</c></b> (Goodhart,
 /// Decision 4): den projiceras aldrig in i <see cref="JobAdDto"/>, persisteras
 /// aldrig. Ranken är en kompilerad spegel av den <b>Fast</b>
-/// <c>MatchGradeCalculator.Grade(MatchScore)</c>-stegen + <c>MatchScorer.ScoreMembership</c>:
+/// <c>MatchGradeCalculator.Grade(MatchScore)</c>-stegen + <c>MatchScorer.ScoreMembership</c>
+/// (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c> (ort = region ∪ kommun, Spår 3):
 /// <para>
 /// <b>G3-OPT-A — sorten ser INTE must-have (medveten, bunden divergens, ADR 0076
 /// amendment 2026-06-20):</b> sedan graden blev requirement-aware
@@ -32,11 +33,12 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// Fast-rank-spegeln:
 /// <list type="bullet">
 /// <item>0 = otaggad (SSYK ej Match) → sorteras sist;</item>
-/// <item>1 = Basic (SSYK Match, men en angiven region/anställningsform
-/// motsäger — <c>NoMatch</c>, golvar);</item>
-/// <item>1 + antal bekräftade (region/anställningsform <c>Match</c>) = 1/2/3
-/// (Basic/Good/Strong). En <c>NotAssessed</c>-dimension (tom preferens ELLER
-/// NULL-shadow) varken bekräftar eller golvar.</item>
+/// <item>1 = Basic (SSYK Match, men en angiven ort (region/kommun) eller
+/// anställningsform motsäger — <c>NoMatch</c>, golvar);</item>
+/// <item>1 + antal bekräftade sekundärer (ort (region∪kommun) / anställningsform
+/// <c>Match</c>) = 1/2/3 (Basic/Good/Strong); ort räknas som ETT sekundär (region- ELLER
+/// kommun-träff). En <c>NotAssessed</c>-dimension (tom preferens ELLER ad utan ort-värde)
+/// varken bekräftar eller golvar.</item>
 /// </list>
 /// Tie-break: <c>publishedAt</c> fallande, sedan <c>Id</c> (determinism).
 /// Ett Testcontainers-orakel pinnar SQL-rank ≡ <c>MatchGradeCalculator</c> över
@@ -55,6 +57,12 @@ internal sealed class MatchSortedJobAdSearchQuery(
     private const string OccupationGroupColumn = "OccupationGroupConceptId";
     private const string RegionColumn = "RegionConceptId";
     private const string EmploymentTypeColumn = "EmploymentTypeConceptId";
+
+    // Spår 3 (ADR 0076-amendment 2026-06-21) — kommun-granulariteten i ort-dimensionen.
+    // Sort-ranken speglar nu MatchScorer.ScoreOrtUnion (region ∪ municipality) i stället
+    // för region-only ScoreMembership. STORED generated från
+    // raw_payload->'workplace_address'->>'municipality_concept_id' (parity scorern).
+    private const string MunicipalityColumn = "MunicipalityConceptId";
 
     // STORED generated jsonb companion (extracted_lexemes = Lexeme-array, GIN-indexerad)
     // — bär skill-concept-ids (Lexeme == ConceptId för Skill/Requirement-termer). F4-15:s
@@ -82,8 +90,11 @@ internal sealed class MatchSortedJobAdSearchQuery(
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
+        var municipalities = fast.PreferredMunicipalityConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
-        var regionsStated = regions.Count > 0;
+        // The ort dimension folds region ∪ municipality into ONE secondary (parity
+        // RegionFit / ScoreOrtUnion): "stated" iff EITHER preference list is non-empty.
+        var ortStated = regions.Count > 0 || municipalities.Count > 0;
         var employmentStated = employment.Count > 0;
 
         // F4-15 (ADR 0076 Decision 6, R5-REBIND Option H): den gyllene topp-rungen. CV-skills
@@ -96,36 +107,46 @@ internal sealed class MatchSortedJobAdSearchQuery(
             db.JobAds.AsNoTracking(), filter, synonymExpander);
 
         var items = await baseQuery
-            // Gyllene topp-rung (F4-15): en Stark match (yrke+region+anställning ALLA
+            // Gyllene topp-rung (F4-15): en Stark match (yrke+ort+anställning ALLA
             // bekräftade — samma villkor som grad-rank == 3) som OCKSÅ delar minst en
             // CV-skill (`extracted_lexemes ?| @cvSkillIds`) sorteras ÖVER en ren Stark.
+            // Ort-bekräftelsen är union (region ELLER kommun träffar, parity ScoreOrtUnion).
             // En binär rung utan verdikt → top-5 kan bara under-lyfta, aldrig fel-lyfta
             // (honest reduced-recall). NULL extracted_lexemes → ?| NULL → ELSE 0.
             .OrderByDescending(j =>
                 skillStated
                 && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
-                && regions.Contains(EF.Property<string?>(j, RegionColumn))
+                && (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                    || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
                 && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
                 && EF.Functions.JsonExistAny(EF.Property<string>(j, ExtractedLexemesColumn), cvSkillIds)
                     ? 1
                     : 0)
             // Grad-rank fallande (3=Strong … 0=otaggad sist). NotAssessed≠NoMatch:
-            // "motsäger" kräver en ANGIVEN preferens (regionsStated) OCH ett
-            // icke-NULL shadow-värde som INTE finns i preferens-mängden. Ett tomt
-            // preferens-set ger list.Contains == false (= NotAssessed → bidrar 0,
-            // golvar ej). Speglar MatchGradeCalculator exakt (oracle-pinnad).
+            // ort "motsäger" kräver en ANGIVEN ort-preferens (ortStated) OCH att annonsen
+            // HAR minst ett ort-värde (region ELLER kommun icke-NULL) OCH ingen union-träff.
+            // IMPL-TRAP (CTO C): det är det KOMBINERADE predikatet — ALDRIG ett naket
+            // !municipalities.Contains(col), som skulle läsa en NULL kommun-shadow som
+            // "inte i listan" (den klassiska !list.Contains(col)-buggen). Ett tomt
+            // preferens-set ger Contains == false (= NotAssessed → bidrar 0, golvar ej).
+            // Ort-bekräftelse = region-träff ELLER kommun-träff = ETT sekundär (parity
+            // RegionFit). Speglar MatchScorer.ScoreOrtUnion + MatchGradeCalculator exakt
+            // (oracle-pinnad).
             .ThenByDescending(j =>
                 !ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
                     ? 0
-                    : ((regionsStated
-                            && EF.Property<string?>(j, RegionColumn) != null
-                            && !regions.Contains(EF.Property<string?>(j, RegionColumn)))
+                    : ((ortStated
+                            && (EF.Property<string?>(j, RegionColumn) != null
+                                || EF.Property<string?>(j, MunicipalityColumn) != null)
+                            && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
+                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))))
                         || (employmentStated
                             && EF.Property<string?>(j, EmploymentTypeColumn) != null
                             && !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))))
                         ? 1
                         : 1
-                            + (regions.Contains(EF.Property<string?>(j, RegionColumn)) ? 1 : 0)
+                            + ((regions.Contains(EF.Property<string?>(j, RegionColumn))
+                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))) ? 1 : 0)
                             + (employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)) ? 1 : 0))
             .ThenByDescending(j => j.PublishedAt)
             .ThenBy(j => j.Id)

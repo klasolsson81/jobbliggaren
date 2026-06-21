@@ -82,7 +82,7 @@ export function WaitlistForm() {
         <p className="text-body text-text-secondary">
           Vi har sparat <span className="font-medium">{state.email}</span> på
           väntelistan. Vi hör av oss när vi har kapacitet att släppa in fler
-          användare — du behöver inte göra något mer just nu.
+          användare. Du behöver inte göra något mer just nu.
         </p>
       </div>
     );

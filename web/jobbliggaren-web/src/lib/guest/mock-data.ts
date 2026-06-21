@@ -150,7 +150,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
 const RESUMES: ReadonlyArray<GuestMockResume> = [
   {
     id: "gr-1",
-    title: "CV — Systemutveckling",
+    title: "CV: Systemutveckling",
     language: "sv",
     latestRole: "Junior systemutvecklare",
     sectionCount: 6,
@@ -160,7 +160,7 @@ const RESUMES: ReadonlyArray<GuestMockResume> = [
   },
   {
     id: "gr-2",
-    title: "CV — Frontend",
+    title: "CV: Frontend",
     language: "sv",
     latestRole: "Webbutvecklare praktik",
     sectionCount: 5,
@@ -170,7 +170,7 @@ const RESUMES: ReadonlyArray<GuestMockResume> = [
   },
   {
     id: "gr-3",
-    title: "Resume — English version",
+    title: "Resume: English version",
     language: "en",
     latestRole: "Junior Software Developer",
     sectionCount: 6,
@@ -247,7 +247,7 @@ const GUEST_JOB_ADS: ReadonlyArray<GuestMockJobAd> = [
   },
   {
     id: "gj-4",
-    title: "Lösningsarkitekt — offentlig sektor",
+    title: "Lösningsarkitekt, offentlig sektor",
     companyName: "Skatteverket",
     source: "Platsbanken",
     publishedAtIso: "2026-05-21T13:45:00Z",
@@ -268,7 +268,7 @@ const GUEST_JOB_ADS: ReadonlyArray<GuestMockJobAd> = [
     summary:
       "ICA digital söker en fullstack-utvecklare till handel- och kunddata-teamet.",
     description:
-      "Du arbetar med både frontend (TypeScript, React) och backend (.NET, Postgres). Teamet ansvarar för kundklubben och digitala erbjudanden — system som möter miljoner kunder dagligen.\n\nVi värdesätter pragmatism, testdisciplin och förståelse för hela leveranskedjan från idé till produktion.\n\nKontor i Solna. Hybrid.",
+      "Du arbetar med både frontend (TypeScript, React) och backend (.NET, Postgres). Teamet ansvarar för kundklubben och digitala erbjudanden, system som möter miljoner kunder dagligen.\n\nVi värdesätter pragmatism, testdisciplin och förståelse för hela leveranskedjan från idé till produktion.\n\nKontor i Solna. Hybrid.",
     url: "https://arbetsformedlingen.se/platsbanken/annonser/exempel-gj-5",
   },
   {
@@ -286,7 +286,7 @@ const GUEST_JOB_ADS: ReadonlyArray<GuestMockJobAd> = [
   },
   {
     id: "gj-7",
-    title: "Webbutvecklare — tillgänglighet",
+    title: "Webbutvecklare, tillgänglighet",
     companyName: "Trafikverket",
     source: "Platsbanken",
     publishedAtIso: "2026-05-19T10:00:00Z",

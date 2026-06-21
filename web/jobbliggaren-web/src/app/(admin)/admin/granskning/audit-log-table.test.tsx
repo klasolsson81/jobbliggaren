@@ -43,9 +43,9 @@ describe("AuditLogTable", () => {
     expect(screen.getByText("system")).toBeInTheDocument();
   });
 
-  it("shows '—' placeholder for missing ip/userAgent", () => {
+  it("shows '–' placeholder for missing ip/userAgent", () => {
     render(<AuditLogTable entries={[entry({ ipAddress: null, userAgent: null })]} />);
-    const dashes = screen.getAllByText("—");
+    const dashes = screen.getAllByText("–");
     expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
 

@@ -47,7 +47,7 @@ export function SavedJobAdList({ items }: SavedJobAdListProps) {
     return (
       <div className="jp-empty">
         <div className="jp-empty__title">Inga sparade annonser</div>
-        Hitta en annons under Jobb och välj <i>Spara</i> i annonsdetaljen — den
+        Hitta en annons under Jobb och välj <i>Spara</i> i annonsdetaljen. Den
         sparas här.
       </div>
     );

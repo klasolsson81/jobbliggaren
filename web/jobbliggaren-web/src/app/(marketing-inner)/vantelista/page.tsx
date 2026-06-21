@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { WaitlistForm } from "@/components/forms/WaitlistForm";
 
 export const metadata: Metadata = {
-  title: "Väntelista — Jobbliggaren",
+  title: "Väntelista",
   description:
     "Jobbliggaren är i sluten beta. Anmäl ditt intresse så hör vi av oss när vi har kapacitet att släppa in fler.",
 };
@@ -19,7 +19,7 @@ export default function VantelistaPage() {
             </h1>
             <p className="jp-pagehero__lede">
               Jobbliggaren är i sluten beta. Vi släpper in användare när vi har
-              kapacitet — inga datum lovas. Anmäl ditt intresse så hör vi av
+              kapacitet. Inga datum lovas. Anmäl ditt intresse så hör vi av
               oss när nästa plats är ledig.
             </p>
           </div>

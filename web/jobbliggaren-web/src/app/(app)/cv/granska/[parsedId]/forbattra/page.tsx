@@ -118,7 +118,7 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
         <h1 className="jp-h1">Förbättra importerat CV</h1>
         <p className="jp-lede">
           Det här är deterministiska förbättringsförslag för ditt importerade CV.
-          Inget har ändrats i filen — varje förslag visar en före-och-efter-
+          Inget har ändrats i filen. Varje förslag visar en före-och-efter-
           ändring med citerad evidens ur din egen text. Du väljer själv vad du
           tar med när du skriver ditt CV.
         </p>

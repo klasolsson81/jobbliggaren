@@ -62,7 +62,7 @@ export function TodayCard({
         <span>
           {googleSynced
             ? `Synkad med Google Calendar · ${syncedAt ?? ""}`
-            : "Google Calendar inte synkad — visar endast Jobbliggaren-händelser."}
+            : "Google Calendar inte synkad. Visar endast Jobbliggaren-händelser."}
         </span>
       </div>
     </div>

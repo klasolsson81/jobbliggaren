@@ -125,7 +125,7 @@ export default async function CvListPage({
               <p className="jp-cvmatch-bar__title">Matchning mot ditt CV</p>
               <p className="jp-cvmatch-bar__text">
                 Ställ in vilka yrken, regioner och anställningsformer du söker.
-                Vi föreslår utifrån ditt CV — du väljer själv vad som tas med.
+                Vi föreslår utifrån ditt CV. Du väljer själv vad som tas med.
               </p>
             </div>
             <CvMatchSetup
@@ -148,7 +148,7 @@ export default async function CvListPage({
             <div className="jp-empty__title">Inga CV ännu</div>
             <p className="jp-empty__body">
               Skapa ditt första CV för att komma igång. Du kan ha flera
-              varianter — t.ex. en för ledarskap och en för teknisk roll —
+              varianter (t.ex. en för ledarskap och en för teknisk roll)
               och välja rätt CV per ansökan.
             </p>
             <div className="jp-empty__actions">

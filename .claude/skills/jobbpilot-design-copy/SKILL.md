@@ -45,6 +45,7 @@ Never use:
 | Kategori | Exempel att undvika |
 |---|---|
 | Emojis i copy | ✨ 🚀 🎉 ⚡ 😊 (alla emojis) |
+| Em-dash (—) i copy | "Du behåller kontrollen — inget ändras" (—, U+2014 = AI-kliché) |
 | Utropstecken i info/success | "Sparat!" "Klart!" "Perfekt!" |
 | Informella utrop | "Hoppsan!", "Oj!", "Aj då!", "Kör hårt!" |
 | Engelska i svensk copy | "Let's go", "Let's do this", "Good job!" |
@@ -53,8 +54,19 @@ Never use:
 | Vag feedback | "Något gick fel", "Försök igen", "Okänt fel" |
 | Stats-kort-rubriker | "Du har 3 aktiva ansökningar" som inramad kort-rubrik |
 
-Utropstecken är acceptabelt i error-meddelanden när de förstärker brådska —
+Utropstecken är acceptabelt i error-meddelanden när de förstärker brådska,
 men sparsamt och aldrig i success/info-copy.
+
+**Inga em-dash (—) i UI-copy.** Em-dash (`—`, U+2014) är en stark AI-kliché
+(Klas hård regel 2026-06-20) och får aldrig stå i användarvänd svensk copy:
+JSX-text, renderade strängar, hjälptexter, knappar, `title`/`alt`/`aria-label`.
+Ersätt efter relation: punkt (två fullständiga satser), kolon (etikett: värde),
+komma (apposition) eller parentes (inskjutning). En-dash (`–`, U+2013) i
+intervall/mått är legitim ("2021–2024", "10–12 pt") och rörs inte; för "saknat
+värde" i tabeller/summeringar används en-dash, inte em-dash. Em-dash är OK i
+kod-kommentarer, ADR/doc-prosa och test-`describe()`-labels (ej user-facing).
+En ESLint-regel (`no-restricted-syntax`, U+2014 i `JSXText`/`Literal`/
+`TemplateElement`, exkl. tester) spärrar återinförande i `web/jobbliggaren-web`.
 
 **Inga stats-kort-rubriker.** Skriv inte en mening som inramad rubrik ovanför
 en lista bara för att räkna något ("Du har X aktiva ansökningar"). Visa siffran

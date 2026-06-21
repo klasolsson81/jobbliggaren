@@ -92,12 +92,12 @@ export function Summary({
         <SummaryRow
           label="Aktiva annonser totalt"
           value={
-            activeJobAdsTotal != null ? formatThousands(activeJobAdsTotal) : "—"
+            activeJobAdsTotal != null ? formatThousands(activeJobAdsTotal) : "–"
           }
         />
         <SummaryRow
           label="Senaste sökning"
-          value={lastSearchName ?? "—"}
+          value={lastSearchName ?? "–"}
           href={lastSearchName ? "/sokningar" : undefined}
         />
       </div>
@@ -108,12 +108,12 @@ export function Summary({
         <SummaryRow label="Personliga brev" value={personalLettersCount} />
         <SummaryRow
           label="Senast uppdaterat CV"
-          value={lastUpdatedCvDate ?? "—"}
+          value={lastUpdatedCvDate ?? "–"}
           href={lastUpdatedCvDate ? "/cv" : undefined}
         />
         <SummaryRow
           label="Aktiv sedan"
-          value={searchStartDate ?? "—"}
+          value={searchStartDate ?? "–"}
           hint={
             searchStartDaysSince != null
               ? `${searchStartDaysSince} dagar`

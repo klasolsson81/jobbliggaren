@@ -358,7 +358,7 @@ export function AppShell({
     <div className="jp-shell">
       <header className="jp-header" role="banner">
         <div className="jp-header__inner">
-          <Link href="/oversikt" className="jp-brand" aria-label="Jobbliggaren — till start">
+          <Link href="/oversikt" className="jp-brand" aria-label="Jobbliggaren, startsida">
             <BrandLogo />
           </Link>
 

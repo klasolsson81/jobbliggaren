@@ -171,7 +171,7 @@ export function JobAdDetail({
             textAlign: "right",
           }}
         >
-          Du har markerat denna annons som ansökt — se i{" "}
+          Du har markerat denna annons som ansökt. Se i{" "}
           <Link
             href="/ansokningar"
             style={{ color: "var(--jp-link, currentColor)", textDecoration: "underline" }}

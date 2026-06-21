@@ -58,7 +58,7 @@ export function JobInfoPanel({ jobAd, coverLetter }: JobInfoPanelProps) {
 
           <div className="flex flex-col gap-0.5">
             <dt className="text-text-secondary">Sista ansökningsdag</dt>
-            <dd className="font-mono text-text-primary">{expires ?? "—"}</dd>
+            <dd className="font-mono text-text-primary">{expires ?? "–"}</dd>
           </div>
 
           <div className="flex flex-col gap-0.5">

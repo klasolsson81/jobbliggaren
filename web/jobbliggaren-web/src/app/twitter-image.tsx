@@ -7,7 +7,7 @@ import { BrandMarkSvg } from "@/components/brand/brand-mark-svg";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Jobbliggaren — Den svenska jobbansökningshanteraren";
+export const alt = "Jobbliggaren: Den svenska jobbansökningshanteraren";
 export const runtime = "edge";
 
 export default function TwitterImage() {

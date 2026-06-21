@@ -25,7 +25,7 @@ export default async function InterceptedCvNyModal() {
   return (
     <RouteModalShell
       title="Nytt CV"
-      description="Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt fullständiga namn — du kan ändra resten senare."
+      description="Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt fullständiga namn. Du kan ändra resten senare."
     >
       <div className="jp-modal__body">
         <CreateResumeForm />

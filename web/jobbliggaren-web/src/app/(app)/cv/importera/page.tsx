@@ -29,7 +29,7 @@ export default async function CvImportPage() {
         <p className="jp-lede">
           Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar
           innehållet och visar en deterministisk granskning med citerad evidens.
-          Du behåller kontrollen — inget ändras i ditt CV förrän du själv sparar.
+          Du behåller kontrollen. Inget ändras i ditt CV förrän du själv sparar.
         </p>
       </header>
 

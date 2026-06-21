@@ -29,7 +29,7 @@ export default async function NyCvPage() {
         <h1 className="jp-h1">Nytt CV</h1>
         <p className="jp-lede">
           Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt
-          fullständiga namn — du kan ändra resten senare.
+          fullständiga namn. Du kan ändra resten senare.
         </p>
       </header>
 

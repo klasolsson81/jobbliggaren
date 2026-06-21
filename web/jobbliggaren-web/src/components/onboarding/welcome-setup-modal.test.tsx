@@ -211,3 +211,21 @@ describe("WelcomeSetupModal — civic-utility", () => {
     expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
   });
 });
+
+describe("WelcomeSetupModal — a11y (Radix description-wiring)", () => {
+  // Regression: tidigare sattes BÅDE aria-describedby på DialogContent OCH ett
+  // explicit id på DialogDescription, vilket besegrade Radix auto-wiring och gav
+  // konsolvarningen "Missing `Description` or `aria-describedby={undefined}`".
+  // Nu låter vi Radix koppla id/aria-describedby själv, så varningen inte fyrar.
+  it("renderar utan Radix missing-description-varning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderModal();
+    const logged = [...warnSpy.mock.calls, ...errorSpy.mock.calls]
+      .flat()
+      .join(" ");
+    expect(logged).not.toMatch(/Missing .?Description|aria-describedby/i);
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});

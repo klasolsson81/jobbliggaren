@@ -125,10 +125,7 @@ export function WelcomeSetupModal({
           if (!next) dismissWelcome();
         }}
       >
-        <DialogContent
-          className="jp-stdmodal jp-stdmodal--narrow"
-          aria-describedby="welcome-setup-desc"
-        >
+        <DialogContent className="jp-stdmodal jp-stdmodal--narrow">
           {step === "confirm" ? (
             // Bekräftelse: EN rubrik (DialogTitle bär "stort = typografisk
             // hierarki" per ADR 0077 A2.ii) med grön check ovanför + en not.
@@ -148,10 +145,7 @@ export function WelcomeSetupModal({
                 >
                   CV uppladdat
                 </DialogTitle>
-                <DialogDescription
-                  id="welcome-setup-desc"
-                  className="jp-welcome__confirm-note"
-                >
+                <DialogDescription className="jp-welcome__confirm-note">
                   Vi har läst in och tolkat ditt CV. Inget är ändrat och ingen
                   matchning är gjord ännu. Nästa steg är att ställa in din
                   matchningsprofil.
@@ -176,10 +170,7 @@ export function WelcomeSetupModal({
                     ? "Kom igång med matchning"
                     : "Ställ in din matchning"}
                 </DialogTitle>
-                <DialogDescription
-                  id="welcome-setup-desc"
-                  className="jp-welcome__intro"
-                >
+                <DialogDescription className="jp-welcome__intro">
                   {stepIntro(step)}
                 </DialogDescription>
               </div>

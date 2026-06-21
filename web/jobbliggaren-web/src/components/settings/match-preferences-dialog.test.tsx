@@ -291,3 +291,20 @@ describe("MatchPreferencesDialog — yrkestitel-förslag (behålls)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("MatchPreferencesDialog — a11y (Radix description-wiring)", () => {
+  // Regression: explicit aria-describedby på DialogContent + explicit id på
+  // DialogDescription besegrade Radix auto-wiring och gav konsolvarningen
+  // "Missing `Description` or `aria-describedby={undefined}`". Radix kopplar nu själv.
+  it("renderar utan Radix missing-description-varning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderDialog();
+    const logged = [...warnSpy.mock.calls, ...errorSpy.mock.calls]
+      .flat()
+      .join(" ");
+    expect(logged).not.toMatch(/Missing .?Description|aria-describedby/i);
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});

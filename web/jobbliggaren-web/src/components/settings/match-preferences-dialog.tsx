@@ -125,15 +125,12 @@ export function MatchPreferencesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="jp-matchdialog" aria-describedby="match-dialog-intro">
+      <DialogContent className="jp-matchdialog">
         <div className="jp-matchdialog__head">
           <DialogTitle className="jp-matchdialog__title">
             Lägg till i matchning
           </DialogTitle>
-          <DialogDescription
-            id="match-dialog-intro"
-            className="jp-matchdialog__intro"
-          >
+          <DialogDescription className="jp-matchdialog__intro">
             Sök och välj yrken, regioner och anställningsformer. Valda visas
             överst i varje del. Ta bort med kryssikonen.
           </DialogDescription>

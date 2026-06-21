@@ -43,7 +43,8 @@ public class BuildMatchProfileFromPreferencesQueryHandlerTests
             Title: string.Empty,
             SsykGroupConceptIds: ["grp_12345"],
             PreferredRegionConceptIds: ["stockholm_AB"],
-            PreferredEmploymentTypeConceptIds: ["et_fast"]);
+            PreferredEmploymentTypeConceptIds: ["et_fast"],
+            PreferredMunicipalityConceptIds: []);
         var builder = new StubProfileBuilder(expected);
         var handler = new BuildMatchProfileFromPreferencesQueryHandler(builder);
 

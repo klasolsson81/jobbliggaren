@@ -160,7 +160,8 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             Title: "Systemutvecklare",
             SsykGroupConceptIds: [adGroup, NewConceptId("grp")],
             PreferredRegionConceptIds: [],
-            PreferredEmploymentTypeConceptIds: []);
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -181,7 +182,8 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             Title: "Systemutvecklare",
             SsykGroupConceptIds: [NewConceptId("grp"), NewConceptId("grp")],
             PreferredRegionConceptIds: [],
-            PreferredEmploymentTypeConceptIds: []);
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -203,7 +205,8 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             Title: "Systemutvecklare",
             SsykGroupConceptIds: [], // empty CV-side input → NotAssessed, never NoMatch
             PreferredRegionConceptIds: [],
-            PreferredEmploymentTypeConceptIds: []);
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -224,7 +227,8 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             Title: "Systemutvecklare",
             SsykGroupConceptIds: [NewConceptId("grp")], // CV present, ad NULL → NotAssessed
             PreferredRegionConceptIds: [],
-            PreferredEmploymentTypeConceptIds: []);
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -249,7 +253,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         const string cvTitle = "Senior systemutvecklare";
         var jobAdId = await SeedJobAdAsync(adTitle, null, null, null, ct);
         var profile = new CandidateMatchProfile(
-            cvTitle, [], [], []);
+            cvTitle, [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -278,7 +282,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         const string adTitle = "Utvecklare backend";
         const string cvTitle = "Utvecklare frontend";
         var jobAdId = await SeedJobAdAsync(adTitle, null, null, null, ct);
-        var profile = new CandidateMatchProfile(cvTitle, [], [], []);
+        var profile = new CandidateMatchProfile(cvTitle, [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -308,7 +312,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         const string adTitle = "Sjuksköterska";
         const string cvTitle = "Lastbilschaufför";
         var jobAdId = await SeedJobAdAsync(adTitle, null, null, null, ct);
-        var profile = new CandidateMatchProfile(cvTitle, [], [], []);
+        var profile = new CandidateMatchProfile(cvTitle, [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -334,7 +338,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var jobAdId = await SeedJobAdAsync("Systemutvecklare", null, null, null, ct);
         // Empty CV title yields no lexemes → NotAssessed (CTO Decision 3 rule 1).
-        var profile = new CandidateMatchProfile(string.Empty, [], [], []);
+        var profile = new CandidateMatchProfile(string.Empty, [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -354,7 +358,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         const string adTitle = "Utvecklare arkitekt projektledare";
         const string cvTitle = "Arkitekt utvecklare designer";
         var jobAdId = await SeedJobAdAsync(adTitle, null, null, null, ct);
-        var profile = new CandidateMatchProfile(cvTitle, [], [], []);
+        var profile = new CandidateMatchProfile(cvTitle, [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -398,7 +402,8 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             Title: "Software Engineer", // English → Swedish-stemmed → disjoint
             SsykGroupConceptIds: [adGroup],
             PreferredRegionConceptIds: [adRegion],
-            PreferredEmploymentTypeConceptIds: [adEmployment]);
+            PreferredEmploymentTypeConceptIds: [adEmployment],
+            PreferredMunicipalityConceptIds: []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -452,7 +457,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var adRegion = NewConceptId("reg");
         var jobAdId = await SeedJobAdAsync("Titel", null, adRegion, null, ct);
         var profile = new CandidateMatchProfile(
-            "Titel", [], [adRegion, NewConceptId("reg")], []);
+            "Titel", [], [adRegion, NewConceptId("reg")], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -470,7 +475,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var adRegion = NewConceptId("reg");
         var jobAdId = await SeedJobAdAsync("Titel", null, adRegion, null, ct);
         var profile = new CandidateMatchProfile(
-            "Titel", [], [NewConceptId("reg"), NewConceptId("reg")], []);
+            "Titel", [], [NewConceptId("reg"), NewConceptId("reg")], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -487,7 +492,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var adRegion = NewConceptId("reg");
         var jobAdId = await SeedJobAdAsync("Titel", null, adRegion, null, ct);
-        var profile = new CandidateMatchProfile("Titel", [], [], []);
+        var profile = new CandidateMatchProfile("Titel", [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -505,7 +510,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         // region omitted from payload → region_concept_id NULL.
         var jobAdId = await SeedJobAdAsync("Titel", null, null, null, ct);
         var profile = new CandidateMatchProfile(
-            "Titel", [], [NewConceptId("reg")], []);
+            "Titel", [], [NewConceptId("reg")], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -527,7 +532,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var adEmployment = NewConceptId("emp");
         var jobAdId = await SeedJobAdAsync("Titel", null, null, adEmployment, ct);
         var profile = new CandidateMatchProfile(
-            "Titel", [], [], [adEmployment, NewConceptId("emp")]);
+            "Titel", [], [], [adEmployment, NewConceptId("emp")], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -545,7 +550,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var adEmployment = NewConceptId("emp");
         var jobAdId = await SeedJobAdAsync("Titel", null, null, adEmployment, ct);
         var profile = new CandidateMatchProfile(
-            "Titel", [], [], [NewConceptId("emp"), NewConceptId("emp")]);
+            "Titel", [], [], [NewConceptId("emp"), NewConceptId("emp")], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -562,7 +567,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var adEmployment = NewConceptId("emp");
         var jobAdId = await SeedJobAdAsync("Titel", null, null, adEmployment, ct);
-        var profile = new CandidateMatchProfile("Titel", [], [], []);
+        var profile = new CandidateMatchProfile("Titel", [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -580,7 +585,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         // employment_type omitted → employment_type_concept_id NULL.
         var jobAdId = await SeedJobAdAsync("Titel", null, null, null, ct);
         var profile = new CandidateMatchProfile(
-            "Titel", [], [], [NewConceptId("emp")]);
+            "Titel", [], [], [NewConceptId("emp")], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -600,7 +605,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var unknownId = JobAdId.New();
-        var profile = new CandidateMatchProfile("Titel", [], [], []);
+        var profile = new CandidateMatchProfile("Titel", [], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -627,7 +632,8 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             Title: "Arkitekt utvecklare designer",
             SsykGroupConceptIds: [adGroup],
             PreferredRegionConceptIds: [adRegion],
-            PreferredEmploymentTypeConceptIds: [NewConceptId("emp")]);
+            PreferredEmploymentTypeConceptIds: [NewConceptId("emp")],
+            PreferredMunicipalityConceptIds: []);
 
         var (scope1, scorer1) = NewScorer();
         using (scope1)

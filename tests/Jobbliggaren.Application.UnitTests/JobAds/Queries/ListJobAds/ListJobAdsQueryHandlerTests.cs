@@ -48,7 +48,7 @@ public class ListJobAdsQueryHandlerTests
     }
 
     private static CandidateMatchProfile EmptyFast =>
-        new(Title: string.Empty, SsykGroupConceptIds: [], PreferredRegionConceptIds: [], PreferredEmploymentTypeConceptIds: []);
+        new(Title: string.Empty, SsykGroupConceptIds: [], PreferredRegionConceptIds: [], PreferredEmploymentTypeConceptIds: [], PreferredMunicipalityConceptIds: []);
 
     private static FullCandidateMatchProfile EmptyFullProfile =>
         new(EmptyFast, []);
@@ -63,7 +63,8 @@ public class ListJobAdsQueryHandlerTests
                 Title: string.Empty,
                 SsykGroupConceptIds: ssyk ?? ["grp-occupation"],
                 PreferredRegionConceptIds: regions ?? [],
-                PreferredEmploymentTypeConceptIds: employment ?? []),
+                PreferredEmploymentTypeConceptIds: employment ?? [],
+                PreferredMunicipalityConceptIds: []),
             cvSkills ?? []);
 
     private ListJobAdsQueryHandler NewHandler() =>

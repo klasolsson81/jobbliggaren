@@ -40,6 +40,9 @@ public class SetMatchPreferencesCommandHandlerTests
         return seeker;
     }
 
+    // ValidCommand bär medvetet INGA municipalities → bevisar att det additiva
+    // 4:e-param-kontraktet (optional, default null) inte bryter befintliga 3-arg-
+    // liknande anrop (Spår 3 PR-A).
     private static SetMatchPreferencesCommand ValidCommand() =>
         new(
             PreferredOccupationGroups: ["grp_12345"],
@@ -62,6 +65,51 @@ public class SetMatchPreferencesCommandHandlerTests
         seeker.MatchPreferences.PreferredOccupationGroups.ShouldBe(["grp_12345"]);
         seeker.MatchPreferences.PreferredRegions.ShouldBe(["stockholm_AB"]);
         seeker.MatchPreferences.PreferredEmploymentTypes.ShouldBe(["et_fast"]);
+        // Additivt: command utan municipalities → tom municipality-dimension.
+        seeker.MatchPreferences.PreferredMunicipalities.ShouldBeEmpty();
+    }
+
+    // Spår 3 PR-A — municipalities trådas igenom till den lagrade VO:t.
+    [Fact]
+    public async Task Handle_WithMunicipalities_ThreadsThemIntoStoredPreferences()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: ["sthlm_kn", "gbg_kn"]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var seeker = db.JobSeekers.Single(js => js.UserId == _userId);
+        seeker.MatchPreferences.PreferredMunicipalities.ShouldBe(["gbg_kn", "sthlm_kn"]); // sorterad ordinal
+        seeker.MatchPreferences.PreferredOccupationGroups.ShouldBe(["grp_12345"]);
+    }
+
+    // Spår 3 PR-A — ogiltigt municipality-concept-id bubblar upp som
+    // MatchPreferences.Create-DomainError (parity med occupation-group-fallet).
+    [Fact]
+    public async Task Handle_WithInvalidMunicipalityConceptId_ReturnsDomainValidationError()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: null,
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: ["bad id with space"]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.InvalidMunicipality");
     }
 
     [Fact]
@@ -83,6 +131,7 @@ public class SetMatchPreferencesCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var seeker = db.JobSeekers.Single(js => js.UserId == _userId);
         seeker.MatchPreferences.PreferredOccupationGroups.ShouldBeEmpty();
+        seeker.MatchPreferences.PreferredMunicipalities.ShouldBeEmpty();
     }
 
     [Fact]

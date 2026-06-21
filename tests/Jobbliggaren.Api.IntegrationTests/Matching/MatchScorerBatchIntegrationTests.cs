@@ -149,7 +149,8 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
             Title: "Systemutvecklare",
             SsykGroupConceptIds: [grp],
             PreferredRegionConceptIds: [reg],
-            PreferredEmploymentTypeConceptIds: [emp]);
+            PreferredEmploymentTypeConceptIds: [emp],
+            PreferredMunicipalityConceptIds: []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -190,7 +191,7 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
         var existing = await SeedJobAdAsync("Systemutvecklare", grp, null, null, ct);
         var ghost = JobAdId.New(); // never seeded
 
-        var profile = new CandidateMatchProfile("Titel", [grp], [], []);
+        var profile = new CandidateMatchProfile("Titel", [grp], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -218,7 +219,7 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
         var deleted = await SeedJobAdAsync("Arkitekt", grp, null, null, ct);
         await SoftDeleteAsync(deleted, ct);
 
-        var profile = new CandidateMatchProfile("Titel", [grp], [], []);
+        var profile = new CandidateMatchProfile("Titel", [grp], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -237,7 +238,7 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
     public async Task ScoreBatchAsync_WithEmptyIdList_ReturnsEmpty()
     {
         var ct = TestContext.Current.CancellationToken;
-        var profile = new CandidateMatchProfile("Titel", [NewConceptId("grp")], [], []);
+        var profile = new CandidateMatchProfile("Titel", [NewConceptId("grp")], [], [], []);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;

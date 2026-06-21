@@ -25,16 +25,21 @@ namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 // är att kontraktet behöver bekräftas.
 public class MatchPreferencesTests
 {
-    // Helper — named args obligatoriskt (tre likatypade listor i rad,
+    // Helper — named args obligatoriskt (fyra likatypade listor i rad,
     // architect-disciplin speglad från SearchCriteriaTests).
+    // Spår 3 PR-A (ADR 0076-amendment): preferredMunicipalities är en 4:e
+    // OPTIONAL peer-dimension (default null → tom). Befintliga 3-arg-anrop nedan
+    // kompilerar oförändrat.
     private static Result<MatchPreferences> Create(
         IEnumerable<string>? preferredOccupationGroups = null,
         IEnumerable<string>? preferredRegions = null,
-        IEnumerable<string>? preferredEmploymentTypes = null) =>
+        IEnumerable<string>? preferredEmploymentTypes = null,
+        IEnumerable<string>? preferredMunicipalities = null) =>
         MatchPreferences.Create(
             preferredOccupationGroups: preferredOccupationGroups,
             preferredRegions: preferredRegions,
-            preferredEmploymentTypes: preferredEmploymentTypes);
+            preferredEmploymentTypes: preferredEmploymentTypes,
+            preferredMunicipalities: preferredMunicipalities);
 
     // ---------------------------------------------------------------
     // Happy path — varje dimension samt allihop
@@ -49,6 +54,7 @@ public class MatchPreferencesTests
         result.Value.PreferredOccupationGroups.ShouldBe(["grp_12345"]);
         result.Value.PreferredRegions.ShouldBeEmpty();
         result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
     }
 
     [Fact]
@@ -60,6 +66,7 @@ public class MatchPreferencesTests
         result.Value.PreferredRegions.ShouldBe(["stockholm_AB"]);
         result.Value.PreferredOccupationGroups.ShouldBeEmpty();
         result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
     }
 
     [Fact]
@@ -71,20 +78,36 @@ public class MatchPreferencesTests
         result.Value.PreferredEmploymentTypes.ShouldBe(["et_fast"]);
         result.Value.PreferredOccupationGroups.ShouldBeEmpty();
         result.Value.PreferredRegions.ShouldBeEmpty();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
+    }
+
+    // Spår 3 PR-A — kommun är en 4:e peer-dimension (parallell med de tre ovan).
+    [Fact]
+    public void Create_WithMunicipalitiesOnly_ReturnsSuccess()
+    {
+        var result = Create(preferredMunicipalities: ["sthlm_kn"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredMunicipalities.ShouldBe(["sthlm_kn"]);
+        result.Value.PreferredOccupationGroups.ShouldBeEmpty();
+        result.Value.PreferredRegions.ShouldBeEmpty();
+        result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
     }
 
     [Fact]
-    public void Create_WithAllThreeDimensions_ReturnsSuccess()
+    public void Create_WithAllFourDimensions_ReturnsSuccess()
     {
         var result = Create(
             preferredOccupationGroups: ["grp1", "grp2"],
             preferredRegions: ["stockholm", "uppsala"],
-            preferredEmploymentTypes: ["et_fast", "et_vikariat"]);
+            preferredEmploymentTypes: ["et_fast", "et_vikariat"],
+            preferredMunicipalities: ["sthlm_kn", "uppsala_kn"]);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.PreferredOccupationGroups.ShouldBe(["grp1", "grp2"]);
         result.Value.PreferredRegions.ShouldBe(["stockholm", "uppsala"]);
         result.Value.PreferredEmploymentTypes.ShouldBe(["et_fast", "et_vikariat"]);
+        result.Value.PreferredMunicipalities.ShouldBe(["sthlm_kn", "uppsala_kn"]);
     }
 
     // ---------------------------------------------------------------
@@ -102,6 +125,7 @@ public class MatchPreferencesTests
         result.Value.PreferredOccupationGroups.ShouldBeEmpty();
         result.Value.PreferredRegions.ShouldBeEmpty();
         result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
     }
 
     [Fact]
@@ -124,12 +148,14 @@ public class MatchPreferencesTests
         var result = Create(
             preferredOccupationGroups: ["", "  "],
             preferredRegions: [" "],
-            preferredEmploymentTypes: ["\t"]);
+            preferredEmploymentTypes: ["\t"],
+            preferredMunicipalities: ["  ", "\t"]);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.PreferredOccupationGroups.ShouldBeEmpty();
         result.Value.PreferredRegions.ShouldBeEmpty();
         result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
     }
 
     [Fact]
@@ -144,12 +170,29 @@ public class MatchPreferencesTests
         none.PreferredOccupationGroups.ShouldBeEmpty();
         none.PreferredRegions.ShouldBeEmpty();
         none.PreferredEmploymentTypes.ShouldBeEmpty();
+        // Spår 3 PR-A — Empty bär tom municipality-dimension.
+        none.PreferredMunicipalities.ShouldBeEmpty();
     }
 
     [Fact]
     public void Empty_EqualsCreateWithAllEmpty()
     {
         MatchPreferences.Empty.ShouldBe(Create().Value);
+    }
+
+    // Spår 3 PR-A — det 4-arg-additiva kontraktet: Create(null,null,null) (3-arg-
+    // formen, municipalities default) ger tom municipality-dimension och == Empty.
+    [Fact]
+    public void Create_WithThreeArgNullForm_HasEmptyMunicipalities_AndEqualsEmpty()
+    {
+        var result = MatchPreferences.Create(
+            preferredOccupationGroups: null,
+            preferredRegions: null,
+            preferredEmploymentTypes: null);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
+        result.Value.ShouldBe(MatchPreferences.Empty);
     }
 
     // ---------------------------------------------------------------
@@ -184,6 +227,26 @@ public class MatchPreferencesTests
         result.Value.PreferredEmploymentTypes.ShouldBe(["et_fast", "et_vikariat"]);
     }
 
+    // Spår 3 PR-A — municipality normalisering identisk med övriga dimensioner:
+    // trim per element, droppa tom/whitespace, distinct ordinal, sort ordinal.
+    [Fact]
+    public void Create_NormalizesMunicipalities_SortedDistinctOrdinal()
+    {
+        var result = Create(preferredMunicipalities: ["uppsala_kn", "sthlm_kn", "uppsala_kn", " gbg_kn "]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredMunicipalities.ShouldBe(["gbg_kn", "sthlm_kn", "uppsala_kn"]);
+    }
+
+    [Fact]
+    public void Create_DropsEmptyAndWhitespaceMunicipalityElements_KeepsValidOnes()
+    {
+        var result = Create(preferredMunicipalities: ["sthlm_kn", "", "   ", "gbg_kn"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredMunicipalities.ShouldBe(["gbg_kn", "sthlm_kn"]);
+    }
+
     [Fact]
     public void Create_DropsEmptyAndWhitespaceElements_KeepsValidOnes()
     {
@@ -216,11 +279,44 @@ public class MatchPreferencesTests
         var a = Create(
             preferredOccupationGroups: ["b", "a"],
             preferredRegions: ["y", "x"],
-            preferredEmploymentTypes: ["et_b", "et_a"]).Value;
+            preferredEmploymentTypes: ["et_b", "et_a"],
+            preferredMunicipalities: ["kn_b", "kn_a"]).Value;
         var b = Create(
             preferredOccupationGroups: ["a", "b"],
             preferredRegions: ["x", "y"],
-            preferredEmploymentTypes: ["et_a", "et_b"]).Value;
+            preferredEmploymentTypes: ["et_a", "et_b"],
+            preferredMunicipalities: ["kn_a", "kn_b"]).Value;
+
+        a.Equals(b).ShouldBeTrue();
+        (a == b).ShouldBeTrue();
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+        a.ShouldBe(b);
+    }
+
+    // Spår 3 PR-A — kommun ingår i strukturell likhet (ordinal sequence). Två
+    // prefs identiska UTOM municipalities är INTE lika.
+    [Fact]
+    public void TwoPreferences_DifferentMunicipalities_AreNotValueEqual()
+    {
+        var a = Create(preferredMunicipalities: ["sthlm_kn"]).Value;
+        var b = Create(preferredMunicipalities: ["gbg_kn"]).Value;
+
+        a.Equals(b).ShouldBeFalse();
+        (a == b).ShouldBeFalse();
+        a.ShouldNotBe(b);
+    }
+
+    // Spår 3 PR-A — identiska municipalities (övriga dims lika) ÄR lika, inkl.
+    // GetHashCode (ordinal sequence i kanonisk ordning, municipalities sist).
+    [Fact]
+    public void TwoPreferences_SameMunicipalities_AreValueEqual_IncludingHashCode()
+    {
+        var a = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredMunicipalities: ["sthlm_kn", "gbg_kn"]).Value;
+        var b = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredMunicipalities: ["gbg_kn", "sthlm_kn"]).Value;
 
         a.Equals(b).ShouldBeTrue();
         (a == b).ShouldBeTrue();
@@ -261,14 +357,33 @@ public class MatchPreferencesTests
     public void TwoPreferences_SameValueInDifferentDimension_AreNotValueEqual()
     {
         // Dimension-förväxlingsgrind: samma concept-id i OLIKA dimensioner får
-        // ALDRIG vara lika (jsonb-dedupe/equality-säkerhet).
+        // ALDRIG vara lika (jsonb-dedupe/equality-säkerhet). Spår 3 PR-A — kommun
+        // är en 4:e ortogonal dimension i grinden.
         var a = Create(preferredOccupationGroups: ["x1"]).Value;
         var b = Create(preferredRegions: ["x1"]).Value;
         var c = Create(preferredEmploymentTypes: ["x1"]).Value;
+        var d = Create(preferredMunicipalities: ["x1"]).Value;
 
         a.ShouldNotBe(b);
         b.ShouldNotBe(c);
         a.ShouldNotBe(c);
+        d.ShouldNotBe(a);
+        d.ShouldNotBe(b);
+        d.ShouldNotBe(c);
+    }
+
+    // Spår 3 PR-A — independence: ett municipality-värde läcker ALDRIG in i
+    // Regions/OccupationGroups/EmploymentTypes (de förblir tomma).
+    [Fact]
+    public void Create_WithMunicipalities_DoesNotLeakIntoOtherDimensions()
+    {
+        var result = Create(preferredMunicipalities: ["sthlm_kn", "gbg_kn"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredMunicipalities.ShouldBe(["gbg_kn", "sthlm_kn"]);
+        result.Value.PreferredOccupationGroups.ShouldBeEmpty();
+        result.Value.PreferredRegions.ShouldBeEmpty();
+        result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -343,6 +458,32 @@ public class MatchPreferencesTests
         result.Error.Code.ShouldBe("MatchPreferences.TooManyEmploymentTypes");
     }
 
+    // Spår 3 PR-A — municipality cap = SearchCriteria.MaxConceptIds (samma
+    // återanvända konstant; refererar aldrig literalen).
+    [Fact]
+    public void Create_WithExactlyMaxMunicipalities_ReturnsSuccess()
+    {
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"kn{i}").ToArray();
+
+        var result = Create(preferredMunicipalities: max);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredMunicipalities.Count.ShouldBe(SearchCriteria.MaxConceptIds);
+    }
+
+    [Fact]
+    public void Create_WithOneOverMaxMunicipalities_ReturnsFailure()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"kn{i}").ToArray();
+
+        var result = Create(preferredMunicipalities: overMax);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.TooManyMunicipalities");
+    }
+
     [Fact]
     public void Create_CapAppliesAfterDistinct_MaxPlusOneWithDuplicateUnderCap_ReturnsSuccess()
     {
@@ -400,6 +541,21 @@ public class MatchPreferencesTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("MatchPreferences.InvalidEmploymentType");
+    }
+
+    // Spår 3 PR-A — municipality per-element regex ^[A-Za-z0-9_-]{1,32}$ (default-deny).
+    [Theory]
+    [InlineData("bad id!")]
+    [InlineData("kommun space")]
+    [InlineData("åäö")]
+    [InlineData("dot.notation")]
+    [InlineData("123456789012345678901234567890123")] // 33 tecken > 32
+    public void Create_WithInvalidMunicipalityElement_ReturnsFailure(string bad)
+    {
+        var result = Create(preferredMunicipalities: ["sthlm_kn", bad]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.InvalidMunicipality");
     }
 
     [Theory]

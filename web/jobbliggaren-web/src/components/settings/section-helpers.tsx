@@ -9,21 +9,31 @@ import { Check } from "lucide-react";
 import { PreferenceChip } from "./preference-chip";
 import type { Option } from "./match-preferences-shared";
 
-/** En kryssrute-rad (.jp-checkitem-mönstret, delat med kortet/jobb-panelen). */
+/**
+ * En kryssrute-rad (.jp-checkitem-mönstret, delat med kortet/jobb-panelen).
+ * `isAll` ger "Välj alla"-radens framträdande stil (samma som jobbsidans
+ * popover) och `indeterminate` annonserar `aria-checked="mixed"` (WAI-ARIA
+ * tri-state) vid partiellt val — skärmläsaren hör "delvis markerad", inte
+ * "omarkerad". Båda är opt-in (default = vanlig rad, oförändrat beteende).
+ */
 export function CheckItem({
   label,
   checked,
   onToggle,
+  isAll,
+  indeterminate,
 }: {
   readonly label: string;
   readonly checked: boolean;
   readonly onToggle: () => void;
+  readonly isAll?: boolean;
+  readonly indeterminate?: boolean;
 }) {
   return (
     <div
-      className="jp-checkitem"
+      className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
       role="checkbox"
-      aria-checked={checked}
+      aria-checked={indeterminate ? "mixed" : checked}
       tabIndex={0}
       onClick={onToggle}
       onKeyDown={(e) => {

@@ -166,7 +166,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
 });
 
 describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
-  it("inget CV → lugn tom-state-Alert med Importera CV-länk", async () => {
+  it("inget CV → lugn tom-state med inline 'Ladda upp CV'-knapp (ingen sid-länk)", async () => {
     const user = userEvent.setup();
     cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
     renderDialog();
@@ -175,9 +175,14 @@ describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
       screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
     );
 
+    // Spår 4: laddar upp inline i dialogen i stället för att navigera bort till
+    // /cv/importera-sidan. Det fulla inline-upload→förslag-flödet (med stubbad
+    // CvUploadForm) testas i occupation-section.test.tsx.
     expect(await screen.findByText("Inget CV uppladdat")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "Importera CV" });
-    expect(link).toHaveAttribute("href", "/cv/importera");
+    expect(
+      screen.getByRole("button", { name: "Ladda upp CV" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Importera CV" })).toBeNull();
   });
 
   it("CV utan läsbar roll → lugn rad", async () => {

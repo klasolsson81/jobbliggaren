@@ -12,6 +12,7 @@ import { ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CvUploadForm } from "@/components/resumes/cv-upload-form";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import {
   suggestOccupationsFromCvAction,
@@ -111,13 +112,23 @@ export function OccupationSection({
   const [cvResult, setCvResult] = useState<CvSuggestResult | null>(null);
   const [isCvSuggesting, startCvSuggest] = useTransition();
 
-  function runCvSuggest() {
+  // Spår 4 (Klas 2026-06-21): "Inget CV uppladdat"-staten laddar upp CV:t INLINE
+  // (CvUploadForm i samma modal) i stället för att navigera bort till
+  // /cv/importera-sidan. INGEN nästlad Radix-Dialog — CvUploadForm är ett vanligt
+  // formulär (samma inline-användning som welcome-modalen), så ingen orphan-overlay.
+  // localParsedId = det just inline-uppladdade parsed_resume:t (welcome-flödets
+  // parsedResumeId-prop tar fortfarande företräde).
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [localParsedId, setLocalParsedId] = useState<string | null>(null);
+
+  function runCvSuggest(explicitParsedId?: string) {
+    // Prioritet: ett just inline-uppladdat CV (explicit) → welcome-flödets prop →
+    // ett tidigare inline-uppladdat → annars promotade Resume:ts latestRole.
+    const parsedId = explicitParsedId ?? parsedResumeId ?? localParsedId;
     setCvResult(null);
     startCvSuggest(async () => {
-      // Welcome-flödet (parsedResumeId satt) → läs den just uppladdade staging-CV:ns
-      // proposals; annars promotade Resume:ts latestRole (dialog/`/cv`/`/installningar`).
-      const result = parsedResumeId
-        ? await suggestOccupationsFromParsedResumeAction(parsedResumeId)
+      const result = parsedId
+        ? await suggestOccupationsFromParsedResumeAction(parsedId)
         : await suggestOccupationsFromCvAction();
       setCvResult(result);
       // PRE-ADD: kandidaterna läggs till draften som borttagbara chips
@@ -130,6 +141,14 @@ export function OccupationSection({
         onReplace([...new Set([...selected, ...candidateIds])]);
       }
     });
+  }
+
+  // Inline-uppladdning klar: behåll id:t, stäng upload-ytan och kör CV-förslaget
+  // direkt mot det nya parsed_resume:t (samma propose-and-approve som annars).
+  function handleCvUploaded(parsedId: string) {
+    setLocalParsedId(parsedId);
+    setUploadOpen(false);
+    runCvSuggest(parsedId);
   }
 
   // Wizard-prefill: kör CV-suggest en gång vid montering. "use client"-effekt
@@ -228,7 +247,11 @@ export function OccupationSection({
         pending={isCvSuggesting}
         importCvHref={importCvHref}
         showTrigger={!autoSuggestFromCv}
-        onTrigger={runCvSuggest}
+        onTrigger={() => runCvSuggest()}
+        uploadOpen={uploadOpen}
+        onOpenUpload={() => setUploadOpen(true)}
+        onCancelUpload={() => setUploadOpen(false)}
+        onUploaded={handleCvUploaded}
       />
 
       {/* Manuell tillägg: EN tydlig CTA → inline-disclosure (kollapsad default). */}
@@ -396,16 +419,24 @@ function CvSuggestStatus({
   importCvHref,
   showTrigger,
   onTrigger,
+  uploadOpen,
+  onOpenUpload,
+  onCancelUpload,
+  onUploaded,
 }: {
   readonly result: CvSuggestResult | null;
   readonly pending: boolean;
   readonly importCvHref: string;
   readonly showTrigger: boolean;
   readonly onTrigger: () => void;
+  readonly uploadOpen: boolean;
+  readonly onOpenUpload: () => void;
+  readonly onCancelUpload: () => void;
+  readonly onUploaded: (parsedResumeId: string) => void;
 }) {
   return (
     <div className="jp-matchdialog__suggest">
-      {showTrigger && (
+      {showTrigger && !uploadOpen && (
         <Button
           type="button"
           variant="secondary"
@@ -426,7 +457,38 @@ function CvSuggestStatus({
         </p>
       )}
 
-      {result !== null && <CvSuggestMessage result={result} importCvHref={importCvHref} />}
+      {/* Inline CV-uppladdning (Spår 4): ersätter sid-navigeringen till
+          /cv/importera. CvUploadForm är ett vanligt formulär (ingen nästlad
+          Radix-Dialog → ingen orphan-overlay) — samma inline-användning som
+          welcome-modalen. Importsidan finns kvar som sekundär utväg. */}
+      {uploadOpen ? (
+        <div
+          className="jp-matchdialog__cvupload"
+          role="group"
+          aria-label="Ladda upp CV"
+        >
+          <CvUploadForm onUploaded={onUploaded} />
+          <div className="jp-matchdialog__cvupload-foot">
+            <button
+              type="button"
+              className="jp-clearlink"
+              onClick={onCancelUpload}
+            >
+              Avbryt
+            </button>
+            <a
+              className="text-body-sm text-text-secondary underline underline-offset-2"
+              href={importCvHref}
+            >
+              Öppna importsidan i stället
+            </a>
+          </div>
+        </div>
+      ) : (
+        result !== null && (
+          <CvSuggestMessage result={result} onOpenUpload={onOpenUpload} />
+        )
+      )}
     </div>
   );
 }
@@ -434,10 +496,10 @@ function CvSuggestStatus({
 /** De fyra honest non-candidate-states. "candidates" → null (blev chips). */
 function CvSuggestMessage({
   result,
-  importCvHref,
+  onOpenUpload,
 }: {
   readonly result: CvSuggestResult;
-  readonly importCvHref: string;
+  readonly onOpenUpload: () => void;
 }) {
   switch (result.kind) {
     case "candidates":
@@ -456,8 +518,14 @@ function CvSuggestMessage({
             Ladda upp ett CV så kan vi föreslå yrken utifrån din erfarenhet. Du
             väljer själv vilka förslag som tas med.
           </p>
-          <Button asChild variant="secondary" className="mt-2.5">
-            <a href={importCvHref}>Importera CV</a>
+          {/* Spår 4: laddar upp inline i modalen i stället för att navigera bort. */}
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-2.5"
+            onClick={onOpenUpload}
+          >
+            Ladda upp CV
           </Button>
         </div>
       );

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
@@ -265,18 +266,29 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     // (d) Determinism — same input twice → identical ordered result
     // =================================================================
 
+    // A union of confirmed-DISTINCT occupation titles that survives the group-spread
+    // gate and yields several deduped candidates — re-pointed from the old "chef"/
+    // "Operatör" probes, which are now correctly filtered to nothing in the stemmed
+    // pass (their bare generic tokens fan out across many ssyk-4 groups). Each title
+    // here resolves to a focused group; the union is a strong multi-candidate probe.
+    private static readonly string[] DistinctiveTitleUnion =
+        ["Advokat", "Förskollärare", "Arbetsförmedlare", "Mjukvaruutvecklare"];
+
     [Fact]
-    public async Task DeriveAsync_SameTitleTwice_ReturnsIdenticalOrderedResult()
+    public async Task DeriveManyAsync_SameTitlesTwice_ReturnsIdenticalOrderedResult()
     {
-        // Determinism (CTO Decision 3, Invariant-grade). "chef" is a high-overlap
-        // 1-token title (12 occ-name hits → 8 distinct ssyk-4 groups in the live
-        // data) — a strong determinism probe across many stemmed candidates.
+        // Determinism (CTO Decision 3, Invariant-grade). A union of distinctive titles
+        // yields several deduped candidates; the same input twice must produce an
+        // identical ordered sequence (not just set-equal).
         var ct = TestContext.Current.CancellationToken;
         var sut = NewDeriver();
 
-        var first = await sut.DeriveAsync("chef", ct);
-        var second = await sut.DeriveAsync("chef", ct);
+        var first = await sut.DeriveManyAsync(DistinctiveTitleUnion, ct);
+        var second = await sut.DeriveManyAsync(DistinctiveTitleUnion, ct);
 
+        first.Candidates.Count.ShouldBeGreaterThan(1,
+            "Unionen av distinktiva titlar ska ge flera kandidater (annars är " +
+            "determinism-proben urvattnad — peka om titlarna).");
         var firstKeys = first.Candidates
             .Select(c => (c.OccupationGroupConceptId, c.MatchKind)).ToList();
         var secondKeys = second.Candidates
@@ -287,34 +299,33 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DeriveAsync_Candidates_AreDeterministicallyOrdered()
+    public async Task DeriveManyAsync_Candidates_ExactBeforeStemmed()
     {
-        // The ordering rule (CTO Decision 3, parity with TaxonomyReadModel's
-        // OrderBy(Kind).ThenBy(Label, Ordinal)): MatchKind (Exact before Stemmed)
-        // → … → OccupationGroupLabel Ordinal asc. We assert the two stable,
-        // observable invariants without pinning the impl's internal overlap score:
-        //   (i) all Exact candidates precede all Stemmed candidates;
-        //   (ii) within a single MatchKind run, labels are Ordinal non-decreasing.
+        // The ordering rule's stable, observable invariant (CTO Decision 3): all Exact
+        // candidates precede all Stemmed candidates. A union of an EXACT title
+        // ("Advokat") and an inflected STEMMED-only title ("förskollärarna", bestämd
+        // plural — not an exact label, distinctive stem) yields both kinds in distinct
+        // groups. (Re-pointed from "chef": the old probe relied on a generic 1-token
+        // title fanning out, which the group-spread gate now filters; and the old
+        // "labels Ordinal within a kind" sub-assertion was an artefact of a single
+        // title's constant SourceOrder — SourceOrder now governs intra-kind order, so
+        // we assert only the kind-ordering invariant.)
         var ct = TestContext.Current.CancellationToken;
         var sut = NewDeriver();
 
-        var result = await sut.DeriveAsync("chef", ct);
+        var result = await sut.DeriveManyAsync(["Advokat", "förskollärarna"], ct);
         var candidates = result.Candidates;
-        candidates.Count.ShouldBeGreaterThan(1, "'chef' ska ge flera kandidater.");
 
-        // (i) Exact (enum value 0) before Stemmed (enum value 1) — the MatchKind
-        // sequence must be non-decreasing by enum value.
+        candidates.ShouldContain(c => c.MatchKind == OccupationMatchKind.ExactOccupationName,
+            "'Advokat' ska ge en exakt kandidat.");
+        candidates.ShouldContain(c => c.MatchKind == OccupationMatchKind.StemmedTokenOverlap,
+            "'förskollärarna' (böjd, distinkt stam) ska ge en stammad kandidat.");
+
+        // Exact (enum value 0) before Stemmed (enum value 1) — the MatchKind sequence
+        // must be non-decreasing by enum value.
         var kindSequence = candidates.Select(c => (int)c.MatchKind).ToList();
         kindSequence.ShouldBe(kindSequence.OrderBy(k => k).ToList(),
             "Exact-kandidater ska sorteras före Stemmed-kandidater.");
-
-        // (ii) Within each MatchKind run, labels are Ordinal non-decreasing.
-        foreach (var run in candidates.GroupBy(c => c.MatchKind))
-        {
-            var labels = run.Select(c => c.OccupationGroupLabel).ToList();
-            labels.ShouldBe(labels.OrderBy(l => l, StringComparer.Ordinal).ToList(),
-                $"Labels inom MatchKind={run.Key} ska vara Ordinal-sorterade.");
-        }
     }
 
     // =================================================================
@@ -322,24 +333,23 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     // =================================================================
 
     [Fact]
-    public async Task DeriveAsync_HighOverlapTitle_ReturnsBoundedDeduplicatedCandidates()
+    public async Task DeriveManyAsync_DistinctiveUnion_ReturnsBoundedDeduplicatedCandidates()
     {
-        // Bounded candidate cap (CTO/architect §2 sub-axis 6): a 1-token title
-        // ("chef") must not return hundreds. We assert the result is BOUNDED and
-        // DEDUPED by ssyk-4 group id (not an exact magic number — impl const).
-        // Live data: "chef" touches 8 distinct mapped groups, so a sane bound is
-        // comfortably below the ~400-group ceiling; we assert a generous upper
-        // bound that any reasonable cap satisfies, plus strict dedupe.
+        // Bounded candidate cap (CTO/architect §2 sub-axis 6): the union must not
+        // return hundreds. We assert the result is BOUNDED and DEDUPED by ssyk-4 group
+        // id (not an exact magic number — impl const). (Re-pointed from "chef": a bare
+        // generic title now yields nothing in the stemmed pass; a distinctive union is
+        // the probe.)
         var ct = TestContext.Current.CancellationToken;
         var sut = NewDeriver();
 
-        var result = await sut.DeriveAsync("chef", ct);
+        var result = await sut.DeriveManyAsync(DistinctiveTitleUnion, ct);
 
         result.Candidates.ShouldNotBeEmpty();
         // Bounded: never the whole taxonomy. 50 is a generous ceiling — the impl
         // cap is expected to be far smaller; this only falsifies an unbounded fan-out.
         result.Candidates.Count.ShouldBeLessThanOrEqualTo(50,
-            "En 1-token-titel får inte returnera en obegränsad kandidat-lista " +
+            "Unionen får inte returnera en obegränsad kandidat-lista " +
             "(bounded cap, DoS-/UX-skydd).");
 
         // Deduped by ssyk-4 group id — many occupation-names map to one group,
@@ -414,35 +424,52 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
         var schoolGroups = await GroupsReachedByAsync("NBI-Handelsakademin", ct);
         companyGroups.ShouldBeEmpty("'Plasman' (ett företag) är inget yrkesnamn.");
         schoolGroups.ShouldBeEmpty("'NBI-Handelsakademin' (en skola) är inget yrkesnamn.");
+
+        // The diagnosed noise (Klas 2026-06-21): the bare experience title "Operatör"
+        // used to fan out across 7 unrelated ssyk-4 groups (Fartygsbefäl, SOS-operatörer,
+        // Maskinoperatörer, sekreterare, …). The group-spread gate now drops every one —
+        // bare "Operatör" reaches NO group on its own. This is the living regression for
+        // the whole fix: the career-changer's wanted (education) signal survives while
+        // the work-history noise is filtered.
+        var operatorGroups = await GroupsReachedByAsync("Operatör", ct);
+        operatorGroups.ShouldBeEmpty(
+            "Bara generiska 'Operatör' ska inte längre nå någon yrkesgrupp " +
+            "(alla överlapp vilar på det scattered tokenet 'operatör', spread ≥ G).");
     }
 
     [Fact]
     public async Task DeriveManyAsync_EducationBeforeExperience_RanksEducationGroupFirstWithinSameKind()
     {
         // Education-first ordering (SourceOrder, CTO Decision 6.2). Both titles yield
-        // STEMMED candidates: "Systemutvecklare" (index 0, education) and "Operatör"
-        // (index 1, experience). Within the StemmedTokenOverlap run, the index-0
-        // (education) systemutvecklare group must precede every operatör-sourced group.
+        // STEMMED candidates via a DISTINCTIVE stem (so both survive the group-spread
+        // gate): "Systemutvecklare" (index 0, education) and "Sjuksköterska" (index 1,
+        // experience — spread 2 < G). Within the StemmedTokenOverlap run, the index-0
+        // (education) systemutvecklare group must precede every sjuksköterska group.
+        // (Re-pointed from "Operatör": its bare generic token now fans out across too
+        // many groups and is correctly filtered to nothing — so it can no longer be the
+        // experience probe.)
         var ct = TestContext.Current.CancellationToken;
         var sut = NewDeriver();
         var (sysGroupId, _) = await SystemutvecklareGroupAsync(ct);
-        var operatorGroups = await GroupsReachedByAsync("Operatör", ct);
-        operatorGroups.ShouldNotBeEmpty("'Operatör' ska ge minst en stammad grupp.");
+        var experienceGroups = await GroupsReachedByAsync("Sjuksköterska", ct);
+        experienceGroups.ShouldNotBeEmpty(
+            "'Sjuksköterska' (distinkt stam) ska ge minst en stammad grupp — om den " +
+            "blir tom efter en snapshot-bump, peka om experiens-proben.");
 
-        var result = await sut.DeriveManyAsync(["Systemutvecklare", "Operatör"], ct);
+        var result = await sut.DeriveManyAsync(["Systemutvecklare", "Sjuksköterska"], ct);
 
         var sysIndex = IndexOfGroup(result, sysGroupId);
         sysIndex.ShouldBeGreaterThanOrEqualTo(0,
             "Utbildningstiteln 'Systemutvecklare' ska ge systemutvecklar-gruppen.");
-        // The systemutvecklare group (from index 0) precedes EVERY operatör-only group
+        // The systemutvecklare group (from index 0) precedes EVERY sjuksköterska group
         // (from index 1) — SourceOrder governs the order within the same match kind.
-        foreach (var opGroupId in operatorGroups.Where(g => g != sysGroupId))
+        foreach (var expGroupId in experienceGroups.Where(g => g != sysGroupId))
         {
-            var opIndex = IndexOfGroup(result, opGroupId);
-            if (opIndex >= 0)
-                sysIndex.ShouldBeLessThan(opIndex,
-                    $"Utbildningsgruppen (index 0) ska ranka före operatör-gruppen " +
-                    $"'{opGroupId}' (index 1) inom samma MatchKind.");
+            var expIndex = IndexOfGroup(result, expGroupId);
+            if (expIndex >= 0)
+                sysIndex.ShouldBeLessThan(expIndex,
+                    $"Utbildningsgruppen (index 0) ska ranka före experiens-gruppen " +
+                    $"'{expGroupId}' (index 1) inom samma MatchKind.");
         }
     }
 
@@ -537,28 +564,112 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeriveManyAsync_ManyMatchingTitles_NeverExceedsTotalCap()
     {
-        // Total cap (CTO Decision 6.7): the union across MANY high-overlap titles is
-        // still bounded by MaxCandidates (25) — a long CV cannot fan out the taxonomy.
-        // "chef" alone touches 8 distinct mapped groups in the live data; repeating it
-        // and adding more high-overlap 1-token titles stresses the union cap.
+        // Total cap (CTO Decision 6.7): the union across MANY titles is still bounded by
+        // MaxCandidates (25) — a long CV cannot fan out the taxonomy. Re-pointed from a
+        // list of generic 1-token titles (now filtered to nothing — the test would pass
+        // vacuously as 0 ≤ 25) to many DISTINCTIVE profession titles that genuinely
+        // produce groups, so the cap is really stressed.
         var ct = TestContext.Current.CancellationToken;
         var sut = NewDeriver();
         string[] titles =
         [
-            "chef", "ingenjör", "tekniker", "operatör", "lärare",
-            "sjuksköterska", "utvecklare", "konsult", "administratör", "assistent",
-            "samordnare", "specialist", "handläggare", "ledare", "analytiker",
+            "Advokat", "Förskollärare", "Arbetsförmedlare", "Mjukvaruutvecklare",
+            "Sjuksköterska", "Barnskötare", "Frisör", "Psykolog", "Tandläkare",
+            "Elektriker", "Snickare", "Svetsare", "Kock", "Veterinär", "Bibliotekarie",
         ];
 
         var result = await sut.DeriveManyAsync(titles, ct);
 
+        result.Candidates.ShouldNotBeEmpty(
+            "Unionen av distinktiva professionstitlar ska ge kandidater (annars är " +
+            "cap-stressen vakuös — peka om titlarna).");
         result.Candidates.Count.ShouldBeLessThanOrEqualTo(25,
-            "Unionen över många högöverlappande titlar får aldrig överskrida " +
+            "Unionen över många titlar får aldrig överskrida " +
             "MaxCandidates (25) — bounded cap, DoS-/UX-skydd.");
         // Still deduped per group even at the cap.
         var distinct = result.Candidates
             .Select(c => c.OccupationGroupConceptId).Distinct().Count();
         distinct.ShouldBe(result.Candidates.Count);
+    }
+
+    // =================================================================
+    // (g) Group-spread generic-token gate (Klas 2026-06-21, senior-cto-advisor
+    //     Variant C). A stemmed overlap survives only if grounded on a DISTINCTIVE
+    //     occupation-name token — one whose occupation-names stay within fewer than
+    //     MaxGroupSpread (G=4) distinct ssyk-4 groups. Drops the diagnosed bare-
+    //     "operatör" cross-group fan-out; keeps qualified titles + the education signal.
+    // =================================================================
+
+    // The SAME value the gate uses (internal const, InternalsVisibleTo) — no
+    // duplicated cutoff to drift out of sync with production.
+    private const int GroupSpreadCutoff = OccupationCodeDeriver.MaxGroupSpread;
+
+    [Fact]
+    public async Task DeriveAsync_QualifiedCncOperator_StillMatches_WhileBareOperatorIsFiltered()
+    {
+        // The per-shared-token gate is fine-grained (Variant C over the coarser
+        // whole-query Variant B): a QUALIFIED "CNC-operatör" survives on its distinctive
+        // "cnc" token (spread ~2 < G) even though it also shares the generic "operatör"
+        // (spread 7 >= G); the bare "Operatör", with only the generic token, reaches
+        // nothing. This is exactly Klas's diagnosed noise removed without collateral.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+
+        var qualified = await sut.DeriveAsync("CNC-operatör", ct);
+        qualified.Candidates.ShouldNotBeEmpty(
+            "Kvalificerad 'CNC-operatör' (distinkt 'cnc'-stam) ska fortfarande matcha.");
+
+        var bare = await sut.DeriveAsync("Operatör", ct);
+        bare.Candidates.ShouldBeEmpty(
+            "Bara generiska 'Operatör' (scattered token, spread ≥ G) ska filtreras bort.");
+    }
+
+    [Fact]
+    public async Task GroupSpreadGate_AnchorsBracketTheThreshold_AgainstLiveSnapshot()
+    {
+        // Pin G inside the empty band against the LIVE seeded snapshot (no hardcoded
+        // counts) so a snapshot bump that moved a token across G fails loud rather than
+        // silently re-leaking. Reads the real per-lexeme group-spread the gate uses and
+        // stems each anchor with the SAME analyzer the cache was built with — so the
+        // lookup is consistent. Asserts both the far anchors (operatör/systemutveckl)
+        // and the band edge (tekniker last-distinctive < G <= ingenjör first-generic).
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+        var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
+        var spread = await sut.GetGroupSpreadAsync(ct);
+
+        int SpreadOf(string word)
+        {
+            var lexemes = analyzer.ToLexemes(word, TextLanguage.Swedish).ToList();
+            lexemes.Count.ShouldBe(1,
+                $"'{word}' förväntas tokeniseras till exakt ETT lexem (band-ankare).");
+            return spread.GetValueOrDefault(lexemes[0]);
+        }
+
+        // Live-measured group-spreads against the seeded snapshot (2026-06-21):
+        //   distinctive (< G): systemutveckl 1, advokat 1, jurist 1, cnc 2,
+        //                      sjuksköterska 2, utvecklare 2, lärare 3
+        //   generic (>= G):    ingenjör 4, assistent 5, tekniker 5, operatör 7,
+        //                      chef 8, projektledare 14, maskinoperatör 17
+        // The empty band sits between lärare (3, last distinctive) and ingenjör
+        // (4, first generic) — G = 4 cuts there.
+
+        // Generic side — must be filtered (spread >= G). operatör is the diagnosed
+        // noise; ingenjör is the first-generic band witness.
+        SpreadOf("operatör").ShouldBeGreaterThanOrEqualTo(GroupSpreadCutoff,
+            "'operatör' (diagnostiserad brus, spread ~7) ska ligga på generisk sida.");
+        SpreadOf("maskinoperatör").ShouldBeGreaterThanOrEqualTo(GroupSpreadCutoff,
+            "'maskinoperatör' (scattered komposit, spread ~17) ska vara generisk.");
+        SpreadOf("ingenjör").ShouldBeGreaterThanOrEqualTo(GroupSpreadCutoff,
+            "'ingenjör' (första generiska, spread ~4) ska ligga på/över bandet.");
+        // Distinctive side — must survive (spread < G). systemutveckl is the wanted
+        // education signal; lärare is the last-distinctive band witness.
+        SpreadOf("systemutvecklare").ShouldBeLessThan(GroupSpreadCutoff,
+            "'systemutveckl' (utbildningssignalen, spread ~1) ska vara distinkt.");
+        SpreadOf("cnc").ShouldBeLessThan(GroupSpreadCutoff,
+            "'cnc' (kvalificerare, spread ~2) ska vara distinkt.");
+        SpreadOf("lärare").ShouldBeLessThan(GroupSpreadCutoff,
+            "'lärare' (sista distinktiva, spread ~3) ska ligga under bandet.");
     }
 
     // ---------------------------------------------------------------

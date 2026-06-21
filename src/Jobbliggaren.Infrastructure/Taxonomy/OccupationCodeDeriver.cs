@@ -13,7 +13,12 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// <item>exact normalized (OrdinalIgnoreCase, NO diacritic folding — Decision 4);</item>
 /// <item>stemmed token-overlap via the F4-2 NLP tier
 /// (<see cref="ITextAnalyzer.ToLexemes"/>, Snowball — <c>to_tsvector('swedish')</c>
-/// parity).</item>
+/// parity), gated so the overlap must rest on at least one DISTINCTIVE
+/// occupation-name token (one whose occupation-names stay within fewer than
+/// <see cref="MaxGroupSpread"/> distinct ssyk-4 groups) — a stemmed match grounded
+/// solely on a scattered word (the bare "operatör", whose occupation-names fan out
+/// across 7 unrelated groups) is low-precision cross-group fan-out and is dropped
+/// (Klas 2026-06-21; senior-cto-advisor Variant C). Exact hits are never gated.</item>
 /// </list>
 /// Each occupation-name hit is resolved up to its ssyk-level-4 yrkesgrupp via the
 /// committed frozen map (<see cref="OccupationGroupMappingLoader"/>), deduplicated
@@ -38,6 +43,30 @@ internal sealed class OccupationCodeDeriver(
     // anyway, and exact hits (few) always survive (they rank first). Documented per
     // the no-silent-cap discipline.
     private const int MaxCandidates = 25;
+
+    // Generic-token cutoff for the stemmed pass (Klas 2026-06-21; senior-cto-advisor
+    // Variant C). An occupation-name lexeme whose matchable occupation-names fan out
+    // across >= this many DISTINCT ssyk-4 groups is "generic": a stemmed overlap
+    // grounded SOLELY on such tokens is low-precision cross-group fan-out and is
+    // dropped. Group-spread measures the diagnosed harm (cross-group fan-out)
+    // DIRECTLY — document-frequency only correlates with it, and on the real
+    // lexeme-level corpus the DF axis has no empty band (operatör DF≈7, assistent≈5,
+    // ingenjör/tekniker/lärare≈4 — a guess disguised as a threshold). Group-spread,
+    // measured over the 2153 mapped occupation-name entries, does (live values
+    // 2026-06-21): scattered/noise tokens span many groups (operatör 7, chef 8,
+    // tekniker 5, assistent 5, ingenjör 4, projektledare 14, maskinoperatör 17) while
+    // focused/signal tokens span few (systemutveckl 1, advokat 1, jurist 1, cnc 2,
+    // sjuksköterska 2, utvecklare 2, lärare 3). The empty band sits between spread 3
+    // (lärare, last distinctive) and spread 4 (ingenjör, first generic) — 4 cuts there.
+    // GroupSpreadGate_AnchorsBracketTheThreshold (integration test) pins the anchors
+    // around G against the live snapshot so a future bump fails loud, never silently
+    // re-leaks. Build pattern mirrors SkillTaxonomyIndex (reuse — CLAUDE.md §9.1).
+    // Explainable gate over a cited quantity ("token points to N unrelated
+    // occupations"), not an opaque score (CLAUDE.md §5).
+    // internal (not private) so the band-witness test reads the SAME value the gate
+    // uses — no duplicated test constant to drift out of sync (InternalsVisibleTo
+    // Api.IntegrationTests; code-reviewer + dotnet-architect Minor).
+    internal const int MaxGroupSpread = 4;
 
     // Cached once on first use; a fault leaves it null so the next call retries
     // (parity with TaxonomyReadModel — no permanent fail-cache).
@@ -100,6 +129,17 @@ internal sealed class OccupationCodeDeriver(
             {
                 foreach (var entry in cache.AllEntries)
                 {
+                    // Group-spread gate (CTO Variant C): the overlap must rest on at
+                    // least one DISTINCTIVE occupation-name token — one whose
+                    // occupation-names stay within fewer than MaxGroupSpread distinct
+                    // ssyk-4 groups. An overlap grounded only on a scattered token (the
+                    // bare "operatör", whose occupation-names fan out across 7 unrelated
+                    // groups) is low-precision cross-group fan-out → dropped before it can
+                    // become a candidate. Exact Pass-1 hits above are never gated.
+                    if (!HasDistinctiveSharedToken(
+                            titleLexemes, entry.LabelLexemes, cache.GroupSpread))
+                        continue;
+
                     var overlap = 0;
                     foreach (var lexeme in titleLexemes)
                     {
@@ -164,6 +204,32 @@ internal sealed class OccupationCodeDeriver(
         return string.CompareOrdinal(candidate.MatchedOn, current.MatchedOn) < 0;
     }
 
+    // The stemmed-pass survival predicate (CTO Variant C, G = MaxGroupSpread): a
+    // stemmed overlap survives iff the title shares at least one occupation-name
+    // lexeme that is DISTINCTIVE — its occupation-names stay within fewer than
+    // MaxGroupSpread distinct ssyk-4 groups. The dropped reason is fully derivable
+    // from this shape: an overlap with no distinctive shared token rests entirely on
+    // scattered tokens (the bare "operatör", whose occupation-names fan out across
+    // 7 unrelated groups) and is excluded as low-precision cross-group fan-out.
+    // Explainable boolean gate over a cited quantity ("token points to N unrelated
+    // occupations") — never an opaque score (CLAUDE.md §5; ADR 0040/0074 transparency
+    // invariant).
+    private static bool HasDistinctiveSharedToken(
+        IReadOnlySet<string> titleLexemes,
+        IReadOnlySet<string> labelLexemes,
+        IReadOnlyDictionary<string, int> groupSpread)
+    {
+        foreach (var lexeme in titleLexemes)
+        {
+            if (labelLexemes.Contains(lexeme)
+                && groupSpread.GetValueOrDefault(lexeme) < MaxGroupSpread)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private async ValueTask<DerivationCache> GetCacheAsync(CancellationToken ct)
     {
         var cached = Volatile.Read(ref _cached);
@@ -179,6 +245,15 @@ internal sealed class OccupationCodeDeriver(
         Volatile.Write(ref _cached, task);
         return cache;
     }
+
+    // Test-only seam (InternalsVisibleTo Api.IntegrationTests): the frozen per-lexeme
+    // group-spread the gate reads. Lets the band-witness test pin the anchors around
+    // MaxGroupSpread against the LIVE seeded snapshot (no hardcoded counts) so a
+    // snapshot bump that moved a token across G fails loud rather than silently
+    // re-leaking. Production callers use DeriveManyAsync only.
+    internal async ValueTask<IReadOnlyDictionary<string, int>> GetGroupSpreadAsync(
+        CancellationToken cancellationToken) =>
+        (await GetCacheAsync(cancellationToken)).GroupSpread;
 
     private async Task<DerivationCache> BuildAsync(CancellationToken ct)
     {
@@ -220,7 +295,27 @@ internal sealed class OccupationCodeDeriver(
                 g => (IReadOnlyList<NameEntry>)g.ToList(),
                 StringComparer.OrdinalIgnoreCase);
 
-        return new DerivationCache(byExactLabel, entries);
+        // Group-spread per occupation-name lexeme: the number of DISTINCT ssyk-4
+        // groups the lexeme's occupation-names fan out to. Built in one pass over the
+        // same bounded entries (same build-pattern as SkillTaxonomyIndex.BuildIndex's
+        // df map, value type HashSet<groupId> instead of int), then projected to the
+        // group COUNT and frozen on the cache. Drives the stemmed-pass generic-token
+        // gate — a high-spread lexeme ("operatör" → 7 groups) is generic, a low-spread
+        // one ("systemutveckl" → 1 group) is distinctive.
+        var groupSpreadSets = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var entry in entries)
+        {
+            foreach (var lexeme in entry.LabelLexemes)
+            {
+                if (!groupSpreadSets.TryGetValue(lexeme, out var groups))
+                    groupSpreadSets[lexeme] = groups = new HashSet<string>(StringComparer.Ordinal);
+                groups.Add(entry.GroupConceptId);
+            }
+        }
+        var groupSpread = groupSpreadSets.ToDictionary(
+            kv => kv.Key, kv => kv.Value.Count, StringComparer.Ordinal);
+
+        return new DerivationCache(byExactLabel, entries, groupSpread);
     }
 
     // One matchable occupation-name: its label (exact lookup + cited evidence), the
@@ -234,7 +329,11 @@ internal sealed class OccupationCodeDeriver(
 
     private sealed record DerivationCache(
         IReadOnlyDictionary<string, IReadOnlyList<NameEntry>> ByExactLabel,
-        IReadOnlyList<NameEntry> AllEntries);
+        IReadOnlyList<NameEntry> AllEntries,
+        // Occupation-name lexeme → group-spread (how many distinct ssyk-4 groups its
+        // occupation-names fan out to). Frozen reference data — the stemmed pass reads
+        // it to drop overlaps grounded only on scattered (high-spread) tokens.
+        IReadOnlyDictionary<string, int> GroupSpread);
 
     private readonly record struct RawMatch(
         string GroupConceptId,

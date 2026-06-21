@@ -162,9 +162,11 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     );
 
+    // Wizarden öppnas (sekventiellt efter att välkomsten stängts). Cookien sätts
+    // INTE här utan när wizarden stängs (annars re-rendrar server-actionen RSC:n
+    // och avmonterar modalen innan wizarden hinner öppnas).
     expect(await screen.findByText("Steg 1 av 4")).toBeInTheDocument();
-    // Cookien markeras sedd (wizarden öppnas → välkomsten ska inte nagga igen).
-    await waitFor(() => expect(markSeenMock).toHaveBeenCalled());
+    expect(markSeenMock).not.toHaveBeenCalled();
   });
 });
 

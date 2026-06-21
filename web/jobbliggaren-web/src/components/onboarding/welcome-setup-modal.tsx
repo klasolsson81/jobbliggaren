@@ -104,27 +104,30 @@ export function WelcomeSetupModal({
   }
 
   /**
-   * Öppna wizarden (welcome step 2). Markera sedd HÄR (användaren har engagerat
-   * sig → naggar aldrig igen, även om wizarden avbryts) men UTAN router.refresh:
-   * en refresh skulle om-evaluera `showWelcome=false` på servern och AVMONTERA
-   * hela modalen (inkl. wizarden) mitt i övergången välkomst→wizard — då
-   * försvann modalen och inget öppnades (buggen Klas såg). Cookien räcker; sidan
-   * uppdateras när wizarden stängs (dess onOpenChange nedan).
+   * Öppna wizarden (welcome step 2). TVÅ fällor, båda verifierade i browser:
+   *
+   * 1. Sätt INTE cookien här. `markSetupWelcomeSeen` är en Server Action, och
+   *    Next re-renderar den aktuella routens RSC efter varje server-action →
+   *    /oversikt om-evaluerar `showWelcome=false` (cookien satt) → HELA
+   *    WelcomeSetupModal avmonteras innan wizarden hinner öppnas (symptom: 0
+   *    dialoger efter "Ja"). Cookien sätts i stället när wizarden STÄNGS.
+   * 2. Toggla inte två Radix-dialoger i SAMMA commit. Stäng välkomsten först
+   *    (open=false → Radix Presence avmonterar overlayn rent) och öppna wizarden
+   *    EFTER en kort fördröjning (>stäng-animationen) — annars lämnas en orphan
+   *    aria-hidden-overlay som blockerar wizarden.
    */
   function openWizard() {
     setWelcomeOpen(false);
-    setWizardOpen(true);
-    startTransition(async () => {
-      await markSetupWelcomeSeen();
-    });
+    window.setTimeout(() => setWizardOpen(true), 320);
   }
 
   return (
     <>
-      {/* Bara EN Radix-dialog i trädet åt gången: när wizarden öppnas tas
-          välkomsten UR trädet (ej bara open=false). Annars togglas två dialoger
-          samtidigt → focus/scroll-lock-krock → välkomsten stängs men wizarden
-          monteras aldrig synligt (buggen Klas såg). */}
+      {/* Aldrig två öppna Radix-dialoger samtidigt. openWizard stänger denna
+          FÖRST (open=false, ren Presence-avmontering) och öppnar wizarden efter
+          en fördröjning. `!wizardOpen`-gaten är belt-and-suspenders — vid den
+          tidpunkten har välkomsten redan stängts klart, så detta avmonterar
+          aldrig en öppen dialog (ingen orphan-overlay). */}
       {!wizardOpen && (
         <Dialog
           open={welcomeOpen}
@@ -216,14 +219,21 @@ export function WelcomeSetupModal({
       )}
 
       {/* Wizarden (welcome step 2) — samma komponent som /cv-prompten öppnar,
-          två ingångar (ADR 0077). Cookien sattes redan i openWizard. När wizarden
-          STÄNGS (spara eller avbryt) är flödet klart → router.refresh uppdaterar
-          /oversikt (prefs satta + cookie satt → välkomsten visas inte igen). */}
+          två ingångar (ADR 0077). Cookien sätts HÄR när wizarden stängs (spara
+          eller avbryt) — INTE i openWizard (server-action där hade re-renderat
+          RSC:n och avmonterat modalen innan wizarden öppnats). Server-actionen
+          re-rendrar /oversikt (showWelcome=false) så välkomsten inte återkommer;
+          router.refresh är belt-and-suspenders. */}
       <MatchSetupWizard
         open={wizardOpen}
         onOpenChange={(next) => {
           setWizardOpen(next);
-          if (!next) startTransition(() => router.refresh());
+          if (!next) {
+            startTransition(async () => {
+              await markSetupWelcomeSeen();
+              router.refresh();
+            });
+          }
         }}
         occupationFields={occupationFields}
         regions={regions}

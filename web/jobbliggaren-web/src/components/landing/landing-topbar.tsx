@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { LogIn } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { formatLandingNumber, type LandingStats } from "./landing-stats-format";
@@ -26,22 +27,25 @@ import { formatLandingNumber, type LandingStats } from "./landing-stats-format";
  */
 export function LandingTopbar({ stats }: { stats: LandingStats }) {
   const { activeCount, newToday } = stats;
+  const t = useTranslations("landing");
   return (
     <header className="jp-land-top">
       <div className="jp-land-top__inner">
-        <Link href="/" className="jp-brand" aria-label="Jobbliggaren, startsida">
+        <Link href="/" className="jp-brand" aria-label={t("brand.homeAriaLabel")}>
           <BrandLogo />
         </Link>
         <div className="jp-land-top__right">
           <div
             className="jp-land-top__stats"
-            aria-label="Liveräkning från Platsbanken"
+            aria-label={t("topbar.statsAriaLabel")}
           >
             <div className="jp-land-top__stat">
               <span className="jp-land-top__stat__num">
                 {formatLandingNumber(activeCount)}
               </span>
-              <span className="jp-land-top__stat__label">aktiva annonser</span>
+              <span className="jp-land-top__stat__label">
+                {t("topbar.activeAdsLabel")}
+              </span>
             </div>
             <span
               className="jp-land-top__stat__sep"
@@ -52,12 +56,14 @@ export function LandingTopbar({ stats }: { stats: LandingStats }) {
               <span className="jp-land-top__stat__num">
                 {formatLandingNumber(newToday)}
               </span>
-              <span className="jp-land-top__stat__label">nya idag</span>
+              <span className="jp-land-top__stat__label">
+                {t("topbar.newTodayLabel")}
+              </span>
             </div>
           </div>
           <Link href="/logga-in" className="jp-land-top__link">
             <LogIn size={16} aria-hidden="true" />
-            Logga in
+            {t("common.loginLink")}
           </Link>
         </div>
       </div>

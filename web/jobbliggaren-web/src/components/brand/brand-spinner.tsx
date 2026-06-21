@@ -4,14 +4,22 @@
 // (klasser i globals.css, ingen JS/lib). prefers-reduced-motion → stillastående sigill.
 // a11y: role="status" + aria-live + sr-only-text; SVG aria-hidden.
 
+import { useTranslations } from "next-intl";
+
 export interface BrandSpinnerProps {
   /** Diameter i px. Default 48. */
   size?: number;
-  /** Status-text för skärmläsare. Default "Laddar". */
+  /**
+   * Status-text för skärmläsare. Default = `landing.brand.spinnerLabel`
+   * ("Laddar"). Default löses via next-intl i kroppen eftersom hooks inte kan
+   * köras i ett parameter-default-uttryck. Sync RSC → synkron resolve.
+   */
   label?: string;
 }
 
-export function BrandSpinner({ size = 48, label = "Laddar" }: BrandSpinnerProps) {
+export function BrandSpinner({ size = 48, label }: BrandSpinnerProps) {
+  const t = useTranslations("landing");
+  const statusLabel = label ?? t("brand.spinnerLabel");
   return (
     <span role="status" aria-live="polite">
       <svg
@@ -71,7 +79,7 @@ export function BrandSpinner({ size = 48, label = "Laddar" }: BrandSpinnerProps)
           strokeLinejoin="round"
         />
       </svg>
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{statusLabel}</span>
     </span>
   );
 }

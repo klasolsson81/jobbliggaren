@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { CreateResumeForm } from "@/components/resumes/create-resume-form";
 import { RouteModalShell } from "@/components/modals/route-modal-shell";
@@ -22,10 +23,12 @@ export default async function InterceptedCvNyModal() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
+
   return (
     <RouteModalShell
-      title="Nytt CV"
-      description="Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt fullständiga namn. Du kan ändra resten senare."
+      title={t("cv.new.title")}
+      description={t("cv.new.modalDescription")}
     >
       <div className="jp-modal__body">
         <CreateResumeForm />

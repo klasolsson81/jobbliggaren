@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import {
   saveJobAdAction,
@@ -37,6 +38,7 @@ export function SaveJobAdToggle({
   initialSaved,
   variant = "default",
 }: SaveJobAdToggleProps) {
+  const t = useTranslations("jobads.saved.toggle");
   const [saved, setSaved] = useState(initialSaved);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -58,10 +60,8 @@ export function SaveJobAdToggle({
     });
   }
 
-  const label = saved ? "Sparad" : "Spara";
-  const ariaLabel = saved
-    ? "Ta bort bokmärke för annonsen"
-    : "Spara annonsen som bokmärke";
+  const label = saved ? t("saved") : t("save");
+  const ariaLabel = saved ? t("removeAria") : t("saveAria");
   const Icon = saved ? BookmarkCheck : Bookmark;
   const opacity = isPending ? 0.7 : 1;
 

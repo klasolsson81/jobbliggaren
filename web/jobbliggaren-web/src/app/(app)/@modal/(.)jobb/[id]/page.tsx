@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
@@ -30,6 +31,7 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const { id } = await params;
   const result = await getJobAd(id);
 
@@ -63,11 +65,12 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
       notFound();
     case "rateLimited":
       return (
-        <JobAdModalShell title="För många förfrågningar" company="">
+        <JobAdModalShell title={t("common.rateLimitedTitle")} company="">
           <div className="jp-modal__body">
             <p className="text-body-sm text-text-secondary">
-              Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-              {result.retryAfterSeconds} sekunder.
+              {t("common.rateLimitedBody", {
+                seconds: result.retryAfterSeconds,
+              })}
             </p>
           </div>
           <div className="jp-modal__foot">
@@ -78,10 +81,10 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
     case "forbidden":
     case "error":
       return (
-        <JobAdModalShell title="Kunde inte ladda annonsen" company="">
+        <JobAdModalShell title={t("jobb.detail.loadErrorTitle")} company="">
           <div className="jp-modal__body">
             <p className="text-body-sm text-text-secondary">
-              Ett tekniskt fel uppstod. Försök igen om en stund.
+              {t("common.errorBodyRetry")}
             </p>
           </div>
           <div className="jp-modal__foot">

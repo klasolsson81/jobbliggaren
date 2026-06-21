@@ -14,7 +14,7 @@ vi.mock("@/lib/env", () => ({
 // namespace-aware translator over the Swedish catalogs (source of truth) —
 // verbatim messages keep flowing, identical to production.
 vi.mock("next-intl/server", () => ({
-  getTranslations: async (namespace?: string) =>
+  getTranslations: async (namespace?: "validation" | "resumes.actions") =>
     createTranslator({
       locale: "sv",
       messages: { validation: svValidation, resumes: svResumes },

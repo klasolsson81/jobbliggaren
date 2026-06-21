@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { assertNever } from "@/lib/dto/_helpers";
 import { RecentSearchList } from "@/components/recent-searches/recent-search-list";
+
+type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 
 /**
  * ADR 0060 — Senaste sökningar (auto-fångade). Tidigare SavedSearch-listrender
@@ -16,24 +19,25 @@ export default async function SokningarPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const result = await getRecentSearches();
 
   return (
     <div className="flex flex-col">
       <div>
-        <h1 className="jp-h1">Senaste sökningar</h1>
-        <p className="jp-lede">
-          Sökningar du gjort under Jobb. Klicka för att köra om en sökning, eller
-          ta bort den du inte behöver.
-        </p>
+        <h1 className="jp-h1">{t("sokningar.title")}</h1>
+        <p className="jp-lede">{t("sokningar.lede")}</p>
       </div>
 
-      <div className="mt-7">{renderResult(result)}</div>
+      <div className="mt-7">{renderResult(result, t)}</div>
     </div>
   );
 }
 
-function renderResult(result: Awaited<ReturnType<typeof getRecentSearches>>) {
+function renderResult(
+  result: Awaited<ReturnType<typeof getRecentSearches>>,
+  t: PagesTranslator
+) {
   switch (result.kind) {
     case "ok":
       return <RecentSearchList items={result.data} />;
@@ -46,11 +50,12 @@ function renderResult(result: Awaited<ReturnType<typeof getRecentSearches>>) {
           className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
         >
           <p className="text-body font-medium text-warning-700">
-            För många förfrågningar
+            {t("common.rateLimitedTitle")}
           </p>
           <p className="mt-1 text-body-sm text-warning-700">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
+            {t("common.rateLimitedBody", {
+              seconds: result.retryAfterSeconds,
+            })}
           </p>
         </div>
       );
@@ -60,11 +65,9 @@ function renderResult(result: Awaited<ReturnType<typeof getRecentSearches>>) {
       return (
         <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
           <p className="text-body font-medium">
-            Kunde inte ladda senaste sökningar
+            {t("sokningar.loadErrorTitle")}
           </p>
-          <p className="mt-1 text-body-sm">
-            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
-          </p>
+          <p className="mt-1 text-body-sm">{t("common.errorBodyReload")}</p>
         </div>
       );
     default:

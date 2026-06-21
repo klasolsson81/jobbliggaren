@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getParsedResume, getCvImprovements } from "@/lib/api/resumes";
@@ -35,6 +36,7 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const { parsedId } = await params;
   const { profile: rawProfile } = await searchParams;
 
@@ -62,10 +64,11 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
     case "rateLimited":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">För många förfrågningar</h1>
+          <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {parsedResult.retryAfterSeconds} sekunder.
+            {t("common.rateLimitedBody", {
+              seconds: parsedResult.retryAfterSeconds,
+            })}
           </p>
         </div>
       );
@@ -73,17 +76,14 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
     case "error":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">Kunde inte ladda förbättringsförslagen</h1>
-          <p className="jp-lede">
-            Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka
-            till granskningen.
-          </p>
+          <h1 className="jp-h1">{t("cv.improve.loadErrorTitle")}</h1>
+          <p className="jp-lede">{t("cv.improve.errorBody")}</p>
           <div>
             <Link
               href={`/cv/granska/${parsedId}`}
               className="jp-btn jp-btn--secondary"
             >
-              Tillbaka till granskningen
+              {t("cv.improve.backLink")}
             </Link>
           </div>
         </div>
@@ -111,17 +111,12 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
         className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
       >
         <ChevronLeft size={16} aria-hidden="true" />
-        <span>Tillbaka till granskningen</span>
+        <span>{t("cv.improve.backLink")}</span>
       </Link>
 
       <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">Förbättra importerat CV</h1>
-        <p className="jp-lede">
-          Det här är deterministiska förbättringsförslag för ditt importerade CV.
-          Inget har ändrats i filen. Varje förslag visar en före-och-efter-
-          ändring med citerad evidens ur din egen text. Du väljer själv vad du
-          tar med när du skriver ditt CV.
-        </p>
+        <h1 className="jp-h1">{t("cv.improve.title")}</h1>
+        <p className="jp-lede">{t("cv.improve.lede")}</p>
       </header>
 
       <div className="jp-cv-preview-actions">

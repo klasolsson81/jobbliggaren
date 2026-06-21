@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getParsedResume } from "@/lib/api/resumes";
@@ -23,6 +24,7 @@ export default async function CvGapFillPage({ params }: Props) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const { parsedId } = await params;
   const result = await getParsedResume(parsedId);
 
@@ -36,10 +38,11 @@ export default async function CvGapFillPage({ params }: Props) {
     case "rateLimited":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">För många förfrågningar</h1>
+          <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
+            {t("common.rateLimitedBody", {
+              seconds: result.retryAfterSeconds,
+            })}
           </p>
         </div>
       );
@@ -47,17 +50,14 @@ export default async function CvGapFillPage({ params }: Props) {
     case "error":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">Kunde inte ladda CV:t</h1>
-          <p className="jp-lede">
-            Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka
-            till granskningen.
-          </p>
+          <h1 className="jp-h1">{t("cv.gapFill.loadErrorTitle")}</h1>
+          <p className="jp-lede">{t("cv.gapFill.errorBody")}</p>
           <div>
             <Link
               href={`/cv/granska/${parsedId}`}
               className="jp-btn jp-btn--secondary"
             >
-              Tillbaka till granskningen
+              {t("cv.gapFill.backLink")}
             </Link>
           </div>
         </div>
@@ -75,16 +75,12 @@ export default async function CvGapFillPage({ params }: Props) {
         className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
       >
         <ChevronLeft size={16} aria-hidden="true" />
-        <span>Tillbaka till granskningen</span>
+        <span>{t("cv.gapFill.backLink")}</span>
       </Link>
 
       <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">Komplettera och spara CV</h1>
-        <p className="jp-lede">
-          Vi har fyllt i det parsern hittade i din fil. Komplettera de fält som
-          krävs (särskilt datum, som parsern aldrig gissar) och spara för att
-          skapa ditt CV.
-        </p>
+        <h1 className="jp-h1">{t("cv.gapFill.title")}</h1>
+        <p className="jp-lede">{t("cv.gapFill.lede")}</p>
       </header>
 
       <CvGapFillForm

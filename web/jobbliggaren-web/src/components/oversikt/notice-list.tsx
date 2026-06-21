@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { NoticeRow, type NoticeData } from "./notice-row";
 
@@ -65,6 +66,7 @@ export function NoticeList({
   infoNotices,
   lastUpdated,
 }: NoticeListProps) {
+  const t = useTranslations("oversikt");
   const storedRaw = useSyncExternalStore(
     subscribeStorage,
     getDismissedSnapshot,
@@ -148,10 +150,13 @@ export function NoticeList({
     <section className="jp-section" aria-labelledby="oversikt-notiser">
       <div className="jp-section__head">
         <h2 className="jp-section__title" id="oversikt-notiser">
-          Notiser
+          {t("notices.title")}
         </h2>
         <span className="jp-section__count">
-          senast uppdaterad <span className="jp-mono">{lastUpdated}</span>
+          {t.rich("notices.lastUpdated", {
+            date: lastUpdated,
+            mono: (chunks) => <span className="jp-mono">{chunks}</span>,
+          })}
         </span>
         <span style={{ flex: 1 }} />
         {hasDismissibleVisible && (
@@ -160,23 +165,24 @@ export function NoticeList({
             className="jp-btn jp-btn--ghost jp-btn--sm"
             onClick={dismissAll}
           >
-            <Check size={14} aria-hidden="true" /> Markera alla som lästa
+            <Check size={14} aria-hidden="true" /> {t("notices.markAllRead")}
           </button>
         )}
       </div>
 
       {visibleCount === 0 ? (
         <div className="jp-empty">
-          <div className="jp-empty__title">Inga olästa notiser</div>
-          Inkorgen är tom. Du får besked så snart det händer något i ditt
-          ärende.
+          <div className="jp-empty__title">{t("notices.emptyTitle")}</div>
+          {t("notices.emptyBody")}
         </div>
       ) : (
         <>
           {visibleAction.length > 0 && (
             <>
               <div className="jp-notice-group">
-                <span className="jp-notice-group__title">Kräver åtgärd</span>
+                <span className="jp-notice-group__title">
+                  {t("notices.groupAction")}
+                </span>
                 <span className="jp-notice-group__count">
                   {visibleAction.length}
                 </span>
@@ -191,7 +197,9 @@ export function NoticeList({
           {visibleInfo.length > 0 && (
             <>
               <div className="jp-notice-group jp-notice-group--info">
-                <span className="jp-notice-group__title">Information</span>
+                <span className="jp-notice-group__title">
+                  {t("notices.groupInfo")}
+                </span>
                 <span className="jp-notice-group__count">
                   {visibleInfo.length}
                 </span>

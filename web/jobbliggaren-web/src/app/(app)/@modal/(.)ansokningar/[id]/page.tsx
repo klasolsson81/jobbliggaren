@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { ApplicationDetail } from "@/components/applications/application-detail";
@@ -35,6 +36,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const { id } = await params;
   const result = await getApplicationById(id);
 
@@ -46,13 +48,18 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       const hasIdentity = jobAd != null;
       const title = hasIdentity
         ? jobAd.title
-        : `Ansökan #${shortId}`;
+        : t("ansokningar.detail.fallbackTitle", { shortId });
       // !hasIdentity: titel = "Ansökan #shortId"-fallback; ekas EJ som
       // subtitle (duplikat). Skapad-datum = informativ metadata istället
       // (design-reviewer F5 Major #2 2026-05-20).
       const subtitle = hasIdentity
-        ? `${jobAd.company} · #${shortId}`
-        : `Skapad ${formatSvDate(application.createdAt) ?? ""}`.trim();
+        ? t("ansokningar.detail.subtitle", {
+            company: jobAd.company,
+            shortId,
+          })
+        : t("ansokningar.detail.createdSubtitle", {
+            date: formatSvDate(application.createdAt) ?? "",
+          }).trim();
       const canWithdraw = getAllowedTransitions(
         application.status
       ).includes("Withdrawn");
@@ -81,11 +88,15 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       notFound();
     case "rateLimited":
       return (
-        <ApplicationModalShell title="För många förfrågningar" subtitle="">
+        <ApplicationModalShell
+          title={t("common.rateLimitedTitle")}
+          subtitle=""
+        >
           <div className="jp-modal__body">
             <p className="text-body-sm text-text-secondary">
-              Du har gjort för många förfrågningar på kort tid. Försök igen
-              om {result.retryAfterSeconds} sekunder.
+              {t("common.rateLimitedBody", {
+                seconds: result.retryAfterSeconds,
+              })}
             </p>
           </div>
         </ApplicationModalShell>
@@ -93,10 +104,13 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
     case "forbidden":
     case "error":
       return (
-        <ApplicationModalShell title="Kunde inte ladda ansökan" subtitle="">
+        <ApplicationModalShell
+          title={t("ansokningar.detail.loadErrorTitle")}
+          subtitle=""
+        >
           <div className="jp-modal__body">
             <p className="text-body-sm text-text-secondary">
-              Ett tekniskt fel uppstod. Försök igen om en stund.
+              {t("common.errorBodyRetry")}
             </p>
           </div>
         </ApplicationModalShell>

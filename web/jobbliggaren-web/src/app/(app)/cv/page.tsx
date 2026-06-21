@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { Plus, Upload } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getResumes } from "@/lib/api/resumes";
@@ -32,6 +33,8 @@ export default async function CvListPage({
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
+
   // Post-promote-prompten (design C.3) visas när /cv öppnas med ?matchning=1
   // — sätts av promote-/upload-flödet vid redirect hit. Annars dold.
   const { matchning } = await searchParams;
@@ -57,10 +60,11 @@ export default async function CvListPage({
     case "rateLimited":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">För många förfrågningar</h1>
+          <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
+            {t("common.rateLimitedBody", {
+              seconds: result.retryAfterSeconds,
+            })}
           </p>
         </div>
       );
@@ -69,10 +73,8 @@ export default async function CvListPage({
     case "error":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">Kunde inte ladda CV</h1>
-          <p className="jp-lede">
-            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
-          </p>
+          <h1 className="jp-h1">{t("cv.loadErrorTitle")}</h1>
+          <p className="jp-lede">{t("common.errorBodyReload")}</p>
         </div>
       );
     default:
@@ -92,23 +94,19 @@ export default async function CvListPage({
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <h1 className="jp-pagehero__title">CV</h1>
-            <p className="jp-pagehero__lede">
-              Hantera dina CV-varianter. Importera ett befintligt CV för en
-              granskning, eller skapa ett nytt från grunden. Du behåller alltid
-              kontrollen.
-            </p>
+            <h1 className="jp-pagehero__title">{t("cv.title")}</h1>
+            <p className="jp-pagehero__lede">{t("cv.lede")}</p>
           </div>
           <div className="jp-pagehero__aside">
             {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
                 med /jobb-bannerns vita kontroller. */}
             <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
               <Upload size={16} aria-hidden="true" />
-              <span>Importera CV</span>
+              <span>{t("cv.importCv")}</span>
             </Link>
             <Link href="/cv/ny" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" />
-              <span>Nytt CV</span>
+              <span>{t("cv.newCv")}</span>
             </Link>
           </div>
         </div>
@@ -122,11 +120,8 @@ export default async function CvListPage({
         {taxonomy !== null && profile !== null && sorted.length > 0 && (
           <div className="jp-cvmatch-bar">
             <div className="jp-cvmatch-bar__lead">
-              <p className="jp-cvmatch-bar__title">Matchning mot ditt CV</p>
-              <p className="jp-cvmatch-bar__text">
-                Ställ in vilka yrken, regioner och anställningsformer du söker.
-                Vi föreslår utifrån ditt CV. Du väljer själv vad som tas med.
-              </p>
+              <p className="jp-cvmatch-bar__title">{t("cv.matchBarTitle")}</p>
+              <p className="jp-cvmatch-bar__text">{t("cv.matchBarText")}</p>
             </div>
             <CvMatchSetup
               occupationFields={taxonomy.occupationFields}
@@ -144,19 +139,15 @@ export default async function CvListPage({
 
         {sorted.length === 0 ? (
           <div className="jp-empty">
-            <div className="jp-empty__kicker">CV-varianter</div>
-            <div className="jp-empty__title">Inga CV ännu</div>
-            <p className="jp-empty__body">
-              Skapa ditt första CV för att komma igång. Du kan ha flera
-              varianter (t.ex. en för ledarskap och en för teknisk roll)
-              och välja rätt CV per ansökan.
-            </p>
+            <div className="jp-empty__kicker">{t("cv.emptyKicker")}</div>
+            <div className="jp-empty__title">{t("cv.emptyTitle")}</div>
+            <p className="jp-empty__body">{t("cv.emptyBody")}</p>
             <div className="jp-empty__actions">
               <Link href="/cv/ny" className="jp-btn jp-btn--primary">
-                <Plus size={14} aria-hidden="true" /> Skapa första CV
+                <Plus size={14} aria-hidden="true" /> {t("cv.emptyCreateFirst")}
               </Link>
               <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
-                <Upload size={14} aria-hidden="true" /> Importera CV
+                <Upload size={14} aria-hidden="true" /> {t("cv.importCv")}
               </Link>
             </div>
           </div>

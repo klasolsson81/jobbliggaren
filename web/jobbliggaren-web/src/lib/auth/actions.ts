@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { deleteSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import {
@@ -40,12 +41,13 @@ export async function loginAction(
   _prevState: AuthActionState,
   formData: FormData
 ): Promise<AuthActionState> {
+  const t = await getTranslations("pages");
   const email = formData.get("email") as string | null;
   const password = formData.get("password") as string | null;
   const next = safeRedirectPath(formData.get("next") as string | null);
 
   if (!email || !password) {
-    return { error: "E-post och lösenord krävs." };
+    return { error: t("auth.actions.credentialsRequired") };
   }
 
   let sessionId: string;
@@ -59,10 +61,10 @@ export async function loginAction(
     });
 
     if (res.status === 401) {
-      return { error: "Inloggningen misslyckades. Kontrollera e-post och lösenord." };
+      return { error: t("auth.actions.loginFailed") };
     }
     if (!res.ok) {
-      return { error: "Ett oväntat fel uppstod. Försök igen." };
+      return { error: t("auth.actions.unexpectedError") };
     }
 
     const data = await parseResponse(
@@ -72,7 +74,7 @@ export async function loginAction(
     );
     sessionId = data.sessionId;
   } catch {
-    return { error: "Kunde inte nå servern. Försök igen." };
+    return { error: t("auth.actions.serverUnreachable") };
   }
 
   await setSessionCookie(sessionId);
@@ -83,12 +85,13 @@ export async function registerAction(
   _prevState: AuthActionState,
   formData: FormData
 ): Promise<AuthActionState> {
+  const t = await getTranslations("pages");
   const email = formData.get("email") as string | null;
   const password = formData.get("password") as string | null;
   const next = safeRedirectPath(formData.get("next") as string | null);
 
   if (!email || !password) {
-    return { error: "E-post och lösenord krävs." };
+    return { error: t("auth.actions.credentialsRequired") };
   }
 
   let sessionId: string;
@@ -111,13 +114,13 @@ export async function registerAction(
         const firstError = errorBody.errors
           ? Object.values(errorBody.errors).flat()[0]
           : null;
-        return { error: firstError ?? "Registreringen misslyckades." };
+        return { error: firstError ?? t("auth.actions.registrationFailed") };
       } catch {
-        return { error: "Registreringen misslyckades." };
+        return { error: t("auth.actions.registrationFailed") };
       }
     }
     if (!res.ok) {
-      return { error: "Ett oväntat fel uppstod. Försök igen." };
+      return { error: t("auth.actions.unexpectedError") };
     }
 
     const data = await parseResponse(
@@ -127,7 +130,7 @@ export async function registerAction(
     );
     sessionId = data.sessionId;
   } catch {
-    return { error: "Kunde inte nå servern. Försök igen." };
+    return { error: t("auth.actions.serverUnreachable") };
   }
 
   await setSessionCookie(sessionId);

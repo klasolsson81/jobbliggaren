@@ -1,4 +1,44 @@
 {
+  "saved": {
+    "emptyTitle": "Inga sparade annonser",
+    "emptyBody": "Hitta en annons under Jobb och välj <i>Spara</i> i annonsdetaljen. Den sparas här.",
+    "listLabel": "Sparade annonser",
+    "removed": "Annonsen är borttagen",
+    "saved": "Sparad",
+    "published": "Publicerad",
+    "lastApplication": "Sista ansökan",
+    "removeBookmark": "Ta bort bokmärke",
+    "openAd": "Öppna {title}",
+    "openExternal": "Öppna annonsen på externa webbplatsen",
+    "removeBookmarkFor": "Ta bort bokmärke för {title}",
+    "toggle": {
+      "saved": "Sparad",
+      "save": "Spara",
+      "removeAria": "Ta bort bokmärke för annonsen",
+      "saveAria": "Spara annonsen som bokmärke"
+    },
+    "chip": {
+      "label": "Sparade annonser",
+      "empty": "Inga sparade annonser än. Öppna en annons och välj Spara i modalen.",
+      "footer": "Visa alla sparade annonser"
+    }
+  },
+  "recent": {
+    "emptyTitle": "Inga senaste sökningar",
+    "emptyBody": "Gör en sökning under Jobb. Den sparas här automatiskt.",
+    "listLabel": "Senaste sökningar",
+    "hitsWithNew": "<b>{currentCount}</b> träffar, varav <b>{newCount}</b> nya",
+    "hits": "<b>{currentCount}</b> träffar",
+    "runAgain": "Kör igen",
+    "removeSearch": "Ta bort sökning {label}",
+    "chip": {
+      "label": "Senaste sökningar",
+      "empty": "Inga senaste sökningar än. Sök under Jobb så sparas de här.",
+      "footer": "Visa alla senaste sökningar",
+      "countWithNew": "({currentCount}, {newCount} nya)",
+      "count": "({currentCount})"
+    }
+  },
   "enums": {
     "status": {
       "Active": "Aktiv",

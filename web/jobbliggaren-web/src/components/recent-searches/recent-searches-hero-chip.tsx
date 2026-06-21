@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Clock } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
@@ -41,6 +42,7 @@ function buildHrefFor(item: RecentJobSearchDto): string {
  */
 export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
   const router = useRouter();
+  const t = useTranslations("jobads.recent");
   const [open, setOpen] = useState(false);
   // Lat hämtning: counten beräknas först när panelen öppnas (slow N+1 undviks
   // på /jobb-laddningar där användaren aldrig öppnar chippen).
@@ -48,14 +50,14 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
 
   return (
     <HeroChip
-      label="Senaste sökningar"
+      label={t("chip.label")}
       icon={<Clock size={14} aria-hidden="true" />}
       count={items.length > 0 ? items.length : null}
       items={items}
       getKey={(it) => it.id}
-      emptyText="Inga senaste sökningar än. Sök under Jobb så sparas de här."
+      emptyText={t("chip.empty")}
       footerHref="/sokningar"
-      footerLabel="Visa alla senaste sökningar"
+      footerLabel={t("chip.footer")}
       onOpenChange={setOpen}
       renderItem={(item, onClose) => {
         const href = buildHrefFor(item);
@@ -64,8 +66,11 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
           count === undefined
             ? null
             : count.newCount > 0
-              ? `(${count.currentCount}, ${count.newCount} nya)`
-              : `(${count.currentCount})`;
+              ? t("chip.countWithNew", {
+                  currentCount: String(count.currentCount),
+                  newCount: String(count.newCount),
+                })
+              : t("chip.count", { currentCount: String(count.currentCount) });
         return (
           <button
             type="button"

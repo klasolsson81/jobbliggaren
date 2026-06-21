@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
 import { RouteModalShell } from "@/components/modals/route-modal-shell";
@@ -23,10 +24,12 @@ export default async function InterceptedCvImportModal() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
+
   return (
     <RouteModalShell
-      title="Importera CV"
-      description="Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte."
+      title={t("cv.import.title")}
+      description={t("cv.import.modalDescription")}
     >
       <div className="jp-modal__body">
         <CvUploadForm />

@@ -1,1 +1,150 @@
-{}
+{
+  "common": {
+    "rateLimitedTitle": "För många förfrågningar",
+    "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
+    "errorBodyReload": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
+    "errorBodyRetry": "Ett tekniskt fel uppstod. Försök igen om en stund.",
+    "back": "Tillbaka"
+  },
+  "layout": {
+    "skipToContent": "Hoppa till huvudinnehåll"
+  },
+  "ansokningar": {
+    "title": "Mina ansökningar",
+    "lede": "Pipeline över alla ansökningar. Klicka på en rad för detaljer.",
+    "newApplication": "Ny ansökan",
+    "loadErrorTitle": "Kunde inte ladda ansökningar",
+    "emptyKicker": "Pipeline",
+    "emptyTitle": "Inga ansökningar ännu",
+    "emptyBody": "Så fort du registrerar din första ansökan hamnar den här. Spåra status från utkast till svar utan att tappa en enda ansökan.",
+    "emptyCreateFirst": "Skapa första ansökan",
+    "emptySearchFirst": "Sök annonser först",
+    "new": {
+      "title": "Ny ansökan",
+      "lede": "Lägg in jobbet du söker. Du kan komplettera uppgifterna senare.",
+      "titleLabel": "Jobbtitel",
+      "companyLabel": "Företag",
+      "urlLabel": "Annonslänk",
+      "urlHint": "Frivilligt. Länken måste börja med http:// eller https://.",
+      "expiresAtLabel": "Sista ansökningsdag",
+      "expiresAtHint": "Frivilligt. Datumet visas som påminnelse i ansökningslistan.",
+      "coverLetterLabel": "Personligt brev",
+      "coverLetterHint": "Frivilligt. Du kan lägga till eller redigera det senare.",
+      "submit": "Skapa ansökan",
+      "submitting": "Sparar…",
+      "cancel": "Avbryt"
+    },
+    "loading": "Ansökan läses in…",
+    "detail": {
+      "backLink": "Tillbaka till ansökningar",
+      "loadErrorTitle": "Kunde inte ladda ansökan",
+      "fallbackTitle": "Ansökan #{shortId}",
+      "subtitle": "{company} · #{shortId}",
+      "createdSubtitle": "Skapad {date}"
+    }
+  },
+  "cv": {
+    "title": "CV",
+    "lede": "Hantera dina CV-varianter. Importera ett befintligt CV för en granskning, eller skapa ett nytt från grunden. Du behåller alltid kontrollen.",
+    "importCv": "Importera CV",
+    "newCv": "Nytt CV",
+    "loadErrorTitle": "Kunde inte ladda CV",
+    "matchBarTitle": "Matchning mot ditt CV",
+    "matchBarText": "Ställ in vilka yrken, regioner och anställningsformer du söker. Vi föreslår utifrån ditt CV. Du väljer själv vad som tas med.",
+    "emptyKicker": "CV-varianter",
+    "emptyTitle": "Inga CV ännu",
+    "emptyBody": "Skapa ditt första CV för att komma igång. Du kan ha flera varianter (t.ex. en för ledarskap och en för teknisk roll) och välja rätt CV per ansökan.",
+    "emptyCreateFirst": "Skapa första CV",
+    "backLink": "Tillbaka till CV",
+    "import": {
+      "title": "Importera CV",
+      "lede": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en deterministisk granskning med citerad evidens. Du behåller kontrollen. Inget ändras i ditt CV förrän du själv sparar.",
+      "modalDescription": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte."
+    },
+    "new": {
+      "title": "Nytt CV",
+      "lede": "Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt fullständiga namn. Du kan ändra resten senare.",
+      "modalDescription": "Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt fullständiga namn. Du kan ändra resten senare."
+    },
+    "detail": {
+      "loadErrorTitle": "Kunde inte ladda CV",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-listan.",
+      "updatedAt": "Senast uppdaterad"
+    },
+    "review": {
+      "title": "Granska importerat CV",
+      "lede": "Det här är en deterministisk granskning av ditt importerade CV. Inget har ändrats i filen. Granskningen pekar bara ut vad du kan förbättra, med citerad evidens ur din egen text.",
+      "loadErrorTitle": "Kunde inte ladda granskningen",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-listan.",
+      "showImprovements": "Visa förbättringsförslag",
+      "continueSave": "Fortsätt och spara CV",
+      "loading": "Läser in granskningen…"
+    },
+    "improve": {
+      "title": "Förbättra importerat CV",
+      "lede": "Det här är deterministiska förbättringsförslag för ditt importerade CV. Inget har ändrats i filen. Varje förslag visar en före-och-efter-ändring med citerad evidens ur din egen text. Du väljer själv vad du tar med när du skriver ditt CV.",
+      "loadErrorTitle": "Kunde inte ladda förbättringsförslagen",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till granskningen.",
+      "backLink": "Tillbaka till granskningen"
+    },
+    "gapFill": {
+      "title": "Komplettera och spara CV",
+      "lede": "Vi har fyllt i det parsern hittade i din fil. Komplettera de fält som krävs (särskilt datum, som parsern aldrig gissar) och spara för att skapa ditt CV.",
+      "loadErrorTitle": "Kunde inte ladda CV:t",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till granskningen.",
+      "backLink": "Tillbaka till granskningen"
+    }
+  },
+  "jobb": {
+    "title": "Sök jobb",
+    "lede": "Sök bland aktiva annonser från Platsbanken. Filtrera och jämför utan att tappa en enda annons.",
+    "loading": "Jobbannonsen läses in…",
+    "detail": {
+      "loadErrorTitle": "Kunde inte ladda annonsen"
+    }
+  },
+  "sokningar": {
+    "title": "Senaste sökningar",
+    "lede": "Sökningar du gjort under Jobb. Klicka för att köra om en sökning, eller ta bort den du inte behöver.",
+    "loadErrorTitle": "Kunde inte ladda senaste sökningar"
+  },
+  "sparade": {
+    "title": "Sparade annonser",
+    "lede": "Annonser du har sparat för att kunna återvända till. Öppna annonsen för att se detaljer eller ta bort bokmärket.",
+    "loadErrorTitle": "Kunde inte ladda sparade annonser"
+  },
+  "installningar": {
+    "title": "Inställningar",
+    "lede": "Hantera dina kontouppgifter och inställningar.",
+    "profileNotCreated": "Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att komma igång.",
+    "rateLimited": "För många förfrågningar. Försök igen om {seconds} sekunder.",
+    "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund."
+  },
+  "auth": {
+    "login": {
+      "title": "Logga in",
+      "brand": "Jobbliggaren",
+      "emailLabel": "E-postadress",
+      "emailHint": "Formatet är namn@domän.se",
+      "passwordLabel": "Lösenord",
+      "submit": "Logga in",
+      "submitting": "Loggar in...",
+      "noAccount": "Inget konto?",
+      "joinWaitlist": "Anmäl dig till väntelistan"
+    },
+    "register": {
+      "emailLabel": "E-postadress",
+      "emailHint": "Formatet är namn@domän.se",
+      "passwordLabel": "Lösenord",
+      "submit": "Skapa konto",
+      "submitting": "Skapar konto..."
+    },
+    "actions": {
+      "credentialsRequired": "E-post och lösenord krävs.",
+      "loginFailed": "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
+      "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
+      "serverUnreachable": "Kunde inte nå servern. Försök igen.",
+      "registrationFailed": "Registreringen misslyckades."
+    }
+  }
+}

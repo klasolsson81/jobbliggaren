@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Clock, Search, Trash2 } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
@@ -43,12 +44,21 @@ function buildHrefFor(item: RecentJobSearchDto): string {
 // Talet hämtas LAT klient-side (B, CTO 2026-06-13) via `useRecentSearchCounts`
 // i listan och skickas in som `count`-prop. Saknas det (laddar/timeout/fel)
 // renderas ingen siffra — ALDRIG en falsk "(0)" (husets degraderingskontrakt).
-function CountMeta({ currentCount, newCount }: RecentSearchCount) {
+function CountMeta({
+  currentCount,
+  newCount,
+  t,
+}: RecentSearchCount & { t: ReturnType<typeof useTranslations<"jobads.recent">> }) {
+  const bold = (chunks: React.ReactNode) => <b>{chunks}</b>;
   if (newCount > 0) {
     return (
       <div className="jp-job__meta" style={{ marginTop: 8 }}>
         <span>
-          <b>{currentCount.toLocaleString("sv-SE")}</b> träffar, varav <b>{newCount.toLocaleString("sv-SE")}</b> nya
+          {t.rich("hitsWithNew", {
+            b: bold,
+            currentCount: currentCount.toLocaleString("sv-SE"),
+            newCount: newCount.toLocaleString("sv-SE"),
+          })}
         </span>
       </div>
     );
@@ -56,7 +66,10 @@ function CountMeta({ currentCount, newCount }: RecentSearchCount) {
   return (
     <div className="jp-job__meta" style={{ marginTop: 8 }}>
       <span>
-        <b>{currentCount.toLocaleString("sv-SE")}</b> träffar
+        {t.rich("hits", {
+          b: bold,
+          currentCount: currentCount.toLocaleString("sv-SE"),
+        })}
       </span>
     </div>
   );
@@ -64,6 +77,7 @@ function CountMeta({ currentCount, newCount }: RecentSearchCount) {
 
 export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: RecentSearchRowProps) {
   const router = useRouter();
+  const t = useTranslations("jobads.recent");
   const [isPending, startTransition] = useTransition();
   const href = buildHrefFor(item);
 
@@ -106,17 +120,17 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
         <div className="jp-job__body">
           <h3 className="jp-job__title">{item.label}</h3>
           {count !== undefined && (
-            <CountMeta currentCount={count.currentCount} newCount={count.newCount} />
+            <CountMeta currentCount={count.currentCount} newCount={count.newCount} t={t} />
           )}
         </div>
         <div className="jp-job__actions" style={{ flexDirection: "row" }}>
           <Link href={href} className="jp-btn jp-btn--primary jp-btn--sm">
-            <Search size={14} aria-hidden="true" /> Kör igen
+            <Search size={14} aria-hidden="true" /> {t("runAgain")}
           </Link>
           <button
             type="button"
             className="jp-icon-btn"
-            aria-label={`Ta bort sökning ${item.label}`}
+            aria-label={t("removeSearch", { label: item.label })}
             onClick={handleDelete}
             disabled={isPending}
           >

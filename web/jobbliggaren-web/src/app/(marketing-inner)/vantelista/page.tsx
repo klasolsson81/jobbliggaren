@@ -1,27 +1,27 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { WaitlistForm } from "@/components/forms/WaitlistForm";
 
-export const metadata: Metadata = {
-  title: "Väntelista",
-  description:
-    "Jobbliggaren är i sluten beta. Anmäl ditt intresse så hör vi av oss när vi har kapacitet att släppa in fler.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("landing");
+  return {
+    title: t("meta.waitlistTitle"),
+    description: t("meta.waitlistDescription"),
+  };
+}
 
-export default function VantelistaPage() {
+export default async function VantelistaPage() {
+  const t = await getTranslations("landing");
   return (
     <>
       <header className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">Sluten beta</p>
+            <p className="jp-pagehero__kicker">{t("waitlist.kicker")}</p>
             <h1 id="vantelista-heading" className="jp-pagehero__title">
-              Anmäl dig till väntelistan
+              {t("waitlist.title")}
             </h1>
-            <p className="jp-pagehero__lede">
-              Jobbliggaren är i sluten beta. Vi släpper in användare när vi har
-              kapacitet. Inga datum lovas. Anmäl ditt intresse så hör vi av
-              oss när nästa plats är ledig.
-            </p>
+            <p className="jp-pagehero__lede">{t("waitlist.lede")}</p>
           </div>
         </div>
       </header>
@@ -32,8 +32,7 @@ export default function VantelistaPage() {
 
           <div className="border-t border-border pt-6">
             <p className="text-body-sm text-text-secondary">
-              Vi sparar dina uppgifter endast för väntelistan. Du kan be oss
-              radera dem när som helst genom att svara på bekräftelsemejlet.
+              {t("waitlist.privacyNote")}
             </p>
           </div>
         </section>

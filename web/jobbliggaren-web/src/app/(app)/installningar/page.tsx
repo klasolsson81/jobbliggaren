@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getMyProfile } from "@/lib/api/me";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
@@ -21,6 +22,8 @@ export default async function InstallningarPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
+
   // Profil + taxonomi parallellt (Promise.all) — taxonomin matar matchnings-
   // kortets väljare. Taxonomi-fel ⇒ `null` (kortet degraderar civilt, kraschar
   // inte); profilen styr fortfarande resten av sidan.
@@ -36,10 +39,8 @@ export default async function InstallningarPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">Inställningar</h1>
-        <p className="jp-lede">
-          Hantera dina kontouppgifter och inställningar.
-        </p>
+        <h1 className="jp-h1">{t("installningar.title")}</h1>
+        <p className="jp-lede">{t("installningar.lede")}</p>
       </header>
 
       {profileResult.kind === "ok" ? (
@@ -51,10 +52,12 @@ export default async function InstallningarPage() {
       ) : (
         <p className="text-body text-text-secondary">
           {profileResult.kind === "notFound"
-            ? "Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att komma igång."
+            ? t("installningar.profileNotCreated")
             : profileResult.kind === "rateLimited"
-              ? `För många förfrågningar. Försök igen om ${profileResult.retryAfterSeconds} sekunder.`
-              : "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund."}
+              ? t("installningar.rateLimited", {
+                  seconds: profileResult.retryAfterSeconds,
+                })
+              : t("installningar.profileLoadError")}
         </p>
       )}
     </div>

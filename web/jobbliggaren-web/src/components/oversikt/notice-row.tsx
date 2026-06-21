@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ArrowRight, X } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -29,6 +30,7 @@ interface NoticeRowProps {
 }
 
 export function NoticeRow({ notice, onDismiss }: NoticeRowProps) {
+  const t = useTranslations("oversikt");
   return (
     <li className={`jp-notice jp-notice--${notice.kind}`}>
       <span className="jp-notice__strip" aria-hidden="true" />
@@ -44,8 +46,8 @@ export function NoticeRow({ notice, onDismiss }: NoticeRowProps) {
         <button
           type="button"
           className="jp-notice__dismiss"
-          aria-label="Markera som läst"
-          title="Markera som läst"
+          aria-label={t("notices.dismiss")}
+          title={t("notices.dismiss")}
           onClick={() => onDismiss(notice.id)}
         >
           <X size={16} aria-hidden="true" />

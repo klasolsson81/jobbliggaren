@@ -9,6 +9,7 @@
 // under the wordmark like Platsbanken's "SWEDISH PUBLIC EMPLOYMENT SERVICE". Sentence-case
 // treatment, consistent with opengraph-image.tsx (Klas choice, sv-val 2026-06-13).
 
+import { useTranslations } from "next-intl";
 import { BrandMarkSvg } from "./brand-mark-svg";
 
 type BrandLogoVariant = "full" | "mark";
@@ -28,6 +29,7 @@ export interface BrandLogoProps {
 }
 
 export function BrandLogo({ variant = "full", markSize = 40 }: BrandLogoProps) {
+  const t = useTranslations("landing");
   return (
     <>
       <BrandMarkSvg
@@ -38,15 +40,15 @@ export function BrandLogo({ variant = "full", markSize = 40 }: BrandLogoProps) {
         accentFill="var(--jp-mark-accent)"
         paperFill="var(--jp-mark-paper)"
         ariaHidden={variant === "full" ? true : undefined}
-        ariaLabel={variant === "mark" ? "Jobbliggaren" : undefined}
+        ariaLabel={variant === "mark" ? t("brand.markLabel") : undefined}
       />
       {variant === "full" ? (
         <span className="jp-brand__lockup">
           <span className="jp-brand__word" aria-hidden={true}>
-            Jobbliggaren
+            {t("brand.wordmark")}
           </span>
           <span className="jp-brand__tagline" aria-hidden={true}>
-            Den svenska jobbansökningshanteraren
+            {t("brand.tagline")}
           </span>
         </span>
       ) : null}

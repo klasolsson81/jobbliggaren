@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { CreateResumeForm } from "@/components/resumes/create-resume-form";
@@ -15,6 +16,8 @@ export default async function NyCvPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
+
   return (
     <div className="flex flex-col gap-6">
       <Link
@@ -22,15 +25,12 @@ export default async function NyCvPage() {
         className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
       >
         <ChevronLeft size={16} aria-hidden="true" />
-        <span>Tillbaka till CV</span>
+        <span>{t("cv.backLink")}</span>
       </Link>
 
       <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">Nytt CV</h1>
-        <p className="jp-lede">
-          Skapa ett nytt CV från grunden. Ge det ett namn och fyll i ditt
-          fullständiga namn. Du kan ändra resten senare.
-        </p>
+        <h1 className="jp-h1">{t("cv.new.title")}</h1>
+        <p className="jp-lede">{t("cv.new.lede")}</p>
       </header>
 
       <div className="max-w-lg">

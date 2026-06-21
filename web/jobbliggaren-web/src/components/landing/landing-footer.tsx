@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LandingLangToggle } from "./lang-toggle";
 
@@ -16,24 +17,26 @@ import { LandingLangToggle } from "./lang-toggle";
  * annars no-op med TODO").
  */
 
-const FOOTER_LINKS: ReadonlyArray<{ label: string; href: string }> = [
-  // TODO: Fas 7 — peka mot riktiga om-/villkor-/integritet-routes
-  { label: "Om Jobbliggaren", href: "/" },
-  { label: "Användarvillkor", href: "/" },
-  { label: "Integritetspolicy", href: "/" },
-  { label: "Cookies", href: "/" },
-  { label: "Tillgänglighet", href: "/" },
-  { label: "Kontakt", href: "/" },
-];
+// Översättningsnyckel (`landing.footer.*`) + href. TODO: Fas 7 — peka mot
+// riktiga om-/villkor-/integritet-routes.
+const FOOTER_LINKS = [
+  { labelKey: "footer.linkAbout", href: "/" },
+  { labelKey: "footer.linkTerms", href: "/" },
+  { labelKey: "footer.linkPrivacy", href: "/" },
+  { labelKey: "footer.linkCookies", href: "/" },
+  { labelKey: "footer.linkAccessibility", href: "/" },
+  { labelKey: "footer.linkContact", href: "/" },
+] as const satisfies ReadonlyArray<{ labelKey: string; href: string }>;
 
 export function LandingFooter() {
+  const t = useTranslations("landing");
   return (
     <footer className="jp-land-foot">
       <div className="jp-land-foot__inner">
-        <nav className="jp-land-foot__links" aria-label="Sidfot">
+        <nav className="jp-land-foot__links" aria-label={t("common.footerNavLabel")}>
           {FOOTER_LINKS.map((l, i) => (
-            <span key={l.label} className="inline-flex items-center">
-              <Link href={l.href}>{l.label}</Link>
+            <span key={l.labelKey} className="inline-flex items-center">
+              <Link href={l.href}>{t(l.labelKey)}</Link>
               {i < FOOTER_LINKS.length - 1 && (
                 <span className="jp-land-foot__dot" aria-hidden="true">
                   ·

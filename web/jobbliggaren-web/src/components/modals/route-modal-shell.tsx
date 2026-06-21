@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
 /**
@@ -47,6 +48,7 @@ export function RouteModalShell({
   description?: string;
   children: React.ReactNode;
 }) {
+  const t = useTranslations("common");
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -121,7 +123,7 @@ export function RouteModalShell({
             ref={closeRef}
             type="button"
             className="jp-icon-btn"
-            aria-label="Stäng dialogrutan"
+            aria-label={t("modal.closeAriaLabel")}
             onClick={close}
           >
             <X size={20} aria-hidden="true" />

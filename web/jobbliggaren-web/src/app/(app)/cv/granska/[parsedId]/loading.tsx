@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
 
 /**
@@ -8,10 +9,11 @@ import { BrandSpinner } from "@/components/brand/brand-spinner";
  * skeleton.
  */
 export default function Loading() {
+  const t = useTranslations("pages");
   return (
     <div className="jp-cv-loading">
-      <BrandSpinner size={44} label="Läser in granskningen" />
-      <p className="jp-cv-loading__text">Läser in granskningen…</p>
+      <BrandSpinner size={44} label={t("cv.review.loading")} />
+      <p className="jp-cv-loading__text">{t("cv.review.loading")}</p>
     </div>
   );
 }

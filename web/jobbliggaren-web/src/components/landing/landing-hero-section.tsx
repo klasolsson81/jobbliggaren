@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ArrowRight, Search } from "lucide-react";
 
 /**
@@ -34,25 +35,21 @@ export function LandingHeroSection({
   isAuthenticated: boolean;
 }) {
   const router = useRouter();
+  const t = useTranslations("landing");
 
   return (
     <section className="jp-land-hero">
       <div className="jp-land-hero__inner">
         <div className="jp-land-hero__copy">
-          <h1 className="jp-land-hero__title">
-            Håll ordning i ditt jobbsökande
-          </h1>
-          <p className="jp-land-hero__lede">
-            Sök bland aktiva annonser från Platsbanken, skapa CV och brev, och följ upp
-            varje ansökan, från utkast till svar.
-          </p>
+          <h1 className="jp-land-hero__title">{t("hero.title")}</h1>
+          <p className="jp-land-hero__lede">{t("hero.lede")}</p>
           <div className="jp-land-hero__ctas">
             <button
               type="button"
               className="jp-btn jp-btn--lg jp-btn--primary"
               onClick={() => router.push("/vantelista")}
             >
-              Anmäl till väntelista
+              {t("hero.ctaWaitlist")}
             </button>
             <button
               type="button"
@@ -61,7 +58,7 @@ export function LandingHeroSection({
                 router.push(isAuthenticated ? "/oversikt" : "/gast/oversikt")
               }
             >
-              {isAuthenticated ? "Till översikt" : "Utforska som gäst"}{" "}
+              {isAuthenticated ? t("hero.ctaOverview") : t("hero.ctaGuest")}{" "}
               <ArrowRight size={16} aria-hidden="true" />
             </button>
           </div>
@@ -74,14 +71,16 @@ export function LandingHeroSection({
           {/* Scoped hero-band-fragment (ADR 0068-undantaget) — miniatyr av
               /jobb-bannern. Sökfältet är en ATTRAPP (ren markup, ingen input). */}
           <div className="jp-land-peek__band">
-            <span className="jp-land-peek__band-kicker">Sök jobb</span>
+            <span className="jp-land-peek__band-kicker">
+              {t("hero.peekSearchKicker")}
+            </span>
             <div className="jp-land-peek__search">
               <span className="jp-land-peek__search-text">
-                Systemutvecklare · Göteborg
+                {t("hero.peekSearchText")}
               </span>
               <span className="jp-land-peek__search-btn">
                 <Search size={15} aria-hidden="true" />
-                Sök
+                {t("hero.peekSearchButton")}
               </span>
             </div>
           </div>
@@ -94,10 +93,10 @@ export function LandingHeroSection({
                 <span className="jp-land-peek__card-date">2026-06-09</span>
               </div>
               <div className="jp-land-peek__card-title">
-                Backend-utvecklare .NET
+                {t("hero.peekCard1Title")}
               </div>
               <div className="jp-land-peek__card-meta">
-                Volvo Cars Sverige AB · Göteborg
+                {t("hero.peekCard1Meta")}
               </div>
             </li>
             <li className="jp-land-peek__card">
@@ -106,10 +105,10 @@ export function LandingHeroSection({
                 <span className="jp-land-peek__card-date">2026-06-08</span>
               </div>
               <div className="jp-land-peek__card-title">
-                Systemutvecklare fullstack
+                {t("hero.peekCard2Title")}
               </div>
               <div className="jp-land-peek__card-meta">
-                Folksam IT · Stockholm
+                {t("hero.peekCard2Meta")}
               </div>
             </li>
           </ul>

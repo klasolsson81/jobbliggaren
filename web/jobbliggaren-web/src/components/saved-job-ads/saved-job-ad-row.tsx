@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
 import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
 import { unsaveJobAdAction } from "@/lib/actions/saved-job-ads";
@@ -30,6 +31,7 @@ export function SavedJobAdRow({
   onUnsaved,
   onUnsaveFailed,
 }: SavedJobAdRowProps) {
+  const t = useTranslations("jobads.saved");
   const [isPending, startTransition] = useTransition();
   const savedAt = formatDate(item.savedAt);
 
@@ -67,10 +69,10 @@ export function SavedJobAdRow({
             <Bookmark size={20} />
           </div>
           <div className="jp-job__body">
-            <h3 className="jp-job__title">Annonsen är borttagen</h3>
+            <h3 className="jp-job__title">{t("removed")}</h3>
             <div className="jp-job__meta" style={{ marginTop: 8 }}>
               <span>
-                Sparad <b>{savedAt}</b>
+                {t("saved")} <b>{savedAt}</b>
               </span>
             </div>
           </div>
@@ -78,7 +80,7 @@ export function SavedJobAdRow({
             <button
               type="button"
               className="jp-icon-btn"
-              aria-label="Ta bort bokmärke"
+              aria-label={t("removeBookmark")}
               onClick={handleUnsave}
               disabled={isPending}
             >
@@ -113,7 +115,7 @@ export function SavedJobAdRow({
             color: "var(--jp-ink-2)",
             textDecoration: "none",
           }}
-          aria-label={`Öppna ${item.jobAd.title}`}
+          aria-label={t("openAd", { title: item.jobAd.title })}
         >
           <Bookmark size={20} aria-hidden="true" />
         </Link>
@@ -130,16 +132,16 @@ export function SavedJobAdRow({
           <div className="jp-job__meta">
             {publishedAt && (
               <span>
-                Publicerad <b>{publishedAt}</b>
+                {t("published")} <b>{publishedAt}</b>
               </span>
             )}
             {expiresAt && (
               <span>
-                Sista ansökan <b>{expiresAt}</b>
+                {t("lastApplication")} <b>{expiresAt}</b>
               </span>
             )}
             <span>
-              Sparad <b>{savedAt}</b>
+              {t("saved")} <b>{savedAt}</b>
             </span>
           </div>
         </div>
@@ -150,7 +152,7 @@ export function SavedJobAdRow({
               target="_blank"
               rel="noopener noreferrer"
               className="jp-icon-btn"
-              aria-label={`Öppna annonsen på externa webbplatsen`}
+              aria-label={t("openExternal")}
             >
               <ExternalLink size={16} aria-hidden="true" />
             </a>
@@ -158,7 +160,7 @@ export function SavedJobAdRow({
           <button
             type="button"
             className="jp-icon-btn"
-            aria-label={`Ta bort bokmärke för ${item.jobAd.title}`}
+            aria-label={t("removeBookmarkFor", { title: item.jobAd.title })}
             onClick={handleUnsave}
             disabled={isPending}
           >

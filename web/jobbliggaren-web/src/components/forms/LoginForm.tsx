@@ -2,11 +2,13 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginAction, type AuthActionState } from "@/lib/auth/actions";
 
 export function LoginForm() {
+  const t = useTranslations("pages");
   const searchParams = useSearchParams();
   const [state, formAction, isPending] = useActionState<AuthActionState, FormData>(
     loginAction,
@@ -28,7 +30,7 @@ export function LoginForm() {
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="email" className="text-label font-medium text-text-primary">
-          E-postadress
+          {t("auth.login.emailLabel")}
         </label>
         <Input
           ref={emailInputRef}
@@ -40,13 +42,13 @@ export function LoginForm() {
           aria-describedby="email-hint"
         />
         <p id="email-hint" className="text-body-sm text-text-secondary">
-          Formatet är namn@domän.se
+          {t("auth.login.emailHint")}
         </p>
       </div>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="password" className="text-label font-medium text-text-primary">
-          Lösenord
+          {t("auth.login.passwordLabel")}
         </label>
         <Input
           id="password"
@@ -64,7 +66,7 @@ export function LoginForm() {
       )}
 
       <Button type="submit" disabled={isPending} className="w-full">
-        {isPending ? "Loggar in..." : "Logga in"}
+        {isPending ? t("auth.login.submitting") : t("auth.login.submit")}
       </Button>
     </form>
   );

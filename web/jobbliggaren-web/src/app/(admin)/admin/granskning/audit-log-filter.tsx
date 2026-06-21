@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -19,15 +20,17 @@ interface AuditLogFilterProps {
  * tab-navigation, browser-back). Civic-utility: zero JS för core-flöde.
  */
 export function AuditLogFilter({ current }: AuditLogFilterProps) {
+  // Synchronous next-intl translator — håller AuditLogFilter en icke-async RSC.
+  const t = useTranslations("admin");
   return (
     <form
       method="get"
       action="/admin/granskning"
       className="grid gap-4 rounded-md border border-border bg-surface-secondary p-4 sm:grid-cols-2 lg:grid-cols-5"
-      aria-label="Filtrera granskningsloggen"
+      aria-label={t("audit.filter.formLabel")}
     >
       <div className="flex flex-col gap-1">
-        <Label htmlFor="filter-from">Från</Label>
+        <Label htmlFor="filter-from">{t("audit.filter.from")}</Label>
         <Input
           id="filter-from"
           name="from"
@@ -37,7 +40,7 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="filter-to">Till</Label>
+        <Label htmlFor="filter-to">{t("audit.filter.to")}</Label>
         <Input
           id="filter-to"
           name="to"
@@ -47,7 +50,7 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="filter-event-type">Händelse</Label>
+        <Label htmlFor="filter-event-type">{t("audit.filter.eventType")}</Label>
         <Input
           id="filter-event-type"
           name="eventType"
@@ -60,12 +63,14 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
           id="filter-event-type-hint"
           className="text-body-sm text-text-secondary"
         >
-          Format: Aggregat.Händelse, t.ex. Application.Created
+          {t("audit.filter.eventTypeHint")}
         </p>
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="filter-aggregate-type">Aggregat</Label>
+        <Label htmlFor="filter-aggregate-type">
+          {t("audit.filter.aggregateType")}
+        </Label>
         <Input
           id="filter-aggregate-type"
           name="aggregateType"
@@ -78,12 +83,12 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
           id="filter-aggregate-type-hint"
           className="text-body-sm text-text-secondary"
         >
-          Aggregatnamn, t.ex. Application
+          {t("audit.filter.aggregateTypeHint")}
         </p>
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="filter-user-id">Användar-ID</Label>
+        <Label htmlFor="filter-user-id">{t("audit.filter.userId")}</Label>
         <Input
           id="filter-user-id"
           name="userId"
@@ -95,16 +100,16 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
           id="filter-user-id-hint"
           className="text-body-sm text-text-secondary"
         >
-          Anges som UUID
+          {t("audit.filter.userIdHint")}
         </p>
       </div>
 
       <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-5">
         <Button type="submit" size="sm">
-          Använd filter
+          {t("audit.filter.apply")}
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/admin/granskning">Rensa</Link>
+          <Link href="/admin/granskning">{t("audit.filter.clear")}</Link>
         </Button>
       </div>
     </form>

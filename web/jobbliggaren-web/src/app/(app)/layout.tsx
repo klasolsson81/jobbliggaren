@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { AppShell } from "@/components/shell/app-shell";
 import { fetchLandingStats } from "@/lib/api/landing";
@@ -23,6 +24,7 @@ export default async function AppLayout({
   // endpoint som anonyma landing. `<HeaderStats />` i AppShell pollar sedan
   // klient-side var 10:e min (Klas-direktiv 2026-05-24).
   const initialStats = (await fetchLandingStats()) ?? LANDING_STATS_FLOOR_DTO;
+  const t = await getTranslations("pages");
 
   return (
     <>
@@ -30,7 +32,7 @@ export default async function AppLayout({
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
       >
-        Hoppa till huvudinnehåll
+        {t("layout.skipToContent")}
       </a>
       <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
         {children}

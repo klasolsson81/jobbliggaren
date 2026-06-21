@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Bell,
   Bookmark,
@@ -35,19 +36,21 @@ import type { LandingStatsDto } from "@/lib/dto/landing";
  * Theme/lang-toggles flyttade till Inställningar + landing-footer (HANDOVER §0.7).
  */
 
+type NavLabelKey = "oversikt" | "jobb" | "ansokningar" | "cv";
+
 type NavItem = {
   href: string;
-  label: string;
+  labelKey: NavLabelKey;
   icon: typeof Briefcase;
 };
 
 const PRIMARY_NAV: NavItem[] = [
   // F6 P5 Punkt 4 — additivt tillägg. Default-route-byte (login-redirect +
   // brand-länk) DEFERRAS till separat Klas-GO-commit per CTO-dom 2026-05-24 D6.
-  { href: "/oversikt", label: "Översikt", icon: LayoutDashboard },
-  { href: "/jobb", label: "Jobb", icon: Briefcase },
-  { href: "/ansokningar", label: "Mina ansökningar", icon: Inbox },
-  { href: "/cv", label: "CV", icon: ScrollText },
+  { href: "/oversikt", labelKey: "oversikt", icon: LayoutDashboard },
+  { href: "/jobb", labelKey: "jobb", icon: Briefcase },
+  { href: "/ansokningar", labelKey: "ansokningar", icon: Inbox },
+  { href: "/cv", labelKey: "cv", icon: ScrollText },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -85,6 +88,7 @@ function initials(email: string): string {
 }
 
 function NotificationsBell() {
+  const t = useTranslations("common");
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const ref = useDismissable(open, () => setOpen(false), triggerRef);
@@ -96,7 +100,7 @@ function NotificationsBell() {
         ref={triggerRef}
         type="button"
         className="jp-icon-btn"
-        aria-label="Aviseringar"
+        aria-label={t("notifications.buttonAriaLabel")}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((v) => !v)}
@@ -111,10 +115,10 @@ function NotificationsBell() {
           className="jp-notif"
         >
           <div id={titleId} className="jp-notif__head">
-            Aviseringar
+            {t("notifications.heading")}
           </div>
           <div className="jp-notif__list">
-            <p className="jp-notif__item">Inga nya aviseringar.</p>
+            <p className="jp-notif__item">{t("notifications.empty")}</p>
           </div>
         </div>
       )}
@@ -123,6 +127,7 @@ function NotificationsBell() {
 }
 
 function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
+  const t = useTranslations("common");
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const ref = useDismissable(open, () => setOpen(false), triggerRef);
@@ -134,7 +139,7 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
         ref={triggerRef}
         type="button"
         className="jp-avatar"
-        aria-label="Användarmeny"
+        aria-label={t("userMenu.ariaLabel")}
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => setOpen((v) => !v)}
@@ -142,7 +147,12 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
         {initials(email)}
       </button>
       {open && (
-        <div ref={ref} role="group" aria-label="Användarmeny" className="jp-usermenu">
+        <div
+          ref={ref}
+          role="group"
+          aria-label={t("userMenu.ariaLabel")}
+          className="jp-usermenu"
+        >
           <div className="jp-usermenu__head">
             <div className="jp-usermenu__name">{local}</div>
             <div className="jp-usermenu__email">{email}</div>
@@ -152,28 +162,28 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             className="jp-usermenu__item"
             onClick={() => setOpen(false)}
           >
-            <Settings size={16} aria-hidden="true" /> Inställningar
+            <Settings size={16} aria-hidden="true" /> {t("userMenu.installningar")}
           </Link>
           <Link
             href="/sokningar"
             className="jp-usermenu__item"
             onClick={() => setOpen(false)}
           >
-            <Clock size={16} aria-hidden="true" /> Senaste sökningar
+            <Clock size={16} aria-hidden="true" /> {t("userMenu.senasteSokningar")}
           </Link>
           <Link
             href="/sparade"
             className="jp-usermenu__item"
             onClick={() => setOpen(false)}
           >
-            <Bookmark size={16} aria-hidden="true" /> Sparade annonser
+            <Bookmark size={16} aria-hidden="true" /> {t("userMenu.sparadeAnnonser")}
           </Link>
           <Link
             href="/cv"
             className="jp-usermenu__item"
             onClick={() => setOpen(false)}
           >
-            <ScrollText size={16} aria-hidden="true" /> Mina CV
+            <ScrollText size={16} aria-hidden="true" /> {t("userMenu.minaCv")}
           </Link>
           {isAdmin && (
             <>
@@ -183,7 +193,7 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
                 className="jp-usermenu__item"
                 onClick={() => setOpen(false)}
               >
-                <ShieldCheck size={16} aria-hidden="true" /> Granskning
+                <ShieldCheck size={16} aria-hidden="true" /> {t("userMenu.granskning")}
               </Link>
             </>
           )}
@@ -193,7 +203,7 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
               type="submit"
               className="jp-usermenu__item"
             >
-              <LogOut size={16} aria-hidden="true" /> Logga ut
+              <LogOut size={16} aria-hidden="true" /> {t("userMenu.loggaUt")}
             </button>
           </form>
         </div>
@@ -215,6 +225,7 @@ function Drawer({
   isAdmin: boolean;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
 }) {
+  const t = useTranslations("common");
   const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
@@ -280,7 +291,7 @@ function Drawer({
       >
         <div className="jp-drawer__head">
           <span id={labelId} style={{ fontSize: 17, fontWeight: 700 }}>
-            Meny
+            {t("drawer.title")}
           </span>
           <button
             ref={closeRef}
@@ -290,12 +301,12 @@ function Drawer({
               onClose();
               triggerRef.current?.focus();
             }}
-            aria-label="Stäng meny"
+            aria-label={t("drawer.closeAriaLabel")}
           >
-            Stäng <X size={18} aria-hidden="true" />
+            {t("drawer.close")} <X size={18} aria-hidden="true" />
           </button>
         </div>
-        <nav className="jp-drawer__list" aria-label="Meny">
+        <nav className="jp-drawer__list" aria-label={t("drawer.navAriaLabel")}>
           {PRIMARY_NAV.map((item) => {
             const Icon = item.icon;
             return (
@@ -306,7 +317,7 @@ function Drawer({
                 aria-current={isActive(pathname, item.href) ? "page" : undefined}
                 onClick={handleNav}
               >
-                <Icon size={18} aria-hidden="true" /> {item.label}
+                <Icon size={18} aria-hidden="true" /> {t(`nav.${item.labelKey}`)}
               </Link>
             );
           })}
@@ -316,7 +327,7 @@ function Drawer({
             aria-current={isActive(pathname, "/installningar") ? "page" : undefined}
             onClick={handleNav}
           >
-            <Settings size={18} aria-hidden="true" /> Inställningar
+            <Settings size={18} aria-hidden="true" /> {t("drawer.installningar")}
           </Link>
           {isAdmin && (
             <Link
@@ -327,7 +338,7 @@ function Drawer({
               }
               onClick={handleNav}
             >
-              <ShieldCheck size={18} aria-hidden="true" /> Granskning
+              <ShieldCheck size={18} aria-hidden="true" /> {t("drawer.granskning")}
             </Link>
           )}
         </nav>
@@ -347,6 +358,7 @@ export function AppShell({
   initialStats: LandingStatsDto;
   children: React.ReactNode;
 }) {
+  const t = useTranslations("common");
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
@@ -358,11 +370,11 @@ export function AppShell({
     <div className="jp-shell">
       <header className="jp-header" role="banner">
         <div className="jp-header__inner">
-          <Link href="/oversikt" className="jp-brand" aria-label="Jobbliggaren, startsida">
+          <Link href="/oversikt" className="jp-brand" aria-label={t("nav.brandHome")}>
             <BrandLogo />
           </Link>
 
-          <nav className="jp-nav" aria-label="Huvudnavigation">
+          <nav className="jp-nav" aria-label={t("nav.ariaLabel")}>
             {PRIMARY_NAV.map((item) => (
               <Link
                 key={item.href}
@@ -372,7 +384,7 @@ export function AppShell({
                   isActive(pathname, item.href) ? "page" : undefined
                 }
               >
-                {item.label}
+                {t(`nav.${item.labelKey}`)}
               </Link>
             ))}
           </nav>
@@ -393,7 +405,7 @@ export function AppShell({
               ref={drawerTriggerRef}
               type="button"
               className="jp-icon-btn jp-drawer-trigger"
-              aria-label="Öppna meny"
+              aria-label={t("header.openMenu")}
               aria-expanded={drawerOpen}
               aria-haspopup="dialog"
               onClick={() => setDrawerOpen(true)}

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 
 // Suspense fallback for @modal/(.)ansokningar/[id] (logo Fas 2, ADR 0070). Next
@@ -8,5 +9,6 @@ import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 // Modal loading is a known-slow formless wait — the right place for BrandSpinner,
 // not a skeleton.
 export default function Loading() {
-  return <ModalLoadingShell statusText="Ansökan läses in…" />;
+  const t = useTranslations("pages");
+  return <ModalLoadingShell statusText={t("ansokningar.loading")} />;
 }

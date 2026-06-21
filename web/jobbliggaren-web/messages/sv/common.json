@@ -1,1 +1,46 @@
-{}
+{
+  "nav": {
+    "ariaLabel": "Huvudnavigation",
+    "oversikt": "Översikt",
+    "jobb": "Jobb",
+    "ansokningar": "Mina ansökningar",
+    "cv": "CV",
+    "brandHome": "Jobbliggaren, startsida"
+  },
+  "header": {
+    "statsAriaLabel": "Liveräkning från Platsbanken",
+    "activeCount": "{count, plural, one {aktiv annons} other {aktiva annonser}}",
+    "newToday": "nya idag",
+    "deltaAriaLabel": "{count} nya sedan senaste kontroll",
+    "openMenu": "Öppna meny"
+  },
+  "notifications": {
+    "buttonAriaLabel": "Aviseringar",
+    "heading": "Aviseringar",
+    "empty": "Inga nya aviseringar."
+  },
+  "userMenu": {
+    "ariaLabel": "Användarmeny",
+    "installningar": "Inställningar",
+    "senasteSokningar": "Senaste sökningar",
+    "sparadeAnnonser": "Sparade annonser",
+    "minaCv": "Mina CV",
+    "granskning": "Granskning",
+    "loggaUt": "Logga ut"
+  },
+  "drawer": {
+    "title": "Meny",
+    "navAriaLabel": "Meny",
+    "close": "Stäng",
+    "closeAriaLabel": "Stäng meny",
+    "installningar": "Inställningar",
+    "granskning": "Granskning"
+  },
+  "modal": {
+    "closeAriaLabel": "Stäng dialogrutan"
+  },
+  "dev": {
+    "note": "Utvecklarverktyg, syns bara lokalt och tas bort före lansering.",
+    "resetButton": "Dev: återställ mina testdata (tas bort före lansering)"
+  }
+}

@@ -1,1 +1,101 @@
-{}
+{
+  "common": {
+    "loginLink": "Logga in",
+    "footerNavLabel": "Sidfot"
+  },
+  "brand": {
+    "homeAriaLabel": "Jobbliggaren, startsida",
+    "markLabel": "Jobbliggaren",
+    "wordmark": "Jobbliggaren",
+    "tagline": "Den svenska jobbansökningshanteraren",
+    "spinnerLabel": "Laddar"
+  },
+  "topbar": {
+    "statsAriaLabel": "Liveräkning från Platsbanken",
+    "activeAdsLabel": "aktiva annonser",
+    "newTodayLabel": "nya idag"
+  },
+  "hero": {
+    "title": "Håll ordning i ditt jobbsökande",
+    "lede": "Sök bland aktiva annonser från Platsbanken, skapa CV och brev, och följ upp varje ansökan, från utkast till svar.",
+    "ctaWaitlist": "Anmäl till väntelista",
+    "ctaOverview": "Till översikt",
+    "ctaGuest": "Utforska som gäst",
+    "peekSearchKicker": "Sök jobb",
+    "peekSearchText": "Systemutvecklare · Göteborg",
+    "peekSearchButton": "Sök",
+    "peekCard1Title": "Backend-utvecklare .NET",
+    "peekCard1Meta": "Volvo Cars Sverige AB · Göteborg",
+    "peekCard2Title": "Systemutvecklare fullstack",
+    "peekCard2Meta": "Folksam IT · Stockholm"
+  },
+  "features": {
+    "kicker": "Funktioner",
+    "title": "Allt du behöver för att hålla ordning",
+    "search": {
+      "key": "Sökning",
+      "body": "Aktiva platsannonser från Platsbanken, fler källor planerade. Sortera efter CV-match, nyhet eller deadline."
+    },
+    "pipeline": {
+      "key": "Pipeline",
+      "body": "Spåra varje ansökan från utkast till svar, genom intervjuer, erbjudanden och avslag. Inget tappas mellan stolarna."
+    },
+    "cv": {
+      "key": "CV och brev",
+      "body": "Skapa och organisera flera CV-varianter. Generera personliga brev som matchar din ton. Du äger varje rad."
+    },
+    "reminders": {
+      "key": "Påminnelser",
+      "body": "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar, så du missar inga deadlines."
+    }
+  },
+  "footer": {
+    "linkAbout": "Om Jobbliggaren",
+    "linkTerms": "Användarvillkor",
+    "linkPrivacy": "Integritetspolicy",
+    "linkCookies": "Cookies",
+    "linkAccessibility": "Tillgänglighet",
+    "linkContact": "Kontakt"
+  },
+  "siteFooter": {
+    "copyright": "© Jobbliggaren · sluten beta",
+    "linkTerms": "Användarvillkor",
+    "linkCookies": "Cookies",
+    "linkLogin": "Logga in"
+  },
+  "waitlist": {
+    "kicker": "Sluten beta",
+    "title": "Anmäl dig till väntelistan",
+    "lede": "Jobbliggaren är i sluten beta. Vi släpper in användare när vi har kapacitet. Inga datum lovas. Anmäl ditt intresse så hör vi av oss när nästa plats är ledig.",
+    "privacyNote": "Vi sparar dina uppgifter endast för väntelistan. Du kan be oss radera dem när som helst genom att svara på bekräftelsemejlet."
+  },
+  "cookies": {
+    "kicker": "Sluten beta",
+    "title": "Cookies",
+    "intro": "Jobbliggaren använder endast nödvändiga cookies för att tjänsten ska fungera under sluten beta.",
+    "meansLabel": "Det innebär:",
+    "sessionTerm": "Session-cookies",
+    "sessionBody": " håller dig inloggad när du har ett konto.",
+    "csrfTerm": "CSRF-skydd",
+    "csrfBody": " skyddar dina uppgifter från manipulation.",
+    "noTracking": "Inga cookies används för analys, spårning eller marknadsföring.",
+    "fullPolicyNote": "En fullständig cookie-policy publiceras innan tjänsten öppnas för allmänheten."
+  },
+  "terms": {
+    "kicker": "Sluten beta",
+    "title": "Användarvillkor",
+    "intro": "Jobbliggaren befinner sig i sluten beta. Fullständiga användarvillkor publiceras innan tjänsten öppnas för allmänheten.",
+    "duringBeta": "Under beta-perioden gäller följande:",
+    "asIs": "Tjänsten levereras i befintligt skick. Funktioner kan ändras eller tillkomma.",
+    "dataRetention": "Vi sparar dina uppgifter endast så länge det krävs för att hantera din anmälan eller ditt konto.",
+    "dataDeletion": "Du kan be oss radera dina uppgifter när som helst genom att svara på bekräftelsemejlet eller kontakta oss."
+  },
+  "meta": {
+    "waitlistTitle": "Väntelista",
+    "waitlistDescription": "Jobbliggaren är i sluten beta. Anmäl ditt intresse så hör vi av oss när vi har kapacitet att släppa in fler.",
+    "cookiesTitle": "Cookies",
+    "cookiesDescription": "Information om cookies på Jobbliggaren. Endast nödvändiga cookies används under sluten beta.",
+    "termsTitle": "Användarvillkor",
+    "termsDescription": "Jobbliggarens användarvillkor. Sluten beta: full text publiceras innan första öppna registrering."
+  }
+}

@@ -2779,6 +2779,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 12px;
   margin-bottom: 10px;
 }
+/* Clear-only-raden (wizarden, ingen rubrik): den ensamma Rensa-länken
+   vänsterställs explicit i stället för att förlita sig på space-between. */
+.jp-matchdialog__sectionhead--clearonly {
+  justify-content: flex-start;
+}
 /* Pinnade chips överst i sektionen + picker-väljaren under. */
 .jp-matchdialog__pinned {
   margin-bottom: 14px;
@@ -2824,6 +2829,42 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ── "Lägg till yrken"-disclosure (redesign 2026-06-21) ──
+   EN tydlig CTA som veck-öppnar filter/tvåkolumns-kaskaden (kollapsad default —
+   inget "skrivs ut på en gång"). Inline-disclosure i stället för popover:
+   JobbFilterPopover positionerar sig absolut ur triggerns viewport-rect och
+   slåss med Radix Dialogens fokus-trap/Esc inuti modalen. Disclosuren har
+   ingen positionsmatematik och är trivialt tangentbordsstyrd. CTA:n speglar
+   sekundär-knappens yta (border + surface, 40px, 4px radie — ingen ny hex). */
+.jp-occpicker {
+  margin-top: 4px;
+}
+.jp-occpicker__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--jp-ink-1);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-input);
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+  transition: 80ms linear;
+}
+.jp-occpicker__cta:hover {
+  background: var(--jp-surface-3);
+  border-color: var(--jp-border-strong);
+}
+.jp-occpicker__panel {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
 }
 .jp-matchdialog__foot {
   display: flex;

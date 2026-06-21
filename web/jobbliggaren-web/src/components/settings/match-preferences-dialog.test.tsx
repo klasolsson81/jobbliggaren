@@ -8,15 +8,18 @@ import type {
 } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
 
-const { updateMock, deriveMock, cvSuggestMock } = vi.hoisted(() => ({
-  updateMock: vi.fn(),
-  deriveMock: vi.fn(),
-  cvSuggestMock: vi.fn(),
-}));
+const { updateMock, deriveMock, cvSuggestMock, parsedSuggestMock } =
+  vi.hoisted(() => ({
+    updateMock: vi.fn(),
+    deriveMock: vi.fn(),
+    cvSuggestMock: vi.fn(),
+    parsedSuggestMock: vi.fn(),
+  }));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
+  suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
 }));
 
 import { MatchPreferencesDialog } from "./match-preferences-dialog";
@@ -65,6 +68,7 @@ beforeEach(() => {
   updateMock.mockReset();
   deriveMock.mockReset();
   cvSuggestMock.mockReset();
+  parsedSuggestMock.mockReset();
   updateMock.mockResolvedValue({ success: true });
   deriveMock.mockResolvedValue({ success: true, candidates: [] });
 });
@@ -110,7 +114,9 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       persistedRegions: ["region_sthlm"],
     });
 
-    // Lägg till ett yrke via kaskaden: välj yrkesområde → kryssa grupp.
+    // Lägg till ett yrke via disclosure-kaskaden: öppna picker → välj
+    // yrkesområde → kryssa grupp.
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
     await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
     await user.click(screen.getByRole("checkbox", { name: "Backendutvecklare" }));
 
@@ -188,7 +194,7 @@ describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
     ).toBeInTheDocument();
   });
 
-  it("CV med kandidater → pre-kryssad förhandsgranskning, aldrig auto-applicerad copy", async () => {
+  it("CV med kandidater → PRE-ADDAS som borttagbara chips i Yrken (ej en separat checklista)", async () => {
     const user = userEvent.setup();
     cvSuggestMock.mockResolvedValue({
       kind: "candidates",
@@ -205,17 +211,21 @@ describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
       screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
     );
 
-    const group = await screen.findByRole("group", {
-      name: "Föreslagna yrkesgrupper",
-    });
+    // Kandidaten pre-addas till draften som en borttagbar chip (propose-and-
+    // approve — draft-only, inget skrivs). Ingen separat kryss-checklista.
+    const yrken = screen.getByRole("group", { name: "Yrken" });
     expect(
-      within(group).getByRole("checkbox", { name: "Backendutvecklare" })
+      await within(yrken).findByRole("button", {
+        name: "Ta bort Backendutvecklare",
+      })
     ).toBeInTheDocument();
-    // Deterministisk copy — aldrig "AI".
+    // Inte längre en kandidat-checklista.
     expect(
-      screen.getByText(/Föreslår yrken utifrån ditt CV/)
-    ).toBeInTheDocument();
+      screen.queryByRole("group", { name: "Föreslagna yrkesgrupper" })
+    ).toBeNull();
+    // Deterministisk copy — aldrig "AI". Inget skrivs förrän Spara.
     expect(screen.queryByText(/AI/)).toBeNull();
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("error → role=alert", async () => {
@@ -232,7 +242,7 @@ describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
     );
   });
 
-  it("att kryssa en CV-kandidat pinnar den som en borttagbar chip i Yrken", async () => {
+  it("en pre-addad CV-chip kan tas bort (propose-and-approve)", async () => {
     const user = userEvent.setup();
     cvSuggestMock.mockResolvedValue({
       kind: "candidates",
@@ -248,47 +258,24 @@ describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
     await user.click(
       screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
     );
-    const group = await screen.findByRole("group", {
-      name: "Föreslagna yrkesgrupper",
-    });
-    await user.click(
-      within(group).getByRole("checkbox", { name: "Frontendutvecklare" })
-    );
-
     const yrken = screen.getByRole("group", { name: "Yrken" });
+    const remove = await within(yrken).findByRole("button", {
+      name: "Ta bort Frontendutvecklare",
+    });
+    await user.click(remove);
     expect(
-      within(yrken).getByRole("button", { name: "Ta bort Frontendutvecklare" })
-    ).toBeInTheDocument();
+      within(yrken).queryByRole("button", { name: "Ta bort Frontendutvecklare" })
+    ).toBeNull();
   });
 });
 
-describe("MatchPreferencesDialog — yrkestitel-förslag (behålls)", () => {
-  it("Föreslå anropar deriveOccupationsAction och renderar kandidater", async () => {
-    const user = userEvent.setup();
-    deriveMock.mockResolvedValue({
-      success: true,
-      candidates: [
-        {
-          occupationGroupConceptId: "grp_backend",
-          occupationGroupLabel: "Backendutvecklare",
-        },
-      ],
-    });
+describe("MatchPreferencesDialog — yrkestitel-fältet borttaget (redesign)", () => {
+  it("renderar inte längre 'Föreslå utifrån en yrkestitel'-fältet", () => {
     renderDialog();
-
-    await user.type(
-      screen.getByLabelText("Föreslå utifrån en yrkestitel"),
-      "backend"
-    );
-    await user.click(screen.getByRole("button", { name: "Föreslå" }));
-
-    await waitFor(() => expect(deriveMock).toHaveBeenCalledWith("backend"));
-    const group = await screen.findByRole("group", {
-      name: "Föreslagna yrken utifrån titel",
-    });
     expect(
-      within(group).getByRole("checkbox", { name: "Backendutvecklare" })
-    ).toBeInTheDocument();
+      screen.queryByLabelText("Föreslå utifrån en yrkestitel")
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Föreslå" })).toBeNull();
   });
 });
 

@@ -23,6 +23,12 @@ interface FacetSectionProps {
   readonly pinnedAriaLabel: string;
   /** rubrik-id som värden kopplar `aria-labelledby` mot (för role=group). */
   readonly headingId?: string;
+  /**
+   * Visa sektionens egna rubrik. Default true (dialogen). Wizarden sätter false
+   * (DialogTitle bär rubriken — en andra inline-rubrik vore en dubblett). När
+   * false renderas bara Rensa-länken (när något är valt).
+   */
+  readonly showHeading?: boolean;
 }
 
 /**
@@ -38,20 +44,31 @@ export function FacetSection({
   onClear,
   pinnedAriaLabel,
   headingId,
+  showHeading = true,
 }: FacetSectionProps) {
   const chips = labelsForSelected(selected, options);
   return (
     <>
-      <div className="jp-matchdialog__sectionhead">
-        <span id={headingId} className="jp-popover__title">
-          {title}
-        </span>
-        {selected.length > 0 && (
-          <button type="button" className="jp-clearlink" onClick={onClear}>
-            Rensa
-          </button>
-        )}
-      </div>
+      {showHeading ? (
+        <div className="jp-matchdialog__sectionhead">
+          <span id={headingId} className="jp-popover__title">
+            {title}
+          </span>
+          {selected.length > 0 && (
+            <button type="button" className="jp-clearlink" onClick={onClear}>
+              Rensa
+            </button>
+          )}
+        </div>
+      ) : (
+        selected.length > 0 && (
+          <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
+            <button type="button" className="jp-clearlink" onClick={onClear}>
+              Rensa
+            </button>
+          </div>
+        )
+      )}
       <PinnedChips items={chips} onRemove={onToggle} ariaLabel={pinnedAriaLabel} />
       <div className="jp-matchdialog__list">
         {options.map((o) => (

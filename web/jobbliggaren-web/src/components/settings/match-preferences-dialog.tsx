@@ -149,6 +149,7 @@ export function MatchPreferencesDialog({
               occupationFields={occupationFields}
               selected={draftOccupations}
               onToggle={toggleOccupation}
+              onReplace={(next) => setDraftOccupations(next)}
               onClear={() => setDraftOccupations([])}
               importCvHref={importCvHref}
               idPrefix="match-dialog"

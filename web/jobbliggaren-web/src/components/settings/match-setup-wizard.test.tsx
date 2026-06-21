@@ -193,7 +193,7 @@ describe("MatchSetupWizard — utbildnings-steg är OUT v1 (ADR 0077 Klas-fork)"
 });
 
 describe("MatchSetupWizard — CV-prefill in i steg 1", () => {
-  it("kör CV-förslaget automatiskt vid montering och visar kandidater pre-kryssade", async () => {
+  it("auto-kör CV-förslaget vid montering och PRE-ADDAR kandidaterna som borttagbara chips", async () => {
     cvSuggestMock.mockResolvedValue({
       kind: "candidates",
       candidates: [
@@ -206,17 +206,20 @@ describe("MatchSetupWizard — CV-prefill in i steg 1", () => {
     renderWizard();
 
     await waitFor(() => expect(cvSuggestMock).toHaveBeenCalledTimes(1));
-    const group = await screen.findByRole("group", {
-      name: "Föreslagna yrkesgrupper",
-    });
+    // Kandidaten pre-addas till draften som en borttagbar chip (propose-and-
+    // approve) — ingen separat kryss-checklista att bocka i.
     expect(
-      within(group).getByRole("checkbox", { name: "Backendutvecklare" })
+      await screen.findByRole("button", { name: "Ta bort Backendutvecklare" })
     ).toBeInTheDocument();
-    // Deterministisk copy — aldrig "AI".
+    expect(
+      screen.queryByRole("group", { name: "Föreslagna yrkesgrupper" })
+    ).toBeNull();
+    // Deterministisk copy — aldrig "AI". Inget skrivs vid pre-add.
     expect(screen.queryByText(/AI/)).toBeNull();
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("att kryssa en CV-kandidat pinnar den som borttagbar chip i Yrken", async () => {
+  it("en pre-addad CV-chip kan tas bort i Yrken (propose-and-approve)", async () => {
     const user = userEvent.setup();
     cvSuggestMock.mockResolvedValue({
       kind: "candidates",
@@ -229,14 +232,21 @@ describe("MatchSetupWizard — CV-prefill in i steg 1", () => {
     } satisfies CvSuggestResult);
     renderWizard();
 
-    const group = await screen.findByRole("group", {
-      name: "Föreslagna yrkesgrupper",
+    const remove = await screen.findByRole("button", {
+      name: "Ta bort Frontendutvecklare",
     });
-    await user.click(
-      within(group).getByRole("checkbox", { name: "Frontendutvecklare" })
-    );
+    await user.click(remove);
     expect(
-      screen.getByRole("button", { name: "Ta bort Frontendutvecklare" })
+      screen.queryByRole("button", { name: "Ta bort Frontendutvecklare" })
+    ).toBeNull();
+  });
+
+  it("CV utan läsbar roll → lugn inline-rad (ingen kandidat-checklista)", async () => {
+    cvSuggestMock.mockResolvedValue({ kind: "noRole" } satisfies CvSuggestResult);
+    renderWizard();
+
+    expect(
+      await screen.findByText(/Vi kunde inte läsa ett yrke ur ditt CV/)
     ).toBeInTheDocument();
   });
 });
@@ -248,7 +258,8 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
       persistedEmploymentTypes: ["et_fast"],
     });
 
-    // Steg 1: lägg till ett yrke via kaskaden.
+    // Steg 1: öppna "Lägg till yrken"-disclosure och välj via kaskaden.
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
     await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
     await user.click(
       screen.getByRole("checkbox", { name: "Backendutvecklare" })

@@ -194,7 +194,12 @@ export function MatchSetupWizard({
           <span className="jp-wizard__counter">
             Steg {step} av {TOTAL_STEPS}
           </span>
-          <DialogTitle ref={titleRef} tabIndex={-1} className="jp-wizard__title">
+          <DialogTitle
+            ref={titleRef}
+            tabIndex={-1}
+            id={`match-wizard-step-${step}-head`}
+            className="jp-wizard__title"
+          >
             {STEP_TITLES[step - 1]}
           </DialogTitle>
           <DialogDescription className="jp-wizard__intro">
@@ -228,10 +233,11 @@ export function MatchSetupWizard({
                   occupationFields={occupationFields}
                   selected={draftOccupations}
                   onToggle={(id) => setDraftOccupations((prev) => toggle(prev, id))}
+                  onReplace={(next) => setDraftOccupations(next)}
                   onClear={() => setDraftOccupations([])}
                   importCvHref={importCvHref}
                   idPrefix="match-wizard-occ"
-                  headingId="match-wizard-step-1-head"
+                  showHeading={false}
                   autoSuggestFromCv
                   parsedResumeId={parsedResumeId}
                 />
@@ -244,7 +250,7 @@ export function MatchSetupWizard({
                   onToggle={(id) => setDraftRegions((prev) => toggle(prev, id))}
                   onClear={() => setDraftRegions([])}
                   pinnedAriaLabel="Valda regioner"
-                  headingId="match-wizard-step-2-head"
+                  showHeading={false}
                 />
               )}
               {step === 3 && (
@@ -255,7 +261,7 @@ export function MatchSetupWizard({
                   onToggle={(id) => setDraftEmployment((prev) => toggle(prev, id))}
                   onClear={() => setDraftEmployment([])}
                   pinnedAriaLabel="Valda anställningsformer"
-                  headingId="match-wizard-step-3-head"
+                  showHeading={false}
                 />
               )}
             </section>

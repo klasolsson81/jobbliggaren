@@ -16,6 +16,17 @@ vi.mock("@/lib/actions/match-preferences", () => ({
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
 }));
 
+// Stub CvUploadForm (Spår 4 inline-upload) — the real one uses next/navigation +
+// fetch which jsdom lacks. The stub exposes a button that fires onUploaded with a
+// fixed parsed_resume id so the inline-upload → suggest flow is testable.
+vi.mock("@/components/resumes/cv-upload-form", () => ({
+  CvUploadForm: ({ onUploaded }: { onUploaded?: (id: string) => void }) => (
+    <button type="button" onClick={() => onUploaded?.("parsed-uploaded")}>
+      Ladda upp (stub)
+    </button>
+  ),
+}));
+
 import { OccupationSection } from "./occupation-section";
 
 const occupationFields: ReadonlyArray<TaxonomyOccupationField> = [
@@ -192,11 +203,51 @@ describe("OccupationSection — CV-förslag pre-addas som chips", () => {
     ).toBeInTheDocument();
   });
 
-  it("noCv → behåller 'Importera CV'-affordansen", async () => {
+  it("noCv → 'Ladda upp CV' öppnar inline-uppladdning, ingen sid-navigering", async () => {
+    const user = userEvent.setup();
     cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
     render(<HostHarness autoSuggestFromCv />);
-    const link = await screen.findByRole("link", { name: "Importera CV" });
-    expect(link).toHaveAttribute("href", "/cv/importera");
+
+    // Ingen sid-länk till /cv/importera längre — en knapp som öppnar inline-upload.
+    expect(screen.queryByRole("link", { name: "Importera CV" })).toBeNull();
+    const uploadBtn = await screen.findByRole("button", { name: "Ladda upp CV" });
+    await user.click(uploadBtn);
+
+    // Inline-upload-ytan visas; importsidan finns kvar som sekundär utväg.
+    expect(
+      screen.getByRole("group", { name: "Ladda upp CV" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Öppna importsidan i stället" })
+    ).toHaveAttribute("href", "/cv/importera");
+  });
+
+  it("inline-upload → kör CV-förslaget mot det uppladdade CV:t och pre-addar chips", async () => {
+    const user = userEvent.setup();
+    // Första suggest (autoSuggest, ingen CV) → noCv; efter upload → kandidater.
+    cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
+    parsedSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+        },
+      ],
+    } satisfies CvSuggestResult);
+    render(<HostHarness autoSuggestFromCv />);
+
+    await user.click(await screen.findByRole("button", { name: "Ladda upp CV" }));
+    // Stubbens knapp fyrar onUploaded("parsed-uploaded").
+    await user.click(screen.getByRole("button", { name: "Ladda upp (stub)" }));
+
+    // Förslaget körs mot det just uppladdade parsed_resume:t (inte latestRole-vägen).
+    await waitFor(() =>
+      expect(parsedSuggestMock).toHaveBeenCalledWith("parsed-uploaded")
+    );
+    expect(
+      await screen.findByRole("button", { name: "Ta bort Backendutvecklare" })
+    ).toBeInTheDocument();
   });
 
   it("dialog-läget (autoSuggestFromCv=false) har en knapp som triggar CV-förslaget", async () => {

@@ -2831,6 +2831,24 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 8px;
 }
 
+/* Inline CV-uppladdning i matchnings-dialogen (Spår 4): laddar upp CV:t i
+   modalen i stället för att navigera bort till /cv/importera-sidan. */
+.jp-matchdialog__cvupload {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface-2, var(--jp-surface));
+}
+.jp-matchdialog__cvupload-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 /* ── "Lägg till yrken"-disclosure (redesign 2026-06-21) ──
    EN tydlig CTA som veck-öppnar filter/tvåkolumns-kaskaden (kollapsad default —
    inget "skrivs ut på en gång"). Inline-disclosure i stället för popover:

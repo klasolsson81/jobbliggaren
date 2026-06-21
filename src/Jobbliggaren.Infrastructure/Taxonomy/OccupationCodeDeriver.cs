@@ -43,80 +43,114 @@ internal sealed class OccupationCodeDeriver(
     // (parity with TaxonomyReadModel — no permanent fail-cache).
     private Task<DerivationCache>? _cached;
 
-    public async ValueTask<OccupationDerivationResult> DeriveAsync(
-        string title, CancellationToken cancellationToken)
+    public ValueTask<OccupationDerivationResult> DeriveAsync(
+        string title, CancellationToken cancellationToken) =>
+        DeriveManyAsync([title], cancellationToken);
+
+    public async ValueTask<OccupationDerivationResult> DeriveManyAsync(
+        IReadOnlyList<string> titles, CancellationToken cancellationToken)
     {
-        // Defensive: the port can be called directly (the query validator guards
-        // the Mediator path). Blank → no candidates, never throw.
-        if (string.IsNullOrWhiteSpace(title))
-            return new OccupationDerivationResult(title, []);
+        // Echo the first non-blank title (parity with the single-title result shape).
+        // Defensive: the port can be called directly. All-blank → no candidates, never throw.
+        var echo = string.Empty;
+        foreach (var t in titles)
+        {
+            if (!string.IsNullOrWhiteSpace(t))
+            {
+                echo = t.Trim();
+                break;
+            }
+        }
+        if (echo.Length == 0)
+            return new OccupationDerivationResult(echo, []);
 
         var cache = await GetCacheAsync(cancellationToken);
-        var query = title.Trim();
 
-        // Best evidence per ssyk-4 group id (dedupe — many occupation-names map to
-        // one group; exact beats stemmed, higher overlap beats lower).
+        // Best evidence per ssyk-4 group id across ALL source titles (dedupe — many
+        // occupation-names map to one group; exact beats stemmed, higher overlap beats lower).
+        // SourceOrder = the lowest (highest-priority) source-title index that reached the group
+        // → the caller's priority ordering (current education before work history; Klas
+        // 2026-06-21) governs the display order WITHIN a match kind. Evidence strength
+        // (kind/score) is unchanged — SourceOrder is a separate, explainable display dimension,
+        // never an opaque relevance weight (CLAUDE.md §5).
         var best = new Dictionary<string, RawMatch>(StringComparer.Ordinal);
 
-        // Pass 1 — exact normalized occupation-name match (OrdinalIgnoreCase).
-        if (cache.ByExactLabel.TryGetValue(query, out var exactEntries))
+        for (var order = 0; order < titles.Count; order++)
         {
-            foreach (var entry in exactEntries)
-                Consider(best, new RawMatch(
-                    entry.GroupConceptId, entry.GroupLabel,
-                    OccupationMatchKind.ExactOccupationName, entry.OccupationNameLabel,
-                    Score: int.MaxValue));
-        }
+            var query = titles[order];
+            if (string.IsNullOrWhiteSpace(query))
+                continue;
+            query = query.Trim();
 
-        // Pass 2 — stemmed token-overlap (same Snowball stemmer as the FTS
-        // search_vector). Title lexemes ∩ occupation-name-label lexemes.
-        var titleLexemes = analyzer.ToLexemes(query, TextLanguage.Swedish)
-            .ToHashSet(StringComparer.Ordinal);
-        if (titleLexemes.Count > 0)
-        {
-            foreach (var entry in cache.AllEntries)
+            // Pass 1 — exact normalized occupation-name match (OrdinalIgnoreCase).
+            if (cache.ByExactLabel.TryGetValue(query, out var exactEntries))
             {
-                var overlap = 0;
-                foreach (var lexeme in titleLexemes)
-                {
-                    if (entry.LabelLexemes.Contains(lexeme))
-                        overlap++;
-                }
-
-                if (overlap > 0)
+                foreach (var entry in exactEntries)
                     Consider(best, new RawMatch(
                         entry.GroupConceptId, entry.GroupLabel,
-                        OccupationMatchKind.StemmedTokenOverlap, entry.OccupationNameLabel,
-                        Score: overlap));
+                        OccupationMatchKind.ExactOccupationName, entry.OccupationNameLabel,
+                        Score: int.MaxValue, SourceOrder: order));
+            }
+
+            // Pass 2 — stemmed token-overlap (same Snowball stemmer as the FTS
+            // search_vector). Title lexemes ∩ occupation-name-label lexemes.
+            var titleLexemes = analyzer.ToLexemes(query, TextLanguage.Swedish)
+                .ToHashSet(StringComparer.Ordinal);
+            if (titleLexemes.Count > 0)
+            {
+                foreach (var entry in cache.AllEntries)
+                {
+                    var overlap = 0;
+                    foreach (var lexeme in titleLexemes)
+                    {
+                        if (entry.LabelLexemes.Contains(lexeme))
+                            overlap++;
+                    }
+
+                    if (overlap > 0)
+                        Consider(best, new RawMatch(
+                            entry.GroupConceptId, entry.GroupLabel,
+                            OccupationMatchKind.StemmedTokenOverlap, entry.OccupationNameLabel,
+                            Score: overlap, SourceOrder: order));
+                }
             }
         }
 
-        // Relevance governs SURVIVAL (kind: exact first → overlap desc → label),
-        // then the surviving set is DISPLAYED in the stable order (kind → label
-        // Ordinal) — deterministic, parity with TaxonomyReadModel's
-        // OrderBy(Kind).ThenBy(Label, Ordinal).
+        // Relevance governs SURVIVAL (kind → source-priority → overlap desc → label), then the
+        // surviving set is DISPLAYED in the stable order (kind → source-priority → label
+        // Ordinal) — deterministic. Note: source-priority outranks overlap, so under the
+        // MaxCandidates cap a lower-overlap candidate from a higher-priority source (e.g. the
+        // current education degree) is intentionally kept over a higher-overlap one from a
+        // lower-priority source (the work history) — the desired career-changer trade-off.
         var candidates = best.Values
             .OrderBy(m => (int)m.MatchKind)
+            .ThenBy(m => m.SourceOrder)
             .ThenByDescending(m => m.Score)
             .ThenBy(m => m.GroupLabel, StringComparer.Ordinal)
             .Take(MaxCandidates)
             .OrderBy(m => (int)m.MatchKind)
+            .ThenBy(m => m.SourceOrder)
             .ThenBy(m => m.GroupLabel, StringComparer.Ordinal)
             .Select(m => new OccupationCandidate(
                 m.GroupConceptId, m.GroupLabel, m.MatchKind, m.MatchedOn))
             .ToList();
 
-        return new OccupationDerivationResult(title, candidates);
+        return new OccupationDerivationResult(echo, candidates);
     }
 
-    // Keep the strongest evidence per ssyk-4 group.
+    // Keep the strongest evidence per ssyk-4 group; always carry the lowest (highest-priority)
+    // SourceOrder seen for the group, independent of which evidence wins.
     private static void Consider(Dictionary<string, RawMatch> best, RawMatch match)
     {
-        if (!best.TryGetValue(match.GroupConceptId, out var existing)
-            || IsStronger(match, existing))
+        if (!best.TryGetValue(match.GroupConceptId, out var existing))
         {
             best[match.GroupConceptId] = match;
+            return;
         }
+
+        var minOrder = Math.Min(match.SourceOrder, existing.SourceOrder);
+        var winner = IsStronger(match, existing) ? match : existing;
+        best[match.GroupConceptId] = winner with { SourceOrder = minOrder };
     }
 
     // Exact beats stemmed; within a kind, higher overlap wins; deterministic
@@ -207,5 +241,6 @@ internal sealed class OccupationCodeDeriver(
         string GroupLabel,
         OccupationMatchKind MatchKind,
         string MatchedOn,
-        int Score);
+        int Score,
+        int SourceOrder);
 }

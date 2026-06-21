@@ -366,9 +366,246 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
         after.ShouldBe(before);
     }
 
+    // =================================================================
+    // (f) Tier 1 multi-signal — DeriveManyAsync over a UNION of source titles
+    //     (Klas 2026-06-21, CTO Decision 6). The caller passes titles in PRIORITY
+    //     order (education FIRST, then work history). Candidates from earlier titles
+    //     rank first WITHIN a match kind; dedupe per ssyk-4 group; companies/schools
+    //     self-filter; total cap = MaxCandidates (25). All against the REAL snapshot.
+    // =================================================================
+
+    // The ssyk-4 group "Mjukvaru- och systemutvecklare m.fl." — the GOLDEN target of
+    // the Swedish education degree "Systemutvecklare" (it is not itself an exact
+    // occupation-name label, but "Systemutvecklare/Programmerare" occ-name fg7B_yov_smw
+    // → ssyk-4 DJh5_yyF_hEM, and the degree's stem overlaps it). Provenance re-derived
+    // LIVE below (SystemutvecklareGroupAsync) so the magic id can never go stale.
+    private const string SystemutvecklareGroupId = "DJh5_yyF_hEM";
+
+    [Fact]
+    public async Task DeriveManyAsync_KlasCareerChangerSignals_SurfacesEducationGroup_CompanyAndSchoolContributeNothing()
+    {
+        // Klas's exact career-changer case (load-bearing): the CV says
+        // "Plasman — Operatör" (what they DID) but the current studies say
+        // "Systemutvecklare .NET" / "NBI-Handelsakademin" (what they WANT). The union
+        // must surface the systemutvecklare group (the desired-occupation signal),
+        // while the company "Plasman" and the school "NBI-Handelsakademin" — neither an
+        // occupation-name — contribute nothing on their own.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+        var (expectedGroupId, expectedGroupLabel) = await SystemutvecklareGroupAsync(ct);
+
+        var result = await sut.DeriveManyAsync(
+            ["Systemutvecklare .NET", "NBI-Handelsakademin", "Plasman", "Operatör"], ct);
+
+        // Title echo is the first non-blank source (parity with the single-title shape).
+        result.Title.ShouldBe("Systemutvecklare .NET");
+        result.Candidates.ShouldNotBeEmpty(
+            "Career-changer-unionen ska ge minst en kandidat (utbildningssignalen).");
+        // The systemutvecklare group surfaces (live-derived id/label — anti-stale).
+        result.Candidates.ShouldContain(c => c.OccupationGroupConceptId == expectedGroupId);
+        var hit = result.Candidates.First(c => c.OccupationGroupConceptId == expectedGroupId);
+        hit.OccupationGroupLabel.ShouldBe(expectedGroupLabel);
+        hit.MatchedOn.ShouldNotBeNullOrWhiteSpace(); // cited occupation-name span (§5)
+
+        // The company and the school carry nothing of their own: every candidate must be
+        // a group reachable from one of the two OCCUPATION strings, never a group that
+        // only "Plasman" or "NBI-Handelsakademin" could have produced (they produce none).
+        var companyGroups = await GroupsReachedByAsync("Plasman", ct);
+        var schoolGroups = await GroupsReachedByAsync("NBI-Handelsakademin", ct);
+        companyGroups.ShouldBeEmpty("'Plasman' (ett företag) är inget yrkesnamn.");
+        schoolGroups.ShouldBeEmpty("'NBI-Handelsakademin' (en skola) är inget yrkesnamn.");
+    }
+
+    [Fact]
+    public async Task DeriveManyAsync_EducationBeforeExperience_RanksEducationGroupFirstWithinSameKind()
+    {
+        // Education-first ordering (SourceOrder, CTO Decision 6.2). Both titles yield
+        // STEMMED candidates: "Systemutvecklare" (index 0, education) and "Operatör"
+        // (index 1, experience). Within the StemmedTokenOverlap run, the index-0
+        // (education) systemutvecklare group must precede every operatör-sourced group.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+        var (sysGroupId, _) = await SystemutvecklareGroupAsync(ct);
+        var operatorGroups = await GroupsReachedByAsync("Operatör", ct);
+        operatorGroups.ShouldNotBeEmpty("'Operatör' ska ge minst en stammad grupp.");
+
+        var result = await sut.DeriveManyAsync(["Systemutvecklare", "Operatör"], ct);
+
+        var sysIndex = IndexOfGroup(result, sysGroupId);
+        sysIndex.ShouldBeGreaterThanOrEqualTo(0,
+            "Utbildningstiteln 'Systemutvecklare' ska ge systemutvecklar-gruppen.");
+        // The systemutvecklare group (from index 0) precedes EVERY operatör-only group
+        // (from index 1) — SourceOrder governs the order within the same match kind.
+        foreach (var opGroupId in operatorGroups.Where(g => g != sysGroupId))
+        {
+            var opIndex = IndexOfGroup(result, opGroupId);
+            if (opIndex >= 0)
+                sysIndex.ShouldBeLessThan(opIndex,
+                    $"Utbildningsgruppen (index 0) ska ranka före operatör-gruppen " +
+                    $"'{opGroupId}' (index 1) inom samma MatchKind.");
+        }
+    }
+
+    [Fact]
+    public async Task DeriveManyAsync_TwoTitlesSameSsyk4Group_YieldsExactlyOneCandidate()
+    {
+        // Union + dedupe (CTO Decision 6.3): two source titles that both map to the SAME
+        // ssyk-4 group produce ONE candidate for that group, not two. "Systemutvecklare"
+        // and "Mjukvaruutvecklare" both resolve to DJh5_yyF_hEM (systemutvecklar-gruppen).
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+        var (sysGroupId, _) = await SystemutvecklareGroupAsync(ct);
+
+        var result = await sut.DeriveManyAsync(
+            ["Systemutvecklare", "Mjukvaruutvecklare"], ct);
+
+        var forGroup = result.Candidates
+            .Count(c => c.OccupationGroupConceptId == sysGroupId);
+        forGroup.ShouldBe(1,
+            "Två titlar mot samma ssyk-4-grupp ska ge EXAKT en kandidat (dedupe, " +
+            "starkaste evidensen behålls).");
+        // And the whole list stays deduped per group (no group id appears twice).
+        var distinct = result.Candidates
+            .Select(c => c.OccupationGroupConceptId).Distinct().Count();
+        distinct.ShouldBe(result.Candidates.Count);
+    }
+
+    [Fact]
+    public async Task DeriveManyAsync_OnlyNonOccupationStrings_ReturnsEmptyCandidates()
+    {
+        // Non-occupation strings self-filter (CTO Decision 6.4): a company, a generic
+        // brand, and a school are none of them occupation-name labels → empty union.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+
+        var result = await sut.DeriveManyAsync(
+            ["Plasman", "Acme AB", "NBI-Handelsakademin"], ct);
+
+        result.Candidates.ShouldBeEmpty(
+            "Inget av strängarna är ett yrkesnamn → tom kandidatlista → manuellt val.");
+    }
+
+    [Fact]
+    public async Task DeriveManyAsync_SingleElement_ReturnsSameCandidatesAsDeriveAsync()
+    {
+        // Single-element parity (CTO Decision 6.5): DeriveManyAsync([t]) ≡ DeriveAsync(t)
+        // — DeriveAsync delegates to DeriveManyAsync([t]), so the surfaced candidate set
+        // (group id + kind, in order) must be identical for a representative title.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+        const string title = "Systemutvecklare";
+
+        var many = await sut.DeriveManyAsync([title], ct);
+        var single = await sut.DeriveAsync(title, ct);
+
+        var manyKeys = many.Candidates
+            .Select(c => (c.OccupationGroupConceptId, c.MatchKind)).ToList();
+        var singleKeys = single.Candidates
+            .Select(c => (c.OccupationGroupConceptId, c.MatchKind)).ToList();
+        manyKeys.ShouldBe(singleKeys); // identical sequence, order included
+        many.Title.ShouldBe(single.Title);
+    }
+
+    [Fact]
+    public async Task DeriveManyAsync_EmptyInput_ReturnsEmptyCandidatesAndEmptyTitle_NoThrow()
+    {
+        // Empty input (CTO Decision 6.6): an empty list yields empty candidates and an
+        // empty Title echo — never throws.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+
+        var result = await sut.DeriveManyAsync([], ct);
+
+        result.Title.ShouldBe(string.Empty);
+        result.Candidates.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DeriveManyAsync_AllBlankInput_ReturnsEmptyCandidatesAndEmptyTitle_NoThrow()
+    {
+        // Blank/whitespace input (CTO Decision 6.6): all-blank is treated as no input —
+        // empty candidates, empty Title echo, no throw.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+
+        var result = await sut.DeriveManyAsync(["", "  "], ct);
+
+        result.Title.ShouldBe(string.Empty);
+        result.Candidates.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DeriveManyAsync_ManyMatchingTitles_NeverExceedsTotalCap()
+    {
+        // Total cap (CTO Decision 6.7): the union across MANY high-overlap titles is
+        // still bounded by MaxCandidates (25) — a long CV cannot fan out the taxonomy.
+        // "chef" alone touches 8 distinct mapped groups in the live data; repeating it
+        // and adding more high-overlap 1-token titles stresses the union cap.
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+        string[] titles =
+        [
+            "chef", "ingenjör", "tekniker", "operatör", "lärare",
+            "sjuksköterska", "utvecklare", "konsult", "administratör", "assistent",
+            "samordnare", "specialist", "handläggare", "ledare", "analytiker",
+        ];
+
+        var result = await sut.DeriveManyAsync(titles, ct);
+
+        result.Candidates.Count.ShouldBeLessThanOrEqualTo(25,
+            "Unionen över många högöverlappande titlar får aldrig överskrida " +
+            "MaxCandidates (25) — bounded cap, DoS-/UX-skydd.");
+        // Still deduped per group even at the cap.
+        var distinct = result.Candidates
+            .Select(c => c.OccupationGroupConceptId).Distinct().Count();
+        distinct.ShouldBe(result.Candidates.Count);
+    }
+
     // ---------------------------------------------------------------
     // Helpers — live golden re-derivation + snapshot/frozen-map readers.
     // ---------------------------------------------------------------
+
+    // Live-derives the systemutvecklare ssyk-4 group (id + current snapshot label) so
+    // the goldens for the Tier 1 tests never go stale against a snapshot bump. Asserts
+    // the constant id is still the live target.
+    private async Task<(string GroupId, string GroupLabel)> SystemutvecklareGroupAsync(
+        CancellationToken ct)
+    {
+        var taxonomy = new TaxonomyReadModel(ScopeFactory);
+        var tree = await taxonomy.GetTreeAsync(ct);
+        var label = tree.OccupationFields
+            .SelectMany(f => f.OccupationGroups)
+            .FirstOrDefault(g => g.ConceptId == SystemutvecklareGroupId)?.Label;
+        label.ShouldNotBeNull(
+            $"Golden-gruppen '{SystemutvecklareGroupId}' (Mjukvaru- och " +
+            "systemutvecklare m.fl.) ska finnas i snapshoten.");
+        return (SystemutvecklareGroupId, label!);
+    }
+
+    // The set of ssyk-4 group ids a SINGLE title surfaces (via DeriveAsync against the
+    // real deriver) — used to prove a company/school self-filters (empty set) and to
+    // identify the operatör-only groups for the ordering assertion. The deriver is the
+    // source of truth here (parity with the impl the SUT exercises), not a re-impl.
+    private async Task<HashSet<string>> GroupsReachedByAsync(
+        string title, CancellationToken ct)
+    {
+        var sut = NewDeriver();
+        var result = await sut.DeriveAsync(title, ct);
+        return result.Candidates
+            .Select(c => c.OccupationGroupConceptId)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    // First index of a candidate carrying the given ssyk-4 group id, or -1 if absent.
+    private static int IndexOfGroup(OccupationDerivationResult result, string groupId)
+    {
+        for (var i = 0; i < result.Candidates.Count; i++)
+        {
+            if (result.Candidates[i].OccupationGroupConceptId == groupId)
+                return i;
+        }
+        return -1;
+    }
 
     // Re-derives the expected (ssyk-4 id, label) for a title that is expected to
     // be an EXACT occupation-name hit, straight from the seeded tree + frozen map

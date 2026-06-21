@@ -6,7 +6,14 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// caller-supplied value object (BCL-only, parity <see cref="OccupationDerivationResult"/>):
 /// it carries the candidate's job title (for the stemmed title-similarity
 /// dimension) plus the <b>already F4-3-confirmed</b> SSYK level-4 group ids and the
-/// preferred region/employment-type concept ids.
+/// preferred region/employment-type/municipality concept ids.
+/// <para>
+/// <b><see cref="PreferredMunicipalityConceptIds"/> (Spår 3, ADR 0076-amendment
+/// 2026-06-21):</b> the finer-grained location granularity that folds into the same
+/// location ("ort") dimension as <see cref="PreferredRegionConceptIds"/>. Carried here
+/// additively from PR-A; <c>MatchScorer</c> consumes it (region∪municipality union)
+/// from PR-B onward. An empty list = honest "no municipality stated".
+/// </para>
 /// <para>
 /// <b>Why pre-confirmed, not derived here (ADR 0040 Beslut 4):</b> the SSYK
 /// derivation (<see cref="IOccupationCodeDeriver"/>, F4-3) <i>proposes</i> a ranked
@@ -28,4 +35,5 @@ public sealed record CandidateMatchProfile(
     string Title,
     IReadOnlyList<string> SsykGroupConceptIds,
     IReadOnlyList<string> PreferredRegionConceptIds,
-    IReadOnlyList<string> PreferredEmploymentTypeConceptIds);
+    IReadOnlyList<string> PreferredEmploymentTypeConceptIds,
+    IReadOnlyList<string> PreferredMunicipalityConceptIds);

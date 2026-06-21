@@ -180,7 +180,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
                 Title: "Titel",
                 SsykGroupConceptIds: [],
                 PreferredRegionConceptIds: [],
-                PreferredEmploymentTypeConceptIds: []),
+                PreferredEmploymentTypeConceptIds: [],
+                PreferredMunicipalityConceptIds: []),
             CvSkillConceptIds: cvSkillConceptIds);
 
     // =================================================================
@@ -548,7 +549,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             Title: "Arkitekt utvecklare",
             SsykGroupConceptIds: [adGroup],
             PreferredRegionConceptIds: [adRegion],
-            PreferredEmploymentTypeConceptIds: [adEmployment]);
+            PreferredEmploymentTypeConceptIds: [adEmployment],
+            PreferredMunicipalityConceptIds: []);
         var full = new FullCandidateMatchProfile(fast, [CSharpConceptId]);
 
         var (scope, scorer) = NewScorer();

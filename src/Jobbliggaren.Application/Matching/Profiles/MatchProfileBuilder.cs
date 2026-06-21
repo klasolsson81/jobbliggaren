@@ -41,7 +41,8 @@ public sealed class MatchProfileBuilder(
         Title: string.Empty,
         SsykGroupConceptIds: [],
         PreferredRegionConceptIds: [],
-        PreferredEmploymentTypeConceptIds: []);
+        PreferredEmploymentTypeConceptIds: [],
+        PreferredMunicipalityConceptIds: []);
 
     private static readonly FullCandidateMatchProfile EmptyFull = new(EmptyFast, []);
 
@@ -139,6 +140,7 @@ public sealed class MatchProfileBuilder(
             Title: string.Empty,
             SsykGroupConceptIds: preferences.PreferredOccupationGroups,
             PreferredRegionConceptIds: preferences.PreferredRegions,
-            PreferredEmploymentTypeConceptIds: preferences.PreferredEmploymentTypes);
+            PreferredEmploymentTypeConceptIds: preferences.PreferredEmploymentTypes,
+            PreferredMunicipalityConceptIds: preferences.PreferredMunicipalities);
     }
 }

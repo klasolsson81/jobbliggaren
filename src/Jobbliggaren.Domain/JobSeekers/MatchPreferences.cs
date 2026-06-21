@@ -6,10 +6,13 @@ namespace Jobbliggaren.Domain.JobSeekers;
 
 /// <summary>
 /// Value object — a job-seeker's STATED job-search preferences (Fas 4 STEG F4-12,
-/// ADR 0076 + 2026-06-19 amendment). Holds the desired occupation-groups (ssyk-level-4),
-/// regions, and employment-types the user is looking for. These feed the deterministic
-/// match score (F4-13+): each list maps straight onto a <c>CandidateMatchProfile</c>
-/// dimension. NO AI/LLM (ADR 0071).
+/// ADR 0076 + 2026-06-19 + 2026-06-21 amendments). Holds the desired occupation-groups
+/// (ssyk-level-4), regions, municipalities, and employment-types the user is looking for.
+/// These feed the deterministic match score (F4-13+): each list maps straight onto a
+/// <c>CandidateMatchProfile</c> dimension. <see cref="PreferredMunicipalities"/> is the
+/// finer-grained location granularity that folds into the same location ("ort") dimension
+/// as <see cref="PreferredRegions"/> (Spår 3, ADR 0076-amendment 2026-06-21) — added here
+/// additively; the scorer consumes it from PR-B onward. NO AI/LLM (ADR 0071).
 ///
 /// <para>
 /// <b>Mirrors <see cref="SearchCriteria"/> (ADR 0042 Beslut B) for the multi-value
@@ -24,7 +27,7 @@ namespace Jobbliggaren.Domain.JobSeekers;
 ///
 /// <para>
 /// <b>Deliberate divergence from <see cref="SearchCriteria"/>:</b> there is NO "at least
-/// one criterion" invariant. All three lists empty is a VALID <see cref="MatchPreferences"/>
+/// one criterion" invariant. All four lists empty is a VALID <see cref="MatchPreferences"/>
 /// — a user who has not yet stated any preference (skipped onboarding). Empty → the
 /// corresponding match dimension reports <c>NotAssessed</c> downstream, never faked
 /// (ADR 0076 Decision 7). <see cref="Empty"/> is the honest "no preferences stated" default.
@@ -46,21 +49,34 @@ public sealed record MatchPreferences
     public IReadOnlyList<string> PreferredRegions { get; private init; } = [];
     public IReadOnlyList<string> PreferredEmploymentTypes { get; private init; } = [];
 
+    // Finer-grained location granularity (kommun) that folds into the same "ort"
+    // dimension as PreferredRegions (Spår 3, ADR 0076-amendment 2026-06-21). Appended
+    // last so the jsonb-key contract stays a purely additive extension of the existing
+    // write order. Empty = honest "no municipality stated" (the scorer reads it from PR-B).
+    public IReadOnlyList<string> PreferredMunicipalities { get; private init; } = [];
+
     // EF + record copy-semantik. Property-initializers (= []) ensure non-null even
     // before EF materializes via the value converter.
     private MatchPreferences() { }
 
-    /// <summary>The honest "no preferences stated" value — all three lists empty. Valid.</summary>
+    /// <summary>The honest "no preferences stated" value — all four lists empty. Valid.</summary>
     public static readonly MatchPreferences Empty = new();
 
+    // preferredMunicipalities is the additive 4th dimension (Spår 3, ADR 0076-amendment
+    // 2026-06-21). Optional so every existing caller keeps compiling — absence is the
+    // honest empty/"not stated" default, identical to passing an empty list (mirrors the
+    // VO's all-empty-is-valid philosophy; the other three are independently
+    // optional-by-emptiness too).
     public static Result<MatchPreferences> Create(
         IEnumerable<string>? preferredOccupationGroups,
         IEnumerable<string>? preferredRegions,
-        IEnumerable<string>? preferredEmploymentTypes)
+        IEnumerable<string>? preferredEmploymentTypes,
+        IEnumerable<string>? preferredMunicipalities = null)
     {
         var normOccupationGroups = NormalizeList(preferredOccupationGroups);
         var normRegions = NormalizeList(preferredRegions);
         var normEmploymentTypes = NormalizeList(preferredEmploymentTypes);
+        var normMunicipalities = NormalizeList(preferredMunicipalities);
 
         // Cap + per-element regex per dimension (default-deny). Empty is allowed —
         // no "at least one" invariant (deliberate divergence from SearchCriteria).
@@ -82,7 +98,13 @@ public sealed record MatchPreferences
                 "MatchPreferences.TooManyEmploymentTypes",
                 $"Max {SearchCriteria.MaxConceptIds} anställningsformer.",
                 "MatchPreferences.InvalidEmploymentType",
-                "Anställningsform måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+                "Anställningsform måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).")
+            ?? ValidateConceptList(
+                normMunicipalities,
+                "MatchPreferences.TooManyMunicipalities",
+                $"Max {SearchCriteria.MaxConceptIds} kommuner.",
+                "MatchPreferences.InvalidMunicipality",
+                "Kommun måste vara en giltig JobTech municipality-concept-id (1-32 tecken, alfanumeriskt + _-).");
 
         if (error is not null)
             return Result.Failure<MatchPreferences>(error);
@@ -92,6 +114,7 @@ public sealed record MatchPreferences
             PreferredOccupationGroups = normOccupationGroups,
             PreferredRegions = normRegions,
             PreferredEmploymentTypes = normEmploymentTypes,
+            PreferredMunicipalities = normMunicipalities,
         });
     }
 
@@ -131,7 +154,7 @@ public sealed record MatchPreferences
     // default REFERENCE equality → jsonb-dedupe/value-comparison would never match.
     // Lists are already normalized (sorted+distinct ordinal) in Create → sequence
     // comparison is deterministic. Canonical dimension order: OccupationGroups,
-    // Regions, EmploymentTypes.
+    // Regions, EmploymentTypes, Municipalities (municipalities appended last).
     public bool Equals(MatchPreferences? other)
     {
         if (other is null)
@@ -141,7 +164,8 @@ public sealed record MatchPreferences
 
         return PreferredOccupationGroups.SequenceEqual(other.PreferredOccupationGroups, StringComparer.Ordinal)
             && PreferredRegions.SequenceEqual(other.PreferredRegions, StringComparer.Ordinal)
-            && PreferredEmploymentTypes.SequenceEqual(other.PreferredEmploymentTypes, StringComparer.Ordinal);
+            && PreferredEmploymentTypes.SequenceEqual(other.PreferredEmploymentTypes, StringComparer.Ordinal)
+            && PreferredMunicipalities.SequenceEqual(other.PreferredMunicipalities, StringComparer.Ordinal);
     }
 
     public override int GetHashCode()
@@ -153,6 +177,8 @@ public sealed record MatchPreferences
             hash.Add(r, StringComparer.Ordinal);
         foreach (var e in PreferredEmploymentTypes)
             hash.Add(e, StringComparer.Ordinal);
+        foreach (var m in PreferredMunicipalities)
+            hash.Add(m, StringComparer.Ordinal);
         return hash.ToHashCode();
     }
 }

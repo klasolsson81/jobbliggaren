@@ -63,7 +63,8 @@ public class MatchProfileBuilderTests
         var prefs = MatchPreferences.Create(
             preferredOccupationGroups: ["grp_12345", "grp_67890"],
             preferredRegions: ["stockholm_AB"],
-            preferredEmploymentTypes: ["et_fast"]).Value;
+            preferredEmploymentTypes: ["et_fast"],
+            preferredMunicipalities: ["sthlm_kn"]).Value;
         await SeedSeekerWithPrefsAsync(db, _userId, prefs);
         var builder = NewBuilder(db);
 
@@ -73,6 +74,31 @@ public class MatchProfileBuilderTests
         profile.SsykGroupConceptIds.ShouldBe(["grp_12345", "grp_67890"]);
         profile.PreferredRegionConceptIds.ShouldBe(["stockholm_AB"]);
         profile.PreferredEmploymentTypeConceptIds.ShouldBe(["et_fast"]);
+        // Spår 3 PR-A — municipality-dimensionen bärs igenom till profilen.
+        profile.PreferredMunicipalityConceptIds.ShouldBe(["sthlm_kn"]);
+    }
+
+    // Spår 3 PR-A — fokuserat mappnings-fall: lagrade municipalities → profilens
+    // PreferredMunicipalityConceptIds (parity med region/employment-type-mappningen).
+    [Fact]
+    public async Task BuildFromPreferences_WithStoredMunicipalities_MapsToProfileMunicipalityConceptIds()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: null,
+            preferredRegions: null,
+            preferredEmploymentTypes: null,
+            preferredMunicipalities: ["sthlm_kn", "gbg_kn"]).Value;
+        await SeedSeekerWithPrefsAsync(db, _userId, prefs);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
+
+        profile.ShouldNotBeNull();
+        profile.PreferredMunicipalityConceptIds.ShouldBe(["gbg_kn", "sthlm_kn"]); // sorterad ordinal
+        profile.SsykGroupConceptIds.ShouldBeEmpty();
+        profile.PreferredRegionConceptIds.ShouldBeEmpty();
+        profile.PreferredEmploymentTypeConceptIds.ShouldBeEmpty();
     }
 
     [Fact]
@@ -108,6 +134,7 @@ public class MatchProfileBuilderTests
         profile.SsykGroupConceptIds.ShouldBeEmpty();
         profile.PreferredRegionConceptIds.ShouldBeEmpty();
         profile.PreferredEmploymentTypeConceptIds.ShouldBeEmpty();
+        profile.PreferredMunicipalityConceptIds.ShouldBeEmpty();
     }
 
     [Fact]
@@ -125,6 +152,7 @@ public class MatchProfileBuilderTests
         profile.SsykGroupConceptIds.ShouldBeEmpty();
         profile.PreferredRegionConceptIds.ShouldBeEmpty();
         profile.PreferredEmploymentTypeConceptIds.ShouldBeEmpty();
+        profile.PreferredMunicipalityConceptIds.ShouldBeEmpty();
     }
 
     [Fact]
@@ -141,6 +169,7 @@ public class MatchProfileBuilderTests
         profile.SsykGroupConceptIds.ShouldBeEmpty();
         profile.PreferredRegionConceptIds.ShouldBeEmpty();
         profile.PreferredEmploymentTypeConceptIds.ShouldBeEmpty();
+        profile.PreferredMunicipalityConceptIds.ShouldBeEmpty();
     }
 
     [Fact]

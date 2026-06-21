@@ -197,7 +197,8 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
             Title: "Systemutvecklare",
             SsykGroupConceptIds: [grp],
             PreferredRegionConceptIds: [reg],
-            PreferredEmploymentTypeConceptIds: [emp]);
+            PreferredEmploymentTypeConceptIds: [emp],
+            PreferredMunicipalityConceptIds: []);
         var profile = FullProfile(fast, CSharpConceptId, DockerConceptId);
 
         var (scope, scorer) = NewScorer();
@@ -242,7 +243,8 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
             Title: "Utvecklare arkitekt",
             SsykGroupConceptIds: [grp],
             PreferredRegionConceptIds: [reg],
-            PreferredEmploymentTypeConceptIds: [emp]);
+            PreferredEmploymentTypeConceptIds: [emp],
+            PreferredMunicipalityConceptIds: []);
         var profile = FullProfile(fast, CSharpConceptId);
 
         var (scope, scorer) = NewScorer();
@@ -273,7 +275,7 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
             ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]), ct);
         var ghost = JobAdId.New();
 
-        var profile = FullProfile(new CandidateMatchProfile("Titel", [grp], [], []), CSharpConceptId);
+        var profile = FullProfile(new CandidateMatchProfile("Titel", [grp], [], [], []), CSharpConceptId);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -295,7 +297,7 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         var deleted = await SeedJobAdAsync("Arkitekt", grp, null, null, terms, ct);
         await SoftDeleteAsync(deleted, ct);
 
-        var profile = FullProfile(new CandidateMatchProfile("Titel", [grp], [], []), CSharpConceptId);
+        var profile = FullProfile(new CandidateMatchProfile("Titel", [grp], [], [], []), CSharpConceptId);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
@@ -311,7 +313,7 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var profile = FullProfile(
-            new CandidateMatchProfile("Titel", [NewConceptId("grp")], [], []), CSharpConceptId);
+            new CandidateMatchProfile("Titel", [NewConceptId("grp")], [], [], []), CSharpConceptId);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;

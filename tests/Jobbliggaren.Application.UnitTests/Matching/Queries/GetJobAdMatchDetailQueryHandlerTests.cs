@@ -129,11 +129,12 @@ public class GetJobAdMatchDetailQueryHandlerTests
                 Title: string.Empty,
                 SsykGroupConceptIds: ["grp_12345"],
                 PreferredRegionConceptIds: ["region_AB"],
-                PreferredEmploymentTypeConceptIds: []),
+                PreferredEmploymentTypeConceptIds: [],
+                PreferredMunicipalityConceptIds: []),
             cvSkillConceptIds);
 
     private static FullCandidateMatchProfile EmptyFullProfile() =>
-        new(new CandidateMatchProfile(string.Empty, [], [], []), []);
+        new(new CandidateMatchProfile(string.Empty, [], [], [], []), []);
 
     private static MatchDimension Dim(
         MatchDimensionVerdict v,

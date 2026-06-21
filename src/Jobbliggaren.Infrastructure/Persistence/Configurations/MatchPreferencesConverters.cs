@@ -29,6 +29,7 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         List<string> occupationGroups = [];
         List<string> regions = [];
         List<string> employmentTypes = [];
+        List<string> municipalities = [];
 
         while (reader.Read())
         {
@@ -51,8 +52,13 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
                 case "PreferredEmploymentTypes":
                     employmentTypes = ReadStringOrStringArray(ref reader, "PreferredEmploymentTypes");
                     break;
-                // Missing/unknown key → empty list via the defaults above (old row
-                // or '{}' default deserializes to Empty). Forward-compatible.
+                case "PreferredMunicipalities":
+                    municipalities = ReadStringOrStringArray(ref reader, "PreferredMunicipalities");
+                    break;
+                // Missing/unknown key → empty list via the defaults above (an old row
+                // written before Spår 3, or the '{}' default, has no
+                // "PreferredMunicipalities" key → empty municipalities, never a crash).
+                // Forward-compatible.
                 default:
                     reader.Skip();
                     break;
@@ -65,7 +71,8 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         var result = MatchPreferences.Create(
             preferredOccupationGroups: occupationGroups,
             preferredRegions: regions,
-            preferredEmploymentTypes: employmentTypes);
+            preferredEmploymentTypes: employmentTypes,
+            preferredMunicipalities: municipalities);
         if (result.IsFailure)
             throw new JsonException(
                 $"Lagrad MatchPreferences-jsonb bröt domän-invariant: {result.Error.Code}.");
@@ -76,7 +83,8 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         Utf8JsonWriter writer, MatchPreferences value, JsonSerializerOptions options)
     {
         // Always array form + PascalCase (= VO property names = jsonb-key contract).
-        // Canonical dimension order: OccupationGroups, Regions, EmploymentTypes.
+        // Canonical dimension order: OccupationGroups, Regions, EmploymentTypes,
+        // Municipalities (municipalities appended last — additive jsonb extension).
         writer.WriteStartObject();
 
         writer.WritePropertyName("PreferredOccupationGroups");
@@ -95,6 +103,12 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         writer.WriteStartArray();
         foreach (var e in value.PreferredEmploymentTypes)
             writer.WriteStringValue(e);
+        writer.WriteEndArray();
+
+        writer.WritePropertyName("PreferredMunicipalities");
+        writer.WriteStartArray();
+        foreach (var m in value.PreferredMunicipalities)
+            writer.WriteStringValue(m);
         writer.WriteEndArray();
 
         writer.WriteEndObject();

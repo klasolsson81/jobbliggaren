@@ -48,5 +48,15 @@ public sealed class SetMatchPreferencesCommandValidator
             .Matches(ConceptIdPattern)
             .When(c => c.PreferredEmploymentTypes is not null)
             .WithMessage("Anställningsform måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        RuleFor(c => c.PreferredMunicipalities!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(c => c.PreferredMunicipalities is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} kommuner.");
+
+        RuleForEach(c => c.PreferredMunicipalities)
+            .Matches(ConceptIdPattern)
+            .When(c => c.PreferredMunicipalities is not null)
+            .WithMessage("Kommun måste vara en giltig JobTech municipality-concept-id (1-32 tecken, alfanumeriskt + _-).");
     }
 }

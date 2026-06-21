@@ -37,7 +37,8 @@ public sealed class SetMatchPreferencesCommandHandler(
         var preferencesResult = MatchPreferences.Create(
             preferredOccupationGroups: command.PreferredOccupationGroups,
             preferredRegions: command.PreferredRegions,
-            preferredEmploymentTypes: command.PreferredEmploymentTypes);
+            preferredEmploymentTypes: command.PreferredEmploymentTypes,
+            preferredMunicipalities: command.PreferredMunicipalities);
         if (preferencesResult.IsFailure)
             return Result.Failure(preferencesResult.Error);
 

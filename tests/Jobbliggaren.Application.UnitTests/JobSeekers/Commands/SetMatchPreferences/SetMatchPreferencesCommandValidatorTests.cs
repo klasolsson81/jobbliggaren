@@ -19,11 +19,13 @@ public class SetMatchPreferencesCommandValidatorTests
     private static SetMatchPreferencesCommand Command(
         IReadOnlyList<string>? preferredOccupationGroups = null,
         IReadOnlyList<string>? preferredRegions = null,
-        IReadOnlyList<string>? preferredEmploymentTypes = null) =>
+        IReadOnlyList<string>? preferredEmploymentTypes = null,
+        IReadOnlyList<string>? preferredMunicipalities = null) =>
         new(
             PreferredOccupationGroups: preferredOccupationGroups,
             PreferredRegions: preferredRegions,
-            PreferredEmploymentTypes: preferredEmploymentTypes);
+            PreferredEmploymentTypes: preferredEmploymentTypes,
+            PreferredMunicipalities: preferredMunicipalities);
 
     [Fact]
     public void Validate_WithValidConceptIds_Passes()
@@ -31,7 +33,8 @@ public class SetMatchPreferencesCommandValidatorTests
         var result = _validator.Validate(Command(
             preferredOccupationGroups: ["grp_12345"],
             preferredRegions: ["stockholm_AB"],
-            preferredEmploymentTypes: ["et_fast", "et_vikariat"]));
+            preferredEmploymentTypes: ["et_fast", "et_vikariat"],
+            preferredMunicipalities: ["sthlm_kn"]));
 
         result.IsValid.ShouldBeTrue();
     }
@@ -40,7 +43,7 @@ public class SetMatchPreferencesCommandValidatorTests
     public void Validate_WithAllNull_Passes()
     {
         // MEDVETET AVSTEG mot CreateSavedSearch — tomma/null-listor är GILTIGT
-        // (ingen "minst ett"-regel).
+        // (ingen "minst ett"-regel). Inkl. municipality (4:e optional dim).
         var result = _validator.Validate(Command());
 
         result.IsValid.ShouldBeTrue();
@@ -52,7 +55,18 @@ public class SetMatchPreferencesCommandValidatorTests
         var result = _validator.Validate(Command(
             preferredOccupationGroups: [],
             preferredRegions: [],
-            preferredEmploymentTypes: []));
+            preferredEmploymentTypes: [],
+            preferredMunicipalities: []));
+
+        result.IsValid.ShouldBeTrue();
+    }
+
+    // Spår 3 PR-A — municipality-only valid set passerar (4:e peer-dimension).
+    [Fact]
+    public void Validate_WithValidMunicipalitiesOnly_Passes()
+    {
+        var result = _validator.Validate(Command(
+            preferredMunicipalities: ["sthlm_kn", "gbg_kn"]));
 
         result.IsValid.ShouldBeTrue();
     }
@@ -90,6 +104,18 @@ public class SetMatchPreferencesCommandValidatorTests
         result.IsValid.ShouldBeFalse();
     }
 
+    // Spår 3 PR-A — municipality cap = SearchCriteria.MaxConceptIds.
+    [Fact]
+    public void Validate_Municipalities_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"kn{i}").ToArray();
+
+        var result = _validator.Validate(Command(preferredMunicipalities: overMax));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
     [Theory]
     [InlineData("bad id!")]
     [InlineData("has space")]
@@ -117,6 +143,19 @@ public class SetMatchPreferencesCommandValidatorTests
     public void Validate_EmploymentTypes_InvalidElement_IsInvalid(string bad)
     {
         var result = _validator.Validate(Command(preferredEmploymentTypes: ["et_fast", bad]));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    // Spår 3 PR-A — municipality per-element regex (default-deny).
+    [Theory]
+    [InlineData("bad id!")]
+    [InlineData("kommun space")]
+    [InlineData("dot.notation")]
+    [InlineData("åäö")]
+    public void Validate_Municipalities_InvalidElement_IsInvalid(string bad)
+    {
+        var result = _validator.Validate(Command(preferredMunicipalities: ["sthlm_kn", bad]));
 
         result.IsValid.ShouldBeFalse();
     }

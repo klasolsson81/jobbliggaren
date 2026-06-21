@@ -70,7 +70,9 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
                 Title: string.Empty,
                 SsykGroupConceptIds: [PrefGroup],
                 PreferredRegionConceptIds: [PrefRegion],
-                PreferredEmploymentTypeConceptIds: [PrefEmployment]),
+                PreferredEmploymentTypeConceptIds: [PrefEmployment],
+                // Spår 3 PR-A — 5:e dimension; tom (municipality testas i PR-B, ej här).
+                PreferredMunicipalityConceptIds: []),
             cvSkillConceptIds);
 
     private static JobAdFilterCriteria FilterFor(string runMunicipality) => new(

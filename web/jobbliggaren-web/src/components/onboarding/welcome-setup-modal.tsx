@@ -26,8 +26,10 @@ import type {
 } from "@/lib/dto/taxonomy";
 import { markSetupWelcomeSeen } from "@/lib/onboarding/setup-welcome-actions";
 
-/** Welcome-modalens tre interna steg (klient-only — ingen route per steg). */
-type WelcomeStep = "upload" | "confirm" | "choice";
+/** Welcome-modalens två interna steg (klient-only — ingen route per steg).
+ * "done" slår ihop bekräftelse + val i EN slide (Klas: separat confirm + choice
+ * kändes som dubbelsteg). */
+type WelcomeStep = "upload" | "done";
 
 interface WelcomeSetupModalProps {
   readonly showWelcome: boolean;
@@ -68,6 +70,9 @@ export function WelcomeSetupModal({
   const [welcomeOpen, setWelcomeOpen] = useState(showWelcome);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState<WelcomeStep>("upload");
+  // Om ett CV faktiskt laddades upp (styr grön check + copy i "done"-steget;
+  // "Fortsätt utan CV" hoppar till "done" UTAN check).
+  const [uploaded, setUploaded] = useState(false);
   const [, startTransition] = useTransition();
 
   // Fokus till stegrubriken EFTER commit (WCAG 2.4.3 + 4.1.3). En effekt på
@@ -116,101 +121,99 @@ export function WelcomeSetupModal({
 
   return (
     <>
-      <Dialog
-        open={welcomeOpen}
-        onOpenChange={(next) => {
-          // Endast stängning hanteras här (scrim-klick, Esc, X). Öppning styrs
-          // av server-proppen vid mount. Programmatisk stängning via openWizard
-          // sätter `open=false` direkt och triggar INTE denna handler.
-          if (!next) dismissWelcome();
-        }}
-      >
-        <DialogContent className="jp-stdmodal jp-stdmodal--narrow">
-          {step === "confirm" ? (
-            // Bekräftelse: EN rubrik (DialogTitle bär "stort = typografisk
-            // hierarki" per ADR 0077 A2.ii) med grön check ovanför + en not.
-            // Ingen separat visuell rubrik-<p> (skulle bryta rubrikhierarkin).
-            <>
-              <div className="jp-welcome__confirm">
-                <CheckCircle2
-                  className="jp-welcome__confirm-icon"
-                  size={48}
-                  aria-hidden="true"
-                />
-                {/* Status bärs av text + ikon, aldrig färg ensam (WCAG 1.4.1). */}
-                <DialogTitle
-                  ref={titleRef}
-                  tabIndex={-1}
-                  className="jp-welcome__confirm-title"
-                >
-                  CV uppladdat
-                </DialogTitle>
-                <DialogDescription className="jp-welcome__confirm-note">
-                  Vi har läst in och tolkat ditt CV. Inget är ändrat och ingen
-                  matchning är gjord ännu. Nästa steg är att ställa in din
-                  matchningsprofil.
-                </DialogDescription>
-              </div>
-              <div className="jp-welcome__foot">
-                <span className="jp-welcome__foot-spacer" />
-                <Button type="button" onClick={() => setStep("choice")}>
-                  Fortsätt
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="jp-welcome__head">
-                <DialogTitle
-                  ref={titleRef}
-                  tabIndex={-1}
-                  className="jp-welcome__title"
-                >
-                  {step === "upload"
-                    ? "Kom igång med matchning"
-                    : "Ställ in din matchning"}
-                </DialogTitle>
-                <DialogDescription className="jp-welcome__intro">
-                  {stepIntro(step)}
-                </DialogDescription>
-              </div>
+      {/* Bara EN Radix-dialog i trädet åt gången: när wizarden öppnas tas
+          välkomsten UR trädet (ej bara open=false). Annars togglas två dialoger
+          samtidigt → focus/scroll-lock-krock → välkomsten stängs men wizarden
+          monteras aldrig synligt (buggen Klas såg). */}
+      {!wizardOpen && (
+        <Dialog
+          open={welcomeOpen}
+          onOpenChange={(next) => {
+            // Endast stängning hanteras här (scrim-klick, Esc, X). Öppning styrs
+            // av server-proppen vid mount. openWizard sätter open=false direkt
+            // OCH tar dialogen ur trädet (wizardOpen) → triggar inte denna.
+            if (!next) dismissWelcome();
+          }}
+        >
+          <DialogContent className="jp-stdmodal jp-stdmodal--narrow">
+            {step === "upload" ? (
+              <>
+                <div className="jp-welcome__head">
+                  <DialogTitle
+                    ref={titleRef}
+                    tabIndex={-1}
+                    className="jp-welcome__title"
+                  >
+                    Kom igång med matchning
+                  </DialogTitle>
+                  <DialogDescription className="jp-welcome__intro">
+                    {stepIntro("upload")}
+                  </DialogDescription>
+                </div>
 
-              {step === "upload" && (
                 <div className="jp-welcome__body">
-                  <CvUploadForm onUploaded={() => setStep("confirm")} />
+                  <CvUploadForm
+                    onUploaded={() => {
+                      setUploaded(true);
+                      setStep("done");
+                    }}
+                  />
                   <div className="jp-welcome__skiprow">
                     <button
                       type="button"
                       className="jp-welcome__skip"
-                      onClick={() => setStep("choice")}
+                      onClick={() => setStep("done")}
                     >
                       Fortsätt utan CV
                     </button>
                   </div>
                 </div>
-              )}
-
-              {step === "choice" && (
-                <div className="jp-welcome__body">
-                  <div className="jp-welcome__foot">
-                    <button
-                      type="button"
-                      className="jp-welcome__skip"
-                      onClick={dismissWelcome}
-                    >
-                      Hoppa över
-                    </button>
-                    <span className="jp-welcome__foot-spacer" />
-                    <Button type="button" onClick={openWizard}>
-                      Ja, ställ in matchning
-                    </Button>
-                  </div>
+              </>
+            ) : (
+              // "done" — bekräftelse + val i EN slide (Klas: confirm + choice var
+              // dubbelsteg). Grön check + "CV uppladdat" bara om ett CV faktiskt
+              // laddades upp; annars rakt på matchnings-valet. EN DialogTitle bär
+              // rubriken; status via ikon + text, aldrig färg ensam (WCAG 1.4.1).
+              <>
+                <div className="jp-welcome__confirm">
+                  {uploaded && (
+                    <CheckCircle2
+                      className="jp-welcome__confirm-icon"
+                      size={48}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <DialogTitle
+                    ref={titleRef}
+                    tabIndex={-1}
+                    className="jp-welcome__confirm-title"
+                  >
+                    {uploaded ? "CV uppladdat" : "Ställ in din matchning"}
+                  </DialogTitle>
+                  <DialogDescription className="jp-welcome__confirm-note">
+                    {uploaded
+                      ? "Vi har läst in och tolkat ditt CV. Inget är ändrat och ingen matchning är gjord ännu. Vill du ställa in din matchningsprofil nu?"
+                      : "Vill du ställa in din matchning nu? Det tar någon minut. Du kan hoppa över och göra det senare."}
+                  </DialogDescription>
                 </div>
-              )}
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+                <div className="jp-welcome__foot">
+                  <button
+                    type="button"
+                    className="jp-welcome__skip"
+                    onClick={dismissWelcome}
+                  >
+                    Hoppa över
+                  </button>
+                  <span className="jp-welcome__foot-spacer" />
+                  <Button type="button" onClick={openWizard}>
+                    Ja, ställ in matchning
+                  </Button>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Wizarden (welcome step 2) — samma komponent som /cv-prompten öppnar,
           två ingångar (ADR 0077). Cookien sattes redan i openWizard. När wizarden
@@ -235,15 +238,13 @@ export function WelcomeSetupModal({
   );
 }
 
-/** Stegets hjälptext (bär instruktionen — aldrig placeholder-exempel). Confirm
- * har sin egen not inline (DialogDescription i bekräftelse-blocket). */
+/** Upload-stegets hjälptext (bär instruktionen — aldrig placeholder-exempel).
+ * "done"-steget har sin copy inline (beror på om CV laddades upp). */
 function stepIntro(step: WelcomeStep): string {
   switch (step) {
     case "upload":
       return "Ladda upp ditt CV så kan vi föreslå vilka yrken du söker. Du väljer själv vad som tas med, och kan hoppa över det här.";
-    case "confirm":
+    case "done":
       return "";
-    case "choice":
-      return "Vill du ställa in din matchning nu? Det tar någon minut. Du kan hoppa över och göra det senare.";
   }
 }

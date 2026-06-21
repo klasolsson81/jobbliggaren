@@ -110,49 +110,45 @@ describe("WelcomeSetupModal — gating", () => {
   });
 });
 
-describe("WelcomeSetupModal — steg-flöde upload → confirm → choice", () => {
-  it("upload → confirm visar grön bekräftelse (CV uppladdat), inte 'match klar'", async () => {
+describe("WelcomeSetupModal — upload → done (bekräftelse + val i EN slide)", () => {
+  it("upload → done: grön bekräftelse (CV uppladdat) + matchnings-valet i samma slide, inte 'match klar'", async () => {
     const user = userEvent.setup();
     renderModal();
 
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
 
+    // Bekräftelse OCH val i SAMMA slide (ingen separat "Fortsätt"-mellansida).
     expect(
       await screen.findByRole("heading", { name: "CV uppladdat" })
     ).toBeInTheDocument();
-    // En enda rubrik (DialogTitle) + en not — ingen dubblerad visuell rubrik.
     expect(
       screen.getByText(/Vi har läst in och tolkat ditt CV/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Ja, ställ in matchning" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Hoppa över" })
     ).toBeInTheDocument();
     // Får aldrig påstå att en matchning är gjord (FAS-DEFERRAL / honest copy).
     expect(screen.queryByText(/matchningar hittade/i)).toBeNull();
     expect(screen.queryByText(/Vi hittade \d+ matchningar/i)).toBeNull();
   });
 
-  it("confirm → choice visar 'Vill du ställa in din matchning nu?'", async () => {
+  it("'Fortsätt utan CV' går till done UTAN grön bekräftelse, rakt på matchnings-valet", async () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
-    await user.click(screen.getByRole("button", { name: "Fortsätt" }));
+    await user.click(screen.getByRole("button", { name: "Fortsätt utan CV" }));
 
+    expect(
+      screen.getByRole("heading", { name: "Ställ in din matchning" })
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     ).toBeInTheDocument();
-    expect(screen.getByText(/Vill du ställa in din matchning nu/)).toBeInTheDocument();
-  });
-
-  it("'Fortsätt utan CV' hoppar direkt till choice-steget", async () => {
-    const user = userEvent.setup();
-    renderModal();
-
-    await user.click(
-      screen.getByRole("button", { name: "Fortsätt utan CV" })
-    );
-
-    expect(
-      screen.getByRole("button", { name: "Ja, ställ in matchning" })
-    ).toBeInTheDocument();
+    // Ingen "CV uppladdat"-bekräftelse när inget CV laddades upp.
+    expect(screen.queryByRole("heading", { name: "CV uppladdat" })).toBeNull();
   });
 });
 
@@ -162,7 +158,6 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
     renderModal();
 
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
-    await user.click(screen.getByRole("button", { name: "Fortsätt" }));
     await user.click(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     );
@@ -174,13 +169,11 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
 });
 
 describe("WelcomeSetupModal — skip markerar cookien sedd", () => {
-  it("'Hoppa över' i choice-steget anropar markSetupWelcomeSeen + refresh", async () => {
+  it("'Hoppa över' i done-steget anropar markSetupWelcomeSeen + refresh", async () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.click(
-      screen.getByRole("button", { name: "Fortsätt utan CV" })
-    );
+    await user.click(screen.getByRole("button", { name: "Fortsätt utan CV" }));
     await user.click(screen.getByRole("button", { name: "Hoppa över" }));
 
     await waitFor(() => expect(markSeenMock).toHaveBeenCalledTimes(1));

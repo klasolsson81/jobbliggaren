@@ -25,7 +25,14 @@ public sealed record JobSeekerProfileDto(
     IReadOnlyList<string> PreferredOccupationGroups,
     IReadOnlyList<string> PreferredRegions,
     IReadOnlyList<string> PreferredEmploymentTypes,
-    IReadOnlyList<string> PreferredMunicipalities)
+    IReadOnlyList<string> PreferredMunicipalities,
+    // ADR 0079 STEG 3 — the confirmed skill concept-ids + stated years of experience,
+    // projected so the settings/wizard skill section pre-fills the user's current set.
+    // Required for the same full-replace-PUT page-wipe reason as the lists above: without
+    // round-tripping skills + experience, saving any other dimension would silently wipe
+    // them. Concept-id + scalar projections of the VO (no domain leak, no PII).
+    IReadOnlyList<string> PreferredSkills,
+    int? ExperienceYears)
 {
     public static JobSeekerProfileDto FromDomain(JobSeeker js) => new(
         js.Id.Value,
@@ -38,5 +45,7 @@ public sealed record JobSeekerProfileDto(
         js.MatchPreferences.PreferredOccupationGroups,
         js.MatchPreferences.PreferredRegions,
         js.MatchPreferences.PreferredEmploymentTypes,
-        js.MatchPreferences.PreferredMunicipalities);
+        js.MatchPreferences.PreferredMunicipalities,
+        js.MatchPreferences.PreferredSkills,
+        js.MatchPreferences.ExperienceYears);
 }

@@ -20,12 +20,16 @@ public class SetMatchPreferencesCommandValidatorTests
         IReadOnlyList<string>? preferredOccupationGroups = null,
         IReadOnlyList<string>? preferredRegions = null,
         IReadOnlyList<string>? preferredEmploymentTypes = null,
-        IReadOnlyList<string>? preferredMunicipalities = null) =>
+        IReadOnlyList<string>? preferredMunicipalities = null,
+        IReadOnlyList<string>? preferredSkills = null,
+        int? experienceYears = null) =>
         new(
             PreferredOccupationGroups: preferredOccupationGroups,
             PreferredRegions: preferredRegions,
             PreferredEmploymentTypes: preferredEmploymentTypes,
-            PreferredMunicipalities: preferredMunicipalities);
+            PreferredMunicipalities: preferredMunicipalities,
+            PreferredSkills: preferredSkills,
+            ExperienceYears: experienceYears);
 
     [Fact]
     public void Validate_WithValidConceptIds_Passes()
@@ -169,5 +173,65 @@ public class SetMatchPreferencesCommandValidatorTests
         var result = _validator.Validate(Command(preferredOccupationGroups: max));
 
         result.IsValid.ShouldBeTrue();
+    }
+
+    // STEG 3 (ADR 0079) — skills cap + per-element regex (defense-in-depth).
+
+    [Fact]
+    public void Validate_WithValidSkillsOnly_Passes()
+    {
+        var result = _validator.Validate(Command(preferredSkills: ["skill_java", "skill_spring"]));
+
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Skills_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"sk{i}").ToArray();
+
+        var result = _validator.Validate(Command(preferredSkills: overMax));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("bad id!")]
+    [InlineData("skill space")]
+    [InlineData("dot.notation")]
+    [InlineData("åäö")]
+    public void Validate_Skills_InvalidElement_IsInvalid(string bad)
+    {
+        var result = _validator.Validate(Command(preferredSkills: ["skill_java", bad]));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    // STEG 3 (ADR 0079) — experience years 0..70 when present; null/0/70 valid,
+    // negative / over-70 invalid.
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5)]
+    [InlineData(70)]
+    public void Validate_WithExperienceYearsInRange_Passes(int years)
+    {
+        _validator.Validate(Command(experienceYears: years)).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_WithNullExperienceYears_Passes()
+    {
+        _validator.Validate(Command(experienceYears: null)).IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(71)]
+    [InlineData(1000)]
+    public void Validate_WithExperienceYearsOutOfRange_IsInvalid(int years)
+    {
+        _validator.Validate(Command(experienceYears: years)).IsValid.ShouldBeFalse();
     }
 }

@@ -6,13 +6,17 @@ namespace Jobbliggaren.Domain.JobSeekers;
 
 /// <summary>
 /// Value object — a job-seeker's STATED job-search preferences (Fas 4 STEG F4-12,
-/// ADR 0076 + 2026-06-19 + 2026-06-21 amendments). Holds the desired occupation-groups
-/// (ssyk-level-4), regions, municipalities, and employment-types the user is looking for.
-/// These feed the deterministic match score (F4-13+): each list maps straight onto a
-/// <c>CandidateMatchProfile</c> dimension. <see cref="PreferredMunicipalities"/> is the
-/// finer-grained location granularity that folds into the same location ("ort") dimension
-/// as <see cref="PreferredRegions"/> (Spår 3, ADR 0076-amendment 2026-06-21) — added here
-/// additively; the scorer consumes it from PR-B onward. NO AI/LLM (ADR 0071).
+/// ADR 0076 + 2026-06-19 + 2026-06-21 amendments + ADR 0079 STEG 3). Holds the desired
+/// occupation-groups (ssyk-level-4), regions, municipalities, employment-types, the
+/// CONFIRMED skill set, and the stated years of experience the user is looking with.
+/// The concept-id lists feed the deterministic match score (F4-13+): each maps straight
+/// onto a <c>CandidateMatchProfile</c> dimension. <see cref="PreferredMunicipalities"/>
+/// is the finer-grained location granularity that folds into the same location ("ort")
+/// dimension as <see cref="PreferredRegions"/> (Spår 3, ADR 0076-amendment 2026-06-21).
+/// <see cref="PreferredSkills"/> is the trusted capability source for the skill dimension
+/// (ADR 0079 Beslut 1, Klas-override: CV-seeded but user-editable — the scorer re-sources
+/// from here in STEG 3 PR-D). <see cref="ExperienceYears"/> is stored + surfaced only,
+/// never scored in this STEG (ADR 0079 Beslut 1 / Beslut 7). NO AI/LLM (ADR 0071).
 ///
 /// <para>
 /// <b>Mirrors <see cref="SearchCriteria"/> (ADR 0042 Beslut B) for the multi-value
@@ -45,6 +49,12 @@ public sealed record MatchPreferences
     private static readonly Regex ConceptIdPattern =
         new(@"^[A-Za-z0-9_-]{1,32}\z", RegexOptions.Compiled);
 
+    // Mirrors the Resume Skill.YearsExperience domain bound (Resume.cs) — a stated
+    // experience figure is believed within a sane human range, never negative. Public
+    // so the command validator references the single authoritative bound (SPOT, like
+    // SearchCriteria.MaxConceptIds) instead of restating the literal.
+    public const int MaxExperienceYears = 70;
+
     public IReadOnlyList<string> PreferredOccupationGroups { get; private init; } = [];
     public IReadOnlyList<string> PreferredRegions { get; private init; } = [];
     public IReadOnlyList<string> PreferredEmploymentTypes { get; private init; } = [];
@@ -54,6 +64,26 @@ public sealed record MatchPreferences
     // last so the jsonb-key contract stays a purely additive extension of the existing
     // write order. Empty = honest "no municipality stated" (the scorer reads it from PR-B).
     public IReadOnlyList<string> PreferredMunicipalities { get; private init; } = [];
+
+    // STEG 3 (ADR 0079 Beslut 1, Klas-override) — the user's CONFIRMED skill set
+    // (JobTech skill concept-ids, seeded from the CV via ISkillResolver and freely
+    // edited: CV-proposals ∪ user-edits = the TRUSTED capability source for matching,
+    // not the raw CV skill list). Appended last so the jsonb-key write order stays a
+    // purely additive extension. PLAINTEXT concept-ids (non-PII taxonomy ids, symmetric
+    // with the four dimensions above) → DEK-free, drives the fast sort==grade path
+    // (ADR 0058/0059). Empty = honest "no skills confirmed" → the skill dimension
+    // reports NotAssessed downstream (the scorer re-sources from here in STEG 3 PR-D).
+    public IReadOnlyList<string> PreferredSkills { get; private init; } = [];
+
+    // STEG 3 (ADR 0079 Beslut 1; Klas product decision 2026-06-22 = single profile-level
+    // field) — the user's STATED total years of professional experience. Nullable:
+    // null = "not stated" (honest); 0 = "stated as zero" (a new graduate) — distinct.
+    // STORED + SURFACED only; it does NOT influence the match grade or sort in this STEG.
+    // There is no ad-side seniority signal yet (ADR 0079 Beslut 7 / TD-B) and a hardcoded
+    // "years ≥ required" threshold would break Goodhart / CLAUDE.md §5. Named
+    // ExperienceYears (never *Score/*Value/*Rank) — a preference INPUT, never a
+    // match-result magnitude (Goodhart guard).
+    public int? ExperienceYears { get; private init; }
 
     // EF + record copy-semantik. Property-initializers (= []) ensure non-null even
     // before EF materializes via the value converter.
@@ -71,12 +101,15 @@ public sealed record MatchPreferences
         IEnumerable<string>? preferredOccupationGroups,
         IEnumerable<string>? preferredRegions,
         IEnumerable<string>? preferredEmploymentTypes,
-        IEnumerable<string>? preferredMunicipalities = null)
+        IEnumerable<string>? preferredMunicipalities = null,
+        IEnumerable<string>? preferredSkills = null,
+        int? experienceYears = null)
     {
         var normOccupationGroups = NormalizeList(preferredOccupationGroups);
         var normRegions = NormalizeList(preferredRegions);
         var normEmploymentTypes = NormalizeList(preferredEmploymentTypes);
         var normMunicipalities = NormalizeList(preferredMunicipalities);
+        var normSkills = NormalizeList(preferredSkills);
 
         // Cap + per-element regex per dimension (default-deny). Empty is allowed —
         // no "at least one" invariant (deliberate divergence from SearchCriteria).
@@ -104,10 +137,25 @@ public sealed record MatchPreferences
                 "MatchPreferences.TooManyMunicipalities",
                 $"Max {SearchCriteria.MaxConceptIds} kommuner.",
                 "MatchPreferences.InvalidMunicipality",
-                "Kommun måste vara en giltig JobTech municipality-concept-id (1-32 tecken, alfanumeriskt + _-).");
+                "Kommun måste vara en giltig JobTech municipality-concept-id (1-32 tecken, alfanumeriskt + _-).")
+            // STEG 3 (ADR 0079) — skills are a 5th concept-id list, same cap + regex
+            // (the confirmed capability source). Appended last (jsonb-key additivity).
+            ?? ValidateConceptList(
+                normSkills,
+                "MatchPreferences.TooManySkills",
+                $"Max {SearchCriteria.MaxConceptIds} kompetenser.",
+                "MatchPreferences.InvalidSkill",
+                "Kompetens måste vara en giltig JobTech skill-concept-id (1-32 tecken, alfanumeriskt + _-).");
 
         if (error is not null)
             return Result.Failure<MatchPreferences>(error);
+
+        // STEG 3 (ADR 0079) — experience is a single nullable scalar (not a list).
+        // null = not stated; 0..MaxExperienceYears is the believed human range.
+        if (experienceYears is { } years && (years < 0 || years > MaxExperienceYears))
+            return Result.Failure<MatchPreferences>(DomainError.Validation(
+                "MatchPreferences.ExperienceYearsOutOfRange",
+                $"Antal års erfarenhet måste vara mellan 0 och {MaxExperienceYears}."));
 
         return Result.Success(new MatchPreferences
         {
@@ -115,6 +163,8 @@ public sealed record MatchPreferences
             PreferredRegions = normRegions,
             PreferredEmploymentTypes = normEmploymentTypes,
             PreferredMunicipalities = normMunicipalities,
+            PreferredSkills = normSkills,
+            ExperienceYears = experienceYears,
         });
     }
 
@@ -154,7 +204,9 @@ public sealed record MatchPreferences
     // default REFERENCE equality → jsonb-dedupe/value-comparison would never match.
     // Lists are already normalized (sorted+distinct ordinal) in Create → sequence
     // comparison is deterministic. Canonical dimension order: OccupationGroups,
-    // Regions, EmploymentTypes, Municipalities (municipalities appended last).
+    // Regions, EmploymentTypes, Municipalities, Skills (each appended last), then the
+    // ExperienceYears scalar. EVERY member MUST appear in both Equals and GetHashCode
+    // or EF change-tracking / jsonb-equality silently breaks (the documented footgun).
     public bool Equals(MatchPreferences? other)
     {
         if (other is null)
@@ -165,7 +217,9 @@ public sealed record MatchPreferences
         return PreferredOccupationGroups.SequenceEqual(other.PreferredOccupationGroups, StringComparer.Ordinal)
             && PreferredRegions.SequenceEqual(other.PreferredRegions, StringComparer.Ordinal)
             && PreferredEmploymentTypes.SequenceEqual(other.PreferredEmploymentTypes, StringComparer.Ordinal)
-            && PreferredMunicipalities.SequenceEqual(other.PreferredMunicipalities, StringComparer.Ordinal);
+            && PreferredMunicipalities.SequenceEqual(other.PreferredMunicipalities, StringComparer.Ordinal)
+            && PreferredSkills.SequenceEqual(other.PreferredSkills, StringComparer.Ordinal)
+            && ExperienceYears == other.ExperienceYears;
     }
 
     public override int GetHashCode()
@@ -179,6 +233,9 @@ public sealed record MatchPreferences
             hash.Add(e, StringComparer.Ordinal);
         foreach (var m in PreferredMunicipalities)
             hash.Add(m, StringComparer.Ordinal);
+        foreach (var s in PreferredSkills)
+            hash.Add(s, StringComparer.Ordinal);
+        hash.Add(ExperienceYears);
         return hash.ToHashCode();
     }
 }

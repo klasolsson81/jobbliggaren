@@ -33,11 +33,15 @@ public class MatchPreferencesTests(ApiFactory factory)
     private static object Body(
         string[]? occupationGroups = null,
         string[]? regions = null,
-        string[]? employmentTypes = null) => new
+        string[]? employmentTypes = null,
+        string[]? skills = null,
+        int? experienceYears = null) => new
         {
             preferredOccupationGroups = occupationGroups,
             preferredRegions = regions,
             preferredEmploymentTypes = employmentTypes,
+            preferredSkills = skills,
+            experienceYears,
         };
 
     private async Task<JsonElement> GetProfileAsync(CancellationToken ct)
@@ -160,6 +164,64 @@ public class MatchPreferencesTests(ApiFactory factory)
         var response = await _client.PutAsJsonAsync(
             "/api/v1/me/match-preferences",
             Body(occupationGroups: ["bad id!"]),
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    // STEG 3 (ADR 0079) — confirmed skills + stated experience round-trip end-to-end
+    // through the PUT command and the GET profile DTO projection (the page-wipe guard).
+    [Fact]
+    public async Task PUT_match_preferences_with_skills_and_experience_round_trips()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PutAsJsonAsync(
+            "/api/v1/me/match-preferences",
+            Body(
+                occupationGroups: ["grp_12345"],
+                skills: ["skill_java", "skill_spring"],
+                experienceYears: 5),
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var profile = await GetProfileAsync(ct);
+        ReadStringArray(profile, "preferredSkills").ShouldBe(["skill_java", "skill_spring"]);
+        profile.GetProperty("experienceYears").GetInt32().ShouldBe(5);
+        ReadStringArray(profile, "preferredOccupationGroups").ShouldBe(["grp_12345"]);
+    }
+
+    // STEG 3 (ADR 0079) — experience can be omitted (null = not stated); the DTO
+    // projects null and the round-trip preserves "not stated".
+    [Fact]
+    public async Task PUT_match_preferences_without_experience_projects_null()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PutAsJsonAsync(
+            "/api/v1/me/match-preferences",
+            Body(occupationGroups: ["grp_12345"]),
+            ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var profile = await GetProfileAsync(ct);
+        profile.GetProperty("experienceYears").ValueKind.ShouldBe(JsonValueKind.Null);
+        ReadStringArray(profile, "preferredSkills").ShouldBeEmpty();
+    }
+
+    // STEG 3 (ADR 0079) — out-of-range experience is a 400 ProblemDetails, not 500.
+    [Fact]
+    public async Task PUT_match_preferences_with_out_of_range_experience_returns_400()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PutAsJsonAsync(
+            "/api/v1/me/match-preferences",
+            Body(experienceYears: 999),
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);

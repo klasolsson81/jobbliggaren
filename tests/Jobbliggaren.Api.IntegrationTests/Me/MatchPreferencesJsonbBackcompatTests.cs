@@ -225,4 +225,160 @@ public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory) : I
         reloaded.PreferredMunicipalities.ShouldBe(["sthlm_kn", "uppsala_kn"]); // sorterad ordinal
         reloaded.ShouldBe(prefs); // strukturell equality bevarad (inkl. municipalities)
     }
+
+    // ===============================================================
+    // STEG 3 (ADR 0079) — PreferredSkills (5th list) + ExperienceYears (numeric key).
+    // Same backcompat contract as municipalities: a row written before STEG 3 lacks
+    // both keys → empty skills + null experience, never a crash. Plus the NEW numeric
+    // branch (ReadNullableInt) tolerance.
+    // ===============================================================
+
+    [Fact]
+    public async Task OldRow_WithoutSkillOrExperienceKeys_DeserializesToEmptyAndNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(null, ct);
+
+        // A row written before STEG 3: the four dimensions exist, but no
+        // "PreferredSkills" / "ExperienceYears" keys.
+        var legacyJson = """
+            {"PreferredOccupationGroups":["grp_12345"],"PreferredRegions":["stockholm_AB"],"PreferredEmploymentTypes":["et_fast"],"PreferredMunicipalities":["sthlm_kn"]}
+            """;
+        await SetRawMatchPreferencesAsync(seeker.Id.Value, legacyJson, ct);
+
+        var prefs = await ReloadPreferencesAsync(seeker.Id, ct);
+
+        prefs.PreferredSkills.ShouldBeEmpty();
+        prefs.ExperienceYears.ShouldBeNull();
+        // No regression on the existing dimensions.
+        prefs.PreferredOccupationGroups.ShouldBe(["grp_12345"]);
+        prefs.PreferredMunicipalities.ShouldBe(["sthlm_kn"]);
+    }
+
+    [Fact]
+    public async Task SkillsKey_ScalarAndArrayForm_BothTolerated()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var scalarSeeker = await SeedSeekerAsync(null, ct);
+        await SetRawMatchPreferencesAsync(scalarSeeker.Id.Value,
+            """{"PreferredSkills":"skill_java"}""", ct);
+        (await ReloadPreferencesAsync(scalarSeeker.Id, ct))
+            .PreferredSkills.ShouldBe(["skill_java"]);
+
+        var arraySeeker = await SeedSeekerAsync(null, ct);
+        await SetRawMatchPreferencesAsync(arraySeeker.Id.Value,
+            """{"PreferredSkills":["skill_spring","skill_java"]}""", ct);
+        (await ReloadPreferencesAsync(arraySeeker.Id, ct))
+            .PreferredSkills.ShouldBe(["skill_java", "skill_spring"]); // sorterad ordinal
+    }
+
+    [Fact]
+    public async Task ExperienceYearsKey_NumberForm_ReadsAsInt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(null, ct);
+        await SetRawMatchPreferencesAsync(seeker.Id.Value,
+            """{"ExperienceYears":5}""", ct);
+
+        (await ReloadPreferencesAsync(seeker.Id, ct)).ExperienceYears.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task ExperienceYearsKey_ExplicitNull_ReadsAsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(null, ct);
+        await SetRawMatchPreferencesAsync(seeker.Id.Value,
+            """{"ExperienceYears":null}""", ct);
+
+        (await ReloadPreferencesAsync(seeker.Id, ct)).ExperienceYears.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ExperienceYearsKey_NonNumericForm_FailsClosed()
+    {
+        // Default-deny: a string in the numeric key is corruption → JsonException
+        // surfaces as the EF read throwing (never a silent coercion to 0).
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(null, ct);
+        await SetRawMatchPreferencesAsync(seeker.Id.Value,
+            """{"ExperienceYears":"five"}""", ct);
+
+        await Should.ThrowAsync<Exception>(async () =>
+            await ReloadPreferencesAsync(seeker.Id, ct));
+    }
+
+    [Fact]
+    public async Task ExperienceYearsKey_FractionalNumberForm_FailsClosed()
+    {
+        // Default-deny inside the NUMERIC branch: a fractional Number is a distinct
+        // code path from a non-numeric token ("five" above hits the default branch;
+        // 5.5 hits Number + !TryGetInt32). No silent truncation to 5 — the read throws.
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(null, ct);
+        await SetRawMatchPreferencesAsync(seeker.Id.Value,
+            """{"ExperienceYears":5.5}""", ct);
+
+        await Should.ThrowAsync<Exception>(async () =>
+            await ReloadPreferencesAsync(seeker.Id, ct));
+    }
+
+    [Fact]
+    public async Task ExperienceYearsKey_OutOfRangeNumber_FailsClosedViaDomainReValidation()
+    {
+        // A stored experience figure outside 0..70 is corruption: the read path
+        // re-runs MatchPreferences.Create (the single source of invariants) and the
+        // ExperienceYearsOutOfRange failure surfaces as the EF read throwing — never a
+        // silent clamp. This exercises the domain re-validation throw branch (distinct
+        // from ReadNullableInt's own token-shape throws above).
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(null, ct);
+        await SetRawMatchPreferencesAsync(seeker.Id.Value,
+            """{"ExperienceYears":71}""", ct);
+
+        await Should.ThrowAsync<Exception>(async () =>
+            await ReloadPreferencesAsync(seeker.Id, ct));
+    }
+
+    [Fact]
+    public async Task Write_EmitsSkillsArrayAndExperienceNumber()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: null,
+            preferredRegions: null,
+            preferredEmploymentTypes: null,
+            preferredMunicipalities: null,
+            preferredSkills: ["skill_java", "skill_spring"],
+            experienceYears: 7).Value;
+        var seeker = await SeedSeekerAsync(prefs, ct);
+
+        var raw = await ReadRawMatchPreferencesAsync(seeker.Id.Value, ct);
+
+        raw.ShouldContain("\"PreferredSkills\"");
+        raw.ShouldContain("skill_java");
+        raw.ShouldContain("\"ExperienceYears\"");
+        raw.ShouldContain("7");
+    }
+
+    [Fact]
+    public async Task NewForm_WithSkillsAndExperience_RoundTripsThroughEf()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_12345"],
+            preferredRegions: ["stockholm_AB"],
+            preferredEmploymentTypes: ["et_fast"],
+            preferredMunicipalities: ["sthlm_kn"],
+            preferredSkills: ["skill_spring", "skill_java"],
+            experienceYears: 0).Value;
+        var seeker = await SeedSeekerAsync(prefs, ct);
+
+        var reloaded = await ReloadPreferencesAsync(seeker.Id, ct);
+
+        reloaded.PreferredSkills.ShouldBe(["skill_java", "skill_spring"]); // sorterad ordinal
+        reloaded.ExperienceYears.ShouldBe(0); // zero preserved (distinct from null)
+        reloaded.ShouldBe(prefs); // strukturell equality bevarad (inkl. skills + experience)
+    }
 }

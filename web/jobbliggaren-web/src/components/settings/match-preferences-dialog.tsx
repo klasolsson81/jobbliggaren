@@ -22,6 +22,8 @@ import {
 import { toggle, type Option } from "./match-preferences-shared";
 import { OccupationSection } from "./occupation-section";
 import { FacetSection } from "./facet-section";
+import { RegionMunicipalityCascade } from "./region-municipality-cascade";
+import type { OrtSelection } from "@/lib/job-ads/ort-selection";
 
 interface MatchPreferencesDialogProps {
   readonly open: boolean;
@@ -32,6 +34,8 @@ interface MatchPreferencesDialogProps {
   /** Den PERSISTERADE mängden (SSOT) — dialogens draft seedas från den vid öppning. */
   readonly persistedOccupationGroups: ReadonlyArray<string>;
   readonly persistedRegions: ReadonlyArray<string>;
+  /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
+  readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /**
    * Anropas efter lyckad save med den sparade fulla mängden, så kortet kan
@@ -41,6 +45,7 @@ interface MatchPreferencesDialogProps {
   readonly onSaved: (saved: {
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
+    municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
   }) => void;
   /** URL till CV-importflödet (tom-state-länken). */
@@ -55,15 +60,12 @@ export function MatchPreferencesDialog({
   employmentTypes,
   persistedOccupationGroups,
   persistedRegions,
+  persistedMunicipalities,
   persistedEmploymentTypes,
   onSaved,
   importCvHref,
 }: MatchPreferencesDialogProps) {
   const t = useTranslations("settings");
-  const regionOptions: ReadonlyArray<Option> = regions.map((r) => ({
-    conceptId: r.conceptId,
-    label: r.label,
-  }));
   const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
     conceptId: e.conceptId,
     label: e.label,
@@ -79,6 +81,9 @@ export function MatchPreferencesDialog({
   const [draftRegions, setDraftRegions] = useState<ReadonlyArray<string>>(
     persistedRegions
   );
+  const [draftMunicipalities, setDraftMunicipalities] = useState<
+    ReadonlyArray<string>
+  >(persistedMunicipalities);
   const [draftEmployment, setDraftEmployment] = useState<ReadonlyArray<string>>(
     persistedEmploymentTypes
   );
@@ -93,6 +98,7 @@ export function MatchPreferencesDialog({
     setSeededFor(true);
     setDraftOccupations(persistedOccupationGroups);
     setDraftRegions(persistedRegions);
+    setDraftMunicipalities(persistedMunicipalities);
     setDraftEmployment(persistedEmploymentTypes);
     setSaveError(null);
   }
@@ -104,18 +110,28 @@ export function MatchPreferencesDialog({
     setDraftOccupations((prev) => toggle(prev, conceptId));
   }
 
+  // Ort-kaskaden emitterar HELA ort-paret (region + kommun) i ett anrop —
+  // dialogen speglar det i två draft-states men submittar dem atomiskt (NOTE-1).
+  function onOrtChange(next: OrtSelection) {
+    setDraftRegions(next.region);
+    setDraftMunicipalities(next.municipality);
+  }
+
   function onSave() {
     setSaveError(null);
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
         preferredOccupationGroups: [...draftOccupations],
+        // Region + kommun submittas atomiskt i samma full-replace-PUT (NOTE-1).
         preferredRegions: [...draftRegions],
+        preferredMunicipalities: [...draftMunicipalities],
         preferredEmploymentTypes: [...draftEmployment],
       });
       if (result.success) {
         onSaved({
           occupations: draftOccupations,
           regions: draftRegions,
+          municipalities: draftMunicipalities,
           employment: draftEmployment,
         });
         onOpenChange(false);
@@ -163,14 +179,13 @@ export function MatchPreferencesDialog({
             role="group"
             aria-labelledby="match-dialog-region-head"
           >
-            <FacetSection
-              title={t("matchPrefs.facetRegions")}
-              options={regionOptions}
-              selected={draftRegions}
-              onToggle={(id) => setDraftRegions((prev) => toggle(prev, id))}
-              onClear={() => setDraftRegions([])}
-              pinnedAriaLabel={t("matchPrefs.selectedRegions")}
+            <RegionMunicipalityCascade
+              regions={regions}
+              selectedRegions={draftRegions}
+              selectedMunicipalities={draftMunicipalities}
+              onChange={onOrtChange}
               headingId="match-dialog-region-head"
+              idPrefix="match-dialog-ort"
             />
           </section>
 

@@ -27,14 +27,20 @@ export type ActionResult =
 
 /**
  * F4-12 PR-B (ADR 0076) — sparar användarens matchnings-önskemål
- * (yrkesgrupper + regioner + anställningsformer) via
+ * (yrkesgrupper + regioner + kommuner + anställningsformer) via
  * `PUT /api/v1/me/match-preferences` (204 No Content vid lyckat).
  * Speglar `me.ts` `updateMyProfileAction`: getSessionId-vakt → safeParse →
  * fetch → `mapActionError` på !ok (body läses ALDRIG, TD-10) → network-
  * fallback → `revalidatePath`.
  *
  * Full-replace: `input` bär HELA den aktuella mängden per dimension. Alla
- * tre tomma är tillåtet (rensar önskemålen — ärlig not-assessed-state).
+ * fyra tomma är tillåtet (rensar önskemålen — ärlig not-assessed-state).
+ *
+ * Spår 3 PR-D (ADR 0076-amendment 2026-06-21): region + kommun skickas i SAMMA
+ * PUT (atomiskt). Eftersom det är ett full-replace ersätts hela ort-paret som
+ * en enhet, så ett spar av regioner aldrig nollar angivna kommuner och vice
+ * versa (CTO/architect NOTE-1). `parsed.data` bär nu `preferredMunicipalities`.
+ *
  * Revaliderar både `/installningar` (kortet) och `/oversikt` (setup-nudgen
  * styrs av `hasStatedDesiredOccupation` som ändras av detta skriv).
  */

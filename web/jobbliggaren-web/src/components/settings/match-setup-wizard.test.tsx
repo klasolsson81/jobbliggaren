@@ -36,7 +36,14 @@ const occupationFields: ReadonlyArray<TaxonomyOccupationField> = [
   },
 ];
 const regions: ReadonlyArray<TaxonomyRegion> = [
-  { conceptId: "region_sthlm", label: "Stockholms län", municipalities: [] },
+  {
+    conceptId: "region_sthlm",
+    label: "Stockholms län",
+    municipalities: [
+      { conceptId: "mun_sthlm", label: "Stockholm" },
+      { conceptId: "mun_solna", label: "Solna" },
+    ],
+  },
 ];
 const employmentTypes: ReadonlyArray<TaxonomyOption> = [
   { conceptId: "et_fast", label: "Tillsvidareanställning" },
@@ -56,6 +63,7 @@ function renderWizard(
       employmentTypes={employmentTypes}
       persistedOccupationGroups={[]}
       persistedRegions={[]}
+      persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
       onSaved={onSaved}
       importCvHref="/cv/importera"
@@ -125,7 +133,7 @@ describe("MatchSetupWizard — steg-navigering", () => {
     renderWizard();
     // 1 → 2 → 3 → 4
     await user.click(screen.getByRole("button", { name: "Nästa" }));
-    expect(screen.getByRole("heading", { name: "Regioner" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Orter" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     expect(
       screen.getByRole("heading", { name: "Anställningsformer" })
@@ -154,7 +162,7 @@ describe("MatchSetupWizard — steg-navigering", () => {
     const next = screen.getByRole("button", { name: "Nästa" });
     expect(skip).not.toBe(next);
     await user.click(skip);
-    expect(screen.getByRole("heading", { name: "Regioner" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Orter" })).toBeInTheDocument();
   });
 
   it("Hoppa över finns inte på sista steget (det ÄR klart-steget)", async () => {
@@ -173,7 +181,7 @@ describe("MatchSetupWizard — steg-navigering", () => {
     renderWizard();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await waitFor(() => {
-      const heading = screen.getByRole("heading", { name: "Regioner" });
+      const heading = screen.getByRole("heading", { name: "Orter" });
       expect(heading).toHaveFocus();
     });
   });
@@ -266,27 +274,36 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     );
     expect(updateMock).not.toHaveBeenCalled();
 
-    // Steg 2: lägg till en region.
+    // Steg 2 (Spår 3 PR-D): lägg till HELA länet via ort-kaskaden. Öppna
+    // disclosuren → välj länet i vänsterkolumnen → kryssa "Hela länet"-raden
+    // (togglar länets concept-id i region-axeln, ETT id).
     await user.click(screen.getByRole("button", { name: "Nästa" }));
-    await user.click(screen.getByRole("checkbox", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    await user.click(screen.getByRole("option", { name: "Stockholms län" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Hela Stockholms län" })
+    );
     expect(updateMock).not.toHaveBeenCalled();
 
     // Steg 3 → 4.
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
 
-    // Sista steget: ett enda PUT med alla tre dimensionerna.
+    // Sista steget: ett enda PUT med alla fyra dimensionerna. Region + kommun
+    // submittas atomiskt (NOTE-1); "hela länet" = region-id, ingen kommun.
     await user.click(screen.getByRole("button", { name: "Spara matchning" }));
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
     expect(updateMock).toHaveBeenCalledWith({
       preferredOccupationGroups: ["grp_backend"],
       preferredRegions: ["region_sthlm"],
+      preferredMunicipalities: [],
       preferredEmploymentTypes: ["et_fast"],
     });
     expect(onSaved).toHaveBeenCalledWith({
       occupations: ["grp_backend"],
       regions: ["region_sthlm"],
+      municipalities: [],
       employment: ["et_fast"],
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -300,9 +317,9 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
 
-    const reviewRegions = screen.getByRole("group", { name: "Regioner" });
+    const reviewOrter = screen.getByRole("group", { name: "Orter" });
     expect(
-      within(reviewRegions).getByRole("button", {
+      within(reviewOrter).getByRole("button", {
         name: "Ta bort Stockholms län",
       })
     ).toBeInTheDocument();

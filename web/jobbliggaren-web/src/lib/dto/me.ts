@@ -45,6 +45,11 @@ export const jobSeekerProfileSchema = z.object({
   hasStatedDesiredOccupation: z.boolean(),
   preferredOccupationGroups: z.array(z.string()).readonly(),
   preferredRegions: z.array(z.string()).readonly(),
+  // Spår 3 PR-D (ADR 0076-amendment 2026-06-21): kommun-axeln. Backend
+  // projicerar nu `PreferredMunicipalities` (`IReadOnlyList<string>`, aldrig
+  // null) → required (ej optional), `.readonly()` speglar kontraktet. Läses
+  // tillbaka för pre-fill så region + kommun submittas atomiskt (NOTE-1).
+  preferredMunicipalities: z.array(z.string()).readonly(),
   preferredEmploymentTypes: z.array(z.string()).readonly(),
 });
 

@@ -23,6 +23,8 @@ interface CvMatchSetupProps {
   readonly employmentTypes: ReadonlyArray<TaxonomyOption>;
   readonly persistedOccupationGroups: ReadonlyArray<string>;
   readonly persistedRegions: ReadonlyArray<string>;
+  /** Spår 3 PR-D: kommun-axeln (pre-fill för wizardens ort-steg). */
+  readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /** CV-importflödets route (yrkes-stegets tom-state-länk). */
   readonly importCvHref: string;
@@ -52,6 +54,7 @@ export function CvMatchSetup({
   employmentTypes,
   persistedOccupationGroups,
   persistedRegions,
+  persistedMunicipalities,
   persistedEmploymentTypes,
   importCvHref,
   hasPreferences,
@@ -65,6 +68,9 @@ export function CvMatchSetup({
   // direkt efter save (revalidatePath om-renderar RSC men byter inte useState).
   const [occupations, setOccupations] = useState(persistedOccupationGroups);
   const [regionPrefs, setRegionPrefs] = useState(persistedRegions);
+  const [municipalityPrefs, setMunicipalityPrefs] = useState(
+    persistedMunicipalities
+  );
   const [employmentPrefs, setEmploymentPrefs] = useState(persistedEmploymentTypes);
   const [savedAny, setSavedAny] = useState(false);
 
@@ -120,11 +126,13 @@ export function CvMatchSetup({
         employmentTypes={employmentTypes}
         persistedOccupationGroups={occupations}
         persistedRegions={regionPrefs}
+        persistedMunicipalities={municipalityPrefs}
         persistedEmploymentTypes={employmentPrefs}
         importCvHref={importCvHref}
         onSaved={(saved) => {
           setOccupations(saved.occupations);
           setRegionPrefs(saved.regions);
+          setMunicipalityPrefs(saved.municipalities);
           setEmploymentPrefs(saved.employment);
           setSavedAny(true);
           setPromptDismissed(true);

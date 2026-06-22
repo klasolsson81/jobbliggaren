@@ -169,6 +169,7 @@ export function SettingsForm({
           employmentTypes={taxonomy?.employmentTypes ?? []}
           initialOccupationGroups={initialProfile.preferredOccupationGroups}
           initialRegions={initialProfile.preferredRegions}
+          initialMunicipalities={initialProfile.preferredMunicipalities}
           initialEmploymentTypes={initialProfile.preferredEmploymentTypes}
           degraded={taxonomy === null}
         />

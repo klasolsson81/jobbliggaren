@@ -107,6 +107,12 @@
       "uploadCvFoot": "Upload a CV to match on skills and requirements. It is required for a Strong match and a Top match.",
       "youHave": "You have: {items}",
       "alsoRequested": "The ad also asks for: {items}",
+      "ort": {
+        "matchedMunicipalities": "Municipality that matches: {items}",
+        "matchedRegions": "Region that matches: {items}",
+        "missingMunicipalities": "The ad's municipality: {items}",
+        "missingRegions": "The ad's region: {items}"
+      },
       "grade": {
         "Top": "Top match",
         "Strong": "Strong match",

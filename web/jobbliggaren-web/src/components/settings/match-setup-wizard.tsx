@@ -24,7 +24,9 @@ import {
 } from "./match-preferences-shared";
 import { OccupationSection } from "./occupation-section";
 import { FacetSection } from "./facet-section";
+import { RegionMunicipalityCascade } from "./region-municipality-cascade";
 import { PreferenceChip } from "./preference-chip";
+import type { OrtSelection } from "@/lib/job-ads/ort-selection";
 
 interface MatchSetupWizardProps {
   readonly open: boolean;
@@ -35,11 +37,14 @@ interface MatchSetupWizardProps {
   /** Persisterad SSOT — wizardens draft seedas från den vid öppning. */
   readonly persistedOccupationGroups: ReadonlyArray<string>;
   readonly persistedRegions: ReadonlyArray<string>;
+  /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
+  readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /** Anropas efter lyckad save med den sparade fulla mängden. */
   readonly onSaved?: (saved: {
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
+    municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
   }) => void;
   /** CV-importflödets route (tom-state-länken i yrkes-steget). */
@@ -70,6 +75,7 @@ export function MatchSetupWizard({
   employmentTypes,
   persistedOccupationGroups,
   persistedRegions,
+  persistedMunicipalities,
   persistedEmploymentTypes,
   onSaved,
   importCvHref,
@@ -79,7 +85,7 @@ export function MatchSetupWizard({
   // Stegens konkreta substantiv-rubriker (design-bind A2.i), via katalogen.
   const stepTitles: ReadonlyArray<string> = [
     t("matchPrefs.wizard.stepOccupations"),
-    t("matchPrefs.wizard.stepRegions"),
+    t("matchPrefs.wizard.stepOrter"),
     t("matchPrefs.wizard.stepEmployment"),
     t("matchPrefs.wizard.stepDone"),
   ];
@@ -87,6 +93,10 @@ export function MatchSetupWizard({
     conceptId: r.conceptId,
     label: r.label,
   }));
+  // Kommun-options (flatten av länens kommuner) för review-stegets chip-labels.
+  const municipalityOptions: ReadonlyArray<Option> = regions.flatMap((r) =>
+    r.municipalities.map((m) => ({ conceptId: m.conceptId, label: m.label }))
+  );
   const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
     conceptId: e.conceptId,
     label: e.label,
@@ -103,6 +113,9 @@ export function MatchSetupWizard({
   const [draftRegions, setDraftRegions] = useState<ReadonlyArray<string>>(
     persistedRegions
   );
+  const [draftMunicipalities, setDraftMunicipalities] = useState<
+    ReadonlyArray<string>
+  >(persistedMunicipalities);
   const [draftEmployment, setDraftEmployment] = useState<ReadonlyArray<string>>(
     persistedEmploymentTypes
   );
@@ -121,6 +134,7 @@ export function MatchSetupWizard({
     setStep(1);
     setDraftOccupations(persistedOccupationGroups);
     setDraftRegions(persistedRegions);
+    setDraftMunicipalities(persistedMunicipalities);
     setDraftEmployment(persistedEmploymentTypes);
     setSaveError(null);
   }
@@ -145,18 +159,28 @@ export function MatchSetupWizard({
     focusTitle();
   }
 
+  // Ort-kaskaden emitterar HELA ort-paret (region + kommun) i ett anrop —
+  // föräldern speglar det i två draft-states, men de submittas atomiskt (NOTE-1).
+  function onOrtChange(next: OrtSelection) {
+    setDraftRegions(next.region);
+    setDraftMunicipalities(next.municipality);
+  }
+
   function onSave() {
     setSaveError(null);
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
         preferredOccupationGroups: [...draftOccupations],
+        // Region + kommun submittas atomiskt i samma full-replace-PUT (NOTE-1).
         preferredRegions: [...draftRegions],
+        preferredMunicipalities: [...draftMunicipalities],
         preferredEmploymentTypes: [...draftEmployment],
       });
       if (result.success) {
         onSaved?.({
           occupations: draftOccupations,
           regions: draftRegions,
+          municipalities: draftMunicipalities,
           employment: draftEmployment,
         });
         onOpenChange(false);
@@ -214,22 +238,29 @@ export function MatchSetupWizard({
           <ReviewStep
             labels={{
               occupationsTitle: t("matchPrefs.facetOccupations"),
-              regionsTitle: t("matchPrefs.facetRegions"),
+              orterTitle: t("matchPrefs.facetOrter"),
               employmentTitle: t("matchPrefs.facetEmployment"),
               occupationsEmpty: t("matchPrefs.emptyOccupations"),
-              regionsEmpty: t("matchPrefs.emptyRegions"),
+              orterEmpty: t("matchPrefs.emptyOrter"),
               employmentEmpty: t("matchPrefs.emptyEmployment"),
               occupationsAria: t("matchPrefs.selectedOccupations"),
-              regionsAria: t("matchPrefs.selectedRegions"),
+              orterAria: t("matchPrefs.selectedOrter"),
               employmentAria: t("matchPrefs.selectedEmployment"),
             }}
             occupations={labelsForSelected(draftOccupations, flattenOccupationGroups(occupationFields))}
-            regions={labelsForSelected(draftRegions, regionOptions)}
+            orter={[
+              ...labelsForSelected(draftRegions, regionOptions),
+              ...labelsForSelected(draftMunicipalities, municipalityOptions),
+            ]}
             employment={labelsForSelected(draftEmployment, employmentOptions)}
             onRemoveOccupation={(id) =>
               setDraftOccupations((prev) => toggle(prev, id))
             }
-            onRemoveRegion={(id) => setDraftRegions((prev) => toggle(prev, id))}
+            // En ort-chip kan vara län ELLER kommun — ta bort ur rätt axel.
+            onRemoveOrt={(id) => {
+              setDraftRegions((prev) => prev.filter((r) => r !== id));
+              setDraftMunicipalities((prev) => prev.filter((m) => m !== id));
+            }}
             onRemoveEmployment={(id) =>
               setDraftEmployment((prev) => toggle(prev, id))
             }
@@ -255,14 +286,13 @@ export function MatchSetupWizard({
                 />
               )}
               {step === 2 && (
-                <FacetSection
-                  title={t("matchPrefs.facetRegions")}
-                  options={regionOptions}
-                  selected={draftRegions}
-                  onToggle={(id) => setDraftRegions((prev) => toggle(prev, id))}
-                  onClear={() => setDraftRegions([])}
-                  pinnedAriaLabel={t("matchPrefs.selectedRegions")}
+                <RegionMunicipalityCascade
+                  regions={regions}
+                  selectedRegions={draftRegions}
+                  selectedMunicipalities={draftMunicipalities}
+                  onChange={onOrtChange}
                   showHeading={false}
+                  idPrefix="match-wizard-ort"
                 />
               )}
               {step === 3 && (
@@ -329,7 +359,7 @@ function stepIntro(t: SettingsTranslator, step: number): string {
     case 1:
       return t("matchPrefs.wizard.introOccupations");
     case 2:
-      return t("matchPrefs.wizard.introRegions");
+      return t("matchPrefs.wizard.introOrter");
     case 3:
       return t("matchPrefs.wizard.introEmployment");
     default:
@@ -344,31 +374,31 @@ function stepIntro(t: SettingsTranslator, step: number): string {
  */
 interface ReviewLabels {
   readonly occupationsTitle: string;
-  readonly regionsTitle: string;
+  readonly orterTitle: string;
   readonly employmentTitle: string;
   readonly occupationsEmpty: string;
-  readonly regionsEmpty: string;
+  readonly orterEmpty: string;
   readonly employmentEmpty: string;
   readonly occupationsAria: string;
-  readonly regionsAria: string;
+  readonly orterAria: string;
   readonly employmentAria: string;
 }
 
 function ReviewStep({
   labels,
   occupations,
-  regions,
+  orter,
   employment,
   onRemoveOccupation,
-  onRemoveRegion,
+  onRemoveOrt,
   onRemoveEmployment,
 }: {
   readonly labels: ReviewLabels;
   readonly occupations: ReadonlyArray<Option>;
-  readonly regions: ReadonlyArray<Option>;
+  readonly orter: ReadonlyArray<Option>;
   readonly employment: ReadonlyArray<Option>;
   readonly onRemoveOccupation: (conceptId: string) => void;
-  readonly onRemoveRegion: (conceptId: string) => void;
+  readonly onRemoveOrt: (conceptId: string) => void;
   readonly onRemoveEmployment: (conceptId: string) => void;
 }) {
   return (
@@ -381,11 +411,11 @@ function ReviewStep({
         ariaLabel={labels.occupationsAria}
       />
       <ReviewFacet
-        title={labels.regionsTitle}
-        empty={labels.regionsEmpty}
-        chips={regions}
-        onRemove={onRemoveRegion}
-        ariaLabel={labels.regionsAria}
+        title={labels.orterTitle}
+        empty={labels.orterEmpty}
+        chips={orter}
+        onRemove={onRemoveOrt}
+        ariaLabel={labels.orterAria}
       />
       <ReviewFacet
         title={labels.employmentTitle}

@@ -6,6 +6,10 @@ import type {
   MatchDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
+import {
+  classifyOrtLabel,
+  type OrtGranularity,
+} from "@/lib/job-ads/ort-granularity";
 
 // Scoped to the `match` subtree (next-intl typed-messages instantiate too
 // deeply when ICU-arg calls resolve against the whole `jobads.ui` namespace).
@@ -131,19 +135,96 @@ function mustHaveSummary(
   }
 }
 
+/**
+ * Spår 3 PR-D — grupperar en ort-label-lista per granularitet (kommun/län) och
+ * formaterar två civic-fraser så bevisraden ärligt visar VILKEN granularitet
+ * som matchade (architect NOTE-2; klassningen sker FE-side mot taxonomin).
+ * Okänd label (saknas i kartan, t.ex. stale snapshot) faller till `region`-
+ * hinken som plain text (visas rakt av, ingen felaktig kategori).
+ */
+function splitOrtByGranularity(
+  labels: ReadonlyArray<string>,
+  granularityByLabel: Record<string, OrtGranularity>,
+): { municipalities: string[]; regions: string[] } {
+  const municipalities: string[] = [];
+  const regions: string[] = [];
+  for (const label of labels) {
+    if (classifyOrtLabel(label, granularityByLabel) === "municipality") {
+      municipalities.push(label);
+    } else {
+      // "region" eller okänd → coarser/plain (Gotland-fallet, stale snapshot).
+      regions.push(label);
+    }
+  }
+  return { municipalities, regions };
+}
+
+/**
+ * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan en
+ * granularitets-karta (`granularityByLabel` saknas) faller den tillbaka på den
+ * generiska "Du har:"/"Annonsen efterfrågar även:"-formen (bakåtkompat).
+ */
+function RegionFitEvidence({
+  detail,
+  granularityByLabel,
+  t,
+}: {
+  detail: MatchDimensionDetail;
+  granularityByLabel: Record<string, OrtGranularity>;
+  t: MatchTranslator;
+}) {
+  const matched = splitOrtByGranularity(detail.matched, granularityByLabel);
+  const missing = splitOrtByGranularity(detail.missing, granularityByLabel);
+
+  return (
+    <>
+      {matched.municipalities.length > 0 && (
+        <span>
+          {t("ort.matchedMunicipalities", {
+            items: matched.municipalities.join(", "),
+          })}
+        </span>
+      )}
+      {matched.regions.length > 0 && (
+        <span>
+          {t("ort.matchedRegions", { items: matched.regions.join(", ") })}
+        </span>
+      )}
+      {missing.municipalities.length > 0 && (
+        <span className="jp-modal__matchrow-missing">
+          {t("ort.missingMunicipalities", {
+            items: missing.municipalities.join(", "),
+          })}
+        </span>
+      )}
+      {missing.regions.length > 0 && (
+        <span className="jp-modal__matchrow-missing">
+          {t("ort.missingRegions", { items: missing.regions.join(", ") })}
+        </span>
+      )}
+    </>
+  );
+}
+
 function MatchRow({
   label,
   dimensionKey,
   detail,
   t,
+  granularityByLabel,
 }: {
   label: string;
   dimensionKey: keyof Omit<JobAdMatchDetail, "grade">;
   detail: MatchDimensionDetail;
   t: MatchTranslator;
+  /** Spår 3 PR-D — endast satt för RegionFit-raden (label → kommun/län). */
+  granularityByLabel?: Record<string, OrtGranularity>;
 }) {
   const word = t(`verdict.${detail.verdict}`);
   const isNotAssessed = detail.verdict === "NotAssessed";
+  // Granularitets-uppdelad bevisrad bara för Region OCH bara när kartan finns.
+  const useOrtGranularity =
+    dimensionKey === "regionFit" && granularityByLabel !== undefined;
 
   return (
     <div className="jp-modal__matchrow">
@@ -167,6 +248,12 @@ function MatchRow({
           <span className="jp-modal__matchrow-missing">
             {notAssessedReason(dimensionKey, t)}
           </span>
+        ) : useOrtGranularity ? (
+          <RegionFitEvidence
+            detail={detail}
+            granularityByLabel={granularityByLabel}
+            t={t}
+          />
         ) : (
           <>
             {detail.matched.length > 0 && (
@@ -186,9 +273,18 @@ function MatchRow({
 
 export interface JobAdMatchSectionProps {
   match: JobAdMatchDetail;
+  /**
+   * Spår 3 PR-D — label → ort-granularitet (kommun/län), härledd FE-side ur
+   * taxonomin (architect NOTE-2). Utelämnad → RegionFit-raden faller till den
+   * generiska bevisformen (bakåtkompat / degraderad taxonomi).
+   */
+  ortGranularityByLabel?: Record<string, OrtGranularity>;
 }
 
-export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
+export function JobAdMatchSection({
+  match,
+  ortGranularityByLabel,
+}: JobAdMatchSectionProps) {
   // Synchronous next-intl translator — keeps JobAdMatchSection a non-async RSC
   // (shared by the modal + full page as a serialized slot, with sync tests).
   const t = useTranslations("jobads.ui.match");
@@ -233,6 +329,10 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
             dimensionKey={key}
             detail={match[key]}
             t={t}
+            // Granularitets-uppdelning bara för Region-raden (kommun vs län).
+            granularityByLabel={
+              key === "regionFit" ? ortGranularityByLabel : undefined
+            }
           />
         ))}
       </div>

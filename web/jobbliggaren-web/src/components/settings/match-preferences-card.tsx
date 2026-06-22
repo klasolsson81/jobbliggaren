@@ -27,19 +27,22 @@ import { MatchPreferencesDialog } from "./match-preferences-dialog";
 // dem härifrån) inte bryts; definitionen bor i match-preferences-shared.
 export { flattenOccupationGroups, filterOptions };
 
-/** Yrken/Regioner/Anställningsformer — de tre facetterna kortet renderar. */
-type Facet = "occupations" | "regions" | "employment";
+/** Yrken/Orter/Anställningsformer — de tre facetterna kortet renderar. "orter"
+ * är EN dimension i två granulariteter (län + kommun, Spår 3 PR-D). */
+type Facet = "occupations" | "orter" | "employment";
 
 interface MatchPreferencesCardProps {
   /** Yrkesområden (med underordnade yrkesgrupper) → kortet plattar själv. */
   readonly occupationFields: ReadonlyArray<TaxonomyOccupationField>;
-  /** Län-options (concept-id + namn). */
+  /** Län (med underordnade kommuner) → kortet plattar kommun-labels själv. */
   readonly regions: ReadonlyArray<TaxonomyRegion>;
   /** Anställningsform-options (råa JobTech-labels, "honest 8"). */
   readonly employmentTypes: ReadonlyArray<TaxonomyOption>;
   /** Sparade val att initiera från (concept-id-listor från profilen). */
   readonly initialOccupationGroups: ReadonlyArray<string>;
   readonly initialRegions: ReadonlyArray<string>;
+  /** Spår 3 PR-D: kommun-axeln (sparade kommun-concept-id från profilen). */
+  readonly initialMunicipalities: ReadonlyArray<string>;
   readonly initialEmploymentTypes: ReadonlyArray<string>;
   /**
    * Civil degradering: när taxonomin inte kunde läsas in passar föräldern
@@ -58,6 +61,7 @@ export function MatchPreferencesCard({
   employmentTypes,
   initialOccupationGroups,
   initialRegions,
+  initialMunicipalities,
   initialEmploymentTypes,
   degraded,
 }: MatchPreferencesCardProps) {
@@ -65,12 +69,12 @@ export function MatchPreferencesCard({
   // Facet-rubriker och tom-state-texter per dimension (svenska via katalogen).
   const facetLabel: Record<Facet, string> = {
     occupations: t("matchPrefs.facetOccupations"),
-    regions: t("matchPrefs.facetRegions"),
+    orter: t("matchPrefs.facetOrter"),
     employment: t("matchPrefs.facetEmployment"),
   };
   const facetEmpty: Record<Facet, string> = {
     occupations: t("matchPrefs.emptyOccupations"),
-    regions: t("matchPrefs.emptyRegions"),
+    orter: t("matchPrefs.emptyOrter"),
     employment: t("matchPrefs.emptyEmployment"),
   };
   const occupationOptions = useMemo(
@@ -79,6 +83,14 @@ export function MatchPreferencesCard({
   );
   const regionOptions = useMemo<ReadonlyArray<Option>>(
     () => regions.map((r) => ({ conceptId: r.conceptId, label: r.label })),
+    [regions]
+  );
+  // Kommun-options (flatten av länens kommuner) för ort-facettens chip-labels.
+  const municipalityOptions = useMemo<ReadonlyArray<Option>>(
+    () =>
+      regions.flatMap((r) =>
+        r.municipalities.map((m) => ({ conceptId: m.conceptId, label: m.label }))
+      ),
     [regions]
   );
   const employmentOptions = useMemo<ReadonlyArray<Option>>(
@@ -92,6 +104,8 @@ export function MatchPreferencesCard({
   >(initialOccupationGroups);
   const [selectedRegions, setSelectedRegions] =
     useState<ReadonlyArray<string>>(initialRegions);
+  const [selectedMunicipalities, setSelectedMunicipalities] =
+    useState<ReadonlyArray<string>>(initialMunicipalities);
   const [selectedEmployment, setSelectedEmployment] = useState<
     ReadonlyArray<string>
   >(initialEmploymentTypes);
@@ -108,30 +122,29 @@ export function MatchPreferencesCard({
   const removeRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const refKey = (facet: Facet, conceptId: string) => `${facet}:${conceptId}`;
 
-  const currentSets = (): {
+  interface PrefSets {
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
+    municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
-  } => ({
+  }
+
+  const currentSets = (): PrefSets => ({
     occupations: occupationGroups,
     regions: selectedRegions,
+    municipalities: selectedMunicipalities,
     employment: selectedEmployment,
   });
 
-  /** Persisterar HELA mängden (full-replace) med revert-vid-fel. */
-  function persist(
-    next: {
-      occupations: ReadonlyArray<string>;
-      regions: ReadonlyArray<string>;
-      employment: ReadonlyArray<string>;
-    },
-    revert: () => void
-  ) {
+  /** Persisterar HELA mängden (full-replace) med revert-vid-fel. Region + kommun
+   *  skickas atomiskt i samma PUT (NOTE-1). */
+  function persist(next: PrefSets, revert: () => void) {
     setSaveError(null);
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
         preferredOccupationGroups: [...next.occupations],
         preferredRegions: [...next.regions],
+        preferredMunicipalities: [...next.municipalities],
         preferredEmploymentTypes: [...next.employment],
       });
       if (result.success) {
@@ -143,17 +156,32 @@ export function MatchPreferencesCard({
     });
   }
 
+  /** Ort-facetten ritar två axlar (län + kommun) — hitta vilken ett id bor i. */
+  function ortAxisOf(conceptId: string): "regions" | "municipalities" {
+    return selectedRegions.includes(conceptId) ? "regions" : "municipalities";
+  }
+
   /**
    * Optimistisk borttagning av en chip: ta bort lokalt direkt (ingen spinner),
    * persistera hela nya mängden, revert vid fel. `keyboard` → flytta fokus till
    * grannen (eller "Lägg till" om facetten blev tom), aldrig till body.
+   *
+   * Ort-facetten kombinerar två axlar — `axisFor` pekar ut vilken state-lista
+   * id:t faktiskt bor i (län ELLER kommun), så grannskaps-/revert-logiken
+   * fortsätter att vara axel-exakt.
    */
   function removeChip(facet: Facet, conceptId: string, keyboard: boolean) {
     const prev = currentSets();
-    const list = prev[facet];
+    const axisFor: keyof PrefSets =
+      facet === "occupations"
+        ? "occupations"
+        : facet === "employment"
+          ? "employment"
+          : ortAxisOf(conceptId);
+    const list = prev[axisFor];
     const removedIndex = list.indexOf(conceptId);
     const nextList = list.filter((v) => v !== conceptId);
-    const next = { ...prev, [facet]: nextList };
+    const next: PrefSets = { ...prev, [axisFor]: nextList };
 
     // Bestäm grannen att flytta fokus till (conceptId, inte index): nästa
     // kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
@@ -161,9 +189,7 @@ export function MatchPreferencesCard({
     const neighbourConceptId =
       list[removedIndex + 1] ?? list[removedIndex - 1] ?? null;
 
-    if (facet === "occupations") setOccupationGroups(nextList);
-    else if (facet === "regions") setSelectedRegions(nextList);
-    else setSelectedEmployment(nextList);
+    applyAxis(axisFor, nextList);
 
     if (keyboard) {
       queueMicrotask(() => {
@@ -176,16 +202,21 @@ export function MatchPreferencesCard({
       });
     }
 
-    persist(next, () => {
-      if (facet === "occupations") setOccupationGroups(prev.occupations);
-      else if (facet === "regions") setSelectedRegions(prev.regions);
-      else setSelectedEmployment(prev.employment);
-    });
+    persist(next, () => applyAxis(axisFor, prev[axisFor]));
+  }
+
+  /** Skriver EN axel till rätt state-setter. */
+  function applyAxis(axis: keyof PrefSets, value: ReadonlyArray<string>) {
+    if (axis === "occupations") setOccupationGroups(value);
+    else if (axis === "regions") setSelectedRegions(value);
+    else if (axis === "municipalities") setSelectedMunicipalities(value);
+    else setSelectedEmployment(value);
   }
 
   function onDialogSaved(saved: {
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
+    municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
   }) {
     // Dialogen skrev den fulla mängden (SSOT). Anta den lokalt så kortets chips
@@ -193,6 +224,7 @@ export function MatchPreferencesCard({
     // RSC men byter inte kortets useState-värden — därför adopterar vi här.)
     setOccupationGroups(saved.occupations);
     setSelectedRegions(saved.regions);
+    setSelectedMunicipalities(saved.municipalities);
     setSelectedEmployment(saved.employment);
     setSavedAt(new Date());
   }
@@ -210,7 +242,11 @@ export function MatchPreferencesCard({
 
   const facetData: Record<Facet, ReadonlyArray<Option>> = {
     occupations: labelsForSelected(occupationGroups, occupationOptions),
-    regions: labelsForSelected(selectedRegions, regionOptions),
+    // Ort-facetten: valda län FÖRST (helläns-axeln), sedan enskilda kommuner.
+    orter: [
+      ...labelsForSelected(selectedRegions, regionOptions),
+      ...labelsForSelected(selectedMunicipalities, municipalityOptions),
+    ],
     employment: labelsForSelected(selectedEmployment, employmentOptions),
   };
 
@@ -220,7 +256,7 @@ export function MatchPreferencesCard({
       <p className="text-body-sm text-text-secondary">{t("matchPrefs.intro")}</p>
 
       <div className="jp-matchprefs__facets mt-5">
-        {(["occupations", "regions", "employment"] as const).map((facet) => {
+        {(["occupations", "orter", "employment"] as const).map((facet) => {
           const chips = facetData[facet];
           const headId = `match-facet-${facet}`;
           return (
@@ -311,6 +347,7 @@ export function MatchPreferencesCard({
         employmentTypes={employmentTypes}
         persistedOccupationGroups={occupationGroups}
         persistedRegions={selectedRegions}
+        persistedMunicipalities={selectedMunicipalities}
         persistedEmploymentTypes={selectedEmployment}
         onSaved={onDialogSaved}
         importCvHref={IMPORT_CV_HREF}

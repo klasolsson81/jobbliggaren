@@ -107,6 +107,12 @@
       "uploadCvFoot": "Ladda upp ett CV för att matcha på kompetenser och krav. Det krävs för Stark match och Toppmatch.",
       "youHave": "Du har: {items}",
       "alsoRequested": "Annonsen efterfrågar även: {items}",
+      "ort": {
+        "matchedMunicipalities": "Kommun som matchar: {items}",
+        "matchedRegions": "Län som matchar: {items}",
+        "missingMunicipalities": "Annonsens kommun: {items}",
+        "missingRegions": "Annonsens län: {items}"
+      },
       "grade": {
         "Top": "Toppmatch",
         "Strong": "Stark match",

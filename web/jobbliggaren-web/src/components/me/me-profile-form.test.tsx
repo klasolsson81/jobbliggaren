@@ -27,6 +27,7 @@ function makeProfile(
     hasStatedDesiredOccupation: false,
     preferredOccupationGroups: [],
     preferredRegions: [],
+    preferredMunicipalities: [],
     preferredEmploymentTypes: [],
     ...overrides,
   };

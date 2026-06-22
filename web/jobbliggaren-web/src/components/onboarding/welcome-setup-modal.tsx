@@ -41,6 +41,8 @@ interface WelcomeSetupModalProps {
   readonly employmentTypes: ReadonlyArray<TaxonomyOption>;
   readonly persistedOccupationGroups: ReadonlyArray<string>;
   readonly persistedRegions: ReadonlyArray<string>;
+  /** Spår 3 PR-D: kommun-axeln (pre-fill för wizardens ort-steg). */
+  readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /** CV-importflödets route (wizardens yrkes-steg tom-state-länk). */
   readonly importCvHref: string;
@@ -64,6 +66,7 @@ export function WelcomeSetupModal({
   employmentTypes,
   persistedOccupationGroups,
   persistedRegions,
+  persistedMunicipalities,
   persistedEmploymentTypes,
   importCvHref,
 }: WelcomeSetupModalProps) {
@@ -249,6 +252,7 @@ export function WelcomeSetupModal({
         employmentTypes={employmentTypes}
         persistedOccupationGroups={persistedOccupationGroups}
         persistedRegions={persistedRegions}
+        persistedMunicipalities={persistedMunicipalities}
         persistedEmploymentTypes={persistedEmploymentTypes}
         importCvHref={importCvHref}
         parsedResumeId={uploadedParsedId ?? undefined}

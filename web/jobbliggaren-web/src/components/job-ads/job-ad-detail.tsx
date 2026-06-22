@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { jobAdStatusLabel } from "@/lib/job-ads/status";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
+import type { OrtGranularity } from "@/lib/job-ads/ort-granularity";
 import { SaveJobAdToggle } from "@/components/saved-job-ads/save-job-ad-toggle";
 import { HarAnsoktButton } from "@/components/applications/har-ansokt-button";
 import { JobAdMatchSection } from "./job-ad-match-section";
@@ -46,6 +47,13 @@ interface JobAdDetailProps {
    * page-handlern (parity initialSaved/initialApplied).
    */
   match?: JobAdMatchDetail | null;
+  /**
+   * Spår 3 PR-D — label → ort-granularitet (kommun/län) för match-sektionens
+   * RegionFit-bevis. Härleds FE-side ur taxonomin i page-handlern (architect
+   * NOTE-2) och vidarebefordras till JobAdMatchSection. Utelämnad → generisk
+   * bevisform (degraderad taxonomi).
+   */
+  ortGranularityByLabel?: Record<string, OrtGranularity>;
 }
 
 // Active/Expired/Archived → .jp-pill-variant. Speglar
@@ -68,6 +76,7 @@ export function JobAdDetail({
   initialSaved,
   initialApplied,
   match,
+  ortGranularityByLabel,
 }: JobAdDetailProps) {
   // Synchronous next-intl translators — keep JobAdDetail a non-async RSC (it is
   // shared by the full page and the @modal serialized slot, with sync tests).
@@ -126,7 +135,12 @@ export function JobAdDetail({
         {/* F4-16 — matchnings-sektionen ovanför Annonsbeskrivning (design §2.A:
             "passar jobbet mig" är frågan modalen öppnas för → före annons-prosan).
             Renderas bara när matchdata finns (anonym/gäst → match=undefined → null). */}
-        {match != null && <JobAdMatchSection match={match} />}
+        {match != null && (
+          <JobAdMatchSection
+            match={match}
+            ortGranularityByLabel={ortGranularityByLabel}
+          />
+        )}
 
         <div>
           <div

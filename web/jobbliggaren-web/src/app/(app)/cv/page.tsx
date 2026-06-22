@@ -129,6 +129,7 @@ export default async function CvListPage({
               employmentTypes={taxonomy.employmentTypes}
               persistedOccupationGroups={profile.preferredOccupationGroups}
               persistedRegions={profile.preferredRegions}
+              persistedMunicipalities={profile.preferredMunicipalities}
               persistedEmploymentTypes={profile.preferredEmploymentTypes}
               importCvHref={IMPORT_CV_HREF}
               hasPreferences={profile.hasStatedDesiredOccupation}

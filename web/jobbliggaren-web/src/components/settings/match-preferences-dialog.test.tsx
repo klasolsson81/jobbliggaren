@@ -55,6 +55,7 @@ function renderDialog(
       employmentTypes={employmentTypes}
       persistedOccupationGroups={[]}
       persistedRegions={[]}
+      persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
       onSaved={onSaved}
       importCvHref="/cv/importera"
@@ -80,7 +81,8 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       screen.getByRole("heading", { name: "Lägg till i matchning" })
     ).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Yrken" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Regioner" })).toBeInTheDocument();
+    // Spår 3 PR-D: region-sektionen är nu en län→kommun-kaskad ("Orter").
+    expect(screen.getByRole("group", { name: "Orter" })).toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Anställningsformer" })
     ).toBeInTheDocument();
@@ -102,9 +104,21 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       persistedRegions: ["region_sthlm"],
       persistedEmploymentTypes: ["et_fast"],
     });
-    const regionGroup = screen.getByRole("group", { name: "Regioner" });
+    const ortGroup = screen.getByRole("group", { name: "Orter" });
     expect(
-      within(regionGroup).getByRole("button", { name: "Ta bort Stockholms län" })
+      within(ortGroup).getByRole("button", { name: "Ta bort Stockholms län" })
+    ).toBeInTheDocument();
+  });
+
+  it("Spår 3 PR-D: seedar kommun-chips ur preferredMunicipalities", () => {
+    renderDialog({
+      persistedMunicipalities: ["mun_sthlm"],
+    });
+    const ortGroup = screen.getByRole("group", { name: "Orter" });
+    // Kommun-namnet faller tillbaka på id:t här (fixturens region har inga
+    // municipalities) — chippen renderas ändå (labelsForSelected-fallback).
+    expect(
+      within(ortGroup).getByRole("button", { name: "Ta bort mun_sthlm" })
     ).toBeInTheDocument();
   });
 
@@ -123,17 +137,45 @@ describe("MatchPreferencesDialog — shell + draft", () => {
     await user.click(screen.getByRole("button", { name: "Spara matchning" }));
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    // Spår 3 PR-D: region + kommun submittas atomiskt i samma PUT.
     expect(updateMock).toHaveBeenCalledWith({
       preferredOccupationGroups: ["grp_backend"],
       preferredRegions: ["region_sthlm"],
+      preferredMunicipalities: [],
       preferredEmploymentTypes: [],
     });
     expect(onSaved).toHaveBeenCalledWith({
       occupations: ["grp_backend"],
       regions: ["region_sthlm"],
+      municipalities: [],
       employment: [],
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("Spår 3 PR-D (NOTE-1): pre-fyllda kommuner submittas atomiskt med regioner, aldrig nollade", async () => {
+    const user = userEvent.setup();
+    const { onSaved } = renderDialog({
+      persistedRegions: ["region_sthlm"],
+      persistedMunicipalities: ["mun_a", "mun_b"],
+    });
+
+    // Spara utan att röra ort: läs-tillbaka måste bära BÅDA axlarna oförändrade.
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock).toHaveBeenCalledWith({
+      preferredOccupationGroups: [],
+      preferredRegions: ["region_sthlm"],
+      preferredMunicipalities: ["mun_a", "mun_b"],
+      preferredEmploymentTypes: [],
+    });
+    expect(onSaved).toHaveBeenCalledWith({
+      occupations: [],
+      regions: ["region_sthlm"],
+      municipalities: ["mun_a", "mun_b"],
+      employment: [],
+    });
   });
 
   it("Avbryt stänger utan att skriva", async () => {

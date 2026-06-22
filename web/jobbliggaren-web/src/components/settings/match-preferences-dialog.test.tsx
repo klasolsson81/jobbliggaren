@@ -131,7 +131,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
     // Lägg till ett yrke via disclosure-kaskaden: öppna picker → välj
     // yrkesområde → kryssa grupp.
     await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
-    await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
+    await user.click(screen.getByRole("button", { name: /Data\/IT/ }));
     await user.click(screen.getByRole("checkbox", { name: "Backendutvecklare" }));
 
     await user.click(screen.getByRole("button", { name: "Spara matchning" }));

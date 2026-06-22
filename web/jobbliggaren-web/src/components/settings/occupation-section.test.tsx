@@ -128,7 +128,7 @@ describe("OccupationSection — 'Lägg till yrken'-disclosure", () => {
     await user.click(cta);
     expect(cta).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText("Filtrera yrkesgrupper")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Data\/IT/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Data\/IT/ })).toBeInTheDocument();
   });
 
   it("välja ett yrke i kaskaden pinnar det som borttagbar chip", async () => {
@@ -136,7 +136,7 @@ describe("OccupationSection — 'Lägg till yrken'-disclosure", () => {
     render(<HostHarness />);
 
     await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
-    await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
+    await user.click(screen.getByRole("button", { name: /Data\/IT/ }));
     await user.click(
       screen.getByRole("checkbox", { name: "Backendutvecklare" })
     );
@@ -286,7 +286,7 @@ describe("OccupationSection — CV-förslag pre-addas som chips", () => {
 describe("OccupationSection — 'Välj alla yrkesgrupper'", () => {
   async function openField(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
-    await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
+    await user.click(screen.getByRole("button", { name: /Data\/IT/ }));
   }
 
   it("markerar alla grupper i det aktiva yrkesområdet i ett klick", async () => {
@@ -362,7 +362,7 @@ describe("OccupationSection — 'Välj alla yrkesgrupper'", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
-    await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
+    await user.click(screen.getByRole("button", { name: /Data\/IT/ }));
     await user.click(
       screen.getByRole("checkbox", { name: "Välj alla yrkesgrupper" })
     );

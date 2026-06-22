@@ -156,7 +156,13 @@ export function MatchPreferencesCard({
     });
   }
 
-  /** Ort-facetten ritar två axlar (län + kommun) — hitta vilken ett id bor i. */
+  /**
+   * Ort-facetten ritar två axlar (län + kommun): hitta vilken ett id bor i.
+   * Invariant: region- och kommun-concept-id ligger i DISJUNKTA namnrymder i
+   * JobTech-taxonomin, så "finns i selectedRegions" entydigt skiljer axlarna.
+   * Skulle ett framtida taxonomi-id kollidera mellan axlarna måste detta byta
+   * till en id→axel-karta byggd ur trädet.
+   */
   function ortAxisOf(conceptId: string): "regions" | "municipalities" {
     return selectedRegions.includes(conceptId) ? "regions" : "municipalities";
   }

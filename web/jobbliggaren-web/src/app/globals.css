@@ -1449,9 +1449,21 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   cursor: pointer;
   font-size: 15px;
   border-left: 4px solid transparent;
+  /* Raden är nu ett <button> (knapp-grupp, ej listbox) — nollställ
+     browser-default knappstil så den ser ut exakt som förr. */
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  color: inherit;
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .jp-popover-row:hover { background: var(--jp-surface-3); }
-.jp-popover-row[aria-selected="true"] {
+.jp-popover-row[aria-pressed="true"] {
   background: var(--jp-accent-50);
   color: var(--jp-accent-700);
   font-weight: 600;
@@ -1490,6 +1502,23 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-accent-800);
   border-color: var(--jp-accent-800);
   color: #fff;
+}
+.jp-checkitem[aria-checked="mixed"] .jp-checkitem__box {
+  /* Tri-state (WCAG 1.4.1): partiellt val ("Hela länet" med några kommuner
+     valda) måste synas, inte bara annonseras. Samma accent-800-fyll som
+     checked (fill-kontraktet, EJ dark-skiftad) men med ett vitt streck i
+     stället för bock → seende ser "delvis", SR hör "delvis markerad". Inget
+     nytt färg-token, ingen ny radie. JSX renderar ingen bock i mixed-läget,
+     så indikatorn ritas här via ett pseudo-element. */
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+}
+.jp-checkitem[aria-checked="mixed"] .jp-checkitem__box::after {
+  content: "";
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: #fff;
 }
 /* E2c (ADR 0067 Beslut 4) — per-option-count efter rad-labeln,
    "Solna (12)". Mono + ink-2 = samma sekundärtals-konvention som

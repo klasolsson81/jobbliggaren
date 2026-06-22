@@ -40,7 +40,17 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
-import { promoteParsedResumeAction } from "./resumes";
+// getParsedResume (server-only) — loadParsedResumeForGapFillAction kedjar den.
+const { getParsedResumeMock } = vi.hoisted(() => ({
+  getParsedResumeMock: vi.fn(),
+}));
+vi.mock("@/lib/api/resumes", () => ({ getParsedResume: getParsedResumeMock }));
+
+import {
+  promoteParsedResumeAction,
+  promoteParsedResumeInModalAction,
+  loadParsedResumeForGapFillAction,
+} from "./resumes";
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
 const NEW_ID = "22222222-2222-4222-8222-222222222222";
@@ -165,5 +175,124 @@ describe("promoteParsedResumeAction", () => {
       success: false,
       error: "Kunde inte nå servern. Försök igen.",
     });
+  });
+});
+
+describe("promoteParsedResumeInModalAction (onboarding-modal, ingen redirect)", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+    revalidatePathMock.mockReset();
+    redirectMock.mockClear();
+  });
+
+  it("201 → returnerar {success, resumeId} UTAN redirect, revaliderar /cv + /oversikt", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: NEW_ID }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const result = await promoteParsedResumeInModalAction(
+      VALID_ID,
+      "Mitt CV",
+      validContent,
+    );
+
+    expect(result).toEqual({ success: true, resumeId: NEW_ID });
+    expect(redirectMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/cv");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/oversikt");
+  });
+
+  it("avvisar utan session — backend nås aldrig, ingen redirect", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await promoteParsedResumeInModalAction(
+      VALID_ID,
+      "Mitt CV",
+      validContent,
+    );
+
+    expect(result.success).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("backend-fel (400) → success:false (ekar ej body), ingen redirect", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "PII" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const result = await promoteParsedResumeInModalAction(
+      VALID_ID,
+      "Mitt CV",
+      validContent,
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).not.toContain("PII");
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadParsedResumeForGapFillAction", () => {
+  afterEach(() => {
+    getParsedResumeMock.mockReset();
+  });
+
+  it("avvisar icke-GUID utan att nå backend", async () => {
+    const result = await loadParsedResumeForGapFillAction("xxx");
+    expect(result).toEqual({ kind: "notFound" });
+    expect(getParsedResumeMock).not.toHaveBeenCalled();
+  });
+
+  it("ok → mappar sourceFileName + content + proposedOccupationGroups (concept-ids)", async () => {
+    getParsedResumeMock.mockResolvedValue({
+      kind: "ok",
+      data: {
+        sourceFileName: "cv.pdf",
+        content: { personalInfo: { fullName: "Anna" } },
+        occupationProposals: [
+          { conceptId: "grp_backend", label: "Backendutvecklare", matchedOn: "x" },
+          { conceptId: "grp_data", label: "Datavetare", matchedOn: "y" },
+        ],
+      },
+    });
+
+    const result = await loadParsedResumeForGapFillAction(VALID_ID);
+
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.sourceFileName).toBe("cv.pdf");
+      expect(result.proposedOccupationGroups).toEqual([
+        "grp_backend",
+        "grp_data",
+      ]);
+    }
+  });
+
+  it("unauthorized → kind:unauthorized", async () => {
+    getParsedResumeMock.mockResolvedValue({ kind: "unauthorized" });
+    const result = await loadParsedResumeForGapFillAction(VALID_ID);
+    expect(result).toEqual({ kind: "unauthorized" });
+  });
+
+  it("notFound → kind:notFound", async () => {
+    getParsedResumeMock.mockResolvedValue({ kind: "notFound" });
+    const result = await loadParsedResumeForGapFillAction(VALID_ID);
+    expect(result).toEqual({ kind: "notFound" });
   });
 });

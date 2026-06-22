@@ -64,6 +64,7 @@ function renderCard(
       employmentTypes={employmentTypes}
       initialOccupationGroups={[]}
       initialRegions={[]}
+      initialMunicipalities={[]}
       initialEmploymentTypes={[]}
       degraded={false}
       {...overrides}
@@ -117,12 +118,13 @@ describe("MatchPreferencesCard — summary + chips", () => {
     renderCard();
     // Varje facet är en role="group" med en synlig label kopplad via labelledby.
     expect(screen.getByRole("group", { name: "Yrken" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Regioner" })).toBeInTheDocument();
+    // Spår 3 PR-D: region-facetten är nu "Orter" (län + kommun).
+    expect(screen.getByRole("group", { name: "Orter" })).toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Anställningsformer" })
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Ange vilka yrken, regioner och anställningsformer/)
+      screen.getByText(/Ange vilka yrken, orter och anställningsformer/)
     ).toBeInTheDocument();
   });
 
@@ -130,7 +132,7 @@ describe("MatchPreferencesCard — summary + chips", () => {
     renderCard();
     expect(screen.getByText("Alla yrken (inget valt)")).toBeInTheDocument();
     expect(
-      screen.getByText("Hela landet (ingen region vald)")
+      screen.getByText("Hela landet (ingen ort vald)")
     ).toBeInTheDocument();
     expect(
       screen.getByText("Alla anställningsformer (inget valt)")
@@ -148,9 +150,9 @@ describe("MatchPreferencesCard — summary + chips", () => {
     expect(
       within(yrken).getByRole("button", { name: "Ta bort Backendutvecklare" })
     ).toBeInTheDocument();
-    const regionGroup = screen.getByRole("group", { name: "Regioner" });
+    const ortGroup = screen.getByRole("group", { name: "Orter" });
     expect(
-      within(regionGroup).getByRole("button", { name: "Ta bort Stockholms län" })
+      within(ortGroup).getByRole("button", { name: "Ta bort Stockholms län" })
     ).toBeInTheDocument();
   });
 
@@ -192,7 +194,28 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
     expect(updateMock).toHaveBeenCalledWith({
       preferredOccupationGroups: ["grp_frontend"],
       preferredRegions: ["region_sthlm"],
+      preferredMunicipalities: [],
       preferredEmploymentTypes: ["et_fast"],
+    });
+  });
+
+  it("Spår 3 PR-D: en kommun-chip kan tas bort och kommuner submittas atomiskt med regioner", async () => {
+    const user = userEvent.setup();
+    renderCard({
+      initialRegions: ["region_sthlm"],
+      initialMunicipalities: ["mun_a", "mun_b"],
+    });
+
+    // Ta bort en kommun-chip (faller tillbaka på id:t som namn — fixturens
+    // regioner saknar municipalities). Region-axeln måste bäras oförändrad.
+    await user.click(screen.getByRole("button", { name: "Ta bort mun_a" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock).toHaveBeenCalledWith({
+      preferredOccupationGroups: [],
+      preferredRegions: ["region_sthlm"],
+      preferredMunicipalities: ["mun_b"],
+      preferredEmploymentTypes: [],
     });
   });
 

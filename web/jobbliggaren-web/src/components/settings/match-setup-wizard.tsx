@@ -23,7 +23,9 @@ import {
 } from "./match-preferences-shared";
 import { OccupationSection } from "./occupation-section";
 import { FacetSection } from "./facet-section";
+import { RegionMunicipalityCascade } from "./region-municipality-cascade";
 import { PreferenceChip } from "./preference-chip";
+import type { OrtSelection } from "@/lib/job-ads/ort-selection";
 
 interface MatchSetupWizardProps {
   readonly open: boolean;
@@ -34,11 +36,14 @@ interface MatchSetupWizardProps {
   /** Persisterad SSOT — wizardens draft seedas från den vid öppning. */
   readonly persistedOccupationGroups: ReadonlyArray<string>;
   readonly persistedRegions: ReadonlyArray<string>;
+  /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
+  readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /** Anropas efter lyckad save med den sparade fulla mängden. */
   readonly onSaved?: (saved: {
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
+    municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
   }) => void;
   /** CV-importflödets route (tom-state-länken i yrkes-steget). */
@@ -57,7 +62,7 @@ const TOTAL_STEPS = 4;
 /** Stegens konkreta substantiv-rubriker (design-bind A2.i). */
 const STEP_TITLES: ReadonlyArray<string> = [
   "Yrken",
-  "Regioner",
+  "Orter",
   "Anställningsformer",
   "Klart",
 ];
@@ -77,6 +82,7 @@ export function MatchSetupWizard({
   employmentTypes,
   persistedOccupationGroups,
   persistedRegions,
+  persistedMunicipalities,
   persistedEmploymentTypes,
   onSaved,
   importCvHref,
@@ -86,6 +92,10 @@ export function MatchSetupWizard({
     conceptId: r.conceptId,
     label: r.label,
   }));
+  // Kommun-options (flatten av länens kommuner) för review-stegets chip-labels.
+  const municipalityOptions: ReadonlyArray<Option> = regions.flatMap((r) =>
+    r.municipalities.map((m) => ({ conceptId: m.conceptId, label: m.label }))
+  );
   const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
     conceptId: e.conceptId,
     label: e.label,
@@ -102,6 +112,9 @@ export function MatchSetupWizard({
   const [draftRegions, setDraftRegions] = useState<ReadonlyArray<string>>(
     persistedRegions
   );
+  const [draftMunicipalities, setDraftMunicipalities] = useState<
+    ReadonlyArray<string>
+  >(persistedMunicipalities);
   const [draftEmployment, setDraftEmployment] = useState<ReadonlyArray<string>>(
     persistedEmploymentTypes
   );
@@ -120,6 +133,7 @@ export function MatchSetupWizard({
     setStep(1);
     setDraftOccupations(persistedOccupationGroups);
     setDraftRegions(persistedRegions);
+    setDraftMunicipalities(persistedMunicipalities);
     setDraftEmployment(persistedEmploymentTypes);
     setSaveError(null);
   }
@@ -144,18 +158,28 @@ export function MatchSetupWizard({
     focusTitle();
   }
 
+  // Ort-kaskaden emitterar HELA ort-paret (region + kommun) i ett anrop —
+  // föräldern speglar det i två draft-states, men de submittas atomiskt (NOTE-1).
+  function onOrtChange(next: OrtSelection) {
+    setDraftRegions(next.region);
+    setDraftMunicipalities(next.municipality);
+  }
+
   function onSave() {
     setSaveError(null);
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
         preferredOccupationGroups: [...draftOccupations],
+        // Region + kommun submittas atomiskt i samma full-replace-PUT (NOTE-1).
         preferredRegions: [...draftRegions],
+        preferredMunicipalities: [...draftMunicipalities],
         preferredEmploymentTypes: [...draftEmployment],
       });
       if (result.success) {
         onSaved?.({
           occupations: draftOccupations,
           regions: draftRegions,
+          municipalities: draftMunicipalities,
           employment: draftEmployment,
         });
         onOpenChange(false);
@@ -212,12 +236,19 @@ export function MatchSetupWizard({
         {step === 4 ? (
           <ReviewStep
             occupations={labelsForSelected(draftOccupations, flattenOccupationGroups(occupationFields))}
-            regions={labelsForSelected(draftRegions, regionOptions)}
+            orter={[
+              ...labelsForSelected(draftRegions, regionOptions),
+              ...labelsForSelected(draftMunicipalities, municipalityOptions),
+            ]}
             employment={labelsForSelected(draftEmployment, employmentOptions)}
             onRemoveOccupation={(id) =>
               setDraftOccupations((prev) => toggle(prev, id))
             }
-            onRemoveRegion={(id) => setDraftRegions((prev) => toggle(prev, id))}
+            // En ort-chip kan vara län ELLER kommun — ta bort ur rätt axel.
+            onRemoveOrt={(id) => {
+              setDraftRegions((prev) => prev.filter((r) => r !== id));
+              setDraftMunicipalities((prev) => prev.filter((m) => m !== id));
+            }}
             onRemoveEmployment={(id) =>
               setDraftEmployment((prev) => toggle(prev, id))
             }
@@ -243,14 +274,13 @@ export function MatchSetupWizard({
                 />
               )}
               {step === 2 && (
-                <FacetSection
-                  title="Regioner"
-                  options={regionOptions}
-                  selected={draftRegions}
-                  onToggle={(id) => setDraftRegions((prev) => toggle(prev, id))}
-                  onClear={() => setDraftRegions([])}
-                  pinnedAriaLabel="Valda regioner"
+                <RegionMunicipalityCascade
+                  regions={regions}
+                  selectedRegions={draftRegions}
+                  selectedMunicipalities={draftMunicipalities}
+                  onChange={onOrtChange}
                   showHeading={false}
+                  idPrefix="match-wizard-ort"
                 />
               )}
               {step === 3 && (
@@ -310,7 +340,7 @@ function stepIntro(step: number): string {
     case 1:
       return "Välj de yrken du söker. Vi föreslår utifrån ditt CV. Ändra om det inte stämmer; du väljer själv vilka som tas med.";
     case 2:
-      return "Välj de regioner du vill arbeta i. Lämna tomt för hela landet.";
+      return "Välj de län eller kommuner du vill arbeta i. Lämna tomt för hela landet.";
     case 3:
       return "Välj de anställningsformer du är öppen för. Lämna tomt för alla.";
     default:
@@ -325,17 +355,17 @@ function stepIntro(step: number): string {
  */
 function ReviewStep({
   occupations,
-  regions,
+  orter,
   employment,
   onRemoveOccupation,
-  onRemoveRegion,
+  onRemoveOrt,
   onRemoveEmployment,
 }: {
   readonly occupations: ReadonlyArray<Option>;
-  readonly regions: ReadonlyArray<Option>;
+  readonly orter: ReadonlyArray<Option>;
   readonly employment: ReadonlyArray<Option>;
   readonly onRemoveOccupation: (conceptId: string) => void;
-  readonly onRemoveRegion: (conceptId: string) => void;
+  readonly onRemoveOrt: (conceptId: string) => void;
   readonly onRemoveEmployment: (conceptId: string) => void;
 }) {
   return (
@@ -348,11 +378,11 @@ function ReviewStep({
         ariaLabel="Valda yrken"
       />
       <ReviewFacet
-        title="Regioner"
-        empty="Hela landet (ingen region vald)"
-        chips={regions}
-        onRemove={onRemoveRegion}
-        ariaLabel="Valda regioner"
+        title="Orter"
+        empty="Hela landet (ingen ort vald)"
+        chips={orter}
+        onRemove={onRemoveOrt}
+        ariaLabel="Valda orter"
       />
       <ReviewFacet
         title="Anställningsformer"

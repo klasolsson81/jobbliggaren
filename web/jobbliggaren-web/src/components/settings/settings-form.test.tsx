@@ -33,6 +33,7 @@ const baseProfile: JobSeekerProfileDto = {
   hasStatedDesiredOccupation: false,
   preferredOccupationGroups: [],
   preferredRegions: [],
+  preferredMunicipalities: [],
   preferredEmploymentTypes: [],
 };
 

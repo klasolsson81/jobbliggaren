@@ -5,6 +5,10 @@ import type {
   MatchDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
+import {
+  classifyOrtLabel,
+  type OrtGranularity,
+} from "@/lib/job-ads/ort-granularity";
 
 /**
  * JobAdMatchSection — F4-16 (ADR 0076 Amendment (b) §3/§5, design-reviewer
@@ -133,17 +137,84 @@ function mustHaveSummary(verdict: MatchVerdict): string | null {
   }
 }
 
+/**
+ * Spår 3 PR-D — grupperar en ort-label-lista per granularitet (kommun/län) och
+ * formaterar två civic-fraser så bevisraden ärligt visar VILKEN granularitet
+ * som matchade (architect NOTE-2; klassningen sker FE-side mot taxonomin).
+ * Okänd label (saknas i kartan, t.ex. stale snapshot) faller till `region`-
+ * hinken som plain text (visas rakt av, ingen felaktig kategori).
+ */
+function splitOrtByGranularity(
+  labels: ReadonlyArray<string>,
+  granularityByLabel: Record<string, OrtGranularity>,
+): { municipalities: string[]; regions: string[] } {
+  const municipalities: string[] = [];
+  const regions: string[] = [];
+  for (const label of labels) {
+    if (classifyOrtLabel(label, granularityByLabel) === "municipality") {
+      municipalities.push(label);
+    } else {
+      // "region" eller okänd → coarser/plain (Gotland-fallet, stale snapshot).
+      regions.push(label);
+    }
+  }
+  return { municipalities, regions };
+}
+
+/**
+ * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan en
+ * granularitets-karta (`granularityByLabel` saknas) faller den tillbaka på den
+ * generiska "Du har:"/"Annonsen efterfrågar även:"-formen (bakåtkompat).
+ */
+function RegionFitEvidence({
+  detail,
+  granularityByLabel,
+}: {
+  detail: MatchDimensionDetail;
+  granularityByLabel: Record<string, OrtGranularity>;
+}) {
+  const matched = splitOrtByGranularity(detail.matched, granularityByLabel);
+  const missing = splitOrtByGranularity(detail.missing, granularityByLabel);
+
+  return (
+    <>
+      {matched.municipalities.length > 0 && (
+        <span>Kommun som matchar: {matched.municipalities.join(", ")}</span>
+      )}
+      {matched.regions.length > 0 && (
+        <span>Län som matchar: {matched.regions.join(", ")}</span>
+      )}
+      {missing.municipalities.length > 0 && (
+        <span className="jp-modal__matchrow-missing">
+          Annonsens kommun: {missing.municipalities.join(", ")}
+        </span>
+      )}
+      {missing.regions.length > 0 && (
+        <span className="jp-modal__matchrow-missing">
+          Annonsens län: {missing.regions.join(", ")}
+        </span>
+      )}
+    </>
+  );
+}
+
 function MatchRow({
   label,
   dimensionKey,
   detail,
+  granularityByLabel,
 }: {
   label: string;
   dimensionKey: keyof Omit<JobAdMatchDetail, "grade">;
   detail: MatchDimensionDetail;
+  /** Spår 3 PR-D — endast satt för RegionFit-raden (label → kommun/län). */
+  granularityByLabel?: Record<string, OrtGranularity>;
 }) {
   const word = VERDICT_WORD[detail.verdict];
   const isNotAssessed = detail.verdict === "NotAssessed";
+  // Granularitets-uppdelad bevisrad bara för Region OCH bara när kartan finns.
+  const useOrtGranularity =
+    dimensionKey === "regionFit" && granularityByLabel !== undefined;
 
   return (
     <div className="jp-modal__matchrow">
@@ -167,6 +238,11 @@ function MatchRow({
           <span className="jp-modal__matchrow-missing">
             {notAssessedReason(dimensionKey)}
           </span>
+        ) : useOrtGranularity ? (
+          <RegionFitEvidence
+            detail={detail}
+            granularityByLabel={granularityByLabel}
+          />
         ) : (
           <>
             {detail.matched.length > 0 && (
@@ -186,9 +262,18 @@ function MatchRow({
 
 export interface JobAdMatchSectionProps {
   match: JobAdMatchDetail;
+  /**
+   * Spår 3 PR-D — label → ort-granularitet (kommun/län), härledd FE-side ur
+   * taxonomin (architect NOTE-2). Utelämnad → RegionFit-raden faller till den
+   * generiska bevisformen (bakåtkompat / degraderad taxonomi).
+   */
+  ortGranularityByLabel?: Record<string, OrtGranularity>;
 }
 
-export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
+export function JobAdMatchSection({
+  match,
+  ortGranularityByLabel,
+}: JobAdMatchSectionProps) {
   // Inloggad användare UTAN angivet yrke (yrket kan inte bedömas): visa EN
   // ärlig signpost-rad i stället för nedbrytningen, med kanonisk Översikt-copy
   // (design §2.E #2 — ingen string-drift mellan ytor).
@@ -229,6 +314,10 @@ export function JobAdMatchSection({ match }: JobAdMatchSectionProps) {
             label={label}
             dimensionKey={key}
             detail={match[key]}
+            // Granularitets-uppdelning bara för Region-raden (kommun vs län).
+            granularityByLabel={
+              key === "regionFit" ? ortGranularityByLabel : undefined
+            }
           />
         ))}
       </div>

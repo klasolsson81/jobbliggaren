@@ -194,3 +194,69 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(screen.getByText("Yrke")).toBeInTheDocument();
   });
 });
+
+describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
+  // label → granularitet (härledd FE-side ur taxonomin, architect NOTE-2).
+  const granularity = {
+    Göteborg: "municipality" as const,
+    Solna: "municipality" as const,
+    "Stockholms län": "region" as const,
+    "Västra Götalands län": "region" as const,
+  };
+
+  it("kommun-träff och län-träff skiljs åt i RegionFit-beviset", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({ regionFit: row("Match", ["Göteborg", "Stockholms län"]) })}
+        ortGranularityByLabel={granularity}
+      />
+    );
+    expect(screen.getByText("Kommun som matchar: Göteborg")).toBeInTheDocument();
+    expect(
+      screen.getByText("Län som matchar: Stockholms län")
+    ).toBeInTheDocument();
+    // Den generiska "Du har:"-formen används INTE för Region-radens orter när
+    // kartan finns (de splittas till kommun-/län-fraser i stället).
+    expect(
+      screen.queryByText(/Du har: Göteborg/)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Du har:.*Stockholms län/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("missing ort skiljer kommun och län (annonsens ort som inte är angiven)", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({ regionFit: row("NoMatch", [], ["Solna", "Västra Götalands län"]) })}
+        ortGranularityByLabel={granularity}
+      />
+    );
+    expect(screen.getByText("Annonsens kommun: Solna")).toBeInTheDocument();
+    expect(
+      screen.getByText("Annonsens län: Västra Götalands län")
+    ).toBeInTheDocument();
+  });
+
+  it("Gotland-fall (label saknas i kartan) faller till coarser/plain län-hinken, ingen krasch", () => {
+    // Okänd/tvetydig label klassas som "region" i splitten (plain text i
+    // län-hinken) — aldrig en krasch, aldrig felaktig kommun-kategori.
+    render(
+      <JobAdMatchSection
+        match={detail({ regionFit: row("Match", ["Gotland"]) })}
+        ortGranularityByLabel={granularity}
+      />
+    );
+    expect(screen.getByText("Län som matchar: Gotland")).toBeInTheDocument();
+  });
+
+  it("utan granularitets-karta faller RegionFit till generisk bevisform (bakåtkompat)", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({ regionFit: row("Match", ["Göteborg"]) })}
+      />
+    );
+    expect(screen.getByText("Du har: Göteborg")).toBeInTheDocument();
+    expect(screen.queryByText(/Kommun som matchar/)).not.toBeInTheDocument();
+  });
+});

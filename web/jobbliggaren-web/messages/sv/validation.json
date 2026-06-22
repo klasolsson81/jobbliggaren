@@ -49,6 +49,8 @@
     "yearsMax": "Maxvärde för år är 70.",
     "summaryMax": "Sammanfattning får vara max 2 000 tecken.",
     "cvNameRequired": "Namn på CV krävs.",
-    "maxChars": "{label} får vara max {max} tecken."
+    "phoneMax": "Telefon får vara max 50 tecken.",
+    "locationMax": "Ort får vara max 200 tecken.",
+    "descriptionMax": "Beskrivning får vara max 2 000 tecken."
   }
 }

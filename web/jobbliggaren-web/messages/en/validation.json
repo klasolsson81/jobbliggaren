@@ -49,6 +49,8 @@
     "yearsMax": "The maximum value for years is 70.",
     "summaryMax": "The summary may be at most 2,000 characters.",
     "cvNameRequired": "A name for the CV is required.",
-    "maxChars": "{label} may be at most {max} characters."
+    "phoneMax": "Phone may be at most 50 characters.",
+    "locationMax": "Location may be at most 200 characters.",
+    "descriptionMax": "Description may be at most 2,000 characters."
   }
 }

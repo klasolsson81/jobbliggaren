@@ -20,15 +20,16 @@ const makeOptionalDateString = (t: ValidationTranslator) =>
     .nullish()
     .transform((v) => (v && v.length > 0 ? v : null));
 
-const makeOptionalNullableString = (
-  t: ValidationTranslator,
-  max: number,
-  label: string
-) =>
+// `message` is a pre-resolved, localized string (e.g. `t("resume.phoneMax")`).
+// We deliberately do NOT take a `label` arg and interpolate it into a shared
+// template: the field noun must be localized too, so each call site passes a
+// per-field message key (mirrors `resume.summaryMax`). A shared template with a
+// hardcoded Swedish label leaked "Telefonnummer ..." into the English catalog.
+const makeOptionalNullableString = (max: number, message: string) =>
   z
     .string()
     .trim()
-    .max(max, t("resume.maxChars", { label, max }))
+    .max(max, message)
     .nullish()
     .transform((v) => (v && v.length > 0 ? v : null));
 
@@ -45,8 +46,8 @@ const makePersonalInfoSchema = (t: ValidationTranslator) =>
       .nullish()
       .transform((v) => (v && v.length > 0 ? v : null))
       .pipe(z.union([z.email(t("resume.emailInvalid")), z.null()])),
-    phone: makeOptionalNullableString(t, 50, "Telefonnummer"),
-    location: makeOptionalNullableString(t, 200, "Ort"),
+    phone: makeOptionalNullableString(50, t("resume.phoneMax")),
+    location: makeOptionalNullableString(200, t("resume.locationMax")),
   });
 
 const makeExperienceSchema = (t: ValidationTranslator) =>
@@ -64,7 +65,7 @@ const makeExperienceSchema = (t: ValidationTranslator) =>
         .max(200, t("resume.roleMax")),
       startDate: makeDateString(t),
       endDate: makeOptionalDateString(t),
-      description: makeOptionalNullableString(t, 2000, "Beskrivning"),
+      description: makeOptionalNullableString(2000, t("resume.descriptionMax")),
     })
     .refine((e) => !e.endDate || e.endDate >= e.startDate, {
       message: t("resume.endBeforeStart"),

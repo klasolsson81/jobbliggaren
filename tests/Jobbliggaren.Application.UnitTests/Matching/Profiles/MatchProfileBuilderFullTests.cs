@@ -99,6 +99,33 @@ public class MatchProfileBuilderFullTests
         return resume;
     }
 
+    // A Resume whose Master content carries an Experience with the given role → the
+    // denormalised plaintext Resume.LatestRole projection (ADR 0058/0059) is populated.
+    // LatestRole is derived from content.Experiences (most recent by StartDate), NOT from
+    // skills — so the skills-only SeedResumeWithSkillsAsync leaves LatestRole null. When
+    // skillNames is supplied, the Master also carries those skills (so the TopSkills path
+    // still resolves alongside the title evidence).
+    private static async Task<Resume> SeedResumeWithLatestRoleAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
+        JobSeekerId jobSeekerId,
+        string latestRole,
+        params string[] skillNames)
+    {
+        var resume = Resume.Create(jobSeekerId, "Mitt CV", "Test User", FakeDateTimeProvider.Default).Value;
+        var content = new ResumeContent(
+            new PersonalInfo("Test User", null, null, null),
+            experiences:
+            [
+                new Experience("Acme AB", latestRole,
+                    new DateOnly(2024, 1, 1), null, null),
+            ],
+            skills: skillNames.Select(n => new Skill(n, null)).ToList());
+        resume.UpdateMasterContent(content, FakeDateTimeProvider.Default);
+        db.Resumes.Add(resume);
+        await db.SaveChangesAsync(CancellationToken.None);
+        return resume;
+    }
+
     private static MatchPreferences Prefs() => MatchPreferences.Create(
         preferredOccupationGroups: ["grp_12345"],
         preferredRegions: ["stockholm_AB"],
@@ -184,6 +211,71 @@ public class MatchProfileBuilderFullTests
         _dataOwner.DidNotReceive().SetOwner(Arg.Any<JobSeekerId>());
         await _dataKeyStore.DidNotReceive().GetOrCreateDataKeyAsync(
             Arg.Any<JobSeekerId>(), Arg.Any<CancellationToken>());
+    }
+
+    // =================================================================
+    // STEG 4 (ADR 0079 / #5a) — the title dimension reads the primary CV's denormalised
+    // plaintext Resume.LatestRole (DEK-free) into Fast.Title, on BOTH Full builders.
+    // EVIDENCE-ONLY: Title is absent from MatchGradeCalculator AND from the
+    // MatchSortedJobAdSearchQuery ORDER BY — so this can move NEITHER a grade nor a sort
+    // position (regression-pinned by the unchanged MatchGradeCalculatorTests + the SORT
+    // oracle). These cases verify the projection, not any grade/sort effect.
+    // The TopSkills path is plaintext (no DEK) so LatestRole is honestly assertable here on
+    // InMemory; the CvSkills DEK path's LatestRole projection is pinned in the
+    // Testcontainers suite (MatchProfileBuilderFullCvIntegrationTests).
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullFromTopSkills_WithPrimaryCvHavingExperience_SetsFastTitleToLatestRole()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(
+            db, seeker.Id, "Backend-utvecklare", "a", "b");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
+
+        // The plaintext LatestRole projection flows into the title dimension as evidence.
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+        // ...without disturbing the preference-derived Fast dimensions.
+        profile.Fast.SsykGroupConceptIds.ShouldBe(["grp_12345"]);
+        profile.Fast.PreferredRegionConceptIds.ShouldBe(["stockholm_AB"]);
+        profile.Fast.PreferredEmploymentTypeConceptIds.ShouldBe(["et_fast"]);
+    }
+
+    [Fact]
+    public async Task BuildFullFromTopSkills_WithPrimaryCvWithoutExperience_SetsFastTitleToEmpty()
+    {
+        // A CV that carries skills but NO experience → Resume.LatestRole is null
+        // (it is derived from content.Experiences, not skills) → honest empty title
+        // (NotAssessed), never a null/placeholder.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithSkillsAsync(db, seeker.Id, "a", "b");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
+
+        profile.Fast.Title.ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public async Task BuildFullFromTopSkills_JobSeekerWithoutPrimaryResume_SetsFastTitleToEmpty()
+    {
+        // No primary CV at all → no role to compare → honest empty title (parity with the
+        // preference/no-CV path which keeps Title = "").
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, Prefs(), primaryResumeId: null);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
+
+        profile.Fast.Title.ShouldBe(string.Empty);
     }
 
     // =================================================================

@@ -137,6 +137,30 @@ function mustHaveSummary(
 }
 
 /**
+ * Titel-sammanfattning (#5a / STEG 2-grannfeature, ADR 0079) — en kort civic rad
+ * som konstaterar hur CV:ts roll förhåller sig till annonsens titel. Titel-
+ * dimensionen scoras på stammade lexem (Snowball), vars råa stammar ("systemutveckl")
+ * vore obegripliga i UI — därför en per-verdict-fras i stället för rå bevis-lista.
+ * Titel är EVIDENCE-ONLY (styr aldrig graden), och yrket (SSYK) är den primära
+ * signalen — copy:n överklagar därför aldrig en titel-skillnad. `NotAssessed`
+ * (ingen roll i CV:t) faller till `notAssessedReason`; `Vacuous` förekommer ej för
+ * titel. Ingen siffra (Goodhart).
+ */
+function titleSummary(verdict: MatchVerdict, t: MatchTranslator): string | null {
+  switch (verdict) {
+    case "Match":
+      return t("titleSummary.Match");
+    case "Partial":
+      return t("titleSummary.Partial");
+    case "NoMatch":
+      return t("titleSummary.NoMatch");
+    case "Vacuous":
+    case "NotAssessed":
+      return null;
+  }
+}
+
+/**
  * Spår 3 PR-D — grupperar en ort-label-lista per granularitet (kommun/län) och
  * formaterar två civic-fraser så bevisraden ärligt visar VILKEN granularitet
  * som matchade (architect NOTE-2; klassningen sker FE-side mot taxonomin).
@@ -287,6 +311,9 @@ function MatchRow({
     dimensionKey === "niceToHaveCoverage";
   const hasRequirementItems =
     detail.matched.length > 0 || detail.missing.length > 0;
+  // Titel-raden (#5a): visa en per-verdict-fras i stället för råa Snowball-stammar
+  // (titel scoras på lexem; stammarna vore obegripliga i civic-UI).
+  const isTitleDim = dimensionKey === "titleSimilarity";
 
   return (
     <div className="jp-modal__matchrow">
@@ -318,6 +345,8 @@ function MatchRow({
           />
         ) : isRequirementDim && hasRequirementItems ? (
           <RequirementChecklist detail={detail} label={label} t={t} />
+        ) : isTitleDim ? (
+          <span>{titleSummary(detail.verdict, t)}</span>
         ) : (
           <>
             {detail.matched.length > 0 && (

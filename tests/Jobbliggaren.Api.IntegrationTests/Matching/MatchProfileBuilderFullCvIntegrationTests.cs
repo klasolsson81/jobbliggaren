@@ -88,6 +88,45 @@ public class MatchProfileBuilderFullCvIntegrationTests(ApiFactory factory)
         return (userId, seeker.Id);
     }
 
+    // As SeedSeekerWithCvAsync, but the Master content also carries an Experience with the
+    // given role → the denormalised plaintext Resume.LatestRole projection (ADR 0058/0059)
+    // is populated. STEG 4 reads LatestRole into Fast.Title on the DEK (CvSkills) path; the
+    // resume is loaded with Include(Versions) but LatestRole is a plaintext column on Resume
+    // itself (no DEK needed to read it), so a successful decrypt + a populated Title both
+    // hold on the same loaded aggregate.
+    private static async Task<(Guid UserId, JobSeekerId SeekerId)> SeedSeekerWithCvAndRoleAsync(
+        IServiceScope scope, string latestRole, params string[] skillNames)
+    {
+        var db = scope.ServiceProvider.GetRequiredService<Jobbliggaren.Infrastructure.Persistence.AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var seeker = JobSeeker.Register(userId, "Test User", clock).Value;
+        seeker.UpdateMatchPreferences(Prefs(), clock);
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, ct);
+
+        var resume = Resume.Create(seeker.Id, "Mitt CV", "Test User", clock).Value;
+        var content = new ResumeContent(
+            new PersonalInfo("Test User", null, null, null),
+            experiences:
+            [
+                new Experience("Acme AB", latestRole, new DateOnly(2024, 1, 1), null, null),
+            ],
+            skills: skillNames.Select(n => new Skill(n, null)).ToList());
+        resume.UpdateMasterContent(content, clock);
+        db.Resumes.Add(resume);
+        await db.SaveChangesAsync(ct);
+
+        seeker.SetPrimaryResume(resume.Id, clock);
+        await db.SaveChangesAsync(ct);
+
+        return (userId, seeker.Id);
+    }
+
     // =================================================================
     // 6 (relocated). WITH a primary CV → resolves the FULL Content.Skills to
     // concept-ids (the real taxonomy index over the decrypted content).
@@ -155,5 +194,33 @@ public class MatchProfileBuilderFullCvIntegrationTests(ApiFactory factory)
 
         profile.CvSkillConceptIds.ShouldNotBeEmpty(
             "En lyckad dekryptering bevisar att ägar-DEK värmdes FÖRE content-läsningen.");
+    }
+
+    // =================================================================
+    // STEG 4 (ADR 0079 / #5a) — the DEK (CvSkills) path reads the primary CV's
+    // denormalised plaintext Resume.LatestRole into Fast.Title (evidence-only: Title is
+    // absent from MatchGradeCalculator + the SORT ORDER BY, pinned by the unchanged
+    // MatchGradeCalculatorTests + MatchSortOracleTests). This case proves the projection
+    // survives the real round-trip (Include(Versions) + interceptor decrypt) — the
+    // plaintext-LatestRole assertion that the InMemory suite cannot host because the
+    // CvSkills path materialises the encrypted Content here.
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullFromCvSkills_WithPrimaryCvHavingExperience_SetsFastTitleFromLatestRole()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var (userId, _) = await SeedSeekerWithCvAndRoleAsync(
+            scope, "Backend-utvecklare", "Java", "Python");
+        var builder = NewBuilder(scope, userId);
+
+        var profile = await builder.BuildFullFromCvSkillsAsync(TestContext.Current.CancellationToken);
+
+        // The plaintext LatestRole projection flows into the title dimension as evidence.
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+        // ...alongside the decrypted + resolved skills (the DEK path still works).
+        profile.CvSkillConceptIds.ShouldNotBeEmpty();
+        // ...and without disturbing the stored preferences.
+        profile.Fast.SsykGroupConceptIds.ShouldBe(["grp_12345"]);
     }
 }

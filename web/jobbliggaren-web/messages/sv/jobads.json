@@ -137,7 +137,7 @@
       },
       "notAssessedReason": {
         "ssykOverlap": "Du har inte angett vilka yrken du söker inom.",
-        "titleSimilarity": "Titel jämförs inte mot din profil ännu.",
+        "titleSimilarity": "Ingen roll i ditt CV att jämföra.",
         "regionFit": "Du har inte angett någon region.",
         "employmentFit": "Du har inte angett någon anställningsform.",
         "skills": "Inga kompetenser kunde läsas ur ditt CV. Ladda upp ett CV under Profil.",
@@ -152,6 +152,11 @@
       "requirements": {
         "met": "Uppfyllt",
         "unmet": "Ej uppfyllt"
+      },
+      "titleSummary": {
+        "Match": "Din roll stämmer med annonsens titel.",
+        "Partial": "Din roll stämmer delvis med annonsens titel.",
+        "NoMatch": "Din titel skiljer sig från annonsens."
       }
     },
     "pagination": {

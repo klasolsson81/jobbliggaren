@@ -41,6 +41,10 @@ export default async function CookiesPage() {
               <span className="font-medium">{t("cookies.csrfTerm")}</span>
               {t("cookies.csrfBody")}
             </li>
+            <li>
+              <span className="font-medium">{t("cookies.languageTerm")}</span>
+              {t("cookies.languageBody")}
+            </li>
             <li>{t("cookies.noTracking")}</li>
           </ul>
 

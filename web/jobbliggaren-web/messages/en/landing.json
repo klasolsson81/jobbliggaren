@@ -105,6 +105,8 @@
     "sessionBody": " keep you signed in when you have an account.",
     "csrfTerm": "CSRF protection",
     "csrfBody": " protects your details from tampering.",
+    "languageTerm": "Language choice",
+    "languageBody": " remembers whether you chose Swedish or English.",
     "noTracking": "No cookies are used for analytics, tracking or marketing.",
     "fullPolicyNote": "A full cookie policy will be published before the service opens to the public."
   },

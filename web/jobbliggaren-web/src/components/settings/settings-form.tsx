@@ -53,7 +53,6 @@ type LanguageValue = "sv" | "en";
  *  - Telefon-fält INTE renderat (DTO saknar `phone`)
  *  - Aviseringar = 2 wirede toggles ("E-postnotifikationer" + "Veckosammanfattning")
  *    — Klas-promptens 4 strängar reducerad till 2 (no-mock-doktrin)
- *  - "Engelska" disabled (next-intl ej aktiverad)
  *  - "Exportera mina data" + "Radera konto" hänvisar till befintliga flöden
  *    (DeleteAccountSection) eller stub-handler
  */

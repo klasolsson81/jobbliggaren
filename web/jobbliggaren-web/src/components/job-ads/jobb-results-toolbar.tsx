@@ -233,7 +233,7 @@ export function JobbResultsToolbar({
   const chips = buildChipModels(
     urlState,
     (_axis, conceptId) =>
-      resolvedLabels[conceptId] ?? `Okänd kod (${conceptId})`,
+      resolvedLabels[conceptId] ?? t("toolbar.unknownCode", { code: conceptId }),
     { includeQ: true },
   );
 

@@ -166,7 +166,8 @@
       "sortPublishedDesc": "Date (newest)",
       "sortExpiresAsc": "Application date (deadline)",
       "matchSortDisclosure": "Match sorting requires you to state which occupations you are searching within. The list is shown newest first until you have set this.",
-      "matchSortDisclosureLink": "Set up matching"
+      "matchSortDisclosureLink": "Set up matching",
+      "unknownCode": "Unknown code ({code})"
     },
     "results": {
       "rateLimitedTitle": "Too many requests",

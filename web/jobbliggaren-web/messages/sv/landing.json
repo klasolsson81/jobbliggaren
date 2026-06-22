@@ -105,6 +105,8 @@
     "sessionBody": " håller dig inloggad när du har ett konto.",
     "csrfTerm": "CSRF-skydd",
     "csrfBody": " skyddar dina uppgifter från manipulation.",
+    "languageTerm": "Språkval",
+    "languageBody": " kommer ihåg om du valt svenska eller engelska.",
     "noTracking": "Inga cookies används för analys, spårning eller marknadsföring.",
     "fullPolicyNote": "En fullständig cookie-policy publiceras innan tjänsten öppnas för allmänheten."
   },

@@ -166,7 +166,8 @@
       "sortPublishedDesc": "Datum (nyast)",
       "sortExpiresAsc": "Ansökningsdatum (sista ansökan)",
       "matchSortDisclosure": "Matchningssortering kräver att du anger vilka yrken du söker inom. Listan visas med nyaste först tills du ställt in det.",
-      "matchSortDisclosureLink": "Ställ in matchning"
+      "matchSortDisclosureLink": "Ställ in matchning",
+      "unknownCode": "Okänd kod ({code})"
     },
     "results": {
       "rateLimitedTitle": "För många förfrågningar",

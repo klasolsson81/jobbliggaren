@@ -117,6 +117,91 @@ public class ParsedResumeTests
     }
 
     // ===============================================================
+    // Create — skill proposals (ADR 0079 STEG 3). The optional trailing
+    // skillProposals param (after clock) carries CV-resolved JobTech skills.
+    // ===============================================================
+
+    [Fact]
+    public void Create_CarriesSkillProposals()
+    {
+        var skillProposals = new[]
+        {
+            new ProposedSkill("k1A2_b3C4_d5E", "C#"),
+            new ProposedSkill("m6N7_o8P9_q0R", "PostgreSQL"),
+        };
+
+        var result = ParsedResume.Create(
+            Owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            PersonnummerScanOutcome.None, [], Clock, skillProposals);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SkillProposals.Count.ShouldBe(2);
+        result.Value.SkillProposals[0].ConceptId.ShouldBe("k1A2_b3C4_d5E");
+        result.Value.SkillProposals[0].Label.ShouldBe("C#");
+        result.Value.SkillProposals[1].Label.ShouldBe("PostgreSQL");
+    }
+
+    [Fact]
+    public void Create_WithoutSkillProposals_OmittedParam_YieldsEmptySkillProposals()
+    {
+        // The optional trailing skillProposals param defaults to null → empty (additive, so the
+        // ~30 existing Create callers stay unchanged). Omitting it must not throw.
+        var result = ParsedResume.Create(
+            Owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            PersonnummerScanOutcome.None, [], Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SkillProposals.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Create_SkillAndOccupationProposals_AreIndependent()
+    {
+        // Occupation proposals and skill proposals are carried on separate collections — a CV
+        // can have one without the other, and each maps only to its own read property.
+        var occupations = new[]
+        {
+            new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare"),
+        };
+        var skills = new[]
+        {
+            new ProposedSkill("k1A2_b3C4_d5E", "C#"),
+        };
+
+        var result = ParsedResume.Create(
+            Owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            PersonnummerScanOutcome.None, occupations, Clock, skills);
+
+        result.IsSuccess.ShouldBeTrue();
+        var parsed = result.Value;
+        parsed.OccupationProposals.Count.ShouldBe(1);
+        parsed.OccupationProposals[0].ConceptId.ShouldBe("q8wL_kdi_WaW");
+        parsed.SkillProposals.Count.ShouldBe(1);
+        parsed.SkillProposals[0].ConceptId.ShouldBe("k1A2_b3C4_d5E");
+    }
+
+    [Fact]
+    public void Create_OnlySkillProposals_NoOccupationProposals_OccupationProposalsEmpty()
+    {
+        var skills = new[]
+        {
+            new ProposedSkill("k1A2_b3C4_d5E", "C#"),
+        };
+
+        var result = ParsedResume.Create(
+            Owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            PersonnummerScanOutcome.None, [], Clock, skills);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SkillProposals.Count.ShouldBe(1);
+        result.Value.OccupationProposals.ShouldBeEmpty();
+    }
+
+    // ===============================================================
     // Create — Variant A: a DEGRADED/incomplete parse IS constructible
     // (the contrast with the strict canonical Resume).
     // ===============================================================

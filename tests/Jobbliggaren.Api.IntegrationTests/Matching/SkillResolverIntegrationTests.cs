@@ -253,6 +253,123 @@ public sealed class SkillResolverIntegrationTests
         resolved.ShouldContain(golden.ConceptId);
     }
 
+    // ===============================================================
+    // 5. ResolveDetailed (ADR 0079 STEG 3) — like Resolve but carries each
+    //    concept-id's preferred (canonical) label so the CV-seeded skill chips
+    //    are user-readable. Deduped per concept-id, deterministic ordinal order,
+    //    same fail-closed/honest-drop semantics. RED until ResolveDetailed ships.
+    // ===============================================================
+
+    [Fact]
+    public void ResolveDetailed_KnownSwedishSkillLabel_YieldsConceptIdWithItsPreferredLabel()
+    {
+        var golden = FirstSingleTokenSkillGolden();
+        var sut = NewResolver();
+
+        var resolved = sut.ResolveDetailed([golden.PreferredLabel], TestContext.Current.CancellationToken);
+
+        var match = resolved.ShouldHaveSingleItem();
+        match.ConceptId.ShouldBe(golden.ConceptId);
+        // The chip must show the canonical preferred label (a bare concept-id is not
+        // user-readable — propose-and-approve needs the label, CLAUDE.md §5).
+        match.Label.ShouldBe(golden.PreferredLabel);
+    }
+
+    [Fact]
+    public void ResolveDetailed_SameConceptViaMultipleCvSkills_DedupesToOnePerConceptId()
+    {
+        // A CV may list the same skill twice (e.g. the label and an inflected form) — the
+        // result carries the concept-id ONCE, with one canonical label.
+        var golden = FirstSingleTokenSkillGolden();
+        var sut = NewResolver();
+
+        var resolved = sut.ResolveDetailed(
+            [golden.PreferredLabel, golden.PreferredLabel], TestContext.Current.CancellationToken);
+
+        resolved.Count(s => s.ConceptId == golden.ConceptId).ShouldBe(1,
+            "Deduped per concept-id — samma skill två gånger ger EN post.");
+    }
+
+    [Fact]
+    public void ResolveDetailed_UnresolvableGarbage_ReturnsEmpty_NeverThrows()
+    {
+        var sut = NewResolver();
+
+        var resolved = sut.ResolveDetailed(["zzqxyw"], TestContext.Current.CancellationToken);
+
+        resolved.ShouldBeEmpty(
+            "En CV-kompetens taxonomin inte bär ska droppas tyst (fail-closed, normalt).");
+    }
+
+    [Fact]
+    public void ResolveDetailed_EmptyList_ReturnsEmpty()
+    {
+        var sut = NewResolver();
+
+        sut.ResolveDetailed([], TestContext.Current.CancellationToken).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t")]
+    public void ResolveDetailed_BlankOrWhitespaceEntries_AreDropped_NeverThrows(string blank)
+    {
+        var sut = NewResolver();
+
+        var resolved = sut.ResolveDetailed([blank], TestContext.Current.CancellationToken);
+
+        resolved.ShouldBeEmpty("Tom/whitespace-post ska droppas tyst, aldrig kasta.");
+    }
+
+    [Fact]
+    public void ResolveDetailed_MixedResolvableAndGarbage_DropsGarbage_KeepsResolved()
+    {
+        var golden = FirstSingleTokenSkillGolden();
+        var sut = NewResolver();
+
+        var resolved = sut.ResolveDetailed(
+            ["zzqxyw", golden.PreferredLabel, "   "], TestContext.Current.CancellationToken);
+
+        resolved.ShouldContain(s => s.ConceptId == golden.ConceptId);
+        resolved.ShouldNotContain(s => s.ConceptId == "zzqxyw");
+    }
+
+    [Fact]
+    public void ResolveDetailed_IsDeterministic_SameInputTwice_EqualOrderedSequences()
+    {
+        var labels = SingleTokenSkillGoldens().Take(3).Select(g => g.PreferredLabel).ToList();
+
+        var first = NewResolver().ResolveDetailed(labels, TestContext.Current.CancellationToken);
+        var second = NewResolver().ResolveDetailed(labels, TestContext.Current.CancellationToken);
+
+        // Deterministic ORDINAL ORDER — the ordered sequences must be identical (not just
+        // set-equal): same concept-ids in the same positions, same labels.
+        first.Select(s => s.ConceptId).ShouldBe(second.Select(s => s.ConceptId),
+            "ResolveDetailed är ren över immutable reference-data → identisk ordnad sekvens.");
+        first.Select(s => s.Label).ShouldBe(second.Select(s => s.Label));
+    }
+
+    [Fact]
+    public void ResolveDetailed_ConceptIds_MatchResolveConceptIds_ProvingOneSharedPath()
+    {
+        // ResolveDetailed and Resolve must agree on WHICH concept-ids resolve from the same
+        // input — ResolveDetailed only ADDS the label, it must not change the resolution set
+        // (one shared SkillTaxonomyIndex, no second labelled path that could diverge).
+        var labels = SingleTokenSkillGoldens().Take(3).Select(g => g.PreferredLabel).ToList();
+        var sut = NewResolver();
+
+        var resolveIds = sut.Resolve(labels, TestContext.Current.CancellationToken);
+        var detailedIds = NewResolver()
+            .ResolveDetailed(labels, TestContext.Current.CancellationToken)
+            .Select(s => s.ConceptId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        detailedIds.ShouldBe(resolveIds.ToHashSet(StringComparer.Ordinal), ignoreOrder: true,
+            "ResolveDetailed:s concept-id-mängd måste vara identisk med Resolve:s — labeln " +
+            "läggs till, resolutionen ändras inte (ADR 0079, EN delad index).");
+    }
+
     // ---------------------------------------------------------------
     // Golden derivation — read the committed asset live, pick concepts whose
     // preferredLabel is a single distinctive token lexemizing to ONE lexeme that

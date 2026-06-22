@@ -30,4 +30,30 @@ internal sealed class SkillResolver(SkillTaxonomyIndex index) : ISkillResolver
 
         return resolved;
     }
+
+    // ADR 0079 STEG 3 — labelled resolution for CV-seeded skill chips. Unions across CV
+    // skills, dedupes per concept-id (first preferred label wins — MatchForms already
+    // keeps one form per concept-id, and the same concept-id resolves to the same label
+    // regardless of which CV skill hit it), and returns a deterministic ordinal order so
+    // the proposal jsonb + chips are reproducible.
+    public IReadOnlyList<ResolvedSkill> ResolveDetailed(
+        IEnumerable<string> freeTextSkills, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(freeTextSkills);
+
+        var byConcept = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var skill in freeTextSkills)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(skill))
+                continue;
+            foreach (var form in index.ResolveForms(skill))
+                byConcept.TryAdd(form.ConceptId, form.PreferredLabel);
+        }
+
+        return byConcept
+            .Select(kv => new ResolvedSkill(kv.Key, kv.Value))
+            .OrderBy(r => r.ConceptId, StringComparer.Ordinal)
+            .ToList();
+    }
 }

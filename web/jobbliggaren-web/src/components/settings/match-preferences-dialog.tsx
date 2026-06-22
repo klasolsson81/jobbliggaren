@@ -8,6 +8,7 @@
 // Server Component.
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type {
@@ -64,6 +65,7 @@ export function MatchPreferencesDialog({
   onSaved,
   importCvHref,
 }: MatchPreferencesDialogProps) {
+  const t = useTranslations("settings");
   const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
     conceptId: e.conceptId,
     label: e.label,
@@ -144,11 +146,10 @@ export function MatchPreferencesDialog({
       <DialogContent className="jp-matchdialog">
         <div className="jp-matchdialog__head">
           <DialogTitle className="jp-matchdialog__title">
-            Lägg till i matchning
+            {t("matchPrefs.dialog.title")}
           </DialogTitle>
           <DialogDescription className="jp-matchdialog__intro">
-            Sök och välj yrken, orter och anställningsformer. Valda visas
-            överst i varje del. Ta bort med kryssikonen.
+            {t("matchPrefs.dialog.intro")}
           </DialogDescription>
           {/* Stäng-knappen = shadcn/radix Close inbyggd i DialogContent (civic-
               restylad i globals.css), inte en egen knapp — undviker dubblerad
@@ -194,12 +195,12 @@ export function MatchPreferencesDialog({
             aria-labelledby="match-dialog-employment-head"
           >
             <FacetSection
-              title="Anställningsformer"
+              title={t("matchPrefs.facetEmployment")}
               options={employmentOptions}
               selected={draftEmployment}
               onToggle={(id) => setDraftEmployment((prev) => toggle(prev, id))}
               onClear={() => setDraftEmployment([])}
-              pinnedAriaLabel="Valda anställningsformer"
+              pinnedAriaLabel={t("matchPrefs.selectedEmployment")}
               headingId="match-dialog-employment-head"
             />
           </section>
@@ -207,7 +208,7 @@ export function MatchPreferencesDialog({
 
         <div className="jp-matchdialog__foot">
           <Button type="button" onClick={onSave} disabled={isSaving}>
-            {isSaving ? "Sparar…" : "Spara matchning"}
+            {isSaving ? t("matchPrefs.dialog.saving") : t("matchPrefs.dialog.save")}
           </Button>
           <Button
             type="button"
@@ -215,7 +216,7 @@ export function MatchPreferencesDialog({
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
           >
-            Avbryt
+            {t("matchPrefs.dialog.cancel")}
           </Button>
           {saveError && (
             <p role="alert" className="text-body-sm text-danger-600">

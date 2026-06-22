@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { OccupationProposalDto } from "@/lib/dto/parsed-resume";
 
 /**
@@ -11,6 +12,8 @@ export function OccupationProposals({
 }: {
   proposals: readonly OccupationProposalDto[];
 }) {
+  const t = useTranslations("resumes");
+
   if (proposals.length === 0) return null;
 
   return (
@@ -19,12 +22,9 @@ export function OccupationProposals({
       aria-labelledby="occupations-title"
     >
       <h2 id="occupations-title" className="jp-occupations__title">
-        Möjliga yrkesområden
+        {t("occupations.title")}
       </h2>
-      <p className="jp-occupations__lede">
-        Förslag på yrkesområde utifrån ditt CV. Du bekräftar yrke i ett senare
-        steg.
-      </p>
+      <p className="jp-occupations__lede">{t("occupations.lede")}</p>
       <ul className="jp-occupations__list">
         {proposals.map((proposal) => (
           <li key={proposal.conceptId} className="jp-skill-chip">

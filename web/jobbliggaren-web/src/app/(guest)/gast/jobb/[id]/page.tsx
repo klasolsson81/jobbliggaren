@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ArrowLeft } from "lucide-react";
 import { GuestDemoBanner } from "@/components/guest/guest-demo-banner";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
@@ -19,6 +20,7 @@ export default async function GuestJobbFullPage({ params }: PageProps) {
   if (!mock) notFound();
 
   const jobAd = toJobAdDto(mock);
+  const t = await getTranslations("guest");
 
   return (
     <>
@@ -26,7 +28,7 @@ export default async function GuestJobbFullPage({ params }: PageProps) {
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <div className="jp-pagehero__kicker">Demoannons</div>
+            <div className="jp-pagehero__kicker">{t("jobb.fullKicker")}</div>
             <h1 className="jp-pagehero__title">{jobAd.title}</h1>
             <p className="jp-pagehero__lede">{jobAd.companyName}</p>
           </div>
@@ -35,7 +37,7 @@ export default async function GuestJobbFullPage({ params }: PageProps) {
               href="/gast/jobb"
               className="jp-btn jp-btn--secondary jp-btn--sm"
             >
-              <ArrowLeft size={14} aria-hidden="true" /> Till listan
+              <ArrowLeft size={14} aria-hidden="true" /> {t("jobb.backToList")}
             </Link>
           </div>
         </div>

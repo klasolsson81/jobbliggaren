@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 
 /**
@@ -18,22 +19,18 @@ import type { MatchGrade } from "@/lib/dto/job-ad-match";
  *   (`aria-hidden`) — den upprepar bara graden som texten redan uttrycker.
  */
 
-interface GradePresentation {
-  readonly modifier: string;
-  readonly label: string;
-}
-
-// Grad → modifier + svensk civic label (design-reviewer 2026-06-20, F4-16);
-// inga utropstecken, ingen emoji, ingen versalisering (§10). Ladder:
-// Grundmatch → Bra match → Stark match → Toppmatch. "Top" är den golden-rungen
-// (Klas-bind: ordet "Toppmatch", färgen djupare/solid grön — INGEN ny token,
-// INGEN guld-token); modifier `--top` ger solid `--jp-success`-fyllning över
-// `--high`:s tonade grön (hierarki via fyllvikt, ej ny hue).
-const GRADE_PRESENTATION: Record<MatchGrade, GradePresentation> = {
-  Top: { modifier: "jp-matchchip--top", label: "Toppmatch" },
-  Strong: { modifier: "jp-matchchip--high", label: "Stark match" },
-  Good: { modifier: "jp-matchchip--mid", label: "Bra match" },
-  Basic: { modifier: "jp-matchchip--low", label: "Grundmatch" },
+// Grad → modifier (design-reviewer 2026-06-20, F4-16); etiketten resolveras via
+// next-intl (`ui.match.grade.*`). Inga utropstecken, ingen emoji, ingen
+// versalisering (§10). Ladder: Grundmatch → Bra match → Stark match →
+// Toppmatch. "Top" är den golden-rungen (Klas-bind: ordet "Toppmatch", färgen
+// djupare/solid grön — INGEN ny token, INGEN guld-token); modifier `--top` ger
+// solid `--jp-success`-fyllning över `--high`:s tonade grön (hierarki via
+// fyllvikt, ej ny hue).
+const GRADE_MODIFIER: Record<MatchGrade, string> = {
+  Top: "jp-matchchip--top",
+  Strong: "jp-matchchip--high",
+  Good: "jp-matchchip--mid",
+  Basic: "jp-matchchip--low",
 };
 
 export interface MatchChipProps {
@@ -41,7 +38,11 @@ export interface MatchChipProps {
 }
 
 export function MatchChip({ grade }: MatchChipProps) {
-  const { modifier, label } = GRADE_PRESENTATION[grade];
+  // Synchronous next-intl translator — keeps MatchChip a non-async RSC (it
+  // renders as a serialized list slot and has synchronous render tests).
+  const t = useTranslations("jobads.ui.match");
+  const modifier = GRADE_MODIFIER[grade];
+  const label = t(`grade.${grade}`);
   return (
     <span className={`jp-matchchip ${modifier}`} data-tag="match">
       <span className="jp-matchchip__dot" aria-hidden="true" />

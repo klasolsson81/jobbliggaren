@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import {
   GUEST_MOCK,
   GUEST_MOCK_REF_DATE,
@@ -32,6 +33,8 @@ function formatThousands(n: number): string {
 }
 
 export function GuestOversiktPage() {
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("guest");
   const { applications, resumes, summary } = GUEST_MOCK;
   const latestOffer = applications.find((a) => a.status === "Offer");
   const latestInterview = applications.find((a) => a.status === "Interview");
@@ -41,31 +44,28 @@ export function GuestOversiktPage() {
     actionNotices.push({
       id: "guest-n-offer",
       kind: "success",
-      label: "Erbjudande",
-      text: (
-        <>
-          <b>{latestOffer.company}</b>: {latestOffer.role}. Erbjudande
-          väntar svar.
-        </>
-      ),
-      cta: "Anmäl till väntelistan",
+      label: t("oversikt.noticeOfferLabel"),
+      text: t.rich("oversikt.noticeOfferText", {
+        company: latestOffer.company,
+        role: latestOffer.role,
+        b: (chunks) => <b>{chunks}</b>,
+      }),
+      cta: t("oversikt.noticeOfferCta"),
       href: "/vantelista",
-      time: "i dag",
+      time: t("oversikt.timeToday"),
     });
   }
   actionNotices.push({
     id: "guest-n-drafts",
     kind: "warning",
-    label: "Påminnelse",
-    text: (
-      <>
-        Du har <b>{summary.applicationsByStatus.Draft} utkast</b> som inte
-        är inskickade. Färdigställ och skicka för att hålla pipeline aktiv.
-      </>
-    ),
-    cta: "Visa ansökningar",
+    label: t("oversikt.noticeDraftsLabel"),
+    text: t.rich("oversikt.noticeDraftsText", {
+      count: summary.applicationsByStatus.Draft,
+      b: (chunks) => <b>{chunks}</b>,
+    }),
+    cta: t("oversikt.noticeDraftsCta"),
     href: "/gast/ansokningar",
-    time: "i dag",
+    time: t("oversikt.timeToday"),
   });
 
   const infoNotices: NoticeData[] = [];
@@ -73,31 +73,29 @@ export function GuestOversiktPage() {
     infoNotices.push({
       id: "guest-n-interview",
       kind: "brand",
-      label: "Intervju",
-      text: (
-        <>
-          <b>{latestInterview.company}</b> har bekräftat intervjutid.
-        </>
-      ),
-      cta: "Anmäl till väntelistan",
+      label: t("oversikt.noticeInterviewLabel"),
+      text: t.rich("oversikt.noticeInterviewText", {
+        company: latestInterview.company,
+        b: (chunks) => <b>{chunks}</b>,
+      }),
+      cta: t("oversikt.noticeInterviewCta"),
       href: "/vantelista",
-      time: "i går",
+      time: t("oversikt.timeYesterday"),
     });
   }
   infoNotices.push({
     id: "guest-n-match",
     kind: "info",
-    label: "Matchning",
-    text: (
-      <>
-        Det finns <b>{OVERSIKT_MOCK.matchCountThisWeek} nya annonser</b>{" "}
-        som matchar profilen, de flesta inom{" "}
-        <em>{OVERSIKT_MOCK.matchSegmentLabel}</em>.
-      </>
-    ),
-    cta: "Visa annonser",
+    label: t("oversikt.noticeMatchLabel"),
+    text: t.rich("oversikt.noticeMatchText", {
+      count: OVERSIKT_MOCK.matchCountThisWeek,
+      segment: OVERSIKT_MOCK.matchSegmentLabel,
+      b: (chunks) => <b>{chunks}</b>,
+      em: (chunks) => <em>{chunks}</em>,
+    }),
+    cta: t("oversikt.noticeMatchCta"),
     href: "/gast/jobb",
-    time: "i dag",
+    time: t("oversikt.timeToday"),
   });
 
   return (
@@ -105,12 +103,9 @@ export function GuestOversiktPage() {
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <div className="jp-pagehero__kicker">Demoöversikt</div>
-            <h1 className="jp-pagehero__title">Översikt</h1>
-            <p className="jp-pagehero__lede">
-              Så här ser det ut när du följer dina ansökningar. Allt här är
-              exempeldata.
-            </p>
+            <div className="jp-pagehero__kicker">{t("oversikt.kicker")}</div>
+            <h1 className="jp-pagehero__title">{t("oversikt.title")}</h1>
+            <p className="jp-pagehero__lede">{t("oversikt.lede")}</p>
           </div>
           <div className="jp-pagehero__aside">
             <TodayCard
@@ -126,92 +121,101 @@ export function GuestOversiktPage() {
         <NoticeList
           actionNotices={actionNotices}
           infoNotices={infoNotices}
-          lastUpdated={`exempeldata · ${STAMP_DATE}`}
+          lastUpdated={t("oversikt.lastUpdated", { date: STAMP_DATE })}
         />
 
         <section className="jp-section" aria-labelledby="guest-sammanfattning">
           <div className="jp-section__head">
             <h2 className="jp-section__title" id="guest-sammanfattning">
-              Sammanfattning
+              {t("oversikt.summaryTitle")}
             </h2>
             <span className="jp-section__count">
-              exempeldata per <span className="jp-mono">{STAMP_DATE}</span>
+              {t.rich("oversikt.summaryStamp", {
+                date: STAMP_DATE,
+                mono: (chunks) => <span className="jp-mono">{chunks}</span>,
+              })}
             </span>
           </div>
 
           <div className="jp-summary">
             <div className="jp-summary__group">
-              <div className="jp-summary__group__title">Ansökningar</div>
+              <div className="jp-summary__group__title">
+                {t("oversikt.groupApplications")}
+              </div>
               <SummaryRow
-                label="Ansökningar totalt"
+                label={t("oversikt.rowApplicationsTotal")}
                 value={summary.applicationsTotal}
               />
               <SummaryRow
-                label="Utkast"
+                label={t("oversikt.rowDrafts")}
                 value={summary.applicationsByStatus.Draft}
               />
               <SummaryRow
-                label="Inskickade"
+                label={t("oversikt.rowSubmitted")}
                 value={summary.applicationsByStatus.Submitted}
               />
               <SummaryRow
-                label="Intervjuer"
+                label={t("oversikt.rowInterviews")}
                 value={summary.applicationsByStatus.Interview}
                 highlight
               />
               <SummaryRow
-                label="Erbjudanden"
+                label={t("oversikt.rowOffers")}
                 value={summary.applicationsByStatus.Offer}
                 highlight
               />
               <SummaryRow
-                label="Avslag"
+                label={t("oversikt.rowRejected")}
                 value={summary.applicationsByStatus.Rejected}
               />
             </div>
 
             <div className="jp-summary__group">
-              <div className="jp-summary__group__title">Bevakning</div>
+              <div className="jp-summary__group__title">
+                {t("oversikt.groupWatch")}
+              </div>
               <SummaryRow
-                label="Sparade sökningar"
+                label={t("oversikt.rowSavedSearches")}
                 value={OVERSIKT_MOCK.savedSearchHitsLast.newHits}
-                hint="nya träffar"
+                hint={t("oversikt.hintNewHits")}
               />
               <SummaryRow
-                label="Nya matchningar i dag"
+                label={t("oversikt.rowNewMatchesToday")}
                 value={OVERSIKT_MOCK.matchCountToday}
-                hint="profil"
+                hint={t("oversikt.hintProfile")}
               />
               <SummaryRow
-                label="Aktiva annonser totalt"
+                label={t("oversikt.rowActiveJobAdsTotal")}
                 value={formatThousands(GUEST_MOCK.activeJobAdsTotal)}
               />
               <SummaryRow
-                label="Exempelannonser i demo"
+                label={t("oversikt.rowDemoJobAds")}
                 value={GUEST_MOCK.summary.jobAdsTotal}
                 href="/gast/jobb"
               />
             </div>
 
             <div className="jp-summary__group">
-              <div className="jp-summary__group__title">Underlag</div>
+              <div className="jp-summary__group__title">
+                {t("oversikt.groupMaterial")}
+              </div>
               <SummaryRow
-                label="CV-varianter"
+                label={t("oversikt.rowResumeVariants")}
                 value={summary.resumesTotal}
                 href="/gast/cv"
               />
               <SummaryRow
-                label="Personliga brev"
+                label={t("oversikt.rowCoverLetters")}
                 value={OVERSIKT_MOCK.personalLettersCount}
               />
               <SummaryRow
-                label="Senast uppdaterat CV"
-                value={resumes[0]?.updatedAtLabel ?? "–"}
+                label={t("oversikt.rowLatestResume")}
+                value={resumes[0]?.updatedAtLabel ?? t("oversikt.valueDash")}
               />
               <SummaryRow
-                label="Demo aktiv sedan"
-                value="i dag"
-                hint="ej sparad"
+                label={t("oversikt.rowDemoActiveSince")}
+                value={t("oversikt.timeToday")}
+                hint={t("oversikt.hintNotSaved")}
               />
             </div>
           </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getParsedResume, getCvReview } from "@/lib/api/resumes";
@@ -35,6 +36,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const { parsedId } = await params;
   const { profile: rawProfile } = await searchParams;
 
@@ -62,10 +64,11 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
     case "rateLimited":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">För många förfrågningar</h1>
+          <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {parsedResult.retryAfterSeconds} sekunder.
+            {t("common.rateLimitedBody", {
+              seconds: parsedResult.retryAfterSeconds,
+            })}
           </p>
         </div>
       );
@@ -73,14 +76,11 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
     case "error":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">Kunde inte ladda granskningen</h1>
-          <p className="jp-lede">
-            Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka
-            till CV-listan.
-          </p>
+          <h1 className="jp-h1">{t("cv.review.loadErrorTitle")}</h1>
+          <p className="jp-lede">{t("cv.review.errorBody")}</p>
           <div>
             <Link href="/cv" className="jp-btn jp-btn--secondary">
-              Tillbaka till CV
+              {t("cv.backLink")}
             </Link>
           </div>
         </div>
@@ -100,19 +100,15 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
       >
         <ChevronLeft size={16} aria-hidden="true" />
-        <span>Tillbaka till CV</span>
+        <span>{t("cv.backLink")}</span>
       </Link>
 
       <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">Granska importerat CV</h1>
+        <h1 className="jp-h1">{t("cv.review.title")}</h1>
         <p className="jp-cv-meta">
           <span className="jp-cv-meta__file">{parsed.sourceFileName}</span>
         </p>
-        <p className="jp-lede">
-          Det här är en deterministisk granskning av ditt importerade CV. Inget
-          har ändrats i filen. Granskningen pekar bara ut vad du kan förbättra,
-          med citerad evidens ur din egen text.
-        </p>
+        <p className="jp-lede">{t("cv.review.lede")}</p>
       </header>
 
       <div className="jp-cv-preview-actions">
@@ -136,13 +132,13 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
             href={`/cv/granska/${parsedId}/forbattra?profile=${profile}`}
             className="jp-btn jp-btn--secondary"
           >
-            Visa förbättringsförslag
+            {t("cv.review.showImprovements")}
           </Link>
           <Link
             href={`/cv/granska/${parsedId}/komplettera`}
             className="jp-btn jp-btn--primary"
           >
-            Fortsätt och spara CV
+            {t("cv.review.continueSave")}
           </Link>
         </div>
       </div>

@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { setLocaleAction } from "@/i18n/set-locale-action";
 import { useTheme } from "@/components/theme-provider";
 import {
-  updateMyProfileSchema,
+  makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
 } from "@/lib/actions/me-schemas";
 import { updateMyProfileAction } from "@/lib/actions/me";
@@ -50,7 +53,6 @@ type LanguageValue = "sv" | "en";
  *  - Telefon-fält INTE renderat (DTO saknar `phone`)
  *  - Aviseringar = 2 wirede toggles ("E-postnotifikationer" + "Veckosammanfattning")
  *    — Klas-promptens 4 strängar reducerad till 2 (no-mock-doktrin)
- *  - "Engelska" disabled (next-intl ej aktiverad)
  *  - "Exportera mina data" + "Radera konto" hänvisar till befintliga flöden
  *    (DeleteAccountSection) eller stub-handler
  */
@@ -59,6 +61,10 @@ export function SettingsForm({
   userEmail,
   taxonomy,
 }: SettingsFormProps) {
+  const t = useTranslations("validation");
+  const ts = useTranslations("settings");
+  const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [language, setLanguage] = useState<LanguageValue>(
@@ -89,12 +95,13 @@ export function SettingsForm({
   async function applyChange(
     overrides: Partial<UpdateMyProfileInput>,
     revert: () => void,
+    onSuccess?: () => void | Promise<void>,
   ) {
     const payload = buildPayload(overrides);
-    const parsed = updateMyProfileSchema.safeParse(payload);
+    const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
-      setError(first?.message ?? "Ogiltiga uppgifter.");
+      setError(first?.message ?? ts("account.invalidInput"));
       revert();
       return;
     }
@@ -106,6 +113,7 @@ export function SettingsForm({
         revert();
       } else {
         setSavedAt(new Date());
+        await onSuccess?.();
       }
     });
   }
@@ -113,7 +121,16 @@ export function SettingsForm({
   function onLanguageChange(next: LanguageValue) {
     const prev = language;
     setLanguage(next);
-    void applyChange({ language: next }, () => setLanguage(prev));
+    // Flip the UI locale only after the profile save succeeds: the cookie is the
+    // rendering source of truth (ADR 0078) and the profile is the durable backup,
+    // so the two must stay in sync. Writing the cookie unconditionally would let
+    // it win permanently on a save failure (the device sticks on the new locale
+    // while the profile keeps the old one). Instead we revert local state and
+    // leave the cookie untouched on failure.
+    void applyChange({ language: next }, () => setLanguage(prev), async () => {
+      await setLocaleAction(next);
+      router.refresh();
+    });
   }
 
   function onEmailNotificationsChange(next: boolean) {
@@ -173,8 +190,8 @@ export function SettingsForm({
           onLanguageChange={onLanguageChange}
           isPending={isPending}
           themeOptions={[
-            { value: "light", label: "Ljust", icon: <Sun size={16} /> },
-            { value: "dark", label: "Mörkt", icon: <Moon size={16} /> },
+            { value: "light", label: ts("display.themeLight"), icon: <Sun size={16} /> },
+            { value: "dark", label: ts("display.themeDark"), icon: <Moon size={16} /> },
           ]}
         />
         <NotificationsCard

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { resetMyDataAction } from "@/lib/dev/reset-actions";
 
@@ -10,14 +11,13 @@ import { resetMyDataAction } from "@/lib/dev/reset-actions";
  * only in Development.
  */
 export function ResetMyDataNote() {
+  const t = useTranslations("common");
   return (
     <div className="mt-8 rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-      <p className="mb-2">
-        Utvecklarverktyg, syns bara lokalt och tas bort före lansering.
-      </p>
+      <p className="mb-2">{t("dev.note")}</p>
       <form action={resetMyDataAction}>
         <Button type="submit" variant="outline" size="sm">
-          Dev: återställ mina testdata (tas bort före lansering)
+          {t("dev.resetButton")}
         </Button>
       </form>
     </div>

@@ -15,6 +15,7 @@
 // inuti modalen, exakt som OccupationSection redan motiverar för yrke).
 
 import { useId, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronRight, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +74,7 @@ export function RegionMunicipalityCascade({
   headingId,
   idPrefix = "match-dialog",
 }: RegionMunicipalityCascadeProps) {
+  const t = useTranslations("settings");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeRegion, setActiveRegion] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -202,7 +204,7 @@ export function RegionMunicipalityCascade({
       {showHeading ? (
         <div className="jp-matchdialog__sectionhead">
           <span id={headingId} className="jp-popover__title">
-            Orter
+            {t("matchPrefs.cascade.heading")}
           </span>
           {hasAnySelected && (
             <button
@@ -210,7 +212,7 @@ export function RegionMunicipalityCascade({
               className="jp-clearlink"
               onClick={() => onChange({ region: [], municipality: [] })}
             >
-              Rensa
+              {t("matchPrefs.cascade.clear")}
             </button>
           )}
         </div>
@@ -222,7 +224,7 @@ export function RegionMunicipalityCascade({
               className="jp-clearlink"
               onClick={() => onChange({ region: [], municipality: [] })}
             >
-              Rensa
+              {t("matchPrefs.cascade.clear")}
             </button>
           </div>
         )
@@ -231,7 +233,7 @@ export function RegionMunicipalityCascade({
       <PinnedChips
         items={pinnedChips}
         onRemove={removeChip}
-        ariaLabel="Valda orter"
+        ariaLabel={t("matchPrefs.cascade.selectedAria")}
       />
 
       <div className="jp-occpicker">
@@ -243,7 +245,7 @@ export function RegionMunicipalityCascade({
           onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())}
         >
           <Plus size={16} aria-hidden="true" />
-          Lägg till orter
+          {t("matchPrefs.cascade.addOrter")}
         </button>
 
         {pickerOpen && (
@@ -251,10 +253,12 @@ export function RegionMunicipalityCascade({
             id={panelId}
             className="jp-occpicker__panel"
             role="group"
-            aria-label="Lägg till orter"
+            aria-label={t("matchPrefs.cascade.addOrter")}
           >
             <div className="flex flex-col gap-1.5 mb-2">
-              <Label htmlFor={filterId}>Filtrera kommuner</Label>
+              <Label htmlFor={filterId}>
+                {t("matchPrefs.cascade.filterLabel")}
+              </Label>
               <Input
                 id={filterId}
                 type="text"
@@ -264,7 +268,7 @@ export function RegionMunicipalityCascade({
                 aria-describedby={filterHelpId}
               />
               <p id={filterHelpId} className="text-body-sm text-text-secondary">
-                Skriv för att smalna av kommunlistan, eller bläddra via län.
+                {t("matchPrefs.cascade.filterHint")}
               </p>
             </div>
 
@@ -272,7 +276,7 @@ export function RegionMunicipalityCascade({
               <div className="jp-matchdialog__list">
                 {filteredMunicipalities.length === 0 ? (
                   <p className="text-body-sm text-text-secondary px-4 py-3">
-                    Ingen kommun matchar filtret.
+                    {t("matchPrefs.cascade.noMatch")}
                   </p>
                 ) : (
                   filteredMunicipalities.map((m) => {
@@ -301,14 +305,16 @@ export function RegionMunicipalityCascade({
                 <div
                   className="jp-matchdialog__cascade-col"
                   role="listbox"
-                  aria-label="Län"
+                  aria-label={t("matchPrefs.cascade.regionColumn")}
                 >
                   <div className="jp-matchdialog__cascade-colhead">
-                    <span className="jp-popover__title">Län</span>
+                    <span className="jp-popover__title">
+                      {t("matchPrefs.cascade.regionColumn")}
+                    </span>
                   </div>
                   {regions.length === 0 ? (
                     <p className="text-body-sm text-text-secondary px-4 py-3">
-                      Länen kunde inte läsas in just nu.
+                      {t("matchPrefs.cascade.regionsUnavailable")}
                     </p>
                   ) : (
                     regions.map((r) => {
@@ -354,18 +360,20 @@ export function RegionMunicipalityCascade({
                 </div>
                 <div
                   className="jp-matchdialog__cascade-col"
-                  aria-label="Kommuner"
+                  aria-label={t("matchPrefs.cascade.municipalityColumn")}
                 >
                   <div className="jp-matchdialog__cascade-colhead">
-                    <span className="jp-popover__title">Kommuner</span>
+                    <span className="jp-popover__title">
+                      {t("matchPrefs.cascade.municipalityColumn")}
+                    </span>
                   </div>
                   {activeRegionData === null ? (
                     <p className="text-body-sm text-text-secondary px-4 py-3">
-                      Välj ett län till vänster.
+                      {t("matchPrefs.cascade.chooseRegion")}
                     </p>
                   ) : activeMunicipalities.length === 0 ? (
                     <p className="text-body-sm text-text-secondary px-4 py-3">
-                      Inga kommuner kunde läsas in för det här länet.
+                      {t("matchPrefs.cascade.municipalitiesUnavailable")}
                     </p>
                   ) : (
                     <>
@@ -374,7 +382,9 @@ export function RegionMunicipalityCascade({
                           Tri-state: hela länet → checked; några kommuner valda →
                           indeterminate ("mixed"). Paritet med jobbsidans popover. */}
                       <CheckItem
-                        label={`Hela ${activeRegionData.label}`}
+                        label={t("matchPrefs.cascade.wholeRegion", {
+                          label: activeRegionData.label,
+                        })}
                         checked={activeWholeSelected}
                         indeterminate={
                           !activeWholeSelected &&

@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { parseResponse, parseRetryAfter } from "@/lib/dto/_helpers";
@@ -33,6 +34,7 @@ const MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024;
 type StreamingRequestInit = RequestInit & { duplex: "half" };
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const t = await getTranslations("pages.cv.importApi");
   // SSOT-session via den delade getSessionId() (samma cookie-namn-källa som
   // resten av appen — security-auditor Minor: ingen lokal cookie-namn-drift).
   const sessionId = await getSessionId();
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
     return NextResponse.json(
-      { error: "Ladda upp filen som multipart/form-data." },
+      { error: t("notMultipart") },
       { status: 400 }
     );
   }
@@ -53,14 +55,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const declaredLength = Number(request.headers.get("content-length") ?? "");
   if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
     return NextResponse.json(
-      { error: "Filen är för stor. Maxstorlek är 10 MB." },
+      { error: t("tooLarge") },
       { status: 413 }
     );
   }
 
   if (request.body === null) {
     return NextResponse.json(
-      { error: "Ingen fil bifogades. Välj en PDF- eller Word-fil (DOCX)." },
+      { error: t("noFile") },
       { status: 400 }
     );
   }
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     backendRes = await fetch(`${env.BACKEND_URL}/api/v1/resumes/import`, init);
   } catch {
     return NextResponse.json(
-      { error: "Kunde inte nå servern. Försök igen." },
+      { error: t("serverUnreachable") },
       { status: 502 }
     );
   }
@@ -104,17 +106,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   if (backendRes.status === 413) {
     return NextResponse.json(
-      { error: "Filen är för stor. Maxstorlek är 10 MB." },
+      { error: t("tooLarge") },
       { status: 413 }
     );
   }
   if (!backendRes.ok) {
     // 400/415/… — backend-body EKAS ALDRIG (PII-disciplin). Statusbaserad copy.
     return NextResponse.json(
-      {
-        error:
-          "Filen kunde inte läsas. Kontrollera att det är en PDF eller Word-fil (DOCX) under 10 MB.",
-      },
+      { error: t("unreadable") },
       { status: 400 }
     );
   }

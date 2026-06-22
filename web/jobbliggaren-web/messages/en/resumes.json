@@ -1,0 +1,291 @@
+{
+  "createForm": {
+    "nameLabel": "CV name",
+    "nameHelp": "For example Master CV or Backend developer 2026.",
+    "fullNameLabel": "Full name",
+    "fullNameHelp": "Shown at the top of your CV. You can change it later.",
+    "submitPending": "Creating CV…",
+    "submit": "Create CV",
+    "cancel": "Cancel"
+  },
+  "rename": {
+    "trigger": "Rename",
+    "title": "Rename CV",
+    "description": "The name appears in your CV list and in tailored versions.",
+    "nameLabel": "Name",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "delete": {
+    "trigger": "Delete CV",
+    "title": "Delete CV?",
+    "description": "You are about to permanently delete <name>{name}</name>. This cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Confirm deletion"
+  },
+  "card": {
+    "primary": "Default",
+    "sections": "{count, plural, one {# section} other {# sections}}",
+    "updated": "Updated {date}",
+    "edit": "Edit"
+  },
+  "upload": {
+    "pendingLabel": "Uploading and reviewing your CV",
+    "pendingText": "Uploading and reviewing your CV. This may take a moment.",
+    "dropText": "Choose a file to upload",
+    "dropHint": "PDF or Word (DOCX)",
+    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and show a review. Your CV is not changed.",
+    "submit": "Upload and review CV",
+    "errorWrongType": "Choose a PDF or Word file (DOCX).",
+    "errorTooLarge": "The file is too large. The maximum size is 10 MB.",
+    "errorNoFile": "Choose a file to import.",
+    "errorGeneric": "Something went wrong during the import. Try again in a moment.",
+    "errorUnauthorized": "You are not logged in.",
+    "errorRateLimited": "Too many uploads. Wait {seconds} seconds and try again."
+  },
+  "parse": {
+    "title": "How your CV was read",
+    "overallConfident": "We were able to read your CV and split it into clear sections. Please review that everything is correct.",
+    "overallDegraded": "We were able to read your CV, but some sections came out incomplete. You can fill them in during the next step.",
+    "overallFailed": "We could not read any usable text from the file. You can fill in the details by hand instead.",
+    "manualReviewNote": "Some sections need to be filled in before your CV is ready. You do that in the next step."
+  },
+  "review": {
+    "title": "Review",
+    "unavailable": "The review could not be loaded right now. How your CV was read above is not affected. Try reloading the page in a moment.",
+    "summary": "{assessedCount} of {totalCount} criteria are assessed. Criteria that cannot be assessed are honestly counted as not assessed and never lower the review.",
+    "rubric": "Rubric {version}",
+    "todoTitle": "To fix ({count})",
+    "todoEmpty": "Nothing needs fixing right now.",
+    "unassessedSummary": "Not assessed ({count})",
+    "counts": {
+      "pass": "Pass",
+      "warn": "Partial",
+      "fail": "Fail",
+      "notAssessed": "Not assessed"
+    }
+  },
+  "improve": {
+    "title": "Improvement suggestions",
+    "unavailable": "The suggestions could not be loaded right now. How your CV was read and the review are not affected. Try reloading the page in a moment.",
+    "empty": "No improvement suggestions for this profile. The review shows what has already been assessed.",
+    "count": "{count, plural, one {# suggestion} other {# suggestions}}",
+    "rubricVersion": "Rubric {version}",
+    "clicheVersion": "Clichés {version}",
+    "verbVersion": "Verbs {version}"
+  },
+  "proposedChange": {
+    "current": "Current",
+    "suggestion": "Suggestion",
+    "operation": "Suggested change: {kind} on",
+    "sourcePrefix": "Source: {value}",
+    "sourceKnowledgeBankFallback": "Source: knowledge bank",
+    "sourceStructuralRule": "Source: structural rule ({transform})",
+    "sourceStructuralRuleFallback": "Source: structural rule"
+  },
+  "occupations": {
+    "title": "Possible occupational areas",
+    "lede": "Suggested occupational areas based on your CV. You confirm your occupation in a later step."
+  },
+  "profileToggle": {
+    "groupLabel": "Choose review profile",
+    "ats": "ATS profile",
+    "visual": "Visual profile"
+  },
+  "preview": {
+    "trigger": "Preview",
+    "title": "CV preview",
+    "close": "Close",
+    "profileGroupLabel": "Choose profile for preview",
+    "ats": "ATS profile",
+    "visual": "Visual profile",
+    "loadingLabel": "The CV is loading…",
+    "loadingText": "The CV is loading…",
+    "iframeTitleAts": "CV preview (ATS profile)",
+    "iframeTitleVisual": "CV preview (Visual profile)",
+    "openInNewTab": "Open in new tab",
+    "rateLimited": "You have made too many requests in a short time. Try again in {seconds} seconds.",
+    "notFound": "The preview could not be found. Go back to the review and try again.",
+    "error": "The preview could not be loaded. Try again in a moment or go back to the review."
+  },
+  "match": {
+    "triggerUpdate": "Update matching",
+    "triggerCreate": "Create matching from your CV",
+    "nudgeTitle": "Do you want to update your matching based on this CV?",
+    "nudgeText": "We can suggest occupations based on your CV. You choose what is included, and you can skip it.",
+    "nudgeAction": "Set up matching",
+    "nudgeDismiss": "Close"
+  },
+  "personnummer": {
+    "regionLabel": "Personal identity number found in your CV",
+    "title": "Remove personal identity number",
+    "body": "We found {count, plural, one {# occurrence} other {# occurrences}} of what looks like a personal identity number. A personal identity number is not needed in a CV. Remove it before you save."
+  },
+  "contentForm": {
+    "personalInfoLabel": "Personal details",
+    "personalInfoHeading": "Personal details",
+    "fullNameLabel": "Full name",
+    "emailLabel": "Email",
+    "phoneLabel": "Phone",
+    "locationLabel": "Location",
+    "summaryHeading": "Summary",
+    "summaryLabel": "Summary",
+    "summaryHint": "A short summary of your profile.",
+    "experienceLabel": "Experience",
+    "experienceHeading": "Experience",
+    "addExperience": "Add experience",
+    "noExperience": "No experience added.",
+    "experienceLegend": "Experience {index}",
+    "companyLabel": "Company",
+    "roleLabel": "Role",
+    "startDateLabel": "Start date",
+    "endDateLabel": "End date (optional)",
+    "descriptionLabel": "Description",
+    "removeExperience": "Remove experience {index}",
+    "educationLabel": "Education",
+    "educationHeading": "Education",
+    "addEducation": "Add education",
+    "noEducation": "No education added.",
+    "educationLegend": "Education {index}",
+    "institutionLabel": "Institution",
+    "degreeLabel": "Degree",
+    "removeEducation": "Remove education {index}",
+    "skillsLabel": "Skills",
+    "skillsHeading": "Skills",
+    "addSkill": "Add skill",
+    "noSkills": "No skills added.",
+    "skillLegend": "Skill {index}",
+    "skillNameLabel": "Name",
+    "skillYearsLabel": "Years (optional)",
+    "removeSkill": "Remove skill {index}",
+    "remove": "Remove",
+    "savePending": "Saving...",
+    "save": "Save CV",
+    "savedAt": "Saved {time}.",
+    "invalidData": "Invalid data."
+  },
+  "gapfillForm": {
+    "nameSectionLabel": "CV name",
+    "nameLabel": "CV name",
+    "nameHint": "An internal name so you can find the right CV variant.",
+    "personalInfoLabel": "Personal details",
+    "personalInfoHeading": "Personal details",
+    "fullNameLabel": "Full name",
+    "emailLabel": "Email",
+    "phoneLabel": "Phone",
+    "locationLabel": "Location",
+    "summaryHeading": "Summary",
+    "summaryLabel": "Summary",
+    "summaryHint": "A short summary of your profile.",
+    "experienceLabel": "Experience",
+    "experienceHeading": "Experience",
+    "addExperience": "Add experience",
+    "noExperience": "No experience added.",
+    "experienceLegend": "Experience {index}",
+    "companyLabel": "Company",
+    "roleLabel": "Role",
+    "periodGroupLabel": "Period",
+    "startDateLabel": "Start date",
+    "endDateLabel": "End date (optional)",
+    "periodHint": "Read period: {period}",
+    "descriptionLabel": "Description",
+    "removeExperience": "Remove experience {index}",
+    "educationLabel": "Education",
+    "educationHeading": "Education",
+    "addEducation": "Add education",
+    "noEducation": "No education added.",
+    "educationLegend": "Education {index}",
+    "institutionLabel": "Institution",
+    "degreeLabel": "Degree",
+    "removeEducation": "Remove education {index}",
+    "skillsLabel": "Skills",
+    "skillsHeading": "Skills",
+    "addSkill": "Add skill",
+    "noSkills": "No skills added.",
+    "skillLegend": "Skill {index}",
+    "skillNameLabel": "Name",
+    "skillYearsLabel": "Years (optional)",
+    "removeSkill": "Remove skill {index}",
+    "remove": "Remove",
+    "savePending": "Saving…",
+    "save": "Save CV",
+    "cancel": "Cancel",
+    "sourceFile": "Source file:",
+    "invalidData": "Invalid data."
+  },
+  "actions": {
+    "notLoggedIn": "You are not logged in.",
+    "invalidData": "Invalid data.",
+    "invalidResumeId": "Invalid CV ID.",
+    "invalidId": "Invalid ID.",
+    "serverUnreachable": "Could not reach the server. Try again.",
+    "createFailed": "Could not create the CV.",
+    "renameFailed": "Could not rename.",
+    "saveFailed": "Could not save the CV.",
+    "deleteFailed": "Could not delete the CV.",
+    "deleteVersionFailed": "Could not delete the version."
+  },
+  "enums": {
+    "verdict": {
+      "Pass": "Pass",
+      "Warn": "Partial",
+      "Fail": "Fail",
+      "NotAssessed": "Not assessed"
+    },
+    "band": {
+      "NotReady": "Not ready",
+      "NeedsRework": "Needs rework",
+      "Competitive": "Competitive",
+      "TopTier": "Top tier"
+    },
+    "category": {
+      "Content": "Content",
+      "Structure": "Structure",
+      "Language": "Language",
+      "AtsParsability": "ATS readability",
+      "VisualQuality": "Visual quality"
+    },
+    "overall": {
+      "Confident": "The reading looks reliable",
+      "Degraded": "The reading is incomplete",
+      "Failed": "No text could be read"
+    },
+    "sectionLevel": {
+      "Confident": "Found",
+      "Degraded": "Partial",
+      "NotFound": "Not found"
+    },
+    "sectionKind": {
+      "Contact": "Contact",
+      "Profile": "Profile",
+      "Experience": "Experience",
+      "Education": "Education",
+      "Skills": "Skills",
+      "Languages": "Languages"
+    },
+    "proposedChangeKind": {
+      "ClicheReplacement": "Replace cliché",
+      "WeakVerbUpgrade": "Stronger verb",
+      "DateNormalization": "Normalize date",
+      "SectionReorder": "Reorder sections",
+      "HeadingNormalization": "Normalize heading",
+      "PersonnummerStrip": "Remove personal identity number",
+      "PhotoStrip": "Remove photo",
+      "GpaStrip": "Remove grades",
+      "AtsSanitization": "ATS sanitization"
+    },
+    "structuralTransform": {
+      "ReformatDate": "Normalize date",
+      "NormalizeHeadingCase": "Normalize heading",
+      "RemovePersonnummer": "Remove personal identity number",
+      "RemovePhotoReference": "Remove photo",
+      "RemoveGpa": "Remove grades",
+      "StripNonStandardChars": "Remove non-standard characters",
+      "ReorderSection": "Reorder sections"
+    },
+    "changeKindPill": {
+      "replacement": "Rewording",
+      "structural": "Structure"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,12 +30,13 @@ export function PersonalInfoCard({
   onDisplayNameChange,
   onSubmit,
 }: PersonalInfoCardProps) {
+  const t = useTranslations("settings");
   return (
     <section className="jp-card">
-      <h2 className="jp-card__title">Personuppgifter</h2>
+      <h2 className="jp-card__title">{t("personalInfo.title")}</h2>
       <form onSubmit={onSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="settings-name">Namn</Label>
+          <Label htmlFor="settings-name">{t("personalInfo.nameLabel")}</Label>
           <Input
             id="settings-name"
             type="text"
@@ -47,7 +49,7 @@ export function PersonalInfoCard({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="settings-email">E-postadress</Label>
+          <Label htmlFor="settings-email">{t("personalInfo.emailLabel")}</Label>
           <Input
             id="settings-email"
             type="email"
@@ -59,7 +61,7 @@ export function PersonalInfoCard({
             id="settings-email-hint"
             className="text-body-sm text-text-secondary"
           >
-            E-postadressen är knuten till ditt konto och kan inte ändras här.
+            {t("personalInfo.emailHint")}
           </p>
         </div>
         {error && (
@@ -73,12 +75,12 @@ export function PersonalInfoCard({
             aria-live="polite"
             className="text-body-sm text-text-secondary"
           >
-            Sparat.
+            {t("personalInfo.saved")}
           </p>
         )}
         <div>
           <Button type="submit" disabled={isPending}>
-            {isPending ? "Sparar..." : "Spara ändringar"}
+            {isPending ? t("personalInfo.saving") : t("personalInfo.save")}
           </Button>
         </div>
       </form>

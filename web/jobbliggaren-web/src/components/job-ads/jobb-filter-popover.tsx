@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Check, ChevronRight } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 
@@ -233,6 +234,7 @@ export function JobbFilterPopover({
   groupCounts,
   footer,
 }: JobbFilterPopoverProps) {
+  const t = useTranslations("jobads.ui");
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePopoverPosition(open, triggerRef);
 
@@ -302,7 +304,7 @@ export function JobbFilterPopover({
                 className="jp-clearlink"
                 onClick={onClearAll}
               >
-                Rensa
+                {t("popover.clear")}
               </button>
             )}
           </div>
@@ -388,7 +390,7 @@ export function JobbFilterPopover({
                   }
                 }}
               >
-                Rensa
+                {t("popover.clear")}
               </button>
             )}
           </div>

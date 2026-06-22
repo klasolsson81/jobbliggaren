@@ -1,14 +1,5 @@
 import type { JobAdStatus, JobSource, JobAdSortBy } from "@/lib/dto/job-ads";
 
-// Civic-utility-tonad svensk copy. Active/Expired/Archived speglar backend
-// SmartEnum exakt — synk krävs vid status-tillägg (memory
-// `project_crossref_badge_status`).
-export const JOB_AD_STATUS_LABELS: Record<JobAdStatus, string> = {
-  Active: "Aktiv",
-  Expired: "Utgången",
-  Archived: "Arkiverad",
-};
-
 export type BadgeVariant =
   | "Info"
   | "Brand"
@@ -17,52 +8,50 @@ export type BadgeVariant =
   | "Danger"
   | "Neutral";
 
+// Active/Expired/Archived speglar backend SmartEnum exakt — synk krävs vid
+// status-tillägg (memory `project_crossref_badge_status`).
 export const JOB_AD_STATUS_BADGE_VARIANT: Record<JobAdStatus, BadgeVariant> = {
   Active: "Success",
   Expired: "Warning",
   Archived: "Neutral",
 };
 
-export function getJobAdStatusLabel(status: JobAdStatus): string {
-  return JOB_AD_STATUS_LABELS[status] ?? status;
+// User-facing enum labels resolve through next-intl. The same `t`-call
+// signature works for both client (`useTranslations("jobads.enums")`) and
+// server (`useTranslations` in an RSC) — callers acquire `t` scoped to the
+// `"jobads.enums"` namespace and pass it in. The Swedish values live in
+// `messages/sv/jobads.json` (source of truth, typed via AppConfig).
+
+// JobAdStatus / JobSource / JobAdSortBy are literal unions -> direct lookup,
+// exhaustive (no fallback needed).
+export function jobAdStatusLabel(
+  t: (key: `status.${JobAdStatus}`) => string,
+  status: JobAdStatus,
+): string {
+  return t(`status.${status}`);
 }
 
-export const JOB_SOURCE_LABELS: Record<JobSource, string> = {
-  Manual: "Egen",
-  Platsbanken: "Platsbanken",
-  LinkedIn: "LinkedIn",
-  Eures: "EURES",
-};
-
-export function getJobSourceLabel(source: JobSource): string {
-  return JOB_SOURCE_LABELS[source] ?? source;
+export function jobSourceLabel(
+  t: (key: `source.${JobSource}`) => string,
+  source: JobSource,
+): string {
+  return t(`source.${source}`);
 }
 
-// F4-16 (design-reviewer F4-14 Minor, fold-now) — KANONISK match-sort-label.
-// Sort-väljarens live-`<option>` (JobbResultsToolbar) konsumerar SAMMA konstant,
-// så strängarna ALDRIG kan drifta isär (jobbpilot-design-copy: ett koncept = en
-// sträng). Tidigare divergens ("Bästa matchning" här vs "Sortera efter
-// matchning" i väljaren) var en latent fälla — nu en SPOT.
-export const MATCH_SORT_LABEL = "Sortera efter matchning";
+// Ordered key array for the sort selector — preserves the previous
+// JOB_AD_SORT_LABELS declaration order so the dropdown order is unchanged.
+export const JOB_AD_SORT_KEYS: readonly JobAdSortBy[] = [
+  "PublishedAtDesc",
+  "PublishedAtAsc",
+  "ExpiresAtDesc",
+  "ExpiresAtAsc",
+  "Relevance",
+  "MatchDesc",
+];
 
-export const JOB_AD_SORT_LABELS: Record<JobAdSortBy, string> = {
-  PublishedAtDesc: "Nyast först",
-  PublishedAtAsc: "Äldst först",
-  // Civic-utility-copy (Klas 2026-05-17): dubbelt "sista" var otydligt.
-  // Användar-centrerad, parallell med Nyast/Äldst — visar avsikten
-  // (hinna söka) istället för datumriktningen. Enum oförändrad.
-  ExpiresAtDesc: "Stänger senare",
-  ExpiresAtAsc: "Stänger snart",
-  // ADR 0042 Beslut D — endast valbar med söktext (se JobAdFilters).
-  Relevance: "Mest relevant",
-  // F4-14/F4-16 (ADR 0076) — match-sort. I recent-search-/SavedSearch-ytan
-  // visas denna label aldrig (backend mappar MatchDesc → PublishedAtDesc för
-  // hash/capture). Posten finns för Record<JobAdSortBy>-uttömmande täckning;
-  // F4-16 folder den till den kanoniska strängen så väljaren och labeln aldrig
-  // kan drifta isär.
-  MatchDesc: MATCH_SORT_LABEL,
-};
-
-export function getJobAdSortLabel(sortBy: JobAdSortBy): string {
-  return JOB_AD_SORT_LABELS[sortBy] ?? sortBy;
+export function jobAdSortLabel(
+  t: (key: `sort.${JobAdSortBy}`) => string,
+  sortBy: JobAdSortBy,
+): string {
+  return t(`sort.${sortBy}`);
 }

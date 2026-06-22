@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { CheckCircle2 } from "lucide-react";
 import {
   Dialog,
@@ -69,6 +70,7 @@ export function WelcomeSetupModal({
   persistedEmploymentTypes,
   importCvHref,
 }: WelcomeSetupModalProps) {
+  const t = useTranslations("settings");
   const router = useRouter();
   const [welcomeOpen, setWelcomeOpen] = useState(showWelcome);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -154,10 +156,10 @@ export function WelcomeSetupModal({
                     tabIndex={-1}
                     className="jp-welcome__title"
                   >
-                    Kom igång med matchning
+                    {t("onboarding.uploadTitle")}
                   </DialogTitle>
                   <DialogDescription className="jp-welcome__intro">
-                    {stepIntro("upload")}
+                    {stepIntro(t, "upload")}
                   </DialogDescription>
                 </div>
 
@@ -175,7 +177,7 @@ export function WelcomeSetupModal({
                       className="jp-welcome__skip"
                       onClick={() => setStep("done")}
                     >
-                      Fortsätt utan CV
+                      {t("onboarding.continueWithoutCv")}
                     </button>
                   </div>
                 </div>
@@ -199,12 +201,14 @@ export function WelcomeSetupModal({
                     tabIndex={-1}
                     className="jp-welcome__confirm-title"
                   >
-                    {uploaded ? "CV uppladdat" : "Ställ in din matchning"}
+                    {uploaded
+                      ? t("onboarding.cvUploadedTitle")
+                      : t("onboarding.setUpMatchTitle")}
                   </DialogTitle>
                   <DialogDescription className="jp-welcome__confirm-note">
                     {uploaded
-                      ? "Vi har läst in och tolkat ditt CV. Inget är ändrat och ingen matchning är gjord ännu. Vill du ställa in din matchningsprofil nu?"
-                      : "Vill du ställa in din matchning nu? Det tar någon minut. Du kan hoppa över och göra det senare."}
+                      ? t("onboarding.cvUploadedNote")
+                      : t("onboarding.setUpMatchNote")}
                   </DialogDescription>
                 </div>
                 <div className="jp-welcome__foot">
@@ -213,11 +217,11 @@ export function WelcomeSetupModal({
                     className="jp-welcome__skip"
                     onClick={dismissWelcome}
                   >
-                    Hoppa över
+                    {t("onboarding.skip")}
                   </button>
                   <span className="jp-welcome__foot-spacer" />
                   <Button type="button" onClick={openWizard}>
-                    Ja, ställ in matchning
+                    {t("onboarding.confirm")}
                   </Button>
                 </div>
               </>
@@ -258,12 +262,15 @@ export function WelcomeSetupModal({
   );
 }
 
+/** next-intl-translatorn för "settings"-namespacet (synkron i en klient-ö). */
+type SettingsTranslator = ReturnType<typeof useTranslations<"settings">>;
+
 /** Upload-stegets hjälptext (bär instruktionen — aldrig placeholder-exempel).
  * "done"-steget har sin copy inline (beror på om CV laddades upp). */
-function stepIntro(step: WelcomeStep): string {
+function stepIntro(t: SettingsTranslator, step: WelcomeStep): string {
   switch (step) {
     case "upload":
-      return "Ladda upp ditt CV så kan vi föreslå vilka yrken du söker. Du väljer själv vad som tas med, och kan hoppa över det här.";
+      return t("onboarding.uploadIntro");
     case "done":
       return "";
   }

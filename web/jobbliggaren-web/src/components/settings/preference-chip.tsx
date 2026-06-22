@@ -6,6 +6,7 @@
 
 import { forwardRef } from "react";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface PreferenceChipProps {
   /** Visningsnamnet (svenskt taxonomi-label). */
@@ -29,6 +30,7 @@ interface PreferenceChipProps {
  */
 export const PreferenceChip = forwardRef<HTMLButtonElement, PreferenceChipProps>(
   function PreferenceChip({ label, onRemove, onRemoveKey }, ref) {
+    const t = useTranslations("settings");
     return (
       <span className="jp-chip jp-chip--removable">
         <span className="jp-chip__label" title={label}>
@@ -38,7 +40,7 @@ export const PreferenceChip = forwardRef<HTMLButtonElement, PreferenceChipProps>
           ref={ref}
           type="button"
           className="jp-chip__remove"
-          aria-label={`Ta bort ${label}`}
+          aria-label={t("matchPrefs.removeChip", { label })}
           onClick={onRemove}
           onKeyDown={(e) => {
             if (e.key === "Delete" || e.key === "Backspace") {

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { AuditLogEntryDto } from "@/lib/types/admin";
 
 interface AuditLogTableProps {
@@ -10,6 +11,8 @@ interface AuditLogTableProps {
  * monospace för UUID-kolumner så ögonen kan jämföra rader.
  */
 export function AuditLogTable({ entries }: AuditLogTableProps) {
+  // Synchronous next-intl translator — håller AuditLogTable en icke-async RSC.
+  const t = useTranslations("admin");
   if (entries.length === 0) {
     return (
       <div
@@ -17,10 +20,10 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         role="status"
       >
         <p className="text-body text-text-primary">
-          Inga poster matchar filtret
+          {t("audit.table.empty.title")}
         </p>
         <p className="mt-1 text-body-sm text-text-secondary">
-          Justera filterkriterierna eller rensa för att visa hela loggen.
+          {t("audit.table.empty.body")}
         </p>
       </div>
     );
@@ -28,18 +31,16 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="jp-table w-full" aria-label="Granskningsposter">
-        <caption className="sr-only">
-          Granskningsposter sorterade efter tidpunkt, senaste först.
-        </caption>
+      <table className="jp-table w-full" aria-label={t("audit.table.ariaLabel")}>
+        <caption className="sr-only">{t("audit.table.caption")}</caption>
         <thead>
           <tr>
-            <th scope="col">Tidpunkt</th>
-            <th scope="col">Användare</th>
-            <th scope="col">Händelse</th>
-            <th scope="col">Aggregat</th>
-            <th scope="col">IP</th>
-            <th scope="col">Klient</th>
+            <th scope="col">{t("audit.table.occurredAt")}</th>
+            <th scope="col">{t("audit.table.user")}</th>
+            <th scope="col">{t("audit.table.eventType")}</th>
+            <th scope="col">{t("audit.table.aggregate")}</th>
+            <th scope="col">{t("audit.table.ipAddress")}</th>
+            <th scope="col">{t("audit.table.client")}</th>
           </tr>
         </thead>
         <tbody>
@@ -50,7 +51,9 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
               </td>
               <td className="font-mono text-[11.5px] text-text-secondary">
                 {entry.userId ? shortId(entry.userId) : (
-                  <span className="text-text-secondary">system</span>
+                  <span className="text-text-secondary">
+                    {t("audit.table.systemUser")}
+                  </span>
                 )}
               </td>
               <td className="">{entry.eventType}</td>

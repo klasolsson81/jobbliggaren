@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
@@ -14,6 +15,8 @@ export default async function CvImportPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
+
   return (
     <div className="flex flex-col gap-6">
       <Link
@@ -21,16 +24,12 @@ export default async function CvImportPage() {
         className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
       >
         <ChevronLeft size={16} aria-hidden="true" />
-        <span>Tillbaka till CV</span>
+        <span>{t("cv.backLink")}</span>
       </Link>
 
       <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">Importera CV</h1>
-        <p className="jp-lede">
-          Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar
-          innehållet och visar en deterministisk granskning med citerad evidens.
-          Du behåller kontrollen. Inget ändras i ditt CV förrän du själv sparar.
-        </p>
+        <h1 className="jp-h1">{t("cv.import.title")}</h1>
+        <p className="jp-lede">{t("cv.import.lede")}</p>
       </header>
 
       <CvUploadForm />

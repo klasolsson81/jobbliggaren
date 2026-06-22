@@ -1,51 +1,55 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "Cookies",
-  description:
-    "Information om cookies på Jobbliggaren. Endast nödvändiga cookies används under sluten beta.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("landing");
+  return {
+    title: t("meta.cookiesTitle"),
+    description: t("meta.cookiesDescription"),
+  };
+}
 
 /**
  * Placeholder för cookie-policy. Versionerad policy-text är öppen fråga i
  * BUILD.md §20 — levereras av Klas innan första prod-deploy.
  */
-export default function CookiesPage() {
+export default async function CookiesPage() {
+  const t = await getTranslations("landing");
   return (
     <>
       <header className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">Sluten beta</p>
-            <h1 className="jp-pagehero__title">Cookies</h1>
+            <p className="jp-pagehero__kicker">{t("cookies.kicker")}</p>
+            <h1 className="jp-pagehero__title">{t("cookies.title")}</h1>
           </div>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-2xl px-6 py-12">
         <section className="flex flex-col gap-4">
-          <p className="text-body text-text-primary">
-            Jobbliggaren använder endast nödvändiga cookies för att tjänsten ska
-            fungera under sluten beta.
+          <p className="text-body text-text-primary">{t("cookies.intro")}</p>
+          <p className="text-body text-text-secondary">
+            {t("cookies.meansLabel")}
           </p>
-          <p className="text-body text-text-secondary">Det innebär:</p>
           <ul className="flex flex-col gap-2 text-body text-text-secondary">
             <li>
-              <span className="font-medium">Session-cookies</span> håller dig
-              inloggad när du har ett konto.
+              <span className="font-medium">{t("cookies.sessionTerm")}</span>
+              {t("cookies.sessionBody")}
             </li>
             <li>
-              <span className="font-medium">CSRF-skydd</span> skyddar dina
-              uppgifter från manipulation.
+              <span className="font-medium">{t("cookies.csrfTerm")}</span>
+              {t("cookies.csrfBody")}
             </li>
             <li>
-              Inga cookies används för analys, spårning eller marknadsföring.
+              <span className="font-medium">{t("cookies.languageTerm")}</span>
+              {t("cookies.languageBody")}
             </li>
+            <li>{t("cookies.noTracking")}</li>
           </ul>
 
           <p className="text-body text-text-secondary pt-2">
-            En fullständig cookie-policy publiceras innan tjänsten öppnas för
-            allmänheten.
+            {t("cookies.fullPolicyNote")}
           </p>
         </section>
       </main>

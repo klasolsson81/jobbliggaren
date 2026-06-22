@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
 import { SavedJobAdRow } from "./saved-job-ad-row";
 
@@ -20,6 +21,7 @@ interface UnsaveError {
  * mellan POST och re-render.
  */
 export function SavedJobAdList({ items }: SavedJobAdListProps) {
+  const t = useTranslations("jobads.saved");
   const [optimisticUnsavedIds, setOptimisticUnsavedIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -46,9 +48,8 @@ export function SavedJobAdList({ items }: SavedJobAdListProps) {
   if (visibleItems.length === 0) {
     return (
       <div className="jp-empty">
-        <div className="jp-empty__title">Inga sparade annonser</div>
-        Hitta en annons under Jobb och välj <i>Spara</i> i annonsdetaljen. Den
-        sparas här.
+        <div className="jp-empty__title">{t("emptyTitle")}</div>
+        {t.rich("emptyBody", { i: (chunks) => <i>{chunks}</i> })}
       </div>
     );
   }
@@ -63,7 +64,7 @@ export function SavedJobAdList({ items }: SavedJobAdListProps) {
           {error.message}
         </div>
       )}
-      <ul className="jp-jobs" aria-label="Sparade annonser">
+      <ul className="jp-jobs" aria-label={t("listLabel")}>
         {visibleItems.map((item) => (
           <SavedJobAdRow
             key={item.id}

@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { deleteSessionCookie, getSessionId } from "@/lib/auth/session";
 import {
-  deleteMyAccountSchema,
+  makeDeleteMyAccountSchema,
   type DeleteMyAccountInput,
-  updateMyProfileSchema,
+  makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
@@ -26,14 +27,18 @@ export type ActionResult =
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
 ): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId)
+    return { success: false, error: ts("account.errors.notLoggedIn") };
 
-  const parsed = updateMyProfileSchema.safeParse(input);
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateMyProfileSchema(t).safeParse(input);
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+      error: parsed.error.issues[0]?.message ?? ts("account.errors.invalidInput"),
     };
   }
 
@@ -48,13 +53,13 @@ export async function updateMyProfileAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte uppdatera profilen."),
+        error: mapActionError(res, ts("account.errors.updateFailed"), te),
       };
     }
   } catch {
     return {
       success: false,
-      error: "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
+      error: ts("account.errors.network"),
     };
   }
 
@@ -77,11 +82,14 @@ export async function deleteAccountAction(
   input: DeleteMyAccountInput,
   currentEmail: string
 ): Promise<ActionResult> {
-  const parsed = deleteMyAccountSchema.safeParse(input);
+  const ts = await getTranslations("settings");
+  const te = await getTranslations("errors");
+  const t = await getTranslations("validation");
+  const parsed = makeDeleteMyAccountSchema(t).safeParse(input);
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+      error: parsed.error.issues[0]?.message ?? ts("account.errors.invalidInput"),
     };
   }
 
@@ -92,12 +100,13 @@ export async function deleteAccountAction(
   if (confirm !== expected) {
     return {
       success: false,
-      error: "E-postadressen matchar inte ditt konto.",
+      error: ts("account.errors.emailMismatch"),
     };
   }
 
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId)
+    return { success: false, error: ts("account.errors.notLoggedIn") };
 
   // Steg 1 — verifiera lösenord (re-auth)
   try {
@@ -109,18 +118,18 @@ export async function deleteAccountAction(
     });
 
     if (verifyRes.status === 401) {
-      return { success: false, error: "Lösenordet är felaktigt." };
+      return { success: false, error: ts("account.errors.wrongPassword") };
     }
     if (!verifyRes.ok) {
       return {
         success: false,
-        error: mapActionError(verifyRes, "Kunde inte verifiera lösenordet."),
+        error: mapActionError(verifyRes, ts("account.errors.verifyFailed"), te),
       };
     }
   } catch {
     return {
       success: false,
-      error: "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
+      error: ts("account.errors.network"),
     };
   }
 
@@ -135,13 +144,13 @@ export async function deleteAccountAction(
     if (!deleteRes.ok) {
       return {
         success: false,
-        error: mapActionError(deleteRes, "Kunde inte radera kontot."),
+        error: mapActionError(deleteRes, ts("account.errors.deleteFailed"), te),
       };
     }
   } catch {
     return {
       success: false,
-      error: "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
+      error: ts("account.errors.network"),
     };
   }
 

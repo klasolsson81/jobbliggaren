@@ -1,47 +1,37 @@
+import { useTranslations } from "next-intl";
+
 /**
  * LandingFeatures — "Funktioner"-sektion i v3-stil (HANDOVER §7.1 punkt 3).
  *
- * Mono-key (left, 220px, uppercase navy-700) + brödtext (right). Ren RSC.
+ * Mono-key (left, 220px, uppercase navy-700) + brödtext (right). Ren RSC
+ * (sync server component → `useTranslations` resolveras synkront).
  *
- * FEATURES-array verbatim från `src-v3/landing.jsx` (prototyp-källan är
- * kontrakt enligt Klas pre-F6 Prompt 1 förkrav). Civic-utility-ton: ingen
- * ikon, ingen "Så funkar det"-numrerad cirkel, inga trust-pills.
+ * Feature-copy verbatim från `src-v3/landing.jsx` (prototyp-källan är kontrakt
+ * enligt Klas pre-F6 Prompt 1 förkrav), nu via next-intl (`landing.features.*`).
+ * Civic-utility-ton: ingen ikon, ingen "Så funkar det"-numrerad cirkel, inga
+ * trust-pills.
  */
 
-const FEATURES: ReadonlyArray<{ key: string; body: string }> = [
-  {
-    key: "Sökning",
-    body: "Aktiva platsannonser från Platsbanken, fler källor planerade. Sortera efter CV-match, nyhet eller deadline.",
-  },
-  {
-    key: "Pipeline",
-    body: "Spåra varje ansökan från utkast till svar, genom intervjuer, erbjudanden och avslag. Inget tappas mellan stolarna.",
-  },
-  {
-    key: "CV och brev",
-    body: "Skapa och organisera flera CV-varianter. Generera personliga brev som matchar din ton. Du äger varje rad.",
-  },
-  {
-    key: "Påminnelser",
-    body: "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar, så du missar inga deadlines.",
-  },
-];
+const FEATURE_KEYS = ["search", "pipeline", "cv", "reminders"] as const;
 
 export function LandingFeatures() {
+  const t = useTranslations("landing");
   return (
     <section className="jp-land-section jp-land-section--alt">
       <div className="jp-container">
         <div className="jp-land-section__head">
-          <div className="jp-land-kicker">Funktioner</div>
-          <h2 className="jp-land-section__title">
-            Allt du behöver för att hålla ordning
-          </h2>
+          <div className="jp-land-kicker">{t("features.kicker")}</div>
+          <h2 className="jp-land-section__title">{t("features.title")}</h2>
         </div>
         <div className="jp-land-features">
-          {FEATURES.map((f) => (
-            <div key={f.key} className="jp-land-feature">
-              <div className="jp-land-feature__key">{f.key}</div>
-              <div className="jp-land-feature__val">{f.body}</div>
+          {FEATURE_KEYS.map((key) => (
+            <div key={key} className="jp-land-feature">
+              <div className="jp-land-feature__key">
+                {t(`features.${key}.key`)}
+              </div>
+              <div className="jp-land-feature__val">
+                {t(`features.${key}.body`)}
+              </div>
             </div>
           ))}
         </div>

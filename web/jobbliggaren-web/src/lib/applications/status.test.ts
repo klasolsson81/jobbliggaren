@@ -1,30 +1,45 @@
 import { describe, it, expect } from "vitest";
+import { createTranslator } from "next-intl";
 import {
-  getStatusLabel,
+  applicationStatusLabel,
+  channelLabel,
+  followUpOutcomeLabel,
+  applicationSourceLabel,
   getAllowedTransitions,
   isDestructiveTransition,
-  STATUS_LABELS,
   ALLOWED_TRANSITIONS,
-  FOLLOW_UP_OUTCOME_LABELS,
+  CHANNEL_KEYS,
 } from "./status";
 import { followUpOutcomeSchema } from "@/lib/dto/applications";
+import svApplications from "../../../messages/sv/applications.json";
 import type { ApplicationStatus } from "@/lib/types/applications";
+
+// Build a real next-intl translator scoped to the `enums` namespace from the
+// Swedish catalog (the source of truth). The helper functions accept this `t`;
+// in production it comes from `useTranslations("applications.enums")`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { applications: svApplications },
+  namespace: "applications.enums",
+});
 
 const ALL_STATUSES: ApplicationStatus[] = [
   "Draft", "Submitted", "Acknowledged", "InterviewScheduled",
   "Interviewing", "OfferReceived", "Accepted", "Rejected", "Withdrawn", "Ghosted",
 ];
 
-describe("getStatusLabel", () => {
-  it("returns Swedish label for every status", () => {
+describe("applicationStatusLabel", () => {
+  it("returns the Swedish label for every status", () => {
     for (const status of ALL_STATUSES) {
-      expect(getStatusLabel(status)).toBe(STATUS_LABELS[status]);
-      expect(getStatusLabel(status)).not.toBe(status); // must be translated
+      expect(applicationStatusLabel(t, status)).toBe(
+        svApplications.enums.status[status]
+      );
+      expect(applicationStatusLabel(t, status)).not.toBe(status); // translated
     }
   });
 
-  it("covers all 10 statuses", () => {
-    expect(Object.keys(STATUS_LABELS)).toHaveLength(10);
+  it("covers all 10 statuses in the catalog", () => {
+    expect(Object.keys(svApplications.enums.status)).toHaveLength(10);
   });
 });
 
@@ -79,19 +94,40 @@ describe("isDestructiveTransition", () => {
   });
 });
 
-describe("FOLLOW_UP_OUTCOME_LABELS", () => {
-  it("matches the backend FollowUpOutcome SmartEnum (Pending/Responded/NoResponse)", () => {
-    expect(Object.keys(FOLLOW_UP_OUTCOME_LABELS).sort()).toEqual(
+describe("channelLabel", () => {
+  it("translates every known channel key", () => {
+    for (const key of CHANNEL_KEYS) {
+      expect(channelLabel(t, key)).toBe(svApplications.enums.channel[key]);
+    }
+  });
+
+  it("falls back to the raw value for an unknown channel", () => {
+    expect(channelLabel(t, "Carrier pigeon")).toBe("Carrier pigeon");
+  });
+});
+
+describe("followUpOutcomeLabel", () => {
+  it("covers the backend FollowUpOutcome SmartEnum (Pending/Responded/NoResponse)", () => {
+    expect(Object.keys(svApplications.enums.followUpOutcome).sort()).toEqual(
       [...followUpOutcomeSchema.options].sort()
     );
   });
 
   it("uses civic-utility Swedish copy without exclamation or emoji", () => {
-    expect(FOLLOW_UP_OUTCOME_LABELS.Pending).toBe("Inväntar svar");
-    expect(FOLLOW_UP_OUTCOME_LABELS.Responded).toBe("Svar mottaget");
-    expect(FOLLOW_UP_OUTCOME_LABELS.NoResponse).toBe("Inget svar");
-    for (const label of Object.values(FOLLOW_UP_OUTCOME_LABELS)) {
-      expect(label).not.toMatch(/[!]/);
+    expect(followUpOutcomeLabel(t, "Pending")).toBe("Inväntar svar");
+    expect(followUpOutcomeLabel(t, "Responded")).toBe("Svar mottaget");
+    expect(followUpOutcomeLabel(t, "NoResponse")).toBe("Inget svar");
+    for (const outcome of followUpOutcomeSchema.options) {
+      expect(followUpOutcomeLabel(t, outcome)).not.toMatch(/[!]/);
     }
+  });
+});
+
+describe("applicationSourceLabel", () => {
+  it("translates known sources and falls back to the raw value", () => {
+    expect(applicationSourceLabel(t, "Platsbanken")).toBe("Platsbanken");
+    expect(applicationSourceLabel(t, "LinkedIn")).toBe("LinkedIn");
+    expect(applicationSourceLabel(t, "Manual")).toBe("Manuellt");
+    expect(applicationSourceLabel(t, "Unknown")).toBe("Unknown");
   });
 });

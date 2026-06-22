@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,7 @@ interface GuestWelcomeModalProps {
 }
 
 export function GuestWelcomeModal({ showWelcome }: GuestWelcomeModalProps) {
+  const t = useTranslations("guest");
   const [open, setOpen] = useState(showWelcome);
   const [, startTransition] = useTransition();
   const router = useRouter();
@@ -55,25 +57,22 @@ export function GuestWelcomeModal({ showWelcome }: GuestWelcomeModalProps) {
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Välkommen till demoläget</DialogTitle>
-          <DialogDescription>
-            Du utforskar Jobbliggaren utan att logga in. Allt innehåll är
-            exempeldata, inga riktiga ansökningar eller CV.
-          </DialogDescription>
+          <DialogTitle>{t("welcome.title")}</DialogTitle>
+          <DialogDescription>{t("welcome.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3 text-body-sm text-text-primary">
-          <p>Det här kan du göra som gäst:</p>
+          <p>{t("welcome.canDoHeading")}</p>
           <ul className="ml-4 list-disc space-y-1 text-text-secondary">
-            <li>Bläddra i översikten över ansökningar och CV</li>
-            <li>Se hur pipeline-vyn fungerar</li>
-            <li>Granska CV-varianter och formgivning</li>
+            <li>{t("welcome.canDoBrowse")}</li>
+            <li>{t("welcome.canDoPipeline")}</li>
+            <li>{t("welcome.canDoResumes")}</li>
           </ul>
-          <p>Det här kräver ett konto:</p>
+          <p>{t("welcome.needsAccountHeading")}</p>
           <ul className="ml-4 list-disc space-y-1 text-text-secondary">
-            <li>Söka och spara annonser från Platsbanken</li>
-            <li>Skapa eller redigera CV och ansökningar</li>
-            <li>Få notiser och uppföljning</li>
+            <li>{t("welcome.needsAccountSearch")}</li>
+            <li>{t("welcome.needsAccountEdit")}</li>
+            <li>{t("welcome.needsAccountNotices")}</li>
           </ul>
         </div>
 
@@ -83,7 +82,7 @@ export function GuestWelcomeModal({ showWelcome }: GuestWelcomeModalProps) {
             className="jp-btn jp-btn--primary"
             onClick={handleClose}
           >
-            Börja utforska
+            {t("welcome.startExploring")}
           </button>
         </DialogFooter>
       </DialogContent>

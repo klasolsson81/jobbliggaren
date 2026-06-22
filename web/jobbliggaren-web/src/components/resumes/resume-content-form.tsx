@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { resumeContentSchema } from "@/lib/actions/resume-schemas";
+import { makeResumeContentSchema } from "@/lib/actions/resume-schemas";
 import {
   emptyEducation,
   emptyExperience,
@@ -144,6 +145,9 @@ export function ResumeContentForm({
   resumeId,
   initialContent,
 }: ResumeContentFormProps) {
+  const t = useTranslations("validation");
+  const tr = useTranslations("resumes.contentForm");
+  const schema = useMemo(() => makeResumeContentSchema(t), [t]);
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [serverError, setServerError] = useState<FieldError | null>(null);
@@ -176,14 +180,14 @@ export function ResumeContentForm({
     setSavedAt(null);
     const payload = toRawPayload(values);
     // Schema validates and transforms ("" → null) into a ResumeContentDto-compatible shape.
-    const parsed = resumeContentSchema.safeParse(payload);
+    const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       if (first) {
         const path = first.path.join(".");
         setServerError({ path: path || null, message: first.message });
       } else {
-        setServerError({ path: null, message: "Ogiltiga uppgifter." });
+        setServerError({ path: null, message: tr("invalidData") });
       }
       return;
     }
@@ -202,11 +206,11 @@ export function ResumeContentForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
-      <section aria-label="Personuppgifter" className="flex flex-col gap-4">
-        <h2 className="text-h3 font-medium text-text-primary">Personuppgifter</h2>
+      <section aria-label={tr("personalInfoLabel")} className="flex flex-col gap-4">
+        <h2 className="text-h3 font-medium text-text-primary">{tr("personalInfoHeading")}</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pi-fullName">Fullständigt namn</Label>
+            <Label htmlFor="pi-fullName">{tr("fullNameLabel")}</Label>
             <Input
               id="pi-fullName"
               {...register("personalInfo.fullName")}
@@ -217,7 +221,7 @@ export function ResumeContentForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pi-email">E-post</Label>
+            <Label htmlFor="pi-email">{tr("emailLabel")}</Label>
             <Input
               id="pi-email"
               type="email"
@@ -227,7 +231,7 @@ export function ResumeContentForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pi-phone">Telefon</Label>
+            <Label htmlFor="pi-phone">{tr("phoneLabel")}</Label>
             <Input
               id="pi-phone"
               type="tel"
@@ -237,7 +241,7 @@ export function ResumeContentForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pi-location">Ort</Label>
+            <Label htmlFor="pi-location">{tr("locationLabel")}</Label>
             <Input
               id="pi-location"
               {...register("personalInfo.location")}
@@ -249,12 +253,12 @@ export function ResumeContentForm({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-h3 font-medium text-text-primary">Sammanfattning</h2>
+        <h2 className="text-h3 font-medium text-text-primary">{tr("summaryHeading")}</h2>
         <Label htmlFor="summary" className="sr-only">
-          Sammanfattning
+          {tr("summaryLabel")}
         </Label>
         <p id="summary-hint" className="text-body-sm text-text-secondary">
-          En kort sammanfattning av din profil.
+          {tr("summaryHint")}
         </p>
         <Textarea
           id="summary"
@@ -267,9 +271,9 @@ export function ResumeContentForm({
         />
       </section>
 
-      <section aria-label="Erfarenhet" className="flex flex-col gap-3">
+      <section aria-label={tr("experienceLabel")} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-h3 font-medium text-text-primary">Erfarenhet</h2>
+          <h2 className="text-h3 font-medium text-text-primary">{tr("experienceHeading")}</h2>
           <Button
             type="button"
             variant="outline"
@@ -277,12 +281,12 @@ export function ResumeContentForm({
             onClick={() => experiences.append(emptyExperienceFormItem())}
             disabled={isPending}
           >
-            Lägg till erfarenhet
+            {tr("addExperience")}
           </Button>
         </div>
         {experiences.fields.length === 0 && (
           <p className="text-body-sm text-text-secondary">
-            Ingen erfarenhet tillagd.
+            {tr("noExperience")}
           </p>
         )}
         <div className="flex flex-col gap-3">
@@ -291,10 +295,10 @@ export function ResumeContentForm({
               key={field.id}
               className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
             >
-              <legend className="sr-only">Erfarenhet {index + 1}</legend>
+              <legend className="sr-only">{tr("experienceLegend", { index: index + 1 })}</legend>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`exp-${index}-company`}>Företag</Label>
+                  <Label htmlFor={`exp-${index}-company`}>{tr("companyLabel")}</Label>
                   <Input
                     id={`exp-${index}-company`}
                     {...register(`experiences.${index}.company`)}
@@ -305,7 +309,7 @@ export function ResumeContentForm({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`exp-${index}-role`}>Roll</Label>
+                  <Label htmlFor={`exp-${index}-role`}>{tr("roleLabel")}</Label>
                   <Input
                     id={`exp-${index}-role`}
                     {...register(`experiences.${index}.role`)}
@@ -316,7 +320,7 @@ export function ResumeContentForm({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`exp-${index}-startDate`}>Startdatum</Label>
+                  <Label htmlFor={`exp-${index}-startDate`}>{tr("startDateLabel")}</Label>
                   <Input
                     id={`exp-${index}-startDate`}
                     type="date"
@@ -328,7 +332,7 @@ export function ResumeContentForm({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`exp-${index}-endDate`}>
-                    Slutdatum (valfritt)
+                    {tr("endDateLabel")}
                   </Label>
                   <Input
                     id={`exp-${index}-endDate`}
@@ -340,7 +344,7 @@ export function ResumeContentForm({
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor={`exp-${index}-description`}>Beskrivning</Label>
+                <Label htmlFor={`exp-${index}-description`}>{tr("descriptionLabel")}</Label>
                 <Textarea
                   id={`exp-${index}-description`}
                   {...register(`experiences.${index}.description`)}
@@ -356,10 +360,10 @@ export function ResumeContentForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => experiences.remove(index)}
-                  aria-label={`Ta bort erfarenhet ${index + 1}`}
+                  aria-label={tr("removeExperience", { index: index + 1 })}
                   disabled={isPending}
                 >
-                  Ta bort
+                  {tr("remove")}
                 </Button>
               </div>
             </fieldset>
@@ -367,9 +371,9 @@ export function ResumeContentForm({
         </div>
       </section>
 
-      <section aria-label="Utbildning" className="flex flex-col gap-3">
+      <section aria-label={tr("educationLabel")} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-h3 font-medium text-text-primary">Utbildning</h2>
+          <h2 className="text-h3 font-medium text-text-primary">{tr("educationHeading")}</h2>
           <Button
             type="button"
             variant="outline"
@@ -377,12 +381,12 @@ export function ResumeContentForm({
             onClick={() => educations.append(emptyEducationFormItem())}
             disabled={isPending}
           >
-            Lägg till utbildning
+            {tr("addEducation")}
           </Button>
         </div>
         {educations.fields.length === 0 && (
           <p className="text-body-sm text-text-secondary">
-            Ingen utbildning tillagd.
+            {tr("noEducation")}
           </p>
         )}
         <div className="flex flex-col gap-3">
@@ -391,10 +395,10 @@ export function ResumeContentForm({
               key={field.id}
               className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
             >
-              <legend className="sr-only">Utbildning {index + 1}</legend>
+              <legend className="sr-only">{tr("educationLegend", { index: index + 1 })}</legend>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`edu-${index}-institution`}>Lärosäte</Label>
+                  <Label htmlFor={`edu-${index}-institution`}>{tr("institutionLabel")}</Label>
                   <Input
                     id={`edu-${index}-institution`}
                     {...register(`educations.${index}.institution`)}
@@ -405,7 +409,7 @@ export function ResumeContentForm({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`edu-${index}-degree`}>Examen</Label>
+                  <Label htmlFor={`edu-${index}-degree`}>{tr("degreeLabel")}</Label>
                   <Input
                     id={`edu-${index}-degree`}
                     {...register(`educations.${index}.degree`)}
@@ -416,7 +420,7 @@ export function ResumeContentForm({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`edu-${index}-startDate`}>Startdatum</Label>
+                  <Label htmlFor={`edu-${index}-startDate`}>{tr("startDateLabel")}</Label>
                   <Input
                     id={`edu-${index}-startDate`}
                     type="date"
@@ -428,7 +432,7 @@ export function ResumeContentForm({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`edu-${index}-endDate`}>
-                    Slutdatum (valfritt)
+                    {tr("endDateLabel")}
                   </Label>
                   <Input
                     id={`edu-${index}-endDate`}
@@ -445,10 +449,10 @@ export function ResumeContentForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => educations.remove(index)}
-                  aria-label={`Ta bort utbildning ${index + 1}`}
+                  aria-label={tr("removeEducation", { index: index + 1 })}
                   disabled={isPending}
                 >
-                  Ta bort
+                  {tr("remove")}
                 </Button>
               </div>
             </fieldset>
@@ -456,9 +460,9 @@ export function ResumeContentForm({
         </div>
       </section>
 
-      <section aria-label="Färdigheter" className="flex flex-col gap-3">
+      <section aria-label={tr("skillsLabel")} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-h3 font-medium text-text-primary">Färdigheter</h2>
+          <h2 className="text-h3 font-medium text-text-primary">{tr("skillsHeading")}</h2>
           <Button
             type="button"
             variant="outline"
@@ -466,12 +470,12 @@ export function ResumeContentForm({
             onClick={() => skills.append(emptySkillFormItem())}
             disabled={isPending}
           >
-            Lägg till färdighet
+            {tr("addSkill")}
           </Button>
         </div>
         {skills.fields.length === 0 && (
           <p className="text-body-sm text-text-secondary">
-            Inga färdigheter tillagda.
+            {tr("noSkills")}
           </p>
         )}
         <div className="flex flex-col gap-2">
@@ -480,9 +484,9 @@ export function ResumeContentForm({
               key={field.id}
               className="grid grid-cols-1 items-start gap-3 rounded-md border border-border bg-card p-4 md:grid-cols-[1fr_140px_auto]"
             >
-              <legend className="sr-only">Färdighet {index + 1}</legend>
+              <legend className="sr-only">{tr("skillLegend", { index: index + 1 })}</legend>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor={`skill-${index}-name`}>Namn</Label>
+                <Label htmlFor={`skill-${index}-name`}>{tr("skillNameLabel")}</Label>
                 <Input
                   id={`skill-${index}-name`}
                   {...register(`skills.${index}.name`)}
@@ -493,7 +497,7 @@ export function ResumeContentForm({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor={`skill-${index}-years`}>År (valfritt)</Label>
+                <Label htmlFor={`skill-${index}-years`}>{tr("skillYearsLabel")}</Label>
                 <Controller
                   control={control}
                   name={`skills.${index}.yearsExperience`}
@@ -518,10 +522,10 @@ export function ResumeContentForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => skills.remove(index)}
-                  aria-label={`Ta bort färdighet ${index + 1}`}
+                  aria-label={tr("removeSkill", { index: index + 1 })}
                   disabled={isPending}
                 >
-                  Ta bort
+                  {tr("remove")}
                 </Button>
               </div>
             </fieldset>
@@ -531,11 +535,11 @@ export function ResumeContentForm({
 
       <div className="flex items-center gap-3 border-t border-border pt-6">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Sparar..." : "Spara CV"}
+          {isPending ? tr("savePending") : tr("save")}
         </Button>
         {savedAt && !serverError && (
           <p className="text-body-sm text-text-secondary" role="status">
-            Sparat {savedAt.toLocaleTimeString("sv-SE")}.
+            {tr("savedAt", { time: savedAt.toLocaleTimeString("sv-SE") })}
           </p>
         )}
         {serverError && (

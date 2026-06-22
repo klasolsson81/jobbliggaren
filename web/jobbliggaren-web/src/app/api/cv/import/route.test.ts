@@ -1,8 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createTranslator } from "next-intl";
 import type { NextRequest } from "next/server";
+import svPages from "../../../../../messages/sv/pages.json";
 
 vi.mock("@/lib/env", () => ({
   env: { BACKEND_URL: "http://test-backend" },
+}));
+
+// The route resolves its statusbaserade svenska felcopy via
+// `getTranslations("pages.cv.importApi")`. In jsdom next-intl's server entry is
+// unavailable, so mock it to a real, namespace-aware translator over the Swedish
+// catalog (source of truth) — verbatim copy keeps flowing, identical to prod.
+vi.mock("next-intl/server", () => ({
+  getTranslations: async (namespace?: "pages.cv.importApi") =>
+    createTranslator({
+      locale: "sv",
+      messages: { pages: svPages },
+      namespace,
+    }),
 }));
 
 const { cookiesMock } = vi.hoisted(() => ({ cookiesMock: vi.fn() }));

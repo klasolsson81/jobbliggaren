@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { StatusPill, type PillTone } from "@/components/ui/status-pill";
@@ -14,8 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { transitionStatusAction } from "@/lib/actions/applications";
 import {
+  applicationStatusLabel,
   getAllowedTransitions,
-  getStatusLabel,
   isDestructiveTransition,
   STATUS_BADGE_VARIANT,
   type BadgeVariant,
@@ -51,6 +52,8 @@ export function StatusEditCard({
   applicationId,
   currentStatus,
 }: StatusEditCardProps) {
+  const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ApplicationStatus | "">("");
@@ -85,7 +88,7 @@ export function StatusEditCard({
     executeTransition(target);
   }
 
-  const currentLabel = getStatusLabel(currentStatus);
+  const currentLabel = applicationStatusLabel(t, currentStatus);
   const selectedIsDestructive =
     selected !== "" && isDestructiveTransition(selected);
   const singleTransition = transitions.length === 1 ? transitions[0] : null;
@@ -100,21 +103,21 @@ export function StatusEditCard({
           id="status-edit-title"
           className="text-h3 font-semibold text-text-primary"
         >
-          Status
+          {tUi("statusEdit.title")}
         </h2>
       </div>
 
       <div className="flex flex-col gap-4 px-4 py-4">
         <div className="flex items-center gap-2">
           <span className="text-body-sm text-text-secondary">
-            Nuvarande status:
+            {tUi("statusEdit.currentStatus")}
           </span>
           <StatusPill tone={tone}>{currentLabel}</StatusPill>
         </div>
 
         {transitions.length === 0 && (
           <p className="text-body-sm text-text-secondary">
-            Den här ansökan är avslutad och kan inte ändras.
+            {tUi("statusEdit.closedNotice")}
           </p>
         )}
 
@@ -124,11 +127,12 @@ export function StatusEditCard({
               id={instructionId}
               className="text-body-sm text-text-secondary"
             >
-              Nästa steg för den här ansökan är{" "}
-              <span className="font-medium text-text-primary">
-                {getStatusLabel(singleTransition)}
-              </span>
-              .
+              {tUi.rich("statusEdit.singleNextStep", {
+                status: applicationStatusLabel(t, singleTransition),
+                b: (chunks) => (
+                  <span className="font-medium text-text-primary">{chunks}</span>
+                ),
+              })}
             </p>
             <div className="flex justify-end">
               <Button
@@ -137,8 +141,10 @@ export function StatusEditCard({
                 onClick={() => handleSave(singleTransition)}
               >
                 {isPending
-                  ? "Sparar…"
-                  : `Markera som ${getStatusLabel(singleTransition)}`}
+                  ? tUi("common.saving")
+                  : tUi("statusEdit.markAs", {
+                      status: applicationStatusLabel(t, singleTransition),
+                    })}
               </Button>
             </div>
             {error && (
@@ -159,11 +165,12 @@ export function StatusEditCard({
               id={instructionId}
               className="text-body-sm text-text-secondary"
             >
-              Välj ny status. Nuvarande status är{" "}
-              <span className="font-medium text-text-primary">
-                {currentLabel}
-              </span>
-              .
+              {tUi.rich("statusEdit.chooseInstruction", {
+                status: currentLabel,
+                b: (chunks) => (
+                  <span className="font-medium text-text-primary">{chunks}</span>
+                ),
+              })}
             </p>
 
             <RadioGroup
@@ -181,15 +188,19 @@ export function StatusEditCard({
                   id={`status-${target}`}
                   value={target}
                 >
-                  {getStatusLabel(target)}
+                  {applicationStatusLabel(t, target)}
                 </RadioGroupItem>
               ))}
             </RadioGroup>
 
             {selectedIsDestructive && (
               <p className="text-body-sm text-danger-700">
-                {getStatusLabel(selected as ApplicationStatus)} avslutar
-                ansökan. Det går inte att ångra utan manuell åtgärd.
+                {tUi("statusEdit.destructiveNotice", {
+                  status: applicationStatusLabel(
+                    t,
+                    selected as ApplicationStatus
+                  ),
+                })}
               </p>
             )}
 
@@ -211,7 +222,7 @@ export function StatusEditCard({
                   selected !== "" && handleSave(selected)
                 }
               >
-                {isPending ? "Sparar…" : "Spara"}
+                {isPending ? tUi("common.saving") : tUi("statusEdit.save")}
               </Button>
             </div>
           </div>
@@ -227,14 +238,20 @@ export function StatusEditCard({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Markera som {pendingTarget ? getStatusLabel(pendingTarget) : ""}?
+              {tUi("statusEdit.confirmTitle", {
+                status: pendingTarget
+                  ? applicationStatusLabel(t, pendingTarget)
+                  : "",
+              })}
             </DialogTitle>
             <DialogDescription>
-              Ansökan ändras från <strong>{currentLabel}</strong> till{" "}
-              <strong>
-                {pendingTarget ? getStatusLabel(pendingTarget) : ""}
-              </strong>
-              . Det går inte att ångra utan manuell åtgärd.
+              {tUi.rich("statusEdit.confirmBody", {
+                from: currentLabel,
+                to: pendingTarget
+                  ? applicationStatusLabel(t, pendingTarget)
+                  : "",
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -244,7 +261,7 @@ export function StatusEditCard({
               size="sm"
               onClick={() => setPendingTarget(null)}
             >
-              Avbryt
+              {tUi("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -256,8 +273,10 @@ export function StatusEditCard({
               }
             >
               {pendingTarget
-                ? `Markera som ${getStatusLabel(pendingTarget)}`
-                : "Bekräfta"}
+                ? tUi("statusEdit.markAs", {
+                    status: applicationStatusLabel(t, pendingTarget),
+                  })
+                : tUi("statusEdit.confirmFallback")}
             </Button>
           </DialogFooter>
         </DialogContent>

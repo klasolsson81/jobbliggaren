@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { getAuditLog } from "@/lib/api/admin";
 import { AuditLogFilter } from "./audit-log-filter";
 import { AuditLogTable } from "./audit-log-table";
@@ -19,8 +21,14 @@ interface PageProps {
 
 const DEFAULT_PAGE_SIZE = 50;
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("admin");
+  return { title: t("meta.title") };
+}
+
 export default async function GranskningPage({ searchParams }: PageProps) {
   const params = await searchParams;
+  const t = await getTranslations("admin");
 
   const page = parsePositiveInt(params.page, 1);
   // Klampa pageSize till backend-validator-takets max (200). Defense-in-depth —
@@ -48,10 +56,8 @@ export default async function GranskningPage({ searchParams }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="jp-h1">Granskning</h1>
-        <p className="jp-lede">
-          Granskningslogg över alla skrivande operationer. Senaste posten först.
-        </p>
+        <h1 className="jp-h1">{t("audit.heading")}</h1>
+        <p className="jp-lede">{t("audit.lede")}</p>
       </div>
 
       <AuditLogFilter
@@ -75,57 +81,46 @@ export default async function GranskningPage({ searchParams }: PageProps) {
           />
         </>
       ) : result.kind === "rateLimited" ? (
-        <ErrorBlock kind="rateLimited" retryAfterSeconds={result.retryAfterSeconds} />
+        // notFound och error har identisk copy — list-endpointen kan aldrig
+        // runtime-faktiskt returnera 404 (responseToResult sätter inte
+        // includeNotFound), men ApiResult-typen kräver case för exhaustiveness
+        // (ADR 0030 §3).
+        <ErrorBlock
+          title={t("audit.errors.rateLimited.title")}
+          body={t("audit.errors.rateLimited.body", {
+            seconds: result.retryAfterSeconds ?? 60,
+          })}
+        />
+      ) : result.kind === "forbidden" ? (
+        <ErrorBlock
+          title={t("audit.errors.forbidden.title")}
+          body={t("audit.errors.forbidden.body")}
+        />
+      ) : result.kind === "unauthorized" ? (
+        <ErrorBlock
+          title={t("audit.errors.unauthorized.title")}
+          body={t("audit.errors.unauthorized.body")}
+        />
+      ) : result.kind === "notFound" ? (
+        <ErrorBlock
+          title={t("audit.errors.notFound.title")}
+          body={t("audit.errors.notFound.body")}
+        />
       ) : (
-        <ErrorBlock kind={result.kind} />
+        <ErrorBlock
+          title={t("audit.errors.error.title")}
+          body={t("audit.errors.error.body")}
+        />
       )}
     </div>
   );
 }
 
-type ErrorKind = "forbidden" | "unauthorized" | "notFound" | "rateLimited" | "error";
-
-function ErrorBlock({
-  kind,
-  retryAfterSeconds,
-}: {
-  kind: ErrorKind;
-  retryAfterSeconds?: number;
-}) {
-  // notFound och error har identisk copy — list-endpointen kan aldrig
-  // runtime-faktiskt returnera 404 (responseToResult sätter inte
-  // includeNotFound), men ApiResult-typen kräver case för exhaustiveness
-  // (ADR 0030 §3).
-  const messages: Record<ErrorKind, { title: string; body: string }> = {
-    forbidden: {
-      title: "Saknar behörighet",
-      body: "Din session saknar Admin-rollen. Kontakta systemansvarig om du behöver åtkomst.",
-    },
-    unauthorized: {
-      title: "Inte inloggad",
-      body: "Logga in och försök igen.",
-    },
-    notFound: {
-      title: "Kunde inte ladda granskningsloggen",
-      body: "Försök igen om en stund. Kontakta drift om felet kvarstår.",
-    },
-    rateLimited: {
-      title: "För många förfrågningar",
-      body: `Du har gjort för många förfrågningar på kort tid. Försök igen om ${
-        retryAfterSeconds ?? 60
-      } sekunder.`,
-    },
-    error: {
-      title: "Kunde inte ladda granskningsloggen",
-      body: "Försök igen om en stund. Kontakta drift om felet kvarstår.",
-    },
-  };
-
-  const m = messages[kind];
+function ErrorBlock({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
-      <p className="text-body font-medium">{m.title}</p>
-      <p className="mt-1 text-body-sm">{m.body}</p>
+      <p className="text-body font-medium">{title}</p>
+      <p className="mt-1 text-body-sm">{body}</p>
     </div>
   );
 }

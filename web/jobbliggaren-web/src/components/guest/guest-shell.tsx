@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Briefcase, Inbox, LayoutDashboard, LogIn, ScrollText } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
@@ -15,9 +16,17 @@ import { BrandLogo } from "@/components/brand/brand-logo";
 // (design-reviewer B1 2026-05-24 — WCAG 2.4.8 Location, paritet med
 // app-shell.tsx:305). `.jp-nav__link[aria-current="page"]` ger active-stripe.
 
+// i18n-nyckel under `guest.shell.*` (literal-union så next-intl typed-messages
+// behåller nyckel-kontrollen när texten resolveras dynamiskt i komponenten).
+type GuestNavLabelKey =
+  | "shell.navOversikt"
+  | "shell.navJobb"
+  | "shell.navAnsokningar"
+  | "shell.navCv";
+
 interface GuestNavItem {
   readonly href: string;
-  readonly label: string;
+  readonly labelKey: GuestNavLabelKey;
   readonly icon: typeof LayoutDashboard;
 }
 
@@ -25,10 +34,10 @@ interface GuestNavItem {
 // föregående hide motiverad av LIVE-deferral (Punkt 5 Alt 2), mockdata-väg
 // har inte den risk-profilen (inga BE-anrop, ingen anonym auth-yta).
 const GUEST_NAV: ReadonlyArray<GuestNavItem> = [
-  { href: "/gast/oversikt", label: "Översikt", icon: LayoutDashboard },
-  { href: "/gast/jobb", label: "Jobb", icon: Briefcase },
-  { href: "/gast/ansokningar", label: "Mina ansökningar", icon: Inbox },
-  { href: "/gast/cv", label: "CV", icon: ScrollText },
+  { href: "/gast/oversikt", labelKey: "shell.navOversikt", icon: LayoutDashboard },
+  { href: "/gast/jobb", labelKey: "shell.navJobb", icon: Briefcase },
+  { href: "/gast/ansokningar", labelKey: "shell.navAnsokningar", icon: Inbox },
+  { href: "/gast/cv", labelKey: "shell.navCv", icon: ScrollText },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -37,6 +46,7 @@ function isActive(pathname: string, href: string): boolean {
 
 export function GuestShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const t = useTranslations("guest");
 
   return (
     <div className="jp-shell">
@@ -45,12 +55,12 @@ export function GuestShell({ children }: { children: ReactNode }) {
           <Link
             href="/"
             className="jp-brand"
-            aria-label="Jobbliggaren, startsida"
+            aria-label={t("shell.brandAriaLabel")}
           >
             <BrandLogo />
           </Link>
 
-          <nav className="jp-nav" aria-label="Demonavigation">
+          <nav className="jp-nav" aria-label={t("shell.navAriaLabel")}>
             {GUEST_NAV.map((item) => (
               <Link
                 key={item.href}
@@ -58,7 +68,7 @@ export function GuestShell({ children }: { children: ReactNode }) {
                 className="jp-nav__link"
                 aria-current={isActive(pathname, item.href) ? "page" : undefined}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             ))}
           </nav>
@@ -70,13 +80,13 @@ export function GuestShell({ children }: { children: ReactNode }) {
               href="/logga-in"
               className="jp-btn jp-btn--secondary jp-btn--sm"
             >
-              <LogIn size={16} aria-hidden="true" /> Logga in
+              <LogIn size={16} aria-hidden="true" /> {t("shell.logIn")}
             </Link>
             <Link
               href="/vantelista"
               className="jp-btn jp-btn--primary jp-btn--sm"
             >
-              Anmäl till väntelistan
+              {t("shell.waitlist")}
             </Link>
           </div>
         </div>

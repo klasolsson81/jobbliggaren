@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { assertNever } from "@/lib/dto/_helpers";
 import { SavedJobAdList } from "@/components/saved-job-ads/saved-job-ad-list";
+
+type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 
 /**
  * F6 P5 Punkt 2 Del A — `/sparade`-sidan. Listar inloggad användares
@@ -16,24 +19,25 @@ export default async function SparadePage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const result = await getSavedJobAds();
 
   return (
     <div className="flex flex-col">
       <div>
-        <h1 className="jp-h1">Sparade annonser</h1>
-        <p className="jp-lede">
-          Annonser du har sparat för att kunna återvända till. Öppna annonsen
-          för att se detaljer eller ta bort bokmärket.
-        </p>
+        <h1 className="jp-h1">{t("sparade.title")}</h1>
+        <p className="jp-lede">{t("sparade.lede")}</p>
       </div>
 
-      <div className="mt-7">{renderResult(result)}</div>
+      <div className="mt-7">{renderResult(result, t)}</div>
     </div>
   );
 }
 
-function renderResult(result: Awaited<ReturnType<typeof getSavedJobAds>>) {
+function renderResult(
+  result: Awaited<ReturnType<typeof getSavedJobAds>>,
+  t: PagesTranslator
+) {
   switch (result.kind) {
     case "ok":
       return <SavedJobAdList items={result.data} />;
@@ -46,11 +50,12 @@ function renderResult(result: Awaited<ReturnType<typeof getSavedJobAds>>) {
           className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
         >
           <p className="text-body font-medium text-warning-700">
-            För många förfrågningar
+            {t("common.rateLimitedTitle")}
           </p>
           <p className="mt-1 text-body-sm text-warning-700">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
+            {t("common.rateLimitedBody", {
+              seconds: result.retryAfterSeconds,
+            })}
           </p>
         </div>
       );
@@ -60,11 +65,9 @@ function renderResult(result: Awaited<ReturnType<typeof getSavedJobAds>>) {
       return (
         <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
           <p className="text-body font-medium">
-            Kunde inte ladda sparade annonser
+            {t("sparade.loadErrorTitle")}
           </p>
-          <p className="mt-1 text-body-sm">
-            Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
-          </p>
+          <p className="mt-1 text-body-sm">{t("common.errorBodyReload")}</p>
         </div>
       );
     default:

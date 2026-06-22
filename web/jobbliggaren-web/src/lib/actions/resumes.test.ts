@@ -1,8 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createTranslator } from "next-intl";
 import type { ResumeContentDto } from "@/lib/types/resumes";
+import svValidation from "../../../messages/sv/validation.json";
+import svResumes from "../../../messages/sv/resumes.json";
 
 vi.mock("@/lib/env", () => ({
   env: { BACKEND_URL: "http://test-backend" },
+}));
+
+// The action resolves both its schema (`getTranslations("validation")`) and its
+// toast/error strings (`getTranslations("resumes.actions")`). In this unit-test
+// (jsdom) context next-intl's server entry is unavailable, so mock it to a real,
+// namespace-aware translator over the Swedish catalogs (source of truth) —
+// verbatim messages keep flowing, identical to production.
+vi.mock("next-intl/server", () => ({
+  getTranslations: async (namespace?: "validation" | "resumes.actions") =>
+    createTranslator({
+      locale: "sv",
+      messages: { validation: svValidation, resumes: svResumes },
+      namespace,
+    }),
 }));
 
 const { getSessionIdMock } = vi.hoisted(() => ({

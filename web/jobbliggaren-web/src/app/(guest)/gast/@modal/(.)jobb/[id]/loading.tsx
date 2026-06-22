@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 
 // Suspense fallback for the guest-tree @modal/(.)jobb/[id] (logo Fas 2, ADR 0070).
@@ -7,5 +8,7 @@ import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 // fallback rarely shows here in practice; the authenticated route is the truly
 // known-slow one.
 export default function Loading() {
-  return <ModalLoadingShell statusText="Jobbannonsen läses in…" />;
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("guest");
+  return <ModalLoadingShell statusText={t("modal.jobAdLoading")} />;
 }

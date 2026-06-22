@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { findGuestApplication } from "@/lib/guest/mock-data";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
 import { GuestApplicationDetail } from "@/components/guest/guest-application-detail";
@@ -28,10 +29,12 @@ export default async function InterceptedGuestAnsokanModal({
   const application = findGuestApplication(id);
   if (!application) notFound();
 
+  const t = await getTranslations("guest");
+
   return (
     <ApplicationModalShell
       title={application.role}
-      subtitle={`${application.company} · demo`}
+      subtitle={t("detail.modalSubtitle", { company: application.company })}
     >
       <GuestApplicationDetail application={application} />
     </ApplicationModalShell>

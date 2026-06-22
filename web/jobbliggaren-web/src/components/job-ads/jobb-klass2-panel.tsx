@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import type { TaxonomyOption } from "@/lib/dto/taxonomy";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
@@ -121,6 +122,7 @@ export function JobbKlass2Panel({
   footer,
   emptyText,
 }: JobbKlass2PanelProps) {
+  const t = useTranslations("jobads.ui");
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePanelPosition(open, triggerRef);
 
@@ -136,7 +138,7 @@ export function JobbKlass2Panel({
   // Deltid före Heltid; ren as-is-rendering per Klas-constraint, flaggat).
   const worktimeRadioOptions: ReadonlyArray<{ value: string; label: string }> =
     [
-      { value: WORKTIME_ALL, label: "Alla" },
+      { value: WORKTIME_ALL, label: t("klass2.worktimeAll") },
       ...worktimeExtentOptions.map((o) => ({
         value: o.conceptId,
         label: o.label,
@@ -151,7 +153,7 @@ export function JobbKlass2Panel({
       ref={ref}
       className="jp-popover jp-panel"
       role="dialog"
-      aria-label="Filter"
+      aria-label={t("klass2.dialogLabel")}
       style={style}
     >
       {noOptions ? (
@@ -169,20 +171,20 @@ export function JobbKlass2Panel({
           {/* ── Omfattning (radio single-select) ── */}
           <div className="jp-panel__section">
             <div className="jp-panel__sectionhead">
-              <span className="jp-popover__title">Omfattning</span>
+              <span className="jp-popover__title">{t("klass2.worktimeHeading")}</span>
               {worktimeExtent.length > 0 && (
                 <button
                   type="button"
                   className="jp-clearlink"
                   onClick={() => onWorktimeExtentChange([])}
                 >
-                  Rensa
+                  {t("klass2.clear")}
                 </button>
               )}
             </div>
             <div
               role="radiogroup"
-              aria-label="Omfattning"
+              aria-label={t("klass2.worktimeHeading")}
               className="jp-panel__group"
             >
               {worktimeRadioOptions.map((opt, index) => {
@@ -254,18 +256,18 @@ export function JobbKlass2Panel({
           {/* ── Anställningsform (checkbox multi-select) ── */}
           <div className="jp-panel__section">
             <div className="jp-panel__sectionhead">
-              <span className="jp-popover__title">Anställningsform</span>
+              <span className="jp-popover__title">{t("klass2.employmentHeading")}</span>
               {employmentType.length > 0 && (
                 <button
                   type="button"
                   className="jp-clearlink"
                   onClick={() => onEmploymentTypeChange([])}
                 >
-                  Rensa
+                  {t("klass2.clear")}
                 </button>
               )}
             </div>
-            <div role="group" aria-label="Anställningsform">
+            <div role="group" aria-label={t("klass2.employmentHeading")}>
               {employmentTypeOptions.map((opt) => {
                 const checked = employmentType.includes(opt.conceptId);
                 return (

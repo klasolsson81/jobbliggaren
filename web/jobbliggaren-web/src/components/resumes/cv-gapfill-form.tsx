@@ -4,14 +4,15 @@
 // onSubmit-handler, useTransition, programmatisk focus-flytt vid valideringsfel).
 // CV-PII tas emot som props från RSC:n (server-only läsning) men redigeras här.
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { promoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
+import { makePromoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
 import { promoteParsedResumeAction } from "@/lib/actions/resumes";
 import { gapFillPathToElementId } from "@/lib/forms/resume-path-routing";
 import type { ParsedContentDto } from "@/lib/dto/parsed-resume";
@@ -160,6 +161,9 @@ export function CvGapFillForm({
   sourceFileName,
   content,
 }: CvGapFillFormProps) {
+  const t = useTranslations("validation");
+  const tr = useTranslations("resumes.gapfillForm");
+  const schema = useMemo(() => makePromoteParsedResumeSchema(t), [t]);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<FieldError | null>(null);
 
@@ -191,7 +195,7 @@ export function CvGapFillForm({
     const rawPayload = toRawPayload(values);
     // Klient-validering speglar server-actionen (server-validering är auktoritativ).
     // Schemat validerar/transformerar ("" → null) till en ResumeContentDto-form.
-    const parsed = promoteParsedResumeSchema.safeParse({
+    const parsed = schema.safeParse({
       parsedResumeId: parsedId,
       name: values.name,
       content: rawPayload,
@@ -202,7 +206,7 @@ export function CvGapFillForm({
         const path = first.path.join(".");
         setServerError({ path: path || null, message: first.message });
       } else {
-        setServerError({ path: null, message: "Ogiltiga uppgifter." });
+        setServerError({ path: null, message: tr("invalidData") });
       }
       return;
     }
@@ -223,12 +227,12 @@ export function CvGapFillForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
-      <section aria-label="CV-namn" className="flex flex-col gap-1.5">
+      <section aria-label={tr("nameSectionLabel")} className="flex flex-col gap-1.5">
         <Label htmlFor="cv-name">
-          Namn på CV <span aria-hidden="true" className="text-danger-600">*</span>
+          {tr("nameLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
         </Label>
         <p id="cv-name-hint" className="text-body-sm text-text-secondary">
-          Ett internt namn så att du hittar rätt CV-variant.
+          {tr("nameHint")}
         </p>
         <Input
           id="cv-name"
@@ -242,12 +246,12 @@ export function CvGapFillForm({
         />
       </section>
 
-      <section aria-label="Personuppgifter" className="flex flex-col gap-4">
-        <h2 className="text-h3 font-medium text-text-primary">Personuppgifter</h2>
+      <section aria-label={tr("personalInfoLabel")} className="flex flex-col gap-4">
+        <h2 className="text-h3 font-medium text-text-primary">{tr("personalInfoHeading")}</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pi-fullName">
-              Fullständigt namn <span aria-hidden="true" className="text-danger-600">*</span>
+              {tr("fullNameLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
             </Label>
             <Input
               id="pi-fullName"
@@ -260,7 +264,7 @@ export function CvGapFillForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pi-email">E-post</Label>
+            <Label htmlFor="pi-email">{tr("emailLabel")}</Label>
             <Input
               id="pi-email"
               type="email"
@@ -270,7 +274,7 @@ export function CvGapFillForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pi-phone">Telefon</Label>
+            <Label htmlFor="pi-phone">{tr("phoneLabel")}</Label>
             <Input
               id="pi-phone"
               type="tel"
@@ -280,7 +284,7 @@ export function CvGapFillForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pi-location">Ort</Label>
+            <Label htmlFor="pi-location">{tr("locationLabel")}</Label>
             <Input
               id="pi-location"
               {...register("personalInfo.location")}
@@ -292,12 +296,12 @@ export function CvGapFillForm({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-h3 font-medium text-text-primary">Sammanfattning</h2>
+        <h2 className="text-h3 font-medium text-text-primary">{tr("summaryHeading")}</h2>
         <Label htmlFor="summary" className="sr-only">
-          Sammanfattning
+          {tr("summaryLabel")}
         </Label>
         <p id="summary-hint" className="text-body-sm text-text-secondary">
-          En kort sammanfattning av din profil.
+          {tr("summaryHint")}
         </p>
         <Textarea
           id="summary"
@@ -310,9 +314,9 @@ export function CvGapFillForm({
         />
       </section>
 
-      <section aria-label="Erfarenhet" className="flex flex-col gap-3">
+      <section aria-label={tr("experienceLabel")} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-h3 font-medium text-text-primary">Erfarenhet</h2>
+          <h2 className="text-h3 font-medium text-text-primary">{tr("experienceHeading")}</h2>
           <Button
             type="button"
             variant="outline"
@@ -320,12 +324,12 @@ export function CvGapFillForm({
             onClick={() => experiences.append(emptyExperienceFormItem())}
             disabled={isPending}
           >
-            Lägg till erfarenhet
+            {tr("addExperience")}
           </Button>
         </div>
         {experiences.fields.length === 0 && (
           <p className="text-body-sm text-text-secondary">
-            Ingen erfarenhet tillagd.
+            {tr("noExperience")}
           </p>
         )}
         <div className="flex flex-col gap-3">
@@ -339,11 +343,11 @@ export function CvGapFillForm({
                 key={field.id}
                 className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
               >
-                <legend className="sr-only">Erfarenhet {index + 1}</legend>
+                <legend className="sr-only">{tr("experienceLegend", { index: index + 1 })}</legend>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`exp-${index}-company`}>
-                      Företag <span aria-hidden="true" className="text-danger-600">*</span>
+                      {tr("companyLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`exp-${index}-company`}
@@ -357,7 +361,7 @@ export function CvGapFillForm({
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`exp-${index}-role`}>
-                      Roll <span aria-hidden="true" className="text-danger-600">*</span>
+                      {tr("roleLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`exp-${index}-role`}
@@ -372,11 +376,11 @@ export function CvGapFillForm({
                   <div
                     className="flex flex-col gap-1.5"
                     role="group"
-                    aria-label="Period"
+                    aria-label={tr("periodGroupLabel")}
                     aria-describedby={dateHintId}
                   >
                     <Label htmlFor={`exp-${index}-startDate`}>
-                      Startdatum <span aria-hidden="true" className="text-danger-600">*</span>
+                      {tr("startDateLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`exp-${index}-startDate`}
@@ -388,7 +392,7 @@ export function CvGapFillForm({
                       disabled={isPending}
                     />
                     <Label htmlFor={`exp-${index}-endDate`}>
-                      Slutdatum (valfritt)
+                      {tr("endDateLabel")}
                     </Label>
                     <Input
                       id={`exp-${index}-endDate`}
@@ -402,13 +406,13 @@ export function CvGapFillForm({
                         id={dateHintId}
                         className="text-body-sm text-text-secondary"
                       >
-                        Tolkad period: {periodHint}
+                        {tr("periodHint", { period: periodHint })}
                       </p>
                     )}
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`exp-${index}-description`}>Beskrivning</Label>
+                  <Label htmlFor={`exp-${index}-description`}>{tr("descriptionLabel")}</Label>
                   <Textarea
                     id={`exp-${index}-description`}
                     {...register(`experiences.${index}.description`)}
@@ -424,10 +428,10 @@ export function CvGapFillForm({
                     variant="ghost"
                     size="sm"
                     onClick={() => experiences.remove(index)}
-                    aria-label={`Ta bort erfarenhet ${index + 1}`}
+                    aria-label={tr("removeExperience", { index: index + 1 })}
                     disabled={isPending}
                   >
-                    Ta bort
+                    {tr("remove")}
                   </Button>
                 </div>
               </fieldset>
@@ -436,9 +440,9 @@ export function CvGapFillForm({
         </div>
       </section>
 
-      <section aria-label="Utbildning" className="flex flex-col gap-3">
+      <section aria-label={tr("educationLabel")} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-h3 font-medium text-text-primary">Utbildning</h2>
+          <h2 className="text-h3 font-medium text-text-primary">{tr("educationHeading")}</h2>
           <Button
             type="button"
             variant="outline"
@@ -446,12 +450,12 @@ export function CvGapFillForm({
             onClick={() => educations.append(emptyEducationFormItem())}
             disabled={isPending}
           >
-            Lägg till utbildning
+            {tr("addEducation")}
           </Button>
         </div>
         {educations.fields.length === 0 && (
           <p className="text-body-sm text-text-secondary">
-            Ingen utbildning tillagd.
+            {tr("noEducation")}
           </p>
         )}
         <div className="flex flex-col gap-3">
@@ -465,11 +469,11 @@ export function CvGapFillForm({
                 key={field.id}
                 className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
               >
-                <legend className="sr-only">Utbildning {index + 1}</legend>
+                <legend className="sr-only">{tr("educationLegend", { index: index + 1 })}</legend>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`edu-${index}-institution`}>
-                      Lärosäte <span aria-hidden="true" className="text-danger-600">*</span>
+                      {tr("institutionLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`edu-${index}-institution`}
@@ -483,7 +487,7 @@ export function CvGapFillForm({
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`edu-${index}-degree`}>
-                      Examen <span aria-hidden="true" className="text-danger-600">*</span>
+                      {tr("degreeLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`edu-${index}-degree`}
@@ -498,11 +502,11 @@ export function CvGapFillForm({
                   <div
                     className="flex flex-col gap-1.5"
                     role="group"
-                    aria-label="Period"
+                    aria-label={tr("periodGroupLabel")}
                     aria-describedby={dateHintId}
                   >
                     <Label htmlFor={`edu-${index}-startDate`}>
-                      Startdatum <span aria-hidden="true" className="text-danger-600">*</span>
+                      {tr("startDateLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
                     </Label>
                     <Input
                       id={`edu-${index}-startDate`}
@@ -514,7 +518,7 @@ export function CvGapFillForm({
                       disabled={isPending}
                     />
                     <Label htmlFor={`edu-${index}-endDate`}>
-                      Slutdatum (valfritt)
+                      {tr("endDateLabel")}
                     </Label>
                     <Input
                       id={`edu-${index}-endDate`}
@@ -528,7 +532,7 @@ export function CvGapFillForm({
                         id={dateHintId}
                         className="text-body-sm text-text-secondary"
                       >
-                        Tolkad period: {periodHint}
+                        {tr("periodHint", { period: periodHint })}
                       </p>
                     )}
                   </div>
@@ -539,10 +543,10 @@ export function CvGapFillForm({
                     variant="ghost"
                     size="sm"
                     onClick={() => educations.remove(index)}
-                    aria-label={`Ta bort utbildning ${index + 1}`}
+                    aria-label={tr("removeEducation", { index: index + 1 })}
                     disabled={isPending}
                   >
-                    Ta bort
+                    {tr("remove")}
                   </Button>
                 </div>
               </fieldset>
@@ -551,9 +555,9 @@ export function CvGapFillForm({
         </div>
       </section>
 
-      <section aria-label="Färdigheter" className="flex flex-col gap-3">
+      <section aria-label={tr("skillsLabel")} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-h3 font-medium text-text-primary">Färdigheter</h2>
+          <h2 className="text-h3 font-medium text-text-primary">{tr("skillsHeading")}</h2>
           <Button
             type="button"
             variant="outline"
@@ -561,12 +565,12 @@ export function CvGapFillForm({
             onClick={() => skills.append(emptySkillFormItem())}
             disabled={isPending}
           >
-            Lägg till färdighet
+            {tr("addSkill")}
           </Button>
         </div>
         {skills.fields.length === 0 && (
           <p className="text-body-sm text-text-secondary">
-            Inga färdigheter tillagda.
+            {tr("noSkills")}
           </p>
         )}
         <div className="flex flex-col gap-2">
@@ -575,10 +579,10 @@ export function CvGapFillForm({
               key={field.id}
               className="grid grid-cols-1 items-start gap-3 rounded-md border border-border bg-card p-4 md:grid-cols-[1fr_140px_auto]"
             >
-              <legend className="sr-only">Färdighet {index + 1}</legend>
+              <legend className="sr-only">{tr("skillLegend", { index: index + 1 })}</legend>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`skill-${index}-name`}>
-                  Namn <span aria-hidden="true" className="text-danger-600">*</span>
+                  {tr("skillNameLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
                 </Label>
                 <Input
                   id={`skill-${index}-name`}
@@ -591,7 +595,7 @@ export function CvGapFillForm({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor={`skill-${index}-years`}>År (valfritt)</Label>
+                <Label htmlFor={`skill-${index}-years`}>{tr("skillYearsLabel")}</Label>
                 <Controller
                   control={control}
                   name={`skills.${index}.yearsExperience`}
@@ -618,10 +622,10 @@ export function CvGapFillForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => skills.remove(index)}
-                  aria-label={`Ta bort färdighet ${index + 1}`}
+                  aria-label={tr("removeSkill", { index: index + 1 })}
                   disabled={isPending}
                 >
-                  Ta bort
+                  {tr("remove")}
                 </Button>
               </div>
             </fieldset>
@@ -641,14 +645,14 @@ export function CvGapFillForm({
         )}
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={isPending}>
-            {isPending ? "Sparar…" : "Spara CV"}
+            {isPending ? tr("savePending") : tr("save")}
           </Button>
           <Button asChild variant="ghost">
-            <Link href={`/cv/granska/${parsedId}`}>Avbryt</Link>
+            <Link href={`/cv/granska/${parsedId}`}>{tr("cancel")}</Link>
           </Button>
         </div>
         <p className="text-body-sm text-text-secondary">
-          Källfil: <span className="font-mono">{sourceFileName}</span>
+          {tr("sourceFile")} <span className="font-mono">{sourceFileName}</span>
         </p>
       </div>
     </form>

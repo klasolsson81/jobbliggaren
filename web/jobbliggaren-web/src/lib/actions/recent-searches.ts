@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { deleteRecentSearch } from "@/lib/api/recent-searches";
 
 export type DeleteRecentSearchResult =
@@ -15,6 +16,7 @@ export type DeleteRecentSearchResult =
 export async function deleteRecentSearchAction(
   id: string
 ): Promise<DeleteRecentSearchResult> {
+  const t = await getTranslations("jobads.actions");
   const result = await deleteRecentSearch(id);
   switch (result.kind) {
     case "ok":
@@ -22,18 +24,18 @@ export async function deleteRecentSearchAction(
       revalidatePath("/jobb");
       return { success: true };
     case "unauthorized":
-      return { success: false, error: "Du är inte inloggad." };
+      return { success: false, error: t("notLoggedIn") };
     case "notFound":
       return {
         success: false,
-        error: "Sökningen kunde inte hittas. Den kan ha tagits bort redan.",
+        error: t("recentSearchNotFound"),
       };
     case "forbidden":
     case "rateLimited":
     case "error":
       return {
         success: false,
-        error: "Kunde inte ta bort sökningen. Försök igen.",
+        error: t("recentSearchDeleteFailed"),
       };
   }
 }

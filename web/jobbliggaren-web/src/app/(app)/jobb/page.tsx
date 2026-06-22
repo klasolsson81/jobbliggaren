@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
@@ -62,6 +63,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const params = await searchParams;
   const page = parsePositiveInt(params.page, 1);
   const pageSize = Math.min(
@@ -161,11 +163,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
               {/* G2 (Klas rendered-feedback 2026-06-10): enkel funktionell
                   rubrik — "Lediga jobb./I lugn och ro." lät AI-aktigt.
                   Inget utropstecken (civic-utility, CLAUDE.md §10.3). */}
-              <h1 className="jp-hero__title">Sök jobb</h1>
-              <p className="jp-hero__lede">
-                Sök bland aktiva annonser från Platsbanken. Filtrera och
-                jämför utan att tappa en enda annons.
-              </p>
+              <h1 className="jp-hero__title">{t("jobb.title")}</h1>
+              <p className="jp-hero__lede">{t("jobb.lede")}</p>
             </div>
 
             <div className="jp-hero__panel">

@@ -1,6 +1,7 @@
+import { useTranslations } from "next-intl";
 import type { ApplicationStatus } from "@/lib/types/applications";
 import {
-  getStatusLabel,
+  applicationStatusLabel,
   getStatusPillClass,
 } from "@/lib/applications/status";
 import type {
@@ -47,6 +48,10 @@ export function GuestApplicationDetail({
 }: {
   application: GuestMockApplication;
 }) {
+  // Synchronous next-intl translators — keeps this a non-async RSC.
+  // `t` bär enum-etiketten (applicationStatusLabel), `tg` bär gäst-detaljens copy.
+  const t = useTranslations("applications.enums");
+  const tg = useTranslations("guest");
   const liveStatus = GUEST_TO_LIVE_STATUS[application.status];
 
   return (
@@ -56,34 +61,30 @@ export function GuestApplicationDetail({
         style={{ alignSelf: "flex-start" }}
       >
         <span className="jp-pill__dot" aria-hidden="true" />
-        {getStatusLabel(liveStatus)}
+        {applicationStatusLabel(t, liveStatus)}
       </span>
 
       <dl className="jp-modal__metarow">
         <div className="jp-modal__metaitem">
-          <dt>Företag</dt>
+          <dt>{tg("detail.company")}</dt>
           <dd>{application.company}</dd>
         </div>
         <div className="jp-modal__metaitem">
-          <dt>Roll</dt>
+          <dt>{tg("detail.role")}</dt>
           <dd>{application.role}</dd>
         </div>
         <div className="jp-modal__metaitem">
-          <dt>Källa</dt>
+          <dt>{tg("detail.source")}</dt>
           <dd>{application.source}</dd>
         </div>
         <div className="jp-modal__metaitem">
-          <dt>Senast uppdaterad</dt>
+          <dt>{tg("detail.lastUpdated")}</dt>
           <dd>{application.updatedAtLabel}</dd>
         </div>
       </dl>
 
-      <div style={SECTION_LABEL_STYLE}>Om exempelansökningar</div>
-      <p className="text-body-sm text-text-secondary">
-        Detta är en exempelansökan i demoläget. Logga in eller anmäl dig till
-        väntelistan för att skapa, redigera och följa upp egna ansökningar
-        med statusbyten, anteckningar och uppföljningar.
-      </p>
+      <div style={SECTION_LABEL_STYLE}>{tg("detail.aboutHeading")}</div>
+      <p className="text-body-sm text-text-secondary">{tg("detail.aboutBody")}</p>
     </div>
   );
 }

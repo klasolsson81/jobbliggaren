@@ -1,50 +1,40 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "Användarvillkor",
-  description:
-    "Jobbliggarens användarvillkor. Sluten beta: full text publiceras innan första öppna registrering.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("landing");
+  return {
+    title: t("meta.termsTitle"),
+    description: t("meta.termsDescription"),
+  };
+}
 
 /**
  * Placeholder för användarvillkor. Versionerad policy-text är öppen fråga i
  * BUILD.md §20 — levereras av Klas innan första prod-deploy med riktig
  * användarbas.
  */
-export default function VillkorPage() {
+export default async function VillkorPage() {
+  const t = await getTranslations("landing");
   return (
     <>
       <header className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">Sluten beta</p>
-            <h1 className="jp-pagehero__title">Användarvillkor</h1>
+            <p className="jp-pagehero__kicker">{t("terms.kicker")}</p>
+            <h1 className="jp-pagehero__title">{t("terms.title")}</h1>
           </div>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-2xl px-6 py-12">
         <section className="flex flex-col gap-4">
-          <p className="text-body text-text-primary">
-            Jobbliggaren befinner sig i sluten beta. Fullständiga användarvillkor
-            publiceras innan tjänsten öppnas för allmänheten.
-          </p>
-          <p className="text-body text-text-secondary">
-            Under beta-perioden gäller följande:
-          </p>
+          <p className="text-body text-text-primary">{t("terms.intro")}</p>
+          <p className="text-body text-text-secondary">{t("terms.duringBeta")}</p>
           <ul className="flex flex-col gap-2 text-body text-text-secondary">
-            <li>
-              Tjänsten levereras i befintligt skick. Funktioner kan ändras
-              eller tillkomma.
-            </li>
-            <li>
-              Vi sparar dina uppgifter endast så länge det krävs för att
-              hantera din anmälan eller ditt konto.
-            </li>
-            <li>
-              Du kan be oss radera dina uppgifter när som helst genom att
-              svara på bekräftelsemejlet eller kontakta oss.
-            </li>
+            <li>{t("terms.asIs")}</li>
+            <li>{t("terms.dataRetention")}</li>
+            <li>{t("terms.dataDeletion")}</li>
           </ul>
         </section>
       </main>

@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ChevronRight } from "lucide-react";
 import {
+  applicationStatusLabel,
   formatSvDate,
-  getStatusLabel,
   getStatusPillClass,
 } from "@/lib/applications/status";
 import type { ApplicationDto } from "@/lib/types/applications";
@@ -34,12 +35,17 @@ interface ApplicationRowProps {
  * jobAd.expiresAt (sista ansökningsdag) — REAL fält, ej v3-mock nextDate.
  */
 export function ApplicationRow({ application }: ApplicationRowProps) {
+  // Synchronous next-intl translator — keeps ApplicationRow a non-async RSC so
+  // it remains server-renderable as a serialized slot (the page.tsx pattern)
+  // and its synchronous render test stays green.
+  const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const { jobAd } = application;
 
   const hasIdentity = jobAd != null;
   const title = hasIdentity
     ? jobAd.title
-    : `Ansökan #${application.id.slice(0, 8)}`;
+    : tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
   const updatedAt = formatSvDate(application.updatedAt);
   const expiresAt = formatSvDate(jobAd?.expiresAt);
@@ -50,8 +56,15 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
       className="jp-app"
       aria-label={
         hasIdentity
-          ? `${jobAd.title} – ${jobAd.company} – ${getStatusLabel(application.status)}`
-          : `${title} – ${getStatusLabel(application.status)}`
+          ? tUi("row.ariaLabelWithIdentity", {
+              title: jobAd.title,
+              company: jobAd.company,
+              status: applicationStatusLabel(t, application.status),
+            })
+          : tUi("row.ariaLabelFallback", {
+              title,
+              status: applicationStatusLabel(t, application.status),
+            })
       }
     >
       <div className="jp-job__body">
@@ -69,12 +82,12 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
           <span className="jp-app__id">#{application.id.slice(0, 8)}</span>
           {updatedAt && (
             <span>
-              Uppdaterad <b>{updatedAt}</b>
+              {tUi("row.updated")} <b>{updatedAt}</b>
             </span>
           )}
           {expiresAt && (
             <span>
-              Sök senast <b>{expiresAt}</b>
+              {tUi("row.applyBy")} <b>{expiresAt}</b>
             </span>
           )}
         </div>
@@ -83,7 +96,7 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
       <div className="jp-app__actions">
         <span className={getStatusPillClass(application.status)}>
           <span className="jp-pill__dot" aria-hidden="true" />
-          {getStatusLabel(application.status)}
+          {applicationStatusLabel(t, application.status)}
         </span>
         <ChevronRight
           size={20}

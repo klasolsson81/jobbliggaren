@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   SUGGEST_MIN_PREFIX,
   SUGGEST_DEBOUNCE_MS,
@@ -81,6 +82,7 @@ export function JobAdTypeahead({
   ariaInvalid,
   ariaDescribedBy,
 }: JobAdTypeaheadProps) {
+  const t = useTranslations("jobads.ui");
   const listId = useId();
   const statusId = useId();
   const optionBaseId = useId();
@@ -223,9 +225,9 @@ export function JobAdTypeahead({
 
       <p id={statusId} role="status" aria-live="polite" className="sr-only">
         {state.status === "loading"
-          ? "Hämtar förslag…"
+          ? t("typeahead.loading")
           : items.length > 0
-            ? `${items.length} förslag`
+            ? t("typeahead.suggestionCount", { count: items.length })
             : ""}
       </p>
 
@@ -235,8 +237,7 @@ export function JobAdTypeahead({
         // surface-primary i stället för pill-bakgrunden (design-reviewer
         // Minor 1 E2d). Listan och rateLimited är ömsesidigt uteslutande.
         <p className="absolute top-full left-0 z-10 mt-1 w-full rounded-md border border-border-default bg-surface-primary px-3 py-2 text-body-sm text-text-secondary shadow-md">
-          För många sökningar på kort tid. Förslagen pausas en stund. Du kan
-          fortsätta skriva och söka ändå.
+          {t("typeahead.rateLimited")}
         </p>
       )}
 
@@ -245,7 +246,7 @@ export function JobAdTypeahead({
           id={listId}
           role="listbox"
           className="absolute top-full left-0 z-10 mt-1 w-full overflow-hidden rounded-md border border-border-default bg-surface-primary shadow-md"
-          aria-label="Sökförslag"
+          aria-label={t("typeahead.listLabel")}
           // Rensa markeringen när pekaren lämnar listan (design-reviewer M4
           // E2h): en parkerad muspekare får inte lämna stale markering som
           // Tab sedan väljer utan att användaren tittar.

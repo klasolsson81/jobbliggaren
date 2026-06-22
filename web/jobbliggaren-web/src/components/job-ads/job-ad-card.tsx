@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getJobSourceLabel } from "@/lib/job-ads/status";
+import { useTranslations } from "next-intl";
+import { jobSourceLabel } from "@/lib/job-ads/status";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { JobTags } from "./job-tags";
@@ -28,9 +29,14 @@ function formatDate(iso: string): string {
  * PR5 Klas-feedback 2026-05-23 — Platsbanken-paritet: visa klockslag på
  * publicerad-tidsstämpeln. Idag → "idag, kl. HH.MM"; igår → "igår, kl. HH.MM";
  * äldre → "YYYY-MM-DD, kl. HH.MM". Hjälper användaren skilja annonser som
- * postas under dagen (flera hundra dagligen).
+ * postas under dagen (flera hundra dagligen). Den svenska prosan resolveras via
+ * next-intl (`ui.card.published*`); funktionen tar translatorn så den förblir
+ * en ren render-helper (anropas i RSC:n med komponentens `t`).
  */
-function formatPublishedAtWithTime(iso: string): string {
+function formatPublishedAtWithTime(
+  iso: string,
+  t: ReturnType<typeof useTranslations<"jobads.ui.card">>,
+): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
 
@@ -45,7 +51,7 @@ function formatPublishedAtWithTime(iso: string): string {
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
 
-  if (isToday) return `idag, kl. ${time}`;
+  if (isToday) return t("publishedToday", { time });
 
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
@@ -54,9 +60,12 @@ function formatPublishedAtWithTime(iso: string): string {
     date.getMonth() === yesterday.getMonth() &&
     date.getDate() === yesterday.getDate();
 
-  if (isYesterday) return `igår, kl. ${time}`;
+  if (isYesterday) return t("publishedYesterday", { time });
 
-  return `${date.toLocaleDateString("sv-SE")}, kl. ${time}`;
+  return t("publishedOlder", {
+    date: date.toLocaleDateString("sv-SE"),
+    time,
+  });
 }
 
 /**
@@ -82,7 +91,11 @@ export function JobAdCard({
   isApplied = false,
   matchGrade,
 }: JobAdCardProps) {
-  const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt);
+  // Synchronous next-intl translators — keep JobAdCard a non-async RSC (it
+  // renders as a serialized list slot and has synchronous render tests).
+  const t = useTranslations("jobads.enums");
+  const tUi = useTranslations("jobads.ui.card");
+  const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt, tUi);
   const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
   const publishedAtMs = Date.parse(jobAd.publishedAt);
@@ -91,7 +104,10 @@ export function JobAdCard({
     <Link
       href={`/jobb/${jobAd.id}`}
       className="jp-job"
-      aria-label={`${jobAd.title} – ${jobAd.companyName}`}
+      aria-label={tUi("ariaLabel", {
+        title: jobAd.title,
+        company: jobAd.companyName,
+      })}
     >
       <div className="jp-job__body">
         <h3 className="jp-job__title">
@@ -111,13 +127,13 @@ export function JobAdCard({
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>
         <div className="jp-job__meta">
-          <span>{getJobSourceLabel(jobAd.source)}</span>
+          <span>{jobSourceLabel(t, jobAd.source)}</span>
           <span>
-            Publicerad <b>{publishedAt}</b>
+            {tUi("published")} <b>{publishedAt}</b>
           </span>
           {expiresAt && (
             <span>
-              Sista ansökan <b>{expiresAt}</b>
+              {tUi("lastApplication")} <b>{expiresAt}</b>
             </span>
           )}
         </div>

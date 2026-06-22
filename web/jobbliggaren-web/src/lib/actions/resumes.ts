@@ -2,13 +2,14 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import {
-  createResumeSchema,
-  renameResumeSchema,
-  updateMasterContentSchema,
-  promoteParsedResumeSchema,
+  makeCreateResumeSchema,
+  makeRenameResumeSchema,
+  makeUpdateMasterContentSchema,
+  makePromoteParsedResumeSchema,
 } from "./resume-schemas";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 import { createdResourceSchema } from "@/lib/dto/common";
@@ -29,17 +30,20 @@ export async function createResumeAction(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
-  const parsed = createResumeSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeCreateResumeSchema(t).safeParse({
     name: formData.get("name"),
     fullName: formData.get("fullName"),
   });
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+      error: parsed.error.issues[0]?.message ?? tr("invalidData"),
     };
   }
 
@@ -55,7 +59,7 @@ export async function createResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte skapa CV:t."),
+        error: mapActionError(res, tr("createFailed"), te),
       };
     }
 
@@ -66,7 +70,7 @@ export async function createResumeAction(
     );
     resumeId = data.id;
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tr("serverUnreachable") };
   }
 
   revalidatePath("/cv");
@@ -77,17 +81,20 @@ export async function renameResumeAction(
   resumeId: string,
   formData: FormData
 ): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
-  const parsed = renameResumeSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makeRenameResumeSchema(t).safeParse({
     resumeId,
     name: formData.get("name"),
   });
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+      error: parsed.error.issues[0]?.message ?? tr("invalidData"),
     };
   }
 
@@ -105,11 +112,11 @@ export async function renameResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte byta namn."),
+        error: mapActionError(res, tr("renameFailed"), te),
       };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tr("serverUnreachable") };
   }
 
   revalidatePath("/cv");
@@ -121,14 +128,17 @@ export async function updateMasterContentAction(
   resumeId: string,
   content: ResumeContentDto
 ): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
-  const parsed = updateMasterContentSchema.safeParse({ resumeId, content });
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateMasterContentSchema(t).safeParse({ resumeId, content });
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+      error: parsed.error.issues[0]?.message ?? tr("invalidData"),
     };
   }
 
@@ -146,11 +156,11 @@ export async function updateMasterContentAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte spara CV:t."),
+        error: mapActionError(res, tr("saveFailed"), te),
       };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tr("serverUnreachable") };
   }
 
   revalidatePath("/cv");
@@ -161,11 +171,13 @@ export async function updateMasterContentAction(
 export async function deleteResumeAction(
   resumeId: string
 ): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
   if (!isValidId(resumeId)) {
-    return { success: false, error: "Ogiltigt CV-ID." };
+    return { success: false, error: tr("invalidResumeId") };
   }
 
   try {
@@ -181,11 +193,11 @@ export async function deleteResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte radera CV:t."),
+        error: mapActionError(res, tr("deleteFailed"), te),
       };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tr("serverUnreachable") };
   }
 
   revalidatePath("/cv");
@@ -205,10 +217,13 @@ export async function promoteParsedResumeAction(
   name: string,
   content: ResumeContentDto
 ): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
-  const parsed = promoteParsedResumeSchema.safeParse({
+  const t = await getTranslations("validation");
+  const parsed = makePromoteParsedResumeSchema(t).safeParse({
     parsedResumeId,
     name,
     content,
@@ -216,7 +231,7 @@ export async function promoteParsedResumeAction(
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.",
+      error: parsed.error.issues[0]?.message ?? tr("invalidData"),
     };
   }
 
@@ -238,7 +253,7 @@ export async function promoteParsedResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte spara CV:t."),
+        error: mapActionError(res, tr("saveFailed"), te),
       };
     }
 
@@ -249,7 +264,7 @@ export async function promoteParsedResumeAction(
     );
     newResumeId = data.id;
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tr("serverUnreachable") };
   }
 
   revalidatePath("/cv");
@@ -260,11 +275,13 @@ export async function deleteResumeVersionAction(
   resumeId: string,
   versionId: string
 ): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: "Du är inte inloggad." };
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
   if (!isValidId(resumeId) || !isValidId(versionId)) {
-    return { success: false, error: "Ogiltigt ID." };
+    return { success: false, error: tr("invalidId") };
   }
 
   try {
@@ -280,11 +297,11 @@ export async function deleteResumeVersionAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, "Kunde inte radera versionen."),
+        error: mapActionError(res, tr("deleteVersionFailed"), te),
       };
     }
   } catch {
-    return { success: false, error: "Kunde inte nå servern. Försök igen." };
+    return { success: false, error: tr("serverUnreachable") };
   }
 
   revalidatePath(`/cv/${resumeId}`);

@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
@@ -89,6 +90,7 @@ export function JobbHeroFilters({
   pageSize,
 }: JobbHeroFiltersProps) {
   const router = useRouter();
+  const t = useTranslations("jobads.ui");
   const [, startTransition] = useTransition();
 
   // E2g (CTO-dom 2026-06-11, Variant A — useOptimistic): URL:en (via props)
@@ -298,8 +300,11 @@ export function JobbHeroFilters({
   // som träffräknaren ("träff"/"träffar").
   const showResultsLabel =
     totalCount !== null
-      ? `Visa ${totalCount.toLocaleString("sv-SE")} ${totalCount === 1 ? "annons" : "annonser"}`
-      : "Visa annonser";
+      ? t("heroFilters.showResults", {
+          count: totalCount,
+          formattedCount: totalCount.toLocaleString("sv-SE"),
+        })
+      : t("heroFilters.showResultsEmpty");
   const showResultsFooter = (
     <button
       type="button"
@@ -324,7 +329,7 @@ export function JobbHeroFilters({
         {ortCount > 0 && (
           <span className="jp-hero-pill__dot" aria-hidden="true" />
         )}
-        Ort
+        {t("heroFilters.ort")}
         {ortCount > 0 && (
           <span className="jp-hero-pill__count">{ortCount}</span>
         )}
@@ -343,7 +348,7 @@ export function JobbHeroFilters({
         {occupationGroup.length > 0 && (
           <span className="jp-hero-pill__dot" aria-hidden="true" />
         )}
-        Yrke
+        {t("heroFilters.yrke")}
         {occupationGroup.length > 0 && (
           <span className="jp-hero-pill__count">{occupationGroup.length}</span>
         )}
@@ -366,7 +371,7 @@ export function JobbHeroFilters({
         {filterCount > 0 && (
           <span className="jp-hero-pill__dot" aria-hidden="true" />
         )}
-        Filter
+        {t("heroFilters.filter")}
         {filterCount > 0 && (
           <span className="jp-hero-pill__count">{filterCount}</span>
         )}
@@ -379,12 +384,12 @@ export function JobbHeroFilters({
       <JobbFilterPopover
         key={openPop === "ort" ? "ort-open" : "ort-closed"}
         open={openPop === "ort"}
-        leftTitle="Län"
-        dialogLabel="Ort"
-        rightTitle="Kommuner"
-        selectAllLabel={(g) => `Hela ${g.label}`}
-        emptyText="Län kunde inte laddas just nu. Du kan söka på sökord ändå."
-        rightEmptyText="Välj ett län till vänster."
+        leftTitle={t("heroFilters.ortLeftTitle")}
+        dialogLabel={t("heroFilters.ort")}
+        rightTitle={t("heroFilters.ortRightTitle")}
+        selectAllLabel={(g) => t("heroFilters.ortSelectAll", { label: g.label })}
+        emptyText={t("heroFilters.ortEmpty")}
+        rightEmptyText={t("heroFilters.ortRightEmpty")}
         groups={regionGroups}
         selected={ort.municipality}
         onChange={changeMunicipality}
@@ -405,12 +410,12 @@ export function JobbHeroFilters({
       <JobbFilterPopover
         key={openPop === "yrke" ? "yrke-open" : "yrke-closed"}
         open={openPop === "yrke"}
-        leftTitle="Yrkesområde"
-        dialogLabel="Yrke"
-        rightTitle="Yrkesgrupper"
-        selectAllLabel={() => "Välj alla yrkesgrupper"}
-        emptyText="Yrkesområden kunde inte laddas just nu. Du kan söka på sökord ändå."
-        rightEmptyText="Välj ett yrkesområde till vänster."
+        leftTitle={t("heroFilters.yrkeLeftTitle")}
+        dialogLabel={t("heroFilters.yrke")}
+        rightTitle={t("heroFilters.yrkeRightTitle")}
+        selectAllLabel={() => t("heroFilters.yrkeSelectAll")}
+        emptyText={t("heroFilters.yrkeEmpty")}
+        rightEmptyText={t("heroFilters.yrkeRightEmpty")}
         groups={occupationFieldGroups}
         selected={occupationGroup}
         onChange={changeOccupationGroup}
@@ -435,7 +440,7 @@ export function JobbHeroFilters({
         worktimeExtentCounts={worktimeExtentCounts}
         onEmploymentTypeChange={changeEmploymentType}
         onWorktimeExtentChange={changeWorktimeExtent}
-        emptyText="Filter kunde inte laddas just nu. Du kan söka på sökord ändå."
+        emptyText={t("heroFilters.klass2Empty")}
         footer={showResultsFooter}
         onClose={() => setOpenPop(null)}
         triggerRef={filterBtnRef}

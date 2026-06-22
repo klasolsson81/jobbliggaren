@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Bookmark } from "lucide-react";
 import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
 import { HeroChip } from "@/components/job-ads/hero-chip";
@@ -17,19 +18,20 @@ interface SavedJobAdsHeroChipProps {
  */
 export function SavedJobAdsHeroChip({ items }: SavedJobAdsHeroChipProps) {
   const router = useRouter();
+  const t = useTranslations("jobads.saved");
 
   return (
     <HeroChip
-      label="Sparade annonser"
+      label={t("chip.label")}
       icon={<Bookmark size={14} aria-hidden="true" />}
       count={items.length > 0 ? items.length : null}
       items={items}
       getKey={(it) => it.id}
-      emptyText="Inga sparade annonser än. Öppna en annons och välj Spara i modalen."
+      emptyText={t("chip.empty")}
       footerHref="/sparade"
-      footerLabel="Visa alla sparade annonser"
+      footerLabel={t("chip.footer")}
       renderItem={(item, onClose) => {
-        const title = item.jobAd?.title ?? "Annonsen är borttagen";
+        const title = item.jobAd?.title ?? t("removed");
         const company = item.jobAd?.company;
         const href = `/jobb/${item.jobAdId}`;
         return (

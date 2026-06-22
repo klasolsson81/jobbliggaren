@@ -1,0 +1,291 @@
+{
+  "createForm": {
+    "nameLabel": "Namn på CV",
+    "nameHelp": "Till exempel Master-CV eller Backend-utvecklare 2026.",
+    "fullNameLabel": "Fullständigt namn",
+    "fullNameHelp": "Visas överst på ditt CV. Du kan ändra det senare.",
+    "submitPending": "Skapar CV…",
+    "submit": "Skapa CV",
+    "cancel": "Avbryt"
+  },
+  "rename": {
+    "trigger": "Byt namn",
+    "title": "Byt namn på CV",
+    "description": "Namnet visas i din CV-lista och i tailored versioner.",
+    "nameLabel": "Namn",
+    "cancel": "Avbryt",
+    "save": "Spara"
+  },
+  "delete": {
+    "trigger": "Radera CV",
+    "title": "Radera CV?",
+    "description": "Du är på väg att radera <name>{name}</name> permanent. Det går inte att ångra.",
+    "cancel": "Avbryt",
+    "confirm": "Bekräfta radering"
+  },
+  "card": {
+    "primary": "Standard",
+    "sections": "{count, plural, one {# sektion} other {# sektioner}}",
+    "updated": "Uppd. {date}",
+    "edit": "Redigera"
+  },
+  "upload": {
+    "pendingLabel": "Laddar upp och granskar ditt CV",
+    "pendingText": "Laddar upp och granskar ditt CV. Det kan ta en liten stund.",
+    "dropText": "Välj en fil att ladda upp",
+    "dropHint": "PDF eller Word (DOCX)",
+    "help": "Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte.",
+    "submit": "Ladda upp och granska CV",
+    "errorWrongType": "Välj en PDF- eller Word-fil (DOCX).",
+    "errorTooLarge": "Filen är för stor. Maxstorlek är 10 MB.",
+    "errorNoFile": "Välj en fil att importera.",
+    "errorGeneric": "Något gick fel vid importen. Försök igen om en stund.",
+    "errorUnauthorized": "Du är inte inloggad.",
+    "errorRateLimited": "För många uppladdningar. Vänta {seconds} sekunder och försök igen."
+  },
+  "parse": {
+    "title": "Så tolkades ditt CV",
+    "overallConfident": "Vi kunde läsa ditt CV och dela upp det i tydliga avsnitt. Granska gärna att allt stämmer.",
+    "overallDegraded": "Vi kunde läsa ditt CV men en del avsnitt blev ofullständiga. Du kan komplettera dem i nästa steg.",
+    "overallFailed": "Vi kunde inte läsa någon användbar text ur filen. Du kan fylla i uppgifterna för hand i stället.",
+    "manualReviewNote": "Några avsnitt behöver kompletteras innan ditt CV är klart. Det gör du i nästa steg."
+  },
+  "review": {
+    "title": "Granskning",
+    "unavailable": "Granskningen kunde inte laddas just nu. Tolkningen av ditt CV ovan påverkas inte. Försök ladda om sidan om en stund.",
+    "summary": "{assessedCount} av {totalCount} kriterier bedöms. Kriterier som inte kan bedömas räknas ärligt som ej bedömda och drar aldrig ner granskningen.",
+    "rubric": "Rubrik {version}",
+    "todoTitle": "Att åtgärda ({count})",
+    "todoEmpty": "Inget kräver åtgärd just nu.",
+    "unassessedSummary": "Ej bedömt ({count})",
+    "counts": {
+      "pass": "Godkänt",
+      "warn": "Delvis",
+      "fail": "Underkänt",
+      "notAssessed": "Ej bedömt"
+    }
+  },
+  "improve": {
+    "title": "Förbättringsförslag",
+    "unavailable": "Förslagen kunde inte laddas just nu. Tolkningen av ditt CV och granskningen påverkas inte. Försök ladda om sidan om en stund.",
+    "empty": "Inga förbättringsförslag för den här profilen. Granskningen visar vad som redan bedömts.",
+    "count": "{count, plural, one {# förslag} other {# förslag}}",
+    "rubricVersion": "Rubrik {version}",
+    "clicheVersion": "Klyschor {version}",
+    "verbVersion": "Verb {version}"
+  },
+  "proposedChange": {
+    "current": "Nuvarande",
+    "suggestion": "Förslag",
+    "operation": "Föreslagen ändring: {kind} på",
+    "sourcePrefix": "Källa: {value}",
+    "sourceKnowledgeBankFallback": "Källa: kunskapsbank",
+    "sourceStructuralRule": "Källa: strukturell regel ({transform})",
+    "sourceStructuralRuleFallback": "Källa: strukturell regel"
+  },
+  "occupations": {
+    "title": "Möjliga yrkesområden",
+    "lede": "Förslag på yrkesområde utifrån ditt CV. Du bekräftar yrke i ett senare steg."
+  },
+  "profileToggle": {
+    "groupLabel": "Välj granskningsprofil",
+    "ats": "ATS-profil",
+    "visual": "Visuell profil"
+  },
+  "preview": {
+    "trigger": "Förhandsgranska",
+    "title": "Förhandsgranskning av CV",
+    "close": "Stäng",
+    "profileGroupLabel": "Välj profil för förhandsgranskning",
+    "ats": "ATS-profil",
+    "visual": "Visuell profil",
+    "loadingLabel": "CV:t läses in…",
+    "loadingText": "CV:t läses in…",
+    "iframeTitleAts": "Förhandsgranskning av CV (ATS-profil)",
+    "iframeTitleVisual": "Förhandsgranskning av CV (Visuell profil)",
+    "openInNewTab": "Öppna i ny flik",
+    "rateLimited": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
+    "notFound": "Förhandsgranskningen kunde inte hittas. Gå tillbaka till granskningen och försök igen.",
+    "error": "Förhandsgranskningen kunde inte laddas. Försök igen om en stund eller gå tillbaka till granskningen."
+  },
+  "match": {
+    "triggerUpdate": "Uppdatera matchning",
+    "triggerCreate": "Skapa matchning från ditt CV",
+    "nudgeTitle": "Vill du uppdatera din matchning utifrån det här CV:t?",
+    "nudgeText": "Vi kan föreslå yrken utifrån ditt CV. Du väljer själv vad som tas med, och kan hoppa över det.",
+    "nudgeAction": "Ställ in matchning",
+    "nudgeDismiss": "Stäng"
+  },
+  "personnummer": {
+    "regionLabel": "Personnummer hittat i ditt CV",
+    "title": "Ta bort personnummer",
+    "body": "Vi hittade {count, plural, one {# förekomst} other {# förekomster}} av det som ser ut som personnummer. Personnummer behövs inte i ett CV. Ta bort det innan du sparar."
+  },
+  "contentForm": {
+    "personalInfoLabel": "Personuppgifter",
+    "personalInfoHeading": "Personuppgifter",
+    "fullNameLabel": "Fullständigt namn",
+    "emailLabel": "E-post",
+    "phoneLabel": "Telefon",
+    "locationLabel": "Ort",
+    "summaryHeading": "Sammanfattning",
+    "summaryLabel": "Sammanfattning",
+    "summaryHint": "En kort sammanfattning av din profil.",
+    "experienceLabel": "Erfarenhet",
+    "experienceHeading": "Erfarenhet",
+    "addExperience": "Lägg till erfarenhet",
+    "noExperience": "Ingen erfarenhet tillagd.",
+    "experienceLegend": "Erfarenhet {index}",
+    "companyLabel": "Företag",
+    "roleLabel": "Roll",
+    "startDateLabel": "Startdatum",
+    "endDateLabel": "Slutdatum (valfritt)",
+    "descriptionLabel": "Beskrivning",
+    "removeExperience": "Ta bort erfarenhet {index}",
+    "educationLabel": "Utbildning",
+    "educationHeading": "Utbildning",
+    "addEducation": "Lägg till utbildning",
+    "noEducation": "Ingen utbildning tillagd.",
+    "educationLegend": "Utbildning {index}",
+    "institutionLabel": "Lärosäte",
+    "degreeLabel": "Examen",
+    "removeEducation": "Ta bort utbildning {index}",
+    "skillsLabel": "Färdigheter",
+    "skillsHeading": "Färdigheter",
+    "addSkill": "Lägg till färdighet",
+    "noSkills": "Inga färdigheter tillagda.",
+    "skillLegend": "Färdighet {index}",
+    "skillNameLabel": "Namn",
+    "skillYearsLabel": "År (valfritt)",
+    "removeSkill": "Ta bort färdighet {index}",
+    "remove": "Ta bort",
+    "savePending": "Sparar...",
+    "save": "Spara CV",
+    "savedAt": "Sparat {time}.",
+    "invalidData": "Ogiltiga uppgifter."
+  },
+  "gapfillForm": {
+    "nameSectionLabel": "CV-namn",
+    "nameLabel": "Namn på CV",
+    "nameHint": "Ett internt namn så att du hittar rätt CV-variant.",
+    "personalInfoLabel": "Personuppgifter",
+    "personalInfoHeading": "Personuppgifter",
+    "fullNameLabel": "Fullständigt namn",
+    "emailLabel": "E-post",
+    "phoneLabel": "Telefon",
+    "locationLabel": "Ort",
+    "summaryHeading": "Sammanfattning",
+    "summaryLabel": "Sammanfattning",
+    "summaryHint": "En kort sammanfattning av din profil.",
+    "experienceLabel": "Erfarenhet",
+    "experienceHeading": "Erfarenhet",
+    "addExperience": "Lägg till erfarenhet",
+    "noExperience": "Ingen erfarenhet tillagd.",
+    "experienceLegend": "Erfarenhet {index}",
+    "companyLabel": "Företag",
+    "roleLabel": "Roll",
+    "periodGroupLabel": "Period",
+    "startDateLabel": "Startdatum",
+    "endDateLabel": "Slutdatum (valfritt)",
+    "periodHint": "Tolkad period: {period}",
+    "descriptionLabel": "Beskrivning",
+    "removeExperience": "Ta bort erfarenhet {index}",
+    "educationLabel": "Utbildning",
+    "educationHeading": "Utbildning",
+    "addEducation": "Lägg till utbildning",
+    "noEducation": "Ingen utbildning tillagd.",
+    "educationLegend": "Utbildning {index}",
+    "institutionLabel": "Lärosäte",
+    "degreeLabel": "Examen",
+    "removeEducation": "Ta bort utbildning {index}",
+    "skillsLabel": "Färdigheter",
+    "skillsHeading": "Färdigheter",
+    "addSkill": "Lägg till färdighet",
+    "noSkills": "Inga färdigheter tillagda.",
+    "skillLegend": "Färdighet {index}",
+    "skillNameLabel": "Namn",
+    "skillYearsLabel": "År (valfritt)",
+    "removeSkill": "Ta bort färdighet {index}",
+    "remove": "Ta bort",
+    "savePending": "Sparar…",
+    "save": "Spara CV",
+    "cancel": "Avbryt",
+    "sourceFile": "Källfil:",
+    "invalidData": "Ogiltiga uppgifter."
+  },
+  "actions": {
+    "notLoggedIn": "Du är inte inloggad.",
+    "invalidData": "Ogiltiga uppgifter.",
+    "invalidResumeId": "Ogiltigt CV-ID.",
+    "invalidId": "Ogiltigt ID.",
+    "serverUnreachable": "Kunde inte nå servern. Försök igen.",
+    "createFailed": "Kunde inte skapa CV:t.",
+    "renameFailed": "Kunde inte byta namn.",
+    "saveFailed": "Kunde inte spara CV:t.",
+    "deleteFailed": "Kunde inte radera CV:t.",
+    "deleteVersionFailed": "Kunde inte radera versionen."
+  },
+  "enums": {
+    "verdict": {
+      "Pass": "Godkänt",
+      "Warn": "Delvis",
+      "Fail": "Underkänt",
+      "NotAssessed": "Ej bedömt"
+    },
+    "band": {
+      "NotReady": "Ej redo",
+      "NeedsRework": "Behöver omarbetning",
+      "Competitive": "Konkurrenskraftigt",
+      "TopTier": "Toppskikt"
+    },
+    "category": {
+      "Content": "Innehåll",
+      "Structure": "Struktur",
+      "Language": "Språk",
+      "AtsParsability": "ATS-läsbarhet",
+      "VisualQuality": "Visuell kvalitet"
+    },
+    "overall": {
+      "Confident": "Tolkningen ser pålitlig ut",
+      "Degraded": "Tolkningen är ofullständig",
+      "Failed": "Ingen text kunde läsas"
+    },
+    "sectionLevel": {
+      "Confident": "Hittad",
+      "Degraded": "Delvis",
+      "NotFound": "Hittades inte"
+    },
+    "sectionKind": {
+      "Contact": "Kontakt",
+      "Profile": "Profil",
+      "Experience": "Erfarenhet",
+      "Education": "Utbildning",
+      "Skills": "Kompetenser",
+      "Languages": "Språk"
+    },
+    "proposedChangeKind": {
+      "ClicheReplacement": "Ersätt klyscha",
+      "WeakVerbUpgrade": "Starkare verb",
+      "DateNormalization": "Normalisera datum",
+      "SectionReorder": "Ändra sektionsordning",
+      "HeadingNormalization": "Normalisera rubrik",
+      "PersonnummerStrip": "Ta bort personnummer",
+      "PhotoStrip": "Ta bort foto",
+      "GpaStrip": "Ta bort betyg",
+      "AtsSanitization": "ATS-sanering"
+    },
+    "structuralTransform": {
+      "ReformatDate": "Normalisera datum",
+      "NormalizeHeadingCase": "Normalisera rubrik",
+      "RemovePersonnummer": "Ta bort personnummer",
+      "RemovePhotoReference": "Ta bort foto",
+      "RemoveGpa": "Ta bort betyg",
+      "StripNonStandardChars": "Ta bort icke-standardtecken",
+      "ReorderSection": "Ändra sektionsordning"
+    },
+    "changeKindPill": {
+      "replacement": "Omformulering",
+      "structural": "Struktur"
+    }
+  }
+}

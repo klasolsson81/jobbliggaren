@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
@@ -60,6 +61,11 @@ export function OversiktPage({
   resumes,
   landingStats,
 }: OversiktPageProps) {
+  // Synchronous next-intl translator — keeps OversiktPage a non-async RSC.
+  const t = useTranslations("oversikt");
+  // Scoped translator for the relative-time helper (`formatDaysAgo`), which is
+  // a pure helper and receives `t` as a param.
+  const tRelativeTime = useTranslations("oversikt.relativeTime");
   const today = new Date();
   // Klas svans-PR2 Variant A: datum-suffix på notice-IDs så dismissad notis
   // återkommer när data ändras (nästa dag = ny render av "143 nya annonser").
@@ -93,21 +99,26 @@ export function OversiktPage({
   const actionNotices: NoticeData[] = [];
 
   if (latestOffer) {
-    const offerCompany = latestOffer.jobAd?.company ?? "ett företag";
+    const offerCompany =
+      latestOffer.jobAd?.company ?? t("notices.fallbackCompany");
     const offerTitle = latestOffer.jobAd?.title;
     actionNotices.push({
       id: `n-offer-${dateSlug}`,
       kind: "success",
-      label: "Erbjudande",
-      text: (
-        <>
-          <b>{offerCompany}</b>
-          {offerTitle ? `: ${offerTitle}` : ""}. Erbjudande väntar svar.
-        </>
-      ),
-      cta: "Granska erbjudande",
+      label: t("notices.offerLabel"),
+      text: offerTitle
+        ? t.rich("notices.offerTextWithTitle", {
+            company: offerCompany,
+            title: offerTitle,
+            b: (chunks) => <b>{chunks}</b>,
+          })
+        : t.rich("notices.offerText", {
+            company: offerCompany,
+            b: (chunks) => <b>{chunks}</b>,
+          }),
+      cta: t("notices.offerCta"),
       href: "/ansokningar",
-      time: formatDaysAgo(latestOffer.updatedAt, today),
+      time: formatDaysAgo(tRelativeTime, latestOffer.updatedAt, today),
     });
   }
 
@@ -115,17 +126,15 @@ export function OversiktPage({
     actionNotices.push({
       id: `n-followup-${dateSlug}`,
       kind: "warning",
-      label: "Uppföljning",
-      text: (
-        <>
-          Du har <b>{followUps.length} ansökningar</b> som inte fått svar på
-          över 14 dagar. Överväg att höra av dig.
-        </>
-      ),
-      cta: "Visa ansökningar",
+      label: t("notices.followUpLabel"),
+      text: t.rich("notices.followUpText", {
+        count: followUps.length,
+        b: (chunks) => <b>{chunks}</b>,
+      }),
+      cta: t("notices.followUpCta"),
       href: "/ansokningar",
       // MOCK: BE-port saknas för "när-noteringen-räknades-ut"-tidsstämpel
-      time: "i dag",
+      time: t("notices.timeToday"),
     });
   }
 
@@ -143,17 +152,16 @@ export function OversiktPage({
     actionNotices.push({
       id: `n-deadline-${dateSlug}`,
       kind: "warning",
-      label: "Deadline",
-      text: (
-        <>
-          <b>{futureDeadlines.length} sparade annonser</b> har sista
-          ansökningsdag denna vecka ({labels}).
-        </>
-      ),
-      cta: "Visa sparade",
+      label: t("notices.deadlineLabel"),
+      text: t.rich("notices.deadlineText", {
+        count: futureDeadlines.length,
+        labels,
+        b: (chunks) => <b>{chunks}</b>,
+      }),
+      cta: t("notices.deadlineCta"),
       href: "/sparade",
       // MOCK: BE-port saknas för faktisk deadline-stämpel
-      time: "denna vecka",
+      time: t("notices.timeThisWeek"),
     });
   }
 
@@ -175,9 +183,11 @@ export function OversiktPage({
       id: "n-setup-match",
       kind: "info",
       dismissible: false,
-      label: "Matchning",
-      text: "Du har inte angett vilka yrken du söker inom. Ställ in det för att se hur väl annonser matchar din profil.",
-      cta: "Ställ in matchning",
+      label: t("notices.matchLabel"),
+      // Verbatim SPOT med jobads.ui.match.noStatedOccupation/settingsCta —
+      // samma copy som /jobb-disclosuren och match-sektionen (ingen drift).
+      text: t("notices.setupText"),
+      cta: t("notices.setupCta"),
       href: "/installningar#matchning",
       time: "",
     });
@@ -185,37 +195,35 @@ export function OversiktPage({
     infoNotices.push({
       id: `n-match-${dateSlug}`,
       kind: "info",
-      label: "Matchning",
-      text: (
-        <>
-          Det finns <b>{OVERSIKT_MOCK.matchCountThisWeek} nya annonser</b> som
-          matchar din profil sedan i tisdags, de flesta inom{" "}
-          <em>{OVERSIKT_MOCK.matchSegmentLabel}</em>.
-        </>
-      ),
-      cta: "Visa annonser",
+      label: t("notices.matchLabel"),
+      text: t.rich("notices.matchText", {
+        count: OVERSIKT_MOCK.matchCountThisWeek,
+        segment: OVERSIKT_MOCK.matchSegmentLabel,
+        b: (chunks) => <b>{chunks}</b>,
+        em: (chunks) => <em>{chunks}</em>,
+      }),
+      cta: t("notices.matchCta"),
       href: "/jobb",
       // MOCK: BE-port saknas för matchning-uppdaterings-stämpel
-      time: "i dag",
+      time: t("notices.timeToday"),
     });
   }
 
   if (recentInterviews.length > 0) {
     const interview = recentInterviews[0]!;
     const interviewCompany =
-      interview.jobAd?.company ?? "en arbetsgivare";
+      interview.jobAd?.company ?? t("notices.fallbackEmployer");
     infoNotices.push({
       id: `n-interview-confirmed-${dateSlug}`,
       kind: "brand",
-      label: "Intervju",
-      text: (
-        <>
-          <b>{interviewCompany}</b> har bekräftat intervjutid.
-        </>
-      ),
-      cta: "Öppna ärende",
+      label: t("notices.interviewLabel"),
+      text: t.rich("notices.interviewText", {
+        company: interviewCompany,
+        b: (chunks) => <b>{chunks}</b>,
+      }),
+      cta: t("notices.interviewCta"),
       href: "/ansokningar",
-      time: formatDaysAgo(interview.updatedAt, today),
+      time: formatDaysAgo(tRelativeTime, interview.updatedAt, today),
     });
   }
 
@@ -228,18 +236,16 @@ export function OversiktPage({
     infoNotices.push({
       id: `n-saved-search-${dateSlug}`,
       kind: "info",
-      label: "Sparad sökning",
-      text: (
-        <>
-          <b>{OVERSIKT_MOCK.savedSearchHitsLast.name}</b> har{" "}
-          <b>{OVERSIKT_MOCK.savedSearchHitsLast.newHits} nya träffar</b> sedan
-          din senaste körning.
-        </>
-      ),
-      cta: "Kör sökning",
+      label: t("notices.savedSearchLabel"),
+      text: t.rich("notices.savedSearchText", {
+        name: OVERSIKT_MOCK.savedSearchHitsLast.name,
+        count: OVERSIKT_MOCK.savedSearchHitsLast.newHits,
+        b: (chunks) => <b>{chunks}</b>,
+      }),
+      cta: t("notices.savedSearchCta"),
       href: "/sokningar",
       // MOCK: BE-port saknas för sökning-körnings-stämpel
-      time: "i går",
+      time: t("notices.timeYesterday"),
     });
   }
 
@@ -289,12 +295,10 @@ export function OversiktPage({
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
             <div className="jp-pagehero__kicker">
-              Inloggad som {kickerName}
+              {t("hero.kicker", { name: kickerName })}
             </div>
-            <h1 className="jp-pagehero__title">Översikt</h1>
-            <p className="jp-pagehero__lede">
-              Senaste händelser och status för dina ansökningar.
-            </p>
+            <h1 className="jp-pagehero__title">{t("hero.title")}</h1>
+            <p className="jp-pagehero__lede">{t("hero.lede")}</p>
           </div>
           <div className="jp-pagehero__aside">
             <TodayCard
@@ -324,10 +328,13 @@ export function OversiktPage({
               className="jp-section__title"
               id="oversikt-sammanfattning"
             >
-              Sammanfattning
+              {t("summary.title")}
             </h2>
             <span className="jp-section__count">
-              registrerat per <span className="jp-mono">{stampDate}</span>
+              {t.rich("summary.stamp", {
+                date: stampDate,
+                mono: (chunks) => <span className="jp-mono">{chunks}</span>,
+              })}
             </span>
           </div>
 

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +24,7 @@ const DEFAULT_VALUES: WaitlistFormInput = {
 type FieldKey = keyof WaitlistFormInput;
 
 export function WaitlistForm() {
+  const t = useTranslations("landing");
   const [state, setState] = useState<WaitlistActionState>({ status: "idle" });
   const [isPending, startTransition] = useTransition();
 
@@ -48,7 +50,7 @@ export function WaitlistForm() {
       }
       setState({
         status: "error",
-        error: "Kontrollera fälten och försök igen.",
+        error: t("waitlist.form.checkFields"),
         fieldErrors,
       });
       return;
@@ -77,12 +79,13 @@ export function WaitlistForm() {
         className="flex flex-col gap-3 rounded-lg border border-border bg-surface-secondary p-6"
       >
         <p className="text-body font-medium text-text-primary">
-          Tack för din anmälan.
+          {t("waitlist.form.successTitle")}
         </p>
         <p className="text-body text-text-secondary">
-          Vi har sparat <span className="font-medium">{state.email}</span> på
-          väntelistan. Vi hör av oss när vi har kapacitet att släppa in fler
-          användare. Du behöver inte göra något mer just nu.
+          {t.rich("waitlist.form.successBody", {
+            email: state.email,
+            mail: (chunks) => <span className="font-medium">{chunks}</span>,
+          })}
         </p>
       </div>
     );
@@ -112,7 +115,7 @@ export function WaitlistForm() {
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="name" className="text-label font-medium text-text-primary">
-          Namn
+          {t("waitlist.form.nameLabel")}
         </Label>
         <Input
           id="name"
@@ -120,8 +123,8 @@ export function WaitlistForm() {
           autoComplete="name"
           maxLength={100}
           {...register("name", {
-            required: "Namn krävs.",
-            maxLength: { value: 100, message: "Namn får vara max 100 tecken." },
+            required: t("waitlist.form.nameRequired"),
+            maxLength: { value: 100, message: t("waitlist.form.nameMax") },
           })}
           {...fieldA11y("name")}
         />
@@ -130,7 +133,7 @@ export function WaitlistForm() {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email" className="text-label font-medium text-text-primary">
-          E-postadress
+          {t("waitlist.form.emailLabel")}
         </Label>
         <Input
           id="email"
@@ -138,8 +141,8 @@ export function WaitlistForm() {
           autoComplete="email"
           maxLength={254}
           {...register("email", {
-            required: "E-postadress krävs.",
-            maxLength: { value: 254, message: "E-postadress får vara max 254 tecken." },
+            required: t("waitlist.form.emailRequired"),
+            maxLength: { value: 254, message: t("waitlist.form.emailMax") },
           })}
           {...fieldA11y("email")}
         />
@@ -148,16 +151,16 @@ export function WaitlistForm() {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="motivation" className="text-label font-medium text-text-primary">
-          Varför vill du använda Jobbliggaren?
+          {t("waitlist.form.motivationLabel")}
         </Label>
         <Textarea
           id="motivation"
           rows={5}
           maxLength={1000}
           {...register("motivation", {
-            required: "Motivering krävs.",
-            minLength: { value: 10, message: "Motiveringen ska vara minst 10 tecken." },
-            maxLength: { value: 1000, message: "Motiveringen får vara max 1000 tecken." },
+            required: t("waitlist.form.motivationRequired"),
+            minLength: { value: 10, message: t("waitlist.form.motivationMin") },
+            maxLength: { value: 1000, message: t("waitlist.form.motivationMax") },
           })}
           {...fieldA11y("motivation")}
           aria-describedby={
@@ -167,7 +170,7 @@ export function WaitlistForm() {
           }
         />
         <p id="motivation-hint" className="text-body-sm text-text-secondary">
-          Skriv kort om hur du tänker använda tjänsten. 10–1000 tecken.
+          {t("waitlist.form.motivationHint")}
         </p>
         {renderFieldError("motivation")}
       </div>
@@ -180,10 +183,7 @@ export function WaitlistForm() {
             className="mt-1 size-4 rounded-sm border-border accent-brand-600"
             {...register("marketingEmailAccepted")}
           />
-          <span>
-            Jag vill få e-post med information om hur Jobbliggaren utvecklas
-            (valfritt).
-          </span>
+          <span>{t("waitlist.form.marketingConsent")}</span>
         </label>
       </div>
 
@@ -199,25 +199,30 @@ export function WaitlistForm() {
         aria-busy={isPending}
         className="w-full"
       >
-        {isPending ? "Skickar anmälan…" : "Anmäl till väntelista"}
+        {isPending
+          ? t("waitlist.form.submitting")
+          : t("waitlist.form.submit")}
       </Button>
 
       <p className="text-body-sm text-text-secondary">
-        Genom att skicka in godkänner du Jobbliggarens{" "}
-        <Link
-          href="/villkor"
-          className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
-        >
-          användarvillkor
-        </Link>{" "}
-        och att vi använder{" "}
-        <Link
-          href="/cookies"
-          className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
-        >
-          nödvändiga cookies
-        </Link>{" "}
-        för att hantera din anmälan.
+        {t.rich("waitlist.form.terms", {
+          termsLink: (chunks) => (
+            <Link
+              href="/villkor"
+              className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
+            >
+              {chunks}
+            </Link>
+          ),
+          cookiesLink: (chunks) => (
+            <Link
+              href="/cookies"
+              className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     </form>
   );

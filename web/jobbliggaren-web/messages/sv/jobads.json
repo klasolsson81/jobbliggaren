@@ -1,0 +1,232 @@
+{
+  "saved": {
+    "emptyTitle": "Inga sparade annonser",
+    "emptyBody": "Hitta en annons under Jobb och välj <i>Spara</i> i annonsdetaljen. Den sparas här.",
+    "listLabel": "Sparade annonser",
+    "removed": "Annonsen är borttagen",
+    "saved": "Sparad",
+    "published": "Publicerad",
+    "lastApplication": "Sista ansökan",
+    "removeBookmark": "Ta bort bokmärke",
+    "openAd": "Öppna {title}",
+    "openExternal": "Öppna annonsen på externa webbplatsen",
+    "removeBookmarkFor": "Ta bort bokmärke för {title}",
+    "toggle": {
+      "saved": "Sparad",
+      "save": "Spara",
+      "removeAria": "Ta bort bokmärke för annonsen",
+      "saveAria": "Spara annonsen som bokmärke"
+    },
+    "chip": {
+      "label": "Sparade annonser",
+      "empty": "Inga sparade annonser än. Öppna en annons och välj Spara i modalen.",
+      "footer": "Visa alla sparade annonser"
+    }
+  },
+  "recent": {
+    "emptyTitle": "Inga senaste sökningar",
+    "emptyBody": "Gör en sökning under Jobb. Den sparas här automatiskt.",
+    "listLabel": "Senaste sökningar",
+    "hitsWithNew": "<b>{currentCount}</b> träffar, varav <b>{newCount}</b> nya",
+    "hits": "<b>{currentCount}</b> träffar",
+    "runAgain": "Kör igen",
+    "removeSearch": "Ta bort sökning {label}",
+    "chip": {
+      "label": "Senaste sökningar",
+      "empty": "Inga senaste sökningar än. Sök under Jobb så sparas de här.",
+      "footer": "Visa alla senaste sökningar",
+      "countWithNew": "({currentCount}, {newCount} nya)",
+      "count": "({currentCount})"
+    }
+  },
+  "actions": {
+    "notLoggedIn": "Du är inte inloggad.",
+    "recentSearchNotFound": "Sökningen kunde inte hittas. Den kan ha tagits bort redan.",
+    "recentSearchDeleteFailed": "Kunde inte ta bort sökningen. Försök igen.",
+    "savedJobAdNotFound": "Annonsen kunde inte hittas. Den kan ha tagits bort.",
+    "savedJobAdSaveFailed": "Kunde inte spara annonsen. Försök igen.",
+    "savedJobAdRemoveFailed": "Kunde inte ta bort bokmärket. Försök igen."
+  },
+  "enums": {
+    "status": {
+      "Active": "Aktiv",
+      "Expired": "Utgången",
+      "Archived": "Arkiverad"
+    },
+    "source": {
+      "Manual": "Egen",
+      "Platsbanken": "Platsbanken",
+      "LinkedIn": "LinkedIn",
+      "Eures": "EURES"
+    },
+    "sort": {
+      "PublishedAtDesc": "Nyast först",
+      "PublishedAtAsc": "Äldst först",
+      "ExpiresAtDesc": "Stänger senare",
+      "ExpiresAtAsc": "Stänger snart",
+      "Relevance": "Mest relevant",
+      "MatchDesc": "Sortera efter matchning"
+    }
+  },
+  "ui": {
+    "card": {
+      "ariaLabel": "{title} – {company}",
+      "published": "Publicerad",
+      "publishedToday": "idag, kl. {time}",
+      "publishedYesterday": "igår, kl. {time}",
+      "publishedOlder": "{date}, kl. {time}",
+      "lastApplication": "Sista ansökan"
+    },
+    "tags": {
+      "new": "Ny",
+      "saved": "Sparad",
+      "applied": "Ansökt"
+    },
+    "list": {
+      "ariaLabel": "Jobbannonser",
+      "emptyTitle": "Inga jobb hittades",
+      "emptyBody": "Justera filtren eller töm sökrutan för att se fler annonser."
+    },
+    "skeleton": {
+      "searching": "Söker bland annonser…"
+    },
+    "detail": {
+      "published": "Publicerad",
+      "lastApplicationDay": "Sista ansökningsdag",
+      "adId": "Annons-ID",
+      "description": "Annonsbeskrivning",
+      "openAd": "Öppna annonsen",
+      "appliedNotice": "Du har markerat denna annons som ansökt. Se i",
+      "appliedNoticeLink": "Mina ansökningar"
+    },
+    "match": {
+      "heading": "Matchning mot din profil",
+      "settingsCta": "Ställ in matchning",
+      "uploadCvCta": "Ladda upp CV",
+      "noStatedOccupation": "Du har inte angett vilka yrken du söker inom. Ställ in det för att se hur väl annonser matchar din profil.",
+      "uploadCvFoot": "Ladda upp ett CV för att matcha på kompetenser och krav. Det krävs för Stark match och Toppmatch.",
+      "youHave": "Du har: {items}",
+      "alsoRequested": "Annonsen efterfrågar även: {items}",
+      "ort": {
+        "matchedMunicipalities": "Kommun som matchar: {items}",
+        "matchedRegions": "Län som matchar: {items}",
+        "missingMunicipalities": "Annonsens kommun: {items}",
+        "missingRegions": "Annonsens län: {items}"
+      },
+      "grade": {
+        "Top": "Toppmatch",
+        "Strong": "Stark match",
+        "Good": "Bra match",
+        "Basic": "Grundmatch"
+      },
+      "verdict": {
+        "Match": "Matchar",
+        "Partial": "Delvis",
+        "NoMatch": "Saknas",
+        "NotAssessed": "Ej bedömt",
+        "Vacuous": "Inga angivna"
+      },
+      "dimension": {
+        "ssykOverlap": "Yrke",
+        "titleSimilarity": "Titel",
+        "regionFit": "Region",
+        "employmentFit": "Anställningsform",
+        "skillOverlap": "Kompetenser",
+        "mustHaveCoverage": "Ska-krav",
+        "niceToHaveCoverage": "Meriterande"
+      },
+      "notAssessedReason": {
+        "ssykOverlap": "Du har inte angett vilka yrken du söker inom.",
+        "titleSimilarity": "Titel jämförs inte mot din profil ännu.",
+        "regionFit": "Du har inte angett någon region.",
+        "employmentFit": "Du har inte angett någon anställningsform.",
+        "skills": "Inga kompetenser kunde läsas ur ditt CV. Ladda upp ett CV under Profil.",
+        "default": "Den här delen kunde inte bedömas."
+      },
+      "mustHaveSummary": {
+        "Match": "Du uppfyller alla ska-krav i annonsen.",
+        "Partial": "Du uppfyller några av annonsens ska-krav.",
+        "NoMatch": "Du uppfyller inte annonsens ska-krav.",
+        "Vacuous": "Annonsen anger inga särskilda ska-krav."
+      }
+    },
+    "pagination": {
+      "navLabel": "Paginering",
+      "previous": "Föregående",
+      "next": "Nästa",
+      "pagePrefix": "Sida ",
+      "summary": "Sida {page} av {totalPages} ({totalCount} träffar totalt)"
+    },
+    "modalShell": {
+      "close": "Stäng"
+    },
+    "toolbar": {
+      "noHits": "Inga träffar",
+      "hits": "{count, plural, one {träff} other {träffar}}",
+      "activeFiltersLabel": "Aktiva sökord och filter",
+      "removeSearchTerm": "Ta bort sökordet {label}",
+      "removeFilter": "Ta bort filter {label}",
+      "clearAll": "Rensa sökord och filter",
+      "sortLabel": "Sortera",
+      "sortRelevance": "Relevans",
+      "sortPublishedDesc": "Datum (nyast)",
+      "sortExpiresAsc": "Ansökningsdatum (sista ansökan)",
+      "matchSortDisclosure": "Matchningssortering kräver att du anger vilka yrken du söker inom. Listan visas med nyaste först tills du ställt in det.",
+      "matchSortDisclosureLink": "Ställ in matchning",
+      "unknownCode": "Okänd kod ({code})"
+    },
+    "results": {
+      "rateLimitedTitle": "För många förfrågningar",
+      "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
+      "errorTitle": "Kunde inte ladda jobbannonser",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund."
+    },
+    "heroSearch": {
+      "fieldLabel": "Sök efter yrke, arbetsgivare eller ort",
+      "clearField": "Rensa sökfältet",
+      "submit": "Sök",
+      "limitNotice": "Söktexten är full (max {max} tecken). Ta bort en tagg för att lägga till fler ord.",
+      "help": "Ord blir taggar i filterraden vid träffarna när du skriver mellanslag eller komma. Välj förslag med piltangenterna och Tab.",
+      "announceAdded": "Lade till {label}",
+      "announceRemoved": "Tog bort {label}",
+      "announceCleared": "Rensade sökfältet"
+    },
+    "heroFilters": {
+      "ort": "Ort",
+      "yrke": "Yrke",
+      "filter": "Filter",
+      "showResults": "Visa {count, plural, one {{formattedCount} annons} other {{formattedCount} annonser}}",
+      "showResultsEmpty": "Visa annonser",
+      "ortLeftTitle": "Län",
+      "ortRightTitle": "Kommuner",
+      "ortSelectAll": "Hela {label}",
+      "ortEmpty": "Län kunde inte laddas just nu. Du kan söka på sökord ändå.",
+      "ortRightEmpty": "Välj ett län till vänster.",
+      "yrkeLeftTitle": "Yrkesområde",
+      "yrkeRightTitle": "Yrkesgrupper",
+      "yrkeSelectAll": "Välj alla yrkesgrupper",
+      "yrkeEmpty": "Yrkesområden kunde inte laddas just nu. Du kan söka på sökord ändå.",
+      "yrkeRightEmpty": "Välj ett yrkesområde till vänster.",
+      "klass2Empty": "Filter kunde inte laddas just nu. Du kan söka på sökord ändå."
+    },
+    "typeahead": {
+      "loading": "Hämtar förslag…",
+      "suggestionCount": "{count} förslag",
+      "rateLimited": "För många sökningar på kort tid. Förslagen pausas en stund. Du kan fortsätta skriva och söka ändå.",
+      "listLabel": "Sökförslag"
+    },
+    "popover": {
+      "clear": "Rensa"
+    },
+    "klass2": {
+      "dialogLabel": "Filter",
+      "worktimeAll": "Alla",
+      "worktimeHeading": "Omfattning",
+      "employmentHeading": "Anställningsform",
+      "clear": "Rensa"
+    },
+    "heroChip": {
+      "showAll": "Visa alla"
+    }
+  }
+}

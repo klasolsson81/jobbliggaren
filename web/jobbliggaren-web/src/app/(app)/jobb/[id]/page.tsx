@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
@@ -27,6 +28,7 @@ export default async function JobbDetailPage({ params }: PageProps) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const { id } = await params;
   const result = await getJobAd(id);
 
@@ -89,11 +91,12 @@ export default async function JobbDetailPage({ params }: PageProps) {
             className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
           >
             <p className="text-body font-medium text-warning-700">
-              För många förfrågningar
+              {t("common.rateLimitedTitle")}
             </p>
             <p className="mt-1 text-body-sm text-warning-700">
-              Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-              {result.retryAfterSeconds} sekunder.
+              {t("common.rateLimitedBody", {
+                seconds: result.retryAfterSeconds,
+              })}
             </p>
           </div>
         </div>
@@ -103,10 +106,10 @@ export default async function JobbDetailPage({ params }: PageProps) {
       return (
         <div className="jp-container jp-page">
           <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
-            <p className="text-body font-medium">Kunde inte ladda annonsen</p>
-            <p className="mt-1 text-body-sm">
-              Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
+            <p className="text-body font-medium">
+              {t("jobb.detail.loadErrorTitle")}
             </p>
+            <p className="mt-1 text-body-sm">{t("common.errorBodyReload")}</p>
           </div>
         </div>
       );

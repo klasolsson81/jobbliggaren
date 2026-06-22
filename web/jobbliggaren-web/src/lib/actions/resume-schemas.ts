@@ -1,158 +1,191 @@
 import { z } from "zod";
+import type { useTranslations } from "next-intl";
+
+// next-intl translator scoped to the `validation` namespace (see
+// `application-schemas.ts` for the shared rationale). Callers build the schema
+// via the `make*`-factories; Swedish messages live in
+// `messages/sv/validation.json`.
+export type ValidationTranslator = ReturnType<typeof useTranslations<"validation">>;
 
 const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-const dateString = z
-  .string()
-  .regex(DATE_REGEX, "Ogiltigt datum (yyyy-MM-dd).");
+const makeDateString = (t: ValidationTranslator) =>
+  z.string().regex(DATE_REGEX, t("resume.dateInvalid"));
 
-const optionalDateString = z
-  .string()
-  .regex(DATE_REGEX, "Ogiltigt datum (yyyy-MM-dd).")
-  .nullish()
-  .transform((v) => (v && v.length > 0 ? v : null));
-
-export const createResumeSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Namn krävs.")
-    .max(200, "Namn får vara max 200 tecken."),
-  fullName: z
-    .string()
-    .trim()
-    .min(1, "Fullständigt namn krävs.")
-    .max(200, "Fullständigt namn får vara max 200 tecken."),
-});
-
-export const renameResumeSchema = z.object({
-  resumeId: z.string().regex(GUID_REGEX, "Ogiltigt CV-ID."),
-  name: z
-    .string()
-    .trim()
-    .min(1, "Namn krävs.")
-    .max(200, "Namn får vara max 200 tecken."),
-});
-
-const optionalNullableString = (max: number, label: string) =>
+const makeOptionalDateString = (t: ValidationTranslator) =>
   z
     .string()
-    .trim()
-    .max(max, `${label} får vara max ${max} tecken.`)
+    .regex(DATE_REGEX, t("resume.dateInvalid"))
     .nullish()
     .transform((v) => (v && v.length > 0 ? v : null));
 
-const personalInfoSchema = z.object({
-  fullName: z
+// `message` is a pre-resolved, localized string (e.g. `t("resume.phoneMax")`).
+// We deliberately do NOT take a `label` arg and interpolate it into a shared
+// template: the field noun must be localized too, so each call site passes a
+// per-field message key (mirrors `resume.summaryMax`). A shared template with a
+// hardcoded Swedish label leaked "Telefonnummer ..." into the English catalog.
+const makeOptionalNullableString = (max: number, message: string) =>
+  z
     .string()
     .trim()
-    .min(1, "Fullständigt namn krävs.")
-    .max(200, "Fullständigt namn får vara max 200 tecken."),
-  email: z
-    .string()
-    .trim()
+    .max(max, message)
     .nullish()
-    .transform((v) => (v && v.length > 0 ? v : null))
-    .pipe(
-      z
-        .union([z.email("Ogiltig e-postadress."), z.null()])
-    ),
-  phone: optionalNullableString(50, "Telefonnummer"),
-  location: optionalNullableString(200, "Ort"),
-});
+    .transform((v) => (v && v.length > 0 ? v : null));
 
-const experienceSchema = z
-  .object({
-    company: z
+const makePersonalInfoSchema = (t: ValidationTranslator) =>
+  z.object({
+    fullName: z
       .string()
       .trim()
-      .min(1, "Företag krävs.")
-      .max(200, "Företag får vara max 200 tecken."),
-    role: z
+      .min(1, t("resume.fullNameRequired"))
+      .max(200, t("resume.fullNameMax")),
+    email: z
       .string()
       .trim()
-      .min(1, "Roll krävs.")
-      .max(200, "Roll får vara max 200 tecken."),
-    startDate: dateString,
-    endDate: optionalDateString,
-    description: optionalNullableString(2000, "Beskrivning"),
-  })
-  .refine(
-    (e) => !e.endDate || e.endDate >= e.startDate,
-    { message: "Slutdatum kan inte vara före startdatum.", path: ["endDate"] }
-  );
+      .nullish()
+      .transform((v) => (v && v.length > 0 ? v : null))
+      .pipe(z.union([z.email(t("resume.emailInvalid")), z.null()])),
+    phone: makeOptionalNullableString(50, t("resume.phoneMax")),
+    location: makeOptionalNullableString(200, t("resume.locationMax")),
+  });
 
-const educationSchema = z
-  .object({
-    institution: z
+const makeExperienceSchema = (t: ValidationTranslator) =>
+  z
+    .object({
+      company: z
+        .string()
+        .trim()
+        .min(1, t("resume.companyRequired"))
+        .max(200, t("resume.companyMax")),
+      role: z
+        .string()
+        .trim()
+        .min(1, t("resume.roleRequired"))
+        .max(200, t("resume.roleMax")),
+      startDate: makeDateString(t),
+      endDate: makeOptionalDateString(t),
+      description: makeOptionalNullableString(2000, t("resume.descriptionMax")),
+    })
+    .refine((e) => !e.endDate || e.endDate >= e.startDate, {
+      message: t("resume.endBeforeStart"),
+      path: ["endDate"],
+    });
+
+const makeEducationSchema = (t: ValidationTranslator) =>
+  z
+    .object({
+      institution: z
+        .string()
+        .trim()
+        .min(1, t("resume.institutionRequired"))
+        .max(200, t("resume.institutionMax")),
+      degree: z
+        .string()
+        .trim()
+        .min(1, t("resume.degreeRequired"))
+        .max(200, t("resume.degreeMax")),
+      startDate: makeDateString(t),
+      endDate: makeOptionalDateString(t),
+    })
+    .refine((e) => !e.endDate || e.endDate >= e.startDate, {
+      message: t("resume.endBeforeStart"),
+      path: ["endDate"],
+    });
+
+const makeSkillSchema = (t: ValidationTranslator) =>
+  z.object({
+    name: z
       .string()
       .trim()
-      .min(1, "Lärosäte krävs.")
-      .max(200, "Lärosäte får vara max 200 tecken."),
-    degree: z
+      .min(1, t("resume.skillNameRequired"))
+      .max(100, t("resume.skillNameMax")),
+    yearsExperience: z
+      .number()
+      .int(t("resume.yearsInteger"))
+      .min(0, t("resume.yearsNegative"))
+      .max(70, t("resume.yearsMax"))
+      .nullable()
+      .optional()
+      .transform((v) => (v === undefined ? null : v)),
+  });
+
+export function makeCreateResumeSchema(t: ValidationTranslator) {
+  return z.object({
+    name: z
       .string()
       .trim()
-      .min(1, "Examen krävs.")
-      .max(200, "Examen får vara max 200 tecken."),
-    startDate: dateString,
-    endDate: optionalDateString,
-  })
-  .refine(
-    (e) => !e.endDate || e.endDate >= e.startDate,
-    { message: "Slutdatum kan inte vara före startdatum.", path: ["endDate"] }
-  );
+      .min(1, t("resume.nameRequired"))
+      .max(200, t("resume.nameMax")),
+    fullName: z
+      .string()
+      .trim()
+      .min(1, t("resume.fullNameRequired"))
+      .max(200, t("resume.fullNameMax")),
+  });
+}
 
-const skillSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Färdighet krävs.")
-    .max(100, "Färdighet får vara max 100 tecken."),
-  yearsExperience: z
-    .number()
-    .int("Ange antal år som heltal.")
-    .min(0, "År kan inte vara negativt.")
-    .max(70, "Maxvärde för år är 70.")
-    .nullable()
-    .optional()
-    .transform((v) => (v === undefined ? null : v)),
-});
+export function makeRenameResumeSchema(t: ValidationTranslator) {
+  return z.object({
+    resumeId: z.string().regex(GUID_REGEX, t("resume.resumeIdInvalid")),
+    name: z
+      .string()
+      .trim()
+      .min(1, t("resume.nameRequired"))
+      .max(200, t("resume.nameMax")),
+  });
+}
 
-export const resumeContentSchema = z.object({
-  personalInfo: personalInfoSchema,
-  experiences: z.array(experienceSchema),
-  educations: z.array(educationSchema),
-  skills: z.array(skillSchema),
-  summary: z
-    .string()
-    .max(2000, "Sammanfattning får vara max 2 000 tecken.")
-    .nullish()
-    .transform((v) => (v && v.length > 0 ? v : null)),
-});
+export function makeResumeContentSchema(t: ValidationTranslator) {
+  return z.object({
+    personalInfo: makePersonalInfoSchema(t),
+    experiences: z.array(makeExperienceSchema(t)),
+    educations: z.array(makeEducationSchema(t)),
+    skills: z.array(makeSkillSchema(t)),
+    summary: z
+      .string()
+      .max(2000, t("resume.summaryMax"))
+      .nullish()
+      .transform((v) => (v && v.length > 0 ? v : null)),
+  });
+}
 
-export const updateMasterContentSchema = z.object({
-  resumeId: z.string().regex(GUID_REGEX, "Ogiltigt CV-ID."),
-  content: resumeContentSchema,
-});
+export function makeUpdateMasterContentSchema(t: ValidationTranslator) {
+  return z.object({
+    resumeId: z.string().regex(GUID_REGEX, t("resume.resumeIdInvalid")),
+    content: makeResumeContentSchema(t),
+  });
+}
 
 // Befordra en tolkad CV-stagingartefakt (F4-8 / STEG A) till en kanonisk Resume
 // (Fas 4 STEG B / F2). `content` återbrukar resumeContentSchema — exakt paritet
 // med domänens stränga Resume.ValidateContent (företag/roll/lärosäte/examen krävs,
 // strukturerade datum yyyy-MM-dd, slut >= start, färdighet 0–70 år). `name` är
 // CV-variantens interna namn (skilt från PersonalInfo.FullName).
-export const promoteParsedResumeSchema = z.object({
-  parsedResumeId: z.string().regex(GUID_REGEX, "Ogiltigt CV-ID."),
-  name: z
-    .string()
-    .trim()
-    .min(1, "Namn på CV krävs.")
-    .max(200, "Namn får vara max 200 tecken."),
-  content: resumeContentSchema,
-});
+export function makePromoteParsedResumeSchema(t: ValidationTranslator) {
+  return z.object({
+    parsedResumeId: z.string().regex(GUID_REGEX, t("resume.resumeIdInvalid")),
+    name: z
+      .string()
+      .trim()
+      .min(1, t("resume.cvNameRequired"))
+      .max(200, t("resume.nameMax")),
+    content: makeResumeContentSchema(t),
+  });
+}
 
-export type CreateResumeInput = z.infer<typeof createResumeSchema>;
-export type RenameResumeInput = z.infer<typeof renameResumeSchema>;
-export type ResumeContentInput = z.infer<typeof resumeContentSchema>;
-export type UpdateMasterContentInput = z.infer<typeof updateMasterContentSchema>;
-export type PromoteParsedResumeInput = z.infer<typeof promoteParsedResumeSchema>;
+export type CreateResumeInput = z.infer<
+  ReturnType<typeof makeCreateResumeSchema>
+>;
+export type RenameResumeInput = z.infer<
+  ReturnType<typeof makeRenameResumeSchema>
+>;
+export type ResumeContentInput = z.infer<
+  ReturnType<typeof makeResumeContentSchema>
+>;
+export type UpdateMasterContentInput = z.infer<
+  ReturnType<typeof makeUpdateMasterContentSchema>
+>;
+export type PromoteParsedResumeInput = z.infer<
+  ReturnType<typeof makePromoteParsedResumeSchema>
+>;

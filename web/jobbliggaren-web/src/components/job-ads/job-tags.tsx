@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useLastSeenJobs } from "./use-last-seen-jobs";
 
 /**
@@ -59,6 +60,7 @@ export function JobTags({
   isSaved = false,
   isApplied = false,
 }: JobTagsProps) {
+  const t = useTranslations("jobads.ui");
   const lastSeen = useLastSeenJobs();
 
   const renderNew = showNew && publishedAtMs > lastSeen;
@@ -71,7 +73,7 @@ export function JobTags({
     <span className="jp-job-tags">
       {renderNew && (
         <span className="jp-tag jp-tag--accent" data-tag="new">
-          Ny
+          {t("tags.new")}
         </span>
       )}
       {freshnessLabel && (
@@ -81,12 +83,12 @@ export function JobTags({
       )}
       {isSaved && (
         <span className="jp-tag jp-tag--neutral" data-tag="saved">
-          Sparad
+          {t("tags.saved")}
         </span>
       )}
       {isApplied && (
         <span className="jp-tag jp-tag--neutral" data-tag="applied">
-          Ansökt
+          {t("tags.applied")}
         </span>
       )}
     </span>

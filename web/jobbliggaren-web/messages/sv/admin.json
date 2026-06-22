@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "title": "Granskning"
+  },
+  "nav": {
+    "label": "Admin-navigation",
+    "granskning": "Granskning",
+    "logout": "Logga ut"
+  },
+  "audit": {
+    "heading": "Granskning",
+    "lede": "Granskningslogg över alla skrivande operationer. Senaste posten först.",
+    "errors": {
+      "forbidden": {
+        "title": "Saknar behörighet",
+        "body": "Din session saknar Admin-rollen. Kontakta systemansvarig om du behöver åtkomst."
+      },
+      "unauthorized": {
+        "title": "Inte inloggad",
+        "body": "Logga in och försök igen."
+      },
+      "notFound": {
+        "title": "Kunde inte ladda granskningsloggen",
+        "body": "Försök igen om en stund. Kontakta drift om felet kvarstår."
+      },
+      "rateLimited": {
+        "title": "För många förfrågningar",
+        "body": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder."
+      },
+      "error": {
+        "title": "Kunde inte ladda granskningsloggen",
+        "body": "Försök igen om en stund. Kontakta drift om felet kvarstår."
+      }
+    },
+    "filter": {
+      "formLabel": "Filtrera granskningsloggen",
+      "from": "Från",
+      "to": "Till",
+      "eventType": "Händelse",
+      "eventTypeHint": "Format: Aggregat.Händelse, t.ex. Application.Created",
+      "aggregateType": "Aggregat",
+      "aggregateTypeHint": "Aggregatnamn, t.ex. Application",
+      "userId": "Användar-ID",
+      "userIdHint": "Anges som UUID",
+      "apply": "Använd filter",
+      "clear": "Rensa"
+    },
+    "table": {
+      "ariaLabel": "Granskningsposter",
+      "caption": "Granskningsposter sorterade efter tidpunkt, senaste först.",
+      "occurredAt": "Tidpunkt",
+      "user": "Användare",
+      "eventType": "Händelse",
+      "aggregate": "Aggregat",
+      "ipAddress": "IP",
+      "client": "Klient",
+      "systemUser": "system",
+      "empty": {
+        "title": "Inga poster matchar filtret",
+        "body": "Justera filterkriterierna eller rensa för att visa hela loggen."
+      }
+    },
+    "pagination": {
+      "navLabel": "Sidnavigering",
+      "summary": "Sida {page} av {totalPages} · {totalCount, plural, one {# post totalt} other {# poster totalt}}",
+      "previous": "← Föregående",
+      "next": "Nästa →"
+    }
+  }
+}

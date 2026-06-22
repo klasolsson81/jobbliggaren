@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { SummaryRow } from "./summary-row";
 import type { ApplicationCounts } from "@/lib/oversikt/aggregations";
 
@@ -41,82 +42,103 @@ export function Summary({
   searchStartDate,
   searchStartDaysSince,
 }: SummaryProps) {
+  const t = useTranslations("oversikt");
+  const dash = t("summary.valueDash");
   return (
     <div className="jp-summary">
       <div className="jp-summary__group">
-        <div className="jp-summary__group__title">Ansökningar</div>
+        <div className="jp-summary__group__title">
+          {t("summary.groupApplications")}
+        </div>
         <SummaryRow
-          label="Aktiva ansökningar"
+          label={t("summary.rowActive")}
           value={counts.active}
           href="/ansokningar"
         />
-        <SummaryRow label="Utkast" value={counts.drafts} href="/ansokningar" />
         <SummaryRow
-          label="Intervjuer bokade"
+          label={t("summary.rowDrafts")}
+          value={counts.drafts}
+          href="/ansokningar"
+        />
+        <SummaryRow
+          label={t("summary.rowInterviews")}
           value={counts.interviews}
           highlight
           href="/ansokningar"
         />
         <SummaryRow
-          label="Erbjudanden"
+          label={t("summary.rowOffers")}
           value={counts.offers}
           highlight
           href="/ansokningar"
         />
-        <SummaryRow label="Avslag" value={counts.rejected} />
+        <SummaryRow label={t("summary.rowRejected")} value={counts.rejected} />
         <SummaryRow
-          label="Inget svar"
+          label={t("summary.rowGhosted")}
           value={counts.ghosted}
-          hint="över 30 dagar"
+          hint={t("summary.hintGhosted")}
         />
       </div>
 
       <div className="jp-summary__group">
-        <div className="jp-summary__group__title">Bevakning</div>
+        <div className="jp-summary__group__title">
+          {t("summary.groupWatch")}
+        </div>
         <SummaryRow
-          label="Sparade annonser"
+          label={t("summary.rowSavedJobs")}
           value={savedJobsCount}
           href="/sparade"
         />
         <SummaryRow
-          label="Sparade sökningar"
+          label={t("summary.rowSavedSearches")}
           value={recentSearchesCount}
           href="/sokningar"
         />
         <SummaryRow
-          label="Nya matchningar i dag"
+          label={t("summary.rowNewMatchesToday")}
           value={matchCountToday}
-          hint="profil"
+          hint={t("summary.hintProfile")}
           href="/jobb"
         />
         <SummaryRow
-          label="Aktiva annonser totalt"
+          label={t("summary.rowActiveJobAdsTotal")}
           value={
-            activeJobAdsTotal != null ? formatThousands(activeJobAdsTotal) : "–"
+            activeJobAdsTotal != null
+              ? formatThousands(activeJobAdsTotal)
+              : dash
           }
         />
         <SummaryRow
-          label="Senaste sökning"
-          value={lastSearchName ?? "–"}
+          label={t("summary.rowLastSearch")}
+          value={lastSearchName ?? dash}
           href={lastSearchName ? "/sokningar" : undefined}
         />
       </div>
 
       <div className="jp-summary__group">
-        <div className="jp-summary__group__title">Underlag</div>
-        <SummaryRow label="CV-varianter" value={cvCount} href="/cv" />
-        <SummaryRow label="Personliga brev" value={personalLettersCount} />
+        <div className="jp-summary__group__title">
+          {t("summary.groupMaterial")}
+        </div>
         <SummaryRow
-          label="Senast uppdaterat CV"
-          value={lastUpdatedCvDate ?? "–"}
+          label={t("summary.rowResumeVariants")}
+          value={cvCount}
+          href="/cv"
+        />
+        <SummaryRow
+          label={t("summary.rowCoverLetters")}
+          value={personalLettersCount}
+        />
+        <SummaryRow
+          label={t("summary.rowLatestResume")}
+          value={lastUpdatedCvDate ?? dash}
           href={lastUpdatedCvDate ? "/cv" : undefined}
         />
         <SummaryRow
-          label="Aktiv sedan"
-          value={searchStartDate ?? "–"}
+          label={t("summary.rowActiveSince")}
+          value={searchStartDate ?? dash}
           hint={
             searchStartDaysSince != null
-              ? `${searchStartDaysSince} dagar`
+              ? t("summary.hintDays", { count: searchStartDaysSince })
               : undefined
           }
         />

@@ -6,6 +6,7 @@
 // en dialog-öppna-affordans. Inget av detta går i en Server Component.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
@@ -51,18 +52,6 @@ interface MatchPreferencesCardProps {
   readonly degraded: boolean;
 }
 
-const FACET_LABEL: Record<Facet, string> = {
-  occupations: "Yrken",
-  orter: "Orter",
-  employment: "Anställningsformer",
-};
-
-const FACET_EMPTY: Record<Facet, string> = {
-  occupations: "Alla yrken (inget valt)",
-  orter: "Hela landet (ingen ort vald)",
-  employment: "Alla anställningsformer (inget valt)",
-};
-
 /** CV-importflödets route (verifierad on-disk: app/(app)/cv/importera). */
 const IMPORT_CV_HREF = "/cv/importera";
 
@@ -76,6 +65,18 @@ export function MatchPreferencesCard({
   initialEmploymentTypes,
   degraded,
 }: MatchPreferencesCardProps) {
+  const t = useTranslations("settings");
+  // Facet-rubriker och tom-state-texter per dimension (svenska via katalogen).
+  const facetLabel: Record<Facet, string> = {
+    occupations: t("matchPrefs.facetOccupations"),
+    orter: t("matchPrefs.facetOrter"),
+    employment: t("matchPrefs.facetEmployment"),
+  };
+  const facetEmpty: Record<Facet, string> = {
+    occupations: t("matchPrefs.emptyOccupations"),
+    orter: t("matchPrefs.emptyOrter"),
+    employment: t("matchPrefs.emptyEmployment"),
+  };
   const occupationOptions = useMemo(
     () => flattenOccupationGroups(occupationFields),
     [occupationFields]
@@ -231,10 +232,9 @@ export function MatchPreferencesCard({
   if (degraded) {
     return (
       <section className="jp-card" id="matchning">
-        <h2 className="jp-card__title">Matchning</h2>
+        <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
         <p className="text-body-sm text-text-secondary">
-          Dina matchningsval kunde inte läsas in just nu. Försök ladda om sidan
-          om en stund.
+          {t("matchPrefs.degraded")}
         </p>
       </section>
     );
@@ -252,12 +252,8 @@ export function MatchPreferencesCard({
 
   return (
     <section className="jp-card jp-matchprefs" id="matchning">
-      <h2 className="jp-card__title">Matchning</h2>
-      <p className="text-body-sm text-text-secondary">
-        Ange vilka yrken, orter och anställningsformer du söker. Vi använder
-        det för att visa hur väl varje annons matchar din profil. Alla fält är
-        frivilliga.
-      </p>
+      <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
+      <p className="text-body-sm text-text-secondary">{t("matchPrefs.intro")}</p>
 
       <div className="jp-matchprefs__facets mt-5">
         {(["occupations", "orter", "employment"] as const).map((facet) => {
@@ -274,11 +270,11 @@ export function MatchPreferencesCard({
                 id={headId}
                 className="jp-popover__title jp-matchprefs__facethead"
               >
-                {FACET_LABEL[facet]}
+                {facetLabel[facet]}
               </p>
               {chips.length === 0 ? (
                 <p className="jp-matchprefs__empty text-body-sm text-text-secondary">
-                  {FACET_EMPTY[facet]}
+                  {facetEmpty[facet]}
                 </p>
               ) : (
                 <ul className="jp-chiplist">
@@ -316,14 +312,14 @@ export function MatchPreferencesCard({
           aria-haspopup="dialog"
           onClick={() => setDialogOpen(true)}
         >
-          Lägg till
+          {t("matchPrefs.add")}
         </Button>
         {/* Ömsesidigt uteslutande live-regioner: fel = assertiv alert (cause +
             action), annars artig status-kvittens "Sparat HH:mm". Aldrig en
             alert nästlad i en status-region (inkonsekvent SR-annonsering). */}
         {saveError ? (
           <p role="alert" className="text-body-sm text-danger-600">
-            Ändringen kunde inte sparas. Försök igen.
+            {t("matchPrefs.saveError")}
           </p>
         ) : (
           <p
@@ -332,10 +328,12 @@ export function MatchPreferencesCard({
             className="text-body-sm text-text-secondary"
           >
             {!isSaving && savedAt
-              ? `Sparat ${savedAt.toLocaleTimeString("sv-SE", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}`
+              ? t("matchPrefs.savedAt", {
+                  time: savedAt.toLocaleTimeString("sv-SE", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                })
               : ""}
           </p>
         )}

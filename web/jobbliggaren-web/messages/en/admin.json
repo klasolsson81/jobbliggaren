@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "title": "Audit log"
+  },
+  "nav": {
+    "label": "Admin navigation",
+    "granskning": "Audit log",
+    "logout": "Log out"
+  },
+  "audit": {
+    "heading": "Audit log",
+    "lede": "Audit log of all write operations. Most recent entry first.",
+    "errors": {
+      "forbidden": {
+        "title": "Missing permission",
+        "body": "Your session does not have the Admin role. Contact the system administrator if you need access."
+      },
+      "unauthorized": {
+        "title": "Not signed in",
+        "body": "Sign in and try again."
+      },
+      "notFound": {
+        "title": "Could not load the audit log",
+        "body": "Try again in a moment. Contact operations if the problem persists."
+      },
+      "rateLimited": {
+        "title": "Too many requests",
+        "body": "You have made too many requests in a short time. Try again in {seconds} seconds."
+      },
+      "error": {
+        "title": "Could not load the audit log",
+        "body": "Try again in a moment. Contact operations if the problem persists."
+      }
+    },
+    "filter": {
+      "formLabel": "Filter the audit log",
+      "from": "From",
+      "to": "To",
+      "eventType": "Event",
+      "eventTypeHint": "Format: Aggregate.Event, for example Application.Created",
+      "aggregateType": "Aggregate",
+      "aggregateTypeHint": "Aggregate name, for example Application",
+      "userId": "User ID",
+      "userIdHint": "Given as a UUID",
+      "apply": "Apply filter",
+      "clear": "Clear"
+    },
+    "table": {
+      "ariaLabel": "Audit entries",
+      "caption": "Audit entries sorted by time, most recent first.",
+      "occurredAt": "Time",
+      "user": "User",
+      "eventType": "Event",
+      "aggregate": "Aggregate",
+      "ipAddress": "IP",
+      "client": "Client",
+      "systemUser": "system",
+      "empty": {
+        "title": "No entries match the filter",
+        "body": "Adjust the filter criteria or clear them to show the whole log."
+      }
+    },
+    "pagination": {
+      "navLabel": "Page navigation",
+      "summary": "Page {page} of {totalPages} · {totalCount, plural, one {# entry total} other {# entries total}}",
+      "previous": "← Previous",
+      "next": "Next →"
+    }
+  }
+}

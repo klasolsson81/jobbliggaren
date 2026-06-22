@@ -1,4 +1,5 @@
 import { Calendar } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { formatSwedishLongDate } from "@/lib/oversikt/aggregations";
 import type { OversiktTodayEvent } from "@/lib/oversikt/mock-data";
 
@@ -23,12 +24,13 @@ export function TodayCard({
   googleSynced,
   syncedAt,
 }: TodayCardProps) {
+  const t = useTranslations("oversikt");
   const { day, weekday, monthYear } = formatSwedishLongDate(today);
 
   return (
     <div className="jp-oversikt__today">
       <div className="jp-oversikt__today__head">
-        <div className="jp-oversikt__today__kicker">I dag</div>
+        <div className="jp-oversikt__today__kicker">{t("today.kicker")}</div>
         <div className="jp-oversikt__today__date">
           <span className="jp-oversikt__today__day">{day}</span>
           <span className="jp-oversikt__today__rest">
@@ -39,7 +41,7 @@ export function TodayCard({
       </div>
 
       {events.length === 0 ? (
-        <div className="jp-oversikt__today__empty">Inget planerat i dag.</div>
+        <div className="jp-oversikt__today__empty">{t("today.empty")}</div>
       ) : (
         <ul className="jp-oversikt__today__list">
           {events.map((ev) => (
@@ -61,8 +63,8 @@ export function TodayCard({
         <Calendar size={12} aria-hidden="true" />
         <span>
           {googleSynced
-            ? `Synkad med Google Calendar · ${syncedAt ?? ""}`
-            : "Google Calendar inte synkad. Visar endast Jobbliggaren-händelser."}
+            ? t("today.footSynced", { syncedAt: syncedAt ?? "" })
+            : t("today.footNotSynced")}
         </span>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 
 // Suspense fallback for the guest-tree @modal/(.)ansokningar/[id] (logo Fas 2,
@@ -6,5 +7,7 @@ import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 // guest data is a synchronous mock (findGuestApplication) → barely suspends, so
 // the fallback rarely shows here; the authenticated route is the truly known-slow one.
 export default function Loading() {
-  return <ModalLoadingShell statusText="Ansökan läses in…" />;
+  // Synchronous next-intl translator — keeps this a non-async RSC.
+  const t = useTranslations("guest");
+  return <ModalLoadingShell statusText={t("modal.applicationLoading")} />;
 }

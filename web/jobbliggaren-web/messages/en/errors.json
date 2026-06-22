@@ -1,0 +1,7 @@
+{
+  "notLoggedIn": "You are not logged in.",
+  "forbidden": "You do not have permission for this action.",
+  "notFound": "The resource was not found.",
+  "stateConflict": "The resource is in an invalid state. Reload the page and try again.",
+  "tooManyAttempts": "Too many attempts. Wait a moment and try again."
+}

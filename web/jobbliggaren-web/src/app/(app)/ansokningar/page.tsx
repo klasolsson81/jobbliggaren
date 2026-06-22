@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { Plus, Search } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
@@ -13,6 +14,7 @@ export default async function AnsokningarPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const result = await getPipeline();
   switch (result.kind) {
     case "ok":
@@ -23,10 +25,11 @@ export default async function AnsokningarPage() {
       return (
         <div className="jp-container jp-page">
           <div className="jp-page__title-block">
-            <h1 className="jp-page__title">För många förfrågningar</h1>
+            <h1 className="jp-page__title">{t("common.rateLimitedTitle")}</h1>
             <p className="jp-page__lede">
-              Du har gjort för många förfrågningar på kort tid. Försök igen
-              om {result.retryAfterSeconds} sekunder.
+              {t("common.rateLimitedBody", {
+                seconds: result.retryAfterSeconds,
+              })}
             </p>
           </div>
         </div>
@@ -37,10 +40,10 @@ export default async function AnsokningarPage() {
       return (
         <div className="jp-container jp-page">
           <div className="jp-page__title-block">
-            <h1 className="jp-page__title">Kunde inte ladda ansökningar</h1>
-            <p className="jp-page__lede">
-              Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.
-            </p>
+            <h1 className="jp-page__title">
+              {t("ansokningar.loadErrorTitle")}
+            </h1>
+            <p className="jp-page__lede">{t("common.errorBodyReload")}</p>
           </div>
         </div>
       );
@@ -71,10 +74,8 @@ export default async function AnsokningarPage() {
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <h1 className="jp-pagehero__title">Mina ansökningar</h1>
-            <p className="jp-pagehero__lede">
-              Pipeline över alla ansökningar. Klicka på en rad för detaljer.
-            </p>
+            <h1 className="jp-pagehero__title">{t("ansokningar.title")}</h1>
+            <p className="jp-pagehero__lede">{t("ansokningar.lede")}</p>
           </div>
           <div className="jp-pagehero__aside">
             {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
@@ -82,7 +83,7 @@ export default async function AnsokningarPage() {
                 primary = vit; ghost-på-gradient läste som grön). En-primary
                 bibehållen: vit knapp i plattan vs grön i empty-kortet. */}
             <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
-              <Plus size={16} aria-hidden="true" /> Ny ansökan
+              <Plus size={16} aria-hidden="true" /> {t("ansokningar.newApplication")}
             </Link>
           </div>
         </div>
@@ -91,18 +92,15 @@ export default async function AnsokningarPage() {
       <div className="jp-container jp-page">
         {total === 0 ? (
           <div className="jp-empty">
-            <div className="jp-empty__kicker">Pipeline</div>
-            <div className="jp-empty__title">Inga ansökningar ännu</div>
-            <p className="jp-empty__body">
-              Så fort du registrerar din första ansökan hamnar den här.
-              Spåra status från utkast till svar utan att tappa en enda ansökan.
-            </p>
+            <div className="jp-empty__kicker">{t("ansokningar.emptyKicker")}</div>
+            <div className="jp-empty__title">{t("ansokningar.emptyTitle")}</div>
+            <p className="jp-empty__body">{t("ansokningar.emptyBody")}</p>
             <div className="jp-empty__actions">
               <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
-                <Plus size={14} aria-hidden="true" /> Skapa första ansökan
+                <Plus size={14} aria-hidden="true" /> {t("ansokningar.emptyCreateFirst")}
               </Link>
               <Link href="/jobb" className="jp-btn jp-btn--ghost">
-                <Search size={14} aria-hidden="true" /> Sök annonser först
+                <Search size={14} aria-hidden="true" /> {t("ansokningar.emptySearchFirst")}
               </Link>
             </div>
           </div>

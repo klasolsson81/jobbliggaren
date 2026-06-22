@@ -10,11 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTranslations } from "next-intl";
 import {
   recordFollowUpOutcomeAction,
   type ActionResult,
 } from "@/lib/actions/applications";
-import { FOLLOW_UP_OUTCOME_LABELS } from "@/lib/applications/status";
+import { followUpOutcomeLabel } from "@/lib/applications/status";
 import type { FollowUpOutcome } from "@/lib/types/applications";
 
 interface RecordFollowUpOutcomeFormProps {
@@ -39,6 +40,8 @@ export function RecordFollowUpOutcomeForm({
   onSuccess,
   onCancel,
 }: RecordFollowUpOutcomeFormProps) {
+  const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const action = recordFollowUpOutcomeAction.bind(
     null,
     applicationId,
@@ -62,7 +65,7 @@ export function RecordFollowUpOutcomeForm({
   const hasError = state ? !state.success : false;
 
   const outcomeLabel = outcome
-    ? FOLLOW_UP_OUTCOME_LABELS[outcome as FollowUpOutcome]
+    ? followUpOutcomeLabel(t, outcome as FollowUpOutcome)
     : "";
 
   return (
@@ -74,13 +77,12 @@ export function RecordFollowUpOutcomeForm({
         id={noticeId}
         className="text-body-sm text-text-secondary"
       >
-        Utfallet kan inte ändras när det har sparats. Kontrollera att det
-        stämmer innan du sparar.
+        {tUi("recordOutcome.notice")}
       </p>
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={selectId} className="text-body-sm">
-          Utfall
+          {tUi("recordOutcome.outcomeLabel")}
         </Label>
         <Select
           name="outcome"
@@ -100,11 +102,11 @@ export function RecordFollowUpOutcomeForm({
               hasError ? `${noticeId} ${errorId}` : noticeId
             }
           >
-            <SelectValue placeholder="Välj utfall" />
+            <SelectValue placeholder={tUi("recordOutcome.outcomePlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Responded">Svar mottaget</SelectItem>
-            <SelectItem value="NoResponse">Inget svar</SelectItem>
+            <SelectItem value="Responded">{tUi("recordOutcome.optionResponded")}</SelectItem>
+            <SelectItem value="NoResponse">{tUi("recordOutcome.optionNoResponse")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -118,7 +120,7 @@ export function RecordFollowUpOutcomeForm({
             disabled={isPending || outcome === ""}
             onClick={() => setConfirming(true)}
           >
-            Spara utfall
+            {tUi("recordOutcome.save")}
           </Button>
           {onCancel && (
             <Button
@@ -128,16 +130,17 @@ export function RecordFollowUpOutcomeForm({
               disabled={isPending}
               onClick={onCancel}
             >
-              Avbryt
+              {tUi("common.cancel")}
             </Button>
           )}
         </div>
       ) : (
         <div className="flex flex-col gap-2 rounded-md border border-border bg-surface-secondary px-3 py-3">
           <p className="text-body-sm text-text-primary">
-            Spara utfallet{" "}
-            <span className="font-medium">{outcomeLabel}</span>? Detta går
-            inte att ändra efteråt.
+            {tUi.rich("recordOutcome.confirmQuestion", {
+              outcome: outcomeLabel,
+              b: (chunks) => <span className="font-medium">{chunks}</span>,
+            })}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -146,7 +149,9 @@ export function RecordFollowUpOutcomeForm({
               variant="secondary"
               disabled={isPending}
             >
-              {isPending ? "Sparar…" : `Spara ${outcomeLabel}`}
+              {isPending
+                ? tUi("recordOutcome.savingOutcome")
+                : tUi("recordOutcome.saveOutcome", { outcome: outcomeLabel })}
             </Button>
             <Button
               type="button"
@@ -155,7 +160,7 @@ export function RecordFollowUpOutcomeForm({
               disabled={isPending}
               onClick={() => setConfirming(false)}
             >
-              Avbryt
+              {tUi("common.cancel")}
             </Button>
           </div>
         </div>

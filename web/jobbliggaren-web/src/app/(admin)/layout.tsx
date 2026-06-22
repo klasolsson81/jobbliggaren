@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ export default async function AdminLayout({
 }) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
+
+  const t = await getTranslations("admin");
 
   // Roll-check (CTO A1-beslut 2026-05-11): roller kommer färska per request
   // via SessionAuthenticationHandler → /api/v1/me. Non-Admin redirectas till
@@ -28,19 +31,19 @@ export default async function AdminLayout({
           >
             Jobbliggaren
           </Link>
-          <nav aria-label="Admin-navigation" className="flex items-center gap-1">
+          <nav aria-label={t("nav.label")} className="flex items-center gap-1">
             <Link
               href="/admin/granskning"
               className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
             >
-              Granskning
+              {t("nav.granskning")}
             </Link>
           </nav>
           <div className="flex items-center gap-4">
             <span className="text-body-sm text-text-secondary">{user.email}</span>
             <form action={logoutAction}>
               <Button type="submit" variant="ghost" size="sm">
-                Logga ut
+                {t("nav.logout")}
               </Button>
             </form>
           </div>

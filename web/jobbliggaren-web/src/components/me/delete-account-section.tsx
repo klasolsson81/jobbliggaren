@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 
 interface DeleteAccountSectionProps {
@@ -7,9 +8,11 @@ interface DeleteAccountSectionProps {
 /**
  * "Farligt område"-section för /mig — separator-pattern (banking/GitHub-mönster)
  * som signalerar gravitet utan att gömma funktionen. Modal-trigger är client
- * component; resten av sektionen är server-renderad text.
+ * component; resten av sektionen är server-renderad text. `useTranslations`
+ * resolverar synkront i en sync server component (next-intl v4).
  */
 export function DeleteAccountSection({ currentEmail }: DeleteAccountSectionProps) {
+  const t = useTranslations("settings");
   return (
     <section
       aria-labelledby="delete-account-heading"
@@ -19,11 +22,10 @@ export function DeleteAccountSection({ currentEmail }: DeleteAccountSectionProps
         id="delete-account-heading"
         className="text-h3 font-medium text-text-primary"
       >
-        Farligt område
+        {t("account.danger.title")}
       </h2>
       <p className="text-body text-text-secondary">
-        Du kan radera ditt konto permanent. Åtgärden går inte att ångra och
-        loggar ut dig från alla enheter.
+        {t("account.danger.description")}
       </p>
       <div>
         <DeleteAccountDialog currentEmail={currentEmail} />

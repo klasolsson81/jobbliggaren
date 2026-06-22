@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { AddFollowUpForm } from "./add-follow-up-form";
 import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
 import {
-  CHANNEL_LABELS,
-  FOLLOW_UP_OUTCOME_LABELS,
+  channelLabel,
+  followUpOutcomeLabel,
   formatSvDate,
 } from "@/lib/applications/status";
 import type { FollowUpDto } from "@/lib/types/applications";
@@ -47,6 +48,7 @@ export function FollowUpsSection({
   applicationId,
   followUps,
 }: FollowUpsSectionProps) {
+  const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -68,11 +70,11 @@ export function FollowUpsSection({
 
   return (
     <div>
-      <div style={SECTION_LABEL_STYLE}>Uppföljningar</div>
+      <div style={SECTION_LABEL_STYLE}>{tUi("followUps.sectionLabel")}</div>
 
       {sorted.length === 0 ? (
         <p className="text-body-sm text-text-secondary">
-          Inga uppföljningar registrerade.
+          {tUi("followUps.empty")}
         </p>
       ) : (
         <ul className="flex flex-col gap-2" role="list">
@@ -98,12 +100,12 @@ export function FollowUpsSection({
             className="jp-btn jp-btn--secondary"
             onClick={() => setAddOpen(true)}
           >
-            + Lägg till uppföljning
+            {tUi("followUps.add")}
           </button>
         ) : (
           <div className="jp-disclosure-body">
             <h3 className="mb-3 text-body font-medium text-text-primary">
-              Lägg till uppföljning
+              {tUi("followUps.addHeading")}
             </h3>
             <AddFollowUpForm
               applicationId={applicationId}
@@ -132,13 +134,14 @@ function FollowUpRow({
   onToggle,
   onClose,
 }: FollowUpRowProps) {
+  const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const recorded = followUp.outcome !== "Pending";
-  const channel = CHANNEL_LABELS[followUp.channel] ?? followUp.channel;
+  const channel = channelLabel(t, followUp.channel);
   const scheduledLabel =
     formatSvDate(followUp.scheduledAt) ??
     new Date(followUp.scheduledAt).toLocaleDateString("sv-SE");
-  const outcomeLabel =
-    FOLLOW_UP_OUTCOME_LABELS[followUp.outcome] ?? followUp.outcome;
+  const outcomeLabel = followUpOutcomeLabel(t, followUp.outcome);
   const outcomeAt = recorded && followUp.outcomeAt
     ? formatSvDate(followUp.outcomeAt)
     : null;
@@ -183,7 +186,7 @@ function FollowUpRow({
           {recorded ? (
             <dl className="flex flex-col gap-2 text-body-sm">
               <div className="flex gap-2">
-                <dt className="text-text-secondary">Utfall:</dt>
+                <dt className="text-text-secondary">{tUi("followUps.outcomeLabel")}</dt>
                 <dd className="text-text-primary">
                   {outcomeLabel}
                   {outcomeAt && (
@@ -195,7 +198,7 @@ function FollowUpRow({
               </div>
               {followUp.note && (
                 <div className="flex gap-2">
-                  <dt className="text-text-secondary">Anteckning:</dt>
+                  <dt className="text-text-secondary">{tUi("followUps.noteLabel")}</dt>
                   <dd className="text-text-primary whitespace-pre-line">
                     {followUp.note}
                   </dd>
@@ -206,7 +209,9 @@ function FollowUpRow({
             <>
               {followUp.note && (
                 <div className="mb-3 text-body-sm">
-                  <span className="text-text-secondary">Anteckning: </span>
+                  <span className="text-text-secondary">
+                    {tUi("followUps.noteLabel")}{" "}
+                  </span>
                   <span className="text-text-primary whitespace-pre-line">
                     {followUp.note}
                   </span>

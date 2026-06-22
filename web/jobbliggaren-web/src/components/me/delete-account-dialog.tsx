@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { deleteAccountAction } from "@/lib/actions/me";
 import {
-  deleteMyAccountSchema,
+  makeDeleteMyAccountSchema,
   type DeleteMyAccountInput,
 } from "@/lib/actions/me-schemas";
 
@@ -27,6 +28,9 @@ interface DeleteAccountDialogProps {
 const FORM_ERROR_ID = "delete-account-error";
 
 export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) {
+  const t = useTranslations("validation");
+  const ts = useTranslations("settings");
+  const schema = useMemo(() => makeDeleteMyAccountSchema(t), [t]);
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -61,9 +65,11 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
   }
 
   function onSubmit(values: DeleteMyAccountInput) {
-    const parsed = deleteMyAccountSchema.safeParse(values);
+    const parsed = schema.safeParse(values);
     if (!parsed.success) {
-      setServerError(parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter.");
+      setServerError(
+        parsed.error.issues[0]?.message ?? ts("account.delete.invalidInput")
+      );
       return;
     }
 
@@ -81,15 +87,14 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button type="button" variant="destructive">
-          Radera konto permanent
+          {ts("account.delete.trigger")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Radera konto permanent</DialogTitle>
+          <DialogTitle>{ts("account.delete.title")}</DialogTitle>
           <DialogDescription>
-            Den här åtgärden går inte att ångra. Ditt konto och all kopplad
-            data raderas. Du loggas ut direkt efter att raderingen slutförts.
+            {ts("account.delete.description")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -99,7 +104,7 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
         >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="delete-confirm-email">
-              Skriv din e-postadress för att bekräfta
+              {ts("account.delete.confirmEmailLabel")}
             </Label>
             <Input
               id="delete-confirm-email"
@@ -111,11 +116,13 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
               {...register("confirmEmail")}
             />
             <p className="text-body-sm text-text-secondary">
-              Förväntad: {currentEmail}
+              {ts("account.delete.expected", { email: currentEmail })}
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="delete-password">Lösenord</Label>
+            <Label htmlFor="delete-password">
+              {ts("account.delete.passwordLabel")}
+            </Label>
             <Input
               id="delete-password"
               type="password"
@@ -141,7 +148,7 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
               disabled={isPending}
               onClick={() => handleOpenChange(false)}
             >
-              Avbryt
+              {ts("account.delete.cancel")}
             </Button>
             <Button
               type="submit"
@@ -149,7 +156,7 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
               disabled={!canSubmit}
               aria-describedby={serverError ? FORM_ERROR_ID : undefined}
             >
-              {isPending ? "Raderar…" : "Radera mitt konto"}
+              {isPending ? ts("account.delete.deleting") : ts("account.delete.submit")}
             </Button>
           </DialogFooter>
         </form>

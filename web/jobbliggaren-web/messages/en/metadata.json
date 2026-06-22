@@ -1,0 +1,6 @@
+{
+  "titleDefault": "Jobbliggaren",
+  "titleTemplate": "%s | Jobbliggaren",
+  "description": "The Swedish job application manager",
+  "applicationName": "Jobbliggaren"
+}

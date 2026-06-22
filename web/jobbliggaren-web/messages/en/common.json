@@ -1,0 +1,60 @@
+{
+  "nav": {
+    "ariaLabel": "Main navigation",
+    "oversikt": "Overview",
+    "jobb": "Jobs",
+    "ansokningar": "My applications",
+    "cv": "CV",
+    "brandHome": "Jobbliggaren, start page"
+  },
+  "header": {
+    "statsAriaLabel": "Live count from Platsbanken",
+    "activeCount": "{count, plural, one {active job ad} other {active job ads}}",
+    "newToday": "new today",
+    "deltaAriaLabel": "{count} new since the last check",
+    "openMenu": "Open menu"
+  },
+  "notifications": {
+    "buttonAriaLabel": "Notifications",
+    "heading": "Notifications",
+    "empty": "No new notifications."
+  },
+  "userMenu": {
+    "ariaLabel": "User menu",
+    "installningar": "Settings",
+    "senasteSokningar": "Recent searches",
+    "sparadeAnnonser": "Saved job ads",
+    "minaCv": "My CVs",
+    "granskning": "Audit log",
+    "loggaUt": "Log out"
+  },
+  "drawer": {
+    "title": "Menu",
+    "navAriaLabel": "Menu",
+    "close": "Close",
+    "closeAriaLabel": "Close menu",
+    "installningar": "Settings",
+    "granskning": "Audit log"
+  },
+  "modal": {
+    "closeAriaLabel": "Close the dialog"
+  },
+  "dialog": {
+    "close": "Close"
+  },
+  "themeToggle": {
+    "toLight": "Switch to light mode",
+    "toDark": "Switch to dark mode",
+    "light": "Light mode",
+    "dark": "Dark mode"
+  },
+  "languageSwitcher": {
+    "label": "Language",
+    "sv": "Svenska",
+    "en": "English"
+  },
+  "dev": {
+    "note": "Developer tools, shown only locally and removed before launch.",
+    "resetButton": "Dev: reset my test data (removed before launch)"
+  }
+}

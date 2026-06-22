@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 
 // Suspense fallback for @modal/(.)jobb/[id] (logo Fas 2, ADR 0070). Next wraps
@@ -7,5 +8,6 @@ import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 // doctrine — jobbpilot-design-components skill). Modal loading is a known-slow
 // formless wait — the right place for BrandSpinner, not a skeleton.
 export default function Loading() {
-  return <ModalLoadingShell statusText="Jobbannonsen läses in…" />;
+  const t = useTranslations("pages");
+  return <ModalLoadingShell statusText={t("jobb.loading")} />;
 }

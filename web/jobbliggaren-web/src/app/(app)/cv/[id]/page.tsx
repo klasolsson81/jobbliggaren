@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getResumeById } from "@/lib/api/resumes";
@@ -35,6 +36,7 @@ export default async function CvDetailPage({ params }: Props) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
+  const t = await getTranslations("pages");
   const { id } = await params;
   const result = await getResumeById(id);
   switch (result.kind) {
@@ -47,14 +49,15 @@ export default async function CvDetailPage({ params }: Props) {
     case "rateLimited":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">För många förfrågningar</h1>
+          <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
-            Du har gjort för många förfrågningar på kort tid. Försök igen om{" "}
-            {result.retryAfterSeconds} sekunder.
+            {t("common.rateLimitedBody", {
+              seconds: result.retryAfterSeconds,
+            })}
           </p>
           <div>
             <Button asChild variant="outline">
-              <Link href="/cv">Tillbaka till CV</Link>
+              <Link href="/cv">{t("cv.backLink")}</Link>
             </Button>
           </div>
         </div>
@@ -63,14 +66,11 @@ export default async function CvDetailPage({ params }: Props) {
     case "error":
       return (
         <div className="flex flex-col gap-4">
-          <h1 className="jp-h1">Kunde inte ladda CV</h1>
-          <p className="jp-lede">
-            Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka
-            till CV-listan.
-          </p>
+          <h1 className="jp-h1">{t("cv.detail.loadErrorTitle")}</h1>
+          <p className="jp-lede">{t("cv.detail.errorBody")}</p>
           <div>
             <Button asChild variant="outline">
-              <Link href="/cv">Tillbaka till CV</Link>
+              <Link href="/cv">{t("cv.backLink")}</Link>
             </Button>
           </div>
         </div>
@@ -91,14 +91,14 @@ export default async function CvDetailPage({ params }: Props) {
         className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
       >
         <ChevronLeft size={16} aria-hidden="true" />
-        <span>Tillbaka till CV</span>
+        <span>{t("cv.backLink")}</span>
       </Link>
 
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex flex-col gap-2">
           <h1 className="jp-h1">{resume.name}</h1>
           <p className="jp-lede">
-            Senast uppdaterad{" "}
+            {t("cv.detail.updatedAt")}{" "}
             <span className="font-mono">{updatedAt}</span>
           </p>
         </div>

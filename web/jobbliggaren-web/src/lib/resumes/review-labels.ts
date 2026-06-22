@@ -10,12 +10,14 @@ import type {
 } from "@/lib/dto/parsed-resume";
 
 /**
- * Ren mappning av CV-granska-/parse-enumvärdena (som korsar wire som sina .NET-
- * namn) till svensk UI-copy + StatusPill-toner. Hårdkodad svenska (next-intl ej
- * aktiv, Klas-direktiv); civic ton (ingen emoji/utropstecken, "du"). Inga
- * trösklar/siffror — bara etiketter. En `?? fallback` håller renderingen robust
- * om backend någonsin skickar ett okänt värde (zod fail-loud:ar dock redan på de
- * låsta mängderna).
+ * Mappning av CV-granska-/parse-enumvärdena (som korsar wire som sina .NET-namn)
+ * till svensk UI-copy + StatusPill-toner. Etiketterna resolvas genom next-intl:
+ * samma `t`-anropssignatur fungerar i både klient (`useTranslations("resumes.enums")`)
+ * och server (`useTranslations` i en RSC) — anropare skaffar `t` scopat till
+ * `"resumes.enums"`-namespacet och skickar in det. De svenska värdena bor i
+ * `messages/sv/resumes.json` (källa, typad via AppConfig). Tonerna är ren UI-logik
+ * (inte översättningsbara) och stannar här. Civic ton (ingen emoji/utropstecken,
+ * "du"); inga trösklar/siffror, bara etiketter.
  */
 
 export interface LabelWithTone {
@@ -23,120 +25,112 @@ export interface LabelWithTone {
   readonly tone: PillTone;
 }
 
-const VERDICT: Record<CriterionVerdict, LabelWithTone> = {
-  Pass: { label: "Godkänt", tone: "success" },
-  Warn: { label: "Delvis", tone: "warning" },
-  Fail: { label: "Underkänt", tone: "danger" },
-  NotAssessed: { label: "Ej bedömt", tone: "neutral" },
+const VERDICT_TONE: Record<CriterionVerdict, PillTone> = {
+  Pass: "success",
+  Warn: "warning",
+  Fail: "danger",
+  NotAssessed: "neutral",
 };
 
-const BAND: Record<ScoreBandLabel, LabelWithTone> = {
-  NotReady: { label: "Ej redo", tone: "danger" },
-  NeedsRework: { label: "Behöver omarbetning", tone: "warning" },
-  Competitive: { label: "Konkurrenskraftigt", tone: "info" },
-  TopTier: { label: "Toppskikt", tone: "success" },
+const BAND_TONE: Record<ScoreBandLabel, PillTone> = {
+  NotReady: "danger",
+  NeedsRework: "warning",
+  Competitive: "info",
+  TopTier: "success",
 };
 
-const CATEGORY: Record<RubricCategory, string> = {
-  Content: "Innehåll",
-  Structure: "Struktur",
-  Language: "Språk",
-  AtsParsability: "ATS-läsbarhet",
-  VisualQuality: "Visuell kvalitet",
+const OVERALL_TONE: Record<OverallConfidenceLevel, PillTone> = {
+  Confident: "success",
+  Degraded: "warning",
+  Failed: "danger",
 };
 
-const OVERALL: Record<OverallConfidenceLevel, LabelWithTone> = {
-  Confident: { label: "Tolkningen ser pålitlig ut", tone: "success" },
-  Degraded: { label: "Tolkningen är ofullständig", tone: "warning" },
-  Failed: { label: "Ingen text kunde läsas", tone: "danger" },
+const SECTION_LEVEL_TONE: Record<SectionConfidenceLevel, PillTone> = {
+  Confident: "success",
+  Degraded: "warning",
+  NotFound: "neutral",
 };
 
-const SECTION_LEVEL: Record<SectionConfidenceLevel, LabelWithTone> = {
-  Confident: { label: "Hittad", tone: "success" },
-  Degraded: { label: "Delvis", tone: "warning" },
-  NotFound: { label: "Hittades inte", tone: "neutral" },
-};
+const SECTION_KINDS = [
+  "Contact",
+  "Profile",
+  "Experience",
+  "Education",
+  "Skills",
+  "Languages",
+] as const;
+type SectionKind = (typeof SECTION_KINDS)[number];
 
-const SECTION_KIND: Record<string, string> = {
-  Contact: "Kontakt",
-  Profile: "Profil",
-  Experience: "Erfarenhet",
-  Education: "Utbildning",
-  Skills: "Kompetenser",
-  Languages: "Språk",
-};
-
-/** Förbättringsförslagets typ (F4-10) → svensk etikett. Används i den strukturella
- * observations-meningen ("Föreslagen ändring: {etikett} på {fält}"). Den korta
- * pill-etiketten (Omformulering/Struktur) härleds separat ur om förslaget har en
- * textersättning eller är en ren strukturell operation (se `changeKindPillLabel`). */
-const PROPOSED_CHANGE_KIND: Record<ProposedChangeKind, string> = {
-  ClicheReplacement: "Ersätt klyscha",
-  WeakVerbUpgrade: "Starkare verb",
-  DateNormalization: "Normalisera datum",
-  SectionReorder: "Ändra sektionsordning",
-  HeadingNormalization: "Normalisera rubrik",
-  PersonnummerStrip: "Ta bort personnummer",
-  PhotoStrip: "Ta bort foto",
-  GpaStrip: "Ta bort betyg",
-  AtsSanitization: "ATS-sanering",
-};
-
-/** Strukturell transform-typ (F4-10) → svensk etikett. Bär provenance-foten för
- * strukturella regler ("Källa: strukturell regel ({etikett})"). Skild från
- * ProposedChangeKind (`provenance.transform` är den faktiska regeln som kördes). */
-const STRUCTURAL_TRANSFORM: Record<StructuralTransformKind, string> = {
-  ReformatDate: "Normalisera datum",
-  NormalizeHeadingCase: "Normalisera rubrik",
-  RemovePersonnummer: "Ta bort personnummer",
-  RemovePhotoReference: "Ta bort foto",
-  RemoveGpa: "Ta bort betyg",
-  StripNonStandardChars: "Ta bort icke-standardtecken",
-  ReorderSection: "Ändra sektionsordning",
-};
-
-export function verdictLabel(verdict: CriterionVerdict): LabelWithTone {
-  return VERDICT[verdict];
+export function verdictLabel(
+  t: (key: `verdict.${CriterionVerdict}`) => string,
+  verdict: CriterionVerdict,
+): LabelWithTone {
+  return { label: t(`verdict.${verdict}`), tone: VERDICT_TONE[verdict] };
 }
 
-export function bandLabel(band: ScoreBandLabel): LabelWithTone {
-  return BAND[band];
+export function bandLabel(
+  t: (key: `band.${ScoreBandLabel}`) => string,
+  band: ScoreBandLabel,
+): LabelWithTone {
+  return { label: t(`band.${band}`), tone: BAND_TONE[band] };
 }
 
-export function categoryLabel(category: RubricCategory): string {
-  return CATEGORY[category];
+export function categoryLabel(
+  t: (key: `category.${RubricCategory}`) => string,
+  category: RubricCategory,
+): string {
+  return t(`category.${category}`);
 }
 
 export function overallConfidenceLabel(
-  overall: OverallConfidenceLevel
+  t: (key: `overall.${OverallConfidenceLevel}`) => string,
+  overall: OverallConfidenceLevel,
 ): LabelWithTone {
-  return OVERALL[overall];
+  return { label: t(`overall.${overall}`), tone: OVERALL_TONE[overall] };
 }
 
 export function sectionLevelLabel(
-  level: SectionConfidenceLevel
+  t: (key: `sectionLevel.${SectionConfidenceLevel}`) => string,
+  level: SectionConfidenceLevel,
 ): LabelWithTone {
-  return SECTION_LEVEL[level];
+  return { label: t(`sectionLevel.${level}`), tone: SECTION_LEVEL_TONE[level] };
 }
 
-/** Sektion-namn är en öppen sträng på wire → fall tillbaka till råvärdet. */
-export function sectionKindLabel(kind: string): string {
-  return SECTION_KIND[kind] ?? kind;
+/** Sektion-namn är en öppen sträng på wire → fall tillbaka till råvärdet om det
+ * inte är en av de kända nycklarna (zod fail-loud:ar dock redan på mängden). */
+export function sectionKindLabel(
+  t: (key: `sectionKind.${SectionKind}`) => string,
+  kind: string,
+): string {
+  return (SECTION_KINDS as readonly string[]).includes(kind)
+    ? t(`sectionKind.${kind as SectionKind}`)
+    : kind;
 }
 
 /** Förbättringsförslagets typ → svensk etikett (för strukturella förslag). */
-export function proposedChangeKindLabel(kind: ProposedChangeKind): string {
-  return PROPOSED_CHANGE_KIND[kind];
+export function proposedChangeKindLabel(
+  t: (key: `proposedChangeKind.${ProposedChangeKind}`) => string,
+  kind: ProposedChangeKind,
+): string {
+  return t(`proposedChangeKind.${kind}`);
 }
 
 /** Strukturell transform-typ → svensk etikett (för provenance-foten). */
-export function structuralTransformLabel(kind: StructuralTransformKind): string {
-  return STRUCTURAL_TRANSFORM[kind];
+export function structuralTransformLabel(
+  t: (key: `structuralTransform.${StructuralTransformKind}`) => string,
+  kind: StructuralTransformKind,
+): string {
+  return t(`structuralTransform.${kind}`);
 }
 
 /** Den neutrala pill-etiketten för ett förslag: textbärande förslag visar
  * "Omformulering", rena strukturella operationer visar "Struktur". Alltid neutral
  * ton — typen bärs av texten, aldrig enbart av färg (WCAG 1.4.1). */
-export function changeKindPillLabel(hasReplacement: boolean): string {
-  return hasReplacement ? "Omformulering" : "Struktur";
+export function changeKindPillLabel(
+  t: (key: "changeKindPill.replacement" | "changeKindPill.structural") => string,
+  hasReplacement: boolean,
+): string {
+  return hasReplacement
+    ? t("changeKindPill.replacement")
+    : t("changeKindPill.structural");
 }

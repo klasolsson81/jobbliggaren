@@ -1,0 +1,155 @@
+{
+  "enums": {
+    "status": {
+      "Draft": "Draft",
+      "Submitted": "Sent",
+      "Acknowledged": "Acknowledged",
+      "InterviewScheduled": "Interview scheduled",
+      "Interviewing": "Interviewing",
+      "OfferReceived": "Offer",
+      "Accepted": "Accepted",
+      "Rejected": "Rejected",
+      "Withdrawn": "Withdrawn",
+      "Ghosted": "No reply"
+    },
+    "channel": {
+      "Email": "Email",
+      "LinkedIn": "LinkedIn",
+      "Phone": "Phone",
+      "Other": "Other"
+    },
+    "followUpOutcome": {
+      "Pending": "Awaiting reply",
+      "Responded": "Reply received",
+      "NoResponse": "No reply"
+    },
+    "source": {
+      "Platsbanken": "Platsbanken",
+      "LinkedIn": "LinkedIn",
+      "Manual": "Manual"
+    }
+  },
+  "ui": {
+    "common": {
+      "cancel": "Cancel",
+      "saving": "Saving…"
+    },
+    "addFollowUp": {
+      "channelLabel": "Channel",
+      "channelPlaceholder": "Select channel",
+      "dateLabel": "Date",
+      "noteLabel": "Note (optional)",
+      "noteHint": "For example what was discussed.",
+      "submit": "Add follow-up"
+    },
+    "addNote": {
+      "label": "Note",
+      "submit": "Save note"
+    },
+    "detail": {
+      "fallbackTitle": "Application #{shortId}",
+      "createdPrefix": "Created",
+      "statusLabel": "Status",
+      "nextFollowUp": "Next follow-up:",
+      "timelineLabel": "Timeline",
+      "timelineEmpty": "No events recorded yet.",
+      "eventCreated": "Application created",
+      "eventNoteAdded": "Note added",
+      "eventFollowUpScheduled": "Follow-up ({channel}) scheduled",
+      "eventOutcome": "Outcome: {outcome}",
+      "eventStatus": "Status: {status}",
+      "coverLetterLabel": "Cover letter"
+    },
+    "modalShell": {
+      "closeAriaLabel": "Close the dialog",
+      "close": "Close"
+    },
+    "row": {
+      "fallbackTitle": "Application #{shortId}",
+      "ariaLabelWithIdentity": "{title} – {company} – {status}",
+      "ariaLabelFallback": "{title} – {status}",
+      "updated": "Updated",
+      "applyBy": "Apply by"
+    },
+    "pipeline": {
+      "statusBarAriaLabel": "Status",
+      "all": "All",
+      "emptyTitle": "No applications in this status",
+      "emptyBody": "Select another tab or create a new application."
+    },
+    "followUps": {
+      "sectionLabel": "Follow-ups",
+      "empty": "No follow-ups recorded.",
+      "add": "+ Add follow-up",
+      "addHeading": "Add follow-up",
+      "outcomeLabel": "Outcome:",
+      "noteLabel": "Note:"
+    },
+    "harAnsokt": {
+      "applied": "Applied",
+      "markAsApplied": "Mark as applied",
+      "appliedAriaLabel": "You have marked this ad as applied",
+      "markAriaLabel": "Mark the ad as applied"
+    },
+    "jobInfo": {
+      "title": "About the ad",
+      "company": "Company",
+      "published": "Published",
+      "applyBy": "Application deadline",
+      "source": "Source",
+      "viewAdAriaLabel": "View the ad at {source} (opens in a new tab)",
+      "viewAd": "View the ad",
+      "coverLetterLabel": "Cover letter",
+      "hide": "Hide",
+      "show": "Show"
+    },
+    "notes": {
+      "sectionLabel": "Notes",
+      "empty": "No notes yet.",
+      "add": "+ Add note",
+      "addHeading": "Add note"
+    },
+    "recordOutcome": {
+      "notice": "The outcome cannot be changed once it has been saved. Check that it is correct before you save.",
+      "outcomeLabel": "Outcome",
+      "outcomePlaceholder": "Select outcome",
+      "optionResponded": "Reply received",
+      "optionNoResponse": "No reply",
+      "save": "Save outcome",
+      "confirmQuestion": "Save the outcome <b>{outcome}</b>? This cannot be changed afterwards.",
+      "savingOutcome": "Saving…",
+      "saveOutcome": "Save {outcome}"
+    },
+    "statusEdit": {
+      "title": "Status",
+      "currentStatus": "Current status:",
+      "closedNotice": "This application is closed and cannot be changed.",
+      "singleNextStep": "The next step for this application is <b>{status}</b>.",
+      "markAs": "Mark as {status}",
+      "chooseInstruction": "Select a new status. The current status is <b>{status}</b>.",
+      "destructiveNotice": "{status} closes the application. This cannot be undone without manual action.",
+      "save": "Save",
+      "confirmTitle": "Mark as {status}?",
+      "confirmBody": "The application changes from <b>{from}</b> to <b>{to}</b>. This cannot be undone without manual action.",
+      "confirmFallback": "Confirm"
+    },
+    "withdraw": {
+      "action": "Withdraw application",
+      "confirmTitle": "Withdraw application?",
+      "confirmBody": "The application changes from <b>{from}</b> to <b>{to}</b>. A withdrawn application is closed and cannot be changed further without manual action.",
+      "withdrawing": "Withdrawing…"
+    },
+    "actions": {
+      "notLoggedIn": "You are not logged in.",
+      "invalidJobAdId": "Invalid ad ID.",
+      "invalidInput": "Invalid details.",
+      "serverUnreachable": "Could not reach the server. Try again.",
+      "createFromJobAdFailed": "Could not register the application.",
+      "createApplicationFailed": "Could not save the application.",
+      "transitionFailed": "The status change failed.",
+      "addFollowUpFailed": "Could not save the follow-up.",
+      "addNoteFailed": "Could not save the note.",
+      "recordOutcomeFailed": "Could not record the outcome."
+    }
+  }
+}

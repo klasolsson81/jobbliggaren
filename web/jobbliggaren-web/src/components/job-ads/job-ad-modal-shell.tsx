@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
 /**
@@ -31,6 +32,7 @@ export function JobAdModalShell({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const t = useTranslations("jobads.ui");
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
@@ -106,7 +108,7 @@ export function JobAdModalShell({
             ref={closeRef}
             type="button"
             className="jp-icon-btn"
-            aria-label="Stäng"
+            aria-label={t("modalShell.close")}
             onClick={close}
           >
             <X size={20} aria-hidden="true" />

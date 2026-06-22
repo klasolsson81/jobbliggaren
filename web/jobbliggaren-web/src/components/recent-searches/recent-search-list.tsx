@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 import { RecentSearchRow } from "./recent-search-row";
@@ -15,6 +16,7 @@ interface DeleteError {
 }
 
 export function RecentSearchList({ items }: RecentSearchListProps) {
+  const t = useTranslations("jobads.recent");
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -44,8 +46,8 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
   if (visibleItems.length === 0) {
     return (
       <div className="jp-empty">
-        <div className="jp-empty__title">Inga senaste sökningar</div>
-        Gör en sökning under Jobb. Den sparas här automatiskt.
+        <div className="jp-empty__title">{t("emptyTitle")}</div>
+        {t("emptyBody")}
       </div>
     );
   }
@@ -60,7 +62,7 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
           {error.message}
         </div>
       )}
-      <ul className="jp-jobs" aria-label="Senaste sökningar">
+      <ul className="jp-jobs" aria-label={t("listLabel")}>
         {visibleItems.map((item) => (
           <RecentSearchRow
             key={item.id}

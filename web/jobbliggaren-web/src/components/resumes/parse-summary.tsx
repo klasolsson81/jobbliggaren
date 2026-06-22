@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { Info } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
@@ -15,13 +16,14 @@ import type { ParseConfidenceDto } from "@/lib/dto/parsed-resume";
  * skuldbelägga.
  */
 
-const OVERALL_EXPLANATION: Record<ParseConfidenceDto["overall"], string> = {
-  Confident:
-    "Vi kunde läsa ditt CV och dela upp det i tydliga avsnitt. Granska gärna att allt stämmer.",
-  Degraded:
-    "Vi kunde läsa ditt CV men en del avsnitt blev ofullständiga. Du kan komplettera dem i nästa steg.",
-  Failed:
-    "Vi kunde inte läsa någon användbar text ur filen. Du kan fylla i uppgifterna för hand i stället.",
+/** DTO:ns `overall`-värde → nyckel-suffix för förklaringsmeningen i `parse.*`. */
+const OVERALL_EXPLANATION_KEY: Record<
+  ParseConfidenceDto["overall"],
+  "parse.overallConfident" | "parse.overallDegraded" | "parse.overallFailed"
+> = {
+  Confident: "parse.overallConfident",
+  Degraded: "parse.overallDegraded",
+  Failed: "parse.overallFailed",
 };
 
 export function ParseSummary({
@@ -29,19 +31,21 @@ export function ParseSummary({
 }: {
   confidence: ParseConfidenceDto;
 }) {
-  const overall = overallConfidenceLabel(confidence.overall);
+  const t = useTranslations("resumes");
+  const tEnum = useTranslations("resumes.enums");
+  const overall = overallConfidenceLabel(tEnum, confidence.overall);
 
   return (
     <section className="jp-parse-summary" aria-labelledby="parse-summary-title">
       <div className="jp-parse-summary__head">
         <h2 id="parse-summary-title" className="jp-parse-summary__title">
-          Så tolkades ditt CV
+          {t("parse.title")}
         </h2>
         <StatusPill tone={overall.tone}>{overall.label}</StatusPill>
       </div>
 
       <p className="jp-parse-summary__lede">
-        {OVERALL_EXPLANATION[confidence.overall]}
+        {t(OVERALL_EXPLANATION_KEY[confidence.overall])}
       </p>
 
       {confidence.requiresManualReview && (
@@ -49,22 +53,19 @@ export function ParseSummary({
           <span className="jp-parse-summary__note-icon" aria-hidden="true">
             <Info size={16} />
           </span>
-          <span>
-            Några avsnitt behöver kompletteras innan ditt CV är klart. Det gör
-            du i nästa steg.
-          </span>
+          <span>{t("parse.manualReviewNote")}</span>
         </p>
       )}
 
       {confidence.sections.length > 0 && (
         <ul className="jp-parse-summary__sections">
           {confidence.sections.map((section) => {
-            const level = sectionLevelLabel(section.level);
+            const level = sectionLevelLabel(tEnum, section.level);
             return (
               <li key={section.section} className="jp-parse-summary__section">
                 <div className="jp-parse-summary__section-head">
                   <span className="jp-parse-summary__section-name">
-                    {sectionKindLabel(section.section)}
+                    {sectionKindLabel(tEnum, section.section)}
                   </span>
                   <StatusPill tone={level.tone}>{level.label}</StatusPill>
                 </div>

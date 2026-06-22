@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 /**
  * Lokal datetime-string i `datetime-local`-input-format (YYYY-MM-DDTHH:mm,
@@ -28,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { addFollowUpAction, type ActionResult } from "@/lib/actions/applications";
-import { CHANNEL_LABELS } from "@/lib/applications/status";
+import { CHANNEL_KEYS, channelLabel } from "@/lib/applications/status";
 
 interface AddFollowUpFormProps {
   applicationId: string;
@@ -43,6 +44,8 @@ export function AddFollowUpForm({
   onSuccess,
   onCancel,
 }: AddFollowUpFormProps) {
+  const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const formRef = useRef<HTMLFormElement>(null);
   const [defaultScheduledAt] = useState(localDatetimeNow);
 
@@ -69,22 +72,22 @@ export function AddFollowUpForm({
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="follow-up-channel">Kanal</Label>
+          <Label htmlFor="follow-up-channel">{tUi("addFollowUp.channelLabel")}</Label>
           <Select name="channel" required disabled={isPending}>
             <SelectTrigger id="follow-up-channel" className="w-full">
-              <SelectValue placeholder="Välj kanal" />
+              <SelectValue placeholder={tUi("addFollowUp.channelPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+              {CHANNEL_KEYS.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {label}
+                  {channelLabel(t, value)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="follow-up-date">Datum</Label>
+          <Label htmlFor="follow-up-date">{tUi("addFollowUp.dateLabel")}</Label>
           <Input
             id="follow-up-date"
             name="scheduledAt"
@@ -96,7 +99,7 @@ export function AddFollowUpForm({
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="follow-up-note">Anteckning (valfritt)</Label>
+        <Label htmlFor="follow-up-note">{tUi("addFollowUp.noteLabel")}</Label>
         <Textarea
           id="follow-up-note"
           name="note"
@@ -108,7 +111,7 @@ export function AddFollowUpForm({
           id="follow-up-note-hint"
           className="text-body-sm text-text-secondary"
         >
-          Till exempel vad som diskuterades.
+          {tUi("addFollowUp.noteHint")}
         </p>
       </div>
       {state && !state.success && (
@@ -118,7 +121,7 @@ export function AddFollowUpForm({
       )}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" size="sm" disabled={isPending}>
-          Lägg till uppföljning
+          {tUi("addFollowUp.submit")}
         </Button>
         {onCancel && (
           <Button
@@ -128,7 +131,7 @@ export function AddFollowUpForm({
             disabled={isPending}
             onClick={onCancel}
           >
-            Avbryt
+            {tUi("common.cancel")}
           </Button>
         )}
       </div>

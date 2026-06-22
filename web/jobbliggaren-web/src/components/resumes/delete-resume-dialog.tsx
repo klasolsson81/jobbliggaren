@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +22,7 @@ export function DeleteResumeDialog({
   resumeId,
   resumeName,
 }: DeleteResumeDialogProps) {
+  const t = useTranslations("resumes");
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -44,15 +46,16 @@ export function DeleteResumeDialog({
         size="sm"
         onClick={() => setOpen(true)}
       >
-        Radera CV
+        {t("delete.trigger")}
       </Button>
       <Dialog open={open} onOpenChange={(o) => { if (!isPending) setOpen(o); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Radera CV?</DialogTitle>
+            <DialogTitle>{t("delete.title")}</DialogTitle>
             <DialogDescription>
-              Du är på väg att radera <strong>{resumeName}</strong> permanent.
-              Det går inte att ångra.
+              {t.rich("delete.description", {
+                name: () => <strong>{resumeName}</strong>,
+              })}
             </DialogDescription>
           </DialogHeader>
           {error && <p className="text-body-sm text-danger-600">{error}</p>}
@@ -64,7 +67,7 @@ export function DeleteResumeDialog({
               onClick={() => setOpen(false)}
               disabled={isPending}
             >
-              Avbryt
+              {t("delete.cancel")}
             </Button>
             <Button
               type="button"
@@ -73,7 +76,7 @@ export function DeleteResumeDialog({
               onClick={handleConfirm}
               disabled={isPending}
             >
-              Bekräfta radering
+              {t("delete.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

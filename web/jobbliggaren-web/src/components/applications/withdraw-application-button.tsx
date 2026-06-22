@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { transitionStatusAction } from "@/lib/actions/applications";
-import { getStatusLabel } from "@/lib/applications/status";
+import { applicationStatusLabel } from "@/lib/applications/status";
 import type { ApplicationStatus } from "@/lib/types/applications";
 
 interface WithdrawApplicationButtonProps {
@@ -39,12 +40,14 @@ export function WithdrawApplicationButton({
   applicationId,
   currentStatus,
 }: WithdrawApplicationButtonProps) {
+  const t = useTranslations("applications.enums");
+  const tUi = useTranslations("applications.ui");
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const currentLabel = getStatusLabel(currentStatus);
-  const withdrawnLabel = getStatusLabel("Withdrawn");
+  const currentLabel = applicationStatusLabel(t, currentStatus);
+  const withdrawnLabel = applicationStatusLabel(t, "Withdrawn");
 
   function confirm() {
     setError(null);
@@ -70,7 +73,7 @@ export function WithdrawApplicationButton({
         className="text-danger-700"
         onClick={() => setOpen(true)}
       >
-        Återta ansökan
+        {tUi("withdraw.action")}
       </Button>
 
       <Dialog
@@ -84,11 +87,13 @@ export function WithdrawApplicationButton({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Återta ansökan?</DialogTitle>
+            <DialogTitle>{tUi("withdraw.confirmTitle")}</DialogTitle>
             <DialogDescription>
-              Ansökan ändras från <strong>{currentLabel}</strong> till{" "}
-              <strong>{withdrawnLabel}</strong>. En återtagen ansökan
-              avslutas och kan inte ändras vidare utan manuell åtgärd.
+              {tUi.rich("withdraw.confirmBody", {
+                from: currentLabel,
+                to: withdrawnLabel,
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </DialogDescription>
           </DialogHeader>
           {error && (
@@ -107,7 +112,7 @@ export function WithdrawApplicationButton({
                 setError(null);
               }}
             >
-              Avbryt
+              {tUi("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -116,7 +121,7 @@ export function WithdrawApplicationButton({
               disabled={isPending}
               onClick={confirm}
             >
-              {isPending ? "Återtar…" : "Återta ansökan"}
+              {isPending ? tUi("withdraw.withdrawing") : tUi("withdraw.action")}
             </Button>
           </DialogFooter>
         </DialogContent>

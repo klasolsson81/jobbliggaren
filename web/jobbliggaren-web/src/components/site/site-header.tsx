@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand/brand-logo";
 
 /**
@@ -12,10 +13,11 @@ import { BrandLogo } from "@/components/brand/brand-logo";
  * `.jp-land-top`-klass för visuell paritet (vit bg, navy ink, sticky top).
  */
 export function SiteHeader({ showLogin = true }: { showLogin?: boolean }) {
+  const t = useTranslations("landing");
   return (
     <header className="jp-land-top">
       <div className="jp-land-top__inner">
-        <Link href="/" className="jp-brand" aria-label="Jobbliggaren, startsida">
+        <Link href="/" className="jp-brand" aria-label={t("brand.homeAriaLabel")}>
           <BrandLogo />
         </Link>
         {showLogin && (
@@ -23,7 +25,7 @@ export function SiteHeader({ showLogin = true }: { showLogin?: boolean }) {
             href="/logga-in"
             className="text-body-sm font-medium text-text-primary underline-offset-4 hover:underline"
           >
-            Logga in
+            {t("common.loginLink")}
           </Link>
         )}
       </div>

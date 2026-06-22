@@ -1,11 +1,34 @@
 import { describe, it, expect } from "vitest";
+import { createTranslator } from "next-intl";
 import {
-  createResumeSchema,
-  renameResumeSchema,
-  resumeContentSchema,
-  updateMasterContentSchema,
+  makeCreateResumeSchema,
+  makeRenameResumeSchema,
+  makeResumeContentSchema,
+  makeUpdateMasterContentSchema,
 } from "./resume-schemas";
 import { pathToElementId } from "@/lib/forms/resume-path-routing";
+import svValidation from "../../../messages/sv/validation.json";
+import enValidation from "../../../messages/en/validation.json";
+
+// Real next-intl translator scoped to the `validation` namespace (Swedish
+// catalog = source of truth). In production the factories receive this `t` from
+// `useTranslations("validation")` / `getTranslations("validation")`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { validation: svValidation },
+  namespace: "validation",
+});
+
+const tEn = createTranslator({
+  locale: "en",
+  messages: { validation: enValidation },
+  namespace: "validation",
+});
+
+const createResumeSchema = makeCreateResumeSchema(t);
+const renameResumeSchema = makeRenameResumeSchema(t);
+const resumeContentSchema = makeResumeContentSchema(t);
+const updateMasterContentSchema = makeUpdateMasterContentSchema(t);
 
 const VALID_GUID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -390,5 +413,81 @@ describe("updateMasterContentSchema", () => {
         },
       }).success
     ).toBe(false);
+  });
+});
+
+describe("makeOptionalNullableString – per-field localized over-length message", () => {
+  // Regression: the over-length error noun must be localized too. Previously a
+  // shared `resume.maxChars` template received a hardcoded Swedish label
+  // ("Telefonnummer"/"Ort"/"Beskrivning"), so an EN user saw "Telefonnummer may
+  // be at most 50 characters." under a field labelled "Phone". We assert the
+  // *message text* (not just `.success`) in both catalogs so the leak can't
+  // silently return.
+  const overLength = {
+    phone: "0".repeat(51),
+    location: "a".repeat(201),
+    description: "a".repeat(2001),
+  };
+
+  function firstMessage(
+    schema: ReturnType<typeof makeResumeContentSchema>,
+    content: unknown,
+  ): string {
+    const result = schema.safeParse(content);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected validation failure");
+    return result.error.issues[0]?.message ?? "";
+  }
+
+  const svSchema = makeResumeContentSchema(t);
+  const enSchema = makeResumeContentSchema(tEn);
+
+  const baseExperience = {
+    company: "Acme",
+    role: "Dev",
+    startDate: "2024-01-01",
+  };
+
+  it("phone over-length resolves to the SV catalog string", () => {
+    const message = firstMessage(svSchema, {
+      personalInfo: { fullName: "Anna", phone: overLength.phone },
+      experiences: [],
+      educations: [],
+      skills: [],
+    });
+    expect(message).toBe(svValidation.resume.phoneMax);
+  });
+
+  it("phone over-length resolves to the EN catalog string (no Swedish leak)", () => {
+    const message = firstMessage(enSchema, {
+      personalInfo: { fullName: "Anna", phone: overLength.phone },
+      experiences: [],
+      educations: [],
+      skills: [],
+    });
+    expect(message).toBe(enValidation.resume.phoneMax);
+    expect(message).not.toMatch(/Telefon/);
+  });
+
+  it("location over-length resolves to the EN catalog string (no Swedish leak)", () => {
+    const message = firstMessage(enSchema, {
+      personalInfo: { fullName: "Anna", location: overLength.location },
+      experiences: [],
+      educations: [],
+      skills: [],
+    });
+    expect(message).toBe(enValidation.resume.locationMax);
+    expect(message).not.toMatch(/Ort/);
+  });
+
+  it("description over-length resolves to the EN catalog string (no Swedish leak)", () => {
+    const message = firstMessage(enSchema, {
+      personalInfo: { fullName: "Anna" },
+      experiences: [{ ...baseExperience, description: overLength.description }],
+      educations: [],
+      skills: [],
+    });
+    expect(message).toBe(enValidation.resume.descriptionMax);
+    expect(message).not.toMatch(/Beskrivning/);
   });
 });

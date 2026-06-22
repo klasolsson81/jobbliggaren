@@ -31,6 +31,7 @@ export async function createResumeAction(
   formData: FormData
 ): Promise<ActionResult> {
   const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
@@ -58,7 +59,7 @@ export async function createResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, tr("createFailed")),
+        error: mapActionError(res, tr("createFailed"), te),
       };
     }
 
@@ -81,6 +82,7 @@ export async function renameResumeAction(
   formData: FormData
 ): Promise<ActionResult> {
   const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
@@ -110,7 +112,7 @@ export async function renameResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, tr("renameFailed")),
+        error: mapActionError(res, tr("renameFailed"), te),
       };
     }
   } catch {
@@ -127,6 +129,7 @@ export async function updateMasterContentAction(
   content: ResumeContentDto
 ): Promise<ActionResult> {
   const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
@@ -153,7 +156,7 @@ export async function updateMasterContentAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, tr("saveFailed")),
+        error: mapActionError(res, tr("saveFailed"), te),
       };
     }
   } catch {
@@ -169,6 +172,7 @@ export async function deleteResumeAction(
   resumeId: string
 ): Promise<ActionResult> {
   const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
@@ -189,7 +193,7 @@ export async function deleteResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, tr("deleteFailed")),
+        error: mapActionError(res, tr("deleteFailed"), te),
       };
     }
   } catch {
@@ -214,6 +218,7 @@ export async function promoteParsedResumeAction(
   content: ResumeContentDto
 ): Promise<ActionResult> {
   const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
@@ -248,7 +253,7 @@ export async function promoteParsedResumeAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, tr("saveFailed")),
+        error: mapActionError(res, tr("saveFailed"), te),
       };
     }
 
@@ -271,6 +276,7 @@ export async function deleteResumeVersionAction(
   versionId: string
 ): Promise<ActionResult> {
   const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tr("notLoggedIn") };
 
@@ -291,7 +297,7 @@ export async function deleteResumeVersionAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, tr("deleteVersionFailed")),
+        error: mapActionError(res, tr("deleteVersionFailed"), te),
       };
     }
   } catch {

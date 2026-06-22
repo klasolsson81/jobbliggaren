@@ -1,5 +1,6 @@
 "use server";
 
+import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { parseResponse } from "@/lib/dto/_helpers";
 import {
@@ -20,6 +21,7 @@ export async function requestWaitlistAction(
   _prevState: WaitlistActionState,
   formData: FormData,
 ): Promise<WaitlistActionState> {
+  const t = await getTranslations("landing");
   const parsed = waitlistFormSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -37,7 +39,7 @@ export async function requestWaitlistAction(
     }
     return {
       status: "error",
-      error: "Kontrollera fälten och försök igen.",
+      error: t("waitlist.form.checkFields"),
       fieldErrors,
     };
   }
@@ -53,30 +55,28 @@ export async function requestWaitlistAction(
     if (res.status === 503) {
       return {
         status: "error",
-        error:
-          "Anmälningar är just nu stängda. Försök igen senare när vi öppnar nästa pulse.",
+        error: t("waitlist.action.closed"),
       };
     }
 
     if (res.status === 400) {
       return {
         status: "error",
-        error: "Något var fel med uppgifterna. Kontrollera och försök igen.",
+        error: t("waitlist.action.badRequest"),
       };
     }
 
     if (res.status === 429) {
       return {
         status: "error",
-        error:
-          "För många anmälningar från denna nätverksadress. Försök igen om en stund.",
+        error: t("waitlist.action.tooMany"),
       };
     }
 
     if (!res.ok) {
       return {
         status: "error",
-        error: "Ett fel uppstod. Försök igen om en stund.",
+        error: t("waitlist.action.generic"),
       };
     }
 
@@ -90,7 +90,7 @@ export async function requestWaitlistAction(
   } catch {
     return {
       status: "error",
-      error: "Kunde inte nå servern. Försök igen.",
+      error: t("waitlist.action.serverUnreachable"),
     };
   }
 }

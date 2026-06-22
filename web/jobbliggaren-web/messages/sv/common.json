@@ -39,6 +39,15 @@
   "modal": {
     "closeAriaLabel": "Stäng dialogrutan"
   },
+  "dialog": {
+    "close": "Stäng"
+  },
+  "themeToggle": {
+    "toLight": "Byt till ljust läge",
+    "toDark": "Byt till mörkt läge",
+    "light": "Ljust läge",
+    "dark": "Mörkt läge"
+  },
   "dev": {
     "note": "Utvecklarverktyg, syns bara lokalt och tas bort före lansering.",
     "resetButton": "Dev: återställ mina testdata (tas bort före lansering)"

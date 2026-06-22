@@ -43,6 +43,7 @@ export async function createApplicationFromJobAdAction(
   jobAdId: string
 ): Promise<CreateApplicationFromJobAdResult> {
   const t = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: t("actions.notLoggedIn") };
   // Allowlist-guard: avvisa icke-GUID innan id:t når backend-URL:en (SSRF-
@@ -62,7 +63,7 @@ export async function createApplicationFromJobAdAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, t("actions.createFromJobAdFailed")),
+        error: mapActionError(res, t("actions.createFromJobAdFailed"), te),
       };
     }
 
@@ -84,6 +85,7 @@ export async function createApplicationAction(
   formData: FormData
 ): Promise<ActionResult> {
   const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
@@ -120,7 +122,7 @@ export async function createApplicationAction(
     });
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, tUi("actions.createApplicationFailed")) };
+      return { success: false, error: mapActionError(res, tUi("actions.createApplicationFailed"), te) };
     }
 
     const data = await parseResponse(
@@ -142,6 +144,7 @@ export async function transitionStatusAction(
   targetStatus: string
 ): Promise<ActionResult> {
   const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
@@ -163,7 +166,7 @@ export async function transitionStatusAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, tUi("actions.transitionFailed")) };
+      return { success: false, error: mapActionError(res, tUi("actions.transitionFailed"), te) };
     }
   } catch {
     return { success: false, error: tUi("actions.serverUnreachable") };
@@ -179,6 +182,7 @@ export async function addFollowUpAction(
   formData: FormData
 ): Promise<ActionResult> {
   const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
@@ -209,7 +213,7 @@ export async function addFollowUpAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, tUi("actions.addFollowUpFailed")) };
+      return { success: false, error: mapActionError(res, tUi("actions.addFollowUpFailed"), te) };
     }
   } catch {
     return { success: false, error: tUi("actions.serverUnreachable") };
@@ -224,6 +228,7 @@ export async function addNoteAction(
   formData: FormData
 ): Promise<ActionResult> {
   const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
@@ -248,7 +253,7 @@ export async function addNoteAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, tUi("actions.addNoteFailed")) };
+      return { success: false, error: mapActionError(res, tUi("actions.addNoteFailed"), te) };
     }
   } catch {
     return { success: false, error: tUi("actions.serverUnreachable") };
@@ -264,6 +269,7 @@ export async function recordFollowUpOutcomeAction(
   formData: FormData
 ): Promise<ActionResult> {
   const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
 
@@ -289,7 +295,7 @@ export async function recordFollowUpOutcomeAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, tUi("actions.recordOutcomeFailed")) };
+      return { success: false, error: mapActionError(res, tUi("actions.recordOutcomeFailed"), te) };
     }
   } catch {
     return { success: false, error: tUi("actions.serverUnreachable") };

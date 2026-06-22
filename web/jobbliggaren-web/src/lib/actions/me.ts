@@ -28,6 +28,7 @@ export async function updateMyProfileAction(
   input: UpdateMyProfileInput
 ): Promise<ActionResult> {
   const ts = await getTranslations("settings");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId)
     return { success: false, error: ts("account.errors.notLoggedIn") };
@@ -52,7 +53,7 @@ export async function updateMyProfileAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, ts("account.errors.updateFailed")),
+        error: mapActionError(res, ts("account.errors.updateFailed"), te),
       };
     }
   } catch {
@@ -82,6 +83,7 @@ export async function deleteAccountAction(
   currentEmail: string
 ): Promise<ActionResult> {
   const ts = await getTranslations("settings");
+  const te = await getTranslations("errors");
   const t = await getTranslations("validation");
   const parsed = makeDeleteMyAccountSchema(t).safeParse(input);
   if (!parsed.success) {
@@ -121,7 +123,7 @@ export async function deleteAccountAction(
     if (!verifyRes.ok) {
       return {
         success: false,
-        error: mapActionError(verifyRes, ts("account.errors.verifyFailed")),
+        error: mapActionError(verifyRes, ts("account.errors.verifyFailed"), te),
       };
     }
   } catch {
@@ -142,7 +144,7 @@ export async function deleteAccountAction(
     if (!deleteRes.ok) {
       return {
         success: false,
-        error: mapActionError(deleteRes, ts("account.errors.deleteFailed")),
+        error: mapActionError(deleteRes, ts("account.errors.deleteFailed"), te),
       };
     }
   } catch {

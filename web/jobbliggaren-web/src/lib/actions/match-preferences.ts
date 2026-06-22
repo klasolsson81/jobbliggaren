@@ -42,6 +42,7 @@ export async function updateMatchPreferencesAction(
   input: SetMatchPreferencesInput
 ): Promise<ActionResult> {
   const ts = await getTranslations("settings");
+  const te = await getTranslations("errors");
   const sessionId = await getSessionId();
   if (!sessionId)
     return { success: false, error: ts("matchPrefs.errors.notLoggedIn") };
@@ -66,7 +67,7 @@ export async function updateMatchPreferencesAction(
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, ts("matchPrefs.errors.saveFailed")),
+        error: mapActionError(res, ts("matchPrefs.errors.saveFailed"), te),
       };
     }
   } catch {

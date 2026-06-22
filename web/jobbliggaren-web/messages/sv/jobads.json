@@ -39,6 +39,14 @@
       "count": "({currentCount})"
     }
   },
+  "actions": {
+    "notLoggedIn": "Du är inte inloggad.",
+    "recentSearchNotFound": "Sökningen kunde inte hittas. Den kan ha tagits bort redan.",
+    "recentSearchDeleteFailed": "Kunde inte ta bort sökningen. Försök igen.",
+    "savedJobAdNotFound": "Annonsen kunde inte hittas. Den kan ha tagits bort.",
+    "savedJobAdSaveFailed": "Kunde inte spara annonsen. Försök igen.",
+    "savedJobAdRemoveFailed": "Kunde inte ta bort bokmärket. Försök igen."
+  },
   "enums": {
     "status": {
       "Active": "Aktiv",

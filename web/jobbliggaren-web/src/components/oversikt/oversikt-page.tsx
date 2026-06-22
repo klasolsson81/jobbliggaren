@@ -63,6 +63,9 @@ export function OversiktPage({
 }: OversiktPageProps) {
   // Synchronous next-intl translator — keeps OversiktPage a non-async RSC.
   const t = useTranslations("oversikt");
+  // Scoped translator for the relative-time helper (`formatDaysAgo`), which is
+  // a pure helper and receives `t` as a param.
+  const tRelativeTime = useTranslations("oversikt.relativeTime");
   const today = new Date();
   // Klas svans-PR2 Variant A: datum-suffix på notice-IDs så dismissad notis
   // återkommer när data ändras (nästa dag = ny render av "143 nya annonser").
@@ -115,7 +118,7 @@ export function OversiktPage({
           }),
       cta: t("notices.offerCta"),
       href: "/ansokningar",
-      time: formatDaysAgo(latestOffer.updatedAt, today),
+      time: formatDaysAgo(tRelativeTime, latestOffer.updatedAt, today),
     });
   }
 
@@ -220,7 +223,7 @@ export function OversiktPage({
       }),
       cta: t("notices.interviewCta"),
       href: "/ansokningar",
-      time: formatDaysAgo(interview.updatedAt, today),
+      time: formatDaysAgo(tRelativeTime, interview.updatedAt, today),
     });
   }
 

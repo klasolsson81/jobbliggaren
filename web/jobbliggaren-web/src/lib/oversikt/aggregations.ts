@@ -235,14 +235,29 @@ export function filterFutureDeadlines<
 }
 
 /**
- * Härleder en svensk relativ tids-sträng från ett ISO-datum jämfört med `now`.
- * "i dag" (0 dagar), "i går" (1 dag), "{N} dagar sedan" (>=2 dagar),
- * "i framtiden" (negativ) — den sista bör inte uppstå vid normala BE-svar.
- * Driver notice-tidstämplar (code-reviewer M2 2026-05-24).
+ * Pure helper-translator scoped to `oversikt.relativeTime`. The caller passes
+ * `t` from `useTranslations("oversikt.relativeTime")` / `getTranslations`, so
+ * this helper stays request-context-free (testable without next-intl plumbing).
  */
-export function formatDaysAgo(isoString: string, now: Date = new Date()): string {
+export type RelativeTimeTranslator = (
+  key: "today" | "yesterday" | "daysAgo",
+  values?: Record<string, number>,
+) => string;
+
+/**
+ * Härleder en svensk relativ tids-sträng från ett ISO-datum jämfört med `now`.
+ * "i dag" (0 dagar), "i går" (1 dag), "{N} dagar sedan" (>=2 dagar). Negativa
+ * dagar (framtid) faller på "i dag" — bör inte uppstå vid normala BE-svar.
+ * Driver notice-tidstämplar (code-reviewer M2 2026-05-24). Den svenska copyn
+ * resolvas via next-intl (`oversikt.relativeTime.*`).
+ */
+export function formatDaysAgo(
+  t: RelativeTimeTranslator,
+  isoString: string,
+  now: Date = new Date(),
+): string {
   const days = daysSince(isoString, now);
-  if (days <= 0) return "i dag";
-  if (days === 1) return "i går";
-  return `${days} dagar sedan`;
+  if (days <= 0) return t("today");
+  if (days === 1) return t("yesterday");
+  return t("daysAgo", { count: days });
 }

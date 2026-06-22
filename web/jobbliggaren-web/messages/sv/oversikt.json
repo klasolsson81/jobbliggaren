@@ -46,6 +46,11 @@
     "savedSearchText": "<b>{name}</b> har <b>{count, plural, one {# ny träff} other {# nya träffar}}</b> sedan din senaste körning.",
     "savedSearchCta": "Kör sökning"
   },
+  "relativeTime": {
+    "today": "i dag",
+    "yesterday": "i går",
+    "daysAgo": "{count, plural, one {# dag sedan} other {# dagar sedan}}"
+  },
   "summary": {
     "title": "Sammanfattning",
     "stamp": "registrerat per <mono>{date}</mono>",

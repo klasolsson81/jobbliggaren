@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { createTranslator } from "next-intl";
 import {
   computeApplicationCounts,
   daysSince,
@@ -16,6 +17,16 @@ import type {
   ApplicationStatus,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
+import svOversikt from "../../../messages/sv/oversikt.json";
+
+// Real next-intl translator scoped to `oversikt.relativeTime` (Swedish catalog
+// = source of truth). In production `formatDaysAgo` receives this `t` from
+// `useTranslations("oversikt.relativeTime")`.
+const tRelativeTime = createTranslator({
+  locale: "sv",
+  messages: { oversikt: svOversikt },
+  namespace: "oversikt.relativeTime",
+});
 
 function makeApp(
   status: ApplicationStatus,
@@ -232,19 +243,27 @@ describe("formatDaysAgo", () => {
   const now = new Date("2026-05-24T12:00:00Z");
 
   it("ger 'i dag' för 0 dagar", () => {
-    expect(formatDaysAgo("2026-05-24T01:00:00Z", now)).toBe("i dag");
+    expect(formatDaysAgo(tRelativeTime, "2026-05-24T01:00:00Z", now)).toBe(
+      "i dag"
+    );
   });
 
   it("ger 'i går' för 1 dag", () => {
-    expect(formatDaysAgo("2026-05-23T10:00:00Z", now)).toBe("i går");
+    expect(formatDaysAgo(tRelativeTime, "2026-05-23T10:00:00Z", now)).toBe(
+      "i går"
+    );
   });
 
   it("ger 'N dagar sedan' för 2+ dagar", () => {
-    expect(formatDaysAgo("2026-05-20T00:00:00Z", now)).toBe("4 dagar sedan");
+    expect(formatDaysAgo(tRelativeTime, "2026-05-20T00:00:00Z", now)).toBe(
+      "4 dagar sedan"
+    );
   });
 
   it("ger 'i dag' för framtida datum (defensiv — bör inte uppstå)", () => {
-    expect(formatDaysAgo("2026-05-26T00:00:00Z", now)).toBe("i dag");
+    expect(formatDaysAgo(tRelativeTime, "2026-05-26T00:00:00Z", now)).toBe(
+      "i dag"
+    );
   });
 });
 

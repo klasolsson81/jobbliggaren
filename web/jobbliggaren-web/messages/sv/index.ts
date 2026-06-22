@@ -6,6 +6,7 @@
 import admin from "./admin.json";
 import applications from "./applications.json";
 import common from "./common.json";
+import errors from "./errors.json";
 import guest from "./guest.json";
 import jobads from "./jobads.json";
 import landing from "./landing.json";
@@ -20,6 +21,7 @@ const messages = {
   admin,
   applications,
   common,
+  errors,
   guest,
   jobads,
   landing,

@@ -93,6 +93,13 @@
       "loadErrorTitle": "Kunde inte ladda CV:t",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till granskningen.",
       "backLink": "Tillbaka till granskningen"
+    },
+    "importApi": {
+      "notMultipart": "Ladda upp filen som multipart/form-data.",
+      "tooLarge": "Filen är för stor. Maxstorlek är 10 MB.",
+      "noFile": "Ingen fil bifogades. Välj en PDF- eller Word-fil (DOCX).",
+      "serverUnreachable": "Kunde inte nå servern. Försök igen.",
+      "unreadable": "Filen kunde inte läsas. Kontrollera att det är en PDF eller Word-fil (DOCX) under 10 MB."
     }
   },
   "jobb": {

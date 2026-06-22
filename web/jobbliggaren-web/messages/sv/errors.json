@@ -1,0 +1,7 @@
+{
+  "notLoggedIn": "Du är inte inloggad.",
+  "forbidden": "Du saknar behörighet för åtgärden.",
+  "notFound": "Resursen hittades inte.",
+  "stateConflict": "Resursen är i ett otillåtet tillstånd. Ladda om sidan och försök igen.",
+  "tooManyAttempts": "För många försök. Vänta en stund och försök igen."
+}

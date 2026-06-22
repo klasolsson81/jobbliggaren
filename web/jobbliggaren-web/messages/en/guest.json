@@ -1,1 +1,126 @@
-{}
+{
+  "banner": {
+    "regionAriaLabel": "Demo mode",
+    "label": "DEMO",
+    "text": "You are exploring Jobbliggaren as a guest. The content is sample data. Join the waitlist to save job ads and follow up on your own applications.",
+    "cta": "Join the waitlist"
+  },
+  "welcome": {
+    "title": "Welcome to demo mode",
+    "description": "You are exploring Jobbliggaren without signing in. All content is sample data, no real applications or CVs.",
+    "canDoHeading": "Here is what you can do as a guest:",
+    "canDoBrowse": "Browse the overview of applications and CVs",
+    "canDoPipeline": "See how the pipeline view works",
+    "canDoResumes": "Review CV variants and layout",
+    "needsAccountHeading": "Here is what requires an account:",
+    "needsAccountSearch": "Search and save job ads from Platsbanken",
+    "needsAccountEdit": "Create or edit CVs and applications",
+    "needsAccountNotices": "Get notices and follow-ups",
+    "startExploring": "Start exploring"
+  },
+  "shell": {
+    "brandAriaLabel": "Jobbliggaren, home",
+    "navAriaLabel": "Demo navigation",
+    "navOversikt": "Overview",
+    "navJobb": "Jobs",
+    "navAnsokningar": "My applications",
+    "navCv": "CV",
+    "logIn": "Log in",
+    "waitlist": "Join the waitlist"
+  },
+  "layout": {
+    "skipToContent": "Skip to main content"
+  },
+  "oversikt": {
+    "kicker": "Demo overview",
+    "title": "Overview",
+    "lede": "This is how it looks when you follow your applications. Everything here is sample data.",
+    "noticeOfferLabel": "Offer",
+    "noticeOfferText": "<b>{company}</b>: {role}. Offer awaiting response.",
+    "noticeOfferCta": "Join the waitlist",
+    "noticeDraftsLabel": "Reminder",
+    "noticeDraftsText": "You have <b>{count} drafts</b> that have not been submitted. Finish and send them to keep the pipeline active.",
+    "noticeDraftsCta": "View applications",
+    "noticeInterviewLabel": "Interview",
+    "noticeInterviewText": "<b>{company}</b> has confirmed an interview time.",
+    "noticeInterviewCta": "Join the waitlist",
+    "noticeMatchLabel": "Matching",
+    "noticeMatchText": "There are <b>{count} new job ads</b> that match the profile, most of them within <em>{segment}</em>.",
+    "noticeMatchCta": "View job ads",
+    "timeToday": "today",
+    "timeYesterday": "yesterday",
+    "lastUpdated": "sample data · {date}",
+    "summaryTitle": "Summary",
+    "summaryStamp": "sample data as of <mono>{date}</mono>",
+    "groupApplications": "Applications",
+    "rowApplicationsTotal": "Applications in total",
+    "rowDrafts": "Drafts",
+    "rowSubmitted": "Submitted",
+    "rowInterviews": "Interviews",
+    "rowOffers": "Offers",
+    "rowRejected": "Rejections",
+    "groupWatch": "Watch",
+    "rowSavedSearches": "Saved searches",
+    "hintNewHits": "new hits",
+    "rowNewMatchesToday": "New matches today",
+    "hintProfile": "profile",
+    "rowActiveJobAdsTotal": "Active job ads in total",
+    "rowDemoJobAds": "Sample job ads in demo",
+    "groupMaterial": "Material",
+    "rowResumeVariants": "CV variants",
+    "rowCoverLetters": "Cover letters",
+    "rowLatestResume": "Most recently updated CV",
+    "rowDemoActiveSince": "Demo active since",
+    "hintNotSaved": "not saved",
+    "valueDash": "–"
+  },
+  "ansokningar": {
+    "kicker": "Demo pipeline",
+    "title": "My applications",
+    "lede": "{total} sample applications spread across all status stages.",
+    "groupAriaLabel": "{statusLabel} ({count})",
+    "rowAriaLabel": "{role} – {company} – {statusLabel}",
+    "emptyStatus": "No applications in this status.",
+    "fullKicker": "Demo application",
+    "fullLede": "{company} · {source}",
+    "backToList": "Back to the list"
+  },
+  "cv": {
+    "kicker": "Demo CV",
+    "title": "CV",
+    "lede": "Examples of CV variants. Once you have an account you can create your own, edit freely and upload a PDF.",
+    "primaryTag": "Primary",
+    "languageLabel": "Language",
+    "languageSwedish": "Swedish",
+    "languageEnglish": "English",
+    "latestRoleLabel": "Latest role",
+    "sectionsLabel": "Sections",
+    "updatedLabel": "Updated"
+  },
+  "jobb": {
+    "heroTitle": "Search jobs",
+    "heroLede": "These are sample job ads. Once you have an account you can search and save real job ads from Platsbanken.",
+    "searchLabel": "Search by one or more words",
+    "searchButton": "Search",
+    "searchHint": "Search is locked in demo mode. Log in or join the waitlist to search the whole corpus.",
+    "listTitle": "Sample job ads",
+    "cardAriaLabel": "{title} – {company}",
+    "cardPublished": "Published <b>{date}</b>",
+    "cardApplyBy": "Apply by <b>{date}</b>",
+    "fullKicker": "Demo job ad",
+    "backToList": "Back to the list"
+  },
+  "detail": {
+    "company": "Company",
+    "role": "Role",
+    "source": "Source",
+    "lastUpdated": "Last updated",
+    "aboutHeading": "About sample applications",
+    "aboutBody": "This is a sample application in demo mode. Log in or join the waitlist to create, edit and follow up on your own applications with status changes, notes and follow-ups.",
+    "modalSubtitle": "{company} · demo"
+  },
+  "modal": {
+    "applicationLoading": "Loading the application…",
+    "jobAdLoading": "Loading the job ad…"
+  }
+}

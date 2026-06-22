@@ -1,1 +1,225 @@
-{}
+{
+  "saved": {
+    "emptyTitle": "No saved ads",
+    "emptyBody": "Find an ad under Jobs and select <i>Save</i> in the ad detail. It is saved here.",
+    "listLabel": "Saved ads",
+    "removed": "The ad has been removed",
+    "saved": "Saved",
+    "published": "Published",
+    "lastApplication": "Application deadline",
+    "removeBookmark": "Remove bookmark",
+    "openAd": "Open {title}",
+    "openExternal": "Open the ad on the external website",
+    "removeBookmarkFor": "Remove bookmark for {title}",
+    "toggle": {
+      "saved": "Saved",
+      "save": "Save",
+      "removeAria": "Remove bookmark for the ad",
+      "saveAria": "Save the ad as a bookmark"
+    },
+    "chip": {
+      "label": "Saved ads",
+      "empty": "No saved ads yet. Open an ad and select Save in the modal.",
+      "footer": "View all saved ads"
+    }
+  },
+  "recent": {
+    "emptyTitle": "No recent searches",
+    "emptyBody": "Run a search under Jobs. It is saved here automatically.",
+    "listLabel": "Recent searches",
+    "hitsWithNew": "<b>{currentCount}</b> hits, of which <b>{newCount}</b> new",
+    "hits": "<b>{currentCount}</b> hits",
+    "runAgain": "Run again",
+    "removeSearch": "Remove search {label}",
+    "chip": {
+      "label": "Recent searches",
+      "empty": "No recent searches yet. Search under Jobs and they are saved here.",
+      "footer": "View all recent searches",
+      "countWithNew": "({currentCount}, {newCount} new)",
+      "count": "({currentCount})"
+    }
+  },
+  "actions": {
+    "notLoggedIn": "You are not logged in.",
+    "recentSearchNotFound": "The search could not be found. It may already have been removed.",
+    "recentSearchDeleteFailed": "Could not remove the search. Try again.",
+    "savedJobAdNotFound": "The ad could not be found. It may have been removed.",
+    "savedJobAdSaveFailed": "Could not save the ad. Try again.",
+    "savedJobAdRemoveFailed": "Could not remove the bookmark. Try again."
+  },
+  "enums": {
+    "status": {
+      "Active": "Active",
+      "Expired": "Expired",
+      "Archived": "Archived"
+    },
+    "source": {
+      "Manual": "Own",
+      "Platsbanken": "Platsbanken",
+      "LinkedIn": "LinkedIn",
+      "Eures": "EURES"
+    },
+    "sort": {
+      "PublishedAtDesc": "Newest first",
+      "PublishedAtAsc": "Oldest first",
+      "ExpiresAtDesc": "Closing later",
+      "ExpiresAtAsc": "Closing soon",
+      "Relevance": "Most relevant",
+      "MatchDesc": "Sort by match"
+    }
+  },
+  "ui": {
+    "card": {
+      "ariaLabel": "{title} – {company}",
+      "published": "Published",
+      "publishedToday": "today, at {time}",
+      "publishedYesterday": "yesterday, at {time}",
+      "publishedOlder": "{date}, at {time}",
+      "lastApplication": "Application deadline"
+    },
+    "tags": {
+      "new": "New",
+      "saved": "Saved",
+      "applied": "Applied"
+    },
+    "list": {
+      "ariaLabel": "Job ads",
+      "emptyTitle": "No jobs found",
+      "emptyBody": "Adjust the filters or clear the search box to see more ads."
+    },
+    "skeleton": {
+      "searching": "Searching through ads…"
+    },
+    "detail": {
+      "published": "Published",
+      "lastApplicationDay": "Application deadline",
+      "adId": "Ad ID",
+      "description": "Ad description",
+      "openAd": "Open the ad",
+      "appliedNotice": "You have marked this ad as applied. See it in",
+      "appliedNoticeLink": "My applications"
+    },
+    "match": {
+      "heading": "Match against your profile",
+      "settingsCta": "Set up matching",
+      "uploadCvCta": "Upload CV",
+      "noStatedOccupation": "You have not stated which occupations you are searching within. Set this to see how well ads match your profile.",
+      "uploadCvFoot": "Upload a CV to match on skills and requirements. It is required for a Strong match and a Top match.",
+      "youHave": "You have: {items}",
+      "alsoRequested": "The ad also asks for: {items}",
+      "grade": {
+        "Top": "Top match",
+        "Strong": "Strong match",
+        "Good": "Good match",
+        "Basic": "Basic match"
+      },
+      "verdict": {
+        "Match": "Matches",
+        "Partial": "Partial",
+        "NoMatch": "Missing",
+        "NotAssessed": "Not assessed",
+        "Vacuous": "None stated"
+      },
+      "dimension": {
+        "ssykOverlap": "Occupation",
+        "titleSimilarity": "Title",
+        "regionFit": "Region",
+        "employmentFit": "Employment type",
+        "skillOverlap": "Skills",
+        "mustHaveCoverage": "Must-have requirements",
+        "niceToHaveCoverage": "Nice to have"
+      },
+      "notAssessedReason": {
+        "ssykOverlap": "You have not stated which occupations you are searching within.",
+        "titleSimilarity": "Title is not yet compared against your profile.",
+        "regionFit": "You have not stated any region.",
+        "employmentFit": "You have not stated any employment type.",
+        "skills": "No skills could be read from your CV. Upload a CV under Profile.",
+        "default": "This part could not be assessed."
+      },
+      "mustHaveSummary": {
+        "Match": "You meet all the must-have requirements in the ad.",
+        "Partial": "You meet some of the ad's must-have requirements.",
+        "NoMatch": "You do not meet the ad's must-have requirements.",
+        "Vacuous": "The ad states no specific must-have requirements."
+      }
+    },
+    "pagination": {
+      "navLabel": "Pagination",
+      "previous": "Previous",
+      "next": "Next",
+      "pagePrefix": "Page ",
+      "summary": "Page {page} of {totalPages} ({totalCount} hits total)"
+    },
+    "modalShell": {
+      "close": "Close"
+    },
+    "toolbar": {
+      "noHits": "No hits",
+      "hits": "{count, plural, one {hit} other {hits}}",
+      "activeFiltersLabel": "Active search terms and filters",
+      "removeSearchTerm": "Remove the search term {label}",
+      "removeFilter": "Remove filter {label}",
+      "clearAll": "Clear search terms and filters",
+      "sortLabel": "Sort",
+      "sortRelevance": "Relevance",
+      "sortPublishedDesc": "Date (newest)",
+      "sortExpiresAsc": "Application date (deadline)",
+      "matchSortDisclosure": "Match sorting requires you to state which occupations you are searching within. The list is shown newest first until you have set this.",
+      "matchSortDisclosureLink": "Set up matching"
+    },
+    "results": {
+      "rateLimitedTitle": "Too many requests",
+      "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds} seconds.",
+      "errorTitle": "Could not load job ads",
+      "errorBody": "A technical error occurred. Try reloading the page in a moment."
+    },
+    "heroSearch": {
+      "fieldLabel": "Search by occupation, employer or place",
+      "clearField": "Clear the search field",
+      "submit": "Search",
+      "limitNotice": "The search text is full (max {max} characters). Remove a tag to add more words.",
+      "help": "Words become tags in the filter row at the results when you type a space or comma. Choose suggestions with the arrow keys and Tab.",
+      "announceAdded": "Added {label}",
+      "announceRemoved": "Removed {label}",
+      "announceCleared": "Cleared the search field"
+    },
+    "heroFilters": {
+      "ort": "Place",
+      "yrke": "Occupation",
+      "filter": "Filter",
+      "showResults": "Show {count, plural, one {{formattedCount} ad} other {{formattedCount} ads}}",
+      "showResultsEmpty": "Show ads",
+      "ortLeftTitle": "Region",
+      "ortRightTitle": "Municipalities",
+      "ortSelectAll": "All of {label}",
+      "ortEmpty": "Regions could not be loaded right now. You can search by search terms anyway.",
+      "ortRightEmpty": "Select a region on the left.",
+      "yrkeLeftTitle": "Occupational area",
+      "yrkeRightTitle": "Occupational groups",
+      "yrkeSelectAll": "Select all occupational groups",
+      "yrkeEmpty": "Occupational areas could not be loaded right now. You can search by search terms anyway.",
+      "yrkeRightEmpty": "Select an occupational area on the left.",
+      "klass2Empty": "Filters could not be loaded right now. You can search by search terms anyway."
+    },
+    "typeahead": {
+      "loading": "Fetching suggestions…",
+      "suggestionCount": "{count} suggestions",
+      "rateLimited": "Too many searches in a short time. Suggestions are paused for a while. You can keep typing and searching anyway.",
+      "listLabel": "Search suggestions"
+    },
+    "popover": {
+      "clear": "Clear"
+    },
+    "klass2": {
+      "dialogLabel": "Filter",
+      "worktimeAll": "All",
+      "worktimeHeading": "Scope",
+      "employmentHeading": "Employment type",
+      "clear": "Clear"
+    },
+    "heroChip": {
+      "showAll": "Show all"
+    }
+  }
+}

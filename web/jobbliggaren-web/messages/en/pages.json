@@ -1,1 +1,157 @@
-{}
+{
+  "common": {
+    "rateLimitedTitle": "Too many requests",
+    "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds} seconds.",
+    "errorBodyReload": "A technical error occurred. Try reloading the page in a moment.",
+    "errorBodyRetry": "A technical error occurred. Try again in a moment.",
+    "back": "Back"
+  },
+  "layout": {
+    "skipToContent": "Skip to main content"
+  },
+  "ansokningar": {
+    "title": "My applications",
+    "lede": "A pipeline of all your applications. Click a row for details.",
+    "newApplication": "New application",
+    "loadErrorTitle": "Could not load applications",
+    "emptyKicker": "Pipeline",
+    "emptyTitle": "No applications yet",
+    "emptyBody": "As soon as you register your first application, it appears here. Track status from draft to reply without losing a single application.",
+    "emptyCreateFirst": "Create first application",
+    "emptySearchFirst": "Search jobs first",
+    "new": {
+      "title": "New application",
+      "lede": "Add the job you are applying for. You can fill in the details later.",
+      "titleLabel": "Job title",
+      "companyLabel": "Company",
+      "urlLabel": "Job link",
+      "urlHint": "Optional. The link must start with http:// or https://.",
+      "expiresAtLabel": "Application deadline",
+      "expiresAtHint": "Optional. The date is shown as a reminder in the application list.",
+      "coverLetterLabel": "Cover letter",
+      "coverLetterHint": "Optional. You can add or edit it later.",
+      "submit": "Create application",
+      "submitting": "Saving…",
+      "cancel": "Cancel"
+    },
+    "loading": "The application is loading…",
+    "detail": {
+      "backLink": "Back to applications",
+      "loadErrorTitle": "Could not load the application",
+      "fallbackTitle": "Application #{shortId}",
+      "subtitle": "{company} · #{shortId}",
+      "createdSubtitle": "Created {date}"
+    }
+  },
+  "cv": {
+    "title": "CV",
+    "lede": "Manage your CV variants. Import an existing CV for a review, or create a new one from scratch. You always stay in control.",
+    "importCv": "Import CV",
+    "newCv": "New CV",
+    "loadErrorTitle": "Could not load CV",
+    "matchBarTitle": "Matching against your CV",
+    "matchBarText": "Set which occupations, regions and employment types you are looking for. We suggest based on your CV. You choose what is included.",
+    "emptyKicker": "CV variants",
+    "emptyTitle": "No CVs yet",
+    "emptyBody": "Create your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",
+    "emptyCreateFirst": "Create first CV",
+    "backLink": "Back to CV",
+    "import": {
+      "title": "Import CV",
+      "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Nothing is changed in your CV until you save it yourself.",
+      "modalDescription": "Upload your existing CV as a PDF or Word file. We read the contents and show a review. Your CV is not changed."
+    },
+    "new": {
+      "title": "New CV",
+      "lede": "Create a new CV from scratch. Give it a name and fill in your full name. You can change the rest later.",
+      "modalDescription": "Create a new CV from scratch. Give it a name and fill in your full name. You can change the rest later."
+    },
+    "detail": {
+      "loadErrorTitle": "Could not load CV",
+      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
+      "updatedAt": "Last updated"
+    },
+    "review": {
+      "title": "Review imported CV",
+      "lede": "This is a deterministic review of your imported CV. Nothing has been changed in the file. The review only points out what you can improve, with cited evidence from your own text.",
+      "loadErrorTitle": "Could not load the review",
+      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
+      "showImprovements": "Show improvement suggestions",
+      "continueSave": "Continue and save CV",
+      "loading": "Loading the review…"
+    },
+    "improve": {
+      "title": "Improve imported CV",
+      "lede": "These are deterministic improvement suggestions for your imported CV. Nothing has been changed in the file. Each suggestion shows a before-and-after change with cited evidence from your own text. You choose what to include when you write your CV.",
+      "loadErrorTitle": "Could not load the improvement suggestions",
+      "errorBody": "A technical error occurred. Try reloading the page or go back to the review.",
+      "backLink": "Back to the review"
+    },
+    "gapFill": {
+      "title": "Fill in and save CV",
+      "lede": "We have filled in what the parser found in your file. Fill in the required fields (especially dates, which the parser never guesses) and save to create your CV.",
+      "loadErrorTitle": "Could not load the CV",
+      "errorBody": "A technical error occurred. Try reloading the page or go back to the review.",
+      "backLink": "Back to the review"
+    },
+    "importApi": {
+      "notMultipart": "Upload the file as multipart/form-data.",
+      "tooLarge": "The file is too large. The maximum size is 10 MB.",
+      "noFile": "No file was attached. Choose a PDF or Word file (DOCX).",
+      "serverUnreachable": "Could not reach the server. Try again.",
+      "unreadable": "The file could not be read. Check that it is a PDF or Word file (DOCX) under 10 MB."
+    }
+  },
+  "jobb": {
+    "title": "Search jobs",
+    "lede": "Search among active listings from Platsbanken. Filter and compare without losing a single listing.",
+    "loading": "The job listing is loading…",
+    "detail": {
+      "loadErrorTitle": "Could not load the listing"
+    }
+  },
+  "sokningar": {
+    "title": "Recent searches",
+    "lede": "Searches you made under Jobs. Click to run a search again, or remove one you no longer need.",
+    "loadErrorTitle": "Could not load recent searches"
+  },
+  "sparade": {
+    "title": "Saved listings",
+    "lede": "Listings you have saved to return to later. Open a listing to see details or remove the bookmark.",
+    "loadErrorTitle": "Could not load saved listings"
+  },
+  "installningar": {
+    "title": "Settings",
+    "lede": "Manage your account details and settings.",
+    "profileNotCreated": "Your profile has not been created yet. Fill in the details below to get started.",
+    "rateLimited": "Too many requests. Try again in {seconds} seconds.",
+    "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment."
+  },
+  "auth": {
+    "login": {
+      "title": "Log in",
+      "brand": "Jobbliggaren",
+      "emailLabel": "Email address",
+      "emailHint": "The format is name@domain.se",
+      "passwordLabel": "Password",
+      "submit": "Log in",
+      "submitting": "Logging in...",
+      "noAccount": "No account?",
+      "joinWaitlist": "Join the waiting list"
+    },
+    "register": {
+      "emailLabel": "Email address",
+      "emailHint": "The format is name@domain.se",
+      "passwordLabel": "Password",
+      "submit": "Create account",
+      "submitting": "Creating account..."
+    },
+    "actions": {
+      "credentialsRequired": "Email and password are required.",
+      "loginFailed": "Login failed. Check your email and password.",
+      "unexpectedError": "An unexpected error occurred. Try again.",
+      "serverUnreachable": "Could not reach the server. Try again.",
+      "registrationFailed": "Registration failed."
+    }
+  }
+}

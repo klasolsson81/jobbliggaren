@@ -1,1 +1,54 @@
-{}
+{
+  "application": {
+    "titleRequired": "Job title is required.",
+    "titleMax": "Job title may be at most 200 characters.",
+    "companyRequired": "Company is required.",
+    "companyMax": "Company may be at most 200 characters.",
+    "urlInvalid": "The job ad link must be a valid web address.",
+    "urlScheme": "The job ad link must start with http:// or https://.",
+    "dateInvalid": "Invalid date.",
+    "coverLetterMax": "The cover letter may be at most 5,000 characters.",
+    "applicationIdInvalid": "Invalid application ID.",
+    "statusInvalid": "Invalid status.",
+    "channelInvalid": "Invalid channel.",
+    "dateRequired": "Date is required.",
+    "noteMax": "The note may be at most 1,000 characters.",
+    "noteContentRequired": "The note cannot be empty.",
+    "noteContentMax": "The note may be at most 5,000 characters.",
+    "followUpIdInvalid": "Invalid follow-up ID.",
+    "outcomeInvalid": "Invalid outcome."
+  },
+  "profile": {
+    "confirmEmailInvalid": "Enter a valid email address.",
+    "passwordRequired": "Password is required.",
+    "displayNameRequired": "Display name is required.",
+    "displayNameMax": "Display name may be at most 200 characters.",
+    "languageInvalid": "Choose a valid language."
+  },
+  "resume": {
+    "dateInvalid": "Invalid date (yyyy-MM-dd).",
+    "nameRequired": "Name is required.",
+    "nameMax": "Name may be at most 200 characters.",
+    "fullNameRequired": "Full name is required.",
+    "fullNameMax": "Full name may be at most 200 characters.",
+    "resumeIdInvalid": "Invalid CV ID.",
+    "emailInvalid": "Invalid email address.",
+    "companyRequired": "Company is required.",
+    "companyMax": "Company may be at most 200 characters.",
+    "roleRequired": "Role is required.",
+    "roleMax": "Role may be at most 200 characters.",
+    "endBeforeStart": "The end date cannot be before the start date.",
+    "institutionRequired": "Institution is required.",
+    "institutionMax": "Institution may be at most 200 characters.",
+    "degreeRequired": "Degree is required.",
+    "degreeMax": "Degree may be at most 200 characters.",
+    "skillNameRequired": "Skill is required.",
+    "skillNameMax": "Skill may be at most 100 characters.",
+    "yearsInteger": "Enter the number of years as a whole number.",
+    "yearsNegative": "Years cannot be negative.",
+    "yearsMax": "The maximum value for years is 70.",
+    "summaryMax": "The summary may be at most 2,000 characters.",
+    "cvNameRequired": "A name for the CV is required.",
+    "maxChars": "{label} may be at most {max} characters."
+  }
+}

@@ -1,1 +1,166 @@
-{}
+{
+  "personalInfo": {
+    "title": "Personal details",
+    "nameLabel": "Name",
+    "emailLabel": "Email address",
+    "emailHint": "The email address is tied to your account and cannot be changed here.",
+    "saving": "Saving...",
+    "save": "Save changes",
+    "saved": "Saved."
+  },
+  "display": {
+    "title": "Display",
+    "themeLabel": "Theme",
+    "themeHint": "Affects the whole app immediately. Saved on your device.",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "languageLabel": "Language",
+    "languageHint": "Affects the whole app immediately. Saved to your account.",
+    "languageSwedish": "Svenska",
+    "languageEnglish": "English"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "emailLabel": "Email notifications",
+    "emailDescription": "Get an email for important events in your account.",
+    "weeklyLabel": "Weekly summary by email",
+    "weeklyDescription": "A summary of your applications and new job ads."
+  },
+  "privacy": {
+    "title": "Privacy and data",
+    "description": "You have the right to export all data we hold about you, and to delete your account entirely.",
+    "export": "Export my data",
+    "exportTitle": "The export flow is not enabled yet"
+  },
+  "logout": {
+    "title": "Log out",
+    "description": "End this session. You can log in again at any time.",
+    "action": "Log out"
+  },
+  "matchPrefs": {
+    "title": "Matching",
+    "intro": "Enter the occupations, regions and employment types you are looking for. We use it to show how well each job ad matches your profile. All fields are optional.",
+    "degraded": "Your matching choices could not be loaded right now. Try reloading the page in a moment.",
+    "facetOccupations": "Occupations",
+    "facetRegions": "Regions",
+    "facetEmployment": "Employment types",
+    "emptyOccupations": "All occupations (none selected)",
+    "emptyRegions": "Whole country (no region selected)",
+    "emptyEmployment": "All employment types (none selected)",
+    "add": "Add",
+    "saveError": "The change could not be saved. Try again.",
+    "savedAt": "Saved {time}",
+    "selectedOccupations": "Selected occupations",
+    "selectedRegions": "Selected regions",
+    "selectedEmployment": "Selected employment types",
+    "clear": "Clear",
+    "removeChip": "Remove {label}",
+    "dialog": {
+      "title": "Add to matching",
+      "intro": "Search and select occupations, regions and employment types. Selected ones appear at the top of each part. Remove them with the cross icon.",
+      "saving": "Saving…",
+      "save": "Save matching",
+      "cancel": "Cancel"
+    },
+    "occupation": {
+      "addOccupations": "Add occupations",
+      "filterLabel": "Filter occupational groups",
+      "filterHint": "Type to narrow the list, or browse by occupational area.",
+      "noMatch": "No occupational group matches the filter.",
+      "occupationField": "Occupational area",
+      "occupationGroups": "Occupational groups",
+      "fieldsUnavailable": "The occupational areas could not be loaded right now.",
+      "chooseField": "Choose an occupational area on the left.",
+      "selectAllGroups": "Select all occupational groups",
+      "suggesting": "Reading your CV…",
+      "suggestFromCv": "Suggest from my CV",
+      "uploadGroup": "Upload CV",
+      "cancelUpload": "Cancel",
+      "openImportInstead": "Open the import page instead",
+      "noCvTitle": "No CV uploaded",
+      "noCvBody": "Upload a CV and we can suggest occupations based on your experience. You decide which suggestions to include.",
+      "uploadCv": "Upload CV",
+      "noRole": "We could not read an occupation from your CV. You can choose occupations from the list instead.",
+      "unauthorized": "You are not logged in. Log in and try again.",
+      "error": "Could not read your CV right now. Try again in a moment."
+    },
+    "wizard": {
+      "stepOccupations": "Occupations",
+      "stepRegions": "Regions",
+      "stepEmployment": "Employment types",
+      "stepDone": "Done",
+      "counter": "Step {step} of {total}",
+      "introOccupations": "Choose the occupations you are looking for. We suggest based on your CV. Change them if they are not right; you decide which ones to include.",
+      "introRegions": "Choose the regions you want to work in. Leave empty for the whole country.",
+      "introEmployment": "Choose the employment types you are open to. Leave empty for all.",
+      "introReview": "Review your choices. You can remove something here, or go back to change it.",
+      "back": "Back",
+      "skipStep": "Skip this step",
+      "saving": "Saving…",
+      "save": "Save matching",
+      "next": "Next"
+    },
+    "errors": {
+      "notLoggedIn": "You are not logged in.",
+      "invalidInput": "Invalid details.",
+      "saveFailed": "Could not save your matching preferences.",
+      "network": "Could not reach the server. Check your network connection.",
+      "invalidTitle": "Invalid occupation title.",
+      "tooManyAttempts": "Too many attempts. Wait a moment and try again.",
+      "suggestFailed": "Could not fetch suggestions right now. Try again in a moment."
+    }
+  },
+  "account": {
+    "displayNameLabel": "Display name",
+    "displayNameHint": "The name shown in the app and on your applications.",
+    "languageLabel": "Language",
+    "languageSwedish": "Svenska",
+    "languageEnglish": "English",
+    "notificationsLegend": "Notifications",
+    "emailNotificationsLabel": "Email notifications",
+    "emailNotificationsHint": "Get an email for important events in your account.",
+    "weeklySummaryLabel": "Weekly summary",
+    "weeklySummaryHint": "A weekly overview of your active applications.",
+    "saving": "Saving…",
+    "saveProfile": "Save profile",
+    "savedAt": "Saved {time}.",
+    "invalidInput": "Invalid details.",
+    "danger": {
+      "title": "Danger zone",
+      "description": "You can delete your account permanently. The action cannot be undone and logs you out from all devices."
+    },
+    "delete": {
+      "trigger": "Delete account permanently",
+      "title": "Delete account permanently",
+      "description": "This action cannot be undone. Your account and all linked data will be deleted. You will be logged out immediately after the deletion is complete.",
+      "confirmEmailLabel": "Enter your email address to confirm",
+      "expected": "Expected: {email}",
+      "passwordLabel": "Password",
+      "cancel": "Cancel",
+      "deleting": "Deleting…",
+      "submit": "Delete my account",
+      "invalidInput": "Invalid details."
+    },
+    "errors": {
+      "notLoggedIn": "You are not logged in.",
+      "invalidInput": "Invalid details.",
+      "updateFailed": "Could not update the profile.",
+      "network": "Could not reach the server. Check your network connection.",
+      "emailMismatch": "The email address does not match your account.",
+      "verifyFailed": "Could not verify the password.",
+      "wrongPassword": "The password is incorrect.",
+      "deleteFailed": "Could not delete the account."
+    }
+  },
+  "onboarding": {
+    "uploadTitle": "Get started with matching",
+    "uploadIntro": "Upload your CV and we can suggest which occupations you are looking for. You decide what to include, and you can skip this.",
+    "continueWithoutCv": "Continue without a CV",
+    "cvUploadedTitle": "CV uploaded",
+    "setUpMatchTitle": "Set up your matching",
+    "cvUploadedNote": "We have read and interpreted your CV. Nothing has changed and no matching has been done yet. Would you like to set up your matching profile now?",
+    "setUpMatchNote": "Would you like to set up your matching now? It takes a minute. You can skip and do it later.",
+    "skip": "Skip",
+    "confirm": "Yes, set up matching"
+  }
+}

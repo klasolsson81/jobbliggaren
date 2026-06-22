@@ -1,16 +1,18 @@
 "use client";
 
-// "use client": pinnade chips + kryssrute-lista med onToggle/onClear. Delad
-// presentations-sektion för Regioner OCH Anställningsformer (de är strukturellt
-// identiska: en platt option-lista + pinnade chips). Extraherad ur
-// match-preferences-dialog (ADR 0077 STEG 5), delad med match-setup-wizard.
+// "use client": pinnade chips + kryssrute-lista med onToggle/onClear. Generisk
+// presentations-sektion för en platt facet (option-lista + pinnade chips).
+// Driver i dag Anställningsformer; ort flyttades till RegionMunicipalityCascade
+// (Spår 3 PR-D) men formen är densamma för vilken platt facet som helst.
+// Extraherad ur match-preferences-dialog (ADR 0077 STEG 5), delad med
+// match-setup-wizard.
 
 import { useTranslations } from "next-intl";
 import { labelsForSelected, type Option } from "./match-preferences-shared";
 import { CheckItem, PinnedChips } from "./section-helpers";
 
 interface FacetSectionProps {
-  /** Sektions-rubrik ("Regioner" / "Anställningsformer"). */
+  /** Sektions-rubrik (t.ex. "Anställningsformer"). */
   readonly title: string;
   /** Alla valbara options (concept-id + svenskt namn). */
   readonly options: ReadonlyArray<Option>;
@@ -20,7 +22,7 @@ interface FacetSectionProps {
   readonly onToggle: (conceptId: string) => void;
   /** Töm valet helt. */
   readonly onClear: () => void;
-  /** aria-label för de pinnade chipsen ("Valda regioner" osv.). */
+  /** aria-label för de pinnade chipsen (t.ex. "Valda anställningsformer"). */
   readonly pinnedAriaLabel: string;
   /** rubrik-id som värden kopplar `aria-labelledby` mot (för role=group). */
   readonly headingId?: string;
@@ -33,9 +35,10 @@ interface FacetSectionProps {
 }
 
 /**
- * En enkel facet-sektion (lista + pinnade chips). Driver både REGIONER och
- * ANSTÄLLNINGSFORMER — samma markup/roller/etiketter som dialogen renderade
- * inline tidigare (behållet för regressionsvakt).
+ * En enkel facet-sektion (lista + pinnade chips). Driver i dag
+ * ANSTÄLLNINGSFORMER; samma markup/roller/etiketter som dialogen renderade
+ * inline tidigare (behållet för regressionsvakt). Generisk nog för vilken
+ * platt facet som helst.
  */
 export function FacetSection({
   title,

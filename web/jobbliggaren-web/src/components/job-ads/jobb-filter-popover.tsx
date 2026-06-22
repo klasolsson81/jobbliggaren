@@ -290,9 +290,16 @@ export function JobbFilterPopover({
             förälderns max-height) — grid-barn får ingen användbar höjd att
             scrolla inom från förälderns max-height; constraint måste sitta
             på scroll-elementet självt (design-reviewer F4 Blocker x2). */}
+        {/* Vänsterkolumnen NAVIGERAR aktiv grupp (avslöjar dess val till
+            höger) — den väljer inget värde (det gör höger-kolumnens
+            checkbox-rader). Därför en knapp-grupp (role="group" + <button>),
+            inte role="listbox" (en listbox lovar single-tab-stop + roving
+            tabindex + piltangenter, vilket interaktionen aldrig hade). Native
+            <button> ger Enter/Space + fokus gratis; aktiv rad via aria-pressed.
+            Paritet med ort-kaskaden (CTO-verdikt 2026-06-22). */}
         <div
           className="jp-popover__col"
-          role="listbox"
+          role="group"
           aria-label={leftTitle}
           style={{ maxHeight: "60vh", overflowY: "auto" }}
         >
@@ -325,19 +332,12 @@ export function JobbFilterPopover({
                 g.items.some((it) => selectedSet.has(it.conceptId)) ||
                 groupSelectedSet.has(g.conceptId);
               return (
-                <div
+                <button
                   key={g.conceptId}
+                  type="button"
                   className="jp-popover-row"
-                  role="option"
-                  aria-selected={active}
-                  tabIndex={0}
+                  aria-pressed={active}
                   onClick={() => setActiveLeft(g.conceptId)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setActiveLeft(g.conceptId);
-                    }
-                  }}
                 >
                   <span
                     style={{
@@ -364,7 +364,7 @@ export function JobbFilterPopover({
                     className="jp-popover-row__chev"
                     aria-hidden="true"
                   />
-                </div>
+                </button>
               );
             })
           )}

@@ -41,20 +41,21 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
     case "ok": {
       // F4-16 — matchnings-detalj parallellt med Spara/Har-ansökt (ingen
       // waterfall). Degraderar civilt till null (ingen sektion) vid fel.
-      // Spår 3 PR-D — taxonomin i samma Promise.all (cachad 1h) så RegionFit-
-      // beviset kan visa kommun-träff vs län-träff. Granularitets-kartan byggs
-      // FE-side (architect NOTE-2); taxonomi-fel → null → generisk bevisform.
-      const [initialSaved, initialApplied, match, taxonomyResult] =
-        await Promise.all([
-          isJobAdSaved(id),
-          hasAppliedJobAd(id),
-          getJobAdMatchDetail(id),
-          getTaxonomyTree(),
-        ]);
+      const [initialSaved, initialApplied, match] = await Promise.all([
+        isJobAdSaved(id),
+        hasAppliedJobAd(id),
+        getJobAdMatchDetail(id),
+      ]);
+      // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
+      // byggs ingen granularitets-karta). En inloggad användare utan match
+      // ska inte betala för round-trippen (cleanup-pass: gate guest-prefetch).
+      // Cachad 1h (statisk referensdata); kartan byggs FE-side (architect
+      // NOTE-2), taxonomi-fel → null → generisk bevisform.
+      const taxonomyResult = match != null ? await getTaxonomyTree() : null;
       const ortGranularityByLabel =
         match != null
           ? buildOrtGranularityMap(
-              taxonomyResult.kind === "ok" ? taxonomyResult.data : null,
+              taxonomyResult?.kind === "ok" ? taxonomyResult.data : null,
             )
           : undefined;
       return (

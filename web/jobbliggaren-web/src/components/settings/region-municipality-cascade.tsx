@@ -44,7 +44,7 @@ interface RegionMunicipalityCascadeProps {
   readonly onChange: (next: OrtSelection) => void;
   /**
    * Visa sektionens egna "Orter"-rubrik. Default true (dialogen). Wizarden
-   * sätter false — där bär DialogTitle ("Regioner") rubriken, och en andra
+   * sätter false: där bär steg-rubriken ("Orter") rubriken, och en andra
    * inline-rubrik vore en dubblett. När false renderas bara Rensa-länken.
    */
   readonly showHeading?: boolean;
@@ -302,9 +302,18 @@ export function RegionMunicipalityCascade({
               </div>
             ) : (
               <div className="jp-matchdialog__cascade">
+                {/* Vänsterkolumnen NAVIGERAR vilket län som är aktivt (avslöjar
+                    dess kommuner till höger) — den väljer inget värde (det gör
+                    kommun-checkboxarna + de pinnade chipsen). Därför en
+                    knapp-grupp (role="group" + <button>), inte role="listbox"
+                    (en listbox lovar single-tab-stop + roving tabindex +
+                    piltangenter, vilket interaktionen aldrig hade). Native
+                    <button> ger Enter/Space + fokus gratis; aktiv rad via
+                    aria-pressed. Paritet med jobb-popovern (CTO-verdikt
+                    2026-06-22). */}
                 <div
                   className="jp-matchdialog__cascade-col"
-                  role="listbox"
+                  role="group"
                   aria-label={t("matchPrefs.cascade.regionColumn")}
                 >
                   <div className="jp-matchdialog__cascade-colhead">
@@ -325,19 +334,12 @@ export function RegionMunicipalityCascade({
                           selectedMunicipalities.includes(m.conceptId),
                         );
                       return (
-                        <div
+                        <button
                           key={r.conceptId}
+                          type="button"
                           className="jp-popover-row"
-                          role="option"
-                          aria-selected={active}
-                          tabIndex={0}
+                          aria-pressed={active}
                           onClick={() => setActiveRegion(r.conceptId)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setActiveRegion(r.conceptId);
-                            }
-                          }}
                         >
                           <span className="flex items-center gap-2">
                             {hasSel && !active && (
@@ -353,7 +355,7 @@ export function RegionMunicipalityCascade({
                             className="jp-popover-row__chev"
                             aria-hidden="true"
                           />
-                        </div>
+                        </button>
                       );
                     })
                   )}

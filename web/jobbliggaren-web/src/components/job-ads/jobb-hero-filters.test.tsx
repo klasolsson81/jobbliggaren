@@ -293,7 +293,7 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
     setup();
     await user.click(screen.getByRole("button", { name: /^Yrke/ }));
 
-    await user.click(screen.getByRole("option", { name: /Bygg och anläggning/ }));
+    await user.click(screen.getByRole("button", { name: /Bygg och anläggning/ }));
     await user.click(screen.getByText("Snickare"));
 
     expect(pushMock).toHaveBeenCalledWith(

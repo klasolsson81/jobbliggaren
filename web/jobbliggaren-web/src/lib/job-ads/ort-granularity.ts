@@ -33,6 +33,10 @@ export type OrtGranularity = "region" | "municipality";
 export function buildOrtGranularityMap(
   taxonomy: TaxonomyTree | null,
 ): Record<string, OrtGranularity> {
+  // Invariant: region- och kommun-LABELS är i praktiken disjunkta i JobTech-
+  // taxonomin (en kollision = Gotland, som är både län och kommun). Den enda
+  // kollisionen hanteras medvetet nedan genom att skriva län FÖRST → coarser
+  // "region" vinner. Övriga labels tillhör entydigt en granularitet.
   const map: Record<string, OrtGranularity> = {};
   if (taxonomy === null) return map;
 

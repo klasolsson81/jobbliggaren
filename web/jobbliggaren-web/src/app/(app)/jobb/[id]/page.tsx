@@ -38,21 +38,22 @@ export default async function JobbDetailPage({ params }: PageProps) {
       // Promise.all undviker waterfall; båda misslyckas civilt (returnerar false).
       // F4-16 — matchnings-detalj i samma Promise.all (degraderar till null =
       // ingen sektion).
-      // Spår 3 PR-D — taxonomin hämtas i samma Promise.all (cachad 1h, statisk
-      // referensdata) så match-modalens RegionFit-bevis kan visa kommun-träff
-      // vs län-träff. Granularitets-kartan byggs FE-side (architect NOTE-2);
-      // taxonomi-fel → null → generisk bevisform (degraderar civilt).
-      const [initialSaved, initialApplied, match, taxonomyResult] =
-        await Promise.all([
-          isJobAdSaved(id),
-          hasAppliedJobAd(id),
-          getJobAdMatchDetail(id),
-          getTaxonomyTree(),
-        ]);
+      const [initialSaved, initialApplied, match] = await Promise.all([
+        isJobAdSaved(id),
+        hasAppliedJobAd(id),
+        getJobAdMatchDetail(id),
+      ]);
+      // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
+      // byggs ingen granularitets-karta). En inloggad användare utan match
+      // ska inte betala för round-trippen (cleanup-pass: gate guest-prefetch).
+      // Taxonomin är cachad 1h (statisk referensdata) så kostnaden för en
+      // match-användare är en varm cache-läsning; kartan byggs FE-side
+      // (architect NOTE-2), taxonomi-fel → null → generisk bevisform.
+      const taxonomyResult = match != null ? await getTaxonomyTree() : null;
       const ortGranularityByLabel =
         match != null
           ? buildOrtGranularityMap(
-              taxonomyResult.kind === "ok" ? taxonomyResult.data : null,
+              taxonomyResult?.kind === "ok" ? taxonomyResult.data : null,
             )
           : undefined;
       return (

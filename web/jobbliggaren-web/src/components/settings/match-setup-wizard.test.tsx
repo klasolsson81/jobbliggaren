@@ -268,7 +268,7 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
 
     // Steg 1: öppna "Lägg till yrken"-disclosure och välj via kaskaden.
     await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
-    await user.click(screen.getByRole("option", { name: /Data\/IT/ }));
+    await user.click(screen.getByRole("button", { name: /Data\/IT/ }));
     await user.click(
       screen.getByRole("checkbox", { name: "Backendutvecklare" })
     );
@@ -279,7 +279,7 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     // (togglar länets concept-id i region-axeln, ETT id).
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
-    await user.click(screen.getByRole("option", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
     await user.click(
       screen.getByRole("checkbox", { name: "Hela Stockholms län" })
     );

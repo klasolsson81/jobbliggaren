@@ -317,9 +317,18 @@ export function OccupationSection({
               </div>
             ) : (
               <div className="jp-matchdialog__cascade">
+                {/* Vänsterkolumnen NAVIGERAR vilket yrkesområde som är aktivt
+                    (avslöjar dess yrkesgrupper till höger) — den väljer inget
+                    värde (det gör grupp-checkboxarna). Därför en knapp-grupp
+                    (role="group" + <button>), inte role="listbox" (en listbox
+                    lovar single-tab-stop + roving tabindex + piltangenter,
+                    vilket interaktionen aldrig hade). Native <button> ger
+                    Enter/Space + fokus gratis; aktiv rad via aria-pressed.
+                    Paritet med ort-kaskaden + jobb-popovern (CTO-verdikt
+                    2026-06-22). */}
                 <div
                   className="jp-matchdialog__cascade-col"
-                  role="listbox"
+                  role="group"
                   aria-label={t("matchPrefs.occupation.occupationField")}
                 >
                   <div className="jp-matchdialog__cascade-colhead">
@@ -338,19 +347,12 @@ export function OccupationSection({
                         selected.includes(g.conceptId)
                       );
                       return (
-                        <div
+                        <button
                           key={f.conceptId}
+                          type="button"
                           className="jp-popover-row"
-                          role="option"
-                          aria-selected={active}
-                          tabIndex={0}
+                          aria-pressed={active}
                           onClick={() => setActiveField(f.conceptId)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setActiveField(f.conceptId);
-                            }
-                          }}
                         >
                           <span className="flex items-center gap-2">
                             {hasSel && !active && (
@@ -366,7 +368,7 @@ export function OccupationSection({
                             className="jp-popover-row__chev"
                             aria-hidden="true"
                           />
-                        </div>
+                        </button>
                       );
                     })
                   )}

@@ -44,7 +44,7 @@ describe("RegionMunicipalityCascade — dual-axis (Spår 3 PR-D)", () => {
     const { onChange } = renderCascade();
 
     await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
-    await user.click(screen.getByRole("option", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
     await user.click(
       screen.getByRole("checkbox", { name: "Hela Stockholms län" })
     );
@@ -60,7 +60,7 @@ describe("RegionMunicipalityCascade — dual-axis (Spår 3 PR-D)", () => {
     const { onChange } = renderCascade();
 
     await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
-    await user.click(screen.getByRole("option", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
     await user.click(screen.getByRole("checkbox", { name: "Solna" }));
 
     expect(onChange).toHaveBeenCalledWith({
@@ -74,7 +74,7 @@ describe("RegionMunicipalityCascade — dual-axis (Spår 3 PR-D)", () => {
     const { onChange } = renderCascade({ selectedMunicipalities: ["m_sthlm"] });
 
     await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
-    await user.click(screen.getByRole("option", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
     // Stockholm redan vald → klicka Solna kompletterar alla 2 kommuner.
     await user.click(screen.getByRole("checkbox", { name: "Solna" }));
 
@@ -128,5 +128,40 @@ describe("RegionMunicipalityCascade — dual-axis (Spår 3 PR-D)", () => {
 
     expect(screen.getByRole("checkbox", { name: "Göteborg" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "Solna" })).toBeNull();
+  });
+
+  it("vänsterkolumnen är en knapp-grupp (ingen falsk listbox-roll)", async () => {
+    const user = userEvent.setup();
+    renderCascade();
+
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+
+    // Idiom-fix (CTO-verdikt 2026-06-22): län-raderna NAVIGERAR aktiv grupp
+    // → riktiga <button>, ingen role="listbox"/option-claim som lovar
+    // piltangenter vi aldrig hade.
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.queryByRole("option")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Stockholms län" })
+    ).toBeInTheDocument();
+  });
+
+  it("län-raden är tangentbordsaktiverbar (Tab-fokus + Enter)", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderCascade();
+
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+
+    const lan = screen.getByRole("button", { name: "Stockholms län" });
+    lan.focus();
+    expect(lan).toHaveFocus();
+    // Native <button> aktiveras av Enter utan egen onKeyDown → kommun-kolumnen
+    // avslöjas (aria-pressed sätts). Inget värde committas av navigeringen.
+    await user.keyboard("{Enter}");
+    expect(lan).toHaveAttribute("aria-pressed", "true");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("checkbox", { name: "Hela Stockholms län" })
+    ).toBeInTheDocument();
   });
 });

@@ -30,6 +30,8 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         List<string> regions = [];
         List<string> employmentTypes = [];
         List<string> municipalities = [];
+        List<string> skills = [];
+        int? experienceYears = null;
 
         while (reader.Read())
         {
@@ -55,10 +57,19 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
                 case "PreferredMunicipalities":
                     municipalities = ReadStringOrStringArray(ref reader, "PreferredMunicipalities");
                     break;
-                // Missing/unknown key → empty list via the defaults above (an old row
-                // written before Spår 3, or the '{}' default, has no
-                // "PreferredMunicipalities" key → empty municipalities, never a crash).
-                // Forward-compatible.
+                // STEG 3 (ADR 0079) — skills are a 5th string-or-array list (same
+                // tolerant reader); experience is the one NUMERIC key (its own branch
+                // — ReadStringOrStringArray is default-deny on numbers).
+                case "PreferredSkills":
+                    skills = ReadStringOrStringArray(ref reader, "PreferredSkills");
+                    break;
+                case "ExperienceYears":
+                    experienceYears = ReadNullableInt(ref reader, "ExperienceYears");
+                    break;
+                // Missing/unknown key → empty list / null via the defaults above (an old
+                // row written before Spår 3 / STEG 3, or the '{}' default, has no
+                // "PreferredMunicipalities" / "PreferredSkills" / "ExperienceYears" key →
+                // empty / null, never a crash). Forward-compatible.
                 default:
                     reader.Skip();
                     break;
@@ -67,12 +78,14 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
 
         // Re-validate via the Domain factory (single source of invariants +
         // sorted+distinct normalization). Stored data was valid at write time;
-        // missing key → empty list passes (empty is allowed). Fail-safe on corruption.
+        // missing key → empty list / null passes (empty is allowed). Fail-safe on corruption.
         var result = MatchPreferences.Create(
             preferredOccupationGroups: occupationGroups,
             preferredRegions: regions,
             preferredEmploymentTypes: employmentTypes,
-            preferredMunicipalities: municipalities);
+            preferredMunicipalities: municipalities,
+            preferredSkills: skills,
+            experienceYears: experienceYears);
         if (result.IsFailure)
             throw new JsonException(
                 $"Lagrad MatchPreferences-jsonb bröt domän-invariant: {result.Error.Code}.");
@@ -111,6 +124,20 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
             writer.WriteStringValue(m);
         writer.WriteEndArray();
 
+        // STEG 3 (ADR 0079) — skills array (appended last among the lists) + the
+        // experience scalar. ExperienceYears is always written explicitly (number when
+        // stated, JSON null when "not stated") for a deterministic canonical form.
+        writer.WritePropertyName("PreferredSkills");
+        writer.WriteStartArray();
+        foreach (var s in value.PreferredSkills)
+            writer.WriteStringValue(s);
+        writer.WriteEndArray();
+
+        if (value.ExperienceYears is { } years)
+            writer.WriteNumber("ExperienceYears", years);
+        else
+            writer.WriteNull("ExperienceYears");
+
         writer.WriteEndObject();
     }
 
@@ -140,6 +167,26 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
             default:
                 throw new JsonException(
                     $"MatchPreferences.{field} måste vara sträng, strängarray eller null.");
+        }
+    }
+
+    // STEG 3 (ADR 0079) — the one NUMERIC key. Default-deny: only an integer Number or
+    // null is accepted; a fractional number, string, object, bool or array is rejected
+    // (no silent coercion — parity with ReadStringOrStringArray). Domain re-validation
+    // (0..MaxExperienceYears) happens in MatchPreferences.Create on the read path.
+    private static int? ReadNullableInt(ref Utf8JsonReader reader, string field)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+            case JsonTokenType.Number:
+                if (reader.TryGetInt32(out var value))
+                    return value;
+                throw new JsonException($"MatchPreferences.{field} måste vara ett heltal.");
+            default:
+                throw new JsonException(
+                    $"MatchPreferences.{field} måste vara ett heltal eller null.");
         }
     }
 }

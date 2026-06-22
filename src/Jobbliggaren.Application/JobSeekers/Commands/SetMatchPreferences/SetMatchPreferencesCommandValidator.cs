@@ -1,4 +1,5 @@
 using FluentValidation;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.SavedSearches;
 
 namespace Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
@@ -58,5 +59,26 @@ public sealed class SetMatchPreferencesCommandValidator
             .Matches(ConceptIdPattern)
             .When(c => c.PreferredMunicipalities is not null)
             .WithMessage("Kommun måste vara en giltig JobTech municipality-concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        // ADR 0079 STEG 3 — confirmed skill concept-ids: same cap + per-element pattern
+        // as the four dimensions above (defense-in-depth; MatchPreferences.Create is the
+        // authoritative source).
+        RuleFor(c => c.PreferredSkills!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(c => c.PreferredSkills is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} kompetenser.");
+
+        RuleForEach(c => c.PreferredSkills)
+            .Matches(ConceptIdPattern)
+            .When(c => c.PreferredSkills is not null)
+            .WithMessage("Kompetens måste vara en giltig JobTech skill-concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        // ADR 0079 STEG 3 — stated years of experience: 0..MaxExperienceYears when
+        // present (the single authoritative bound on MatchPreferences). Null = not
+        // stated, valid.
+        RuleFor(c => c.ExperienceYears!.Value)
+            .InclusiveBetween(0, MatchPreferences.MaxExperienceYears)
+            .When(c => c.ExperienceYears is not null)
+            .WithMessage($"Antal års erfarenhet måste vara mellan 0 och {MatchPreferences.MaxExperienceYears}.");
     }
 }

@@ -179,6 +179,54 @@ public class SetMatchPreferencesCommandHandlerTests
         result.Error.Code.ShouldBe("MatchPreferences.InvalidOccupationGroup");
     }
 
+    // STEG 3 (ADR 0079) — confirmed skills + experience are threaded into the stored
+    // VO (the trusted capability source persisted for the scorer to read in PR-D).
+    [Fact]
+    public async Task Handle_WithSkillsAndExperience_ThreadsThemIntoStoredPreferences()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: ["skill_spring", "skill_java"],
+            ExperienceYears: 5);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var seeker = db.JobSeekers.Single(js => js.UserId == _userId);
+        seeker.MatchPreferences.PreferredSkills.ShouldBe(["skill_java", "skill_spring"]); // sorterad ordinal
+        seeker.MatchPreferences.ExperienceYears.ShouldBe(5);
+        seeker.MatchPreferences.PreferredOccupationGroups.ShouldBe(["grp_12345"]);
+    }
+
+    // STEG 3 (ADR 0079) — out-of-range experience bubbles up as a Create DomainError.
+    [Fact]
+    public async Task Handle_WithOutOfRangeExperienceYears_ReturnsDomainValidationError()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: null,
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: null,
+            ExperienceYears: 999);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.ExperienceYearsOutOfRange");
+    }
+
     [Fact]
     public async Task Handle_IsOwnerScoped_DoesNotTouchOtherUsersJobSeeker()
     {

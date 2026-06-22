@@ -34,12 +34,16 @@ public class MatchPreferencesTests
         IEnumerable<string>? preferredOccupationGroups = null,
         IEnumerable<string>? preferredRegions = null,
         IEnumerable<string>? preferredEmploymentTypes = null,
-        IEnumerable<string>? preferredMunicipalities = null) =>
+        IEnumerable<string>? preferredMunicipalities = null,
+        IEnumerable<string>? preferredSkills = null,
+        int? experienceYears = null) =>
         MatchPreferences.Create(
             preferredOccupationGroups: preferredOccupationGroups,
             preferredRegions: preferredRegions,
             preferredEmploymentTypes: preferredEmploymentTypes,
-            preferredMunicipalities: preferredMunicipalities);
+            preferredMunicipalities: preferredMunicipalities,
+            preferredSkills: preferredSkills,
+            experienceYears: experienceYears);
 
     // ---------------------------------------------------------------
     // Happy path — varje dimension samt allihop
@@ -568,5 +572,226 @@ public class MatchPreferencesTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.PreferredOccupationGroups.ShouldBe([conceptId]);
+    }
+
+    // ===============================================================
+    // STEG 3 (ADR 0079 Beslut 1) — PreferredSkills: a 5th concept-id
+    // dimension, same contract as the four above (normalization, cap,
+    // regex, equality). Empty stays valid.
+    // ===============================================================
+
+    [Fact]
+    public void Create_WithSkillsOnly_ReturnsSuccess()
+    {
+        var result = Create(preferredSkills: ["skill_java"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredSkills.ShouldBe(["skill_java"]);
+        result.Value.PreferredOccupationGroups.ShouldBeEmpty();
+        result.Value.PreferredRegions.ShouldBeEmpty();
+        result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Create_NormalizesSkills_SortedDistinctOrdinal()
+    {
+        var result = Create(preferredSkills: ["skill_spring", "skill_java", "skill_java", " skill_docker "]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredSkills.ShouldBe(["skill_docker", "skill_java", "skill_spring"]);
+    }
+
+    [Fact]
+    public void Create_DropsEmptyAndWhitespaceSkillElements_KeepsValidOnes()
+    {
+        var result = Create(preferredSkills: ["skill_java", "", "   ", "skill_spring"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredSkills.ShouldBe(["skill_java", "skill_spring"]);
+    }
+
+    [Fact]
+    public void Create_WithExactlyMaxSkills_ReturnsSuccess()
+    {
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"sk{i}").ToArray();
+
+        var result = Create(preferredSkills: max);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredSkills.Count.ShouldBe(SearchCriteria.MaxConceptIds);
+    }
+
+    [Fact]
+    public void Create_WithOneOverMaxSkills_ReturnsFailure()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"sk{i}").ToArray();
+
+        var result = Create(preferredSkills: overMax);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.TooManySkills");
+    }
+
+    [Theory]
+    [InlineData("skill space")]
+    [InlineData("åäö")]
+    [InlineData("dot.notation")]
+    [InlineData("123456789012345678901234567890123")] // 33 tecken > 32
+    public void Create_WithInvalidSkillElement_ReturnsFailure(string bad)
+    {
+        var result = Create(preferredSkills: ["skill_java", bad]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.InvalidSkill");
+    }
+
+    [Fact]
+    public void Create_SkillsCapAppliesAfterDistinct_MaxPlusOneWithDuplicateUnderCap_ReturnsSuccess()
+    {
+        // Cap appliceras EFTER distinct-normaliseringen för skills också (samma
+        // ordning som OccupationGroups ovan; bevisar att 5:e dimensionen följer
+        // kontraktet, inte bara råräknar inputen).
+        var raw = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"sk{i}").ToList();
+        raw.Add("sk1"); // dubblett → distinct → exakt cap, inte över
+
+        var result = Create(preferredSkills: raw);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredSkills.Count.ShouldBe(SearchCriteria.MaxConceptIds);
+    }
+
+    [Fact]
+    public void Create_WithSkills_DoesNotLeakIntoOtherDimensions()
+    {
+        var result = Create(preferredSkills: ["skill_java", "skill_spring"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredSkills.ShouldBe(["skill_java", "skill_spring"]);
+        result.Value.PreferredOccupationGroups.ShouldBeEmpty();
+        result.Value.PreferredRegions.ShouldBeEmpty();
+        result.Value.PreferredEmploymentTypes.ShouldBeEmpty();
+        result.Value.PreferredMunicipalities.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void TwoPreferences_DifferentSkills_AreNotValueEqual()
+    {
+        var a = Create(preferredSkills: ["skill_java"]).Value;
+        var b = Create(preferredSkills: ["skill_python"]).Value;
+
+        a.Equals(b).ShouldBeFalse();
+        (a == b).ShouldBeFalse();
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void TwoPreferences_SameSkills_AreValueEqual_IncludingHashCode()
+    {
+        var a = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredSkills: ["skill_java", "skill_docker"]).Value;
+        var b = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredSkills: ["skill_docker", "skill_java"]).Value;
+
+        a.Equals(b).ShouldBeTrue();
+        (a == b).ShouldBeTrue();
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+        a.ShouldBe(b);
+    }
+
+    // Dimension-förväxlingsgrind utökad: samma concept-id som SKILL vs övriga
+    // dimensioner får ALDRIG vara lika (jsonb-equality-säkerhet).
+    [Fact]
+    public void SameValueAsSkillVsOtherDimension_AreNotValueEqual()
+    {
+        var occ = Create(preferredOccupationGroups: ["x1"]).Value;
+        var skill = Create(preferredSkills: ["x1"]).Value;
+        var muni = Create(preferredMunicipalities: ["x1"]).Value;
+
+        skill.ShouldNotBe(occ);
+        skill.ShouldNotBe(muni);
+    }
+
+    // ===============================================================
+    // STEG 3 (ADR 0079; Klas product decision 2026-06-22) — ExperienceYears:
+    // a single nullable scalar. null = not stated; 0 = stated zero (distinct);
+    // 0..70 believed range (mirrors Resume Skill.YearsExperience).
+    // ===============================================================
+
+    [Fact]
+    public void Create_WithExperienceYears_ReturnsSuccess()
+    {
+        var result = Create(experienceYears: 5);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ExperienceYears.ShouldBe(5);
+    }
+
+    [Fact]
+    public void Create_WithZeroExperienceYears_IsValid_AndDistinctFromNull()
+    {
+        var zero = Create(experienceYears: 0).Value;
+        var notStated = Create().Value;
+
+        zero.ExperienceYears.ShouldBe(0);
+        notStated.ExperienceYears.ShouldBeNull();
+        zero.ShouldNotBe(notStated); // 0 ≠ "not stated"
+    }
+
+    [Fact]
+    public void Create_WithNoExperienceYears_DefaultsToNull_NotStated()
+    {
+        Create().Value.ExperienceYears.ShouldBeNull();
+        MatchPreferences.Empty.ExperienceYears.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Create_WithMaxExperienceYears_ReturnsSuccess()
+    {
+        Create(experienceYears: 70).IsSuccess.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(71)]
+    [InlineData(1000)]
+    public void Create_WithOutOfRangeExperienceYears_ReturnsFailure(int bad)
+    {
+        var result = Create(experienceYears: bad);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.ExperienceYearsOutOfRange");
+    }
+
+    [Fact]
+    public void TwoPreferences_DifferentExperienceYears_AreNotValueEqual()
+    {
+        var a = Create(experienceYears: 5).Value;
+        var b = Create(experienceYears: 6).Value;
+
+        a.ShouldNotBe(b);
+        a.GetHashCode().ShouldNotBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void TwoPreferences_SameExperienceYears_AreValueEqual()
+    {
+        var a = Create(preferredOccupationGroups: ["grp1"], experienceYears: 5).Value;
+        var b = Create(preferredOccupationGroups: ["grp1"], experienceYears: 5).Value;
+
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void Empty_HasEmptySkills_AndNullExperience()
+    {
+        MatchPreferences.Empty.PreferredSkills.ShouldBeEmpty();
+        MatchPreferences.Empty.ExperienceYears.ShouldBeNull();
     }
 }

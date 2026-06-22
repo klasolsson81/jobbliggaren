@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -31,6 +32,7 @@ public class ImportResumeCommandHandlerTests
     private readonly ICvTextExtractor _extractor = Substitute.For<ICvTextExtractor>();
     private readonly IResumeSegmenter _segmenter = Substitute.For<IResumeSegmenter>();
     private readonly IOccupationCodeDeriver _deriver = Substitute.For<IOccupationCodeDeriver>();
+    private readonly ISkillResolver _skillResolver = Substitute.For<ISkillResolver>();
     private readonly Guid _userId = Guid.NewGuid();
 
     // "%PDF-1.7" — a real PDF magic prefix so CvFileSignature resolves Pdf.
@@ -39,10 +41,14 @@ public class ImportResumeCommandHandlerTests
     public ImportResumeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
+        // Default: the skill resolver resolves nothing (most cases assert occupation behaviour).
+        // ADR 0079 STEG 3 added ISkillResolver as the handler's 7th dependency.
+        _skillResolver.ResolveDetailed(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns([]);
     }
 
     private ImportResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver);
+        new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver, _skillResolver);
 
     private static ImportResumeCommand PdfCommand() =>
         new("cv.pdf", "application/pdf", PdfBytes);
@@ -66,6 +72,10 @@ public class ImportResumeCommandHandlerTests
         _deriver.DeriveManyAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<OccupationDerivationResult>(
                 new OccupationDerivationResult("title", candidates)));
+
+    private void StubSkillResolver(params ResolvedSkill[] resolved) =>
+        _skillResolver.ResolveDetailed(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns(resolved);
 
     private static ResumeSegmentationResult ConfidentSegmentation(
         string? experienceTitle = "Backend-utvecklare") =>
@@ -292,6 +302,69 @@ public class ImportResumeCommandHandlerTests
     }
 
     // ===============================================================
+    // Skill resolution call-site (ADR 0079 STEG 3): the CV's content.Skills are
+    // resolved at import and carried as ProposedSkill on the persisted artifact.
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_ResolvableSkills_AreResolvedAtImport_AndPersistedAsSkillProposals()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson", CvExtractionStatus.Extracted);
+        // ConfidentSegmentation's content carries no skills; segment with explicit skills so
+        // the handler has something to resolve. The resolver is a fake — this asserts the
+        // CALL-SITE (resolve content.Skills → ProposedSkill onto the aggregate), not the real
+        // taxonomy (that is SkillResolverIntegrationTests).
+        StubSegmenter(new ResumeSegmentationResult(
+            new ParsedResumeContent(
+                new ParsedContact("Anna", "anna@example.com", null, null),
+                experience: [new ParsedExperience("Backend-utvecklare", "Acme AB", "2021", "raw")],
+                skills: ["C#", "PostgreSQL"]),
+            ResumeLanguage.Sv,
+            ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, []),
+            ])));
+        StubDeriver();
+        StubSkillResolver(
+            new ResolvedSkill("k1A2_b3C4_d5E", "C#"),
+            new ResolvedSkill("m6N7_o8P9_q0R", "PostgreSQL"));
+
+        var result = await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        // The handler resolves the CV's claimed skill names exactly once, over content.Skills.
+        _skillResolver.Received(1).ResolveDetailed(
+            Arg.Is<IEnumerable<string>>(s => s.Contains("C#") && s.Contains("PostgreSQL")),
+            Arg.Any<CancellationToken>());
+
+        var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
+        added.SkillProposals.Count.ShouldBe(2);
+        added.SkillProposals[0].ConceptId.ShouldBe("k1A2_b3C4_d5E");
+        added.SkillProposals[0].Label.ShouldBe("C#");
+        added.SkillProposals[1].ConceptId.ShouldBe("m6N7_o8P9_q0R");
+    }
+
+    [Fact]
+    public async Task Handle_NoResolvableSkills_PersistsEmptySkillProposals()
+    {
+        // Fail-closed: a CV whose skills the taxonomy does not carry (resolver returns empty)
+        // persists with no skill proposals — never throws, never blocks the import.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation());
+        StubDeriver();
+        // _skillResolver default-stubbed to [] in the ctor — assert the empty-result branch.
+
+        var result = await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        db.ParsedResumes.Local.ShouldHaveSingleItem().SkillProposals.ShouldBeEmpty();
+    }
+
+    // ===============================================================
     // Extraction fallbacks (OQ5) — still persists with Failed confidence
     // ===============================================================
 
@@ -356,7 +429,7 @@ public class ImportResumeCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
         var sut = new ImportResumeCommandHandler(
-            db, currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver);
+            db, currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver, _skillResolver);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(PdfCommand(), CancellationToken.None).AsTask());

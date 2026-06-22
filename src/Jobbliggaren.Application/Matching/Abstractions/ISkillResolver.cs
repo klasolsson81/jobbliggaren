@@ -36,4 +36,23 @@ public interface ISkillResolver
     /// <paramref name="cancellationToken"/> between entries.
     /// </summary>
     IReadOnlySet<string> Resolve(IEnumerable<string> freeTextSkills, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// ADR 0079 STEG 3 — like <see cref="Resolve"/> but carries each concept-id's
+    /// preferred (canonical) label so the CV-seeded skill <b>chips</b> are user-readable
+    /// (a bare concept-id is not — propose-and-approve needs the label, CLAUDE.md §5).
+    /// Deduped per concept-id (one canonical label each), deterministic ordinal order.
+    /// Same fail-closed/honest-drop semantics: unresolvable / blank entries are dropped,
+    /// the result is possibly empty, never throws on an unresolvable name.
+    /// </summary>
+    IReadOnlyList<ResolvedSkill> ResolveDetailed(
+        IEnumerable<string> freeTextSkills, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A resolved JobTech skill: its taxonomy concept-id + the preferred (canonical) label
+/// for display. Non-PII taxonomy metadata. The Application-layer return shape of
+/// <see cref="ISkillResolver.ResolveDetailed"/> (BCL-only), mapped to the Domain
+/// <c>ProposedSkill</c> at the seeding call-site.
+/// </summary>
+public sealed record ResolvedSkill(string ConceptId, string Label);

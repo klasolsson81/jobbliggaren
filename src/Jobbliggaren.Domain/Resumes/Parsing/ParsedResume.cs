@@ -53,6 +53,13 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
     /// user confirms later; never auto-selected). Non-PII.</summary>
     public IReadOnlyList<ProposedOccupation> OccupationProposals => _occupationProposals.AsReadOnly();
 
+    private readonly List<ProposedSkill> _skillProposals = [];
+
+    /// <summary>Unconfirmed JobTech skill proposals resolved from the CV at import
+    /// (ADR 0079 STEG 3, ADR 0040 Beslut 4 — the user confirms later via the FE
+    /// full-replace save; never auto-selected). Non-PII (taxonomy id + label).</summary>
+    public IReadOnlyList<ProposedSkill> SkillProposals => _skillProposals.AsReadOnly();
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -105,7 +112,12 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         ParseConfidence confidence,
         PersonnummerScanOutcome personnummer,
         IEnumerable<ProposedOccupation> occupationProposals,
-        IDateTimeProvider clock)
+        IDateTimeProvider clock,
+        // ADR 0079 STEG 3 — skill proposals resolved from the CV at import. Optional
+        // trailing param (default null → empty) so the ~30 existing Create callers stay
+        // unchanged (additive, like the occupation proposals before it); only
+        // ImportResumeCommandHandler passes a non-null set.
+        IEnumerable<ProposedSkill>? skillProposals = null)
     {
         if (jobSeekerId == default)
             return Fail("ParsedResume.JobSeekerIdRequired", "JobSeekerId krävs.");
@@ -149,6 +161,9 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
 
         foreach (var proposal in occupationProposals ?? [])
             parsed._occupationProposals.Add(proposal);
+
+        foreach (var skill in skillProposals ?? [])
+            parsed._skillProposals.Add(skill);
 
         parsed.RaiseDomainEvent(new ParsedResumeImportedDomainEvent(
             parsed.Id, jobSeekerId, confidence.Overall, personnummer.Found, now));

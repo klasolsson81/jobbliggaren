@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Privacy;
@@ -25,7 +26,8 @@ public sealed class ImportResumeCommandHandler(
     IDateTimeProvider clock,
     ICvTextExtractor extractor,
     IResumeSegmenter segmenter,
-    IOccupationCodeDeriver occupationDeriver)
+    IOccupationCodeDeriver occupationDeriver,
+    ISkillResolver skillResolver)
     : ICommandHandler<ImportResumeCommand, Result<ImportResumeResponse>>
 {
     public async ValueTask<Result<ImportResumeResponse>> Handle(
@@ -105,6 +107,18 @@ public sealed class ImportResumeCommandHandler(
                 c.OccupationGroupConceptId, c.OccupationGroupLabel, c.MatchedOn))
             .ToList();
 
+        // 4b. Skill resolution (ADR 0079 STEG 3): resolve the CV's claimed skill names to
+        //     JobTech skill concept-ids via the SAME shared SkillTaxonomyIndex the ads are
+        //     extracted against (so the overlap is meaningful) and carry them as PROPOSALS
+        //     (concept-id + canonical label, non-PII). Unresolvable names drop silently
+        //     (fail-closed, normal). The user confirms later via the full-replace
+        //     MatchPreferences save — never auto-confirmed (ADR 0040 Beslut 4). A degraded
+        //     parse has empty content.Skills → no proposals.
+        var skillProposals = skillResolver
+            .ResolveDetailed(content.Skills, cancellationToken)
+            .Select(s => new ProposedSkill(s.ConceptId, s.Label))
+            .ToList();
+
         // 5. Construct the aggregate (accepts a degraded parse) and persist. The
         //    SaveChanges interceptor encrypts Content (Form B) + RawText (Form A) using
         //    the warmed owner DEK (IRequiresFieldEncryptionKey).
@@ -118,7 +132,8 @@ public sealed class ImportResumeCommandHandler(
             confidence,
             personnummer,
             proposals,
-            clock);
+            clock,
+            skillProposals);
 
         if (created.IsFailure)
             return Result.Failure<ImportResumeResponse>(created.Error);

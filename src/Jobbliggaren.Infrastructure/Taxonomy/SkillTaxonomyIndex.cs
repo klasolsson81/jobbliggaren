@@ -43,7 +43,17 @@ internal sealed class SkillTaxonomyIndex
     /// containment), and returns each winning concept-id. Blank/empty input or no
     /// match → empty (never throws — an unresolvable CV skill is normal, not an error).
     /// </summary>
-    public IReadOnlyList<string> ResolveConceptIds(string freeText)
+    public IReadOnlyList<string> ResolveConceptIds(string freeText) =>
+        // Distinct concept-ids (MatchForms already keeps one form per concept-id).
+        ResolveForms(freeText).Select(f => f.ConceptId).Distinct(StringComparer.Ordinal).ToList();
+
+    /// <summary>
+    /// ADR 0079 STEG 3 — like <see cref="ResolveConceptIds"/> but returns the winning
+    /// <see cref="SkillForm"/> per concept-id (carrying the preferred label) so the CV-side
+    /// resolver can surface user-readable skill chips. Blank/empty input or no match → empty
+    /// (never throws — an unresolvable CV skill is normal, not an error).
+    /// </summary>
+    public IReadOnlyCollection<SkillForm> ResolveForms(string freeText)
     {
         if (string.IsNullOrWhiteSpace(freeText))
             return [];
@@ -52,12 +62,7 @@ internal sealed class SkillTaxonomyIndex
         if (lexemes.Count == 0)
             return [];
 
-        var forms = MatchForms(lexemes);
-        if (forms.Count == 0)
-            return [];
-
-        // Distinct concept-ids (MatchForms already keeps one form per concept-id).
-        return forms.Select(f => f.ConceptId).Distinct(StringComparer.Ordinal).ToList();
+        return MatchForms(lexemes);
     }
 
     /// <summary>

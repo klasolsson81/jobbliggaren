@@ -108,6 +108,22 @@ public sealed class ParsedResumeConfiguration : IEntityTypeConfiguration<ParsedR
 
         builder.Ignore(p => p.OccupationProposals);
 
+        // ADR 0079 STEG 3 — CV-resolved skill proposals (non-PII concept-id + label),
+        // plain jsonb, symmetric with occupation_proposals. The migration backfills
+        // existing rows with '[]' (the column default) so a pre-STEG-3 parsed_resume
+        // deserializes to an empty proposal list.
+        var (skillProposalsConverter, skillProposalsComparer) = JsonConverter<List<ProposedSkill>>();
+        builder.Property<List<ProposedSkill>>("_skillProposals")
+            .HasField("_skillProposals")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasConversion(skillProposalsConverter, skillProposalsComparer)
+            .HasColumnName("skill_proposals")
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'[]'::jsonb")
+            .IsRequired();
+
+        builder.Ignore(p => p.SkillProposals);
+
         builder.Property(p => p.CreatedAt).IsRequired();
         builder.Property(p => p.UpdatedAt).IsRequired();
         builder.Property(p => p.DeletedAt);

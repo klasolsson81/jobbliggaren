@@ -176,11 +176,15 @@
     "uploadTitle": "Kom igång med matchning",
     "uploadIntro": "Ladda upp ditt CV så kan vi föreslå vilka yrken du söker. Du väljer själv vad som tas med, och kan hoppa över det här.",
     "continueWithoutCv": "Fortsätt utan CV",
-    "cvUploadedTitle": "CV uppladdat",
+    "cvUploadedTitle": "CV sparat",
     "setUpMatchTitle": "Ställ in din matchning",
-    "cvUploadedNote": "Vi har läst in och tolkat ditt CV. Inget är ändrat och ingen matchning är gjord ännu. Vill du ställa in din matchningsprofil nu?",
+    "cvUploadedNote": "Ditt CV är sparat. Ingen matchning är gjord ännu. Vill du ställa in din matchningsprofil nu?",
     "setUpMatchNote": "Vill du ställa in din matchning nu? Det tar någon minut. Du kan hoppa över och göra det senare.",
     "skip": "Hoppa över",
-    "confirm": "Ja, ställ in matchning"
+    "confirm": "Ja, ställ in matchning",
+    "gapFillTitle": "Komplettera ditt CV",
+    "gapFillIntro": "Fyll i datum för dina jobb och utbildningar så att vi kan spara ditt CV. Du kan ändra eller ta bort poster.",
+    "gapFillLoading": "Läser in ditt CV…",
+    "gapFillError": "Vi kunde inte läsa in ditt CV just nu. Du kan fortsätta och slutföra det senare under Mina CV."
   }
 }

@@ -3012,11 +3012,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
 }
 
-/* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 ──
-   Smal standardmodal (.jp-stdmodal--narrow) med tre interna steg: upload →
-   confirm → choice. Återanvänder modal-skinet; egna klasser för head/body/
-   footer + confirm-steget (grön check + typografisk bekräftelse). Ingen glow,
-   ingen scale-in-bounce, ingen gradient. */
+/* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 / 0079 STEG 1 ──
+   Standardmodal med tre interna steg: upload → gapfill → done. Upload/done är
+   smala (.jp-stdmodal--narrow); gapfill (in-modal CV-komplettering, STEG 1) är
+   bred (.jp-stdmodal--wide) för det höga formuläret. Återanvänder modal-skinet;
+   egna klasser för head/body/footer + done-steget (grön check + typografisk
+   bekräftelse). Ingen glow, ingen scale-in-bounce, ingen gradient. */
 .jp-welcome__head {
   position: relative;
   padding: 22px 56px 16px 24px;

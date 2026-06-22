@@ -41,11 +41,28 @@ vi.mock("@/lib/actions/match-preferences", () => ({
 }));
 
 // CvUploadForm mockad: exponera dess onUploaded-callback via en knapp så
-// step-flödet (upload → confirm) kan drivas utan en riktig fetch/filväljare.
+// step-flödet (upload → gapfill) kan drivas utan en riktig fetch/filväljare.
 vi.mock("@/components/resumes/cv-upload-form", () => ({
   CvUploadForm: ({ onUploaded }: { onUploaded?: (id: string) => void }) => (
     <button type="button" onClick={() => onUploaded?.("parsed-1")}>
       MOCK_LADDA_UPP
+    </button>
+  ),
+}));
+
+// loadParsedResumeForGapFillAction mockad: welcome-flödet läser parse-innehållet
+// server-side för in-modal-gap-fill + bär de förhämtade yrkesförslagen (STEG 1).
+const { loadGapFillMock } = vi.hoisted(() => ({ loadGapFillMock: vi.fn() }));
+vi.mock("@/lib/actions/resumes", () => ({
+  loadParsedResumeForGapFillAction: loadGapFillMock,
+}));
+
+// CvGapFillForm mockad: exponera dess onPromoted-callback via en knapp så
+// gap-fill → promote → done-flödet kan drivas utan ett riktigt formulär/fetch.
+vi.mock("@/components/resumes/cv-gapfill-form", () => ({
+  CvGapFillForm: ({ onPromoted }: { onPromoted?: (id: string) => void }) => (
+    <button type="button" onClick={() => onPromoted?.("resume-1")}>
+      MOCK_SPARA_CV
     </button>
   ),
 }));
@@ -95,9 +112,16 @@ beforeEach(() => {
   updateMock.mockResolvedValue({ success: true });
   deriveMock.mockResolvedValue({ success: true, candidates: [] });
   cvSuggestMock.mockResolvedValue({ kind: "noCv" });
-  // Welcome-flödet trär det uppladdade parsedResumeId till wizarden → steg 1
-  // auto-suggestar via parsed-vägen. Default lugn tom-state.
+  // STEG 1 / ADR 0079: welcome-flödet befordrar CV:t och bär förhämtade förslag
+  // till wizarden (ingen parsed-auto-suggest där). Default lugn tom-state.
   parsedSuggestMock.mockResolvedValue({ kind: "noCv" });
+  loadGapFillMock.mockReset();
+  loadGapFillMock.mockResolvedValue({
+    kind: "ok",
+    sourceFileName: "cv.pdf",
+    content: {},
+    proposedOccupationGroups: [],
+  });
 });
 
 describe("WelcomeSetupModal — gating", () => {
@@ -119,20 +143,38 @@ describe("WelcomeSetupModal — gating", () => {
   });
 });
 
-describe("WelcomeSetupModal — upload → done (bekräftelse + val i EN slide)", () => {
-  it("upload → done: grön bekräftelse (CV uppladdat) + matchnings-valet i samma slide, inte 'match klar'", async () => {
+describe("WelcomeSetupModal — upload → gapfill → done (STEG 1: in-modal promote)", () => {
+  it("upload → gap-fill-steg (komplettera) innan bekräftelse", async () => {
     const user = userEvent.setup();
     renderModal();
 
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
 
+    // Direkt efter upload: gap-fill-steget (komplettera + promote), INTE done.
+    expect(
+      await screen.findByRole("heading", { name: "Komplettera ditt CV" })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "MOCK_SPARA_CV" })
+    ).toBeInTheDocument();
+    // "CV sparat"-bekräftelsen får inte visas förrän CV:t faktiskt befordrats.
+    expect(screen.queryByRole("heading", { name: "CV sparat" })).toBeNull();
+  });
+
+  it("gap-fill → promote → done: grön bekräftelse (CV sparat) + matchnings-valet i samma slide, inte 'match klar'", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
+    await user.click(
+      await screen.findByRole("button", { name: "MOCK_SPARA_CV" })
+    );
+
     // Bekräftelse OCH val i SAMMA slide (ingen separat "Fortsätt"-mellansida).
     expect(
-      await screen.findByRole("heading", { name: "CV uppladdat" })
+      await screen.findByRole("heading", { name: "CV sparat" })
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Vi har läst in och tolkat ditt CV/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Ditt CV är sparat/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     ).toBeInTheDocument();
@@ -142,6 +184,26 @@ describe("WelcomeSetupModal — upload → done (bekräftelse + val i EN slide)"
     // Får aldrig påstå att en matchning är gjord (FAS-DEFERRAL / honest copy).
     expect(screen.queryByText(/matchningar hittade/i)).toBeNull();
     expect(screen.queryByText(/Vi hittade \d+ matchningar/i)).toBeNull();
+  });
+
+  it("gap-fill-ladd-fel: visar ärligt fel + 'Fortsätt' till matchnings-valet", async () => {
+    loadGapFillMock.mockResolvedValueOnce({ kind: "error" });
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
+
+    expect(
+      await screen.findByText(/Vi kunde inte läsa in ditt CV just nu/)
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Fortsätt utan CV" })
+    );
+    // Fortsätt → done UTAN grön "CV sparat"-bekräftelse (CV:t befordrades aldrig).
+    expect(
+      screen.getByRole("heading", { name: "Ställ in din matchning" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "CV sparat" })).toBeNull();
   });
 
   it("'Fortsätt utan CV' går till done UTAN grön bekräftelse, rakt på matchnings-valet", async () => {
@@ -167,6 +229,10 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
     renderModal();
 
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
+    // STEG 1: befordra CV:t i gap-fill-steget innan matchnings-valet.
+    await user.click(
+      await screen.findByRole("button", { name: "MOCK_SPARA_CV" })
+    );
     await user.click(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     );

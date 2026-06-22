@@ -13,7 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { makePromoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
-import { promoteParsedResumeAction } from "@/lib/actions/resumes";
+import {
+  promoteParsedResumeAction,
+  promoteParsedResumeInModalAction,
+} from "@/lib/actions/resumes";
 import { gapFillPathToElementId } from "@/lib/forms/resume-path-routing";
 import type { ParsedContentDto } from "@/lib/dto/parsed-resume";
 import type { ResumeContentDto } from "@/lib/types/resumes";
@@ -22,6 +25,14 @@ interface CvGapFillFormProps {
   parsedId: string;
   sourceFileName: string;
   content: ParsedContentDto;
+  /**
+   * Onboarding-modal-kontext (welcome-setup, STEG 1 / ADR 0079). När satt
+   * befordras CV:t via `promoteParsedResumeInModalAction` (returnerar id, ingen
+   * sid-redirect) och denna anropas med det nya CV-id:t i STÄLLET för att
+   * navigera bort. Default (utelämnad) = oförändrat sid-beteende:
+   * `promoteParsedResumeAction` redirectar till `/cv/{id}`.
+   */
+  onPromoted?: (newResumeId: string) => void;
 }
 
 type FormValues = {
@@ -160,6 +171,7 @@ export function CvGapFillForm({
   parsedId,
   sourceFileName,
   content,
+  onPromoted,
 }: CvGapFillFormProps) {
   const t = useTranslations("validation");
   const tr = useTranslations("resumes.gapfillForm");
@@ -211,14 +223,27 @@ export function CvGapFillForm({
       return;
     }
     startTransition(async () => {
-      // Vid lyckad befordran kastar actionen NEXT_REDIRECT (→ /cv/{nytt-id}) —
-      // det är en framgångssignal, inte ett fel, och får propagera ut. Bara ett
-      // returnerat ActionResult med success:false hanteras som fel här.
-      const result = await promoteParsedResumeAction(
-        parsedId,
-        parsed.data.name,
-        parsed.data.content as ResumeContentDto
-      );
+      const name = parsed.data.name;
+      const promoteContent = parsed.data.content as ResumeContentDto;
+      if (onPromoted) {
+        // Onboarding-modal-kontext: flödet stannar kvar (wizarden följer), så
+        // actionen redirectar INTE — den returnerar det nya CV-id:t.
+        const result = await promoteParsedResumeInModalAction(
+          parsedId,
+          name,
+          promoteContent
+        );
+        if (result.success) {
+          onPromoted(result.resumeId);
+        } else {
+          setServerError({ path: null, message: result.error });
+        }
+        return;
+      }
+      // Sid-flöde: vid lyckad befordran kastar actionen NEXT_REDIRECT
+      // (→ /cv/{nytt-id}) — en framgångssignal, inte ett fel, och får propagera
+      // ut. Bara ett returnerat success:false hanteras som fel här.
+      const result = await promoteParsedResumeAction(parsedId, name, promoteContent);
       if (!result.success) {
         setServerError({ path: null, message: result.error });
       }
@@ -647,9 +672,14 @@ export function CvGapFillForm({
           <Button type="submit" disabled={isPending}>
             {isPending ? tr("savePending") : tr("save")}
           </Button>
-          <Button asChild variant="ghost">
-            <Link href={`/cv/granska/${parsedId}`}>{tr("cancel")}</Link>
-          </Button>
+          {/* Avbryt-länken navigerar till granska-sidan — bara meningsfull i
+              sid-flödet. I onboarding-modalen (onPromoted satt) äger
+              welcome-modalen sin egen "Hoppa över"/stäng, så den döljs här. */}
+          {!onPromoted && (
+            <Button asChild variant="ghost">
+              <Link href={`/cv/granska/${parsedId}`}>{tr("cancel")}</Link>
+            </Button>
+          )}
         </div>
         <p className="text-body-sm text-text-secondary">
           {tr("sourceFile")} <span className="font-mono">{sourceFileName}</span>

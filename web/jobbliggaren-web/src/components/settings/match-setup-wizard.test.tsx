@@ -108,6 +108,17 @@ describe("MatchSetupWizard — CV-källa på steg 1", () => {
     // Welcome-flödet läser staging-CV:t — aldrig latestRole-vägen.
     expect(cvSuggestMock).not.toHaveBeenCalled();
   });
+
+  it("med proposedOccupationGroups (welcome-flödet, STEG 1) seedar draften OCH auto-suggestar INTE", async () => {
+    renderWizard({ proposedOccupationGroups: ["grp_backend"] });
+
+    // Det förhämtade förslaget visas som en (borttagbar) chip på steg 1 —
+    // draften är redan seedad innan staging-artefakten promotades bort.
+    expect(await screen.findByText("Backendutvecklare")).toBeInTheDocument();
+    // Ingen dubbel-läsning: varken parsed- eller latestRole-vägen anropas.
+    expect(cvSuggestMock).not.toHaveBeenCalled();
+    expect(parsedSuggestMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("MatchSetupWizard — steg-navigering", () => {

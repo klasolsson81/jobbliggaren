@@ -56,6 +56,15 @@ interface MatchSetupWizardProps {
    * `/cv`- och `/installningar`-ingångarna (de har ett promotat Resume → latestRole-vägen).
    */
   readonly parsedResumeId?: string;
+  /**
+   * STEG 1 / ADR 0079 — welcome-flödet befordrar CV:t FÖRE wizarden, vilket
+   * raderar staging-artefakten som bär de rika multi-signal-yrkesförslagen
+   * (utbildning+erfarenhet, #145). Welcome-modalen förhämtar därför förslagen
+   * innan promote och bär in dem hit. När satt seedas draften med dessa förslag
+   * och OccupationSection auto-föreslår INTE (skulle annars dubbel-läsa den
+   * svagare latestRole-vägen). Utelämnad → oförändrat beteende.
+   */
+  readonly proposedOccupationGroups?: ReadonlyArray<string>;
 }
 
 const TOTAL_STEPS = 4;
@@ -80,6 +89,7 @@ export function MatchSetupWizard({
   onSaved,
   importCvHref,
   parsedResumeId,
+  proposedOccupationGroups,
 }: MatchSetupWizardProps) {
   const t = useTranslations("settings");
   // Stegens konkreta substantiv-rubriker (design-bind A2.i), via katalogen.
@@ -132,7 +142,14 @@ export function MatchSetupWizard({
   if (open && !seededFor) {
     setSeededFor(true);
     setStep(1);
-    setDraftOccupations(persistedOccupationGroups);
+    // STEG 1 / ADR 0079: seeda med persisterad SSOT UNION welcome-flödets
+    // förhämtade CV-förslag (de bärs in när staging-artefakten redan promotats).
+    setDraftOccupations([
+      ...new Set([
+        ...persistedOccupationGroups,
+        ...(proposedOccupationGroups ?? []),
+      ]),
+    ]);
     setDraftRegions(persistedRegions);
     setDraftMunicipalities(persistedMunicipalities);
     setDraftEmployment(persistedEmploymentTypes);
@@ -281,8 +298,15 @@ export function MatchSetupWizard({
                   importCvHref={importCvHref}
                   idPrefix="match-wizard-occ"
                   showHeading={false}
-                  autoSuggestFromCv
-                  parsedResumeId={parsedResumeId}
+                  // Förhämtade förslag (welcome-flödet, STEG 1) → draften är redan
+                  // seedad, så auto-suggest skulle bara dubbel-läsa den svagare
+                  // latestRole-vägen. Annars oförändrat (auto-suggest på).
+                  autoSuggestFromCv={proposedOccupationGroups === undefined}
+                  parsedResumeId={
+                    proposedOccupationGroups === undefined
+                      ? parsedResumeId
+                      : undefined
+                  }
                 />
               )}
               {step === 2 && (

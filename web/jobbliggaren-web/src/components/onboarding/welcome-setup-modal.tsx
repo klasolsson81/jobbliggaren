@@ -18,19 +18,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { BrandSpinner } from "@/components/brand/brand-spinner";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
+import { CvGapFillForm } from "@/components/resumes/cv-gapfill-form";
 import { MatchSetupWizard } from "@/components/settings/match-setup-wizard";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
+import type { ParsedContentDto } from "@/lib/dto/parsed-resume";
+import { loadParsedResumeForGapFillAction } from "@/lib/actions/resumes";
 import { markSetupWelcomeSeen } from "@/lib/onboarding/setup-welcome-actions";
 
-/** Welcome-modalens två interna steg (klient-only — ingen route per steg).
- * "done" slår ihop bekräftelse + val i EN slide (Klas: separat confirm + choice
- * kändes som dubbelsteg). */
-type WelcomeStep = "upload" | "done";
+/** Welcome-modalens interna steg (klient-only — ingen route per steg).
+ * "gapfill" (STEG 1 / ADR 0079): in-modal komplettering + promote av det
+ * uppladdade CV:t — utan detta blir CV:t aldrig ett kanoniskt Resume (CV-sidan
+ * tom + matchningen ser inget CV). "done" slår ihop bekräftelse + val i EN slide
+ * (Klas: separat confirm + choice kändes som dubbelsteg). */
+type WelcomeStep = "upload" | "gapfill" | "done";
+
+/** Server-läst parse-artefakt för in-modal-gap-fill (CV-PII, samma exponering
+ * som granska-sidan redan gör mot klient-formen). */
+type GapFillData = {
+  readonly sourceFileName: string;
+  readonly content: ParsedContentDto;
+};
 
 interface WelcomeSetupModalProps {
   readonly showWelcome: boolean;
@@ -75,13 +88,18 @@ export function WelcomeSetupModal({
   const [welcomeOpen, setWelcomeOpen] = useState(showWelcome);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState<WelcomeStep>("upload");
-  // Om ett CV faktiskt laddades upp (styr grön check + copy i "done"-steget;
-  // "Fortsätt utan CV" hoppar till "done" UTAN check).
+  // Om ett CV faktiskt laddades upp OCH befordrades (styr grön check + copy i
+  // "done"-steget; "Fortsätt utan CV" hoppar direkt till "done" UTAN check).
   const [uploaded, setUploaded] = useState(false);
-  // Fas 4 onboarding (CTO Variant B): id för det just uppladdade parsed_resume:t.
-  // Vidarebefordras till wizardens yrkes-steg så CV-förslaget läses ur staging-
-  // artefakten (en ny användare har ännu inget promotat Resume att läsa latestRole ur).
+  // Id för det just uppladdade parsed_resume:t (bärs till gap-fill-steget för promote).
   const [uploadedParsedId, setUploadedParsedId] = useState<string | null>(null);
+  // STEG 1 / ADR 0079: server-läst parse-innehåll för in-modal-gap-fill (null tills
+  // laddat), de förhämtade multi-signal-yrkesförslagen (#145, bevaras genom promote),
+  // och ett ladd-fel-tillstånd.
+  const [gapFillData, setGapFillData] = useState<GapFillData | null>(null);
+  const [proposedOccupations, setProposedOccupations] = useState<string[]>([]);
+  const [gapFillError, setGapFillError] = useState(false);
+  const [, startLoadingGapFill] = useTransition();
   const [, startTransition] = useTransition();
 
   // Fokus till stegrubriken EFTER commit (WCAG 2.4.3 + 4.1.3). En effekt på
@@ -130,6 +148,39 @@ export function WelcomeSetupModal({
     window.setTimeout(() => setWizardOpen(true), 320);
   }
 
+  /**
+   * Upload klar → gå till gap-fill-steget och läs parse-innehållet server-side.
+   * STEG 1 / ADR 0079: utan att CV:t befordras (promotas) blir det aldrig ett
+   * kanoniskt Resume → CV-sidan tom + matchningen ser inget CV. De rika
+   * multi-signal-yrkesförslagen (#145) förhämtas HÄR, medan staging-artefakten
+   * lever, så de överlever den efterföljande promoten (som soft-raderar den).
+   */
+  function handleCvUploaded(parsedResumeId: string) {
+    setUploadedParsedId(parsedResumeId);
+    setGapFillError(false);
+    setGapFillData(null);
+    setProposedOccupations([]);
+    setStep("gapfill");
+    startLoadingGapFill(async () => {
+      const result = await loadParsedResumeForGapFillAction(parsedResumeId);
+      if (result.kind === "ok") {
+        setGapFillData({
+          sourceFileName: result.sourceFileName,
+          content: result.content,
+        });
+        setProposedOccupations(result.proposedOccupationGroups);
+      } else {
+        setGapFillError(true);
+      }
+    });
+  }
+
+  /** Gap-fill klar (CV befordrat till kanoniskt Resume) → bekräftelse + val. */
+  function handlePromoted() {
+    setUploaded(true);
+    setStep("done");
+  }
+
   return (
     <>
       {/* Aldrig två öppna Radix-dialoger samtidigt. openWizard stänger denna
@@ -147,7 +198,11 @@ export function WelcomeSetupModal({
             if (!next) dismissWelcome();
           }}
         >
-          <DialogContent className="jp-stdmodal jp-stdmodal--narrow">
+          <DialogContent
+            className={`jp-stdmodal ${
+              step === "gapfill" ? "jp-stdmodal--wide" : "jp-stdmodal--narrow"
+            }`}
+          >
             {step === "upload" ? (
               <>
                 <div className="jp-welcome__head">
@@ -164,13 +219,7 @@ export function WelcomeSetupModal({
                 </div>
 
                 <div className="jp-welcome__body">
-                  <CvUploadForm
-                    onUploaded={(parsedResumeId) => {
-                      setUploadedParsedId(parsedResumeId);
-                      setUploaded(true);
-                      setStep("done");
-                    }}
-                  />
+                  <CvUploadForm onUploaded={handleCvUploaded} />
                   <div className="jp-welcome__skiprow">
                     <button
                       type="button"
@@ -180,6 +229,65 @@ export function WelcomeSetupModal({
                       {t("onboarding.continueWithoutCv")}
                     </button>
                   </div>
+                </div>
+              </>
+            ) : step === "gapfill" ? (
+              // "gapfill" (STEG 1 / ADR 0079): komplettera + befordra CV:t I
+              // modalen. Datum per jobb/utbildning krävs (parsern gissar aldrig,
+              // backend syntetiserar aldrig) → den enda ärliga vägen till ett
+              // kanoniskt Resume går genom användarens gap-fill. Vid lyckad
+              // promote → "done"-steget; CV-sidan + matchningen ser nu CV:t.
+              <>
+                <div className="jp-welcome__head">
+                  <DialogTitle
+                    ref={titleRef}
+                    tabIndex={-1}
+                    className="jp-welcome__title"
+                  >
+                    {t("onboarding.gapFillTitle")}
+                  </DialogTitle>
+                  <DialogDescription className="jp-welcome__intro">
+                    {t("onboarding.gapFillIntro")}
+                  </DialogDescription>
+                </div>
+                <div className="jp-welcome__body">
+                  {gapFillError ? (
+                    <div
+                      role="alert"
+                      className="flex flex-col items-start gap-3"
+                    >
+                      <p className="text-body-sm text-text-secondary">
+                        {t("onboarding.gapFillError")}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setStep("done")}
+                      >
+                        {t("onboarding.continueWithoutCv")}
+                      </Button>
+                    </div>
+                  ) : gapFillData !== null && uploadedParsedId !== null ? (
+                    <CvGapFillForm
+                      parsedId={uploadedParsedId}
+                      sourceFileName={gapFillData.sourceFileName}
+                      content={gapFillData.content}
+                      onPromoted={handlePromoted}
+                    />
+                  ) : (
+                    // Layout-container — INGEN egen live-region: BrandSpinner bär
+                    // redan role="status" + sr-only-label (annonseras EN gång; en
+                    // nästlad live-region skulle dubbel-annonsera, design-Major).
+                    <div className="flex flex-col items-center gap-3 py-8">
+                      <BrandSpinner
+                        size={48}
+                        label={t("onboarding.gapFillLoading")}
+                      />
+                      <p className="text-body-sm text-text-secondary">
+                        {t("onboarding.gapFillLoading")}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -255,7 +363,12 @@ export function WelcomeSetupModal({
         persistedMunicipalities={persistedMunicipalities}
         persistedEmploymentTypes={persistedEmploymentTypes}
         importCvHref={importCvHref}
-        parsedResumeId={uploadedParsedId ?? undefined}
+        // STEG 1 / ADR 0079: CV:t är redan befordrat när wizarden öppnas, så
+        // staging-artefakten (parsedResumeId) är soft-raderad. De rika
+        // multi-signal-förslagen bärs i stället in som förhämtade kandidater.
+        // Utan uppladdat CV → undefined (wizarden faller tillbaka på sin vanliga
+        // latestRole-/noCv-väg).
+        proposedOccupationGroups={uploaded ? proposedOccupations : undefined}
         onSaved={() => setWizardOpen(false)}
       />
     </>
@@ -271,6 +384,10 @@ function stepIntro(t: SettingsTranslator, step: WelcomeStep): string {
   switch (step) {
     case "upload":
       return t("onboarding.uploadIntro");
+    case "gapfill":
+      // Gap-fill-steget renderar sin intro direkt (t("onboarding.gapFillIntro"));
+      // grenen finns för uttömmande switch.
+      return t("onboarding.gapFillIntro");
     case "done":
       return "";
   }

@@ -95,6 +95,7 @@ export function SettingsForm({
   async function applyChange(
     overrides: Partial<UpdateMyProfileInput>,
     revert: () => void,
+    onSuccess?: () => void | Promise<void>,
   ) {
     const payload = buildPayload(overrides);
     const parsed = schema.safeParse(payload);
@@ -112,6 +113,7 @@ export function SettingsForm({
         revert();
       } else {
         setSavedAt(new Date());
+        await onSuccess?.();
       }
     });
   }
@@ -119,11 +121,16 @@ export function SettingsForm({
   function onLanguageChange(next: LanguageValue) {
     const prev = language;
     setLanguage(next);
-    void applyChange({ language: next }, () => setLanguage(prev));
-    // Switch the UI locale immediately: the cookie is the rendering source of
-    // truth (ADR 0078), the profile persistence above is the durable backup so
-    // the preference follows the user across devices.
-    void setLocaleAction(next).then(() => router.refresh());
+    // Flip the UI locale only after the profile save succeeds: the cookie is the
+    // rendering source of truth (ADR 0078) and the profile is the durable backup,
+    // so the two must stay in sync. Writing the cookie unconditionally would let
+    // it win permanently on a save failure (the device sticks on the new locale
+    // while the profile keeps the old one). Instead we revert local state and
+    // leave the cookie untouched on failure.
+    void applyChange({ language: next }, () => setLanguage(prev), async () => {
+      await setLocaleAction(next);
+      router.refresh();
+    });
   }
 
   function onEmailNotificationsChange(next: boolean) {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { Check, Minus } from "lucide-react";
 import { MatchChip } from "./match-chip";
 import type {
   JobAdMatchDetail,
@@ -206,6 +207,58 @@ function RegionFitEvidence({
   );
 }
 
+/**
+ * Per-ska-krav-checklista (#5b, ADR 0079 / STEG 2) — visar VARJE krav annonsen
+ * ställer med en uppfyllt/saknas-indikator per rad, i stället för den generiska
+ * "Du har / Annonsen efterfrågar även"-formen. Komponerad FE-side ur de
+ * redan-på-tråden `matched`/`missing`-arrayerna (CTO-dom FE-only — ingen
+ * backend-ändring; varje matchad Display = uppfyllt krav, varje saknad = ej
+ * uppfyllt). `matched` (✓, success-ink) först, sedan `missing` (NEUTRAL ink,
+ * ALDRIG röd — ett saknat krav är inget fel, CLAUDE.md §5 / ADR 0053). Ikonen är
+ * `aria-hidden`; status bärs av en sr-only-text per rad (skärmläsare hör
+ * "uppfyllt/saknas", seende ser ikon + ink).
+ */
+function RequirementChecklist({
+  detail,
+  label,
+  t,
+}: {
+  detail: MatchDimensionDetail;
+  /** Dimensionens etikett (Ska-krav / Meriterande) — listans aria-label. */
+  label: string;
+  t: MatchTranslator;
+}) {
+  return (
+    <ul className="flex flex-col gap-1" aria-label={label}>
+      {detail.matched.map((item, i) => (
+        // Nyckel inkluderar index: Display-labels är dedupade per concept-id
+        // uppströms, men två skilda koncept kan dela identisk label → index
+        // garanterar unik nyckel (ingen omordning sker, listan byggs en gång).
+        <li key={`met-${i}-${item}`} className="flex items-center gap-2">
+          <Check
+            size={16}
+            aria-hidden="true"
+            style={{ color: "var(--jp-success)", flexShrink: 0 }}
+          />
+          <span>{item}</span>
+          <span className="sr-only">{t("requirements.met")}</span>
+        </li>
+      ))}
+      {detail.missing.map((item, i) => (
+        <li key={`unmet-${i}-${item}`} className="flex items-center gap-2">
+          <Minus
+            size={16}
+            aria-hidden="true"
+            style={{ color: "var(--jp-ink-2)", flexShrink: 0 }}
+          />
+          <span className="jp-modal__matchrow-missing">{item}</span>
+          <span className="sr-only">{t("requirements.unmet")}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function MatchRow({
   label,
   dimensionKey,
@@ -225,6 +278,15 @@ function MatchRow({
   // Granularitets-uppdelad bevisrad bara för Region OCH bara när kartan finns.
   const useOrtGranularity =
     dimensionKey === "regionFit" && granularityByLabel !== undefined;
+  // Per-krav-checklista bara för krav-dimensionerna (Ska-krav / Meriterande) OCH
+  // bara när det finns krav att lista. Vacuous (annonsen anger inga) + NotAssessed
+  // (inget CV) har tomma matched/missing → faller till den generiska/NotAssessed-
+  // grenen (ärligt: ingen tom eller vilseledande checklista; footern bär summan).
+  const isRequirementDim =
+    dimensionKey === "mustHaveCoverage" ||
+    dimensionKey === "niceToHaveCoverage";
+  const hasRequirementItems =
+    detail.matched.length > 0 || detail.missing.length > 0;
 
   return (
     <div className="jp-modal__matchrow">
@@ -254,6 +316,8 @@ function MatchRow({
             granularityByLabel={granularityByLabel}
             t={t}
           />
+        ) : isRequirementDim && hasRequirementItems ? (
+          <RequirementChecklist detail={detail} label={label} t={t} />
         ) : (
           <>
             {detail.matched.length > 0 && (

@@ -148,6 +148,10 @@
         "Partial": "You meet some of the ad's must-have requirements.",
         "NoMatch": "You do not meet the ad's must-have requirements.",
         "Vacuous": "The ad states no specific must-have requirements."
+      },
+      "requirements": {
+        "met": "Met",
+        "unmet": "Not met"
       }
     },
     "pagination": {

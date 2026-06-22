@@ -148,6 +148,10 @@
         "Partial": "Du uppfyller några av annonsens ska-krav.",
         "NoMatch": "Du uppfyller inte annonsens ska-krav.",
         "Vacuous": "Annonsen anger inga särskilda ska-krav."
+      },
+      "requirements": {
+        "met": "Uppfyllt",
+        "unmet": "Ej uppfyllt"
       }
     },
     "pagination": {

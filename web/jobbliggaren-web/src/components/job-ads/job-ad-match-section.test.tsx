@@ -195,6 +195,87 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
   });
 });
 
+describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
+  it("Ska-krav (Partial) → per-krav-checklista: uppfyllda + saknade var sin rad, INTE generisk 'Du har:'", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({
+          mustHaveCoverage: row(
+            "Partial",
+            ["B-körkort", "Truckkort"],
+            ["Svetslicens"]
+          ),
+          // Neutralisera meriterande så statustexterna inte korsräknas.
+          niceToHaveCoverage: row("Vacuous"),
+        })}
+      />
+    );
+    // Varje krav på egen rad.
+    expect(screen.getByText("B-körkort")).toBeInTheDocument();
+    expect(screen.getByText("Truckkort")).toBeInTheDocument();
+    expect(screen.getByText("Svetslicens")).toBeInTheDocument();
+    // Status (sr-only): två uppfyllda, ett ej uppfyllt.
+    expect(screen.getAllByText("Uppfyllt").length).toBe(2);
+    expect(screen.getByText("Ej uppfyllt")).toBeInTheDocument();
+    // INTE den generiska bevisformen för ska-krav.
+    expect(screen.queryByText(/Du har: B-körkort/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Annonsen efterfrågar även: Svetslicens/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("saknade krav använder NEUTRAL ink (jp-modal__matchrow-missing), ALDRIG röd/danger", () => {
+    const { container } = render(
+      <JobAdMatchSection
+        match={detail({
+          mustHaveCoverage: row("NoMatch", [], ["Svetslicens"]),
+          niceToHaveCoverage: row("Vacuous"),
+        })}
+      />
+    );
+    // Ett saknat krav är inget fel: neutral ink, aldrig danger-färg (CTO/§5).
+    expect(screen.getByText("Svetslicens")).toHaveClass(
+      "jp-modal__matchrow-missing"
+    );
+    expect(
+      container.querySelector(".text-danger-600, .text-danger-700")
+    ).toBeNull();
+  });
+
+  it("Vacuous (annonsen anger inga krav) → ingen checklista, bara verdict + footer", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({
+          mustHaveCoverage: row("Vacuous"),
+          niceToHaveCoverage: row("Vacuous"),
+        })}
+      />
+    );
+    // En tom checklista vore vilseledande → ingen status renderas.
+    expect(screen.queryByText("Uppfyllt")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ej uppfyllt")).not.toBeInTheDocument();
+    // Footern bär den ärliga summan i stället.
+    expect(
+      screen.getByText("Annonsen anger inga särskilda ska-krav.")
+    ).toBeInTheDocument();
+  });
+
+  it("Meriterande (nice-to-have) renderas också som per-krav-checklista", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({
+          mustHaveCoverage: row("Vacuous"),
+          niceToHaveCoverage: row("Partial", ["Franska"], ["Tyska"]),
+        })}
+      />
+    );
+    expect(screen.getByText("Franska")).toBeInTheDocument();
+    expect(screen.getByText("Tyska")).toBeInTheDocument();
+    expect(screen.getByText("Uppfyllt")).toBeInTheDocument();
+    expect(screen.getByText("Ej uppfyllt")).toBeInTheDocument();
+  });
+});
+
 describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
   // label → granularitet (härledd FE-side ur taxonomin, architect NOTE-2).
   const granularity = {

@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { setLocaleAction } from "@/i18n/set-locale-action";
 import { useTheme } from "@/components/theme-provider";
 import {
   makeUpdateMyProfileSchema,
@@ -63,6 +65,7 @@ export function SettingsForm({
   const t = useTranslations("validation");
   const ts = useTranslations("settings");
   const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [language, setLanguage] = useState<LanguageValue>(
@@ -118,6 +121,10 @@ export function SettingsForm({
     const prev = language;
     setLanguage(next);
     void applyChange({ language: next }, () => setLanguage(prev));
+    // Switch the UI locale immediately: the cookie is the rendering source of
+    // truth (ADR 0078), the profile persistence above is the durable backup so
+    // the preference follows the user across devices.
+    void setLocaleAction(next).then(() => router.refresh());
   }
 
   function onEmailNotificationsChange(next: boolean) {

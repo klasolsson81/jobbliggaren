@@ -7,6 +7,16 @@ vi.mock("@/lib/actions/me", () => ({
   updateMyProfileAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+// The language Segment switches the UI locale via the cookie server action +
+// router.refresh(); mock both for the render smoke tests.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), back: vi.fn() }),
+}));
+
+vi.mock("@/i18n/set-locale-action", () => ({
+  setLocaleAction: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/auth/actions", () => ({
   logoutAction: vi.fn(),
   deleteAccountAction: vi.fn(),
@@ -88,7 +98,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     expect(screen.queryByLabelText(/Telefon/i)).not.toBeInTheDocument();
   });
 
-  it("Visning-kortet har Tema-segment + Språk-segment med English disabled", () => {
+  it("Visning-kortet har Tema-segment + Språk-segment med English aktiverat", () => {
     render(
       <SettingsForm
         initialProfile={baseProfile}
@@ -100,8 +110,9 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     expect(themeGroup).toBeInTheDocument();
     const langGroup = screen.getByRole("radiogroup", { name: "Språk" });
     expect(langGroup).toBeInTheDocument();
+    // English är nu live (next-intl wirad, ADR 0078) — inte längre disabled.
     const english = screen.getByRole("radio", { name: "English" });
-    expect(english).toBeDisabled();
+    expect(english).toBeEnabled();
   });
 
   it("Aviseringar-kortet har EXAKT 2 toggles (CTO Val 3B, no-mock)", () => {

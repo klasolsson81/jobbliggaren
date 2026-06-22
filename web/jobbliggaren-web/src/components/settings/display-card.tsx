@@ -17,11 +17,10 @@ interface DisplayCardProps {
 
 /**
  * Visning-kort. Tema-segment via `useTheme()` (klient-only, persisterad i
- * localStorage). Språk-segment via `updateMyProfileAction` (direct-apply
- * per CTO 2026-05-20 Val 2B + Klas-direktiv "Visning är direct-apply").
- *
- * FAS-DEFERRAL: English-option är disabled (next-intl ej aktiverad ännu).
- * Hint under språk-segmentet förmedlar status.
+ * localStorage). Språk-segment är direct-apply (per CTO 2026-05-20 Val 2B +
+ * Klas-direktiv "Visning är direct-apply"): `onLanguageChange` persisterar
+ * preferensen via `updateMyProfileAction` OCH sätter `NEXT_LOCALE`-cookien +
+ * `router.refresh()` (i `settings-form`) så UI:t byter språk direkt (ADR 0078).
  */
 export function DisplayCard({
   theme,
@@ -32,12 +31,11 @@ export function DisplayCard({
   themeOptions,
 }: DisplayCardProps) {
   const t = useTranslations("settings");
-  // Språk-segmentets options. English är `disabled` (next-intl ej aktiverad
-  // ännu) — bara etiketterna är översatta, inte aktiverings-logiken (en senare
-  // batch äger den live språk-växlaren).
+  // Språk-segmentets options. Båda språken är aktiva (next-intl wirad, ADR 0078);
+  // val byter UI-språk direkt via `onLanguageChange` (cookie + refresh).
   const languageOptions: ReadonlyArray<SegmentOption<LanguageValue>> = [
     { value: "sv", label: t("display.languageSwedish") },
-    { value: "en", label: t("display.languageEnglish"), disabled: true },
+    { value: "en", label: t("display.languageEnglish") },
   ];
   return (
     <section className="jp-card">

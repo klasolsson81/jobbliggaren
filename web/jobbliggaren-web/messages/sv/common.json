@@ -48,6 +48,11 @@
     "light": "Ljust läge",
     "dark": "Mörkt läge"
   },
+  "languageSwitcher": {
+    "label": "Språk",
+    "sv": "Svenska",
+    "en": "English"
+  },
   "dev": {
     "note": "Utvecklarverktyg, syns bara lokalt och tas bort före lansering.",
     "resetButton": "Dev: återställ mina testdata (tas bort före lansering)"

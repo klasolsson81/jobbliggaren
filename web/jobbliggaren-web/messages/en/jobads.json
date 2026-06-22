@@ -137,7 +137,7 @@
       },
       "notAssessedReason": {
         "ssykOverlap": "You have not stated which occupations you are searching within.",
-        "titleSimilarity": "Title is not yet compared against your profile.",
+        "titleSimilarity": "No role in your CV to compare.",
         "regionFit": "You have not stated any region.",
         "employmentFit": "You have not stated any employment type.",
         "skills": "No skills could be read from your CV. Upload a CV under Profile.",
@@ -152,6 +152,11 @@
       "requirements": {
         "met": "Met",
         "unmet": "Not met"
+      },
+      "titleSummary": {
+        "Match": "Your role matches the ad's title.",
+        "Partial": "Your role partly matches the ad's title.",
+        "NoMatch": "Your title differs from the ad's."
       }
     },
     "pagination": {

@@ -75,7 +75,7 @@ public sealed class MatchProfileBuilder(
 
         var topSkills = resume?.TopSkills ?? [];
         var conceptIds = skillResolver.Resolve(topSkills, cancellationToken);
-        return new FullCandidateMatchProfile(fast, conceptIds.ToList());
+        return new FullCandidateMatchProfile(WithLatestRole(fast, resume), conceptIds.ToList());
     }
 
     public async ValueTask<FullCandidateMatchProfile> BuildFullFromCvSkillsAsync(
@@ -117,8 +117,20 @@ public sealed class MatchProfileBuilder(
             : master.Content.Skills.Select(s => s.Name);
 
         var conceptIds = skillResolver.Resolve(skillNames, cancellationToken);
-        return new FullCandidateMatchProfile(fast, conceptIds.ToList());
+        return new FullCandidateMatchProfile(WithLatestRole(fast, resume), conceptIds.ToList());
     }
+
+    // STEG 4 (ADR 0079 / #5a; reverses ADR 0076 F4-16 Decision D7=A "title out of scope"):
+    // the title dimension reads the primary CV's denormalized plaintext LatestRole
+    // (ADR 0058/0059, DEK-free — available on the already-loaded Resume) so it produces a
+    // real verdict + evidence instead of a permanent NotAssessed. EVIDENCE-ONLY: Title is
+    // absent from MatchGradeCalculator and the MatchSortedJobAdSearchQuery ORDER BY, so this
+    // can never move a grade or a sort position (regression-pinned by the unchanged
+    // MatchGradeCalculatorTests + MatchSortOracleTests). The Fast/no-CV path keeps
+    // Title = "" → honest NotAssessed (no role to compare).
+    private static CandidateMatchProfile WithLatestRole(
+        CandidateMatchProfile fast, Resume? resume) =>
+        fast with { Title = resume?.LatestRole ?? string.Empty };
 
     private async ValueTask<JobSeeker?> LoadJobSeekerAsync(CancellationToken cancellationToken)
     {

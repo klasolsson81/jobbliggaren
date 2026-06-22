@@ -276,6 +276,59 @@ describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
   });
 });
 
+describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
+  it("titel (Match) → per-verdict-sammanfattning, ALDRIG råa Snowball-stammar", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({ titleSimilarity: row("Match", ["snickar"], []) })}
+      />
+    );
+    expect(
+      screen.getByText("Din roll stämmer med annonsens titel.")
+    ).toBeInTheDocument();
+    // Lexem-stammen är intern scoring-detalj — visas aldrig i UI.
+    expect(screen.queryByText(/snickar/)).not.toBeInTheDocument();
+  });
+
+  it("titel (NoMatch) → neutral fras (yrket/SSYK är primär signal)", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({
+          titleSimilarity: row("NoMatch", [], ["elektrikerstam"]),
+        })}
+      />
+    );
+    expect(
+      screen.getByText("Din titel skiljer sig från annonsens.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/elektrikerstam/)).not.toBeInTheDocument();
+  });
+
+  it("titel (Partial) → 'stämmer delvis'-fras", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({
+          titleSimilarity: row("Partial", ["snickar"], ["murarstam"]),
+        })}
+      />
+    );
+    expect(
+      screen.getByText("Din roll stämmer delvis med annonsens titel.")
+    ).toBeInTheDocument();
+  });
+
+  it("titel (NotAssessed, ingen roll i CV:t) → uppdaterad reason", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({ titleSimilarity: row("NotAssessed") })}
+      />
+    );
+    expect(
+      screen.getByText("Ingen roll i ditt CV att jämföra.")
+    ).toBeInTheDocument();
+  });
+});
+
 describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
   // label → granularitet (härledd FE-side ur taxonomin, architect NOTE-2).
   const granularity = {

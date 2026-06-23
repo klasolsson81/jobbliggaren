@@ -313,7 +313,13 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         if (entry.Lines.Count == 0)
             return (null, null);
 
-        var first = entry.Lines[0];
+        // Strip a TRAILING period from the header line BEFORE the title/organization split
+        // so a header that packs the dates on the same line as the role/company
+        // ("Plasman — Operatör 2005 – nu") cannot bleed the date into the field after the
+        // first separator (the reported layout-split bug). The period itself is still
+        // recovered by ExtractPeriod from the full entry text. No-op for the common
+        // "Role — Company\nYYYY-YYYY" layout (period on its own line) → no regression.
+        var first = StripTrailingPeriod(entry.Lines[0]);
         foreach (var separator in TitleOrgSeparators)
         {
             var index = first.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
@@ -328,6 +334,28 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         var org = entry.Lines.Count >= 2 ? NullIfEmpty(entry.Lines[1].Trim()) : null;
         return (NullIfEmpty(first.Trim()), org);
     }
+
+    // Remove a TRAILING date range or year from a header line, reusing the same patterns
+    // ExtractPeriod uses. Only strips when the date/year is at the END (a leading or internal
+    // year is likely part of the name, e.g. "Studio 2005 Design", and is left alone). The slot
+    // ORDER (which side is the role vs the company) is deliberately NOT guessed — a layout-naive
+    // CV may put either in either slot, so the user corrects it via the editable gap-fill
+    // (ADR 0040 propose-and-approve; senior-cto-advisor bind 2026-06-23).
+    private static string StripTrailingPeriod(string line)
+    {
+        var range = DateRangeRegex().Match(line);
+        if (range.Success && line[(range.Index + range.Length)..].Trim().Length == 0)
+            return TrimTrailingSeparators(line[..range.Index]);
+
+        var year = YearRegex().Match(line);
+        if (year.Success && line[(year.Index + year.Length)..].Trim().Length == 0)
+            return TrimTrailingSeparators(line[..year.Index]);
+
+        return line;
+    }
+
+    private static string TrimTrailingSeparators(string value) =>
+        value.TrimEnd(' ', '\t', ',', ';', '|', '-', '–', '—');
 
     private static readonly string[] TitleOrgSeparators =
         [" — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos "];
@@ -525,7 +553,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private static partial Regex PhoneRegex();
 
     [GeneratedRegex(
-        @"\b(\d{4}|\d{2}/\d{4}|\d{4}-\d{2})\s*[-–—]\s*(\d{4}|\d{2}/\d{4}|\d{4}-\d{2}|nuvarande|pågående|pagaende|present|current|now|idag)\b",
+        @"\b(\d{4}|\d{2}/\d{4}|\d{4}-\d{2})\s*[-–—]\s*(\d{4}|\d{2}/\d{4}|\d{4}-\d{2}|nuvarande|pågående|pagaende|present|current|now|idag|nu)\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex DateRangeRegex();
 

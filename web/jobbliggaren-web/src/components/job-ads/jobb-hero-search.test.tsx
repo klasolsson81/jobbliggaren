@@ -48,6 +48,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       municipality={[]}
       employmentType={[]}
       worktimeExtent={[]}
+      matchGrades={[]}
       sortBy="PublishedAtDesc"
       {...extra}
     />,
@@ -173,6 +174,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         municipality={["PVZL_BQT_XtL"]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -230,6 +232,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         municipality={["PVZL_BQT_XtL"]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -245,6 +248,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         municipality={["PVZL_BQT_XtL"]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -265,6 +269,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -290,6 +295,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -309,6 +315,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -462,6 +469,7 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         sortBy="PublishedAtDesc"
       />,
     );

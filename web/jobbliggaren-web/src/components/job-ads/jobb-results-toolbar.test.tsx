@@ -29,6 +29,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -49,6 +50,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={resolvedLabels}
         q="backend"
         sortBy="PublishedAtDesc"
@@ -78,6 +80,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={["zHxw_uJZ_NNh"]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={resolvedLabels}
         q=""
         sortBy="PublishedAtDesc"
@@ -102,6 +105,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -123,6 +127,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q="volvo lastbil"
         sortBy="PublishedAtDesc"
@@ -148,6 +153,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={["zHxw_uJZ_NNh"]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={resolvedLabels}
         q="backend"
         sortBy="PublishedAtDesc"
@@ -170,6 +176,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={resolvedLabels}
         q="backend"
         sortBy="ExpiresAtAsc"
@@ -191,6 +198,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -211,6 +219,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q="ab"
         sortBy="PublishedAtDesc"
@@ -238,6 +247,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -260,6 +270,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={resolvedLabels}
         q="data"
         sortBy="PublishedAtDesc"
@@ -284,6 +295,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q=""
         sortBy="PublishedAtDesc"
@@ -305,6 +317,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={{}}
         q="ab"
         sortBy="PublishedAtDesc"
@@ -327,6 +340,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality={[]}
         employmentType={[]}
         worktimeExtent={[]}
+        matchGrades={[]}
         resolvedLabels={resolvedLabels}
         q="data"
         sortBy="PublishedAtDesc"
@@ -355,6 +369,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
           municipality={[]}
           employmentType={[]}
           worktimeExtent={[]}
+          matchGrades={[]}
           resolvedLabels={{}}
           q=""
           sortBy="MatchDesc"
@@ -375,6 +390,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
           municipality={[]}
           employmentType={[]}
           worktimeExtent={[]}
+          matchGrades={[]}
           resolvedLabels={{}}
           q=""
           sortBy="MatchDesc"
@@ -393,6 +409,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
           municipality={[]}
           employmentType={[]}
           worktimeExtent={[]}
+          matchGrades={[]}
           resolvedLabels={{}}
           q=""
           sortBy="PublishedAtDesc"
@@ -414,6 +431,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality: [] as string[],
         employmentType: [] as string[],
         worktimeExtent: [] as string[],
+        matchGrades: [] as string[],
         resolvedLabels: {},
         q: "",
         hasStatedDesiredOccupation: false,
@@ -435,6 +453,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         municipality: [] as string[],
         employmentType: [] as string[],
         worktimeExtent: [] as string[],
+        matchGrades: [] as string[],
         resolvedLabels: {},
         q: "",
         sortBy: "MatchDesc" as const,
@@ -446,6 +465,88 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
 
       rerender(<JobbResultsToolbar {...props} hasStatedDesiredOccupation />);
       expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+    });
+  });
+
+  // STEG 5 (grade-filter) — matchningsgrad-kontrollen i toolbaren.
+  describe("matchningsgrad-filter (STEG 5)", () => {
+    function renderToolbar(over: {
+      matchGrades?: string[];
+      hasStatedDesiredOccupation?: boolean;
+    }) {
+      return render(
+        <JobbResultsToolbar
+          totalCount={5}
+          occupationGroup={[]}
+          region={[]}
+          municipality={[]}
+          employmentType={[]}
+          worktimeExtent={[]}
+          matchGrades={over.matchGrades ?? []}
+          resolvedLabels={{}}
+          q=""
+          sortBy="PublishedAtDesc"
+          hasStatedDesiredOccupation={over.hasStatedDesiredOccupation ?? true}
+        />,
+      );
+    }
+
+    it("DÖLJER kontrollen helt när hasStatedDesiredOccupation är false", () => {
+      renderToolbar({ hasStatedDesiredOccupation: false });
+      // Switchen finns inte (paritet med match-sort-disclosurens gate — graden
+      // kan inte beräknas utan angivet yrke).
+      expect(
+        screen.queryByRole("switch", { name: "Matchning" }),
+      ).toBeNull();
+    });
+
+    it("VISAR kontrollen när hasStatedDesiredOccupation är true", () => {
+      renderToolbar({ hasStatedDesiredOccupation: true });
+      expect(
+        screen.getByRole("switch", { name: "Matchning" }),
+      ).toBeInTheDocument();
+    });
+
+    it("slå PÅ filtret navigerar med alla tre grader UTAN commit-flaggan", async () => {
+      // matchGrades är runtime-view-state → ingen ?commit=true (till skillnad
+      // från chip/sort som auto-capturas till Senaste sökningar).
+      const user = userEvent.setup();
+      renderToolbar({ matchGrades: [] });
+      await user.click(screen.getByRole("switch", { name: "Matchning" }));
+      expect(pushMock).toHaveBeenCalledWith(
+        "/jobb?matchGrades=Basic&matchGrades=Good&matchGrades=Strong",
+      );
+    });
+
+    it("avmarkera alla grader navigerar till tom lista (Av = noll grader)", async () => {
+      const user = userEvent.setup();
+      renderToolbar({ matchGrades: ["Strong"] });
+      await user.click(screen.getByRole("checkbox", { name: "Stark" }));
+      // Tom matchGrades → buildJobbHref utelämnar paramet → ren /jobb.
+      expect(pushMock).toHaveBeenCalledWith("/jobb");
+    });
+
+    it("hjälpraden visas bara när filtret är PÅ (minst en grad)", () => {
+      const HELP = /Filtrerar listan efter din matchningsnivå/;
+      const { rerender } = renderToolbar({ matchGrades: [] });
+      expect(screen.queryByText(HELP)).toBeNull();
+
+      rerender(
+        <JobbResultsToolbar
+          totalCount={5}
+          occupationGroup={[]}
+          region={[]}
+          municipality={[]}
+          employmentType={[]}
+          worktimeExtent={[]}
+          matchGrades={["Strong"]}
+          resolvedLabels={{}}
+          q=""
+          sortBy="PublishedAtDesc"
+          hasStatedDesiredOccupation
+        />,
+      );
+      expect(screen.getByText(HELP)).toBeInTheDocument();
     });
   });
 });

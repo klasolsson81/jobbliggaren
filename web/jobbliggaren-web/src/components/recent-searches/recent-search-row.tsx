@@ -33,6 +33,10 @@ function buildHrefFor(item: RecentJobSearchDto): string {
     // "Kör igen" inte tyst tappar filtret (backend-DTO bär listorna sedan #60).
     employmentType: item.employmentTypeList,
     worktimeExtent: item.worktimeExtentList,
+    // STEG 5 (grade-filter) — matchGrades är runtime-view-state, INTE en
+    // sparad sök-angelägenhet (Klas: håll det utanför recent-search-concern:en).
+    // En "Kör igen" replayar därför aldrig ett grad-filter — tom lista.
+    matchGrades: [],
     sortBy: item.sortBy,
   });
 }

@@ -32,6 +32,11 @@ export interface ListJobAdsQuery {
   // (B2/#60). worktimeExtent bär 0–1 element (radio-single i panelen).
   employmentType?: ReadonlyArray<string>;
   worktimeExtent?: ReadonlyArray<string>;
+  // STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filter. Upprepad
+  // query-string (?matchGrades=Strong&matchGrades=Good) som bär ENUM-NAMN
+  // (`Basic` | `Good` | `Strong` — ALDRIG `Top`; backend-validatorn avvisar
+  // det). Tom/utelämnad = inget grad-filter ("Matchning av", hela listan).
+  matchGrades?: ReadonlyArray<string>;
   q?: string;
   // ADR 0042 Beslut E — "ny sedan"-fönster (ISO 8601). Driver JobAdDto.isNew.
   since?: string;
@@ -63,6 +68,9 @@ function buildQuery(query: ListJobAdsQuery): string {
     params.append("employmentType", v);
   for (const v of query.worktimeExtent ?? [])
     params.append("worktimeExtent", v);
+  // STEG 5 — matchningsgrad (enum-namn), upprepad nyckel per element. Tom
+  // lista = inget param = "Matchning av" (backend returnerar hela listan).
+  for (const v of query.matchGrades ?? []) params.append("matchGrades", v);
   if (query.q) params.set("q", query.q);
   if (query.since) params.set("since", query.since);
   // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend). Värdet

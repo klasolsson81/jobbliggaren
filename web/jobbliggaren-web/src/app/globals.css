@@ -2061,6 +2061,77 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-weight: 600;
   text-decoration: underline;
 }
+
+/* STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filtret i toolbarens
+   höger-kluster (bredvid sort-dropdownen). Flat civic-kontroll: en switch
+   ("Matchning") + en inline kryssrute-grupp (Grund/Bra/Stark) när på. INGEN
+   box/skugga/gradient — kontrollen lever i toolbarens rytm. Switchen återbrukar
+   .jp-togglerow__switch-tokens (samma yta/border/thumb/fokus, ingen ny färg).
+   Kryssrutorna återbrukar .jp-checkitem-boxen men packas horisontellt och
+   kompakt (ingen popover-rad-padding). Wrappar på smala skärmar. */
+.jp-gradefilter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.jp-gradefilter__switch {
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--jp-surface-3);
+  border: 1px solid var(--jp-border-input);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  transition: background 100ms, border-color 100ms;
+}
+.jp-gradefilter__switch:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+}
+.jp-gradefilter__switch[data-checked="true"] {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+}
+.jp-gradefilter__thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--jp-surface);
+  transition: transform 120ms ease;
+}
+.jp-gradefilter__switch[data-checked="true"] .jp-gradefilter__thumb {
+  transform: translateX(16px);
+  background: #FFFFFF;
+}
+.jp-gradefilter__label {
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+.jp-gradefilter__grades {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+/* Kompakt kryssruta i kontroll-raden: samma indikator-box som popovern men
+   utan dess 11px/16px rad-padding (här är raderna inline-taggar, inte en
+   vertikal lista). Behåll fokus-ringen (.jp-checkitem saknar egen). */
+.jp-gradefilter__grade {
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 14px;
+  border-radius: var(--jp-r-sm);
+}
+.jp-gradefilter__grade:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
 .jp-results-count {
   font-size: 17px;
   color: var(--jp-ink-1);

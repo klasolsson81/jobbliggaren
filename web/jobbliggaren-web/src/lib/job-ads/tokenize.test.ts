@@ -57,6 +57,7 @@ const empty: JobbUrlState = {
   municipality: [],
   employmentType: [],
   worktimeExtent: [],
+  matchGrades: [],
   sortBy: "PublishedAtDesc",
 };
 

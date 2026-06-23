@@ -159,6 +159,16 @@
         "NoMatch": "Your title differs from the ad's."
       }
     },
+    "gradeFilter": {
+      "toggleLabel": "Matching",
+      "groupLabel": "Show match grades",
+      "help": "Filters the list by your match level. Uncheck a grade to hide it.",
+      "grade": {
+        "Basic": "Basic",
+        "Good": "Good",
+        "Strong": "Strong"
+      }
+    },
     "pagination": {
       "navLabel": "Pagination",
       "previous": "Previous",

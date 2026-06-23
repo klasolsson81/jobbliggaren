@@ -542,7 +542,12 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
     // Inte text-representabla i hero-fältet, men kanoniska komparatorn ska
     // vara komplett så framtida skip-guards inte ger false-negative-drop.
     sameList(a.employmentType, b.employmentType) &&
-    sameList(a.worktimeExtent, b.worktimeExtent)
+    sameList(a.worktimeExtent, b.worktimeExtent) &&
+    // STEG 5 (grade-filter) — matchningsgrad-filtret ingår i "samma filter-
+    // state" (inte text-representabelt i fältet, men komparatorn ska vara
+    // komplett så hero-sökets extern-divergens-detektor inte tappar ett aktivt
+    // grad-filter när användaren ändrar sökordet).
+    sameList(a.matchGrades, b.matchGrades)
   );
 }
 

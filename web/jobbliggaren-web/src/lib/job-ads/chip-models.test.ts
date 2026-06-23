@@ -37,6 +37,7 @@ const state: JobbUrlState = {
   municipality: ["zHxw_uJZ_NNh"],
   employmentType: ["et_vikariat"],
   worktimeExtent: ["wt_heltid"],
+  matchGrades: [],
   sortBy: "PublishedAtDesc",
 };
 

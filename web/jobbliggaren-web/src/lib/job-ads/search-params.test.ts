@@ -14,6 +14,7 @@ const empty: JobbUrlState = {
   municipality: [],
   employmentType: [],
   worktimeExtent: [],
+  matchGrades: [],
   sortBy: "PublishedAtDesc",
 };
 
@@ -68,5 +69,47 @@ describe("buildJobbHref Klass 2 (employmentType + worktimeExtent)", () => {
 
   it("tomma Klass-2-arrayer ger inga params", () => {
     expect(buildJobbHref(empty)).toBe("/jobb");
+  });
+});
+
+describe("buildJobbHref STEG 5 (matchGrades — grade-filter)", () => {
+  it("appendar matchGrades som upprepade params (enum-namn)", () => {
+    expect(
+      buildJobbHref({ ...empty, matchGrades: ["Strong", "Good"] }),
+    ).toBe("/jobb?matchGrades=Strong&matchGrades=Good");
+  });
+
+  it("tom matchGrades-lista ger inget param (Av = noll grader)", () => {
+    expect(buildJobbHref({ ...empty, matchGrades: [] })).toBe("/jobb");
+  });
+
+  it("ordning: Klass-2-dimensioner → matchGrades → q (stabil URL-form)", () => {
+    expect(
+      buildJobbHref({
+        ...empty,
+        q: "volvo",
+        occupationGroup: ["og1"],
+        region: ["r1"],
+        employmentType: ["et1"],
+        worktimeExtent: ["wt1"],
+        matchGrades: ["Basic", "Good", "Strong"],
+      }),
+    ).toBe(
+      "/jobb?occupationGroup=og1&region=r1&employmentType=et1&worktimeExtent=wt1&matchGrades=Basic&matchGrades=Good&matchGrades=Strong&q=volvo",
+    );
+  });
+
+  it("round-trip: buildJobbHref → URLSearchParams.getAll bevarar grad-listan", () => {
+    // Wire-kontraktets round-trip: graderna överlever serialisering→parse i
+    // samma form som page.tsx läser dem (params.getAll-ekvivalent).
+    const href = buildJobbHref({
+      ...empty,
+      matchGrades: ["Strong", "Basic"],
+    });
+    const qs = href.slice(href.indexOf("?") + 1);
+    expect(new URLSearchParams(qs).getAll("matchGrades")).toEqual([
+      "Strong",
+      "Basic",
+    ]);
   });
 });

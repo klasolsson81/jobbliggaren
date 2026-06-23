@@ -50,6 +50,10 @@ interface JobbResultsProps {
   // Klass 2 (2026-06-13) — anställningsform + omfattning.
   employmentType: string[];
   worktimeExtent: string[];
+  // STEG 5 (grade-filter, 2026-06-23) — valda matchningsgrader (enum-namn,
+  // delmängd av Basic/Good/Strong; validerad + Top-strippad i page.tsx). Tom =
+  // inget grad-filter ("Matchning av"). Skickas vidare till list-queryn.
+  matchGrades: string[];
   q: string;
   since: string;
   /**
@@ -70,6 +74,7 @@ interface JobbResultsProps {
     municipality?: string | string[];
     employmentType?: string | string[];
     worktimeExtent?: string | string[];
+    matchGrades?: string | string[];
     q?: string;
   };
 }
@@ -83,6 +88,7 @@ export async function JobbResults({
   municipality,
   employmentType,
   worktimeExtent,
+  matchGrades,
   q,
   since,
   commit,
@@ -121,6 +127,7 @@ export async function JobbResults({
       municipality,
       employmentType,
       worktimeExtent,
+      matchGrades,
       q,
       since,
       commit,
@@ -178,6 +185,7 @@ export async function JobbResults({
             municipality={municipality}
             employmentType={employmentType}
             worktimeExtent={worktimeExtent}
+            matchGrades={matchGrades}
             resolvedLabels={resolvedLabels}
             q={q}
             sortBy={sortBy}
@@ -274,6 +282,11 @@ function buildPageHref(
     url.append("employmentType", v);
   for (const v of toStringList(params.worktimeExtent))
     url.append("worktimeExtent", v);
+  // STEG 5 — utan denna rad tappar sida-2-klicket grad-filtret (samma felklass
+  // som municipality/Klass-2 ovan; buildPageHref är en andra URL-builder vid
+  // sidan av buildJobbHref). Page-validatorn droppar Top/okänt redan.
+  for (const v of toStringList(params.matchGrades))
+    url.append("matchGrades", v);
   if (params.q) url.set("q", params.q);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";

@@ -16,14 +16,29 @@ vi.mock("@/lib/api/resumes", () => ({
 vi.mock("@/lib/api/occupation-derive", () => ({
   deriveOccupations: deriveOccupationsMock,
 }));
+// STEG 3 / ADR 0079: skill-BFF:erna mockas så vi kan driva alla grenar.
+const { searchSkillsApiMock, getParsedResumeSkillsMock } = vi.hoisted(() => ({
+  searchSkillsApiMock: vi.fn(),
+  getParsedResumeSkillsMock: vi.fn(),
+}));
+vi.mock("@/lib/api/skills", () => ({
+  searchSkills: searchSkillsApiMock,
+  getParsedResumeSkills: getParsedResumeSkillsMock,
+}));
 // next/cache revalidatePath är en no-op i test.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 // getSessionId används av updateMatchPreferencesAction (ej testad här) — stubba.
 vi.mock("@/lib/auth/session", () => ({ getSessionId: vi.fn() }));
+// getTranslations används av searchSkillsAction:s fel-grenar — returnera nyckeln.
+vi.mock("next-intl/server", () => ({
+  getTranslations: vi.fn(async () => (key: string) => key),
+}));
 
 import {
   suggestOccupationsFromCvAction,
   suggestOccupationsFromParsedResumeAction,
+  searchSkillsAction,
+  suggestSkillsFromParsedResumeAction,
 } from "./match-preferences";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 
@@ -250,6 +265,105 @@ describe("suggestOccupationsFromParsedResumeAction", () => {
       retryAfterSeconds: 30,
     });
     expect(await suggestOccupationsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "error",
+    });
+  });
+});
+
+describe("searchSkillsAction (STEG 3 / ADR 0079)", () => {
+  beforeEach(() => {
+    searchSkillsApiMock.mockReset();
+  });
+
+  it("icke-sträng query → tom (graceful, ingen rundtur)", async () => {
+    expect(
+      await searchSkillsAction(null as unknown as string)
+    ).toEqual({ success: true, options: [] });
+    expect(searchSkillsApiMock).not.toHaveBeenCalled();
+  });
+
+  it("ok → options", async () => {
+    searchSkillsApiMock.mockResolvedValue({
+      kind: "ok",
+      data: [{ conceptId: "skill_react", label: "React" }],
+    });
+    expect(await searchSkillsAction("rea")).toEqual({
+      success: true,
+      options: [{ conceptId: "skill_react", label: "React" }],
+    });
+  });
+
+  it("utloggad → fel (notLoggedIn-nyckel)", async () => {
+    searchSkillsApiMock.mockResolvedValue({ kind: "unauthorized" });
+    const result = await searchSkillsAction("rea");
+    expect(result.success).toBe(false);
+  });
+
+  it("rateLimited → fel (tooManyAttempts-nyckel)", async () => {
+    searchSkillsApiMock.mockResolvedValue({
+      kind: "rateLimited",
+      retryAfterSeconds: 30,
+    });
+    const result = await searchSkillsAction("rea");
+    expect(result.success).toBe(false);
+  });
+
+  it("övrigt fel → graceful tom (söket degraderar till 'ingen träff')", async () => {
+    searchSkillsApiMock.mockResolvedValue({ kind: "error" });
+    expect(await searchSkillsAction("rea")).toEqual({
+      success: true,
+      options: [],
+    });
+  });
+});
+
+describe("suggestSkillsFromParsedResumeAction (STEG 3 / ADR 0079)", () => {
+  beforeEach(() => {
+    getParsedResumeSkillsMock.mockReset();
+  });
+
+  it("tomt id → noCv utan att nå backend", async () => {
+    expect(await suggestSkillsFromParsedResumeAction("")).toEqual({
+      kind: "noCv",
+    });
+    expect(getParsedResumeSkillsMock).not.toHaveBeenCalled();
+  });
+
+  it("utloggad → unauthorized", async () => {
+    getParsedResumeSkillsMock.mockResolvedValue({ kind: "unauthorized" });
+    expect(await suggestSkillsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "unauthorized",
+    });
+  });
+
+  it("notFound → noCv", async () => {
+    getParsedResumeSkillsMock.mockResolvedValue({ kind: "notFound" });
+    expect(await suggestSkillsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "noCv",
+    });
+  });
+
+  it("ok men tom lista → noRole (CV läst, inga kompetenser härledda)", async () => {
+    getParsedResumeSkillsMock.mockResolvedValue({ kind: "ok", data: [] });
+    expect(await suggestSkillsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "noRole",
+    });
+  });
+
+  it("ok med kandidater → candidates (med labels)", async () => {
+    getParsedResumeSkillsMock.mockResolvedValue({
+      kind: "ok",
+      data: [{ conceptId: "skill_react", label: "React" }],
+    });
+    expect(await suggestSkillsFromParsedResumeAction(VALID_ID)).toEqual({
+      kind: "candidates",
+      candidates: [{ conceptId: "skill_react", label: "React" }],
+    });
+  });
+
+  it("övrigt fel → error", async () => {
+    getParsedResumeSkillsMock.mockResolvedValue({ kind: "error" });
+    expect(await suggestSkillsFromParsedResumeAction(VALID_ID)).toEqual({
       kind: "error",
     });
   });

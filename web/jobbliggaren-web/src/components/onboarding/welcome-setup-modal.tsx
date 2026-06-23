@@ -28,6 +28,7 @@ import type {
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
 import type { ParsedContentDto } from "@/lib/dto/parsed-resume";
+import type { SkillOption } from "@/lib/dto/skills";
 import { loadParsedResumeForGapFillAction } from "@/lib/actions/resumes";
 import { markSetupWelcomeSeen } from "@/lib/onboarding/setup-welcome-actions";
 
@@ -57,6 +58,9 @@ interface WelcomeSetupModalProps {
   /** Spår 3 PR-D: kommun-axeln (pre-fill för wizardens ort-steg). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
+  /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (pre-fill för wizarden). */
+  readonly persistedSkills: ReadonlyArray<string>;
+  readonly persistedExperienceYears: number | null;
   /** CV-importflödets route (wizardens yrkes-steg tom-state-länk). */
   readonly importCvHref: string;
 }
@@ -81,6 +85,8 @@ export function WelcomeSetupModal({
   persistedRegions,
   persistedMunicipalities,
   persistedEmploymentTypes,
+  persistedSkills,
+  persistedExperienceYears,
   importCvHref,
 }: WelcomeSetupModalProps) {
   const t = useTranslations("settings");
@@ -98,6 +104,8 @@ export function WelcomeSetupModal({
   // och ett ladd-fel-tillstånd.
   const [gapFillData, setGapFillData] = useState<GapFillData | null>(null);
   const [proposedOccupations, setProposedOccupations] = useState<string[]>([]);
+  // STEG 3 / ADR 0079: CV-kompetens-förslag (med labels) förhämtade INNAN promote.
+  const [proposedSkills, setProposedSkills] = useState<SkillOption[]>([]);
   const [gapFillError, setGapFillError] = useState(false);
   const [, startLoadingGapFill] = useTransition();
   const [, startTransition] = useTransition();
@@ -160,6 +168,7 @@ export function WelcomeSetupModal({
     setGapFillError(false);
     setGapFillData(null);
     setProposedOccupations([]);
+    setProposedSkills([]);
     setStep("gapfill");
     startLoadingGapFill(async () => {
       const result = await loadParsedResumeForGapFillAction(parsedResumeId);
@@ -169,6 +178,7 @@ export function WelcomeSetupModal({
           content: result.content,
         });
         setProposedOccupations(result.proposedOccupationGroups);
+        setProposedSkills(result.proposedSkills);
       } else {
         setGapFillError(true);
       }
@@ -362,6 +372,8 @@ export function WelcomeSetupModal({
         persistedRegions={persistedRegions}
         persistedMunicipalities={persistedMunicipalities}
         persistedEmploymentTypes={persistedEmploymentTypes}
+        persistedSkills={persistedSkills}
+        persistedExperienceYears={persistedExperienceYears}
         importCvHref={importCvHref}
         // STEG 1 / ADR 0079: CV:t är redan befordrat när wizarden öppnas, så
         // staging-artefakten (parsedResumeId) är soft-raderad. De rika
@@ -369,6 +381,10 @@ export function WelcomeSetupModal({
         // Utan uppladdat CV → undefined (wizarden faller tillbaka på sin vanliga
         // latestRole-/noCv-väg).
         proposedOccupationGroups={uploaded ? proposedOccupations : undefined}
+        // STEG 3 / ADR 0079: CV-kompetens-förslag (med labels) bärs in på samma
+        // sätt — de seedar kompetens-draften och stänger av auto-suggest (staging-
+        // artefakten finns inte längre). Utan uppladdat CV → undefined.
+        proposedSkills={uploaded ? proposedSkills : undefined}
         onSaved={() => setWizardOpen(false)}
       />
     </>

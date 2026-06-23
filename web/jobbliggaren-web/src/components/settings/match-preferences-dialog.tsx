@@ -21,6 +21,8 @@ import {
 } from "@/lib/actions/match-preferences";
 import { toggle, type Option } from "./match-preferences-shared";
 import { OccupationSection } from "./occupation-section";
+import { SkillSection } from "./skill-section";
+import { ExperienceField } from "./experience-field";
 import { FacetSection } from "./facet-section";
 import { RegionMunicipalityCascade } from "./region-municipality-cascade";
 import type { OrtSelection } from "@/lib/job-ads/ort-selection";
@@ -37,6 +39,11 @@ interface MatchPreferencesDialogProps {
   /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
+  /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (pre-fill). */
+  readonly persistedSkills: ReadonlyArray<string>;
+  readonly persistedExperienceYears: number | null;
+  /** STEG 3 / ADR 0079: labels för sparade kompetens-concept-id (chip-render). */
+  readonly persistedSkillLabels?: ReadonlyArray<Option>;
   /**
    * Anropas efter lyckad save med den sparade fulla mängden, så kortet kan
    * anta den lokalt (annars driver kortets klient-state isär från SSOT tills
@@ -47,6 +54,11 @@ interface MatchPreferencesDialogProps {
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
+    skills: ReadonlyArray<string>;
+    experienceYears: number | null;
+    /** Labels för de sparade kompetenserna så kortet kan rendera namn (skills
+     *  saknar träd-uppslagning). Spegel av SkillSections label-store. */
+    skillLabels: ReadonlyArray<Option>;
   }) => void;
   /** URL till CV-importflödet (tom-state-länken). */
   readonly importCvHref: string;
@@ -62,6 +74,9 @@ export function MatchPreferencesDialog({
   persistedRegions,
   persistedMunicipalities,
   persistedEmploymentTypes,
+  persistedSkills,
+  persistedExperienceYears,
+  persistedSkillLabels = [],
   onSaved,
   importCvHref,
 }: MatchPreferencesDialogProps) {
@@ -87,6 +102,16 @@ export function MatchPreferencesDialog({
   const [draftEmployment, setDraftEmployment] = useState<ReadonlyArray<string>>(
     persistedEmploymentTypes
   );
+  const [draftSkills, setDraftSkills] = useState<ReadonlyArray<string>>(
+    persistedSkills
+  );
+  const [draftExperience, setDraftExperience] = useState<number | null>(
+    persistedExperienceYears
+  );
+  // Speglar SkillSections label-store så onSaved kan bära namn ut till kortet.
+  const [skillLabels, setSkillLabels] = useState<ReadonlyArray<Option>>(
+    persistedSkillLabels
+  );
 
   // Save.
   const [isSaving, startSaving] = useTransition();
@@ -100,6 +125,8 @@ export function MatchPreferencesDialog({
     setDraftRegions(persistedRegions);
     setDraftMunicipalities(persistedMunicipalities);
     setDraftEmployment(persistedEmploymentTypes);
+    setDraftSkills(persistedSkills);
+    setDraftExperience(persistedExperienceYears);
     setSaveError(null);
   }
   if (!open && seededFor) {
@@ -126,6 +153,9 @@ export function MatchPreferencesDialog({
         preferredRegions: [...draftRegions],
         preferredMunicipalities: [...draftMunicipalities],
         preferredEmploymentTypes: [...draftEmployment],
+        // STEG 3 / ADR 0079: kompetens + erfarenhet i SAMMA PUT (page-wipe-guard).
+        preferredSkills: [...draftSkills],
+        experienceYears: draftExperience,
       });
       if (result.success) {
         onSaved({
@@ -133,6 +163,9 @@ export function MatchPreferencesDialog({
           regions: draftRegions,
           municipalities: draftMunicipalities,
           employment: draftEmployment,
+          skills: draftSkills,
+          experienceYears: draftExperience,
+          skillLabels,
         });
         onOpenChange(false);
       } else {
@@ -172,6 +205,31 @@ export function MatchPreferencesDialog({
               idPrefix="match-dialog"
               headingId="match-dialog-occ-head"
             />
+          </section>
+
+          <section
+            className="jp-matchdialog__section"
+            role="group"
+            aria-labelledby="match-dialog-skill-head"
+          >
+            <SkillSection
+              selected={draftSkills}
+              onToggle={(id) => setDraftSkills((prev) => toggle(prev, id))}
+              onReplace={(next) => setDraftSkills(next)}
+              onClear={() => setDraftSkills([])}
+              idPrefix="match-dialog-skill"
+              headingId="match-dialog-skill-head"
+              initialLabels={persistedSkillLabels}
+              onLabelsChange={setSkillLabels}
+            />
+            {/* Erfarenhet bor i samma sektion som kompetens (samma steg/host). */}
+            <div className="mt-4">
+              <ExperienceField
+                value={draftExperience}
+                onChange={setDraftExperience}
+                idPrefix="match-dialog-experience"
+              />
+            </div>
           </section>
 
           <section

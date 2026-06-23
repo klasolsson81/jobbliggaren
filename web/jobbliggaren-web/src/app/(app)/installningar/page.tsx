@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getMyProfile } from "@/lib/api/me";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
+import { resolveSkillLabels } from "@/lib/api/skills";
 import { SettingsForm } from "@/components/settings/settings-form";
 
 /**
@@ -36,6 +37,19 @@ export default async function InstallningarPage() {
   const taxonomy =
     taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
 
+  // Reverse-resolve the saved skill concept-ids to labels server-side (ADR
+  // 0047): the flat skill taxonomy is never shipped to the FE as a tree, so
+  // without this seed the matchnings-kort would render raw concept-ids on a
+  // cold load. Depends on the profile, so it runs after the parallel fetch.
+  // Failure (or a missing profile) → empty list; the card keeps its graceful
+  // id-fallback. Unknown/removed ids are dropped by the backend.
+  const skillLabelsResult =
+    profileResult.kind === "ok"
+      ? await resolveSkillLabels(profileResult.data.preferredSkills)
+      : null;
+  const initialSkillLabels =
+    skillLabelsResult?.kind === "ok" ? skillLabelsResult.data : [];
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
@@ -48,6 +62,7 @@ export default async function InstallningarPage() {
           initialProfile={profileResult.data}
           userEmail={user.email}
           taxonomy={taxonomy}
+          initialSkillLabels={initialSkillLabels}
         />
       ) : (
         <p className="text-body text-text-secondary">

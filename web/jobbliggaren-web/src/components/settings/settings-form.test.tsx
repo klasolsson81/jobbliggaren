@@ -45,6 +45,8 @@ const baseProfile: JobSeekerProfileDto = {
   preferredRegions: [],
   preferredMunicipalities: [],
   preferredEmploymentTypes: [],
+  preferredSkills: [],
+  experienceYears: null,
 };
 
 describe("SettingsForm — F6 Prompt 2 smoke", () => {
@@ -54,6 +56,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
+        initialSkillLabels={[]}
       />,
     );
     const headings = screen
@@ -78,6 +81,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
+        initialSkillLabels={[]}
       />,
     );
     const name = screen.getByLabelText("Namn") as HTMLInputElement;
@@ -94,6 +98,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
+        initialSkillLabels={[]}
       />,
     );
     expect(screen.queryByLabelText(/Telefon/i)).not.toBeInTheDocument();
@@ -105,6 +110,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
+        initialSkillLabels={[]}
       />,
     );
     const themeGroup = screen.getByRole("radiogroup", { name: "Tema" });
@@ -122,6 +128,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
+        initialSkillLabels={[]}
       />,
     );
     const switches = screen.getAllByRole("switch");
@@ -140,6 +147,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
+        initialSkillLabels={[]}
       />,
     );
     expect(screen.getByTestId("delete-account-stub")).toBeInTheDocument();
@@ -151,6 +159,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
+        initialSkillLabels={[]}
       />,
     );
     expect(

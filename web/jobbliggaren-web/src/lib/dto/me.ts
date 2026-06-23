@@ -51,6 +51,15 @@ export const jobSeekerProfileSchema = z.object({
   // tillbaka för pre-fill så region + kommun submittas atomiskt (NOTE-1).
   preferredMunicipalities: z.array(z.string()).readonly(),
   preferredEmploymentTypes: z.array(z.string()).readonly(),
+  // STEG 3 / ADR 0079 (Beslut 1): the CV-seeded, editable, trusted skill chips
+  // and the single profile-level experience-years field. Backend always
+  // returns both additively (`IReadOnlyList<string>` never null; the int is
+  // nullable) → required keys (`undefined` would mask contract drift).
+  // `.readonly()` mirrors `IReadOnlyList<string>`. `experienceYears` is `null`
+  // when not stated. Read back for pre-fill so saving any other dimension
+  // never zeroes them (the full-replace page-wipe guard).
+  preferredSkills: z.array(z.string()).readonly(),
+  experienceYears: z.number().int().nullable(),
 });
 
 export type JobSeekerProfileDto = z.infer<typeof jobSeekerProfileSchema>;

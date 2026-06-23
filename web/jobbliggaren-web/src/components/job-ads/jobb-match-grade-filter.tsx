@@ -5,6 +5,7 @@
 // URL-staten via `selected`-propen och rapporterar nästa lista uppåt
 // (föräldern commit:ar till URL:en, paritet med chip/sort i toolbaren).
 
+import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
@@ -56,6 +57,10 @@ export function JobbMatchGradeFilter({
   onChange,
 }: JobbMatchGradeFilterProps) {
   const t = useTranslations("jobads.ui.gradeFilter");
+  // Den synliga "Matchning"-labeln ÄR det programmatiska namnet (a11y §2/§6):
+  // switch-knappen pekar på syskon-spanen via aria-labelledby i stället för att
+  // duplicera namnet i ett aria-label + dölja labeln för SR.
+  const labelId = useId();
 
   // "Av = noll grader": switchen är PÅ exakt när minst en grad är vald.
   const isOn = selected.length > 0;
@@ -82,17 +87,17 @@ export function JobbMatchGradeFilter({
         type="button"
         role="switch"
         aria-checked={isOn}
-        // Synlig label ("Matchning") + switch i samma rad. aria-label bär det
-        // tillgängliga namnet eftersom labeln ligger som syskon-span (inte ett
-        // <label htmlFor> — switchen är en knapp, inte en native checkbox).
-        aria-label={t("toggleLabel")}
+        // Den synliga labeln (syskon-spanen nedan) bär det tillgängliga namnet
+        // via aria-labelledby — switchen är en knapp, inte en native checkbox,
+        // så ingen <label htmlFor>; namnet dupliceras aldrig i ett aria-label.
+        aria-labelledby={labelId}
         onClick={toggleSwitch}
         className="jp-gradefilter__switch"
         data-checked={isOn}
       >
         <span className="jp-gradefilter__thumb" aria-hidden="true" />
       </button>
-      <span className="jp-gradefilter__label" aria-hidden="true">
+      <span id={labelId} className="jp-gradefilter__label">
         {t("toggleLabel")}
       </span>
 

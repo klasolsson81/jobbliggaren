@@ -372,7 +372,9 @@ export function JobbResultsToolbar({
         bara när filtret är PÅ (minst en grad vald) så off-läget förblir tyst.
         Platt civic info-not (samma .jp-matchsort-note-rytm, ingen box/skugga). */}
     {hasStatedDesiredOccupation && urlState.matchGrades.length > 0 && (
-      <p className="jp-matchsort-note" role="note">
+      // role="status" (ej "note") så SR aviserar hjälptexten när den tonar in
+      // vid switch-PÅ (paritet med match-sort-disclosuren nedan, a11y §6).
+      <p className="jp-matchsort-note" role="status">
         {t("gradeFilter.help")}
       </p>
     )}

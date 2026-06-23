@@ -2127,10 +2127,19 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   padding: 6px 10px;
   font-size: 14px;
   border-radius: var(--jp-r-sm);
+  /* Hit-target-golv (ADR 0038) — primära innehållsval, inte toolbar-knappar,
+     så 32px in-app-golv (44px touch nedan), explicit i stället för line-height-
+     beroende. */
+  min-height: 32px;
 }
 .jp-gradefilter__grade:focus-visible {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
+}
+@media (max-width: 768px) {
+  .jp-gradefilter__grade {
+    min-height: 44px;
+  }
 }
 .jp-results-count {
   font-size: 17px;

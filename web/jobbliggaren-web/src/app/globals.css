@@ -2967,6 +2967,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   flex-direction: column;
   gap: 0;
 }
+/* STEG 3 / ADR 0079: kompetens-sektionen + erfarenhet-fältet på samma
+   wizard-steg — vertikal separation utan extra kort/ram. */
+.jp-wizard__substeps {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 /* Confirm-/klart-steget: stor grön check (status-token, ALDRIG emoji) +
    typografisk rubrik. Ingen glow, ingen scale-in-bounce. */
 /* "Hoppa över det här steget" — a benign, non-destructive navigation affordance.

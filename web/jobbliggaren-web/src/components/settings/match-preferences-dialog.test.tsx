@@ -8,18 +8,28 @@ import type {
 } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
 
-const { updateMock, deriveMock, cvSuggestMock, parsedSuggestMock } =
-  vi.hoisted(() => ({
-    updateMock: vi.fn(),
-    deriveMock: vi.fn(),
-    cvSuggestMock: vi.fn(),
-    parsedSuggestMock: vi.fn(),
-  }));
+const {
+  updateMock,
+  deriveMock,
+  cvSuggestMock,
+  parsedSuggestMock,
+  skillSearchMock,
+  skillSuggestMock,
+} = vi.hoisted(() => ({
+  updateMock: vi.fn(),
+  deriveMock: vi.fn(),
+  cvSuggestMock: vi.fn(),
+  parsedSuggestMock: vi.fn(),
+  skillSearchMock: vi.fn(),
+  skillSuggestMock: vi.fn(),
+}));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
+  searchSkillsAction: skillSearchMock,
+  suggestSkillsFromParsedResumeAction: skillSuggestMock,
 }));
 
 import { MatchPreferencesDialog } from "./match-preferences-dialog";
@@ -57,6 +67,8 @@ function renderDialog(
       persistedRegions={[]}
       persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
+      persistedSkills={[]}
+      persistedExperienceYears={null}
       onSaved={onSaved}
       importCvHref="/cv/importera"
       {...overrides}
@@ -70,8 +82,12 @@ beforeEach(() => {
   deriveMock.mockReset();
   cvSuggestMock.mockReset();
   parsedSuggestMock.mockReset();
+  skillSearchMock.mockReset();
+  skillSuggestMock.mockReset();
   updateMock.mockResolvedValue({ success: true });
   deriveMock.mockResolvedValue({ success: true, candidates: [] });
+  skillSearchMock.mockResolvedValue({ success: true, options: [] });
+  skillSuggestMock.mockResolvedValue({ kind: "noCv" });
 });
 
 describe("MatchPreferencesDialog — shell + draft", () => {
@@ -138,17 +154,23 @@ describe("MatchPreferencesDialog — shell + draft", () => {
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
     // Spår 3 PR-D: region + kommun submittas atomiskt i samma PUT.
+    // STEG 3 / ADR 0079: kompetens + erfarenhet i SAMMA PUT (page-wipe-guard).
     expect(updateMock).toHaveBeenCalledWith({
       preferredOccupationGroups: ["grp_backend"],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
       preferredEmploymentTypes: [],
+      preferredSkills: [],
+      experienceYears: null,
     });
     expect(onSaved).toHaveBeenCalledWith({
       occupations: ["grp_backend"],
       regions: ["region_sthlm"],
       municipalities: [],
       employment: [],
+      skills: [],
+      experienceYears: null,
+      skillLabels: [],
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -169,13 +191,46 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: ["mun_a", "mun_b"],
       preferredEmploymentTypes: [],
+      preferredSkills: [],
+      experienceYears: null,
     });
     expect(onSaved).toHaveBeenCalledWith({
       occupations: [],
       regions: ["region_sthlm"],
       municipalities: ["mun_a", "mun_b"],
       employment: [],
+      skills: [],
+      experienceYears: null,
+      skillLabels: [],
     });
+  });
+
+  it("STEG 3 / ADR 0079 (page-wipe-guard): pre-fyllda skills + erfarenhet submittas atomiskt, aldrig nollade", async () => {
+    const user = userEvent.setup();
+    const { onSaved } = renderDialog({
+      persistedSkills: ["skill_react"],
+      persistedExperienceYears: 7,
+      persistedSkillLabels: [{ conceptId: "skill_react", label: "React" }],
+    });
+
+    // Spara utan att röra kompetens/erfarenhet: båda måste bäras oförändrade.
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock).toHaveBeenCalledWith({
+      preferredOccupationGroups: [],
+      preferredRegions: [],
+      preferredMunicipalities: [],
+      preferredEmploymentTypes: [],
+      preferredSkills: ["skill_react"],
+      experienceYears: 7,
+    });
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: ["skill_react"],
+        experienceYears: 7,
+      })
+    );
   });
 
   it("Avbryt stänger utan att skriva", async () => {

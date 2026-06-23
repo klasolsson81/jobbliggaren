@@ -27,9 +27,10 @@ import { MatchPreferencesDialog } from "./match-preferences-dialog";
 // dem härifrån) inte bryts; definitionen bor i match-preferences-shared.
 export { flattenOccupationGroups, filterOptions };
 
-/** Yrken/Orter/Anställningsformer — de tre facetterna kortet renderar. "orter"
- * är EN dimension i två granulariteter (län + kommun, Spår 3 PR-D). */
-type Facet = "occupations" | "orter" | "employment";
+/** Yrken/Kompetenser/Orter/Anställningsformer — facetterna kortet renderar.
+ * "orter" är EN dimension i två granulariteter (län + kommun, Spår 3 PR-D);
+ * "skills" är CV-seedade kompetenser (STEG 3 / ADR 0079). */
+type Facet = "occupations" | "skills" | "orter" | "employment";
 
 interface MatchPreferencesCardProps {
   /** Yrkesområden (med underordnade yrkesgrupper) → kortet plattar själv. */
@@ -44,6 +45,19 @@ interface MatchPreferencesCardProps {
   /** Spår 3 PR-D: kommun-axeln (sparade kommun-concept-id från profilen). */
   readonly initialMunicipalities: ReadonlyArray<string>;
   readonly initialEmploymentTypes: ReadonlyArray<string>;
+  /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (sparade från profilen). */
+  readonly initialSkills: ReadonlyArray<string>;
+  /**
+   * STEG 3 / ADR 0079 + ADR 0047: pre-resolverade labels för de sparade
+   * kompetens-concept-id (server-side reverse-lookup i settings-sidan). Seedar
+   * label-storen så en återvändande användare ser NAMN på sina kompetens-chips
+   * vid kall laddning, utan att öppna dialogen. Den platta skill-taxonomin
+   * skickas aldrig som träd → utan denna seed renderas råa concept-id (rå
+   * token på läs-yta, ADR 0047). Okänt/borttaget id faller fortfarande
+   * tillbaka på id-strängen (graceful, backend droppar okända).
+   */
+  readonly initialSkillLabels: ReadonlyArray<Option>;
+  readonly initialExperienceYears: number | null;
   /**
    * Civil degradering: när taxonomin inte kunde läsas in passar föräldern
    * `false` för optionerna och sätter `degraded` så kortet visar en lugn
@@ -63,17 +77,22 @@ export function MatchPreferencesCard({
   initialRegions,
   initialMunicipalities,
   initialEmploymentTypes,
+  initialSkills,
+  initialSkillLabels,
+  initialExperienceYears,
   degraded,
 }: MatchPreferencesCardProps) {
   const t = useTranslations("settings");
   // Facet-rubriker och tom-state-texter per dimension (svenska via katalogen).
   const facetLabel: Record<Facet, string> = {
     occupations: t("matchPrefs.facetOccupations"),
+    skills: t("matchPrefs.facetSkills"),
     orter: t("matchPrefs.facetOrter"),
     employment: t("matchPrefs.facetEmployment"),
   };
   const facetEmpty: Record<Facet, string> = {
     occupations: t("matchPrefs.emptyOccupations"),
+    skills: t("matchPrefs.emptySkills"),
     orter: t("matchPrefs.emptyOrter"),
     employment: t("matchPrefs.emptyEmployment"),
   };
@@ -109,6 +128,20 @@ export function MatchPreferencesCard({
   const [selectedEmployment, setSelectedEmployment] = useState<
     ReadonlyArray<string>
   >(initialEmploymentTypes);
+  const [selectedSkills, setSelectedSkills] =
+    useState<ReadonlyArray<string>>(initialSkills);
+  const [experienceYears, setExperienceYears] = useState<number | null>(
+    initialExperienceYears
+  );
+  // Skill label-store (conceptId → label). The flat skill taxonomy is never
+  // shipped to the FE as a tree, so a saved skill has no tree lookup — the card
+  // adopts labels the dialog surfaced (post-save) and otherwise falls back to
+  // the id (labelsForSelected). Seeded server-side from the persisted skills'
+  // reverse-lookup (ADR 0047) so a returning user sees NAMES on a cold load
+  // without opening the dialog; the on-save adoption (onDialogSaved) still
+  // refreshes the store afterwards.
+  const [skillLabels, setSkillLabels] =
+    useState<ReadonlyArray<Option>>(initialSkillLabels);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSaving, startSaving] = useTransition();
@@ -127,6 +160,7 @@ export function MatchPreferencesCard({
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
+    skills: ReadonlyArray<string>;
   }
 
   const currentSets = (): PrefSets => ({
@@ -134,10 +168,13 @@ export function MatchPreferencesCard({
     regions: selectedRegions,
     municipalities: selectedMunicipalities,
     employment: selectedEmployment,
+    skills: selectedSkills,
   });
 
   /** Persisterar HELA mängden (full-replace) med revert-vid-fel. Region + kommun
-   *  skickas atomiskt i samma PUT (NOTE-1). */
+   *  skickas atomiskt i samma PUT (NOTE-1). STEG 3 / ADR 0079: kompetens +
+   *  erfarenhet skickas i SAMMA PUT så en chip-borttagning i en annan dimension
+   *  aldrig nollar dem (page-wipe-guard). */
   function persist(next: PrefSets, revert: () => void) {
     setSaveError(null);
     startSaving(async () => {
@@ -146,6 +183,8 @@ export function MatchPreferencesCard({
         preferredRegions: [...next.regions],
         preferredMunicipalities: [...next.municipalities],
         preferredEmploymentTypes: [...next.employment],
+        preferredSkills: [...next.skills],
+        experienceYears,
       });
       if (result.success) {
         setSavedAt(new Date());
@@ -181,9 +220,11 @@ export function MatchPreferencesCard({
     const axisFor: keyof PrefSets =
       facet === "occupations"
         ? "occupations"
-        : facet === "employment"
-          ? "employment"
-          : ortAxisOf(conceptId);
+        : facet === "skills"
+          ? "skills"
+          : facet === "employment"
+            ? "employment"
+            : ortAxisOf(conceptId);
     const list = prev[axisFor];
     const removedIndex = list.indexOf(conceptId);
     const nextList = list.filter((v) => v !== conceptId);
@@ -216,6 +257,7 @@ export function MatchPreferencesCard({
     if (axis === "occupations") setOccupationGroups(value);
     else if (axis === "regions") setSelectedRegions(value);
     else if (axis === "municipalities") setSelectedMunicipalities(value);
+    else if (axis === "skills") setSelectedSkills(value);
     else setSelectedEmployment(value);
   }
 
@@ -224,6 +266,9 @@ export function MatchPreferencesCard({
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
+    skills: ReadonlyArray<string>;
+    experienceYears: number | null;
+    skillLabels: ReadonlyArray<Option>;
   }) {
     // Dialogen skrev den fulla mängden (SSOT). Anta den lokalt så kortets chips
     // är koherenta direkt, och visa status-raden. (revalidatePath om-renderar
@@ -232,6 +277,11 @@ export function MatchPreferencesCard({
     setSelectedRegions(saved.regions);
     setSelectedMunicipalities(saved.municipalities);
     setSelectedEmployment(saved.employment);
+    setSelectedSkills(saved.skills);
+    setExperienceYears(saved.experienceYears);
+    // Adoptera labels dialogen löst upp (sök/CV-förslag) så kortets kompetens-
+    // chips kan rendera namn i stället för id.
+    setSkillLabels(saved.skillLabels);
     setSavedAt(new Date());
   }
 
@@ -248,6 +298,9 @@ export function MatchPreferencesCard({
 
   const facetData: Record<Facet, ReadonlyArray<Option>> = {
     occupations: labelsForSelected(occupationGroups, occupationOptions),
+    // Kompetens-chips: labels ur den adopterade label-storen; saknade faller
+    // tillbaka på id (ingen träd-uppslagning för skills).
+    skills: labelsForSelected(selectedSkills, skillLabels),
     // Ort-facetten: valda län FÖRST (helläns-axeln), sedan enskilda kommuner.
     orter: [
       ...labelsForSelected(selectedRegions, regionOptions),
@@ -262,7 +315,7 @@ export function MatchPreferencesCard({
       <p className="text-body-sm text-text-secondary">{t("matchPrefs.intro")}</p>
 
       <div className="jp-matchprefs__facets mt-5">
-        {(["occupations", "orter", "employment"] as const).map((facet) => {
+        {(["occupations", "skills", "orter", "employment"] as const).map((facet) => {
           const chips = facetData[facet];
           const headId = `match-facet-${facet}`;
           return (
@@ -308,6 +361,25 @@ export function MatchPreferencesCard({
             </section>
           );
         })}
+        {/* Erfarenhet: en enkel läs-rad (en siffra, inte chips). Ärlig tom-rad
+            när inget angetts. Redigeras i dialogen. */}
+        <section
+          className="jp-matchprefs__facet"
+          role="group"
+          aria-labelledby="match-facet-experience"
+        >
+          <p
+            id="match-facet-experience"
+            className="jp-popover__title jp-matchprefs__facethead"
+          >
+            {t("matchPrefs.experience.label")}
+          </p>
+          <p className="jp-matchprefs__empty text-body-sm text-text-secondary">
+            {experienceYears === null
+              ? t("matchPrefs.experience.reviewEmpty")
+              : t("matchPrefs.experience.reviewValue", { years: experienceYears })}
+          </p>
+        </section>
       </div>
 
       <div className="jp-matchprefs__addrow">
@@ -355,6 +427,9 @@ export function MatchPreferencesCard({
         persistedRegions={selectedRegions}
         persistedMunicipalities={selectedMunicipalities}
         persistedEmploymentTypes={selectedEmployment}
+        persistedSkills={selectedSkills}
+        persistedExperienceYears={experienceYears}
+        persistedSkillLabels={skillLabels}
         onSaved={onDialogSaved}
         importCvHref={IMPORT_CV_HREF}
       />

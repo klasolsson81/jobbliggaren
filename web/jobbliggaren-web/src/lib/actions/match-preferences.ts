@@ -6,7 +6,9 @@ import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { deriveOccupations } from "@/lib/api/occupation-derive";
 import { getResumes, getParsedResumeOccupations } from "@/lib/api/resumes";
+import { getParsedResumeSkills, searchSkills } from "@/lib/api/skills";
 import type { OccupationCandidate } from "@/lib/dto/match-preferences";
+import type { SkillOption } from "@/lib/dto/skills";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 import {
   makeSetMatchPreferencesSchema,
@@ -211,6 +213,99 @@ export async function suggestOccupationsFromParsedResumeAction(
   }
 
   const result = await getParsedResumeOccupations(parsedResumeId);
+  switch (result.kind) {
+    case "unauthorized":
+      return { kind: "unauthorized" };
+    case "notFound":
+      return { kind: "noCv" };
+    case "ok":
+      return result.data.length === 0
+        ? { kind: "noRole" }
+        : { kind: "candidates", candidates: result.data };
+    default:
+      return { kind: "error" };
+  }
+}
+
+export type SkillSearchResult =
+  | { success: true; options: ReadonlyArray<SkillOption> }
+  | { success: false; error: string };
+
+/**
+ * STEG 3 / ADR 0079 (Beslut 1) — thin server-action wrapper around the
+ * `searchSkills` BFF so the skill-chip client island can type-ahead WITHOUT
+ * reading the backend directly (server-only boundary preserved; Bearer session
+ * never reaches the client). The flat 20k skill vocabulary has no hierarchy, so
+ * "add a skill" is search-as-you-type (Klas option A) rather than a cascade.
+ *
+ * Returns options on success and a graceful empty list (never throws) on every
+ * failure mode — the typeahead degrades to "no results" rather than surfacing a
+ * loud error mid-keystroke. Blank/short queries short-circuit to `[]` in the
+ * BFF (no round-trip). The added skill is never written until the host saves
+ * (propose-and-approve, ADR 0040/0071).
+ */
+export async function searchSkillsAction(
+  query: string
+): Promise<SkillSearchResult> {
+  if (typeof query !== "string") {
+    return { success: true, options: [] };
+  }
+
+  const result = await searchSkills(query);
+  switch (result.kind) {
+    case "ok":
+      return { success: true, options: result.data };
+    case "unauthorized": {
+      const ts = await getTranslations("settings");
+      return { success: false, error: ts("matchPrefs.errors.notLoggedIn") };
+    }
+    case "rateLimited": {
+      const ts = await getTranslations("settings");
+      return { success: false, error: ts("matchPrefs.errors.tooManyAttempts") };
+    }
+    default:
+      // Graceful: a transient read failure renders as "no results", not a
+      // blocking error (the user can keep typing / add nothing and move on).
+      return { success: true, options: [] };
+  }
+}
+
+/**
+ * STEG 3 / ADR 0079 (Beslut 1) — discriminated union for the CV skill
+ * suggestion, parallel to {@link CvSuggestResult} for occupations so the
+ * SkillSection renders the same honest states. `candidates` carries the full
+ * `{conceptId, label}` so chips can render their Swedish labels (the skill
+ * taxonomy is never shipped to the FE as a tree, so there is no client-side
+ * label lookup — the proposal IS the label source).
+ */
+export type SkillSuggestResult =
+  | { kind: "candidates"; candidates: ReadonlyArray<SkillOption> }
+  | { kind: "noCv" }
+  | { kind: "noRole" }
+  | { kind: "unauthorized" }
+  | { kind: "error" };
+
+/**
+ * STEG 3 / ADR 0079 (Beslut 1) — CV skill proposals sourced from a SPECIFIC
+ * freshly-uploaded `parsed_resume` (the welcome / just-uploaded path), parallel
+ * to {@link suggestOccupationsFromParsedResumeAction}. Reads the owner-scoped,
+ * non-PII `/skills` projection (no DEK, no CV-PII egress — the backend projects
+ * the resolved concept-ids/labels). Maps to the SAME {@link SkillSuggestResult}
+ * union: an empty list → `noRole` (CV read, no skill resolvable — honest, not a
+ * failure); a missing/cross-user/promoted artifact → `noCv` (404 from the
+ * fail-closed read). Never written (propose-and-approve, ADR 0040/0071).
+ *
+ * No promoted-CV (`latestRole`-style) auto-suggest path exists yet for settings
+ * users — the search-add affordance covers them. A noted follow-up, not built.
+ */
+export async function suggestSkillsFromParsedResumeAction(
+  parsedResumeId: string
+): Promise<SkillSuggestResult> {
+  if (typeof parsedResumeId !== "string" || parsedResumeId.length === 0) {
+    return { kind: "noCv" };
+  }
+
+  const result = await getParsedResumeSkills(parsedResumeId);
   switch (result.kind) {
     case "unauthorized":
       return { kind: "unauthorized" };

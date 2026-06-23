@@ -8,19 +8,28 @@ import type {
 } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
 
-const { updateMock, deriveMock, cvSuggestMock, parsedSuggestMock } = vi.hoisted(
-  () => ({
-    updateMock: vi.fn(),
-    deriveMock: vi.fn(),
-    cvSuggestMock: vi.fn(),
-    parsedSuggestMock: vi.fn(),
-  })
-);
+const {
+  updateMock,
+  deriveMock,
+  cvSuggestMock,
+  parsedSuggestMock,
+  skillSearchMock,
+  skillSuggestMock,
+} = vi.hoisted(() => ({
+  updateMock: vi.fn(),
+  deriveMock: vi.fn(),
+  cvSuggestMock: vi.fn(),
+  parsedSuggestMock: vi.fn(),
+  skillSearchMock: vi.fn(),
+  skillSuggestMock: vi.fn(),
+}));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
+  searchSkillsAction: skillSearchMock,
+  suggestSkillsFromParsedResumeAction: skillSuggestMock,
 }));
 
 import { MatchSetupWizard } from "./match-setup-wizard";
@@ -65,6 +74,8 @@ function renderWizard(
       persistedRegions={[]}
       persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
+      persistedSkills={[]}
+      persistedExperienceYears={null}
       onSaved={onSaved}
       importCvHref="/cv/importera"
       {...overrides}
@@ -78,11 +89,15 @@ beforeEach(() => {
   deriveMock.mockReset();
   cvSuggestMock.mockReset();
   parsedSuggestMock.mockReset();
+  skillSearchMock.mockReset();
+  skillSuggestMock.mockReset();
   updateMock.mockResolvedValue({ success: true });
   deriveMock.mockResolvedValue({ success: true, candidates: [] });
   // Default: inget CV (auto-suggest på steg 1 ger en lugn tom-state).
   cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
   parsedSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
+  skillSearchMock.mockResolvedValue({ success: true, options: [] });
+  skillSuggestMock.mockResolvedValue({ kind: "noCv" });
 });
 
 describe("MatchSetupWizard — CV-källa på steg 1", () => {
@@ -122,9 +137,9 @@ describe("MatchSetupWizard — CV-källa på steg 1", () => {
 });
 
 describe("MatchSetupWizard — steg-navigering", () => {
-  it("startar på steg 1 av 4 med mono-stegräknare och Yrken-rubrik", () => {
+  it("startar på steg 1 av 5 med mono-stegräknare och Yrken-rubrik", () => {
     renderWizard();
-    expect(screen.getByText("Steg 1 av 4")).toBeInTheDocument();
+    expect(screen.getByText("Steg 1 av 5")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Yrken" })).toBeInTheDocument();
   });
 
@@ -133,16 +148,20 @@ describe("MatchSetupWizard — steg-navigering", () => {
     renderWizard();
     expect(screen.queryByRole("button", { name: "Tillbaka" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
-    expect(screen.getByText("Steg 2 av 4")).toBeInTheDocument();
+    expect(screen.getByText("Steg 2 av 5")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Tillbaka" })
     ).toBeInTheDocument();
   });
 
-  it("Nästa går framåt och Tillbaka går bakåt genom alla fyra steg", async () => {
+  it("Nästa går framåt och Tillbaka går bakåt genom alla fem steg", async () => {
     const user = userEvent.setup();
     renderWizard();
-    // 1 → 2 → 3 → 4
+    // 1 → 2 (Kompetenser) → 3 (Orter) → 4 (Anställningsformer) → 5 (Klart)
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    expect(
+      screen.getByRole("heading", { name: "Kompetenser" })
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     expect(screen.getByRole("heading", { name: "Orter" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
@@ -150,14 +169,14 @@ describe("MatchSetupWizard — steg-navigering", () => {
       screen.getByRole("heading", { name: "Anställningsformer" })
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
-    expect(screen.getByText("Steg 4 av 4")).toBeInTheDocument();
+    expect(screen.getByText("Steg 5 av 5")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Klart" })).toBeInTheDocument();
     // sista steget: primär = Spara matchning (ej Nästa)
     expect(
       screen.getByRole("button", { name: "Spara matchning" })
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nästa" })).toBeNull();
-    // 4 → 3
+    // 5 → 4
     await user.click(screen.getByRole("button", { name: "Tillbaka" }));
     expect(
       screen.getByRole("heading", { name: "Anställningsformer" })
@@ -173,12 +192,15 @@ describe("MatchSetupWizard — steg-navigering", () => {
     const next = screen.getByRole("button", { name: "Nästa" });
     expect(skip).not.toBe(next);
     await user.click(skip);
-    expect(screen.getByRole("heading", { name: "Orter" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Kompetenser" })
+    ).toBeInTheDocument();
   });
 
   it("Hoppa över finns inte på sista steget (det ÄR klart-steget)", async () => {
     const user = userEvent.setup();
     renderWizard();
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
@@ -192,7 +214,7 @@ describe("MatchSetupWizard — steg-navigering", () => {
     renderWizard();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await waitFor(() => {
-      const heading = screen.getByRole("heading", { name: "Orter" });
+      const heading = screen.getByRole("heading", { name: "Kompetenser" });
       expect(heading).toHaveFocus();
     });
   });
@@ -202,12 +224,58 @@ describe("MatchSetupWizard — utbildnings-steg är OUT v1 (ADR 0077 Klas-fork)"
   it("renderar aldrig ett Utbildning-steg", async () => {
     const user = userEvent.setup();
     renderWizard();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const next = screen.queryByRole("button", { name: "Nästa" });
       if (next) await user.click(next);
     }
     expect(screen.queryByText(/Utbildning/i)).toBeNull();
-    expect(screen.queryByText("Steg 5 av")).toBeNull();
+    // STEG 3 / ADR 0079: wizarden har nu 5 steg (yrken/kompetenser/orter/
+    // anställning/klart) — aldrig ett sjätte.
+    expect(screen.queryByText("Steg 6 av")).toBeNull();
+  });
+});
+
+describe("MatchSetupWizard — kompetens-/erfarenhet-steget (STEG 3 / ADR 0079)", () => {
+  it("steg 2 visar kompetens-sektionen + erfarenhet-fältet", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    expect(
+      screen.getByRole("heading", { name: "Kompetenser" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Lägg till kompetens" })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Antal års erfarenhet")).toBeInTheDocument();
+  });
+
+  it("med parsedResumeId auto-föreslår kompetenser ur det uppladdade CV:t (steg 2)", async () => {
+    skillSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [{ conceptId: "skill_react", label: "React" }],
+    });
+    const user = userEvent.setup();
+    renderWizard({ parsedResumeId: "parsed-xyz" });
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    await waitFor(() =>
+      expect(skillSuggestMock).toHaveBeenCalledWith("parsed-xyz")
+    );
+    // Kandidaten pre-addas som borttagbar chip (propose-and-approve).
+    expect(
+      await screen.findByRole("button", { name: "Ta bort React" })
+    ).toBeInTheDocument();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("med proposedSkills (welcome-flödet) seedar kompetens-draften OCH auto-föreslår INTE", async () => {
+    const user = userEvent.setup();
+    renderWizard({
+      proposedSkills: [{ conceptId: "skill_sql", label: "SQL" }],
+    });
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    // Det förhämtade förslaget visas som en borttagbar chip på steg 2.
+    expect(await screen.findByText("SQL")).toBeInTheDocument();
+    expect(skillSuggestMock).not.toHaveBeenCalled();
   });
 });
 
@@ -285,7 +353,12 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     );
     expect(updateMock).not.toHaveBeenCalled();
 
-    // Steg 2 (Spår 3 PR-D): lägg till HELA länet via ort-kaskaden. Öppna
+    // Steg 2 (kompetens/erfarenhet): ange erfarenhet, lämna kompetenser tomma.
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    await user.type(screen.getByLabelText("Antal års erfarenhet"), "5");
+    expect(updateMock).not.toHaveBeenCalled();
+
+    // Steg 3 (Spår 3 PR-D): lägg till HELA länet via ort-kaskaden. Öppna
     // disclosuren → välj länet i vänsterkolumnen → kryssa "Hela länet"-raden
     // (togglar länets concept-id i region-axeln, ETT id).
     await user.click(screen.getByRole("button", { name: "Nästa" }));
@@ -296,12 +369,13 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     );
     expect(updateMock).not.toHaveBeenCalled();
 
-    // Steg 3 → 4.
+    // Steg 4 → 5.
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
 
-    // Sista steget: ett enda PUT med alla fyra dimensionerna. Region + kommun
+    // Sista steget: ett enda PUT med alla dimensionerna. Region + kommun
     // submittas atomiskt (NOTE-1); "hela länet" = region-id, ingen kommun.
+    // STEG 3 / ADR 0079: kompetens + erfarenhet i SAMMA PUT.
     await user.click(screen.getByRole("button", { name: "Spara matchning" }));
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
@@ -310,12 +384,16 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
       preferredEmploymentTypes: ["et_fast"],
+      preferredSkills: [],
+      experienceYears: 5,
     });
     expect(onSaved).toHaveBeenCalledWith({
       occupations: ["grp_backend"],
       regions: ["region_sthlm"],
       municipalities: [],
       employment: ["et_fast"],
+      skills: [],
+      experienceYears: 5,
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -324,6 +402,7 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     const user = userEvent.setup();
     renderWizard({ persistedRegions: ["region_sthlm"] });
 
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
@@ -345,6 +424,7 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     updateMock.mockResolvedValue({ success: false, error: "Serverfel" });
     const { onOpenChange } = renderWizard();
 
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     await user.click(screen.getByRole("button", { name: "Nästa" }));

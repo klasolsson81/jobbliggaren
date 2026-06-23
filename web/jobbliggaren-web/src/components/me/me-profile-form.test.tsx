@@ -29,6 +29,8 @@ function makeProfile(
     preferredRegions: [],
     preferredMunicipalities: [],
     preferredEmploymentTypes: [],
+    preferredSkills: [],
+    experienceYears: null,
     ...overrides,
   };
 }

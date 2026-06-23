@@ -28,6 +28,13 @@ const conceptIdString = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/);
 
 const conceptIdList = z.array(conceptIdString).max(MAX_CONCEPT_IDS).default([]);
 
+// STEG 3 / ADR 0079 (Beslut 1): a single profile-level "antal års erfarenhet".
+// Optional + nullable — `null` is the honest "not stated" state (never 0,
+// which would mean "stated zero years"). 0..70 mirrors the backend validator
+// (a sane human-career bound + a DoS-/typo-guard; backend is the last barrier).
+const EXPERIENCE_YEARS_MIN = 0;
+const EXPERIENCE_YEARS_MAX = 70;
+
 export function makeSetMatchPreferencesSchema(_t: ValidationTranslator) {
   return z.object({
     preferredOccupationGroups: conceptIdList,
@@ -38,6 +45,20 @@ export function makeSetMatchPreferencesSchema(_t: ValidationTranslator) {
     // spar av regioner aldrig nollar angivna kommuner (CTO/architect NOTE-1).
     preferredMunicipalities: conceptIdList,
     preferredEmploymentTypes: conceptIdList,
+    // STEG 3 / ADR 0079 (Beslut 1): CV-seeded, editable, trusted skill chips.
+    // A list of skill concept-ids (same conceptId format as the other axes;
+    // full-replace, optional, defaults to empty). Like the other dimensions
+    // this MUST be threaded through every caller and pre-filled from the
+    // profile read — saving any other dimension would otherwise zero it
+    // (the full-replace page-wipe bug that bit region/kommun).
+    preferredSkills: conceptIdList,
+    experienceYears: z
+      .number()
+      .int()
+      .min(EXPERIENCE_YEARS_MIN)
+      .max(EXPERIENCE_YEARS_MAX)
+      .nullable()
+      .optional(),
   });
 }
 

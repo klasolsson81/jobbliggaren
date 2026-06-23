@@ -27,6 +27,10 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// </summary>
 internal sealed class SkillTaxonomyIndex
 {
+    // ADR 0079 STEG 3 PR-C — skill typeahead bounds (a flat 20k-concept vocabulary
+    // has no browsable hierarchy, unlike occupations → the FE searches server-side).
+    private const int MinSearchQueryLength = 2;
+
     private readonly ITextAnalyzer _analyzer;
     private readonly Lazy<SkillIndex> _index;
 
@@ -34,6 +38,79 @@ internal sealed class SkillTaxonomyIndex
     {
         _analyzer = analyzer;
         _index = new Lazy<SkillIndex>(BuildIndex, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
+
+    /// <summary>
+    /// ADR 0079 STEG 3 PR-C — skill typeahead for the editable skill chips' "add"
+    /// affordance. Case-insensitive substring match of <paramref name="query"/> against
+    /// every concept's preferred label + synonyms, deduped per concept-id (keeping the
+    /// best rank), ranked PREFIX-before-CONTAINS, then shortest label, then ordinal
+    /// (deterministic). Returns each winning concept-id with its canonical
+    /// <c>PreferredLabel</c> (never a synonym — the chip displays the canonical label),
+    /// capped at <paramref name="max"/>. Query shorter than the minimum, or blank →
+    /// empty (no flooding on 1-char input). NOT a lexeme/Snowball match (that is
+    /// <see cref="ResolveForms"/> for full skill names) — a typeahead needs literal
+    /// substring so partial words ("jav") surface ("Java", "JavaScript").
+    /// </summary>
+    /// <summary>
+    /// ADR 0079 STEG 3 PR-C — reverse-lookup (concept-id → canonical preferred label) for
+    /// the saved skill chips' cold-load display, the skill analog of the occupation
+    /// <c>ResolveTaxonomyLabels</c> (ADR 0043): the flat ~20k-concept skill vocabulary is
+    /// never shipped to the FE as a tree, so a settings page that pre-fills stored
+    /// PreferredSkills concept-ids resolves their labels here instead of rendering opaque
+    /// ids. Unknown ids are dropped silently (graceful — never a crash, never a stale token).
+    /// Deterministic ordinal order.
+    /// </summary>
+    public IReadOnlyList<(string ConceptId, string Label)> ResolveLabels(IEnumerable<string> conceptIds)
+    {
+        ArgumentNullException.ThrowIfNull(conceptIds);
+        var labels = _index.Value.LabelByConceptId;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<(string ConceptId, string Label)>();
+        foreach (var id in conceptIds)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !seen.Add(id))
+                continue;
+            if (labels.TryGetValue(id, out var label))
+                result.Add((id, label));
+        }
+        result.Sort((a, b) => string.CompareOrdinal(a.ConceptId, b.ConceptId));
+        return result;
+    }
+
+    public IReadOnlyList<(string ConceptId, string Label)> Search(string query, int max)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return [];
+        var trimmed = query.Trim();
+        if (trimmed.Length < MinSearchQueryLength || max <= 0)
+            return [];
+
+        var needle = trimmed.ToLowerInvariant();
+        var bestRank = new Dictionary<string, int>(StringComparer.Ordinal);
+        var labelById = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var entry in _index.Value.SearchEntries)
+        {
+            var idx = entry.Normalized.IndexOf(needle, StringComparison.Ordinal);
+            if (idx < 0)
+                continue;
+            var rank = idx == 0 ? 0 : 1; // prefix beats contains
+            if (!bestRank.TryGetValue(entry.ConceptId, out var current) || rank < current)
+            {
+                bestRank[entry.ConceptId] = rank;
+                labelById[entry.ConceptId] = entry.PreferredLabel;
+            }
+        }
+
+        return bestRank
+            .Select(kv => (kv.Key, Label: labelById[kv.Key], Rank: kv.Value))
+            .OrderBy(x => x.Rank)
+            .ThenBy(x => x.Label.Length)
+            .ThenBy(x => x.Label, StringComparer.Ordinal)
+            .Take(max)
+            .Select(x => (x.Key, x.Label))
+            .ToList();
     }
 
     /// <summary>
@@ -120,11 +197,26 @@ internal sealed class SkillTaxonomyIndex
         // (concept, lexeme-set) so a redundant synonym does not double the work.
         var forms = new List<SkillForm>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        // ADR 0079 STEG 3 PR-C — parallel substring-search entries (lower-cased label +
+        // synonyms → concept-id + canonical preferred label) for the typeahead. Built once
+        // alongside the lexeme index; the search returns the PreferredLabel even on a
+        // synonym hit.
+        var searchEntries = new List<SkillSearchEntry>();
+        // ADR 0079 STEG 3 PR-C — concept-id → canonical label, for the saved-chip
+        // reverse-lookup (one entry per concept; last write wins, but a concept-id is
+        // unique in the snapshot so order is irrelevant).
+        var labelByConceptId = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var concept in concepts)
         {
             AddForm(concept, concept.PreferredLabel, forms, seen);
+            AddSearchEntry(concept, concept.PreferredLabel, searchEntries);
+            if (!string.IsNullOrWhiteSpace(concept.PreferredLabel))
+                labelByConceptId[concept.ConceptId] = concept.PreferredLabel;
             foreach (var synonym in concept.Synonyms)
+            {
                 AddForm(concept, synonym, forms, seen);
+                AddSearchEntry(concept, synonym, searchEntries);
+            }
         }
 
         // Document frequency of each lexeme across all forms → anchor each form on
@@ -143,7 +235,16 @@ internal sealed class SkillTaxonomyIndex
             list.Add(form);
         }
 
-        return new SkillIndex(byAnchor);
+        return new SkillIndex(byAnchor, searchEntries, labelByConceptId);
+    }
+
+    private static void AddSearchEntry(
+        SkillConcept concept, string label, List<SkillSearchEntry> entries)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+            return;
+        entries.Add(new SkillSearchEntry(
+            label.Trim().ToLowerInvariant(), concept.ConceptId, concept.PreferredLabel));
     }
 
     private void AddForm(SkillConcept concept, string label, List<SkillForm> forms, HashSet<string> seen)
@@ -177,7 +278,15 @@ internal sealed class SkillTaxonomyIndex
         return rarest;
     }
 
-    private sealed record SkillIndex(IReadOnlyDictionary<string, List<SkillForm>> ByAnchor);
+    private sealed record SkillIndex(
+        IReadOnlyDictionary<string, List<SkillForm>> ByAnchor,
+        IReadOnlyList<SkillSearchEntry> SearchEntries,
+        IReadOnlyDictionary<string, string> LabelByConceptId);
+
+    // ADR 0079 STEG 3 PR-C — one substring-searchable label form (lower-cased) → its
+    // concept-id + canonical preferred label (so a synonym hit still displays the
+    // canonical label on the chip).
+    private sealed record SkillSearchEntry(string Normalized, string ConceptId, string PreferredLabel);
 }
 
 /// <summary>

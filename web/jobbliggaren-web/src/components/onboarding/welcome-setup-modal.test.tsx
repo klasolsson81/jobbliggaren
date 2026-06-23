@@ -25,19 +25,28 @@ vi.mock("next/navigation", async () => {
 });
 
 // Wizardens preferens-actions (monteras i komponenten via MatchSetupWizard).
-const { updateMock, deriveMock, cvSuggestMock, parsedSuggestMock } = vi.hoisted(
-  () => ({
-    updateMock: vi.fn(),
-    deriveMock: vi.fn(),
-    cvSuggestMock: vi.fn(),
-    parsedSuggestMock: vi.fn(),
-  })
-);
+const {
+  updateMock,
+  deriveMock,
+  cvSuggestMock,
+  parsedSuggestMock,
+  skillSearchMock,
+  skillSuggestMock,
+} = vi.hoisted(() => ({
+  updateMock: vi.fn(),
+  deriveMock: vi.fn(),
+  cvSuggestMock: vi.fn(),
+  parsedSuggestMock: vi.fn(),
+  skillSearchMock: vi.fn(),
+  skillSuggestMock: vi.fn(),
+}));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
+  searchSkillsAction: skillSearchMock,
+  suggestSkillsFromParsedResumeAction: skillSuggestMock,
 }));
 
 // CvUploadForm mockad: exponera dess onUploaded-callback via en knapp så
@@ -96,6 +105,8 @@ function renderModal(
       persistedRegions={[]}
       persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
+      persistedSkills={[]}
+      persistedExperienceYears={null}
       importCvHref="/cv/importera"
       {...overrides}
     />
@@ -115,12 +126,17 @@ beforeEach(() => {
   // STEG 1 / ADR 0079: welcome-flödet befordrar CV:t och bär förhämtade förslag
   // till wizarden (ingen parsed-auto-suggest där). Default lugn tom-state.
   parsedSuggestMock.mockResolvedValue({ kind: "noCv" });
+  skillSearchMock.mockReset();
+  skillSuggestMock.mockReset();
+  skillSearchMock.mockResolvedValue({ success: true, options: [] });
+  skillSuggestMock.mockResolvedValue({ kind: "noCv" });
   loadGapFillMock.mockReset();
   loadGapFillMock.mockResolvedValue({
     kind: "ok",
     sourceFileName: "cv.pdf",
     content: {},
     proposedOccupationGroups: [],
+    proposedSkills: [],
   });
 });
 
@@ -224,7 +240,7 @@ describe("WelcomeSetupModal — upload → gapfill → done (STEG 1: in-modal pr
 });
 
 describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
-  it("primär 'Ja, ställ in matchning' öppnar MatchSetupWizard (steg 1 av 4)", async () => {
+  it("primär 'Ja, ställ in matchning' öppnar MatchSetupWizard (steg 1 av 5)", async () => {
     const user = userEvent.setup();
     renderModal();
 
@@ -240,7 +256,7 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
     // Wizarden öppnas (sekventiellt efter att välkomsten stängts). Cookien sätts
     // INTE här utan när wizarden stängs (annars re-rendrar server-actionen RSC:n
     // och avmonterar modalen innan wizarden hinner öppnas).
-    expect(await screen.findByText("Steg 1 av 4")).toBeInTheDocument();
+    expect(await screen.findByText("Steg 1 av 5")).toBeInTheDocument();
     expect(markSeenMock).not.toHaveBeenCalled();
   });
 });
@@ -274,6 +290,8 @@ describe("WelcomeSetupModal — civic-utility", () => {
         persistedRegions={[]}
         persistedMunicipalities={[]}
         persistedEmploymentTypes={[]}
+        persistedSkills={[]}
+        persistedExperienceYears={null}
         importCvHref="/cv/importera"
       />
     );

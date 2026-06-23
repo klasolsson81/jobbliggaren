@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Infrastructure.JobAds;
 
 /// <summary>
-/// F4-14 (ADR 0076 Decision 4/5) — <see cref="IMatchSortedJobAdSearchQuery"/>:
+/// F4-14 (ADR 0076 Decision 4/5) — <see cref="IPerUserJobAdSearchQuery"/>:
 /// global "Sortera efter matchning". SEPARAT från <see cref="JobAdSearchQuery"/>
 /// (Decision 5 — den delade <see cref="IJobAdSearchQuery"/> förblir match-ren);
 /// återanvänder dock EXAKT samma filter-SPOT (<see cref="JobAdSearchComposition.ApplyFilter"/>)
@@ -48,10 +48,10 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <c>list.Contains(EF.Property)</c> är samma som körs i ApplyFilter i prod).
 /// </para>
 /// </summary>
-internal sealed class MatchSortedJobAdSearchQuery(
+internal sealed class PerUserJobAdSearchQuery(
     AppDbContext db,
     IOccupationSynonymExpander synonymExpander,
-    IJobAdSearchQuery searchQuery) : IMatchSortedJobAdSearchQuery
+    IJobAdSearchQuery searchQuery) : IPerUserJobAdSearchQuery
 {
     // STORED shadow-kolumner (EF.Property-nycklar) — parity MatchScorer; kolumn-
     // namnen är en Infrastructure-hemlighet som aldrig läcker till Application.
@@ -70,7 +70,7 @@ internal sealed class MatchSortedJobAdSearchQuery(
     // gyllene rung testar `extracted_lexemes ?| @cvSkillIds` (EF.Functions.JsonExistAny).
     private const string ExtractedLexemesColumn = "ExtractedLexemes";
 
-    public async ValueTask<PagedResult<JobAdDto>> SearchByMatchAsync(
+    public async ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
         JobAdFilterCriteria filter,
         FullCandidateMatchProfile profile,
         int page,

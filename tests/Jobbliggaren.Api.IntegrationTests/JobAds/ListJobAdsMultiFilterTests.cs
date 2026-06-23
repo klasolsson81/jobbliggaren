@@ -90,7 +90,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
-            Substitute.For<IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
             new SearchQueryParser());
 
@@ -120,7 +120,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
-            Substitute.For<IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
             new SearchQueryParser());
 
@@ -148,7 +148,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
-            Substitute.For<IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
             new SearchQueryParser());
 
@@ -171,7 +171,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
-            Substitute.For<IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
             new SearchQueryParser());
 
@@ -203,7 +203,7 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new ListJobAdsQueryHandler(
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
-            Substitute.For<IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
             new SearchQueryParser());
 

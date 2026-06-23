@@ -12,7 +12,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// Infrastructure-queries återanvänder utan att divergera: filter-predikatet
 /// (<see cref="ApplyFilter"/>) och DTO-projektionen (<see cref="ToDto"/>).
 /// <para>
-/// <b>F4-14 (ADR 0076 Decision 5):</b> <see cref="MatchSortedJobAdSearchQuery"/>
+/// <b>F4-14 (ADR 0076 Decision 5):</b> <see cref="PerUserJobAdSearchQuery"/>
 /// (per-användar-match-sort) återanvänder EXAKT samma filter + projektion som
 /// <see cref="JobAdSearchQuery"/> (ListJobAds/RunSavedSearch/facets). Filtret är
 /// en kompilator-garanterad SPOT — match-sorten kan aldrig träffa en annan

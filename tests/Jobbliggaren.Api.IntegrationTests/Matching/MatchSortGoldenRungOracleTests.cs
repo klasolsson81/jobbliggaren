@@ -13,7 +13,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 
 /// <summary>
 /// Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6 b-ii) — the GOLDEN-RUNG sort oracle. F4-15
-/// gives the per-user match sort (<see cref="IMatchSortedJobAdSearchQuery"/>) a new top
+/// gives the per-user match sort (<see cref="IPerUserJobAdSearchQuery"/>) a new top
 /// tier WITHOUT adding a visible <see cref="Grading.MatchGrade"/> member: an ad that is
 /// Strong (occupation + region + employment all confirmed Match) AND shares ≥1 of the
 /// profile's <see cref="FullCandidateMatchProfile.CvSkillConceptIds"/> (via the
@@ -23,7 +23,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// AND the jsonb overlap operator; memory ef_strongly_typed_vo_contains).
 ///
 /// <para>
-/// The F4-15 signature change under test: <c>SearchByMatchAsync</c> now takes a
+/// The F4-15 signature change under test: <c>SearchPerUserAsync</c> now takes a
 /// <see cref="FullCandidateMatchProfile"/> (was <see cref="CandidateMatchProfile"/>).
 /// </para>
 ///
@@ -53,7 +53,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// region = PrefRegion).
 /// </para>
 ///
-/// RED until F4-15 widens <c>SearchByMatchAsync</c> to FullCandidateMatchProfile AND adds
+/// RED until F4-15 widens <c>SearchPerUserAsync</c> to FullCandidateMatchProfile AND adds
 /// the golden top tier to the ORDER BY.
 /// </summary>
 [Collection("Api")]
@@ -69,10 +69,10 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
     private const string CvSkillConceptId = "skill-golden-0001";
     private const string CvSkillDisplay = "Golden-skill";
 
-    private (IServiceScope Scope, IMatchSortedJobAdSearchQuery Query) NewMatchSort()
+    private (IServiceScope Scope, IPerUserJobAdSearchQuery Query) NewMatchSort()
     {
         var scope = _factory.Services.CreateScope();
-        var query = scope.ServiceProvider.GetRequiredService<IMatchSortedJobAdSearchQuery>();
+        var query = scope.ServiceProvider.GetRequiredService<IPerUserJobAdSearchQuery>();
         return (scope, query);
     }
 
@@ -256,7 +256,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
 
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
-        var page = await matchSort.SearchByMatchAsync(
+        var page = await matchSort.SearchPerUserAsync(
             FilterFor(run), Profile(CvSkillConceptId), page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
@@ -292,7 +292,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
         // EMPTY CvSkillConceptIds → no golden lift.
-        var page = await matchSort.SearchByMatchAsync(
+        var page = await matchSort.SearchPerUserAsync(
             FilterFor(run), Profile(), page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
@@ -326,7 +326,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
 
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
-        var page = await matchSort.SearchByMatchAsync(
+        var page = await matchSort.SearchPerUserAsync(
             FilterFor(run), Profile(CvSkillConceptId), page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
@@ -379,7 +379,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
 
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
-        var page = await matchSort.SearchByMatchAsync(
+        var page = await matchSort.SearchPerUserAsync(
             FilterFor(run), ProfileWithMunicipality(prefMunicipality, CvSkillConceptId),
             page: 1, pageSize: 100, since: null, ct);
 

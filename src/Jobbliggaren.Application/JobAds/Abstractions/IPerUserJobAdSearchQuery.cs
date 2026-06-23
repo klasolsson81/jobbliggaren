@@ -26,7 +26,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// att SQL-ranken ≡ kalkylatorn över hela verdict-tuple-rymden.
 /// </para>
 /// </summary>
-public interface IMatchSortedJobAdSearchQuery
+public interface IPerUserJobAdSearchQuery
 {
     /// <summary>
     /// Filtrerar (samma SPOT som <see cref="IJobAdSearchQuery.SearchAsync"/>),
@@ -50,7 +50,7 @@ public interface IMatchSortedJobAdSearchQuery
     /// per definition, så ingen under-/fel-lyft-asymmetri kvarstår.
     /// </para>
     /// </summary>
-    ValueTask<PagedResult<JobAdDto>> SearchByMatchAsync(
+    ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
         JobAdFilterCriteria filter,
         FullCandidateMatchProfile profile,
         int page,

@@ -26,14 +26,14 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.ListJobAds;
 //
 // F4-14 → F4-15 (ADR 0076 Decision 4/5/6/7) — match-sort-grenen bygger nu en FULL
 // profil ur de plaintext TopSkills (BuildFullForSortAsync, SORT-vägen — ingen
-// DEK) och skickar en FullCandidateMatchProfile till SearchByMatchAsync. SSYK-gaten
+// DEK) och skickar en FullCandidateMatchProfile till SearchPerUserAsync. SSYK-gaten
 // läser nu profile.Fast.SsykGroupConceptIds. Default-stubben ger en HONEST EMPTY full
 // profil (tom Fast-SSYK) så att alla icke-match-tester faller till search.SearchAsync.
 public class ListJobAdsQueryHandlerTests
 {
     private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
-    private readonly IMatchSortedJobAdSearchQuery _matchSearch =
-        Substitute.For<IMatchSortedJobAdSearchQuery>();
+    private readonly IPerUserJobAdSearchQuery _matchSearch =
+        Substitute.For<IPerUserJobAdSearchQuery>();
     private readonly IMatchProfileBuilder _profileBuilder =
         Substitute.For<IMatchProfileBuilder>();
     private readonly ISearchQueryParser _parser = new SearchQueryParser();
@@ -322,7 +322,7 @@ public class ListJobAdsQueryHandlerTests
     }
 
     // --- F4-14 → F4-15 (ADR 0076 Decision 4/5/6/7): match-sort-grenen -------
-    // SortByMatch + FULL-profil med angiven Fast-yrkesgrupp → matchSearch.SearchByMatchAsync
+    // SortByMatch + FULL-profil med angiven Fast-yrkesgrupp → matchSearch.SearchPerUserAsync
     //   (med en FullCandidateMatchProfile). Profilen byggs ur BuildFullForSortAsync
     //   (SORT-vägen, ingen DEK). SortByMatch + tom Fast-SSYK → honest fallback till
     //   search.SearchAsync. Sort != MatchDesc → alltid search.SearchAsync, profilen byggs ALDRIG.
@@ -332,7 +332,7 @@ public class ListJobAdsQueryHandlerTests
     {
         _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(FullProfileWithOccupation());
-        _matchSearch.SearchByMatchAsync(
+        _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
@@ -342,7 +342,7 @@ public class ListJobAdsQueryHandlerTests
             new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
             TestContext.Current.CancellationToken);
 
-        await _matchSearch.Received(1).SearchByMatchAsync(
+        await _matchSearch.Received(1).SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>());
         await _search.DidNotReceive().SearchAsync(
@@ -364,7 +364,7 @@ public class ListJobAdsQueryHandlerTests
         var capturedPage = 0;
         var capturedPageSize = 0;
         DateTimeOffset? capturedSince = null;
-        _matchSearch.SearchByMatchAsync(
+        _matchSearch.SearchPerUserAsync(
             Arg.Do<JobAdFilterCriteria>(f => capturedFilter = f),
             Arg.Do<FullCandidateMatchProfile>(p => capturedProfile = p),
             Arg.Do<int>(p => capturedPage = p),
@@ -413,7 +413,7 @@ public class ListJobAdsQueryHandlerTests
 
         captured.ShouldNotBeNull();
         captured!.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
-        await _matchSearch.DidNotReceive().SearchByMatchAsync(
+        await _matchSearch.DidNotReceive().SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>());
         await _search.Received(1).SearchAsync(
@@ -434,7 +434,7 @@ public class ListJobAdsQueryHandlerTests
             TestContext.Current.CancellationToken);
 
         await _profileBuilder.DidNotReceive().BuildFullForSortAsync(Arg.Any<CancellationToken>());
-        await _matchSearch.DidNotReceive().SearchByMatchAsync(
+        await _matchSearch.DidNotReceive().SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>());
         await _search.Received(1).SearchAsync(
@@ -448,7 +448,7 @@ public class ListJobAdsQueryHandlerTests
         // BuildFullForVerdictAsync (TAG-vägen) anropas ALDRIG av list-sorten.
         _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(FullProfileWithOccupation());
-        _matchSearch.SearchByMatchAsync(
+        _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
@@ -472,7 +472,7 @@ public class ListJobAdsQueryHandlerTests
             "https://example.com/1", "Manual", "Active",
             DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, IsNew: false);
         var matchResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);
-        _matchSearch.SearchByMatchAsync(
+        _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
             .Returns(matchResult);

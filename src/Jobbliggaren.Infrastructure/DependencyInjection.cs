@@ -666,15 +666,15 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdSearchQuery,
             JobAds.JobAdSearchQuery>();
 
-        // F4-14 (ADR 0076 Decision 4/5) — IMatchSortedJobAdSearchQuery: den
+        // F4-14 (ADR 0076 Decision 4/5) — IPerUserJobAdSearchQuery: den
         // per-användar-match-sorten ("Sortera efter matchning"). SEPARAT port från
         // IJobAdSearchQuery (som förblir match-ren/cachebar) men delar filter-SPOT:en
         // (JobAdSearchComposition) + den rena port-counten. Scoped paritet
         // IJobAdSearchQuery; DI i samma commit som port-impl
         // (feedback_di_with_handlers_same_commit).
         services.AddScoped<
-            Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery,
-            JobAds.MatchSortedJobAdSearchQuery>();
+            Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery,
+            JobAds.PerUserJobAdSearchQuery>();
 
         // STEG 6 Approach B (2026-05-24) — fritext→SSYK-expansion för
         // recall-lift på terms som "systemutvecklare". IOptions-binding från

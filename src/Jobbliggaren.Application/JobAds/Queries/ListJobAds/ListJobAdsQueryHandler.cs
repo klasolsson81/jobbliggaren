@@ -23,7 +23,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 /// <para>
 /// <b>F4-14 (ADR 0076 Decision 4/5/7):</b> "Sortera efter matchning"
 /// (<c>query.SortByMatch</c>) grenar till den per-användar-match-sort-porten
-/// <see cref="IMatchSortedJobAdSearchQuery"/>. Profilen byggs ur lagrade
+/// <see cref="IPerUserJobAdSearchQuery"/>. Profilen byggs ur lagrade
 /// preferenser (ingen CV-läsning). Decision 7 honest fallback: ingen angiven
 /// yrkesgrupp (tom SSYK-gate) → faller tillbaka till den rena default-sorten
 /// (<c>SortBy</c> == PublishedAtDesc för en match-begäran), aldrig en fejkad
@@ -33,7 +33,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 /// </summary>
 public sealed class ListJobAdsQueryHandler(
     IJobAdSearchQuery search,
-    IMatchSortedJobAdSearchQuery matchSearch,
+    IPerUserJobAdSearchQuery matchSearch,
     IMatchProfileBuilder profileBuilder,
     ISearchQueryParser parser)
     : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
@@ -66,7 +66,7 @@ public sealed class ListJobAdsQueryHandler(
             // fallback till default-sorten (Decision 7), aldrig en fejkad ordning.
             if (profile.Fast.SsykGroupConceptIds.Count > 0)
             {
-                return await matchSearch.SearchByMatchAsync(
+                return await matchSearch.SearchPerUserAsync(
                     filter, profile, query.Page, query.PageSize, query.Since, cancellationToken);
             }
         }

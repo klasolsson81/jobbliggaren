@@ -28,7 +28,7 @@ namespace Jobbliggaren.Application.Matching.Profiles;
 /// </para>
 /// <list type="bullet">
 /// <item><b>sort==grade coherence by construction</b> — the SQL golden rung
-/// (<c>MatchSortedJobAdSearchQuery</c>, <c>@cvConceptIds = profile.CvSkillConceptIds</c>) and
+/// (<c>PerUserJobAdSearchQuery</c>, <c>@cvConceptIds = profile.CvSkillConceptIds</c>) and
 /// the scorer (<c>ScoreConceptCoverage</c>) read the same confirmed concept-ids, so a skill the
 /// user REMOVED can never lift an ad in one path while the other ignores it (no false lift).</item>
 /// <item><b>no truncation/mis-report</b> — the confirmed set is the complete, curated set by
@@ -115,7 +115,7 @@ public sealed class MatchProfileBuilder(
     // the title dimension reads the primary CV's denormalized plaintext LatestRole
     // (ADR 0058/0059, DEK-free — available on the already-loaded Resume) so it produces a
     // real verdict + evidence instead of a permanent NotAssessed. EVIDENCE-ONLY: Title is
-    // absent from MatchGradeCalculator and the MatchSortedJobAdSearchQuery ORDER BY, so this
+    // absent from MatchGradeCalculator and the PerUserJobAdSearchQuery ORDER BY, so this
     // can never move a grade or a sort position (regression-pinned by the unchanged
     // MatchGradeCalculatorTests + MatchSortOracleTests). The Fast/no-CV path keeps
     // Title = "" → honest NotAssessed (no role to compare).

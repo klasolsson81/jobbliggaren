@@ -29,7 +29,7 @@
 //        PublishedAtDesc-sort (INGEN match-sort-overhead; IJobAdSearchQuery).
 //        NÄR SSYK är angiven (testets förväntade case — kräver autentiserad
 //        användare MED angiven yrkespreferens):
-//     3. IMatchSortedJobAdSearchQuery.SearchByMatchAsync:
+//     3. IPerUserJobAdSearchQuery.SearchPerUserAsync:
 //        - CountAsync via IJobAdSearchQuery (re-use): 1 transaktionell COUNT
 //          med SET LOCAL enable_seqscan=off (TD-94 bitmap-plan-tvång).
 //        - ApplyFilter (JobAdSearchComposition.ApplyFilter) → WHERE status='Active'
@@ -234,7 +234,7 @@ internal static class MatchSortScenarios
     ///
     /// Mäter den maximala handler-latensen: ListJobAdsQueryHandler anropar
     /// IMatchProfileBuilder.BuildFromPreferencesAsync (1 SELECT) + CountAsync
-    /// (1 COUNT med bitmap-plan-tvång) + MatchSortedJobAdSearchQuery.SearchByMatchAsync
+    /// (1 COUNT med bitmap-plan-tvång) + PerUserJobAdSearchQuery.SearchPerUserAsync
     /// (Seq Scan + grad-rank CASE per rad + Sort) på hela aktiva korpusen (~54k rader,
     /// no filter). Det är det skärpta fallet ADR 0045 klass (a) 300 ms-budgeten
     /// måste täcka.

@@ -36,14 +36,16 @@ public class MatchPreferencesTests
         IEnumerable<string>? preferredEmploymentTypes = null,
         IEnumerable<string>? preferredMunicipalities = null,
         IEnumerable<string>? preferredSkills = null,
-        int? experienceYears = null) =>
+        int? experienceYears = null,
+        IEnumerable<OccupationExperience>? preferredOccupationExperience = null) =>
         MatchPreferences.Create(
             preferredOccupationGroups: preferredOccupationGroups,
             preferredRegions: preferredRegions,
             preferredEmploymentTypes: preferredEmploymentTypes,
             preferredMunicipalities: preferredMunicipalities,
             preferredSkills: preferredSkills,
-            experienceYears: experienceYears);
+            experienceYears: experienceYears,
+            preferredOccupationExperience: preferredOccupationExperience);
 
     // ---------------------------------------------------------------
     // Happy path — varje dimension samt allihop
@@ -793,5 +795,185 @@ public class MatchPreferencesTests
     {
         MatchPreferences.Empty.PreferredSkills.ShouldBeEmpty();
         MatchPreferences.Empty.ExperienceYears.ShouldBeNull();
+    }
+
+    // ---------------------------------------------------------------
+    // ADR 0079-amendment — per-occupation experience overlay (sparse, subset-keyed)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_WithOccupationExperienceForPreferredGroup_ReturnsSuccess()
+    {
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("grp1", 5)]);
+
+        result.IsSuccess.ShouldBeTrue();
+        var entry = result.Value.PreferredOccupationExperience.ShouldHaveSingleItem();
+        entry.ConceptId.ShouldBe("grp1");
+        entry.Years.ShouldBe(5);
+    }
+
+    [Fact]
+    public void Create_WithoutOccupationExperience_DefaultsToEmpty()
+    {
+        var result = Create(preferredOccupationGroups: ["grp1"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationExperience.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Create_OccupationExperienceWithNullYears_IsValid()
+    {
+        // null Years = "not stated" (a career-changer who prefers a group with no history).
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("grp1", null)]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationExperience.ShouldHaveSingleItem().Years.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Create_OccupationExperienceForNonPreferredGroup_FailsOrphan()
+    {
+        // Subset invariant: an overlay entry may only annotate an actually-preferred group.
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("grp2", 3)]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.OrphanOccupationExperience");
+    }
+
+    [Fact]
+    public void Create_DuplicateOccupationExperienceConceptId_Fails()
+    {
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience:
+            [
+                new OccupationExperience("grp1", 3),
+                new OccupationExperience("grp1", 5),
+            ]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.DuplicateOccupationExperience");
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(MatchPreferences.MaxExperienceYears + 1)]
+    public void Create_OccupationExperienceYearsOutOfRange_Fails(int years)
+    {
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("grp1", years)]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.OccupationExperienceYearsOutOfRange");
+    }
+
+    [Fact]
+    public void Create_OccupationExperienceWithInvalidConceptId_Fails()
+    {
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("not a valid id!", 3)]);
+
+        result.IsFailure.ShouldBeTrue();
+        // Invalid format is caught before the subset check (default-deny ordering).
+        result.Error.Code.ShouldBe("MatchPreferences.InvalidOccupationExperience");
+    }
+
+    [Fact]
+    public void Create_OccupationExperience_IsNormalizedSortedByConceptId()
+    {
+        var result = Create(
+            preferredOccupationGroups: ["b_grp", "a_grp"],
+            preferredOccupationExperience:
+            [
+                new OccupationExperience("b_grp", 2),
+                new OccupationExperience("a_grp", 8),
+            ]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationExperience
+            .Select(e => e.ConceptId)
+            .ShouldBe(["a_grp", "b_grp"]);
+    }
+
+    [Fact]
+    public void Create_OccupationExperience_TrimsConceptId()
+    {
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("  grp1  ", 4)]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationExperience.ShouldHaveSingleItem().ConceptId.ShouldBe("grp1");
+    }
+
+    [Fact]
+    public void Equals_DiffersByOccupationExperience()
+    {
+        var a = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("grp1", 5)]).Value;
+        var b = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("grp1", 9)]).Value;
+        var c = Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredOccupationExperience: [new OccupationExperience("grp1", 5)]).Value;
+
+        a.ShouldNotBe(b);
+        a.ShouldBe(c);
+        a.GetHashCode().ShouldBe(c.GetHashCode());
+    }
+
+    // Cap invariant (ADR 0079-amendment, ValidateOccupationExperience) — the overlay reuses
+    // the same IN(...)-DoS floor (SearchCriteria.MaxConceptIds) as the five concept-id lists.
+    // The TooManyOccupationExperience error code had no coverage before; this pins the floor
+    // (references the reused constant, never the literal, so it follows a future cap change).
+    // Isolate the overlay cap from the group-list cap: groups stay exactly at MaxConceptIds
+    // (within bound), but the overlay carries MaxConceptIds + 1 entries. The extra entry is a
+    // duplicate concept-id, so the cap (length check, run BEFORE the per-entry duplicate scan)
+    // is the deterministic winner — proving the overlay enforces its own IN(...)-DoS floor and
+    // that the cap precedes the duplicate check.
+    [Fact]
+    public void Create_OverlayCap_FiresWhenGroupsWithinBoundButOverlayExceedsCap()
+    {
+        var groups = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"grp{i}").ToArray();
+        var overlay = groups
+            .Select(g => new OccupationExperience(g, 1))
+            .Append(new OccupationExperience("grp1", 2)) // one extra → length = cap + 1
+            .ToArray();
+
+        var result = Create(
+            preferredOccupationGroups: groups,
+            preferredOccupationExperience: overlay);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.TooManyOccupationExperience");
+    }
+
+    // Deterministic error ordering (ValidateOccupationExperience precedence: format →
+    // duplicate → years-range → subset/orphan). An entry that is BOTH years-out-of-range AND
+    // an orphan (non-preferred group) must surface the years error, never the orphan error —
+    // pinning the documented default-deny ordering so a future reorder is caught.
+    [Fact]
+    public void Create_OverlayEntryOutOfRangeYearsAndOrphan_YearsErrorWins()
+    {
+        var result = Create(
+            preferredOccupationGroups: ["grp1"],
+            // grp2 is NOT preferred (would be orphan) AND -1 is out of range. Format is valid,
+            // so the years-range check (earlier than the subset check) must win.
+            preferredOccupationExperience: [new OccupationExperience("grp2", -1)]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.OccupationExperienceYearsOutOfRange");
     }
 }

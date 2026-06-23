@@ -29,33 +29,42 @@ public interface IMatchProfileBuilder
     ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6 + R5-REBIND Option H) — builds the
-    /// FULL profile for the GLOBAL match-SORT path from the preferences (the embedded
-    /// Fast profile) PLUS the primary CV's <b>top-5 plaintext</b> denormalized skills
-    /// (<c>Resume.TopSkills</c>, ADR 0058/0059), resolved to concept-ids via
-    /// <see cref="ISkillResolver"/>. <b>NO DEK / no field-encryption key is read</b> —
-    /// <c>TopSkills</c> is a plaintext projection column. Used by the unbounded
-    /// "Sortera efter matchning" sort, where the skill signal is only a binary GIN
-    /// overlap rung (emits no verdict) → top-5 can only under-lift, never falsely lift
-    /// (honest reduced-recall). No primary CV / no resolved skills →
-    /// <c>CvSkillConceptIds</c> empty (degrade to Fast). Owner-scoped.
+    /// Builds the FULL profile for the GLOBAL match-SORT path: the embedded Fast profile
+    /// PLUS the user's CONFIRMED skill set (<c>MatchPreferences.PreferredSkills</c>,
+    /// plaintext concept-ids) as <c>CvSkillConceptIds</c>.
+    /// <para>
+    /// <b>ADR 0079 STEG 3 PR-D (Beslut 1):</b> the trusted capability source is the
+    /// user-confirmed set (CV-proposals ∪ user-edits), NOT the raw CV skills. This is
+    /// IDENTICAL to <see cref="BuildFullForVerdictAsync"/> (the two members stay distinct
+    /// only for call-site intent — sort vs verdict — but share one implementation) and is
+    /// <b>DEK-FREE</b>: the confirmed concept-ids are plaintext on the JobSeeker, so the SQL
+    /// golden rung reads the SAME source as the verdict scorer (sort==grade coherent — a
+    /// removed/added skill can never lift an ad in one path while the other ignores it).
+    /// The former top-5 plaintext <c>Resume.TopSkills</c> path (R5-REBIND Option H) is gone.
+    /// </para>
+    /// The only CV read is the denormalized plaintext <c>Resume.LatestRole</c> for the Title
+    /// dimension (STEG 4, ADR 0058/0059, DEK-free). Empty confirmed set →
+    /// <c>CvSkillConceptIds</c> empty (skill dimensions <c>NotAssessed</c>). Owner-scoped.
     /// </summary>
-    ValueTask<FullCandidateMatchProfile> BuildFullFromTopSkillsAsync(CancellationToken cancellationToken);
+    ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6 + R5-REBIND Option H) — builds the
-    /// FULL profile for the page-scoped match-TAG batch from the preferences PLUS the
-    /// primary CV's <b>complete</b> skills (<c>Resume.MasterVersion.Content.Skills</c>),
-    /// resolved to concept-ids via <see cref="ISkillResolver"/>. The CV content is
-    /// encrypted, so this path warms the owner DEK <b>imperatively</b> (parity
-    /// <c>FieldEncryptionKeyPrefetchBehavior</c>) before materialising the content —
-    /// <b>fail-closed</b>: a KMS/DEK failure PROPAGATES (it never degrades to an empty
-    /// skill set, which would be a dishonest <c>NotAssessed</c>). The complete set is
-    /// required here because <c>ScoreConceptCoverage</c> emits <c>NoMatch</c> (not
-    /// <c>NotAssessed</c>) on a disjoint non-empty set, so a truncated set would
-    /// mis-report a covered must-have as missing on a verdict-bearing surface
-    /// (CLAUDE.md §5). No primary CV / no resolved skills → <c>CvSkillConceptIds</c>
-    /// empty (degrade to Fast). Owner-scoped. security-auditor-gated.
+    /// Builds the FULL profile for the page-scoped match-TAG / modal VERDICT surface: the
+    /// Fast profile PLUS the user's CONFIRMED skill set
+    /// (<c>MatchPreferences.PreferredSkills</c>, plaintext concept-ids).
+    /// <para>
+    /// <b>ADR 0079 STEG 3 PR-D (Beslut 1):</b> reads the confirmed set — and is now
+    /// <b>DEK-FREE</b>. The former DEK-warmed read of the complete encrypted
+    /// <c>Content.Skills</c> (R5-REBIND Option H, fail-closed) is REMOVED: the confirmed set
+    /// is the complete, curated set by definition, so there is no truncation/mis-report risk
+    /// (the reason the old path needed the full encrypted skills) and no per-request KMS
+    /// dependency. IDENTICAL to <see cref="BuildFullForSortAsync"/> — both read the same
+    /// confirmed source, so the verdict and the sort can never diverge on a skill.
+    /// </para>
+    /// The only CV read is the denormalized plaintext <c>Resume.LatestRole</c> for the Title
+    /// dimension (STEG 4, ADR 0058/0059, DEK-free). Empty confirmed set →
+    /// <c>CvSkillConceptIds</c> empty (skill/requirement dimensions <c>NotAssessed</c>,
+    /// honest). Owner-scoped.
     /// </summary>
-    ValueTask<FullCandidateMatchProfile> BuildFullFromCvSkillsAsync(CancellationToken cancellationToken);
+    ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken);
 }

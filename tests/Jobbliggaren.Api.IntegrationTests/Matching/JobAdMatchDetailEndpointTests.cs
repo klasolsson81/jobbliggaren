@@ -24,7 +24,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// F4-16 (ADR 0076 Amendment (b) §5, ADR 0053 Beslut 5 amendment) — the single-ad
 /// match-detail endpoint <c>GET /api/v1/me/job-ad-match-tags/{jobAdId:guid}</c> for the job
 /// modal, end-to-end on Testcontainers Postgres. This is the WIRE oracle: it proves the
-/// auth-gated endpoint, the REAL <c>MatchProfileBuilder.BuildFullFromCvSkillsAsync</c>
+/// auth-gated endpoint, the REAL <c>MatchProfileBuilder.BuildFullForVerdictAsync</c>
 /// (encrypted CV skills via the DEK pipeline, fail-closed) and the REAL
 /// <c>MatchScorer.ScoreFullAsync</c> compose through the full Mediator pipeline, and that the
 /// modal DTO's grade + per-dimension verdict + matched/missing STRINGS round-trip as
@@ -64,9 +64,16 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
             new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
+    // preferredSkills is the CONFIRMED capability source for the skill dimension (ADR 0079
+    // Beslut 1, STEG 3 PR-D): the real MatchProfileBuilder now reads
+    // MatchPreferences.PreferredSkills (not the raw CV skills) for CvSkillConceptIds. Optional
+    // + additive — the auth/preferences-only tests keep submitting no skills (honest
+    // NotAssessed), the skill-driven tests submit the overlapping concept-id through the SAME
+    // wire the production frontend uses (the round-trip the class already proves for occupation
+    // /region/employment).
     private async Task SetPreferencesAsync(
         string[] occupationGroups, string[] regions, string[] employmentTypes,
-        CancellationToken ct)
+        CancellationToken ct, string[]? skills = null)
     {
         var response = await _client.PutAsJsonAsync(
             "/api/v1/me/match-preferences",
@@ -75,6 +82,7 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
                 preferredOccupationGroups = occupationGroups,
                 preferredRegions = regions,
                 preferredEmploymentTypes = employmentTypes,
+                preferredSkills = skills ?? [],
             },
             ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -309,15 +317,25 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         var grp = NewConceptId("grp");
         var reg = NewConceptId("reg");
         var emp = NewConceptId("emp");
-        await SetPreferencesAsync([grp], [reg], [emp], ct);
 
-        // CV skill LABEL + the ad Skill term share the SAME resolved concept-id (derived
-        // live from the committed taxonomy) → SkillOverlap == Match.
+        // ADR 0079 STEG 3 PR-D (the scorer reroute): the CONFIRMED skill set
+        // (MatchPreferences.PreferredSkills) is now the trusted capability source for the skill
+        // dimension — NOT the raw CV skills. We derive the ad's golden skill concept-id live
+        // from the committed taxonomy and submit it as a CONFIRMED skill so it overlaps the ad's
+        // Skill term (SkillOverlap == Match). The confirmed concept-ids satisfy the
+        // MatchPreferences regex (^[A-Za-z0-9_-]{1,32}$).
         var (skillLabel, skillConceptId) = ResolveGoldenSkill();
+        await SetPreferencesAsync([grp], [reg], [emp], ct, skills: [skillConceptId]);
+
+        // The CV still carries the same skill LABEL — under the reroute it is no longer the
+        // capability source (the confirmed set above is), but seeding it keeps the original
+        // "cv present" framing honest (a real promoted CV behind the confirmed set).
         await SeedPrimaryCvForStatedSeekerAsync(grp, [skillLabel], ct);
 
         // Strong Fast ad (occupation + region + employment all Match) WITH the shared skill
-        // term → Strong + SkillOverlap Match → Top ("Toppmatch").
+        // term → Strong + SkillOverlap Match → Top ("Toppmatch"). The ad's Skill term ConceptId
+        // == the CONFIRMED concept-id → overlap by construction. The surfaced Matched STRING is
+        // the ad term's Display label (skillLabel).
         var terms = ExtractedTerms.From([SkillTerm(skillConceptId, skillLabel)]);
         var adId = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, terms, ct);
 
@@ -359,12 +377,18 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         var grp = NewConceptId("grp");
         var reg = NewConceptId("reg");
         var emp = NewConceptId("emp");
-        await SetPreferencesAsync([grp], [reg], [emp], ct);
 
-        // The user HAS a CV skill, but the ad has NO extracted terms → the ad-side skill /
-        // must-have / nice-to-have partitions are all empty while the CV is present →
-        // Vacuous. must-have Vacuous = gate-open → the Strong Fast grade is preserved.
-        var (skillLabel, _) = ResolveGoldenSkill();
+        // ADR 0079 STEG 3 PR-D (the reroute): "CV present" for the skill dimension now means
+        // the user has a non-empty CONFIRMED skill set (MatchPreferences.PreferredSkills) — that
+        // is what makes the scorer report Vacuous ("we looked; the ad specifies none") rather
+        // than NotAssessed ("we could not assess"). So we submit a confirmed skill; the ad still
+        // has NO terms. confirmed-set present + ad partition empty → Vacuous; must-have Vacuous =
+        // gate-open → the Strong Fast grade is preserved (no skill/nice signal → Strong, not Top).
+        var (skillLabel, skillConceptId) = ResolveGoldenSkill();
+        await SetPreferencesAsync([grp], [reg], [emp], ct, skills: [skillConceptId]);
+
+        // The CV is still promoted (the "cv_present" framing) but, post-reroute, it is the
+        // confirmed set above that drives the skill assessment, not the raw CV skill label.
         await SeedPrimaryCvForStatedSeekerAsync(grp, [skillLabel], ct);
 
         // Strong Fast ad, but terms: null → no extracted Skill / Requirement terms.

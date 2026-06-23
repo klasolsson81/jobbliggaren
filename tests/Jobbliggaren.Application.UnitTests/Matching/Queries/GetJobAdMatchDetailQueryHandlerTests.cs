@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Queries;
 /// <summary>
 /// F4-16 (ADR 0076 Amendment (b); CTO 2026-06-20 D3/D5) — the single-ad MODAL detail
 /// handler. It builds the current user's FULL CV-skill profile
-/// (<see cref="IMatchProfileBuilder.BuildFullFromCvSkillsAsync"/>, the DEK-warmed,
+/// (<see cref="IMatchProfileBuilder.BuildFullForVerdictAsync"/>, the DEK-warmed,
 /// fail-closed verdict-bearing path), FULL-scores ONE ad
 /// (<see cref="IMatchScorer.ScoreFullAsync"/> — single-ad THROW semantics, NOT the
 /// silent-omit batch), grades it via the REQUIREMENT-AWARE
@@ -71,11 +71,11 @@ public class GetJobAdMatchDetailQueryHandlerTests
             => throw new NotSupportedException("BuildFromPreferencesAsync ska inte anropas av modal-handlern.");
 
         // SORT path — not used by the modal handler.
-        public ValueTask<FullCandidateMatchProfile> BuildFullFromTopSkillsAsync(CancellationToken cancellationToken)
-            => throw new NotSupportedException("BuildFullFromTopSkillsAsync ska inte anropas av modal-handlern.");
+        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken)
+            => throw new NotSupportedException("BuildFullForSortAsync ska inte anropas av modal-handlern.");
 
         // The modal path — full CV-skill profile (DEK-warmed, fail-closed).
-        public ValueTask<FullCandidateMatchProfile> BuildFullFromCvSkillsAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken)
         {
             CvSkillsCallCount++;
             if (_throwOnCvSkills is not null)

@@ -20,7 +20,7 @@
 //   - DUAL-partition rate-limit: JobAdMatchBatchPolicy 60/min (user:-bucket om
 //     auth, ip:-bucket annars). Parity JobAdStatusBatchPolicy (ADR 0063).
 //   - Batch-validator cap = 100 IDs (GetJobAdMatchBatchQueryValidator).
-//   - Handler F4-15 (bygger på F4-13): BuildFullFromCvSkillsAsync (NY F4-15):
+//   - Handler F4-15 (bygger på F4-13): BuildFullForVerdictAsync (NY F4-15):
 //       1. SELECT JobSeekers (AsNoTracking) → 1 DB round-trip.
 //       2. currentDataOwner.SetOwner + dataKeyStore.GetOrCreateDataKeyAsync →
 //          DEK-uppvärmning (scope-memoized; KMS-/LocalDataKeyProvider-anrop).
@@ -88,7 +88,7 @@
 //   kräver att testanvändaren (LOADTEST_BEARER_TOKEN) har:
 //     (1) Primary CV med ≥1 Content.Skills (encrypted → DEK-warm aktiveras).
 //     (2) LOADTEST_JOB_AD_IDS med verkliga job_ads-rader som har extracted_terms.
-//   Utan (1): BuildFullFromCvSkillsAsync returnerar tom skill-lista → ScoreConceptCoverage
+//   Utan (1): BuildFullForVerdictAsync returnerar tom skill-lista → ScoreConceptCoverage
 //             NotAssessed → ingen skill-scoring overhead. Mäter DEK-warm + Versions-SELECT
 //             men inte scoring. Delvis meningsfull.
 //   Utan (2): tom-ID-fallback (se ovan). Mäter DEK-warm + CV-read men INTE ScoreConceptCoverage.

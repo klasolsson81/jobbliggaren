@@ -59,7 +59,7 @@ public sealed class ListJobAdsQueryHandler(
             // F4-15 (ADR 0076 Decision 6, R5-REBIND Option H): the global sort builds the
             // FULL profile from the primary CV's TOP-5 PLAINTEXT skills (Resume.TopSkills) —
             // NO DEK on the hottest path. The skill signal adds only the binary golden rung.
-            var profile = await profileBuilder.BuildFullFromTopSkillsAsync(cancellationToken);
+            var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
 
             // SSYK-gate (parity F4-13 GetJobAdMatchBatch): utan angiven yrkesgrupp
             // kan ingen annons få en grad → match-ordning vore meningslös. Honest

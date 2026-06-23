@@ -10,8 +10,8 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// <summary>
 /// F4-16 (ADR 0076 Amendment (b) §5) — composes the single-ad match detail for the job
 /// modal: builds the current user's FULL profile once
-/// (<see cref="IMatchProfileBuilder.BuildFullFromCvSkillsAsync"/>, the complete CV skills via
-/// the DEK pipeline, fail-closed — parity the F4-15 batch tag path), scores the one ad
+/// (<see cref="IMatchProfileBuilder.BuildFullForVerdictAsync"/>, the user's CONFIRMED skill
+/// set — plaintext, DEK-free per ADR 0079 STEG 3 PR-D), scores the one ad
 /// (<see cref="IMatchScorer.ScoreFullAsync"/>), grades it via the deterministic
 /// <see cref="MatchGradeCalculator"/> Full overload, and maps every dimension's
 /// verdict + matched/missing evidence onto the modal DTO. NO AI/LLM (ADR 0071).
@@ -21,8 +21,8 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// <c>NotAssessed</c>, the grade is <c>null</c>) — the modal renders the rows plus the
 /// "set your preferences" signpost. Only an ANONYMOUS caller gets <c>null</c> (the modal is
 /// auth-gated; the guest modal shows no match section). A missing ad propagates
-/// <c>NotFoundException</c> from the scorer (→ 404); a DEK/KMS failure propagates from the
-/// builder (fail-closed — never a dishonest empty skill set).
+/// <c>NotFoundException</c> from the scorer (→ 404). The profile build is DEK-free
+/// (confirmed plaintext skills, ADR 0079 PR-D) — no KMS dependency on this path.
 /// </para>
 /// </summary>
 public sealed class GetJobAdMatchDetailQueryHandler(
@@ -40,9 +40,9 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         if (!currentUser.UserId.HasValue)
             return null;
 
-        // Full profile from the primary CV's COMPLETE skills (DEK-warmed, fail-closed —
-        // a KMS/DEK failure PROPAGATES; it never degrades to a dishonest empty set).
-        var profile = await profileBuilder.BuildFullFromCvSkillsAsync(cancellationToken);
+        // Full profile from the user's CONFIRMED skill set (plaintext PreferredSkills,
+        // DEK-free — ADR 0079 STEG 3 PR-D; the complete, curated set, so no truncation).
+        var profile = await profileBuilder.BuildFullForVerdictAsync(cancellationToken);
 
         // Score the single ad. ScoreFullAsync throws NotFoundException for a missing ad
         // (→ 404) — propagated, not swallowed. We do NOT gate on the occupation here: the

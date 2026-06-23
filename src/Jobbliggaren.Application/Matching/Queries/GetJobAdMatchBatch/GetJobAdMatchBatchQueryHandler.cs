@@ -35,11 +35,11 @@ public sealed class GetJobAdMatchBatchQueryHandler(
         if (!currentUser.UserId.HasValue || query.JobAdIds.Count == 0)
             return Empty;
 
-        // F4-15 (ADR 0076 Decision 6 + R5-REBIND Option H): the page-scoped TAG path runs
-        // FULL — it reads the primary CV's COMPLETE skills (DEK-warmed, fail-closed) so the
-        // F4-16 modal's matched/missing is honest. No primary CV / no resolved skills →
-        // the three Full dimensions degrade to NotAssessed (never NoMatch).
-        var profile = await profileBuilder.BuildFullFromCvSkillsAsync(cancellationToken);
+        // ADR 0079 STEG 3 PR-D: the page-scoped TAG path runs FULL — it reads the user's
+        // CONFIRMED skill set (plaintext PreferredSkills, DEK-free) so the F4-16 modal's
+        // matched/missing is honest. Empty confirmed set → the three Full dimensions
+        // degrade to NotAssessed (never NoMatch).
+        var profile = await profileBuilder.BuildFullForVerdictAsync(cancellationToken);
 
         // Occupation/SSYK is the gate of the grade ladder (MatchGradeCalculator): without
         // a stated occupation no ad can earn a tag. Short-circuit before the batch query —

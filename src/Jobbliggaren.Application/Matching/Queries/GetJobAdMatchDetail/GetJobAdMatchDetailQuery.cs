@@ -16,8 +16,8 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// renders no match section). For an authenticated user the handler computes the FULL score
 /// for the one ad and returns the honest per-dimension breakdown — it does NOT short-circuit
 /// on an unstated occupation (unlike the batch handler): the modal shows the breakdown plus
-/// the "set your preferences" signpost. Reads the primary CV's complete skills via the DEK
-/// pipeline (fail-closed) — security-auditor-gated (D4).
+/// the "set your preferences" signpost. Reads the user's confirmed skill set (plaintext
+/// PreferredSkills, DEK-free — ADR 0079 STEG 3 PR-D).
 /// </para>
 /// </summary>
 public sealed record GetJobAdMatchDetailQuery(Guid JobAdId) : IQuery<JobAdMatchDetailDto?>;

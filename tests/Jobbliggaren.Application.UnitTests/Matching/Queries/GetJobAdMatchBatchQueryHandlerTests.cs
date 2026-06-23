@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Queries;
 /// <summary>
 /// F4-13 → F4-15 (ADR 0076 Decision 5/6) — the batch overlay handler, upgraded to FULL.
 /// It now builds the current user's FULL CV-skill profile
-/// (<see cref="IMatchProfileBuilder.BuildFullFromCvSkillsAsync"/>, the TAG path — DEK-warmed),
+/// (<see cref="IMatchProfileBuilder.BuildFullForVerdictAsync"/>, the TAG path — DEK-warmed),
 /// FULL-scores all requested ads in ONE round-trip
 /// (<see cref="IMatchScorer.ScoreFullBatchAsync"/>, zero N+1), and grades each via the
 /// REQUIREMENT-AWARE <see cref="MatchGradeCalculator"/> Full overload (PR-B1 RE-BIND —
@@ -27,7 +27,7 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Queries;
 /// is the clean, warning-free form. <see cref="ICurrentUser"/> is a plain <c>Guid?</c>
 /// (no ValueTask) so NSubstitute is fine there.
 /// </para>
-/// RED until the handler is upgraded to BuildFullFromCvSkillsAsync + ScoreFullBatchAsync
+/// RED until the handler is upgraded to BuildFullForVerdictAsync + ScoreFullBatchAsync
 /// and JobAdMatchEntryDto widens to the seven verdicts.
 /// </summary>
 public class GetJobAdMatchBatchQueryHandlerTests
@@ -58,14 +58,14 @@ public class GetJobAdMatchBatchQueryHandlerTests
         }
 
         // SORT path — not used by the TAG batch handler.
-        public ValueTask<FullCandidateMatchProfile> BuildFullFromTopSkillsAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken)
         {
             TopSkillsCallCount++;
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);
         }
 
         // TAG path — the one the batch handler uses (DEK-warmed CV-skill profile).
-        public ValueTask<FullCandidateMatchProfile> BuildFullFromCvSkillsAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken)
         {
             CvSkillsCallCount++;
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);

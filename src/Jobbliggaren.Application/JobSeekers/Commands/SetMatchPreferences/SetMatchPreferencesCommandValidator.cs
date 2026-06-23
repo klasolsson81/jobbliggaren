@@ -80,5 +80,41 @@ public sealed class SetMatchPreferencesCommandValidator
             .InclusiveBetween(0, MatchPreferences.MaxExperienceYears)
             .When(c => c.ExperienceYears is not null)
             .WithMessage($"Antal års erfarenhet måste vara mellan 0 och {MatchPreferences.MaxExperienceYears}.");
+
+        // ADR 0079-amendment (exp-per-occ PR-3) — the per-occupation experience overlay: same
+        // cap as the concept-id lists, plus per-entry concept-id pattern + years range (the
+        // dedicated child validator). The SUBSET rule (an entry only for an actually-preferred
+        // group) is a cross-field domain invariant — left to MatchPreferences.Create (the
+        // authoritative source). Null = honest empty, valid.
+        RuleFor(c => c.PreferredOccupationExperience!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(c => c.PreferredOccupationExperience is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} yrkeserfarenheter.");
+
+        RuleForEach(c => c.PreferredOccupationExperience)
+            .SetValidator(new OccupationExperienceInputValidator())
+            .When(c => c.PreferredOccupationExperience is not null);
+    }
+}
+
+/// <summary>
+/// Per-entry defense-in-depth for the <see cref="OccupationExperienceInput"/> overlay (ADR
+/// 0079-amendment): concept-id pattern + years range. <c>MatchPreferences.Create</c> remains the
+/// authoritative invariant source (incl. the cross-entry subset/distinct rules).
+/// </summary>
+internal sealed class OccupationExperienceInputValidator : AbstractValidator<OccupationExperienceInput>
+{
+    private const string ConceptIdPattern = @"^[A-Za-z0-9_-]{1,32}\z";
+
+    public OccupationExperienceInputValidator()
+    {
+        RuleFor(e => e.ConceptId)
+            .Matches(ConceptIdPattern)
+            .WithMessage("Yrkesgrupp måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        RuleFor(e => e.Years!.Value)
+            .InclusiveBetween(0, MatchPreferences.MaxExperienceYears)
+            .When(e => e.Years is not null)
+            .WithMessage($"Antal års erfarenhet måste vara mellan 0 och {MatchPreferences.MaxExperienceYears}.");
     }
 }

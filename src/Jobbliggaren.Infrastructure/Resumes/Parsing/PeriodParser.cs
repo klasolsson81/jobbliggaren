@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace Jobbliggaren.Infrastructure.Resumes.Review;
+namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
 /// Deterministically parses a CV experience period string (e.g. "01/2022 – 06/2024",
@@ -9,6 +9,12 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review;
 /// F4-9). Anchored to the full trimmed string so free-text ("någon gång på 2020-talet",
 /// "ett tag sen") does NOT parse — the conditional-Period criteria (A4/B6/B7) then report
 /// NotAssessed rather than guess gaps/chronology from garbage (V-C, honest-data §5/OQ3).
+/// <para>
+/// Promoted to a neutral <c>Infrastructure/Resumes/Parsing</c> home (ADR 0079-amendment,
+/// exp-per-occ PR-2): the F4-9 review engine, the F4-10 date-normalization transform AND
+/// the import-time per-occupation experience attribution all parse a CV period, so the
+/// single knowledge piece lives outside the review engine's namespace (DRY, CLAUDE.md §9.1).
+/// </para>
 /// </summary>
 internal static partial class PeriodParser
 {
@@ -83,6 +89,36 @@ internal static partial class PeriodParser
         // range, the coarser token wins so B6 flags the inconsistency at the entry level.
         formatToken = startFmt == endFmt ? startFmt : "YYYY";
         return true;
+    }
+
+    /// <summary>
+    /// Resolves <paramref name="period"/> to a calendar-year span (ADR 0079-amendment,
+    /// exp-per-occ PR-2). Builds on <see cref="TryParse"/> and adds the clock-aware
+    /// "present" resolution that a year-COUNT needs but gap-math does not: an ongoing role
+    /// (<c>nuvarande/idag/nu/…</c>) resolves its end to <paramref name="currentYear"/> (the
+    /// caller passes <c>IDateTimeProvider.UtcNow.Year</c> — never <c>DateTime.Now</c>,
+    /// CLAUDE.md §5). Year granularity is deliberate: month precision is noise for a "~N år"
+    /// estimate and invites false precision. Returns false for null/empty/free-text (honest
+    /// "not stated") AND for a malformed reverse range whose end precedes its start (so the
+    /// caller never attributes a negative span).
+    /// </summary>
+    public static bool TryParseYearSpan(
+        string? period, int currentYear, out int startYear, out int endYear)
+    {
+        startYear = 0;
+        endYear = 0;
+
+        if (!TryParse(period, out var start, out var end, out _))
+        {
+            return false;
+        }
+
+        startYear = start.Year;
+        endYear = end == DateOnly.MaxValue ? currentYear : end.Year;
+
+        // A reverse range ("2024 – 2019") or a future-dated ongoing role ("2030 – nu" before
+        // 2030) is malformed for a year count — reject rather than count a negative span.
+        return endYear >= startYear;
     }
 
     private static bool IsPresent(string token) =>

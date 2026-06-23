@@ -32,6 +32,8 @@ public class ImportResumeCommandHandlerTests
     private readonly ICvTextExtractor _extractor = Substitute.For<ICvTextExtractor>();
     private readonly IResumeSegmenter _segmenter = Substitute.For<IResumeSegmenter>();
     private readonly IOccupationCodeDeriver _deriver = Substitute.For<IOccupationCodeDeriver>();
+    private readonly IOccupationExperienceDeriver _experienceDeriver =
+        Substitute.For<IOccupationExperienceDeriver>();
     private readonly ISkillResolver _skillResolver = Substitute.For<ISkillResolver>();
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -45,10 +47,17 @@ public class ImportResumeCommandHandlerTests
         // ADR 0079 STEG 3 added ISkillResolver as the handler's 7th dependency.
         _skillResolver.ResolveDetailed(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns([]);
+        // Default: no per-occupation experience attributed (most cases assert other behaviour).
+        // ADR 0079-amendment (exp-per-occ PR-2) added IOccupationExperienceDeriver.
+        _experienceDeriver
+            .DeriveApproximateYearsAsync(Arg.Any<IReadOnlyList<ParsedExperience>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyDictionary<string, int>>(
+                new Dictionary<string, int>()));
     }
 
     private ImportResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver, _skillResolver);
+        new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver,
+            _experienceDeriver, _skillResolver);
 
     private static ImportResumeCommand PdfCommand() =>
         new("cv.pdf", "application/pdf", PdfBytes);
@@ -76,6 +85,12 @@ public class ImportResumeCommandHandlerTests
     private void StubSkillResolver(params ResolvedSkill[] resolved) =>
         _skillResolver.ResolveDetailed(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns(resolved);
+
+    private void StubExperienceYears(params (string ConceptId, int Years)[] years) =>
+        _experienceDeriver
+            .DeriveApproximateYearsAsync(Arg.Any<IReadOnlyList<ParsedExperience>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyDictionary<string, int>>(
+                years.ToDictionary(y => y.ConceptId, y => y.Years, StringComparer.Ordinal)));
 
     private static ResumeSegmentationResult ConfidentSegmentation(
         string? experienceTitle = "Backend-utvecklare") =>
@@ -302,6 +317,101 @@ public class ImportResumeCommandHandlerTests
     }
 
     // ===============================================================
+    // Per-occupation experience attribution call-site (ADR 0079-amendment, exp-per-occ PR-2):
+    // the attributor's per-group ~years are joined onto the matching ProposedOccupation.
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_AttributesApproximateYears_OntoMatchingProposal()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation());
+        StubDeriver(new OccupationCandidate(
+            "q8wL_kdi_WaW", "Systemutvecklare", OccupationMatchKind.ExactOccupationName, "Backend-utvecklare"));
+        StubExperienceYears(("q8wL_kdi_WaW", 5));
+
+        var result = await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
+        var proposal = added.OccupationProposals.ShouldHaveSingleItem();
+        proposal.ConceptId.ShouldBe("q8wL_kdi_WaW");
+        proposal.ApproximateYears.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task Handle_ProposalWithNoAttributedYears_HasNullApproximateYears()
+    {
+        // The attributor returns nothing for this group (education-sourced / unparseable period):
+        // the proposal carries null — honest "not stated", never a fabricated number (§5).
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation());
+        StubDeriver(new OccupationCandidate(
+            "q8wL_kdi_WaW", "Systemutvecklare", OccupationMatchKind.ExactOccupationName, "Backend-utvecklare"));
+        // _experienceDeriver default-stubbed to an empty dict in the ctor.
+
+        var result = await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var proposal = db.ParsedResumes.Local.ShouldHaveSingleItem()
+            .OccupationProposals.ShouldHaveSingleItem();
+        proposal.ApproximateYears.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_AttributesYears_OnlyToTheMatchingGroup_OthersNull()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation());
+        StubDeriver(
+            new OccupationCandidate(
+                "q8wL_kdi_WaW", "Systemutvecklare", OccupationMatchKind.ExactOccupationName, "x"),
+            new OccupationCandidate(
+                "a1B2_c3D4_e5F", "Mjukvaruutvecklare", OccupationMatchKind.StemmedTokenOverlap, "y"));
+        StubExperienceYears(("q8wL_kdi_WaW", 7)); // only the first group has attributed years
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        var proposals = db.ParsedResumes.Local.ShouldHaveSingleItem().OccupationProposals;
+        proposals.Single(p => p.ConceptId == "q8wL_kdi_WaW").ApproximateYears.ShouldBe(7);
+        proposals.Single(p => p.ConceptId == "a1B2_c3D4_e5F").ApproximateYears.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_PassesOnlyExperienceEntries_ToTheExperienceDeriver()
+    {
+        // Education periods are study years, not work experience — the handler attributes over
+        // content.Experience only (the deriver's input type ParsedExperience excludes education).
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(new ResumeSegmentationResult(
+            new ParsedResumeContent(
+                new ParsedContact("Klas", "klas@example.com", null, null),
+                experience: [new ParsedExperience("Operatör", "Plast AB", "2005–nu", "raw")],
+                education: [new ParsedEducation("NBI", "Systemutvecklare .NET", "Pågående", "raw")]),
+            ResumeLanguage.Sv,
+            ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, []),
+            ])));
+        StubDeriver();
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        await _experienceDeriver.Received(1).DeriveApproximateYearsAsync(
+            Arg.Is<IReadOnlyList<ParsedExperience>>(e =>
+                e.Count == 1 && e[0].Title == "Operatör"),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ===============================================================
     // Skill resolution call-site (ADR 0079 STEG 3): the CV's content.Skills are
     // resolved at import and carried as ProposedSkill on the persisted artifact.
     // ===============================================================
@@ -429,7 +539,8 @@ public class ImportResumeCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
         var sut = new ImportResumeCommandHandler(
-            db, currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver, _skillResolver);
+            db, currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver,
+            _experienceDeriver, _skillResolver);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(PdfCommand(), CancellationToken.None).AsTask());

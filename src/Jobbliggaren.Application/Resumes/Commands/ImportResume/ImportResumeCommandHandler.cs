@@ -27,6 +27,7 @@ public sealed class ImportResumeCommandHandler(
     ICvTextExtractor extractor,
     IResumeSegmenter segmenter,
     IOccupationCodeDeriver occupationDeriver,
+    IOccupationExperienceDeriver occupationExperienceDeriver,
     ISkillResolver skillResolver)
     : ICommandHandler<ImportResumeCommand, Result<ImportResumeResponse>>
 {
@@ -102,9 +103,22 @@ public sealed class ImportResumeCommandHandler(
             candidates = derivation.Candidates;
         }
 
+        // 4a. Per-occupation experience attribution (ADR 0079-amendment, exp-per-occ PR-2): a
+        //     SEPARATE pass (DeriveManyAsync above untouched — OCP) re-derives each EXPERIENCE
+        //     entry's group(s) and parses its period, aggregating per group as the merged-interval
+        //     union of contributing spans (Klas-val "lifetime in the field"). Education periods are
+        //     study years, not work experience → excluded (only content.Experience is passed), so
+        //     an education-sourced group has no entry here → honest null. Only the non-PII int +
+        //     concept-id are projected; the raw periods stay DEK-encrypted (#159 precedent).
+        var experienceYearsByGroup = await occupationExperienceDeriver
+            .DeriveApproximateYearsAsync(content.Experience, cancellationToken);
+
         var proposals = candidates
             .Select(c => new ProposedOccupation(
-                c.OccupationGroupConceptId, c.OccupationGroupLabel, c.MatchedOn))
+                c.OccupationGroupConceptId, c.OccupationGroupLabel, c.MatchedOn,
+                experienceYearsByGroup.TryGetValue(c.OccupationGroupConceptId, out var years)
+                    ? years
+                    : null))
             .ToList();
 
         // 4b. Skill resolution (ADR 0079 STEG 3): resolve the CV's claimed skill names to

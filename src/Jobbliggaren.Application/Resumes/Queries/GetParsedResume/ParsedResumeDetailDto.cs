@@ -44,5 +44,8 @@ public sealed record ParsedExperienceDto(string? Title, string? Organization, st
 public sealed record ParsedEducationDto(string? Institution, string? Degree, string? Period, string RawText);
 
 /// <summary>An unconfirmed SSYK occupation-group proposal (ADR 0040 Beslut 4 — the user
-/// confirms downstream; never auto-selected). Non-PII (taxonomy id + labels).</summary>
-public sealed record OccupationProposalDto(string ConceptId, string Label, string MatchedOn);
+/// confirms downstream; never auto-selected). Non-PII (taxonomy id + labels).
+/// <see cref="ApproximateYears"/> (ADR 0079-amendment) is the CV-derived ~years of experience
+/// attributed to this group at import (null = "not stated"); it seeds the wizard's per-occupation
+/// year input (PR-4). A non-PII integer projection — the raw periods stay DEK-encrypted.</summary>
+public sealed record OccupationProposalDto(string ConceptId, string Label, string MatchedOn, int? ApproximateYears);

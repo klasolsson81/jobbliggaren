@@ -42,7 +42,7 @@ public class GetParsedResumeMapperTests
             owner, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "Anna Andersson\nLedde teamet.", confidence,
             PersonnummerScanOutcome.None,
-            [new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare")],
+            [new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare", 7)],
             FakeDateTimeProvider.Default).Value;
     }
 
@@ -65,6 +65,7 @@ public class GetParsedResumeMapperTests
         dto.OccupationProposals[0].ConceptId.ShouldBe("q8wL_kdi_WaW");
         dto.OccupationProposals[0].Label.ShouldBe("Systemutvecklare");
         dto.OccupationProposals[0].MatchedOn.ShouldBe("Backend-utvecklare");
+        dto.OccupationProposals[0].ApproximateYears.ShouldBe(7); // ADR 0079-amendment projection
     }
 
     [Fact]

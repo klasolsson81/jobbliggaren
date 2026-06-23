@@ -74,7 +74,7 @@ public sealed class GetParsedResumeOccupationsQueryHandler(
         }
 
         return found.Proposals
-            .Select(p => new OccupationProposalDto(p.ConceptId, p.Label, p.MatchedOn))
+            .Select(p => new OccupationProposalDto(p.ConceptId, p.Label, p.MatchedOn, p.ApproximateYears))
             .ToList();
     }
 }

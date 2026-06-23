@@ -10,6 +10,7 @@ using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Queries.GetLatestPendingParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeOccupations;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeSkills;
@@ -153,6 +154,19 @@ public static class ResumesEndpoints
         {
             var result = await mediator.Send(new GetParsedResumeSkillsQuery(id), ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // The CURRENT user's most-recent PendingReview parsed-CV summary (id + file name + upload
+        // time), or 200 with a null body when the user has no pending CV (a normal, non-error
+        // state — not 404). Drives the /cv "complete your CV" card after the welcome flow reads a
+        // CV without promoting it (onboarding decouple, ADR 0079-amendment). Owner-scoped by
+        // construction (no client id → no IDOR surface); projects plaintext metadata only — never
+        // reads/decrypts the CV-PII (PII-minimisation, mirrors the occupations/skills projections).
+        group.MapGet("/parsed/latest-pending", async (IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetLatestPendingParsedResumeQuery(), ct);
+            return Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 

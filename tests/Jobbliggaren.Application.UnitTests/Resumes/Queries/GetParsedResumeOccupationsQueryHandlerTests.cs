@@ -156,7 +156,9 @@ public class GetParsedResumeOccupationsQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var parsed = await SeedOwnedAsync(db, _userId,
         [
-            new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare"),
+            // ADR 0079-amendment: the first proposal carries a CV-derived ApproximateYears; the
+            // second is "not stated" (null) — both must round-trip through the jsonb projection.
+            new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare", 5),
             new ProposedOccupation("a1B2_c3D4_e5F", "Mjukvaruutvecklare", "Backend-utvecklare"),
         ]);
 
@@ -168,7 +170,9 @@ public class GetParsedResumeOccupationsQueryHandlerTests
         result[0].ConceptId.ShouldBe("q8wL_kdi_WaW");
         result[0].Label.ShouldBe("Systemutvecklare");
         result[0].MatchedOn.ShouldBe("Backend-utvecklare");
+        result[0].ApproximateYears.ShouldBe(5);
         result[1].ConceptId.ShouldBe("a1B2_c3D4_e5F");
+        result[1].ApproximateYears.ShouldBeNull();
     }
 
     [Fact]

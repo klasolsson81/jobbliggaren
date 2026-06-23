@@ -158,15 +158,20 @@ public static class ResumesEndpoints
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         // The CURRENT user's most-recent PendingReview parsed-CV summary (id + file name + upload
-        // time), or 200 with a null body when the user has no pending CV (a normal, non-error
-        // state — not 404). Drives the /cv "complete your CV" card after the welcome flow reads a
-        // CV without promoting it (onboarding decouple, ADR 0079-amendment). Owner-scoped by
+        // time), or 200 with the JSON literal `null` when the user has no pending CV (a normal,
+        // non-error state — not 404). Drives the /cv "complete your CV" card after the welcome flow
+        // reads a CV without promoting it (onboarding decouple, ADR 0079-amendment). Owner-scoped by
         // construction (no client id → no IDOR surface); projects plaintext metadata only — never
         // reads/decrypts the CV-PII (PII-minimisation, mirrors the occupations/skills projections).
+        // The null case writes the literal `null` token explicitly: minimal-API's
+        // WriteResultAsJsonAsync short-circuits a null value to an EMPTY body, which the FE BFF's
+        // JSON parse (nullable schema) cannot read — so Results.Content emits the `null` it expects.
         group.MapGet("/parsed/latest-pending", async (IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetLatestPendingParsedResumeQuery(), ct);
-            return Results.Ok(result);
+            return result is null
+                ? Results.Content("null", "application/json")
+                : Results.Json(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 

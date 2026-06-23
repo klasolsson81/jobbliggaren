@@ -32,6 +32,7 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         List<string> municipalities = [];
         List<string> skills = [];
         int? experienceYears = null;
+        List<OccupationExperience> occupationExperience = [];
 
         while (reader.Read())
         {
@@ -66,6 +67,13 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
                 case "ExperienceYears":
                     experienceYears = ReadNullableInt(ref reader, "ExperienceYears");
                     break;
+                // ADR 0079-amendment — the per-occupation experience overlay: an array of
+                // {ConceptId, Years} objects (default-deny on any other element shape). Domain
+                // re-validation (subset/range/format/distinct) happens in Create on the read path.
+                case "PreferredOccupationExperience":
+                    occupationExperience = ReadOccupationExperienceArray(
+                        ref reader, "PreferredOccupationExperience");
+                    break;
                 // Missing/unknown key → empty list / null via the defaults above (an old
                 // row written before Spår 3 / STEG 3, or the '{}' default, has no
                 // "PreferredMunicipalities" / "PreferredSkills" / "ExperienceYears" key →
@@ -85,7 +93,8 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
             preferredEmploymentTypes: employmentTypes,
             preferredMunicipalities: municipalities,
             preferredSkills: skills,
-            experienceYears: experienceYears);
+            experienceYears: experienceYears,
+            preferredOccupationExperience: occupationExperience);
         if (result.IsFailure)
             throw new JsonException(
                 $"Lagrad MatchPreferences-jsonb bröt domän-invariant: {result.Error.Code}.");
@@ -96,8 +105,9 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         Utf8JsonWriter writer, MatchPreferences value, JsonSerializerOptions options)
     {
         // Always array form + PascalCase (= VO property names = jsonb-key contract).
-        // Canonical dimension order: OccupationGroups, Regions, EmploymentTypes,
-        // Municipalities (municipalities appended last — additive jsonb extension).
+        // Canonical write order (each appended last as an additive jsonb extension):
+        // OccupationGroups, Regions, EmploymentTypes, Municipalities, Skills, the
+        // ExperienceYears scalar, then the PreferredOccupationExperience overlay.
         writer.WriteStartObject();
 
         writer.WritePropertyName("PreferredOccupationGroups");
@@ -138,6 +148,23 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         else
             writer.WriteNull("ExperienceYears");
 
+        // ADR 0079-amendment — the per-occupation experience overlay, appended last (additive
+        // jsonb extension). An array of {ConceptId, Years} objects; Years is written explicitly
+        // (number when stated, JSON null when "not stated") for a deterministic canonical form.
+        writer.WritePropertyName("PreferredOccupationExperience");
+        writer.WriteStartArray();
+        foreach (var oe in value.PreferredOccupationExperience)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("ConceptId", oe.ConceptId);
+            if (oe.Years is { } oeYears)
+                writer.WriteNumber("Years", oeYears);
+            else
+                writer.WriteNull("Years");
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+
         writer.WriteEndObject();
     }
 
@@ -168,6 +195,64 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
                 throw new JsonException(
                     $"MatchPreferences.{field} måste vara sträng, strängarray eller null.");
         }
+    }
+
+    // ADR 0079-amendment — the per-occupation overlay reader. Default-deny: an array of
+    // objects, each with a required string ConceptId and an optional integer/null Years
+    // (anything else is rejected, no silent coercion — parity with the other readers). The
+    // domain invariants (subset/range/format/distinct) are re-checked in Create on read.
+    private static List<OccupationExperience> ReadOccupationExperienceArray(
+        ref Utf8JsonReader reader, string field)
+    {
+        if (reader.TokenType == JsonTokenType.Null)
+            return [];
+        if (reader.TokenType != JsonTokenType.StartArray)
+            throw new JsonException($"MatchPreferences.{field} måste vara en array eller null.");
+
+        var list = new List<OccupationExperience>();
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndArray)
+                return list;
+            if (reader.TokenType != JsonTokenType.StartObject)
+                throw new JsonException(
+                    $"MatchPreferences.{field}-arrayen får bara innehålla objekt.");
+
+            string? conceptId = null;
+            int? years = null;
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.EndObject)
+                    break;
+                if (reader.TokenType != JsonTokenType.PropertyName)
+                    throw new JsonException($"Oväntad token i MatchPreferences.{field}-objekt.");
+
+                var prop = reader.GetString();
+                reader.Read();
+                switch (prop)
+                {
+                    case "ConceptId":
+                        if (reader.TokenType != JsonTokenType.String)
+                            throw new JsonException(
+                                $"MatchPreferences.{field}.ConceptId måste vara en sträng.");
+                        conceptId = reader.GetString();
+                        break;
+                    case "Years":
+                        years = ReadNullableInt(ref reader, $"{field}.Years");
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(conceptId))
+                throw new JsonException(
+                    $"MatchPreferences.{field}-objekt saknar en giltig ConceptId.");
+            list.Add(new OccupationExperience(conceptId, years));
+        }
+
+        throw new JsonException($"Oavslutad MatchPreferences.{field}-array.");
     }
 
     // STEG 3 (ADR 0079) — the one NUMERIC key. Default-deny: only an integer Number or

@@ -26,6 +26,10 @@ interface CvMatchSetupProps {
   /** Spår 3 PR-D: kommun-axeln (pre-fill för wizardens ort-steg). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
+  /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (pre-fill för wizardens
+   *  kompetens-steg). */
+  readonly persistedSkills: ReadonlyArray<string>;
+  readonly persistedExperienceYears: number | null;
   /** CV-importflödets route (yrkes-stegets tom-state-länk). */
   readonly importCvHref: string;
   /**
@@ -56,6 +60,8 @@ export function CvMatchSetup({
   persistedRegions,
   persistedMunicipalities,
   persistedEmploymentTypes,
+  persistedSkills,
+  persistedExperienceYears,
   importCvHref,
   hasPreferences,
   showPrompt,
@@ -72,6 +78,8 @@ export function CvMatchSetup({
     persistedMunicipalities
   );
   const [employmentPrefs, setEmploymentPrefs] = useState(persistedEmploymentTypes);
+  const [skillPrefs, setSkillPrefs] = useState(persistedSkills);
+  const [experiencePref, setExperiencePref] = useState(persistedExperienceYears);
   const [savedAny, setSavedAny] = useState(false);
 
   const hasAny = savedAny ? occupations.length > 0 : hasPreferences;
@@ -128,12 +136,16 @@ export function CvMatchSetup({
         persistedRegions={regionPrefs}
         persistedMunicipalities={municipalityPrefs}
         persistedEmploymentTypes={employmentPrefs}
+        persistedSkills={skillPrefs}
+        persistedExperienceYears={experiencePref}
         importCvHref={importCvHref}
         onSaved={(saved) => {
           setOccupations(saved.occupations);
           setRegionPrefs(saved.regions);
           setMunicipalityPrefs(saved.municipalities);
           setEmploymentPrefs(saved.employment);
+          setSkillPrefs(saved.skills);
+          setExperiencePref(saved.experienceYears);
           setSavedAny(true);
           setPromptDismissed(true);
         }}

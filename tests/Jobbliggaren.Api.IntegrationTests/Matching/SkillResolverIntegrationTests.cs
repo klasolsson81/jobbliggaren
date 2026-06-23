@@ -51,6 +51,12 @@ public sealed class SkillResolverIntegrationTests
     private static SkillResolver NewResolver() =>
         new(new SkillTaxonomyIndex(new LocalTextAnalyzer(new SnowballStemmer())));
 
+    // The bare shared index — the substring-search region (ADR 0079 STEG 3 PR-C) exercises
+    // SkillTaxonomyIndex.Search(query, max) directly to assert the index-level rank/cap rules
+    // (the resolver's MaxSearchResults=20 cap is verified through SkillResolver.Search).
+    private static SkillTaxonomyIndex NewIndex() =>
+        new(new LocalTextAnalyzer(new SnowballStemmer()));
+
     // The same index a fresh extractor would build, plus a fresh extractor wired to it —
     // the "one shared index" the no-parallel-resolver pin (test 4) exercises.
     private static (JobAdKeywordExtractor Extractor, SkillResolver Resolver, SkillTaxonomyIndex Index)
@@ -368,6 +374,497 @@ public sealed class SkillResolverIntegrationTests
         detailedIds.ShouldBe(resolveIds.ToHashSet(StringComparer.Ordinal), ignoreOrder: true,
             "ResolveDetailed:s concept-id-mängd måste vara identisk med Resolve:s — labeln " +
             "läggs till, resolutionen ändras inte (ADR 0079, EN delad index).");
+    }
+
+    // ===============================================================
+    // 6. Search (ADR 0079 STEG 3 PR-C) — the skill TYPEAHEAD for the editable
+    //    skill chips' "add" affordance. UNLIKE Resolve/ResolveDetailed (a
+    //    Snowball-lexeme match of a FULL skill name), Search is a case-insensitive
+    //    literal SUBSTRING match against every concept's preferred label + synonyms,
+    //    deduped per concept-id (best rank kept), ranked PREFIX-before-CONTAINS then
+    //    shortest label then ordinal, capped at max. Returns the canonical
+    //    PreferredLabel even on a synonym hit. Blank / <2 chars / max<=0 → empty.
+    //    Goldens are READ LIVE from the committed asset (NEVER a hardcoded token).
+    //    SkillResolver.Search caps at MaxSearchResults=20.
+    // ===============================================================
+
+    // A cap so large the membership/rank tests are never excluded by it — those tests assert
+    // WHICH concepts match and HOW they rank, not the cap (the cap is tests 6/7 below). With a
+    // generous max every match is returned, so a real match can never be cut by the cap.
+    private const int UnboundedMax = 1_000_000;
+
+    [Fact]
+    public void Search_KnownLabelPrefix_ReturnsThatConceptIdAmongHits()
+    {
+        // A real PreferredLabel read live from the asset; its first ~3 chars must surface
+        // that concept among the hits (prefix → rank 0). Pick a label whose 3-char prefix
+        // also clears the <2-char floor and is searchable. Use an unbounded max so the cap
+        // (a separate concern) can never be the reason the concept is absent.
+        var golden = SearchGoldens().First(g => Prefix(g.PreferredLabel, 3) is { Length: >= 2 });
+        var needle = Prefix(golden.PreferredLabel, 3);
+        var sut = NewIndex();
+
+        var hits = sut.Search(needle, UnboundedMax);
+
+        hits.ShouldContain(h => h.ConceptId == golden.ConceptId,
+            $"Prefixet '{needle}' av labeln '{golden.PreferredLabel}' ska finnas bland träffarna.");
+    }
+
+    [Fact]
+    public void Search_PrefixBeatsContains_RanksPrefixHitFirst()
+    {
+        // The rank rule: among hits for one needle, every PREFIX hit (label starts with the
+        // needle) must rank before every CONTAINS hit (needle mid-label). Derive a needle
+        // LIVE that has at least one of each, then assert the rank ordering holds — never a
+        // hardcoded needle.
+        var (needle, prefixIds, containsIds) = FindNeedleWithBothPrefixAndContains();
+        var sut = NewIndex();
+
+        var hits = sut.Search(needle, UnboundedMax);
+
+        var prefixPositions = hits
+            .Select((h, i) => (h, i))
+            .Where(x => prefixIds.Contains(x.h.ConceptId))
+            .Select(x => x.i)
+            .ToList();
+        var containsPositions = hits
+            .Select((h, i) => (h, i))
+            .Where(x => containsIds.Contains(x.h.ConceptId))
+            .Select(x => x.i)
+            .ToList();
+
+        // The assertion is only meaningful if BOTH groups are actually present in the result.
+        prefixPositions.ShouldNotBeEmpty($"Needeln '{needle}' ska ha minst en prefix-träff.");
+        containsPositions.ShouldNotBeEmpty($"Needeln '{needle}' ska ha minst en contains-träff.");
+
+        prefixPositions.Max().ShouldBeLessThan(containsPositions.Min(),
+            $"För needeln '{needle}' ska varje prefix-träff rankas före varje contains-träff " +
+            "(PREFIX-before-CONTAINS, ADR 0079 STEG 3 PR-C).");
+    }
+
+    [Fact]
+    public void Search_ConceptMatchingViaLabelAndSynonym_AppearsOnceDeduped()
+    {
+        // A concept whose preferred label AND a synonym both contain the needle must still
+        // surface ONCE (deduped per concept-id, best rank kept). Construct the needle LIVE
+        // from such a concept in the asset.
+        var (golden, needle) = FindConceptWhereLabelAndSynonymShareNeedle();
+        var sut = NewIndex();
+
+        var hits = sut.Search(needle, UnboundedMax);
+
+        hits.Count(h => h.ConceptId == golden.ConceptId).ShouldBe(1,
+            $"Concept {golden.ConceptId} matchar needeln '{needle}' via både label och synonym, " +
+            "men ska deduperas till EN träff.");
+    }
+
+    [Fact]
+    public void Search_NeedleOnlyInSynonym_ReturnsCanonicalPreferredLabel()
+    {
+        // A needle that a SYNONYM carries but the preferred label does NOT — the returned
+        // Label must be the canonical PreferredLabel, never the synonym (the chip displays
+        // the canonical label, CLAUDE.md §5). Derive such a concept LIVE; skip gracefully
+        // if the asset has none.
+        var found = TryFindConceptWhereNeedleOnlyInSynonym();
+        Assert.SkipUnless(found is not null,
+            "Assetet saknar ett concept där en synonym-only-needle kan härledas — hoppas " +
+            "ärligt (härled, gissa aldrig).");
+        var (golden, needle) = found!.Value;
+        var sut = NewIndex();
+
+        var hits = sut.Search(needle, UnboundedMax);
+
+        var hit = hits.First(h => h.ConceptId == golden.ConceptId);
+        hit.Label.ShouldBe(golden.PreferredLabel,
+            $"Träffen kom via en synonym men Label ska vara den kanoniska PreferredLabel " +
+            $"'{golden.PreferredLabel}', aldrig synonymen.");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t")]
+    [InlineData("a")]
+    [InlineData(" b ")] // trims to 1 char → under the 2-char floor
+    public void Search_BlankWhitespaceOrSingleChar_ReturnsEmpty(string query)
+    {
+        var sut = NewIndex();
+
+        sut.Search(query, 50).ShouldBeEmpty(
+            "Blank/whitespace/<2-tecken ska ge tom lista (ingen flooding på 1-tecken).");
+    }
+
+    [Fact]
+    public void Search_MaxNonPositive_ReturnsEmpty()
+    {
+        // A real prefix that DOES match many concepts, but max<=0 → empty (the cap guard).
+        var golden = SearchGoldens().First(g => Prefix(g.PreferredLabel, 3) is { Length: >= 2 });
+        var needle = Prefix(golden.PreferredLabel, 3);
+        var sut = NewIndex();
+
+        sut.Search(needle, 0).ShouldBeEmpty("max<=0 ska ge tom lista.");
+        sut.Search(needle, -5).ShouldBeEmpty("max<=0 ska ge tom lista.");
+    }
+
+    [Fact]
+    public void Search_CommonSubstring_IndexCapsAtMax()
+    {
+        // A very common Swedish letter-bigram matches far more than the cap; the index must
+        // return AT MOST `max`. Verify it actually saturates (more raw matches than the cap)
+        // so the assertion is meaningful, then assert the cap holds.
+        var needle = CommonBigram();
+        var sut = NewIndex();
+
+        const int max = 7;
+        var hits = sut.Search(needle, max);
+
+        hits.Count.ShouldBeLessThanOrEqualTo(max,
+            $"Index.Search ska returnera högst max={max} för den vanliga needeln '{needle}'.");
+        // Prove saturation: an uncapped (large-max) search returns strictly more than `max`,
+        // so the cap is exercised rather than vacuously satisfied.
+        sut.Search(needle, 10_000).Count.ShouldBeGreaterThan(max,
+            $"Needeln '{needle}' ska matcha fler än {max} concept så cap-regeln faktiskt prövas.");
+    }
+
+    [Fact]
+    public void Search_ResolverCapsAtTwenty_ForCommonSubstring()
+    {
+        // SkillResolver.Search hard-caps at MaxSearchResults=20 regardless of how many
+        // concepts a common needle matches.
+        var needle = CommonBigram();
+        var sut = NewResolver();
+
+        var hits = sut.Search(needle, TestContext.Current.CancellationToken);
+
+        hits.Count.ShouldBeLessThanOrEqualTo(20,
+            $"SkillResolver.Search ska kapa vid 20 för den vanliga needeln '{needle}'.");
+        // And it saturates the cap (the underlying index has well over 20 matches).
+        hits.Count.ShouldBe(20,
+            $"Needeln '{needle}' matchar långt fler än 20 concept → exakt cap-träff (20).");
+    }
+
+    [Fact]
+    public void Search_ResolverYieldsSameConceptIdsAsIndex_AdapterFidelity()
+    {
+        // SkillResolver.Search is a thin adapter over index.Search(query, 20): for the same
+        // query it must return the SAME ordered concept-ids (and labels) the index returns
+        // at max=20 — no second search path that could diverge.
+        var golden = SearchGoldens().First(g => Prefix(g.PreferredLabel, 3) is { Length: >= 2 });
+        var needle = Prefix(golden.PreferredLabel, 3);
+
+        var indexHits = NewIndex().Search(needle, 20);
+        var resolverHits = NewResolver().Search(needle, TestContext.Current.CancellationToken);
+
+        resolverHits.Select(r => r.ConceptId).ShouldBe(indexHits.Select(h => h.ConceptId),
+            "SkillResolver.Search ska spegla index.Search(query, 20):s concept-id-sekvens exakt.");
+        resolverHits.Select(r => r.Label).ShouldBe(indexHits.Select(h => h.Label),
+            "Adaptern ska bära index:ets kanoniska labels oförändrade.");
+    }
+
+    [Fact]
+    public void Search_IsDeterministic_SameQueryTwice_IdenticalOrderedResult()
+    {
+        var needle = CommonBigram();
+
+        var first = NewIndex().Search(needle, 20);
+        var second = NewIndex().Search(needle, 20);
+
+        first.Select(h => h.ConceptId).ShouldBe(second.Select(h => h.ConceptId),
+            "Search är ren över immutable reference-data → identisk ordnad concept-id-sekvens.");
+        first.Select(h => h.Label).ShouldBe(second.Select(h => h.Label),
+            "Identisk ordnad label-sekvens vid upprepad körning.");
+    }
+
+    // ===============================================================
+    // 7. ResolveLabels (ADR 0079 STEG 3 PR-C) — reverse-lookup, the skill analog of
+    //    the occupation taxonomy reverse-lookup (ADR 0043). Given STORED concept-ids,
+    //    map each to its canonical PreferredLabel so the saved skill chips render names,
+    //    never opaque ids. UNKNOWN ids dropped silently (a stale/removed concept never
+    //    crashes the read); blank/whitespace dropped; deduped per concept-id;
+    //    deterministic ORDINAL order by ConceptId. The (conceptId, PreferredLabel) pair
+    //    is READ LIVE from the committed asset (NEVER a hardcoded concept-id).
+    //    SkillResolver.ResolveLabels is the thin adapter (→ ResolvedSkill).
+    // ===============================================================
+
+    // An id that cannot exist in the JobTech snapshot — used to assert the silent drop.
+    private const string UnknownConceptId = "skill_does_not_exist_xyz";
+
+    [Fact]
+    public void ResolveLabels_RealConceptId_ReturnsItsCanonicalPreferredLabel()
+    {
+        // A real (conceptId, PreferredLabel) pair read live from the asset.
+        var golden = SearchGoldens()[0];
+        var sut = NewIndex();
+
+        var resolved = sut.ResolveLabels([golden.ConceptId]);
+
+        var match = resolved.ShouldHaveSingleItem();
+        match.ConceptId.ShouldBe(golden.ConceptId);
+        match.Label.ShouldBe(golden.PreferredLabel,
+            $"Concept {golden.ConceptId} ska resolvas till sin kanoniska label " +
+            $"'{golden.PreferredLabel}' (ej en opak id, CLAUDE.md §5).");
+    }
+
+    [Fact]
+    public void ResolveLabels_UnknownConceptId_IsDroppedSilently_NeverThrows()
+    {
+        var sut = NewIndex();
+
+        var resolved = sut.ResolveLabels([UnknownConceptId]);
+
+        resolved.ShouldBeEmpty(
+            "Ett okänt/borttaget concept-id ska droppas tyst (graceful, aldrig krasch).");
+    }
+
+    [Fact]
+    public void ResolveLabels_MixedKnownAndUnknown_ResolvesOnlyTheKnown()
+    {
+        var golden = SearchGoldens()[0];
+        var sut = NewIndex();
+
+        var resolved = sut.ResolveLabels([UnknownConceptId, golden.ConceptId]);
+
+        resolved.ShouldContain(r => r.ConceptId == golden.ConceptId && r.Label == golden.PreferredLabel);
+        resolved.ShouldNotContain(r => r.ConceptId == UnknownConceptId);
+    }
+
+    [Fact]
+    public void ResolveLabels_DuplicateConceptIds_AreDedupedToOneEntry()
+    {
+        var golden = SearchGoldens()[0];
+        var sut = NewIndex();
+
+        var resolved = sut.ResolveLabels([golden.ConceptId, golden.ConceptId]);
+
+        resolved.Count(r => r.ConceptId == golden.ConceptId).ShouldBe(1,
+            "Duplicerade concept-ids ska deduperas till EN post.");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t")]
+    public void ResolveLabels_BlankOrWhitespaceConceptIds_AreDropped_NeverThrows(string blank)
+    {
+        var sut = NewIndex();
+
+        var resolved = sut.ResolveLabels([blank]);
+
+        resolved.ShouldBeEmpty("Tom/whitespace concept-id ska droppas tyst, aldrig kasta.");
+    }
+
+    [Fact]
+    public void ResolveLabels_RoundTripsWithSearch_SameConceptResolvesToSameLabel()
+    {
+        // A concept surfaced by Search("<prefix>") must reverse-lookup via ResolveLabels to
+        // the SAME canonical label — one shared LabelByConceptId map, no divergence between
+        // the typeahead path and the saved-chip path. Derive the prefix LIVE from the asset.
+        var golden = SearchGoldens().First(g => Prefix(g.PreferredLabel, 3) is { Length: >= 2 });
+        var needle = Prefix(golden.PreferredLabel, 3);
+        var sut = NewIndex();
+
+        var searchHit = sut.Search(needle, UnboundedMax)
+            .First(h => h.ConceptId == golden.ConceptId);
+
+        var reversed = sut.ResolveLabels([searchHit.ConceptId]).ShouldHaveSingleItem();
+
+        reversed.ConceptId.ShouldBe(searchHit.ConceptId);
+        reversed.Label.ShouldBe(searchHit.Label,
+            $"Concept-id:t som Search('{needle}') gav ska reverse-lookup:a till SAMMA label " +
+            "(en delad LabelByConceptId-map, ingen divergens).");
+    }
+
+    [Fact]
+    public void ResolveLabels_IsDeterministic_SameInputTwice_IdenticalOrderedResult()
+    {
+        // Several real concept-ids in non-ordinal input order → identical ORDINAL-ordered
+        // result twice (sorted by ConceptId, deterministic over immutable reference data).
+        var ids = SearchGoldens().Take(4).Select(g => g.ConceptId).Reverse().ToList();
+
+        var first = NewIndex().ResolveLabels(ids);
+        var second = NewIndex().ResolveLabels(ids);
+
+        first.Select(r => r.ConceptId).ShouldBe(second.Select(r => r.ConceptId),
+            "ResolveLabels är ren över immutable reference-data → identisk ordnad sekvens.");
+        first.Select(r => r.Label).ShouldBe(second.Select(r => r.Label),
+            "Identisk ordnad label-sekvens vid upprepad körning.");
+        // And the documented invariant: deterministic ORDINAL order by ConceptId.
+        first.Select(r => r.ConceptId)
+            .ShouldBe(first.Select(r => r.ConceptId).OrderBy(id => id, StringComparer.Ordinal),
+                "Resultatet ska vara ordinal-sorterat på ConceptId.");
+    }
+
+    [Fact]
+    public void ResolveLabels_Resolver_MatchesIndex_AdapterFidelity()
+    {
+        // SkillResolver.ResolveLabels is a thin adapter over index.ResolveLabels: for the
+        // same ids it must return the SAME ordered concept-ids AND labels (mapped to
+        // ResolvedSkill) — no second reverse-lookup path that could diverge.
+        var ids = SearchGoldens().Take(4).Select(g => g.ConceptId).Reverse().ToList();
+
+        var indexHits = NewIndex().ResolveLabels(ids);
+        var resolverHits = NewResolver().ResolveLabels(ids, TestContext.Current.CancellationToken);
+
+        resolverHits.Select(r => r.ConceptId).ShouldBe(indexHits.Select(h => h.ConceptId),
+            "SkillResolver.ResolveLabels ska spegla index.ResolveLabels:s concept-id-sekvens exakt.");
+        resolverHits.Select(r => r.Label).ShouldBe(indexHits.Select(h => h.Label),
+            "Adaptern ska bära index:ets kanoniska labels oförändrade.");
+    }
+
+    // ---------------------------------------------------------------
+    // Search-golden derivation — read the committed asset live WITH synonyms (the
+    // typeahead matches preferred label + synonyms, so the Resolve goldens above,
+    // which read labels only, are insufficient). Every needle is constructed from a
+    // real surface form; nothing is hardcoded.
+    // ---------------------------------------------------------------
+
+    private sealed record SearchConcept(string ConceptId, string PreferredLabel, IReadOnlyList<string> Synonyms);
+
+    private static string Prefix(string label, int n)
+    {
+        var t = label.Trim();
+        return t.Length <= n ? t : t[..n];
+    }
+
+    // Concepts usable as search goldens: a non-blank, letter-only-ish prefix is derivable.
+    private static List<SearchConcept> SearchGoldens()
+    {
+        var goldens = ReadSearchConcepts()
+            .Where(c => !string.IsNullOrWhiteSpace(c.PreferredLabel))
+            .Where(c => c.PreferredLabel.Trim().Length >= 4)
+            .OrderBy(c => c.ConceptId, StringComparer.Ordinal)
+            .ToList();
+        goldens.ShouldNotBeEmpty(
+            $"Inga search-goldens kunde härledas ur {SkillTaxonomyResource} (härled, gissa aldrig).");
+        return goldens;
+    }
+
+    // A needle that is a PREFIX of at least one concept's label AND a mid-label CONTAINS of
+    // at least one OTHER concept's label — so the prefix-before-contains rank rule is testable.
+    private static (string Needle, HashSet<string> PrefixIds, HashSet<string> ContainsIds)
+        FindNeedleWithBothPrefixAndContains()
+    {
+        var concepts = ReadSearchConcepts()
+            .Where(c => !string.IsNullOrWhiteSpace(c.PreferredLabel))
+            .ToList();
+
+        // Candidate needles: 3-char lower-cased prefixes of real labels.
+        foreach (var c in concepts.OrderBy(c => c.ConceptId, StringComparer.Ordinal))
+        {
+            var needle = Prefix(c.PreferredLabel, 3).ToLowerInvariant();
+            if (needle.Length < 2)
+                continue;
+
+            var prefixIds = new HashSet<string>(StringComparer.Ordinal);
+            var containsIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var other in concepts)
+            {
+                var idx = other.PreferredLabel.Trim().ToLowerInvariant()
+                    .IndexOf(needle, StringComparison.Ordinal);
+                if (idx == 0)
+                    prefixIds.Add(other.ConceptId);
+                else if (idx > 0)
+                    containsIds.Add(other.ConceptId);
+            }
+
+            // Need genuine separation: a concept that is ONLY a contains-hit (not also a
+            // prefix-hit on another form) so the rank comparison is unambiguous.
+            containsIds.ExceptWith(prefixIds);
+            if (prefixIds.Count > 0 && containsIds.Count > 0)
+                return (needle, prefixIds, containsIds);
+        }
+
+        throw new InvalidOperationException(
+            "Kunde inte härleda en needle med både prefix- och contains-träff ur " +
+            $"{SkillTaxonomyResource} — assetens form har ändrats.");
+    }
+
+    // A concept whose preferred label AND one of its synonyms both contain the same needle.
+    private static (SearchConcept Golden, string Needle) FindConceptWhereLabelAndSynonymShareNeedle()
+    {
+        foreach (var c in ReadSearchConcepts().OrderBy(c => c.ConceptId, StringComparer.Ordinal))
+        {
+            var label = c.PreferredLabel.Trim().ToLowerInvariant();
+            if (label.Length < 2)
+                continue;
+            foreach (var syn in c.Synonyms)
+            {
+                var s = (syn ?? string.Empty).Trim().ToLowerInvariant();
+                if (s.Length < 2)
+                    continue;
+                // Shared needle = the longest common >=2-char prefix of label and synonym
+                // is overkill; the synonym is typically a substring of the label (e.g. "Bower"
+                // vs "Bower, pakethanterare"). Use the first 2 chars of the synonym when both
+                // contain it.
+                var needle = s.Length >= 2 ? s[..Math.Min(s.Length, 3)] : s;
+                if (label.Contains(needle, StringComparison.Ordinal)
+                    && s.Contains(needle, StringComparison.Ordinal)
+                    && needle.Length >= 2)
+                {
+                    return (c, needle);
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Kunde inte härleda ett concept där label och synonym delar en needle ur " +
+            $"{SkillTaxonomyResource}.");
+    }
+
+    // A concept where a needle exists in a SYNONYM but NOT in the preferred label, AND that
+    // needle does not collide with the same concept via another form — so the canonical-label
+    // assertion is clean. Returns null if the asset has none (test skips gracefully).
+    private static (SearchConcept Golden, string Needle)? TryFindConceptWhereNeedleOnlyInSynonym()
+    {
+        foreach (var c in ReadSearchConcepts().OrderBy(c => c.ConceptId, StringComparer.Ordinal))
+        {
+            var label = c.PreferredLabel.Trim().ToLowerInvariant();
+            foreach (var syn in c.Synonyms)
+            {
+                var s = (syn ?? string.Empty).Trim().ToLowerInvariant();
+                if (s.Length < 2)
+                    continue;
+                // The whole synonym is a needle the synonym carries; if the label does NOT
+                // contain it, a search on it hits this concept ONLY via the synonym → the
+                // returned Label must be the canonical PreferredLabel.
+                if (!label.Contains(s, StringComparison.Ordinal))
+                    return (c, s);
+            }
+        }
+
+        return null;
+    }
+
+    // A very common Swedish letter-bigram guaranteed to match far more than any test cap.
+    // Verified live to exceed the caps by the saturation assertions; "in" is ubiquitous in
+    // Swedish skill labels (utbildning, hantering, ...).
+    private static string CommonBigram() => "in";
+
+    private static List<SearchConcept> ReadSearchConcepts()
+    {
+        var asm = typeof(LocalTextAnalyzer).Assembly; // Infrastructure assembly
+        using var stream = asm.GetManifestResourceStream(SkillTaxonomyResource);
+        stream.ShouldNotBeNull(
+            $"Skill-taxonomi-resursen '{SkillTaxonomyResource}' ska vara en " +
+            "<EmbeddedResource> i Infrastructure-assemblyn (csproj LogicalName).");
+
+        using var doc = JsonDocument.Parse(stream!);
+        var skills = doc.RootElement.GetProperty("skills");
+        var list = new List<SearchConcept>(skills.GetArrayLength());
+        foreach (var el in skills.EnumerateArray())
+        {
+            var synonyms = new List<string>();
+            if (el.TryGetProperty("synonyms", out var syns) && syns.ValueKind == JsonValueKind.Array)
+                foreach (var s in syns.EnumerateArray())
+                    if (s.GetString() is { } str)
+                        synonyms.Add(str);
+
+            list.Add(new SearchConcept(
+                el.GetProperty("conceptId").GetString()!,
+                el.GetProperty("preferredLabel").GetString()!,
+                synonyms));
+        }
+        return list;
     }
 
     // ---------------------------------------------------------------

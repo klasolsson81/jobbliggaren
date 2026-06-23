@@ -7,15 +7,28 @@ import type {
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
 
-const { updateMock, deriveMock, cvSuggestMock } = vi.hoisted(() => ({
+const {
+  updateMock,
+  deriveMock,
+  cvSuggestMock,
+  parsedSuggestMock,
+  skillSearchMock,
+  skillSuggestMock,
+} = vi.hoisted(() => ({
   updateMock: vi.fn(),
   deriveMock: vi.fn(),
   cvSuggestMock: vi.fn(),
+  parsedSuggestMock: vi.fn(),
+  skillSearchMock: vi.fn(),
+  skillSuggestMock: vi.fn(),
 }));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
+  suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
+  searchSkillsAction: skillSearchMock,
+  suggestSkillsFromParsedResumeAction: skillSuggestMock,
 }));
 
 import { CvMatchSetup } from "./cv-match-setup";
@@ -46,6 +59,8 @@ function renderSetup(
       persistedRegions={[]}
       persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
+      persistedSkills={[]}
+      persistedExperienceYears={null}
       importCvHref="/cv/importera"
       hasPreferences={false}
       showPrompt={false}
@@ -57,7 +72,13 @@ function renderSetup(
 beforeEach(() => {
   updateMock.mockReset();
   cvSuggestMock.mockReset();
+  parsedSuggestMock.mockReset();
+  skillSearchMock.mockReset();
+  skillSuggestMock.mockReset();
   cvSuggestMock.mockResolvedValue({ kind: "noCv" });
+  parsedSuggestMock.mockResolvedValue({ kind: "noCv" });
+  skillSearchMock.mockResolvedValue({ success: true, options: [] });
+  skillSuggestMock.mockResolvedValue({ kind: "noCv" });
 });
 
 describe("CvMatchSetup — trigger-copy", () => {
@@ -106,7 +127,7 @@ describe("CvMatchSetup — post-promote-prompt (design C.3)", () => {
     const user = userEvent.setup();
     renderSetup({ showPrompt: true });
     await user.click(screen.getByRole("button", { name: "Ställ in matchning" }));
-    // Wizardens steg 1 monteras.
-    expect(await screen.findByText("Steg 1 av 4")).toBeInTheDocument();
+    // Wizardens steg 1 monteras (STEG 3 / ADR 0079: nu 5 steg).
+    expect(await screen.findByText("Steg 1 av 5")).toBeInTheDocument();
   });
 });

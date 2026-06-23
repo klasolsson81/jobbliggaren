@@ -8,6 +8,8 @@ using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
+using Jobbliggaren.Application.Matching.Queries.ResolveSkillLabels;
+using Jobbliggaren.Application.Matching.Queries.SearchSkills;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
 
@@ -163,6 +165,37 @@ public static class JobAdsEndpoints
             http.Response.Headers.CacheControl = "private, no-store";
             var result = await mediator.Send(
                 new ResolveTaxonomyLabelsQuery(ids ?? []), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
+
+        // ADR 0079 STEG 3 PR-C — skill typeahead for the editable match-skill chips' "add"
+        // affordance. The skill taxonomy is a flat ~20k-concept vocabulary with no
+        // browsable hierarchy (unlike the occupation tree above), so the FE searches
+        // server-side. Non-PII reference data (taxonomy labels); a blank/too-short q → [].
+        // Cache-Control: private, no-store (varies per keystroke). Rate-limited (mirrors
+        // the sibling taxonomy reads).
+        group.MapGet("/taxonomy/skills/search", async (
+            IMediator mediator, HttpContext http,
+            string? q = null, CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new SearchSkillsQuery(q ?? string.Empty), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
+
+        // ADR 0079 STEG 3 PR-C — reverse-lookup (concept-id → canonical label) for the
+        // saved skill chips' cold-load display (the skill analog of /taxonomy/labels): the
+        // flat skill vocabulary is never shipped as a tree, so the settings page resolves
+        // its stored PreferredSkills concept-ids to names here. Unknown ids drop. Non-PII.
+        // Cache-Control: private, no-store (varies per ids). Rate-limited.
+        group.MapGet("/taxonomy/skills/labels", async (
+            IMediator mediator, HttpContext http,
+            string[]? ids = null, CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new ResolveSkillLabelsQuery(ids ?? []), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);

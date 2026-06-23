@@ -23,6 +23,8 @@ import {
   type Option,
 } from "./match-preferences-shared";
 import { OccupationSection } from "./occupation-section";
+import { SkillSection } from "./skill-section";
+import { ExperienceField } from "./experience-field";
 import { FacetSection } from "./facet-section";
 import { RegionMunicipalityCascade } from "./region-municipality-cascade";
 import { PreferenceChip } from "./preference-chip";
@@ -40,12 +42,24 @@ interface MatchSetupWizardProps {
   /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
+  /** STEG 3 / ADR 0079: kompetens-axeln (pre-fill för kompetens-steget). */
+  readonly persistedSkills: ReadonlyArray<string>;
+  /** STEG 3 / ADR 0079: profil-nivå erfarenhet (`null` = ej angivet). */
+  readonly persistedExperienceYears: number | null;
+  /**
+   * STEG 3 / ADR 0079: labels för redan-sparade kompetens-concept-id (den
+   * platta skill-taxonomin skickas aldrig som träd → värden läser tillbaka
+   * labels när de finns; saknade faller tillbaka på id-strängen).
+   */
+  readonly persistedSkillLabels?: ReadonlyArray<Option>;
   /** Anropas efter lyckad save med den sparade fulla mängden. */
   readonly onSaved?: (saved: {
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
+    skills: ReadonlyArray<string>;
+    experienceYears: number | null;
   }) => void;
   /** CV-importflödets route (tom-state-länken i yrkes-steget). */
   readonly importCvHref: string;
@@ -65,9 +79,18 @@ interface MatchSetupWizardProps {
    * svagare latestRole-vägen). Utelämnad → oförändrat beteende.
    */
   readonly proposedOccupationGroups?: ReadonlyArray<string>;
+  /**
+   * STEG 3 / ADR 0079 — welcome-flödet befordrar CV:t FÖRE wizarden, vilket
+   * raderar staging-artefakten som bär CV-kompetens-förslagen. Welcome-modalen
+   * förhämtar dem (med labels, {@link Option}) innan promote och bär in dem hit.
+   * När satt seedas kompetens-draften med dessa förslag och SkillSection
+   * auto-föreslår INTE (staging-artefakten finns inte längre). Utelämnad →
+   * oförändrat (inget CV-förslag i kompetens-steget).
+   */
+  readonly proposedSkills?: ReadonlyArray<Option>;
 }
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 /**
  * Match-setup-wizard (ADR 0077 STEG 5) — en skippbar fyra-stegs wide
@@ -86,15 +109,20 @@ export function MatchSetupWizard({
   persistedRegions,
   persistedMunicipalities,
   persistedEmploymentTypes,
+  persistedSkills,
+  persistedExperienceYears,
+  persistedSkillLabels = [],
   onSaved,
   importCvHref,
   parsedResumeId,
   proposedOccupationGroups,
+  proposedSkills,
 }: MatchSetupWizardProps) {
   const t = useTranslations("settings");
   // Stegens konkreta substantiv-rubriker (design-bind A2.i), via katalogen.
   const stepTitles: ReadonlyArray<string> = [
     t("matchPrefs.wizard.stepOccupations"),
+    t("matchPrefs.wizard.stepSkills"),
     t("matchPrefs.wizard.stepOrter"),
     t("matchPrefs.wizard.stepEmployment"),
     t("matchPrefs.wizard.stepDone"),
@@ -129,6 +157,20 @@ export function MatchSetupWizard({
   const [draftEmployment, setDraftEmployment] = useState<ReadonlyArray<string>>(
     persistedEmploymentTypes
   );
+  const [draftSkills, setDraftSkills] = useState<ReadonlyArray<string>>(
+    persistedSkills
+  );
+  const [draftExperience, setDraftExperience] = useState<number | null>(
+    persistedExperienceYears
+  );
+
+  // Labels för kompetens-chips: persisterade labels UNION welcome-förslagens
+  // labels (den platta skill-taxonomin skickas aldrig som träd, så SkillSection
+  // saknar annars uppslagning för en seedad chip).
+  const skillSeedLabels: ReadonlyArray<Option> = [
+    ...persistedSkillLabels,
+    ...(proposedSkills ?? []),
+  ];
 
   const [isSaving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -153,6 +195,16 @@ export function MatchSetupWizard({
     setDraftRegions(persistedRegions);
     setDraftMunicipalities(persistedMunicipalities);
     setDraftEmployment(persistedEmploymentTypes);
+    // STEG 3 / ADR 0079: seed med persisterad SSOT UNION welcome-flödets
+    // förhämtade CV-kompetens-förslag (de bärs in när staging-artefakten redan
+    // promotats). Erfarenhet seedas direkt (ingen förslags-väg).
+    setDraftSkills([
+      ...new Set([
+        ...persistedSkills,
+        ...(proposedSkills ?? []).map((s) => s.conceptId),
+      ]),
+    ]);
+    setDraftExperience(persistedExperienceYears);
     setSaveError(null);
   }
   if (!open && seededFor) {
@@ -192,6 +244,10 @@ export function MatchSetupWizard({
         preferredRegions: [...draftRegions],
         preferredMunicipalities: [...draftMunicipalities],
         preferredEmploymentTypes: [...draftEmployment],
+        // STEG 3 / ADR 0079: kompetens + erfarenhet i SAMMA full-replace-PUT —
+        // annars skulle ett spar av en annan dimension nolla dem (page-wipe).
+        preferredSkills: [...draftSkills],
+        experienceYears: draftExperience,
       });
       if (result.success) {
         onSaved?.({
@@ -199,6 +255,8 @@ export function MatchSetupWizard({
           regions: draftRegions,
           municipalities: draftMunicipalities,
           employment: draftEmployment,
+          skills: draftSkills,
+          experienceYears: draftExperience,
         });
         onOpenChange(false);
       } else {
@@ -251,28 +309,39 @@ export function MatchSetupWizard({
               wizarden utan bekräftelse — inget skrivs förrän "Spara matchning". */}
         </div>
 
-        {step === 4 ? (
+        {step === 5 ? (
           <ReviewStep
             labels={{
               occupationsTitle: t("matchPrefs.facetOccupations"),
+              skillsTitle: t("matchPrefs.facetSkills"),
               orterTitle: t("matchPrefs.facetOrter"),
               employmentTitle: t("matchPrefs.facetEmployment"),
               occupationsEmpty: t("matchPrefs.emptyOccupations"),
+              skillsEmpty: t("matchPrefs.emptySkills"),
               orterEmpty: t("matchPrefs.emptyOrter"),
               employmentEmpty: t("matchPrefs.emptyEmployment"),
               occupationsAria: t("matchPrefs.selectedOccupations"),
+              skillsAria: t("matchPrefs.selectedSkills"),
               orterAria: t("matchPrefs.selectedOrter"),
               employmentAria: t("matchPrefs.selectedEmployment"),
+              experienceTitle: t("matchPrefs.experience.label"),
+              experienceValue: t("matchPrefs.experience.reviewValue", {
+                years: draftExperience ?? 0,
+              }),
+              experienceEmpty: t("matchPrefs.experience.reviewEmpty"),
             }}
             occupations={labelsForSelected(draftOccupations, flattenOccupationGroups(occupationFields))}
+            skills={labelsForSelected(draftSkills, skillSeedLabels)}
             orter={[
               ...labelsForSelected(draftRegions, regionOptions),
               ...labelsForSelected(draftMunicipalities, municipalityOptions),
             ]}
             employment={labelsForSelected(draftEmployment, employmentOptions)}
+            experienceYears={draftExperience}
             onRemoveOccupation={(id) =>
               setDraftOccupations((prev) => toggle(prev, id))
             }
+            onRemoveSkill={(id) => setDraftSkills((prev) => toggle(prev, id))}
             // En ort-chip kan vara län ELLER kommun — ta bort ur rätt axel.
             onRemoveOrt={(id) => {
               setDraftRegions((prev) => prev.filter((r) => r !== id));
@@ -310,6 +379,31 @@ export function MatchSetupWizard({
                 />
               )}
               {step === 2 && (
+                <div className="jp-wizard__substeps">
+                  <SkillSection
+                    selected={draftSkills}
+                    onToggle={(id) => setDraftSkills((prev) => toggle(prev, id))}
+                    onReplace={(next) => setDraftSkills(next)}
+                    onClear={() => setDraftSkills([])}
+                    idPrefix="match-wizard-skill"
+                    showHeading={false}
+                    initialLabels={skillSeedLabels}
+                    // Förhämtade förslag (welcome-flödet) → draften är redan
+                    // seedad, staging-artefakten finns inte längre → ingen
+                    // auto-suggest. Annars läser parsed-vägen (just uppladdat CV).
+                    autoSuggestFromCv={proposedSkills === undefined}
+                    parsedResumeId={
+                      proposedSkills === undefined ? parsedResumeId : undefined
+                    }
+                  />
+                  <ExperienceField
+                    value={draftExperience}
+                    onChange={setDraftExperience}
+                    idPrefix="match-wizard-experience"
+                  />
+                </div>
+              )}
+              {step === 3 && (
                 <RegionMunicipalityCascade
                   regions={regions}
                   selectedRegions={draftRegions}
@@ -319,7 +413,7 @@ export function MatchSetupWizard({
                   idPrefix="match-wizard-ort"
                 />
               )}
-              {step === 3 && (
+              {step === 4 && (
                 <FacetSection
                   title={t("matchPrefs.facetEmployment")}
                   options={employmentOptions}
@@ -383,8 +477,10 @@ function stepIntro(t: SettingsTranslator, step: number): string {
     case 1:
       return t("matchPrefs.wizard.introOccupations");
     case 2:
-      return t("matchPrefs.wizard.introOrter");
+      return t("matchPrefs.wizard.introSkills");
     case 3:
+      return t("matchPrefs.wizard.introOrter");
+    case 4:
       return t("matchPrefs.wizard.introEmployment");
     default:
       return t("matchPrefs.wizard.introReview");
@@ -392,36 +488,48 @@ function stepIntro(t: SettingsTranslator, step: number): string {
 }
 
 /**
- * Klart-/bekräfta-steget (steg 4): granska de valda chipsen per dimension.
- * Borttagbara (PreferenceChip) — sista chansen att rensa innan save. Tom
- * dimension visar en ärlig "inget valt"-rad (ej fejkat).
+ * Klart-/bekräfta-steget (steg 5): granska de valda chipsen per dimension +
+ * erfarenhet. Borttagbara (PreferenceChip) — sista chansen att rensa innan
+ * save. Tom dimension visar en ärlig "inget valt"-rad (ej fejkat).
  */
 interface ReviewLabels {
   readonly occupationsTitle: string;
+  readonly skillsTitle: string;
   readonly orterTitle: string;
   readonly employmentTitle: string;
   readonly occupationsEmpty: string;
+  readonly skillsEmpty: string;
   readonly orterEmpty: string;
   readonly employmentEmpty: string;
   readonly occupationsAria: string;
+  readonly skillsAria: string;
   readonly orterAria: string;
   readonly employmentAria: string;
+  readonly experienceTitle: string;
+  readonly experienceValue: string;
+  readonly experienceEmpty: string;
 }
 
 function ReviewStep({
   labels,
   occupations,
+  skills,
   orter,
   employment,
+  experienceYears,
   onRemoveOccupation,
+  onRemoveSkill,
   onRemoveOrt,
   onRemoveEmployment,
 }: {
   readonly labels: ReviewLabels;
   readonly occupations: ReadonlyArray<Option>;
+  readonly skills: ReadonlyArray<Option>;
   readonly orter: ReadonlyArray<Option>;
   readonly employment: ReadonlyArray<Option>;
+  readonly experienceYears: number | null;
   readonly onRemoveOccupation: (conceptId: string) => void;
+  readonly onRemoveSkill: (conceptId: string) => void;
   readonly onRemoveOrt: (conceptId: string) => void;
   readonly onRemoveEmployment: (conceptId: string) => void;
 }) {
@@ -434,6 +542,25 @@ function ReviewStep({
         onRemove={onRemoveOccupation}
         ariaLabel={labels.occupationsAria}
       />
+      <ReviewFacet
+        title={labels.skillsTitle}
+        empty={labels.skillsEmpty}
+        chips={skills}
+        onRemove={onRemoveSkill}
+        ariaLabel={labels.skillsAria}
+      />
+      {/* Erfarenhet: en enkel text-rad (en siffra, inte chips). Ärlig tom-rad
+          när inget angetts. */}
+      <section className="jp-matchdialog__section" role="group">
+        <div className="jp-matchdialog__sectionhead">
+          <span className="jp-popover__title">{labels.experienceTitle}</span>
+        </div>
+        <p className="text-body-sm text-text-secondary">
+          {experienceYears === null
+            ? labels.experienceEmpty
+            : labels.experienceValue}
+        </p>
+      </section>
       <ReviewFacet
         title={labels.orterTitle}
         empty={labels.orterEmpty}

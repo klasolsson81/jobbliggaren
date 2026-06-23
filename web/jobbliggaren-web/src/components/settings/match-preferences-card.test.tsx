@@ -8,15 +8,31 @@ import type {
 } from "@/lib/dto/taxonomy";
 
 // Mock action-modulens exports (server-actions körs aldrig i jsdom).
-const { updateMock, deriveMock, cvSuggestMock } = vi.hoisted(() => ({
+// suggestOccupationsFromParsedResumeAction + de två skill-actionerna behövs
+// eftersom den (alltid monterade) dialogen importerar OccupationSection +
+// SkillSection som refererar dem.
+const {
+  updateMock,
+  deriveMock,
+  cvSuggestMock,
+  parsedSuggestMock,
+  skillSearchMock,
+  skillSuggestMock,
+} = vi.hoisted(() => ({
   updateMock: vi.fn(),
   deriveMock: vi.fn(),
   cvSuggestMock: vi.fn(),
+  parsedSuggestMock: vi.fn(),
+  skillSearchMock: vi.fn(),
+  skillSuggestMock: vi.fn(),
 }));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
   deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
+  suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
+  searchSkillsAction: skillSearchMock,
+  suggestSkillsFromParsedResumeAction: skillSuggestMock,
 }));
 
 import {
@@ -66,6 +82,9 @@ function renderCard(
       initialRegions={[]}
       initialMunicipalities={[]}
       initialEmploymentTypes={[]}
+      initialSkills={[]}
+      initialSkillLabels={[]}
+      initialExperienceYears={null}
       degraded={false}
       {...overrides}
     />
@@ -76,9 +95,15 @@ beforeEach(() => {
   updateMock.mockReset();
   deriveMock.mockReset();
   cvSuggestMock.mockReset();
+  parsedSuggestMock.mockReset();
+  skillSearchMock.mockReset();
+  skillSuggestMock.mockReset();
   updateMock.mockResolvedValue({ success: true });
   deriveMock.mockResolvedValue({ success: true, candidates: [] });
   cvSuggestMock.mockResolvedValue({ kind: "noCv" });
+  parsedSuggestMock.mockResolvedValue({ kind: "noCv" });
+  skillSearchMock.mockResolvedValue({ success: true, options: [] });
+  skillSuggestMock.mockResolvedValue({ kind: "noCv" });
 });
 
 describe("flattenOccupationGroups", () => {
@@ -156,6 +181,26 @@ describe("MatchPreferencesCard — summary + chips", () => {
     ).toBeInTheDocument();
   });
 
+  it("sparade kompetenser renderar NAMN vid kall laddning ur initialSkillLabels (ADR 0047)", () => {
+    renderCard({
+      initialSkills: ["skill_react"],
+      initialSkillLabels: [{ conceptId: "skill_react", label: "React" }],
+    });
+    const skills = screen.getByRole("group", { name: "Kompetenser" });
+    expect(within(skills).getByText("React")).toBeInTheDocument();
+    expect(
+      within(skills).getByRole("button", { name: "Ta bort React" })
+    ).toBeInTheDocument();
+  });
+
+  it("sparad kompetens utan label faller tillbaka på id:t (borttaget concept)", () => {
+    renderCard({ initialSkills: ["skill_gone"], initialSkillLabels: [] });
+    const skills = screen.getByRole("group", { name: "Kompetenser" });
+    expect(
+      within(skills).getByRole("button", { name: "Ta bort skill_gone" })
+    ).toBeInTheDocument();
+  });
+
   it("'Lägg till' är en dialog-affordans (aria-haspopup=dialog)", () => {
     renderCard();
     const add = screen.getByRole("button", { name: "Lägg till" });
@@ -196,6 +241,8 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
       preferredEmploymentTypes: ["et_fast"],
+      preferredSkills: [],
+      experienceYears: null,
     });
   });
 
@@ -216,6 +263,8 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: ["mun_b"],
       preferredEmploymentTypes: [],
+      preferredSkills: [],
+      experienceYears: null,
     });
   });
 

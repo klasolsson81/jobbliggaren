@@ -6,6 +6,8 @@ import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { getParsedResume } from "@/lib/api/resumes";
+import { getParsedResumeSkills } from "@/lib/api/skills";
+import type { SkillOption } from "@/lib/dto/skills";
 import {
   makeCreateResumeSchema,
   makeRenameResumeSchema,
@@ -313,6 +315,10 @@ export type LoadParsedForGapFillResult =
        * import. Bärs in i welcome-wizarden INNAN promote raderar staging-
        * artefakten, så de rika förslagen överlever befordran (ADR 0079 STEG 1). */
       proposedOccupationGroups: string[];
+      /** STEG 3 / ADR 0079: CV-kompetens-förslag (med labels) förhämtade INNAN
+       * promote (som soft-raderar staging-artefakten + dess `/skills`-projektion),
+       * så de bärs in i wizardens kompetens-steg. Tom lista = inget förslag. */
+      proposedSkills: SkillOption[];
     }
   | { kind: "unauthorized" }
   | { kind: "notFound" }
@@ -334,14 +340,7 @@ export async function loadParsedResumeForGapFillAction(
   const result = await getParsedResume(parsedResumeId);
   switch (result.kind) {
     case "ok":
-      return {
-        kind: "ok",
-        sourceFileName: result.data.sourceFileName,
-        content: result.data.content,
-        proposedOccupationGroups: result.data.occupationProposals.map(
-          (p) => p.conceptId
-        ),
-      };
+      break;
     case "unauthorized":
       return { kind: "unauthorized" };
     case "notFound":
@@ -349,6 +348,24 @@ export async function loadParsedResumeForGapFillAction(
     default:
       return { kind: "error" };
   }
+
+  // STEG 3 / ADR 0079: prefetch the CV skill proposals from the SAME staging
+  // artifact while it still exists (promote soft-deletes it). A failed/empty
+  // skills read degrades to "no skill proposals" — the gap-fill + occupation
+  // proposals must not be lost just because skills could not be read.
+  const skillsResult = await getParsedResumeSkills(parsedResumeId);
+  const proposedSkills =
+    skillsResult.kind === "ok" ? skillsResult.data : [];
+
+  return {
+    kind: "ok",
+    sourceFileName: result.data.sourceFileName,
+    content: result.data.content,
+    proposedOccupationGroups: result.data.occupationProposals.map(
+      (p) => p.conceptId
+    ),
+    proposedSkills,
+  };
 }
 
 export async function deleteResumeVersionAction(

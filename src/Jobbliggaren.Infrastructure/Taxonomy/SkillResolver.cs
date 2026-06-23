@@ -56,4 +56,30 @@ internal sealed class SkillResolver(SkillTaxonomyIndex index) : ISkillResolver
             .OrderBy(r => r.ConceptId, StringComparer.Ordinal)
             .ToList();
     }
+
+    // ADR 0079 STEG 3 PR-C — skill typeahead. Thin adapter over the shared index's
+    // substring search; caps results so the picker stays bounded. Synchronous CPU over
+    // the in-memory index (ct honoured at the call boundary only — a single capped scan).
+    private const int MaxSearchResults = 20;
+
+    public IReadOnlyList<ResolvedSkill> Search(string query, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return index
+            .Search(query, MaxSearchResults)
+            .Select(hit => new ResolvedSkill(hit.ConceptId, hit.Label))
+            .ToList();
+    }
+
+    // ADR 0079 STEG 3 PR-C — reverse-lookup for saved skill chips. Thin adapter over the
+    // shared index's concept-id → label map; unknown ids drop silently.
+    public IReadOnlyList<ResolvedSkill> ResolveLabels(
+        IEnumerable<string> conceptIds, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return index
+            .ResolveLabels(conceptIds)
+            .Select(hit => new ResolvedSkill(hit.ConceptId, hit.Label))
+            .ToList();
+    }
 }

@@ -13,6 +13,7 @@ import {
 import { updateMyProfileAction } from "@/lib/actions/me";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
+import type { Option } from "./match-preferences-shared";
 import { PersonalInfoCard } from "./personal-info-card";
 import { DisplayCard } from "./display-card";
 import { NotificationsCard } from "./notifications-card";
@@ -29,6 +30,13 @@ interface SettingsFormProps {
    * "kunde inte läsas in"-text i stället för väljarna).
    */
   taxonomy: TaxonomyTree | null;
+  /**
+   * STEG 3 / ADR 0079 + ADR 0047: server-resolverade labels för de sparade
+   * kompetens-concept-id. Seedar matchnings-kortets skill-label-store så chips
+   * visar namn vid kall laddning (den platta skill-taxonomin har ingen
+   * träd-uppslagning på FE). Tom lista vid fel → graceful id-fallback kvarstår.
+   */
+  initialSkillLabels: ReadonlyArray<Option>;
 }
 
 type LanguageValue = "sv" | "en";
@@ -60,6 +68,7 @@ export function SettingsForm({
   initialProfile,
   userEmail,
   taxonomy,
+  initialSkillLabels,
 }: SettingsFormProps) {
   const t = useTranslations("validation");
   const ts = useTranslations("settings");
@@ -178,6 +187,9 @@ export function SettingsForm({
           initialRegions={initialProfile.preferredRegions}
           initialMunicipalities={initialProfile.preferredMunicipalities}
           initialEmploymentTypes={initialProfile.preferredEmploymentTypes}
+          initialSkills={initialProfile.preferredSkills}
+          initialSkillLabels={initialSkillLabels}
+          initialExperienceYears={initialProfile.experienceYears}
           degraded={taxonomy === null}
         />
       </div>

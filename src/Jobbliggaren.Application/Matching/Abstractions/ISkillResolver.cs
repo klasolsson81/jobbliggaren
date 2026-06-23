@@ -47,6 +47,29 @@ public interface ISkillResolver
     /// </summary>
     IReadOnlyList<ResolvedSkill> ResolveDetailed(
         IEnumerable<string> freeTextSkills, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// ADR 0079 STEG 3 PR-C — skill typeahead for the editable skill chips' "add"
+    /// affordance: a case-insensitive SUBSTRING match of <paramref name="query"/> against
+    /// the taxonomy's labels + synonyms (the flat ~20k-concept vocabulary has no
+    /// browsable hierarchy, unlike occupations). Deduped per concept-id, ranked
+    /// prefix-before-contains then shortest label, capped. Each hit carries the canonical
+    /// preferred label (never a synonym). A query shorter than the minimum, or blank,
+    /// returns empty (no flooding). Distinct from <see cref="Resolve"/> /
+    /// <see cref="ResolveDetailed"/>, which resolve a FULL skill name via Snowball lexemes.
+    /// </summary>
+    IReadOnlyList<ResolvedSkill> Search(string query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// ADR 0079 STEG 3 PR-C — reverse-lookup: resolve stored skill concept-ids to their
+    /// canonical labels (the skill analog of the occupation taxonomy reverse-lookup,
+    /// ADR 0043). The flat ~20k-concept skill vocabulary is never shipped to the FE as a
+    /// tree, so the settings page resolves the saved <c>PreferredSkills</c> concept-ids to
+    /// names here for chip display instead of rendering opaque ids. Unknown ids are dropped
+    /// silently (graceful — a stale/removed concept never crashes the read). Deterministic.
+    /// </summary>
+    IReadOnlyList<ResolvedSkill> ResolveLabels(
+        IEnumerable<string> conceptIds, CancellationToken cancellationToken);
 }
 
 /// <summary>

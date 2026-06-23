@@ -58,10 +58,25 @@ describe("jobSeekerProfileSchema", () => {
     // Spår 3 PR-D — kommun-axeln (required, ej optional).
     preferredMunicipalities: [],
     preferredEmploymentTypes: [],
+    // STEG 3 / ADR 0079 — kompetens-axeln + erfarenhet (required; nullable int).
+    preferredSkills: [],
+    experienceYears: null,
   };
 
   it("accepts valid profile", () => {
     expect(jobSeekerProfileSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("accepts a stated experienceYears integer", () => {
+    expect(
+      jobSeekerProfileSchema.safeParse({ ...valid, experienceYears: 5 }).success
+    ).toBe(true);
+  });
+
+  it("rejects when preferredSkills missing (kontraktsdrift)", () => {
+    const withoutSkills: Partial<typeof valid> = { ...valid };
+    delete withoutSkills.preferredSkills;
+    expect(jobSeekerProfileSchema.safeParse(withoutSkills).success).toBe(false);
   });
 
   it("rejects when preferredMunicipalities missing (kontraktsdrift)", () => {

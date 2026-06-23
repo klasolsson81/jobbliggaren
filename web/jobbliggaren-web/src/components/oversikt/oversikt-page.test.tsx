@@ -23,6 +23,8 @@ const baseProfile: JobSeekerProfileDto = {
   preferredRegions: [],
   preferredMunicipalities: [],
   preferredEmploymentTypes: [],
+  preferredSkills: [],
+  experienceYears: null,
 };
 
 const errored: ApiResult<never> = { kind: "error" };

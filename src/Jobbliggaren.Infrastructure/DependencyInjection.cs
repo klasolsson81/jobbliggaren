@@ -156,6 +156,14 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationCodeDeriver,
             Jobbliggaren.Infrastructure.Taxonomy.OccupationCodeDeriver>();
 
+        // ADR 0079-amendment (exp-per-occ PR-2) — the import-time per-occupation experience
+        // attribution pass. Stateless; reuses the singleton IOccupationCodeDeriver (its union
+        // DeriveManyAsync untouched — OCP) + IDateTimeProvider + the promoted PeriodParser. NO
+        // AI/LLM. DI in the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Abstractions.IOccupationExperienceDeriver,
+            Jobbliggaren.Infrastructure.Resumes.Parsing.OccupationExperienceDeriver>();
+
         // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the shared inverted skill-taxonomy
         // index (embedded jobad-skill-taxonomy.v30.json), extracted from the extractor so
         // BOTH the ad-side extractor AND the CV-side resolver reuse ONE index (no parallel

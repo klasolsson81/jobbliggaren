@@ -85,6 +85,15 @@ public sealed record MatchPreferences
     // match-result magnitude (Goodhart guard).
     public int? ExperienceYears { get; private init; }
 
+    // ADR 0079-amendment 2026-06-23 — per-occupation experience overlay (supersedes the
+    // single profile-level ExperienceYears scalar above; the scalar is retained inert for
+    // back-compat). A SPARSE overlay on PreferredOccupationGroups: an optional ~years
+    // annotation per preferred occupation group, keyed by concept-id (subset invariant in
+    // Create). Appended last so the jsonb-key write order stays a purely additive extension.
+    // STORED + SURFACED only, never scored (Beslut 7 / TD-B). Empty = honest "no
+    // per-occupation years stated". See OccupationExperience for the value-object contract.
+    public IReadOnlyList<OccupationExperience> PreferredOccupationExperience { get; private init; } = [];
+
     // EF + record copy-semantik. Property-initializers (= []) ensure non-null even
     // before EF materializes via the value converter.
     private MatchPreferences() { }
@@ -103,13 +112,15 @@ public sealed record MatchPreferences
         IEnumerable<string>? preferredEmploymentTypes,
         IEnumerable<string>? preferredMunicipalities = null,
         IEnumerable<string>? preferredSkills = null,
-        int? experienceYears = null)
+        int? experienceYears = null,
+        IEnumerable<OccupationExperience>? preferredOccupationExperience = null)
     {
         var normOccupationGroups = NormalizeList(preferredOccupationGroups);
         var normRegions = NormalizeList(preferredRegions);
         var normEmploymentTypes = NormalizeList(preferredEmploymentTypes);
         var normMunicipalities = NormalizeList(preferredMunicipalities);
         var normSkills = NormalizeList(preferredSkills);
+        var normOccupationExperience = NormalizeOccupationExperience(preferredOccupationExperience);
 
         // Cap + per-element regex per dimension (default-deny). Empty is allowed —
         // no "at least one" invariant (deliberate divergence from SearchCriteria).
@@ -157,6 +168,16 @@ public sealed record MatchPreferences
                 "MatchPreferences.ExperienceYearsOutOfRange",
                 $"Antal års erfarenhet måste vara mellan 0 och {MaxExperienceYears}."));
 
+        // ADR 0079-amendment — the per-occupation overlay protects its own coherence
+        // (Evans 2003 kap. 5; DDD invariants live in the VO, not the handler): cap, valid
+        // concept-id format, at-most-one-per-group, years in range, and the subset rule
+        // (an entry only for an actually-preferred group). Runs after the group list is
+        // normalized so the subset check reads the canonical set.
+        var occupationExperienceError =
+            ValidateOccupationExperience(normOccupationExperience, normOccupationGroups);
+        if (occupationExperienceError is not null)
+            return Result.Failure<MatchPreferences>(occupationExperienceError);
+
         return Result.Success(new MatchPreferences
         {
             PreferredOccupationGroups = normOccupationGroups,
@@ -165,6 +186,7 @@ public sealed record MatchPreferences
             PreferredMunicipalities = normMunicipalities,
             PreferredSkills = normSkills,
             ExperienceYears = experienceYears,
+            PreferredOccupationExperience = normOccupationExperience,
         });
     }
 
@@ -200,6 +222,66 @@ public sealed record MatchPreferences
             .ToArray();
     }
 
+    // Trim each entry's concept-id, drop blanks, sort by concept-id ordinal (deterministic
+    // structural equality, parity with NormalizeList). Duplicates are NOT silently deduped
+    // here — a duplicate concept-id is rejected as an invariant failure in
+    // ValidateOccupationExperience (two entries for one group could carry conflicting years;
+    // default-deny over silent data loss).
+    private static OccupationExperience[] NormalizeOccupationExperience(
+        IEnumerable<OccupationExperience>? values)
+    {
+        if (values is null)
+            return [];
+
+        return values
+            .Where(static e => e is not null && !string.IsNullOrWhiteSpace(e.ConceptId))
+            .Select(static e => e with { ConceptId = e.ConceptId.Trim() })
+            .OrderBy(static e => e.ConceptId, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    // The per-occupation overlay invariants (ADR 0079-amendment): cap (reusing the same
+    // IN(...)-DoS floor as the lists), concept-id format (default-deny), at-most-one entry
+    // per group, years in the human range, and the SUBSET rule — an overlay entry may only
+    // annotate a concept-id that is actually in PreferredOccupationGroups (the VO refuses an
+    // orphan annotation). Empty is valid.
+    private static DomainError? ValidateOccupationExperience(
+        OccupationExperience[] entries, string[] preferredGroups)
+    {
+        if (entries.Length > SearchCriteria.MaxConceptIds)
+            return DomainError.Validation(
+                "MatchPreferences.TooManyOccupationExperience",
+                $"Max {SearchCriteria.MaxConceptIds} erfarenhets-poster per yrke.");
+
+        var groups = new HashSet<string>(preferredGroups, StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var entry in entries)
+        {
+            if (!ConceptIdPattern.IsMatch(entry.ConceptId))
+                return DomainError.Validation(
+                    "MatchPreferences.InvalidOccupationExperience",
+                    "Yrkes-erfarenhet måste referera en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+            if (!seen.Add(entry.ConceptId))
+                return DomainError.Validation(
+                    "MatchPreferences.DuplicateOccupationExperience",
+                    "Endast en erfarenhets-post per yrkesgrupp.");
+
+            if (entry.Years is { } y && (y < 0 || y > MaxExperienceYears))
+                return DomainError.Validation(
+                    "MatchPreferences.OccupationExperienceYearsOutOfRange",
+                    $"Antal års erfarenhet måste vara mellan 0 och {MaxExperienceYears}.");
+
+            if (!groups.Contains(entry.ConceptId))
+                return DomainError.Validation(
+                    "MatchPreferences.OrphanOccupationExperience",
+                    "Erfarenhet kan bara anges för en vald yrkesgrupp.");
+        }
+
+        return null;
+    }
+
     // Structural VO equality (Evans 2003 kap. 5). A record with IReadOnlyList gets
     // default REFERENCE equality → jsonb-dedupe/value-comparison would never match.
     // Lists are already normalized (sorted+distinct ordinal) in Create → sequence
@@ -219,7 +301,10 @@ public sealed record MatchPreferences
             && PreferredEmploymentTypes.SequenceEqual(other.PreferredEmploymentTypes, StringComparer.Ordinal)
             && PreferredMunicipalities.SequenceEqual(other.PreferredMunicipalities, StringComparer.Ordinal)
             && PreferredSkills.SequenceEqual(other.PreferredSkills, StringComparer.Ordinal)
-            && ExperienceYears == other.ExperienceYears;
+            && ExperienceYears == other.ExperienceYears
+            // OccupationExperience is a record → SequenceEqual uses its structural equality
+            // (both lists are normalized sorted-by-ConceptId in Create → deterministic).
+            && PreferredOccupationExperience.SequenceEqual(other.PreferredOccupationExperience);
     }
 
     public override int GetHashCode()
@@ -236,6 +321,8 @@ public sealed record MatchPreferences
         foreach (var s in PreferredSkills)
             hash.Add(s, StringComparer.Ordinal);
         hash.Add(ExperienceYears);
+        foreach (var oe in PreferredOccupationExperience)
+            hash.Add(oe);
         return hash.ToHashCode();
     }
 }

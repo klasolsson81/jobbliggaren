@@ -60,6 +60,23 @@ export const jobSeekerProfileSchema = z.object({
   // never zeroes them (the full-replace page-wipe guard).
   preferredSkills: z.array(z.string()).readonly(),
   experienceYears: z.number().int().nullable(),
+  // exp-per-occ (ADR 0079-amendment PR-4): the persisted per-occupation
+  // experience overlay — a SPARSE subset of `preferredOccupationGroups`, each
+  // entry `{conceptId, years}` with `years` a nullable int (`null` = stated but
+  // not specified; the engine never scores it, ADR 0071). Backend always
+  // returns the array (`IReadOnlyList<...>` never null) → required key, with a
+  // tolerant `.default([])` so an older backend that omits it still parses
+  // (forward-compat, ADR 0020 §4). Read back for pre-fill so the wizard/dialog
+  // seed each occupation's year input and a save never zeroes the overlay
+  // (full-replace page-wipe guard).
+  preferredOccupationExperience: z
+    .array(
+      z.object({
+        conceptId: z.string(),
+        years: z.number().int().nullable(),
+      })
+    )
+    .default([]),
 });
 
 export type JobSeekerProfileDto = z.infer<typeof jobSeekerProfileSchema>;

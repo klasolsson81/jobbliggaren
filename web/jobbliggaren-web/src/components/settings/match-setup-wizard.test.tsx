@@ -75,7 +75,7 @@ function renderWizard(
       persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
       persistedSkills={[]}
-      persistedExperienceYears={null}
+      persistedOccupationExperience={[]}
       onSaved={onSaved}
       importCvHref="/cv/importera"
       {...overrides}
@@ -235,8 +235,8 @@ describe("MatchSetupWizard — utbildnings-steg är OUT v1 (ADR 0077 Klas-fork)"
   });
 });
 
-describe("MatchSetupWizard — kompetens-/erfarenhet-steget (STEG 3 / ADR 0079)", () => {
-  it("steg 2 visar kompetens-sektionen + erfarenhet-fältet", async () => {
+describe("MatchSetupWizard — kompetens-steget (STEG 3 / ADR 0079)", () => {
+  it("steg 2 visar kompetens-sektionen UTAN profil-nivå erfarenhet-fält (exp-per-occ PR-4)", async () => {
     const user = userEvent.setup();
     renderWizard();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
@@ -246,7 +246,9 @@ describe("MatchSetupWizard — kompetens-/erfarenhet-steget (STEG 3 / ADR 0079)"
     expect(
       screen.getByRole("button", { name: "Lägg till kompetens" })
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Antal års erfarenhet")).toBeInTheDocument();
+    // exp-per-occ PR-4 (Klas-beslut): den profil-nivå ExperienceField är
+    // BORTTAGEN ur steg 2 — erfarenhet anges nu per yrke (på steg 1).
+    expect(screen.queryByLabelText("Antal års erfarenhet")).toBeNull();
   });
 
   it("med parsedResumeId auto-föreslår kompetenser ur det uppladdade CV:t (steg 2)", async () => {
@@ -351,11 +353,19 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     await user.click(
       screen.getByRole("checkbox", { name: "Backendutvecklare" })
     );
+    // exp-per-occ PR-4: ange ungefärliga år PÅ yrkes-chippen (steg 1), inte i en
+    // global profil-siffra. Fältet bär en per-yrke aria-label.
+    await user.type(
+      screen.getByRole("spinbutton", {
+        name: "Ungefärliga år i yrket Backendutvecklare",
+      }),
+      "5"
+    );
     expect(updateMock).not.toHaveBeenCalled();
 
-    // Steg 2 (kompetens/erfarenhet): ange erfarenhet, lämna kompetenser tomma.
+    // Steg 2 (kompetens): lämna kompetenser tomma — inget profil-nivå
+    // erfarenhet-fält längre (exp-per-occ PR-4).
     await user.click(screen.getByRole("button", { name: "Nästa" }));
-    await user.type(screen.getByLabelText("Antal års erfarenhet"), "5");
     expect(updateMock).not.toHaveBeenCalled();
 
     // Steg 3 (Spår 3 PR-D): lägg till HELA länet via ort-kaskaden. Öppna
@@ -379,21 +389,24 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     await user.click(screen.getByRole("button", { name: "Spara matchning" }));
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    // exp-per-occ PR-4: per-yrke-overlayn skickas, scopad till valda yrken;
+    // profil-nivå `experienceYears` skickas INTE LÄNGRE från wizarden.
     expect(updateMock).toHaveBeenCalledWith({
       preferredOccupationGroups: ["grp_backend"],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
       preferredEmploymentTypes: ["et_fast"],
       preferredSkills: [],
-      experienceYears: 5,
+      preferredOccupationExperience: [{ conceptId: "grp_backend", years: 5 }],
     });
+    expect(updateMock.mock.calls[0]?.[0]).not.toHaveProperty("experienceYears");
     expect(onSaved).toHaveBeenCalledWith({
       occupations: ["grp_backend"],
       regions: ["region_sthlm"],
       municipalities: [],
       employment: ["et_fast"],
       skills: [],
-      experienceYears: 5,
+      occupationExperience: [{ conceptId: "grp_backend", years: 5 }],
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -432,6 +445,122 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Serverfel");
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+});
+
+describe("MatchSetupWizard — per-yrke-erfarenhet (exp-per-occ, ADR 0079-amendment PR-4)", () => {
+  it("CV-förslaget seedar approximateYears in i fältet (0 och null bevaras skilt)", async () => {
+    // CV-förslaget bär per-yrke-år: grp_backend=0 (parsad delårsroll),
+    // grp_frontend=null (ej angivet). Båda pre-addas som chips; året seedas in.
+    cvSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+          approximateYears: 0,
+        },
+        {
+          occupationGroupConceptId: "grp_frontend",
+          occupationGroupLabel: "Frontendutvecklare",
+          approximateYears: null,
+        },
+      ],
+    } satisfies CvSuggestResult);
+    renderWizard();
+
+    // grp_backend seedas till "0" (skilt från tomt), grp_frontend till tomt (null).
+    const backendYears = await screen.findByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Backendutvecklare",
+    });
+    const frontendYears = screen.getByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Frontendutvecklare",
+    });
+    expect(backendYears).toHaveValue(0);
+    expect(frontendYears).toHaveValue(null);
+  });
+
+  it("ett användar-angivet år vinner över CV-seeden (seed skriver aldrig över)", async () => {
+    cvSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+          // CV-deriverad seed scopad bort eftersom yrket redan har ett värde
+          // (persisterat överlay). Seeden mergas bara för yrken UTAN nyckel.
+          approximateYears: 9,
+        },
+      ],
+    } satisfies CvSuggestResult);
+    renderWizard({
+      persistedOccupationGroups: ["grp_backend"],
+      persistedOccupationExperience: [{ conceptId: "grp_backend", years: 3 }],
+    });
+
+    const backendYears = await screen.findByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Backendutvecklare",
+    });
+    // Det persisterade 3 vinner — CV-seedens 9 skriver aldrig över.
+    expect(backendYears).toHaveValue(3);
+  });
+
+  it("att ta bort ett yrke droppar dess år ur PUT-payloaden (subset-regeln)", async () => {
+    const user = userEvent.setup();
+    const { onSaved } = renderWizard({
+      persistedOccupationGroups: ["grp_backend", "grp_frontend"],
+      persistedOccupationExperience: [
+        { conceptId: "grp_backend", years: 5 },
+        { conceptId: "grp_frontend", years: 2 },
+      ],
+    });
+
+    // Ta bort grp_frontend i Yrken-steget (chip-borttagning).
+    await user.click(
+      screen.getByRole("button", { name: "Ta bort Frontendutvecklare" })
+    );
+
+    // Gå till sista steget och spara.
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: "Nästa" }));
+    }
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    // Endast det kvarvarande yrkets år finns kvar i overlayn.
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferredOccupationGroups: ["grp_backend"],
+        preferredOccupationExperience: [{ conceptId: "grp_backend", years: 5 }],
+      })
+    );
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        occupationExperience: [{ conceptId: "grp_backend", years: 5 }],
+      })
+    );
+  });
+
+  it("review-steget visar varje yrkes år på sin rad (ärlig 'år ej angivna' när null)", async () => {
+    const user = userEvent.setup();
+    renderWizard({
+      persistedOccupationGroups: ["grp_backend", "grp_frontend"],
+      persistedOccupationExperience: [
+        { conceptId: "grp_backend", years: 6 },
+        // grp_frontend har en null-rad → "år ej angivna".
+        { conceptId: "grp_frontend", years: null },
+      ],
+    });
+
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: "Nästa" }));
+    }
+
+    const reviewOccupations = screen.getByRole("group", { name: "Yrken" });
+    expect(within(reviewOccupations).getByText("6 år")).toBeInTheDocument();
+    expect(
+      within(reviewOccupations).getByText("År ej angivna")
+    ).toBeInTheDocument();
   });
 });
 

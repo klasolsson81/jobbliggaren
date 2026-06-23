@@ -25,6 +25,7 @@ const baseProfile: JobSeekerProfileDto = {
   preferredEmploymentTypes: [],
   preferredSkills: [],
   experienceYears: null,
+  preferredOccupationExperience: [],
 };
 
 const errored: ApiResult<never> = { kind: "error" };

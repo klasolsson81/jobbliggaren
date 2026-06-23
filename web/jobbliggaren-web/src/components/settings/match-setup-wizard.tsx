@@ -19,12 +19,13 @@ import { updateMatchPreferencesAction } from "@/lib/actions/match-preferences";
 import {
   flattenOccupationGroups,
   labelsForSelected,
+  projectOccupationExperience,
+  recordFromOccupationExperience,
   toggle,
   type Option,
 } from "./match-preferences-shared";
 import { OccupationSection } from "./occupation-section";
 import { SkillSection } from "./skill-section";
-import { ExperienceField } from "./experience-field";
 import { FacetSection } from "./facet-section";
 import { RegionMunicipalityCascade } from "./region-municipality-cascade";
 import { PreferenceChip } from "./preference-chip";
@@ -44,8 +45,18 @@ interface MatchSetupWizardProps {
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /** STEG 3 / ADR 0079: kompetens-axeln (pre-fill för kompetens-steget). */
   readonly persistedSkills: ReadonlyArray<string>;
-  /** STEG 3 / ADR 0079: profil-nivå erfarenhet (`null` = ej angivet). */
-  readonly persistedExperienceYears: number | null;
+  /**
+   * exp-per-occ (ADR 0079-amendment PR-4): den persisterade per-yrke-
+   * erfarenhets-overlayn (en gles delmängd av `persistedOccupationGroups`).
+   * Seedar `draftOccupationExperience` vid öppning; ett användar-/persisterat
+   * värde vinner över CV-förslagets `approximateYears`. `years` är `null` när
+   * angivet men ospecificerat. Ersätter den tidigare profil-nivå-erfarenheten
+   * (Klas-beslut: ExperienceField borttaget ur wizarden).
+   */
+  readonly persistedOccupationExperience: ReadonlyArray<{
+    readonly conceptId: string;
+    readonly years: number | null;
+  }>;
   /**
    * STEG 3 / ADR 0079: labels för redan-sparade kompetens-concept-id (den
    * platta skill-taxonomin skickas aldrig som träd → värden läser tillbaka
@@ -59,7 +70,12 @@ interface MatchSetupWizardProps {
     municipalities: ReadonlyArray<string>;
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
-    experienceYears: number | null;
+    // exp-per-occ (ADR 0079-amendment PR-4): den sparade per-yrke-overlayn
+    // (scopad till valda yrken). Ersätter `experienceYears` (profil-nivå borttaget).
+    occupationExperience: ReadonlyArray<{
+      readonly conceptId: string;
+      readonly years: number | null;
+    }>;
   }) => void;
   /** CV-importflödets route (tom-state-länken i yrkes-steget). */
   readonly importCvHref: string;
@@ -110,7 +126,7 @@ export function MatchSetupWizard({
   persistedMunicipalities,
   persistedEmploymentTypes,
   persistedSkills,
-  persistedExperienceYears,
+  persistedOccupationExperience,
   persistedSkillLabels = [],
   onSaved,
   importCvHref,
@@ -160,9 +176,14 @@ export function MatchSetupWizard({
   const [draftSkills, setDraftSkills] = useState<ReadonlyArray<string>>(
     persistedSkills
   );
-  const [draftExperience, setDraftExperience] = useState<number | null>(
-    persistedExperienceYears
-  );
+  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (draft),
+  // keyad på yrkesgrupp-concept-id. `null` = angiven men ospecificerad / tomt
+  // fält; `0` = noll år (skilda). Seedas vid öppning från persisterad overlay
+  // UNION CV-förslagets år (persisterat vinner). Ersätter den tidigare profil-
+  // nivå-erfarenheten (Klas-beslut: ExperienceField borttaget ur wizarden).
+  const [draftOccupationExperience, setDraftOccupationExperience] = useState<
+    Readonly<Record<string, number | null>>
+  >(() => recordFromOccupationExperience(persistedOccupationExperience));
 
   // Labels för kompetens-chips: persisterade labels UNION welcome-förslagens
   // labels (den platta skill-taxonomin skickas aldrig som träd, så SkillSection
@@ -204,7 +225,12 @@ export function MatchSetupWizard({
         ...(proposedSkills ?? []).map((s) => s.conceptId),
       ]),
     ]);
-    setDraftExperience(persistedExperienceYears);
+    // exp-per-occ (ADR 0079-amendment PR-4): seed from the persisted overlay.
+    // The CV-derived years arrive asynchronously through OccupationSection's
+    // `onSeedExperience` (the parsed-resume / latestRole reads) and are merged
+    // in WITHOUT overwriting a persisted/user value (`seedOccupationExperience`
+    // below). So a user/persisted value wins over the CV-derived one.
+    setDraftOccupationExperience(recordFromOccupationExperience(persistedOccupationExperience));
     setSaveError(null);
   }
   if (!open && seededFor) {
@@ -235,8 +261,38 @@ export function MatchSetupWizard({
     setDraftMunicipalities(next.municipality);
   }
 
+  // exp-per-occ (ADR 0079-amendment PR-4): användaren ändrade ett yrkes år.
+  // `null` (tomt fält) lagras explicit (skilt från "ingen nyckel"). Yrket
+  // antas redan vara i draften (fältet renderas bara för pinnade yrken).
+  function onOccupationExperienceChange(conceptId: string, years: number | null) {
+    setDraftOccupationExperience((prev) => ({ ...prev, [conceptId]: years }));
+  }
+
+  // exp-per-occ (ADR 0079-amendment PR-4): CV-förslaget seedar härledda år.
+  // Mergas in MEN skriver ALDRIG över ett befintligt värde (persisterat ELLER
+  // tidigare användar-angivet) — ett användar-/persisterat värde vinner över
+  // det CV-härledda. `0` och `null` bevaras skilt (CV-deriverad delårsroll vs
+  // ej angivet). Endast yrken utan befintlig nyckel tar emot seed-värdet.
+  function seedOccupationExperience(seed: Readonly<Record<string, number | null>>) {
+    setDraftOccupationExperience((prev) => {
+      const next = { ...prev };
+      for (const [conceptId, years] of Object.entries(seed)) {
+        if (!(conceptId in next)) next[conceptId] = years;
+      }
+      return next;
+    });
+  }
+
   function onSave() {
     setSaveError(null);
+    // exp-per-occ (ADR 0079-amendment PR-4): projicera overlayn till
+    // `{conceptId, years}[]` ENBART för yrken som fortfarande är valda. Att ta
+    // bort ett yrke tar därmed bort dess overlay-rad (respekterar subset-regeln:
+    // backend avvisar en rad vars conceptId inte finns i preferredOccupationGroups).
+    const occupationExperience = projectOccupationExperience(
+      draftOccupationExperience,
+      draftOccupations
+    );
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
         preferredOccupationGroups: [...draftOccupations],
@@ -244,10 +300,13 @@ export function MatchSetupWizard({
         preferredRegions: [...draftRegions],
         preferredMunicipalities: [...draftMunicipalities],
         preferredEmploymentTypes: [...draftEmployment],
-        // STEG 3 / ADR 0079: kompetens + erfarenhet i SAMMA full-replace-PUT —
-        // annars skulle ett spar av en annan dimension nolla dem (page-wipe).
+        // STEG 3 / ADR 0079: kompetens i SAMMA full-replace-PUT — annars skulle
+        // ett spar av en annan dimension nolla det (page-wipe).
         preferredSkills: [...draftSkills],
-        experienceYears: draftExperience,
+        // exp-per-occ PR-4: per-yrke-overlayn (full-replace, scopad till valda
+        // yrken). Profil-nivå `experienceYears` skickas INTE längre från wizarden
+        // (Klas-beslut: ExperienceField borttaget ur wizarden).
+        preferredOccupationExperience: [...occupationExperience],
       });
       if (result.success) {
         onSaved?.({
@@ -256,7 +315,7 @@ export function MatchSetupWizard({
           municipalities: draftMunicipalities,
           employment: draftEmployment,
           skills: draftSkills,
-          experienceYears: draftExperience,
+          occupationExperience,
         });
         onOpenChange(false);
       } else {
@@ -324,20 +383,20 @@ export function MatchSetupWizard({
               skillsAria: t("matchPrefs.selectedSkills"),
               orterAria: t("matchPrefs.selectedOrter"),
               employmentAria: t("matchPrefs.selectedEmployment"),
-              experienceTitle: t("matchPrefs.experience.label"),
-              experienceValue: t("matchPrefs.experience.reviewValue", {
-                years: draftExperience ?? 0,
-              }),
-              experienceEmpty: t("matchPrefs.experience.reviewEmpty"),
+              // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-år på review-raden.
+              occupationYearsEmpty: t("matchPrefs.occupation.reviewYearsEmpty"),
             }}
             occupations={labelsForSelected(draftOccupations, flattenOccupationGroups(occupationFields))}
+            occupationExperience={draftOccupationExperience}
+            occupationYearsValue={(years) =>
+              t("matchPrefs.occupation.reviewYearsValue", { years })
+            }
             skills={labelsForSelected(draftSkills, skillSeedLabels)}
             orter={[
               ...labelsForSelected(draftRegions, regionOptions),
               ...labelsForSelected(draftMunicipalities, municipalityOptions),
             ]}
             employment={labelsForSelected(draftEmployment, employmentOptions)}
-            experienceYears={draftExperience}
             onRemoveOccupation={(id) =>
               setDraftOccupations((prev) => toggle(prev, id))
             }
@@ -367,6 +426,12 @@ export function MatchSetupWizard({
                   importCvHref={importCvHref}
                   idPrefix="match-wizard-occ"
                   showHeading={false}
+                  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-år bor i
+                  // draft-overlayn. CV-förslagets `approximateYears` seedas in via
+                  // onSeedExperience (utan att skriva över ett befintligt värde).
+                  experienceByConceptId={draftOccupationExperience}
+                  onExperienceChange={onOccupationExperienceChange}
+                  onSeedExperience={seedOccupationExperience}
                   // Förhämtade förslag (welcome-flödet, STEG 1) → draften är redan
                   // seedad, så auto-suggest skulle bara dubbel-läsa den svagare
                   // latestRole-vägen. Annars oförändrat (auto-suggest på).
@@ -379,29 +444,25 @@ export function MatchSetupWizard({
                 />
               )}
               {step === 2 && (
-                <div className="jp-wizard__substeps">
-                  <SkillSection
-                    selected={draftSkills}
-                    onToggle={(id) => setDraftSkills((prev) => toggle(prev, id))}
-                    onReplace={(next) => setDraftSkills(next)}
-                    onClear={() => setDraftSkills([])}
-                    idPrefix="match-wizard-skill"
-                    showHeading={false}
-                    initialLabels={skillSeedLabels}
-                    // Förhämtade förslag (welcome-flödet) → draften är redan
-                    // seedad, staging-artefakten finns inte längre → ingen
-                    // auto-suggest. Annars läser parsed-vägen (just uppladdat CV).
-                    autoSuggestFromCv={proposedSkills === undefined}
-                    parsedResumeId={
-                      proposedSkills === undefined ? parsedResumeId : undefined
-                    }
-                  />
-                  <ExperienceField
-                    value={draftExperience}
-                    onChange={setDraftExperience}
-                    idPrefix="match-wizard-experience"
-                  />
-                </div>
+                // exp-per-occ (ADR 0079-amendment PR-4, Klas-beslut): den
+                // profil-nivå ExperienceField är BORTTAGEN ur steg 2 — erfarenhet
+                // anges nu per yrke (på yrkes-chippen i steg 1).
+                <SkillSection
+                  selected={draftSkills}
+                  onToggle={(id) => setDraftSkills((prev) => toggle(prev, id))}
+                  onReplace={(next) => setDraftSkills(next)}
+                  onClear={() => setDraftSkills([])}
+                  idPrefix="match-wizard-skill"
+                  showHeading={false}
+                  initialLabels={skillSeedLabels}
+                  // Förhämtade förslag (welcome-flödet) → draften är redan
+                  // seedad, staging-artefakten finns inte längre → ingen
+                  // auto-suggest. Annars läser parsed-vägen (just uppladdat CV).
+                  autoSuggestFromCv={proposedSkills === undefined}
+                  parsedResumeId={
+                    proposedSkills === undefined ? parsedResumeId : undefined
+                  }
+                />
               )}
               {step === 3 && (
                 <RegionMunicipalityCascade
@@ -488,9 +549,13 @@ function stepIntro(t: SettingsTranslator, step: number): string {
 }
 
 /**
- * Klart-/bekräfta-steget (steg 5): granska de valda chipsen per dimension +
- * erfarenhet. Borttagbara (PreferenceChip) — sista chansen att rensa innan
- * save. Tom dimension visar en ärlig "inget valt"-rad (ej fejkat).
+ * Klart-/bekräfta-steget (steg 5): granska de valda chipsen per dimension.
+ * Borttagbara (PreferenceChip) — sista chansen att rensa innan save. Tom
+ * dimension visar en ärlig "inget valt"-rad (ej fejkat).
+ *
+ * exp-per-occ (ADR 0079-amendment PR-4): den separata erfarenhets-review-
+ * sektionen är BORTTAGEN — i stället visar yrkes-facetten varje yrkes år PÅ
+ * dess rad (ärlig "år ej angivna" när null/ej angivet).
  */
 interface ReviewLabels {
   readonly occupationsTitle: string;
@@ -505,18 +570,18 @@ interface ReviewLabels {
   readonly skillsAria: string;
   readonly orterAria: string;
   readonly employmentAria: string;
-  readonly experienceTitle: string;
-  readonly experienceValue: string;
-  readonly experienceEmpty: string;
+  /** exp-per-occ PR-4: "år ej angivna"-raden när ett yrke saknar år. */
+  readonly occupationYearsEmpty: string;
 }
 
 function ReviewStep({
   labels,
   occupations,
+  occupationExperience,
+  occupationYearsValue,
   skills,
   orter,
   employment,
-  experienceYears,
   onRemoveOccupation,
   onRemoveSkill,
   onRemoveOrt,
@@ -524,10 +589,13 @@ function ReviewStep({
 }: {
   readonly labels: ReviewLabels;
   readonly occupations: ReadonlyArray<Option>;
+  /** exp-per-occ PR-4: per-yrke-overlay (draft) keyad på concept-id. */
+  readonly occupationExperience: Readonly<Record<string, number | null>>;
+  /** exp-per-occ PR-4: "{years} år"-formatteraren (i18n, decimal-fri int). */
+  readonly occupationYearsValue: (years: number) => string;
   readonly skills: ReadonlyArray<Option>;
   readonly orter: ReadonlyArray<Option>;
   readonly employment: ReadonlyArray<Option>;
-  readonly experienceYears: number | null;
   readonly onRemoveOccupation: (conceptId: string) => void;
   readonly onRemoveSkill: (conceptId: string) => void;
   readonly onRemoveOrt: (conceptId: string) => void;
@@ -535,10 +603,14 @@ function ReviewStep({
 }) {
   return (
     <div className="jp-wizard__step">
-      <ReviewFacet
+      {/* exp-per-occ PR-4: yrkes-facetten visar varje yrkes år på sin rad. */}
+      <ReviewOccupationFacet
         title={labels.occupationsTitle}
         empty={labels.occupationsEmpty}
         chips={occupations}
+        experienceByConceptId={occupationExperience}
+        yearsValue={occupationYearsValue}
+        yearsEmpty={labels.occupationYearsEmpty}
         onRemove={onRemoveOccupation}
         ariaLabel={labels.occupationsAria}
       />
@@ -549,18 +621,6 @@ function ReviewStep({
         onRemove={onRemoveSkill}
         ariaLabel={labels.skillsAria}
       />
-      {/* Erfarenhet: en enkel text-rad (en siffra, inte chips). Ärlig tom-rad
-          när inget angetts. */}
-      <section className="jp-matchdialog__section" role="group">
-        <div className="jp-matchdialog__sectionhead">
-          <span className="jp-popover__title">{labels.experienceTitle}</span>
-        </div>
-        <p className="text-body-sm text-text-secondary">
-          {experienceYears === null
-            ? labels.experienceEmpty
-            : labels.experienceValue}
-        </p>
-      </section>
       <ReviewFacet
         title={labels.orterTitle}
         empty={labels.orterEmpty}
@@ -576,6 +636,73 @@ function ReviewStep({
         ariaLabel={labels.employmentAria}
       />
     </div>
+  );
+}
+
+/**
+ * exp-per-occ (ADR 0079-amendment PR-4): yrkes-facetten på review-steget — som
+ * ReviewFacet men varje rad bär yrkes-chippen + dess ungefärliga år ("{years}
+ * år" eller ärlig "år ej angivna" när null/ej angivet). Ingen magnitud-viz —
+ * bara text (det är en preferens, aldrig en poäng). `0` renderar "0 år" (skilt
+ * från ej angivet).
+ */
+function ReviewOccupationFacet({
+  title,
+  empty,
+  chips,
+  experienceByConceptId,
+  yearsValue,
+  yearsEmpty,
+  onRemove,
+  ariaLabel,
+}: {
+  readonly title: string;
+  readonly empty: string;
+  readonly chips: ReadonlyArray<Option>;
+  readonly experienceByConceptId: Readonly<Record<string, number | null>>;
+  readonly yearsValue: (years: number) => string;
+  readonly yearsEmpty: string;
+  readonly onRemove: (conceptId: string) => void;
+  readonly ariaLabel: string;
+}) {
+  const headId = `match-wizard-review-${ariaLabel.replace(/\s+/g, "-")}`;
+  return (
+    <section
+      className="jp-matchdialog__section"
+      role="group"
+      aria-labelledby={headId}
+    >
+      <div className="jp-matchdialog__sectionhead">
+        <span id={headId} className="jp-popover__title">
+          {title}
+        </span>
+      </div>
+      {chips.length === 0 ? (
+        <p className="text-body-sm text-text-secondary">{empty}</p>
+      ) : (
+        <ul className="jp-occexp" aria-label={ariaLabel}>
+          {chips.map((chip) => {
+            const years = experienceByConceptId[chip.conceptId];
+            // `0` är ett giltigt skilt värde → visa "0 år"; null/undefined → ärlig
+            // "år ej angivna". (`years ?? null` normaliserar undefined→null.)
+            const hasYears = years !== null && years !== undefined;
+            return (
+              <li key={chip.conceptId} className="jp-occexp__row">
+                <span className="jp-occexp__chip">
+                  <PreferenceChip
+                    label={chip.label}
+                    onRemove={() => onRemove(chip.conceptId)}
+                  />
+                </span>
+                <span className="jp-occexp__years-label">
+                  {hasYears ? yearsValue(years) : yearsEmpty}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

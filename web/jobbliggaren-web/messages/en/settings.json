@@ -103,7 +103,12 @@
       "uploadCv": "Upload CV",
       "noRole": "We could not read an occupation from your CV. You can choose occupations from the list instead.",
       "unauthorized": "You are not logged in. Log in and try again.",
-      "error": "Could not read your CV right now. Try again in a moment."
+      "error": "Could not read your CV right now. Try again in a moment.",
+      "yearsLabel": "Approximate years",
+      "yearsAria": "Approximate years in the occupation {label}",
+      "yearsHint": "State roughly how many years you have worked in each occupation. Optional; leave empty if you prefer not to state it.",
+      "reviewYearsValue": "{years} years",
+      "reviewYearsEmpty": "Years not stated"
     },
     "skill": {
       "addSkill": "Add skill",

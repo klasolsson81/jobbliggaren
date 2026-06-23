@@ -160,7 +160,7 @@ export default async function CvListPage({
               persistedMunicipalities={profile.preferredMunicipalities}
               persistedEmploymentTypes={profile.preferredEmploymentTypes}
               persistedSkills={profile.preferredSkills}
-              persistedExperienceYears={profile.experienceYears}
+              persistedOccupationExperience={profile.preferredOccupationExperience}
               importCvHref={IMPORT_CV_HREF}
               hasPreferences={profile.hasStatedDesiredOccupation}
               showPrompt={showMatchPrompt}

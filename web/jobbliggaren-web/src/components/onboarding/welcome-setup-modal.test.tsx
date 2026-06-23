@@ -84,7 +84,7 @@ function renderModal(
       persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
       persistedSkills={[]}
-      persistedExperienceYears={null}
+      persistedOccupationExperience={[]}
       importCvHref="/cv/importera"
       {...overrides}
     />
@@ -227,7 +227,7 @@ describe("WelcomeSetupModal — civic-utility", () => {
         persistedMunicipalities={[]}
         persistedEmploymentTypes={[]}
         persistedSkills={[]}
-        persistedExperienceYears={null}
+        persistedOccupationExperience={[]}
         importCvHref="/cv/importera"
       />
     );

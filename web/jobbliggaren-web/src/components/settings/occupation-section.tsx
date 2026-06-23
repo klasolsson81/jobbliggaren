@@ -24,8 +24,10 @@ import {
   filterOptions,
   flattenOccupationGroups,
   labelsForSelected,
+  type Option,
 } from "./match-preferences-shared";
 import { CheckItem, PinnedChips } from "./section-helpers";
+import { PreferenceChip } from "./preference-chip";
 
 interface OccupationSectionProps {
   readonly occupationFields: ReadonlyArray<TaxonomyOccupationField>;
@@ -70,6 +72,35 @@ interface OccupationSectionProps {
    * Utelämnat (dialog/`/cv`/`/installningar`) → faller tillbaka på latestRole-vägen.
    */
   readonly parsedResumeId?: string;
+  /**
+   * exp-per-occ (ADR 0079-amendment PR-4): erfarenhets-overlayn (draft) per
+   * yrkesgrupp-concept-id. `null` = angiven men ej specificerad / tomt fält,
+   * `0` = "noll år" (skilda värden). Ett id utan nyckel renderar ett tomt
+   * fält. Värden bor PÅ chippen (lokalitet) — ett borttaget yrke tappar sitt år
+   * i värden (denna komponent skriver bara overlay-fältet; värden droppar
+   * nyckeln när chippen tas bort).
+   */
+  readonly experienceByConceptId?: Readonly<Record<string, number | null>>;
+  /**
+   * exp-per-occ (ADR 0079-amendment PR-4): användaren ändrade ett yrkes
+   * ungefärliga år. `null` = tomt fält (ej angivet). Värden äger overlay-mapen.
+   * Utelämnad → år-fälten renderas inte (kortet/läs-ytor utan redigering).
+   */
+  readonly onExperienceChange?: (
+    conceptId: string,
+    years: number | null
+  ) => void;
+  /**
+   * exp-per-occ (ADR 0079-amendment PR-4): CV-förslaget pre-addar yrken (chips)
+   * OCH bär nu deras CV-härledda `approximateYears`. När förslaget pre-addas
+   * seedas dessa år in i overlayn via detta callback — MEN endast för yrken som
+   * inte redan har ett användar-angivet värde (värden bevakar det; se
+   * `onReplace`-pre-add nedan). `0` och `null` bevaras skilt. Utelämnad → ingen
+   * år-seed (år-redigering inte aktiverad i denna host).
+   */
+  readonly onSeedExperience?: (
+    seed: Readonly<Record<string, number | null>>
+  ) => void;
 }
 
 /**
@@ -90,6 +121,9 @@ export function OccupationSection({
   showHeading = true,
   autoSuggestFromCv = false,
   parsedResumeId,
+  experienceByConceptId,
+  onExperienceChange,
+  onSeedExperience,
 }: OccupationSectionProps) {
   const t = useTranslations("settings");
   const occupationOptions = useMemo(
@@ -141,6 +175,21 @@ export function OccupationSection({
           (c) => c.occupationGroupConceptId
         );
         onReplace([...new Set([...selected, ...candidateIds])]);
+        // exp-per-occ (ADR 0079-amendment PR-4): seeda CV-härledda år in i
+        // overlayn. Bär bara med kandidater som FAKTISKT har ett härlett år
+        // (`approximateYears` satt — `null`/`0` är båda giltiga, undefined inte:
+        // titel-derive-vägen sätter aldrig fältet). Värden mergar bara in dessa
+        // för yrken som inte redan har ett användar-angivet värde (subset-vakt
+        // bor i värden). `0` och `null` skickas vidare oförändrat.
+        const seed: Record<string, number | null> = {};
+        for (const c of result.candidates) {
+          if (c.approximateYears !== undefined) {
+            seed[c.occupationGroupConceptId] = c.approximateYears;
+          }
+        }
+        if (Object.keys(seed).length > 0) {
+          onSeedExperience?.(seed);
+        }
       }
     });
   }
@@ -239,11 +288,25 @@ export function OccupationSection({
         )
       )}
 
-      <PinnedChips
-        items={occupationChips}
-        onRemove={onToggle}
-        ariaLabel={t("matchPrefs.selectedOccupations")}
-      />
+      {/* exp-per-occ (ADR 0079-amendment PR-4): när year-redigering är aktiverad
+          (onExperienceChange satt) renderas varje yrke som en rad med chip +
+          "ungefärliga år"-fält. Annars (kort/läs-ytor) den vanliga chip-raden. */}
+      {onExperienceChange ? (
+        <OccupationChipsWithYears
+          items={occupationChips}
+          experienceByConceptId={experienceByConceptId ?? {}}
+          onRemove={onToggle}
+          onExperienceChange={onExperienceChange}
+          idPrefix={idPrefix}
+          selectedAriaLabel={t("matchPrefs.selectedOccupations")}
+        />
+      ) : (
+        <PinnedChips
+          items={occupationChips}
+          onRemove={onToggle}
+          ariaLabel={t("matchPrefs.selectedOccupations")}
+        />
+      )}
 
       {/* CV-förslagets honest states (pending/noCv/noRole/error/unauthorized).
           "candidates" renderas INTE här (de blev chips ovan via pre-add). I
@@ -414,6 +477,102 @@ export function OccupationSection({
         )}
       </div>
     </>
+  );
+}
+
+const EXPERIENCE_YEARS_MIN = 0;
+const EXPERIENCE_YEARS_MAX = 70;
+
+/**
+ * exp-per-occ (ADR 0079-amendment PR-4): tolkar tal-fältets råa sträng till
+ * `number | null`. Tomt fält → `null` (ej angivet, ärligt — aldrig 0, som
+ * betyder "noll år"). Klampar till 0..70 (speglar schemat/backend). Icke-numerisk
+ * inmatning (en paste kan slinka förbi type=number) → `null` i stället för NaN.
+ * Ren funktion (testbar utan rendering). Speglar ExperienceField-parsen.
+ */
+export function parseYearsInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.min(EXPERIENCE_YEARS_MAX, Math.max(EXPERIENCE_YEARS_MIN, parsed));
+}
+
+/**
+ * exp-per-occ (ADR 0079-amendment PR-4): de pinnade yrkena som en rad-lista —
+ * varje rad bär den borttagbara chippen + ett litet "ungefärliga år"-tal-fält
+ * (0..70). Året bor PÅ yrket (lokalitet), inte i en global siffra. Tomt fält =
+ * `null` (ej angivet); `0` är ett giltigt skilt värde. INGEN exempel-placeholder
+ * (label/hjälptext bär instruktionen, hård Klas-regel) och INGEN magnitud-
+ * visualisering (det är ett preferens-input, aldrig en poäng — Goodhart/§5).
+ *
+ * Varje fält associeras till sitt yrke via en synlig kort-etikett ("Ungefärliga
+ * år") + en per-yrke aria-label ("Ungefärliga år i yrket X") så skärmläsaren
+ * vet vilket yrke fältet gäller (WCAG 1.3.1/4.1.2). En delad hjälptext länkas
+ * via aria-describedby. Tom mängd → inget renderas.
+ */
+function OccupationChipsWithYears({
+  items,
+  experienceByConceptId,
+  onRemove,
+  onExperienceChange,
+  idPrefix,
+  selectedAriaLabel,
+}: {
+  readonly items: ReadonlyArray<Option>;
+  readonly experienceByConceptId: Readonly<Record<string, number | null>>;
+  readonly onRemove: (conceptId: string) => void;
+  readonly onExperienceChange: (conceptId: string, years: number | null) => void;
+  readonly idPrefix: string;
+  readonly selectedAriaLabel: string;
+}) {
+  const t = useTranslations("settings");
+  const hintId = `${idPrefix}-occ-years-hint`;
+  if (items.length === 0) return null;
+  return (
+    <div className="jp-matchdialog__pinned">
+      <ul className="jp-occexp" aria-label={selectedAriaLabel}>
+        {items.map((it) => {
+          // `undefined` (ingen nyckel) och `null` renderar båda ett tomt fält;
+          // `0` renderar "0" (skilt värde). Distinktionen 0-vs-null bevaras.
+          const years = experienceByConceptId[it.conceptId];
+          return (
+            <li key={it.conceptId} className="jp-occexp__row">
+              <span className="jp-occexp__chip">
+                <PreferenceChip
+                  label={it.label}
+                  onRemove={() => onRemove(it.conceptId)}
+                />
+              </span>
+              <span className="jp-occexp__years">
+                <span className="jp-occexp__years-label" aria-hidden="true">
+                  {t("matchPrefs.occupation.yearsLabel")}
+                </span>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={EXPERIENCE_YEARS_MIN}
+                  max={EXPERIENCE_YEARS_MAX}
+                  step={1}
+                  className="jp-occexp__years-input"
+                  value={years === null || years === undefined ? "" : String(years)}
+                  onChange={(e) =>
+                    onExperienceChange(it.conceptId, parseYearsInput(e.target.value))
+                  }
+                  aria-label={t("matchPrefs.occupation.yearsAria", {
+                    label: it.label,
+                  })}
+                  aria-describedby={hintId}
+                />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p id={hintId} className="text-body-sm text-text-secondary mt-2">
+        {t("matchPrefs.occupation.yearsHint")}
+      </p>
+    </div>
   );
 }
 

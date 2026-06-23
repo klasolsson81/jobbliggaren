@@ -2817,6 +2817,46 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-matchdialog__pinned {
   margin-bottom: 14px;
 }
+/* ── Per-yrke-erfarenhet (exp-per-occ, ADR 0079-amendment PR-4) ──
+   Varje pinnat yrke får en egen rad: den borttagbara chippen + ett litet
+   "ungefärliga år"-tal-fält (0..70). Lokalitet — året bor PÅ yrket, inte i en
+   global siffra. EN <ul> med rad-per-yrke (chip vänster, fält höger). INGEN
+   magnitud-visualisering (ingen stapel/ring) — det är ett preferens-INPUT,
+   aldrig en poäng (Goodhart/§5). Token-drivet → båda teman flippar gratis. */
+.jp-occexp {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-occexp__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.jp-occexp__chip {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Tal-fältet + dess inline-etikett. Etiketten bär instruktionen (aldrig
+   placeholder-exempel). Fältet är smalt (en 0..70-siffra ryms gott). */
+.jp-occexp__years {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.jp-occexp__years-label {
+  font-size: 13px;
+  color: var(--jp-ink-2);
+  white-space: nowrap;
+}
+.jp-occexp__years-input {
+  width: 5rem;
+}
 .jp-matchdialog__cascade {
   display: grid;
   grid-template-columns: 1fr 1fr;

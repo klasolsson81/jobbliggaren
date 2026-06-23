@@ -24,33 +24,8 @@ vi.mock("next/navigation", async () => {
   };
 });
 
-// Wizardens preferens-actions (monteras i komponenten via MatchSetupWizard).
-const {
-  updateMock,
-  deriveMock,
-  cvSuggestMock,
-  parsedSuggestMock,
-  skillSearchMock,
-  skillSuggestMock,
-} = vi.hoisted(() => ({
-  updateMock: vi.fn(),
-  deriveMock: vi.fn(),
-  cvSuggestMock: vi.fn(),
-  parsedSuggestMock: vi.fn(),
-  skillSearchMock: vi.fn(),
-  skillSuggestMock: vi.fn(),
-}));
-vi.mock("@/lib/actions/match-preferences", () => ({
-  updateMatchPreferencesAction: updateMock,
-  deriveOccupationsAction: deriveMock,
-  suggestOccupationsFromCvAction: cvSuggestMock,
-  suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
-  searchSkillsAction: skillSearchMock,
-  suggestSkillsFromParsedResumeAction: skillSuggestMock,
-}));
-
 // CvUploadForm mockad: exponera dess onUploaded-callback via en knapp så
-// step-flödet (upload → gapfill) kan drivas utan en riktig fetch/filväljare.
+// step-flödet (upload → done) kan drivas utan en riktig fetch/filväljare.
 vi.mock("@/components/resumes/cv-upload-form", () => ({
   CvUploadForm: ({ onUploaded }: { onUploaded?: (id: string) => void }) => (
     <button type="button" onClick={() => onUploaded?.("parsed-1")}>
@@ -59,21 +34,24 @@ vi.mock("@/components/resumes/cv-upload-form", () => ({
   ),
 }));
 
-// loadParsedResumeForGapFillAction mockad: welcome-flödet läser parse-innehållet
-// server-side för in-modal-gap-fill + bär de förhämtade yrkesförslagen (STEG 1).
-const { loadGapFillMock } = vi.hoisted(() => ({ loadGapFillMock: vi.fn() }));
-vi.mock("@/lib/actions/resumes", () => ({
-  loadParsedResumeForGapFillAction: loadGapFillMock,
-}));
-
-// CvGapFillForm mockad: exponera dess onPromoted-callback via en knapp så
-// gap-fill → promote → done-flödet kan drivas utan ett riktigt formulär/fetch.
-vi.mock("@/components/resumes/cv-gapfill-form", () => ({
-  CvGapFillForm: ({ onPromoted }: { onPromoted?: (id: string) => void }) => (
-    <button type="button" onClick={() => onPromoted?.("resume-1")}>
-      MOCK_SPARA_CV
-    </button>
-  ),
+// MatchSetupWizard mockad: ren prop-spegel. Vi verifierar att den öppnas (open)
+// OCH att den får det uppladdade parsed_resume:ts id (onboarding-frikoppling: CV:t
+// befordras inte, staging-artefakten lever → wizarden auto-föreslår live ur den).
+// Renderas bara när open=true (matchar Radix-beteendet att en stängd dialog inte
+// exponerar innehåll), så testet kan skilja på öppen/stängd wizard.
+vi.mock("@/components/settings/match-setup-wizard", () => ({
+  MatchSetupWizard: ({
+    open,
+    parsedResumeId,
+  }: {
+    open: boolean;
+    parsedResumeId?: string;
+  }) =>
+    open ? (
+      <div data-testid="wizard" data-parsed-resume-id={parsedResumeId ?? ""}>
+        Steg 1 av 5
+      </div>
+    ) : null,
 }));
 
 import { WelcomeSetupModal } from "./welcome-setup-modal";
@@ -116,28 +94,6 @@ function renderModal(
 beforeEach(() => {
   markSeenMock.mockClear();
   refreshMock.mockClear();
-  updateMock.mockReset();
-  deriveMock.mockReset();
-  cvSuggestMock.mockReset();
-  parsedSuggestMock.mockReset();
-  updateMock.mockResolvedValue({ success: true });
-  deriveMock.mockResolvedValue({ success: true, candidates: [] });
-  cvSuggestMock.mockResolvedValue({ kind: "noCv" });
-  // STEG 1 / ADR 0079: welcome-flödet befordrar CV:t och bär förhämtade förslag
-  // till wizarden (ingen parsed-auto-suggest där). Default lugn tom-state.
-  parsedSuggestMock.mockResolvedValue({ kind: "noCv" });
-  skillSearchMock.mockReset();
-  skillSuggestMock.mockReset();
-  skillSearchMock.mockResolvedValue({ success: true, options: [] });
-  skillSuggestMock.mockResolvedValue({ kind: "noCv" });
-  loadGapFillMock.mockReset();
-  loadGapFillMock.mockResolvedValue({
-    kind: "ok",
-    sourceFileName: "cv.pdf",
-    content: {},
-    proposedOccupationGroups: [],
-    proposedSkills: [],
-  });
 });
 
 describe("WelcomeSetupModal — gating", () => {
@@ -159,38 +115,25 @@ describe("WelcomeSetupModal — gating", () => {
   });
 });
 
-describe("WelcomeSetupModal — upload → gapfill → done (STEG 1: in-modal promote)", () => {
-  it("upload → gap-fill-steg (komplettera) innan bekräftelse", async () => {
+describe("WelcomeSetupModal — upload → done (onboarding-frikoppling: ingen gap-fill)", () => {
+  it("upload går RAKT till done med ärlig 'CV inläst'-bekräftelse (CV:t sparas inte)", async () => {
     const user = userEvent.setup();
     renderModal();
 
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
 
-    // Direkt efter upload: gap-fill-steget (komplettera + promote), INTE done.
+    // Direkt efter upload: done-steget (bekräftelse + matchnings-val) i EN slide.
+    // Ingen mellanliggande gap-fill ("Komplettera ditt CV" finns inte längre).
     expect(
-      await screen.findByRole("heading", { name: "Komplettera ditt CV" })
+      await screen.findByRole("heading", { name: "CV inläst" })
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole("button", { name: "MOCK_SPARA_CV" })
-    ).toBeInTheDocument();
-    // "CV sparat"-bekräftelsen får inte visas förrän CV:t faktiskt befordrats.
-    expect(screen.queryByRole("heading", { name: "CV sparat" })).toBeNull();
-  });
-
-  it("gap-fill → promote → done: grön bekräftelse (CV sparat) + matchnings-valet i samma slide, inte 'match klar'", async () => {
-    const user = userEvent.setup();
-    renderModal();
-
-    await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
-    await user.click(
-      await screen.findByRole("button", { name: "MOCK_SPARA_CV" })
-    );
-
-    // Bekräftelse OCH val i SAMMA slide (ingen separat "Fortsätt"-mellansida).
-    expect(
-      await screen.findByRole("heading", { name: "CV sparat" })
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Ditt CV är sparat/)).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Komplettera ditt CV" })
+    ).toBeNull();
+    // Copyn är ärlig: inläst men inte sparat (CTO-bind, pending-card).
+    expect(screen.getByText(/inläst men inte sparat/)).toBeInTheDocument();
+    // Får aldrig påstå att CV:t är sparat.
+    expect(screen.queryByText(/Ditt CV är sparat/)).toBeNull();
     expect(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     ).toBeInTheDocument();
@@ -200,26 +143,6 @@ describe("WelcomeSetupModal — upload → gapfill → done (STEG 1: in-modal pr
     // Får aldrig påstå att en matchning är gjord (FAS-DEFERRAL / honest copy).
     expect(screen.queryByText(/matchningar hittade/i)).toBeNull();
     expect(screen.queryByText(/Vi hittade \d+ matchningar/i)).toBeNull();
-  });
-
-  it("gap-fill-ladd-fel: visar ärligt fel + 'Fortsätt' till matchnings-valet", async () => {
-    loadGapFillMock.mockResolvedValueOnce({ kind: "error" });
-    const user = userEvent.setup();
-    renderModal();
-
-    await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
-
-    expect(
-      await screen.findByText(/Vi kunde inte läsa in ditt CV just nu/)
-    ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Fortsätt utan CV" })
-    );
-    // Fortsätt → done UTAN grön "CV sparat"-bekräftelse (CV:t befordrades aldrig).
-    expect(
-      screen.getByRole("heading", { name: "Ställ in din matchning" })
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "CV sparat" })).toBeNull();
   });
 
   it("'Fortsätt utan CV' går till done UTAN grön bekräftelse, rakt på matchnings-valet", async () => {
@@ -234,21 +157,17 @@ describe("WelcomeSetupModal — upload → gapfill → done (STEG 1: in-modal pr
     expect(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     ).toBeInTheDocument();
-    // Ingen "CV uppladdat"-bekräftelse när inget CV laddades upp.
-    expect(screen.queryByRole("heading", { name: "CV uppladdat" })).toBeNull();
+    // Ingen "CV inläst"-bekräftelse när inget CV laddades upp.
+    expect(screen.queryByRole("heading", { name: "CV inläst" })).toBeNull();
   });
 });
 
 describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
-  it("primär 'Ja, ställ in matchning' öppnar MatchSetupWizard (steg 1 av 5)", async () => {
+  it("primär 'Ja, ställ in matchning' öppnar MatchSetupWizard med det uppladdade parsedResumeId", async () => {
     const user = userEvent.setup();
     renderModal();
 
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
-    // STEG 1: befordra CV:t i gap-fill-steget innan matchnings-valet.
-    await user.click(
-      await screen.findByRole("button", { name: "MOCK_SPARA_CV" })
-    );
     await user.click(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
     );
@@ -256,8 +175,25 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
     // Wizarden öppnas (sekventiellt efter att välkomsten stängts). Cookien sätts
     // INTE här utan när wizarden stängs (annars re-rendrar server-actionen RSC:n
     // och avmonterar modalen innan wizarden hinner öppnas).
-    expect(await screen.findByText("Steg 1 av 5")).toBeInTheDocument();
+    const wizard = await screen.findByTestId("wizard");
+    expect(wizard).toHaveTextContent("Steg 1 av 5");
+    // CV:t är INTE befordrat → staging-artefakten lever → wizarden får dess id
+    // och auto-föreslår live ur den pending-parsade artefakten.
+    expect(wizard).toHaveAttribute("data-parsed-resume-id", "parsed-1");
     expect(markSeenMock).not.toHaveBeenCalled();
+  });
+
+  it("utan uppladdat CV öppnar wizarden UTAN parsedResumeId", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(screen.getByRole("button", { name: "Fortsätt utan CV" }));
+    await user.click(
+      screen.getByRole("button", { name: "Ja, ställ in matchning" })
+    );
+
+    const wizard = await screen.findByTestId("wizard");
+    expect(wizard).toHaveAttribute("data-parsed-resume-id", "");
   });
 });
 

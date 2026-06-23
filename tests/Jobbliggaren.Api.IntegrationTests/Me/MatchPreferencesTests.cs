@@ -35,13 +35,15 @@ public class MatchPreferencesTests(ApiFactory factory)
         string[]? regions = null,
         string[]? employmentTypes = null,
         string[]? skills = null,
-        int? experienceYears = null) => new
+        int? experienceYears = null,
+        object[]? occupationExperience = null) => new
         {
             preferredOccupationGroups = occupationGroups,
             preferredRegions = regions,
             preferredEmploymentTypes = employmentTypes,
             preferredSkills = skills,
             experienceYears,
+            preferredOccupationExperience = occupationExperience,
         };
 
     private async Task<JsonElement> GetProfileAsync(CancellationToken ct)
@@ -222,6 +224,58 @@ public class MatchPreferencesTests(ApiFactory factory)
         var response = await _client.PutAsJsonAsync(
             "/api/v1/me/match-preferences",
             Body(experienceYears: 999),
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    // ADR 0079-amendment (exp-per-occ PR-3) — the per-occupation experience overlay binds from
+    // the nested JSON array, persists to jsonb, and round-trips through the GET profile DTO
+    // projection (the read-side page-wipe partner). A null-years entry preserves "not stated".
+    [Fact]
+    public async Task PUT_match_preferences_with_occupation_experience_round_trips()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PutAsJsonAsync(
+            "/api/v1/me/match-preferences",
+            Body(
+                occupationGroups: ["grp_12345", "grp_67890"],
+                occupationExperience:
+                [
+                    new { conceptId = "grp_12345", years = (int?)5 },
+                    new { conceptId = "grp_67890", years = (int?)null },
+                ]),
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var profile = await GetProfileAsync(ct);
+        var overlay = profile.GetProperty("preferredOccupationExperience").EnumerateArray().ToList();
+        overlay.Count.ShouldBe(2);
+
+        var withYears = overlay.Single(e => e.GetProperty("conceptId").GetString() == "grp_12345");
+        withYears.GetProperty("years").GetInt32().ShouldBe(5);
+
+        var withoutYears = overlay.Single(e => e.GetProperty("conceptId").GetString() == "grp_67890");
+        withoutYears.GetProperty("years").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    // ADR 0079-amendment — an overlay entry for a group NOT in preferredOccupationGroups is a
+    // subset-invariant failure → 400 ProblemDetails (MatchPreferences.OrphanOccupationExperience),
+    // not 500.
+    [Fact]
+    public async Task PUT_match_preferences_with_orphan_occupation_experience_returns_400()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PutAsJsonAsync(
+            "/api/v1/me/match-preferences",
+            Body(
+                occupationGroups: ["grp_12345"],
+                occupationExperience: [new { conceptId = "grp_not_preferred", years = (int?)3 }]),
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);

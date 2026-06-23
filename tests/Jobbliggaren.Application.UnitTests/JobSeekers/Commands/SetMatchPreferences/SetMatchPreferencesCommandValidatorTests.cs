@@ -22,14 +22,16 @@ public class SetMatchPreferencesCommandValidatorTests
         IReadOnlyList<string>? preferredEmploymentTypes = null,
         IReadOnlyList<string>? preferredMunicipalities = null,
         IReadOnlyList<string>? preferredSkills = null,
-        int? experienceYears = null) =>
+        int? experienceYears = null,
+        IReadOnlyList<OccupationExperienceInput>? preferredOccupationExperience = null) =>
         new(
             PreferredOccupationGroups: preferredOccupationGroups,
             PreferredRegions: preferredRegions,
             PreferredEmploymentTypes: preferredEmploymentTypes,
             PreferredMunicipalities: preferredMunicipalities,
             PreferredSkills: preferredSkills,
-            ExperienceYears: experienceYears);
+            ExperienceYears: experienceYears,
+            PreferredOccupationExperience: preferredOccupationExperience);
 
     [Fact]
     public void Validate_WithValidConceptIds_Passes()
@@ -233,5 +235,77 @@ public class SetMatchPreferencesCommandValidatorTests
     public void Validate_WithExperienceYearsOutOfRange_IsInvalid(int years)
     {
         _validator.Validate(Command(experienceYears: years)).IsValid.ShouldBeFalse();
+    }
+
+    // ADR 0079-amendment (exp-per-occ PR-3) — the per-occupation experience overlay:
+    // cap + per-entry concept-id pattern + per-entry years range (defense-in-depth).
+
+    [Fact]
+    public void Validate_WithValidOccupationExperience_Passes()
+    {
+        var result = _validator.Validate(Command(
+            preferredOccupationGroups: ["grp_12345"],
+            preferredOccupationExperience:
+            [
+                new OccupationExperienceInput("grp_12345", 5),
+                new OccupationExperienceInput("grp_67890", null), // null years = not stated, valid
+            ]));
+
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_OccupationExperience_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => new OccupationExperienceInput($"grp{i}", 1)).ToArray();
+
+        _validator.Validate(Command(preferredOccupationExperience: overMax)).IsValid.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("bad id!")]
+    [InlineData("grp space")]
+    [InlineData("åäö")]
+    public void Validate_OccupationExperience_InvalidConceptId_IsInvalid(string bad)
+    {
+        var result = _validator.Validate(Command(
+            preferredOccupationExperience: [new OccupationExperienceInput(bad, 5)]));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(71)]
+    [InlineData(1000)]
+    public void Validate_OccupationExperience_YearsOutOfRange_IsInvalid(int years)
+    {
+        var result = _validator.Validate(Command(
+            preferredOccupationExperience: [new OccupationExperienceInput("grp_12345", years)]));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_OccupationExperience_NullYears_Passes()
+    {
+        var result = _validator.Validate(Command(
+            preferredOccupationExperience: [new OccupationExperienceInput("grp_12345", null)]));
+
+        result.IsValid.ShouldBeTrue();
+    }
+
+    // Inclusive boundary: 0 and MaxExperienceYears are VALID (an off-by-one in either comparison
+    // would slip through if only interior/fail values were tested).
+    [Theory]
+    [InlineData(0)]
+    [InlineData(70)]
+    public void Validate_OccupationExperience_YearsAtInclusiveBound_Passes(int years)
+    {
+        var result = _validator.Validate(Command(
+            preferredOccupationExperience: [new OccupationExperienceInput("grp_12345", years)]));
+
+        result.IsValid.ShouldBeTrue();
     }
 }

@@ -227,6 +227,145 @@ public class SetMatchPreferencesCommandHandlerTests
         result.Error.Code.ShouldBe("MatchPreferences.ExperienceYearsOutOfRange");
     }
 
+    // ADR 0079-amendment (exp-per-occ PR-3) — the per-occupation experience overlay is mapped
+    // from the wire-shape to the Domain VO and threaded into the stored MatchPreferences.
+    [Fact]
+    public async Task Handle_WithOccupationExperienceOverlay_ThreadsItIntoStoredPreferences()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345", "grp_67890"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: null,
+            ExperienceYears: null,
+            PreferredOccupationExperience:
+            [
+                new OccupationExperienceInput("grp_12345", 5),
+                new OccupationExperienceInput("grp_67890", null), // a preferred group with no stated years
+            ]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var overlay = db.JobSeekers.Single(js => js.UserId == _userId)
+            .MatchPreferences.PreferredOccupationExperience;
+        overlay.Count.ShouldBe(2);
+        overlay.Single(e => e.ConceptId == "grp_12345").Years.ShouldBe(5);
+        overlay.Single(e => e.ConceptId == "grp_67890").Years.ShouldBeNull();
+    }
+
+    // The overlay is a SPARSE subset of PreferredOccupationGroups — an entry for a group that is
+    // NOT preferred is a domain-invariant failure (enforced in MatchPreferences.Create, §2.2).
+    [Fact]
+    public async Task Handle_OverlayForNonPreferredGroup_ReturnsOrphanDomainError()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: null,
+            ExperienceYears: null,
+            PreferredOccupationExperience: [new OccupationExperienceInput("grp_not_preferred", 3)]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.OrphanOccupationExperience");
+    }
+
+    // Full-replace page-wipe: a command that omits the overlay clears a previously-stored one.
+    [Fact]
+    public async Task Handle_OmittingOverlay_ClearsPreviouslyStoredOverlay()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        // First save stores an overlay.
+        await handler.Handle(new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredOccupationExperience: [new OccupationExperienceInput("grp_12345", 4)]),
+            CancellationToken.None);
+
+        // Second save omits the overlay (null) → full-replace clears it.
+        var result = await handler.Handle(new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null),
+            CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        db.JobSeekers.Single(js => js.UserId == _userId)
+            .MatchPreferences.PreferredOccupationExperience.ShouldBeEmpty();
+    }
+
+    // M1 (architect review) — a malformed body binds a null array element; the handler must drop
+    // it (parity with the string-dimension NormalizeList null guard) and degrade to honest-empty,
+    // never NRE into a 500 (the eager wire→VO map ran before Create's own null guard).
+    [Fact]
+    public async Task Handle_OverlayWithNullElement_DropsIt_DoesNotThrow()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: null,
+            ExperienceYears: null,
+            PreferredOccupationExperience: [null!, new OccupationExperienceInput("grp_12345", 5)]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue(); // the null was dropped, the valid entry survived
+        var overlay = db.JobSeekers.Single(js => js.UserId == _userId)
+            .MatchPreferences.PreferredOccupationExperience;
+        overlay.ShouldHaveSingleItem().ConceptId.ShouldBe("grp_12345");
+    }
+
+    // test-writer Minor 1 — duplicate concept-id reachable via the command bubbles up as a
+    // Create DomainError (the validator deliberately defers the distinct rule to Create).
+    [Fact]
+    public async Task Handle_OverlayWithDuplicateConceptId_ReturnsDuplicateDomainError()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: null,
+            ExperienceYears: null,
+            PreferredOccupationExperience:
+            [
+                new OccupationExperienceInput("grp_12345", 5),
+                new OccupationExperienceInput("grp_12345", 8), // same group twice
+            ]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.DuplicateOccupationExperience");
+    }
+
     [Fact]
     public async Task Handle_IsOwnerScoped_DoesNotTouchOtherUsersJobSeeker()
     {

@@ -25,6 +25,15 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 /// absent (skills empty, experience null). This is a FULL-REPLACE write: a body that omits
 /// a field clears it, so the frontend MUST round-trip every dimension (page-wipe guard).
 /// </para>
+/// <para>
+/// <b><see cref="PreferredOccupationExperience"/> (ADR 0079-amendment, exp-per-occ PR-3):</b>
+/// the per-occupation experience overlay — ~years stated for a preferred occupation group.
+/// A SPARSE overlay: an entry may exist only for a concept-id that is also in
+/// <see cref="PreferredOccupationGroups"/> (the subset invariant, enforced in
+/// <c>MatchPreferences.Create</c>), and not every group needs one. <see cref="ExperienceYears"/>
+/// is the legacy profile-level scalar this supersedes; both remain on the wire (additive).
+/// Full-replace like every other dimension — omit ⇒ clear.
+/// </para>
 /// </summary>
 public sealed record SetMatchPreferencesCommand(
     IReadOnlyList<string>? PreferredOccupationGroups,
@@ -32,5 +41,15 @@ public sealed record SetMatchPreferencesCommand(
     IReadOnlyList<string>? PreferredEmploymentTypes,
     IReadOnlyList<string>? PreferredMunicipalities = null,
     IReadOnlyList<string>? PreferredSkills = null,
-    int? ExperienceYears = null)
+    int? ExperienceYears = null,
+    IReadOnlyList<OccupationExperienceInput>? PreferredOccupationExperience = null)
     : ICommand<Result>, IAuthenticatedRequest;
+
+/// <summary>
+/// Wire-shape for one per-occupation experience overlay entry (ADR 0079-amendment). An
+/// Application input record (not the Domain <c>OccupationExperience</c> VO — the Domain type
+/// never crosses the API boundary, CLAUDE.md §2.3); the handler maps it to the VO so
+/// <c>MatchPreferences.Create</c> enforces the cap/format/distinct/range/subset invariants.
+/// <see cref="Years"/> is nullable: null = "not stated".
+/// </summary>
+public sealed record OccupationExperienceInput(string ConceptId, int? Years);

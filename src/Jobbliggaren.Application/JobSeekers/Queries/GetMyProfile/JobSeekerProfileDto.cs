@@ -32,7 +32,12 @@ public sealed record JobSeekerProfileDto(
     // round-tripping skills + experience, saving any other dimension would silently wipe
     // them. Concept-id + scalar projections of the VO (no domain leak, no PII).
     IReadOnlyList<string> PreferredSkills,
-    int? ExperienceYears)
+    int? ExperienceYears,
+    // ADR 0079-amendment (exp-per-occ PR-3) — the per-occupation experience overlay,
+    // projected so the wizard's per-occupation year inputs pre-fill. SAME full-replace
+    // page-wipe reason: without round-tripping it, saving any other dimension would wipe
+    // the overlay. A {conceptId, years} projection of the VO (no domain leak, no PII).
+    IReadOnlyList<OccupationExperienceDto> PreferredOccupationExperience)
 {
     public static JobSeekerProfileDto FromDomain(JobSeeker js) => new(
         js.Id.Value,
@@ -47,5 +52,13 @@ public sealed record JobSeekerProfileDto(
         js.MatchPreferences.PreferredEmploymentTypes,
         js.MatchPreferences.PreferredMunicipalities,
         js.MatchPreferences.PreferredSkills,
-        js.MatchPreferences.ExperienceYears);
+        js.MatchPreferences.ExperienceYears,
+        [.. js.MatchPreferences.PreferredOccupationExperience
+            .Select(e => new OccupationExperienceDto(e.ConceptId, e.Years))]);
 }
+
+/// <summary>
+/// Read projection of one per-occupation experience overlay entry (ADR 0079-amendment) —
+/// the {conceptId, years} the FE reads to pre-fill the wizard's year input. Non-PII.
+/// </summary>
+public sealed record OccupationExperienceDto(string ConceptId, int? Years);

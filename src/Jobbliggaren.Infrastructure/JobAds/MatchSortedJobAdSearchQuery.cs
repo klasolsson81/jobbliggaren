@@ -25,9 +25,10 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// amendment 2026-06-20):</b> sedan graden blev requirement-aware
 /// (<c>Grade(FullMatchScore)</c> gatar Strong/Top på must-have-täckning) är denna sort en
 /// snabb, grov Fast-band-coarsening som ärligt SKILJER SIG från den synliga graden i
-/// must-have-bandet — den heta vägen läser top-5 plaintext-skills (ingen DEK, binär
-/// <c>?|</c>), kan inte beräkna must-have-täckning, och ska därför inte påstå sig spegla
-/// den synliga graden. UI-copy säger "Sortera efter matchning" (preferens+skill-relevans),
+/// must-have-bandet — den heta vägen läser den bekräftade skill-mängden (plaintext, ingen
+/// DEK, binär <c>?|</c>; ADR 0079 STEG 3 PR-D), kan inte beräkna must-have-täckning, och ska
+/// därför inte påstå sig spegla den synliga graden. UI-copy säger "Sortera efter matchning"
+/// (preferens+skill-relevans),
 /// aldrig "sortera efter grad exakt". Ett orakel pinnar Fast-spegeln; ett separat test
 /// pinnar divergensen (MatchSortOracleTests).</para>
 /// Fast-rank-spegeln:
@@ -97,9 +98,11 @@ internal sealed class MatchSortedJobAdSearchQuery(
         var ortStated = regions.Count > 0 || municipalities.Count > 0;
         var employmentStated = employment.Count > 0;
 
-        // F4-15 (ADR 0076 Decision 6, R5-REBIND Option H): den gyllene topp-rungen. CV-skills
-        // är top-5 plaintext (ingen DEK) på denna heta väg. Tom mängd → skillStated == false
-        // → den gyllene termen blir konstant 0 (EF prunes) → ordning ≡ F4-14 (ingen fel-lyft).
+        // F4-15 (ADR 0076 Decision 6) → ADR 0079 STEG 3 PR-D: den gyllene topp-rungen.
+        // CvSkillConceptIds är nu den BEKRÄFTADE skill-mängden (plaintext PreferredSkills,
+        // ingen DEK) — SAMMA källa som verdikt-scorern, så sort och grad kan aldrig divergera
+        // på en borttagen skill (ingen fel-lyft). Tom mängd → skillStated == false → den
+        // gyllene termen blir konstant 0 (EF prunes) → ordning ≡ F4-14.
         var cvSkillIds = profile.CvSkillConceptIds.ToArray();
         var skillStated = cvSkillIds.Length > 0;
 
@@ -109,10 +112,10 @@ internal sealed class MatchSortedJobAdSearchQuery(
         var items = await baseQuery
             // Gyllene topp-rung (F4-15): en Stark match (yrke+ort+anställning ALLA
             // bekräftade — samma villkor som grad-rank == 3) som OCKSÅ delar minst en
-            // CV-skill (`extracted_lexemes ?| @cvSkillIds`) sorteras ÖVER en ren Stark.
+            // bekräftad skill (`extracted_lexemes ?| @cvSkillIds`) sorteras ÖVER en ren Stark.
             // Ort-bekräftelsen är union (region ELLER kommun träffar, parity ScoreOrtUnion).
-            // En binär rung utan verdikt → top-5 kan bara under-lyfta, aldrig fel-lyfta
-            // (honest reduced-recall). NULL extracted_lexemes → ?| NULL → ELSE 0.
+            // Den bekräftade mängden är komplett per definition (ADR 0079 PR-D) → ingen
+            // top-5-under-recall kvar. NULL extracted_lexemes → ?| NULL → ELSE 0.
             .OrderByDescending(j =>
                 skillStated
                 && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))

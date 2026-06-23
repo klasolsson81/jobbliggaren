@@ -17,7 +17,7 @@
 //   mäter INTE match-sort-hot-path).
 //
 //   Handler ListJobAdsQueryHandler (F4-15, bygger på F4-14):
-//     1. IMatchProfileBuilder.BuildFullFromTopSkillsAsync (NY F4-15):
+//     1. IMatchProfileBuilder.BuildFullForSortAsync (NY F4-15):
 //        - 1 SELECT JobSeekers (AsNoTracking) → JobSeeker + MatchPreferences.
 //        - 1 SELECT Resumes WHERE id = PrimaryResumeId (AsNoTracking, NO Include(Versions))
 //          → Resume.TopSkills (plaintext text[], ADR 0058/0059, NO DEK).
@@ -57,7 +57,7 @@
 //     (C) FallbackNoProfile: sortBy=MatchDesc men användaren har INGEN angiven
 //         yrkespreferens (tom SSYK-gate → handler faller tillbaka till
 //         PublishedAtDesc-sort via IJobAdSearchQuery.SearchAsync). I F4-15 bygger
-//         BuildFullFromTopSkillsAsync ändå SSYK-check (1 SELECT JobSeekers);
+//         BuildFullForSortAsync ändå SSYK-check (1 SELECT JobSeekers);
 //         om PrimaryResumeId finns → 1 SELECT Resumes; sedan SSYK-gate → fallback.
 //         Mäter: F4-15:s BUILD-overhead (2 SELECT:s) + default-sort-kostnaden.
 //

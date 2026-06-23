@@ -25,7 +25,7 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.ListJobAds;
 // deterministisk, InternalsVisibleTo) — äkta parser→filter-SPOT-integration utan DB.
 //
 // F4-14 → F4-15 (ADR 0076 Decision 4/5/6/7) — match-sort-grenen bygger nu en FULL
-// profil ur de plaintext TopSkills (BuildFullFromTopSkillsAsync, SORT-vägen — ingen
+// profil ur de plaintext TopSkills (BuildFullForSortAsync, SORT-vägen — ingen
 // DEK) och skickar en FullCandidateMatchProfile till SearchByMatchAsync. SSYK-gaten
 // läser nu profile.Fast.SsykGroupConceptIds. Default-stubben ger en HONEST EMPTY full
 // profil (tom Fast-SSYK) så att alla icke-match-tester faller till search.SearchAsync.
@@ -43,7 +43,7 @@ public class ListJobAdsQueryHandlerTests
         // Default: en honest EMPTY FULL profil (tom Fast-SSYK). Då faller även en
         // MatchDesc-begäran tillbaka till search.SearchAsync (Decision 7) — alla
         // adapter-/parser-tester nedan träffar därför den rena porten.
-        _profileBuilder.BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>())
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(EmptyFullProfile);
     }
 
@@ -323,14 +323,14 @@ public class ListJobAdsQueryHandlerTests
 
     // --- F4-14 → F4-15 (ADR 0076 Decision 4/5/6/7): match-sort-grenen -------
     // SortByMatch + FULL-profil med angiven Fast-yrkesgrupp → matchSearch.SearchByMatchAsync
-    //   (med en FullCandidateMatchProfile). Profilen byggs ur BuildFullFromTopSkillsAsync
+    //   (med en FullCandidateMatchProfile). Profilen byggs ur BuildFullForSortAsync
     //   (SORT-vägen, ingen DEK). SortByMatch + tom Fast-SSYK → honest fallback till
     //   search.SearchAsync. Sort != MatchDesc → alltid search.SearchAsync, profilen byggs ALDRIG.
 
     [Fact]
     public async Task Handle_SortByMatchWithOccupation_CallsMatchSearchExactlyOnce_NotDefaultSearch()
     {
-        _profileBuilder.BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>())
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(FullProfileWithOccupation());
         _matchSearch.SearchByMatchAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
@@ -356,7 +356,7 @@ public class ListJobAdsQueryHandlerTests
         var builtProfile = FullProfileWithOccupation(
             ssyk: ["grp-occupation"], regions: ["stockholm"], employment: ["et_fast"],
             cvSkills: ["skill-csharp"]);
-        _profileBuilder.BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>())
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(builtProfile);
 
         JobAdFilterCriteria? capturedFilter = null;
@@ -400,7 +400,7 @@ public class ListJobAdsQueryHandlerTests
     {
         // Decision 7 honest fallback: gaten läser profile.Fast.SsykGroupConceptIds.
         // Tom Fast-SSYK → faller tillbaka till default-sorten (PublishedAtDesc).
-        _profileBuilder.BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>())
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(EmptyFullProfile); // tom Fast-SSYK
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
@@ -423,7 +423,7 @@ public class ListJobAdsQueryHandlerTests
     [Fact]
     public async Task Handle_SortNotMatchDesc_NeverConsultsProfileBuilderOrMatchSearch()
     {
-        _profileBuilder.BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>())
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(FullProfileWithOccupation());
         _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
@@ -433,7 +433,7 @@ public class ListJobAdsQueryHandlerTests
             new ListJobAdsQuery(Sort: ListJobAdsSort.PublishedAtAsc),
             TestContext.Current.CancellationToken);
 
-        await _profileBuilder.DidNotReceive().BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>());
+        await _profileBuilder.DidNotReceive().BuildFullForSortAsync(Arg.Any<CancellationToken>());
         await _matchSearch.DidNotReceive().SearchByMatchAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>());
@@ -444,9 +444,9 @@ public class ListJobAdsQueryHandlerTests
     [Fact]
     public async Task Handle_SortByMatchWithOccupation_BuildsFullProfileAtMostOnce_ViaTopSkillsPath()
     {
-        // SORT-vägen bygger profilen via BuildFullFromTopSkillsAsync (ingen DEK) — EN gång.
-        // BuildFullFromCvSkillsAsync (TAG-vägen) anropas ALDRIG av list-sorten.
-        _profileBuilder.BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>())
+        // SORT-vägen bygger profilen via BuildFullForSortAsync (ingen DEK) — EN gång.
+        // BuildFullForVerdictAsync (TAG-vägen) anropas ALDRIG av list-sorten.
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(FullProfileWithOccupation());
         _matchSearch.SearchByMatchAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
@@ -458,14 +458,14 @@ public class ListJobAdsQueryHandlerTests
             new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
             TestContext.Current.CancellationToken);
 
-        await _profileBuilder.Received(1).BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>());
-        await _profileBuilder.DidNotReceive().BuildFullFromCvSkillsAsync(Arg.Any<CancellationToken>());
+        await _profileBuilder.Received(1).BuildFullForSortAsync(Arg.Any<CancellationToken>());
+        await _profileBuilder.DidNotReceive().BuildFullForVerdictAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_SortByMatchWithOccupation_ReturnsMatchPortResultUnchanged()
     {
-        _profileBuilder.BuildFullFromTopSkillsAsync(Arg.Any<CancellationToken>())
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(FullProfileWithOccupation());
         var dto = new JobAdDto(
             Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",

@@ -1,6 +1,4 @@
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Application.Common.Security;
-using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Profiles;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -26,23 +24,19 @@ public class MatchProfileBuilderTests
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
 
-    // F4-15 (ADR 0076 Decision 6) widened the ctor with three collaborators (skill
-    // resolver + DEK warm-up). They are irrelevant to the UNCHANGED preference path
-    // (BuildFromPreferencesAsync reads no CV / no DEK) — stubbed here so these F4-12 cases
-    // keep pinning the preference mapping. The Full-path behaviour lives in
-    // MatchProfileBuilderFullTests.
-    private readonly ISkillResolver _skillResolver = Substitute.For<ISkillResolver>();
-    private readonly ICurrentDataOwner _dataOwner = Substitute.For<ICurrentDataOwner>();
-    private readonly IUserDataKeyStore _dataKeyStore = Substitute.For<IUserDataKeyStore>();
-
     public MatchProfileBuilderTests()
     {
         _currentUser.UserId.Returns(_userId);
     }
 
+    // ADR 0079 STEG 3 PR-D narrowed the ctor back to (db, currentUser): the builder is now
+    // DEK-FREE and resolver-FREE. The former skill-resolver + DEK collaborators are gone (the
+    // confirmed skill set is plaintext on MatchPreferences). The UNCHANGED preference path
+    // (BuildFromPreferencesAsync reads no CV / no DEK) is pinned here; the Full-path behaviour
+    // lives in MatchProfileBuilderFullTests.
     private MatchProfileBuilder NewBuilder(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, ICurrentUser? user = null) =>
-        new(db, user ?? _currentUser, _skillResolver, _dataOwner, _dataKeyStore);
+        new(db, user ?? _currentUser);
 
     private static async Task<JobSeeker> SeedSeekerWithPrefsAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,

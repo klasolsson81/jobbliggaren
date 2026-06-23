@@ -1,5 +1,4 @@
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Profiles;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -11,57 +10,57 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Matching.Profiles;
 
 /// <summary>
-/// Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the TWO new FULL-profile builders on
-/// <see cref="IMatchProfileBuilder"/> (the existing <see cref="IMatchProfileBuilder.BuildFromPreferencesAsync"/>
-/// stays unchanged and is pinned by <see cref="MatchProfileBuilderTests"/>):
+/// ADR 0079 STEG 3 PR-D (Beslut 1, the scorer reroute) — the TWO FULL-profile builders on
+/// <see cref="IMatchProfileBuilder"/> (the existing
+/// <see cref="IMatchProfileBuilder.BuildFromPreferencesAsync"/> stays unchanged and is pinned
+/// by <see cref="MatchProfileBuilderTests"/>):
 /// <list type="bullet">
-/// <item><b>BuildFullFromTopSkillsAsync (SORT path):</b> reads the plaintext denormalised
-/// <see cref="Resume.TopSkills"/> (text[] projection, ADR 0059) — NO DEK. It MUST NOT call
-/// <see cref="ICurrentDataOwner.SetOwner"/> nor
-/// <see cref="IUserDataKeyStore.GetOrCreateDataKeyAsync"/> (the per-user match-sort hot path
-/// must not pay a KMS round-trip per request).</item>
-/// <item><b>BuildFullFromCvSkillsAsync (TAG path):</b> reads the full encrypted
-/// <c>MasterVersion.Content.Skills</c> — so it MUST warm the DEK first:
-/// <c>SetOwner(jobSeekerId)</c> then <c>GetOrCreateDataKeyAsync(jobSeekerId, ct)</c> BEFORE
-/// the content read.</item>
+/// <item><b>BuildFullForSortAsync (the global SORT path)</b> and</item>
+/// <item><b>BuildFullForVerdictAsync (the page-scoped TAG/modal path)</b></item>
 /// </list>
-/// Both resolve the free-text skill names via <see cref="ISkillResolver"/> and degrade to a
-/// Fast-only profile (empty <see cref="FullCandidateMatchProfile.CvSkillConceptIds"/>) when
-/// there is no user / no JobSeeker / no <see cref="JobSeeker.PrimaryResumeId"/>.
+/// are now IDENTICAL and DEK-FREE: both return
+/// <c>FullCandidateMatchProfile(fast-with-LatestRole, CvSkillConceptIds)</c> where
+/// <c>CvSkillConceptIds = jobSeeker.MatchPreferences.PreferredSkills</c> — the user-CONFIRMED
+/// plaintext concept-ids (the trusted capability source, ADR 0079 Beslut 1), NOT the raw CV
+/// skill list. The reroute removes:
+/// <list type="bullet">
+/// <item>the <c>ISkillResolver</c> resolve (the confirmed set is already concept-ids);</item>
+/// <item>the DEK warm (<c>ICurrentDataOwner.SetOwner</c> / <c>IUserDataKeyStore</c>) — the
+/// confirmed set is plaintext on the JobSeeker, no encrypted Content read;</item>
+/// <item>any read of <c>Resume.TopSkills</c> / <c>MasterVersion.Content.Skills</c>.</item>
+/// </list>
+/// The ONLY CV read is the denormalised plaintext <see cref="Resume.LatestRole"/> (ADR
+/// 0058/0059, DEK-free, no <c>Include(Versions)</c>) for the Title dimension (STEG 4).
 ///
 /// <para>
-/// The widened ctor under test:
-/// <c>MatchProfileBuilder(IAppDbContext db, ICurrentUser currentUser, ISkillResolver
-/// skillResolver, ICurrentDataOwner currentDataOwner, IUserDataKeyStore dataKeyStore)</c>.
+/// <b>NEW semantic (ADR 0079 Beslut 1):</b> the confirmed skills drive matching EVEN WITHOUT a
+/// promoted CV (no <see cref="JobSeeker.PrimaryResumeId"/> → still
+/// <c>CvSkillConceptIds = PreferredSkills</c>; only Title is empty). An empty confirmed set →
+/// empty <c>CvSkillConceptIds</c> → the skill/requirement dimensions report
+/// <c>NotAssessed</c> downstream (honest — nothing confirmed yet).
 /// </para>
 ///
-/// RED until F4-15 adds the two methods + widens the ctor (today the builder has only
-/// BuildFromPreferencesAsync and the 2-arg ctor).
+/// <para>
+/// The ctor under test is the narrowed 2-arg form:
+/// <c>MatchProfileBuilder(IAppDbContext db, ICurrentUser currentUser)</c>.
+/// </para>
 /// </summary>
 public class MatchProfileBuilderFullTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
-    private readonly ISkillResolver _skillResolver = Substitute.For<ISkillResolver>();
-    private readonly ICurrentDataOwner _dataOwner = Substitute.For<ICurrentDataOwner>();
-    private readonly IUserDataKeyStore _dataKeyStore = Substitute.For<IUserDataKeyStore>();
     private readonly Guid _userId = Guid.NewGuid();
 
-    // Hoisted to satisfy CA1861 (constant array argument in a repeatedly-evaluated predicate).
-    private static readonly string[] TopSkillsAB = ["a", "b"];
+    // The confirmed skill set is sorted+distinct ordinal by MatchPreferences.NormalizeList,
+    // so seed and assert against an already-sorted set to keep the assertion deterministic.
+    private static readonly string[] ConfirmedSkills = ["skill_csharp", "skill_dotnet"];
 
     public MatchProfileBuilderFullTests()
     {
         _currentUser.UserId.Returns(_userId);
-        // A benign DEK by default — the fail-closed test overrides to throw.
-        _dataKeyStore.GetOrCreateDataKeyAsync(Arg.Any<JobSeekerId>(), Arg.Any<CancellationToken>())
-            .Returns(new byte[32]);
-        // Default resolver: resolves nothing (overridden per test).
-        _skillResolver.Resolve(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new HashSet<string>(StringComparer.Ordinal));
     }
 
     private MatchProfileBuilder NewBuilder(Jobbliggaren.Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _skillResolver, _dataOwner, _dataKeyStore);
+        new(db, _currentUser);
 
     // ---------------------------------------------------------------
     // Seeding helpers.
@@ -82,34 +81,14 @@ public class MatchProfileBuilderFullTests
         return seeker;
     }
 
-    // A Resume whose Master content carries the given skill names → both the plaintext
-    // TopSkills projection (first 5) AND MasterVersion.Content.Skills are populated.
-    private static async Task<Resume> SeedResumeWithSkillsAsync(
-        Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
-        JobSeekerId jobSeekerId,
-        params string[] skillNames)
-    {
-        var resume = Resume.Create(jobSeekerId, "Mitt CV", "Test User", FakeDateTimeProvider.Default).Value;
-        var content = new ResumeContent(
-            new PersonalInfo("Test User", null, null, null),
-            skills: skillNames.Select(n => new Skill(n, null)).ToList());
-        resume.UpdateMasterContent(content, FakeDateTimeProvider.Default);
-        db.Resumes.Add(resume);
-        await db.SaveChangesAsync(CancellationToken.None);
-        return resume;
-    }
-
     // A Resume whose Master content carries an Experience with the given role → the
-    // denormalised plaintext Resume.LatestRole projection (ADR 0058/0059) is populated.
-    // LatestRole is derived from content.Experiences (most recent by StartDate), NOT from
-    // skills — so the skills-only SeedResumeWithSkillsAsync leaves LatestRole null. When
-    // skillNames is supplied, the Master also carries those skills (so the TopSkills path
-    // still resolves alongside the title evidence).
+    // denormalised plaintext Resume.LatestRole projection (ADR 0058/0059) is populated. The
+    // builder reads ONLY LatestRole off the resume (DEK-free), so skills on the content are
+    // irrelevant to the profile — the confirmed set comes from MatchPreferences.
     private static async Task<Resume> SeedResumeWithLatestRoleAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         JobSeekerId jobSeekerId,
-        string latestRole,
-        params string[] skillNames)
+        string latestRole)
     {
         var resume = Resume.Create(jobSeekerId, "Mitt CV", "Test User", FakeDateTimeProvider.Default).Value;
         var content = new ResumeContent(
@@ -118,29 +97,182 @@ public class MatchProfileBuilderFullTests
             [
                 new Experience("Acme AB", latestRole,
                     new DateOnly(2024, 1, 1), null, null),
-            ],
-            skills: skillNames.Select(n => new Skill(n, null)).ToList());
+            ]);
         resume.UpdateMasterContent(content, FakeDateTimeProvider.Default);
         db.Resumes.Add(resume);
         await db.SaveChangesAsync(CancellationToken.None);
         return resume;
     }
 
-    private static MatchPreferences Prefs() => MatchPreferences.Create(
-        preferredOccupationGroups: ["grp_12345"],
-        preferredRegions: ["stockholm_AB"],
-        preferredEmploymentTypes: ["et_fast"]).Value;
+    // A Resume with NO experiences → Resume.LatestRole stays null (it is derived from
+    // content.Experiences) → honest empty Title.
+    private static async Task<Resume> SeedResumeWithoutRoleAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
+        JobSeekerId jobSeekerId)
+    {
+        var resume = Resume.Create(jobSeekerId, "Mitt CV", "Test User", FakeDateTimeProvider.Default).Value;
+        var content = new ResumeContent(new PersonalInfo("Test User", null, null, null));
+        resume.UpdateMasterContent(content, FakeDateTimeProvider.Default);
+        db.Resumes.Add(resume);
+        await db.SaveChangesAsync(CancellationToken.None);
+        return resume;
+    }
+
+    // Prefs carrying the confirmed skill set + the four location/occupation dimensions.
+    private static MatchPreferences PrefsWithSkills(IEnumerable<string>? skills) =>
+        MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_12345"],
+            preferredRegions: ["stockholm_AB"],
+            preferredEmploymentTypes: ["et_fast"],
+            preferredMunicipalities: null,
+            preferredSkills: skills).Value;
+
+    private static MatchPreferences Prefs() => PrefsWithSkills(ConfirmedSkills);
 
     private static void AssertFastFromPrefs(CandidateMatchProfile fast)
     {
         fast.SsykGroupConceptIds.ShouldBe(["grp_12345"]);
         fast.PreferredRegionConceptIds.ShouldBe(["stockholm_AB"]);
         fast.PreferredEmploymentTypeConceptIds.ShouldBe(["et_fast"]);
-        fast.Title.ShouldBe(string.Empty);
     }
 
     // =================================================================
-    // BuildFullFromTopSkillsAsync — SORT path (plaintext TopSkills, NO DEK)
+    // The reroute (ADR 0079 Beslut 1): CvSkillConceptIds = the CONFIRMED
+    // MatchPreferences.PreferredSkills — NOT the raw CV skills, NOT resolved, DEK-free.
+    // Both Full overloads share one implementation, so each case runs against BOTH.
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullFromTopSkills_CvSkillConceptIds_AreTheConfirmedPreferredSkills()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
+
+        // The confirmed plaintext set IS the capability source (no resolve, no CV-skill read).
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        AssertFastFromPrefs(profile.Fast);
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+    }
+
+    [Fact]
+    public async Task BuildFullFromCvSkills_CvSkillConceptIds_AreTheConfirmedPreferredSkills()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForVerdictAsync(CancellationToken.None);
+
+        // Same source as the SORT path (the verdict surface reads what the user CONFIRMED).
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        AssertFastFromPrefs(profile.Fast);
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+    }
+
+    [Fact]
+    public async Task BothFullBuilders_AreEquivalent_SameSourceSameResult()
+    {
+        // The two overloads stay distinct interface members for their call-sites (sort vs
+        // tag/modal) but share ONE implementation reading the SAME confirmed source — so for
+        // any given JobSeeker they return an equivalent profile (the decisive sort==grade
+        // coherence guarantee: no path can lift/drop an ad the other ignores).
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var builder = NewBuilder(db);
+
+        var sort = await builder.BuildFullForSortAsync(CancellationToken.None);
+        var tag = await builder.BuildFullForVerdictAsync(CancellationToken.None);
+
+        sort.CvSkillConceptIds.ShouldBe(tag.CvSkillConceptIds);
+        sort.Fast.Title.ShouldBe(tag.Fast.Title);
+        sort.Fast.SsykGroupConceptIds.ShouldBe(tag.Fast.SsykGroupConceptIds);
+        sort.Fast.PreferredRegionConceptIds.ShouldBe(tag.Fast.PreferredRegionConceptIds);
+        sort.Fast.PreferredEmploymentTypeConceptIds.ShouldBe(tag.Fast.PreferredEmploymentTypeConceptIds);
+        sort.Fast.PreferredMunicipalityConceptIds.ShouldBe(tag.Fast.PreferredMunicipalityConceptIds);
+    }
+
+    // =================================================================
+    // NEW semantic (ADR 0079 Beslut 1): confirmed skills drive matching even WITHOUT a
+    // promoted CV — no PrimaryResumeId → CvSkillConceptIds is still the confirmed set; only
+    // Title is empty (no role to compare).
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullFromTopSkills_ConfirmedSkillsButNoPrimaryResume_CarriesSkills_EmptyTitle()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, Prefs(), primaryResumeId: null);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
+
+        profile.CvSkillConceptIds.ShouldBe(
+            ConfirmedSkills,
+            "Confirmed skills drive matching even without a promoted CV (ADR 0079 Beslut 1).");
+        AssertFastFromPrefs(profile.Fast);
+        profile.Fast.Title.ShouldBe(string.Empty, "No primary CV → no role → honest empty Title.");
+    }
+
+    [Fact]
+    public async Task BuildFullFromCvSkills_ConfirmedSkillsButNoPrimaryResume_CarriesSkills_EmptyTitle()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, Prefs(), primaryResumeId: null);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForVerdictAsync(CancellationToken.None);
+
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        AssertFastFromPrefs(profile.Fast);
+        profile.Fast.Title.ShouldBe(string.Empty);
+    }
+
+    // =================================================================
+    // Empty confirmed set → empty CvSkillConceptIds (→ NotAssessed downstream, honest).
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullFromTopSkills_EmptyConfirmedSkills_ReturnsEmptyCvSkillConceptIds()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, PrefsWithSkills(skills: null), primaryResumeId: null);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
+
+        AssertFastFromPrefs(profile.Fast);
+        profile.CvSkillConceptIds.ShouldBeEmpty(
+            "No confirmed skills → empty set → the skill/requirement dimensions report " +
+            "NotAssessed downstream (honest, never faked).");
+    }
+
+    [Fact]
+    public async Task BuildFullFromCvSkills_EmptyConfirmedSkills_ReturnsEmptyCvSkillConceptIds()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, PrefsWithSkills(skills: null), primaryResumeId: null);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForVerdictAsync(CancellationToken.None);
+
+        AssertFastFromPrefs(profile.Fast);
+        profile.CvSkillConceptIds.ShouldBeEmpty();
+    }
+
+    // =================================================================
+    // Degrade-to-empty when there is no user / no JobSeeker.
     // =================================================================
 
     [Fact]
@@ -149,68 +281,30 @@ public class MatchProfileBuilderFullTests
         var db = TestAppDbContextFactory.Create();
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var builder = new MatchProfileBuilder(db, anon, _skillResolver, _dataOwner, _dataKeyStore);
+        var builder = new MatchProfileBuilder(db, anon);
 
-        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
 
         profile.ShouldNotBeNull();
         profile.CvSkillConceptIds.ShouldBeEmpty();
         profile.Fast.SsykGroupConceptIds.ShouldBeEmpty();
+        profile.Fast.Title.ShouldBe(string.Empty);
     }
 
     [Fact]
-    public async Task BuildFullFromTopSkills_JobSeekerWithoutPrimaryResume_ReturnsFastFromPrefsEmptySkills()
+    public async Task BuildFullFromCvSkills_NoUser_ReturnsDegradedFastEmptyProfile()
     {
         var db = TestAppDbContextFactory.Create();
-        await SeedSeekerAsync(db, _userId, Prefs(), primaryResumeId: null);
-        var builder = NewBuilder(db);
+        var anon = Substitute.For<ICurrentUser>();
+        anon.UserId.Returns((Guid?)null);
+        var builder = new MatchProfileBuilder(db, anon);
 
-        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
+        var profile = await builder.BuildFullForVerdictAsync(CancellationToken.None);
 
         profile.ShouldNotBeNull();
-        AssertFastFromPrefs(profile.Fast);
-        profile.CvSkillConceptIds.ShouldBeEmpty(
-            "Utan PrimaryResumeId finns inga CV-skills → degradera till Fast (tom skill-lista).");
-    }
-
-    [Fact]
-    public async Task BuildFullFromTopSkills_WithPrimaryCv_ResolvesTopSkills_AndCarriesFastFromPrefs()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
-        var resume = await SeedResumeWithSkillsAsync(db, seeker.Id, "a", "b");
-        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        _skillResolver.Resolve(
-                Arg.Is<IEnumerable<string>>(s => s.SequenceEqual(TopSkillsAB)),
-                Arg.Any<CancellationToken>())
-            .Returns(new HashSet<string>(["c1"], StringComparer.Ordinal));
-        var builder = NewBuilder(db);
-
-        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
-
-        profile.CvSkillConceptIds.ShouldBe(["c1"]);
-        AssertFastFromPrefs(profile.Fast);
-    }
-
-    [Fact]
-    public async Task BuildFullFromTopSkills_NeverWarmsTheDek_NoSetOwner_NoGetOrCreateDataKey()
-    {
-        // THE DEK-FREE CONTRACT (ADR 0076 Decision 6): the per-user match-SORT hot path
-        // reads the plaintext TopSkills projection only — it must never pay a KMS round-trip.
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
-        var resume = await SeedResumeWithSkillsAsync(db, seeker.Id, "a", "b");
-        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
-        await db.SaveChangesAsync(CancellationToken.None);
-        var builder = NewBuilder(db);
-
-        await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
-
-        _dataOwner.DidNotReceive().SetOwner(Arg.Any<JobSeekerId>());
-        await _dataKeyStore.DidNotReceive().GetOrCreateDataKeyAsync(
-            Arg.Any<JobSeekerId>(), Arg.Any<CancellationToken>());
+        profile.CvSkillConceptIds.ShouldBeEmpty();
+        profile.Fast.SsykGroupConceptIds.ShouldBeEmpty();
+        profile.Fast.Title.ShouldBe(string.Empty);
     }
 
     // =================================================================
@@ -220,25 +314,20 @@ public class MatchProfileBuilderFullTests
     // MatchSortedJobAdSearchQuery ORDER BY — so this can move NEITHER a grade nor a sort
     // position (regression-pinned by the unchanged MatchGradeCalculatorTests + the SORT
     // oracle). These cases verify the projection, not any grade/sort effect.
-    // The TopSkills path is plaintext (no DEK) so LatestRole is honestly assertable here on
-    // InMemory; the CvSkills DEK path's LatestRole projection is pinned in the
-    // Testcontainers suite (MatchProfileBuilderFullCvIntegrationTests).
     // =================================================================
 
     [Fact]
-    public async Task BuildFullFromTopSkills_WithPrimaryCvHavingExperience_SetsFastTitleToLatestRole()
+    public async Task BuildFullFromTopSkills_PrimaryCvWithExperience_SetsFastTitleToLatestRole()
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId, Prefs());
-        var resume = await SeedResumeWithLatestRoleAsync(
-            db, seeker.Id, "Backend-utvecklare", "a", "b");
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
         seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
         await db.SaveChangesAsync(CancellationToken.None);
         var builder = NewBuilder(db);
 
-        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
 
-        // The plaintext LatestRole projection flows into the title dimension as evidence.
         profile.Fast.Title.ShouldBe("Backend-utvecklare");
         // ...without disturbing the preference-derived Fast dimensions.
         profile.Fast.SsykGroupConceptIds.ShouldBe(["grp_12345"]);
@@ -247,123 +336,19 @@ public class MatchProfileBuilderFullTests
     }
 
     [Fact]
-    public async Task BuildFullFromTopSkills_WithPrimaryCvWithoutExperience_SetsFastTitleToEmpty()
+    public async Task BuildFullFromTopSkills_PrimaryCvWithoutExperience_SetsFastTitleToEmpty()
     {
-        // A CV that carries skills but NO experience → Resume.LatestRole is null
-        // (it is derived from content.Experiences, not skills) → honest empty title
-        // (NotAssessed), never a null/placeholder.
+        // A CV that carries NO experience → Resume.LatestRole is null (it is derived from
+        // content.Experiences) → honest empty title (NotAssessed), never a null/placeholder.
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId, Prefs());
-        var resume = await SeedResumeWithSkillsAsync(db, seeker.Id, "a", "b");
+        var resume = await SeedResumeWithoutRoleAsync(db, seeker.Id);
         seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
         await db.SaveChangesAsync(CancellationToken.None);
         var builder = NewBuilder(db);
 
-        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
 
         profile.Fast.Title.ShouldBe(string.Empty);
-    }
-
-    [Fact]
-    public async Task BuildFullFromTopSkills_JobSeekerWithoutPrimaryResume_SetsFastTitleToEmpty()
-    {
-        // No primary CV at all → no role to compare → honest empty title (parity with the
-        // preference/no-CV path which keeps Title = "").
-        var db = TestAppDbContextFactory.Create();
-        await SeedSeekerAsync(db, _userId, Prefs(), primaryResumeId: null);
-        var builder = NewBuilder(db);
-
-        var profile = await builder.BuildFullFromTopSkillsAsync(CancellationToken.None);
-
-        profile.Fast.Title.ShouldBe(string.Empty);
-    }
-
-    // =================================================================
-    // BuildFullFromCvSkillsAsync — TAG path (encrypted Content.Skills, DEK-warmed)
-    // =================================================================
-
-    [Fact]
-    public async Task BuildFullFromCvSkills_NoUser_ReturnsDegradedFastEmptyProfile()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var anon = Substitute.For<ICurrentUser>();
-        anon.UserId.Returns((Guid?)null);
-        var builder = new MatchProfileBuilder(db, anon, _skillResolver, _dataOwner, _dataKeyStore);
-
-        var profile = await builder.BuildFullFromCvSkillsAsync(CancellationToken.None);
-
-        profile.ShouldNotBeNull();
-        profile.CvSkillConceptIds.ShouldBeEmpty();
-        profile.Fast.SsykGroupConceptIds.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public async Task BuildFullFromCvSkills_JobSeekerWithoutPrimaryResume_ReturnsFastFromPrefsEmptySkills()
-    {
-        var db = TestAppDbContextFactory.Create();
-        await SeedSeekerAsync(db, _userId, Prefs(), primaryResumeId: null);
-        var builder = NewBuilder(db);
-
-        var profile = await builder.BuildFullFromCvSkillsAsync(CancellationToken.None);
-
-        AssertFastFromPrefs(profile.Fast);
-        profile.CvSkillConceptIds.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public async Task BuildFullFromCvSkills_JobSeekerWithoutPrimaryResume_DoesNotWarmTheDek()
-    {
-        // No CV → no encrypted content to read → no DEK warm (the warm is bound to the
-        // actual content read, not done eagerly).
-        var db = TestAppDbContextFactory.Create();
-        await SeedSeekerAsync(db, _userId, Prefs(), primaryResumeId: null);
-        var builder = NewBuilder(db);
-
-        await builder.BuildFullFromCvSkillsAsync(CancellationToken.None);
-
-        _dataOwner.DidNotReceive().SetOwner(Arg.Any<JobSeekerId>());
-        await _dataKeyStore.DidNotReceive().GetOrCreateDataKeyAsync(
-            Arg.Any<JobSeekerId>(), Arg.Any<CancellationToken>());
-    }
-
-    // NOTE (test-writer advisory): the WITH-primary-CV content-read assertions for
-    // BuildFullFromCvSkillsAsync (the DEK-warm-THEN-resolve ordering + the resolved
-    // Content.Skills set) CANNOT be honestly verified on the InMemory provider:
-    // ResumeVersion.Content is `builder.Ignore`'d and owned by the field-encryption
-    // interceptor pair (ADR 0049/0074 — same constraint GetResumeByIdQueryHandlerTests
-    // documents: "InMemory förbjuden för Content"). A bare TestAppDbContextFactory has no
-    // interceptor → Content never materializes → master.Content is null. Those two
-    // assertions therefore live in the Testcontainers integration suite
-    // (MatchProfileBuilderFullCvIntegrationTests), where the real interceptor decrypts
-    // Content. Here we pin only what InMemory CAN honestly verify: degrade-to-Fast and the
-    // fail-closed contract (the KMS throw fires BEFORE the content read).
-
-    // =================================================================
-    // FAIL-CLOSED (security-critical) — a KMS failure PROPAGATES; it must NOT
-    // be swallowed into a dishonest empty/partial skill set.
-    // =================================================================
-
-    [Fact]
-    public async Task BuildFullFromCvSkills_WhenDataKeyStoreThrows_PropagatesException_DoesNotReturnEmptySkills()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
-        var resume = await SeedResumeWithSkillsAsync(db, seeker.Id, "C#");
-        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        _dataKeyStore.GetOrCreateDataKeyAsync(Arg.Any<JobSeekerId>(), Arg.Any<CancellationToken>())
-            .Returns<byte[]>(_ => throw new InvalidOperationException("KMS unavailable"));
-        var builder = NewBuilder(db);
-
-        // A dishonest empty NotAssessed on a KMS failure is the exact thing forbidden —
-        // the exception must surface, never be swallowed into a partial profile.
-        await Should.ThrowAsync<InvalidOperationException>(
-            async () => await builder.BuildFullFromCvSkillsAsync(CancellationToken.None));
-
-        // And the resolver was never reached with a half-decrypted/empty skill set.
-        // Resolve is synchronous → DidNotReceive is NOT awaited.
-        _skillResolver.DidNotReceive().Resolve(
-            Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
     }
 }

@@ -4,6 +4,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review;

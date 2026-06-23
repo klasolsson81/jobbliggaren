@@ -10,6 +10,7 @@ using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Queries.GetLatestPendingParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeOccupations;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeSkills;
@@ -153,6 +154,24 @@ public static class ResumesEndpoints
         {
             var result = await mediator.Send(new GetParsedResumeSkillsQuery(id), ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // The CURRENT user's most-recent PendingReview parsed-CV summary (id + file name + upload
+        // time), or 200 with the JSON literal `null` when the user has no pending CV (a normal,
+        // non-error state — not 404). Drives the /cv "complete your CV" card after the welcome flow
+        // reads a CV without promoting it (onboarding decouple, ADR 0079-amendment). Owner-scoped by
+        // construction (no client id → no IDOR surface); projects plaintext metadata only — never
+        // reads/decrypts the CV-PII (PII-minimisation, mirrors the occupations/skills projections).
+        // The null case writes the literal `null` token explicitly: minimal-API's
+        // WriteResultAsJsonAsync short-circuits a null value to an EMPTY body, which the FE BFF's
+        // JSON parse (nullable schema) cannot read — so Results.Content emits the `null` it expects.
+        group.MapGet("/parsed/latest-pending", async (IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetLatestPendingParsedResumeQuery(), ct);
+            return result is null
+                ? Results.Content("null", "application/json")
+                : Results.Json(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 

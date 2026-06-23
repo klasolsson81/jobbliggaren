@@ -42,7 +42,10 @@ public class GetParsedResumeMapperTests
             owner, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "Anna Andersson\nLedde teamet.", confidence,
             PersonnummerScanOutcome.None,
-            [new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare")],
+            [
+                new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare", 7),
+                new ProposedOccupation("a1B2_c3D4_e5F", "Mjukvaruutvecklare", "Backend-utvecklare", null),
+            ],
             FakeDateTimeProvider.Default).Value;
     }
 
@@ -61,10 +64,12 @@ public class GetParsedResumeMapperTests
         dto.Personnummer.Count.ShouldBe(0);
         dto.Confidence.Sections.Count.ShouldBe(2);
         dto.Confidence.Sections[0].Evidence.ShouldContain("e-post hittad");
-        dto.OccupationProposals.Count.ShouldBe(1);
+        dto.OccupationProposals.Count.ShouldBe(2);
         dto.OccupationProposals[0].ConceptId.ShouldBe("q8wL_kdi_WaW");
         dto.OccupationProposals[0].Label.ShouldBe("Systemutvecklare");
         dto.OccupationProposals[0].MatchedOn.ShouldBe("Backend-utvecklare");
+        dto.OccupationProposals[0].ApproximateYears.ShouldBe(7); // ADR 0079-amendment projection
+        dto.OccupationProposals[1].ApproximateYears.ShouldBeNull(); // null branch on the detail path
     }
 
     [Fact]

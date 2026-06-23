@@ -23,7 +23,7 @@ internal static class GetParsedResumeMapper
                 resume.Personnummer.Kinds.Select(k => k.ToString()).ToList()),
             Content: ToContentDto(resume.Content),
             OccupationProposals: resume.OccupationProposals
-                .Select(p => new OccupationProposalDto(p.ConceptId, p.Label, p.MatchedOn))
+                .Select(p => new OccupationProposalDto(p.ConceptId, p.Label, p.MatchedOn, p.ApproximateYears))
                 .ToList(),
             CreatedAt: resume.CreatedAt,
             UpdatedAt: resume.UpdatedAt);

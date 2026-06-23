@@ -201,15 +201,11 @@
     "uploadTitle": "Get started with matching",
     "uploadIntro": "Upload your CV and we can suggest which occupations you are looking for. You decide what to include, and you can skip this.",
     "continueWithoutCv": "Continue without a CV",
-    "cvUploadedTitle": "CV saved",
     "setUpMatchTitle": "Set up your matching",
-    "cvUploadedNote": "Your CV is saved. No matching has been done yet. Would you like to set up your matching profile now?",
+    "cvReadTitle": "CV read",
+    "cvReadNote": "Your CV has been read but not saved yet. You can complete it later to save it. Would you like to set up your matching now?",
     "setUpMatchNote": "Would you like to set up your matching now? It takes a minute. You can skip and do it later.",
     "skip": "Skip",
-    "confirm": "Yes, set up matching",
-    "gapFillTitle": "Complete your CV",
-    "gapFillIntro": "Fill in the dates for your jobs and education so we can save your CV. You can edit or remove entries.",
-    "gapFillLoading": "Loading your CV…",
-    "gapFillError": "We could not load your CV right now. You can continue and finish it later under My CVs."
+    "confirm": "Yes, set up matching"
   }
 }

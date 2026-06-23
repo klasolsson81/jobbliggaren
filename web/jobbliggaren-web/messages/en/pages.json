@@ -56,6 +56,11 @@
     "emptyBody": "Create your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",
     "emptyCreateFirst": "Create first CV",
     "backLink": "Back to CV",
+    "pending": {
+      "heading": "CV to complete",
+      "body": "Your CV has been read but not saved yet. Complete it to save it and use it fully.",
+      "cta": "Complete CV"
+    },
     "import": {
       "title": "Import CV",
       "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Nothing is changed in your CV until you save it yourself.",

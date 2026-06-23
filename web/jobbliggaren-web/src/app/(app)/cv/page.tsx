@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { Plus, Upload } from "lucide-react";
+import { FileText, Plus, Upload } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
-import { getResumes } from "@/lib/api/resumes";
+import { getLatestPendingParsedResume, getResumes } from "@/lib/api/resumes";
 import { getMyProfile } from "@/lib/api/me";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -44,13 +44,20 @@ export default async function CvListPage({
   // match-setup-wizarden (samma BFF-fetches som /installningar). Båda
   // degraderar civilt: utan taxonomi visas ingen wizard-trigger (yrkesväljaren
   // vore tom), så match-setup utelämnas hellre än renderas trasig.
-  const [result, taxonomyResult, profileResult] = await Promise.all([
-    getResumes(),
-    getTaxonomyTree(),
-    getMyProfile(),
-  ]);
+  // Onboarding-frikoppling (DEL 1, CTO-bind pending-card): det senaste pending-
+  // parsade CV:t (non-PII summering) hämtas i samma parallell-svep. Backend
+  // svarar 200 med `null` när inget pending CV finns (inte 404). Degraderar
+  // civilt: vid icke-ok eller `null` visas inget "slutför ditt CV"-kort.
+  const [result, taxonomyResult, profileResult, pendingResult] =
+    await Promise.all([
+      getResumes(),
+      getTaxonomyTree(),
+      getMyProfile(),
+      getLatestPendingParsedResume(),
+    ]);
   const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
   const profile = profileResult.kind === "ok" ? profileResult.data : null;
+  const pendingCv = pendingResult.kind === "ok" ? pendingResult.data : null;
 
   switch (result.kind) {
     case "ok":
@@ -113,6 +120,27 @@ export default async function CvListPage({
       </section>
 
       <div className="jp-container jp-page">
+        {/* Onboarding-frikoppling (DEL 1, CTO-bind pending-card): "slutför ditt
+            CV"-kort när användaren har ett inläst men ICKE-sparat (PendingReview)
+            CV. Informationellt, inte ett fel (neutral yta + 1px-kant, ingen röd
+            ton). Copyn påstår ALDRIG att CV:t är sparat — bara inläst. Ren
+            Server Component (display + en Next Link), ingen klient-ö. */}
+        {pendingCv !== null && (
+          <div className="jp-cvmatch-bar">
+            <div className="jp-cvmatch-bar__lead">
+              <p className="jp-cvmatch-bar__title">{t("cv.pending.heading")}</p>
+              <p className="jp-cvmatch-bar__text">{t("cv.pending.body")}</p>
+            </div>
+            <Link
+              href={`/cv/granska/${pendingCv.id}/komplettera`}
+              className="jp-btn jp-btn--primary"
+            >
+              <FileText size={16} aria-hidden="true" />
+              <span>{t("cv.pending.cta")}</span>
+            </Link>
+          </div>
+        )}
+
         {/* Match-setup-affordans (ADR 0077 STEG 5): trigger + dismissbar
             post-promote-prompt. Visas när taxonomi + profil laddats och minst
             ett CV finns (wizarden prefillar från CV:t). Klient-ö — wizarden bär

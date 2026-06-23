@@ -18,7 +18,10 @@ import {
   flattenOccupationGroups,
   filterOptions,
   labelsForSelected,
+  projectOccupationExperience,
+  recordFromOccupationExperience,
   type Option,
+  type OccupationExperienceEntry,
 } from "./match-preferences-shared";
 import { PreferenceChip } from "./preference-chip";
 import { MatchPreferencesDialog } from "./match-preferences-dialog";
@@ -59,6 +62,13 @@ interface MatchPreferencesCardProps {
   readonly initialSkillLabels: ReadonlyArray<Option>;
   readonly initialExperienceYears: number | null;
   /**
+   * exp-per-occ (ADR 0079-amendment PR-4): den persisterade per-yrke-
+   * erfarenhets-overlayn (gles delmängd av `initialOccupationGroups`). Förs
+   * vidare till dialogen som pre-fill och adopteras lokalt efter save så
+   * kortets läs-rader är koherenta utan remount.
+   */
+  readonly initialOccupationExperience: ReadonlyArray<OccupationExperienceEntry>;
+  /**
    * Civil degradering: när taxonomin inte kunde läsas in passar föräldern
    * `false` för optionerna och sätter `degraded` så kortet visar en lugn
    * "kunde inte läsas in just nu"-text i stället för väljarna.
@@ -80,6 +90,7 @@ export function MatchPreferencesCard({
   initialSkills,
   initialSkillLabels,
   initialExperienceYears,
+  initialOccupationExperience,
   degraded,
 }: MatchPreferencesCardProps) {
   const t = useTranslations("settings");
@@ -133,6 +144,12 @@ export function MatchPreferencesCard({
   const [experienceYears, setExperienceYears] = useState<number | null>(
     initialExperienceYears
   );
+  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay. Förs
+  // till dialogen som pre-fill och adopteras efter save (annars driver kortets
+  // läs-rader isär från SSOT tills remount). En map för O(1)-uppslag per chip.
+  const [occupationExperience, setOccupationExperience] = useState<
+    Readonly<Record<string, number | null>>
+  >(() => recordFromOccupationExperience(initialOccupationExperience));
   // Skill label-store (conceptId → label). The flat skill taxonomy is never
   // shipped to the FE as a tree, so a saved skill has no tree lookup — the card
   // adopts labels the dialog surfaced (post-save) and otherwise falls back to
@@ -174,9 +191,16 @@ export function MatchPreferencesCard({
   /** Persisterar HELA mängden (full-replace) med revert-vid-fel. Region + kommun
    *  skickas atomiskt i samma PUT (NOTE-1). STEG 3 / ADR 0079: kompetens +
    *  erfarenhet skickas i SAMMA PUT så en chip-borttagning i en annan dimension
-   *  aldrig nollar dem (page-wipe-guard). */
+   *  aldrig nollar dem (page-wipe-guard). exp-per-occ (ADR 0079-amendment PR-4):
+   *  per-yrke-overlayn skickas också med, scopad till de NYA yrkena — så en
+   *  chip-borttagning i en annan dimension aldrig nollar overlayn, OCH ett
+   *  borttaget yrke tappar sin overlay-rad (subset-regeln). */
   function persist(next: PrefSets, revert: () => void) {
     setSaveError(null);
+    const occupationExperiencePayload = projectOccupationExperience(
+      occupationExperience,
+      next.occupations
+    );
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
         preferredOccupationGroups: [...next.occupations],
@@ -185,6 +209,7 @@ export function MatchPreferencesCard({
         preferredEmploymentTypes: [...next.employment],
         preferredSkills: [...next.skills],
         experienceYears,
+        preferredOccupationExperience: [...occupationExperiencePayload],
       });
       if (result.success) {
         setSavedAt(new Date());
@@ -268,6 +293,7 @@ export function MatchPreferencesCard({
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
     experienceYears: number | null;
+    occupationExperience: ReadonlyArray<OccupationExperienceEntry>;
     skillLabels: ReadonlyArray<Option>;
   }) {
     // Dialogen skrev den fulla mängden (SSOT). Anta den lokalt så kortets chips
@@ -279,6 +305,10 @@ export function MatchPreferencesCard({
     setSelectedEmployment(saved.employment);
     setSelectedSkills(saved.skills);
     setExperienceYears(saved.experienceYears);
+    // exp-per-occ (ADR 0079-amendment PR-4): adoptera den sparade per-yrke-overlayn.
+    setOccupationExperience(
+      recordFromOccupationExperience(saved.occupationExperience)
+    );
     // Adoptera labels dialogen löst upp (sök/CV-förslag) så kortets kompetens-
     // chips kan rendera namn i stället för id.
     setSkillLabels(saved.skillLabels);
@@ -429,6 +459,12 @@ export function MatchPreferencesCard({
         persistedEmploymentTypes={selectedEmployment}
         persistedSkills={selectedSkills}
         persistedExperienceYears={experienceYears}
+        // exp-per-occ (ADR 0079-amendment PR-4): pre-fill dialogen med overlayn
+        // scopad till de fortfarande valda yrkena (subset-regeln).
+        persistedOccupationExperience={projectOccupationExperience(
+          occupationExperience,
+          occupationGroups
+        )}
         persistedSkillLabels={skillLabels}
         onSaved={onDialogSaved}
         importCvHref={IMPORT_CV_HREF}

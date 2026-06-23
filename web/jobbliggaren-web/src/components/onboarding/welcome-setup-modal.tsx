@@ -46,9 +46,13 @@ interface WelcomeSetupModalProps {
   /** Spår 3 PR-D: kommun-axeln (pre-fill för wizardens ort-steg). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
-  /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (pre-fill för wizarden). */
+  /** STEG 3 / ADR 0079: kompetens-axeln (pre-fill för wizarden). */
   readonly persistedSkills: ReadonlyArray<string>;
-  readonly persistedExperienceYears: number | null;
+  /** exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (pre-fill). */
+  readonly persistedOccupationExperience: ReadonlyArray<{
+    readonly conceptId: string;
+    readonly years: number | null;
+  }>;
   /** CV-importflödets route (wizardens yrkes-steg tom-state-länk). */
   readonly importCvHref: string;
 }
@@ -80,7 +84,7 @@ export function WelcomeSetupModal({
   persistedMunicipalities,
   persistedEmploymentTypes,
   persistedSkills,
-  persistedExperienceYears,
+  persistedOccupationExperience,
   importCvHref,
 }: WelcomeSetupModalProps) {
   const t = useTranslations("settings");
@@ -276,7 +280,7 @@ export function WelcomeSetupModal({
         persistedMunicipalities={persistedMunicipalities}
         persistedEmploymentTypes={persistedEmploymentTypes}
         persistedSkills={persistedSkills}
-        persistedExperienceYears={persistedExperienceYears}
+        persistedOccupationExperience={persistedOccupationExperience}
         importCvHref={importCvHref}
         // Onboarding-frikoppling (CTO-bind pending-card): CV:t befordras INTE i
         // välkomstflödet, så staging-artefakten lever. Bär in parsedResumeId så

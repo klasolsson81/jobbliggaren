@@ -61,6 +61,8 @@ describe("jobSeekerProfileSchema", () => {
     // STEG 3 / ADR 0079 — kompetens-axeln + erfarenhet (required; nullable int).
     preferredSkills: [],
     experienceYears: null,
+    // exp-per-occ (ADR 0079-amendment PR-4) — per-occupation experience overlay.
+    preferredOccupationExperience: [],
   };
 
   it("accepts valid profile", () => {
@@ -71,6 +73,41 @@ describe("jobSeekerProfileSchema", () => {
     expect(
       jobSeekerProfileSchema.safeParse({ ...valid, experienceYears: 5 }).success
     ).toBe(true);
+  });
+
+  it("accepts a per-occupation experience overlay (years int and null)", () => {
+    // exp-per-occ PR-4: a sparse {conceptId, years}[] overlay; `years` may be a
+    // stated integer (incl. 0) or null. 0 and null are both valid + distinct.
+    const parsed = jobSeekerProfileSchema.safeParse({
+      ...valid,
+      preferredOccupationExperience: [
+        { conceptId: "grp_backend", years: 5 },
+        { conceptId: "grp_frontend", years: 0 },
+        { conceptId: "grp_data", years: null },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("defaults preferredOccupationExperience to [] when omitted (forward-compat)", () => {
+    // exp-per-occ PR-4: tolerant `.default([])` so an older backend that omits
+    // the field still parses (ADR 0020 §4 forward-compat).
+    const withoutOverlay: Partial<typeof valid> = { ...valid };
+    delete withoutOverlay.preferredOccupationExperience;
+    const parsed = jobSeekerProfileSchema.safeParse(withoutOverlay);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.preferredOccupationExperience).toEqual([]);
+    }
+  });
+
+  it("rejects a per-occupation experience entry with a non-integer years", () => {
+    expect(
+      jobSeekerProfileSchema.safeParse({
+        ...valid,
+        preferredOccupationExperience: [{ conceptId: "grp_backend", years: 2.5 }],
+      }).success
+    ).toBe(false);
   });
 
   it("rejects when preferredSkills missing (kontraktsdrift)", () => {

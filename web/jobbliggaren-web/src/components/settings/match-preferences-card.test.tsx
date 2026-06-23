@@ -85,6 +85,7 @@ function renderCard(
       initialSkills={[]}
       initialSkillLabels={[]}
       initialExperienceYears={null}
+      initialOccupationExperience={[]}
       degraded={false}
       {...overrides}
     />
@@ -243,6 +244,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredEmploymentTypes: ["et_fast"],
       preferredSkills: [],
       experienceYears: null,
+      preferredOccupationExperience: [],
     });
   });
 
@@ -265,6 +267,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredEmploymentTypes: [],
       preferredSkills: [],
       experienceYears: null,
+      preferredOccupationExperience: [],
     });
   });
 

@@ -47,6 +47,7 @@ const baseProfile: JobSeekerProfileDto = {
   preferredEmploymentTypes: [],
   preferredSkills: [],
   experienceYears: null,
+  preferredOccupationExperience: [],
 };
 
 describe("SettingsForm — F6 Prompt 2 smoke", () => {

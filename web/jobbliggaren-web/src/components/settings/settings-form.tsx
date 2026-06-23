@@ -190,6 +190,7 @@ export function SettingsForm({
           initialSkills={initialProfile.preferredSkills}
           initialSkillLabels={initialSkillLabels}
           initialExperienceYears={initialProfile.experienceYears}
+          initialOccupationExperience={initialProfile.preferredOccupationExperience}
           degraded={taxonomy === null}
         />
       </div>

@@ -26,10 +26,13 @@ interface CvMatchSetupProps {
   /** Spår 3 PR-D: kommun-axeln (pre-fill för wizardens ort-steg). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
-  /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (pre-fill för wizardens
-   *  kompetens-steg). */
+  /** STEG 3 / ADR 0079: kompetens-axeln (pre-fill för wizardens kompetens-steg). */
   readonly persistedSkills: ReadonlyArray<string>;
-  readonly persistedExperienceYears: number | null;
+  /** exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (pre-fill). */
+  readonly persistedOccupationExperience: ReadonlyArray<{
+    readonly conceptId: string;
+    readonly years: number | null;
+  }>;
   /** CV-importflödets route (yrkes-stegets tom-state-länk). */
   readonly importCvHref: string;
   /**
@@ -61,7 +64,7 @@ export function CvMatchSetup({
   persistedMunicipalities,
   persistedEmploymentTypes,
   persistedSkills,
-  persistedExperienceYears,
+  persistedOccupationExperience,
   importCvHref,
   hasPreferences,
   showPrompt,
@@ -79,7 +82,10 @@ export function CvMatchSetup({
   );
   const [employmentPrefs, setEmploymentPrefs] = useState(persistedEmploymentTypes);
   const [skillPrefs, setSkillPrefs] = useState(persistedSkills);
-  const [experiencePref, setExperiencePref] = useState(persistedExperienceYears);
+  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay.
+  const [occupationExperiencePref, setOccupationExperiencePref] = useState(
+    persistedOccupationExperience
+  );
   const [savedAny, setSavedAny] = useState(false);
 
   const hasAny = savedAny ? occupations.length > 0 : hasPreferences;
@@ -137,7 +143,7 @@ export function CvMatchSetup({
         persistedMunicipalities={municipalityPrefs}
         persistedEmploymentTypes={employmentPrefs}
         persistedSkills={skillPrefs}
-        persistedExperienceYears={experiencePref}
+        persistedOccupationExperience={occupationExperiencePref}
         importCvHref={importCvHref}
         onSaved={(saved) => {
           setOccupations(saved.occupations);
@@ -145,7 +151,7 @@ export function CvMatchSetup({
           setMunicipalityPrefs(saved.municipalities);
           setEmploymentPrefs(saved.employment);
           setSkillPrefs(saved.skills);
-          setExperiencePref(saved.experienceYears);
+          setOccupationExperiencePref(saved.occupationExperience);
           setSavedAny(true);
           setPromptDismissed(true);
         }}

@@ -69,6 +69,7 @@ function renderDialog(
       persistedEmploymentTypes={[]}
       persistedSkills={[]}
       persistedExperienceYears={null}
+      persistedOccupationExperience={[]}
       onSaved={onSaved}
       importCvHref="/cv/importera"
       {...overrides}
@@ -162,6 +163,8 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       preferredEmploymentTypes: [],
       preferredSkills: [],
       experienceYears: null,
+      // exp-per-occ PR-4: per-yrke-overlayn skickas med (tom här — inga år angivna).
+      preferredOccupationExperience: [],
     });
     expect(onSaved).toHaveBeenCalledWith({
       occupations: ["grp_backend"],
@@ -170,6 +173,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       employment: [],
       skills: [],
       experienceYears: null,
+      occupationExperience: [],
       skillLabels: [],
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -193,6 +197,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       preferredEmploymentTypes: [],
       preferredSkills: [],
       experienceYears: null,
+      preferredOccupationExperience: [],
     });
     expect(onSaved).toHaveBeenCalledWith({
       occupations: [],
@@ -201,6 +206,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       employment: [],
       skills: [],
       experienceYears: null,
+      occupationExperience: [],
       skillLabels: [],
     });
   });
@@ -224,6 +230,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       preferredEmploymentTypes: [],
       preferredSkills: ["skill_react"],
       experienceYears: 7,
+      preferredOccupationExperience: [],
     });
     expect(onSaved).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -231,6 +238,45 @@ describe("MatchPreferencesDialog — shell + draft", () => {
         experienceYears: 7,
       })
     );
+  });
+
+  it("exp-per-occ PR-4: per-yrke-år editeras och submittas (full-replace, scopad till valda yrken)", async () => {
+    const user = userEvent.setup();
+    const { onSaved } = renderDialog({
+      persistedOccupationGroups: ["grp_backend"],
+    });
+
+    // Yrket renderas med ett "ungefärliga år"-fält (per-yrke aria-label).
+    const yearsInput = screen.getByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Backendutvecklare",
+    });
+    await user.type(yearsInput, "8");
+
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferredOccupationGroups: ["grp_backend"],
+        preferredOccupationExperience: [{ conceptId: "grp_backend", years: 8 }],
+      })
+    );
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        occupationExperience: [{ conceptId: "grp_backend", years: 8 }],
+      })
+    );
+  });
+
+  it("exp-per-occ PR-4: en persisterad per-yrke-overlay pre-fylls i fältet", () => {
+    renderDialog({
+      persistedOccupationGroups: ["grp_backend"],
+      persistedOccupationExperience: [{ conceptId: "grp_backend", years: 4 }],
+    });
+    const yearsInput = screen.getByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Backendutvecklare",
+    });
+    expect(yearsInput).toHaveValue(4);
   });
 
   it("Avbryt stänger utan att skriva", async () => {

@@ -77,3 +77,53 @@ export function labelsForSelected(
     label: byId.get(conceptId) ?? conceptId,
   }));
 }
+
+/**
+ * exp-per-occ (ADR 0079-amendment PR-4): en per-yrke-erfarenhets-rad.
+ * `years` är `null` när angiven men ospecificerad (skilt från `0` = noll år och
+ * från en utelämnad rad = ingen åsikt). Speglar backend/profil-DTO:n.
+ */
+export interface OccupationExperienceEntry {
+  readonly conceptId: string;
+  readonly years: number | null;
+}
+
+/**
+ * exp-per-occ (ADR 0079-amendment PR-4): bygg draft-overlay-mapen ur den
+ * persisterade `{conceptId, years}[]`-listan. `years` (inkl. `null`/`0`)
+ * bevaras oförändrat. Delas av wizarden + dialogen (DRY). Ren funktion.
+ */
+export function recordFromOccupationExperience(
+  overlay: ReadonlyArray<OccupationExperienceEntry>
+): Record<string, number | null> {
+  const record: Record<string, number | null> = {};
+  for (const entry of overlay) record[entry.conceptId] = entry.years;
+  return record;
+}
+
+/**
+ * exp-per-occ (ADR 0079-amendment PR-4): projicera overlay-mapen till backend-
+ * wire-formen (`{conceptId, years}[]`) — ENBART för yrken som fortfarande är
+ * valda (subset-regeln; backend avvisar en orphan-rad med 400). Ett yrke utan
+ * overlay-nyckel utelämnas helt (≠ en `{years: null}`-rad): "ingen rad" bär
+ * ingen åsikt, en `null`-rad bär "angiven men ospecificerad". Ordningen följer
+ * den valda yrkes-listan (determinism). Delas av wizarden + dialogen. Ren
+ * funktion (testbar utan rendering).
+ */
+export function projectOccupationExperience(
+  overlay: Readonly<Record<string, number | null>>,
+  selectedOccupations: ReadonlyArray<string>
+): ReadonlyArray<OccupationExperienceEntry> {
+  const result: Array<OccupationExperienceEntry> = [];
+  for (const conceptId of selectedOccupations) {
+    if (conceptId in overlay) {
+      // `in`-guarden bevisar nyckeln finns; under noUncheckedIndexedAccess är
+      // indexerings-typen ändå `number | null | undefined`, så `?? null`
+      // normaliserar bort `undefined` (kan inte inträffa här) utan att kollapsa
+      // ett giltigt `0` (`??` triggar bara på null/undefined, aldrig på 0).
+      const years = overlay[conceptId] ?? null;
+      result.push({ conceptId, years });
+    }
+  }
+  return result;
+}

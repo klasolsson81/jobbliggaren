@@ -103,7 +103,12 @@
       "uploadCv": "Ladda upp CV",
       "noRole": "Vi kunde inte läsa ett yrke ur ditt CV. Du kan välja yrken i listan i stället.",
       "unauthorized": "Du är inte inloggad. Logga in och försök igen.",
-      "error": "Kunde inte läsa ditt CV just nu. Försök igen om en stund."
+      "error": "Kunde inte läsa ditt CV just nu. Försök igen om en stund.",
+      "yearsLabel": "Ungefärliga år",
+      "yearsAria": "Ungefärliga år i yrket {label}",
+      "yearsHint": "Ange ungefär hur många år du arbetat inom respektive yrke. Frivilligt; lämna tomt om du inte vill ange det.",
+      "reviewYearsValue": "{years} år",
+      "reviewYearsEmpty": "År ej angivna"
     },
     "skill": {
       "addSkill": "Lägg till kompetens",

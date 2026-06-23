@@ -142,9 +142,14 @@ export async function getParsedResumeOccupations(
     if (result.kind !== "ok") return result;
     return {
       kind: "ok",
+      // exp-per-occ (ADR 0079-amendment PR-4): carry the CV-derived
+      // `approximateYears` through to the shared `OccupationCandidate` so the
+      // wizard can seed each occupation's year input. `0` and `null` are kept
+      // distinct (a parsed sub-year role vs not stated) — never coalesced.
       data: result.data.map((p) => ({
         occupationGroupConceptId: p.conceptId,
         occupationGroupLabel: p.label,
+        approximateYears: p.approximateYears,
       })),
     };
   } catch {

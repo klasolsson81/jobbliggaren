@@ -60,7 +60,7 @@ function renderSetup(
       persistedMunicipalities={[]}
       persistedEmploymentTypes={[]}
       persistedSkills={[]}
-      persistedExperienceYears={null}
+      persistedOccupationExperience={[]}
       importCvHref="/cv/importera"
       hasPreferences={false}
       showPrompt={false}

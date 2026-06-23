@@ -283,6 +283,152 @@ describe("OccupationSection — CV-förslag pre-addas som chips", () => {
   });
 });
 
+/**
+ * exp-per-occ (ADR 0079-amendment PR-4): en host som även håller
+ * erfarenhets-overlayn (precis som wizarden/dialogen), så testet kan observera
+ * att fältet renderas, redigerar mapen, och att CV-seeden (0/null) bevaras.
+ */
+function YearsHost({
+  initial = [],
+  initialExperience = {},
+  rest = {},
+}: {
+  initial?: ReadonlyArray<string>;
+  initialExperience?: Readonly<Record<string, number | null>>;
+  rest?: Partial<React.ComponentProps<typeof OccupationSection>>;
+}) {
+  const [selected, setSelected] = useState<ReadonlyArray<string>>(initial);
+  const [experience, setExperience] =
+    useState<Readonly<Record<string, number | null>>>(initialExperience);
+  return (
+    <OccupationSection
+      occupationFields={occupationFields}
+      selected={selected}
+      onToggle={(id) =>
+        setSelected((prev) =>
+          prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+        )
+      }
+      onReplace={(next) => setSelected(next)}
+      onClear={() => setSelected([])}
+      importCvHref="/cv/importera"
+      experienceByConceptId={experience}
+      onExperienceChange={(id, years) =>
+        setExperience((prev) => ({ ...prev, [id]: years }))
+      }
+      onSeedExperience={(seed) =>
+        setExperience((prev) => {
+          const next = { ...prev };
+          for (const [id, years] of Object.entries(seed)) {
+            if (!(id in next)) next[id] = years;
+          }
+          return next;
+        })
+      }
+      {...rest}
+    />
+  );
+}
+
+describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
+  it("renderar ett 'ungefärliga år'-fält per pinnat yrke (per-yrke aria-label)", () => {
+    render(<YearsHost initial={["grp_backend"]} />);
+    expect(
+      screen.getByRole("spinbutton", {
+        name: "Ungefärliga år i yrket Backendutvecklare",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("inget år-fält när onExperienceChange inte ges (kortets läs-läge)", () => {
+    render(<HostHarness initial={["grp_backend"]} />);
+    expect(
+      screen.queryByRole("spinbutton", {
+        name: "Ungefärliga år i yrket Backendutvecklare",
+      })
+    ).toBeNull();
+  });
+
+  it("redigering av fältet uppdaterar overlay-mapen", async () => {
+    const user = userEvent.setup();
+    render(<YearsHost initial={["grp_backend"]} />);
+    const field = screen.getByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Backendutvecklare",
+    });
+    await user.type(field, "7");
+    expect(field).toHaveValue(7);
+  });
+
+  it("seedar CV-härledda år (0 och null bevaras skilt)", async () => {
+    cvSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+          approximateYears: 0,
+        },
+        {
+          occupationGroupConceptId: "grp_frontend",
+          occupationGroupLabel: "Frontendutvecklare",
+          approximateYears: null,
+        },
+      ],
+    } satisfies CvSuggestResult);
+    render(<YearsHost rest={{ autoSuggestFromCv: true }} />);
+
+    const backend = await screen.findByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Backendutvecklare",
+    });
+    const frontend = screen.getByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Frontendutvecklare",
+    });
+    // 0 seedas som "0" (skilt), null som tomt.
+    expect(backend).toHaveValue(0);
+    expect(frontend).toHaveValue(null);
+  });
+
+  it("CV-seeden skriver aldrig över ett befintligt användar-värde", async () => {
+    cvSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+          approximateYears: 9,
+        },
+      ],
+    } satisfies CvSuggestResult);
+    render(
+      <YearsHost
+        initial={["grp_backend"]}
+        initialExperience={{ grp_backend: 3 }}
+        rest={{ autoSuggestFromCv: true }}
+      />
+    );
+
+    await waitFor(() => expect(cvSuggestMock).toHaveBeenCalledTimes(1));
+    const backend = screen.getByRole("spinbutton", {
+      name: "Ungefärliga år i yrket Backendutvecklare",
+    });
+    // Befintliga 3 bevaras — seedens 9 skriver inte över.
+    expect(backend).toHaveValue(3);
+  });
+
+  it("att ta bort en yrkes-chip tar bort dess år-fält (lokalitet)", async () => {
+    const user = userEvent.setup();
+    render(<YearsHost initial={["grp_backend"]} />);
+    await user.click(
+      screen.getByRole("button", { name: "Ta bort Backendutvecklare" })
+    );
+    expect(
+      screen.queryByRole("spinbutton", {
+        name: "Ungefärliga år i yrket Backendutvecklare",
+      })
+    ).toBeNull();
+  });
+});
+
 describe("OccupationSection — 'Välj alla yrkesgrupper'", () => {
   async function openField(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));

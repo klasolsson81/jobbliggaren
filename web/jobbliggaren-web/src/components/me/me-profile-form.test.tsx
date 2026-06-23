@@ -31,6 +31,7 @@ function makeProfile(
     preferredEmploymentTypes: [],
     preferredSkills: [],
     experienceYears: null,
+    preferredOccupationExperience: [],
     ...overrides,
   };
 }

@@ -19,7 +19,12 @@ import type {
 import {
   updateMatchPreferencesAction,
 } from "@/lib/actions/match-preferences";
-import { toggle, type Option } from "./match-preferences-shared";
+import {
+  projectOccupationExperience,
+  recordFromOccupationExperience,
+  toggle,
+  type Option,
+} from "./match-preferences-shared";
 import { OccupationSection } from "./occupation-section";
 import { SkillSection } from "./skill-section";
 import { ExperienceField } from "./experience-field";
@@ -39,9 +44,17 @@ interface MatchPreferencesDialogProps {
   /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
-  /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (pre-fill). */
+  /** STEG 3 / ADR 0079: kompetens-axeln + (profil-nivå) erfarenhet (pre-fill).
+   *  exp-per-occ (ADR 0079-amendment PR-4): den profil-nivå ExperienceField är
+   *  KVAR i dialogen (Klas scopade borttagningen till WIZARDEN). */
   readonly persistedSkills: ReadonlyArray<string>;
   readonly persistedExperienceYears: number | null;
+  /** exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (pre-fill).
+   *  Full-replace via dialogens egna PUT (ingen page-wipe). */
+  readonly persistedOccupationExperience: ReadonlyArray<{
+    readonly conceptId: string;
+    readonly years: number | null;
+  }>;
   /** STEG 3 / ADR 0079: labels för sparade kompetens-concept-id (chip-render). */
   readonly persistedSkillLabels?: ReadonlyArray<Option>;
   /**
@@ -56,6 +69,12 @@ interface MatchPreferencesDialogProps {
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
     experienceYears: number | null;
+    // exp-per-occ (ADR 0079-amendment PR-4): den sparade per-yrke-overlayn
+    // (scopad till valda yrken), så kortet kan adoptera den lokalt.
+    occupationExperience: ReadonlyArray<{
+      readonly conceptId: string;
+      readonly years: number | null;
+    }>;
     /** Labels för de sparade kompetenserna så kortet kan rendera namn (skills
      *  saknar träd-uppslagning). Spegel av SkillSections label-store. */
     skillLabels: ReadonlyArray<Option>;
@@ -76,6 +95,7 @@ export function MatchPreferencesDialog({
   persistedEmploymentTypes,
   persistedSkills,
   persistedExperienceYears,
+  persistedOccupationExperience,
   persistedSkillLabels = [],
   onSaved,
   importCvHref,
@@ -108,6 +128,12 @@ export function MatchPreferencesDialog({
   const [draftExperience, setDraftExperience] = useState<number | null>(
     persistedExperienceYears
   );
+  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (draft).
+  // Seedas vid öppning från den persisterade overlayn; CV-förslagets år mergas
+  // in via onSeedExperience (utan att skriva över ett befintligt värde).
+  const [draftOccupationExperience, setDraftOccupationExperience] = useState<
+    Readonly<Record<string, number | null>>
+  >(() => recordFromOccupationExperience(persistedOccupationExperience));
   // Speglar SkillSections label-store så onSaved kan bära namn ut till kortet.
   const [skillLabels, setSkillLabels] = useState<ReadonlyArray<Option>>(
     persistedSkillLabels
@@ -127,6 +153,9 @@ export function MatchPreferencesDialog({
     setDraftEmployment(persistedEmploymentTypes);
     setDraftSkills(persistedSkills);
     setDraftExperience(persistedExperienceYears);
+    setDraftOccupationExperience(
+      recordFromOccupationExperience(persistedOccupationExperience)
+    );
     setSaveError(null);
   }
   if (!open && seededFor) {
@@ -135,6 +164,25 @@ export function MatchPreferencesDialog({
 
   function toggleOccupation(conceptId: string) {
     setDraftOccupations((prev) => toggle(prev, conceptId));
+  }
+
+  // exp-per-occ (ADR 0079-amendment PR-4): användaren ändrade ett yrkes år.
+  // `null` (tomt fält) lagras explicit (skilt från "ingen nyckel").
+  function onOccupationExperienceChange(conceptId: string, years: number | null) {
+    setDraftOccupationExperience((prev) => ({ ...prev, [conceptId]: years }));
+  }
+
+  // exp-per-occ (ADR 0079-amendment PR-4): CV-förslaget seedar härledda år —
+  // mergas in MEN skriver ALDRIG över ett befintligt värde (persisterat eller
+  // användar-angivet). `0` och `null` bevaras skilt.
+  function seedOccupationExperience(seed: Readonly<Record<string, number | null>>) {
+    setDraftOccupationExperience((prev) => {
+      const next = { ...prev };
+      for (const [conceptId, years] of Object.entries(seed)) {
+        if (!(conceptId in next)) next[conceptId] = years;
+      }
+      return next;
+    });
   }
 
   // Ort-kaskaden emitterar HELA ort-paret (region + kommun) i ett anrop —
@@ -146,6 +194,13 @@ export function MatchPreferencesDialog({
 
   function onSave() {
     setSaveError(null);
+    // exp-per-occ (ADR 0079-amendment PR-4): projicera overlayn till wire-formen,
+    // ENBART för fortfarande valda yrken (subset-regeln) — borttaget yrke tappar
+    // sin rad. Full-replace genom dialogens egen PUT (ingen page-wipe).
+    const occupationExperience = projectOccupationExperience(
+      draftOccupationExperience,
+      draftOccupations
+    );
     startSaving(async () => {
       const result = await updateMatchPreferencesAction({
         preferredOccupationGroups: [...draftOccupations],
@@ -153,9 +208,11 @@ export function MatchPreferencesDialog({
         preferredRegions: [...draftRegions],
         preferredMunicipalities: [...draftMunicipalities],
         preferredEmploymentTypes: [...draftEmployment],
-        // STEG 3 / ADR 0079: kompetens + erfarenhet i SAMMA PUT (page-wipe-guard).
+        // STEG 3 / ADR 0079: kompetens + (profil-nivå) erfarenhet i SAMMA PUT
+        // (page-wipe-guard). exp-per-occ PR-4: + per-yrke-overlayn.
         preferredSkills: [...draftSkills],
         experienceYears: draftExperience,
+        preferredOccupationExperience: [...occupationExperience],
       });
       if (result.success) {
         onSaved({
@@ -165,6 +222,7 @@ export function MatchPreferencesDialog({
           employment: draftEmployment,
           skills: draftSkills,
           experienceYears: draftExperience,
+          occupationExperience,
           skillLabels,
         });
         onOpenChange(false);
@@ -204,6 +262,11 @@ export function MatchPreferencesDialog({
               importCvHref={importCvHref}
               idPrefix="match-dialog"
               headingId="match-dialog-occ-head"
+              // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-år-fält, konsekvent
+              // med wizarden. Full-replace genom dialogens egen PUT (ingen page-wipe).
+              experienceByConceptId={draftOccupationExperience}
+              onExperienceChange={onOccupationExperienceChange}
+              onSeedExperience={seedOccupationExperience}
             />
           </section>
 

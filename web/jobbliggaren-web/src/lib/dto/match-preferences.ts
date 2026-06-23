@@ -24,9 +24,18 @@ const conceptIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/);
 
 // En härledd yrkesgrupp-kandidat. Endast conceptId + label behövs (se
 // fil-doc) — övriga fält strippas av icke-strikt Zod.
+//
+// exp-per-occ (ADR 0079-amendment PR-4): den unified-kandidaten bär nu ett
+// FRIVILLIGT CV-härlett `approximateYears`. Titel-derive-vägen
+// (`deriveOccupations`) lämnar det `undefined` (en yrkestitel bär ingen
+// erfarenhet); parsed-resume-vägen fyller det ur CV:t. `0` och `null` är
+// semantiskt SKILDA (en parsad delårsroll vs ej angivet) — kollapsa dem aldrig.
+// `.int().nullable().optional()` (icke-strikt Zod) speglar backend `int?` och
+// tolererar att fältet saknas helt på titel-vägen.
 export const occupationCandidateSchema = z.object({
   occupationGroupConceptId: conceptIdSchema,
   occupationGroupLabel: z.string().min(1),
+  approximateYears: z.number().int().nullable().optional(),
 });
 export type OccupationCandidate = z.infer<typeof occupationCandidateSchema>;
 
@@ -49,10 +58,17 @@ export type OccupationDerivationResult = z.infer<
  * CVs). `matchedOn` is stripped by non-strict Zod (same as the title-derive candidates — the
  * card only needs conceptId + label to toggle the right group). Mapped to `OccupationCandidate`
  * at the api boundary so every consumer shares one candidate shape.
+ *
+ * exp-per-occ (ADR 0079-amendment PR-4): the proposal now also carries the
+ * CV-derived `approximateYears` (`int | null` on the wire — `null` = not stated,
+ * `0` = a parsed sub-year role; the two are semantically distinct and never
+ * collapsed). `.int().nullable().optional()` mirrors backend `int?` and stays
+ * tolerant of an older backend that omits the field (non-strict Zod, ADR 0020 §4).
  */
 export const parsedResumeOccupationProposalSchema = z.object({
   conceptId: conceptIdSchema,
   label: z.string().min(1),
+  approximateYears: z.number().int().nullable().optional(),
 });
 export const parsedResumeOccupationsSchema = z.array(
   parsedResumeOccupationProposalSchema

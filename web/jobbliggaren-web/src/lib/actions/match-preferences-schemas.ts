@@ -59,6 +59,33 @@ export function makeSetMatchPreferencesSchema(_t: ValidationTranslator) {
       .max(EXPERIENCE_YEARS_MAX)
       .nullable()
       .optional(),
+    // exp-per-occ (ADR 0079-amendment PR-4): the per-occupation experience
+    // overlay — a sparse `{conceptId, years}[]` keyed by occupation-group
+    // concept-id. `years` is 0..70 OR `null` (the honest "not stated" state;
+    // `0` means "stated zero years" and is distinct from `null`). Full-replace,
+    // exactly like the other axes: the host sends the WHOLE current overlay
+    // every PUT, so it MUST be threaded through every caller and pre-filled from
+    // the profile read — saving any other dimension would otherwise zero it
+    // (the page-wipe bug that bit region/kommun). `.max(400)` mirrors the
+    // conceptId DoS cap. Backend additionally rejects an entry whose conceptId
+    // is not also in `preferredOccupationGroups` (orphan → 400); the host only
+    // ever projects years for still-selected occupations, so we don't duplicate
+    // that subset guard here (backend is the last barrier). `.default([])` so a
+    // missing key binds to an empty overlay (clears it).
+    preferredOccupationExperience: z
+      .array(
+        z.object({
+          conceptId: conceptIdString,
+          years: z
+            .number()
+            .int()
+            .min(EXPERIENCE_YEARS_MIN)
+            .max(EXPERIENCE_YEARS_MAX)
+            .nullable(),
+        })
+      )
+      .max(MAX_CONCEPT_IDS)
+      .default([]),
   });
 }
 

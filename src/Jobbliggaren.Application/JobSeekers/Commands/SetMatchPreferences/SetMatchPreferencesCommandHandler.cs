@@ -37,7 +37,11 @@ public sealed class SetMatchPreferencesCommandHandler(
         // Map the wire-shape overlay to the Domain VO (the API never binds the Domain type).
         // Create enforces the cap/format/distinct/range/subset invariants (ADR 0079-amendment);
         // null overlay ⇒ honest empty (full-replace clear), parity with the other dimensions.
+        // OfType drops any null array element a malformed body bound (e.g. [null]) BEFORE the
+        // eager map dereferences it — parity with NormalizeList/NormalizeOccupationExperience's
+        // own null guard, so malformed input degrades to honest-empty, never a 500.
         var occupationExperience = command.PreferredOccupationExperience?
+            .OfType<OccupationExperienceInput>()
             .Select(e => new OccupationExperience(e.ConceptId, e.Years))
             .ToList();
 

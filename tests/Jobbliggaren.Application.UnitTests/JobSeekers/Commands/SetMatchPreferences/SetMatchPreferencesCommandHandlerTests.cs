@@ -311,6 +311,61 @@ public class SetMatchPreferencesCommandHandlerTests
             .MatchPreferences.PreferredOccupationExperience.ShouldBeEmpty();
     }
 
+    // M1 (architect review) — a malformed body binds a null array element; the handler must drop
+    // it (parity with the string-dimension NormalizeList null guard) and degrade to honest-empty,
+    // never NRE into a 500 (the eager wire→VO map ran before Create's own null guard).
+    [Fact]
+    public async Task Handle_OverlayWithNullElement_DropsIt_DoesNotThrow()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: null,
+            ExperienceYears: null,
+            PreferredOccupationExperience: [null!, new OccupationExperienceInput("grp_12345", 5)]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue(); // the null was dropped, the valid entry survived
+        var overlay = db.JobSeekers.Single(js => js.UserId == _userId)
+            .MatchPreferences.PreferredOccupationExperience;
+        overlay.ShouldHaveSingleItem().ConceptId.ShouldBe("grp_12345");
+    }
+
+    // test-writer Minor 1 — duplicate concept-id reachable via the command bubbles up as a
+    // Create DomainError (the validator deliberately defers the distinct rule to Create).
+    [Fact]
+    public async Task Handle_OverlayWithDuplicateConceptId_ReturnsDuplicateDomainError()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredMunicipalities: null,
+            PreferredSkills: null,
+            ExperienceYears: null,
+            PreferredOccupationExperience:
+            [
+                new OccupationExperienceInput("grp_12345", 5),
+                new OccupationExperienceInput("grp_12345", 8), // same group twice
+            ]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.DuplicateOccupationExperience");
+    }
+
     [Fact]
     public async Task Handle_IsOwnerScoped_DoesNotTouchOtherUsersJobSeeker()
     {

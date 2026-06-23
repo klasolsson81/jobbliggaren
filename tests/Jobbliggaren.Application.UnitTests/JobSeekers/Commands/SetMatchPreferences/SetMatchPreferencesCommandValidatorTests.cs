@@ -295,4 +295,17 @@ public class SetMatchPreferencesCommandValidatorTests
 
         result.IsValid.ShouldBeTrue();
     }
+
+    // Inclusive boundary: 0 and MaxExperienceYears are VALID (an off-by-one in either comparison
+    // would slip through if only interior/fail values were tested).
+    [Theory]
+    [InlineData(0)]
+    [InlineData(70)]
+    public void Validate_OccupationExperience_YearsAtInclusiveBound_Passes(int years)
+    {
+        var result = _validator.Validate(Command(
+            preferredOccupationExperience: [new OccupationExperienceInput("grp_12345", years)]));
+
+        result.IsValid.ShouldBeTrue();
+    }
 }

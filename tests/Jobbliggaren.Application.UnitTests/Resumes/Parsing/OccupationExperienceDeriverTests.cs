@@ -118,6 +118,51 @@ public class OccupationExperienceDeriverTests
     }
 
     [Fact]
+    public async Task SinglePointYear_AttributesZero_GroupPresentWithZero()
+    {
+        // A bare year-only role ("2020") is a zero-length span → 0 years. The group is PRESENT
+        // with value 0 (a parsed, cited fact: "less than a year"), distinct from an ABSENT group
+        // (null = "not stated"). 0-vs-null is the load-bearing honesty distinction (§5).
+        DeriveTitleTo("Roll1", GroupA);
+
+        var years = await Derive(new ParsedExperience("Roll1", "Org1", "2020", "raw"));
+
+        years.ShouldContainKeyAndValue(GroupA, 0); // present-with-0, NOT absent
+    }
+
+    [Fact]
+    public async Task ThreeSpanChain_MergesOverlappingRunThenAddsDisjoint()
+    {
+        // Exercises the mid-loop run-close (not just the final flush): [2010,2012] ∪ [2011,2013]
+        // = [2010,2013] (3), then disjoint [2018,2020] (2) → 5.
+        DeriveTitleTo("Roll1", GroupA);
+        DeriveTitleTo("Roll2", GroupA);
+        DeriveTitleTo("Roll3", GroupA);
+
+        var years = await Derive(
+            new ParsedExperience("Roll1", "Org1", "2010–2012", "raw"),
+            new ParsedExperience("Roll2", "Org2", "2011–2013", "raw"),
+            new ParsedExperience("Roll3", "Org3", "2018–2020", "raw"));
+
+        years.ShouldContainKeyAndValue(GroupA, 5);
+    }
+
+    [Fact]
+    public async Task OngoingSpanMergedWithClosedSpan_SameGroup()
+    {
+        // A current role overlapping a past stint in the same field: [2015,2020] ∪
+        // [2018,present(2026)] = [2015,2026] = 11 (clock year, no double-count).
+        DeriveTitleTo("Roll1", GroupA);
+        DeriveTitleTo("Roll2", GroupA);
+
+        var years = await Derive(
+            new ParsedExperience("Roll1", "Org1", "2015–2020", "raw"),
+            new ParsedExperience("Roll2", "Org2", "2018–nu", "raw"));
+
+        years.ShouldContainKeyAndValue(GroupA, 11);
+    }
+
+    [Fact]
     public async Task DistinctGroups_EachAggregatedIndependently()
     {
         DeriveTitleTo("Systemutvecklare", GroupA);

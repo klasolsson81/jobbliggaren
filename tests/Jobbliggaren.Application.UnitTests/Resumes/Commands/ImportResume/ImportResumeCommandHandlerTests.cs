@@ -411,6 +411,41 @@ public class ImportResumeCommandHandlerTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Handle_EducationSourcedGroup_GetsNullYears_WhileExperienceGroupGetsAttributed()
+    {
+        // OUTCOME proof of education-exclusion (not just argument-shape spying): the union pass
+        // surfaces BOTH an experience-sourced group (G_exp) and an education-sourced group (G_edu),
+        // but the attributor — which only ever sees content.Experience — returns years for G_exp
+        // only. The persisted proposals must therefore carry G_exp's years and G_edu's honest null.
+        const string expGroup = "q8wL_kdi_WaW";
+        const string eduGroup = "a1B2_c3D4_e5F";
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("text", CvExtractionStatus.Extracted);
+        StubSegmenter(new ResumeSegmentationResult(
+            new ParsedResumeContent(
+                new ParsedContact("Klas", "klas@example.com", null, null),
+                experience: [new ParsedExperience("Operatör", "Plast AB", "2005–2020", "raw")],
+                education: [new ParsedEducation("NBI", "Systemutvecklare .NET", "Pågående", "raw")]),
+            ResumeLanguage.Sv,
+            ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, []),
+                new SectionConfidence(ParsedSectionKind.Education, SectionConfidenceLevel.Confident, []),
+            ])));
+        StubDeriver(
+            new OccupationCandidate(expGroup, "Operatörer", OccupationMatchKind.ExactOccupationName, "Operatör"),
+            new OccupationCandidate(eduGroup, "Systemutvecklare", OccupationMatchKind.ExactOccupationName, "Systemutvecklare .NET"));
+        StubExperienceYears((expGroup, 15)); // education group is absent (attributor never sees it)
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        var proposals = db.ParsedResumes.Local.ShouldHaveSingleItem().OccupationProposals;
+        proposals.Single(p => p.ConceptId == expGroup).ApproximateYears.ShouldBe(15);
+        proposals.Single(p => p.ConceptId == eduGroup).ApproximateYears.ShouldBeNull();
+    }
+
     // ===============================================================
     // Skill resolution call-site (ADR 0079 STEG 3): the CV's content.Skills are
     // resolved at import and carried as ProposedSkill on the persisted artifact.

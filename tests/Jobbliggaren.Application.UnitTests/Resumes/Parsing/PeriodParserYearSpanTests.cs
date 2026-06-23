@@ -15,9 +15,12 @@ public class PeriodParserYearSpanTests
 
     [Theory]
     [InlineData("2019–2021", 2019, 2021)]   // en-dash year range
+    [InlineData("2019—2021", 2019, 2021)]   // em-dash year range (CV input, not UI copy)
     [InlineData("2019-2021", 2019, 2021)]   // hyphen range
     [InlineData("2019 till 2021", 2019, 2021)]
+    [InlineData("2019 to 2021", 2019, 2021)] // English "to" separator
     [InlineData("01/2020 – 06/2024", 2020, 2024)]
+    [InlineData("2019 - 06/2024", 2019, 2024)] // mixed granularity (year start, MM/YYYY end)
     [InlineData("2019", 2019, 2019)]        // single year-only point → zero-length span
     [InlineData("03/2020", 2020, 2020)]     // single MM/YYYY point
     public void TryParseYearSpan_RecognisedRangeOrPoint_ReturnsYearBounds(
@@ -51,6 +54,7 @@ public class PeriodParserYearSpanTests
     [InlineData("ett tag sedan")]            // free-text → honest false (never guessed)
     [InlineData("någon gång på 2020-talet")]
     [InlineData("jan 2022 - juni 2024")]     // month NAMES are not a recognised point
+    [InlineData("1899")]                     // below the 1900 lower year-guard → rejected
     public void TryParseYearSpan_NullEmptyOrFreeText_ReturnsFalse(string? period)
     {
         var ok = PeriodParser.TryParseYearSpan(period, CurrentYear, out var start, out var end);

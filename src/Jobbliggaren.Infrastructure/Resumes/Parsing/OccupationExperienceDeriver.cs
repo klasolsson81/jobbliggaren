@@ -62,8 +62,11 @@ internal sealed class OccupationExperienceDeriver(
     }
 
     // The entry's occupation-bearing strings (Title + Organization, parity with the import
-    // union source-builder): the layout-naive parser may put the role in either slot, and the
-    // deriver self-filters companies/schools to no match.
+    // union source-builder ImportResumeCommandHandler.BuildDerivationSources): the layout-naive
+    // parser may put the role in either slot, and the deriver self-filters companies/schools to
+    // no match. Deliberately NOT shared with BuildDerivationSources — that one flattens + dedupes
+    // + caps across the whole CV, this one is strictly per-entry — but if a THIRD occupation-
+    // bearing field is ever added it must change in lockstep with the union builder.
     private static List<string> EntrySources(ParsedExperience experience)
     {
         var sources = new List<string>(2);

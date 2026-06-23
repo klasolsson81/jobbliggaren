@@ -11,10 +11,13 @@ namespace Jobbliggaren.Domain.Resumes.Parsing;
 /// <see cref="ApproximateYears"/> (ADR 0079-amendment, exp-per-occ PR-2) is the
 /// CV-derived ~years of experience attributed to this occupation group at import — a
 /// PROPOSE-ONLY, non-PII integer projection (the raw <c>Period</c> strings stay
-/// DEK-encrypted; only the count + concept-id leave the import pipeline). <c>null</c>
-/// = "not stated" (no contributing experience entry — e.g. an education-sourced group
-/// — or no parseable period). Trailing nullable so the additive jsonb field reads back
-/// as null on pre-amendment rows and the ~30 existing call-sites stay unchanged.
+/// DEK-encrypted; only the count + concept-id leave the import pipeline). Year
+/// granularity (<c>endYear - startYear</c>): <c>null</c> = "not stated" (no contributing
+/// experience entry — e.g. an education-sourced group — or no parseable period), which is
+/// SEMANTICALLY DISTINCT from <c>0</c> = "a period was parsed but spans less than a full
+/// year" (a bare year-only role like "2020"). Consumers (the PR-3 validator, the PR-4 FE
+/// seed) must treat 0 and null differently. Trailing nullable so the additive jsonb field
+/// reads back as null on pre-amendment rows and the ~30 existing call-sites stay unchanged.
 /// </para>
 /// </summary>
 public sealed record ProposedOccupation(

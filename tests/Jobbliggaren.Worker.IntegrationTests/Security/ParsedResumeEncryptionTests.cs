@@ -234,6 +234,64 @@ public class ParsedResumeEncryptionTests(WorkerTestFixture fixture)
         parsed.OccupationProposals.ShouldHaveSingleItem().Label.ShouldBe("Systemutvecklare");
     }
 
+    // ── 3b. ProposedOccupation.ApproximateYears round-trips through the real jsonb
+    //        value converter (ADR 0079-amendment, exp-per-occ PR-2). InMemory bypasses the
+    //        converter, so the camelCase null/non-null serialization is only proven here. ──
+
+    [Fact]
+    public async Task OccupationProposals_ApproximateYears_RoundTripThroughRealJsonbConverter()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+
+        ParsedResumeId id;
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            await PrefetchOwnerDekAsync(scope, seeker.Id, ct);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var parsed = ParsedResume.Create(
+                seeker.Id, "anna-cv.pdf", "application/pdf", ResumeLanguage.Sv,
+                RichContent(), $"raw {RawTextMarker}", ConfidentConfidence(),
+                PersonnummerScanOutcome.None,
+                [
+                    // One proposal with a derived count, one "not stated" (null) — both must
+                    // survive the camelCase System.Text.Json converter on the jsonb column.
+                    new ProposedOccupation("q8wL_kdi_WaW", "Systemutvecklare", "Backend-utvecklare", 7),
+                    new ProposedOccupation("a1B2_c3D4_e5F", "Mjukvaruutvecklare", "Backend-utvecklare", null),
+                ],
+                clock).Value;
+            id = parsed.Id;
+            db.ParsedResumes.Add(parsed);
+            await db.SaveChangesAsync(ct);
+        }
+
+        // (a) On-disk jsonb carries the camelCase key with the integer value (converter proof).
+        using (var verifyScope = _fixture.Services.CreateScope())
+        {
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var json = await RawScalarAsync(
+                verifyDb, $"SELECT occupation_proposals FROM parsed_resumes WHERE id = '{id.Value}'", ct);
+            json.ShouldNotBeNull();
+            json.ShouldNotStartWith("v1:"); // non-PII metadata is NOT encrypted
+            // The camelCase converter wrote the new key+value (Postgres re-renders jsonb with a
+            // space after the colon: "approximateYears": 7). Part (b) proves the round-trip back.
+            json.ShouldContain("\"approximateYears\": 7");
+        }
+
+        // (b) Materialized round-trip: 7 survives and null re-reads as null (not 0).
+        using var readScope = _fixture.Services.CreateScope();
+        await PrefetchOwnerDekAsync(readScope, seeker.Id, ct);
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var reloaded = await readDb.ParsedResumes.AsNoTracking().SingleAsync(p => p.Id == id, ct);
+
+        reloaded.OccupationProposals.Count.ShouldBe(2);
+        reloaded.OccupationProposals.Single(p => p.ConceptId == "q8wL_kdi_WaW")
+            .ApproximateYears.ShouldBe(7);
+        reloaded.OccupationProposals.Single(p => p.ConceptId == "a1B2_c3D4_e5F")
+            .ApproximateYears.ShouldBeNull();
+    }
+
     // ── 4. Fail-closed parity: write without a warm DEK throws ───────────
 
     [Fact]

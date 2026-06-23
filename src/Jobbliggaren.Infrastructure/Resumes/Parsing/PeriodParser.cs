@@ -98,9 +98,12 @@ internal static partial class PeriodParser
     /// (<c>nuvarande/idag/nu/…</c>) resolves its end to <paramref name="currentYear"/> (the
     /// caller passes <c>IDateTimeProvider.UtcNow.Year</c> — never <c>DateTime.Now</c>,
     /// CLAUDE.md §5). Year granularity is deliberate: month precision is noise for a "~N år"
-    /// estimate and invites false precision. Returns false for null/empty/free-text (honest
-    /// "not stated") AND for a malformed reverse range whose end precedes its start (so the
-    /// caller never attributes a negative span).
+    /// estimate and invites false precision. The span is <c>endYear - startYear</c>, so
+    /// "2019–2021" yields 2 (not 3 calendar years) and a bare year-only point ("2020") yields
+    /// start==end → a zero-length span (the caller attributes 0 years, distinct from "not
+    /// stated"). Returns false for null/empty/free-text (honest "not stated") AND for a
+    /// malformed reverse range whose end precedes its start (so the caller never attributes a
+    /// negative span).
     /// </summary>
     public static bool TryParseYearSpan(
         string? period, int currentYear, out int startYear, out int endYear)

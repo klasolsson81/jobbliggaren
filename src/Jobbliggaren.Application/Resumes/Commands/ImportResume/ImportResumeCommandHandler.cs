@@ -113,6 +113,11 @@ public sealed class ImportResumeCommandHandler(
         var experienceYearsByGroup = await occupationExperienceDeriver
             .DeriveApproximateYearsAsync(content.Experience, cancellationToken);
 
+        // The join on the UNION candidates is the authoritative filter: only a group the union
+        // pass actually proposed can carry years, so the attributor re-deriving every entry
+        // (uncapped, unlike the union source-builder's MaxDerivationSources) can never produce an
+        // orphan year. Keep this join here — a future cap on the attributor must NOT silently drop
+        // a legitimately-proposed group's years.
         var proposals = candidates
             .Select(c => new ProposedOccupation(
                 c.OccupationGroupConceptId, c.OccupationGroupLabel, c.MatchedOn,

@@ -4,7 +4,6 @@ using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using NpgsqlTypes;
 
 namespace Jobbliggaren.Infrastructure.JobAds;
 
@@ -45,7 +44,9 @@ internal sealed class JobAdSearchQuery(
         // är medvetet orörd (enable_seqscan=off vore fel för ts_rank-vägen).
         var totalCount = await CountWithBitmapPlanAsync(baseQuery.CountAsync, cancellationToken);
 
-        var ordered = ApplySort(baseQuery, criteria.SortBy, criteria.Filter.Q);
+        // ADR 0079 STEG 5 — sorten bor nu i den delade JobAdSearchComposition (SPOT),
+        // så den per-användar-vägen kan återbruka samma rena sort under grad-filter.
+        var ordered = JobAdSearchComposition.ApplySort(baseQuery, criteria.SortBy, criteria.Filter.Q);
 
         var items = await ordered
             .Skip((criteria.Page - 1) * criteria.PageSize)
@@ -168,51 +169,4 @@ internal sealed class JobAdSearchQuery(
                 nameof(dimension), dimension, "Unknown FacetDimension — enum out of sync with ApplyCriteria."),
         };
 
-    // Alla enum-värden explicit listade + throw på unnamed (CS8524-disciplin).
-    // Validators (ListJobAdsQueryValidator / SearchCriteria.Create) skyddar mot
-    // invalid values innan denna metod — throw är defense-in-depth (fail-fast
-    // vid framtida JobAdSortBy-tillägg: case missas → ArgumentOutOfRangeException
-    // → integrationstest fail).
-    private static IQueryable<JobAd> ApplySort(
-        IQueryable<JobAd> source, JobAdSortBy sortBy, string? q) =>
-        sortBy switch
-        {
-            JobAdSortBy.PublishedAtDesc => source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id),
-            JobAdSortBy.PublishedAtAsc => source.OrderBy(j => j.PublishedAt).ThenBy(j => j.Id),
-            // NULL-ExpiresAt sorteras sist (har inget slut-datum = pågående).
-            JobAdSortBy.ExpiresAtDesc =>
-                source.OrderBy(j => j.ExpiresAt == null)
-                      .ThenByDescending(j => j.ExpiresAt)
-                      .ThenBy(j => j.Id),
-            JobAdSortBy.ExpiresAtAsc =>
-                source.OrderBy(j => j.ExpiresAt == null)
-                      .ThenBy(j => j.ExpiresAt)
-                      .ThenBy(j => j.Id),
-            // ADR 0062 — ts_rank ersätter den tidigare ILIKE-3-2-1-heuristiken
-            // (ADR 0042 Beslut D2). Relevans-rankning av FTS-träffar.
-            JobAdSortBy.Relevance => ApplyRelevanceSort(source, q),
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(sortBy), sortBy, "Unknown JobAdSortBy — validator should reject."),
-        };
-
-    // ADR 0062 — relevans-sort via PostgreSQL ts_rank(search_vector,
-    // websearch_to_tsquery('swedish', q)). Relevance kräver q non-null
-    // (invariant i SearchCriteria.Create + ListJobAdsQueryValidator);
-    // null-guarden är defense-in-depth (fallback PublishedAt desc, kastar ej i
-    // query-vägen). Rader som matchade enbart via title-LIKE-fallbacken (ej
-    // FTS) får ts_rank 0 → de sorteras efter FTS-träffarna, sedan PublishedAt
-    // desc, sedan Id.
-    private static IQueryable<JobAd> ApplyRelevanceSort(IQueryable<JobAd> source, string? q)
-    {
-        if (string.IsNullOrWhiteSpace(q))
-            return source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id);
-
-        var query = q;
-        return source
-            .OrderByDescending(j =>
-                EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                    .Rank(EF.Functions.WebSearchToTsQuery(JobAdSearchComposition.TextSearchConfig, query)))
-            .ThenByDescending(j => j.PublishedAt)
-            .ThenBy(j => j.Id);
-    }
 }

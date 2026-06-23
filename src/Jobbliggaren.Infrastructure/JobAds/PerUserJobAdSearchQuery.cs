@@ -1,51 +1,50 @@
+using System.Linq.Expressions;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Application.Matching.Grading;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Infrastructure.JobAds;
 
 /// <summary>
-/// F4-14 (ADR 0076 Decision 4/5) — <see cref="IPerUserJobAdSearchQuery"/>:
-/// global "Sortera efter matchning". SEPARAT från <see cref="JobAdSearchQuery"/>
-/// (Decision 5 — den delade <see cref="IJobAdSearchQuery"/> förblir match-ren);
-/// återanvänder dock EXAKT samma filter-SPOT (<see cref="JobAdSearchComposition.ApplyFilter"/>)
-/// + items-projektion (<see cref="JobAdSearchComposition.ToDto"/>) så match-sorten
-/// aldrig träffar en annan annons-mängd än default-sorten.
+/// ADR 0076 Decision 4/5 + ADR 0079 STEG 5 — <see cref="IPerUserJobAdSearchQuery"/>:
+/// den per-användar-sökvägen för <c>/jobb</c>. SEPARAT från
+/// <see cref="JobAdSearchQuery"/> (Decision 5 — den delade
+/// <see cref="IJobAdSearchQuery"/> förblir match-ren och anonymt cachebar);
+/// återanvänder dock EXAKT samma filter-SPOT (<see cref="JobAdSearchComposition.ApplyFilter"/>),
+/// rena sort (<see cref="JobAdSearchComposition.ApplySort"/>) + items-projektion
+/// (<see cref="JobAdSearchComposition.ToDto"/>) så grad-filtret/match-sorten aldrig
+/// träffar en annan annons-mängd än default-sorten.
 /// <para>
-/// <b>Sort-nyckeln (grad-ranken) lever ENBART i <c>ORDER BY</c></b> (Goodhart,
-/// Decision 4): den projiceras aldrig in i <see cref="JobAdDto"/>, persisteras
-/// aldrig. Ranken är en kompilerad spegel av den <b>Fast</b>
-/// <c>MatchGradeCalculator.Grade(MatchScore)</c>-stegen + <c>MatchScorer.ScoreMembership</c>
-/// (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c> (ort = region ∪ kommun, Spår 3):
+/// <b>Grad-filter + sort frikopplade (ADR 0079 STEG 5 re-bind 2026-06-23):</b> ett
+/// grad-WHERE (Fast-bandet) gallrar mängden; ordningen är ANTINGEN match-rank
+/// (<c>orderByMatchRank</c> — grad fallande + gyllene skill-rung) ELLER en ren axel
+/// (senast inlagda / kortast ansökningstid / relevans) via den delade ApplySort. EN
+/// delad <see cref="GradeRankExpression"/> driver grad-WHERE, count OCH
+/// match-rank-ORDER BY (DRY, Hunt/Thomas 1999) — filtret och sorten kan aldrig divergera.
+/// </para>
 /// <para>
-/// <b>G3-OPT-A — sorten ser INTE must-have (medveten, bunden divergens, ADR 0076
-/// amendment 2026-06-20):</b> sedan graden blev requirement-aware
-/// (<c>Grade(FullMatchScore)</c> gatar Strong/Top på must-have-täckning) är denna sort en
-/// snabb, grov Fast-band-coarsening som ärligt SKILJER SIG från den synliga graden i
-/// must-have-bandet — den heta vägen läser den bekräftade skill-mängden (plaintext, ingen
-/// DEK, binär <c>?|</c>; ADR 0079 STEG 3 PR-D), kan inte beräkna must-have-täckning, och ska
-/// därför inte påstå sig spegla den synliga graden. UI-copy säger "Sortera efter matchning"
-/// (preferens+skill-relevans),
-/// aldrig "sortera efter grad exakt". Ett orakel pinnar Fast-spegeln; ett separat test
-/// pinnar divergensen (MatchSortOracleTests).</para>
-/// Fast-rank-spegeln:
+/// <b>Sort-nyckeln/grad-ranken lever ENBART i <c>WHERE</c>/<c>ORDER BY</c></b> (Goodhart,
+/// Decision 4): aldrig projicerad in i <see cref="JobAdDto"/>, aldrig persisterad. Ranken
+/// speglar den <b>Fast</b> <c>MatchGradeCalculator.Grade(MatchScore)</c>-stegen +
+/// <c>MatchScorer.ScoreMembership</c> (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c>
+/// (ort = region ∪ kommun, Spår 3):
 /// <list type="bullet">
-/// <item>0 = otaggad (SSYK ej Match) → sorteras sist;</item>
-/// <item>1 = Basic (SSYK Match, men en angiven ort (region/kommun) eller
-/// anställningsform motsäger — <c>NoMatch</c>, golvar);</item>
-/// <item>1 + antal bekräftade sekundärer (ort (region∪kommun) / anställningsform
-/// <c>Match</c>) = 1/2/3 (Basic/Good/Strong); ort räknas som ETT sekundär (region- ELLER
-/// kommun-träff). En <c>NotAssessed</c>-dimension (tom preferens ELLER ad utan ort-värde)
-/// varken bekräftar eller golvar.</item>
+/// <item>0 = otaggad (SSYK ej Match) → exkluderas av grad-filtret (positiv-only),
+/// sorteras sist i match-rank;</item>
+/// <item>1 = Basic (SSYK Match, men en angiven ort/anställningsform motsäger — golvar);</item>
+/// <item>1 + antal bekräftade sekundärer (ort (region∪kommun) / anställningsform) =
+/// 1/2/3 (Basic/Good/Strong). En <c>NotAssessed</c>-dimension varken bekräftar eller golvar.</item>
 /// </list>
-/// Tie-break: <c>publishedAt</c> fallande, sedan <c>Id</c> (determinism).
-/// Ett Testcontainers-orakel pinnar SQL-rank ≡ <c>MatchGradeCalculator</c> över
-/// hela verdict-tuple-rymden (InMemory döljer translationen — samma
-/// <c>ef_strongly_typed_vo_contains</c>-lärdom; <c>= ANY</c>-translationen av
-/// <c>list.Contains(EF.Property)</c> är samma som körs i ApplyFilter i prod).
+/// <b>G3-OPT-A (medveten, bunden divergens):</b> Fast-bandet toppar på Stark — Topp kan
+/// inte beräknas i SQL (ingen kind-separerad must-have-lexem-kolumn) och avvisas wire-side
+/// av validatorn. Ett Testcontainers-orakel pinnar SQL-rank ≡ <c>MatchGradeCalculator</c>
+/// över hela verdict-tuple-rymden (InMemory döljer <c>= ANY</c>-translationen —
+/// <c>ef_strongly_typed_vo_contains</c>-lärdomen).
 /// </para>
 /// </summary>
 internal sealed class PerUserJobAdSearchQuery(
@@ -73,6 +72,9 @@ internal sealed class PerUserJobAdSearchQuery(
     public async ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
         JobAdFilterCriteria filter,
         FullCandidateMatchProfile profile,
+        IReadOnlyList<MatchGrade> grades,
+        JobAdSortBy sort,
+        bool orderByMatchRank,
         int page,
         int pageSize,
         DateTimeOffset? since,
@@ -80,10 +82,7 @@ internal sealed class PerUserJobAdSearchQuery(
     {
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(profile);
-
-        // Count är sort-oberoende → återanvänd den rena port-counten (TD-94
-        // bitmap-plan ingår). Ingen duplicerad count-väg (DRY, ADR 0039 Beslut 1).
-        var totalCount = await searchQuery.CountAsync(filter, cancellationToken);
+        ArgumentNullException.ThrowIfNull(grades);
 
         // Profil-listorna fångas lokalt → EF binder dem som parametrar (= ANY).
         // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma
@@ -99,60 +98,66 @@ internal sealed class PerUserJobAdSearchQuery(
         var employmentStated = employment.Count > 0;
 
         // F4-15 (ADR 0076 Decision 6) → ADR 0079 STEG 3 PR-D: den gyllene topp-rungen.
-        // CvSkillConceptIds är nu den BEKRÄFTADE skill-mängden (plaintext PreferredSkills,
-        // ingen DEK) — SAMMA källa som verdikt-scorern, så sort och grad kan aldrig divergera
-        // på en borttagen skill (ingen fel-lyft). Tom mängd → skillStated == false → den
-        // gyllene termen blir konstant 0 (EF prunes) → ordning ≡ F4-14.
+        // CvSkillConceptIds är den BEKRÄFTADE skill-mängden (plaintext PreferredSkills,
+        // ingen DEK) — SAMMA källa som verdikt-scorern, så sort och grad aldrig divergerar
+        // på en borttagen skill. Tom mängd → skillStated == false → gyllene termen blir
+        // konstant 0 (EF prunes).
         var cvSkillIds = profile.CvSkillConceptIds.ToArray();
         var skillStated = cvSkillIds.Length > 0;
 
         var baseQuery = JobAdSearchComposition.ApplyFilter(
             db.JobAds.AsNoTracking(), filter, synonymExpander);
 
-        var items = await baseQuery
-            // Gyllene topp-rung (F4-15): en Stark match (yrke+ort+anställning ALLA
-            // bekräftade — samma villkor som grad-rank == 3) som OCKSÅ delar minst en
-            // bekräftad skill (`extracted_lexemes ?| @cvSkillIds`) sorteras ÖVER en ren Stark.
-            // Ort-bekräftelsen är union (region ELLER kommun träffar, parity ScoreOrtUnion).
-            // Den bekräftade mängden är komplett per definition (ADR 0079 PR-D) → ingen
-            // top-5-under-recall kvar. NULL extracted_lexemes → ?| NULL → ELSE 0.
-            .OrderByDescending(j =>
-                skillStated
-                && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
-                && (regions.Contains(EF.Property<string?>(j, RegionColumn))
-                    || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
-                && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
-                && EF.Functions.JsonExistAny(EF.Property<string>(j, ExtractedLexemesColumn), cvSkillIds)
-                    ? 1
-                    : 0)
-            // Grad-rank fallande (3=Strong … 0=otaggad sist). NotAssessed≠NoMatch:
-            // ort "motsäger" kräver en ANGIVEN ort-preferens (ortStated) OCH att annonsen
-            // HAR minst ett ort-värde (region ELLER kommun icke-NULL) OCH ingen union-träff.
-            // IMPL-TRAP (CTO C): det är det KOMBINERADE predikatet — ALDRIG ett naket
-            // !municipalities.Contains(col), som skulle läsa en NULL kommun-shadow som
-            // "inte i listan" (den klassiska !list.Contains(col)-buggen). Ett tomt
-            // preferens-set ger Contains == false (= NotAssessed → bidrar 0, golvar ej).
-            // Ort-bekräftelse = region-träff ELLER kommun-träff = ETT sekundär (parity
-            // RegionFit). Speglar MatchScorer.ScoreOrtUnion + MatchGradeCalculator exakt
-            // (oracle-pinnad).
-            .ThenByDescending(j =>
-                !ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
-                    ? 0
-                    : ((ortStated
-                            && (EF.Property<string?>(j, RegionColumn) != null
-                                || EF.Property<string?>(j, MunicipalityColumn) != null)
-                            && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
-                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))))
-                        || (employmentStated
-                            && EF.Property<string?>(j, EmploymentTypeColumn) != null
-                            && !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))))
+        // EN delad rank-Expression (DRY) — speglar MatchGradeCalculator.Grade(MatchScore).
+        // Konsumeras av grad-WHERE, count OCH match-rank-ORDER BY så filter och sort aldrig
+        // divergerar (CTO-re-bind 2026-06-23). Oracle-pinnad.
+        var rankExpr = GradeRankExpression(
+            ssyk, regions, municipalities, employment, ortStated, employmentStated);
+
+        // ADR 0079 STEG 5 — grad-WHERE: den PER-ANVÄNDAR-predikaten. Lever ENBART här,
+        // aldrig i den delade anonymt cachebara ApplyFilter (anon-cache + SavedSearch +
+        // recent-search-isolering, ADR 0039 Beslut 1 / 0062). Positiv-only: rank 0
+        // (otaggad) är aldrig valbar → exkluderas så snart en grad valts.
+        var graded = baseQuery;
+        if (grades.Count > 0)
+        {
+            var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
+            graded = graded.Where(RankInSet(rankExpr, selectedRanks));
+        }
+
+        // Count-korrekthet (CTO-re-bind rad-86-fix): när grad-WHERE är aktiv MÅSTE
+        // total-antalet räknas om över den grad-filtrerade mängden — annars överräknar
+        // den delade port-counten → spök-paginering. Separat count-query (CLAUDE §3.6).
+        // Tom grad-mängd ⇒ port-counten är exakt rätt (och bär TD-94-bitmap-plan-hygienen).
+        var totalCount = grades.Count > 0
+            ? await graded.CountAsync(cancellationToken)
+            : await searchQuery.CountAsync(filter, cancellationToken);
+
+        // Ordning: match-rank (gyllene rung + grad-rank) när användaren valt "bästa
+        // matchning"; annars den rena delade sorten (senast inlagda / kortast
+        // ansökningstid / relevans) över den grad-filtrerade mängden.
+        var ordered = orderByMatchRank
+            ? graded
+                // Gyllene topp-rung (F4-15): en Stark match (yrke+ort+anställning ALLA
+                // bekräftade) som OCKSÅ delar minst en bekräftad skill sorteras ÖVER en ren
+                // Stark. NULL extracted_lexemes → ?| NULL → ELSE 0.
+                .OrderByDescending(j =>
+                    skillStated
+                    && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
+                    && (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                        || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
+                    && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                    && EF.Functions.JsonExistAny(EF.Property<string>(j, ExtractedLexemesColumn), cvSkillIds)
                         ? 1
-                        : 1
-                            + ((regions.Contains(EF.Property<string?>(j, RegionColumn))
-                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))) ? 1 : 0)
-                            + (employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)) ? 1 : 0))
-            .ThenByDescending(j => j.PublishedAt)
-            .ThenBy(j => j.Id)
+                        : 0)
+                // Grad-rank fallande (3=Strong … 0=otaggad sist) — samma delade Expression
+                // som grad-WHERE/count (DRY, oracle-pinnad).
+                .ThenByDescending(rankExpr)
+                .ThenByDescending(j => j.PublishedAt)
+                .ThenBy(j => j.Id)
+            : JobAdSearchComposition.ApplySort(graded, sort, filter.Q);
+
+        var items = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(JobAdSearchComposition.ToDto(since))
@@ -160,4 +165,63 @@ internal sealed class PerUserJobAdSearchQuery(
 
         return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
     }
+
+    // Den delade grad-rank-Expression:en (SSOT) — en kompilerad spegel av den Fast
+    // MatchGradeCalculator.Grade(MatchScore)-stegen över shadow-kolumnerna. Returnerar
+    // 0 (otaggad/SSYK ej Match), 1 (Basic — golv vid motsägande ort/anställning), 2
+    // (Good — en bekräftad sekundär), 3 (Strong — båda). IMPL-TRAP (CTO C): motsägelse-
+    // golvet är ett KOMBINERAT predikat (angiven preferens OCH annonsen har ett ort-/
+    // anställnings-värde OCH ingen union-träff) — aldrig ett naket !list.Contains(col),
+    // som skulle läsa en NULL-shadow som "inte i listan".
+    private static Expression<Func<JobAd, int>> GradeRankExpression(
+        IReadOnlyList<string> ssyk,
+        IReadOnlyList<string> regions,
+        IReadOnlyList<string> municipalities,
+        IReadOnlyList<string> employment,
+        bool ortStated,
+        bool employmentStated) =>
+        j =>
+            !ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
+                ? 0
+                : ((ortStated
+                        && (EF.Property<string?>(j, RegionColumn) != null
+                            || EF.Property<string?>(j, MunicipalityColumn) != null)
+                        && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
+                            || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))))
+                    || (employmentStated
+                        && EF.Property<string?>(j, EmploymentTypeColumn) != null
+                        && !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))))
+                    ? 1
+                    : 1
+                        + ((regions.Contains(EF.Property<string?>(j, RegionColumn))
+                            || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))) ? 1 : 0)
+                        + (employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)) ? 1 : 0);
+
+    // Komponerar ett EF-översättbart predikat `selectedRanks.Contains(rank(j))` genom att
+    // ÅTERANVÄNDA exakt samma rank-Body + parameter (ingen duplikat-logik, ingen LINQKit).
+    // EF översätter int[].Contains(<CASE-uttryck>) → `<CASE> = ANY(@ranks)`.
+    private static Expression<Func<JobAd, bool>> RankInSet(
+        Expression<Func<JobAd, int>> rank, int[] selectedRanks)
+    {
+        var contains = Expression.Call(
+            typeof(Enumerable),
+            nameof(Enumerable.Contains),
+            [typeof(int)],
+            Expression.Constant(selectedRanks),
+            rank.Body);
+        return Expression.Lambda<Func<JobAd, bool>>(contains, rank.Parameters[0]);
+    }
+
+    // Fast-bandets grad → rank-heltal (parity GradeRankExpression). Top är inte
+    // Fast-beräkningsbar (G3-OPT-A) och avvisas av ListJobAdsQueryValidator wire-side;
+    // skulle den ändå nå hit är det ett programmeringsfel → fail-fast (parity ApplySort).
+    private static int GradeToRank(MatchGrade grade) => grade switch
+    {
+        MatchGrade.Basic => 1,
+        MatchGrade.Good => 2,
+        MatchGrade.Strong => 3,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(grade), grade,
+            "Endast Grund/Bra/Stark är filtrerbara (Fast-bandet) — validatorn ska ha avvisat Topp."),
+    };
 }

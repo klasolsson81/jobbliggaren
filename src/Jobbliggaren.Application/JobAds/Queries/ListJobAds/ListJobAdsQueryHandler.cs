@@ -33,7 +33,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 /// </summary>
 public sealed class ListJobAdsQueryHandler(
     IJobAdSearchQuery search,
-    IPerUserJobAdSearchQuery matchSearch,
+    IPerUserJobAdSearchQuery perUserSearch,
     IMatchProfileBuilder profileBuilder,
     ISearchQueryParser parser)
     : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
@@ -54,20 +54,33 @@ public sealed class ListJobAdsQueryHandler(
             WorktimeExtent: query.WorktimeExtent ?? [],
             Q: parser.Parse(query.Q).ResidualQ);
 
-        if (query.SortByMatch)
+        // ADR 0079 STEG 5 — enter the per-user path when EITHER a grade filter is
+        // active (MatchContextActive) OR the user asked for match-rank order
+        // (SortByMatch). Decoupled: a grade filter composes with ANY sort (senast
+        // inlagda / kortast ansökningstid / relevans / bästa matchning).
+        if (query.MatchContextActive || query.SortByMatch)
         {
             // F4-15 (ADR 0076 Decision 6, R5-REBIND Option H): the global sort builds the
-            // FULL profile from the primary CV's TOP-5 PLAINTEXT skills (Resume.TopSkills) —
+            // FULL profile from the confirmed plaintext skill set (ADR 0079 STEG 3 PR-D) —
             // NO DEK on the hottest path. The skill signal adds only the binary golden rung.
             var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
 
-            // SSYK-gate (parity F4-13 GetJobAdMatchBatch): utan angiven yrkesgrupp
-            // kan ingen annons få en grad → match-ordning vore meningslös. Honest
-            // fallback till default-sorten (Decision 7), aldrig en fejkad ordning.
+            // SSYK-gate (parity F4-13 GetJobAdMatchBatch): utan angiven yrkesgrupp kan
+            // ingen annons få en grad → grad-filter/match-ordning vore meningslös. Honest
+            // fallback till default-sorten (Decision 7) med den valda sorten, aldrig en
+            // tom grad-filtrerad sida (CTO-re-bind case 2). FE döljer kontrollen då.
             if (profile.Fast.SsykGroupConceptIds.Count > 0)
             {
-                return await matchSearch.SearchPerUserAsync(
-                    filter, profile, query.Page, query.PageSize, query.Since, cancellationToken);
+                return await perUserSearch.SearchPerUserAsync(
+                    filter,
+                    profile,
+                    grades: query.MatchGrades ?? [],
+                    sort: query.SortBy,
+                    orderByMatchRank: query.SortByMatch,
+                    query.Page,
+                    query.PageSize,
+                    query.Since,
+                    cancellationToken);
             }
         }
 

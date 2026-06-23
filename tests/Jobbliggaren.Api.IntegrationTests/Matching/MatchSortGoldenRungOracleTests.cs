@@ -257,7 +257,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
         var page = await matchSort.SearchPerUserAsync(
-            FilterFor(run), Profile(CvSkillConceptId), page: 1, pageSize: 100, since: null, ct);
+            FilterFor(run), Profile(CvSkillConceptId), grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.Count.ShouldBe(5, "Hela den filtrerade mängden ska returneras (otaggade inkl.).");
@@ -293,7 +293,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         using var _ = scope;
         // EMPTY CvSkillConceptIds → no golden lift.
         var page = await matchSort.SearchPerUserAsync(
-            FilterFor(run), Profile(), page: 1, pageSize: 100, since: null, ct);
+            FilterFor(run), Profile(), grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.IndexOf(strongNoSkillNewer.Value)
@@ -327,7 +327,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
         var page = await matchSort.SearchPerUserAsync(
-            FilterFor(run), Profile(CvSkillConceptId), page: 1, pageSize: 100, since: null, ct);
+            FilterFor(run), Profile(CvSkillConceptId), grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
 
@@ -381,7 +381,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         using var _ = scope;
         var page = await matchSort.SearchPerUserAsync(
             FilterFor(run), ProfileWithMunicipality(prefMunicipality, CvSkillConceptId),
-            page: 1, pageSize: 100, since: null, ct);
+            grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.Count.ShouldBe(2, "Båda annonserna ska returneras.");

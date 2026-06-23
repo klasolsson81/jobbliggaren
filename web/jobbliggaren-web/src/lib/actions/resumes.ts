@@ -5,9 +5,6 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
-import { getParsedResume } from "@/lib/api/resumes";
-import { getParsedResumeSkills } from "@/lib/api/skills";
-import type { SkillOption } from "@/lib/dto/skills";
 import {
   makeCreateResumeSchema,
   makeRenameResumeSchema,
@@ -15,7 +12,6 @@ import {
   makePromoteParsedResumeSchema,
 } from "./resume-schemas";
 import type { ResumeContentDto } from "@/lib/types/resumes";
-import type { ParsedContentDto } from "@/lib/dto/parsed-resume";
 import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { mapActionError } from "./_action-error";
@@ -282,90 +278,6 @@ export async function promoteParsedResumeAction(
   if (!result.ok) return { success: false, error: result.error };
   revalidatePath("/cv");
   redirect(`/cv/${result.resumeId}`);
-}
-
-export type PromoteInModalResult =
-  | { success: true; resumeId: string }
-  | { success: false; error: string };
-
-/**
- * Onboarding-modal-ingången (welcome-setup, STEG 1 / ADR 0079): vid lyckad
- * befordran RETURNERAR vi det nya CV-id:t i stället för att navigera bort —
- * flödet stannar i modalen och fortsätter till matchnings-wizarden. Revaliderar
- * både CV-listan och Översikt (matchnings-ytan läser nu det promotade CV:t).
- */
-export async function promoteParsedResumeInModalAction(
-  parsedResumeId: string,
-  name: string,
-  content: ResumeContentDto
-): Promise<PromoteInModalResult> {
-  const result = await promoteParsedResumeCore(parsedResumeId, name, content);
-  if (!result.ok) return { success: false, error: result.error };
-  revalidatePath("/cv");
-  revalidatePath("/oversikt");
-  return { success: true, resumeId: result.resumeId };
-}
-
-export type LoadParsedForGapFillResult =
-  | {
-      kind: "ok";
-      sourceFileName: string;
-      content: ParsedContentDto;
-      /** Multi-signal-yrkesförslag (utbildning+erfarenhet, #145) härledda vid
-       * import. Bärs in i welcome-wizarden INNAN promote raderar staging-
-       * artefakten, så de rika förslagen överlever befordran (ADR 0079 STEG 1). */
-      proposedOccupationGroups: string[];
-      /** STEG 3 / ADR 0079: CV-kompetens-förslag (med labels) förhämtade INNAN
-       * promote (som soft-raderar staging-artefakten + dess `/skills`-projektion),
-       * så de bärs in i wizardens kompetens-steg. Tom lista = inget förslag. */
-      proposedSkills: SkillOption[];
-    }
-  | { kind: "unauthorized" }
-  | { kind: "notFound" }
-  | { kind: "error" };
-
-/**
- * Läser en tolkad CV-stagingartefakt server-side för welcome-modalens
- * in-modal-gap-fill (STEG 1 / ADR 0079). Speglar exakt vad `/cv/granska/[id]/
- * komplettera`-sidan redan exponerar mot klient-formen: ägar-scopat,
- * auth-gatat, CV-PII läses i server-actionen (ingen ny egress-yta). Backend
- * `getParsedResume` är ägar-scopat (IDOR fail-closed). Returnerar även de
- * redan-härledda yrkesförslagen så de kan bäras in i wizarden före promote.
- */
-export async function loadParsedResumeForGapFillAction(
-  parsedResumeId: string
-): Promise<LoadParsedForGapFillResult> {
-  if (!isValidId(parsedResumeId)) return { kind: "notFound" };
-
-  const result = await getParsedResume(parsedResumeId);
-  switch (result.kind) {
-    case "ok":
-      break;
-    case "unauthorized":
-      return { kind: "unauthorized" };
-    case "notFound":
-      return { kind: "notFound" };
-    default:
-      return { kind: "error" };
-  }
-
-  // STEG 3 / ADR 0079: prefetch the CV skill proposals from the SAME staging
-  // artifact while it still exists (promote soft-deletes it). A failed/empty
-  // skills read degrades to "no skill proposals" — the gap-fill + occupation
-  // proposals must not be lost just because skills could not be read.
-  const skillsResult = await getParsedResumeSkills(parsedResumeId);
-  const proposedSkills =
-    skillsResult.kind === "ok" ? skillsResult.data : [];
-
-  return {
-    kind: "ok",
-    sourceFileName: result.data.sourceFileName,
-    content: result.data.content,
-    proposedOccupationGroups: result.data.occupationProposals.map(
-      (p) => p.conceptId
-    ),
-    proposedSkills,
-  };
 }
 
 export async function deleteResumeVersionAction(

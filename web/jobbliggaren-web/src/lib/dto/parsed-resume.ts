@@ -140,6 +140,28 @@ export const parsedResumeDetailDtoSchema = z.object({
 });
 export type ParsedResumeDetailDto = z.infer<typeof parsedResumeDetailDtoSchema>;
 
+/**
+ * Onboarding-frikoppling (DEL 1, CTO-bind pending-card): den NON-PII-summeringen
+ * av användarens senaste PendingReview-parsade CV
+ * (`GET /api/v1/resumes/parsed/latest-pending`). Bär bara id + filnamn + tidpunkt
+ * — INTE parse-innehållet (ingen CV-PII), så den får läsas av /cv-listvyn (RSC) för
+ * att yta ett "slutför ditt CV"-kort. `uploadedAt` valideras som `z.string()` på
+ * wire-nivå (datum-formatering är UI-ansvar, ADR 0020).
+ */
+export const pendingParsedResumeSummarySchema = z.object({
+  id: z.string(),
+  sourceFileName: z.string(),
+  uploadedAt: z.string(),
+});
+export type PendingParsedResumeSummary = z.infer<
+  typeof pendingParsedResumeSummarySchema
+>;
+
+/** Wire-svaret är ANTINGEN summeringen ELLER literal `null` (HTTP 200 i båda fall
+ * — inget pending CV ger `null`, inte 404). Schemat är därför nullable. */
+export const pendingParsedResumeResponseSchema =
+  pendingParsedResumeSummarySchema.nullable();
+
 // --- CV-granska (F4-9) ------------------------------------------------------
 
 /** Renderingsprofil. Backend-validatorn är case-sensitive (`Ats`|`Visual`) — dessa

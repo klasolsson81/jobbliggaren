@@ -56,6 +56,11 @@
     "emptyBody": "Skapa ditt första CV för att komma igång. Du kan ha flera varianter (t.ex. en för ledarskap och en för teknisk roll) och välja rätt CV per ansökan.",
     "emptyCreateFirst": "Skapa första CV",
     "backLink": "Tillbaka till CV",
+    "pending": {
+      "heading": "CV att slutföra",
+      "body": "Ditt CV är inläst men inte sparat ännu. Slutför det för att spara och kunna använda det fullt ut.",
+      "cta": "Slutför CV"
+    },
     "import": {
       "title": "Importera CV",
       "lede": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en deterministisk granskning med citerad evidens. Du behåller kontrollen. Inget ändras i ditt CV förrän du själv sparar.",

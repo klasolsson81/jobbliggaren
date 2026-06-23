@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common;
+using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
@@ -42,7 +43,17 @@ public sealed record ListJobAdsQuery(
     // record-property matchar ICapturesRecentSearch.Commit automatiskt
     // (paritet Since/Page). Påverkar ENDAST capture-behaviorns no-op-gate —
     // ingår inte i SearchCriteria/filter-identiteten.
-    bool Commit = false) : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
+    bool Commit = false,
+    // ADR 0079 STEG 5 (grad-filter, 2026-06-23) — den per-användar-grad-filtreringen
+    // ("Matchning"-toggeln). RUNTIME-KONTEXT (analog Since/Commit): den ingår ALDRIG
+    // i ICapturesRecentSearch / SearchCriteria / FilterHashCalculator (de läser bara
+    // de namngivna fälten ovan) — en per-användar-grad får aldrig förorena den anonyma
+    // sök-identiteten (ADR 0039 Beslut 1 / ADR 0062-isolering). En icke-tom lista
+    // betyder "Matchning PÅ, visa endast dessa grader"; tom/null = Matchning AV
+    // (Klas-val 2026-06-23: av = noll grader). Endast Fast-bandet (Grund/Bra/Stark) är
+    // filtrerbart — Topp kan inte beräknas i SQL (G3-OPT-A); validatorn avvisar Top.
+    IReadOnlyList<MatchGrade>? MatchGrades = null)
+    : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
 {
     // ICapturesRecentSearch + default/fallback-väg ser ALLTID ett rent
     // Domain-värde (MatchDesc → PublishedAtDesc). Match-sorten persisteras aldrig
@@ -50,6 +61,15 @@ public sealed record ListJobAdsQuery(
     public JobAdSortBy SortBy => Sort.ToDomainSort();
 
     // F4-14 — match-sort-intentet. Driver handlerns gren till den per-användar-
-    // match-sort-porten (med honest PublishedAtDesc-fallback, Decision 7).
+    // sökvägen (med honest PublishedAtDesc-fallback, Decision 7). MatchDesc =
+    // "ordna på match-rank"; det gatar INTE längre per-användar-vägen ensamt
+    // (ADR 0079 STEG 5 re-bind — grad-filter + valfri sort frikopplades).
     public bool SortByMatch => Sort == ListJobAdsSort.MatchDesc;
+
+    // ADR 0079 STEG 5 — "Matchning"-kontext aktiv ⇔ minst en grad vald (Klas-val:
+    // av = noll grader). Detta — INTE sort-värdet — är toggle-signalen som driver
+    // per-användar-vägen (där grad-WHERE + den valda sorten appliceras). MatchDesc
+    // utan grader (case 3) faller fortfarande in på per-användar-vägen via
+    // SortByMatch (match-rank-ordning utan grad-filter, otaggade sist).
+    public bool MatchContextActive => MatchGrades is { Count: > 0 };
 }

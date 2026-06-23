@@ -18,7 +18,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <summary>
 /// F4-14 (ADR 0076 Decision 4/5; Klas-bind 2026-06-19) — THE ORACLE (D4). The
 /// anti-drift guard that pins the SQL match-sort ORDER BY in
-/// <see cref="MatchSortedJobAdSearchQuery"/> to the C# grade SSOT
+/// <see cref="PerUserJobAdSearchQuery"/> to the C# grade SSOT
 /// (<see cref="MatchGradeCalculator"/> over <see cref="MatchScorer"/> verdicts).
 /// Runs the REAL Infrastructure match-sort query against real Postgres
 /// (Testcontainers, ALDRIG EF-InMemory — InMemory hides BOTH the
@@ -87,11 +87,11 @@ public class MatchSortOracleTests(ApiFactory factory)
     // SUT factory — the REAL wired match-sort query from DI (proving the
     // registration + the EF translation of the rank ORDER BY), plus a held scope.
     // ---------------------------------------------------------------
-    private (IServiceScope Scope, IMatchSortedJobAdSearchQuery Query) NewMatchSort()
+    private (IServiceScope Scope, IPerUserJobAdSearchQuery Query) NewMatchSort()
     {
         var scope = _factory.Services.CreateScope();
         var query = scope.ServiceProvider
-            .GetRequiredService<IMatchSortedJobAdSearchQuery>();
+            .GetRequiredService<IPerUserJobAdSearchQuery>();
         return (scope, query);
     }
 
@@ -108,7 +108,7 @@ public class MatchSortOracleTests(ApiFactory factory)
         return (scope, search, scorer);
     }
 
-    // F4-15 (ADR 0076 Decision 6): SearchByMatchAsync now takes a FullCandidateMatchProfile.
+    // F4-15 (ADR 0076 Decision 6): SearchPerUserAsync now takes a FullCandidateMatchProfile.
     // This F4-14-ladder oracle exercises the GRADE ladder only (no CV skills) → an EMPTY
     // CvSkillConceptIds, which produces NO golden lift (order ≡ F4-14). The golden top tier
     // is pinned separately in MatchSortGoldenRungOracleTests. This base profile states a
@@ -325,8 +325,8 @@ public class MatchSortOracleTests(ApiFactory factory)
         // SQL-ordered page (the real wired impl).
         var (sortScope, matchSort) = NewMatchSort();
         using var _ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            filter, profile, page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            filter, profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         page.Items.Count.ShouldBe(seeded.Count,
             "Match-sorten ska returnera HELA den filtrerade mängden (otaggade inkluderade, " +
@@ -384,8 +384,8 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (sortScope, matchSort) = NewMatchSort();
         using var _ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            FilterFor(run), Profile(), page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), Profile(), grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
 
@@ -447,8 +447,8 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (sortScope, matchSort) = NewMatchSort();
         using var _ = sortScope;
-        var matchPage = await matchSort.SearchByMatchAsync(
-            filter, Profile(), page: 1, pageSize: 100, since: null, ct);
+        var matchPage = await matchSort.SearchPerUserAsync(
+            filter, Profile(), grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var (searchScope, search, _) = NewSearchAndScorer();
         using var __ = searchScope;
@@ -497,8 +497,8 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (sortScope, matchSort) = NewMatchSort();
         using var ___ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.IndexOf(notAssessed.Value).ShouldBeLessThan(orderedIds.IndexOf(noMatch.Value),
@@ -574,8 +574,8 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (sortScope, matchSort) = NewMatchSort();
         using var _ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            filter, profile, page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            filter, profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         page.Items.Count.ShouldBe(seeded.Count,
             "Match-sorten ska returnera HELA den filtrerade mängden (otaggade inkluderade).");
@@ -642,8 +642,8 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (sortScope, matchSort) = NewMatchSort();
         using var ___ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.IndexOf(municipalityHit.Value)
@@ -697,8 +697,8 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (sortScope, matchSort) = NewMatchSort();
         using var ___ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.IndexOf(notAssessed.Value).ShouldBeLessThan(orderedIds.IndexOf(noMatch.Value),
@@ -740,8 +740,8 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (sortScope, matchSort) = NewMatchSort();
         using var ___ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.IndexOf(regionHitNullMun.Value)
@@ -892,8 +892,8 @@ public class MatchSortOracleTests(ApiFactory factory)
         // ---- The SORT axis (fast coarse relevance) does NOT separate them by must-have. ----
         var (sortScope, matchSort) = NewMatchSort();
         using var ___ = sortScope;
-        var page = await matchSort.SearchByMatchAsync(
-            FilterFor(run), profile, page: 1, pageSize: 100, since: null, ct);
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.Count.ShouldBe(2, "Båda annonserna ska returneras.");

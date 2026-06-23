@@ -80,6 +80,11 @@ interface JobbHeroSearchProps {
   // skulle fältets commit bygga en href som tappar dem).
   employmentType: ReadonlyArray<string>;
   worktimeExtent: ReadonlyArray<string>;
+  // STEG 5 (grade-filter, 2026-06-23) — aktivt matchningsgrad-filter. Som
+  // Klass-2-dimensionerna: aldrig text-representabelt i fältet, men bärs genom
+  // commit-/delta-vägen + no-JS-hidden-inputs så en sökord-ändring inte raderar
+  // ett aktivt grad-filter (buildJobbHref kräver fältet).
+  matchGrades: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -94,6 +99,7 @@ export function JobbHeroSearch({
   municipality,
   employmentType,
   worktimeExtent,
+  matchGrades,
   sortBy,
   pageSize,
 }: JobbHeroSearchProps) {
@@ -122,6 +128,7 @@ export function JobbHeroSearch({
       municipality: [...municipality],
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
+      matchGrades: [...matchGrades],
       sortBy,
       pageSize,
     }),
@@ -132,6 +139,7 @@ export function JobbHeroSearch({
       municipality,
       employmentType,
       worktimeExtent,
+      matchGrades,
       sortBy,
       pageSize,
     ],
@@ -486,6 +494,16 @@ export function JobbHeroSearch({
           key={`worktimeExtent-${v}`}
           type="hidden"
           name="worktimeExtent"
+          value={v}
+        />
+      ))}
+      {/* STEG 5 — no-JS-submit bär aktivt grad-filter så en sökord-sökning utan
+          JS inte tappar det (paritet med Klass-2-dimensionerna ovan). */}
+      {lastCommitted.matchGrades.map((v) => (
+        <input
+          key={`matchGrades-${v}`}
+          type="hidden"
+          name="matchGrades"
           value={v}
         />
       ))}

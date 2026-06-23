@@ -33,6 +33,17 @@ export interface JobbUrlState {
   // dimensionerna, CTO VAL 4a; lever bara i URL-state + filter-raden).
   employmentType: ReadonlyArray<string>;
   worktimeExtent: ReadonlyArray<string>;
+  // STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filtret. Bär
+  // ENUM-NAMN (`Basic` | `Good` | `Strong`, ALDRIG `Top` — listfiltret är
+  // Fast-bandet och kan inte beräkna Toppmatch; backend-validatorn avvisar
+  // `Top`). Svenska labels (Grund | Bra | Stark) lever bara i UI, aldrig i
+  // URL:en (samma regel som occupationGroup som bär concept-id, inte i18n).
+  // Upprepad query-param (?matchGrades=Strong&matchGrades=Good), samma
+  // kontrakt som employmentType/worktimeExtent (ADR 0042 Beslut B).
+  // Produktmodell (Klas): "Av = noll grader" — en tom lista ÄR "Matchning av"
+  // (hela listan returneras). matchGrades är runtime-view-state, INTE en
+  // commit/recent-search-angelägenhet (utelämnas medvetet ur den concern:en).
+  matchGrades: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -75,6 +86,10 @@ export function buildJobbHref(state: JobbUrlState): string {
   // Beslut B). Ordnade efter ort/yrke så delningsbara URL:er får stabil form.
   for (const v of state.employmentType) params.append("employmentType", v);
   for (const v of state.worktimeExtent) params.append("worktimeExtent", v);
+  // STEG 5 — matchningsgrad (enum-namn). Upprepad param efter Klass-2-
+  // dimensionerna, före q (stabil URL-form för delningsbara länkar). Tom
+  // lista = inget param = "Matchning av" (hela listan).
+  for (const v of state.matchGrades) params.append("matchGrades", v);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);

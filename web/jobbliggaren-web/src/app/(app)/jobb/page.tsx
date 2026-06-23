@@ -6,6 +6,7 @@ import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
+import { isListMatchGrade } from "@/lib/dto/job-ad-match";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
@@ -30,6 +31,9 @@ type JobbSearchParams = {
   // Klass 2 (2026-06-13) — anställningsform + omfattning, upprepade params.
   employmentType?: string | string[];
   worktimeExtent?: string | string[];
+  // STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filter, upprepad param
+  // (enum-namn Basic/Good/Strong). Okända värden + Top droppas tyst.
+  matchGrades?: string | string[];
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -77,6 +81,13 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // Klass 2 — anställningsform (multi) + omfattning (radio → 0–1 element).
   const employmentType = toStringList(params.employmentType);
   const worktimeExtent = toStringList(params.worktimeExtent);
+  // STEG 5 — matchningsgrad-filter. Validera mot {Basic, Good, Strong}: okända
+  // värden OCH `Top` droppas tyst (Top är inte filtrerbart i listan — Fast-
+  // bandet; backend skulle 400:a det). Dedupe så en manipulerad URL inte
+  // dubblerar params. Tom = inget grad-filter ("Matchning av").
+  const matchGrades = [
+    ...new Set(toStringList(params.matchGrades).filter(isListMatchGrade)),
+  ];
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -133,6 +144,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // bara anställningsform/omfattning ändras (samma princip som dimensionerna).
   const employmentTypeKey = employmentType.join(",");
   const worktimeExtentKey = worktimeExtent.join(",");
+  // STEG 5 — matchningsgrad ingår i Suspense-keyn så listan re-renderas (visar
+  // skeleton) när bara grad-filtret ändras (samma princip som dimensionerna).
+  const matchGradesKey = matchGrades.join(",");
 
   return (
     <>
@@ -191,6 +205,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 municipality={municipality}
                 employmentType={employmentType}
                 worktimeExtent={worktimeExtent}
+                matchGrades={matchGrades}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
               />
@@ -207,6 +222,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 initialMunicipality={municipality}
                 initialEmploymentType={employmentType}
                 initialWorktimeExtent={worktimeExtent}
+                initialMatchGrades={matchGrades}
                 q={q ?? ""}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
@@ -222,7 +238,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -234,6 +250,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             municipality={municipality}
             employmentType={employmentType}
             worktimeExtent={worktimeExtent}
+            matchGrades={matchGrades}
             q={q ?? ""}
             since={since}
             commit={commit}

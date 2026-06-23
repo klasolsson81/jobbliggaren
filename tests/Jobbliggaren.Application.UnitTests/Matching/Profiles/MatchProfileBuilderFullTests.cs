@@ -311,7 +311,7 @@ public class MatchProfileBuilderFullTests
     // STEG 4 (ADR 0079 / #5a) — the title dimension reads the primary CV's denormalised
     // plaintext Resume.LatestRole (DEK-free) into Fast.Title, on BOTH Full builders.
     // EVIDENCE-ONLY: Title is absent from MatchGradeCalculator AND from the
-    // MatchSortedJobAdSearchQuery ORDER BY — so this can move NEITHER a grade nor a sort
+    // PerUserJobAdSearchQuery ORDER BY — so this can move NEITHER a grade nor a sort
     // position (regression-pinned by the unchanged MatchGradeCalculatorTests + the SORT
     // oracle). These cases verify the projection, not any grade/sort effect.
     // =================================================================

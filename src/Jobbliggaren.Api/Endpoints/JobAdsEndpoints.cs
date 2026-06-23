@@ -8,6 +8,7 @@ using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
+using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Queries.ResolveSkillLabels;
 using Jobbliggaren.Application.Matching.Queries.SearchSkills;
 using Jobbliggaren.Domain.JobAds;
@@ -63,6 +64,13 @@ public static class JobAdsEndpoints
             // → auto-capture; utelämnad (live-förhandsvisning) → ingen capture.
             // Transient signal-param, ingår EJ i filter-identiteten.
             bool commit = false,
+            // ADR 0079 STEG 5 — grad-filtret ("Matchning"-toggeln). Upprepad query-
+            // string ?matchGrades=Strong&matchGrades=Good binds till MatchGrade[] per
+            // NAMN (enum serialiseras by-name; ej svenska, ej komma-separerat — wire-
+            // stabilt, i18n bor aldrig i URL:en). Ogiltigt namn → 400 vid binding;
+            // Topp → bunden men avvisas av validatorn (G3-OPT-A). Runtime-kontext —
+            // ingår EJ i filter-identiteten/recent-search-hashen.
+            MatchGrade[]? matchGrades = null,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -75,7 +83,8 @@ public static class JobAdsEndpoints
                     WorktimeExtent: worktimeExtent,
                     Q: q,
                     Since: since,
-                    Commit: commit), ct);
+                    Commit: commit,
+                    MatchGrades: matchGrades), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);

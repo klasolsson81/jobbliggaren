@@ -271,7 +271,7 @@ public class MatchTagBatchLayerTests
     public void JobAdDto_has_no_numeric_or_score_shaped_property()
     {
         // ADR 0076 Decision 4 — F4-14:s sort-nyckel (grad-ranken) lever ENBART i
-        // MatchSortedJobAdSearchQuery.OrderBy; den projiceras ALDRIG in i den list-
+        // PerUserJobAdSearchQuery.OrderBy; den projiceras ALDRIG in i den list-
         // wire-DTO som /jobb returnerar. JobAdDto är den exakt samma DTO:n vare sig
         // sorten är PublishedAtDesc eller MatchDesc (Decision 5 — match-sorten
         // reordnar, introducerar ingen match-shaped wire-form).
@@ -289,16 +289,16 @@ public class MatchTagBatchLayerTests
     }
 
     [Fact]
-    public void IMatchSortedJobAdSearchQuery_SearchByMatch_returns_PagedResult_of_JobAdDto()
+    public void IPerUserJobAdSearchQuery_SearchByMatch_returns_PagedResult_of_JobAdDto()
     {
         // ADR 0076 Decision 4/5 — match-sort-porten returnerar EXAKT samma sida som
         // default-sorten: PagedResult<JobAdDto>. Ingen match-formad DTO (med ett
         // grad-/rank-fält) introduceras på tråden; ordningen är den enda skillnaden.
-        var method = typeof(Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery)
-            .GetMethod("SearchByMatchAsync", BindingFlags.Public | BindingFlags.Instance);
+        var method = typeof(Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery)
+            .GetMethod("SearchPerUserAsync", BindingFlags.Public | BindingFlags.Instance);
 
         method.ShouldNotBeNull(
-            "IMatchSortedJobAdSearchQuery ska ha SearchByMatchAsync.");
+            "IPerUserJobAdSearchQuery ska ha SearchPerUserAsync.");
 
         var returnType = method!.ReturnType;
         // ValueTask<PagedResult<JobAdDto>> — unwrap ValueTask<T> → T.
@@ -309,7 +309,7 @@ public class MatchTagBatchLayerTests
         paged.IsGenericType.ShouldBeTrue();
         paged.GetGenericTypeDefinition().ShouldBe(
             typeof(Jobbliggaren.Application.Common.PagedResult<>),
-            "SearchByMatchAsync ska returnera PagedResult<…> (samma sid-form som " +
+            "SearchPerUserAsync ska returnera PagedResult<…> (samma sid-form som " +
             "default-sorten, ADR 0076 Decision 5).");
         paged.GetGenericArguments()[0].ShouldBe(
             typeof(Jobbliggaren.Application.JobAds.Queries.JobAdDto),
@@ -318,11 +318,11 @@ public class MatchTagBatchLayerTests
     }
 
     [Fact]
-    public void IMatchSortedJobAdSearchQuery_is_in_Application_layer()
+    public void IPerUserJobAdSearchQuery_is_in_Application_layer()
     {
         // Match-sort-porten är en Application-abstraktion (impl internal i
         // Infrastructure — Npgsql-bunden ORDER BY, ADR 0062 / CLAUDE.md §2.1).
-        var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IMatchSortedJobAdSearchQuery);
+        var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery);
         port.Assembly.ShouldBe(
             typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
     }

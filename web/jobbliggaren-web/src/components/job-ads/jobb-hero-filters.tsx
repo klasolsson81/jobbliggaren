@@ -58,6 +58,13 @@ interface JobbHeroFiltersProps {
   // (radio-single). Driver "Filter"-pillen + Klass-2-panelen.
   initialEmploymentType: ReadonlyArray<string>;
   initialWorktimeExtent: ReadonlyArray<string>;
+  /**
+   * STEG 5 (grade-filter, 2026-06-23) — aktivt matchningsgrad-filter. Ön
+   * redigerar ALDRIG grader (de bor i toolbaren), men måste bära dem vidare i
+   * varje buildJobbHref-commit så ett filter-pill-klick inte raderar ett aktivt
+   * grad-filter (samma param-bevarande-disciplin som q/sort/Klass-2).
+   */
+  initialMatchGrades: ReadonlyArray<string>;
   /** Hero-sökordet — bärs vidare så filter-klick inte raderar q. */
   q: string;
   sortBy: JobAdSortBy;
@@ -85,6 +92,7 @@ export function JobbHeroFilters({
   initialMunicipality,
   initialEmploymentType,
   initialWorktimeExtent,
+  initialMatchGrades,
   q,
   sortBy,
   pageSize,
@@ -180,6 +188,9 @@ export function JobbHeroFilters({
           municipality: next.municipality,
           employmentType: next.employmentType,
           worktimeExtent: next.worktimeExtent,
+          // STEG 5 — bär det aktiva grad-filtret oförändrat vidare (ön
+          // redigerar det inte; den får bara inte radera det vid ett pill-klick).
+          matchGrades: [...initialMatchGrades],
           sortBy,
           pageSize,
         }),

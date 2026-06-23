@@ -30,6 +30,24 @@ export const matchGradeSchema = z.enum(["Strong", "Good", "Basic", "Top"]);
 export type MatchGrade = z.infer<typeof matchGradeSchema>;
 
 /**
+ * STEG 5 (grade-filter, 2026-06-23) — de grader /jobb-listfiltret kan filtrera
+ * på. EXAKT `Basic` | `Good` | `Strong` — `Top` är medvetet UTESLUTET: listans
+ * grade-filter är Fast-bandet och kan inte beräkna Toppmatch (honest by design;
+ * backend-validatorn 400:ar `Top`). Wire-formen är enum-NAMN (svenska labels
+ * Grund/Bra/Stark lever bara i UI). Ordningen är Goodhart-medvetet ordinal
+ * (Grund → Bra → Stark) men listan poängsätter aldrig — den filtrerar på
+ * namngivna kategorier. `as const` så `LIST_MATCH_GRADES.includes` ger en
+ * bekväm typvakt i page-validatorn (drop unknown/Top tyst).
+ */
+export const LIST_MATCH_GRADES = ["Basic", "Good", "Strong"] as const;
+export type ListMatchGrade = (typeof LIST_MATCH_GRADES)[number];
+
+/** Typvakt: är strängen en av de tre filtrerbara graderna (ej `Top`)? */
+export function isListMatchGrade(value: string): value is ListMatchGrade {
+  return (LIST_MATCH_GRADES as ReadonlyArray<string>).includes(value);
+}
+
+/**
  * Ordinalt delverdikt per matchnings-dimension. `NotAssessed` = CV-sidan saknas
  * (inget CV) → kunde inte bedömas. `Vacuous` (ADR 0076 amendment 2026-06-20) =
  * ad-sidan saknar termer av den här sorten MEN CV finns ("annonsen anger inga") —

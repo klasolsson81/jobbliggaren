@@ -77,7 +77,7 @@ public class ListJobAdsGeoUnionTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return new ListJobAdsQueryHandler(
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
-            Substitute.For<IMatchSortedJobAdSearchQuery>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
             new SearchQueryParser());
     }

@@ -27,6 +27,7 @@ import {
   type SearchChip,
 } from "@/lib/job-ads/chip-models";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
+import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
 /**
  * Result-toolbar för /jobb (HANDOVER-v3.md §7.2, ADR 0055). En rad:
@@ -59,6 +60,13 @@ interface JobbResultsToolbarProps {
   // /taxonomy/labels, kind-agnostisk sedan PR-1).
   employmentType: ReadonlyArray<string>;
   worktimeExtent: ReadonlyArray<string>;
+  /**
+   * STEG 5 (grade-filter, 2026-06-23) — valda matchningsgrader (enum-namn,
+   * delmängd av Basic/Good/Strong). Tom lista = "Matchning av" (inget filter).
+   * Runtime-view-state: ändring navigerar UTAN commit-flaggan (matchGrades hör
+   * inte till recent-search-capturen, till skillnad från chip/sort).
+   */
+  matchGrades: ReadonlyArray<string>;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -121,6 +129,7 @@ export function JobbResultsToolbar({
   municipality,
   employmentType,
   worktimeExtent,
+  matchGrades,
   resolvedLabels,
   q,
   sortBy,
@@ -153,6 +162,7 @@ export function JobbResultsToolbar({
       municipality: [...municipality],
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
+      matchGrades: [...matchGrades],
       sortBy,
       pageSize,
     }),
@@ -163,6 +173,7 @@ export function JobbResultsToolbar({
       municipality,
       employmentType,
       worktimeExtent,
+      matchGrades,
       sortBy,
       pageSize,
     ],
@@ -198,6 +209,22 @@ export function JobbResultsToolbar({
       setOptimisticState(next);
       router.push(withCommitFlag(buildJobbHref(next)));
     });
+  }
+
+  // STEG 5 (grade-filter) — navigering UTAN commit-intent. matchGrades är
+  // runtime-view-state, INTE en avsiktlig sökning: en grad-justering ska aldrig
+  // auto-capturas till Senaste sökningar (Klas: håll matchGrades utanför
+  // recent-search/commit-angelägenheten). Samma optimistiska overlay som commit
+  // för omedelbar respons; ren `buildJobbHref` (ingen ?commit=true).
+  function navigate(next: JobbUrlState) {
+    startTransition(() => {
+      setOptimisticState(next);
+      router.push(buildJobbHref(next));
+    });
+  }
+
+  function onMatchGradesChange(next: string[]) {
+    navigate({ ...urlState, matchGrades: next });
   }
 
   function removeChip(chip: SearchChip) {
@@ -301,32 +328,56 @@ export function JobbResultsToolbar({
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <label
-          htmlFor="jobb-sort"
-          style={{ fontSize: 14, color: "var(--jp-ink-2)" }}
-        >
-          {t("toolbar.sortLabel")}
-        </label>
-        <select
-          id="jobb-sort"
-          className="jp-select"
-          style={{ height: 40, width: "auto", minWidth: 180 }}
-          value={selectValue}
-          onChange={onSortChange}
-        >
-          {SORT_OPTIONS.map((opt) => (
-            <option
-              key={opt.value}
-              value={opt.value}
-              disabled={opt.value === "Relevance" && !qReady}
-            >
-              {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
-            </option>
-          ))}
-        </select>
+      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        {/* STEG 5 (grade-filter) — visas BARA när användaren angett ett yrke
+            (graden kan inte beräknas annars; paritet med match-sort-
+            disclosurens gate). Filtrerar på Grund/Bra/Stark (aldrig Toppmatch).
+            Navigerar utan commit-flaggan (runtime-view-state). */}
+        {hasStatedDesiredOccupation && (
+          <JobbMatchGradeFilter
+            selected={urlState.matchGrades}
+            onChange={onMatchGradesChange}
+          />
+        )}
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <label
+            htmlFor="jobb-sort"
+            style={{ fontSize: 14, color: "var(--jp-ink-2)" }}
+          >
+            {t("toolbar.sortLabel")}
+          </label>
+          <select
+            id="jobb-sort"
+            className="jp-select"
+            style={{ height: 40, width: "auto", minWidth: 180 }}
+            value={selectValue}
+            onChange={onSortChange}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option
+                key={opt.value}
+                value={opt.value}
+                disabled={opt.value === "Relevance" && !qReady}
+              >
+                {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
+    {/* STEG 5 (grade-filter) — kort, valfri hjälprad. Förklarar att kontrollen
+        filtrerar på DIN matchningsnivå utan att antyda per-kort-exakthet
+        (aldrig "Visa endast Toppmatchningar" — listan är Fast-bandet). Visas
+        bara när filtret är PÅ (minst en grad vald) så off-läget förblir tyst.
+        Platt civic info-not (samma .jp-matchsort-note-rytm, ingen box/skugga). */}
+    {hasStatedDesiredOccupation && urlState.matchGrades.length > 0 && (
+      // role="status" (ej "note") så SR aviserar hjälptexten när den tonar in
+      // vid switch-PÅ (paritet med match-sort-disclosuren nedan, a11y §6).
+      <p className="jp-matchsort-note" role="status">
+        {t("gradeFilter.help")}
+      </p>
+    )}
     {/* F4-16 (CTO D8) — in-/jobb-disclosure. Platt civic info-not (ingen
         boxad alert, ingen skugga/gradient — design §3.D). Namnger orsak
         (yrke saknas) + beteende (nyaste först) + handling (kanonisk länk,

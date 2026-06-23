@@ -12,7 +12,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// Infrastructure-queries återanvänder utan att divergera: filter-predikatet
 /// (<see cref="ApplyFilter"/>) och DTO-projektionen (<see cref="ToDto"/>).
 /// <para>
-/// <b>F4-14 (ADR 0076 Decision 5):</b> <see cref="MatchSortedJobAdSearchQuery"/>
+/// <b>F4-14 (ADR 0076 Decision 5):</b> <see cref="PerUserJobAdSearchQuery"/>
 /// (per-användar-match-sort) återanvänder EXAKT samma filter + projektion som
 /// <see cref="JobAdSearchQuery"/> (ListJobAds/RunSavedSearch/facets). Filtret är
 /// en kompilator-garanterad SPOT — match-sorten kan aldrig träffa en annan
@@ -178,6 +178,64 @@ internal static class JobAdSearchComposition
         }
 
         return source;
+    }
+
+    // ADR 0039 Beslut 1 (SPOT) — den delade, ANONYMA sorterings-applikationen för de
+    // rena JobAdSortBy-axlarna (PublishedAt/ExpiresAt asc/desc + ts_rank-relevans).
+    // Behaviour-preserving flytt av den tidigare privata JobAdSearchQuery.ApplySort
+    // (Fowler 2018 — Move Function); befintliga ListJobAds/RunSavedSearch/FTS-
+    // integrationstester är regressions-grind.
+    //
+    // ADR 0079 STEG 5 (grad-filter, 2026-06-23): den per-användar-vägen
+    // (PerUserJobAdSearchQuery) återanvänder denna sort när användaren grad-filtrerar
+    // men sorterar på en ren axel (senast inlagda / kortast ansökningstid / relevans)
+    // i stället för match-rank. Det är ISOLERINGS-SÄKERT: sorten läser ENBART
+    // j.PublishedAt / j.ExpiresAt / SearchVector+q — ingen per-användar-data — så
+    // delningen försvagar inte anon-cachebarheten (grad-WHERE + match-rank-ORDER BY
+    // bor kvar 100% i per-användar-queryn). CS8524-disciplin: alla enum-värden
+    // explicit + throw på unnamed (validators skyddar; throw = fail-fast vid framtida
+    // JobAdSortBy-tillägg).
+    internal static IQueryable<JobAd> ApplySort(
+        IQueryable<JobAd> source, JobAdSortBy sortBy, string? q) =>
+        sortBy switch
+        {
+            JobAdSortBy.PublishedAtDesc => source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id),
+            JobAdSortBy.PublishedAtAsc => source.OrderBy(j => j.PublishedAt).ThenBy(j => j.Id),
+            // NULL-ExpiresAt sorteras sist (har inget slut-datum = pågående).
+            JobAdSortBy.ExpiresAtDesc =>
+                source.OrderBy(j => j.ExpiresAt == null)
+                      .ThenByDescending(j => j.ExpiresAt)
+                      .ThenBy(j => j.Id),
+            JobAdSortBy.ExpiresAtAsc =>
+                source.OrderBy(j => j.ExpiresAt == null)
+                      .ThenBy(j => j.ExpiresAt)
+                      .ThenBy(j => j.Id),
+            // ADR 0062 — ts_rank ersätter den tidigare ILIKE-3-2-1-heuristiken
+            // (ADR 0042 Beslut D2). Relevans-rankning av FTS-träffar.
+            JobAdSortBy.Relevance => ApplyRelevanceSort(source, q),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(sortBy), sortBy, "Unknown JobAdSortBy — validator should reject."),
+        };
+
+    // ADR 0062 — relevans-sort via PostgreSQL ts_rank(search_vector,
+    // websearch_to_tsquery('swedish', q)). Relevance kräver q non-null
+    // (invariant i SearchCriteria.Create + ListJobAdsQueryValidator);
+    // null-guarden är defense-in-depth (fallback PublishedAt desc, kastar ej i
+    // query-vägen). Rader som matchade enbart via title-LIKE-fallbacken (ej
+    // FTS) får ts_rank 0 → de sorteras efter FTS-träffarna, sedan PublishedAt
+    // desc, sedan Id.
+    private static IQueryable<JobAd> ApplyRelevanceSort(IQueryable<JobAd> source, string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+            return source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id);
+
+        var query = q;
+        return source
+            .OrderByDescending(j =>
+                EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                    .Rank(EF.Functions.WebSearchToTsQuery(TextSearchConfig, query)))
+            .ThenByDescending(j => j.PublishedAt)
+            .ThenBy(j => j.Id);
     }
 
     // ADR 0062/0042 — den delade items-projektionen (Domain → JobAdDto). Återanvänds

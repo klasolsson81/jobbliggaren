@@ -159,6 +159,16 @@
         "NoMatch": "Din titel skiljer sig från annonsens."
       }
     },
+    "gradeFilter": {
+      "toggleLabel": "Matchning",
+      "groupLabel": "Visa matchningsgrader",
+      "help": "Filtrerar listan efter din matchningsnivå. Avmarkera en grad för att dölja den.",
+      "grade": {
+        "Basic": "Grund",
+        "Good": "Bra",
+        "Strong": "Stark"
+      }
+    },
     "pagination": {
       "navLabel": "Paginering",
       "previous": "Föregående",

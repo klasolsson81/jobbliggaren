@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
+using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.SavedSearches;
 using Shouldly;
 
@@ -412,6 +413,91 @@ public class ListJobAdsQueryValidatorTests
         // Söktext + match-sort är tillåtet (filter + match-ordning komponeras).
         var result = _validator.Validate(new ListJobAdsQuery(
             Sort: ListJobAdsSort.MatchDesc, Q: "developer"));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    // ---------------------------------------------------------------
+    // ADR 0079 STEG 5 — MatchGrades (grad-filter). Fast-bandet (Grund/Bra/Stark)
+    // är filtrerbart; Topp AVVISAS wire-side (G3-OPT-A — kan inte beräknas i SQL,
+    // en Topp-grad skulle tyst matcha noll = label-lie). Cap = 3.
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData(MatchGrade.Basic)]
+    [InlineData(MatchGrade.Good)]
+    [InlineData(MatchGrade.Strong)]
+    public void Validate_MatchGrades_SingleFastBandGrade_Passes(MatchGrade grade)
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: [grade]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_AllThreeFastBandGrades_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(
+            MatchGrades: [MatchGrade.Basic, MatchGrade.Good, MatchGrade.Strong]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_Null_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: null));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_EmptyList_Passes()
+    {
+        // Klas-val: av = noll grader. Tom lista är giltig (= Matchning av).
+        var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: []));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_ContainsTop_IsInvalid()
+    {
+        // Den strukturella ärlighets-grinden: Topp är inte Fast-beräkningsbar.
+        var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: [MatchGrade.Top]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_TopMixedWithValid_IsInvalid()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(
+            MatchGrades: [MatchGrade.Strong, MatchGrade.Top]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_OverCap_IsInvalid()
+    {
+        // Cap = 3 (defense-in-depth). Fyra element (med dubblett) faller på cap:en.
+        var result = _validator.Validate(new ListJobAdsQuery(
+            MatchGrades: [MatchGrade.Basic, MatchGrade.Good, MatchGrade.Strong, MatchGrade.Basic]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(ListJobAdsSort.PublishedAtDesc)]
+    [InlineData(ListJobAdsSort.ExpiresAtAsc)]
+    [InlineData(ListJobAdsSort.MatchDesc)]
+    public void Validate_MatchGrades_ComposeWithAnyNonRelevanceSort_Passes(ListJobAdsSort sort)
+    {
+        // CTO-re-bind: grad-filter frikopplat från sort — giltigt med valfri sort.
+        var result = _validator.Validate(new ListJobAdsQuery(
+            Sort: sort, MatchGrades: [MatchGrade.Strong]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_WithRelevanceSortAndQ_Passes()
+    {
+        // Relevance kräver Q (oförändrad regel) — grad-filtret komponerar ovanpå.
+        var result = _validator.Validate(new ListJobAdsQuery(
+            Sort: ListJobAdsSort.Relevance, Q: "developer", MatchGrades: [MatchGrade.Good]));
         result.IsValid.ShouldBeTrue();
     }
 }

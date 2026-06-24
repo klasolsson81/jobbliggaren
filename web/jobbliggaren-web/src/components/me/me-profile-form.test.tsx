@@ -23,6 +23,8 @@ function makeProfile(
     language: "sv",
     emailNotifications: true,
     weeklySummary: false,
+    backgroundMatchNotificationsEnabled: false,
+    digestCadence: "Weekly",
     createdAt: "2026-01-01T00:00:00Z",
     hasStatedDesiredOccupation: false,
     preferredOccupationGroups: [],

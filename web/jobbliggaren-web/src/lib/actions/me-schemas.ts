@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { useTranslations } from "next-intl";
+import { digestCadenceSchema } from "@/lib/dto/me";
 
 // next-intl translator scoped to the `validation` namespace (see
 // `application-schemas.ts` for the shared rationale). Callers build the schema
@@ -43,4 +44,23 @@ export function makeUpdateMyProfileSchema(t: ValidationTranslator) {
 
 export type UpdateMyProfileInput = z.infer<
   ReturnType<typeof makeUpdateMyProfileSchema>
+>;
+
+/**
+ * ADR 0080 Vag 4 PR-6 — input-schema för `updateNotificationConsentAction`.
+ * Speglar backend `UpdateNotificationConsentCommand` (`{ enabled, cadence }`).
+ * `enabled` är en ren bool (Domänen äger consent-stämplingen); `cadence` binds
+ * mot `DigestCadence`-mirrorn (sträng-enum med wire-värdena `Daily`/`Weekly`).
+ * Strukturellt skydd / defense-in-depth — backend är sista barriären — så ingen
+ * användarvänd valideringstext behövs (translatorn tas för factory-konsekvens).
+ */
+export function makeUpdateNotificationConsentSchema(_t: ValidationTranslator) {
+  return z.object({
+    enabled: z.boolean(),
+    cadence: digestCadenceSchema,
+  });
+}
+
+export type UpdateNotificationConsentInput = z.infer<
+  ReturnType<typeof makeUpdateNotificationConsentSchema>
 >;

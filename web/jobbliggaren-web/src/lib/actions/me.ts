@@ -5,11 +5,14 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { deleteSessionCookie, getSessionId } from "@/lib/auth/session";
+import { updateNotificationConsent } from "@/lib/api/me";
 import {
   makeDeleteMyAccountSchema,
   type DeleteMyAccountInput,
   makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
+  makeUpdateNotificationConsentSchema,
+  type UpdateNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
 
@@ -65,6 +68,59 @@ export async function updateMyProfileAction(
 
   revalidatePath("/installningar");
   return { success: true };
+}
+
+/**
+ * ADR 0080 Vag 4 PR-6 — sparar användarens bakgrundsmatchnings-notis-consent
+ * (opt-in-toggle + digest-kadens) via `PUT /api/v1/me/notification-consent`
+ * (204 vid lyckat). Tunn transport runt `updateNotificationConsent`-BFF:en så
+ * klient-ön aldrig läser backend direkt (server-only-gränsen bevaras; Bearer-
+ * sessionen exponeras aldrig mot klienten) — samma mönster som
+ * `match-preferences`-actionerna. safeParse → BFF-anrop → `ApiResult`→
+ * `ActionResult`-mappning → `revalidatePath`.
+ *
+ * GDPR: ett opt-in är samtycke (Art. 6(1)(a)/7), ett opt-out drar tillbaka det
+ * (Art. 7(3)) — Domänen äger consent-stämplingen; denna action är ren transport.
+ * Idempotent full-replace; kadensen skickas alltid med (meningsfull endast när
+ * `enabled`, men wire bär den oavsett). Revaliderar `/installningar` så kortet
+ * speglar det sparade läget.
+ */
+export async function updateNotificationConsentAction(
+  input: UpdateNotificationConsentInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateNotificationConsentSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error:
+        parsed.error.issues[0]?.message ??
+        ts("backgroundMatch.errors.invalidInput"),
+    };
+  }
+
+  const result = await updateNotificationConsent(parsed.data);
+  switch (result.kind) {
+    case "ok":
+      revalidatePath("/installningar");
+      return { success: true };
+    case "unauthorized":
+      return {
+        success: false,
+        error: ts("backgroundMatch.errors.notLoggedIn"),
+      };
+    case "rateLimited":
+      return {
+        success: false,
+        error: ts("backgroundMatch.errors.tooManyAttempts"),
+      };
+    default:
+      return {
+        success: false,
+        error: ts("backgroundMatch.errors.saveFailed"),
+      };
+  }
 }
 
 /**

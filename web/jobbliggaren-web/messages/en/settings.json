@@ -26,6 +26,24 @@
     "weeklyLabel": "Weekly summary by email",
     "weeklyDescription": "A summary of your applications and new job ads."
   },
+  "backgroundMatch": {
+    "title": "Match notifications",
+    "intro": "When this is on, we match new job ads against your profile every night. Top matches show up in the app right away. Strong matches are collected into a summary you receive at the chosen rate. Good matches appear in your match list without a notification. You can turn this off at any time.",
+    "toggleLabel": "Match new job ads for me",
+    "toggleDescription": "Off by default. Turning it on means you consent to us matching new job ads against your profile and showing notifications in the app.",
+    "cadenceLabel": "How often to receive the summary",
+    "cadenceDaily": "Daily",
+    "cadenceWeekly": "Weekly",
+    "cadenceHint": "Applies to the summary of strong matches. Top matches always show up right away.",
+    "cadenceHintDisabled": "Turn on match notifications to choose how often the summary is shown.",
+    "savedAt": "Saved {time}",
+    "errors": {
+      "notLoggedIn": "You are not signed in.",
+      "invalidInput": "Invalid input.",
+      "saveFailed": "The change could not be saved. Please try again.",
+      "tooManyAttempts": "Too many attempts. Wait a moment and try again."
+    }
+  },
   "privacy": {
     "title": "Privacy and data",
     "description": "You have the right to export all data we hold about you, and to delete your account entirely.",

@@ -17,6 +17,7 @@ import type { Option } from "./match-preferences-shared";
 import { PersonalInfoCard } from "./personal-info-card";
 import { DisplayCard } from "./display-card";
 import { NotificationsCard } from "./notifications-card";
+import { BackgroundMatchCard } from "./background-match-card";
 import { MatchPreferencesCard } from "./match-preferences-card";
 import { PrivacyCard } from "./privacy-card";
 import { LogoutCard } from "./logout-card";
@@ -213,6 +214,16 @@ export function SettingsForm({
           onEmailNotificationsChange={onEmailNotificationsChange}
           onWeeklySummaryChange={onWeeklySummaryChange}
           isPending={isPending}
+        />
+        {/* ADR 0080 Vag 4 PR-6: bakgrundsmatchnings-notiser (opt-in + kadens).
+            Äger sin EGEN action/endpoint (PUT /me/notification-consent) — INTE
+            det delade applyChange/updateMyProfile-flödet — så ett consent-spar
+            aldrig blandas med profil-skrivet. Pre-fyller från profilen. */}
+        <BackgroundMatchCard
+          initialEnabled={initialProfile.backgroundMatchNotificationsEnabled}
+          initialCadence={
+            initialProfile.digestCadence === "Daily" ? "Daily" : "Weekly"
+          }
         />
         <PrivacyCard userEmail={userEmail} />
         <LogoutCard />

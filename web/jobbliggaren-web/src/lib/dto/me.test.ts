@@ -50,6 +50,10 @@ describe("jobSeekerProfileSchema", () => {
     language: "sv",
     emailNotifications: true,
     weeklySummary: false,
+    // ADR 0080 Vag 4 PR-6 — background-match notification consent (opt-in,
+    // default OFF) + digest cadence (wire enum `Daily`/`Weekly`).
+    backgroundMatchNotificationsEnabled: false,
+    digestCadence: "Weekly",
     createdAt: "2026-05-11T10:00:00Z",
     // F4-12 PR-B (ADR 0076) — matchnings-önskemål + härlett nudge-flagg.
     hasStatedDesiredOccupation: false,
@@ -121,6 +125,34 @@ describe("jobSeekerProfileSchema", () => {
     delete withoutMunicipalities.preferredMunicipalities;
     expect(
       jobSeekerProfileSchema.safeParse(withoutMunicipalities).success
+    ).toBe(false);
+  });
+
+  it("rejects when backgroundMatchNotificationsEnabled missing (kontraktsdrift, ADR 0080)", () => {
+    const without: Partial<typeof valid> = { ...valid };
+    delete without.backgroundMatchNotificationsEnabled;
+    expect(jobSeekerProfileSchema.safeParse(without).success).toBe(false);
+  });
+
+  it("accepts digestCadence Daily and Weekly (wire enum-värden)", () => {
+    expect(
+      jobSeekerProfileSchema.safeParse({ ...valid, digestCadence: "Daily" })
+        .success
+    ).toBe(true);
+    expect(
+      jobSeekerProfileSchema.safeParse({ ...valid, digestCadence: "Weekly" })
+        .success
+    ).toBe(true);
+  });
+
+  it("rejects an unknown digestCadence (strikt enum, ej svensk etikett/ordinal)", () => {
+    // Svenska etiketter (Veckovis) och ordinaler (0/1) lever aldrig på wire.
+    expect(
+      jobSeekerProfileSchema.safeParse({ ...valid, digestCadence: "Veckovis" })
+        .success
+    ).toBe(false);
+    expect(
+      jobSeekerProfileSchema.safeParse({ ...valid, digestCadence: 1 }).success
     ).toBe(false);
   });
 

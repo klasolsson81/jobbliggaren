@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateMyProfile;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 using Jobbliggaren.Application.JobSeekers.Queries.GetMyProfile;
 using Mediator;
 
@@ -46,6 +47,23 @@ public static class MeEndpoints
         // (saved-job-ads / recent-searches), senior-cto-advisor 2026-06-19.
         group.MapPut("/match-preferences", async (
             SetMatchPreferencesCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // ADR 0080 Vag 4 PR-6 — background-match notification consent (the /installningar opt-in
+        // toggle + digest cadence). PUT = idempotent full-replace of {enabled, cadence}; the
+        // aggregate owns the GDPR consent stamping (first opt-in immutable Art. 7(1); opt-out
+        // records the Art. 7(3) withdrawal). The current state is READ via GET /profile (the
+        // consent flag + cadence ride the JobSeekerProfileDto projection, parity EmailNotifications
+        // / WeeklySummary) — no dedicated read endpoint. MeWritePolicy (user-owned mutation, parity
+        // /match-preferences). 204 / Problem 400.
+        group.MapPut("/notification-consent", async (
+            UpdateNotificationConsentCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             return result.IsSuccess

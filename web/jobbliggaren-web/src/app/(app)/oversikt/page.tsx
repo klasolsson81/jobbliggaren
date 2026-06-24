@@ -5,6 +5,7 @@ import { getPipeline } from "@/lib/api/applications";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getResumes } from "@/lib/api/resumes";
+import { getMatchCount } from "@/lib/api/match-count";
 import { fetchLandingStats } from "@/lib/api/landing";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
@@ -36,19 +37,34 @@ export default async function OversiktRoute() {
   // (HeaderStats använder samma endpoint). CTO-godkänd discovery-baserad
   // fix (agentId ad37955db80099f19). Landing-stats är publik anonym ADR 0064
   // — säker att läsa även från auth-gated route.
-  const [profile, pipeline, savedJobAds, recentSearches, resumes, landingStats] =
-    await Promise.all([
-      getMyProfile(),
-      getPipeline(),
-      getSavedJobAds(),
-      // svans-PR4 perf-fix: includeCount=false skippar slow per-row JobAds-
-      // COUNT (TD-94 rot) som triggade FE-timeout 8s → Npgsql 57014 (Klas
-      // 2026-05-24). /oversikt använder bara label + lastViewedAt — currentCount
-      // är 0 vilket är OK eftersom Sammanfattningen inte renderar "(N nya)".
-      getRecentSearches(false),
-      getResumes(1, 20),
-      fetchLandingStats(),
-    ]);
+  const [
+    profile,
+    pipeline,
+    savedJobAds,
+    recentSearches,
+    resumes,
+    landingStats,
+    matchCount,
+  ] = await Promise.all([
+    getMyProfile(),
+    getPipeline(),
+    getSavedJobAds(),
+    // svans-PR4 perf-fix: includeCount=false skippar slow per-row JobAds-
+    // COUNT (TD-94 rot) som triggade FE-timeout 8s → Npgsql 57014 (Klas
+    // 2026-05-24). /oversikt använder bara label + lastViewedAt — currentCount
+    // är 0 vilket är OK eftersom Sammanfattningen inte renderar "(N nya)".
+    getRecentSearches(false),
+    getResumes(1, 20),
+    fetchLandingStats(),
+    // ADR 0079 STEG 6 — live match-count för notisen. Degraderar CIVILT och
+    // OBEROENDE av övriga källor: ett fel (nätverk/auth mid-render/rate-limit)
+    // får aldrig reject:a Promise.all eller redirecta — den löses till null
+    // nedan så resten av feeden renderar och match-notisen bara utelämnas
+    // (ALDRIG fallback till mock-siffran). `kind: "ok"` → number, allt annat →
+    // null. Notera: till skillnad från de auth-kritiska källorna driver ett
+    // unauthorized HÄR ingen redirect (notisen är icke-kritisk yta).
+    getMatchCount(),
+  ]);
 
   // Unauthorized mid-render (token expired mellan layout-check och här):
   // redirecta. Övriga fel ⇒ degraderad render i OversiktPage.
@@ -65,6 +81,11 @@ export default async function OversiktRoute() {
 
   const displayName =
     profile.kind === "ok" ? profile.data.displayName : null;
+
+  // ADR 0079 STEG 6 — live match-count → number | null. Endast `ok` ger en
+  // siffra; alla andra Result-kinds (unauthorized/rateLimited/error) blir null
+  // ⇒ match-notisen utelämnas (degraderad render), aldrig mock-fallback.
+  const matchCountValue = matchCount.kind === "ok" ? matchCount.data.count : null;
 
   // ADR 0077 STEG 5 — välkomst-/första-setup-modal. Visas bara när profilen
   // laddats, inget yrke ännu angetts (`hasStatedDesiredOccupation`) OCH cookien
@@ -98,6 +119,7 @@ export default async function OversiktRoute() {
         recentSearches={recentSearches}
         resumes={resumes}
         landingStats={landingStats}
+        matchCount={matchCountValue}
       />
       {showWelcome && taxonomy !== null && profile.kind === "ok" && (
         <WelcomeSetupModal

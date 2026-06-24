@@ -83,4 +83,24 @@ public interface IPerUserJobAdSearchQuery
         int pageSize,
         DateTimeOffset? since,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// ADR 0079 STEG 6 — räknar (utan items/sort/paginering) hur många annonser som
+    /// matchar profilen i det valda Fast-bandet (<paramref name="grades"/>). Återanvänder
+    /// EXAKT samma filter-SPOT (<c>JobAdSearchComposition.ApplyFilter</c>) + den delade
+    /// <c>GradeRankExpression</c> som <see cref="SearchPerUserAsync"/>:s grad-WHERE — så
+    /// counten är PER KONSTRUKTION lika med den länkade /jobb-sidans <c>TotalCount</c> för
+    /// samma profil + grad-set (ingen siffra↔landning-divergens; ett Testcontainers-test
+    /// pinnar det). DEK-fri, ingen Worker, per-användare. Tom <paramref name="grades"/> →
+    /// counten över hela den filtrerade mängden (ingen grad-gallring).
+    /// <para>
+    /// Driver Översikts live-notis ("Det finns X jobb som matchar din profil"). Topp ingår
+    /// aldrig (Fast-bandet, G3-OPT-A) — rubriken är grad-neutral, aldrig "Toppmatchningar".
+    /// </para>
+    /// </summary>
+    ValueTask<int> CountPerUserAsync(
+        JobAdFilterCriteria filter,
+        FullCandidateMatchProfile profile,
+        IReadOnlyList<MatchGrade> grades,
+        CancellationToken cancellationToken);
 }

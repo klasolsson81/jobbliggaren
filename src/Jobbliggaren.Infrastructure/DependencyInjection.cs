@@ -547,8 +547,6 @@ public static class DependencyInjection
     {
         services.Configure<InvitationTokenOptions>(
             configuration.GetSection(InvitationTokenOptions.SectionName));
-        services.Configure<EmailOptions>(
-            configuration.GetSection(EmailOptions.SectionName));
         services.Configure<FeatureFlagsOptions>(
             configuration.GetSection(FeatureFlagsOptions.SectionName));
 
@@ -562,14 +560,39 @@ public static class DependencyInjection
         services.AddSingleton<IInvitationTokenGenerator, InvitationTokenGenerator>();
         services.AddSingleton<IFeatureFlags, OptionsFeatureFlags>();
 
-        // ADR 0066 — AWS SES borttaget; transaktionell mejlväg är genuin TD för Hetzner-
-        // fasen (TD-101). ConsoleEmailSender skriver mottagar-email + plaintext invitation-
-        // token till ILogger — dev-providern. TD-104/STEG 6: med en PERSISTENT logg-sink
-        // (Seq) blir den loggraden durabel lagring av PII + en live-credential
-        // (security-auditor Major #1). Mitigering: ConsoleEmailSender registreras BARA i
-        // Development/Test; i andra miljöer faller "Console" tillbaka på NullEmailSender
-        // (no-op, ingen PII loggas) tills en riktig provider wiras (TD-101). Switch-
-        // mekanismen behålls för den framtida providern — okänt värde fail-stoppas.
+        // The email provider-switch is extracted to AddEmailSender (ADR 0080 Vag 4 PR-4b) so the
+        // Worker can register IEmailSender for the background-match notification jobs WITHOUT
+        // dragging the invitation-token/feature-flag bagage (HTTP-path concerns, ADR 0023).
+        services.AddEmailSender(configuration, environment);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Email provider-switch (ADR 0080 Vag 4 PR-4b) — extracted from
+    /// <see cref="AddInvitationsAndEmail"/> so BOTH the Api (via that method) AND the HTTP-free
+    /// Worker (ADR 0023) register the SAME dev=Console/Resend, non-dev=Null gating without drift.
+    /// The Worker needs <see cref="IEmailSender"/> for the Vag 4 match-notification jobs (Top-direct
+    /// scan hook + <c>DigestDispatchJob</c>) but not the invitation/feature-flag wiring. Binds
+    /// <see cref="EmailOptions"/> and selects the sender per <c>Email:Provider</c>.
+    /// <para>
+    /// ADR 0066 — AWS SES borttaget; transaktionell mejlväg via Resend (TD-101).
+    /// <see cref="ConsoleEmailSender"/> skriver mottagar-email + plaintext-token till ILogger
+    /// (dev-providern) — registreras BARA i Development/Test (TD-104/STEG 6 security-auditor
+    /// Major #1: en PERSISTENT logg-sink gör den raden durabel PII-lagring). I andra miljöer
+    /// faller "Console" tillbaka på <see cref="NullEmailSender"/> (no-op) tills en riktig provider
+    /// wiras. Resend = US-processor: prod-utskick kräver DPA/SCC + security-auditor-sign-off
+    /// (CTO 2026-06-24); dev = test-mode. Okänt provider-värde fail-stoppas.
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddEmailSender(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        services.Configure<EmailOptions>(
+            configuration.GetSection(EmailOptions.SectionName));
+
         var emailProvider = configuration[$"{EmailOptions.SectionName}:Provider"] ?? "Console";
         if (string.Equals(emailProvider, "Console", StringComparison.OrdinalIgnoreCase))
         {
@@ -585,11 +608,8 @@ public static class DependencyInjection
         }
         else if (string.Equals(emailProvider, "Resend", StringComparison.OrdinalIgnoreCase))
         {
-            // ADR 0080 Vag 4 PR-4 — transaktionell HTTP-provider via Resend (löser TD-101).
-            // Nyckel ENDAST via gitignored appsettings.Local.json (Email:ApiKey) → fail-LOUD
-            // om den saknas (ingen tyst no-op som ser ut att skicka). Resend = US-processor:
-            // prod-utskick till riktiga användare kräver DPA/SCC + security-auditor-sign-off
-            // (CTO 2026-06-24); dev = test-mode (skickar bara till kontoägarens egen e-post).
+            // Nyckel ENDAST via gitignored appsettings.Local.json (Email:ApiKey) → fail-LOUD om
+            // den saknas (ingen tyst no-op som ser ut att skicka).
             var apiKey = configuration[$"{EmailOptions.SectionName}:ApiKey"];
             if (string.IsNullOrWhiteSpace(apiKey))
             {

@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -32,11 +33,24 @@ public class BackgroundMatchingJobTests
     private readonly IMatchProfileBuilder _profileBuilder = Substitute.For<IMatchProfileBuilder>();
     private readonly IMatchScorer _scorer = Substitute.For<IMatchScorer>();
 
-    private static BackgroundMatchingJob CreateJob(
+    // PR-4b added two ctor params (IEmailSender + IUserAccountService) for the Top-direct hook.
+    // These existing scan-invariant tests do not seed Top matches (the builder is mocked to gate or
+    // produce no ads), so the email collaborators are never exercised — a default IUserAccountService
+    // whose GetEmailAsync returns a non-blank address keeps the (unreached) dispatch path benign.
+    private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
+    private readonly IUserAccountService _userAccounts = Substitute.For<IUserAccountService>();
+
+    public BackgroundMatchingJobTests()
+    {
+        _userAccounts.GetEmailAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns("seeker@example.com");
+    }
+
+    private BackgroundMatchingJob CreateJob(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         IMatchProfileBuilder profileBuilder,
         IMatchScorer scorer) =>
-        new(db, profileBuilder, scorer, NowClock,
+        new(db, profileBuilder, scorer, _emailSender, _userAccounts, NowClock,
             NullLogger<BackgroundMatchingJob>.Instance);
 
     // Seeds a CONSENTING JobSeeker (opt-in ON, not withdrawn) and returns its UserId. The

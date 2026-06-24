@@ -79,6 +79,29 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         // BackgroundMatchingJobIntegrationTests can resolve them (parity Worker/Program.cs, which
         // calls AddMatchingEngine() — the Worker does not call AddInfrastructure).
         services.AddMatchingEngine();
+
+        // ADR 0080 Vag 4 PR-4b: mirror Worker/Program.cs's email + digest surface so the
+        // DigestDispatchJob/Worker resolve from this SP (the digest integration test runs them
+        // end-to-end). The Worker is HTTP-free (ADR 0023) so it registers the extracted
+        // AddEmailSender directly, NOT AddInvitationsAndEmail. The test env below is "Test" → the
+        // Console branch registers ConsoleEmailSender (the default unset Provider → "Console";
+        // dev/test-only — a real send is never attempted in-process). The digest options carry the
+        // anti-spam cap; bound + validated exactly as Program.cs does.
+        var emailEnv = new Microsoft.Extensions.Hosting.Internal.HostingEnvironment
+        {
+            EnvironmentName = "Test",
+            ApplicationName = "Jobbliggaren.Worker.IntegrationTests",
+            ContentRootPath = AppContext.BaseDirectory,
+        };
+        services.AddEmailSender(configuration, emailEnv);
+        services.AddOptions<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob>();
+        services.AddScoped<Jobbliggaren.Worker.Hosting.DigestDispatchWorker>();
+
         services.AddSingleton<ICurrentUser, WorkerSystemUser>();
         services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();

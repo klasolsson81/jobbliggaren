@@ -14,6 +14,7 @@ using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Worker.IntegrationTests.Matching;
@@ -349,10 +350,21 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         var db = sp.GetRequiredService<AppDbContext>();
         var profileBuilder = NewProfileBuilder(db, sp);
         var scorer = NewScorer(db);
+        // PR-4b: the Top-direct email hook (IEmailSender + IUserAccountService). These grade-parity
+        // / watermark / cold-start tests assert PERSISTENCE, not delivery — a no-op email sender +
+        // an account service returning an address keeps any Top-row dispatch benign without coupling
+        // these tests to the email surface (the delivery seam is pinned by the unit tests +
+        // DigestDispatchJobIntegrationTests). The match rows persist before the send regardless.
+        var emailSender = Substitute.For<IEmailSender>();
+        var userAccounts = Substitute.For<IUserAccountService>();
+        userAccounts.GetEmailAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns("seeker@example.com");
         var job = new BackgroundMatchingJob(
             db,
             profileBuilder,
             scorer,
+            emailSender,
+            userAccounts,
             new FixedClock(Now),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<BackgroundMatchingJob>());
 

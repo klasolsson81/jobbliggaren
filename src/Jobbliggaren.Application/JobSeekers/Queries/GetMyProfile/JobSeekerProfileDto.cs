@@ -8,6 +8,13 @@ public sealed record JobSeekerProfileDto(
     string Language,
     bool EmailNotifications,
     bool WeeklySummary,
+    // ADR 0080 Vag 4 PR-6 — background-match notification consent (opt-in, GDPR Art. 6/7,
+    // default OFF per PR-1) + the digest cadence, projected here so the settings toggle +
+    // cadence picker pre-fill the user's current state (parity the EmailNotifications /
+    // WeeklySummary sibling projections above). The consent TIMESTAMPS (Art. 7 evidence) are
+    // deliberately NOT projected; the UI needs only the enabled flag + cadence (data-minimal).
+    bool BackgroundMatchNotificationsEnabled,
+    DigestCadence DigestCadence,
     DateTimeOffset CreatedAt,
     // F4-12 (ADR 0076) — derived signal for the setup nudge: true once the user
     // has stated at least one desired occupation-group. Drives the "ange vilka
@@ -45,6 +52,8 @@ public sealed record JobSeekerProfileDto(
         js.Preferences.Language,
         js.Preferences.EmailNotifications,
         js.Preferences.WeeklySummary,
+        js.Preferences.BackgroundMatchNotificationsEnabled,
+        js.Preferences.DigestCadence,
         js.CreatedAt,
         js.MatchPreferences.PreferredOccupationGroups.Count > 0,
         js.MatchPreferences.PreferredOccupationGroups,

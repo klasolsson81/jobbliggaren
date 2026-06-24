@@ -20,6 +20,8 @@ const baseProfile: JobSeekerProfileDto = {
   language: "sv",
   emailNotifications: true,
   weeklySummary: false,
+  backgroundMatchNotificationsEnabled: false,
+  digestCadence: "Weekly",
   createdAt: "2026-05-11T10:00:00Z",
   hasStatedDesiredOccupation: false,
   preferredOccupationGroups: [],

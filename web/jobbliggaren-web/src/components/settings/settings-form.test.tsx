@@ -5,6 +5,8 @@ import type { JobSeekerProfileDto } from "@/lib/types/me";
 
 vi.mock("@/lib/actions/me", () => ({
   updateMyProfileAction: vi.fn().mockResolvedValue({ success: true }),
+  // ADR 0080 Vag 4 PR-6: BackgroundMatchCard:s egen action.
+  updateNotificationConsentAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 // The language Segment switches the UI locale via the cookie server action +
@@ -39,6 +41,8 @@ const baseProfile: JobSeekerProfileDto = {
   language: "sv",
   emailNotifications: true,
   weeklySummary: false,
+  backgroundMatchNotificationsEnabled: false,
+  digestCadence: "Weekly",
   createdAt: "2026-05-01T08:00:00Z",
   hasStatedDesiredOccupation: false,
   preferredOccupationGroups: [],
@@ -66,11 +70,14 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     // F4-12 PR-B (ADR 0076): Matchning-kortet ligger i första kolumnen efter
     // Personuppgifter. `taxonomy={null}` → kortet degraderar men behåller sin
     // h2-rubrik.
+    // ADR 0080 Vag 4 PR-6: Matchningsnotiser-kortet ligger efter Aviseringar i
+    // andra kolumnen (båda notis-relaterade).
     expect(headings).toEqual([
       "Personuppgifter",
       "Matchning",
       "Visning",
       "Aviseringar",
+      "Matchningsnotiser",
       "Sekretess och data",
       "Logga ut",
     ]);
@@ -132,14 +139,20 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialSkillLabels={[]}
       />,
     );
-    const switches = screen.getAllByRole("switch");
-    expect(switches).toHaveLength(2);
+    // Aviseringar-kortets två wirede toggles.
     expect(
       screen.getByRole("switch", { name: /E-postnotifikationer/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("switch", { name: /Veckosammanfattning/ }),
     ).toBeInTheDocument();
+    // ADR 0080 Vag 4 PR-6: Matchningsnotiser-kortets opt-in-toggle är den tredje
+    // switchen på sidan (default OFF). Tre toggles totalt: Aviseringar (2) +
+    // Matchningsnotiser (1).
+    expect(screen.getAllByRole("switch")).toHaveLength(3);
+    expect(
+      screen.getByRole("switch", { name: "Matcha nya annonser åt mig" }),
+    ).toHaveAttribute("aria-checked", "false");
   });
 
   it("Sekretess och data-kortet använder DeleteAccountSection-stub", () => {

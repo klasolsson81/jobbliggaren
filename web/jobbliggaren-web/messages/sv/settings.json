@@ -26,6 +26,24 @@
     "weeklyLabel": "Veckosammanfattning via e-post",
     "weeklyDescription": "Sammanfattning av dina ansökningar och nya annonser."
   },
+  "backgroundMatch": {
+    "title": "Matchningsnotiser",
+    "intro": "När det här är på matchar vi nya annonser mot din profil varje natt. Toppmatchningar visas direkt i appen. Starka matchningar samlas i en sammanfattning som du får enligt vald takt. Bra matchningar visas i din matchningslista utan notis. Du kan när som helst stänga av detta.",
+    "toggleLabel": "Matcha nya annonser åt mig",
+    "toggleDescription": "Avstängt som standard. Slår du på det samtycker du till att vi matchar nya annonser mot din profil och visar notiser i appen.",
+    "cadenceLabel": "Hur ofta vill du få sammanfattningen",
+    "cadenceDaily": "Dagligen",
+    "cadenceWeekly": "Veckovis",
+    "cadenceHint": "Gäller sammanfattningen av starka matchningar. Toppmatchningar visas alltid direkt.",
+    "cadenceHintDisabled": "Slå på matchningsnotiser för att välja hur ofta sammanfattningen visas.",
+    "savedAt": "Sparat {time}",
+    "errors": {
+      "notLoggedIn": "Du är inte inloggad.",
+      "invalidInput": "Ogiltiga uppgifter.",
+      "saveFailed": "Ändringen kunde inte sparas. Försök igen.",
+      "tooManyAttempts": "För många försök. Vänta en stund och försök igen."
+    }
+  },
   "privacy": {
     "title": "Sekretess och data",
     "description": "Du har rätt att exportera all data vi har om dig, och att radera ditt konto helt.",

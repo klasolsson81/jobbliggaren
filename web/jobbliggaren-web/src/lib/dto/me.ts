@@ -23,6 +23,20 @@ export const currentUserSchema = z.object({
 export type CurrentUserDto = z.infer<typeof currentUserSchema>;
 
 /**
+ * ADR 0080 Vag 4 PR-6 — digest-kadens för bakgrundsmatchnings-notiser. Speglar
+ * backend `DigestCadence`-enumen, som serialiseras BY NAME på wire
+ * (`[JsonConverter(typeof(JsonStringEnumConverter))]`) — så detta är ett
+ * sträng-enum med de exakta wire-värdena `Daily`/`Weekly` (PascalCase, engelska
+ * kod-identifierare per språkpolicyn §1). De svenska etiketterna
+ * Daglig/Veckovis lever ENBART i UI-copyn (`messages/{sv,en}/settings.json`),
+ * aldrig på wire. En okänd kadens får schemat att förkasta svaret (strikt enum),
+ * parallellt med `me-matches` `grade`-mirrorn.
+ */
+export const digestCadenceSchema = z.enum(["Daily", "Weekly"]);
+
+export type DigestCadence = z.infer<typeof digestCadenceSchema>;
+
+/**
  * `GET /api/v1/me/profile` — JobSeeker-profil.
  *
  * `createdAt` är ISO 8601-string på wire (DateTimeOffset). Ingen Date-cast
@@ -41,6 +55,15 @@ export const jobSeekerProfileSchema = z.object({
   language: z.string(),
   emailNotifications: z.boolean(),
   weeklySummary: z.boolean(),
+  // ADR 0080 Vag 4 PR-6: background-match notification consent (opt-in, GDPR
+  // Art. 6/7, default OFF per PR-1) + the digest cadence for accumulated Strong
+  // matches. Backend always projects both additively on the JobSeekerProfileDto
+  // (parity emailNotifications/weeklySummary above) → required keys; `undefined`
+  // would mask contract drift. Read back so the consent card pre-fills the
+  // user's current state. The cadence is only meaningful when the toggle is on;
+  // the wire still always carries it (the engine default is Weekly).
+  backgroundMatchNotificationsEnabled: z.boolean(),
+  digestCadence: digestCadenceSchema,
   createdAt: z.string(),
   hasStatedDesiredOccupation: z.boolean(),
   preferredOccupationGroups: z.array(z.string()).readonly(),

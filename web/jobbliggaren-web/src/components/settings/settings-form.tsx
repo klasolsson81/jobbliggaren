@@ -2,10 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { setLocaleAction } from "@/i18n/set-locale-action";
-import { useTheme } from "@/components/theme-provider";
 import {
   makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
@@ -46,11 +44,11 @@ type LanguageValue = "sv" | "en";
  * SettingsForm — orchestrerar alla preferens-kort på /installningar.
  *
  * CTO-dom 2026-05-20 (F6 P2, Val 2B): EN form, EN action, kort som visuella
- * grupperingar. Klas-direktiv: Visning/Aviseringar är "direct-apply" — tema
- * ändras lokalt via useTheme (ingen backend), språk + aviseringar applieras
- * direkt via `updateMyProfileAction` vid varje ändring (optimistic + revert
- * vid fel). Personuppgifter (Namn) har explicit "Spara ändringar"-knapp
- * eftersom text-input inte ska persistera per tangent.
+ * grupperingar. Klas-direktiv: Visning/Aviseringar är "direct-apply" — språk +
+ * aviseringar applieras direkt via `updateMyProfileAction` vid varje ändring
+ * (optimistic + revert vid fel). (MVP: tema-segmentet "släckt" — ett färgläge.)
+ * Personuppgifter (Namn) har explicit "Spara ändringar"-knapp eftersom
+ * text-input inte ska persistera per tangent.
  *
  * Race-condition-mitigering: action-anropen körs sekventiellt via
  * useTransition (en åt gången). Användare som klickar flera toggles snabbt
@@ -75,7 +73,6 @@ export function SettingsForm({
   const ts = useTranslations("settings");
   const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [language, setLanguage] = useState<LanguageValue>(
     initialProfile.language === "en" ? "en" : "sv",
@@ -197,16 +194,12 @@ export function SettingsForm({
       </div>
 
       <div className="jp-settings-grid__col">
+        {/* MVP: tema-segmentet borttaget — appen har bara ETT färgläge (light).
+            Dark-mode behålls dormant i koden (theme-provider DARK_MODE_ENABLED). */}
         <DisplayCard
-          theme={theme === "dark" ? "dark" : "light"}
-          onThemeChange={setTheme}
           language={language}
           onLanguageChange={onLanguageChange}
           isPending={isPending}
-          themeOptions={[
-            { value: "light", label: ts("display.themeLight"), icon: <Sun size={16} /> },
-            { value: "dark", label: ts("display.themeDark"), icon: <Moon size={16} /> },
-          ]}
         />
         <NotificationsCard
           emailNotifications={emailNotifications}

@@ -26,13 +26,24 @@ type Theme = "light" | "dark";
 const STORAGE_KEY = "jp-theme";
 const CHANGE_EVENT = "jp-theme-change";
 
+// MVP (Klas 2026-06-24): "släckt" dark-mode — appen har bara ETT färgläge
+// (light). Detta håller renderingen light-only oberoende av lagrat `jp-theme`
+// ELLER OS:ets `prefers-color-scheme` (UI-kontrollerna är dessutom borttagna i
+// display-card + landing-footer). Hela mekanismen (provider, useTheme,
+// ThemeToggle) + dark-CSS i globals.css behålls DORMANT i koden — re-enable =
+// sätt flaggan true + återställ UI-kontrollerna. Ingen dark-yta är nåbar medan
+// den är false. Typad `boolean` (ej literal `false`) så gate-villkoren inte
+// flaggas som "alltid sanna/falska" av lint.
+const DARK_MODE_ENABLED: boolean = false;
+
 const ThemeContext = createContext<
   { theme: Theme; setTheme: (t: Theme) => void } | undefined
 >(undefined);
 
 function applyTheme(theme: Theme): void {
   const root = document.documentElement;
-  if (theme === "dark") {
+  // Dark släckt i MVP → tvinga light (ta bort attributet) oavsett begärt värde.
+  if (DARK_MODE_ENABLED && theme === "dark") {
     root.setAttribute("data-theme", "dark");
   } else {
     root.removeAttribute("data-theme");
@@ -40,6 +51,7 @@ function applyTheme(theme: Theme): void {
 }
 
 function resolveTheme(): Theme {
+  if (!DARK_MODE_ENABLED) return "light";
   // Källan är DOM-attributet som inline-scriptet redan satt — håller
   // läsningen i synk med det som faktiskt renderas.
   if (document.documentElement.getAttribute("data-theme") === "dark") {
@@ -94,6 +106,9 @@ function subscribe(onChange: () => void): () => void {
  * dokumenterat, samma kompromiss som next-themes / Tailwind-docs gör).
  */
 export function ThemeScript() {
+  // Dark släckt i MVP → ingen pre-paint dark-applicering (light är default utan
+  // attribut). Behålls för trivial re-enable när DARK_MODE_ENABLED sätts true.
+  if (!DARK_MODE_ENABLED) return null;
   const script = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`;
   return <script dangerouslySetInnerHTML={{ __html: script }} />;
 }

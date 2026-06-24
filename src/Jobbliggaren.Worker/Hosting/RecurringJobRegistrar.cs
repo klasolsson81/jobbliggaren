@@ -26,6 +26,9 @@ namespace Jobbliggaren.Worker.Hosting;
 ///   03:45   — expire-job-ads (ExpiresAt-cron, defense-in-depth, ADR 0032-amend 2026-05-23)
 ///   04:00   — hard-delete-accounts (1h efter retention)
 ///   04:30   — purge-stale-raw-payloads (30-min padding efter hard-delete)
+///   05:00   — backfill-field-encryption (30-min padding efter purge)
+///   06:00   — digest-dispatch-daily (Strong-digest, daglig kadens, ADR 0080 Vag 4 PR-4b)
+///   06:00 mån — digest-dispatch-weekly (Strong-digest, veckovis kadens — civic-default)
 ///
 /// 30-min-padding mellan jobben eliminerar kollision på Hangfire-dashboard
 /// vid pålastnings-toppar — även om jobben rör olika tabeller är padding
@@ -92,6 +95,20 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             "backfill-field-encryption",
             job => job.RunAsync(CancellationToken.None),
             "0 5 * * *");  // 05:00 UTC — 30-min padding efter purge (TD-13 C5, ADR 0049 Beslut 4)
+
+        // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch. Två kadenser, en cron var (cron = fönstret):
+        // Daglig 06:00 UTC och Veckovis måndag 06:00 UTC. MEDVETET på morgonen, EFTER nattscannen
+        // (03:20) och klar av hard-delete-klustret (04:00/04:30) — en Stark-match från i natt hamnar
+        // i denna morgons digest, och digesten racear inte 03:xx/04:xx-jobben.
+        manager.AddOrUpdate<DigestDispatchWorker>(
+            "digest-dispatch-daily",
+            job => job.RunDailyAsync(CancellationToken.None),
+            Cron.Daily(6));  // 06:00 UTC — daglig digest, DisableConcurrentExecution(1800)-skyddad
+
+        manager.AddOrUpdate<DigestDispatchWorker>(
+            "digest-dispatch-weekly",
+            job => job.RunWeeklyAsync(CancellationToken.None),
+            Cron.Weekly(DayOfWeek.Monday, 6));  // Måndag 06:00 UTC — veckovis digest (civic-default kadens)
 
         // ADR 0064 — publik landing-stats pre-compute. Hot-path per ADR 0045
         // Beslut 1 klass (a). Var 5:e min UTC: räcker för att landingens

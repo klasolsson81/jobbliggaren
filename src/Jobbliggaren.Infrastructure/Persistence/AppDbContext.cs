@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Invitations;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
@@ -28,6 +29,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<RecentJobSearch> RecentJobSearches => Set<RecentJobSearch>();
     public DbSet<SavedJobAd> SavedJobAds => Set<SavedJobAd>();
+    // ADR 0080 Vag 4 — background match results.
+    public DbSet<UserJobAdMatch> UserJobAdMatches => Set<UserJobAdMatch>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

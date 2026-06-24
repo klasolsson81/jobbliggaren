@@ -51,6 +51,11 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
 
         builder.HasIndex(js => js.PrimaryResumeId);
 
+        // ADR 0080 Vag 4 — two distinct per-user watermarks (first-class columns,
+        // NOT jsonb — both are hot-path-updated; see JobSeeker.cs field comments).
+        builder.Property(js => js.LastMatchScanAt);
+        builder.Property(js => js.LastSeenMatchesAt);
+
         builder.Property(js => js.CreatedAt).IsRequired();
         builder.Property(js => js.UpdatedAt);
         builder.Property(js => js.DeletedAt);

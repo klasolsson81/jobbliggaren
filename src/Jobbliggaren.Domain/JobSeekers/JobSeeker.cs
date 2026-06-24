@@ -17,6 +17,17 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     public MatchPreferences MatchPreferences { get; private set; } = MatchPreferences.Empty;
 
     public ResumeId? PrimaryResumeId { get; private set; }
+
+    // ADR 0080 Vag 4 — two DISTINCT per-user watermarks (first-class columns, not jsonb —
+    // both are hot-path-updated). LastMatchScanAt = how far the Worker has SCANNED (system,
+    // advances atomically with each background-match scan, drives idempotency, Beslut 2).
+    // LastSeenMatchesAt = how far the USER has READ (advances when the user views the
+    // matches surface, drives the "nya sedan senaste besök" count, Beslut 6). They are NEVER
+    // merged — merging breaks either idempotency or the unread-count. Both nullable
+    // (null = never scanned / never seen).
+    public DateTimeOffset? LastMatchScanAt { get; private set; }
+    public DateTimeOffset? LastSeenMatchesAt { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
@@ -81,6 +92,81 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     {
         Preferences = preferences;
         UpdatedAt = clock.UtcNow;
+    }
+
+    /// <summary>
+    /// ADR 0080 Vag 4 — sets the background-match notification consent (opt-in, GDPR Art.
+    /// 6/7). Invariants: enabling stamps <see cref="Preferences.NotificationConsentAt"/>
+    /// ONCE (immutable Art. 7(1) evidence) and clears the withdrawal; disabling (from
+    /// enabled) stamps <see cref="Preferences.NotificationConsentWithdrawnAt"/> (Art. 7(3)
+    /// revocation proof). Withdrawal stops dispatch immediately (the Worker filters on
+    /// enabled AND withdrawn-null). Audit-logged via the pipeline.
+    /// </summary>
+    public void UpdateNotificationConsent(
+        bool enabled, DigestCadence cadence, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        var consentAt = Preferences.NotificationConsentAt;
+        var withdrawnAt = Preferences.NotificationConsentWithdrawnAt;
+
+        if (enabled)
+        {
+            // Stamp the first-ever opt-in once (immutable); re-consent clears the withdrawal.
+            consentAt ??= now;
+            withdrawnAt = null;
+        }
+        else if (Preferences.BackgroundMatchNotificationsEnabled)
+        {
+            // Opt-out from an enabled state — record the revocation time (Art. 7(3)).
+            withdrawnAt = now;
+        }
+
+        Preferences = Preferences with
+        {
+            BackgroundMatchNotificationsEnabled = enabled,
+            DigestCadence = cadence,
+            NotificationConsentAt = consentAt,
+            NotificationConsentWithdrawnAt = withdrawnAt,
+        };
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// ADR 0080 Vag 4 (Beslut 2) — advances the Worker's scan high-water-mark. Set ATOMICALLY
+    /// with the match upsert in the SAME unit of work (hard invariant — else a crash mid-scan
+    /// either re-notifies or drops matches). Monotonic: never moves backwards.
+    /// </summary>
+    public void AdvanceMatchScan(DateTimeOffset scannedThrough, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+
+        // Defense-in-depth: a future-dated scannedThrough (e.g. a Worker window-calc bug)
+        // would permanently skip all ads up to that bad value (matches silently dropped, not
+        // re-notified). The aggregate protects its own invariant (CLAUDE §2.2) — clamp to now
+        // so the watermark can never run ahead of reality.
+        if (scannedThrough > now)
+            scannedThrough = now;
+
+        if (LastMatchScanAt is { } current && scannedThrough <= current)
+            return;
+
+        LastMatchScanAt = scannedThrough;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// ADR 0080 Vag 4 (Beslut 6) — marks the user's matches as seen up to now (advances the
+    /// user-read watermark). Drives the "nya sedan senaste besök" count. Called when the user
+    /// views the matches surface, NOT on every page load. Monotonic.
+    /// </summary>
+    public void SetLastSeenMatches(IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        if (LastSeenMatchesAt is { } current && now <= current)
+            return;
+
+        LastSeenMatchesAt = now;
+        UpdatedAt = now;
     }
 
     /// <summary>

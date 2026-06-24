@@ -233,7 +233,10 @@ export function OversiktPage({
       text:
         matchCount > 0
           ? t.rich("notices.matchText", {
-              count: matchCount,
+              // Locale-tusental med hårt mellanslag ("1 234", aldrig "1234") —
+              // CLAUDE §10; kodbasens konvention (toolbar/hero/recent-search).
+              // Korpusen passerar rutinmässigt 1000 för breda yrkesgrupper.
+              count: matchCount.toLocaleString("sv-SE"),
               b: (chunks) => <b>{chunks}</b>,
             })
           : t("notices.matchTextZero"),

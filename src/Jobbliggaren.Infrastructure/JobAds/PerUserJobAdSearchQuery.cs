@@ -192,6 +192,12 @@ internal sealed class PerUserJobAdSearchQuery(
             db.JobAds.AsNoTracking(), filter, synonymExpander);
 
         if (grades.Count == 0)
+            // Tom-grades-grenen utelämnar MEDVETET TD-94:s bitmap-plan-hygien (SET LOCAL
+            // enable_seqscan=off) som list-vägens delade port-count bär: den nås bara med
+            // rena equality-filter (ingen q-FTS — STEG 6-notisen skickar alltid icke-tom
+            // HeadlineGrades + NoFilter med Q==null), så TOAST-detoast-seqscan över
+            // search_vector biter inte här. Cardinaliteten är ändå identisk (samma
+            // ApplyFilter-SPOT).
             return await baseQuery.CountAsync(cancellationToken);
 
         var rankExpr = GradeRankExpression(

@@ -25,9 +25,16 @@ public sealed class GetMyMatchCountQueryHandler(
         [MatchGrade.Good, MatchGrade.Strong];
 
     // Notisen räknar över HELA den aktiva korpusen (ingen sök-/dimensions-filter) — bara
-    // profil-graden gallrar. Tom filter-SPOT = alla Active annonser.
+    // profil-graden gallrar. Tom filter-SPOT = alla Active annonser. Named arguments per
+    // JobAdFilterCriteria:s konstruktions-kontrakt (fem listor i rad = tyst-fel-fälla).
     private static readonly JobAdFilterCriteria NoFilter =
-        new([], [], [], [], [], null);
+        new(
+            OccupationGroup: [],
+            Municipality: [],
+            Region: [],
+            EmploymentType: [],
+            WorktimeExtent: [],
+            Q: null);
 
     public async ValueTask<MyMatchCountDto> Handle(
         GetMyMatchCountQuery query, CancellationToken cancellationToken)

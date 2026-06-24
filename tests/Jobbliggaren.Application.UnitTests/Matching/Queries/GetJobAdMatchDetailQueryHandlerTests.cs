@@ -82,6 +82,11 @@ public class GetJobAdMatchDetailQueryHandlerTests
                 throw _throwOnCvSkills; // fail-closed — DEK/KMS failure propagates, never swallowed
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);
         }
+
+        // ADR 0080 Vag 4 PR-2 — the background by-id builder. Never called by the modal handler.
+        public ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
+            Guid userId, CancellationToken cancellationToken)
+            => throw new NotSupportedException("BuildFullForUserIdAsync ska inte anropas av modal-handlern.");
     }
 
     private sealed class FakeScorer : IMatchScorer

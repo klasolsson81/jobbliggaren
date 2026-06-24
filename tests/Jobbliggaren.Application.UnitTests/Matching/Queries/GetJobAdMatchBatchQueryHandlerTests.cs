@@ -70,6 +70,12 @@ public class GetJobAdMatchBatchQueryHandlerTests
             CvSkillsCallCount++;
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);
         }
+
+        // ADR 0080 Vag 4 PR-2 — the background by-id builder. Not used by the TAG batch handler.
+        public ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
+            Guid userId, CancellationToken cancellationToken)
+            => throw new NotSupportedException(
+                "BuildFullForUserIdAsync ska inte anropas av batch-handlern (request-scoped TAG-path).");
     }
 
     private sealed class FakeScorer(IReadOnlyDictionary<JobAdId, FullMatchScore> scores) : IMatchScorer

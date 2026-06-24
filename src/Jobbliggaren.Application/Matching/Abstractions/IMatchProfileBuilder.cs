@@ -67,4 +67,19 @@ public interface IMatchProfileBuilder
     /// honest). Owner-scoped.
     /// </summary>
     ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// ADR 0080 Vag 4 PR-2 (Beslut 3) — builds the FULL profile for an EXPLICIT user-id,
+    /// for BACKGROUND / SYSTEM contexts that have no <c>ICurrentUser</c> (the Worker
+    /// background-matching scan iterates opted-in users and scores ads per user). Identical
+    /// build to <see cref="BuildFullForSortAsync"/> — the confirmed plaintext skill set +
+    /// the denormalized <c>LatestRole</c>, <b>DEK-FREE</b> (no per-user KMS in the hot loop —
+    /// the STEG 3 enabler that unblocks Wave 4). The ONLY difference is the load key: the
+    /// JobSeeker is fetched by the passed <paramref name="userId"/> instead of via
+    /// <c>ICurrentUser</c> (an OCP extension — the request-scoped owner path is untouched).
+    /// An unknown user / no JobSeeker / no stated preferences yields the honest EMPTY profile
+    /// (empty SSYK → the Worker simply produces no matches for that user).
+    /// </summary>
+    ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
+        Guid userId, CancellationToken cancellationToken);
 }

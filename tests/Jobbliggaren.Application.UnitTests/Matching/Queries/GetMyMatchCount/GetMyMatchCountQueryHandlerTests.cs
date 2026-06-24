@@ -56,6 +56,12 @@ public class GetMyMatchCountQueryHandlerTests
             PreferencesCallCount++;
             return new ValueTask<CandidateMatchProfile>(sortProfile.Fast);
         }
+
+        // ADR 0080 Vag 4 PR-2 — the background by-id builder. Not used by the count handler.
+        public ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
+            Guid userId, CancellationToken cancellationToken)
+            => throw new NotSupportedException(
+                "Count-handlern bygger den request-scopade SORT-profilen, aldrig by-id-bakgrundsvarianten.");
     }
 
     private sealed class FakePerUserSearch(int countToReturn) : IPerUserJobAdSearchQuery

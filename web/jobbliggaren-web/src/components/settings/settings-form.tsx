@@ -44,11 +44,11 @@ type LanguageValue = "sv" | "en";
  * SettingsForm — orchestrerar alla preferens-kort på /installningar.
  *
  * CTO-dom 2026-05-20 (F6 P2, Val 2B): EN form, EN action, kort som visuella
- * grupperingar. Klas-direktiv: Visning/Aviseringar är "direct-apply" — tema
- * ändras lokalt via useTheme (ingen backend), språk + aviseringar applieras
- * direkt via `updateMyProfileAction` vid varje ändring (optimistic + revert
- * vid fel). Personuppgifter (Namn) har explicit "Spara ändringar"-knapp
- * eftersom text-input inte ska persistera per tangent.
+ * grupperingar. Klas-direktiv: Visning/Aviseringar är "direct-apply" — språk +
+ * aviseringar applieras direkt via `updateMyProfileAction` vid varje ändring
+ * (optimistic + revert vid fel). (MVP: tema-segmentet "släckt" — ett färgläge.)
+ * Personuppgifter (Namn) har explicit "Spara ändringar"-knapp eftersom
+ * text-input inte ska persistera per tangent.
  *
  * Race-condition-mitigering: action-anropen körs sekventiellt via
  * useTransition (en åt gången). Användare som klickar flera toggles snabbt

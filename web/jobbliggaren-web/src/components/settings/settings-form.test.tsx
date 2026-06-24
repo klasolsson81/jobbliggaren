@@ -24,12 +24,8 @@ vi.mock("@/lib/auth/actions", () => ({
   deleteAccountAction: vi.fn(),
 }));
 
-vi.mock("@/components/theme-provider", () => ({
-  useTheme: () => ({
-    theme: "light" as const,
-    setTheme: vi.fn(),
-  }),
-}));
+// (MVP: theme-provider/useTheme-mock borttagen — settings-form importerar inte
+//  längre useTheme; tema-segmentet är "släckt".)
 
 vi.mock("@/components/me/delete-account-section", () => ({
   DeleteAccountSection: () => <div data-testid="delete-account-stub" />,

@@ -42,12 +42,18 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
-    public void Defaults_MeListRead_Is40Per60s()
+    public void Defaults_MeListRead_Is120Per60s_TokenBucket()
     {
+        // Retune 2026-06-24 (senior-cto-advisor, Klas UX-rapport): 40→120/min +
+        // FixedWindow→TokenBucket (SegmentsPerWindow=6 → replenishment var ~10s).
+        // /oversikt växte 6→7 MeListRead-anrop (match-count + new-match-count) → 40/min
+        // trippade normal bläddring; 120 = ~3× headroom, TokenBucket ger ~10s mjuk väntan
+        // + populerar Retry-After (SlidingWindow gör INTE det — security-auditor-empiri).
         var sut = new RateLimitingOptions();
 
-        sut.MeListRead.PermitLimit.ShouldBe(40);
+        sut.MeListRead.PermitLimit.ShouldBe(120);
         sut.MeListRead.WindowSeconds.ShouldBe(60);
+        sut.MeListRead.SegmentsPerWindow.ShouldBe(6);
     }
 
     [Fact]

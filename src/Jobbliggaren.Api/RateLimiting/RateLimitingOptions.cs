@@ -159,15 +159,22 @@ public sealed class RateLimitingOptions
     /// per sidladdning = 6× request-amplifiering mot tyngre objekt-grafer
     /// (pipeline/resumes/profile) än publika job-ads-listan, så denna yta får
     /// en egen, snävare budget än ListRead (60/min) och svälter inte den
-    /// publika sök-listan vid kompromissat konto (bulkhead, Nygard). 40/min ger
-    /// headroom över en /oversikt-render (6 anrop) + normal navigation, kapar
-    /// OWASP API4:2023-style multi-query-DoS. dotnet-architect + senior-cto-
-    /// advisor 2026-06-14 — riktvärde, security-auditor verifierar/justerar
-    /// (BLOCKING).
+    /// publika sök-listan vid kompromissat konto (bulkhead, Nygard).
+    /// <para>
+    /// <b>Retune 2026-06-24 (senior-cto-advisor, Klas UX-rapport):</b> 40→120/min +
+    /// FixedWindow→TokenBucket (<see cref="PolicyOptions.SegmentsPerWindow"/>=6 styr
+    /// replenishment). STEG 6 + Vag 4 PR-5 la till match-count + new-match-count → /oversikt
+    /// avfyrar nu ~7 MeListRead-anrop/laddning (inte 6); 40/min ÷ 7 ≈ 5,7 laddningar/min
+    /// trippade normal bläddring. 120 = ~17 laddningar/min headroom (~3× originalet),
+    /// UserId-partition intakt = kvar under scrape-DoS-signatur. TokenBucket ger ~10s mjuk
+    /// väntan i stället för FixedWindows 60s-bann OCH populerar Retry-After rent —
+    /// SlidingWindow gör INTE det (security-auditor + code-reviewer empiri 2026-06-24, CTO-
+    /// förauktoriserad fallback). QueueLimit=0 kvar (kö = memory-DoS).
+    /// </para>
     /// </summary>
     public PolicyOptions MeListRead { get; init; } = new()
     {
-        PermitLimit = 40,
+        PermitLimit = 120,
         WindowSeconds = 60,
     };
 
@@ -279,5 +286,18 @@ public sealed class RateLimitingOptions
     {
         public int PermitLimit { get; init; }
         public int WindowSeconds { get; init; }
+
+        /// <summary>
+        /// Antal replenishment-slices per fönster för TokenBucket-policies (rate-limit-
+        /// retune 2026-06-24, senior-cto-advisor). Endast meningsfullt för de per-user
+        /// LÄS-policies som använder <c>GetTokenBucketLimiter</c> (MeListRead/ListRead/
+        /// FacetCounts/Suggest/TaxonomyRead); ignoreras av FixedWindow-policies (IP-
+        /// säkerhet + write). Styr <c>ReplenishmentPeriod = Window/Segments</c> +
+        /// <c>TokensPerPeriod = PermitLimit/Segments</c> → tokens återfylls var ~Window/
+        /// Segments-sekund (mjuk väntan i stället för hel-fönster-bann; Klas UX-rapport).
+        /// TokenBucket (ej SlidingWindow) eftersom .NET:s SlidingWindow inte populerar
+        /// Retry-After (security-auditor + code-reviewer empiri 2026-06-24). Default 6.
+        /// </summary>
+        public int SegmentsPerWindow { get; init; } = 6;
     }
 }

@@ -8,7 +8,11 @@ namespace Jobbliggaren.Application.Matching.Profiles;
 
 /// <summary>
 /// The SSOT preference→profile mapper (F4-12/F4-13/F4-15, ADR 0076; ADR 0079 STEG 3 PR-D).
-/// Owner-scoped (reads only the current user). NO AI/LLM, and now NO DEK.
+/// Owner-scoped by default — the request paths read only the current user via
+/// <see cref="ICurrentUser"/>; the explicit-user-id overload
+/// (<see cref="BuildFullForUserIdAsync"/>, ADR 0080 Vag 4) is the deliberate BACKGROUND/SYSTEM
+/// seam (no <see cref="ICurrentUser"/>) for the Worker scan — see its remarks. NO AI/LLM,
+/// and now NO DEK.
 /// <list type="bullet">
 /// <item><see cref="BuildFromPreferencesAsync"/> (F4-12/13) — Fast profile from stored
 /// <c>MatchPreferences</c> only. No CV.</item>
@@ -82,10 +86,29 @@ public sealed class MatchProfileBuilder(
     public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(
         CancellationToken cancellationToken) => BuildFullAsync(cancellationToken);
 
+    // ADR 0080 Vag 4 PR-2 (Beslut 3) — the background/system variant: loads the JobSeeker by
+    // an EXPLICIT user-id (no ICurrentUser) and shares the EXACT same DEK-free build body as
+    // the owner-scoped path. OCP extension — the request-scoped overloads are untouched.
+    public async ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
+        Guid userId, CancellationToken cancellationToken)
+    {
+        var jobSeeker = await LoadJobSeekerByUserIdAsync(userId, cancellationToken);
+        return await BuildFullCoreAsync(jobSeeker, cancellationToken);
+    }
+
     private async ValueTask<FullCandidateMatchProfile> BuildFullAsync(
         CancellationToken cancellationToken)
     {
         var jobSeeker = await LoadJobSeekerAsync(cancellationToken);
+        return await BuildFullCoreAsync(jobSeeker, cancellationToken);
+    }
+
+    // The shared DEK-free build body (one knowledge piece, DRY) — used by both the
+    // owner-scoped overloads and the explicit-user-id background variant. The load key is the
+    // ONLY thing that differs between the call paths.
+    private async ValueTask<FullCandidateMatchProfile> BuildFullCoreAsync(
+        JobSeeker? jobSeeker, CancellationToken cancellationToken)
+    {
         if (jobSeeker is null)
             return EmptyFull;
 
@@ -123,17 +146,26 @@ public sealed class MatchProfileBuilder(
         CandidateMatchProfile fast, Resume? resume) =>
         fast with { Title = resume?.LatestRole ?? string.Empty };
 
+    // Owner-scoped load: gate on ICurrentUser, then delegate to the by-id load. No
+    // authenticated user → null → the honest empty profile.
     private async ValueTask<JobSeeker?> LoadJobSeekerAsync(CancellationToken cancellationToken)
     {
         if (!currentUser.UserId.HasValue)
             return null;
 
-        // Load the aggregate (parity with GetMyProfileQueryHandler) rather than
-        // projecting the value-converted VO directly — avoids EF translation
-        // quirks with strongly-typed VOs (memory: ef_strongly_typed_vo_contains).
+        return await LoadJobSeekerByUserIdAsync(currentUser.UserId.Value, cancellationToken);
+    }
+
+    // ADR 0080 Vag 4 PR-2 — load by an explicit user-id (the background/system path; no
+    // ICurrentUser). Load the aggregate (parity with GetMyProfileQueryHandler) rather than
+    // projecting the value-converted VO directly — avoids EF translation quirks with
+    // strongly-typed VOs (memory: ef_strongly_typed_vo_contains).
+    private async ValueTask<JobSeeker?> LoadJobSeekerByUserIdAsync(
+        Guid userId, CancellationToken cancellationToken)
+    {
         return await db.JobSeekers
             .AsNoTracking()
-            .FirstOrDefaultAsync(js => js.UserId == currentUser.UserId.Value, cancellationToken);
+            .FirstOrDefaultAsync(js => js.UserId == userId, cancellationToken);
     }
 
     private static CandidateMatchProfile FastFromPreferences(JobSeeker jobSeeker)

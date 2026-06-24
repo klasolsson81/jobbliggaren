@@ -351,4 +351,163 @@ public class MatchProfileBuilderFullTests
 
         profile.Fast.Title.ShouldBe(string.Empty);
     }
+
+    // =================================================================
+    // ADR 0080 Vag 4 PR-2 (Beslut 3) — BuildFullForUserIdAsync: the BACKGROUND / SYSTEM
+    // variant that builds the FULL profile by an EXPLICIT user-id (no ICurrentUser), for the
+    // Worker background-matching scan. The build is IDENTICAL to BuildFullForSortAsync (shared
+    // BuildFullCoreAsync) — only the LOAD KEY differs (passed id vs ICurrentUser). These cases
+    // pin: parity, no-ICurrentUser-dependency (the decisive property), honest-empty for an
+    // unknown user, owner-scoping by the passed id (no cross-contamination), and the DEK-free
+    // LatestRole-only CV read.
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullForUserId_ForSeededUser_MatchesBuildFullForSortExactly()
+    {
+        // PARITY: by-id and the owner-scoped sort path build the SAME profile for the SAME
+        // user — identical Fast lists, identical CvSkillConceptIds (= confirmed PreferredSkills),
+        // identical LatestRole Title. Only the load key differs.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var builder = NewBuilder(db);
+
+        var byId = await builder.BuildFullForUserIdAsync(seeker.UserId, CancellationToken.None);
+        var bySort = await builder.BuildFullForSortAsync(CancellationToken.None);
+
+        byId.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        byId.CvSkillConceptIds.ShouldBe(bySort.CvSkillConceptIds);
+        byId.Fast.Title.ShouldBe("Backend-utvecklare");
+        byId.Fast.Title.ShouldBe(bySort.Fast.Title);
+        byId.Fast.SsykGroupConceptIds.ShouldBe(bySort.Fast.SsykGroupConceptIds);
+        byId.Fast.PreferredRegionConceptIds.ShouldBe(bySort.Fast.PreferredRegionConceptIds);
+        byId.Fast.PreferredEmploymentTypeConceptIds.ShouldBe(bySort.Fast.PreferredEmploymentTypeConceptIds);
+        byId.Fast.PreferredMunicipalityConceptIds.ShouldBe(bySort.Fast.PreferredMunicipalityConceptIds);
+    }
+
+    [Fact]
+    public async Task BuildFullForUserId_WithNoCurrentUser_StillBuildsTheRealProfile()
+    {
+        // THE KEY PROPERTY: the background path does NOT consult ICurrentUser. With a null
+        // current user (the Worker has no request-scoped identity), the by-id build STILL
+        // returns the real profile for the passed user. Contrast: BuildFullForSortAsync() with
+        // a null current user degrades to EmptyFull (pinned by the NoUser cases above).
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // Build a builder whose ICurrentUser yields NO user — proving the by-id path ignores it.
+        var anon = Substitute.For<ICurrentUser>();
+        anon.UserId.Returns((Guid?)null);
+        var builder = new MatchProfileBuilder(db, anon);
+
+        var byId = await builder.BuildFullForUserIdAsync(seeker.UserId, CancellationToken.None);
+        var bySort = await builder.BuildFullForSortAsync(CancellationToken.None);
+
+        // The by-id path produced the real profile despite the absent current user.
+        byId.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        AssertFastFromPrefs(byId.Fast);
+        byId.Fast.Title.ShouldBe("Backend-utvecklare");
+
+        // ...while the owner-scoped sort path correctly degrades to EmptyFull (the contrast that
+        // proves the two paths read different keys).
+        bySort.CvSkillConceptIds.ShouldBeEmpty();
+        bySort.Fast.SsykGroupConceptIds.ShouldBeEmpty();
+        bySort.Fast.Title.ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public async Task BuildFullForUserId_UnknownUser_ReturnsHonestEmptyProfile()
+    {
+        // No matching JobSeeker → the honest EMPTY profile (empty Fast SSYK, empty
+        // CvSkillConceptIds → the Worker simply produces no matches for that user), never an
+        // error. The current user IS authenticated here, proving the empty result comes from
+        // the unknown passed id, not from the gate.
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, Prefs());
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForUserIdAsync(Guid.NewGuid(), CancellationToken.None);
+
+        profile.ShouldNotBeNull();
+        profile.CvSkillConceptIds.ShouldBeEmpty();
+        profile.Fast.SsykGroupConceptIds.ShouldBeEmpty();
+        profile.Fast.PreferredRegionConceptIds.ShouldBeEmpty();
+        profile.Fast.PreferredEmploymentTypeConceptIds.ShouldBeEmpty();
+        profile.Fast.PreferredMunicipalityConceptIds.ShouldBeEmpty();
+        profile.Fast.Title.ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public async Task BuildFullForUserId_TwoUsers_ScopesByPassedIdWithoutCrossContamination()
+    {
+        // OWNER-SCOPING BY THE PASSED ID: seed TWO JobSeekers with DIFFERENT preferences; the
+        // by-id build returns the right user's profile for each id — no leakage between users
+        // (the Worker scan iterates many users and must keep them isolated).
+        var db = TestAppDbContextFactory.Create();
+
+        var userA = Guid.NewGuid();
+        var prefsA = MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_aaaaa"],
+            preferredRegions: ["region_a"],
+            preferredEmploymentTypes: ["et_fast"],
+            preferredMunicipalities: null,
+            preferredSkills: ["skill_a1", "skill_a2"]).Value;
+        var seekerA = await SeedSeekerAsync(db, userA, prefsA);
+
+        var userB = Guid.NewGuid();
+        var prefsB = MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_bbbbb"],
+            preferredRegions: ["region_b"],
+            preferredEmploymentTypes: ["et_visstid"],
+            preferredMunicipalities: null,
+            preferredSkills: ["skill_b1"]).Value;
+        var seekerB = await SeedSeekerAsync(db, userB, prefsB);
+
+        var builder = NewBuilder(db);
+
+        var profileA = await builder.BuildFullForUserIdAsync(seekerA.UserId, CancellationToken.None);
+        var profileB = await builder.BuildFullForUserIdAsync(seekerB.UserId, CancellationToken.None);
+
+        // userA → only userA's preferences/skills.
+        profileA.Fast.SsykGroupConceptIds.ShouldBe(["grp_aaaaa"]);
+        profileA.Fast.PreferredRegionConceptIds.ShouldBe(["region_a"]);
+        profileA.Fast.PreferredEmploymentTypeConceptIds.ShouldBe(["et_fast"]);
+        profileA.CvSkillConceptIds.ShouldBe(["skill_a1", "skill_a2"]);
+
+        // userB → only userB's preferences/skills (no bleed-through from userA).
+        profileB.Fast.SsykGroupConceptIds.ShouldBe(["grp_bbbbb"]);
+        profileB.Fast.PreferredRegionConceptIds.ShouldBe(["region_b"]);
+        profileB.Fast.PreferredEmploymentTypeConceptIds.ShouldBe(["et_visstid"]);
+        profileB.CvSkillConceptIds.ShouldBe(["skill_b1"]);
+    }
+
+    [Fact]
+    public async Task BuildFullForUserId_PromotedCv_ReadsOnlyLatestRole_DekFree()
+    {
+        // DEK-FREE: for a user with a promoted CV, the by-id build reads ONLY the denormalised
+        // plaintext LatestRole for the Title dimension — same DEK-free contract as the owner
+        // path (no Include(Versions), no encrypted content materialised). The CvSkillConceptIds
+        // come from the CONFIRMED MatchPreferences.PreferredSkills, never from the CV content,
+        // and the Title equals the LatestRole projection.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var builder = NewBuilder(db);
+
+        var profile = await builder.BuildFullForUserIdAsync(seeker.UserId, CancellationToken.None);
+
+        // Title is the plaintext LatestRole projection (DEK-free read).
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+        // Skills are the confirmed preference set, NOT anything off the CV content.
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        AssertFastFromPrefs(profile.Fast);
+    }
 }

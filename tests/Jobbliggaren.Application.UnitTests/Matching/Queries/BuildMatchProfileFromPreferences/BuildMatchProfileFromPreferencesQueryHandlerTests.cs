@@ -34,6 +34,12 @@ public class BuildMatchProfileFromPreferencesQueryHandlerTests
         public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "BuildMatchProfileFromPreferences-handlern delegerar bara till BuildFromPreferencesAsync.");
+
+        // ADR 0080 Vag 4 PR-2 — the background by-id builder. Never reached by this handler.
+        public ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
+            Guid userId, CancellationToken cancellationToken)
+            => throw new NotSupportedException(
+                "BuildMatchProfileFromPreferences-handlern delegerar bara till BuildFromPreferencesAsync.");
     }
 
     [Fact]

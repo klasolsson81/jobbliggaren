@@ -167,12 +167,17 @@ public static partial class RateLimitingExtensions
                 if (string.IsNullOrEmpty(userId))
                     return RateLimitPartition.GetNoLimiter("anonymous-list-read");
 
-                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
-                    new FixedWindowRateLimiterOptions
+                // TokenBucket (retune 2026-06-24) — REP/CCP-koherens med MeListRead (samma
+                // per-user läs-komponent delar failure-ergonomik + Retry-After-kontrakt). Tal oförändrat.
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
                     {
-                        PermitLimit = rateLimitOpts.ListRead.PermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimitOpts.ListRead.WindowSeconds),
+                        TokenLimit = rateLimitOpts.ListRead.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.ListRead.PermitLimit / rateLimitOpts.ListRead.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.ListRead.WindowSeconds / (double)rateLimitOpts.ListRead.SegmentsPerWindow),
                         QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 
@@ -189,12 +194,16 @@ public static partial class RateLimitingExtensions
                 if (string.IsNullOrEmpty(userId))
                     return RateLimitPartition.GetNoLimiter("anonymous-suggest");
 
-                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
-                    new FixedWindowRateLimiterOptions
+                // TokenBucket (retune 2026-06-24) — per-user läs-komponent. Tal oförändrat.
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
                     {
-                        PermitLimit = rateLimitOpts.Suggest.PermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimitOpts.Suggest.WindowSeconds),
+                        TokenLimit = rateLimitOpts.Suggest.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.Suggest.PermitLimit / rateLimitOpts.Suggest.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.Suggest.WindowSeconds / (double)rateLimitOpts.Suggest.SegmentsPerWindow),
                         QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 
@@ -210,12 +219,16 @@ public static partial class RateLimitingExtensions
                 if (string.IsNullOrEmpty(userId))
                     return RateLimitPartition.GetNoLimiter("anonymous-taxonomy");
 
-                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
-                    new FixedWindowRateLimiterOptions
+                // TokenBucket (retune 2026-06-24) — per-user läs-komponent. Tal oförändrat.
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
                     {
-                        PermitLimit = rateLimitOpts.TaxonomyRead.PermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimitOpts.TaxonomyRead.WindowSeconds),
+                        TokenLimit = rateLimitOpts.TaxonomyRead.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.TaxonomyRead.PermitLimit / rateLimitOpts.TaxonomyRead.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.TaxonomyRead.WindowSeconds / (double)rateLimitOpts.TaxonomyRead.SegmentsPerWindow),
                         QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 
@@ -234,12 +247,16 @@ public static partial class RateLimitingExtensions
                 if (string.IsNullOrEmpty(userId))
                     return RateLimitPartition.GetNoLimiter("anonymous-facet-counts");
 
-                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
-                    new FixedWindowRateLimiterOptions
+                // TokenBucket (retune 2026-06-24) — per-user läs-komponent. Tal oförändrat.
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
                     {
-                        PermitLimit = rateLimitOpts.FacetCounts.PermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimitOpts.FacetCounts.WindowSeconds),
+                        TokenLimit = rateLimitOpts.FacetCounts.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.FacetCounts.PermitLimit / rateLimitOpts.FacetCounts.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.FacetCounts.WindowSeconds / (double)rateLimitOpts.FacetCounts.SegmentsPerWindow),
                         QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 
@@ -279,12 +296,20 @@ public static partial class RateLimitingExtensions
                 if (string.IsNullOrEmpty(userId))
                     return RateLimitPartition.GetNoLimiter("anonymous-me-list-read");
 
-                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
-                    new FixedWindowRateLimiterOptions
+                // TokenBucket (retune 2026-06-24): mjuk recovery (tokens återfylls per
+                // period → ~Window/Segments väntan i stället för FixedWindows hel-fönster-bann)
+                // OCH populerar Retry-After rent — .NET:s SlidingWindow gör INTE det
+                // (security-auditor BLOCKING-empiri 2026-06-24; CTO-förauktoriserad fallback).
+                // QueueLimit=0 kvar (kö = memory-DoS). Partition/anon-bypass oförändrad.
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
                     {
-                        PermitLimit = rateLimitOpts.MeListRead.PermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimitOpts.MeListRead.WindowSeconds),
+                        TokenLimit = rateLimitOpts.MeListRead.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.MeListRead.PermitLimit / rateLimitOpts.MeListRead.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.MeListRead.WindowSeconds / (double)rateLimitOpts.MeListRead.SegmentsPerWindow),
                         QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 

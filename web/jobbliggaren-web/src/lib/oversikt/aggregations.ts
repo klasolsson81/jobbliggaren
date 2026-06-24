@@ -134,6 +134,19 @@ export function formatSwedishShortDate(isoString: string): string {
 }
 
 /**
+ * Svensk kortform MED år ("14 jun 2026", CLAUDE.md §10.2). Använd där posterna
+ * ackumuleras över tid och året bär betydelse (t.ex. "Mina matchningar"-vyn,
+ * ADR 0080) — till skillnad från `formatSwedishShortDate` som utelämnar året för
+ * kompakt, samma-säsong-kontext. Återanvänder samma `SV_MONTHS_SHORT` så formerna
+ * aldrig driftar isär. Returnerar "–" vid ogiltig input i stället för att kasta.
+ */
+export function formatSwedishShortDateWithYear(isoString: string): string {
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "–";
+  return `${d.getDate()} ${SV_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/**
  * Heltal kalenderdagar mellan `isoString` och `now` (default: Date.now()).
  * Negativ siffra om datumet ligger i framtiden. Använder UTC-trunkering
  * för stabilitet över DST-gränser.

@@ -6,6 +6,7 @@ import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getResumes } from "@/lib/api/resumes";
 import { getMatchCount } from "@/lib/api/match-count";
+import { getNewMatchCount } from "@/lib/api/me-matches";
 import { fetchLandingStats } from "@/lib/api/landing";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
@@ -45,6 +46,7 @@ export default async function OversiktRoute() {
     resumes,
     landingStats,
     matchCount,
+    newMatchCount,
   ] = await Promise.all([
     getMyProfile(),
     getPipeline(),
@@ -64,6 +66,12 @@ export default async function OversiktRoute() {
     // null. Notera: till skillnad från de auth-kritiska källorna driver ett
     // unauthorized HÄR ingen redirect (notisen är icke-kritisk yta).
     getMatchCount(),
+    // ADR 0080 Vag 4 PR-5 — "Nya matchningar"-räknaren (bakgrundsmatchningar nya
+    // sedan senaste besök) för Sammanfattningens rad. Degraderar CIVILT och
+    // OBEROENDE precis som `getMatchCount`: ett fel får aldrig reject:a
+    // Promise.all eller redirecta — det löses till 0 nedan så raden alltid visar
+    // en honest siffra och resten av sidan renderar.
+    getNewMatchCount(),
   ]);
 
   // Unauthorized mid-render (token expired mellan layout-check och här):
@@ -86,6 +94,14 @@ export default async function OversiktRoute() {
   // siffra; alla andra Result-kinds (unauthorized/rateLimited/error) blir null
   // ⇒ match-notisen utelämnas (degraderad render), aldrig mock-fallback.
   const matchCountValue = matchCount.kind === "ok" ? matchCount.data.count : null;
+
+  // ADR 0080 Vag 4 PR-5 — live "Nya matchningar"-count → number. Endast `ok` ger
+  // den riktiga siffran; alla andra Result-kinds (unauthorized mid-render /
+  // rateLimited / error) degraderar till 0 (honest fallback — raden visar alltid
+  // en siffra, aldrig en mock). En unauthorized HÄR driver ingen redirect (icke-
+  // kritisk yta, paritet `matchCount`).
+  const newMatchCountValue =
+    newMatchCount.kind === "ok" ? newMatchCount.data.count : 0;
 
   // ADR 0077 STEG 5 — välkomst-/första-setup-modal. Visas bara när profilen
   // laddats, inget yrke ännu angetts (`hasStatedDesiredOccupation`) OCH cookien
@@ -120,6 +136,7 @@ export default async function OversiktRoute() {
         resumes={resumes}
         landingStats={landingStats}
         matchCount={matchCountValue}
+        newMatchCount={newMatchCountValue}
       />
       {showWelcome && taxonomy !== null && profile.kind === "ok" && (
         <WelcomeSetupModal

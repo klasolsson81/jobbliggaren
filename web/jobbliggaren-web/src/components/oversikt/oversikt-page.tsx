@@ -48,6 +48,17 @@ interface OversiktPageProps {
    * yrke (`hasStatedDesiredOccupation`); annars äger setup-nudgen slotten.
    */
   readonly matchCount: number | null;
+  /**
+   * ADR 0080 Vag 4 PR-5 — antalet bakgrundsmatchningar NYA sedan senaste besök
+   * (live `GET /me/new-match-count`), för Sammanfattningens "Nya matchningar"-
+   * rad (ersätter den dagliga `matchCountToday`-mocken 28, nu guest-only; SKILD
+   * från STEG 6:s vecko-`matchCount` som ersatte mock-143). Degraderar till `0`
+   * vid fetch-fel (paritet STEG 6:s
+   * `matchCount`-degradering, men `0` här i stället för `null` — raden visar
+   * alltid en siffra och länkar till /matchningar; ett honest 0 är korrekt
+   * fallback när bakgrundsmatchning ej kunde läsas).
+   */
+  readonly newMatchCount: number;
 }
 
 /**
@@ -71,6 +82,7 @@ export function OversiktPage({
   resumes,
   landingStats,
   matchCount,
+  newMatchCount,
 }: OversiktPageProps) {
   // Synchronous next-intl translator — keeps OversiktPage a non-async RSC.
   const t = useTranslations("oversikt");
@@ -383,7 +395,7 @@ export function OversiktPage({
             recentSearchesCount={recentSearchesData.length}
             lastSearchName={lastSearchName}
             activeJobAdsTotal={activeJobAdsTotal}
-            matchCountToday={OVERSIKT_MOCK.matchCountToday}
+            newMatchCount={newMatchCount}
             cvCount={cvCount}
             personalLettersCount={OVERSIKT_MOCK.personalLettersCount}
             lastUpdatedCvDate={lastUpdatedCvDate}

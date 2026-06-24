@@ -16,6 +16,7 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Target,
   X,
 } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
@@ -177,6 +178,13 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             onClick={() => setOpen(false)}
           >
             <Bookmark size={16} aria-hidden="true" /> {t("userMenu.sparadeAnnonser")}
+          </Link>
+          <Link
+            href="/matchningar"
+            className="jp-usermenu__item"
+            onClick={() => setOpen(false)}
+          >
+            <Target size={16} aria-hidden="true" /> {t("userMenu.minaMatchningar")}
           </Link>
           <Link
             href="/cv"

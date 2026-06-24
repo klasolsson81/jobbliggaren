@@ -34,10 +34,11 @@ export interface OversiktMock {
   readonly todaysEvents: ReadonlyArray<OversiktTodayEvent>;
   readonly googleSynced: boolean;
   /**
-   * MOCK kvar (STEG 6 follow-up, Klas: håll STEG 6 smalt): "Nya matchningar i
-   * dag"-raden i Sammanfattningen är fortfarande mock. Byts mot en live-port i
-   * en separat PR. (Notis-SIFFRAN i auth-feeden är nu LIVE via
-   * `getMatchCount()` — ADR 0079 STEG 6; den läser INTE detta fält.)
+   * GUEST-ONLY (efter ADR 0080 Vag 4 PR-5): den autentiserade Sammanfattningens
+   * "Nya matchningar"-rad är nu LIVE via `getNewMatchCount()` (bakgrundsmatchningar
+   * nya sedan senaste besök) och läser INTE detta fält. Kvar enbart för den
+   * publika gäst-förhandsvisningen (`guest-oversikt-page.tsx`), som är en
+   * avsiktlig demo-yta utanför Vag 4:s scope.
    */
   readonly matchCountToday: number;
   /**

@@ -1,7 +1,10 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Matching.Commands.MarkMatchesSeen;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 using Jobbliggaren.Application.Matching.Queries.GetMyMatchCount;
+using Jobbliggaren.Application.Matching.Queries.GetMyMatches;
+using Jobbliggaren.Application.Matching.Queries.GetMyNewMatchCount;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -69,5 +72,46 @@ public static class MeJobAdMatchEndpoints
             .WithTags("Me")
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // ADR 0080 Vag 4 PR-5 — Översikts "Nya matchningar"-räknare (bakgrundsmatchningar nya
+        // sedan senaste besök, UserJobAdMatch.CreatedAt > LastSeenMatchesAt). Ersätter STEG 6:s
+        // mock "i dag"-rad. Auth-gated, MeListRead. 200 { count }.
+        app.MapGet("/api/v1/me/new-match-count", async (
+                IMediator mediator, CancellationToken ct) =>
+            {
+                var result = await mediator.Send(new GetMyNewMatchCountQuery(), ct);
+                return Results.Ok(result);
+            })
+            .WithTags("Me")
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // ADR 0080 Vag 4 PR-5 — den dedikerade "Mina matchningar"-vyn: användarens persisterade
+        // bakgrundsmatchningar (Good/Strong/Top) joinade till annonsens publika detaljer + IsNew.
+        // Auth-gated, MeListRead. 200 [ MatchListItemDto ].
+        app.MapGet("/api/v1/me/matches", async (
+                IMediator mediator, CancellationToken ct) =>
+            {
+                var result = await mediator.Send(new GetMyMatchesQuery(), ct);
+                return Results.Ok(result);
+            })
+            .WithTags("Me")
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // ADR 0080 Vag 4 PR-5 — markera matchningarna sedda (avancera last_seen_matches_at).
+        // Anropas av FE när den dedikerade vyn ÖPPNAS (Klas-val: "views the matches surface").
+        // Auth-gated, MeWrite (user-ägd mutation, paritet match-preferences). 204 / 400.
+        app.MapPost("/api/v1/me/matches/seen", async (
+                IMediator mediator, CancellationToken ct) =>
+            {
+                var result = await mediator.Send(new MarkMatchesSeenCommand(), ct);
+                return result.IsSuccess
+                    ? Results.NoContent()
+                    : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+            })
+            .WithTags("Me")
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 }

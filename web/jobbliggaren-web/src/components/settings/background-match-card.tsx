@@ -25,11 +25,12 @@ interface BackgroundMatchCardProps {
  * En PASSIV inställnings-affordans (aldrig en banner/nag): användaren väljer
  * själv att slå PÅ bakgrundsmatchning (opt-in, default OFF — GDPR Art. 6(1)(a)/
  * 7) och kan dra tillbaka samtycket när som helst (slå av). När påslaget kör
- * bakgrundsmatchningen nattetid: Topp-matchningar notifieras direkt, Stark-
- * matchningar samlas i en sammanfattning enligt vald kadens (Daglig/Veckovis),
- * Bra-matchningar visas i matchningslistan utan notis. Graden är en NAMNGIVEN
- * kategori, aldrig en siffra (ADR 0071, Goodhart). In-app-only MVP: notiser
- * visas i appen — copyn lovar INTE e-post ännu (ärlig framing).
+ * bakgrundsmatchningen nattetid: Topp-matchningar skickas direkt via e-post,
+ * Stark-matchningar samlas i en e-postsammanfattning enligt vald kadens (Daglig/
+ * Veckovis), Bra-matchningar visas i matchningslistan utan e-post. Graden är en
+ * NAMNGIVEN kategori, aldrig en siffra (ADR 0071, Goodhart). Copy:n namnger
+ * e-post som leveranskanal (GDPR Art. 7(2) transparens, TD-116; Vag 4 PR-4b
+ * skickar riktiga notiser via Resend).
  *
  * Kortet äger sin EGEN save (egen action/endpoint `PUT /me/notification-consent`,
  * egen useTransition) — INTE det delade `updateMyProfileAction`-flödet. Toggle

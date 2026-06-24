@@ -65,15 +65,18 @@ describe("BackgroundMatchCard — pre-fill + grundläge", () => {
     expect(weekly).toHaveAttribute("aria-checked", "false");
     // Aktiv hjälptext (inte den inaktiverade varianten).
     expect(
-      screen.getByText(/Gäller sammanfattningen av starka matchningar/)
+      screen.getByText(/Gäller e-postsammanfattningen av starka matchningar/)
     ).toBeInTheDocument();
   });
 
-  it("ärlig framing: introt nämner matchningslistan, aldrig e-post", () => {
+  it("ärlig framing: introt namnger e-post som leveranskanal (TD-116)", () => {
     renderCard();
     const intro = screen.getByText(/matchar vi nya annonser mot din profil/);
+    // PR-4b skickar riktiga notiser via e-post (Topp direkt, Stark som sammanfattning);
+    // copy:n MÅSTE namnge e-post (GDPR Art. 7(2) transparens, TD-116). Bra matchningar
+    // ligger kvar i matchningslistan utan e-post.
+    expect(intro).toHaveTextContent(/e-post/);
     expect(intro).toHaveTextContent(/matchningslista/);
-    expect(intro.textContent ?? "").not.toMatch(/e-post|mejl|mail/i);
   });
 });
 

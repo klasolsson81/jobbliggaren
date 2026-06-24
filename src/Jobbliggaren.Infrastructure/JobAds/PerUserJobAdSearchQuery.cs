@@ -166,6 +166,42 @@ internal sealed class PerUserJobAdSearchQuery(
         return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
     }
 
+    public async ValueTask<int> CountPerUserAsync(
+        JobAdFilterCriteria filter,
+        FullCandidateMatchProfile profile,
+        IReadOnlyList<MatchGrade> grades,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(grades);
+
+        var fast = profile.Fast;
+        var ssyk = fast.SsykGroupConceptIds;
+        var regions = fast.PreferredRegionConceptIds;
+        var municipalities = fast.PreferredMunicipalityConceptIds;
+        var employment = fast.PreferredEmploymentTypeConceptIds;
+        var ortStated = regions.Count > 0 || municipalities.Count > 0;
+        var employmentStated = employment.Count > 0;
+
+        // SAMMA filter-SPOT + SAMMA delade GradeRankExpression som SearchPerUserAsync:s
+        // grad-WHERE → counten är per konstruktion lika med list-vägens TotalCount för
+        // samma profil + grad-set (siffra↔landning-koherens, oracle-pinnad). Separat
+        // count-query (CLAUDE §3.6): ingen sort, paginering eller projektion.
+        var baseQuery = JobAdSearchComposition.ApplyFilter(
+            db.JobAds.AsNoTracking(), filter, synonymExpander);
+
+        if (grades.Count == 0)
+            return await baseQuery.CountAsync(cancellationToken);
+
+        var rankExpr = GradeRankExpression(
+            ssyk, regions, municipalities, employment, ortStated, employmentStated);
+        var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
+        return await baseQuery
+            .Where(RankInSet(rankExpr, selectedRanks))
+            .CountAsync(cancellationToken);
+    }
+
     // Den delade grad-rank-Expression:en (SSOT) — en kompilerad spegel av den Fast
     // MatchGradeCalculator.Grade(MatchScore)-stegen över shadow-kolumnerna. Returnerar
     // 0 (otaggad/SSYK ej Match), 1 (Basic — golv vid motsägande ort/anställning), 2

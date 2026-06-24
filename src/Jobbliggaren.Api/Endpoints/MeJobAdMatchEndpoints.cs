@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
+using Jobbliggaren.Application.Matching.Queries.GetMyMatchCount;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -47,6 +48,22 @@ public static class MeJobAdMatchEndpoints
                 Guid jobAdId, IMediator mediator, CancellationToken ct) =>
             {
                 var result = await mediator.Send(new GetJobAdMatchDetailQuery(jobAdId), ct);
+                return Results.Ok(result);
+            })
+            .WithTags("Me")
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // ADR 0079 STEG 6 — Översikts live-notis-siffra ("Det finns X jobb som matchar din
+        // profil"). Per-användar grad-filtrerad count (Bra + Stark) över hela den aktiva
+        // korpusen, DEK-fri, ingen Worker. Auth-gated (parity match-detail ovan): notisen
+        // visas bara för inloggad användare med angivet yrke; en ny användare utan yrke får
+        // honest 0 (SSYK-gate i handlern). MeListReadPolicy (per-användar read-bucket). 200
+        // { count: int }; aldrig en fejkad mock-siffra.
+        app.MapGet("/api/v1/me/match-count", async (
+                IMediator mediator, CancellationToken ct) =>
+            {
+                var result = await mediator.Send(new GetMyMatchCountQuery(), ct);
                 return Results.Ok(result);
             })
             .WithTags("Me")

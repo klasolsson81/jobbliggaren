@@ -27,6 +27,7 @@ using Microsoft.IdentityModel.Tokens;
 using Polly;
 using Polly.RateLimiting;
 using Refit;
+using Resend;
 using StackExchange.Redis;
 
 namespace Jobbliggaren.Infrastructure;
@@ -582,10 +583,30 @@ public static class DependencyInjection
                 services.AddSingleton<IEmailSender, NullEmailSender>();
             }
         }
+        else if (string.Equals(emailProvider, "Resend", StringComparison.OrdinalIgnoreCase))
+        {
+            // ADR 0080 Vag 4 PR-4 — transaktionell HTTP-provider via Resend (löser TD-101).
+            // Nyckel ENDAST via gitignored appsettings.Local.json (Email:ApiKey) → fail-LOUD
+            // om den saknas (ingen tyst no-op som ser ut att skicka). Resend = US-processor:
+            // prod-utskick till riktiga användare kräver DPA/SCC + security-auditor-sign-off
+            // (CTO 2026-06-24); dev = test-mode (skickar bara till kontoägarens egen e-post).
+            var apiKey = configuration[$"{EmailOptions.SectionName}:ApiKey"];
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException(
+                    "Email:Provider='Resend' kräver Email:ApiKey (gitignored appsettings.Local.json).");
+            }
+
+            // AddResend registrerar IResend som en IHttpClientFactory-typed client (transient).
+            services.AddResend(o => o.ApiToken = apiKey);
+            // Transient (EJ Singleton): en singleton-sender som fångar den transienta IResend
+            // vore en captive dependency som fryser HttpMessageHandler-rotationen.
+            services.AddTransient<IEmailSender, ResendEmailSender>();
+        }
         else
         {
             throw new InvalidOperationException(
-                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console'.");
+                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console' eller 'Resend'.");
         }
 
         return services;

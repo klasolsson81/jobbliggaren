@@ -73,11 +73,14 @@ public sealed partial class BackgroundMatchingJob(
             {
                 totalMatches += await ScanUserAsync(userId, now, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Per-user isolation (TD-25): one user's failure must not abort the batch. The
                 // watermark is NOT advanced on failure (one SaveChanges; a throw rolls back both
-                // the inserts and the advance) → the user is re-scanned cleanly next run.
+                // the inserts and the advance) → the user is re-scanned cleanly next run. A
+                // cancellation (OperationCanceledException) is NOT swallowed — it propagates so
+                // the host shutdown / cron-timeout stops the scan promptly (not mis-logged as a
+                // user failure).
                 LogUserFailed(logger, ex, userId);
             }
 

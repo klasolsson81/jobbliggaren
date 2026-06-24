@@ -66,6 +66,14 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenSnapshotWo
 // DisableConcurrentExecution-skydd mot Hangfire-retry-overlap).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.RetainPlatsbankenJobAdsWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ExpireJobAdsWorker>();
+// ADR 0080 Vag 4 PR-3 — den dagliga per-user matchnings-scannen. Wrappern DI-resolverar
+// inner-jobbet (BackgroundMatchingJob), så jobbet registreras explicit (paritet ExpireJobAds).
+// AddMatchingEngine ger IMatchScorer + IMatchProfileBuilder i Worker-SP — Worker anropar INTE
+// AddInfrastructure (HTTP-fri, ADR 0023), så dessa portar (registrerade där) saknas annars och
+// ValidateOnBuild=false (TD-103) skulle dölja gapet till Hangfire-invocation 03:20 UTC.
+builder.Services.AddMatchingEngine();
+builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>();
 // TD-13 C5 (ADR 0049 Beslut 4) — DisableConcurrentExecution-wrapper för
 // fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();

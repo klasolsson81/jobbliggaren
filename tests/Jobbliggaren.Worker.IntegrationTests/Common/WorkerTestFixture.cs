@@ -75,6 +75,10 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         // F4-10 Phase B: the deterministic QuestPDF CV renderer, so CvRenderEncryptionTests can
         // resolve ICvRenderer against the real DEK pipeline.
         services.AddCvRendering();
+        // ADR 0080 Vag 4 PR-3: the matching engine (IMatchScorer + IMatchProfileBuilder), so
+        // BackgroundMatchingJobIntegrationTests can resolve them (parity Worker/Program.cs, which
+        // calls AddMatchingEngine() — the Worker does not call AddInfrastructure).
+        services.AddMatchingEngine();
         services.AddSingleton<ICurrentUser, WorkerSystemUser>();
         services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();

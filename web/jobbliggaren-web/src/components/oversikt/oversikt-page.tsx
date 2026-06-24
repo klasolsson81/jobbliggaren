@@ -18,6 +18,8 @@ import {
   formatSwedishShortDate,
 } from "@/lib/oversikt/aggregations";
 import { OVERSIKT_MOCK } from "@/lib/oversikt/mock-data";
+import { OVERSIKT_MATCH_GRADES } from "@/lib/dto/match-count";
+import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { TodayCard } from "./today-card";
 import { NoticeList } from "./notice-list";
 import { Summary } from "./summary";
@@ -38,6 +40,14 @@ interface OversiktPageProps {
    * `activeCount` som HeaderStats renderar → ingen 28 vs 9 mismatch.
    */
   readonly landingStats: LandingStatsDto | null;
+  /**
+   * ADR 0079 STEG 6 — live match-count (Bra + Stark) för matchnings-notisen.
+   * `number` = backend-svar (`count`, kan vara 0 = honest nollstate). `null` =
+   * fetch:en degraderade (nätverk/auth/rate-limit) ⇒ notisen utelämnas helt
+   * (aldrig en mock-fallback). Notisen renderas bara när profilen har angett ett
+   * yrke (`hasStatedDesiredOccupation`); annars äger setup-nudgen slotten.
+   */
+  readonly matchCount: number | null;
 }
 
 /**
@@ -60,6 +70,7 @@ export function OversiktPage({
   recentSearches,
   resumes,
   landingStats,
+  matchCount,
 }: OversiktPageProps) {
   // Synchronous next-intl translator — keeps OversiktPage a non-async RSC.
   const t = useTranslations("oversikt");
@@ -165,11 +176,11 @@ export function OversiktPage({
     });
   }
 
-  // F4-12 PR-B (ADR 0076): setup-nudge ↔ mock-match-notis är ÖMSESIDIGT
-  // uteslutande och styrs av `hasStatedDesiredOccupation`. Du kan inte ha
-  // "annonser som matchar din profil" innan en profil finns — det vore
-  // ohederligt. Yrke angett → mock-match-notis. Ej angett → setup-nudge.
-  // Aldrig båda (undviker två motsägande "Matchning"-rader).
+  // F4-12 PR-B (ADR 0076): setup-nudge ↔ match-notis är ÖMSESIDIGT uteslutande
+  // och styrs av `hasStatedDesiredOccupation`. Du kan inte ha "annonser som
+  // matchar din profil" innan en profil finns — det vore ohederligt. Yrke
+  // angett → match-notis (LIVE count, STEG 6). Ej angett → setup-nudge. Aldrig
+  // båda (undviker två motsägande "Matchning"-rader).
   const hasStatedOccupation =
     profile.kind === "ok" && profile.data.hasStatedDesiredOccupation;
 
@@ -191,20 +202,45 @@ export function OversiktPage({
       href: "/installningar#matchning",
       time: "",
     });
-  } else {
+  } else if (matchCount !== null) {
+    // ADR 0079 STEG 6 — LIVE per-användar count (ersätter mock-143). `null` =
+    // fetch:en degraderade ⇒ notisen utelämnas helt (denna gren körs inte),
+    // aldrig mock-fallback. Annars renderas notisen för bägge talen:
+    //   count > 0  → "Det finns N jobb som matchar din profil."
+    //   count == 0 → honest nollstate ("inga jobb ... just nu") — länken kvar.
+    //
+    // Trust-invariant (load-bearing): länkens grad-set MÅSTE vara counten:s
+    // grad-set, annars ser användaren N i notisen men ett annat tal på /jobb.
+    // Länken byggs från OVERSIKT_MATCH_GRADES (= backend
+    // GetMyMatchCountQueryHandler.HeadlineGrades, [Good, Strong]) via det
+    // delade buildJobbHref-URL-kontraktet (upprepad ?matchGrades= enum-namn).
+    // Grad-NEUTRAL copy ("matchar din profil") — aldrig "Toppmatchningar"
+    // (counten är Fast-bandet, honest by design, ADR 0076 G3-OPT-A).
+    const matchHref = buildJobbHref({
+      q: "",
+      occupationGroup: [],
+      region: [],
+      municipality: [],
+      employmentType: [],
+      worktimeExtent: [],
+      matchGrades: OVERSIKT_MATCH_GRADES,
+      sortBy: DEFAULT_SORT_BY,
+    });
     infoNotices.push({
       id: `n-match-${dateSlug}`,
       kind: "info",
       label: t("notices.matchLabel"),
-      text: t.rich("notices.matchText", {
-        count: OVERSIKT_MOCK.matchCountThisWeek,
-        segment: OVERSIKT_MOCK.matchSegmentLabel,
-        b: (chunks) => <b>{chunks}</b>,
-        em: (chunks) => <em>{chunks}</em>,
-      }),
+      text:
+        matchCount > 0
+          ? t.rich("notices.matchText", {
+              count: matchCount,
+              b: (chunks) => <b>{chunks}</b>,
+            })
+          : t("notices.matchTextZero"),
       cta: t("notices.matchCta"),
-      href: "/jobb",
-      // MOCK: BE-port saknas för matchning-uppdaterings-stämpel
+      href: matchHref,
+      // MOCK: BE-port saknas för matchning-uppdaterings-stämpel (STEG 6
+      // follow-up). Counten är live; tidsstämpeln förblir mock så länge.
       time: t("notices.timeToday"),
     });
   }

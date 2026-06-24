@@ -134,6 +134,17 @@ public sealed class AccountHardDeleter(
             .Where(s => s.JobSeekerId == jsId)
             .ToListAsync(cancellationToken);
 
+        // ADR 0080 Vag 4 (Beslut 1) — UserJobAdMatch är ett FK-löst by-identity-aggregat
+        // (keyed by UserId, ADR 0058/0059 soft-reference) → måste raderas explicit i Art.
+        // 17-cascaden, annars orphan:as background-match-rader vid hard-delete. Wirat redan i
+        // PR-1 (defense-in-depth) trots att skrivvägen (Worker-scan) landar i PR-3 —
+        // utfästelsen i ADR 0080 ska aldrig kunna tappas. IgnoreQueryFilters tar även
+        // soft-deletade match-rader.
+        var userJobAdMatches = await db.UserJobAdMatches
+            .IgnoreQueryFilters()
+            .Where(m => m.UserId == userId)
+            .ToListAsync(cancellationToken);
+
         // Steg 2 a — Öppna explicit transaction (UoWBehavior är inte i pipelinen
         // för worker-jobb-anrop direkt mot porten).
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -150,6 +161,7 @@ public sealed class AccountHardDeleter(
             db.SavedSearches.RemoveRange(savedSearches);
             db.RecentJobSearches.RemoveRange(recentSearches);
             db.SavedJobAds.RemoveRange(savedJobAds);
+            db.UserJobAdMatches.RemoveRange(userJobAdMatches);
             db.JobSeekers.Remove(jobSeeker);
 
             // Steg 2 e2 — Crypto-erasure (TD-13 ADR 0049 Beslut 2 + C6,

@@ -14,7 +14,12 @@ interface SummaryProps {
    * så genuint 0 är osannolikt; vid fel ska användaren se saknad-state.
    */
   readonly activeJobAdsTotal: number | null;
-  readonly matchCountToday: number;
+  /**
+   * ADR 0080 Vag 4 PR-5 — antalet bakgrundsmatchningar NYA sedan senaste besök
+   * (live `GET /me/new-match-count`). `0` är ett honest svar (inget nytt) och
+   * renderas som "0"; aldrig en mock-siffra. Raden länkar till /matchningar.
+   */
+  readonly newMatchCount: number;
   readonly cvCount: number;
   readonly personalLettersCount: number;
   readonly lastUpdatedCvDate: string | null;
@@ -35,7 +40,7 @@ export function Summary({
   recentSearchesCount,
   lastSearchName,
   activeJobAdsTotal,
-  matchCountToday,
+  newMatchCount,
   cvCount,
   personalLettersCount,
   lastUpdatedCvDate,
@@ -95,10 +100,10 @@ export function Summary({
           href="/sokningar"
         />
         <SummaryRow
-          label={t("summary.rowNewMatchesToday")}
-          value={matchCountToday}
-          hint={t("summary.hintProfile")}
-          href="/jobb"
+          label={t("summary.rowNewMatches")}
+          value={newMatchCount}
+          hint={t("summary.hintSinceLastVisit")}
+          href="/matchningar"
         />
         <SummaryRow
           label={t("summary.rowActiveJobAdsTotal")}

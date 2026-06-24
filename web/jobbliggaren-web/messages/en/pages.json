@@ -125,6 +125,17 @@
     "lede": "Listings you have saved to return to later. Open a listing to see details or remove the bookmark.",
     "loadErrorTitle": "Could not load saved listings"
   },
+  "matchningar": {
+    "title": "My matches",
+    "lede": "Job ads that background matching has found for you, most recent first. Open an ad to read all of it.",
+    "listLabel": "Your matches",
+    "newBadge": "New",
+    "newBadgeAriaLabel": "New match since your last visit",
+    "matchedAt": "Matched",
+    "emptyTitle": "You have no matches yet",
+    "emptyBody": "Background matching runs every night for you once you have specified which occupations you are looking for. As soon as a job ad matches your profile it appears here.",
+    "loadErrorTitle": "Could not load your matches"
+  },
   "installningar": {
     "title": "Settings",
     "lede": "Manage your account details and settings.",

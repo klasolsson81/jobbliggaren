@@ -35,7 +35,8 @@ const errored: ApiResult<never> = { kind: "error" };
 
 function renderOversikt(
   hasStatedDesiredOccupation: boolean,
-  matchCount: number | null = 42
+  matchCount: number | null = 42,
+  newMatchCount = 0
 ) {
   const profile: ApiResult<JobSeekerProfileDto> = {
     kind: "ok",
@@ -52,6 +53,7 @@ function renderOversikt(
       resumes={errored}
       landingStats={null}
       matchCount={matchCount}
+      newMatchCount={newMatchCount}
     />
   );
 }
@@ -147,5 +149,32 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     expect(
       screen.queryByRole("link", { name: /Visa annonser/ })
     ).toBeNull();
+  });
+});
+
+describe("OversiktPage — Sammanfattnings-rad 'Nya matchningar' (ADR 0080 Vag 4)", () => {
+  it("renderar live newMatchCount och länkar raden till /matchningar", () => {
+    renderOversikt(true, 42, 7);
+
+    const row = screen.getByRole("link", { name: /Nya matchningar/ });
+    expect(row).toHaveAttribute("href", "/matchningar");
+    expect(row).toHaveTextContent("7");
+    // Inte längre länkad till /jobb och ingen "i dag"-etikett (mock-spår borta).
+    expect(row).not.toHaveAttribute("href", "/jobb");
+    expect(row).not.toHaveTextContent(/i dag/i);
+  });
+
+  it("newMatchCount === 0 (honest fallback) → raden visar 0, länken kvar", () => {
+    renderOversikt(true, 42, 0);
+
+    const row = screen.getByRole("link", { name: /Nya matchningar/ });
+    expect(row).toHaveAttribute("href", "/matchningar");
+    expect(row).toHaveTextContent("0");
+  });
+
+  it("mock-28 ('matchCountToday') yttas inte längre i Sammanfattningen", () => {
+    const { container } = renderOversikt(true, 42, 7);
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("28");
   });
 });

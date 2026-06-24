@@ -125,6 +125,17 @@
     "lede": "Annonser du har sparat för att kunna återvända till. Öppna annonsen för att se detaljer eller ta bort bokmärket.",
     "loadErrorTitle": "Kunde inte ladda sparade annonser"
   },
+  "matchningar": {
+    "title": "Mina matchningar",
+    "lede": "Annonser som bakgrundsmatchningen har hittat åt dig, nyast först. Öppna en annons för att läsa hela den.",
+    "listLabel": "Dina matchningar",
+    "newBadge": "Ny",
+    "newBadgeAriaLabel": "Ny matchning sedan ditt senaste besök",
+    "matchedAt": "Matchad",
+    "emptyTitle": "Du har inga matchningar än",
+    "emptyBody": "Bakgrundsmatchningen körs varje natt för dig som har angett vilka yrken du söker inom. Så snart en annons matchar din profil dyker den upp här.",
+    "loadErrorTitle": "Kunde inte ladda dina matchningar"
+  },
   "installningar": {
     "title": "Inställningar",
     "lede": "Hantera dina kontouppgifter och inställningar.",

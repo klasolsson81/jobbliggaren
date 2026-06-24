@@ -101,7 +101,10 @@ export function Summary({
         />
         <SummaryRow
           label={t("summary.rowNewMatches")}
-          value={newMatchCount}
+          // Svensk tusenavgränsning (non-breaking space, CLAUDE.md §10) — paritet
+          // med rowActiveJobAdsTotal nedan. Utan den renderades "1234" i stället
+          // för "1 234" (rendered-verify 2026-06-24).
+          value={formatThousands(newMatchCount)}
           hint={t("summary.hintSinceLastVisit")}
           href="/matchningar"
         />

@@ -174,6 +174,22 @@ describe("OversiktPage — Sammanfattnings-rad 'Nya matchningar' (ADR 0080 Vag 4
     expect(row).toHaveTextContent("0");
   });
 
+  it("4-siffrig newMatchCount → svensk tusenavgränsning '1 234' (inte '1234')", () => {
+    // Regression: rendered-verify 2026-06-24 fann att raden saknade
+    // tusenavgränsaren (renderade "1234") medan syskon-raden formaterade.
+    renderOversikt(true, 42, 1234);
+
+    const row = screen.getByRole("link", { name: /Nya matchningar/ });
+    // `not.toHaveTextContent("1234")` är den bitande assertionen (gammal kod
+    // renderade "1234" → failar).
+    expect(row).not.toHaveTextContent("1234");
+    // Lås separator-TYPEN, inte bara grupperingen: jest-dom normaliserar
+    // whitespace i toHaveTextContent (U+00A0 → " "), så assertera rått
+    // textContent direkt mot en non-breaking space (CLAUDE.md §10).
+    const value = row.querySelector(".jp-summary__row__value");
+    expect(value?.textContent).toBe("1 234");
+  });
+
   it("mock-28 ('matchCountToday') yttas inte längre i Sammanfattningen", () => {
     const { container } = renderOversikt(true, 42, 7);
     const text = container.textContent ?? "";

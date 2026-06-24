@@ -5,12 +5,19 @@ public sealed class EmailOptions
     public const string SectionName = "Email";
 
     /// <summary>
-    /// Provider-val: "Console" (loggar email till applikationslogg, dev/MVP) —
-    /// enda providern efter ADR 0066 (AWS SES borttaget). Switch-mekanismen
-    /// behålls för framtida transaktionell mejlväg (SMTP/HTTP-API) i Hetzner-
-    /// fasen; okänt värde fail-stoppas i DI.
+    /// Provider-val: "Console" (loggar email till applikationslogg, dev/MVP) eller
+    /// "Resend" (transaktionell HTTP-provider, ADR 0080 Vag 4 PR-4 — löser TD-101).
+    /// Okänt värde fail-stoppas i DI. Default "Console".
     /// </summary>
     public string Provider { get; init; } = "Console";
+
+    /// <summary>
+    /// API-nyckel för HTTP-providern (Resend). ENDAST via gitignored
+    /// <c>appsettings.Local.json</c> / managed secret — aldrig i committad config.
+    /// Krävs när <see cref="Provider"/> = "Resend"; DI fail-stoppar om den saknas
+    /// (ingen tyst no-op som ser ut att skicka).
+    /// </summary>
+    public string ApiKey { get; init; } = string.Empty;
 
     public string FromAddress { get; init; } = "no-reply@jobbliggaren.se";
 

@@ -45,6 +45,11 @@
          to Infrastructure — the QuestPDF SDK types never cross the Application port surface
          (ICvRenderer is BCL-only; NetArchTest layer guard). -->
     <PackageReference Include="QuestPDF" />
+    <!-- ADR 0080 Vag 4 PR-4 (BUILD §3.1, Klas-GO 2026-06-24) — transaktionell e-post via
+         Resend (löser TD-101 dev-vägen). Version pinnad i Directory.Packages.props. SDK:n
+         (IResend/EmailMessage) är confined till Infrastructure — korsar aldrig IEmailSender-
+         porten (BCL-only; NetArchTest layer guard), paritet Refit/PdfPig/QuestPDF. MIT. -->
+    <PackageReference Include="Resend" />
   </ItemGroup>
 
   <PropertyGroup>

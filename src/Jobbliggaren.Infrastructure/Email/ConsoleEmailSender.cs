@@ -41,6 +41,16 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
+    public Task SendMatchNotificationEmailAsync(
+        string toEmail,
+        MatchNotificationEmail content,
+        CancellationToken cancellationToken)
+    {
+        var body = EmailTemplates.MatchNotification(_options.BaseUrl, content);
+        LogEmail(toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
     [LoggerMessage(3001, LogLevel.Information,
         "[ConsoleEmailSender] To={To} Subject={Subject}\n---\n{Body}\n---")]
     private partial void LogEmail(string to, string subject, string body);

@@ -170,5 +170,13 @@
          native net8.0 asset → net10.0 forward-compat. Klas-chosen version (deviates from the
          earlier 2026.2.x baseline; BUILD §3.1 updated in the same change). -->
     <PackageVersion Include="QuestPDF" Version="2026.6.0" />
+    <!-- ADR 0080 Vag 4 PR-4 (BUILD §3.1, Klas-GO 2026-06-24) — transaktionell e-post
+         via Resend (löser TD-101 dev-vägen). Officiella .NET-SDK:n; PackageReference lever
+         ENDAST i Jobbliggaren.Infrastructure (Clean Arch — IResend/EmailMessage korsar aldrig
+         IEmailSender-porten, paritet Refit/PdfPig/QuestPDF). License = MIT (NON-COPYLEFT vs
+         ADR 0050). Wrappar IHttpClientFactory + absorberar auth-header/User-Agent (Resend
+         403:ar utan)/Idempotency-Key. Web-verifierad 2026-06-24 (nuget.org /
+         github.com/resend/resend-dotnet): 0.5.1 = senaste stabila. -->
+    <PackageVersion Include="Resend" Version="0.5.1" />
   </ItemGroup>
 </Project>

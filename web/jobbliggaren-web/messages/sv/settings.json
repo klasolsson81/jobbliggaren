@@ -28,14 +28,14 @@
   },
   "backgroundMatch": {
     "title": "Matchningsnotiser",
-    "intro": "När det här är på matchar vi nya annonser mot din profil varje natt. Toppmatchningar visas direkt i appen. Starka matchningar samlas i en sammanfattning som du får enligt vald takt. Bra matchningar visas i din matchningslista utan notis. Du kan när som helst stänga av detta.",
+    "intro": "När det här är på matchar vi nya annonser mot din profil varje natt. Toppmatchningar skickar vi direkt via e-post. Starka matchningar samlas i en sammanfattning som du får via e-post enligt vald takt. Bra matchningar visas i din matchningslista utan e-post. Du kan när som helst stänga av detta.",
     "toggleLabel": "Matcha nya annonser åt mig",
-    "toggleDescription": "Avstängt som standard. Slår du på det samtycker du till att vi matchar nya annonser mot din profil och visar notiser i appen.",
+    "toggleDescription": "Avstängt som standard. Slår du på det samtycker du till att vi matchar nya annonser mot din profil och skickar notiser via e-post.",
     "cadenceLabel": "Hur ofta vill du få sammanfattningen",
     "cadenceDaily": "Dagligen",
     "cadenceWeekly": "Veckovis",
-    "cadenceHint": "Gäller sammanfattningen av starka matchningar. Toppmatchningar visas alltid direkt.",
-    "cadenceHintDisabled": "Slå på matchningsnotiser för att välja hur ofta sammanfattningen visas.",
+    "cadenceHint": "Gäller e-postsammanfattningen av starka matchningar. Toppmatchningar skickas alltid direkt via e-post.",
+    "cadenceHintDisabled": "Slå på matchningsnotiser för att välja hur ofta e-postsammanfattningen skickas.",
     "savedAt": "Sparat {time}",
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",

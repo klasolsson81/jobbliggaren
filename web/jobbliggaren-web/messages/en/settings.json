@@ -28,14 +28,14 @@
   },
   "backgroundMatch": {
     "title": "Match notifications",
-    "intro": "When this is on, we match new job ads against your profile every night. Top matches show up in the app right away. Strong matches are collected into a summary you receive at the chosen rate. Good matches appear in your match list without a notification. You can turn this off at any time.",
+    "intro": "When this is on, we match new job ads against your profile every night. Top matches are emailed to you right away. Strong matches are collected into a summary you receive by email at the chosen rate. Good matches appear in your match list without email. You can turn this off at any time.",
     "toggleLabel": "Match new job ads for me",
-    "toggleDescription": "Off by default. Turning it on means you consent to us matching new job ads against your profile and showing notifications in the app.",
+    "toggleDescription": "Off by default. Turning it on means you consent to us matching new job ads against your profile and sending notifications by email.",
     "cadenceLabel": "How often to receive the summary",
     "cadenceDaily": "Daily",
     "cadenceWeekly": "Weekly",
-    "cadenceHint": "Applies to the summary of strong matches. Top matches always show up right away.",
-    "cadenceHintDisabled": "Turn on match notifications to choose how often the summary is shown.",
+    "cadenceHint": "Applies to the email summary of strong matches. Top matches are always emailed right away.",
+    "cadenceHintDisabled": "Turn on match notifications to choose how often the email summary is sent.",
     "savedAt": "Saved {time}",
     "errors": {
       "notLoggedIn": "You are not signed in.",

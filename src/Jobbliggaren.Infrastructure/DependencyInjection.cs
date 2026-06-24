@@ -186,26 +186,12 @@ public static class DependencyInjection
             Jobbliggaren.Application.Matching.Abstractions.ISkillResolver,
             Jobbliggaren.Infrastructure.Taxonomy.SkillResolver>();
 
-        // Fas 4 STEG 5 (F4-5, ADR 0074 row U5a) — deterministic "Fast mode" match
-        // scorer. Scores one job ad against a caller-supplied CandidateMatchProfile
-        // over SSYK-4 overlap + stemmed title similarity + region/employment fit.
-        // Scoped (touches AppDbContext via the shadow-column read), unlike the
-        // singleton-cached deriver/extractor. Consumes ITextAnalyzer (AddTextAnalysis)
-        // for the title dimension. NO AI/LLM. DI in the same commit as the port-impl
-        // (feedback_di_with_handlers_same_commit).
-        services.AddScoped<
-            Jobbliggaren.Application.Matching.Abstractions.IMatchScorer,
-            Jobbliggaren.Infrastructure.Matching.MatchScorer>();
-
-        // Fas 4 STEG 12/13 (ADR 0076; senior-cto-advisor 2026-06-19 Decision B = B2) —
-        // the SSOT preference→CandidateMatchProfile mapper, shared by the explicit
-        // BuildMatchProfileFromPreferences query handler AND the F4-13 page-scoped
-        // match-tag batch handler (DRY, no handler-invokes-handler). Lives in the
-        // Application layer (touches only IAppDbContext + ICurrentUser — no Infra secret),
-        // registered here with the other matching ports. Scoped (touches AppDbContext).
-        services.AddScoped<
-            Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder,
-            Jobbliggaren.Application.Matching.Profiles.MatchProfileBuilder>();
+        // The deterministic matching engine (scorer + profile builder). Own module
+        // (parity AddCvReview) so the HTTP-free Worker AND the Worker test fixture can
+        // register the matching ports WITHOUT pulling in the full AddInfrastructure /
+        // job-source HTTP wiring (ADR 0023) — the BackgroundMatchingJob (ADR 0080 Vag 4)
+        // needs IMatchScorer + IMatchProfileBuilder in the Worker SP.
+        services.AddMatchingEngine();
 
         // Fas 4 STEG 7/9 — the CV knowledge bank + the deterministic review engine that
         // consumes it (own module so both hosts AND the Worker test fixture register them
@@ -421,6 +407,26 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.ICvReviewEngine,
             Jobbliggaren.Infrastructure.Resumes.Review.CvReviewEngine>();
+        return services;
+    }
+
+    /// <summary>
+    /// The deterministic matching engine: the Fast/Full match scorer (F4-5/F4-6, ADR 0076 —
+    /// <c>internal</c> in Infrastructure, so it can only be registered from this assembly) and
+    /// the SSOT preference→profile mapper (ADR 0076; ADR 0079 STEG 3 PR-D — DEK-free). Own module
+    /// (parity <see cref="AddCvReview"/>) so every host AND the Worker (HTTP-free, ADR 0023) +
+    /// its test fixture register the matching ports independently of the job-source HTTP wiring.
+    /// The <c>BackgroundMatchingJob</c> (ADR 0080 Vag 4 PR-3) consumes both ports in the Worker.
+    /// Scoped (both touch <c>AppDbContext</c>). NO AI/LLM.
+    /// </summary>
+    public static IServiceCollection AddMatchingEngine(this IServiceCollection services)
+    {
+        services.AddScoped<
+            Jobbliggaren.Application.Matching.Abstractions.IMatchScorer,
+            Jobbliggaren.Infrastructure.Matching.MatchScorer>();
+        services.AddScoped<
+            Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder,
+            Jobbliggaren.Application.Matching.Profiles.MatchProfileBuilder>();
         return services;
     }
 

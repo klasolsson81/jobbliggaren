@@ -29,4 +29,16 @@ public interface IEmailSender
     Task SendWaitlistConfirmationAsync(
         string toEmail,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Skickar en bakgrundsmatchnings-notis (ADR 0080 Vag 4 PR-4). <paramref name="content"/>
+    /// är icke-PII (jobbtitlar + företag + grad-labels, aldrig en siffra/CV-data); mottagar-
+    /// adressen bärs separat i <paramref name="toEmail"/>. Mallen lägger en OBLIGATORISK
+    /// inställnings-/avregistreringslänk (GDPR Art. 7(3)). Consent-grindas av anroparen
+    /// (opt-in OFF default, withdrawal stoppar omedelbart — ADR 0080 Beslut 5).
+    /// </summary>
+    Task SendMatchNotificationEmailAsync(
+        string toEmail,
+        MatchNotificationEmail content,
+        CancellationToken cancellationToken);
 }

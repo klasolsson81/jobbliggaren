@@ -112,7 +112,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     expect(screen.queryByLabelText(/Telefon/i)).not.toBeInTheDocument();
   });
 
-  it("Visning-kortet har Tema-segment + Språk-segment med English aktiverat", () => {
+  it("Visning-kortet har Språk-segment (English aktiverat); Tema-segment borttaget (MVP: ett färgläge)", () => {
     render(
       <SettingsForm
         initialProfile={baseProfile}
@@ -121,8 +121,10 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialSkillLabels={[]}
       />,
     );
-    const themeGroup = screen.getByRole("radiogroup", { name: "Tema" });
-    expect(themeGroup).toBeInTheDocument();
+    // MVP (Klas 2026-06-24): dark-mode "släckt" → Tema-segmentet är borttaget.
+    expect(
+      screen.queryByRole("radiogroup", { name: "Tema" }),
+    ).not.toBeInTheDocument();
     const langGroup = screen.getByRole("radiogroup", { name: "Språk" });
     expect(langGroup).toBeInTheDocument();
     // English är nu live (next-intl wirad, ADR 0078) — inte längre disabled.

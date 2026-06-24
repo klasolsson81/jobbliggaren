@@ -2,10 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { setLocaleAction } from "@/i18n/set-locale-action";
-import { useTheme } from "@/components/theme-provider";
 import {
   makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
@@ -75,7 +73,6 @@ export function SettingsForm({
   const ts = useTranslations("settings");
   const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [language, setLanguage] = useState<LanguageValue>(
     initialProfile.language === "en" ? "en" : "sv",
@@ -197,16 +194,12 @@ export function SettingsForm({
       </div>
 
       <div className="jp-settings-grid__col">
+        {/* MVP: tema-segmentet borttaget — appen har bara ETT färgläge (light).
+            Dark-mode behålls dormant i koden (theme-provider DARK_MODE_ENABLED). */}
         <DisplayCard
-          theme={theme === "dark" ? "dark" : "light"}
-          onThemeChange={setTheme}
           language={language}
           onLanguageChange={onLanguageChange}
           isPending={isPending}
-          themeOptions={[
-            { value: "light", label: ts("display.themeLight"), icon: <Sun size={16} /> },
-            { value: "dark", label: ts("display.themeDark"), icon: <Moon size={16} /> },
-          ]}
         />
         <NotificationsCard
           emailNotifications={emailNotifications}

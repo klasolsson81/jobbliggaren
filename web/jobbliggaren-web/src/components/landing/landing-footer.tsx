@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { LandingLangToggle } from "./lang-toggle";
 
 /**
- * LandingFooter — länkrad + theme + lang toggles.
+ * LandingFooter — länkrad + lang-toggle.
  *
- * HANDOVER §7.1 punkt 4 + §0 punkt 7: theme- och lang-togglarna är medvetet
- * placerade här (och i `/installningar`) — INTE i header. Footer är RSC-
- * komposit med två client-islands (ThemeToggle, LandingLangToggle).
+ * HANDOVER §7.1 punkt 4 + §0 punkt 7: lang-toggeln är medvetet placerad här
+ * (och i `/installningar`) — INTE i header. Footer är RSC-komposit med en
+ * client-island (LandingLangToggle). MVP (Klas 2026-06-24): theme-toggeln
+ * borttagen — ett färgläge (light); dark behålls dormant i koden.
  *
  * Länkar är placeholders: målroutes för Användarvillkor/Integritet/Cookies/
  * Tillgänglighet/Kontakt/Om är inte byggda än. Pekar på `/` med
@@ -45,8 +45,8 @@ export function LandingFooter() {
             </span>
           ))}
         </nav>
+        {/* MVP: ThemeToggle borttaget — ett färgläge (light). Dark dormant i koden. */}
         <div className="jp-land-foot__settings">
-          <ThemeToggle />
           <LandingLangToggle />
         </div>
       </div>

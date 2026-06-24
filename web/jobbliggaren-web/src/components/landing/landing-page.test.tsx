@@ -17,16 +17,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-// ThemeToggle använder useTheme som kräver ThemeProvider-context. I prod
-// wrappar app/layout.tsx hela appen; i jsdom-tester mockas den till en
-// trivial stub så landing-smoke kan rendera utan provider-setup.
-vi.mock("@/components/theme-toggle", () => ({
-  ThemeToggle: () => (
-    <button type="button" aria-label="Byt tema">
-      tema
-    </button>
-  ),
-}));
+// MVP (Klas 2026-06-24): ThemeToggle borttagen ur landing-footern (ett
+// färgläge). Ingen theme-toggle-mock behövs längre.
 
 // ADR 0064 — landing-stats fetch:as server-side i LandingPage. I jsdom-test
 // finns ingen backend; mocka helpern så stats levereras synkront. Innehåll

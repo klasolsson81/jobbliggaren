@@ -45,11 +45,25 @@ if ($dest -eq $repoRoot) { throw "Refusing to sync onto the main checkout itself
 #      (skip-with-warning, so one stray file never aborts a legit dir sync).
 # Deliberately PRECISE (extensions / known names), NOT broad words like "secret",
 # so a legitimate doc such as "...-secret-sweep.md" still syncs.
-$secretPatterns = @('appsettings.local', '.env.local', '.pem', '.pfx', '.key', '.tfstate', 'id_rsa')
+#
+# Two match modes (a bare .Contains for the extensions over-matched — e.g. a doc
+# named "...keynote.md"/"...keystore.md" contains ".key", and "...api-key-rotation.md"
+# is a near-miss that read as risky):
+#  - NAME FRAGMENTS: matched as substrings (they ARE distinctive secret-file names).
+#  - EXTENSIONS: matched only as a real extension SEGMENT — the token at end-of-path,
+#    before a compound extension (".tfstate.backup"), or before a path separator —
+#    so it never fires inside a longer word (".keynote" no longer matches ".key").
+$secretNameFragments = @('appsettings.local', '.env.local', 'id_rsa')
+$secretExtensions = @('.pem', '.pfx', '.key', '.tfstate')
 
 function Test-SecretLike([string] $path) {
     $p = $path.ToLowerInvariant()
-    foreach ($m in $secretPatterns) { if ($p.Contains($m)) { return $true } }
+    foreach ($m in $secretNameFragments) { if ($p.Contains($m)) { return $true } }
+    foreach ($ext in $secretExtensions) {
+        # extension-anchored: <ext> followed by end-of-string, a '.' (compound ext
+        # like '.tfstate.backup'), or a path separator — never embedded in a word.
+        if ($p -match ([regex]::Escape($ext) + '($|[.\\/])')) { return $true }
+    }
     return $false
 }
 

@@ -37,7 +37,7 @@
     "matchLabel": "Matching",
     "setupText": "You have not specified which occupations you are looking for. Set this up to see how well job ads match your profile.",
     "setupCta": "Set up matching",
-    "matchText": "There are <b>{count}</b> job ads that match your profile.",
+    "matchText": "There are <b>{count, number}</b> job ads that match your profile.",
     "matchTextZero": "There are no job ads that match your profile right now.",
     "matchCta": "View job ads",
     "interviewLabel": "Interview",

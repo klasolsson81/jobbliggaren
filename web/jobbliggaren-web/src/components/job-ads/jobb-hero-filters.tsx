@@ -312,8 +312,9 @@ export function JobbHeroFilters({
   const showResultsLabel =
     totalCount !== null
       ? t("heroFilters.showResults", {
+          // count drives both the plural form and the locale-aware number
+          // (ICU {count, number}) in the catalog — no pre-formatting here.
           count: totalCount,
-          formattedCount: totalCount.toLocaleString("sv-SE"),
         })
       : t("heroFilters.showResultsEmpty");
   const showResultsFooter = (

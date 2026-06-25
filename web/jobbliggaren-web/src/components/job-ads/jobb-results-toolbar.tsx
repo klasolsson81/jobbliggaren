@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useOptimistic, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { formatNumber } from "@/lib/i18n/format";
 import {
   Briefcase,
   Clock,
@@ -138,6 +139,7 @@ export function JobbResultsToolbar({
 }: JobbResultsToolbarProps) {
   const tEnum = useTranslations("jobads.enums");
   const t = useTranslations("jobads.ui");
+  const format = useFormatter();
   const router = useRouter();
   const [, startTransition] = useTransition();
 
@@ -277,7 +279,7 @@ export function JobbResultsToolbar({
             t("toolbar.noHits")
           ) : (
             <>
-              <b>{totalCount.toLocaleString("sv-SE")}</b>{" "}
+              <b>{formatNumber(format, totalCount)}</b>{" "}
               {t("toolbar.hits", { count: totalCount })}
             </>
           )}

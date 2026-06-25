@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { AddNoteForm } from "./add-note-form";
-import { formatSvDate } from "@/lib/applications/status";
+import { formatDate } from "@/lib/i18n/format";
 import type { NoteDto } from "@/lib/types/applications";
 
 interface NotesSectionProps {
@@ -111,9 +111,9 @@ interface NoteRowProps {
 }
 
 function NoteRow({ note, expanded, onToggle }: NoteRowProps) {
+  const format = useFormatter();
   const createdAtLabel =
-    formatSvDate(note.createdAt) ??
-    new Date(note.createdAt).toLocaleDateString("sv-SE");
+    formatDate(format, note.createdAt) ?? "";
   const firstLine = note.content?.split(/\r?\n/)[0] ?? "";
 
   return (

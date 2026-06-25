@@ -94,6 +94,13 @@ builder.Services.AddOptions<Jobbliggaren.Application.Matching.Jobs.DigestDispatc
     .ValidateOnStart();
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.DigestDispatchWorker>();
+// TD-114 (ADR 0080 Vag 4) — stranded-Queued match reaper. Marks a UserJobAdMatch left
+// Queued past the threshold as terminal Failed (no re-send). Needs only IAppDbContext +
+// IDateTimeProvider (no IEmailSender / matching engine — it never sends). Wrapper + job in
+// the same commit (TD-103: Worker ValidateOnBuild=false → a missing dep fails first at
+// Hangfire-invocation; verified manually in dev).
+builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper.StrandedMatchReaperJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.StrandedMatchReaperWorker>();
 // TD-13 C5 (ADR 0049 Beslut 4) — DisableConcurrentExecution-wrapper för
 // fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();

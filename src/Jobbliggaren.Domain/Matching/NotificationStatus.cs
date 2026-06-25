@@ -23,4 +23,15 @@ public enum NotificationStatus
 
     /// <summary>The notification (direct or digest) was delivered.</summary>
     Sent,
+
+    /// <summary>
+    /// TD-114 (2026-06-25) — terminal failure state. The dispatch step claimed the row
+    /// (<see cref="Queued"/>) but delivery never completed (a Resend send failed, or the
+    /// account had no email); the row stranded with no recovery. The stranded-match reaper
+    /// (a scheduled Worker job) moves a long-Queued row here so the strand is OBSERVABLE and
+    /// terminal — it never re-sends (honouring the "never double-email &gt; never miss" stance)
+    /// and is safe against the non-dev NullEmailSender (no send is attempted). Excluded from
+    /// every dispatch/read query exactly like <see cref="Sent"/> (operational-only).
+    /// </summary>
+    Failed,
 }

@@ -130,6 +130,25 @@ public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
     }
 
     /// <summary>
+    /// TD-114 — Queued → Failed (terminal). The stranded-match reaper calls this on a row that
+    /// sat <see cref="NotificationStatus.Queued"/> past the strand threshold (a send that never
+    /// completed). Guarded: only a Queued match can fail — a Pending row was never claimed and a
+    /// Sent row already delivered, so neither is reapable. It NEVER re-sends (the "never
+    /// double-email" stance) and stamps no timestamp (no new column — the reaper logs the reap;
+    /// aging is by <see cref="CreatedAt"/>). Terminal: there is no transition out of Failed.
+    /// </summary>
+    public Result MarkFailed()
+    {
+        if (NotificationStatus != NotificationStatus.Queued)
+            return Result.Failure(DomainError.Validation(
+                "UserJobAdMatch.NotQueued",
+                "Endast en köad match kan markeras som misslyckad."));
+
+        NotificationStatus = NotificationStatus.Failed;
+        return Result.Success();
+    }
+
+    /// <summary>
     /// Soft-deletes the match. Joins the Art.17 hard-delete cascade by UserId
     /// (<c>AccountHardDeleter</c> RemoveRanges these rows), and the handler-managed cascade
     /// when the JobAd expires. Idempotent.

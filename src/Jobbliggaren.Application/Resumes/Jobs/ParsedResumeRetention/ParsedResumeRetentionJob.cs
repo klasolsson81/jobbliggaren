@@ -23,12 +23,14 @@ namespace Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention;
 /// <b>Mechanism (senior-cto-advisor 2026-06-25): set-based <see cref="EntityFrameworkQueryableExtensions"/>
 /// <c>ExecuteDeleteAsync</c>, DEK-FREE.</b> The <see cref="ParsedResume"/> aggregate carries CV-PII
 /// encrypted ON ITSELF (<c>raw_text</c> Form A + <c>parsed_content_enc</c> Form B), so MATERIALISING
-/// it fires the field-decryption materialization interceptor → throws in this DEK-free cross-user
-/// Worker scope (and would pull PII into memory the delete never reads — PII-minimisation, §5). A
-/// pure DELETE has no field to decrypt, so <c>ExecuteDeleteAsync</c> is the correct DEK-free
-/// mechanism (parity <c>AccountHardDeleter</c>'s set-based crypto-erasure delete). Three per-status
-/// calls give a PII-free per-arm count for the log. <c>IgnoreQueryFilters()</c> reaches the
-/// soft-deleted Discarded/Promoted rows (the default <c>DeletedAt == null</c> filter hides them).
+/// it engages the field-decryption materialization interceptor — in an authenticated-owner scope
+/// without a warmed DEK that throws, and in this system (no-owner, cross-user) Worker scope it
+/// passes through leaving the ciphertext unread; either way load-then-Remove would pull encrypted
+/// CV-PII into Worker memory the delete never needs (PII-minimisation, §5). A pure DELETE has no
+/// field to decrypt, so <c>ExecuteDeleteAsync</c> is the correct DEK-free mechanism (parity
+/// <c>AccountHardDeleter</c>'s set-based crypto-erasure delete). Three per-status calls give a
+/// PII-free per-arm count for the log. <c>IgnoreQueryFilters()</c> reaches the soft-deleted
+/// Discarded/Promoted rows (the default <c>DeletedAt == null</c> filter hides them).
 /// </para>
 /// <para>
 /// <b>Idempotency is the concurrency-safety contract</b> (no xmin guard — a delete-by-predicate has
@@ -59,19 +61,22 @@ public sealed partial class ParsedResumeRetentionJob(
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
-        var deletedCutoff = now.AddDays(-DiscardedRetentionDays);            // == PromotedRetentionDays
+        // Separate per-class cutoffs (even where the window is currently equal) so the arms stay
+        // correct if a window ever diverges — no silent coupling.
+        var discardedCutoff = now.AddDays(-DiscardedRetentionDays);
+        var promotedCutoff = now.AddDays(-PromotedRetentionDays);
         var pendingCutoff = now.AddDays(-AbandonedPendingReviewRetentionDays);
 
         // Discarded — soft-deleted (DeletedAt set) → IgnoreQueryFilters; aged by DeletedAt.
         var discarded = await db.ParsedResumes
             .IgnoreQueryFilters()
-            .Where(p => p.Status == ParsedResumeStatus.Discarded && p.DeletedAt < deletedCutoff)
+            .Where(p => p.Status == ParsedResumeStatus.Discarded && p.DeletedAt < discardedCutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
         // Promoted — soft-deleted at promotion; the canonical Resume holds the data, staging is redundant.
         var promotedExpired = await db.ParsedResumes
             .IgnoreQueryFilters()
-            .Where(p => p.Status == ParsedResumeStatus.Promoted && p.DeletedAt < deletedCutoff)
+            .Where(p => p.Status == ParsedResumeStatus.Promoted && p.DeletedAt < promotedCutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
         // Abandoned PendingReview — never soft-deleted (DeletedAt null); aged by CreatedAt.
@@ -82,7 +87,8 @@ public sealed partial class ParsedResumeRetentionJob(
                         && p.CreatedAt < pendingCutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        LogComplete(logger, discarded, promotedExpired, pendingReviewExpired, deletedCutoff, pendingCutoff);
+        // discardedCutoff == promotedCutoff today (both 30d) → one "DeletedAt <" cutoff in the log.
+        LogComplete(logger, discarded, promotedExpired, pendingReviewExpired, discardedCutoff, pendingCutoff);
     }
 
     // PII-free: integer counts + cutoffs only — never an id / job-seeker-id / file name (§5).

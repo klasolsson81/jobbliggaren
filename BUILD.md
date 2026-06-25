@@ -36,6 +36,7 @@
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
+| Transaktionell e-post | Resend | 0.5.x | MIT; officiella .NET-SDK:n, Infrastructure-confined (IResend/EmailMessage korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); bakgrundsmatchnings-notiser (ADR 0080 Vag 4 PR-4); wrappar IHttpClientFactory; dev = test-mode (`onboarding@resend.dev`); prod-utskick kräver DPA/SCC + security-auditor-sign-off |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |

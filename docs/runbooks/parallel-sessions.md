@@ -236,6 +236,36 @@ does not retrigger CodeQL on the main-push — run `gh workflow run codeql.yml
 --ref main` after a batch if needed (memory
 `project_automerge_suppresses_main_push_workflows`).
 
+### 8.1 Self-babysitting (mandatory when no cloud babysitter is running)
+
+If the cloud `/schedule` babysitter is NOT active, **every session babysits its OWN
+pushed PRs** until they merge — do not push-and-forget. With 2–4 sessions, `origin/main`
+advances constantly, so a freshly-pushed PR goes **BEHIND** within minutes and automerge
+will NOT merge a BEHIND PR. Before ending a turn, re-check your open PRs:
+
+```bash
+gh pr list --state open --json number,headRefName,mergeStateStatus \
+  --jq '.[] | "#\(.number) [\(.mergeStateStatus)] \(.headRefName)"'
+```
+
+- **`BEHIND`** → bring it up-to-base. **`git push --force[-with-lease]` is deny-listed**
+  (destructive-command guardrail = Klas's hand). The CC-allowed path is GitHub's
+  *Update branch* (merges base into the PR branch **remote-side**, no force-push;
+  collapsed on squash-merge so `main` stays linear):
+  ```bash
+  gh api -X PUT repos/klasolsson81/jobbliggaren/pulls/<nr>/update-branch
+  ```
+  (A local `git rebase origin/main` + `gh api PATCH .../git/refs` does NOT work — the
+  rebased objects aren't on the remote yet, so the ref-update 422s. Use `update-branch`.)
+- **`BLOCKED`** → up-to-base, waiting on required `ci` / review — leave it; automerge takes
+  it on green.
+- **`DIRTY` / conflict** → the update-branch merge hit a conflict; resolve on a branch + push.
+
+**Verify the issue actually closed on merge.** Automerge SQUASHES, and the squash commit
+title often drops the PR body's `Closes #NNN` keyword → the issue stays OPEN after the PR
+merges. After a PR merges, confirm its issue closed (`gh issue view <nr> --json state`);
+close it manually with a comment referencing the merged PR if not.
+
 ---
 
 ## 9. Backlog = GitHub Issues

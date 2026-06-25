@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Edit } from "lucide-react";
+import { formatDate } from "@/lib/i18n/format";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
 
 interface ResumeCardProps {
@@ -36,7 +37,8 @@ const MAX_VISIBLE_SKILLS = 5;
  */
 export function ResumeCard({ resume }: ResumeCardProps) {
   const t = useTranslations("resumes");
-  const updatedAt = new Date(resume.updatedAt).toLocaleDateString("sv-SE");
+  const format = useFormatter();
+  const updatedAt = formatDate(format, resume.updatedAt) ?? "";
   const languageLabel = resume.language === "En" ? "EN" : "SV";
 
   return (

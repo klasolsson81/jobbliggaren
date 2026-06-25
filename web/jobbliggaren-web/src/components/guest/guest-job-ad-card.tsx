@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { jobSourceLabel } from "@/lib/job-ads/status";
+import { formatDate } from "@/lib/i18n/format";
 import type { GuestMockJobAd } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5b 2026-05-24 — gäst-variant av JobAdCard. Länk pekar mot
@@ -9,28 +10,15 @@ import type { GuestMockJobAd } from "@/lib/guest/mock-data";
 // (delad med live, HANDOVER §5.3) men utan JobTags-island (mockdata
 // behöver inga NY/färskhet-tags som faller från BE).
 
-function formatPublishedAt(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString("sv-SE", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-}
-
-function formatExpires(iso: string | null): string | null {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString("sv-SE");
-}
-
 export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
-  // Synchronous next-intl translators — keeps this a non-async RSC.
-  // `t` bär enum-etiketten (jobSourceLabel), `tg` bär gäst-kortets copy.
+  // Synchronous next-intl translators + locale-medveten formatter — håller
+  // detta en non-async RSC. `t` bär enum-etiketten (jobSourceLabel), `tg` bär
+  // gäst-kortets copy.
   const t = useTranslations("jobads.enums");
   const tg = useTranslations("guest");
-  const publishedAt = formatPublishedAt(jobAd.publishedAtIso);
-  const expiresAt = formatExpires(jobAd.expiresAtIso);
+  const format = useFormatter();
+  const publishedAt = formatDate(format, jobAd.publishedAtIso) ?? "";
+  const expiresAt = formatDate(format, jobAd.expiresAtIso);
 
   return (
     <Link

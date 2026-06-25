@@ -28,9 +28,4 @@ public sealed class EmailOptions
     /// <c>{BaseUrl}/registrera?token={plaintext}</c>.
     /// </summary>
     public string BaseUrl { get; init; } = "http://localhost:3000";
-
-    /// <summary>
-    /// AWS-region för SES-klienten. Default eu-north-1 (Stockholm).
-    /// </summary>
-    public string AwsRegion { get; init; } = "eu-north-1";
 }

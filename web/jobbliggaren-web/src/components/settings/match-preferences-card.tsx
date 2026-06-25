@@ -6,7 +6,8 @@
 // en dialog-öppna-affordans. Inget av detta går i en Server Component.
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { formatTime } from "@/lib/i18n/format";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
@@ -94,6 +95,7 @@ export function MatchPreferencesCard({
   degraded,
 }: MatchPreferencesCardProps) {
   const t = useTranslations("settings");
+  const format = useFormatter();
   // Facet-rubriker och tom-state-texter per dimension (svenska via katalogen).
   const facetLabel: Record<Facet, string> = {
     occupations: t("matchPrefs.facetOccupations"),
@@ -437,10 +439,7 @@ export function MatchPreferencesCard({
           >
             {!isSaving && savedAt
               ? t("matchPrefs.savedAt", {
-                  time: savedAt.toLocaleTimeString("sv-SE", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
+                  time: formatTime(format, savedAt),
                 })
               : ""}
           </p>

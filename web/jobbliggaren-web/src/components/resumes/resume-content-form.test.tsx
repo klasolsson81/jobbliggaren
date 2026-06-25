@@ -82,7 +82,8 @@ describe("ResumeContentForm", () => {
     expect(call[0]).toBe(RESUME_ID);
     expect(call[1].personalInfo.fullName).toBe("Anna Andersson");
 
-    // Lock sv-SE 24h locale-format: "Sparat HH:MM:SS." (toLocaleTimeString sv-SE)
+    // Lock the 24h locale-aware time: "Sparat HH:MM." via the shared
+    // formatTime util (#214; locale-aware, hour12 pinned false — CLAUDE.md §10).
     const status = await screen.findByRole("status");
     expect(status).toHaveTextContent(/Sparat \d{2}:\d{2}/);
   });

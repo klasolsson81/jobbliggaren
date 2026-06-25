@@ -6,7 +6,8 @@
 // detta går i en Server Component.
 
 import { useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { formatTime } from "@/lib/i18n/format";
 import type { DigestCadence } from "@/lib/dto/me";
 import { updateNotificationConsentAction } from "@/lib/actions/me";
 import { ToggleRow } from "@/components/ui/toggle-row";
@@ -44,6 +45,7 @@ export function BackgroundMatchCard({
   initialCadence,
 }: BackgroundMatchCardProps) {
   const t = useTranslations("settings");
+  const format = useFormatter();
 
   // Optimistisk lokal state som reverteras vid fel — varje ändring sparas direkt.
   const [enabled, setEnabled] = useState<boolean>(initialEnabled);
@@ -136,10 +138,7 @@ export function BackgroundMatchCard({
           >
             {!isSaving && savedAt
               ? t("backgroundMatch.savedAt", {
-                  time: savedAt.toLocaleTimeString("sv-SE", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
+                  time: formatTime(format, savedAt),
                 })
               : ""}
           </p>

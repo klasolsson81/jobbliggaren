@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
+import { formatDate } from "@/lib/i18n/format";
 import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
 import { unsaveJobAdAction } from "@/lib/actions/saved-job-ads";
 
@@ -11,10 +12,6 @@ interface SavedJobAdRowProps {
   item: SavedJobAdDto;
   onUnsaved: (jobAdId: string) => void;
   onUnsaveFailed: (jobAdId: string, error: string) => void;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("sv-SE");
 }
 
 /**
@@ -32,8 +29,9 @@ export function SavedJobAdRow({
   onUnsaveFailed,
 }: SavedJobAdRowProps) {
   const t = useTranslations("jobads.saved");
+  const format = useFormatter();
   const [isPending, startTransition] = useTransition();
-  const savedAt = formatDate(item.savedAt);
+  const savedAt = formatDate(format, item.savedAt) ?? "";
 
   function handleUnsave() {
     startTransition(async () => {
@@ -93,12 +91,8 @@ export function SavedJobAdRow({
   }
 
   // JobAd finns — normal rad.
-  const publishedAt = item.jobAd.publishedAt
-    ? formatDate(item.jobAd.publishedAt)
-    : null;
-  const expiresAt = item.jobAd.expiresAt
-    ? formatDate(item.jobAd.expiresAt)
-    : null;
+  const publishedAt = formatDate(format, item.jobAd.publishedAt);
+  const expiresAt = formatDate(format, item.jobAd.expiresAt);
 
   return (
     <li>

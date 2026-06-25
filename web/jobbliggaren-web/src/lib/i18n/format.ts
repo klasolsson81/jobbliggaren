@@ -53,3 +53,20 @@ export function formatDate(
     year: "numeric",
   });
 }
+
+/**
+ * Locale-aware 24-hour clock time: "14:32" in both sv and en. A Swedish civic
+ * utility uses the 24h clock per CLAUDE.md §10 (no AM/PM), so `hour12` is pinned
+ * false — only the timezone-resolved value is locale/zone-aware, not the clock
+ * style. Unlike `formatDate` this takes a known-valid `Date` (a save-confirmation
+ * timestamp from `new Date()`), so it is non-nullable. Replaces the ad-hoc
+ * `toLocaleTimeString("sv-SE", { hour, minute })` call sites embedded in `t()`
+ * status messages.
+ */
+export function formatTime(format: JpFormatter, value: Date): string {
+  return format.dateTime(value, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}

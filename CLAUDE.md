@@ -113,7 +113,7 @@ signal available is a discipline miss.
 ## 4. TypeScript / Next.js standards
 
 - `strict: true`, no exceptions; `any` is **forbidden** — `unknown` + guards.
-  ESLint + Prettier via Husky. Functional components + hooks only.
+  ESLint via Husky (no Prettier on web). Functional components + hooks only.
 - Files: components `PascalCase.tsx` (one export); hooks `useCamelCase.ts`;
   types in `types.ts` per folder; tests co-located (`Button.test.tsx`).
 - Data: Server Components by default; `"use client"` only where interactivity
@@ -175,8 +175,8 @@ for authorization (use policies via `[Authorize(Policy = ...)]`).
   ai, infra, web; imperative; English (language policy §1).
 - **Review gates (ADR 0065):** plan design in chat → STOPP discipline at
   transitions → agent invocation (§9.2) with reports in the PR body → CI gate
-  (`ci` aggregate green; observe-only jobs don't block) → pre-push hooks
-  (gitleaks, dotnet format, lint-staged).
+  (`ci` aggregate green; observe-only jobs don't block) → pre-commit gates
+  (`dotnet format`, web ESLint + `tsc`) + pre-push gitleaks secret scan.
 - **Automerge (ADR 0065 Amendment 2026-06-07; autonomous flow 2026-06-25):** CC
   creates PRs and pushes without asking, and sets the `automerge` label on its
   own PRs (`gh pr edit <nr> --add-label automerge`); merge on green `ci`; Klas
@@ -309,8 +309,12 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
 
 ## 11. Tooling
 
-- Pre-commit (Husky + lint-staged): `*.cs` → `dotnet format`; `*.{ts,tsx,js,jsx}`
-  → eslint --fix + prettier; `*.{json,md,yaml,yml}` → prettier.
+- Pre-commit (Husky + a hand-rolled `git diff --cached` filter, not
+  lint-staged): staged `*.cs`/`*.csproj`/`*.props`/`*.targets`/`*.sln`/
+  `global.json` → `dotnet format --verify-no-changes` + Domain/Application/
+  Architecture unit tests; staged `web/jobbliggaren-web/` files → `pnpm lint`
+  (ESLint, no `--fix`) + `pnpm tsc --noEmit`. No Prettier; `json`/`md`/`yaml`
+  not auto-formatted.
 - `.editorconfig` + committed `.vscode/` settings/extensions.
 - Dev env: Docker Compose (`postgres`, `redis`, `seq`) — logging is console
   via MEL; no Serilog/Seq sink wired yet (full observability = TD-104,

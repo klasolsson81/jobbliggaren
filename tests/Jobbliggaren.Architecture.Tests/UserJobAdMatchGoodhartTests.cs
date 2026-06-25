@@ -32,11 +32,14 @@ public class UserJobAdMatchGoodhartTests
     ];
 
     // The naked-NAME shapes a magnitude would take even under a non-numeric CLR type (a
-    // string "Score", an enum "Rank"). This is ADR 0080 Beslut 7's exact 7-token list. The
-    // wire-side sibling MatchTagBatchLayerTests adds "Intensity" for ADR 0076's DTOs — a
-    // different ADR / source text — so the two lists are intentionally distinct until a shared
-    // Goodhart-name-guard constant is extracted (raised as a follow-up; the duplication is a
-    // known DRY drift, both tests guard correctly in the meantime).
+    // string "Score", an enum "Rank"). This is ADR 0080 Beslut 7's exact 7-token list (verbatim
+    // in docs/decisions/0080, with no "Intensity"). The wire-side sibling
+    // MatchTagBatchLayerTests.ForbiddenNumericName adds an 8th token "Intensity" as a DTO-surface
+    // hardening guard; that token is enumerated in NO ADR, so it is deliberately NOT applied here,
+    // because grafting an ADR-0076 wire-surface token onto the persisted aggregate would
+    // misattribute it to ADR 0080 (false provenance). The two sets are intentionally and
+    // PERMANENTLY distinct (two surfaces, two ADR-canonical sets; #224 resolved Variant C, not
+    // pending unification). DRY is keyed on the knowledge piece, not on look-alike regex text.
     private static readonly Regex ForbiddenScoreName =
         new(@"Score|Value|Total|Percent|SortKey|Rank|Points",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);

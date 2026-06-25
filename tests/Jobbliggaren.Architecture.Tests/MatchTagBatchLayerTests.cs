@@ -20,6 +20,11 @@ public class MatchTagBatchLayerTests
     // The Goodhart tripwire: no public property on the wire DTOs may carry a name that
     // reads as an opaque numeric total / sort key (ADR 0076 Decision 4). A category
     // ("Grade") and per-dimension verdicts are allowed; anything score-shaped is not.
+    // NB: "Intensity" is a wire-surface hardening token enumerated in NO ADR (it defends the DTO
+    // family against a colour/heat "intensity" magnitude leaking onto the wire). The persisted-
+    // aggregate sibling UserJobAdMatchGoodhartTests.ForbiddenScoreName deliberately OMITS it and
+    // stays at ADR 0080 Beslut 7's exact 7 tokens; the two sets are intentionally and permanently
+    // distinct (two surfaces, two ADRs; #224 Variant C), not a DRY drift to unify.
     private static readonly Regex ForbiddenNumericName =
         new(@"Score|Value|Total|Percent|SortKey|Rank|Intensity|Points",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);

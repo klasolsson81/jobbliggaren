@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Check, ChevronRight } from "lucide-react";
+import { formatNumber } from "@/lib/i18n/format";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 
 /**
@@ -188,6 +189,7 @@ function CheckRow({
    */
   indeterminate?: boolean;
 }) {
+  const format = useFormatter();
   return (
     <div
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
@@ -208,7 +210,7 @@ function CheckRow({
       {label}
       {count !== undefined && (
         <span className="jp-checkitem__count">
-          ({count.toLocaleString("sv-SE")})
+          ({formatNumber(format, count)})
         </span>
       )}
     </div>

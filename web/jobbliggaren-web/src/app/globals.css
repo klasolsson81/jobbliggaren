@@ -70,7 +70,7 @@
   /* Borders (v3-kanon — synliga, inte hairlines) */
   --jp-border:        #C9D2E0;
   --jp-border-soft:   #E3E8F0;
-  --jp-border-strong: #97A4B8;
+  --jp-border-strong: #7C8AA0; /* #193: 2.5->3.5:1 on white (WCAG 1.4.11 UI floor, info-bearing dividers) */
   /* Klas pre-F6 Prompt 3 (2026-05-20) — vila-kontrasten höjd ett steg
      från #94A3B8 (~63% lightness) till #7C8AA0 (~55% lightness) så att
      input-fält syns tydligt mot vit/surface-2 utan att bli dominerande.
@@ -80,12 +80,12 @@
 
   /* Status (v3-kanon) */
   --jp-success:    #16793B;  --jp-success-bg: #DFF3E5;
-  --jp-warning:    #B4540B;  --jp-warning-bg: #FCE9D1;
+  --jp-warning:    #A34A06;  --jp-warning-bg: #FCE9D1;  /* #193: pill text 4.2->5.0:1 on warning-bg */
   --jp-danger:     #BE1B1B;  --jp-danger-bg:  #FBE0E0;
   --jp-info:       #1B5396;  --jp-info-bg:    #DEE9F8;
 
   /* Accenter (v3-kanon) */
-  --jp-leaf-600:  #2C8A3F;   --jp-leaf-50:  #DFF3E5;
+  --jp-leaf-600:  #1C7530;   --jp-leaf-50:  #DFF3E5;  /* #193: "Ny"-tag 3.76->4.97:1 on leaf-50 */
   --jp-coral-600: #DA2A47;   --jp-coral-50: #FCE4E9;
   --jp-amber-500: #E89A1A;   --jp-amber-50: #FBEBC8;
 
@@ -1486,9 +1486,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   width: 20px;
   height: 20px;
   border-radius: var(--jp-r-sm);
-  /* WCAG 1.4.11: --jp-border-input (#7C8AA0, 3.5:1 on paper) not
-     --jp-border-strong (#97A4B8, 2.52:1 — sub-3:1 fail in light).
-     Dark unchanged (both #6F86A8, 3.81:1). Form controls = input token. */
+  /* WCAG 1.4.11: form controls use --jp-border-input (#7C8AA0, 3.5:1 on
+     paper). --jp-border-strong was raised to the same #7C8AA0 (3.5:1) in
+     #193; both clear the 3:1 UI floor. Dark unchanged (#6F86A8, 3.81:1). */
   border: 2px solid var(--jp-border-input);
   background: var(--jp-surface);
   display: inline-flex;
@@ -1916,8 +1916,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-matchchip--mid {
   /* G1 (architect-fynd): mid får INTE bli accent-grön — skulle kollidera
      med success-/high-semantiken. Neutral variant. Kant = --jp-border-input
-     (≥3:1 non-text-kontrast i light; --jp-border-strong mäter 2,52:1 och
-     föll design-reviewer M1, F4-13). */
+     (≥3:1 non-text-kontrast i light; --jp-border-strong höjdes till samma
+     3,5:1 i #193). */
   color: var(--jp-ink-2);
   background: var(--jp-surface-2);
   border-color: var(--jp-border-input);

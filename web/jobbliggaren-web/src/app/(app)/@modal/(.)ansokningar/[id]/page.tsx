@@ -1,11 +1,12 @@
 import { notFound, redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { ApplicationDetail } from "@/components/applications/application-detail";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
 import { WithdrawApplicationButton } from "@/components/applications/withdraw-application-button";
-import { formatSvDate, getAllowedTransitions } from "@/lib/applications/status";
+import { getAllowedTransitions } from "@/lib/applications/status";
+import { formatDate } from "@/lib/i18n/format";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -37,6 +38,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  const format = await getFormatter();
   const { id } = await params;
   const result = await getApplicationById(id);
 
@@ -58,7 +60,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
             shortId,
           })
         : t("ansokningar.detail.createdSubtitle", {
-            date: formatSvDate(application.createdAt) ?? "",
+            date: formatDate(format, application.createdAt) ?? "",
           }).trim();
       const canWithdraw = getAllowedTransitions(
         application.status

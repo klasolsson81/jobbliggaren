@@ -4,7 +4,6 @@ import { useId, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import {
   applicationSourceLabel,
-
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
 import type { JobAdSummaryDto } from "@/lib/types/applications";

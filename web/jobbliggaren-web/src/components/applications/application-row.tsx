@@ -3,7 +3,6 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ChevronRight } from "lucide-react";
 import {
   applicationStatusLabel,
-
   getStatusPillClass,
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";

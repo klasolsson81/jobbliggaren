@@ -8,7 +8,6 @@ import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
 import {
   channelLabel,
   followUpOutcomeLabel,
-
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
 import type { FollowUpDto } from "@/lib/types/applications";

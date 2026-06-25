@@ -6,7 +6,6 @@ import {
   applicationStatusLabel,
   channelLabel,
   followUpOutcomeLabel,
-
   PILL_VARIANT_CLASS,
   STATUS_BADGE_VARIANT,
 } from "@/lib/applications/status";

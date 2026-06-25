@@ -14,8 +14,8 @@
 
     SAFETY: refuses to run onto the main checkout itself, and refuses any
     .worktreeinclude entry that looks like a secret (appsettings.Local,
-    .env.local, *.pem, *.tfstate). Only the stack-owner main checkout runs
-    against real secrets — see CLAUDE.md §6.5.
+    .env.local, *.pem, *.pfx/.p12/.jks/.keystore/.ppk, *.tfstate). Only the
+    stack-owner main checkout runs against real secrets — see CLAUDE.md §6.5.
 
 .PARAMETER WorktreePath
     Path to the target worktree (must already exist; see `git worktree list`).
@@ -53,8 +53,17 @@ if ($dest -eq $repoRoot) { throw "Refusing to sync onto the main checkout itself
 #  - EXTENSIONS: matched only as a real extension SEGMENT — the token at end-of-path,
 #    before a compound extension (".tfstate.backup"), or before a path separator —
 #    so it never fires inside a longer word (".keynote" no longer matches ".key").
-$secretNameFragments = @('appsettings.local', '.env.local', 'id_rsa')
-$secretExtensions = @('.pem', '.pfx', '.key', '.tfstate')
+# OpenSSH private keys are extension-less, so they are matched as NAME fragments: id_rsa
+# plus its modern siblings id_ed25519 / id_ecdsa (now more common than RSA) — #228
+# security-auditor consistency note.
+$secretNameFragments = @('appsettings.local', '.env.local', 'id_rsa', 'id_ed25519', 'id_ecdsa')
+# Extensions cover the PKCS#12 / keystore / private-key bundle shapes (.pfx, .p12, .jks,
+# .keystore, .ppk) — each CAN carry a private key, so all are secret-bearing. PUBLIC cert
+# material (.crt/.cer) is deliberately EXCLUDED: a certificate is public by design, and
+# listing it would make the guard imprecise (#228 — security-auditor #221 finding 1). The
+# end-of-segment anchoring (below) applies to every entry, so a doc like
+# "...keystore-guide.md" still syncs while a real "app.keystore" is blocked.
+$secretExtensions = @('.pem', '.pfx', '.p12', '.jks', '.keystore', '.ppk', '.key', '.tfstate')
 
 function Test-SecretLike([string] $path) {
     $p = $path.ToLowerInvariant()

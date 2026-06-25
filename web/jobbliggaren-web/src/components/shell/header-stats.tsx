@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { landingStatsDtoSchema, type LandingStatsDto } from "@/lib/dto/landing";
-import { formatLandingNumber } from "@/components/landing/landing-stats-format";
+import { formatNumber } from "@/lib/i18n/format";
 
 /**
  * App-header live-stats för inloggade. Polling-baserad delta-affordans:
@@ -37,6 +37,7 @@ export function HeaderStats({
   initialStats: LandingStatsDto;
 }) {
   const t = useTranslations("common");
+  const format = useFormatter();
   const [stats, setStats] = useState<LandingStatsDto>(initialStats);
   const [deltaToday, setDeltaToday] = useState<number>(0);
   // Track previous newToday för delta-jämförelse. Initieras till samma
@@ -119,7 +120,7 @@ export function HeaderStats({
     >
       <div className="jp-header-stats__item">
         <span className="jp-header-stats__num">
-          {formatLandingNumber(stats.activeCount)}
+          {formatNumber(format, stats.activeCount)}
         </span>
         <span className="jp-header-stats__label">
           {t("header.activeCount", { count: stats.activeCount })}
@@ -132,7 +133,7 @@ export function HeaderStats({
       />
       <div className="jp-header-stats__item">
         <span className="jp-header-stats__num">
-          {formatLandingNumber(stats.newToday)}
+          {formatNumber(format, stats.newToday)}
         </span>
         <span className="jp-header-stats__label">{t("header.newToday")}</span>
         {deltaToday > 0 && (
@@ -141,7 +142,7 @@ export function HeaderStats({
             className="jp-header-stats__delta"
             aria-label={t("header.deltaAriaLabel", { count: deltaToday })}
           >
-            +{formatLandingNumber(deltaToday)}
+            +{formatNumber(format, deltaToday)}
           </span>
         )}
       </div>

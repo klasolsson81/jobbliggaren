@@ -1,5 +1,6 @@
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { SummaryRow } from "./summary-row";
+import { formatNumber } from "@/lib/i18n/format";
 import type { ApplicationCounts } from "@/lib/oversikt/aggregations";
 
 interface SummaryProps {
@@ -48,6 +49,7 @@ export function Summary({
   searchStartDaysSince,
 }: SummaryProps) {
   const t = useTranslations("oversikt");
+  const format = useFormatter();
   const dash = t("summary.valueDash");
   return (
     <div className="jp-summary">
@@ -101,10 +103,10 @@ export function Summary({
         />
         <SummaryRow
           label={t("summary.rowNewMatches")}
-          // Svensk tusenavgränsning (non-breaking space, CLAUDE.md §10) — paritet
-          // med rowActiveJobAdsTotal nedan. Utan den renderades "1234" i stället
-          // för "1 234" (rendered-verify 2026-06-24).
-          value={formatThousands(newMatchCount)}
+          // Locale-aware grouping (non-breaking space in sv per CLAUDE.md §10) —
+          // parity with rowActiveJobAdsTotal below. Without it "1234" rendered
+          // instead of "1 234" (rendered-verify 2026-06-24).
+          value={formatNumber(format, newMatchCount)}
           hint={t("summary.hintSinceLastVisit")}
           href="/matchningar"
         />
@@ -112,7 +114,7 @@ export function Summary({
           label={t("summary.rowActiveJobAdsTotal")}
           value={
             activeJobAdsTotal != null
-              ? formatThousands(activeJobAdsTotal)
+              ? formatNumber(format, activeJobAdsTotal)
               : dash
           }
         />
@@ -153,9 +155,4 @@ export function Summary({
       </div>
     </div>
   );
-}
-
-/** Svensk tusenavgränsning med non-breaking space ("45 580"). */
-function formatThousands(n: number): string {
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }

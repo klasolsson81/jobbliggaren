@@ -37,7 +37,7 @@
     "matchLabel": "Matchning",
     "setupText": "Du har inte angett vilka yrken du söker inom. Ställ in det för att se hur väl annonser matchar din profil.",
     "setupCta": "Ställ in matchning",
-    "matchText": "Det finns <b>{count}</b> jobb som matchar din profil.",
+    "matchText": "Det finns <b>{count, number}</b> jobb som matchar din profil.",
     "matchTextZero": "Det finns inga jobb som matchar din profil just nu.",
     "matchCta": "Visa annonser",
     "interviewLabel": "Intervju",

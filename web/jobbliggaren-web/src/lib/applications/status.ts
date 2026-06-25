@@ -129,19 +129,3 @@ export function getAllowedTransitions(status: ApplicationStatus): ApplicationSta
 export function isDestructiveTransition(target: ApplicationStatus): boolean {
   return DESTRUCTIVE_STATUSES.includes(target);
 }
-
-/**
- * Kort svenskt datum (sv-SE), t.ex. "18 maj 2026". Codebase-konvention
- * (Intl/`toLocaleDateString`) — ingen ny date-fns-dependency. Returnerar
- * null vid saknat/ogiltigt värde så anropare kan utelämna raden.
- */
-export function formatSvDate(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("sv-SE", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}

@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { ChevronRight } from "lucide-react";
 import {
   applicationStatusLabel,
-  formatSvDate,
+
   getStatusPillClass,
 } from "@/lib/applications/status";
+import { formatDate } from "@/lib/i18n/format";
 import type { ApplicationDto } from "@/lib/types/applications";
 
 interface ApplicationRowProps {
@@ -40,6 +41,7 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
   // and its synchronous render test stays green.
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  const format = useFormatter();
   const { jobAd } = application;
 
   const hasIdentity = jobAd != null;
@@ -47,8 +49,8 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
     ? jobAd.title
     : tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
-  const updatedAt = formatSvDate(application.updatedAt);
-  const expiresAt = formatSvDate(jobAd?.expiresAt);
+  const updatedAt = formatDate(format, application.updatedAt);
+  const expiresAt = formatDate(format, jobAd?.expiresAt);
 
   return (
     <Link

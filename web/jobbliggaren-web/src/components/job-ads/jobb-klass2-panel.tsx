@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import type { TaxonomyOption } from "@/lib/dto/taxonomy";
+import { formatNumber } from "@/lib/i18n/format";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 
 /**
@@ -123,6 +124,7 @@ export function JobbKlass2Panel({
   emptyText,
 }: JobbKlass2PanelProps) {
   const t = useTranslations("jobads.ui");
+  const format = useFormatter();
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePanelPosition(open, triggerRef);
 
@@ -244,7 +246,7 @@ export function JobbKlass2Panel({
                     {/* "Alla"-radion bär inget tal (summan = totalCount, SPOT). */}
                     {opt.value !== WORKTIME_ALL && worktimeExtentCounts && (
                       <span className="jp-radioitem__count">
-                        ({(worktimeExtentCounts[opt.value] ?? 0).toLocaleString("sv-SE")})
+                        ({formatNumber(format, worktimeExtentCounts[opt.value] ?? 0)})
                       </span>
                     )}
                   </div>
@@ -301,7 +303,7 @@ export function JobbKlass2Panel({
                     {opt.label}
                     {employmentTypeCounts && (
                       <span className="jp-checkitem__count">
-                        ({(employmentTypeCounts[opt.conceptId] ?? 0).toLocaleString("sv-SE")})
+                        ({formatNumber(format, employmentTypeCounts[opt.conceptId] ?? 0)})
                       </span>
                     )}
                   </div>

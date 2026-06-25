@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { formatTime } from "@/lib/i18n/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,6 +148,7 @@ export function ResumeContentForm({
 }: ResumeContentFormProps) {
   const t = useTranslations("validation");
   const tr = useTranslations("resumes.contentForm");
+  const format = useFormatter();
   const schema = useMemo(() => makeResumeContentSchema(t), [t]);
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -539,7 +541,7 @@ export function ResumeContentForm({
         </Button>
         {savedAt && !serverError && (
           <p className="text-body-sm text-text-secondary" role="status">
-            {tr("savedAt", { time: savedAt.toLocaleTimeString("sv-SE") })}
+            {tr("savedAt", { time: formatTime(format, savedAt) })}
           </p>
         )}
         {serverError && (

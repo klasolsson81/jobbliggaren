@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import { jobAdStatusLabel } from "@/lib/job-ads/status";
+import { formatDate } from "@/lib/i18n/format";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import type { OrtGranularity } from "@/lib/job-ads/ort-granularity";
@@ -65,11 +66,6 @@ const STATUS_PILL_CLASS: Record<JobAdStatus, string> = {
   Archived: "jp-pill jp-pill--neutral",
 };
 
-function formatDate(iso: string): string {
-  // CLAUDE.md §10.2 — svensk locale (sv-SE).
-  return new Date(iso).toLocaleDateString("sv-SE");
-}
-
 export function JobAdDetail({
   jobAd,
   headless = false,
@@ -82,6 +78,7 @@ export function JobAdDetail({
   // shared by the full page and the @modal serialized slot, with sync tests).
   const t = useTranslations("jobads.enums");
   const tUi = useTranslations("jobads.ui");
+  const format = useFormatter();
   // Typ-narrowing-pattern: bind till en `userActions`-konst som är non-null
   // när BÅDA props är definierade. Eliminerar `!`-suppressions i JSX nedan
   // (code-reviewer Minor 6).
@@ -89,8 +86,8 @@ export function JobAdDetail({
     initialSaved !== undefined && initialApplied !== undefined
       ? { saved: initialSaved, applied: initialApplied }
       : null;
-  const publishedAt = formatDate(jobAd.publishedAt);
-  const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
+  const publishedAt = formatDate(format, jobAd.publishedAt) ?? "";
+  const expiresAt = formatDate(format, jobAd.expiresAt);
 
   return (
     <>

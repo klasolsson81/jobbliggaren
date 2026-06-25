@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.Matching;
 using Shouldly;
 
@@ -29,6 +31,16 @@ public class UserJobAdMatchGoodhartTests
         typeof(float), typeof(float?),
     ];
 
+    // The naked-NAME shapes a magnitude would take even under a non-numeric CLR type (a
+    // string "Score", an enum "Rank"). This is ADR 0080 Beslut 7's exact 7-token list. The
+    // wire-side sibling MatchTagBatchLayerTests adds "Intensity" for ADR 0076's DTOs — a
+    // different ADR / source text — so the two lists are intentionally distinct until a shared
+    // Goodhart-name-guard constant is extracted (raised as a follow-up; the duplication is a
+    // known DRY drift, both tests guard correctly in the meantime).
+    private static readonly Regex ForbiddenScoreName =
+        new(@"Score|Value|Total|Percent|SortKey|Rank|Points",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static PropertyInfo[] PublicInstanceProperties(Type type) =>
         type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
@@ -52,6 +64,56 @@ public class UserJobAdMatchGoodhartTests
             "evidens — aldrig en lagrad magnitud som tyst blir en sorteringsnyckel " +
             "(ADR 0080 Decision 7 / ADR 0071 / CLAUDE.md §5 — \"a match score as an opaque " +
             $"number\" är den förbjudna formen). Otillåtna: [{string.Join(", ", offending)}].");
+    }
+
+    [Fact]
+    public void UserJobAdMatch_has_no_score_or_magnitude_named_public_property()
+    {
+        // ADR 0080 Beslut 7 — the NAME dimension of the Goodhart guard (defense-in-depth on
+        // top of the TYPE check above). Even a non-numeric CLR type cannot smuggle a magnitude
+        // back if its NAME reads as a score/rank/total (a string "Score", an enum "Rank"). We
+        // assert by NAME against ADR 0080's exact 7-token list. The aggregate's properties
+        // (Id, UserId, JobAdId, Grade, NotificationStatus, MatchedSkillConceptIds, CreatedAt,
+        // SentAt, DeletedAt) all read clean. EqualityContract is excluded defensively (a future
+        // record conversion would synthesise it; the aggregate is a class today).
+        var offending = PublicInstanceProperties(typeof(UserJobAdMatch))
+            .Where(p => p.Name != "EqualityContract")
+            .Where(p => ForbiddenScoreName.IsMatch(p.Name))
+            .Select(p => p.Name)
+            .ToList();
+
+        offending.ShouldBeEmpty(
+            "UserJobAdMatch får INTE bära en public property vars NAMN läser som en magnitud/" +
+            "score (Score/Value/Total/Percent/SortKey/Rank/Points — ADR 0080 Beslut 7). Matchen " +
+            "persisterar den NAMNGIVNA Grade-kategorin + tidsstämplar + matchade kompetenser som " +
+            "evidens, aldrig en lagrad magnitud som tyst blir en sorteringsnyckel (ADR 0071 / " +
+            "CLAUDE.md §5 — \"a match score as an opaque number\" är den förbjudna formen). " +
+            $"Otillåtna: [{string.Join(", ", offending)}].");
+    }
+
+    [Fact]
+    public void UserJobAdMatch_value_objects_carry_no_numeric_typed_property()
+    {
+        // ADR 0080 Beslut 7 scopes the guard to "the aggregate OR ITS VALUE OBJECTS". The
+        // value objects (UserJobAdMatchId, JobAdId) are strongly-typed ids — readonly record
+        // struct(Guid Value). We guard them by TYPE, not by name: a name-check would
+        // false-positive on the canonical .Value Guid-unwrap idiom (the "Value" token), while a
+        // TYPE check passes today (Guid ∉ forbidden numerics) AND fails loud the moment anyone
+        // adds a naked numeric member (an int Weight / double Confidence) to an id value object.
+        var valueObjects = new[] { typeof(UserJobAdMatchId), typeof(JobAdId) };
+
+        var offending = valueObjects
+            .SelectMany(vo => PublicInstanceProperties(vo)
+                .Where(p => ForbiddenNumericTypes.Contains(p.PropertyType))
+                .Select(p => $"{vo.Name}.{p.Name}:{p.PropertyType.Name}"))
+            .ToList();
+
+        offending.ShouldBeEmpty(
+            "UserJobAdMatch:s value-objekt (UserJobAdMatchId, JobAdId) får INTE bära en " +
+            "numerisk-typad public property — de är strongly-typed ids (Guid Value). " +
+            "Goodhart-vakten täcker \"aggregatet ELLER dess value-objekt\" (ADR 0080 Beslut 7); " +
+            "VO-scopet skyddas by-type (inte by-name, då .Value-Guid-unwrap:en annars skulle " +
+            $"falsk-positiva namn-listan). Otillåtna: [{string.Join(", ", offending)}].");
     }
 
     [Fact]

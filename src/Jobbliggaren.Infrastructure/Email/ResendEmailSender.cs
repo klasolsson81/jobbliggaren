@@ -37,6 +37,7 @@ public sealed partial class ResendEmailSender(
             toEmail,
             EmailTemplates.InvitationEmail(_options.BaseUrl, plaintextToken, expiresAt),
             "invitation",
+            idempotencyKey: null,
             cancellationToken);
 
     public Task SendWaitlistConfirmationAsync(string toEmail, CancellationToken cancellationToken)
@@ -44,18 +45,30 @@ public sealed partial class ResendEmailSender(
             toEmail,
             EmailTemplates.WaitlistConfirmationEmail(),
             "waitlist-confirmation",
+            idempotencyKey: null,
             cancellationToken);
 
     public Task SendMatchNotificationEmailAsync(
-        string toEmail, MatchNotificationEmail content, CancellationToken cancellationToken)
-        => SendAsync(
+        string toEmail, MatchNotificationEmail content,
+        MatchNotificationIdempotencyKey idempotencyKey, CancellationToken cancellationToken)
+    {
+        // Fail loud on a missing key (e.g. a default-constructed struct, whose Value is null) rather
+        // than silently falling back to the non-idempotent overload — the match-notification path
+        // MUST be idempotent (#187). The match path is the only retry-bearing send (the nightly scan
+        // + digest jobs); invitation/waitlist are user-initiated with no retry loop, so they pass no
+        // key (ADR 0080 PR-4 item 4, CTO scope-bind 2026-06-25).
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey.Value);
+        return SendAsync(
             toEmail,
             EmailTemplates.MatchNotification(_options.BaseUrl, content),
             "match-notification",
+            idempotencyKey.Value,
             cancellationToken);
+    }
 
     private async Task SendAsync(
-        string toEmail, EmailTemplates.EmailContent body, string emailKind, CancellationToken cancellationToken)
+        string toEmail, EmailTemplates.EmailContent body, string emailKind,
+        string? idempotencyKey, CancellationToken cancellationToken)
     {
         var message = new EmailMessage
         {
@@ -67,7 +80,13 @@ public sealed partial class ResendEmailSender(
 
         try
         {
-            await resend.EmailSendAsync(message, cancellationToken);
+            // The idempotency overload makes a transport-level retry (SDK/HttpClient) of the SAME
+            // logical send a no-op at Resend; the non-idempotent paths keep the plain overload. The
+            // key is NEVER logged (it is PII-free but unnecessary in the log; PII-discipline §5).
+            if (idempotencyKey is null)
+                await resend.EmailSendAsync(message, cancellationToken);
+            else
+                await resend.EmailSendAsync(idempotencyKey, message, cancellationToken);
             LogSent(emailKind);
         }
         catch (Exception ex)

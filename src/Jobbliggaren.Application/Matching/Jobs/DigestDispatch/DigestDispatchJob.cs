@@ -163,9 +163,16 @@ public sealed partial class DigestDispatchJob(
         var content = new MatchNotificationEmail(
             MatchNotificationKind.Digest, cadence, items, pending.Count);
 
+        // Idempotency key (#187): key the CONTENT of the claimed Strong set (a content hash of the
+        // claimed match ids), NOT a wall-clock window — so two same-period runs that claimed
+        // different sets get different keys and Resend never sees a key/payload mismatch (409). The
+        // factory sorts the ids itself; stable across a transport-retry within this single dispatch.
+        var idempotencyKey = MatchNotificationIdempotencyKey.ForDigest(
+            userId, cadence, pending.Select(m => m.Id.Value));
+
         try
         {
-            await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
+            await emailSender.SendMatchNotificationEmailAsync(toEmail, content, idempotencyKey, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

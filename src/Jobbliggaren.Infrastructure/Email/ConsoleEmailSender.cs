@@ -44,8 +44,11 @@ public sealed partial class ConsoleEmailSender(
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
+        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
+        // idempotencyKey is a Resend-only concern (dedupe a transport retry); the dev console sender
+        // just renders the template.
         var body = EmailTemplates.MatchNotification(_options.BaseUrl, content);
         LogEmail(toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;

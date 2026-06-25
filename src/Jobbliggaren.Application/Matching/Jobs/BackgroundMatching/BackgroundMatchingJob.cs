@@ -248,7 +248,11 @@ public sealed partial class BackgroundMatchingJob(
 
                 var content = new MatchNotificationEmail(
                     MatchNotificationKind.Direct, null, [item], 1);
-                await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
+                // Idempotency key (#187): one Top match = one email → key the single ad. Deterministic
+                // + PII-free (Guids only); a transport-retry of this exact send dedupes at Resend.
+                var idempotencyKey = MatchNotificationIdempotencyKey.ForDirect(
+                    userId, match.JobAdId.Value);
+                await emailSender.SendMatchNotificationEmailAsync(toEmail, content, idempotencyKey, ct);
 
                 match.MarkSent(clock);
                 await db.SaveChangesAsync(ct);

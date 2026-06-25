@@ -39,8 +39,10 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
+        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
+        // idempotencyKey is irrelevant to a no-op sender (no transactional provider to dedupe).
         LogSuppressed("match-notification");
         return Task.CompletedTask;
     }

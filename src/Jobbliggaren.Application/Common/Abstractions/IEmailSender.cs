@@ -36,9 +36,16 @@ public interface IEmailSender
     /// adressen bärs separat i <paramref name="toEmail"/>. Mallen lägger en OBLIGATORISK
     /// inställnings-/avregistreringslänk (GDPR Art. 7(3)). Consent-grindas av anroparen
     /// (opt-in OFF default, withdrawal stoppar omedelbart — ADR 0080 Beslut 5).
+    /// <para>
+    /// <paramref name="idempotencyKey"/> är en deterministisk, PII-fri idempotensmarkör
+    /// (ADR 0080 PR-4 item 4, #187) som det transaktionella utskicket (Resend) använder för att
+    /// inte dubbel-leverera vid en transport-retry. Icke-transaktionella impls (Console/Null)
+    /// ignorerar den.
+    /// </para>
     /// </summary>
     Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
+        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
 }

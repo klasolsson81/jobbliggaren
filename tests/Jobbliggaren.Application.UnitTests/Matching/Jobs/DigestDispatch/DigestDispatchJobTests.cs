@@ -135,12 +135,13 @@ public class DigestDispatchJobTests
         MatchNotificationEmail? captured = null;
         await _emailSender.SendMatchNotificationEmailAsync(
             Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c),
-            Arg.Any<CancellationToken>());
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         await _emailSender.Received(1).SendMatchNotificationEmailAsync(
-            ToEmail, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            ToEmail, Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
         captured.ShouldNotBeNull();
         captured.Kind.ShouldBe(MatchNotificationKind.Digest);
         captured.Cadence.ShouldBe(DigestCadence.Weekly);
@@ -169,7 +170,7 @@ public class DigestDispatchJobTests
         MatchNotificationEmail? captured = null;
         await _emailSender.SendMatchNotificationEmailAsync(
             Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c),
-            Arg.Any<CancellationToken>());
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
@@ -201,7 +202,8 @@ public class DigestDispatchJobTests
 
         // The cron IS the window: a Daily run dispatches only Daily users.
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -215,7 +217,8 @@ public class DigestDispatchJobTests
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
 
     // ───────────────────────────── 4. Consent gates — withdrawn / opt-in OFF → no email
@@ -231,7 +234,8 @@ public class DigestDispatchJobTests
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -249,7 +253,8 @@ public class DigestDispatchJobTests
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
 
     // ───────────────────────────── 5. Cap — body lists ≤ cap, TotalCount honest, ALL rows drain
@@ -275,7 +280,7 @@ public class DigestDispatchJobTests
         MatchNotificationEmail? captured = null;
         await _emailSender.SendMatchNotificationEmailAsync(
             Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c),
-            Arg.Any<CancellationToken>());
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         await CreateJob(db, maxItems: cap).RunAsync(DigestCadence.Weekly, ct);
 
@@ -309,7 +314,8 @@ public class DigestDispatchJobTests
             createdAt: NowClock.UtcNow.AddMinutes(-1));
 
         _emailSender.SendMatchNotificationEmailAsync(
-                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>())
+                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("mejlleverans nere"));
 
         await Should.NotThrowAsync(() => CreateJob(db).RunAsync(DigestCadence.Weekly, ct));
@@ -336,7 +342,8 @@ public class DigestDispatchJobTests
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         // The rows were claimed (Queued) before the email resolve; no recipient → they stay Queued.
         (await ReloadMatchAsync(db, userId, adId, ct))!.NotificationStatus
@@ -357,7 +364,8 @@ public class DigestDispatchJobTests
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
 
     // ───────────────────────────── 8b. All matched ads retracted → drain (Sent), no email
@@ -383,7 +391,8 @@ public class DigestDispatchJobTests
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         (await ReloadMatchAsync(db, userId, orphanAdId, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent,
@@ -413,7 +422,8 @@ public class DigestDispatchJobTests
 
         // The OK user still received a digest and its row drained — the fault was isolated.
         await _emailSender.Received(1).SendMatchNotificationEmailAsync(
-            ToEmail, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            ToEmail, Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
         (await ReloadMatchAsync(db, okUser, okAd, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent);
     }
@@ -438,12 +448,46 @@ public class DigestDispatchJobTests
         MatchNotificationEmail? captured = null;
         await _emailSender.SendMatchNotificationEmailAsync(
             Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c),
-            Arg.Any<CancellationToken>());
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
         captured.ShouldNotBeNull();
         captured.Items.Select(i => i.JobTitle).ShouldBe(["Nyast", "Mitten", "Äldst"]);
+    }
+
+    // ───────────────────────────── 11. Digest carries the content-derived idempotency key (#187)
+
+    // The digest send must carry a deterministic, PII-free idempotency key derived from the CONTENT
+    // of the claimed Strong set (a hash over the claimed match ids), so a transport retry of the same
+    // digest dedupes at Resend while a re-run that claimed a different set yields a different key.
+    // Pinned at the call site; the VO's content-derivation + order-independence live in
+    // MatchNotificationIdempotencyKeyTests.
+    [Fact]
+    public async Task RunAsync_Digest_CarriesContentDerivedIdempotencyKey_OverClaimedSet()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var adA = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Roll A", "Bolag A", ct,
+            createdAt: NowClock.UtcNow);
+        var adB = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Roll B", "Bolag B", ct,
+            createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        MatchNotificationIdempotencyKey? capturedKey = null;
+        await _emailSender.SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Do<MatchNotificationIdempotencyKey>(k => capturedKey = k),
+            Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        // The key is derived from the two claimed match ids (order-independent in the VO).
+        var matchA = (await ReloadMatchAsync(db, userId, adA, ct))!;
+        var matchB = (await ReloadMatchAsync(db, userId, adB, ct))!;
+        var key = capturedKey.ShouldNotBeNull();
+        key.ShouldBe(MatchNotificationIdempotencyKey.ForDigest(
+            userId, DigestCadence.Weekly, [matchA.Id.Value, matchB.Id.Value]));
     }
 
     // A one-off clock for stamping a match's CreatedAt at a chosen instant.

@@ -149,13 +149,15 @@ public class BackgroundMatchingJobTopDirectTests
         await _emailSender.SendMatchNotificationEmailAsync(
             Arg.Do<string>(to => capturedTo = to),
             Arg.Do<MatchNotificationEmail>(c => captured = c),
+            Arg.Any<MatchNotificationIdempotencyKey>(),
             Arg.Any<CancellationToken>());
 
         await CreateJob(db).RunAsync(ct);
 
         // Exactly one Direct email to the resolved address.
         await _emailSender.Received(1).SendMatchNotificationEmailAsync(
-            ToEmail, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            ToEmail, Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
         capturedTo.ShouldBe(ToEmail);
         captured.ShouldNotBeNull();
         captured.Kind.ShouldBe(MatchNotificationKind.Direct);
@@ -191,7 +193,8 @@ public class BackgroundMatchingJobTopDirectTests
 
         // Strong is digest-only — the scan never directly emails it.
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
         match.ShouldNotBeNull("Strong-matchen ska persisteras (notifierbar grad)");
@@ -221,7 +224,8 @@ public class BackgroundMatchingJobTopDirectTests
         await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
-            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
         match.ShouldNotBeNull("matchen ska persisteras även utan mottagaradress");
@@ -243,7 +247,8 @@ public class BackgroundMatchingJobTopDirectTests
             .Returns(ProfileWithOccupation());
         StubScorer(jobAdId, TopScore());
         _emailSender.SendMatchNotificationEmailAsync(
-                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>())
+                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("mejlleverans nere"));
 
         // Per-match isolation: a send failure is caught + logged, never propagated.
@@ -283,7 +288,8 @@ public class BackgroundMatchingJobTopDirectTests
 
         // One focused Direct email PER Top match (not one batched email for both).
         await _emailSender.Received(2).SendMatchNotificationEmailAsync(
-            ToEmail, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            ToEmail, Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         (await ReloadMatchAsync(db, userId, adA, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent);
@@ -321,7 +327,8 @@ public class BackgroundMatchingJobTopDirectTests
         // First send throws, the second succeeds (dispatch order over the score dict is not
         // asserted — only that BOTH were attempted and exactly one of each outcome resulted).
         _emailSender.SendMatchNotificationEmailAsync(
-                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>())
+                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>())
             .Returns(
                 _ => throw new InvalidOperationException("första sändningen faller"),
                 _ => Task.CompletedTask);
@@ -330,7 +337,8 @@ public class BackgroundMatchingJobTopDirectTests
 
         // BOTH Top matches were attempted — the first failure did not abort the second.
         await _emailSender.Received(2).SendMatchNotificationEmailAsync(
-            ToEmail, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+            ToEmail, Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
 
         var statuses = new[]
         {
@@ -340,5 +348,34 @@ public class BackgroundMatchingJobTopDirectTests
         statuses.ShouldContain(NotificationStatus.Sent, "den lyckade sändningen markeras Sent");
         statuses.ShouldContain(NotificationStatus.Queued,
             "den misslyckade ligger kvar Queued (per-match-isolering, aldrig dubbel-mejlad)");
+    }
+
+    // ───────────────────────────── 7. Top-direct carries the ad-scoped idempotency key (#187)
+
+    // The Direct send must carry the deterministic, PII-free idempotency key derived from
+    // (userId, jobAdId) so a transport retry of the SAME Top email dedupes at Resend. Pinned here at
+    // the call site; the VO's own determinism lives in MatchNotificationIdempotencyKeyTests.
+    [Fact]
+    public async Task RunAsync_TopMatch_CarriesAdScopedIdempotencyKey()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var jobAdId = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        StubScorer(jobAdId, TopScore());
+
+        MatchNotificationIdempotencyKey? capturedKey = null;
+        await _emailSender.SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Do<MatchNotificationIdempotencyKey>(k => capturedKey = k),
+            Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(ct);
+
+        var key = capturedKey.ShouldNotBeNull();
+        key.ShouldBe(MatchNotificationIdempotencyKey.ForDirect(userId, jobAdId.Value));
     }
 }

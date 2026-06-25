@@ -1,4 +1,4 @@
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { StatusEditCard } from "@/components/applications/status-edit-card";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
 import { NotesSection } from "@/components/applications/notes-section";
@@ -6,10 +6,10 @@ import {
   applicationStatusLabel,
   channelLabel,
   followUpOutcomeLabel,
-  formatSvDate,
   PILL_VARIANT_CLASS,
   STATUS_BADGE_VARIANT,
 } from "@/lib/applications/status";
+import { formatDate } from "@/lib/i18n/format";
 import type { ApplicationDetailDto } from "@/lib/types/applications";
 
 interface ApplicationDetailProps {
@@ -79,6 +79,7 @@ export function ApplicationDetail({
   // — its synchronous render tests and serialized @modal slot are unaffected.
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  const format = useFormatter();
   const { jobAd } = application;
   const hasIdentity = jobAd != null;
   const shortId = application.id.slice(0, 8);
@@ -99,20 +100,20 @@ export function ApplicationDetail({
         new Date(a.scheduledAt).getTime() -
         new Date(b.scheduledAt).getTime()
     )[0];
-  const nextDate = formatSvDate(nextFollowUp?.scheduledAt);
+  const nextDate = formatDate(format, nextFollowUp?.scheduledAt);
 
   // Tidslinje: komponera REALA händelser, nyast först. Ingen mock.
   const timeline: TimelineEvent[] = [];
-  const createdAt = formatSvDate(application.createdAt);
+  const createdAt = formatDate(format, application.createdAt);
   if (createdAt) {
     timeline.push({ date: createdAt, label: tUi("detail.eventCreated") });
   }
   for (const note of application.notes) {
-    const d = formatSvDate(note.createdAt);
+    const d = formatDate(format, note.createdAt);
     if (d) timeline.push({ date: d, label: tUi("detail.eventNoteAdded") });
   }
   for (const fu of application.followUps) {
-    const scheduled = formatSvDate(fu.scheduledAt);
+    const scheduled = formatDate(format, fu.scheduledAt);
     if (scheduled) {
       timeline.push({
         date: scheduled,
@@ -122,7 +123,7 @@ export function ApplicationDetail({
       });
     }
     if (fu.outcome !== "Pending" && fu.outcomeAt) {
-      const outcomeAt = formatSvDate(fu.outcomeAt);
+      const outcomeAt = formatDate(format, fu.outcomeAt);
       if (outcomeAt) {
         timeline.push({
           date: outcomeAt,
@@ -133,7 +134,7 @@ export function ApplicationDetail({
       }
     }
   }
-  const updatedAt = formatSvDate(application.updatedAt);
+  const updatedAt = formatDate(format, application.updatedAt);
   if (updatedAt) {
     timeline.push({
       date: updatedAt,

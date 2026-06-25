@@ -1,4 +1,5 @@
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { formatNumber } from "@/lib/i18n/format";
 import {
   GUEST_MOCK,
   GUEST_MOCK_REF_DATE,
@@ -28,13 +29,10 @@ import type { NoticeData } from "@/components/oversikt/notice-row";
 
 const STAMP_DATE = GUEST_MOCK_REF_DATE.toISOString().slice(0, 10);
 
-function formatThousands(n: number): string {
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-}
-
 export function GuestOversiktPage() {
   // Synchronous next-intl translator — keeps this a non-async RSC.
   const t = useTranslations("guest");
+  const format = useFormatter();
   const { applications, resumes, summary } = GUEST_MOCK;
   const latestOffer = applications.find((a) => a.status === "Offer");
   const latestInterview = applications.find((a) => a.status === "Interview");
@@ -186,7 +184,7 @@ export function GuestOversiktPage() {
               />
               <SummaryRow
                 label={t("oversikt.rowActiveJobAdsTotal")}
-                value={formatThousands(GUEST_MOCK.activeJobAdsTotal)}
+                value={formatNumber(format, GUEST_MOCK.activeJobAdsTotal)}
               />
               <SummaryRow
                 label={t("oversikt.rowDemoJobAds")}

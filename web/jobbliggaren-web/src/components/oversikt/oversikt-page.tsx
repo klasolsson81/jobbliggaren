@@ -245,10 +245,11 @@ export function OversiktPage({
       text:
         matchCount > 0
           ? t.rich("notices.matchText", {
-              // Locale-tusental med hårt mellanslag ("1 234", aldrig "1234") —
-              // CLAUDE §10; kodbasens konvention (toolbar/hero/recent-search).
-              // Korpusen passerar rutinmässigt 1000 för breda yrkesgrupper.
-              count: matchCount.toLocaleString("sv-SE"),
+              // Raw number — the catalog formats it locale-aware via ICU
+              // {count, number} (sv: non-breaking-space grouping per CLAUDE §10;
+              // en: comma). The corpus routinely exceeds 1000 for broad
+              // occupation groups.
+              count: matchCount,
               b: (chunks) => <b>{chunks}</b>,
             })
           : t("notices.matchTextZero"),

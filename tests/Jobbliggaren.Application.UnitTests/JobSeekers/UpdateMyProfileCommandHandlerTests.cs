@@ -38,6 +38,8 @@ public class UpdateMyProfileCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
         seeker.DisplayName.ShouldBe("Klas Olsson");
+        // #192: the owner JobSeeker id is echoed for AuditBehavior.ExtractAggregateId.
+        result.Value.ShouldBe(seeker.Id.Value);
     }
 
     [Fact]
@@ -65,6 +67,7 @@ public class UpdateMyProfileCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
         seeker.Preferences.Language.ShouldBe("en");
+        result.Value.ShouldBe(seeker.Id.Value); // #192 echoed owner id
     }
 
     [Fact]

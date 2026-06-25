@@ -11,9 +11,9 @@ public sealed class UpdateMyProfileCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IDateTimeProvider clock)
-    : ICommandHandler<UpdateMyProfileCommand, Result>
+    : ICommandHandler<UpdateMyProfileCommand, Result<Guid>>
 {
-    public async ValueTask<Result> Handle(
+    public async ValueTask<Result<Guid>> Handle(
         UpdateMyProfileCommand command, CancellationToken cancellationToken)
     {
         var jobSeeker = await db.JobSeekers
@@ -24,7 +24,7 @@ public sealed class UpdateMyProfileCommandHandler(
         {
             var nameResult = jobSeeker.UpdateDisplayName(command.DisplayName, clock);
             if (nameResult.IsFailure)
-                return nameResult;
+                return Result.Failure<Guid>(nameResult.Error);
         }
 
         if (command.Language is not null)
@@ -40,6 +40,8 @@ public sealed class UpdateMyProfileCommandHandler(
                 jobSeeker.Preferences with { Language = command.Language }, clock);
         }
 
-        return Result.Success();
+        // Echo the JobSeeker id for the audit row (AuditBehavior.ExtractAggregateId); the endpoint
+        // discards the value and returns 200. Owner-scoped — no command-carried id.
+        return Result.Success(jobSeeker.Id.Value);
     }
 }

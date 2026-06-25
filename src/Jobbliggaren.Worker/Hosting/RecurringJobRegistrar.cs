@@ -104,6 +104,14 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             job => job.RunAsync(CancellationToken.None),
             "0 5 * * *");  // 05:00 UTC — 30-min padding efter purge (TD-13 C5, ADR 0049 Beslut 4)
 
+        manager.AddOrUpdate<ParsedResumeRetentionWorker>(
+            "parsed-resume-retention",
+            job => job.RunAsync(CancellationToken.None),
+            "15 5 * * *");  // 05:15 UTC — TD-111 (ADR 0074 F4-8). Set-based ExecuteDelete-svep av
+                            // mognade ParsedResume-staging-rader (Discarded/Promoted ≥30d, övergivna
+                            // PendingReview ≥90d) för GDPR Art. 5(1)(e). Efter backfill (05:00), före
+                            // digest (06:00); DEK-fritt (rör ingen interaktiv yta). DisableConcurrentExecution-skyddad.
+
         // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch. Två kadenser, en cron var (cron = fönstret):
         // Daglig 06:00 UTC och Veckovis måndag 06:00 UTC. MEDVETET på morgonen, EFTER nattscannen
         // (03:20) och klar av hard-delete-klustret (04:00/04:30) — en Stark-match från i natt hamnar

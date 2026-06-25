@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { LogIn } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { formatLandingNumber, type LandingStats } from "./landing-stats-format";
+import { formatNumber } from "@/lib/i18n/format";
+import { type LandingStats } from "./landing-stats-format";
 
 /**
  * LandingTopbar — v3-header för landing-routen (`/`). Egen header-shell
@@ -28,6 +29,7 @@ import { formatLandingNumber, type LandingStats } from "./landing-stats-format";
 export function LandingTopbar({ stats }: { stats: LandingStats }) {
   const { activeCount, newToday } = stats;
   const t = useTranslations("landing");
+  const format = useFormatter();
   return (
     <header className="jp-land-top">
       <div className="jp-land-top__inner">
@@ -41,7 +43,7 @@ export function LandingTopbar({ stats }: { stats: LandingStats }) {
           >
             <div className="jp-land-top__stat">
               <span className="jp-land-top__stat__num">
-                {formatLandingNumber(activeCount)}
+                {formatNumber(format, activeCount)}
               </span>
               <span className="jp-land-top__stat__label">
                 {t("topbar.activeAdsLabel")}
@@ -54,7 +56,7 @@ export function LandingTopbar({ stats }: { stats: LandingStats }) {
             />
             <div className="jp-land-top__stat">
               <span className="jp-land-top__stat__num">
-                {formatLandingNumber(newToday)}
+                {formatNumber(format, newToday)}
               </span>
               <span className="jp-land-top__stat__label">
                 {t("topbar.newTodayLabel")}

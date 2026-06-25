@@ -1,6 +1,6 @@
 import { createFormatter } from "next-intl";
 import { describe, expect, it } from "vitest";
-import { formatDate, formatNumber } from "./format";
+import { formatDate, formatNumber, formatTime } from "./format";
 
 // Real next-intl formatters per locale (the same object useFormatter() /
 // getFormatter() return). timeZone is pinned to Europe/Stockholm to match the
@@ -55,5 +55,26 @@ describe("formatDate", () => {
 
   it("returns null for an unparseable date string", () => {
     expect(formatDate(sv, "not-a-date")).toBeNull();
+  });
+});
+
+describe("formatTime", () => {
+  // 12:00Z in May is CEST (UTC+2) → 14:00 local in Europe/Stockholm.
+  const noonZulu = new Date("2026-05-18T12:00:00Z");
+  // 20:30Z → 22:30 local; crosses the 12h boundary to prove there is no AM/PM.
+  const eveningZulu = new Date("2026-05-18T20:30:00Z");
+
+  it("renders a 24h HH:MM time in sv", () => {
+    expect(formatTime(sv, noonZulu)).toBe("14:00");
+    expect(formatTime(sv, eveningZulu)).toBe("22:30");
+  });
+
+  it("pins the 24h clock in en too (no AM/PM — CLAUDE.md §10)", () => {
+    expect(formatTime(en, eveningZulu)).toBe("22:30");
+    expect(formatTime(en, eveningZulu)).not.toMatch(/[AP]M/i);
+  });
+
+  it("uses the same clock style across locales (24h is civic-stable)", () => {
+    expect(formatTime(sv, eveningZulu)).toBe(formatTime(en, eveningZulu));
   });
 });

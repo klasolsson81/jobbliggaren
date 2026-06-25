@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
+import { formatDate } from "@/lib/i18n/format";
 import { getResumeById } from "@/lib/api/resumes";
 import { assertNever } from "@/lib/dto/_helpers";
 import { findMasterVersion, emptyContent } from "@/lib/resumes/content-utils";
@@ -37,6 +38,7 @@ export default async function CvDetailPage({ params }: Props) {
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  const format = await getFormatter();
   const { id } = await params;
   const result = await getResumeById(id);
   switch (result.kind) {
@@ -80,7 +82,7 @@ export default async function CvDetailPage({ params }: Props) {
   }
 
   const resume = result.data;
-  const updatedAt = new Date(resume.updatedAt).toLocaleDateString("sv-SE");
+  const updatedAt = formatDate(format, resume.updatedAt) ?? "";
   const master = findMasterVersion(resume);
   const initialContent = master?.content ?? emptyContent();
 

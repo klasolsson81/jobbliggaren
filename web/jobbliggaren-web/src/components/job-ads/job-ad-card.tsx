@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { jobSourceLabel } from "@/lib/job-ads/status";
+import { formatDate, formatTime, type JpFormatter } from "@/lib/i18n/format";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { JobTags } from "./job-tags";
@@ -20,30 +21,24 @@ interface JobAdCardProps {
   matchGrade?: MatchGrade;
 }
 
-function formatDate(iso: string): string {
-  // CLAUDE.md §10.2 — svensk locale (sv-SE).
-  return new Date(iso).toLocaleDateString("sv-SE");
-}
-
 /**
  * PR5 Klas-feedback 2026-05-23 — Platsbanken-paritet: visa klockslag på
  * publicerad-tidsstämpeln. Idag → "idag, kl. HH.MM"; igår → "igår, kl. HH.MM";
- * äldre → "YYYY-MM-DD, kl. HH.MM". Hjälper användaren skilja annonser som
- * postas under dagen (flera hundra dagligen). Den svenska prosan resolveras via
- * next-intl (`ui.card.published*`); funktionen tar translatorn så den förblir
- * en ren render-helper (anropas i RSC:n med komponentens `t`).
+ * äldre → "<datum>, kl. HH.MM". Hjälper användaren skilja annonser som postas
+ * under dagen (flera hundra dagligen). Den svenska prosan resolveras via
+ * next-intl (`ui.card.published*`); funktionen tar translatorn + den
+ * locale-medvetna formattern så den förblir en ren render-helper (anropas i
+ * RSC:n med komponentens `t`/`format`).
  */
 function formatPublishedAtWithTime(
   iso: string,
   t: ReturnType<typeof useTranslations<"jobads.ui.card">>,
+  format: JpFormatter,
 ): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
 
-  const time = date.toLocaleTimeString("sv-SE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const time = formatTime(format, date);
 
   const now = new Date();
   const isToday =
@@ -63,7 +58,7 @@ function formatPublishedAtWithTime(
   if (isYesterday) return t("publishedYesterday", { time });
 
   return t("publishedOlder", {
-    date: date.toLocaleDateString("sv-SE"),
+    date: formatDate(format, iso) ?? iso,
     time,
   });
 }
@@ -95,8 +90,9 @@ export function JobAdCard({
   // renders as a serialized list slot and has synchronous render tests).
   const t = useTranslations("jobads.enums");
   const tUi = useTranslations("jobads.ui.card");
-  const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt, tUi);
-  const expiresAt = jobAd.expiresAt ? formatDate(jobAd.expiresAt) : null;
+  const format = useFormatter();
+  const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt, tUi, format);
+  const expiresAt = formatDate(format, jobAd.expiresAt);
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
   const publishedAtMs = Date.parse(jobAd.publishedAt);
 

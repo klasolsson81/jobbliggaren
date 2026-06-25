@@ -35,8 +35,6 @@ const baseProfile: JobSeekerProfileDto = {
   id: "profile-1",
   displayName: "Klas Olsson",
   language: "sv",
-  emailNotifications: true,
-  weeklySummary: false,
   backgroundMatchNotificationsEnabled: false,
   digestCadence: "Weekly",
   createdAt: "2026-05-01T08:00:00Z",
@@ -66,13 +64,12 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     // F4-12 PR-B (ADR 0076): Matchning-kortet ligger i första kolumnen efter
     // Personuppgifter. `taxonomy={null}` → kortet degraderar men behåller sin
     // h2-rubrik.
-    // ADR 0080 Vag 4 PR-6: Matchningsnotiser-kortet ligger efter Aviseringar i
-    // andra kolumnen (båda notis-relaterade).
+    // TD-115 (2026-06-25): det gamla "Aviseringar"-kortet (EmailNotifications +
+    // WeeklySummary) togs bort — Matchningsnotiser är nu den enda notis-ytan.
     expect(headings).toEqual([
       "Personuppgifter",
       "Matchning",
       "Visning",
-      "Aviseringar",
       "Matchningsnotiser",
       "Sekretess och data",
       "Logga ut",
@@ -128,7 +125,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     expect(english).toBeEnabled();
   });
 
-  it("Aviseringar-kortet har EXAKT 2 toggles (CTO Val 3B, no-mock)", () => {
+  it("Matchningsnotiser är den enda notis-toggeln (TD-115: Aviseringar-kortet borttaget)", () => {
     render(
       <SettingsForm
         initialProfile={baseProfile}
@@ -137,17 +134,10 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialSkillLabels={[]}
       />,
     );
-    // Aviseringar-kortets två wirede toggles.
-    expect(
-      screen.getByRole("switch", { name: /E-postnotifikationer/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: /Veckosammanfattning/ }),
-    ).toBeInTheDocument();
-    // ADR 0080 Vag 4 PR-6: Matchningsnotiser-kortets opt-in-toggle är den tredje
-    // switchen på sidan (default OFF). Tre toggles totalt: Aviseringar (2) +
-    // Matchningsnotiser (1).
-    expect(screen.getAllByRole("switch")).toHaveLength(3);
+    // TD-115: det gamla Aviseringar-kortets två toggles (EmailNotifications +
+    // WeeklySummary) togs bort — de styrde ingen e-postväg. Matchningsnotiser-
+    // kortets opt-in-toggle (default OFF) är nu den ENDA switchen på sidan.
+    expect(screen.getAllByRole("switch")).toHaveLength(1);
     expect(
       screen.getByRole("switch", { name: "Matcha nya annonser åt mig" }),
     ).toHaveAttribute("aria-checked", "false");

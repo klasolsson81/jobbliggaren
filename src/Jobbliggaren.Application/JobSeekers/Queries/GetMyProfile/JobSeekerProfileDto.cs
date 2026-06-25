@@ -6,13 +6,12 @@ public sealed record JobSeekerProfileDto(
     Guid Id,
     string DisplayName,
     string Language,
-    bool EmailNotifications,
-    bool WeeklySummary,
     // ADR 0080 Vag 4 PR-6 — background-match notification consent (opt-in, GDPR Art. 6/7,
     // default OFF per PR-1) + the digest cadence, projected here so the settings toggle +
-    // cadence picker pre-fill the user's current state (parity the EmailNotifications /
-    // WeeklySummary sibling projections above). The consent TIMESTAMPS (Art. 7 evidence) are
-    // deliberately NOT projected; the UI needs only the enabled flag + cadence (data-minimal).
+    // cadence picker pre-fill the user's current state. The consent TIMESTAMPS (Art. 7
+    // evidence) are deliberately NOT projected; the UI needs only the enabled flag + cadence
+    // (data-minimal). (TD-115: the legacy EmailNotifications/WeeklySummary projections were
+    // retired alongside the flags — they gated no email path.)
     bool BackgroundMatchNotificationsEnabled,
     DigestCadence DigestCadence,
     DateTimeOffset CreatedAt,
@@ -50,8 +49,6 @@ public sealed record JobSeekerProfileDto(
         js.Id.Value,
         js.DisplayName,
         js.Preferences.Language,
-        js.Preferences.EmailNotifications,
-        js.Preferences.WeeklySummary,
         js.Preferences.BackgroundMatchNotificationsEnabled,
         js.Preferences.DigestCadence,
         js.CreatedAt,

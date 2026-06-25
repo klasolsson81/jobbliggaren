@@ -19,13 +19,6 @@
     "languageSwedish": "Svenska",
     "languageEnglish": "English"
   },
-  "notifications": {
-    "title": "Aviseringar",
-    "emailLabel": "E-postnotifikationer",
-    "emailDescription": "Få mejl vid viktiga händelser i ditt konto.",
-    "weeklyLabel": "Veckosammanfattning via e-post",
-    "weeklyDescription": "Sammanfattning av dina ansökningar och nya annonser."
-  },
   "backgroundMatch": {
     "title": "Matchningsnotiser",
     "intro": "När det här är på matchar vi nya annonser mot din profil varje natt. Toppmatchningar skickar vi direkt via e-post. Starka matchningar samlas i en sammanfattning som du får via e-post enligt vald takt. Bra matchningar visas i din matchningslista utan e-post. Du kan när som helst stänga av detta.",
@@ -184,11 +177,6 @@
     "languageLabel": "Språk",
     "languageSwedish": "Svenska",
     "languageEnglish": "Engelska",
-    "notificationsLegend": "Notifieringar",
-    "emailNotificationsLabel": "E-postnotifieringar",
-    "emailNotificationsHint": "Få mejl vid viktiga händelser i ditt konto.",
-    "weeklySummaryLabel": "Veckosammanfattning",
-    "weeklySummaryHint": "En veckovis översikt av dina aktiva ansökningar.",
     "saving": "Sparar…",
     "saveProfile": "Spara profil",
     "savedAt": "Sparat {time}.",

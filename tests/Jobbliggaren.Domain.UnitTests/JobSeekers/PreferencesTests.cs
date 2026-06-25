@@ -11,17 +11,19 @@ public class PreferencesTests
         var prefs = new Preferences();
 
         prefs.Language.ShouldBe("sv");
-        prefs.EmailNotifications.ShouldBeTrue();
-        prefs.WeeklySummary.ShouldBeFalse();
+        // TD-115: EmailNotifications/WeeklySummary retired. The Vag 4 consent defaults
+        // (the live notification model) stay OFF — the GDPR Art. 7 opt-in invariant.
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
+        prefs.NotificationConsentAt.ShouldBeNull();
+        prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
     }
 
     [Fact]
     public void Preferences_ExplicitValues_ArePreserved()
     {
-        var prefs = new Preferences(Language: "en", EmailNotifications: false, WeeklySummary: false);
+        var prefs = new Preferences(Language: "en", BackgroundMatchNotificationsEnabled: true);
 
         prefs.Language.ShouldBe("en");
-        prefs.EmailNotifications.ShouldBeFalse();
-        prefs.WeeklySummary.ShouldBeFalse();
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
     }
 }

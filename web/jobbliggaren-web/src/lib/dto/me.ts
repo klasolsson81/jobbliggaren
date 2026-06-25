@@ -53,15 +53,14 @@ export const jobSeekerProfileSchema = z.object({
   id: z.string(),
   displayName: z.string(),
   language: z.string(),
-  emailNotifications: z.boolean(),
-  weeklySummary: z.boolean(),
   // ADR 0080 Vag 4 PR-6: background-match notification consent (opt-in, GDPR
   // Art. 6/7, default OFF per PR-1) + the digest cadence for accumulated Strong
   // matches. Backend always projects both additively on the JobSeekerProfileDto
-  // (parity emailNotifications/weeklySummary above) → required keys; `undefined`
-  // would mask contract drift. Read back so the consent card pre-fills the
-  // user's current state. The cadence is only meaningful when the toggle is on;
-  // the wire still always carries it (the engine default is Weekly).
+  // → required keys; `undefined` would mask contract drift. Read back so the
+  // consent card pre-fills the user's current state. The cadence is only
+  // meaningful when the toggle is on; the wire still always carries it (the
+  // engine default is Weekly). (TD-115: the legacy emailNotifications/
+  // weeklySummary keys were retired — they gated no email path.)
   backgroundMatchNotificationsEnabled: z.boolean(),
   digestCadence: digestCadenceSchema,
   createdAt: z.string(),

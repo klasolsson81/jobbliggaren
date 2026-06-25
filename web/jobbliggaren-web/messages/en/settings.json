@@ -19,13 +19,6 @@
     "languageSwedish": "Svenska",
     "languageEnglish": "English"
   },
-  "notifications": {
-    "title": "Notifications",
-    "emailLabel": "Email notifications",
-    "emailDescription": "Get an email for important events in your account.",
-    "weeklyLabel": "Weekly summary by email",
-    "weeklyDescription": "A summary of your applications and new job ads."
-  },
   "backgroundMatch": {
     "title": "Match notifications",
     "intro": "When this is on, we match new job ads against your profile every night. Top matches are emailed to you right away. Strong matches are collected into a summary you receive by email at the chosen rate. Good matches appear in your match list without email. You can turn this off at any time.",
@@ -184,11 +177,6 @@
     "languageLabel": "Language",
     "languageSwedish": "Svenska",
     "languageEnglish": "English",
-    "notificationsLegend": "Notifications",
-    "emailNotificationsLabel": "Email notifications",
-    "emailNotificationsHint": "Get an email for important events in your account.",
-    "weeklySummaryLabel": "Weekly summary",
-    "weeklySummaryHint": "A weekly overview of your active applications.",
     "saving": "Saving…",
     "saveProfile": "Save profile",
     "savedAt": "Saved {time}.",

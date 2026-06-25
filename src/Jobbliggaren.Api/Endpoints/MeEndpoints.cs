@@ -59,9 +59,8 @@ public static class MeEndpoints
         // toggle + digest cadence). PUT = idempotent full-replace of {enabled, cadence}; the
         // aggregate owns the GDPR consent stamping (first opt-in immutable Art. 7(1); opt-out
         // records the Art. 7(3) withdrawal). The current state is READ via GET /profile (the
-        // consent flag + cadence ride the JobSeekerProfileDto projection, parity EmailNotifications
-        // / WeeklySummary) — no dedicated read endpoint. MeWritePolicy (user-owned mutation, parity
-        // /match-preferences). 204 / Problem 400.
+        // consent flag + cadence ride the JobSeekerProfileDto projection) — no dedicated read
+        // endpoint. MeWritePolicy (user-owned mutation, parity /match-preferences). 204 / Problem 400.
         group.MapPut("/notification-consent", async (
             UpdateNotificationConsentCommand command, IMediator mediator, CancellationToken ct) =>
         {

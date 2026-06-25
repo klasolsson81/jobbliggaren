@@ -21,3 +21,7 @@ docs/tech-debt-archive.md
 docs/sessions/
 docs/reviews/
 docs/decisions/00[789][0-9]-*.md
+
+# GDPR Art. 30 processing-register (ROPA) — local-only (ADR 0072 / #183), internal
+# accountability record. Worktrees need it for GDPR context; never a secret.
+docs/runbooks/gdpr-processing-register.md

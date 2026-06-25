@@ -102,6 +102,16 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddScoped<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.DigestDispatchWorker>();
 
+        // TD-114: mirror Worker/Program.cs's stranded-match reaper registration so its
+        // integration test can resolve the worker (WorkerTestFixture does NOT replicate
+        // Program.cs DI — it registers explicitly).
+        services.AddScoped<Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper.StrandedMatchReaperJob>();
+        services.AddScoped<Jobbliggaren.Worker.Hosting.StrandedMatchReaperWorker>();
+
+        // TD-111: same — register the ParsedResume retention sweep so its integration test resolves it.
+        services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();
+        services.AddScoped<Jobbliggaren.Worker.Hosting.ParsedResumeRetentionWorker>();
+
         services.AddSingleton<ICurrentUser, WorkerSystemUser>();
         services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();

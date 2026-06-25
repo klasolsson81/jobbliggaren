@@ -91,10 +91,26 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             job => job.RunAsync(CancellationToken.None),
             "30 4 * * *");  // 04:30 UTC — 30-min padding efter hard-delete (TD-73 punkt 2)
 
+        manager.AddOrUpdate<StrandedMatchReaperWorker>(
+            "reap-stranded-matches",
+            job => job.RunAsync(CancellationToken.None),
+            "45 4 * * *");  // 04:45 UTC — TD-114. Reapar UserJobAdMatch som fastnat i Queued
+                            // (failad send) → terminal Failed. EFTER förra cykelns digest-fönster
+                            // (06:00 dagen innan) hunnit sätta sig, i hard-delete-klustrets lugna
+                            // svans (mellan purge 04:30 och backfill 05:00). DisableConcurrentExecution-skyddad.
+
         manager.AddOrUpdate<BackfillFieldEncryptionWorker>(
             "backfill-field-encryption",
             job => job.RunAsync(CancellationToken.None),
             "0 5 * * *");  // 05:00 UTC — 30-min padding efter purge (TD-13 C5, ADR 0049 Beslut 4)
+
+        manager.AddOrUpdate<ParsedResumeRetentionWorker>(
+            "parsed-resume-retention",
+            job => job.RunAsync(CancellationToken.None),
+            "15 5 * * *");  // 05:15 UTC — TD-111 (ADR 0074 F4-8). Set-based ExecuteDelete-svep av
+                            // mognade ParsedResume-staging-rader (Discarded/Promoted ≥30d, övergivna
+                            // PendingReview ≥90d) för GDPR Art. 5(1)(e). Efter backfill (05:00), före
+                            // digest (06:00); DEK-fritt (rör ingen interaktiv yta). DisableConcurrentExecution-skyddad.
 
         // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch. Två kadenser, en cron var (cron = fönstret):
         // Daglig 06:00 UTC och Veckovis måndag 06:00 UTC. MEDVETET på morgonen, EFTER nattscannen

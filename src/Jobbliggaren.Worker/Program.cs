@@ -94,6 +94,18 @@ builder.Services.AddOptions<Jobbliggaren.Application.Matching.Jobs.DigestDispatc
     .ValidateOnStart();
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.DigestDispatchWorker>();
+// TD-114 (ADR 0080 Vag 4) — stranded-Queued match reaper. Marks a UserJobAdMatch left
+// Queued past the threshold as terminal Failed (no re-send). Needs only IAppDbContext +
+// IDateTimeProvider (no IEmailSender / matching engine — it never sends). Wrapper + job in
+// the same commit (TD-103: Worker ValidateOnBuild=false → a missing dep fails first at
+// Hangfire-invocation; verified manually in dev).
+builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper.StrandedMatchReaperJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.StrandedMatchReaperWorker>();
+// TD-111 (ADR 0074 F4-8) — ParsedResume staging-retention sweep (GDPR Art. 5(1)(e)).
+// Set-based ExecuteDelete, DEK-free (no IRequiresFieldEncryptionKey — see the job doc).
+// Wrapper + job in the same commit (TD-103: Worker ValidateOnBuild=false).
+builder.Services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ParsedResumeRetentionWorker>();
 // TD-13 C5 (ADR 0049 Beslut 4) — DisableConcurrentExecution-wrapper för
 // fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();

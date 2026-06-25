@@ -11,6 +11,12 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyMatches;
 /// erased rows; the inner join to <c>JobAds</c> naturally drops a match whose ad is gone (a stale
 /// link is never surfaced). <c>IsNew</c> is computed against the last-seen watermark as it stands
 /// AT FETCH (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
+/// <para>
+/// Deliberately status-AGNOSTIC: this surface does NOT filter on <c>NotificationStatus</c> —
+/// a match is shown regardless of whether its notification is Pending/Queued/Sent/Failed, because
+/// match VISIBILITY is independent of notification DELIVERY (TD-114). Do NOT add a status filter:
+/// it would hide a real (e.g. email-Failed) match from the user.
+/// </para>
 /// </summary>
 public sealed class GetMyMatchesQueryHandler(
     IAppDbContext db,

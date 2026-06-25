@@ -60,8 +60,8 @@ function CountMeta({
         <span>
           {t.rich("hitsWithNew", {
             b: bold,
-            currentCount: currentCount.toLocaleString("sv-SE"),
-            newCount: newCount.toLocaleString("sv-SE"),
+            currentCount,
+            newCount,
           })}
         </span>
       </div>
@@ -72,7 +72,7 @@ function CountMeta({
       <span>
         {t.rich("hits", {
           b: bold,
-          currentCount: currentCount.toLocaleString("sv-SE"),
+          currentCount,
         })}
       </span>
     </div>

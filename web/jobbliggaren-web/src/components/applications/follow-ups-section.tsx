@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { AddFollowUpForm } from "./add-follow-up-form";
 import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
 import {
   channelLabel,
   followUpOutcomeLabel,
-  formatSvDate,
 } from "@/lib/applications/status";
+import { formatDate } from "@/lib/i18n/format";
 import type { FollowUpDto } from "@/lib/types/applications";
 
 interface FollowUpsSectionProps {
@@ -136,14 +136,14 @@ function FollowUpRow({
 }: FollowUpRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  const format = useFormatter();
   const recorded = followUp.outcome !== "Pending";
   const channel = channelLabel(t, followUp.channel);
   const scheduledLabel =
-    formatSvDate(followUp.scheduledAt) ??
-    new Date(followUp.scheduledAt).toLocaleDateString("sv-SE");
+    formatDate(format, followUp.scheduledAt) ?? "";
   const outcomeLabel = followUpOutcomeLabel(t, followUp.outcome);
   const outcomeAt = recorded && followUp.outcomeAt
-    ? formatSvDate(followUp.outcomeAt)
+    ? formatDate(format, followUp.outcomeAt)
     : null;
   const noteFirstLine = followUp.note
     ? (followUp.note.split(/\r?\n/)[0] ?? null)

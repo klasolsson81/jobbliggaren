@@ -100,6 +100,14 @@ docs/decisions/0005-go-to-market-strategy.md
 docs/decisions/0071-*.md
 docs/decisions/0072-*.md
 docs/decisions/0073-*.md
+# Autonomt multi-session-flöde (2026-06-25, Klas-beslut): agent-review-rapporter
+# och nyare ADR:er hålls lokala by-default. Globen nedan matchar ADR 0070–0099;
+# redan spårade ADR 0001–0073 + 234 reviews FÖRBLIR publika (gitignore avspårar
+# inte redan committade filer), så nettoeffekten är "nya ADR:er 0074+ blir lokala".
+# Vid ADR 0100+ måste ett nytt mönster läggas till (00[789][0-9] täcker ej 0100+).
+# Främja en lokal ADR/review till publikt via `git add -f`.
+docs/reviews/
+docs/decisions/00[789][0-9]-*.md
 # Infra-/admin-runbooks (AWS-era + RBAC-bootstrap)
 docs/runbooks/admin-bootstrap.md
 docs/runbooks/aws-cost-recovery.md

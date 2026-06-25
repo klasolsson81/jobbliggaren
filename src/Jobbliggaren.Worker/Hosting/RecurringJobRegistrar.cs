@@ -91,6 +91,14 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             job => job.RunAsync(CancellationToken.None),
             "30 4 * * *");  // 04:30 UTC — 30-min padding efter hard-delete (TD-73 punkt 2)
 
+        manager.AddOrUpdate<StrandedMatchReaperWorker>(
+            "reap-stranded-matches",
+            job => job.RunAsync(CancellationToken.None),
+            "45 4 * * *");  // 04:45 UTC — TD-114. Reapar UserJobAdMatch som fastnat i Queued
+                            // (failad send) → terminal Failed. EFTER förra cykelns digest-fönster
+                            // (06:00 dagen innan) hunnit sätta sig, i hard-delete-klustrets lugna
+                            // svans (mellan purge 04:30 och backfill 05:00). DisableConcurrentExecution-skyddad.
+
         manager.AddOrUpdate<BackfillFieldEncryptionWorker>(
             "backfill-field-encryption",
             job => job.RunAsync(CancellationToken.None),

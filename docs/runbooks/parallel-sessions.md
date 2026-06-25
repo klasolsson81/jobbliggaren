@@ -38,38 +38,58 @@ and the real secrets). Worktree sessions are the parallel feature workers.
 
 ## 3. Creating and tearing down a worktree
 
-The established pattern (memory `project_parallel_cc_worktree_isolation`) is a
-raw `git worktree` under `c:/tmp` from `origin/main`. Claude Code's
-`EnterWorktree` (worktrees under `.claude/worktrees/`, base ref `fresh` =
-`origin/<default>`) works too — both leave the gitignored local docs behind, so
-the sync step (§3.2) is mandatory either way.
+Each parallel session works in its own worktree so the working tree, the `bin/`
+build output, and uncommitted edits never collide. Two paths — pick by setup.
+Either way: branch from `origin/main`, and the session must obtain the gitignored
+session-state docs a fresh worktree lacks (§3.2).
 
 ### 3.1 Create
 
+**Path A — VS Code tabs on one machine (recommended, zero manual setup).** When
+sessions run as **tabs in the same VS Code window** (shared workspace
+`C:/DOTNET-UTB/JobbPilot`), you only open a tab and paste a start prompt — the
+session isolates itself. Its FIRST action: call the **`EnterWorktree`** tool
+(e.g. `name: frontend-locale-cleanups`) → it creates a worktree under
+`.claude/worktrees/<name>` from `origin/main` and switches the session into it,
+with its own branch + its own `bin/` (so no bin-lock against the stack-owner).
+The session verifies with `git worktree list` before touching files. No git
+commands, no new window/folder. `EnterWorktree` must be instructed explicitly
+(the start prompt does this; authorized by CLAUDE.md §6.5); `ExitWorktree`
+leaves/cleans it at the end.
+
+**Path B — raw `git worktree` (separate dir or machine).**
+
 ```powershell
 git fetch origin
-# raw git worktree (preferred — lands in c:/tmp, off the main tree):
 git worktree add -b feat/<context>-<slug> C:/tmp/jbl-<context> origin/main
-# …or inside a session: EnterWorktree (name: feat/<context>-<slug>)
 ```
 
 Branch name encodes the context: `feat/matching-…`, `fix/jobads-cv-…`,
 `docs/infra-…` (see §4 for context names).
 
-### 3.2 Sync the gitignored local docs in (mandatory)
+### 3.2 Get the gitignored session-state docs
 
-A fresh worktree has the **tracked** files only. Session-state docs
-(`current-work.md`, `steg-tracker.md`, `tech-debt.md`, `sessions/`, local
-`reviews/` and ADRs 0074+) are gitignored (ADR 0072) and absent. Pull them in:
+A fresh worktree has the **tracked** files only (incl. this playbook). The
+session-state docs — `current-work.md`, `steg-tracker.md` (§2.1 = the roadmap
+SSOT), `tech-debt.md`, `sessions/`, local `reviews/` and ADRs 0074+ — are
+gitignored (ADR 0072) and absent.
 
-```powershell
-# run from the MAIN checkout; <worktree-path> is the new worktree
-C:/DOTNET-UTB/JobbPilot/scripts/sync-worktree-docs.ps1 C:/tmp/jbl-<context>
-```
+- **Path A (same machine): no sync needed.** All tabs share one disk, so read
+  them in place from the main checkout's absolute path —
+  `C:/DOTNET-UTB/JobbPilot/docs/current-work.md`, `…/docs/steg-tracker.md`.
+  Nothing to copy.
+- **Path B (separate dir/machine): copy them in** (run from the MAIN checkout):
+  ```powershell
+  C:/DOTNET-UTB/JobbPilot/scripts/sync-worktree-docs.ps1 C:/tmp/jbl-<context>
+  ```
+  The list lives in [`.worktreeinclude`](../../.worktreeinclude); the script
+  **refuses secret-like entries** (`appsettings.Local.json`, `.env.local` are
+  NEVER synced — only the stack-owner runs against real secrets).
 
-The list lives in [`.worktreeinclude`](../../.worktreeinclude). The script
-**refuses secret-like entries** — secrets (`appsettings.Local.json`,
-`.env.local`) are NEVER synced; only the stack-owner runs against real secrets.
+**Do not fork these shared docs in a worktree.** `current-work.md` / `steg-tracker.md`
+/ `tech-debt.md` are owned centrally (the stack-owner updates them); a worktree
+session reads them for context and writes only its own gitignored
+`docs/sessions/<log>.md`.
 
 ### 3.3 Push (rebase first)
 

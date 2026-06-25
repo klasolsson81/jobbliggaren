@@ -43,8 +43,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       ändring → manuell procedur (TD-72).
 - [ ] **GDPR-konsekvens** för nytt scope bedömd (CLAUDE.md §8 punkt 8) — ny
       PII? loggning? retention? Audit-wire intakt (ADR 0035)?
-- [ ] **Secrets-hygien** — inga nya secrets i klartext; AWS Secrets Manager +
-      KMS för allt känsligt (CLAUDE.md §5.4).
+- [ ] **Secrets-hygien** — inga nya secrets i klartext; gitignored
+      `appsettings.Local.json` lokalt / managed secrets-store i ops + DEK-envelope
+      (`IDataKeyProvider`, ADR 0066/0049) för allt känsligt (CLAUDE.md §5; AWS
+      Secrets Manager + KMS rivet, ADR 0066).
 - [ ] **Lokal diff-granskning** (CLAUDE.md §6.3 mekanism 4) — Klas läser
       `git log` + `git diff` för release-spannet.
 
@@ -68,7 +70,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
       användaren (#186).
 - [ ] **4. TD-114** — stranded-Queued-reaper (#184 / PR #212 — **KLAR**) +
-      **Resend `Idempotency-Key`** på real-send-vägen (#187, ej wirad ännu).
+      **Resend `Idempotency-Key`** på real-send-vägen (#187 / PR #230 — **KLAR**;
+      VO `MatchNotificationIdempotencyKey`, ad-scoped Direct + content-hash Digest).
 
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 "Bakgrundsmatchnings-notiser via e-post (Resend)".
@@ -97,33 +100,44 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
 
 ## 4. Efter deploy (verifiering)
 
-- [ ] **ECS-tasks startar** (api + worker) — `aws ecs describe-services`
-      eller konsolen.
+> Hetzner-modell (ADR 0050/0066): hela stacken (API + Worker + Postgres + Redis +
+> Caddy + Next.js) kör i Docker Compose på CAX31-boxen bakom Caddy. Konkreta
+> service-namn/kommandon finalize:ras med **#196 / TD-106** (Compose-stack + proxy
+> + härdning) — stegen nedan är på modell-altitud tills dess.
+
+- [ ] **Compose-tjänster startar** (api + worker) — `docker compose ps` på boxen
+      visar dem `healthy` (konkret service-namn/compose-fil: #196/TD-106).
 - [ ] **`/api/ready` → 200** mot målmiljöns domän (strict readiness: DB +
       Redis dependency-checks, TD-29).
 - [ ] **`/api/health` → 200** (liveness).
 - [ ] **Hangfire-jobben** kör enligt schema om release rör Worker
       (`*/10`-cron etc.) — verifiera i Hangfire-dashboard/loggar.
 - [ ] **Audit-wire** — om release rör audit-genererande flöden: bevisa
-      INSERT i `audit_log` via CloudWatch (ADR 0035).
-- [ ] **CloudWatch-alarms i `OK`-state** (jobtech-sync-failures,
-      auditor-write-failures, log-pipeline-health — ADR 0036).
+      INSERT i `audit_log` via den strukturerade logg-sinken (MEL → Seq; full
+      prod-sink = TD-104) + direkt `audit_log`-query (ADR 0035).
+- [ ] **Ops-signaler granskade** — health-checks + extern uptime-monitor
+      (UptimeRobot/BetterStack, ADR 0050 — ersätter ALB/CloudWatch-health);
+      jobtech-sync-/auditor-write-/log-pipeline-health läses via logg-sinken.
+      Konkret alerting-konfig: #196/TD-106 + TD-104.
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
-- [ ] **Rollback testad/känd** — `aws ecs update-service --task-definition
-      <previous>` (BUILD.md §15.4) vid issues.
+- [ ] **Rollback känd** — återställ föregående byggda image-tag via Compose
+      (se §5); konkret procedur #196/TD-106.
 
 ---
 
 ## 5. Rollback
 
-Vid fel efter prod-deploy:
+Vid fel efter prod-deploy (Hetzner-modell, ADR 0050 "Rollback" amenderat
+2026-06-08 — AWS-stacken är riven, ADR 0066):
 
 ```bash
-aws ecs update-service \
-  --cluster <cluster> --service <service> \
-  --task-definition <previous-task-def-arn> \
-  --force-new-deployment
+# På CAX31-boxen: pinna image-taggen tillbaka till föregående release och
+# re-deploya Compose-stacken. Samma image-byggväg som prod (next build / dotnet
+# publish körs i CI → enbart den byggda imagen skickas till boxen), så den lokala
+# Docker-Compose-stacken är dev/prod-paritets-baselinen vid en misslyckad cutover.
+IMAGE_TAG=<föregående-release> docker compose up -d
+# Konkret tag-mekanism + service-namn finalize:ras med #196/TD-106 (ADR 0050).
 ```
 
 Notera incidenten i `docs/sessions/` + relevant runbook. Skapa ADR om
@@ -143,8 +157,11 @@ rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).
 ## Referenser
 
 - ADR 0019 (direct-push + tag-semantik), ADR 0033/0034 (migrations/DB-roller),
-  ADR 0035 (audit-wire), ADR 0036 (prod-stack-defer + ops-alarms),
-  ADR 0044 (coverage-gate), ADR 0045 (perf observe-only-signaler)
+  ADR 0035 (audit-wire), ADR 0050 (Hetzner-deploy: CAX31 + Caddy + Compose +
+  rollback-modell) / ADR 0066 (AWS-exit), ADR 0036 (ops-alarms — supersederad av
+  ADR 0050:s health-check/uptime-monitor-modell), ADR 0044 (coverage-gate),
+  ADR 0045 (perf observe-only-signaler); TD-106 (konkret Compose-stack) / TD-104
+  (logg-sink/observability)
 - CLAUDE.md §6.3 (granskningsspärrar), §8 (DoD), §9.2 (deploy kräver Klas-GO)
 - BUILD.md §15 (deployment/rollback)
 - `docs/runbooks/v0.2-prod-launch-checklist.md` — engångs-checklist för

@@ -75,13 +75,36 @@ public class UpdateMyProfileAuditTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var after = await ReadAuditEntriesAsync(jobSeekerId, ct);
-        (after.Count - before.Count).ShouldBe(1, "exactly one audit row per successful profile update");
+        after.Count.ShouldBe(before.Count + 1, "only the profile PATCH adds a row");
 
-        var row = after[^1];
-        row.EventType.ShouldBe("JobSeeker.ProfileUpdated");
+        // Filter by EventType + Single (parity NotificationConsentEndpointTests) — robust against
+        // any OccurredAt tie-ordering, and proves exactly one ProfileUpdated row was written.
+        var profileRows = after.Where(a => a.EventType == "JobSeeker.ProfileUpdated").ToList();
+        profileRows.Count.ShouldBe(1);
+
+        var row = profileRows[0];
         row.AggregateType.ShouldBe("JobSeeker");
-        row.AggregateId.ShouldBe(jobSeekerId);
+        row.AggregateId.ShouldBe(jobSeekerId); // the JobSeeker id (echoed), NOT the user-id
         row.UserId.ShouldBe(userId);
+    }
+
+    [Fact]
+    public async Task Patch_profile_with_blank_displayName_writes_no_audit_row()
+    {
+        // The domain-failure path (authenticated, blank display name → 400) DOES enter the
+        // pipeline, unlike the anonymous 401 path — so this locks AuditBehavior's skip-on-failure
+        // end-to-end: a Result.Failure<Guid> writes no audit row.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        var jobSeekerId = await ReadJobSeekerIdAsync(userId, ct);
+        var before = await ReadAuditEntriesAsync(jobSeekerId, ct);
+
+        var response = await _client.PatchAsJsonAsync(
+            "/api/v1/me/profile", new { displayName = "   ", language = "sv" }, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        var after = await ReadAuditEntriesAsync(jobSeekerId, ct);
+        after.Count.ShouldBe(before.Count, "a failed (domain-invalid) profile update writes no audit row");
     }
 
     [Fact]

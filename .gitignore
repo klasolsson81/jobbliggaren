@@ -113,5 +113,8 @@ docs/runbooks/admin-bootstrap.md
 docs/runbooks/aws-cost-recovery.md
 docs/runbooks/aws-rds-migration-apply.md
 docs/runbooks/aws-setup.md
+# GDPR Art. 30 processing-register (ROPA) — internal accountability record, not
+# public (names sub-processors + infra topology); local-only per ADR 0072 (#183).
+docs/runbooks/gdpr-processing-register.md
 # Lokala loadtest-artefakter
 loadtest-reports/

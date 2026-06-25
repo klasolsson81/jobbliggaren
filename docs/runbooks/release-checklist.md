@@ -50,6 +50,31 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 
 ---
 
+## 2.5 HÅRD GRIND: Resend e-post-prod-flip (ADR 0080)
+
+> Gäller ENDAST en release som aktiverar `Email:Provider=Resend` i non-dev
+> (bakgrundsmatchnings-notiser). Tills dess kör `NullEmailSender` — ingen
+> e-post skickas, och denna grind är inte relevant. Resend är en **US-processor**
+> → mottagar-adress + opt-in-faktum är en tredjelandsöverföring. **Alla fyra
+> punkter MÅSTE vara gröna innan `Email:Provider` flippas** (ADR 0080
+> prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
+
+- [ ] **1. Tredjelands-grund** — signerad **DPA** med Resend på fil +
+      dokumenterad **SCC/adekvans**-grund + Resend-posten i
+      `docs/runbooks/gdpr-processing-register.md` (ROPA, lokal) +
+      **security-auditor-sign-off** på prod-e-post-konfigen. (DPA-signering =
+      Klas; ROPA + sign-off = #183.)
+- [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
+- [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
+      användaren (#186).
+- [ ] **4. TD-114** — stranded-Queued-reaper (#184 / PR #212 — **KLAR**) +
+      **Resend `Idempotency-Key`** på real-send-vägen (#187, ej wirad ännu).
+
+Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
+"Bakgrundsmatchnings-notiser via e-post (Resend)".
+
+---
+
 ## 3. Tagga + deploy
 
 ```bash

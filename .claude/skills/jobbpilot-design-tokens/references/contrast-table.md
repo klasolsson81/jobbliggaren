@@ -34,7 +34,7 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 |---|---|---|---|
 | `border` (#C9D2E0) | `surface` (#FFFFFF) | ~1.5:1 | Synlig avgränsare men ej informationsbärande ensam |
 | `border-input` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | Input-vila — klarar 3:1 UI-golvet |
-| `border-strong` (#97A4B8) | `surface` (#FFFFFF) | ~2.5:1 | Under 3:1 — komplettera alltid med text/ikon, aldrig endast kanten som informationsbärare |
+| `border-strong` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | AA ✓ UI — klarar 3:1-golvet (höjt från #97A4B8/2.5:1, issue #193); delar nu värde med border-input |
 
 ## Light mode — status pairs
 
@@ -42,8 +42,9 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 |---|---|---|---|---|
 | `success` (#16793B) | `success-bg` (#DFF3E5) | ~4.7:1 | AA ✓ | Pill-text |
 | `success` (#16793B) | `surface` (#FFFFFF) | ~5.5:1 | AA ✓ | Statusikon/text |
-| `warning` (#B4540B) | `warning-bg` (#FCE9D1) | ~4.2:1 | ✓ large/UI, **borderline body** | Under 4.5:1 — för liten pill-text, komplettera med ikon eller använd ink-text; re-checka i live-checker |
-| `warning` (#B4540B) | `surface` (#FFFFFF) | ~5.0:1 | AA ✓ | Felfri som text på vit |
+| `leaf-600` (#1C7530) | `leaf-50` (#DFF3E5) | ~5.0:1 | AA ✓ | "Ny"-tag / .jp-job__newflag (mörkad från #2C8A3F/3.76:1, issue #193) |
+| `warning` (#A34A06) | `warning-bg` (#FCE9D1) | ~5.0:1 | AA ✓ | Pill-text (mörkad från #B4540B/4.2:1, issue #193) |
+| `warning` (#A34A06) | `surface` (#FFFFFF) | ~5.9:1 | AA ✓ | Felfri som text på vit |
 | `danger` (#BE1B1B) | `danger-bg` (#FBE0E0) | ~5.0:1 | AA ✓ | Pill-text |
 | `danger` (#BE1B1B) | `surface` (#FFFFFF) | ~6.2:1 | AA ✓ | Felmeddelande-text |
 | `info` (#1B5396) | `info-bg` (#DEE9F8) | ~6.3:1 | AA ✓ | Pill-text |

@@ -15,15 +15,17 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// only via <see cref="JobSeeker.UpdateNotificationConsent"/>.
 /// </para>
 /// <para>
-/// NOTE: the legacy <see cref="EmailNotifications"/> default of <c>true</c> is opt-OUT for
-/// the EXISTING channel (Art. 7-noncompliant) — out of Vag 4 scope, flagged as a follow-up
-/// TD; the NEW flag defaults OFF, so Vag 4 ships compliant regardless.
+/// TD-115 (2026-06-25): the legacy <c>EmailNotifications</c> (opt-OUT default, Art.
+/// 7-noncompliant) + <c>WeeklySummary</c> flags were RETIRED — they gated no email path
+/// (the Vag 4 dispatch reads <see cref="BackgroundMatchNotificationsEnabled"/> + the
+/// consent timestamps, never them), so they were dead, dishonest UI controls. Removing them
+/// is back-compat-safe: this owned type maps via EF <c>OwnsOne(...).ToJson()</c>, which
+/// ignores the now-unmapped <c>EmailNotifications</c>/<c>WeeklySummary</c> keys still present
+/// in pre-TD-115 jsonb rows (no migration needed; proven by the back-compat test).
 /// </para>
 /// </summary>
 public sealed record Preferences(
     string Language = "sv",
-    bool EmailNotifications = true,
-    bool WeeklySummary = false,
     bool BackgroundMatchNotificationsEnabled = false,
     DigestCadence DigestCadence = DigestCadence.Weekly,
     DateTimeOffset? NotificationConsentAt = null,

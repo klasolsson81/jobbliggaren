@@ -17,8 +17,6 @@ const updateMyProfileSchema = makeUpdateMyProfileSchema(t);
 const base = {
   displayName: "Anna Andersson",
   language: "sv" as const,
-  emailNotifications: true,
-  weeklySummary: false,
 };
 
 describe("updateMyProfileSchema", () => {
@@ -77,18 +75,6 @@ describe("updateMyProfileSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects non-boolean emailNotifications", () => {
-    expect(
-      updateMyProfileSchema.safeParse({
-        ...base,
-        emailNotifications: "true",
-      }).success
-    ).toBe(false);
-  });
-
-  it("rejects non-boolean weeklySummary", () => {
-    expect(
-      updateMyProfileSchema.safeParse({ ...base, weeklySummary: 1 }).success
-    ).toBe(false);
-  });
+  // TD-115: the emailNotifications/weeklySummary fields were retired from this
+  // schema (they gated no email path) — their non-boolean rejection tests are gone.
 });

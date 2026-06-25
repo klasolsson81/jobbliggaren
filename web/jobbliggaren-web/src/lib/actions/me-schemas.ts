@@ -37,8 +37,7 @@ export function makeUpdateMyProfileSchema(t: ValidationTranslator) {
     language: z.enum(["sv", "en"], {
       message: t("profile.languageInvalid"),
     }),
-    emailNotifications: z.boolean(),
-    weeklySummary: z.boolean(),
+    // TD-115: legacy emailNotifications/weeklySummary retired (gated no email path).
   });
 }
 

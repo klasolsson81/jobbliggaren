@@ -33,7 +33,7 @@ public class UpdateMyProfileCommandHandlerTests
         var (handler, db) = await CreateHandler(userId);
 
         var result = await handler.Handle(
-            new UpdateMyProfileCommand("Klas Olsson", null, null, null), CancellationToken.None);
+            new UpdateMyProfileCommand("Klas Olsson", null), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
@@ -47,25 +47,71 @@ public class UpdateMyProfileCommandHandlerTests
         var (handler, _) = await CreateHandler(userId);
 
         var result = await handler.Handle(
-            new UpdateMyProfileCommand("   ", null, null, null), CancellationToken.None);
+            new UpdateMyProfileCommand("   ", null), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobSeeker.DisplayNameRequired");
     }
 
     [Fact]
-    public async Task Handle_WithPreferences_UpdatesPreferences()
+    public async Task Handle_WithLanguage_UpdatesLanguage()
     {
         var userId = Guid.NewGuid();
         var (handler, db) = await CreateHandler(userId);
 
         var result = await handler.Handle(
-            new UpdateMyProfileCommand(null, "en", false, false), CancellationToken.None);
+            new UpdateMyProfileCommand(null, "en"), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
         seeker.Preferences.Language.ShouldBe("en");
-        seeker.Preferences.EmailNotifications.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WithLanguageChange_PreservesVag4ConsentFields()
+    {
+        // TD-115 consent-clobber regression: a profile language change must NOT reset the
+        // Vag 4 background-match consent. The pre-fix handler rebuilt Preferences via the
+        // positional constructor and silently zeroed BackgroundMatchNotificationsEnabled +
+        // the Art. 7 consent timestamps. The `with`-expression fix preserves them.
+        var userId = Guid.NewGuid();
+        var (handler, db) = await CreateHandler(userId);
+        var seeker = db.JobSeekers.First(js => js.UserId == userId);
+        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await handler.Handle(
+            new UpdateMyProfileCommand(null, "en"), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var reloaded = db.JobSeekers.First(js => js.UserId == userId);
+        reloaded.Preferences.Language.ShouldBe("en");
+        reloaded.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        reloaded.Preferences.DigestCadence.ShouldBe(DigestCadence.Daily);
+        reloaded.Preferences.NotificationConsentAt.ShouldNotBeNull();
+        reloaded.Preferences.NotificationConsentWithdrawnAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WithDisplayNameOnly_LeavesPreferencesUntouched()
+    {
+        // TD-115: the command now carries two independent fields. A display-name-only
+        // change must NOT touch Preferences at all (the Language branch must be skipped) —
+        // else a future refactor could clobber consent through a no-op mutation.
+        var userId = Guid.NewGuid();
+        var (handler, db) = await CreateHandler(userId);
+        var seeker = db.JobSeekers.First(js => js.UserId == userId);
+        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+        var originalPrefs = seeker.Preferences;
+
+        var result = await handler.Handle(
+            new UpdateMyProfileCommand("Nytt Namn", null), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var reloaded = db.JobSeekers.First(js => js.UserId == userId);
+        reloaded.DisplayName.ShouldBe("Nytt Namn");
+        reloaded.Preferences.ShouldBe(originalPrefs); // record value-equality — nothing touched
     }
 
     [Fact]
@@ -79,6 +125,6 @@ public class UpdateMyProfileCommandHandlerTests
         var handler = new UpdateMyProfileCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
 
         await Should.ThrowAsync<NotFoundException>(
-            () => handler.Handle(new UpdateMyProfileCommand("Name", null, null, null), CancellationToken.None).AsTask());
+            () => handler.Handle(new UpdateMyProfileCommand("Name", null), CancellationToken.None).AsTask());
     }
 }

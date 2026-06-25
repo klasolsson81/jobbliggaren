@@ -18,8 +18,6 @@ const baseProfile: JobSeekerProfileDto = {
   id: "22222222-2222-2222-2222-222222222222",
   displayName: "Anna",
   language: "sv",
-  emailNotifications: true,
-  weeklySummary: false,
   backgroundMatchNotificationsEnabled: false,
   digestCadence: "Weekly",
   createdAt: "2026-05-11T10:00:00Z",

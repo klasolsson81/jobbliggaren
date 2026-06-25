@@ -14,7 +14,6 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import type { Option } from "./match-preferences-shared";
 import { PersonalInfoCard } from "./personal-info-card";
 import { DisplayCard } from "./display-card";
-import { NotificationsCard } from "./notifications-card";
 import { BackgroundMatchCard } from "./background-match-card";
 import { MatchPreferencesCard } from "./match-preferences-card";
 import { PrivacyCard } from "./privacy-card";
@@ -58,8 +57,9 @@ type LanguageValue = "sv" | "en";
  *
  * FAS-DEFERRAL (Klas-godkänt 2026-05-20 + memory `feedback_design_reviewer_deferral_manifest`):
  *  - Telefon-fält INTE renderat (DTO saknar `phone`)
- *  - Aviseringar = 2 wirede toggles ("E-postnotifikationer" + "Veckosammanfattning")
- *    — Klas-promptens 4 strängar reducerad till 2 (no-mock-doktrin)
+ *  - TD-115 (2026-06-25): the legacy "Aviseringar"-kort (EmailNotifications +
+ *    WeeklySummary toggles) was REMOVED — those flags gated no email path and
+ *    were retired. The live notification surface is BackgroundMatchCard below.
  *  - "Exportera mina data" + "Radera konto" hänvisar till befintliga flöden
  *    (DeleteAccountSection) eller stub-handler
  */
@@ -77,12 +77,6 @@ export function SettingsForm({
   const [language, setLanguage] = useState<LanguageValue>(
     initialProfile.language === "en" ? "en" : "sv",
   );
-  const [emailNotifications, setEmailNotifications] = useState(
-    initialProfile.emailNotifications,
-  );
-  const [weeklySummary, setWeeklySummary] = useState(
-    initialProfile.weeklySummary,
-  );
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,8 +87,6 @@ export function SettingsForm({
     return {
       displayName,
       language,
-      emailNotifications,
-      weeklySummary,
       ...overrides,
     };
   }
@@ -138,20 +130,6 @@ export function SettingsForm({
       await setLocaleAction(next);
       router.refresh();
     });
-  }
-
-  function onEmailNotificationsChange(next: boolean) {
-    const prev = emailNotifications;
-    setEmailNotifications(next);
-    void applyChange({ emailNotifications: next }, () =>
-      setEmailNotifications(prev),
-    );
-  }
-
-  function onWeeklySummaryChange(next: boolean) {
-    const prev = weeklySummary;
-    setWeeklySummary(next);
-    void applyChange({ weeklySummary: next }, () => setWeeklySummary(prev));
   }
 
   function onSavePersonalInfo(e: React.FormEvent<HTMLFormElement>) {
@@ -199,13 +177,6 @@ export function SettingsForm({
         <DisplayCard
           language={language}
           onLanguageChange={onLanguageChange}
-          isPending={isPending}
-        />
-        <NotificationsCard
-          emailNotifications={emailNotifications}
-          weeklySummary={weeklySummary}
-          onEmailNotificationsChange={onEmailNotificationsChange}
-          onWeeklySummaryChange={onWeeklySummaryChange}
           isPending={isPending}
         />
         {/* ADR 0080 Vag 4 PR-6: bakgrundsmatchnings-notiser (opt-in + kadens).

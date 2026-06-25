@@ -47,9 +47,7 @@ public class MeProfileCrossUserIsolationTests(ApiFactory factory)
             new
             {
                 displayName = "Bertil Förändrad",
-                language = "en",
-                emailNotifications = false,
-                weeklySummary = false
+                language = "en"
             },
             ct);
         patchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -91,8 +89,6 @@ public class MeProfileCrossUserIsolationTests(ApiFactory factory)
             {
                 displayName = "Bertil ändrad via injection",
                 language = "en",
-                emailNotifications = false,
-                weeklySummary = false,
                 userId = userIdA,
                 jobSeekerId = userIdA
             },

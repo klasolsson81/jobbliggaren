@@ -109,8 +109,9 @@ public class JobSeekerTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Preferences.Language.ShouldBe("sv");
-        result.Value.Preferences.EmailNotifications.ShouldBeTrue();
-        result.Value.Preferences.WeeklySummary.ShouldBeFalse();
+        // TD-115: legacy EmailNotifications/WeeklySummary retired; the Vag 4 consent
+        // (the live notification model) defaults OFF (GDPR Art. 7 opt-in).
+        result.Value.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
     }
 
     // ---------------------------------------------------------------

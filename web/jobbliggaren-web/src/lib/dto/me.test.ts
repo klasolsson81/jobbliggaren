@@ -48,8 +48,6 @@ describe("jobSeekerProfileSchema", () => {
     id: "22222222-2222-2222-2222-222222222222",
     displayName: "Anna",
     language: "sv",
-    emailNotifications: true,
-    weeklySummary: false,
     // ADR 0080 Vag 4 PR-6 — background-match notification consent (opt-in,
     // default OFF) + digest cadence (wire enum `Daily`/`Weekly`).
     backgroundMatchNotificationsEnabled: false,
@@ -156,14 +154,9 @@ describe("jobSeekerProfileSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects when emailNotifications is non-boolean", () => {
-    expect(
-      jobSeekerProfileSchema.safeParse({
-        ...valid,
-        emailNotifications: "true",
-      }).success
-    ).toBe(false);
-  });
+  // TD-115: emailNotifications/weeklySummary were retired from the profile schema
+  // (they gated no email path). The schema is non-strict (ADR 0020 §4) so a leftover
+  // key in a pre-TD-115 wire payload is simply ignored — no rejection test applies.
 
   it("rejects when createdAt missing", () => {
     const withoutCreatedAt: Partial<typeof valid> = { ...valid };

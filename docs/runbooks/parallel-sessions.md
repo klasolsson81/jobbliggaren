@@ -1,0 +1,259 @@
+# Runbook — Parallel Claude Code sessions (autonomous multi-session flow)
+
+> Operational playbook for running 2–4 Claude Code sessions concurrently
+> (Max x20, Opus 4.8) without collisions. Governance rules in
+> [`CLAUDE.md` §6.5](../../CLAUDE.md); strategic map in
+> [`steg-tracker.md`](../steg-tracker.md); backlog in GitHub Issues.
+> Created 2026-06-25 (FAS 0 foundation). Locked decisions:
+> backlog = GitHub Issues, runtime = one stack-owner, PR-babysitter = cloud
+> `/schedule` on PR events.
+
+---
+
+## 1. The model in one paragraph
+
+Each session works in its own **git worktree** branched from `origin/main`.
+Exactly **one** session is the **stack-owner** (runs the local dev Postgres on
+port 5435 + Api/Worker against it); every other session runs code + unit +
+architecture tests + **Testcontainers** (ephemeral DB) and never touches the
+shared dev DB. **EF migrations** are owned by one session at a time (the most
+dangerous hotspot). Work is partitioned by **bounded context** (§4) so two
+sessions rarely touch the same files; shared **hotspot files** (§5) are owned
+by one session at a time, coordinated via issue assignment. Each merged PR
+gets `automerge`; a cloud `/schedule` **PR-babysitter** reviews + merges.
+
+---
+
+## 2. Roles
+
+| Role | Count | Runtime | Notes |
+|---|---|---|---|
+| **Stack-owner** | exactly 1 | Main working copy `C:/DOTNET-UTB/JobbPilot`; runs dev Postgres (5435) + Api + Worker + FE | Owns runtime verification, rendered-verify, manual dev testing. Holds the bin-lock. |
+| **Worktree session** | 1–3 | Isolated worktree; code + `dotnet test` (unit/arch) + **Testcontainers** integration; FE `pnpm test`/`build` | Never runs Api/Worker against 5435; never the migration owner unless explicitly handed the token. |
+
+The stack-owner is the **main checkout** (it already holds the running stack
+and the real secrets). Worktree sessions are the parallel feature workers.
+
+---
+
+## 3. Creating and tearing down a worktree
+
+The established pattern (memory `project_parallel_cc_worktree_isolation`) is a
+raw `git worktree` under `c:/tmp` from `origin/main`. Claude Code's
+`EnterWorktree` (worktrees under `.claude/worktrees/`, base ref `fresh` =
+`origin/<default>`) works too — both leave the gitignored local docs behind, so
+the sync step (§3.2) is mandatory either way.
+
+### 3.1 Create
+
+```powershell
+git fetch origin
+# raw git worktree (preferred — lands in c:/tmp, off the main tree):
+git worktree add -b feat/<context>-<slug> C:/tmp/jbl-<context> origin/main
+# …or inside a session: EnterWorktree (name: feat/<context>-<slug>)
+```
+
+Branch name encodes the context: `feat/matching-…`, `fix/jobads-cv-…`,
+`docs/infra-…` (see §4 for context names).
+
+### 3.2 Sync the gitignored local docs in (mandatory)
+
+A fresh worktree has the **tracked** files only. Session-state docs
+(`current-work.md`, `steg-tracker.md`, `tech-debt.md`, `sessions/`, local
+`reviews/` and ADRs 0074+) are gitignored (ADR 0072) and absent. Pull them in:
+
+```powershell
+# run from the MAIN checkout; <worktree-path> is the new worktree
+C:/DOTNET-UTB/JobbPilot/scripts/sync-worktree-docs.ps1 C:/tmp/jbl-<context>
+```
+
+The list lives in [`.worktreeinclude`](../../.worktreeinclude). The script
+**refuses secret-like entries** — secrets (`appsettings.Local.json`,
+`.env.local`) are NEVER synced; only the stack-owner runs against real secrets.
+
+### 3.3 Push (rebase first)
+
+```powershell
+git fetch origin
+git rebase origin/main          # linear history; resolve before push
+git commit -- <explicit paths>  # pathspec-scoped — shared index across worktrees
+git show --stat HEAD            # verify exactly the intended files landed
+git push -u origin feat/<context>-<slug>
+gh pr create --fill
+gh pr edit <nr> --add-label automerge
+```
+
+Pathspec-scoped commits (`git commit -- <paths>`) are required because parallel
+worktrees can share the index state — never `git commit -a` (memory
+`feedback_pathspec_commit_parallel_cc`).
+
+### 3.4 Cleanup
+
+```powershell
+git worktree remove C:/tmp/jbl-<context>   # after merge
+git worktree prune                          # drop stale registrations
+git branch -d feat/<context>-<slug>
+```
+
+---
+
+## 4. Partition map (bounded contexts → files)
+
+Assign each task to **one** context; two sessions on different contexts rarely
+collide. Shared spine = the Infra-Docs context (§5 hotspots).
+
+| Context | Backend | Frontend |
+|---|---|---|
+| **Matching** | `Domain/Matching/`, `Application/Matching/` (scorer, grading, profiles, notifications, jobs/BackgroundMatching+DigestDispatch, queries), `Infrastructure/Matching/`, `…/Configurations/UserJobAdMatch*` + `MatchPreferencesConverters`, `Api/Endpoints/MeJobAdMatchEndpoints`, `Worker/Hosting/BackgroundMatchingWorker`+`DigestDispatchWorker` | `app/(app)/matchningar/`, `components/matches/`, `components/ui/match-bar`, `lib/api/{job-ad-match,me-matches,match-count,skills}`, `lib/dto/{…,match-preferences}` |
+| **Applications** | `Domain/Applications/`, `Application/Applications/`, `…/Configurations/{Application,ApplicationNote,FollowUp}`, `Api/Endpoints/ApplicationsEndpoints` | `app/(app)/ansokningar/`, `components/applications/`, `lib/applications/`, `lib/{api,dto}/applications` |
+| **JobAds-CV** (largest) | `Domain/{JobAds,Resumes}/`, `Application/{JobAds,Resumes,SavedJobAds,SavedSearches,RecentJobSearches}/`, `Infrastructure/{JobAds,JobSources/Platsbanken,Resumes,Taxonomy,TextAnalysis,RecentJobSearches}/`, the JobAd/Resume/Taxonomy `Configurations/`, `Api/Endpoints/{JobAds,Resumes,SavedJobAds,SavedSearches,RecentSearches,MeJobAdStatus}`, the sync/backfill Workers | `app/(app)/{jobb,cv,sokningar,sparade}/`, `app/api/{cv,jobb}/*` (BFF), `components/{job-ads,resumes,saved-job-ads,recent-searches}/`, `lib/{job-ads,resumes}/`, related `lib/{api,dto}` |
+| **Auth-Waitlist** | `Domain/{JobSeekers,Waitlist,Invitations,Privacy}/`, `Application/{Auth,JobSeekers,Waitlist,Invitations,UserStatus,Admin,Security,Dev}/`, `Infrastructure/{Identity,Auth,Invitations,Security,Auditing,FeatureFlags}/`, identity/auth `Configurations/`, `Api/Endpoints/{Auth,Me,Waitlist,Invitations,Admin*,Dev}`, **`Migrate/` (whole project)** | `app/(auth)/`, `app/(admin)/`, `app/(guest)/`, `app/(marketing-inner)/vantelista/`, `app/(app)/{installningar,oversikt}/`, `app/api/me/*`, `components/{me,settings,guest,dev,oversikt,onboarding}/`, `lib/{auth,guest,waitlist,onboarding,oversikt,me}/` |
+| **Landing-KnowledgeBank** | `Application/{Landing,KnowledgeBank}/`, `Infrastructure/{Landing,KnowledgeBank}/`, `Api/Endpoints/LandingEndpoints`, `Worker/Hosting/RefreshLandingStatsWorker` | `app/(marketing)/`, `app/(marketing-inner)/{cookies,villkor}`, `app/api/landing-stats/`, `components/{landing,site,brand}/`, `lib/{api,dto}/landing` |
+| **Frontend** (cross-cutting) | — | `app/layout` + route-group layouts + `(app)/@modal`, `components/ui/*` (shadcn), `components/{shell,modals,forms,i18n}/`, `lib/{api,forms,hooks,validation}` + `lib/{utils,env}`, `i18n/`, `messages/{sv,en}/*`, `app/globals.css` |
+| **Infra-Docs** (cross-cutting) | `Jobbliggaren.sln`, `Directory.{Build,Packages}.props`, `global.json`, both DI roots, pipeline behaviors, `AppDbContext` + `Persistence/Migrations/`, `docker-compose.yml`, `appsettings*`, `infra/`, `.github/`, `docs/`, BUILD/CLAUDE/DESIGN | `next.config.ts`, `tsconfig.json`, `package.json`/lockfile, `components.json` |
+
+Frontend paths above are relative to `web/jobbliggaren-web/src/`; backend paths
+are full from repo root. **Context → `area:` label:** Matching→`area:matching`,
+Applications→`area:applications`, JobAds-CV→`area:jobads-cv`,
+Auth-Waitlist→`area:auth`, Landing-KnowledgeBank→`area:landing`,
+Frontend→`area:frontend`, Infra-Docs→`area:infra` + `area:docs`.
+
+Matching ⟷ JobAds-CV are the most coupled (Matching reads JobAd requirements +
+confirmed CV skill chips). Coordinate shared-shape changes there.
+
+---
+
+## 5. Hotspot files (own one at a time)
+
+These are touched by many contexts — **never edit a hotspot you do not own**;
+take the issue, announce ownership, finish, hand off. EF migrations are the
+single most dangerous one.
+
+| Hotspot | Risk |
+|---|---|
+| EF migrations — **`AppDbContextModelSnapshot.cs`** (`Infrastructure/Persistence/Migrations/`) AND **`AppIdentityDbContextModelSnapshot.cs`** (`Infrastructure/Identity/Migrations/`, schema `identity`, ADR 0034) | **Most dangerous.** Each snapshot is one shared file rewritten by every `migrations add` against its context → parallel adds = unmergeable conflict + corrupt model. **Both contexts single-owner per session window** (§6). Local migrations are NOT auto-applied. |
+| `Infrastructure/Persistence/AppDbContext.cs` | All 12 DbSets; new aggregate adds a DbSet line → contention. |
+| `Infrastructure/DependencyInjection.cs` | Master Infra composition root (`AddInfrastructure` + all `AddX` feature modules). |
+| `Api/Program.cs` | Api root + the contiguous `app.Map*Endpoints()` block (append-collision). |
+| `Worker/Program.cs` + `Hosting/RecurringJobRegistrar.cs` | Worker root (HTTP-free, re-registers modules) + cron schedule. |
+| `Application/Matching/Profiles/MatchProfileBuilder.cs` (+ `IMatchProfileBuilder`/`IMatchScorer`) | Shared builder; a shape change ripples to JobAds-CV + Worker. |
+| `Application/Common/DependencyInjection.cs` + `Common/Behaviors/` | Mediator pipeline shared by every command/query. |
+| `Directory.Packages.props` (+ `.sln`, `Directory.Build.props`, `global.json`) | Central package versions — parallel dep adds conflict. |
+| `messages/{sv,en}/*.json` | i18n. Split per namespace (lowers collision), but `common`/`errors`/`validation` shared + sv/en parity must hold. |
+| `app/globals.css` | Locked design tokens; DESIGN.md-gated. |
+| `components/ui/*`, `components/shell/app-shell.tsx` + `header-stats.tsx`, `components/modals/route-modal-shell.tsx` | Shared chassis; `header-stats` renders the Matching new-match counter inside the global shell. |
+| `lib/api/*` base + `lib/dto/{_helpers,common}.ts`, `lib/auth/session.ts` | Shared BFF/DTO plumbing. |
+| `components/onboarding/welcome-setup-modal.tsx` | Spans Auth → CV-upload → Matching; server-action re-render can unmount the Radix modal (known pitfall). |
+
+---
+
+## 6. EF migration single-owner protocol
+
+1. Only the session holding the **migration token** (announce in the issue /
+   coordination channel) may run `dotnet ef migrations add` against
+   `AppDbContext` or the Identity context.
+2. Use the `db-migration-writer` agent (CLAUDE.md §9.2).
+3. Land the migration PR (automerge), then **other sessions rebase** before any
+   schema touch of their own. Serial, never parallel.
+4. Local migrations are NOT auto-applied (Api/Worker do not migrate locally;
+   `Migrate` is AWS-bound, TD-105). There are **two** DbContexts with separate
+   snapshots + migration histories — `AppDbContext` (schema `public`) and
+   `AppIdentityDbContext` (schema `identity`, ADR 0034; `Migrate` runs them
+   separately, Identity with master creds per Npgsql #1770). After pulling a new
+   migration the stack-owner applies **both** as needed:
+   ```powershell
+   dotnet ef database update --context AppDbContext
+   dotnet ef database update --context AppIdentityDbContext   # identity schema
+   ```
+   A parallel session landing an Identity migration that the owner forgets to
+   apply leaves auth silently broken — both contexts are single-owner.
+
+---
+
+## 7. DB / runtime / port rules
+
+```
+dev:   Postgres 5435 · Redis 6379 · Seq 5341     (container DB/user "jobbliggaren")
+test:  Postgres 5433 · Redis 6380                (DB "jobbliggaren_test", profile "test")
+```
+
+- The dev connection string lives ONLY in `Api/appsettings.Development.json`
+  (`Host=localhost;Port=5435;…;Password=${POSTGRES_PASSWORD_DEV}`). `.env`
+  (gitignored) supplies `POSTGRES_PASSWORD_DEV/_TEST`. **The `${...}`
+  non-expansion trap → 28P01 auth-fail** (memory
+  `feedback_restart_stack_after_commit_stop`).
+- The Worker has **no** connection string of its own — it inherits Postgres/
+  Redis from env or `appsettings.Local.json`.
+- **Single stack-owner:** Api/Worker/`dotnet ef`/Migrate all point at the same
+  5435 DB → two live stacks collide on data + Hangfire state. Only the
+  stack-owner runs against 5435; everyone else uses **Testcontainers**.
+- **Bin-lock:** a running Api/Worker locks `bin/`; pre-commit `dotnet format`
+  rebuilds and will fail/hang. **Stop both before committing any `.cs` change**;
+  for ad-hoc verification build/test to a temp dir (`--output <temp>`).
+- Per-user API rate-limiter (MeListRead, TokenBucket) can trip on request
+  bursts during local verify — expected, recovers in ~10s.
+
+---
+
+## 8. PR-babysitter (cloud `/schedule`)
+
+A cloud-scheduled agent watches PR events and runs review + automerge so the
+local sessions stay heads-down. Set up once:
+
+```
+/schedule  → recurring cloud routine, e.g. every 15 min:
+  "List open PRs with the automerge label on klasolsson81/jobbliggaren.
+   For each with green required `ci` and no unresolved agent Blocker/Major,
+   run /code-review; if clean, ensure automerge is set. Report a one-line
+   status per PR. Do not merge a PR whose ci is red or that is BEHIND —
+   leave a comment to rebase."
+```
+
+Notes: the babysitter is **billed** and **user-triggered** (you cannot launch
+`/code-review ultra` yourself). Mythos is blocked in Claude Code → use **Fable 5
+(1M)** for the babysitter / autonomous routines. Automerge via `GITHUB_TOKEN`
+does not retrigger CodeQL on the main-push — run `gh workflow run codeql.yml
+--ref main` after a batch if needed (memory
+`project_automerge_suppresses_main_push_workflows`).
+
+---
+
+## 9. Backlog = GitHub Issues
+
+The strategic map is `steg-tracker.md`; the actionable queue is GitHub Issues.
+Labels (created in FAS 0): `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}`,
+`hotspot:{ef-migration,di,i18n}`, `P0`–`P3`.
+
+### Issue template
+
+```markdown
+## Context
+<why this exists; link the source doc / ADR / TD>
+
+## Acceptance criteria
+- [ ] …
+
+## Source
+<current-work.md / steg-tracker.md / tech-debt.md TD-NN / ADR 00NN>
+```
+
+Pick an issue → claim its context → create the worktree → work → PR with
+`automerge`. A `hotspot:*` label means the task touches a shared file: confirm
+no other session owns it first.
+
+---
+
+## 10. Common pitfalls (carried from memory)
+
+- **Stale dev-server masks a Jest-worker crash** → `pnpm install` + clean
+  restart; a prod `pnpm build` proves the code is OK.
+- **`Results.Ok(null)` writes an empty body** (not `null`) → use
+  `Results.Content("null", …)` for nullable-200 endpoints.
+- **`dotnet test --filter` returns zero tests** (MTP/xUnit v3) → run the built
+  `*.exe -class "<FQN>"` for one class; whole unit projects run fast unfiltered.
+- **Sub-agent hook-bypass watch:** verify sub-agent commit content for
+  `core.hooksPath=/dev/null`; flag a SECURITY WARNING if found.
+- **Detached-diff false "deletions":** a worktree diffed against the wrong base
+  can show phantom removals — diff against `origin/main`.
+- **Post-merge local main sync:** `git fetch && git merge --ff-only origin/main`
+  (not `pull`); don't `checkout main` over local-only docs.

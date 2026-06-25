@@ -51,9 +51,11 @@ Details and formats: `docs/runbooks/session-protocol.md`.
 | `docs/reviews/` | Agent review reports |
 | `docs/tech-debt.md` (+`-archive.md`) | Active TDs (Severity × Fas) / closed TDs — mechanics in the `jobbpilot-td-lifecycle` skill |
 
-Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` are edited only on explicit Klas
-instruction (reviewed via PR diff). Agents place new docs per this map; when
-unsure, ask.
+Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` may be edited autonomously via the
+normal feature-branch → PR → automerge flow (§9.2/§6); Klas reviews the diff
+post-merge. Mandatory spec-edit agents apply (dotnet-architect + code-reviewer;
+design-reviewer for DESIGN.md design-token changes). Agents place new docs per
+this map; when unsure, ask.
 
 ## 2. Core principles
 
@@ -175,11 +177,49 @@ for authorization (use policies via `[Authorize(Policy = ...)]`).
   transitions → agent invocation (§9.2) with reports in the PR body → CI gate
   (`ci` aggregate green; observe-only jobs don't block) → pre-push hooks
   (gitleaks, dotnet format, lint-staged).
-- **Automerge (ADR 0065 Amendment 2026-06-07):** CC sets the `automerge`
-  label on its own PRs (`gh pr edit <nr> --add-label automerge`); merge on
-  green `ci`; Klas reviews the diff **post-merge**. Exception (STOPP instead):
-  unresolved agent Blocker/Major, or a spec-edit PR whose edit is not yet
-  approved. Docs-sync lives in the same PR as the scope.
+- **Automerge (ADR 0065 Amendment 2026-06-07; autonomous flow 2026-06-25):** CC
+  creates PRs and pushes without asking, and sets the `automerge` label on its
+  own PRs (`gh pr edit <nr> --add-label automerge`); merge on green `ci`; Klas
+  reviews the diff **post-merge**. Spec-edits to BUILD/CLAUDE/DESIGN no longer
+  require pre-approval (§9.2) — they ride the same flow. Exception (STOPP
+  instead): an unresolved agent Blocker/Major, **or any §12 merge-blocking
+  condition** (a §5 anti-pattern, Clean-Architecture boundary violation,
+  non-BUILD.md library, design-token change outside DESIGN.md, or
+  security-critical change without tests). Docs-sync lives in the same PR as
+  the scope (tracked docs); gitignored session-state docs are updated locally
+  (§6.5).
+
+## 6.5 Parallel sessions (autonomous multi-session flow)
+
+Several Claude Code sessions (2–4, Max x20) run concurrently in isolated git
+worktrees. The rules below keep parallel work collision-free; full playbook in
+[`docs/runbooks/parallel-sessions.md`](docs/runbooks/parallel-sessions.md).
+
+- **Worktree-per-task.** Each session works in its own worktree (branched from
+  `origin/main`, never a shared working copy). Rebase on `origin/main` before
+  push; use pathspec-scoped commits (`git commit -- <paths>`) in a shared
+  index, and verify with `git show --stat HEAD`.
+- **Hotspot ownership.** Files many contexts touch (DI composition roots,
+  `AppDbContext`, shared builders, `messages/{sv,en}.json`, `.sln` /
+  `Directory.Packages.props`) are owned by ONE session at a time — coordinate
+  via issue assignment; never edit a hotspot you do not own. Hotspot list in
+  the playbook.
+- **EF migrations = the most dangerous hotspot (single-owner).** Only ONE
+  session creates or applies migrations at a time; migration order is serial.
+  Other sessions wait for a merged migration before touching the schema.
+- **Shared-Postgres rule.** Only ONE "stack-owner" session runs the local dev
+  Postgres (port 5435) + Api/Worker (binary lock + shared DB). Every other
+  session runs code + unit + architecture + **Testcontainers** (ephemeral DB,
+  parallel-safe) — never against the shared dev DB.
+- **Local docs in worktrees.** Gitignored session state (`current-work.md`,
+  `steg-tracker.md`, `tech-debt.md`, `sessions/`, local `reviews/` and ADRs
+  0074+) is absent from a fresh worktree. `.worktreeinclude` lists them; run
+  `scripts/sync-worktree-docs.ps1 <worktree-path>` after creating a worktree.
+  Secrets (`appsettings.Local.json`, `.env.local`) are NEVER synced — only the
+  stack-owner (the main working copy) runs against real secrets.
+- **Backlog = GitHub Issues** (`area:` + `hotspot:` labels); `steg-tracker.md`
+  is the strategic map. A PR-babysitter runs via cloud `/schedule` on PR events
+  (review + automerge).
 
 ## 7. Testing
 
@@ -214,11 +254,15 @@ commit → push branch, `gh pr create` with agent reports inline, set the
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; reads prompts from `/prompts/` (does not rewrite them);
-creates ADRs for its architecture decisions. CC does **not**: edit
-BUILD.md/CLAUDE.md/DESIGN.md without explicit Klas instruction (reviewed via
-PR diff); deploy without Klas GO; add top-level dependencies without
-justification or libraries outside BUILD.md §3.1 without discussion; violate
-§5; start a new session phase without explicit Klas GO.
+creates ADRs for its architecture decisions. **CC MAY edit
+`BUILD.md`/`CLAUDE.md`/`DESIGN.md` autonomously** via the normal feature-branch
+→ PR → automerge flow (autonomous multi-session flow, 2026-06-25 — the prior
+spec-edit pre-approval gate is lifted); Klas reviews the diff post-merge.
+Mandatory spec-edit agents still apply (dotnet-architect + code-reviewer; plus
+design-reviewer for `DESIGN.md` design-token changes). CC does **not**: deploy
+without Klas GO; add top-level dependencies without justification or libraries
+outside BUILD.md §3.1 without discussion; violate §5 (a §5 anti-pattern is
+never autonomous); start a new session phase without explicit Klas GO.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
 discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
@@ -279,12 +323,18 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
 
 Violations of §5, Clean Architecture boundaries, non-BUILD.md libraries,
 design-token changes outside DESIGN.md, or security-critical changes without
-tests → stop, flag in a PR comment, discuss with Klas before merge.
+tests → **STOPP: do not automerge** — flag in a PR comment and wait for Klas.
+This is the merge-blocking class referenced by the §6/§6.5 automerge exception
+(alongside an unresolved agent Blocker/Major); everything else rides the
+autonomous flow.
 
 ## 13. Update process
 
-This file changes when a new anti-pattern, standard, or CC boundary is needed:
-Klas proposes → PR with discussion → merge on agreement. Never silently.
+This file changes when a new anti-pattern, standard, or CC boundary is needed.
+CC may propose **and apply** changes autonomously via PR + automerge (§9.2;
+mandatory dotnet-architect + code-reviewer); Klas may also propose. Never
+silently — always via a visible PR diff, which Klas reviews (post-merge under
+automerge).
 
 ---
 

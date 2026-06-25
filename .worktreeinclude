@@ -1,0 +1,23 @@
+# .worktreeinclude — gitignored local docs that every parallel worktree needs
+# for full context. Synced by scripts/sync-worktree-docs.ps1 <worktree-path>
+# after a worktree is created from origin/main.
+#
+# RULE: NEVER list secrets here (appsettings.Local.json, .env.local, *.pem,
+# *.tfstate). Only the stack-owner main checkout runs against real secrets;
+# the sync script refuses secret-like entries.
+#
+# Entries may be files, directories, or globs (resolved relative to repo root).
+
+# Session-state source of truth (gitignored, ADR 0072 docs-privacy)
+docs/current-work.md
+docs/current-work-archive.md
+docs/steg-tracker.md
+docs/tech-debt.md
+docs/tech-debt-archive.md
+
+# Per-session logs + local agent reviews + local ADRs for context.
+# (Glob matches ADR 0070–0099; already-tracked 0070–0073 are already present in
+# the worktree, so re-copying them is redundant but harmless.)
+docs/sessions/
+docs/reviews/
+docs/decisions/00[789][0-9]-*.md

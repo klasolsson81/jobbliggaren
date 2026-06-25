@@ -29,5 +29,10 @@ export default getRequestConfig(async ({ locale }) => {
   return {
     locale: resolved,
     messages: MESSAGES[resolved],
+    // A Swedish civic utility has one deterministic civic timezone. Pinning it
+    // here makes useFormatter().dateTime() output stable across SSR and client
+    // (no hydration drift) and silences next-intl's ENVIRONMENT_FALLBACK
+    // warning. The admin audit table already hardcodes the same zone.
+    timeZone: "Europe/Stockholm",
   };
 });

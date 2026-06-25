@@ -215,6 +215,64 @@ public class UserJobAdMatchTests
     }
 
     // ---------------------------------------------------------------
+    // MarkFailed — TD-114 stranded-Queued reaper (Queued → Failed, terminal)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void MarkFailed_FromQueued_TransitionsToFailed()
+    {
+        var match = CreateValid().Value;
+        match.MarkQueued();
+
+        var result = match.MarkFailed();
+
+        result.IsSuccess.ShouldBeTrue();
+        match.NotificationStatus.ShouldBe(NotificationStatus.Failed);
+        // No timestamp stamped (no new column — aging is by CreatedAt; the reaper logs the reap).
+        match.SentAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void MarkFailed_FromPending_Fails()
+    {
+        // A Pending row was never claimed by dispatch — it is not a strand, so it is not reapable.
+        var match = CreateValid().Value;
+
+        var result = match.MarkFailed();
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("UserJobAdMatch.NotQueued");
+        match.NotificationStatus.ShouldBe(NotificationStatus.Pending);
+    }
+
+    [Fact]
+    public void MarkFailed_WhenAlreadySent_Fails()
+    {
+        // A Sent row already delivered — never reap a delivered notification.
+        var match = CreateValid().Value;
+        match.MarkQueued();
+        match.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+
+        var result = match.MarkFailed();
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("UserJobAdMatch.NotQueued");
+        match.NotificationStatus.ShouldBe(NotificationStatus.Sent);
+    }
+
+    [Fact]
+    public void MarkFailed_IsTerminal_CannotQueueOrSendAfter()
+    {
+        var match = CreateValid().Value;
+        match.MarkQueued();
+        match.MarkFailed();
+
+        match.MarkQueued().IsFailure.ShouldBeTrue();
+        match.MarkSent(Clock).IsFailure.ShouldBeTrue();
+        match.NotificationStatus.ShouldBe(NotificationStatus.Failed);
+    }
+
+    // ---------------------------------------------------------------
     // SoftDelete — idempotent
     // ---------------------------------------------------------------
 

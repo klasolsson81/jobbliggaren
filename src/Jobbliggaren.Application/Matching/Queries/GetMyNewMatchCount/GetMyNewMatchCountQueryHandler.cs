@@ -9,6 +9,11 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyNewMatchCount;
 /// last-seen watermark. Owner-scoped (reads only the current user's matches + watermark). No
 /// authenticated user / no JobSeeker → honest 0. The soft-delete query filter on
 /// <c>UserJobAdMatch</c> excludes erased rows automatically. NO AI/LLM.
+/// <para>
+/// Deliberately status-AGNOSTIC: counts a match regardless of its <c>NotificationStatus</c>
+/// (Pending/Queued/Sent/Failed) — match visibility is independent of notification delivery
+/// (TD-114). Do NOT add a status filter: a real (e.g. email-Failed) match must still count.
+/// </para>
 /// </summary>
 public sealed class GetMyNewMatchCountQueryHandler(
     IAppDbContext db,

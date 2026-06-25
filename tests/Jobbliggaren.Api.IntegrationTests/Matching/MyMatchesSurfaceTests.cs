@@ -166,6 +166,39 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task GetMyMatches_StillSurfacesFailedNotificationMatch_StatusAgnostic()
+    {
+        // TD-114 — a match whose notification stranded and was reaped to Failed is STILL a real
+        // match the user should see; the read surface does NOT filter on NotificationStatus
+        // (delivery status != match validity). Regression lock against a future status filter
+        // that would hide stranded matches from /matchningar. Real Postgres (the Failed value
+        // round-trips through the varchar(20) by-name conversion).
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var (db, _, scope) = NewScope();
+        using (scope)
+        {
+            await SeedSeekerAsync(db, userId, lastSeen: null, ct);
+            var ad = await SeedJobAdAsync(
+                db, ClockAt(T0), "Strandad-annons", "Strand AB", "https://example.com/stranded", ct);
+
+            var match = UserJobAdMatch.Create(
+                userId, ad, NotifiableMatchGrade.Top, ["csharp"], ClockAt(T0.AddDays(1))).Value;
+            match.MarkQueued();
+            match.MarkFailed();
+            db.UserJobAdMatches.Add(match);
+            await db.SaveChangesAsync(ct);
+
+            var handler = new GetMyMatchesQueryHandler(db, UserWith(userId));
+            var result = await handler.Handle(new GetMyMatchesQuery(), ct);
+
+            result.Count.ShouldBe(1);
+            result[0].JobAdId.ShouldBe(ad.Value);
+            result[0].Grade.ShouldBe(NotifiableMatchGrade.Top);
+        }
+    }
+
+    [Fact]
     public async Task GetMyMatches_DropsMatch_WhenItsJobAdIsAbsentOrFilteredOut()
     {
         var ct = TestContext.Current.CancellationToken;

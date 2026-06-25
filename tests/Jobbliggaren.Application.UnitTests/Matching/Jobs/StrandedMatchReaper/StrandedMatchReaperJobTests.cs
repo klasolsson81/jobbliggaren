@@ -122,4 +122,72 @@ public class StrandedMatchReaperJobTests
         // Idempotent / safe on an empty sweep — must not throw.
         await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
     }
+
+    [Fact]
+    public async Task RunAsync_QueuedRowExactlyAtThreshold_IsLeftUntouched()
+    {
+        // The predicate is strict `<` (CreatedAt < now-48h), so a row created EXACTLY at the
+        // cutoff is NOT stranded. Pins the off-by-one (flipping `<`→`<=` would reap this).
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var atBoundary = Seed(db, Now.AddHours(-48), NotificationStatus.Queued);
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        (await db.UserJobAdMatches.SingleAsync(m => m.Id == atBoundary.Id, ct))
+            .NotificationStatus.ShouldBe(NotificationStatus.Queued);
+    }
+
+    [Fact]
+    public async Task RunAsync_QueuedRowJustOverThreshold_IsMarkedFailed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var justOver = Seed(db, Now.AddHours(-48).AddSeconds(-1), NotificationStatus.Queued);
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        (await db.UserJobAdMatches.SingleAsync(m => m.Id == justOver.Id, ct))
+            .NotificationStatus.ShouldBe(NotificationStatus.Failed);
+    }
+
+    [Fact]
+    public async Task RunAsync_SoftDeletedStrandedQueuedRow_IsNotReaped()
+    {
+        // The reaper rides the default query filter (DeletedAt == null); a Queued row soft-deleted
+        // by JobAd-expiry / the Art.17 cascade must stay excluded — we never reap an already-removed
+        // match (StrandedMatchReaperJob doc). GDPR soft-delete interaction; EF-InMemory honours the
+        // query filter.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var deleted = Seed(db, Now.AddHours(-50), NotificationStatus.Queued);
+        deleted.SoftDelete(NowClock);
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        var reloaded = await db.UserJobAdMatches.IgnoreQueryFilters()
+            .SingleAsync(m => m.Id == deleted.Id, ct);
+        reloaded.NotificationStatus.ShouldBe(NotificationStatus.Queued); // untouched
+        reloaded.DeletedAt.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_AlreadyFailedRow_IsLeftUntouchedBySecondRun()
+    {
+        // Failed is terminal at the query layer too: the reaper filters `status == Queued`, so a
+        // row already reaped by a prior run is excluded (idempotent across runs — no re-processing,
+        // no throw). Guards against a future predicate broadening (e.g. `status != Sent`).
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var alreadyFailed = Seed(db, Now.AddHours(-50), NotificationStatus.Failed);
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        (await db.UserJobAdMatches.SingleAsync(m => m.Id == alreadyFailed.Id, ct))
+            .NotificationStatus.ShouldBe(NotificationStatus.Failed);
+    }
 }

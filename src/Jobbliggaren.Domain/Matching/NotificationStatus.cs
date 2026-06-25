@@ -30,8 +30,14 @@ public enum NotificationStatus
     /// account had no email); the row stranded with no recovery. The stranded-match reaper
     /// (a scheduled Worker job) moves a long-Queued row here so the strand is OBSERVABLE and
     /// terminal — it never re-sends (honouring the "never double-email &gt; never miss" stance)
-    /// and is safe against the non-dev NullEmailSender (no send is attempted). Excluded from
-    /// every dispatch/read query exactly like <see cref="Sent"/> (operational-only).
+    /// and is safe against the non-dev NullEmailSender (no send is attempted).
+    /// <para>
+    /// This is a NOTIFICATION-DELIVERY status, NOT a match-validity one. It is excluded from the
+    /// DISPATCH queries (which filter <see cref="Pending"/>), exactly like <see cref="Sent"/>.
+    /// But the in-app read surface (<c>GetMyMatches</c> / <c>GetMyNewMatchCount</c>) is
+    /// deliberately status-AGNOSTIC, so a Failed match stays visible in /matchningar and still
+    /// counts as new — a stranded match is still a real match; a failed EMAIL must not hide it.
+    /// </para>
     /// </summary>
     Failed,
 }

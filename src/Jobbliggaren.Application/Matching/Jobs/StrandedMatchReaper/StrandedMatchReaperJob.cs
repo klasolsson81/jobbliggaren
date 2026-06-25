@@ -38,6 +38,20 @@ namespace Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper;
 /// Registered at 04:45 UTC (after the PREVIOUS cycle's digest windows settle, inside the quiet
 /// hard-delete cluster), <c>DisableConcurrentExecution</c>-guarded. NO AI/LLM (ADR 0071).
 /// </para>
+/// <para>
+/// <b>Issue #184 AC "per-row failure isolation" — satisfied in spirit (CTO 2026-06-25).</b> The
+/// AC's intent is "one strand must not permanently block reaping the others"; batch-atomic +
+/// idempotent-nightly-retry meets it because no row is ever permanently stuck. On THIS schema
+/// the only non-transient single-row failure is a row that vanished between the query and the
+/// save (Art.17 cascade / JobAd-expiry) — which SELF-RESOLVES next run (it is gone from the
+/// <c>Where(Queued)</c> query). A permanent single-row poison cannot exist without a concurrency
+/// token or a per-row status constraint, of which there are none. This deliberately differs from
+/// <c>HardDeleteAccountsJob</c>'s per-row try/catch: that job isolates INDEPENDENT EXTERNAL
+/// operations (Identity delete + cascade via a port owning its own transaction); the reaper's
+/// per-row work is a single in-memory status flip with no external dependency — same-looking
+/// loop, different change-reason. Per-row-with-<see cref="IAppDbContext.Detach"/> was available
+/// and rejected on merit (it would defend against a poison this schema cannot produce).
+/// </para>
 /// </summary>
 public sealed partial class StrandedMatchReaperJob(
     IAppDbContext db,
@@ -57,9 +71,13 @@ public sealed partial class StrandedMatchReaperJob(
     {
         var cutoff = clock.UtcNow.AddHours(-StrandedThresholdHours);
 
-        // Queued rows are not soft-deleted (DeletedAt null) so the default query filter includes
-        // them; a Queued row soft-deleted by JobAd-expiry / the Art.17 cascade is correctly
-        // excluded — we never reap an already-removed match.
+        // Tracking is deliberate (write path — the rows are mutated + saved), NOT a §3.6
+        // AsNoTracking read. Queued rows are not soft-deleted (DeletedAt null) so the default
+        // query filter includes them; a Queued row soft-deleted by JobAd-expiry / the Art.17
+        // cascade is correctly excluded — we never reap an already-removed match. NOT paginated:
+        // the stranded set is bounded by design (a row is legitimately Queued only within a
+        // sub-day dispatch window, and only FAILED sends strand) — a Take/chunk is deferred to
+        // the day a fitness signal flags the transaction size (ADR 0045; CTO 2026-06-25).
         var stranded = await db.UserJobAdMatches
             .Where(m => m.NotificationStatus == NotificationStatus.Queued && m.CreatedAt < cutoff)
             .ToListAsync(cancellationToken);
@@ -69,13 +87,16 @@ public sealed partial class StrandedMatchReaperJob(
         if (stranded.Count == 0)
             return;
 
+        var reaped = 0;
         foreach (var match in stranded)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            // Guard cannot fail (the query filtered Queued), but respect the domain result.
+            // The query already filtered Queued, so MarkFailed always succeeds — but honour the
+            // domain Result and count only actual transitions so the completion log is truthful.
             if (match.MarkFailed().IsFailure)
                 continue;
 
+            reaped++;
             // PII-free: the match id + named grade + age, never the recipient address.
             LogReaped(logger, match.Id.Value, match.Grade.ToString(), match.CreatedAt);
         }
@@ -84,7 +105,7 @@ public sealed partial class StrandedMatchReaperJob(
         // failure is a transient batch-level DB error, fully rolled back and retried next run).
         await db.SaveChangesAsync(cancellationToken);
 
-        LogComplete(logger, stranded.Count);
+        LogComplete(logger, reaped);
     }
 
     [LoggerMessage(Level = LogLevel.Information,

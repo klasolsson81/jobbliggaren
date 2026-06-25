@@ -228,4 +228,37 @@ public class GetMyNewMatchCountQueryHandlerTests
 
         result.Count.ShouldBe(1);
     }
+
+    // =================================================================
+    // TD-114 — status-agnostic: a Failed (stranded-notification) match still counts.
+    // =================================================================
+
+    [Fact]
+    public async Task Handle_ShouldCountFailedMatch_StatusAgnostic()
+    {
+        // A match whose notification stranded and was reaped to Failed is STILL a real match —
+        // the count must not filter on NotificationStatus (delivery status != match validity).
+        // Regression lock against a future status filter that would hide stranded matches.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        using var db = TestAppDbContextFactory.Create();
+
+        SeedSeeker(db, userId, lastSeen: null); // never opened → every match is new
+
+        _clock.UtcNow.Returns(T0.AddDays(1));
+        var failed = UserJobAdMatch.Create(
+            userId, JobAdId.New(), NotifiableMatchGrade.Top, ["csharp"], _clock).Value;
+        failed.MarkQueued();
+        failed.MarkFailed();
+        _clock.UtcNow.Returns(T0);
+
+        db.UserJobAdMatches.Add(failed);
+        await db.SaveChangesAsync(ct);
+
+        var sut = new GetMyNewMatchCountQueryHandler(db, UserWith(userId));
+
+        var result = await sut.Handle(new GetMyNewMatchCountQuery(), ct);
+
+        result.Count.ShouldBe(1);
+    }
 }

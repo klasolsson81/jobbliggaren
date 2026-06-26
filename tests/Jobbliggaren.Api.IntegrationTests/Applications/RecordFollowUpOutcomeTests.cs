@@ -75,7 +75,7 @@ public class RecordFollowUpOutcomeTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task POST_outcome_twice_returns_400_on_second_call()
+    public async Task POST_outcome_twice_returns_409_on_second_call()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -91,7 +91,10 @@ public class RecordFollowUpOutcomeTests(ApiFactory factory)
             new { outcome = "NoResponse" },
             ct);
 
-        second.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        // #239 / TD-63 — FollowUp.OutcomeAlreadyRecorded is a Conflict; the central
+        // DomainError.ToProblemResult() now maps Kind.Conflict→409 (RFC 9110 §15.5.10).
+        // Pre-#239 this collapsed to 400 via the EndsWith(".NotFound") helper.
+        second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -123,7 +126,7 @@ public class RecordFollowUpOutcomeTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task POST_outcome_on_unknown_follow_up_returns_400()
+    public async Task POST_outcome_on_unknown_follow_up_returns_404()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -137,6 +140,9 @@ public class RecordFollowUpOutcomeTests(ApiFactory factory)
             new { outcome = "Responded" },
             ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        // #239 / TD-84 — Application.FollowUpNotFound is a genuine not-found (was the only raw
+        // new DomainError(...) → silently Validation/400); now stamped NotFound, so the central
+        // DomainError.ToProblemResult() maps it to 404 (RFC 9110 §15.5.5).
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

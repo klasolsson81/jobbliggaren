@@ -69,11 +69,17 @@ public static class AuthEndpoints
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
     }
 
+    // 401 is an authentication-identity status ("who are you"), a different axis from the
+    // request/resource-semantics the kind-union models (400/404/409/410) — so it stays an
+    // endpoint-local concern rather than a new ErrorKind (senior-cto-advisor 2026-06-26, #239
+    // Decision 1 Variant B; RFC 9110 §15.5.2). The 401 here also preserves the deliberate
+    // deleted-account oracle-avoidance (a soft-deleted login returns the same Auth.InvalidCredentials
+    // as a wrong password — docs/runbooks/account-deletion.md). Every other Auth failure delegates
+    // to the central kind-mapper so the 400/404/409/410 rule lives in exactly one place (DRY).
     private static IResult ToErrorResult(DomainError error) => error.Code switch
     {
         "Auth.InvalidCredentials" => Results.Problem(
-            detail: error.Message, title: error.Code, statusCode: 401),
-        _ => Results.Problem(
-            detail: error.Message, title: error.Code, statusCode: 400),
+            detail: error.Message, title: error.Code, statusCode: StatusCodes.Status401Unauthorized),
+        _ => error.ToProblemResult(),
     };
 }

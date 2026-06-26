@@ -2,7 +2,6 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Invitations.Commands.RedeemInvitation;
-using Jobbliggaren.Domain.Common;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -27,17 +26,9 @@ public static class InvitationsEndpoints
 
             var result = await mediator.Send(command, ct);
             if (result.IsFailure)
-                return ToErrorResult(result.Error);
+                return result.Error.ToProblemResult();
 
             return Results.Ok(new { sessionId = result.Value.SessionId });
         }).RequireRateLimiting(RateLimitingExtensions.InvitationRedeemPolicy);
     }
-
-    private static IResult ToErrorResult(DomainError error) => error.Code switch
-    {
-        "Invitation.NotFound" => Results.Problem(detail: error.Message, title: error.Code, statusCode: 404),
-        "Invitation.Expired" or "Invitation.Revoked" or "Invitation.AlreadyRedeemed"
-            => Results.Problem(detail: error.Message, title: error.Code, statusCode: 410),
-        _ => Results.Problem(detail: error.Message, title: error.Code, statusCode: 400),
-    };
 }

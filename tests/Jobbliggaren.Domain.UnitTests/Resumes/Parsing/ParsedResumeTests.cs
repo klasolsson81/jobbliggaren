@@ -368,6 +368,10 @@ public class ParsedResumeTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("ParsedResume.NotPendingReview");
+        // #239 / TD-63 — pins the Conflict kind that drives the API 400→409 delta (D3): the central
+        // DomainErrorResults mapper maps Kind.Conflict→409. Guards against a future factory swap back
+        // to Validation that the no-raw-construction architecture test would not catch.
+        result.Error.Kind.ShouldBe(ErrorKind.Conflict);
     }
 
     // ===============================================================

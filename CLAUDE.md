@@ -99,9 +99,18 @@ signal available is a discipline miss.
 - **Immutability:** value objects = `record struct`/`readonly record class`;
   DTOs = `record class`; entities = `class` with private setters; exposed
   collections = `IReadOnlyList<T>`/`IReadOnlyCollection<T>`, never `List<T>`.
-- **Errors:** expected failures → `Result<TSuccess, TError>`; unexpected →
-  exceptions. `DomainException` → 400 via middleware; `NotFoundException` →
-  404. Never `throw new Exception(...)` — always a specific subclass.
+- **Errors — two coexisting idioms:** expected failures → `Result<TSuccess,
+  TError>` carrying a `DomainError`; unexpected → exceptions. (1) *Result
+  idiom:* `DomainError.Kind` (`ErrorKind`) is the discriminator the central Api
+  mapper `DomainError.ToProblemResult()` translates to a status — Validation→400,
+  NotFound→404, Conflict→409, Gone→410 (exhaustive switch, `_`→500); one place,
+  never per-endpoint `Code`-string matching (§5). Construct `DomainError` only via
+  its factories (`NotFound`/`Validation`/`Conflict`/`Gone` — the kind is stamped
+  there; a raw `new DomainError(...)` defaults to Validation/400 and is
+  architecture-test-forbidden). (2) *Exception idiom:* `DomainException` → 400,
+  `NotFoundException` → 404 via middleware. A genuinely authentication-only status
+  (401) the kind-union does not model stays endpoint-local, not an `ErrorKind`.
+  Never `throw new Exception(...)` — always a specific subclass.
 - **Async:** `CancellationToken` propagated end-to-end. Never `.Result` or
   `.Wait()`. `Task.Run` only for CPU-bound work. No `ConfigureAwait(false)`
   needed inside ASP.NET Core.

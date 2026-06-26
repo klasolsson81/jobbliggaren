@@ -176,7 +176,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
             f => f.Id == followUpId && f.DeletedAt is null);
 
         if (followUp is null)
-            return Result.Failure(new DomainError(
+            return Result.Failure(DomainError.NotFound(
                 "Application.FollowUpNotFound", "Uppföljningen hittades inte."));
 
         var result = followUp.RecordOutcome(outcome, clock);

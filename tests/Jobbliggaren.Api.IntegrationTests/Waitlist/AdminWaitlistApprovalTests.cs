@@ -92,6 +92,29 @@ public class AdminWaitlistApprovalTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task Admin_approves_unknown_waitlist_entry_returns_404()
+    {
+        // #239 fold-lock — AdminWaitlist's bespoke Code switch-mapper was folded into the central
+        // DomainError.ToProblemResult(). WaitlistEntry.NotFound (Kind.NotFound) → 404, behaviour
+        // unchanged but now proven through the central kind-mapper rather than the per-endpoint switch.
+        var ct = TestContext.Current.CancellationToken;
+        var adminClient = await CreateAdminClientAsync(ct);
+
+        var response = await adminClient.PostAsJsonAsync(
+            $"/api/v1/admin/waitlist/{Guid.NewGuid()}/approve",
+            new { validForDays = 7 },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    // (The Conflict→409 fold path through the central kind-mapper is HTTP-proven email-free by
+    // InvitationFlowTests.Admin_revoke_already_revoked_invitation_returns_409 and by
+    // ApplicationsTests.POST_outcome_twice_returns_409_conflict — approving a waitlist entry issues
+    // an invitation EMAIL, which the local ResendEmailSender test-mode rejects, so the second-approve
+    // path is not a reliable email-free probe here.)
+
     // --- helpers ---
 
     private async Task<Guid> SeedPendingEntryAsync(string email, CancellationToken ct)

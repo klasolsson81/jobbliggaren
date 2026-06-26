@@ -91,6 +91,28 @@ public class InvitationFlowTests(ApiFactory factory)
         redeemResp.StatusCode.ShouldBe(HttpStatusCode.Gone);
     }
 
+    [Fact]
+    public async Task Admin_revoke_already_revoked_invitation_returns_409()
+    {
+        // #239 fold-lock — AdminInvitations' bespoke Code switch-mapper folded into the central
+        // DomainError.ToProblemResult(). Invitation.NotPending (Kind.Conflict) → 409 through the
+        // central kind-mapper (RFC 9110 §15.5.10), behaviour unchanged but now proven through the
+        // central path. Email-free: revoke sends no mail and the invitation is seeded directly (no
+        // issue-email), so it probes the Conflict→409 fold without the ResendEmailSender path.
+        var ct = TestContext.Current.CancellationToken;
+        var adminClient = await CreateAdminClientAsync(ct);
+        var (_, invitationId) = await SeedInvitationAsync($"rerevoke-{Guid.NewGuid()}@example.com", ct);
+
+        var first = await adminClient.PostAsync(
+            $"/api/v1/admin/invitations/{invitationId}/revoke", null, ct);
+        first.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var second = await adminClient.PostAsync(
+            $"/api/v1/admin/invitations/{invitationId}/revoke", null, ct);
+
+        second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
+
     // --- helpers ---
 
     private async Task<HttpClient> CreateAdminClientAsync(CancellationToken ct)

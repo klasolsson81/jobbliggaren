@@ -2,7 +2,6 @@ using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Waitlist.Commands.ApproveWaitlistEntry;
 using Jobbliggaren.Application.Waitlist.Commands.RejectWaitlistEntry;
 using Jobbliggaren.Application.Waitlist.Queries.ListWaitlistEntries;
-using Jobbliggaren.Domain.Common;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -32,24 +31,17 @@ public static class AdminWaitlistEndpoints
         {
             var result = await mediator.Send(
                 new ApproveWaitlistEntryCommand(id, payload?.ValidForDays), ct);
-            return result.IsSuccess ? Results.Ok(result.Value) : ToErrorResult(result.Error);
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemResult();
         });
 
         group.MapPost("/{id:guid}/reject", async (
             Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new RejectWaitlistEntryCommand(id), ct);
-            return result.IsSuccess ? Results.NoContent() : ToErrorResult(result.Error);
+            return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
         });
     }
 
     /// <summary>Body-payload för approve (valfri validForDays).</summary>
     public sealed record ApproveWaitlistPayload(int? ValidForDays);
-
-    private static IResult ToErrorResult(DomainError error) => error.Code switch
-    {
-        "WaitlistEntry.NotFound" => Results.Problem(detail: error.Message, title: error.Code, statusCode: 404),
-        "WaitlistEntry.NotPending" => Results.Problem(detail: error.Message, title: error.Code, statusCode: 409),
-        _ => Results.Problem(detail: error.Message, title: error.Code, statusCode: 400),
-    };
 }

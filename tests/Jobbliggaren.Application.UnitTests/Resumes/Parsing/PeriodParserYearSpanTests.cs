@@ -21,8 +21,8 @@ public class PeriodParserYearSpanTests
     [InlineData("2019 to 2021", 2019, 2021)] // English "to" separator
     [InlineData("01/2020 – 06/2024", 2020, 2024)]
     [InlineData("2019 - 06/2024", 2019, 2024)] // mixed granularity (year start, MM/YYYY end)
-    [InlineData("2019", 2019, 2019)]        // single year-only point → zero-length span
-    [InlineData("03/2020", 2020, 2020)]     // single MM/YYYY point
+    [InlineData("2019", 2019, 2019)]        // single year-only point → zero-length span (→ 0, NOT null; #191/ADR 0079 Variant A — a bare year IS parseable)
+    [InlineData("03/2020", 2020, 2020)]     // single MM/YYYY point → zero-length span (same #191 rule)
     public void TryParseYearSpan_RecognisedRangeOrPoint_ReturnsYearBounds(
         string period, int expectedStart, int expectedEnd)
     {

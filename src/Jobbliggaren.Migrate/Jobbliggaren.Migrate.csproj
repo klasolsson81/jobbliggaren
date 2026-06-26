@@ -11,15 +11,21 @@
     <PackageReference Include="Npgsql" />
     <!-- Hangfire-schema-installer (officiell DDL-väg per docs/runbooks/hangfire-schema.md) -->
     <PackageReference Include="Hangfire.PostgreSql" />
-    <!-- AWS Secrets Manager för read master-secret + write app/worker connection-strings -->
-    <PackageReference Include="AWSSDK.SecretsManager" />
-    <!-- Logging till stdout → CloudWatch -->
+    <!-- AWSSDK.SecretsManager borttaget (TD-105 / #199 / ADR 0050) — Migrate hämtar
+         numera alla creds/connection-strings ur miljön (env + Docker-secret _FILE),
+         se MigrateEnv. Ingen AWS-SDK-yta kvar i Migrate. -->
+    <!-- Logging till stdout (Compose-loggar / Seq-sink TD-104) -->
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Phase E (ADR 0033) — EF Core MigrateAsync mot AppDbContext -->
     <ProjectReference Include="..\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MigrateEnv (intern env/secret-resolver) enhetstestas i UnitTests-projektet. -->
+    <InternalsVisibleTo Include="Jobbliggaren.Migrate.UnitTests" />
   </ItemGroup>
 
 </Project>

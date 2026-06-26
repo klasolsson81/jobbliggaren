@@ -222,3 +222,44 @@ Least-privilege bevarat — RunTask kan bara trigga Migrate-task-def i dev-clust
 - CLAUDE.md §3.4 (Result-pattern), §9.6 (fas-regeln)
 - `docs/runbooks/hangfire-schema.md` (befintlig — uppdateras med två-modes-noting)
 - `docs/runbooks/aws-rds-migration-apply.md` (ny via F2-P8a.5b)
+
+## Amendment 2026-06-26 — VPS-portabel re-home (TD-105 / #199)
+
+**Kontext:** AWS-exit (ADR 0050 / ADR 0066). `Jobbliggaren.Migrate` var bunden till
+AWS Secrets Manager och därför inte VPS-portabel — en blockerande dependency för
+Hetzner-oneshot-migrate-containern (TD-106 punkt 5). senior-cto-advisor band
+**Variant B** (riv ut AWS-SDK, re-homa till env-config; ingen abstraktions-port —
+YAGNI mot en enkelriktad arkitektur-dom).
+
+**Ändringar:**
+
+1. **AWS-SDK borttaget.** `AWSSDK.SecretsManager` + all `AmazonSecretsManagerClient`-kod
+   (`GetSecretValueAsync`/`PutSecretValueAsync`/`FetchMasterCredsAsync`) + `RdsMasterSecret`-
+   JSON-shape är borttagna. Migrate har ingen AWS-yta kvar.
+2. **Phase D borttaget.** Init genererar inte längre roll-lösenord (`GenerateRandomPassword`)
+   och skriver inga connection-strings tillbaka till en secret-sink. **Operatören
+   pre-provisionerar** de tre roll-lösenorden (CTO-bind C: på en single-box VPS finns
+   ingen åtkomst-kontrollerad secret-sink att skriva genererade creds till — creds-
+   livscykeln ägs av deploy/ops, ADR 0050 gate B-1/M-6, TD-102). Init är nu ren
+   idempotent DDL (Phase A–C).
+3. **Konfig-driven TLS.** De RDS-hårdkodade `ForMigrate`/`ForPersisted` ersatta av
+   `ConnectionStringFactory.Build(..., sslMode, rootCert?)`. SSL-läget kommer från
+   `MIGRATE_SSL_MODE` (default `Require`); VerifyCA/VerifyFull kräver `MIGRATE_SSL_ROOT_CERT`.
+   Arch-testet `ConnectionStringLeakageTests` inkluderar nu Migrate i läckage-vakten.
+
+**Env-kontrakt** (env-var, eller Docker-secret via `<NAME>_FILE`-suffix, se `MigrateEnv`):
+
+| Var | Modes | Not |
+|---|---|---|
+| `MIGRATE_DB_HOST` / `MIGRATE_DB_PORT` / `MIGRATE_DB_NAME` | init/bootstrap/ensure-extensions | DB-mål |
+| `MIGRATE_MASTER_USERNAME` / `MIGRATE_MASTER_PASSWORD` | init/bootstrap/ensure-extensions | master-DDL-creds |
+| `MIGRATE_MIGRATIONS_PASSWORD` / `MIGRATE_APP_PASSWORD` / `MIGRATE_WORKER_PASSWORD` | init | operatör-givna roll-lösenord |
+| `MIGRATE_APP_CONNECTION_STRING` | schema/explain-search | färdig app-CS (operatör sätter eget SSL-läge) |
+| `MIGRATE_SSL_MODE` | init/bootstrap/ensure-extensions | valfri, default `Require` |
+| `MIGRATE_SSL_ROOT_CERT` | init/bootstrap/ensure-extensions | path, krävs vid VerifyCA/VerifyFull |
+| `EXPLAIN_SEARCH_TERMS` | explain-search | valfri, default `lärare,systemutvecklare` |
+
+**Deferred till #196 (TD-106), LRM:** den faktiska Compose-`migrate`-servicen, var
+operatör-creds fysiskt lagras på VPS:en (env vs Docker-secret vs `age`-krypterad), och
+det slutgiltiga VPS-`MIGRATE_SSL_MODE`-värdet (`Disable` på privat bridge vs intern CA +
+`VerifyFull`). #199 levererar mekanismen; #196 sätter värdena och verifierar oneshot-flödet.

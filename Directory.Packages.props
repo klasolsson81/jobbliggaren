@@ -73,13 +73,13 @@
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
     <!-- Jobbliggaren.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
-         (Application använder bara DbSet<T>-abstraktionen via EF Core). AWSSDK.SecretsManager
-         används av Migrate för att hämta master-creds + skriva final connection-strings.
+         (Application använder bara DbSet<T>-abstraktionen via EF Core).
          Microsoft.Extensions.Logging.Console för stdout (+ Seq-sink, TD-104). -->
     <!-- Npgsql 10.0.2 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1
          (kräver Npgsql >= 10.0.2). Direkt-referens från Jobbliggaren.Migrate. -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <PackageVersion Include="AWSSDK.SecretsManager" Version="4.0.4.20" />
+    <!-- AWSSDK.SecretsManager borttaget (TD-105 / #199 / ADR 0050 — AWS-exit;
+         Migrate re-homad till env/Docker-secret-creds, se MigrateEnv). -->
     <!-- AWS KMS — TD-13 (ADR 0049) per-användare-DEK envelope encryption.
          4.0.8.8 kräver AWSSDK.Core >= 4.0.3.12 (vår pin 4.0.6.1 uppfyller). -->
     <PackageVersion Include="AWSSDK.KeyManagementService" Version="4.0.8.8" />
@@ -88,8 +88,8 @@
          för Hetzner-fasen). KMS-paketet behålls som referens-impl (ADR 0049). -->
     <!-- Transitiv CVE-pinning: GHSA-9cvc-h2w8-phrp (region-input-validering)
          påverkar AWSSDK.Core < 4.0.3.3. Vi pinnar 4.0.6.1 (matchar minimum-krav
-         från SecretsManager 4.0.4.20 + KeyManagementService 4.0.8.8) för att
-         eliminera Warning-as-Error vid build. -->
+         från AWSSDK.KeyManagementService 4.0.8.8) för att eliminera
+         Warning-as-Error vid build. -->
     <PackageVersion Include="AWSSDK.Core" Version="4.0.6.1" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.9" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor

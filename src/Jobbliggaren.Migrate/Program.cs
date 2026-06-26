@@ -1,47 +1,47 @@
-// Jobbliggaren.Migrate — one-shot ECS-task för schema-arbete mot AWS RDS.
+// Jobbliggaren.Migrate — one-shot DDL-/schema-container för Postgres.
+//
+// VPS-portabel efter AWS-exit (TD-105 / #199 / ADR 0050 / ADR 0066): Migrate
+// hämtar INTE längre creds via AWS Secrets Manager. Alla hemligheter och
+// connection-strings kommer ur miljön (env-vars eller Docker-secret `_FILE`,
+// se MigrateEnv). Kör som oneshot i Hetzner-Compose-stacken (#196/TD-106):
+//   docker compose run --rm migrate ensure-extensions && ... schema
 //
 // CLI-dispatch (ADR 0033 — Jobbliggaren.Migrate CLI-mode-dispatch):
 //
-//   Jobbliggaren.Migrate init     -> Phase A-D (engångs-init eller creds-rotation)
-//   Jobbliggaren.Migrate schema   -> Phase E (EF Core Database.MigrateAsync)
+//   Jobbliggaren.Migrate init     -> Phase A-C (engångs-init mot operatör-givna creds)
+//   Jobbliggaren.Migrate bootstrap-> Identity-schema + Identity-migrations (master-creds)
+//   Jobbliggaren.Migrate ensure-extensions -> CREATE EXTENSION (master-creds)
+//   Jobbliggaren.Migrate schema   -> Phase E (EF Core Database.MigrateAsync, app-creds)
+//   Jobbliggaren.Migrate explain-search -> diagnostik (EXPLAIN ANALYZE, app-creds)
 //
 // Saknad arg eller okänd arg -> exit 1 med usage-text.
 //
-// Phase A-D (init-mode) per docs/runbooks/hangfire-schema.md §3-4:
-//   Phase A (master-creds):
-//     - REVOKE PUBLIC från databasen + hangfire-schema (default-skydd)
-//     - Generera 3 random-pwds (32 char alpha-num, ~190 bits entropy)
-//     - CREATE ROLE jobbliggaren_migrations + jobbliggaren_app + jobbliggaren_worker (via
-//       parameteriserad EXECUTE format('%I', %L) för SQL-injection-defense)
-//     - GRANT CONNECT på databasen till alla 3
-//     - CREATE SCHEMA hangfire AUTHORIZATION jobbliggaren_migrations
-//     - GRANT USAGE/CREATE på hangfire-schema till jobbliggaren_migrations
-//     - GRANT på public-schema (default EF Core-yta) till jobbliggaren_app
-//   Phase B (jobbliggaren_migrations-creds):
-//     - PostgreSqlObjectsInstaller.Install(connection, "hangfire") — officiell Hangfire 1.21.1
-//   Phase C (master-creds — RE-FETCHED från Secrets Manager för rotation-race-skydd):
-//     - GRANT på hangfire.* till jobbliggaren_worker (DML-only)
-//     - ALTER DEFAULT PRIVILEGES för framtida tabeller
-//   Phase D (Secrets Manager):
-//     - PutSecretValue → jobbliggaren/dev/db/app-connection-string (jobbliggaren_app-creds)
-//     - PutSecretValue → jobbliggaren/dev/db/hangfire-storage-connection-string (jobbliggaren_worker-creds)
+// Phase A-C (init-mode) per docs/runbooks/hangfire-schema.md §3-4:
+//   Phase A (master-creds): REVOKE PUBLIC, CREATE ROLE jobbliggaren_{migrations,app,worker}
+//     med OPERATÖR-GIVNA lösenord (env), GRANT CONNECT, CREATE SCHEMA hangfire/identity,
+//     GRANTs på public/identity till jobbliggaren_app.
+//   Phase B (jobbliggaren_migrations-creds): PostgreSqlObjectsInstaller.Install(hangfire).
+//   Phase C (master-creds): GRANT hangfire.* till jobbliggaren_worker (DML-only) +
+//     ALTER DEFAULT PRIVILEGES.
+//
+// Skillnad mot AWS-eran (TD-105): Migrate genererar INTE längre roll-lösenord och
+// skriver INGA connection-strings tillbaka till en secret-sink (det gamla Phase D /
+// Secrets Manager PutSecretValue är borttaget). Operatören pre-provisionerar de tre
+// roll-lösenorden; Api/Worker får sina connection-strings via samma miljö-mekanism
+// (#196 äger var de fysiskt lagras på VPS:en).
 //
 // Phase E (schema-mode) per ADR 0033:
-//   - Hämta jobbliggaren_app-CS från Secrets Manager (MIGRATE_APP_CONN_SECRET_ARN)
+//   - Läs jobbliggaren_app-connection-string ur env (MIGRATE_APP_CONNECTION_STRING)
 //   - Bygg AppDbContext via DbContextOptionsBuilder + UseNpgsql + UseSnakeCaseNamingConvention
 //   - GetPendingMigrationsAsync -> logga pending
 //   - Database.MigrateAsync (idempotent — re-run efter completed är no-op)
 //
-// Inga klartext-pwds i loggning — bara SHA256-truncate-fingerprints (0% pwd-bytes synliga).
-// Idempotens: alla CREATE ROLE använder DO-block. Re-run efter delvis fail: säker.
-// CancellationToken propageras genom hela kedjan (Console.CancelKeyPress → CTS → AWS SDK).
+// Inga klartext-secrets i loggning. Idempotens: alla CREATE ROLE använder två-stegs
+// SELECT+DDL. Re-run efter delvis fail: säker. CancellationToken propageras genom
+// hela kedjan (Console.CancelKeyPress -> CTS).
 
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using Amazon.SecretsManager;
-using Amazon.SecretsManager.Model;
 using Hangfire.PostgreSql;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -59,7 +59,7 @@ var loggerFactory = LoggerFactory.Create(builder => builder
     .SetMinimumLevel(LogLevel.Information));
 var log = loggerFactory.CreateLogger("Migrate");
 
-// CancellationToken-flow för graceful shutdown vid SIGTERM (Fargate stopTimeout=30s).
+// CancellationToken-flow för graceful shutdown vid SIGTERM (oneshot-container).
 // Per CLAUDE.md §3.5: CancellationToken propageras genom hela kedjan.
 //
 // OBS: ProcessExit/CancelKeyPress-handlers använder TryCancel-pattern eftersom
@@ -120,47 +120,35 @@ static async Task<int> RunInitAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeInit(log);
 
-    var masterSecretArn = RequiredEnv("MIGRATE_MASTER_SECRET_ARN");
-    var dbHost = RequiredEnv("MIGRATE_DB_HOST");
-    var dbPort = int.Parse(RequiredEnv("MIGRATE_DB_PORT"), CultureInfo.InvariantCulture);
-    var dbName = RequiredEnv("MIGRATE_DB_NAME");
-    var appConnSecretArn = RequiredEnv("MIGRATE_APP_CONN_SECRET_ARN");
-    var hangfireConnSecretArn = RequiredEnv("MIGRATE_HANGFIRE_CONN_SECRET_ARN");
-    var awsRegion = RequiredEnv("AWS_REGION");
+    var db = ReadDbTarget();
+    var master = ReadMasterCreds();
 
-    MigrateLog.StartingMigrate(log, dbHost, dbPort, dbName, awsRegion);
+    // Operatör-provisionerade roll-lösenord. Migrate genererar dem INTE (TD-105 /
+    // CTO-bind C): på en single-box VPS finns ingen åtkomst-kontrollerad secret-sink
+    // att skriva genererade creds till, så creds-livscykeln ägs av deploy/ops (#196 /
+    // TD-102). Init blir ren idempotent DDL mot operatör-givna lösenord.
+    var pwdMigrations = MigrateEnv.Required("MIGRATE_MIGRATIONS_PASSWORD");
+    var pwdApp = MigrateEnv.Required("MIGRATE_APP_PASSWORD");
+    var pwdWorker = MigrateEnv.Required("MIGRATE_WORKER_PASSWORD");
 
-    var secretsClient = new AmazonSecretsManagerClient(
-        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
+    MigrateLog.StartingMigrate(log, db.Host, db.Port, db.Database);
 
     // -----------------------------------------------------------------------
     // Phase A — master: REVOKE PUBLIC + CREATE ROLE × 3 + GRANTs + CREATE SCHEMA
     // -----------------------------------------------------------------------
-    var masterCredsA = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
-    MigrateLog.MasterCredsLoaded(log, masterCredsA.Username, "Phase A");
-
-    var pwdMigrations = GenerateRandomPassword(32);
-    var pwdApp = GenerateRandomPassword(32);
-    var pwdWorker = GenerateRandomPassword(32);
-
-    // Pre-compute SHA256-fingerprints utanför log-call (CA1873 + Sec-Minor-2 fix).
-    var fpMig = Fingerprint(pwdMigrations);
-    var fpApp = Fingerprint(pwdApp);
-    var fpWrk = Fingerprint(pwdWorker);
-    MigrateLog.GeneratedPwds(log, fpMig, fpApp, fpWrk);
-
+    MigrateLog.MasterCredsLoaded(log, master.Username, "Phase A");
     MigrateLog.PhaseAStart(log);
-    await using (var masterConn = new NpgsqlConnection(ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCredsA.Username, masterCredsA.Password)))
+    await using (var masterConn = new NpgsqlConnection(BuildConnString(db, master.Username, master.Password)))
     {
         await masterConn.OpenAsync(ct);
-        await ExecutePhaseAAsync(masterConn, dbName, pwdMigrations, pwdApp, pwdWorker, log, ct);
+        await ExecutePhaseAAsync(masterConn, db.Database, pwdMigrations, pwdApp, pwdWorker, log, ct);
     }
 
     // -----------------------------------------------------------------------
     // Phase B — jobbliggaren_migrations: PostgreSqlObjectsInstaller.Install
     // -----------------------------------------------------------------------
     MigrateLog.PhaseBStart(log);
-    var migrationsConnString = ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, Roles.Migrations, pwdMigrations);
+    var migrationsConnString = BuildConnString(db, Roles.Migrations, pwdMigrations);
     await using (var migrationsConn = new NpgsqlConnection(migrationsConnString))
     {
         await migrationsConn.OpenAsync(ct);
@@ -173,72 +161,33 @@ static async Task<int> RunInitAsync(ILogger log, CancellationToken ct)
     }
 
     // -----------------------------------------------------------------------
-    // Phase C — master (RE-FETCHED): GRANT + ALTER DEFAULT PRIVILEGES
-    // Sec-Major-1: re-fetch master-creds skyddar mot AWS-managerad rotation
-    // mid-flow (Phase B kan ta 60-120s).
+    // Phase C — master: GRANT hangfire.* till worker + ALTER DEFAULT PRIVILEGES.
+    // Ingen re-fetch av master-creds (env-creds roterar inte mid-run, till skillnad
+    // från det gamla AWS-managed-rotation-flödet).
     // -----------------------------------------------------------------------
     MigrateLog.PhaseCStart(log);
-    var masterCredsC = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
-    MigrateLog.MasterCredsLoaded(log, masterCredsC.Username, "Phase C");
-
-    await using (var masterConn = new NpgsqlConnection(ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCredsC.Username, masterCredsC.Password)))
+    await using (var masterConn = new NpgsqlConnection(BuildConnString(db, master.Username, master.Password)))
     {
         await masterConn.OpenAsync(ct);
         await ExecutePhaseCAsync(masterConn, log, ct);
     }
 
-    // -----------------------------------------------------------------------
-    // Phase D — Secrets Manager: PutSecretValue × 2
-    // -----------------------------------------------------------------------
-    MigrateLog.PhaseDStart(log);
-    // Persisterade CS:er → Trust=false + VerifyFull + Root Certificate (TD-38).
-    // Api/Worker-containers har RDS-CA-bundle på /etc/ssl/certs/rds-global-bundle.pem
-    // (se Api/Worker Dockerfile COPY-direktiv).
-    var appCs = ConnectionStringFactory.ForPersisted(dbHost, dbPort, dbName, Roles.App, pwdApp);
-    var hangfireCs = ConnectionStringFactory.ForPersisted(dbHost, dbPort, dbName, Roles.Worker, pwdWorker);
-
-    await secretsClient.PutSecretValueAsync(new PutSecretValueRequest
-    {
-        SecretId = appConnSecretArn,
-        SecretString = appCs,
-    }, ct);
-    MigrateLog.WroteAppConnSecret(log, appConnSecretArn);
-
-    await secretsClient.PutSecretValueAsync(new PutSecretValueRequest
-    {
-        SecretId = hangfireConnSecretArn,
-        SecretString = hangfireCs,
-    }, ct);
-    MigrateLog.WroteHangfireConnSecret(log, hangfireConnSecretArn);
-
     MigrateLog.MigrateComplete(log);
     return 0;
 }
 
-// ADR 0033 — Phase E. Ansluter med jobbliggaren_app-creds från Secrets Manager,
+// ADR 0033 — Phase E. Ansluter med jobbliggaren_app-creds ur env,
 // bygger AppDbContext programmatiskt, kör Database.MigrateAsync. Idempotent.
 static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeSchema(log);
 
-    var appConnSecretArn = RequiredEnv("MIGRATE_APP_CONN_SECRET_ARN");
-    var awsRegion = RequiredEnv("AWS_REGION");
-
-    var secretsClient = new AmazonSecretsManagerClient(
-        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
-
-    var appCsResponse = await secretsClient.GetSecretValueAsync(
-        new GetSecretValueRequest { SecretId = appConnSecretArn }, ct);
-    if (string.IsNullOrWhiteSpace(appCsResponse.SecretString))
-    {
-        throw new InvalidOperationException(
-            $"App connection-string secret är tom: {appConnSecretArn}");
-    }
+    var appCs = MigrateEnv.Required("MIGRATE_APP_CONNECTION_STRING");
 
     MigrateLog.PhaseEStart(log);
 
     await using var dbContext = new AppDbContext(
-        MigrationsOptionsFactory.BuildAppOptions(appCsResponse.SecretString));
+        MigrationsOptionsFactory.BuildAppOptions(appCs));
 
     var pending = (await dbContext.Database.GetPendingMigrationsAsync(ct)).ToList();
     MigrateLog.PendingMigrationsCount(log, pending.Count);
@@ -263,48 +212,33 @@ static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
 // + grantar jobbliggaren_app DML/DDL på identity, applicerar Identity-migrations
 // (AppIdentityDbContext) med master-creds. Engångs eller vid Identity-schema-
 // ändring (sällsynt). Schema-mode kvarstår oförändrad (AppDbContext only).
-// TD-71 — efter permanent A5-deploy revoke CREATE ON DATABASE från jobbliggaren_app.
+// TD-71 — efter permanent deploy revoke CREATE ON DATABASE från jobbliggaren_app.
 static async Task<int> RunBootstrapAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeBootstrap(log);
 
-    var masterSecretArn = RequiredEnv("MIGRATE_MASTER_SECRET_ARN");
-    var dbHost = RequiredEnv("MIGRATE_DB_HOST");
-    var dbPort = int.Parse(RequiredEnv("MIGRATE_DB_PORT"), CultureInfo.InvariantCulture);
-    var dbName = RequiredEnv("MIGRATE_DB_NAME");
-    var awsRegion = RequiredEnv("AWS_REGION");
+    var db = ReadDbTarget();
+    var master = ReadMasterCreds();
 
-    MigrateLog.StartingMigrate(log, dbHost, dbPort, dbName, awsRegion);
+    MigrateLog.StartingMigrate(log, db.Host, db.Port, db.Database);
+    MigrateLog.MasterCredsLoaded(log, master.Username, "Bootstrap");
 
-    var secretsClient = new AmazonSecretsManagerClient(
-        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
-
-    var masterCreds = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
-    MigrateLog.MasterCredsLoaded(log, masterCreds.Username, "Bootstrap");
+    var masterCs = BuildConnString(db, master.Username, master.Password);
 
     // Step 1: SQL via master-creds — skapa identity-schema + GRANTs.
     // Idempotent (CREATE SCHEMA IF NOT EXISTS, GRANT är no-op om redan satta).
     MigrateLog.BootstrapStep1Start(log);
-    await using (var masterConn = new NpgsqlConnection(
-        ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCreds.Username, masterCreds.Password)))
+    await using (var masterConn = new NpgsqlConnection(masterCs))
     {
         await masterConn.OpenAsync(ct);
-        await ExecuteBootstrapSchemaAsync(masterConn, dbName, log, ct);
+        await ExecuteBootstrapSchemaAsync(masterConn, db.Database, log, ct);
     }
 
     // Step 2: Applicera Identity-migrations med master-creds (har CREATE ON DATABASE,
-    // kan köra MigrateAsync utan Npgsql #1770-permission-fel).
-    // Re-fetch master-creds — samma rotation-race-skydd som init Phase A/C
-    // (Sec-Major-2 från security-auditor 2026-05-12 audit). MigrateAsync kan ta
-    // 30-120s vid pending Identity-migrations + AWS Secrets Manager kan rotera
-    // mid-flow → cached creds från Step 1 kan bli stale.
+    // kan köra MigrateAsync utan Npgsql #1770-permission-fel). Samma masterCs som
+    // Step 1 — env-creds roterar inte mid-run (det gamla rotation-race-re-fetchet
+    // var en AWS-Secrets-Manager-artefakt och behövs inte längre).
     MigrateLog.BootstrapStep2Start(log);
-    var masterCredsStep2 = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
-    MigrateLog.MasterCredsLoaded(log, masterCredsStep2.Username, "Bootstrap Step 2");
-
-    var masterCs = ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName,
-        masterCredsStep2.Username, masterCredsStep2.Password);
-
     await using var identityContext = new AppIdentityDbContext(
         MigrationsOptionsFactory.BuildIdentityOptions(masterCs));
 
@@ -336,35 +270,26 @@ static async Task<int> RunBootstrapAsync(ILogger log, CancellationToken ct)
 // CREATE EXTENSION själv. Detta mode är idempotent (CREATE EXTENSION IF NOT
 // EXISTS) och säkert att re-köra vid varje deploy (no-op när extension finns).
 //
-// Triggeras före schema-mode i deploy-dev.yml. Master-creds hämtas på samma
-// sätt som init/bootstrap (FetchMasterCredsAsync via Secrets Manager).
+// Triggeras före schema-mode i oneshot-migrate-sekvensen. Master-creds läses
+// ur env (samma som init/bootstrap).
 static async Task<int> RunEnsureExtensionsAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeEnsureExtensions(log);
 
-    var masterSecretArn = RequiredEnv("MIGRATE_MASTER_SECRET_ARN");
-    var dbHost = RequiredEnv("MIGRATE_DB_HOST");
-    var dbPort = int.Parse(RequiredEnv("MIGRATE_DB_PORT"), CultureInfo.InvariantCulture);
-    var dbName = RequiredEnv("MIGRATE_DB_NAME");
-    var awsRegion = RequiredEnv("AWS_REGION");
+    var db = ReadDbTarget();
+    var master = ReadMasterCreds();
 
-    MigrateLog.StartingMigrate(log, dbHost, dbPort, dbName, awsRegion);
-
-    var secretsClient = new AmazonSecretsManagerClient(
-        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
-
-    var masterCreds = await FetchMasterCredsAsync(secretsClient, masterSecretArn, ct);
-    MigrateLog.MasterCredsLoaded(log, masterCreds.Username, "EnsureExtensions");
+    MigrateLog.StartingMigrate(log, db.Host, db.Port, db.Database);
+    MigrateLog.MasterCredsLoaded(log, master.Username, "EnsureExtensions");
 
     MigrateLog.EnsureExtensionsStart(log);
-    await using (var masterConn = new NpgsqlConnection(
-        ConnectionStringFactory.ForMigrate(dbHost, dbPort, dbName, masterCreds.Username, masterCreds.Password)))
+    await using (var masterConn = new NpgsqlConnection(BuildConnString(db, master.Username, master.Password)))
     {
         await masterConn.OpenAsync(ct);
 
         // ADR 0061 Mekanik-not (F6 P4 2026-05-20) — pg_trgm krävs av
         // F6P4aJobAdTrigramIndexes-migrationen (GIN-trigram-acceleration på
-        // lower(title)+lower(description)). Trusted extension på AWS RDS PG 16+,
+        // lower(title)+lower(description)). Trusted extension på PG 16+,
         // men kräver CREATE-privilege på databasen → master-roll.
         await ExecuteAsync(masterConn, "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
             log, "CREATE EXTENSION pg_trgm (idempotent)", ct);
@@ -391,21 +316,13 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeExplainSearch(log);
 
-    var appConnSecretArn = RequiredEnv("MIGRATE_APP_CONN_SECRET_ARN");
-    var awsRegion = RequiredEnv("AWS_REGION");
+    var appCs = MigrateEnv.Required("MIGRATE_APP_CONNECTION_STRING");
 
     var terms = (Environment.GetEnvironmentVariable("EXPLAIN_SEARCH_TERMS")
                  ?? "lärare,systemutvecklare")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-    var secretsClient = new AmazonSecretsManagerClient(
-        Amazon.RegionEndpoint.GetBySystemName(awsRegion));
-    var appCsResponse = await secretsClient.GetSecretValueAsync(
-        new GetSecretValueRequest { SecretId = appConnSecretArn }, ct);
-    if (string.IsNullOrWhiteSpace(appCsResponse.SecretString))
-        throw new InvalidOperationException($"App connection-string secret är tom: {appConnSecretArn}");
-
-    await using var conn = new NpgsqlConnection(appCsResponse.SecretString);
+    await using var conn = new NpgsqlConnection(appCs);
     await conn.OpenAsync(ct);
 
     foreach (var term in terms)
@@ -486,46 +403,27 @@ static async Task ExecuteBootstrapSchemaAsync(NpgsqlConnection conn, string dbNa
 // Helpers (delas mellan init-, bootstrap- och schema-modes)
 // ===========================================================================
 
-static string RequiredEnv(string name) =>
-    Environment.GetEnvironmentVariable(name)
-    ?? throw new InvalidOperationException($"Saknad env-var: {name}");
-
-static string GenerateRandomPassword(int length)
+// DB-mål + TLS-postur ur miljön. SSL-läget är konfig-drivet (MIGRATE_SSL_MODE,
+// default "Require") så den faktiska VPS-topologin sätts av #196 (privat
+// Docker-bridge utan TLS → "Disable", eller intern CA → "VerifyFull").
+static (string Host, int Port, string Database, string SslMode, string? RootCert) ReadDbTarget()
 {
-    const string charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    var bytes = RandomNumberGenerator.GetBytes(length);
-    var sb = new StringBuilder(length);
-    foreach (var b in bytes)
-    {
-        sb.Append(charset[b % charset.Length]);
-    }
-    return sb.ToString();
+    var host = MigrateEnv.Required("MIGRATE_DB_HOST");
+    var port = int.Parse(MigrateEnv.Required("MIGRATE_DB_PORT"), CultureInfo.InvariantCulture);
+    var database = MigrateEnv.Required("MIGRATE_DB_NAME");
+    var sslMode = MigrateEnv.Optional("MIGRATE_SSL_MODE", "Require");
+    // Cert-path (ej en hemlighet) — direkt env, valfri (krävs bara för VerifyCA/VerifyFull).
+    var rootCert = Environment.GetEnvironmentVariable("MIGRATE_SSL_ROOT_CERT");
+    return (host, port, database, sslMode, string.IsNullOrWhiteSpace(rootCert) ? null : rootCert);
 }
 
-// SHA256-truncate fingerprint per Sec-Minor-2 — 0% pwd-bytes synliga i log,
-// 32 bitar identifying-info räcker för "är detta samma pwd-version som förra gången".
-static string Fingerprint(string pwd)
-{
-    var hash = SHA256.HashData(Encoding.UTF8.GetBytes(pwd));
-    return Convert.ToHexString(hash, 0, 4); // 8 hex-chars
-}
+static (string Username, string Password) ReadMasterCreds() =>
+    (MigrateEnv.Required("MIGRATE_MASTER_USERNAME"), MigrateEnv.Required("MIGRATE_MASTER_PASSWORD"));
 
-static async Task<RdsMasterSecret> FetchMasterCredsAsync(
-    AmazonSecretsManagerClient client, string secretArn, CancellationToken ct)
-{
-    var response = await client.GetSecretValueAsync(
-        new GetSecretValueRequest { SecretId = secretArn }, ct);
-    var creds = JsonSerializer.Deserialize<RdsMasterSecret>(response.SecretString)
-        ?? throw new InvalidOperationException("Master secret JSON-parse misslyckades");
-
-    // Architect Viktigt-2: explicit field-validation (icke-nullable record-properties
-    // skyddar inte mot null från JsonSerializer.Deserialize).
-    if (string.IsNullOrEmpty(creds.Username) || string.IsNullOrEmpty(creds.Password))
-    {
-        throw new InvalidOperationException("Master secret saknar username eller password-fält");
-    }
-    return creds;
-}
+static string BuildConnString(
+    (string Host, int Port, string Database, string SslMode, string? RootCert) db,
+    string user, string pwd) =>
+    ConnectionStringFactory.Build(db.Host, db.Port, db.Database, user, pwd, db.SslMode, db.RootCert);
 
 static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, string pwdMig, string pwdApp, string pwdWrk, ILogger log, CancellationToken ct)
 {
@@ -552,12 +450,11 @@ static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, strin
             ct);
     }
 
-    // RDS-master är `rds_superuser` (limited) — INTE full SUPERUSER. Kan inte
-    // SET ROLE på en roll utan explicit membership. För `CREATE SCHEMA AUTHORIZATION
-    // jobbliggaren_migrations` krävs att master har medlemskap i migrations-rollen.
-    // GRANT … TO CURRENT_USER ger master detta. Idempotent (re-grant är no-op).
-    // Ger membership i alla 3 så Phase C-GRANTs på hangfire.* (ägda av migrations)
-    // också kan köras av master.
+    // För `CREATE SCHEMA AUTHORIZATION jobbliggaren_migrations` krävs att master har
+    // medlemskap i migrations-rollen (master kan vara en begränsad superuser utan
+    // implicit SET ROLE). GRANT … TO CURRENT_USER ger master detta. Idempotent
+    // (re-grant är no-op). Ger membership i alla 3 så Phase C-GRANTs på hangfire.*
+    // (ägda av migrations) också kan köras av master.
     await ExecuteAsync(conn, $"GRANT {Roles.Migrations} TO CURRENT_USER;",
         log, "GRANT migrations-role TO master (för SCHEMA AUTHORIZATION + Phase C)", ct);
     await ExecuteAsync(conn, $"GRANT {Roles.App} TO CURRENT_USER;",
@@ -639,8 +536,11 @@ static async Task CreateRoleIfNotExistsAsync(NpgsqlConnection conn, string roleN
     //   2. CREATE/ALTER ROLE <ident> LOGIN PASSWORD '<lit>' (DDL, string-interpolerad)
     //
     // Säkerhet: roleName är hardcoded const i Roles-class → ingen injection-yta.
-    // password är genererad från charset [A-Za-z0-9] → inga `'` eller `\` möjliga.
-    // ValidateIdentifier körs ändå som defense-in-depth om någon utvidgar Roles.
+    // password är operatör-givet → escapas genom att fördubbla enkel-citationstecken
+    // (Postgres string-literal-escaping) innan interpolation. Förutsätter
+    // standard_conforming_strings=on (PG-default sedan 9.1) så `\` är literal och
+    // endast `'` behöver fördubblas. ValidateIdentifier körs på roleName som
+    // defense-in-depth om någon utvidgar Roles.
     ValidateIdentifier(roleName);
 
     bool exists;
@@ -651,9 +551,11 @@ static async Task CreateRoleIfNotExistsAsync(NpgsqlConnection conn, string roleN
         exists = result != null;
     }
 
+    // Escapa enkel-citationstecken i lösenordet (operatör-givet kan innehålla `'`).
+    var escapedPwd = password.Replace("'", "''", StringComparison.Ordinal);
     var ddl = exists
-        ? string.Create(CultureInfo.InvariantCulture, $"ALTER ROLE {roleName} WITH LOGIN PASSWORD '{password}';")
-        : string.Create(CultureInfo.InvariantCulture, $"CREATE ROLE {roleName} LOGIN PASSWORD '{password}';");
+        ? string.Create(CultureInfo.InvariantCulture, $"ALTER ROLE {roleName} WITH LOGIN PASSWORD '{escapedPwd}';")
+        : string.Create(CultureInfo.InvariantCulture, $"CREATE ROLE {roleName} LOGIN PASSWORD '{escapedPwd}';");
 
     await using (var ddlCmd = new NpgsqlCommand(ddl, conn))
     {
@@ -679,4 +581,3 @@ static void ValidateIdentifier(string ident)
         throw new InvalidOperationException($"Ogiltigt Postgres-identifier: {ident}");
     }
 }
-

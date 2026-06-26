@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
@@ -22,6 +23,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     private readonly string _privateKeyPath;
     private readonly string _publicKeyPath;
+
+    // #241 — last-wins IEmailSender override so the host never composes the real Resend provider.
+    // Held as a field (not just type-registered) so tests can read the recorded sends via Emails.
+    private readonly RecordingEmailSender _emailSender = new();
+
+    /// <summary>
+    /// #241 — the recording <see cref="Jobbliggaren.Application.Common.Abstractions.IEmailSender"/>
+    /// the host resolves. Lets a test positively assert an email side-effect (e.g. "a waitlist
+    /// confirmation was queued to X") without the network, and locks out the real Resend provider.
+    /// </summary>
+    internal RecordingEmailSender Emails => _emailSender;
 
     // Set in InitializeAsync before Services is accessed (triggers host creation)
     private string _postgresCs = string.Empty;
@@ -96,6 +108,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // owner — round-trip + per-användare-isolering bevaras end-to-end.
             services.RemoveAll<Amazon.KeyManagementService.IAmazonKeyManagementService>();
             services.AddSingleton(ApiKmsFake.Create());
+
+            // #241 — replace the configured IEmailSender (Console/Null/Resend per Email:Provider)
+            // with a recording fake. Integration tests must never depend on a real external email
+            // provider: locally a gitignored appsettings.Local.json carries Email:Provider=Resend +
+            // a live key, so the host would resolve ResendEmailSender → 403 test-mode → 500 on any
+            // email-success path (the #220 residual; green in CI, which has no Local.json). Forcing
+            // Email__Provider=Console via env var does NOT win (Local.json is layered after env
+            // vars); this last-wins singleton in ConfigureServices does. RemoveAll first so nothing
+            // resolves the real sender even via GetServices<IEmailSender>().
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(_emailSender);
         });
     }
 

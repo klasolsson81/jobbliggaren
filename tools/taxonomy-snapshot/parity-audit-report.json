@@ -1,0 +1,22 @@
+{
+  "auditedAt": "2026-06-26",
+  "result": "PARITY",
+  "source": "https://taxonomy.api.jobtechdev.se/v1/taxonomy/graphql (ssyk-level-4 broader→occupation-field)",
+  "snapshotVersion": "30",
+  "snapshotFetchedAt": "2026-06-08",
+  "scope": "List-paritet på yrkesgrupp-SET (ssyk-level-4) + occupation-field-id-set (fält-id-setet härleds ur grupp-parents → ett barnlöst nytt fält fångas ej). Bevisar INTE annons-träff-paritet mot Platsbankens realtids-UI (TD-100b).",
+  "occupationGroups": {
+    "snapshotCount": 400,
+    "liveCount": 400,
+    "missingInSnapshot": [],
+    "extraInSnapshot": [],
+    "labelDrift": [],
+    "parentDrift": []
+  },
+  "occupationFields": {
+    "snapshotCount": 21,
+    "liveCount": 21,
+    "missingInSnapshot": [],
+    "extraInSnapshot": []
+  }
+}

@@ -29,6 +29,10 @@ occupation-name bevaras som synonym-/recall-substrat
   GraphQL-svarsordning.
 - Fail-loud vid >1 parent eller parent som saknas i snapshoten.
 
+Den delade GraphQL-fetchen (`gql`/`fetchChildren`/`byConceptId` + fail-loud-regeln
+vid ≠1 parent) bor i **`lib.mjs`** och konsumeras av både `generate.mjs` och
+`audit-parity.mjs` (DRY — en granskad fetch-väg, ingen divergerande kopia).
+
 ## Köra
 
 ```bash
@@ -52,3 +56,32 @@ Krav: Node 18+ (inbyggd `fetch`). Ingen npm-dependency.
 |---|---|---|
 | 29 | 2026-05-17 | Initial — Län (region) + Yrkesområde→Yrke (occupation-name). |
 | 30 | 2026-06-08 | + Kommun (municipality, ~290) + Yrkesgrupp (ssyk-level-4, ~400). ADR 0043-amendment / ADR 0067 Fas B1. |
+
+## Paritets-audit (`audit-parity.mjs`)
+
+Granskningsbart bevis för **TD-100 item 3** ("Validering mot Platsbanken"): att
+den committade snapshotens **yrkesgrupp-SET** (ssyk-level-4) är komplett &
+aktuellt mot JobTech-taxonomin. Per [ADR 0067](../../docs/decisions/0067-platsbanken-search-parity.md)
+Beslut 1 filtrerar Platsbanken yrke på **ssyk-level-4 ur samma JobTech-taxonomi**,
+så list-paritet mot JobTech ÄR list-paritet mot Platsbanken.
+
+```bash
+node tools/taxonomy-snapshot/audit-parity.mjs
+```
+
+Re-pull:ar `ssyk-level-4 broader→occupation-field` (via samma `lib.mjs`-fetch som
+`generate.mjs`), diffar id + label + parent mot snapshotens `occupationGroups`,
+och id-set:et på yrkesområdes-nivå. Skriver `parity-audit-report.json`
+(datumstämplad, committad artefakt). Exit 1 vid drift (fail-loud), 0 vid paritet.
+
+**Samma hermetik-kontrakt som `generate.mjs`** (ADR 0043 Beslut B): off-build,
+manuellt körd, INGEN CI-gate / runtime-extern-hop. En CI-gate som fetch:ar ett
+live-API vore både ADR 0043-brott och flake-källa.
+
+**Avgränsning:** auditen bevisar **list-paritet** (yrkesgrupp-mängden), INTE
+**annons-träff-paritet** (ger val X här samma annonser som val X på Platsbankens
+realtids-UI). Det timing-känsliga hit-count-stickprovet spåras separat (TD-100b).
+
+**Senaste körning:** `2026-06-26` → **PARITY** (yrkesgrupper 400/400, yrkesområden
+21/21, 0 saknade / 0 extra / 0 label-drift / 0 parent-drift). Se
+`parity-audit-report.json`.

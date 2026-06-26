@@ -1,3 +1,4 @@
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Invitations;
 using Jobbliggaren.Domain.Invitations.Events;
 using Jobbliggaren.Domain.UnitTests.JobAds;
@@ -154,6 +155,8 @@ public class InvitationTests
 
         second.IsFailure.ShouldBeTrue();
         second.Error.Code.ShouldBe("Invitation.AlreadyRedeemed");
+        // A terminal-state invitation is Gone (→410), not a 400/409 (#203 kind-union).
+        second.Error.Kind.ShouldBe(ErrorKind.Gone);
     }
 
     [Fact]
@@ -179,7 +182,31 @@ public class InvitationTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Invitation.Expired");
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
         invitation.Status.ShouldBe(InvitationStatus.Pending);
+    }
+
+    [Fact]
+    public void Redeem_WhenStatusAlreadyExpired_Fails()
+    {
+        // Distinct branch from Redeem_WhenExpired_Fails: that one trips the now>=ExpiresAt CLOCK
+        // check (line 106) on a still-Pending invitation. This one trips the pre-status-check
+        // (line 101) on an invitation already flipped to Expired via MarkExpired. Both produce
+        // "Invitation.Expired" but are separate Gone sites — PR-1b's 410 mapping must hold for
+        // both, so the kind is pinned independently here (#203 kind-union).
+        var invitation = Invitation.Issue(
+            ValidEmail, InvitationOrigin.DirectInvite, ValidTokenHash, ValidFor, AdminId, Clock).Value;
+        var future = FakeDateTimeProvider.At(Clock.UtcNow.Add(ValidFor).AddSeconds(1));
+        invitation.MarkExpired(future);
+        invitation.Status.ShouldBe(InvitationStatus.Expired);
+
+        // Redeem at the original (non-expired) clock so the now>=ExpiresAt check (line 106) is NOT
+        // what fires — the failure must come from the Status==Expired pre-check (line 101).
+        var result = invitation.Redeem(Guid.NewGuid(), Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Invitation.Expired");
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
     }
 
     [Fact]
@@ -193,6 +220,7 @@ public class InvitationTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Invitation.Revoked");
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
     }
 
     [Fact]
@@ -223,6 +251,8 @@ public class InvitationTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Invitation.NotPending");
+        // NotPending is a state conflict (→409), distinct from the Gone (→410) terminal states.
+        result.Error.Kind.ShouldBe(ErrorKind.Conflict);
     }
 
     [Fact]

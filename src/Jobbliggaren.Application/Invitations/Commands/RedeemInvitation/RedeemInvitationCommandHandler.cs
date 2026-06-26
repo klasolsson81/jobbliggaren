@@ -26,7 +26,7 @@ public sealed class RedeemInvitationCommandHandler(
 
         if (invitation is null)
             return Result.Failure<SessionDto>(
-                DomainError.Validation("Invitation.NotFound", "Inbjudan kunde inte hittas."));
+                DomainError.NotFound("Invitation.NotFound", "Inbjudan kunde inte hittas."));
 
         // Email kommer från invitation — INTE från command body. Skyddar mot
         // token-stöld där angripare lurar offer klicka länk + tar över offers

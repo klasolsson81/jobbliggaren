@@ -92,20 +92,20 @@ public sealed class Invitation : AggregateRoot<InvitationId>
 
         if (Status == InvitationStatus.Redeemed)
             return Result.Failure(
-                DomainError.Conflict("Invitation.AlreadyRedeemed", "Inbjudan har redan lösts in."));
+                DomainError.Gone("Invitation.AlreadyRedeemed", "Inbjudan har redan lösts in."));
 
         if (Status == InvitationStatus.Revoked)
             return Result.Failure(
-                DomainError.Conflict("Invitation.Revoked", "Inbjudan har återkallats."));
+                DomainError.Gone("Invitation.Revoked", "Inbjudan har återkallats."));
 
         if (Status == InvitationStatus.Expired)
             return Result.Failure(
-                DomainError.Conflict("Invitation.Expired", "Inbjudan har gått ut."));
+                DomainError.Gone("Invitation.Expired", "Inbjudan har gått ut."));
 
         var now = clock.UtcNow;
         if (now >= ExpiresAt)
             return Result.Failure(
-                DomainError.Conflict("Invitation.Expired", "Inbjudan har gått ut."));
+                DomainError.Gone("Invitation.Expired", "Inbjudan har gått ut."));
 
         Status = InvitationStatus.Redeemed;
         RedeemedAt = now;

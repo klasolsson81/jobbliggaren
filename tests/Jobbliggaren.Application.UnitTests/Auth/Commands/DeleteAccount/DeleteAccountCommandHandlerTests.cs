@@ -59,6 +59,8 @@ public class DeleteAccountCommandHandlerTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.JobSeekerNotFound");
+        // #203: a missing JobSeeker is a NotFound (→404), not a Validation (→400).
+        result.Error.Kind.ShouldBe(Jobbliggaren.Domain.Common.ErrorKind.NotFound);
     }
 
     [Fact]

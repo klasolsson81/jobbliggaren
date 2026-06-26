@@ -123,6 +123,11 @@ public class OccupationExperienceDeriverTests
         // A bare year-only role ("2020") is a zero-length span → 0 years. The group is PRESENT
         // with value 0 (a parsed, cited fact: "less than a year"), distinct from an ABSENT group
         // (null = "not stated"). 0-vs-null is the load-bearing honesty distinction (§5).
+        // #191 (senior-cto-advisor Variant A, 2026-06-26): bare-year → 0 is BY DESIGN, not an open
+        // bug. A bare year IS parseable, so ADR 0079's parseable/unparseable taxonomy (lines 484-485)
+        // puts it in the span bucket (0), NOT the null bucket; the contributing period is cited and
+        // the value is never scored (Goodhart/TD-B). Do NOT "fix" this to null — that would blur the
+        // taxonomy and collapse the explicit 0-vs-null distinction this test pins.
         DeriveTitleTo("Roll1", GroupA);
 
         var years = await Derive(new ParsedExperience("Roll1", "Org1", "2020", "raw"));

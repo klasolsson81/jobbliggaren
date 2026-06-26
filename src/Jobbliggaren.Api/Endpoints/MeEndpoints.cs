@@ -35,7 +35,7 @@ public static class MeEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Ok()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         // F4-12 (ADR 0076) — stated match preferences SSOT (occupation-groups /
@@ -51,7 +51,7 @@ public static class MeEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
@@ -67,7 +67,7 @@ public static class MeEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
@@ -85,10 +85,7 @@ public static class MeEndpoints
         {
             var result = await mediator.Send(new DeleteAccountCommand(), ct);
             if (result.IsFailure)
-                return Results.Problem(
-                    detail: result.Error.Message,
-                    title: result.Error.Code,
-                    statusCode: 400);
+                return result.Error.ToProblemResult();
 
             // Failsafe: om Redis är ner får vi en exception → klienten ser 500,
             // men kontot är redan soft-deletat (idempotent re-DELETE ger ingen

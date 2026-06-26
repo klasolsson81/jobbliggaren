@@ -2,7 +2,6 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Waitlist.Commands.RequestWaitlistEntry;
-using Jobbliggaren.Domain.Common;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -26,7 +25,7 @@ public static class WaitlistEndpoints
 
             var result = await mediator.Send(command, ct);
             if (result.IsFailure)
-                return ToErrorResult(result.Error);
+                return result.Error.ToProblemResult();
 
             return Results.Ok(new
             {
@@ -35,7 +34,4 @@ public static class WaitlistEndpoints
             });
         }).RequireRateLimiting(RateLimitingExtensions.WaitlistSignupPolicy);
     }
-
-    private static IResult ToErrorResult(DomainError error) =>
-        Results.Problem(detail: error.Message, title: error.Code, statusCode: 400);
 }

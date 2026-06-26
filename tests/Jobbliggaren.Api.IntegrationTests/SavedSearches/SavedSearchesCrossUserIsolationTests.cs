@@ -74,15 +74,11 @@ public class SavedSearchesCrossUserIsolationTests(ApiFactory factory)
             new { name = "Hijack", notificationEnabled = (bool?)null, criteria = (object?)null },
             ct);
 
-        // OBSERVATION (produktionsdefekt — flaggad i test-rapport, ej fixad här):
-        // PATCH-endpoint mappar ALLA Result-fel inkl. NotFound till 400 via
-        // Results.Problem(statusCode: 400). ADR 0031-mönstret (som handlern
-        // uttryckligen kommenterar att den följer) kräver 404 så att existens
-        // av annan users data inte avslöjas via status-skillnad. Cross-tenant
-        // nekas korrekt på data-nivå (ingen mutation sker) men HTTP-statusen
-        // läcker 400 istället för 404. Testet asserterar nuvarande beteende
-        // för att hålla sviten grön och göra defekten spårbar.
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        // TD-84 / #203 — FIXAD: cross-tenant PATCH returnerar nu 404. NotFound-
+        // Result mappas via DomainError.ToProblemResult() (.NotFound → 404) i
+        // stället för en hårdkodad 400. ADR 0031-mönstret uppfyllt — existens av
+        // annan users data avslöjas inte via status-skillnad (samma 404 som okänt id).
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -95,12 +91,10 @@ public class SavedSearchesCrossUserIsolationTests(ApiFactory factory)
 
         var response = await clientB.DeleteAsync($"/api/v1/saved-searches/{id}", ct);
 
-        // OBSERVATION (produktionsdefekt — flaggad i test-rapport, ej fixad här):
-        // Samma orsak som PATCH ovan: DELETE-endpoint mappar NotFound-Result
-        // till 400 i stället för 404 (ADR 0031-avvikelse). Cross-tenant nekas
-        // korrekt på data-nivå (otherSaved raderas inte); endast HTTP-statusen
-        // läcker fel kod. Asserterar nuvarande beteende.
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        // TD-84 / #203 — FIXAD: samma fix som PATCH ovan. DELETE-endpoint mappar
+        // nu NotFound-Result till 404 (ADR 0031-mönstret uppfyllt). Cross-tenant
+        // nekas på data-nivå (otherSaved raderas inte) OCH HTTP-statusen är 404.
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]

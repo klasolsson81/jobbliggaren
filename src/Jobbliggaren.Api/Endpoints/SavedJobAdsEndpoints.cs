@@ -33,10 +33,7 @@ public static class SavedJobAdsEndpoints
             var result = await mediator.Send(new SaveJobAdCommand(jobAdId), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(
-                    detail: result.Error.Message,
-                    title: result.Error.Code,
-                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+                : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
         group.MapDelete("/{jobAdId:guid}", async (
@@ -45,10 +42,7 @@ public static class SavedJobAdsEndpoints
             var result = await mediator.Send(new UnsaveJobAdCommand(jobAdId), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(
-                    detail: result.Error.Message,
-                    title: result.Error.Code,
-                    statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 }

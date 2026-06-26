@@ -78,12 +78,14 @@ describe("ResumeCard (F6 P3a v3)", () => {
     expect(link).toHaveAttribute("href", "/cv/resume-1");
   });
 
-  it("renderar INGEN Förhandsgranska-knapp (stub borttagen, render-by-Resume-id uppskjuten)", () => {
+  it("renderar Förhandsgranska-knapp bredvid Redigera (render-by-Resume-id levererad, TD-112)", () => {
     render(<ResumeCard resume={baseResume} />);
+    // Preview-triggern (CvPreview) finns nu på det befordrade kortet — render-by-Resume-id-
+    // vägen (/api/cv/{id}/preview) ersatte den tidigare borttagna stuben (#202).
     expect(
-      screen.queryByRole("button", { name: /Förhandsgranska/ }),
-    ).not.toBeInTheDocument();
-    // Redigera-länken finns kvar som enda kort-action.
+      screen.getByRole("button", { name: /Förhandsgranska/ }),
+    ).toBeInTheDocument();
+    // Redigera-länken finns kvar bredvid preview-knappen i actions-raden.
     expect(
       screen.getByRole("link", { name: /Redigera/ }),
     ).toBeInTheDocument();

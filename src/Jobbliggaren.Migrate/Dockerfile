@@ -43,11 +43,12 @@ RUN dotnet publish src/Jobbliggaren.Migrate/Jobbliggaren.Migrate.csproj \
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
-# RDS CA-bundle för TLS-validering mot Postgres (TD-38). Phase E använder
-# persisted CS från Secrets Manager (jobbliggaren_app-creds) som har
-# SSL Mode=VerifyFull;Root Certificate=/etc/ssl/certs/rds-global-bundle.pem
-# per ConnectionStringFactory.ForPersisted. Bundle delas med Api/Worker
-# (samma COPY-pattern i deras Dockerfiles).
+# AWS-residual: RDS CA-bundle (TD-38-eran). Efter AWS-exit (TD-105 / #199 /
+# ADR 0066) läser schema-mode app-connection-stringen ur env
+# (MIGRATE_APP_CONNECTION_STRING) med operatör-satt SSL-läge — ingen hårdkodad
+# RDS-bundle-väg i koden längre. Denna COPY är kvar tills #196 (TD-106) bygger
+# om imagen för Hetzner, där cert-strategin (privat bridge utan TLS, eller
+# intern CA + VerifyFull) avgörs.
 COPY infra/certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 
 WORKDIR /app

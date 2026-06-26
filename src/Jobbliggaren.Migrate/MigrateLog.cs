@@ -7,16 +7,12 @@ namespace Jobbliggaren.Migrate;
 internal static partial class MigrateLog
 {
     [LoggerMessage(EventId = 1, Level = LogLevel.Information,
-        Message = "Starting Migrate: host={Host}:{Port} db={Db} region={Region}")]
-    public static partial void StartingMigrate(ILogger logger, string host, int port, string db, string region);
+        Message = "Starting Migrate: host={Host}:{Port} db={Db}")]
+    public static partial void StartingMigrate(ILogger logger, string host, int port, string db);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Information,
         Message = "Master creds loaded ({Phase}): user={User}")]
     public static partial void MasterCredsLoaded(ILogger logger, string user, string phase);
-
-    [LoggerMessage(EventId = 3, Level = LogLevel.Information,
-        Message = "Generated 3 role pwds: migrations={MigPrint} app={AppPrint} worker={WrkPrint}")]
-    public static partial void GeneratedPwds(ILogger logger, string migPrint, string appPrint, string wrkPrint);
 
     [LoggerMessage(EventId = 10, Level = LogLevel.Information,
         Message = "Phase A: REVOKE PUBLIC + CREATE ROLE x 3 + GRANTs + CREATE SCHEMA hangfire")]
@@ -34,20 +30,8 @@ internal static partial class MigrateLog
         Message = "Phase C: GRANT hangfire.* till jobbliggaren_worker + ALTER DEFAULT PRIVILEGES")]
     public static partial void PhaseCStart(ILogger logger);
 
-    [LoggerMessage(EventId = 40, Level = LogLevel.Information,
-        Message = "Phase D: skriver slutliga connection-strings till Secrets Manager")]
-    public static partial void PhaseDStart(ILogger logger);
-
-    [LoggerMessage(EventId = 41, Level = LogLevel.Information,
-        Message = "Wrote app connection-string to {Arn}")]
-    public static partial void WroteAppConnSecret(ILogger logger, string arn);
-
-    [LoggerMessage(EventId = 42, Level = LogLevel.Information,
-        Message = "Wrote hangfire connection-string to {Arn}")]
-    public static partial void WroteHangfireConnSecret(ILogger logger, string arn);
-
     [LoggerMessage(EventId = 50, Level = LogLevel.Information,
-        Message = "Migrate COMPLETE — Worker kan nu force-new-deployment")]
+        Message = "Migrate COMPLETE — Worker kan nu (re)startas")]
     public static partial void MigrateComplete(ILogger logger);
 
     [LoggerMessage(EventId = 100, Level = LogLevel.Information,
@@ -84,7 +68,7 @@ internal static partial class MigrateLog
     public static partial void PhaseENoPending(ILogger logger);
 
     [LoggerMessage(EventId = 200, Level = LogLevel.Information,
-        Message = "Mode: init (Phase A-D — engångs-init eller creds-rotation)")]
+        Message = "Mode: init (Phase A-C — idempotent DDL mot operatör-givna creds)")]
     public static partial void ModeInit(ILogger logger);
 
     [LoggerMessage(EventId = 201, Level = LogLevel.Information,
@@ -92,7 +76,7 @@ internal static partial class MigrateLog
     public static partial void ModeSchema(ILogger logger);
 
     [LoggerMessage(EventId = 202, Level = LogLevel.Error,
-        Message = "Usage: Jobbliggaren.Migrate <init|bootstrap|ensure-extensions|schema>")]
+        Message = "Usage: Jobbliggaren.Migrate <init|bootstrap|ensure-extensions|schema|explain-search>")]
     public static partial void UsageError(ILogger logger);
 
     // F6 P4 (2026-05-20) — ensure-extensions-mode (master-creds, PG extensions)

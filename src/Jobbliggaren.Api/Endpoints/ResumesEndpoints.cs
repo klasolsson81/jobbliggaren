@@ -17,6 +17,7 @@ using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeSkills;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderCv;
+using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderResume;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
 using Mediator;
 using Microsoft.AspNetCore.Http.Features;
@@ -206,6 +207,21 @@ public static class ResumesEndpoints
             Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new RenderCvQuery(id, profile ?? string.Empty), ct);
+            return result is null
+                ? Results.NotFound()
+                : Results.File(result.PdfBytes, result.ContentType, $"cv-{result.Profile.ToLowerInvariant()}.pdf");
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
+
+        // Deterministic render of a PROMOTED, canonical Resume by its id (TD-112 / #202) — the
+        // render-by-Resume-id path the promoted Resume surface (ResumeCard) needs (the parsed
+        // render above keys on a parsedId the promoted grid no longer has). Same QuestPDF output
+        // shape (ATS-plain | visual), streamed compute-on-demand, never persisted (Invariant 3).
+        // Raw PDF body (Results.File), never JSON. Owner-scoped; ?profile= must be Ats|Visual.
+        group.MapGet("/{id:guid}/render", async (
+            Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new RenderResumeQuery(id, profile ?? string.Empty), ct);
             return result is null
                 ? Results.NotFound()
                 : Results.File(result.PdfBytes, result.ContentType, $"cv-{result.Profile.ToLowerInvariant()}.pdf");

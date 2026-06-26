@@ -112,7 +112,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
       </header>
 
       <div className="jp-cv-preview-actions">
-        <CvPreview parsedId={parsedId} initialProfile={profile} />
+        <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />
       </div>
 
       <PersonnummerWarning personnummer={parsed.personnummer} />

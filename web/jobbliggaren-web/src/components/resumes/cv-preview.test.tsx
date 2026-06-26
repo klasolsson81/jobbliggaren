@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { CvPreview } from "./cv-preview";
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
+const PREVIEW_URL = `/api/cv/parsed/${PARSED_ID}/preview`;
 
 /**
  * jsdom implementerar varken URL.createObjectURL / revokeObjectURL eller en
@@ -57,7 +58,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
   });
 
   it("renderar trigger-knappen 'Förhandsgranska' och visar INTE modalen initialt", () => {
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
 
     expect(
       screen.getByRole("button", { name: "Förhandsgranska" })
@@ -70,7 +71,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     const fetchMock = vi.fn().mockResolvedValue(pdfResponse());
     global.fetch = fetchMock;
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );
@@ -89,7 +90,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     const d = deferred<Response>();
     global.fetch = vi.fn().mockReturnValue(d.promise);
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );
@@ -108,7 +109,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(pdfResponse());
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );
@@ -134,7 +135,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     const fetchMock = vi.fn().mockImplementation(() => pdfResponse());
     global.fetch = fetchMock;
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );
@@ -159,7 +160,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
       })
     );
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );
@@ -176,7 +177,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
       .fn()
       .mockResolvedValue(new Response(null, { status: 404 }));
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );
@@ -190,7 +191,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
       .fn()
       .mockResolvedValue(new Response(null, { status: 500 }));
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );
@@ -202,7 +203,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(pdfResponse());
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     const trigger = screen.getByRole("button", { name: "Förhandsgranska" });
     await user.click(trigger);
     // Vänta till ready-state så en blob-URL faktiskt finns att revoka.
@@ -221,7 +222,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(pdfResponse());
 
-    render(<CvPreview parsedId={PARSED_ID} initialProfile="Ats" />);
+    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
     await user.click(
       screen.getByRole("button", { name: "Förhandsgranska" })
     );

@@ -101,4 +101,124 @@ public class CvRendererTests
         IsPdf(first.PdfBytes).ShouldBeTrue();
         IsPdf(second.PdfBytes).ShouldBeTrue();
     }
+
+    // ===============================================================
+    // Promoted-Resume overload (TD-112 / #202) — render a canonical
+    // ResumeContent (structured DateOnly periods, Resume language).
+    // ===============================================================
+
+    private static async Task<RenderedCv> RenderAsync(
+        ResumeContent content, ResumeLanguage language, RenderProfile profile) =>
+        await new CvRenderer().RenderAsync(content, language, profile, TestContext.Current.CancellationToken);
+
+    private static ResumeContent ResumeContentFixture() =>
+        new(
+            new PersonalInfo("Anna Andersson", "anna@example.se", "070-1234567", "Stockholm"),
+            experiences:
+            [
+                new Experience("Acme AB", "Backend-utvecklare",
+                    new DateOnly(2021, 3, 1), new DateOnly(2024, 6, 1), "Ledde ett team om 8."),
+                new Experience("Nuvarande AB", "Teknisk ledare",
+                    new DateOnly(2024, 7, 1), null, "Pågående uppdrag."),
+            ],
+            educations: [new Education("KTH", "Civilingenjör", new DateOnly(2016, 8, 1), new DateOnly(2021, 1, 1))],
+            skills: [new Skill("C#", 8), new Skill("PostgreSQL", 5)],
+            summary: "Erfaren backend-utvecklare.");
+
+    [Theory]
+    [InlineData(RenderProfile.Ats)]
+    [InlineData(RenderProfile.Visual)]
+    public async Task RenderAsync_FromResumeContent_ShouldProduceAValidNonEmptyPdf(RenderProfile profile)
+    {
+        var rendered = await RenderAsync(ResumeContentFixture(), ResumeLanguage.Sv, profile);
+
+        rendered.PdfBytes.ShouldNotBeEmpty();
+        IsPdf(rendered.PdfBytes).ShouldBeTrue("Utdata ska vara en giltig PDF (%PDF-magi).");
+        rendered.ContentType.ShouldBe("application/pdf");
+        rendered.Profile.ShouldBe(profile);
+        rendered.Language.ShouldBe(ResumeLanguage.Sv);
+    }
+
+    [Fact]
+    public async Task RenderAsync_FromResumeContent_ShouldEchoTheResumeLanguage()
+    {
+        var rendered = await RenderAsync(ResumeContentFixture(), ResumeLanguage.En, RenderProfile.Ats);
+
+        rendered.Language.ShouldBe(ResumeLanguage.En);
+        IsPdf(rendered.PdfBytes).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RenderAsync_FromResumeContent_ShouldNotThrowAndStillProduceAPdf_ForMinimalContent()
+    {
+        // The promoted Resume always has a full name (domain-validated) but may have no sections —
+        // the renderer must render an honest, near-empty PDF, never throw, never synthesise (§5).
+        var minimal = ResumeContent.Empty("Bo Bengtsson");
+
+        var rendered = await RenderAsync(minimal, ResumeLanguage.Sv, RenderProfile.Visual);
+
+        rendered.PdfBytes.ShouldNotBeEmpty();
+        IsPdf(rendered.PdfBytes).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RenderAsync_FromResumeContent_ShouldBeDeterministic_WhenCalledTwice()
+    {
+        var content = ResumeContentFixture();
+
+        var first = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
+        var second = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
+
+        second.PdfBytes.Length.ShouldBe(first.PdfBytes.Length,
+            "Samma innehåll ska rendera till samma storlek (deterministisk renderare).");
+    }
+
+    // ----- FormatPeriod (CTO D1 / Variant A — year-span, en-dash, localised ongoing) -----
+
+    [Fact]
+    public void FormatPeriod_ShouldRenderYearSpan_WhenStartAndEndDifferInYear()
+    {
+        var period = CvDocumentModel.FormatPeriod(
+            new DateOnly(2021, 3, 15), new DateOnly(2024, 6, 30), "pågående");
+
+        period.ShouldBe("2021–2024"); // en-dash between years
+    }
+
+    [Fact]
+    public void FormatPeriod_ShouldCollapseToSingleYear_WhenStartAndEndShareYear()
+    {
+        var period = CvDocumentModel.FormatPeriod(
+            new DateOnly(2021, 1, 1), new DateOnly(2021, 12, 31), "pågående");
+
+        period.ShouldBe("2021");
+    }
+
+    [Theory]
+    [InlineData("pågående")]
+    [InlineData("present")]
+    public void FormatPeriod_ShouldUseLocalisedOngoingToken_WhenEndIsNull(string ongoingLabel)
+    {
+        var period = CvDocumentModel.FormatPeriod(new DateOnly(2021, 7, 1), null, ongoingLabel);
+
+        period.ShouldBe($"2021–{ongoingLabel}");
+    }
+
+    [Fact]
+    public void FormatPeriod_ShouldUseEnDash_NeverTheForbiddenEmDash()
+    {
+        var period = CvDocumentModel.FormatPeriod(
+            new DateOnly(2018, 1, 1), new DateOnly(2020, 1, 1), "pågående");
+
+        period.ShouldContain('–');        // en-dash present
+        period.ShouldNotContain('—');     // em-dash (U+2014) is forbidden in UI copy (§5)
+    }
+
+    [Fact]
+    public async Task RenderAsync_FromResumeContent_ShouldThrow_WhenContentIsNull()
+    {
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await new CvRenderer().RenderAsync(
+                (ResumeContent)null!, ResumeLanguage.Sv, RenderProfile.Ats,
+                TestContext.Current.CancellationToken));
+    }
 }

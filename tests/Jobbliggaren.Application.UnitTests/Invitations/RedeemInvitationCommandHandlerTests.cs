@@ -113,6 +113,8 @@ public class RedeemInvitationCommandHandlerTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Invitation.NotFound");
+        // #203: a missing invitation is a NotFound (→404), not a Validation (→400).
+        result.Error.Kind.ShouldBe(Jobbliggaren.Domain.Common.ErrorKind.NotFound);
     }
 
     [Fact]

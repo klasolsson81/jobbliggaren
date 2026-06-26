@@ -34,7 +34,7 @@ public sealed class DeleteAccountCommandHandler(
 
         if (jobSeeker is null)
             return Result.Failure<Guid>(
-                DomainError.Validation(
+                DomainError.NotFound(
                     "Auth.JobSeekerNotFound",
                     "JobSeeker hittades inte för aktuell användare."));
 

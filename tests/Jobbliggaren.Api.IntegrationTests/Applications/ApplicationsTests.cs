@@ -329,6 +329,58 @@ public class ApplicationsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task POST_outcome_on_unknown_follow_up_returns_404()
+    {
+        // #239 / TD-84 delta 5 — Application.FollowUpNotFound was built via the raw DomainError
+        // constructor (defaulted to Validation/400); it is genuinely a not-found and is now stamped
+        // NotFound, so the central DomainError.ToProblemResult() maps it to 404. This is the third
+        // "not-found masked as Validation" case (RedeemInvitation + DeleteAccount fixed in PR-1a).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var postResponse = await _client.PostAsJsonAsync("/api/v1/applications", CreateBody, ct);
+        var id = (await postResponse.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/v1/applications/{id}/follow-ups/{Guid.NewGuid()}/outcome",
+            new { outcome = "Responded" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_outcome_twice_returns_409_conflict()
+    {
+        // #239 / TD-63 delta 2 — FollowUp.OutcomeAlreadyRecorded is a Conflict; the central
+        // DomainError.ToProblemResult() maps Conflict→409. Before #239 the EndsWith(".NotFound")
+        // helper collapsed every non-not-found failure to 400 — this is the kind-union correction
+        // (RFC 9110 §15.5.10). Exercises the Conflict→409 path through a helper endpoint.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var postResponse = await _client.PostAsJsonAsync("/api/v1/applications", CreateBody, ct);
+        var id = (await postResponse.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
+
+        var followUpResponse = await _client.PostAsJsonAsync(
+            $"/api/v1/applications/{id}/follow-ups",
+            new { channel = "Email", scheduledAt = DateTimeOffset.UtcNow.AddDays(7).ToString("O"), note = (string?)null },
+            ct);
+        var followUpId = (await followUpResponse.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
+
+        var first = await _client.PostAsJsonAsync(
+            $"/api/v1/applications/{id}/follow-ups/{followUpId}/outcome",
+            new { outcome = "Responded" }, ct);
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var second = await _client.PostAsJsonAsync(
+            $"/api/v1/applications/{id}/follow-ups/{followUpId}/outcome",
+            new { outcome = "Responded" }, ct);
+
+        second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task POST_create_two_applications_different_statuses_pipeline_groups_correctly()
     {
         var ct = TestContext.Current.CancellationToken;

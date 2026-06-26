@@ -140,6 +140,10 @@ public class DeleteResumeVersionInUseHandlerTests(ApiFactory factory)
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.VersionInUse");
+        // #239 / TD-63 — pins the Conflict kind behind the API 400→409 delta (D4): the central
+        // DomainErrorResults mapper maps Kind.Conflict→409 (the HTTP surface has a documented
+        // reachability blocker, so this handler-level assertion is the delta's lock).
+        result.Error.Kind.ShouldBe(ErrorKind.Conflict);
     }
 
     // ---------------------------------------------------------------

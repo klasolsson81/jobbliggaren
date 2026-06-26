@@ -2,7 +2,6 @@ using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Invitations.Commands.IssueInvitation;
 using Jobbliggaren.Application.Invitations.Commands.RevokeInvitation;
 using Jobbliggaren.Application.Invitations.Queries.ListInvitations;
-using Jobbliggaren.Domain.Common;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -21,7 +20,7 @@ public static class AdminInvitationsEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/admin/invitations/{result.Value.InvitationId}", result.Value)
-                : ToErrorResult(result.Error);
+                : result.Error.ToProblemResult();
         });
 
         group.MapGet("/", async (
@@ -37,14 +36,7 @@ public static class AdminInvitationsEndpoints
             Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new RevokeInvitationCommand(id), ct);
-            return result.IsSuccess ? Results.NoContent() : ToErrorResult(result.Error);
+            return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
         });
     }
-
-    private static IResult ToErrorResult(DomainError error) => error.Code switch
-    {
-        "Invitation.NotFound" => Results.Problem(detail: error.Message, title: error.Code, statusCode: 404),
-        "Invitation.NotPending" => Results.Problem(detail: error.Message, title: error.Code, statusCode: 409),
-        _ => Results.Problem(detail: error.Message, title: error.Code, statusCode: 400),
-    };
 }

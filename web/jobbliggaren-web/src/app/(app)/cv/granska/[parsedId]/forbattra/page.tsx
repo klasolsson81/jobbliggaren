@@ -120,7 +120,7 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
       </header>
 
       <div className="jp-cv-preview-actions">
-        <CvPreview parsedId={parsedId} initialProfile={profile} />
+        <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />
       </div>
 
       <CvImprovePanel

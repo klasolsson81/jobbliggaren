@@ -13,9 +13,12 @@ import type { RenderProfile } from "@/lib/dto/parsed-resume";
 
 /**
  * CvPreview — trigger-knapp + klient-state-modal med en PDF-iframe (deterministisk
- * förhandsgranskning, INGEN AI — ADR 0071/0074). Hämtar PDF:en från den binära
- * BFF-routen `/api/cv/parsed/{parsedId}/preview` (server-only egress, ägar-scopad
- * via session→Bearer), gör en object-URL och visar den i en iframe.
+ * förhandsgranskning, INGEN AI — ADR 0071/0074). Hämtar PDF:en från en binär
+ * BFF-route (server-only egress, ägar-scopad via session→Bearer), gör en
+ * object-URL och visar den i en iframe. Källan är generisk via `previewUrl`:
+ * `/api/cv/parsed/{parsedId}/preview` (parsad staging-artefakt) ELLER
+ * `/api/cv/{id}/preview` (befordrad, kanonisk Resume — TD-112 / #202). Komponenten
+ * äger ingen id-form; den lägger bara på `?profile=` på den givna routen.
  *
  * Modal-mekaniken (scrim / role=dialog / aria-modal / focus-trap / focus-return /
  * body-scroll-lock / Esc) speglar `JobAdModalShell`. Skillnad: detta är en
@@ -31,9 +34,23 @@ import type { RenderProfile } from "@/lib/dto/parsed-resume";
  */
 
 interface CvPreviewProps {
-  parsedId: string;
+  /**
+   * Binär BFF-preview-route UTAN query, t.ex. `/api/cv/parsed/{parsedId}/preview`
+   * eller `/api/cv/{id}/preview`. `?profile=` läggs på av komponenten.
+   */
+  previewUrl: string;
   /** Initial profil (sidans `?profile=`-default — "Ats"). */
   initialProfile: RenderProfile;
+  /**
+   * Klassnamn för trigger-knappen, så ytan kan matcha sina grann-knappar (t.ex.
+   * `--sm` på ResumeCard intill Redigera-knappen). Default = full-storlek secondary.
+   */
+  triggerClassName?: string;
+  /**
+   * Ikonstorlek (px) i trigger-knappen, så den matchar grann-knappens ikon (t.ex.
+   * 14 på ResumeCard:s `--sm`-rad intill Redigera-ikonen). Default = 16 (full-storlek).
+   */
+  triggerIconSize?: number;
 }
 
 type PreviewStatus =
@@ -65,7 +82,12 @@ function iframeTitle(
     : t("iframeTitleVisual");
 }
 
-export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
+export function CvPreview({
+  previewUrl,
+  initialProfile,
+  triggerClassName = "jp-btn jp-btn--secondary",
+  triggerIconSize = 16,
+}: CvPreviewProps) {
   const t = useTranslations("resumes.preview");
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<RenderProfile>(initialProfile);
@@ -115,7 +137,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
       });
       try {
         const res = await fetch(
-          `/api/cv/parsed/${parsedId}/preview?profile=${profile}`,
+          `${previewUrl}?profile=${profile}`,
           { signal: controller.signal, cache: "no-store" }
         );
 
@@ -153,7 +175,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
       controller.abort();
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [open, profile, parsedId]);
+  }, [open, profile, previewUrl]);
 
   // Fokus in i modalen vid öppning (close-knappen, som JobAdModalShell) +
   // body-scroll-lock under modalens livstid.
@@ -202,10 +224,10 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
       <button
         ref={triggerRef}
         type="button"
-        className="jp-btn jp-btn--secondary"
+        className={triggerClassName}
         onClick={() => setOpen(true)}
       >
-        <Eye size={16} aria-hidden="true" />
+        <Eye size={triggerIconSize} aria-hidden="true" />
         <span>{t("trigger")}</span>
       </button>
 
@@ -275,7 +297,7 @@ export function CvPreview({ parsedId, initialProfile }: CvPreviewProps) {
                   />
                   <p className="jp-pdf-frame__fallback">
                     <a
-                      href={`/api/cv/parsed/${parsedId}/preview?profile=${profile}`}
+                      href={`${previewUrl}?profile=${profile}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >

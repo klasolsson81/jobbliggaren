@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Resumes.Rendering.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
@@ -51,5 +52,30 @@ internal sealed class CvRenderer : ICvRenderer
 
         return ValueTask.FromResult(
             new RenderedCv(bytes, "application/pdf", profile, parsedResume.DetectedLanguage));
+    }
+
+    public ValueTask<RenderedCv> RenderAsync(
+        ResumeContent content, ResumeLanguage language, RenderProfile profile, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var labels = CvRenderStrings.For(language);
+        var model = CvDocumentModel.From(content, labels.Ongoing);
+
+        var document = Document.Create(container =>
+            CvDocumentComposer.Compose(container, model, labels, profile));
+
+        var metadata = new DocumentMetadata
+        {
+            Title = "CV",
+            CreationDate = FixedTimestamp,
+            ModifiedDate = FixedTimestamp,
+        };
+
+        var bytes = document.WithMetadata(metadata).GeneratePdf();
+
+        return ValueTask.FromResult(
+            new RenderedCv(bytes, "application/pdf", profile, language));
     }
 }

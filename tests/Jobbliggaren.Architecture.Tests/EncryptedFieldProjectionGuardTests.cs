@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
+using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderResume;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -125,6 +126,7 @@ public class EncryptedFieldProjectionGuardTests
     [InlineData(typeof(GetResumeByIdQuery))]
     [InlineData(typeof(CreateResumeCommand))]
     [InlineData(typeof(UpdateMasterContentCommand))]
+    [InlineData(typeof(RenderResumeQuery))]
     public void ResumeEncryptedHandler_MustCarry_IRequiresFieldEncryptionKey(
         Type messageType)
     {

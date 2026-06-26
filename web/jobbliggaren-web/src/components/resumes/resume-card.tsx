@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { Edit } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
+import { CvPreview } from "@/components/resumes/cv-preview";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
 
 interface ResumeCardProps {
@@ -24,12 +25,11 @@ const MAX_VISIBLE_SKILLS = 5;
  *    + "Uppd. YYYY-MM-DD" (MONO) — per HANDOVER §3 (mono endast för data)
  *  - jp-cv__actions: Redigera → /cv/{id} (existing route)
  *
- * Ingen förhandsgranska-knapp här: den befordrade Resume-griden saknar parsedId
- * och kan därför inte konsumera `/api/v1/resumes/parsed/{id}/render` (det finns
- * ingen render-by-Resume-id-väg — uppskjuten backend-STEG). Den döda disabled-
- * stuben togs bort per #119:s banner-precedent (annonsera aldrig en backend-väg
- * som inte finns). PDF-förhandsgranskning lever på de parsade ytorna
- * (`/cv/granska/[parsedId]`-familjen) via CvPreview.
+ * Förhandsgranska-knapp (TD-112 / #202): den befordrade Resume-griden saknar ett
+ * parsedId, men konsumerar nu render-by-Resume-id-vägen
+ * `/api/cv/{id}/preview` (BFF → `GET /api/v1/resumes/{id}/render`) via samma
+ * `CvPreview`-modal som de parsade ytorna (`/cv/granska/[parsedId]`-familjen).
+ * Trigger-storleken matchas till Redigera-knappens `--sm` (design-koherens).
  *
  * FAS-DEFERRAL (ADR 0058 amend):
  *  - "+N"-skill-chip när content.skills.length > 5: kräver content-fetch,
@@ -77,6 +77,12 @@ export function ResumeCard({ resume }: ResumeCardProps) {
       </div>
 
       <div className="jp-cv__actions">
+        <CvPreview
+          previewUrl={`/api/cv/${resume.id}/preview`}
+          initialProfile="Ats"
+          triggerClassName="jp-btn jp-btn--secondary jp-btn--sm"
+          triggerIconSize={14}
+        />
         <Link
           href={`/cv/${resume.id}`}
           className="jp-btn jp-btn--secondary jp-btn--sm"

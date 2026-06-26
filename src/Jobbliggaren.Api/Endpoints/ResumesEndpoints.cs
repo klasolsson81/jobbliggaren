@@ -113,7 +113,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/resumes/parsed/{result.Value.ParsedResumeId}", result.Value)
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.ResumeImportPolicy);
 
@@ -223,8 +223,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new PromoteParsedResumeCommand(id, body.Name, body.Content), ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/resumes/{result.Value}", new { id = result.Value })
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code,
-                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
@@ -234,7 +233,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new CreateResumeCommand(body.Name, body.FullName), ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/resumes/{result.Value}", new { id = result.Value })
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPatch("/{id:guid}", async (
@@ -243,7 +242,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new RenameResumeCommand(id, body.Name), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPut("/{id:guid}/master", async (
@@ -252,7 +251,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new UpdateMasterContentCommand(id, content), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPut("/{id:guid}/language", async (
@@ -261,7 +260,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new SetResumeLanguageCommand(id, body.Language), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPut("/{id:guid}/set-as-primary", async (
@@ -270,7 +269,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new SetPrimaryResumeCommand(id), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapDelete("/{id:guid}", async (
@@ -279,7 +278,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new DeleteResumeCommand(id), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapDelete("/{id:guid}/versions/{versionId:guid}", async (
@@ -288,7 +287,7 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new DeleteResumeVersionCommand(id, versionId), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
     }
 

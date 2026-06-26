@@ -39,7 +39,7 @@ public static class SavedSearchesEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/saved-searches/{result.Value}", new { id = result.Value })
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         });
 
         // CV→SavedSearch derive step (F4-3, ADR 0040 Beslut 4): deterministic taxonomy lookup —
@@ -61,8 +61,7 @@ public static class SavedSearchesEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/saved-searches/{result.Value}", new { id = result.Value })
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code,
-                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+                : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
         group.MapPatch("/{id:guid}", async (
@@ -84,7 +83,7 @@ public static class SavedSearchesEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         });
 
         group.MapDelete("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
@@ -92,7 +91,7 @@ public static class SavedSearchesEndpoints
             var result = await mediator.Send(new DeleteSavedSearchCommand(id), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         });
 
         // run är den enda wildcard-LIKE-ytan här (samma sök som ListJobAds via

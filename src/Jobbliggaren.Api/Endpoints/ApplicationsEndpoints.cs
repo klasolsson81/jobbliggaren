@@ -49,7 +49,7 @@ public static class ApplicationsEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/applications/{result.Value}", new { id = result.Value })
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         // F6 P5 Punkt 2 Del B — "Har ansökt"-quick-create från jobbmodal-footer.
@@ -64,10 +64,7 @@ public static class ApplicationsEndpoints
             return result.IsSuccess
                 ? Results.Created(
                     $"/api/v1/applications/{result.Value}", new { id = result.Value })
-                : Results.Problem(
-                    detail: result.Error.Message,
-                    title: result.Error.Code,
-                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPost("/{id:guid}/transition", async (
@@ -76,7 +73,7 @@ public static class ApplicationsEndpoints
             var result = await mediator.Send(new TransitionToCommand(id, body.TargetStatus), ct);
             return result.IsSuccess
                 ? Results.Ok()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPost("/{id:guid}/follow-ups", async (
@@ -86,7 +83,7 @@ public static class ApplicationsEndpoints
                 new AddFollowUpCommand(id, body.Channel, body.ScheduledAt, body.Note), ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/applications/{id}/follow-ups/{result.Value}", new { id = result.Value })
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPost("/{id:guid}/follow-ups/{followUpId:guid}/outcome", async (
@@ -97,7 +94,7 @@ public static class ApplicationsEndpoints
                 new RecordFollowUpOutcomeCommand(id, followUpId, body.Outcome), ct);
             return result.IsSuccess
                 ? Results.Ok()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         group.MapPost("/{id:guid}/notes", async (
@@ -106,7 +103,7 @@ public static class ApplicationsEndpoints
             var result = await mediator.Send(new AddNoteCommand(id, body.Content), ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/applications/{id}/notes/{result.Value}", new { id = result.Value })
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
         // F4-11: link the exact ResumeVersion (Master/Tailored) used for this application
@@ -120,8 +117,7 @@ public static class ApplicationsEndpoints
             var result = await mediator.Send(new AttachResumeVersionCommand(id, body.ResumeVersionId), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(detail: result.Error.Message, title: result.Error.Code,
-                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+                : result.Error.ToProblemResult();
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }

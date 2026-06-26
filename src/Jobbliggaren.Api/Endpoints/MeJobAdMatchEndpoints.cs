@@ -108,7 +108,7 @@ public static class MeJobAdMatchEndpoints
                 var result = await mediator.Send(new MarkMatchesSeenCommand(), ct);
                 return result.IsSuccess
                     ? Results.NoContent()
-                    : Results.Problem(detail: result.Error.Message, title: result.Error.Code, statusCode: 400);
+                    : result.Error.ToProblemResult();
             })
             .WithTags("Me")
             .RequireAuthorization()

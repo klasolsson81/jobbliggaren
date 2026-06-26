@@ -57,10 +57,7 @@ public static class AdminJobAdsEndpoints
                 ? Results.Ok(new RedactRecruiterPiiResponse(
                     RequestId: command.RequestId,
                     RowsAffected: result.Value))
-                : Results.Problem(
-                    title: result.Error.Code,
-                    detail: result.Error.Message,
-                    statusCode: 400);
+                : result.Error.ToProblemResult();
         });
 
         // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för JobAds

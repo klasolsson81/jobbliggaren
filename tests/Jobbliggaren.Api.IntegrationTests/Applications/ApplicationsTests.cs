@@ -124,6 +124,24 @@ public class ApplicationsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task POST_from_job_ad_with_unknown_jobad_returns_404()
+    {
+        // TD-84 / #203 — CreateApplicationFromJobAdCommandHandler returnerar
+        // DomainError.NotFound("JobAd", …) när annonsen saknas (eller är
+        // soft-deletad). Endpoint mappar via DomainError.ToProblemResult()
+        // som ger 404 på ".NotFound"-koden. Före TD-84 hårdkodades 400 här —
+        // detta test bevakar den nya REST-korrekta 404:an (denna helper, inte
+        // NotFoundException-middleware, producerar statuskoden).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PostAsync(
+            $"/api/v1/applications/from-job-ad/{Guid.NewGuid()}", content: null, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task GET_pipeline_with_auth_returns_200_with_array()
     {
         var ct = TestContext.Current.CancellationToken;

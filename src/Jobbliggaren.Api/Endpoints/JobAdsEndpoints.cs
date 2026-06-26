@@ -222,10 +222,7 @@ public static class JobAdsEndpoints
             var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/job-ads/{result.Value}", new { id = result.Value })
-                : Results.Problem(
-                    title: result.Error.Code,
-                    detail: result.Error.Message,
-                    statusCode: 400);
+                : result.Error.ToProblemResult();
         });
     }
 

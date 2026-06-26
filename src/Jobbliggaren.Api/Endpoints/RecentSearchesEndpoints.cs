@@ -37,10 +37,7 @@ public static class RecentSearchesEndpoints
             var result = await mediator.Send(new DeleteRecentSearchCommand(id), ct);
             return result.IsSuccess
                 ? Results.NoContent()
-                : Results.Problem(
-                    detail: result.Error.Message,
-                    title: result.Error.Code,
-                    statusCode: result.Error.Code.EndsWith("NotFound", StringComparison.Ordinal) ? 404 : 400);
+                : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 }

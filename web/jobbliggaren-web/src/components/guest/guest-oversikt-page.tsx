@@ -49,7 +49,7 @@ export function GuestOversiktPage() {
         b: (chunks) => <b>{chunks}</b>,
       }),
       cta: t("oversikt.noticeOfferCta"),
-      href: "/vantelista",
+      href: "/registrera",
       time: t("oversikt.timeToday"),
     });
   }
@@ -77,7 +77,7 @@ export function GuestOversiktPage() {
         b: (chunks) => <b>{chunks}</b>,
       }),
       cta: t("oversikt.noticeInterviewCta"),
-      href: "/vantelista",
+      href: "/registrera",
       time: t("oversikt.timeYesterday"),
     });
   }

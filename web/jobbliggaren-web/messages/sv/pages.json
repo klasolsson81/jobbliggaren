@@ -153,15 +153,19 @@
       "submit": "Logga in",
       "submitting": "Loggar in...",
       "noAccount": "Inget konto?",
-      "joinWaitlist": "Anmäl dig till väntelistan"
+      "createAccount": "Skapa konto"
     },
     "register": {
+      "title": "Skapa konto",
+      "brand": "Jobbliggaren",
       "emailLabel": "E-postadress",
       "emailHint": "Formatet är namn@domän.se",
       "passwordLabel": "Lösenord",
       "passwordHint": "Minst 8 tecken.",
       "submit": "Skapa konto",
-      "submitting": "Skapar konto..."
+      "submitting": "Skapar konto...",
+      "haveAccount": "Har du redan ett konto?",
+      "logIn": "Logga in"
     },
     "actions": {
       "credentialsRequired": "E-post och lösenord krävs.",

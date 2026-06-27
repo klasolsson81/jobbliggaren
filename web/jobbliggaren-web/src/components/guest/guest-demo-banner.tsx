@@ -25,7 +25,7 @@ export function GuestDemoBanner() {
       <div className="jp-demo-banner__inner">
         <span className="jp-demo-banner__label">{t("banner.label")}</span>
         <p className="jp-demo-banner__text">{t("banner.text")}</p>
-        <Link href="/vantelista" className="jp-demo-banner__cta">
+        <Link href="/registrera" className="jp-demo-banner__cta">
           {t("banner.cta")}
         </Link>
       </div>

@@ -1,6 +1,7 @@
 {
   "common": {
     "loginLink": "Log in",
+    "headerNavAriaLabel": "Site navigation",
     "skipToContent": "Skip to main content"
   },
   "brand": {
@@ -85,43 +86,10 @@
       "developers": "For developers"
     }
   },
-  "waitlist": {
-    "kicker": "Closed beta",
-    "title": "Join the waitlist",
-    "lede": "Jobbliggaren is in closed beta. We let users in as we have capacity. No dates are promised. Register your interest and we will get in touch when the next place opens up.",
-    "privacyNote": "We store your details only for the waitlist. You can ask us to delete them at any time by replying to the confirmation email.",
-    "form": {
-      "checkFields": "Check the fields and try again.",
-      "successTitle": "Thank you for signing up.",
-      "successBody": "We have saved <mail>{email}</mail> on the waitlist. We will get in touch when we have capacity to let in more users. You do not need to do anything more right now.",
-      "nameLabel": "Name",
-      "nameRequired": "Name is required.",
-      "nameMax": "Name may be at most 100 characters.",
-      "emailLabel": "Email address",
-      "emailRequired": "Email address is required.",
-      "emailMax": "Email address may be at most 254 characters.",
-      "motivationLabel": "Why do you want to use Jobbliggaren?",
-      "motivationRequired": "A motivation is required.",
-      "motivationMin": "The motivation must be at least 10 characters.",
-      "motivationMax": "The motivation may be at most 1000 characters.",
-      "motivationHint": "Write briefly about how you intend to use the service. 10–1000 characters.",
-      "marketingConsent": "I want to receive email with information about how Jobbliggaren is being developed (optional).",
-      "submitting": "Submitting your application…",
-      "submit": "Join the waitlist",
-      "terms": "By submitting you accept Jobbliggaren's <termsLink>terms of use</termsLink> and that we use <cookiesLink>necessary cookies</cookiesLink> to handle your registration."
-    },
-    "action": {
-      "closed": "Registrations are currently closed. Try again later when we open the next pulse.",
-      "badRequest": "Something was wrong with the details. Check them and try again.",
-      "tooMany": "Too many registrations from this network address. Try again in a moment.",
-      "generic": "An error occurred. Try again in a moment.",
-      "serverUnreachable": "Could not reach the server. Try again."
-    }
-  },
   "cookies": {
-    "kicker": "Closed beta",
+    "kicker": "Privacy",
     "title": "Cookies",
-    "intro": "Jobbliggaren uses only necessary cookies for the service to work during closed beta.",
+    "intro": "Jobbliggaren uses only necessary cookies for the service to work.",
     "meansLabel": "This means:",
     "sessionTerm": "Session cookies",
     "sessionBody": " keep you signed in when you have an account.",
@@ -130,24 +98,22 @@
     "languageTerm": "Language choice",
     "languageBody": " remembers whether you chose Swedish or English.",
     "noTracking": "No cookies are used for analytics, tracking or marketing.",
-    "fullPolicyNote": "A full cookie policy will be published before the service opens to the public."
+    "fullPolicyNote": "A full cookie policy is being prepared."
   },
   "terms": {
-    "kicker": "Closed beta",
+    "kicker": "Legal",
     "title": "Terms of use",
-    "intro": "Jobbliggaren is in closed beta. Full terms of use will be published before the service opens to the public.",
-    "duringBeta": "During the beta period the following applies:",
+    "intro": "Full terms of use are being prepared.",
+    "duringBeta": "Until further notice the following applies:",
     "asIs": "The service is provided as is. Features may change or be added.",
     "dataRetention": "We store your details only for as long as is needed to handle your registration or your account.",
     "dataDeletion": "You can ask us to delete your details at any time by replying to the confirmation email or contacting us."
   },
   "meta": {
-    "waitlistTitle": "Waitlist",
-    "waitlistDescription": "Jobbliggaren is in closed beta. Register your interest and we will get in touch when we have capacity to let in more.",
     "cookiesTitle": "Cookies",
-    "cookiesDescription": "Information about cookies on Jobbliggaren. Only necessary cookies are used during closed beta.",
+    "cookiesDescription": "Information about cookies on Jobbliggaren. Only necessary cookies are used.",
     "termsTitle": "Terms of use",
-    "termsDescription": "Jobbliggaren's terms of use. Closed beta: full text will be published before the first open registration.",
+    "termsDescription": "Jobbliggaren's terms of use. Full text is being prepared.",
     "homeTitle": "Find, apply for and follow up on jobs",
     "homeDescription": "Search every active job ad from Platsbanken, build your CV and follow up on every application, from draft to response."
   }

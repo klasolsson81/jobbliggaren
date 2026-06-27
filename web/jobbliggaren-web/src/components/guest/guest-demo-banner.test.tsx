@@ -3,14 +3,14 @@ import { render, screen } from "@testing-library/react";
 import { GuestDemoBanner } from "./guest-demo-banner";
 
 describe("<GuestDemoBanner />", () => {
-  it("renderar DEMO-etikett + civic-utility-text + väntelista-CTA", () => {
+  it("renderar DEMO-etikett + civic-utility-text + skapa-konto-CTA", () => {
     render(<GuestDemoBanner />);
     expect(screen.getByText("DEMO")).toBeInTheDocument();
     expect(
       screen.getByText(/utforskar Jobbliggaren som gäst/i)
     ).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /anmäl till väntelistan/i });
-    expect(cta).toHaveAttribute("href", "/vantelista");
+    const cta = screen.getByRole("link", { name: /skapa konto/i });
+    expect(cta).toHaveAttribute("href", "/registrera");
   });
 
   it("har region-roll med svenskt aria-label så skärmläsare annonserar demoläget", () => {

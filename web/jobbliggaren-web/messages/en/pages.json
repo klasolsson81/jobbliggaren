@@ -153,15 +153,19 @@
       "submit": "Log in",
       "submitting": "Logging in...",
       "noAccount": "No account?",
-      "joinWaitlist": "Join the waiting list"
+      "createAccount": "Create account"
     },
     "register": {
+      "title": "Create account",
+      "brand": "Jobbliggaren",
       "emailLabel": "Email address",
       "emailHint": "The format is name@domain.se",
       "passwordLabel": "Password",
       "passwordHint": "At least 8 characters.",
       "submit": "Create account",
-      "submitting": "Creating account..."
+      "submitting": "Creating account...",
+      "haveAccount": "Already have an account?",
+      "logIn": "Log in"
     },
     "actions": {
       "credentialsRequired": "Email and password are required.",

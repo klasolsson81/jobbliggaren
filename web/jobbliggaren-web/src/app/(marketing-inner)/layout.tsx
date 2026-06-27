@@ -9,8 +9,12 @@ import { SiteFooter } from "@/components/site/site-footer";
  * Klas-direktiv 2026-05-24 efter Steg 5-svans visual-verify: "vanliga
  * layouten" på inre sidor.
  *
- * Landing-routen (`/`) sitter i (marketing)-grupp och har egen LandingTopbar
- * med stats — inte i denna layout.
+ * Landing-routen (`/`) sitter i (marketing)-grupp och har egen LandingHeader
+ * med stats (LP-4 / #257) — inte i denna layout.
+ *
+ * SiteHeader (LP-5a / #258) renderar en första skip-länk till `#main`;
+ * innehållswrappern nedan bär det målet (`id="main"`). Sidorna behåller sina
+ * egna `<main>`-landmärken innanför wrappern.
  */
 export default function MarketingInnerLayout({
   children,
@@ -20,7 +24,9 @@ export default function MarketingInnerLayout({
   return (
     <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
       <SiteHeader />
-      <div className="flex-1">{children}</div>
+      <div id="main" tabIndex={-1} className="flex-1 focus:outline-none">
+        {children}
+      </div>
       <SiteFooter />
     </div>
   );

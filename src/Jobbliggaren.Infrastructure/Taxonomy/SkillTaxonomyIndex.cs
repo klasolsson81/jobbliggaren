@@ -135,6 +135,21 @@ internal sealed class SkillTaxonomyIndex
         if (string.IsNullOrWhiteSpace(freeText))
             return [];
 
+        var index = _index.Value;
+
+        // #253 ACC-2/ACC-4 — exact-label fast-path: a discrete CV skill string that
+        // LITERALLY matches a taxonomy label/synonym (case-insensitive, trimmed)
+        // resolves to EXACTLY those concept(s), short-circuiting the lexeme-bag path
+        // below. This is what stops "C#" (which tokenises to the bare lexeme {c}) from
+        // fanning out to the C language + C++ across both layers, and keeps BOTH the
+        // ESCO and AF "C#" twins (A-pure: correctness over chip-minimalism — the user
+        // confirms which to keep). The ad-side MatchForms over free PROSE deliberately
+        // does NOT get this path (prose carries no discrete skill string to match); the
+        // ADR 0076 Decision 6 one-index parity holds — the CV-side concept set is now a
+        // precise SUBSET of the ad-prose fan-out, never larger, so overlap stays sound.
+        if (index.ExactByLabel.TryGetValue(freeText.Trim(), out var exact))
+            return exact;
+
         var lexemes = _analyzer.ToLexemes(freeText, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal);
         if (lexemes.Count == 0)
             return [];
@@ -206,16 +221,25 @@ internal sealed class SkillTaxonomyIndex
         // reverse-lookup (one entry per concept; last write wins, but a concept-id is
         // unique in the snapshot so order is irrelevant).
         var labelByConceptId = new Dictionary<string, string>(StringComparer.Ordinal);
+        // #253 ACC-2/ACC-4 — exact-label fast-path index: TRIMMED literal label/synonym
+        // (case-insensitive) → the concepts that carry it verbatim, deduped per
+        // concept-id (preferred-label match flagged so it can win over a synonym match
+        // for the same concept). Built alongside the lexeme/search/label structures.
+        var exactBuilder =
+            new Dictionary<string, Dictionary<string, (SkillForm Form, bool IsPreferred)>>(
+                StringComparer.OrdinalIgnoreCase);
         foreach (var concept in concepts)
         {
             AddForm(concept, concept.PreferredLabel, forms, seen);
             AddSearchEntry(concept, concept.PreferredLabel, searchEntries);
+            AddExactLabel(concept, concept.PreferredLabel, isPreferred: true, exactBuilder);
             if (!string.IsNullOrWhiteSpace(concept.PreferredLabel))
                 labelByConceptId[concept.ConceptId] = concept.PreferredLabel;
             foreach (var synonym in concept.Synonyms)
             {
                 AddForm(concept, synonym, forms, seen);
                 AddSearchEntry(concept, synonym, searchEntries);
+                AddExactLabel(concept, synonym, isPreferred: false, exactBuilder);
             }
         }
 
@@ -235,7 +259,20 @@ internal sealed class SkillTaxonomyIndex
             list.Add(form);
         }
 
-        return new SkillIndex(byAnchor, searchEntries, labelByConceptId);
+        // Finalize the exact-label fast-path: per literal, the matching concepts'
+        // forms — preferred-label matches first, then ConceptId Ordinal — so the order
+        // is deterministic and reproducible regardless of asset row order (#253).
+        var exactByLabel = new Dictionary<string, IReadOnlyList<SkillForm>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, byConcept) in exactBuilder)
+        {
+            exactByLabel[key] = byConcept.Values
+                .OrderByDescending(e => e.IsPreferred)
+                .ThenBy(e => e.Form.ConceptId, StringComparer.Ordinal)
+                .Select(e => e.Form)
+                .ToList();
+        }
+
+        return new SkillIndex(byAnchor, searchEntries, labelByConceptId, exactByLabel);
     }
 
     private static void AddSearchEntry(
@@ -245,6 +282,36 @@ internal sealed class SkillTaxonomyIndex
             return;
         entries.Add(new SkillSearchEntry(
             label.Trim().ToLowerInvariant(), concept.ConceptId, concept.PreferredLabel));
+    }
+
+    // #253 ACC-2/ACC-4 — record one literal label/synonym surface for the exact-label
+    // fast-path. Keyed by the TRIMMED literal (case-insensitive), NOT lexemes — that is
+    // the whole point: it bypasses the Snowball tokenisation that shreds "C#" → {c}.
+    // Deduped per concept-id within a key; a preferred-label match wins over a synonym
+    // match for the SAME concept (display + deterministic ordering).
+    private void AddExactLabel(
+        SkillConcept concept,
+        string label,
+        bool isPreferred,
+        Dictionary<string, Dictionary<string, (SkillForm Form, bool IsPreferred)>> exact)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+            return;
+        var key = label.Trim();
+        // The CV fast-path consumers (ResolveConceptIds/ResolveDetailed) read only
+        // ConceptId + PreferredLabel, so this form's Lexemes are not read on that path.
+        // We still build them faithfully (never []) so a SkillForm stays a CONSISTENT
+        // value object regardless of which path constructed it (the lexeme-bag path
+        // builds the same lexemes) — avoiding a construction-path asymmetry. The lazy
+        // one-time build cost is deliberately accepted (BuildIndex is not on any
+        // ADR 0045 hot-path budget).
+        var lexemes = _analyzer.ToLexemes(label, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal);
+        var form = new SkillForm(concept.ConceptId, concept.PreferredLabel, key, lexemes);
+        if (!exact.TryGetValue(key, out var byConcept))
+            exact[key] = byConcept =
+                new Dictionary<string, (SkillForm Form, bool IsPreferred)>(StringComparer.Ordinal);
+        if (!byConcept.TryGetValue(concept.ConceptId, out var existing) || (isPreferred && !existing.IsPreferred))
+            byConcept[concept.ConceptId] = (form, isPreferred);
     }
 
     private void AddForm(SkillConcept concept, string label, List<SkillForm> forms, HashSet<string> seen)
@@ -281,7 +348,10 @@ internal sealed class SkillTaxonomyIndex
     private sealed record SkillIndex(
         IReadOnlyDictionary<string, List<SkillForm>> ByAnchor,
         IReadOnlyList<SkillSearchEntry> SearchEntries,
-        IReadOnlyDictionary<string, string> LabelByConceptId);
+        IReadOnlyDictionary<string, string> LabelByConceptId,
+        // #253 — exact-label fast-path: trimmed literal label/synonym (case-insensitive)
+        // → the concepts carrying it verbatim, preferred-first then ConceptId Ordinal.
+        IReadOnlyDictionary<string, IReadOnlyList<SkillForm>> ExactByLabel);
 
     // ADR 0079 STEG 3 PR-C — one substring-searchable label form (lower-cased) → its
     // concept-id + canonical preferred label (so a synonym hit still displays the

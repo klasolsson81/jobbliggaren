@@ -201,6 +201,161 @@ public sealed class SkillResolverIntegrationTests
     }
 
     // ===============================================================
+    // 3b. Exact-label fast-path (#253 ACC-2/ACC-4) — a discrete CV skill string
+    //     that LITERALLY matches a taxonomy label/synonym (case-insensitive)
+    //     resolves to EXACTLY those concept(s), short-circuiting the Snowball
+    //     lexeme-bag fan-out that mis-resolves punctuation/single-letter names
+    //     ("C#" -> lexeme {c} -> C, C++ ...). Both legitimate ESCO/AF twins are
+    //     kept (A-pure, CTO-bind: correctness over chip-minimalism). Twin pair +
+    //     fan-out are derived LIVE from the asset (never guess concept-ids).
+    // ===============================================================
+
+    [Fact]
+    public void Resolve_ExactPunctuationSkill_ShortCircuitsLexemeFanout_KeepingOnlyLiteralTwins()
+    {
+        const string skill = "C#";
+        var concepts = ReadSearchConcepts();
+        var literalTwins = concepts
+            .Where(c => LiteralMatches(c, skill))
+            .Select(c => c.ConceptId)
+            .ToHashSet(StringComparer.Ordinal);
+        literalTwins.Count.ShouldBeGreaterThanOrEqualTo(2,
+            "Förutsättning: 'C#' bär minst två literal-concepts (ESCO bare + AF qualified).");
+
+        // What the OLD bare-lexeme path resolves: "C#" -> {c} -> every concept-form
+        // whose lexemes are a subset of {c} (the C language, C++ x layers, C# x layers).
+        var fanout = NewIndex()
+            .MatchForms(Analyzer.ToLexemes(skill, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal))
+            .Select(f => f.ConceptId)
+            .ToHashSet(StringComparer.Ordinal);
+        fanout.Count.ShouldBeGreaterThan(literalTwins.Count,
+            "Förutsättning: lexeme-vägen fan-out:ar bredare än literal-träffarna (annars ingen ACC-2-bugg).");
+
+        var resolved = NewResolver().Resolve([skill], TestContext.Current.CancellationToken);
+
+        resolved.ShouldBe(literalTwins, ignoreOrder: true,
+            "Exact-label fast-path: 'C#' resolvar till EXAKT sina literal-matchande concepts (ESCO + AF).");
+        foreach (var garbage in fanout.Except(literalTwins))
+            resolved.ShouldNotContain(garbage,
+                "Fan-out-garbage (C/C++/C-språket) får ALDRIG resolvas från 'C#' (ACC-2 #253).");
+    }
+
+    [Fact]
+    public void Resolve_ExactSkill_IsCaseInsensitiveOnTheLiteralSurface()
+    {
+        var upper = NewResolver().Resolve(["C#"], TestContext.Current.CancellationToken);
+        var lower = NewResolver().Resolve(["c#"], TestContext.Current.CancellationToken);
+
+        upper.Count.ShouldBeGreaterThanOrEqualTo(2);
+        lower.ShouldBe(upper, ignoreOrder: true,
+            "Exact-label fast-path matchar literalt case-insensitivt → 'c#' == 'C#'.");
+    }
+
+    [Fact]
+    public void ResolveDetailed_ExactPunctuationSkill_YieldsLiteralTwinChips_WithRealLabels_NoRawIds()
+    {
+        // A-pure (#253 CTO-bind): we deliberately keep BOTH legitimate twins
+        // (correctness over chip-minimalism). Each chip carries a real preferred
+        // label (never a raw concept-id), and every concept-id is confirmable/scorable.
+        const string skill = "C#";
+        var concepts = ReadSearchConcepts();
+        var literalTwins = concepts.Where(c => LiteralMatches(c, skill)).ToList();
+        literalTwins.Count.ShouldBeGreaterThanOrEqualTo(2);
+
+        var resolved = NewResolver().ResolveDetailed([skill], TestContext.Current.CancellationToken);
+
+        resolved.Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal).ShouldBe(
+            literalTwins.Select(c => c.ConceptId).ToHashSet(StringComparer.Ordinal), ignoreOrder: true,
+            "ResolveDetailed för 'C#' bär exakt sina literal-twins (A-pure, behåll båda).");
+        foreach (var chip in resolved)
+        {
+            chip.Label.ShouldNotBeNullOrWhiteSpace();
+            chip.Label.ShouldNotBe(chip.ConceptId,
+                "Chippen visar canonical label, aldrig ett raw concept-id (#253).");
+            concepts.ShouldContain(c => c.ConceptId == chip.ConceptId && c.PreferredLabel == chip.Label,
+                "Chip-labeln är en riktig preferredLabel ur den committade taxonomin.");
+        }
+    }
+
+    [Fact]
+    public void ResolveDetailed_And_Resolve_AgreeOnConceptIds_ForExactTwinSkill()
+    {
+        // The shared-path invariant must hold for the AMBIGUOUS twin input too (the
+        // existing ProvingOneSharedPath test only exercises lexeme-unique goldens).
+        const string skill = "C#";
+        var ids = NewResolver().Resolve([skill], TestContext.Current.CancellationToken)
+            .ToHashSet(StringComparer.Ordinal);
+        var detailedIds = NewResolver().ResolveDetailed([skill], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        ids.Count.ShouldBeGreaterThanOrEqualTo(2);
+        detailedIds.ShouldBe(ids, ignoreOrder: true,
+            "ResolveDetailed och Resolve delar samma fast-path → identiska concept-id-mängder.");
+    }
+
+    [Fact]
+    public void ResolveDetailed_ExactSynonymOnlyMatch_YieldsCanonicalPreferredLabel_NotTheSynonym()
+    {
+        // A CV writes a SYNONYM verbatim (not the preferred label). The fast-path must
+        // resolve to that single concept and the chip must show its canonical preferred
+        // label, never the synonym surface the CV used (#253 ACC-4). Derived LIVE.
+        var concepts = ReadSearchConcepts();
+        var ownerCount = LiteralOwnerCounts(concepts);
+
+        var found = concepts
+            .Where(c => !string.IsNullOrWhiteSpace(c.PreferredLabel))
+            .SelectMany(c => c.Synonyms
+                .Where(s => !string.IsNullOrWhiteSpace(s)
+                    && !string.Equals(s.Trim(), c.PreferredLabel.Trim(), StringComparison.OrdinalIgnoreCase))
+                .Select(s => (Concept: c, Synonym: s.Trim())))
+            // The synonym literal is carried by EXACTLY one concept → a clean single match.
+            .FirstOrDefault(x => ownerCount.GetValueOrDefault(x.Synonym) == 1);
+
+        found.Concept.ShouldNotBeNull(
+            "Assetet ska bära minst en synonym-only single-exact-literal (härled, gissa aldrig).");
+
+        var resolved = NewResolver().ResolveDetailed([found.Synonym], TestContext.Current.CancellationToken);
+
+        var chip = resolved.ShouldHaveSingleItem();
+        chip.ConceptId.ShouldBe(found.Concept.ConceptId);
+        chip.Label.ShouldBe(found.Concept.PreferredLabel,
+            "Exact-synonym-match: chippet bär canonical PreferredLabel, aldrig synonym-ytan (#253).");
+    }
+
+    [Fact]
+    public void Resolve_ExactSingleLabelMatch_ResolvesToExactlyThatOneConcept()
+    {
+        // A literal carried by exactly ONE concept → the fast-path resolves to that one
+        // and never broadens (the positive complement of the twin fan-out test). LIVE.
+        var concepts = ReadSearchConcepts();
+        var ownerCount = LiteralOwnerCounts(concepts);
+        var golden = concepts
+            .Where(c => !string.IsNullOrWhiteSpace(c.PreferredLabel))
+            .First(c => ownerCount.GetValueOrDefault(c.PreferredLabel.Trim()) == 1);
+
+        var resolved = NewResolver().Resolve([golden.PreferredLabel], TestContext.Current.CancellationToken);
+
+        resolved.ShouldBe([golden.ConceptId], ignoreOrder: true,
+            $"Exact single-label-match '{golden.PreferredLabel}' resolvar till exakt sitt enda concept.");
+    }
+
+    [Theory]
+    [InlineData(" C#")]
+    [InlineData("C# ")]
+    [InlineData("  C#  ")]
+    public void Resolve_ExactSkill_TrimsSurroundingWhitespace(string padded)
+    {
+        var baseline = NewResolver().Resolve(["C#"], TestContext.Current.CancellationToken);
+        baseline.Count.ShouldBeGreaterThanOrEqualTo(2);
+
+        var resolved = NewResolver().Resolve([padded], TestContext.Current.CancellationToken);
+
+        resolved.ShouldBe(baseline, ignoreOrder: true,
+            $"Omgivande whitespace ska trimmas före exact-label-uppslaget ('{padded}' == 'C#').");
+    }
+
+    // ===============================================================
     // 4. Behaviour-equivalence — the no-parallel-resolver regression
     //    (ADR 0076 Decision 6): the resolver resolves each individual skill
     //    label the shared-index extractor would emit as a Skill term, from the
@@ -839,6 +994,38 @@ public sealed class SkillResolverIntegrationTests
     // Verified live to exceed the caps by the saturation assertions; "in" is ubiquitous in
     // Swedish skill labels (utbildning, hantering, ...).
     private static string CommonBigram() => "in";
+
+    // Number of concepts that carry each trimmed literal (case-insensitive) across
+    // preferred label + synonyms — used to derive single-owner exact literals live
+    // (a literal with count == 1 resolves to exactly one concept). O(n) one pass.
+    private static Dictionary<string, int> LiteralOwnerCounts(IEnumerable<SearchConcept> concepts)
+    {
+        var count = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in concepts)
+        {
+            var literals = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(c.PreferredLabel))
+                literals.Add(c.PreferredLabel.Trim());
+            foreach (var s in c.Synonyms)
+                if (!string.IsNullOrWhiteSpace(s))
+                    literals.Add(s.Trim());
+            foreach (var lit in literals)
+                count[lit] = count.GetValueOrDefault(lit) + 1;
+        }
+        return count;
+    }
+
+    // True when the concept carries the literal (trimmed, case-insensitive) as its
+    // preferred label OR one of its synonyms — the exact-label-match oracle (#253).
+    private static bool LiteralMatches(SearchConcept c, string literal)
+    {
+        if (string.Equals(c.PreferredLabel?.Trim(), literal, StringComparison.OrdinalIgnoreCase))
+            return true;
+        foreach (var syn in c.Synonyms)
+            if (string.Equals(syn?.Trim(), literal, StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
 
     private static List<SearchConcept> ReadSearchConcepts()
     {

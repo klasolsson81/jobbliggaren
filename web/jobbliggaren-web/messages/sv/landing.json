@@ -86,43 +86,10 @@
       "developers": "För utvecklare"
     }
   },
-  "waitlist": {
-    "kicker": "Sluten beta",
-    "title": "Anmäl dig till väntelistan",
-    "lede": "Jobbliggaren är i sluten beta. Vi släpper in användare när vi har kapacitet. Inga datum lovas. Anmäl ditt intresse så hör vi av oss när nästa plats är ledig.",
-    "privacyNote": "Vi sparar dina uppgifter endast för väntelistan. Du kan be oss radera dem när som helst genom att svara på bekräftelsemejlet.",
-    "form": {
-      "checkFields": "Kontrollera fälten och försök igen.",
-      "successTitle": "Tack för din anmälan.",
-      "successBody": "Vi har sparat <mail>{email}</mail> på väntelistan. Vi hör av oss när vi har kapacitet att släppa in fler användare. Du behöver inte göra något mer just nu.",
-      "nameLabel": "Namn",
-      "nameRequired": "Namn krävs.",
-      "nameMax": "Namn får vara max 100 tecken.",
-      "emailLabel": "E-postadress",
-      "emailRequired": "E-postadress krävs.",
-      "emailMax": "E-postadress får vara max 254 tecken.",
-      "motivationLabel": "Varför vill du använda Jobbliggaren?",
-      "motivationRequired": "Motivering krävs.",
-      "motivationMin": "Motiveringen ska vara minst 10 tecken.",
-      "motivationMax": "Motiveringen får vara max 1000 tecken.",
-      "motivationHint": "Skriv kort om hur du tänker använda tjänsten. 10–1000 tecken.",
-      "marketingConsent": "Jag vill få e-post med information om hur Jobbliggaren utvecklas (valfritt).",
-      "submitting": "Skickar anmälan…",
-      "submit": "Anmäl till väntelista",
-      "terms": "Genom att skicka in godkänner du Jobbliggarens <termsLink>användarvillkor</termsLink> och att vi använder <cookiesLink>nödvändiga cookies</cookiesLink> för att hantera din anmälan."
-    },
-    "action": {
-      "closed": "Anmälningar är just nu stängda. Försök igen senare när vi öppnar nästa pulse.",
-      "badRequest": "Något var fel med uppgifterna. Kontrollera och försök igen.",
-      "tooMany": "För många anmälningar från denna nätverksadress. Försök igen om en stund.",
-      "generic": "Ett fel uppstod. Försök igen om en stund.",
-      "serverUnreachable": "Kunde inte nå servern. Försök igen."
-    }
-  },
   "cookies": {
-    "kicker": "Sluten beta",
+    "kicker": "Integritet",
     "title": "Cookies",
-    "intro": "Jobbliggaren använder endast nödvändiga cookies för att tjänsten ska fungera under sluten beta.",
+    "intro": "Jobbliggaren använder endast nödvändiga cookies för att tjänsten ska fungera.",
     "meansLabel": "Det innebär:",
     "sessionTerm": "Session-cookies",
     "sessionBody": " håller dig inloggad när du har ett konto.",
@@ -131,24 +98,22 @@
     "languageTerm": "Språkval",
     "languageBody": " kommer ihåg om du valt svenska eller engelska.",
     "noTracking": "Inga cookies används för analys, spårning eller marknadsföring.",
-    "fullPolicyNote": "En fullständig cookie-policy publiceras innan tjänsten öppnas för allmänheten."
+    "fullPolicyNote": "En fullständig cookie-policy håller på att tas fram."
   },
   "terms": {
-    "kicker": "Sluten beta",
+    "kicker": "Juridik",
     "title": "Användarvillkor",
-    "intro": "Jobbliggaren befinner sig i sluten beta. Fullständiga användarvillkor publiceras innan tjänsten öppnas för allmänheten.",
-    "duringBeta": "Under beta-perioden gäller följande:",
+    "intro": "Fullständiga användarvillkor håller på att tas fram.",
+    "duringBeta": "Tills vidare gäller följande:",
     "asIs": "Tjänsten levereras i befintligt skick. Funktioner kan ändras eller tillkomma.",
     "dataRetention": "Vi sparar dina uppgifter endast så länge det krävs för att hantera din anmälan eller ditt konto.",
     "dataDeletion": "Du kan be oss radera dina uppgifter när som helst genom att svara på bekräftelsemejlet eller kontakta oss."
   },
   "meta": {
-    "waitlistTitle": "Väntelista",
-    "waitlistDescription": "Jobbliggaren är i sluten beta. Anmäl ditt intresse så hör vi av oss när vi har kapacitet att släppa in fler.",
     "cookiesTitle": "Cookies",
-    "cookiesDescription": "Information om cookies på Jobbliggaren. Endast nödvändiga cookies används under sluten beta.",
+    "cookiesDescription": "Information om cookies på Jobbliggaren. Endast nödvändiga cookies används.",
     "termsTitle": "Användarvillkor",
-    "termsDescription": "Jobbliggarens användarvillkor. Sluten beta: full text publiceras innan första öppna registrering.",
+    "termsDescription": "Jobbliggarens användarvillkor. Fullständig text håller på att tas fram.",
     "homeTitle": "Hitta, sök och följ upp jobb",
     "homeDescription": "Sök bland alla aktiva annonser från Platsbanken, skapa ditt CV och följ upp varje ansökan, från utkast till svar."
   }

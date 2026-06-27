@@ -1,6 +1,7 @@
 {
   "common": {
     "loginLink": "Log in",
+    "headerNavAriaLabel": "Site navigation",
     "skipToContent": "Skip to main content"
   },
   "brand": {

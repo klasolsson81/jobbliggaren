@@ -1,6 +1,7 @@
 {
   "common": {
     "loginLink": "Logga in",
+    "headerNavAriaLabel": "Webbplatsnavigation",
     "skipToContent": "Hoppa till huvudinnehåll"
   },
   "brand": {

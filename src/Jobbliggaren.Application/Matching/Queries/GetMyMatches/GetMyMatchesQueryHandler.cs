@@ -24,6 +24,12 @@ public sealed class GetMyMatchesQueryHandler(
     : IQueryHandler<GetMyMatchesQuery, IReadOnlyList<MatchListItemDto>>
 {
     // The view shows recent matches; the full set is reachable via the /jobb grade-filter.
+    // #273 contract: this is a presentation/pagination cap on a recent-VIEW — NOT the new-match
+    // cardinality. That truth lives in GetMyNewMatchCount, which is intentionally UNCAPPED and may
+    // exceed this 50; the badge counts new matches, this list shows a window of them. Because rows
+    // are ordered CreatedAt desc and "new" = CreatedAt > watermark, the visible IsNew rows equal
+    // min(newCount, 50) — coherent below the cap, a documented bounded window above it. Do NOT
+    // raise/remove this cap to "match the badge": the two surfaces measure different things.
     private const int MaxItems = 50;
 
     private static readonly IReadOnlyList<MatchListItemDto> Empty = [];

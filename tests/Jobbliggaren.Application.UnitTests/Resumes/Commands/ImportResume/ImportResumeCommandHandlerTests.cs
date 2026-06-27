@@ -71,7 +71,7 @@ public class ImportResumeCommandHandlerTests
     }
 
     private void StubExtractor(string rawText, CvExtractionStatus status) =>
-        _extractor.Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>())
+        _extractor.Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
             .Returns(new CvExtractionResult(rawText, status));
 
     private void StubSegmenter(ResumeSegmentationResult result) =>
@@ -564,7 +564,7 @@ public class ImportResumeCommandHandlerTests
         result.Error.Code.ShouldBe("Resume.UnsupportedFileFormat");
         db.ParsedResumes.Local.ShouldBeEmpty();
         // No port is touched once the format gate rejects.
-        _extractor.DidNotReceive().Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>());
+        _extractor.DidNotReceive().Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

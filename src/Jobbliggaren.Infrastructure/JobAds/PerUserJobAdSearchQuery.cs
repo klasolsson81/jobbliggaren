@@ -141,6 +141,15 @@ internal sealed class PerUserJobAdSearchQuery(
                 // Gyllene topp-rung (F4-15): en Stark match (yrke+ort+anställning ALLA
                 // bekräftade) som OCKSÅ delar minst en bekräftad skill sorteras ÖVER en ren
                 // Stark. NULL extracted_lexemes → ?| NULL → ELSE 0.
+                // OBS (#268 audit, C3): extracted_lexemes är jsonb_path_query_array över
+                // `$[*].Lexeme` — den skördar ALLA termers Lexeme oavsett Kind (Skill ∪
+                // must_have ∪ nice_to_have ∪ keyword; för Skill/Requirement är Lexeme ==
+                // ConceptId). Den här sort-lyften är därför ett STRIKT SUPERSET av badgens
+                // skill-signal (MatchGradeCalculator.HasSkillOrNiceSignal, som bara räknar
+                // Kind==Skill / Source==NiceToHave). En CV-skill som matchar en annons
+                // must_have-only-concept-id (ej ekad i fritext) lyfter alltså sorten men
+                // badgar "Stark match", aldrig "Toppmatch". Medvetet en-riktat: sorten är
+                // aldrig sämre informerad än badgen (en must_have-träff ÄR kravevidens).
                 .OrderByDescending(j =>
                     skillStated
                     && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))

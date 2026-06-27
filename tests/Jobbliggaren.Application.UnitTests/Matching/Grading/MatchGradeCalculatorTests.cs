@@ -31,21 +31,24 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Grading;
 /// <item><b>Gate:</b> <c>Fast.SsykOverlap.Verdict != Match</c> → <c>null</c>.</item>
 /// <item><b>RB1 floor (evaluated BEFORE must-have):</b>
 /// <c>RegionFit == NoMatch OR EmploymentFit == NoMatch</c> → <c>Basic</c>.</item>
-/// <item><c>mustHaveMet = MustHaveCoverage.Verdict ∈ {Match, Vacuous}</c>
-/// (<see cref="MatchDimensionVerdict.Vacuous"/> = the ad states no must-haves but the CV
-/// is present → gate-open, Klas Reading 1).</item>
+/// <item><c>HasSkillOrNiceSignal = SkillOverlap ∈ {Match,Partial} OR NiceToHaveCoverage ∈
+/// {Match,Partial}</c>.</item>
+/// <item><b>requirementBacked (ADR 0076 amendment 2026-06-27, F1(b)):</b>
+/// <c>MustHaveCoverage == Match OR (MustHaveCoverage == Vacuous AND HasSkillOrNiceSignal)</c>.
+/// A covered must-have is sufficient evidence on its own; a <c>Vacuous</c> must-have (ad
+/// states none) is gate-open ONLY when backed by a skill/nice signal. AMENDS Reading 1 —
+/// Vacuous alone no longer reaches Strong/Top (~98% of ads are Vacuous).</item>
 /// <item><c>confirmed = #Match among {RegionFit, EmploymentFit}</c>.</item>
-/// <item>If <c>mustHaveMet</c>: <c>confirmed == 2 AND (SkillOverlap ∈ {Match,Partial} OR
-/// NiceToHaveCoverage ∈ {Match,Partial})</c> → <c>Top</c>; else <c>confirmed >= 1</c> →
-/// <c>Strong</c>; else → <c>Basic</c> (must-have met but no secondary stated).</item>
-/// <item>Else (must-have NOT met — Partial/NoMatch/NotAssessed): <c>confirmed >= 1</c> →
-/// <c>Good</c>; else → <c>Basic</c>. The must-have gate caps below <c>Strong</c>.</item>
+/// <item>If <c>requirementBacked</c>: <c>confirmed == 2 AND HasSkillOrNiceSignal</c> →
+/// <c>Top</c>; else <c>confirmed >= 1</c> → <c>Strong</c>; else → <c>Basic</c> (evidence but
+/// no secondary stated).</item>
+/// <item>Else (no CV / Partial/NoMatch must-have / <b>Vacuous-without-signal</b>):
+/// <c>confirmed >= 1</c> → <c>Good</c>; else → <c>Basic</c>.</item>
 /// </list>
-/// Key consequences: no-CV (must-have NotAssessed) caps at <c>Good</c> — never Strong/Top
-/// (the load-bearing reversal); Partial/NoMatch must-have cap at Good/Basic;
-/// <see cref="MatchDimensionVerdict.Vacuous"/> reaches Strong/Top exactly like Match; the
-/// RB1 floor wins over a met must-have + perfect skill. The oracle below is an
-/// INDEPENDENT re-statement, not a delegation to the SUT.
+/// Key consequences: no-CV (must-have NotAssessed) caps at <c>Good</c> — never Strong/Top;
+/// Partial/NoMatch must-have cap at Good/Basic; <c>Vacuous</c> reaches Strong/Top ONLY with a
+/// skill/nice signal (F1(b) — else caps at Good); the RB1 floor wins over a met must-have +
+/// perfect skill. The oracle below is an INDEPENDENT re-statement, not a delegation to the SUT.
 /// </para>
 /// </summary>
 public class MatchGradeCalculatorTests
@@ -346,12 +349,12 @@ public class MatchGradeCalculatorTests
     //   2. var f = score.Fast;
     //   3. if f.SsykOverlap.Verdict != Match → null.
     //   4. RB1 floor (BEFORE must-have): region NoMatch OR employment NoMatch → Basic.
-    //   5. mustHaveMet = MustHaveCoverage.Verdict ∈ {Match, Vacuous}.
+    //   5. signal = skill∈{Match,Partial} || nice∈{Match,Partial};
+    //      requirementBacked = mustHave==Match || (mustHave==Vacuous && signal)  [F1(b)].
     //   6. confirmed = #Match among {region, employment}.
-    //   7. if mustHaveMet:
-    //        confirmed==2 && (skill∈{Match,Partial} || nice∈{Match,Partial}) → Top;
-    //        confirmed>=1 → Strong;  else → Basic.
-    //   8. else: confirmed>=1 → Good;  else → Basic.
+    //   7. if requirementBacked:
+    //        confirmed==2 && signal → Top;  confirmed>=1 → Strong;  else → Basic.
+    //   8. else (incl. Vacuous-without-signal): confirmed>=1 → Good;  else → Basic.
     //
     // RED until: MatchDimensionVerdict.Vacuous (5th member), the requirement-aware
     // Grade(FullMatchScore) body, and MatchGrade.Top all exist.
@@ -394,30 +397,34 @@ public class MatchGradeCalculatorTests
             || employment == MatchDimensionVerdict.NoMatch)
             return MatchGrade.Basic;
 
-        // 5. Vacuous = ad states no must-haves but the CV is present → gate-open
-        //    (Klas Reading 1), treated exactly like Match for the gate.
-        var mustHaveMet =
-            mustHave is MatchDimensionVerdict.Match or MatchDimensionVerdict.Vacuous;
+        // 5. requirementBacked (ADR 0076 amendment 2026-06-27, F1(b)): a must-have Match is
+        //    sufficient evidence on its own; a Vacuous must-have (ad states none) is gate-open
+        //    ONLY when backed by a positive skill/nice signal. Amends Reading 1 — Vacuous alone
+        //    no longer reaches Strong/Top (~98% of ads are Vacuous, so that inflated the
+        //    requirement-backed rungs with zero evidence). NotAssessed/Partial/NoMatch never pass.
+        var skillOrNiceSignal =
+            skill is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial
+            || niceToHave is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial;
+        var requirementBacked =
+            mustHave == MatchDimensionVerdict.Match
+            || (mustHave == MatchDimensionVerdict.Vacuous && skillOrNiceSignal);
 
         // 6.
         var confirmed =
             (region == MatchDimensionVerdict.Match ? 1 : 0)
             + (employment == MatchDimensionVerdict.Match ? 1 : 0);
 
-        if (mustHaveMet)
+        if (requirementBacked)
         {
-            var skillOrNiceSignal =
-                skill is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial
-                || niceToHave is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial;
-
             if (confirmed == 2 && skillOrNiceSignal)
                 return MatchGrade.Top;
             if (confirmed >= 1)
                 return MatchGrade.Strong;
-            return MatchGrade.Basic; // must-have met but no secondary stated
+            return MatchGrade.Basic; // evidence present but no secondary stated
         }
 
-        // 8. must-have NOT met (Partial / NoMatch / NotAssessed) — caps below Strong.
+        // 8. No requirement evidence (no CV / Partial / NoMatch must-have / vacuous-without-
+        //    skill) — caps below Strong.
         return confirmed >= 1 ? MatchGrade.Good : MatchGrade.Basic;
     }
 
@@ -609,14 +616,16 @@ public class MatchGradeCalculatorTests
         MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
     }
 
-    // --- Vacuous must-have (ad states no must-haves, CV present) → gate-open: reaches
-    //     Strong (and Top with skill/nice signal) EXACTLY like Match (Klas Reading 1) ---
+    // --- Vacuous must-have (ad states no must-haves, CV present) — ADR 0076 amendment
+    //     2026-06-27 (F1(b)): gate-open ONLY when backed by a skill/nice signal. Vacuous
+    //     WITHOUT a signal is pure preference-fit → caps at Good (was Strong pre-amendment). ---
 
     [Fact]
-    public void GradeFull_ShouldReturnStrong_WhenMustHaveVacuous_AndBothSecondariesMatch_NoSkillSignal()
+    public void GradeFull_ShouldReturnGood_WhenMustHaveVacuous_AndBothSecondariesMatch_NoSkillSignal()
     {
-        // A bare ad (no must-have terms) + both secondaries Match + NO skill/nice signal
-        // → Strong (NOT Top: skill & nice are Vacuous, ∉ {Match,Partial}).
+        // F1(b) CHANGED CELL: a bare ad (no must-have terms) + both secondaries Match + NO
+        // skill/nice signal → Good (pre-amendment this was Strong). Vacuous alone is not
+        // requirement evidence; without a skill/nice overlap the ad is pure preference-fit.
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.Match,
@@ -624,6 +633,22 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Vacuous,
             mustHave: MatchDimensionVerdict.Vacuous,
             niceToHave: MatchDimensionVerdict.Vacuous);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnStrong_WhenMustHaveVacuous_OneSecondaryMatch_AndSkillSignal()
+    {
+        // F1(b): a Vacuous must-have BACKED by a skill signal IS requirement-backed (Reading
+        // 1's spirit survives — a candidate genuinely sharing a skill with a no-requirement
+        // ad is not punished). One confirmed secondary + a skill Partial → Strong.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.NotAssessed,
+            skill: MatchDimensionVerdict.Partial,
+            mustHave: MatchDimensionVerdict.Vacuous);
 
         MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
     }
@@ -644,16 +669,43 @@ public class MatchGradeCalculatorTests
     }
 
     [Fact]
-    public void GradeFull_ShouldReturnStrong_WhenMustHaveVacuous_AndOneSecondaryMatch()
+    public void GradeFull_ShouldReturnGood_WhenMustHaveVacuous_OneSecondaryMatch_NoSkillSignal()
     {
-        // Open-secondary fallback also applies to a Vacuous gate (confirmed==1 → Strong).
+        // F1(b) CHANGED CELL: a Vacuous gate WITHOUT a skill/nice signal is not requirement-
+        // backed → one confirmed secondary caps at Good (pre-amendment this was Strong).
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.NotAssessed,
             mustHave: MatchDimensionVerdict.Vacuous);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+    }
+
+    // --- F1(b) load-bearing invariant: Vacuous-without-signal NEVER reaches Strong/Top
+    //     (symmetric to the no-CV invariant above). ~98% of real ads are Vacuous. ---
+
+    [Theory]
+    [InlineData(MatchDimensionVerdict.Match)]
+    [InlineData(MatchDimensionVerdict.NoMatch)]
+    [InlineData(MatchDimensionVerdict.NotAssessed)]
+    public void GradeFull_ShouldNeverReachStrongOrTop_WhenMustHaveVacuous_AndNoSkillSignal_RegardlessOfFastTuple(
+        MatchDimensionVerdict secondary)
+    {
+        // A Vacuous must-have WITHOUT a skill/nice signal is preference-fit only — it can never
+        // be requirement-backed, so it caps at Good (or Basic via the RB1 floor / no secondary)
+        // for ANY Fast tuple. The headline F1(b) guard, failing BY NAME on regression.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: secondary,
+            employment: secondary,
+            skill: MatchDimensionVerdict.Vacuous,
+            mustHave: MatchDimensionVerdict.Vacuous,
+            niceToHave: MatchDimensionVerdict.Vacuous);
+
+        var grade = MatchGradeCalculator.Grade(score);
+        grade.ShouldNotBe(MatchGrade.Strong);
+        grade.ShouldNotBe(MatchGrade.Top);
     }
 
     // --- The RB1 floor wins over a met must-have + perfect skill ---

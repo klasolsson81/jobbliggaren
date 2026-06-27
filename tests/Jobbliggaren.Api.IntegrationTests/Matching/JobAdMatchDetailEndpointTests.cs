@@ -360,16 +360,18 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
     }
 
     // =================================================================
-    // 2. Strong WITHOUT skill overlap, but with must-have VACUOUS — grade Strong.
-    //    PR-B1 (RE-BIND G1-b): the ad has no extracted terms (no must-have, no skill)
-    //    while the CV is present → all three FULL dims are Vacuous (gate-open Reading 1),
-    //    so the must-have gate is OPEN and the Strong Fast grade holds (confirmed==2, no
-    //    skill/nice {Match,Partial} signal → Strong, not Top). The skillOverlap verdict on
-    //    the wire is Vacuous, never NotAssessed (the CV WAS assessed; the ad specifies none).
+    // 2. Vacuous must-have WITHOUT a skill signal → grade GOOD (ADR 0076 amendment
+    //    2026-06-27, F1(b)). The ad has no extracted terms (no must-have, no skill) while
+    //    the CV is present → all three FULL dims are Vacuous. Pre-amendment this was Strong
+    //    (Vacuous = gate-open, Reading 1); F1(b) NARROWS that — a Vacuous gate is open only
+    //    when backed by a skill/nice signal, so a no-skill Vacuous match caps at Good
+    //    (preference-fit). The skillOverlap/mustHaveCoverage verdicts on the wire are still
+    //    Vacuous (the scorer is unchanged — the CV WAS assessed; the ad specifies none); only
+    //    the GRADE derived from them changes.
     // =================================================================
 
     [Fact]
-    public async Task GET_match_detail_returns_strong_with_skill_overlap_vacuous_when_ad_has_no_skill_terms_and_cv_present()
+    public async Task GET_match_detail_returns_good_when_must_have_vacuous_and_no_skill_signal_and_cv_present()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -382,8 +384,8 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         // the user has a non-empty CONFIRMED skill set (MatchPreferences.PreferredSkills) — that
         // is what makes the scorer report Vacuous ("we looked; the ad specifies none") rather
         // than NotAssessed ("we could not assess"). So we submit a confirmed skill; the ad still
-        // has NO terms. confirmed-set present + ad partition empty → Vacuous; must-have Vacuous =
-        // gate-open → the Strong Fast grade is preserved (no skill/nice signal → Strong, not Top).
+        // has NO terms. confirmed-set present + ad partition empty → Vacuous; a Vacuous must-have
+        // WITHOUT a skill/nice signal is not requirement-backed (F1(b)) → the grade caps at Good.
         var (skillLabel, skillConceptId) = ResolveGoldenSkill();
         await SetPreferencesAsync([grp], [reg], [emp], ct, skills: [skillConceptId]);
 
@@ -398,8 +400,8 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var dto = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
 
-        // Vacuous must-have is gate-open → Strong holds; no Top (no skill/nice signal).
-        dto.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Strong));
+        // Vacuous must-have WITHOUT a skill/nice signal is not requirement-backed (F1(b)) → Good.
+        dto.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Good));
         // The ad specifies no skills BUT we DID look (CV present) → Vacuous, never NotAssessed.
         DimVerdict(dto, "skillOverlap").ShouldBe(Wire(MatchDimensionVerdict.Vacuous));
         DimVerdict(dto, "mustHaveCoverage").ShouldBe(Wire(MatchDimensionVerdict.Vacuous));

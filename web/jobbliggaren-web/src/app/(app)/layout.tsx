@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { AppShell } from "@/components/shell/app-shell";
 import { SiteFooter } from "@/components/site/site-footer";
+import { SkipLink } from "@/components/site/skip-link";
 import { fetchLandingStats } from "@/lib/api/landing";
 import { LANDING_STATS_FLOOR_DTO } from "@/lib/dto/landing";
 
@@ -29,12 +30,7 @@ export default async function AppLayout({
 
   return (
     <>
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-      >
-        {t("layout.skipToContent")}
-      </a>
+      <SkipLink label={t("layout.skipToContent")} />
       <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
         {children}
         {modal}

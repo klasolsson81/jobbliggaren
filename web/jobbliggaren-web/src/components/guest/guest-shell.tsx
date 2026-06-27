@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Briefcase, Inbox, LayoutDashboard, LogIn, ScrollText } from "lucide-react";
-import { BrandLogo } from "@/components/brand/brand-logo";
+import { HeaderStrip } from "@/components/site/header-strip";
 
 // F-Pre Punkt 5 — Gäst-shell (CTO-dom 2026-05-24 Beslut 1, Variant A).
 // Egen shell separat från `(app)`-shellen — gemensam Look (header + brand)
@@ -50,47 +50,37 @@ export function GuestShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="jp-shell">
-      <header className="jp-header" role="banner">
-        <div className="jp-header__inner">
+      <HeaderStrip brandHref="/" brandLabel={t("shell.brandAriaLabel")}>
+        <nav className="jp-nav" aria-label={t("shell.navAriaLabel")}>
+          {GUEST_NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="jp-nav__link"
+              aria-current={isActive(pathname, item.href) ? "page" : undefined}
+            >
+              {t(item.labelKey)}
+            </Link>
+          ))}
+        </nav>
+
+        <span className="jp-header__spacer" />
+
+        <div className="jp-header__actions">
           <Link
-            href="/"
-            className="jp-brand"
-            aria-label={t("shell.brandAriaLabel")}
+            href="/logga-in"
+            className="jp-btn jp-btn--secondary jp-btn--sm"
           >
-            <BrandLogo />
+            <LogIn size={16} aria-hidden="true" /> {t("shell.logIn")}
           </Link>
-
-          <nav className="jp-nav" aria-label={t("shell.navAriaLabel")}>
-            {GUEST_NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="jp-nav__link"
-                aria-current={isActive(pathname, item.href) ? "page" : undefined}
-              >
-                {t(item.labelKey)}
-              </Link>
-            ))}
-          </nav>
-
-          <span className="jp-header__spacer" />
-
-          <div className="jp-header__actions">
-            <Link
-              href="/logga-in"
-              className="jp-btn jp-btn--secondary jp-btn--sm"
-            >
-              <LogIn size={16} aria-hidden="true" /> {t("shell.logIn")}
-            </Link>
-            <Link
-              href="/registrera"
-              className="jp-btn jp-btn--primary jp-btn--sm"
-            >
-              {t("shell.register")}
-            </Link>
-          </div>
+          <Link
+            href="/registrera"
+            className="jp-btn jp-btn--primary jp-btn--sm"
+          >
+            {t("shell.register")}
+          </Link>
         </div>
-      </header>
+      </HeaderStrip>
 
       <main id="main" tabIndex={-1} className="jp-content focus:outline-none">
         {children}

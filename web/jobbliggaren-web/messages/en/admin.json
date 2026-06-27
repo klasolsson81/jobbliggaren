@@ -3,7 +3,8 @@
     "title": "Audit log"
   },
   "layout": {
-    "skipToContent": "Skip to main content"
+    "skipToContent": "Skip to main content",
+    "brandAriaLabel": "Jobbliggaren, home"
   },
   "nav": {
     "label": "Admin navigation",

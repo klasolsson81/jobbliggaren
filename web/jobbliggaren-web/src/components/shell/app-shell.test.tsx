@@ -17,10 +17,11 @@ vi.mock("@/lib/auth/actions", () => ({
 }));
 
 // HeaderStats kör polling-setInterval i useEffect — mockas till en trivial
-// stub så app-shell-testerna inte triggar nätverksanrop eller timers.
-// Polling-/delta-logiken testas isolerat i header-stats.test.tsx.
+// markör (ingen nätverk/timer) så app-shell-testerna kan bevisa att den är
+// MONTERAD i headern utan att trigga polling. Polling-/delta-logiken testas
+// isolerat i header-stats.test.tsx.
 vi.mock("@/components/shell/header-stats", () => ({
-  HeaderStats: () => null,
+  HeaderStats: () => <div data-testid="header-stats" />,
 }));
 
 const STATS_FIXTURE: LandingStatsDto = {
@@ -142,5 +143,37 @@ describe("AppShell (v3 header-shell)", () => {
       within(drawer).getByRole("button", { name: "Stäng meny" }),
     );
     expect(screen.queryByRole("dialog", { name: "Meny" })).not.toBeInTheDocument();
+  });
+
+  it("monterar HeaderStats i den delade HeaderStrip-headern", () => {
+    // LP-5b #259: efter HeaderStrip-refaktorn ska HeaderStats fortfarande sitta
+    // i headern (server-fed initialStats → klient-polling, ADR 0064). Polling-
+    // beteendet testas isolerat i header-stats.test.tsx; här bevisas montering.
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p />
+      </AppShell>,
+    );
+
+    const banner = screen.getByRole("banner");
+    expect(within(banner).getByTestId("header-stats")).toBeInTheDocument();
+  });
+
+  it("renderar children OCH @modal-slot tillsammans i <main>", () => {
+    // (app)/layout passerar `{children}{modal}` som shellens children (ADR 0053
+    // @modal parallel-route-slot). Bevisar att HeaderStrip-refaktorn inte
+    // förflyttade slotten — båda renderas i content-arean.
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p>Sidinnehåll</p>
+        <div data-testid="modal-slot">Modalinnehåll</div>
+      </AppShell>,
+    );
+
+    const main = screen.getByRole("main");
+    expect(main).toHaveTextContent("Sidinnehåll");
+    expect(within(main).getByTestId("modal-slot")).toHaveTextContent(
+      "Modalinnehåll",
+    );
   });
 });

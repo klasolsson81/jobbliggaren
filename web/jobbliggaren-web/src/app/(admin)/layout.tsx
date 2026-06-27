@@ -1,11 +1,12 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { HeaderStrip } from "@/components/site/header-strip";
 import { SiteFooter } from "@/components/site/site-footer";
+import { SkipLink } from "@/components/site/skip-link";
 
 export default async function AdminLayout({
   children,
@@ -25,36 +26,29 @@ export default async function AdminLayout({
 
   return (
     <>
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-      >
-        {t("layout.skipToContent")}
-      </a>
+      <SkipLink label={t("layout.skipToContent")} />
       <div className="min-h-full flex flex-col bg-background">
-        <header className="border-b border-border bg-surface-secondary">
-          <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
-            <Link
-              href="/"
-              className="text-body font-medium text-text-primary hover:text-brand-600"
-            >
-              Jobbliggaren
-            </Link>
-            <AdminNav />
-            <div className="flex items-center gap-4">
-              <span className="text-body-sm text-text-secondary">{user.email}</span>
-              <form action={logoutAction}>
-                <Button type="submit" variant="ghost" size="sm">
-                  {t("nav.logout")}
-                </Button>
-              </form>
-            </div>
+        {/* LP-5b (#259): admin adopts the shared `.jp-header` strip via
+            HeaderStrip — same white sticky chrome + `<BrandLogo>` as the
+            app/guest shells, replacing the legacy raw `border-b
+            bg-surface-secondary` bar and the literal "Jobbliggaren" text brand.
+            AdminNav + account email + logout compose in unchanged. */}
+        <HeaderStrip brandHref="/" brandLabel={t("layout.brandAriaLabel")}>
+          <AdminNav />
+          <span className="jp-header__spacer" />
+          <div className="flex items-center gap-4">
+            <span className="text-body-sm text-text-secondary">{user.email}</span>
+            <form action={logoutAction}>
+              <Button type="submit" variant="ghost" size="sm">
+                {t("nav.logout")}
+              </Button>
+            </form>
           </div>
-        </header>
+        </HeaderStrip>
         <main
           id="main"
           tabIndex={-1}
-          className="flex-1 mx-auto w-full max-w-6xl px-6 py-8 focus:outline-none"
+          className="flex-1 mx-auto w-full max-w-[1200px] px-5 sm:px-8 py-8 focus:outline-none"
         >
           {children}
         </main>

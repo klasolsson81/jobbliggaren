@@ -3,7 +3,8 @@
     "title": "Granskning"
   },
   "layout": {
-    "skipToContent": "Hoppa till huvudinnehåll"
+    "skipToContent": "Hoppa till huvudinnehåll",
+    "brandAriaLabel": "Jobbliggaren, startsida"
   },
   "nav": {
     "label": "Admin-navigation",

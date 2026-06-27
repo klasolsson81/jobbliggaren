@@ -22,7 +22,7 @@ import {
 import { logoutAction } from "@/lib/auth/actions";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
-import { BrandLogo } from "@/components/brand/brand-logo";
+import { HeaderStrip } from "@/components/site/header-strip";
 import type { LandingStatsDto } from "@/lib/dto/landing";
 
 /**
@@ -376,53 +376,47 @@ export function AppShell({
 
   return (
     <div className="jp-shell">
-      <header className="jp-header" role="banner">
-        <div className="jp-header__inner">
-          <Link href="/oversikt" className="jp-brand" aria-label={t("nav.brandHome")}>
-            <BrandLogo />
-          </Link>
-
-          <nav className="jp-nav" aria-label={t("nav.ariaLabel")}>
-            {PRIMARY_NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="jp-nav__link"
-                aria-current={
-                  isActive(pathname, item.href) ? "page" : undefined
-                }
-              >
-                {t(`nav.${item.labelKey}`)}
-              </Link>
-            ))}
-          </nav>
-
-          <span className="jp-header__spacer" />
-
-          {/* Klas post-leverans-feedback 2026-05-24: HeaderStats återställd
-              på alla auth-routes inkl. /oversikt (revertera design-reviewer
-              M1 från svans-PR1). Mock-konflikten 28 vs 9 är löst i samma
-              svans-PR via att /oversikt "Aktiva annonser totalt" nu också
-              använder getLandingStats() — samma siffra som HeaderStats. */}
-          <HeaderStats initialStats={initialStats} />
-
-          <div className="jp-header__actions">
-            <NotificationsBell />
-            <UserMenu email={email} isAdmin={isAdmin} />
-            <button
-              ref={drawerTriggerRef}
-              type="button"
-              className="jp-icon-btn jp-drawer-trigger"
-              aria-label={t("header.openMenu")}
-              aria-expanded={drawerOpen}
-              aria-haspopup="dialog"
-              onClick={() => setDrawerOpen(true)}
+      <HeaderStrip brandHref="/oversikt" brandLabel={t("nav.brandHome")}>
+        <nav className="jp-nav" aria-label={t("nav.ariaLabel")}>
+          {PRIMARY_NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="jp-nav__link"
+              aria-current={
+                isActive(pathname, item.href) ? "page" : undefined
+              }
             >
-              <Menu size={20} aria-hidden="true" />
-            </button>
-          </div>
+              {t(`nav.${item.labelKey}`)}
+            </Link>
+          ))}
+        </nav>
+
+        <span className="jp-header__spacer" />
+
+        {/* Klas post-leverans-feedback 2026-05-24: HeaderStats återställd
+            på alla auth-routes inkl. /oversikt (revertera design-reviewer
+            M1 från svans-PR1). Mock-konflikten 28 vs 9 är löst i samma
+            svans-PR via att /oversikt "Aktiva annonser totalt" nu också
+            använder getLandingStats() — samma siffra som HeaderStats. */}
+        <HeaderStats initialStats={initialStats} />
+
+        <div className="jp-header__actions">
+          <NotificationsBell />
+          <UserMenu email={email} isAdmin={isAdmin} />
+          <button
+            ref={drawerTriggerRef}
+            type="button"
+            className="jp-icon-btn jp-drawer-trigger"
+            aria-label={t("header.openMenu")}
+            aria-expanded={drawerOpen}
+            aria-haspopup="dialog"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Menu size={20} aria-hidden="true" />
+          </button>
         </div>
-      </header>
+      </HeaderStrip>
 
       <Drawer
         open={drawerOpen}

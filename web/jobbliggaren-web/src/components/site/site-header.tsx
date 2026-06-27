@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { SkipLink } from "@/components/site/skip-link";
 
 /**
  * SiteHeader — the shared MINIMAL public header for the non-landing public
@@ -20,25 +21,22 @@ import { BrandLogo } from "@/components/brand/brand-logo";
  * public header variant in this wave, so the component simply IS the minimal
  * header; no inert single-member `variant` prop is added (senior-cto-advisor
  * bind, CLAUDE.md §5/YAGNI). The real axis is login-link visibility, modelled
- * by `showLogin`. A second variant is added if/when LP-5b folds the logged-in
- * shells in here.
+ * by `showLogin`. LP-5b (#259) did NOT fold the logged-in shells in here: it
+ * bound composition (a shared `<HeaderStrip>` for app/guest/admin on the
+ * `.jp-header` contract), leaving this minimal public header separate on the
+ * theme-adaptive `.jp-head` — so no `variant` discriminator was ever added.
  *
  * A11y: the brand + login links sit in a labelled `<nav>` landmark (the
  * surface's site navigation, distinct from the footer's section navs). The
- * skip link is rendered first, before the header, so every public surface that
- * mounts SiteHeader gets the same first-focusable jump to `#main` (the
- * adopting layouts expose that target). Mirrors the shells' skip-link pattern.
+ * shared `<SkipLink>` is rendered first, before the header, so every public
+ * surface that mounts SiteHeader gets the same first-focusable jump to `#main`
+ * (the adopting layouts expose that target). Same `<SkipLink>` the shells use.
  */
 export function SiteHeader({ showLogin = true }: { showLogin?: boolean }) {
   const t = useTranslations("landing");
   return (
     <>
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-      >
-        {t("common.skipToContent")}
-      </a>
+      <SkipLink label={t("common.skipToContent")} />
       <header className="jp-head">
         <nav
           className="jp-head__inner"

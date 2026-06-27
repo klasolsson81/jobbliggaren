@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { GuestShell } from "@/components/guest/guest-shell";
 import { GuestWelcomeModal } from "@/components/guest/guest-welcome-modal";
 import { SiteFooter } from "@/components/site/site-footer";
+import { SkipLink } from "@/components/site/skip-link";
 import { hasSeenGuestWelcome } from "@/lib/guest/guest-mode";
 
 // F-Pre Punkt 5 — Gäst-tree (CTO-dom 2026-05-24 Beslut 1, Variant A).
@@ -28,12 +29,7 @@ export default async function GuestLayout({
 
   return (
     <>
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-      >
-        {t("layout.skipToContent")}
-      </a>
+      <SkipLink label={t("layout.skipToContent")} />
       <GuestShell>
         {children}
         {modal}

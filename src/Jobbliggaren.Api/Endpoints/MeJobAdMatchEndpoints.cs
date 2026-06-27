@@ -76,6 +76,8 @@ public static class MeJobAdMatchEndpoints
         // ADR 0080 Vag 4 PR-5 — Översikts "Nya matchningar"-räknare (bakgrundsmatchningar nya
         // sedan senaste besök, UserJobAdMatch.CreatedAt > LastSeenMatchesAt). Ersätter STEG 6:s
         // mock "i dag"-rad. Auth-gated, MeListRead. 200 { count }.
+        // #273: the count is intentionally UNCAPPED (true new-match total) and may exceed the
+        // 50-row cap of GET /me/matches — see GetMyNewMatchCountQueryHandler for the contract.
         app.MapGet("/api/v1/me/new-match-count", async (
                 IMediator mediator, CancellationToken ct) =>
             {

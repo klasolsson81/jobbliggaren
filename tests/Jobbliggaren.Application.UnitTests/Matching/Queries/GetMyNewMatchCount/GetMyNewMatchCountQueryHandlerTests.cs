@@ -122,6 +122,32 @@ public class GetMyNewMatchCountQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ReturnsUncappedCount_WhenNewMatchesExceedTheListCap()
+    {
+        // #273 contract — the count is the TRUE total and is intentionally UNCAPPED: it may exceed
+        // the 50-row cap of GetMyMatches. This unit project runs in the pre-commit hook (the
+        // Testcontainers divergence oracle in MyMatchesSurfaceTests only runs in CI), so this is the
+        // pre-push lock: a future Math.Min(count, 50) / .Take(51) clamp turns it red before push.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        using var db = TestAppDbContextFactory.Create();
+
+        // 53 matches (> the GetMyMatches 50-row cap), null watermark → all new.
+        SeedSeeker(db, userId, lastSeen: null);
+        const int newMatches = 53;
+        for (var i = 0; i < newMatches; i++)
+            SeedMatch(db, userId, T0.AddDays(i + 1));
+        await db.SaveChangesAsync(ct);
+
+        var sut = new GetMyNewMatchCountQueryHandler(db, UserWith(userId));
+
+        var result = await sut.Handle(new GetMyNewMatchCountQuery(), ct);
+
+        // Uncapped: the true total, NOT clamped to the list's 50.
+        result.Count.ShouldBe(newMatches);
+    }
+
+    [Fact]
     public async Task Handle_ShouldCountAllMatches_WhenNoJobSeekerExists()
     {
         var ct = TestContext.Current.CancellationToken;

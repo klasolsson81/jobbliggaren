@@ -344,12 +344,101 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
 
             var isNewInList = list.Count(r => r.IsNew);
 
-            // The load-bearing coherence invariant: the Översikt "Nya matchningar"-number is
-            // EXACTLY the number of rows the view highlights as new (same user, same fetch-time
-            // watermark, strict CreatedAt > LastSeenMatchesAt on both paths).
+            // The coherence invariant BELOW the 50-cap: with fewer than 50 new matches the Översikt
+            // "Nya matchningar"-number equals exactly the number of rows the view highlights as new
+            // (same user, same fetch-time watermark, strict CreatedAt > LastSeenMatchesAt on both
+            // paths). ABOVE the cap the count stays the honest UNCAPPED total while the list shows a
+            // bounded window — that #273 contract is pinned separately by
+            // NewMatchCount_ExceedsTheFiftyCappedList_WhenUserHasMoreThanFiftyNewMatches below. Here
+            // 7 (< 50) matches keep the two equal.
             count.Count.ShouldBe(isNewInList,
-                "the new-match count must equal the number of IsNew items the matches view shows");
+                "below the 50-cap the new-match count equals the IsNew items the matches view shows");
             count.Count.ShouldBe(4, "days 6,7,8,9 are strictly after the day-5 watermark");
+        }
+    }
+
+    // ===============================================================
+    // 5b. THE DIVERGENCE ORACLE (#273) — for a heavy user the UNCAPPED new-count exceeds the
+    //     50-capped /matchningar list. Locks the documented contract: GetMyNewMatchCount is the
+    //     true new-match cardinality (the Översikt "Nya matchningar"-badge) and must NOT be clamped
+    //     to the list cap; GetMyMatches is a bounded recent-VIEW (the remainder reachable via the
+    //     /jobb grade-filter). A future "fix the divergence" clamp trips THIS test, which points
+    //     the maintainer back at the GetMyNewMatchCount contract doc.
+    // ===============================================================
+
+    [Fact]
+    public async Task NewMatchCount_ExceedsTheFiftyCappedList_WhenUserHasMoreThanFiftyNewMatches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var (db, _, scope) = NewScope();
+        using (scope)
+        {
+            // Null watermark (never opened the view) → every match is "new". 53 matches > the
+            // 50-row list cap, each to its own ad (the inner join keeps all 53 joinable).
+            await SeedSeekerAsync(db, userId, lastSeen: null, ct);
+            const int newMatches = 53;
+            for (var i = 0; i < newMatches; i++)
+            {
+                var ad = await SeedJobAdAsync(
+                    db, ClockAt(T0), $"Annons {i}", $"Company {i}", $"https://example.com/{i}", ct);
+                await SeedMatchAsync(db, userId, ad, NotifiableMatchGrade.Good, T0.AddDays(i), ct);
+            }
+
+            var countHandler = new GetMyNewMatchCountQueryHandler(db, UserWith(userId));
+            var listHandler = new GetMyMatchesQueryHandler(db, UserWith(userId));
+
+            var count = await countHandler.Handle(new GetMyNewMatchCountQuery(), ct);
+            var list = await listHandler.Handle(new GetMyMatchesQuery(), ct);
+
+            // The badge is the UNCAPPED true total — all 53 new matches counted (ADR 0080 PR-5
+            // verbatim COUNT WHERE CreatedAt > last_seen).
+            count.Count.ShouldBe(newMatches,
+                "GetMyNewMatchCount is the true new-match cardinality — uncapped");
+
+            // The list is a bounded recent-VIEW — capped at 50; with a null watermark every visible
+            // row is new, so visible-new = min(newCount, 50) = 50.
+            list.Count.ShouldBe(50, "GetMyMatches caps the recent-view at 50 rows");
+            list.Count(r => r.IsNew).ShouldBe(50,
+                "with a null watermark every visible row is new → visible-new = min(newCount, 50)");
+
+            // THE DIVERGENCE the #273 contract documents and intentionally permits: badge > list.
+            // Do NOT clamp the count to the cap — the remainder is reachable via /jobb grade-filter.
+            count.Count.ShouldBeGreaterThan(list.Count,
+                "for a heavy user the uncapped badge (53) intentionally exceeds the 50-capped list");
+        }
+    }
+
+    [Fact]
+    public async Task NewMatchCount_EqualsTheFiftyCappedList_WhenUserHasExactlyFiftyNewMatches()
+    {
+        // The cap-EQUALITY seam (#273): at exactly 50 new matches the count and the list coincide —
+        // divergence is precisely zero (50 is NOT > 50). Brackets the transition (50 = equal,
+        // 53 = diverge) and pins the > 50 / >= 50 off-by-one a future clamp refactor would trip.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var (db, _, scope) = NewScope();
+        using (scope)
+        {
+            await SeedSeekerAsync(db, userId, lastSeen: null, ct);
+            const int newMatches = 50;
+            for (var i = 0; i < newMatches; i++)
+            {
+                var ad = await SeedJobAdAsync(
+                    db, ClockAt(T0), $"Annons {i}", $"Company {i}", $"https://example.com/{i}", ct);
+                await SeedMatchAsync(db, userId, ad, NotifiableMatchGrade.Good, T0.AddDays(i), ct);
+            }
+
+            var count = await new GetMyNewMatchCountQueryHandler(db, UserWith(userId))
+                .Handle(new GetMyNewMatchCountQuery(), ct);
+            var list = await new GetMyMatchesQueryHandler(db, UserWith(userId))
+                .Handle(new GetMyMatchesQuery(), ct);
+
+            count.Count.ShouldBe(newMatches, "exactly 50 new matches → the count is 50");
+            list.Count.ShouldBe(50, "the list shows all 50 (at the cap, none dropped)");
+            list.Count(r => r.IsNew).ShouldBe(50, "every visible row is new");
+            // At the seam the two surfaces coincide — NO divergence yet.
+            count.Count.ShouldBe(list.Count, "at exactly the cap the badge and the list are equal");
         }
     }
 

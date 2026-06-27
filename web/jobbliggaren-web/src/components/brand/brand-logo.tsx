@@ -26,19 +26,44 @@ export interface BrandLogoProps {
    * the full lockup. Default 40 (the enlarged header lockup).
    */
   markSize?: number;
+  /**
+   * `inverse` renders the seal for a dark surface (the deep-green footer,
+   * `--jp-accent-900` #0B2A1E): a white disc with dark-green ring/rows, the
+   * gold mid-row kept, and a white check. The mark exposes its three fills as
+   * props, so this is purely a fill-set swap — the geometry SSOT
+   * (`BrandMarkSvg`) is untouched. Default `false` (the green-disc mark).
+   */
+  inverse?: boolean;
 }
 
-export function BrandLogo({ variant = "full", markSize = 40 }: BrandLogoProps) {
+export function BrandLogo({
+  variant = "full",
+  markSize = 40,
+  inverse = false,
+}: BrandLogoProps) {
   const t = useTranslations("landing");
+  // Inverse = white disc on the dark-green footer; default = green disc on a
+  // light surface. Fills are theme-stable literals/tokens that do not shift
+  // (accent-900 + gold are pinned), so the inverse seal stays legible whatever
+  // the surrounding shell theme is.
+  const markFills = inverse
+    ? {
+        primaryFill: "#FFFFFF",
+        accentFill: "var(--jp-gold)",
+        paperFill: "var(--jp-accent-900)",
+      }
+    : {
+        primaryFill: "var(--jp-mark-primary)",
+        accentFill: "var(--jp-mark-accent)",
+        paperFill: "var(--jp-mark-paper)",
+      };
   return (
     <>
       <BrandMarkSvg
         className="jp-brand__mark"
         width={markSize}
         height={markSize}
-        primaryFill="var(--jp-mark-primary)"
-        accentFill="var(--jp-mark-accent)"
-        paperFill="var(--jp-mark-paper)"
+        {...markFills}
         ariaHidden={variant === "full" ? true : undefined}
         ariaLabel={variant === "mark" ? t("brand.markLabel") : undefined}
       />

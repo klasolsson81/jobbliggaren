@@ -1,6 +1,11 @@
 import { createFormatter } from "next-intl";
 import { describe, expect, it } from "vitest";
-import { formatDate, formatNumber, formatTime } from "./format";
+import {
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatTime,
+} from "./format";
 
 // Real next-intl formatters per locale (the same object useFormatter() /
 // getFormatter() return). timeZone is pinned to Europe/Stockholm to match the
@@ -55,6 +60,39 @@ describe("formatDate", () => {
 
   it("returns null for an unparseable date string", () => {
     expect(formatDate(sv, "not-a-date")).toBeNull();
+  });
+});
+
+describe("formatDateTime", () => {
+  // 08:32Z in May is CEST (UTC+2) → 10:32 local in Europe/Stockholm.
+  const iso = "2026-05-11T08:32:15.000Z";
+
+  it("renders the ledger shape YYYY-MM-DD HH:mm in sv (Europe/Stockholm)", () => {
+    expect(formatDateTime(sv, iso)).toBe("2026-05-11 10:32");
+  });
+
+  it("renders the same ledger shape in en (operator convention, locale-stable)", () => {
+    expect(formatDateTime(en, iso)).toBe("2026-05-11 10:32");
+  });
+
+  it("is identical across locales (column-aligned operator form)", () => {
+    expect(formatDateTime(sv, iso)).toBe(formatDateTime(en, iso));
+  });
+
+  it("uses a 24h clock with no AM/PM", () => {
+    const evening = "2026-05-11T20:30:00Z";
+    expect(formatDateTime(en, evening)).toBe("2026-05-11 22:30");
+    expect(formatDateTime(en, evening)).not.toMatch(/[AP]M/i);
+  });
+
+  it("returns null for missing input so callers can show a 'never run' label", () => {
+    expect(formatDateTime(sv, null)).toBeNull();
+    expect(formatDateTime(sv, undefined)).toBeNull();
+    expect(formatDateTime(sv, "")).toBeNull();
+  });
+
+  it("returns null for an unparseable date string", () => {
+    expect(formatDateTime(sv, "not-a-date")).toBeNull();
   });
 });
 

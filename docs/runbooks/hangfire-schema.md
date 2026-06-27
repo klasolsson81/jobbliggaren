@@ -162,6 +162,29 @@ lokalt). Defererat tills första prod-deploy.
 
 ## 5. Hangfire dashboard — SECURITY (TD-17 punkt 3)
 
+> **SUPERSEDED 2026-06-27 (#204 / TD-83, ADR 0082 lokal).** Den inbyggda
+> Hangfire-dashboarden monteras INTE — varken i Api, Worker eller dev-tooling.
+> En custom civic **operatörsyta** byggdes i stället (Variant B, senior-cto-advisor
+> + security-auditor 2026-06-27): curerade admin-JSON-endpoints
+> (`GET /api/v1/admin/jobs/recurring|failed`, mutationer i separat PR) bakom den
+> befintliga Bearer-/admin-vägen, konsumerade av sidan `/admin/jobb`. Skälen som
+> avvisade den inbyggda dashboarden:
+> 1. **Trust-modellen (ADR 0017/0018).** Backend är medvetet icke-browser-nåbar
+>    och Bearer-only (`Api/Program.cs` ARKITEKTUR-VARNING). En browser-renderad
+>    dashboard skulle kräva ett cookie-auth-scheme på backend (förbjudet) eller en
+>    skör proxy av Hangfires egen HTML/antiforgery — båda bryter CSRF-modellen.
+> 2. **PII (GDPR Art. 5).** Dashboarden visar råa job-args + stack-traces vi inte
+>    kan fält-kontrollera; operatörsytan ytsätter bara curerade PII-fria fält
+>    (undantags-typnamn som felkategori, aldrig message/trace).
+> 3. **Audit (Art. 30).** Dashboardens egna trigger/retry/delete kringgår
+>    AuditBehavior; operatörsytans mutationer (separat PR) auditeras via
+>    `IAuditableCommand`.
+>
+> Checklistan nedan bevaras som historik (den hade gällt OM dashboarden monterats)
+> men är **inte** en aktiveringsväg. Djup Hangfire-forensik bortom operatörsytans
+> curerade vyer görs via direkt `hangfire.*`-SQL (§5 slutet) — aldrig genom att
+> återexponera dashboarden.
+
 **Dashboard exponeras INTE i Fas 1.** Worker hostar inte HTTP. Om dashboard
 någonsin införs (i Api eller dev-tooling) gäller följande:
 
@@ -211,7 +234,11 @@ app.MapWhen(ctx => ctx.Request.Path.StartsWithSegments("/hangfire"),
 
 4. **Kort session-expire för admin-roll** — JobbPilot-cookien (ADR 0018) är
    30d refresh, för långt för admin. Sätt SlidingExpiration ~15 min på
-   admin-policy (separat cookie-scheme eller policy-baserad expire).
+   admin-policy (policy-baserad expire). ~~separat cookie-scheme~~ **UPPHÄVT
+   2026-06-27 (#204):** ett cookie-auth-scheme på backend är förbjudet (ADR
+   0017/0018 Bearer-only icke-browser-nåbar backend; `Api/Program.cs`
+   ARKITEKTUR-VARNING). Operatörsytan ärver i stället admin-rollens
+   session-semantik via den befintliga Bearer-/BFF-vägen.
 
 5. **No-cache headers** — dashboard-svar ska inte cacheas av reverse-proxy/
    CloudFront:

@@ -38,6 +38,12 @@ export default async function AdminLayout({
             >
               {t("nav.granskning")}
             </Link>
+            <Link
+              href="/admin/jobb"
+              className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
+            >
+              {t("nav.jobb")}
+            </Link>
           </nav>
           <div className="flex items-center gap-4">
             <span className="text-body-sm text-text-secondary">{user.email}</span>

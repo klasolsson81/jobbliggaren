@@ -86,10 +86,16 @@ public static class MatchGradeCalculator
     /// <item><b>Contradiction floor (RB1, FIRST):</b> a stated region/employment the ad
     /// contradicts (<c>NoMatch</c>) → <see cref="MatchGrade.Basic"/> — a perfect requirement
     /// match in the wrong city is still Basic (Klas 2026-06-19 "det sämsta är ... fel ort").</item>
-    /// <item><b>Requirement gate:</b> <c>mustHaveMet = MustHaveCoverage ∈ {Match, Vacuous}</c>.
-    /// <c>Match</c> = all must-haves covered; <c>Vacuous</c> = the ad states none (gate-OPEN,
-    /// Klas Reading 1 — a qualified candidate is not punished for a no-requirement ad). A
-    /// no-CV user (<c>NotAssessed</c>) or <c>Partial</c>/<c>NoMatch</c> coverage does NOT pass.</item>
+    /// <item><b>Requirement gate (ADR 0076 amendment 2026-06-27, F1(b)):</b>
+    /// <c>requirementBacked = MustHaveCoverage == Match OR (MustHaveCoverage == Vacuous AND
+    /// HasSkillOrNiceSignal)</c>. A covered must-have (<c>Match</c>) is sufficient evidence on
+    /// its own; a <c>Vacuous</c> must-have (ad states none) is gate-open ONLY when backed by a
+    /// positive skill/nice signal. This AMENDS Reading 1 (it does not reverse it): a candidate
+    /// who genuinely shares a skill with a no-requirement ad still reaches Strong/Top, but a
+    /// purely preference-fit match on a no-requirement, no-skill-overlap ad caps at
+    /// <see cref="MatchGrade.Good"/> — because ~98% of real ads are Vacuous, so Vacuous alone
+    /// was awarding "requirement-backed" rungs with zero evidence (#268 F1). A no-CV user
+    /// (<c>NotAssessed</c>) or <c>Partial</c>/<c>NoMatch</c> coverage never passes.</item>
     /// <item><b>If the gate is met:</b> both secondaries confirmed AND a skill/nice-to-have
     /// signal (<c>∈ {Match, Partial}</c>) → <see cref="MatchGrade.Top"/>; at least one
     /// confirmed secondary → <see cref="MatchGrade.Strong"/> (the other <c>Match</c>, or
@@ -128,10 +134,20 @@ public static class MatchGradeCalculator
             || fast.EmploymentFit.Verdict == MatchDimensionVerdict.NoMatch)
             return MatchGrade.Basic;
 
-        // Requirement gate: must-have MET (all covered) OR VACUOUS (ad states none, gate
-        // -open). NotAssessed (no CV) / Partial / NoMatch do not pass → capped below Strong.
-        var mustHaveMet = score.MustHaveCoverage.Verdict
-            is MatchDimensionVerdict.Match or MatchDimensionVerdict.Vacuous;
+        // Requirement gate (ADR 0076 amendment 2026-06-27, F1(b) — Klas GO from the #268
+        // grade-precision audit): the requirement-backed upper rungs require POSITIVE
+        // evidence. A must-have Match is sufficient on its own; a VACUOUS must-have (ad
+        // states none) is gate-open ONLY when backed by a positive skill/nice signal. This
+        // AMENDS — does not reverse — Reading 1: a candidate who genuinely shares a skill
+        // with a no-requirement ad still reaches Strong/Top, but a purely preference-fit
+        // match on a no-requirement, no-skill-overlap ad caps at Good. Empirically ~98% of
+        // ads are Vacuous, so the prior Vacuous=gate-open rule inflated Strong/Top into
+        // "requirement-backed" badges carrying zero evidence (#268 F1). NotAssessed (no CV)
+        // / Partial / NoMatch must-have never pass.
+        var hasSignal = HasSkillOrNiceSignal(score);
+        var requirementBacked =
+            score.MustHaveCoverage.Verdict == MatchDimensionVerdict.Match
+            || (score.MustHaveCoverage.Verdict == MatchDimensionVerdict.Vacuous && hasSignal);
 
         // NoMatch on a secondary is already floored out above, so a Match here is the only
         // positive; NotAssessed ("open"/not stated) neither confirms nor floors.
@@ -139,17 +155,18 @@ public static class MatchGradeCalculator
             (fast.RegionFit.Verdict == MatchDimensionVerdict.Match ? 1 : 0)
             + (fast.EmploymentFit.Verdict == MatchDimensionVerdict.Match ? 1 : 0);
 
-        if (mustHaveMet)
+        if (requirementBacked)
         {
-            // Top: requirements met + BOTH secondaries confirmed + a positive skill/nice
-            // signal. Strong: requirements met + at least one confirmed secondary.
-            if (confirmedSecondaries == 2 && HasSkillOrNiceSignal(score))
+            // Top: evidence + BOTH secondaries confirmed + a positive skill/nice signal.
+            // Strong: evidence + at least one confirmed secondary.
+            if (confirmedSecondaries == 2 && hasSignal)
                 return MatchGrade.Top;
 
             return confirmedSecondaries >= 1 ? MatchGrade.Strong : MatchGrade.Basic;
         }
 
-        // Requirements not met (no CV / partial / disjoint): preference-fit only.
+        // No requirement evidence (no CV / Partial / NoMatch must-have / vacuous-without-
+        // skill): preference-fit only — never Strong/Top.
         return confirmedSecondaries >= 1 ? MatchGrade.Good : MatchGrade.Basic;
     }
 

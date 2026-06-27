@@ -58,7 +58,6 @@
     "tabRegister": "Create account",
     "tabLogin": "Log in",
     "tablistLabel": "Log in or create account",
-    "passwordHint": "At least 8 characters.",
     "fine": "By creating an account you accept the terms of use and the privacy policy. Jobbliggaren never sells your data."
   },
   "footer": {

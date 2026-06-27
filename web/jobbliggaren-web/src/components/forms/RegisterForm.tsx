@@ -46,7 +46,11 @@ export function RegisterForm() {
           type="password"
           autoComplete="new-password"
           required
+          aria-describedby="password-hint"
         />
+        <p id="password-hint" className="text-body-sm text-text-secondary">
+          {t("auth.register.passwordHint")}
+        </p>
       </div>
 
       {state?.error && (

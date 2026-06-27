@@ -159,6 +159,7 @@
       "emailLabel": "Email address",
       "emailHint": "The format is name@domain.se",
       "passwordLabel": "Password",
+      "passwordHint": "At least 8 characters.",
       "submit": "Create account",
       "submitting": "Creating account..."
     },

@@ -54,8 +54,9 @@ public sealed class ImportResumeCommandHandler(
                 "Resume.UnsupportedFileFormat",
                 "Filformatet stöds inte. Ladda upp en PDF- eller Word-fil (DOCX)."));
 
-        // 1. Extract raw text (never throws — degraded files return a fallback status).
-        var extraction = extractor.Extract(command.FileBytes, kind);
+        // 1. Extract raw text (never throws on a degraded file — returns a fallback
+        //    status; honours the request ct cooperatively, #272 SEC-2).
+        var extraction = extractor.Extract(command.FileBytes, kind, cancellationToken);
 
         // 2. Personnummer guard on the RAW text BEFORE persist (Invariant 1). The
         //    normalizer bridges spaced/OCR-gapped forms on a transient scan-copy only;

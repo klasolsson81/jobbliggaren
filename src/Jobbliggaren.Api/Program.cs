@@ -24,6 +24,13 @@ using ValidationException = Jobbliggaren.Application.Common.Exceptions.Validatio
 
 var builder = WebApplication.CreateBuilder(args);
 
+// #272 SEC-3 — explicit app-wide request-body backstop. Below the framework's implicit
+// ~28.6 MiB default and above the /resumes/import per-request override (11 MiB,
+// ResumesEndpoints.MaxUploadBytes = the 10 MiB validator floor + 1 MiB), which stays the
+// authoritative, tighter gate for CV uploads. Non-resume endpoints carry small JSON
+// bodies well under this; it only tightens the unconditional default, never loosens.
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 16L * 1024 * 1024);
+
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
 // TD-104 / STEG 6 — persistent strukturerad logg-sink (MEL → Seq, config-gated på

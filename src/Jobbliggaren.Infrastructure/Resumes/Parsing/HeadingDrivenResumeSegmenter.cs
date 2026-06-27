@@ -560,6 +560,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     [GeneratedRegex(@"\b(19|20)\d{2}\b", RegexOptions.CultureInvariant)]
     private static partial Regex YearRegex();
 
-    [GeneratedRegex(@"[\n,;]", RegexOptions.CultureInvariant)]
+    // #252: list/keyword sections also separate skills by middot, bullet or pipe
+    // ("X · Y · Z", "A • B", "A | B") — not only newline/comma/semicolon. Splitting these
+    // lets each skill resolve independently (parity ParseList's per-token TrimStart of the
+    // same glyphs). Space is deliberately NOT a separator (it would shred multi-word skills
+    // like "ASP.NET Core" / "Clean Architecture"; a space-run still resolves via lexeme-bag
+    // containment in SkillTaxonomyIndex.MatchForms).
+    [GeneratedRegex(@"[\n,;•·|]", RegexOptions.CultureInvariant)]
     private static partial Regex ListSeparatorRegex();
 }

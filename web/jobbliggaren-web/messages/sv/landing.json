@@ -27,7 +27,12 @@
     "peekCard1Title": "Backend-utvecklare .NET",
     "peekCard1Meta": "Volvo Cars Sverige AB · Göteborg",
     "peekCard2Title": "Systemutvecklare fullstack",
-    "peekCard2Meta": "Folksam IT · Stockholm"
+    "peekCard2Meta": "Folksam IT · Stockholm",
+    "step1": "Hitta jobbet.",
+    "step2": "Sök jobbet.",
+    "step3": "Följ upp ansökan.",
+    "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, skapa ditt CV och håll koll på varje ansökan, från utkast till svar. Allt på ett ställe.",
+    "guest": "Utforska som gäst, utan konto"
   },
   "features": {
     "kicker": "Funktioner",
@@ -49,13 +54,55 @@
       "body": "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar, så du missar inga deadlines."
     }
   },
+  "auth": {
+    "tabRegister": "Skapa konto",
+    "tabLogin": "Logga in",
+    "tablistLabel": "Logga in eller skapa konto",
+    "passwordHint": "Minst 8 tecken.",
+    "fine": "Genom att skapa konto godkänner du användarvillkoren och integritetspolicyn. Jobbliggaren säljer aldrig din data."
+  },
   "footer": {
     "linkAbout": "Om Jobbliggaren",
     "linkTerms": "Användarvillkor",
     "linkPrivacy": "Integritetspolicy",
     "linkCookies": "Cookies",
     "linkAccessibility": "Tillgänglighet",
-    "linkContact": "Kontakt"
+    "linkContact": "Kontakt",
+    "blurb": "Håll ordning i hela ditt jobbsökande. Sök, ansök och följ upp på ett ställe.",
+    "source": "Byggd på öppen data från Arbetsförmedlingen",
+    "free": "Jobbliggaren är gratis att använda.",
+    "followUs": "Följ oss",
+    "copyright": "© 2026 Jobbliggaren",
+    "colProduct": "Produkt",
+    "colStart": "Kom igång",
+    "colSupport": "Stöd och guider",
+    "colLegal": "Om och juridik",
+    "product": {
+      "jobs": "Sök jobb",
+      "applications": "Mina ansökningar",
+      "cv": "CV",
+      "reminders": "Påminnelser",
+      "matches": "Matchningar"
+    },
+    "start": {
+      "register": "Skapa konto",
+      "login": "Logga in",
+      "guest": "Utforska som gäst"
+    },
+    "support": {
+      "help": "Hjälpcenter",
+      "faq": "Vanliga frågor",
+      "tips": "Tips för jobbsökande",
+      "accessibility": "Tillgänglighet"
+    },
+    "legal": {
+      "about": "Om Jobbliggaren",
+      "contact": "Kontakt",
+      "terms": "Användarvillkor",
+      "privacy": "Integritetspolicy",
+      "cookies": "Cookies",
+      "developers": "För utvecklare"
+    }
   },
   "siteFooter": {
     "copyright": "© Jobbliggaren · sluten beta",
@@ -125,6 +172,8 @@
     "cookiesTitle": "Cookies",
     "cookiesDescription": "Information om cookies på Jobbliggaren. Endast nödvändiga cookies används under sluten beta.",
     "termsTitle": "Användarvillkor",
-    "termsDescription": "Jobbliggarens användarvillkor. Sluten beta: full text publiceras innan första öppna registrering."
+    "termsDescription": "Jobbliggarens användarvillkor. Sluten beta: full text publiceras innan första öppna registrering.",
+    "homeTitle": "Hitta, sök och följ upp jobb",
+    "homeDescription": "Sök bland alla aktiva annonser från Platsbanken, skapa ditt CV och följ upp varje ansökan, från utkast till svar."
   }
 }

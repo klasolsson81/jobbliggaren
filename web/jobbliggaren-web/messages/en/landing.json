@@ -27,7 +27,12 @@
     "peekCard1Title": "Backend developer .NET",
     "peekCard1Meta": "Volvo Cars Sverige AB · Gothenburg",
     "peekCard2Title": "Systems developer fullstack",
-    "peekCard2Meta": "Folksam IT · Stockholm"
+    "peekCard2Meta": "Folksam IT · Stockholm",
+    "step1": "Find the job.",
+    "step2": "Apply for the job.",
+    "step3": "Follow up on the application.",
+    "ledgerLede": "Search every active job ad from Platsbanken, build your CV and keep track of every application, from draft to response. All in one place.",
+    "guest": "Explore as a guest, without an account"
   },
   "features": {
     "kicker": "Features",
@@ -49,13 +54,55 @@
       "body": "Interviews and application deadlines are captured automatically from your applications, so you do not miss any deadlines."
     }
   },
+  "auth": {
+    "tabRegister": "Create account",
+    "tabLogin": "Log in",
+    "tablistLabel": "Log in or create account",
+    "passwordHint": "At least 8 characters.",
+    "fine": "By creating an account you accept the terms of use and the privacy policy. Jobbliggaren never sells your data."
+  },
   "footer": {
     "linkAbout": "About Jobbliggaren",
     "linkTerms": "Terms of use",
     "linkPrivacy": "Privacy policy",
     "linkCookies": "Cookies",
     "linkAccessibility": "Accessibility",
-    "linkContact": "Contact"
+    "linkContact": "Contact",
+    "blurb": "Keep your whole job search in order. Search, apply and follow up in one place.",
+    "source": "Built on open data from the Swedish Public Employment Service",
+    "free": "Jobbliggaren is free to use.",
+    "followUs": "Follow us",
+    "copyright": "© 2026 Jobbliggaren",
+    "colProduct": "Product",
+    "colStart": "Get started",
+    "colSupport": "Support and guides",
+    "colLegal": "About and legal",
+    "product": {
+      "jobs": "Search jobs",
+      "applications": "My applications",
+      "cv": "CV",
+      "reminders": "Reminders",
+      "matches": "Matches"
+    },
+    "start": {
+      "register": "Create account",
+      "login": "Log in",
+      "guest": "Explore as a guest"
+    },
+    "support": {
+      "help": "Help centre",
+      "faq": "FAQ",
+      "tips": "Tips for job seekers",
+      "accessibility": "Accessibility"
+    },
+    "legal": {
+      "about": "About Jobbliggaren",
+      "contact": "Contact",
+      "terms": "Terms of use",
+      "privacy": "Privacy policy",
+      "cookies": "Cookies",
+      "developers": "For developers"
+    }
   },
   "siteFooter": {
     "copyright": "© Jobbliggaren · closed beta",
@@ -125,6 +172,8 @@
     "cookiesTitle": "Cookies",
     "cookiesDescription": "Information about cookies on Jobbliggaren. Only necessary cookies are used during closed beta.",
     "termsTitle": "Terms of use",
-    "termsDescription": "Jobbliggaren's terms of use. Closed beta: full text will be published before the first open registration."
+    "termsDescription": "Jobbliggaren's terms of use. Closed beta: full text will be published before the first open registration.",
+    "homeTitle": "Find, apply for and follow up on jobs",
+    "homeDescription": "Search every active job ad from Platsbanken, build your CV and follow up on every application, from draft to response."
   }
 }

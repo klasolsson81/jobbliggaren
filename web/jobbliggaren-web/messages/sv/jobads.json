@@ -162,7 +162,7 @@
     "gradeFilter": {
       "toggleLabel": "Matchning",
       "groupLabel": "Visa matchningsgrader",
-      "help": "Filtrerar listan efter din matchningsnivå. Avmarkera en grad för att dölja den.",
+      "help": "Filtrerar listan efter din matchningsnivå. Avmarkera en grad för att dölja den, eller stäng av matchningen helt.",
       "grade": {
         "Basic": "Grund",
         "Good": "Bra",

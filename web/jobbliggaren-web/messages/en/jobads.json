@@ -162,7 +162,7 @@
     "gradeFilter": {
       "toggleLabel": "Matching",
       "groupLabel": "Show match grades",
-      "help": "Filters the list by your match level. Uncheck a grade to hide it.",
+      "help": "Filters the list by your match level. Uncheck a grade to hide it, or turn matching off entirely.",
       "grade": {
         "Basic": "Basic",
         "Good": "Good",

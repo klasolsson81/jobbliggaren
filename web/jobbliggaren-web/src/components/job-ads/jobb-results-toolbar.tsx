@@ -81,6 +81,16 @@ interface JobbResultsToolbarProps {
    * det på sidan där kontrollen lever (F4-14 FAS-DEFERRAL-MANIFEST).
    */
   hasStatedDesiredOccupation: boolean;
+  /**
+   * issue #292 (senior-cto-advisor-bind) — matchnings-axelns SSOT, härledd i
+   * `jobb-results.tsx`: `matchActive = hasStatedDesiredOccupation &&
+   * !matchningOff`. Driver de tre gaterna i toolbaren: (b) match-sort-alternativet
+   * + select-koercion, (c) grad-filtrets på/av + help-note, samt match-sort-
+   * disclosuren. Skild från `hasStatedDesiredOccupation`: grad-filtret RENDERAS
+   * när yrke är angett (så switchen kan slå PÅ matchningen igen) men är AV när
+   * `matchActive` är false.
+   */
+  matchActive: boolean;
 }
 
 // Sort-alternativ i denna ordning. Labels per Klas-prompt E2e 2026-06-11 +
@@ -136,6 +146,7 @@ export function JobbResultsToolbar({
   sortBy,
   pageSize,
   hasStatedDesiredOccupation,
+  matchActive,
 }: JobbResultsToolbarProps) {
   const tEnum = useTranslations("jobads.enums");
   const t = useTranslations("jobads.ui");
@@ -185,11 +196,23 @@ export function JobbResultsToolbar({
     (_current, next: JobbUrlState) => next,
   );
 
-  // Om URL bär en sort utanför de tre locked alternativen (t.ex.
-  // PublishedAtAsc), visar select:en default men toolbaren emitterar
-  // bara de tre. Bevarar ändå det riktiga sortBy-värdet i URL-build tills
-  // användaren aktivt byter (annars skulle render tvinga ett byte).
-  const selectValue = SORT_OPTIONS.some((o) => o.value === urlState.sortBy)
+  // issue #292 — gate (b) (UI-sidan): match-sort-alternativet erbjuds BARA när
+  // matchningen är aktiv. När den är av/saknar yrke droppas MatchDesc ur de
+  // renderade alternativen helt (kontroll-paritet: ingen ordning man inte kan
+  // motivera). jobb-results.tsx coercerar samtidigt list-queryns sort på SIN
+  // sida (effectiveSortBy) så URL-sanning och faktisk ordning aldrig divergerar.
+  const sortOptions = matchActive
+    ? SORT_OPTIONS
+    : SORT_OPTIONS.filter((o) => o.value !== "MatchDesc");
+
+  // Om URL bär en sort utanför de RENDERADE alternativen (t.ex. PublishedAtAsc,
+  // eller MatchDesc medan matchningen är av) visar select:en default men
+  // toolbaren emitterar bara de erbjudna. Bevarar annars det riktiga sortBy-
+  // värdet i URL-build tills användaren aktivt byter (annars skulle render
+  // tvinga ett byte). issue #292: när matchningen är av faller en MatchDesc-URL
+  // hit → selectValue blir DEFAULT_SORT_BY (visar nyaste-först, paritet med
+  // jobb-results-koercionen).
+  const selectValue = sortOptions.some((o) => o.value === urlState.sortBy)
     ? urlState.sortBy
     : DEFAULT_SORT_BY;
 
@@ -199,6 +222,13 @@ export function JobbResultsToolbar({
   // ett yrke ställs in → propen blir true vid nästa render). Icke-avfärdbar
   // (paritet Översikt-nudgen): den enda förklaringen på sidan till varför
   // ordningen är datum-baserad.
+  //
+  // issue #292 — match-sort-koercionen (gate (b)) gör att `selectValue` ALDRIG
+  // är `MatchDesc` när matchningen är av/saknar yrke (MatchDesc droppas ur
+  // sortOptions). Disclosuren — vars villkor är `!hasStatedDesiredOccupation` —
+  // kan därför inte längre visas (utan yrke finns ingen valbar match-sort att
+  // disclosera). Logiken behålls som SSOT för förklaringsraden men är i praktiken
+  // vilande under den nya gateringen.
   const showMatchSortDisclosure =
     selectValue === "MatchDesc" && !hasStatedDesiredOccupation;
 
@@ -226,7 +256,23 @@ export function JobbResultsToolbar({
   }
 
   function onMatchGradesChange(next: string[]) {
-    navigate({ ...urlState, matchGrades: next });
+    // issue #292 — grad-justeringar sker BARA när matchningen redan är PÅ
+    // (matchningOff=false). En tom lista betyder här "alla grader visas",
+    // INTE "av" (av styrs av huvudbrytaren). Behåll matchningOff=false.
+    navigate({ ...urlState, matchGrades: next, matchningOff: false });
+  }
+
+  // issue #292 — huvudbrytaren AV: skriv `?matchning=off` + TÖM matchGrades
+  // ("forget"-semantik, CTO-bind: en senare PÅ återställer till alla grader,
+  // inte den tidigare smalnade delmängden).
+  function onMatchTurnOff() {
+    navigate({ ...urlState, matchningOff: true, matchGrades: [] });
+  }
+
+  // issue #292 — huvudbrytaren PÅ: ta bort off-flaggan + lämna matchGrades tomt
+  // (= alla grader visas). Renderas av grad-filtret som ALLA-ikryssade.
+  function onMatchTurnOn() {
+    navigate({ ...urlState, matchningOff: false, matchGrades: [] });
   }
 
   function removeChip(chip: SearchChip) {
@@ -331,20 +377,32 @@ export function JobbResultsToolbar({
       </div>
 
       <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-        {/* STEG 5 (grade-filter) — visas BARA när användaren angett ett yrke
-            (graden kan inte beräknas annars; paritet med match-sort-
-            disclosurens gate). Filtrerar på Grund/Bra/Stark (aldrig Toppmatch).
-            Navigerar utan commit-flaggan (runtime-view-state). */}
+        {/* STEG 5 / issue #292 (grade-filter) — RENDERAS när användaren angett
+            ett yrke (graden kan inte beräknas annars; paritet med match-sort-
+            disclosurens gate). Switchen speglar `matchActive` (matchnings-axelns
+            huvudbrytare) — INTE selected.length. PÅ → grad-kryssrutor
+            (Grund/Bra/Stark, aldrig Toppmatch). Navigerar utan commit-flaggan
+            (runtime-view-state). */}
         {hasStatedDesiredOccupation && (
           <JobbMatchGradeFilter
+            active={matchActive}
             selected={urlState.matchGrades}
             onChange={onMatchGradesChange}
+            onTurnOff={onMatchTurnOff}
+            onTurnOn={onMatchTurnOn}
           />
         )}
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {/* issue #292 — "Sortera"-labeln flyttad OVANFÖR select:en som ett
+            block-element (svag inline-label borttagen, Klas-feedback). htmlFor-
+            associationen behålls (a11y: labeln namnger fortfarande select:en). */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label
             htmlFor="jobb-sort"
-            style={{ fontSize: 14, color: "var(--jp-ink-2)" }}
+            style={{
+              display: "block",
+              fontSize: 14,
+              color: "var(--jp-ink-2)",
+            }}
           >
             {t("toolbar.sortLabel")}
           </label>
@@ -355,7 +413,7 @@ export function JobbResultsToolbar({
             value={selectValue}
             onChange={onSortChange}
           >
-            {SORT_OPTIONS.map((opt) => (
+            {sortOptions.map((opt) => (
               <option
                 key={opt.value}
                 value={opt.value}
@@ -368,12 +426,13 @@ export function JobbResultsToolbar({
         </div>
       </div>
     </div>
-    {/* STEG 5 (grade-filter) — kort, valfri hjälprad. Förklarar att kontrollen
-        filtrerar på DIN matchningsnivå utan att antyda per-kort-exakthet
-        (aldrig "Visa endast Toppmatchningar" — listan är Fast-bandet). Visas
-        bara när filtret är PÅ (minst en grad vald) så off-läget förblir tyst.
-        Platt civic info-not (samma .jp-matchsort-note-rytm, ingen box/skugga). */}
-    {hasStatedDesiredOccupation && urlState.matchGrades.length > 0 && (
+    {/* STEG 5 / issue #292 (grade-filter) — kort, valfri hjälprad. Förklarar att
+        kontrollen filtrerar på DIN matchningsnivå utan att antyda per-kort-
+        exakthet (aldrig "Visa endast Toppmatchningar" — listan är Fast-bandet).
+        Visas när matchningen är PÅ (matchActive), dvs. när grad-kryssrutorna är
+        synliga — off-läget förblir tyst. Platt civic info-not (samma
+        .jp-matchsort-note-rytm, ingen box/skugga). */}
+    {matchActive && (
       // role="status" (ej "note") så SR aviserar hjälptexten när den tonar in
       // vid switch-PÅ (paritet med match-sort-disclosuren nedan, a11y §6).
       <p className="jp-matchsort-note" role="status">

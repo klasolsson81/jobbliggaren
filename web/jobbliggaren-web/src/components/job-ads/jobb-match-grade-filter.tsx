@@ -13,14 +13,18 @@ import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
 /**
  * STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filtret på /jobb.
  *
- * Produktmodell (Klas-låst):
- * - En "Matchning"-switch (på/av). PÅ → användaren väljer vilka grader som
- *   visas (kryssrute-grupp Grund/Bra/Stark, MULTI-select).
- * - **"Av = noll grader"**: en tom `selected`-lista ÄR "Matchning av" — då
- *   filtreras ingenting och hela listan returneras.
- * - Slå PÅ → emittera ALLA TRE grader (så "på" visar alla graderade annonser).
- *   Avmarkera smalnar (t.ex. bara Bra+Stark döljer Grund).
- * - Avmarkera ALLA tre (eller slå av switchen) → emittera tom lista → av.
+ * Produktmodell (issue #292, Klas + senior-cto-advisor — ERSÄTTER STEG 5:s
+ * "av = noll grader"):
+ * - En "Matchning"-switch (på/av). Switchen speglar `active` (matchnings-axelns
+ *   huvudbrytare i URL:en, `?matchning=off`) — INTE selected.length.
+ * - AV → PÅ: föräldern tar bort off-flaggan + lämnar matchGrades tomt (= alla
+ *   grader visas). PÅ → AV: föräldern skriver `?matchning=off` + tömmer
+ *   matchGrades.
+ * - PÅ + tom `selected` = "alla grader visas" → kryssrutorna renderas ALLA
+ *   ikryssade (härlett). PÅ + delmängd = bara de graderna ikryssade.
+ * - Avmarkera en grad smalnar (t.ex. bara Bra+Stark döljer Grund). Avmarkera
+ *   SISTA graden håller switchen PÅ (tom = alla visas igen) — "av" styrs nu av
+ *   switchen, inte av att man avmarkerar bort allt (beteendeändring, issue #292).
  *
  * Honesty (CLAUDE.md §5 / ADR 0076): kontrollen erbjuder EXAKT Grund/Bra/Stark
  * — ALDRIG Toppmatch (listfiltret är Fast-bandet, kan inte beräkna Topp).
@@ -30,8 +34,8 @@ import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
  * Renderas BARA när `hasStatedDesiredOccupation` är true (föräldern gatar) —
  * graden kan inte beräknas utan angivet yrke (paritet med match-sort-
  * disclosuren). Detta är en ren presentationskomponent: ingen URL-kunskap,
- * inget commit — föräldern (`JobbResultsToolbar`) översätter `onChange` till
- * ett URL-commit.
+ * inget commit — föräldern (`JobbResultsToolbar`) översätter `onChange`/
+ * `onTurnOff`/`onTurnOn` till ett URL-commit.
  *
  * a11y (jobbliggaren-design-a11y §2/§5/§6): switchen är en `<button
  * role="switch">` (delar ToggleRow-mönstret men sitter i kontroll-radens
@@ -42,10 +46,24 @@ import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
  */
 
 interface JobbMatchGradeFilterProps {
-  /** Valda grader (enum-namn, delmängd av Basic/Good/Strong). Tom = av. */
+  /**
+   * issue #292 — matchnings-axelns på/av (SSOT i föräldern: `matchActive`).
+   * Switchen speglar detta, INTE selected.length. PÅ → grad-kryssrutorna
+   * renderas; AV → bara switchen.
+   */
+  active: boolean;
+  /**
+   * Valda grader (enum-namn, delmängd av Basic/Good/Strong). Tom lista NÄR
+   * `active` = "alla grader visas" (renderas ALLA ikryssade) — INTE "av"
+   * (av styrs av `active`/huvudbrytaren).
+   */
   selected: ReadonlyArray<string>;
   /** Rapportera nästa grad-lista uppåt (föräldern commit:ar till URL:en). */
   onChange: (next: string[]) => void;
+  /** issue #292 — switch PÅ → AV (föräldern skriver `?matchning=off` + tömmer). */
+  onTurnOff: () => void;
+  /** issue #292 — switch AV → PÅ (föräldern tar bort off + lämnar grader tomma). */
+  onTurnOn: () => void;
 }
 
 // Renderas i ordinal ordning (Grund → Bra → Stark). LIST_MATCH_GRADES är SPOT
@@ -53,8 +71,11 @@ interface JobbMatchGradeFilterProps {
 const GRADES: ReadonlyArray<ListMatchGrade> = LIST_MATCH_GRADES;
 
 export function JobbMatchGradeFilter({
+  active,
   selected,
   onChange,
+  onTurnOff,
+  onTurnOn,
 }: JobbMatchGradeFilterProps) {
   const t = useTranslations("jobads.ui.gradeFilter");
   // Den synliga "Matchning"-labeln ÄR det programmatiska namnet (a11y §2/§6):
@@ -62,23 +83,30 @@ export function JobbMatchGradeFilter({
   // duplicera namnet i ett aria-label + dölja labeln för SR.
   const labelId = useId();
 
-  // "Av = noll grader": switchen är PÅ exakt när minst en grad är vald.
-  const isOn = selected.length > 0;
+  // issue #292 — switchen speglar matchnings-axeln (`active`), INTE
+  // selected.length. PÅ + tom selected = "alla grader visas" (ej "av").
+  const isOn = active;
+
+  // Härledd effektiv mängd: PÅ + tom lista = alla grader visas (kryssrutorna
+  // renderas ALLA ikryssade). PÅ + delmängd = bara de graderna.
+  const allShown = selected.length === 0;
 
   function toggleSwitch() {
-    // Av → på: visa ALLA tre grader (så "på" = alla graderade annonser).
-    // På → av: töm listan (hela listan returneras).
-    onChange(isOn ? [] : [...GRADES]);
+    // PÅ → AV: föräldern skriver `?matchning=off` + tömmer grader. AV → PÅ:
+    // föräldern tar bort off-flaggan + lämnar grader tomma (= alla visas).
+    if (isOn) onTurnOff();
+    else onTurnOn();
   }
 
   function toggleGrade(grade: ListMatchGrade) {
-    // Avmarkera sista grad → tom lista → switchen slår av (härlett, ingen
-    // separat state). Bevarar ordinal ordning vid tillägg.
-    onChange(
-      selected.includes(grade)
-        ? selected.filter((g) => g !== grade)
-        : GRADES.filter((g) => selected.includes(g) || g === grade),
-    );
+    // Operera på den EFFEKTIVA mängden (tom selected = alla visas). Bevarar
+    // ordinal ordning. issue #292: en mängd som blir tom ELLER full normaliseras
+    // till [] ("alla grader visas", ren URL) — switchen förblir PÅ i bägge fall.
+    const effective = allShown ? [...GRADES] : GRADES.filter((g) => selected.includes(g));
+    const next = effective.includes(grade)
+      ? effective.filter((g) => g !== grade)
+      : GRADES.filter((g) => effective.includes(g) || g === grade);
+    onChange(next.length === GRADES.length ? [] : next);
   }
 
   return (
@@ -108,7 +136,9 @@ export function JobbMatchGradeFilter({
           className="jp-gradefilter__grades"
         >
           {GRADES.map((grade) => {
-            const checked = selected.includes(grade);
+            // issue #292 — PÅ + tom selected = "alla grader visas" → varje
+            // kryssruta renderas ikryssad (härlett). Annars: vald delmängd.
+            const checked = allShown || selected.includes(grade);
             return (
               <div
                 key={grade}

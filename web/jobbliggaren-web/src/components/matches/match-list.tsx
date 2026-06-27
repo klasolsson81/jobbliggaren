@@ -20,9 +20,12 @@ interface MatchListProps {
  *   kategori (Bra/Stark/Topp), aldrig en siffra/procent/mätare (Goodhart-vakt,
  *   ADR 0071/0076/0080). `NotifiableMatchGrade` (Good/Strong/Top) är en delmängd
  *   av `MatchGrade` så chip:en återanvänds direkt utan ny komponent.
- * - "Ny" = den befintliga `.jp-tag jp-tag--accent`-taggen (rektangulär, 11px
- *   versaler). TEXTEN "Ny" bär betydelsen → färg är aldrig ensam signal
- *   (WCAG 1.4.1); en `aria-label` ger skärmläsaren full kontext.
+ * - "Ny" = den delade `.jp-tag`-taggen med `data-tag="new"` (rektangulär,
+ *   11px versaler). Sedan #290 renderas den som en NEUTRAL chip
+ *   (--jp-surface-3 / ink-1) — grönt är reserverat för match-grad-chip:en, så
+ *   `[data-tag="new"]`-overriden flyttar NY av den gamla leaf-gröna globalt
+ *   (avsiktligt tvär-yta per CTO). TEXTEN "Ny" bär betydelsen → färg är aldrig
+ *   ensam signal (WCAG 1.4.1); en `aria-label` ger skärmläsaren full kontext.
  * - Titeln länkar till den interna annonsdetaljen (`/jobb/{id}`, paritet
  *   `/sparade`); den externa annons-URL:en yttas som sekundär `ExternalLink`-
  *   action ENBART när den finns.

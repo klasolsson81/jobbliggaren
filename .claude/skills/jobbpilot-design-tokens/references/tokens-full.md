@@ -95,14 +95,24 @@ Bas-token = text/ikon; `-bg` = pill/banner-bakgrund. Tailwind-alias:
 
 ## Dekorativa accenter
 
-| Token | Light | Dark |
-|---|---|---|
-| `--jp-leaf-600` | `#2C8A3F` | `#5BCB7B` |
-| `--jp-leaf-50` | `#DFF3E5` | `#143E29` |
-| `--jp-coral-600` | `#DA2A47` | `#F47185` |
-| `--jp-coral-50` | `#FCE4E9` | `#3A1722` |
-| `--jp-amber-500` | `#E89A1A` | (skiftas EJ) |
-| `--jp-amber-50` | `#FBEBC8` | (skiftas EJ) |
+The leaf ramp is the brand-green family used for the **match-grade chip ladder**
+(`.jp-matchchip--top|--high|--mid|--low` — Toppmatch→Grundmatch, #290) and the
+legacy "Ny"-tag accent. The four grade fills step down on this one ramp (no
+parallel `--jp-grade-*` vocabulary); all chip text is 13px/700 = standard text
+(floor 4.5:1). leaf-600 is the shared chip border (visible ≥3:1 vs the white
+`.jp-job` card in both themes).
+
+| Token | Light | Dark | Match-grade role (#290) |
+|---|---|---|---|
+| `--jp-leaf-900` | `#0B2A1E` | `#C7EED4` | ink for the two light fills (Bra/Grund) |
+| `--jp-leaf-700` | `#0B3D1B` | `#1E7D40` | Topp fill (white text 12.4:1 / 5.2:1) |
+| `--jp-leaf-600` | `#1C7530` | `#5BCB7B` | Stark fill (white 5.8:1 / canvas-ink 9.0:1) + chip border |
+| `--jp-leaf-100` | `#BFE6CC` | `#1F6E3E` | Bra fill (leaf-900 11.3:1 / 4.95:1) |
+| `--jp-leaf-50` | `#DFF3E5` | `#143E29` | Grund fill (leaf-900 13.3:1 / 9.5:1) + "Ny"-tag legacy |
+| `--jp-coral-600` | `#DA2A47` | `#F47185` | — (decorative) |
+| `--jp-coral-50` | `#FCE4E9` | `#3A1722` | — (decorative) |
+| `--jp-amber-500` | `#E89A1A` | (skiftas EJ) | — (decorative) |
+| `--jp-amber-50` | `#FBEBC8` | (skiftas EJ) | — (decorative) |
 
 ## Hero / gradient (G1 "F4 Hybrid", ADR 0068 — dokumenterat undantag)
 

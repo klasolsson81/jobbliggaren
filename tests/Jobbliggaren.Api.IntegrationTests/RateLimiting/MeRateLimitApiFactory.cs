@@ -108,8 +108,6 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", "3");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", "60");
 
-        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", "true");
-
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes (se ApiFactory).
         var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -133,7 +131,6 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
-        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);

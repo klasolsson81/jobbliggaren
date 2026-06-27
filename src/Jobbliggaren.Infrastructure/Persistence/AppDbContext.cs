@@ -1,7 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Auditing;
-using Jobbliggaren.Domain.Invitations;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -10,7 +9,6 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
-using Jobbliggaren.Domain.Waitlist;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Infrastructure.Persistence;
@@ -24,8 +22,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Resume> Resumes => Set<Resume>();
     public DbSet<ParsedResume> ParsedResumes => Set<ParsedResume>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
-    public DbSet<Invitation> Invitations => Set<Invitation>();
-    public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<RecentJobSearch> RecentJobSearches => Set<RecentJobSearch>();
     public DbSet<SavedJobAd> SavedJobAds => Set<SavedJobAd>();

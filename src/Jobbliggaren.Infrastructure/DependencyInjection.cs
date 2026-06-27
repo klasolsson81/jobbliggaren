@@ -10,9 +10,7 @@ using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Email;
-using Jobbliggaren.Infrastructure.FeatureFlags;
 using Jobbliggaren.Infrastructure.Identity;
-using Jobbliggaren.Infrastructure.Invitations;
 using Jobbliggaren.Infrastructure.JobSources;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -47,7 +45,7 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddIdentityAndSessions(configuration);
         services.AddHttpAuditing();
-        services.AddInvitationsAndEmail(configuration, environment);
+        services.AddEmailSender(configuration, environment);
         services.AddJobSources(configuration);
         services.AddLandingStats();
         services.AddTextAnalysis();
@@ -535,46 +533,12 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// F2-P0d (ADR 0005 amendment 2026-05-12). Registrerar
-    /// <see cref="IInvitationTokenGenerator"/> (HMAC-SHA256) +
-    /// <see cref="IEmailSender"/> (Console default; Ses framtida TD-69).
-    /// Bindas inte i Worker — invitation-utskick sker bara från Api-pipeline.
-    /// </summary>
-    public static IServiceCollection AddInvitationsAndEmail(
-        this IServiceCollection services,
-        IConfiguration configuration,
-        IHostEnvironment environment)
-    {
-        services.Configure<InvitationTokenOptions>(
-            configuration.GetSection(InvitationTokenOptions.SectionName));
-        services.Configure<FeatureFlagsOptions>(
-            configuration.GetSection(FeatureFlagsOptions.SectionName));
-
-        // Server-side privacy-policy-version-stämpel för waitlist consent-records
-        // (GDPR Art. 7(1) bevis). Default "1.0" via class-init; appsettings.json-
-        // overrides bindas här.
-        services.Configure<Jobbliggaren.Application.Waitlist.PrivacyPolicyOptions>(
-            configuration.GetSection(
-                Jobbliggaren.Application.Waitlist.PrivacyPolicyOptions.SectionName));
-
-        services.AddSingleton<IInvitationTokenGenerator, InvitationTokenGenerator>();
-        services.AddSingleton<IFeatureFlags, OptionsFeatureFlags>();
-
-        // The email provider-switch is extracted to AddEmailSender (ADR 0080 Vag 4 PR-4b) so the
-        // Worker can register IEmailSender for the background-match notification jobs WITHOUT
-        // dragging the invitation-token/feature-flag bagage (HTTP-path concerns, ADR 0023).
-        services.AddEmailSender(configuration, environment);
-
-        return services;
-    }
-
-    /// <summary>
-    /// Email provider-switch (ADR 0080 Vag 4 PR-4b) — extracted from
-    /// <see cref="AddInvitationsAndEmail"/> so BOTH the Api (via that method) AND the HTTP-free
-    /// Worker (ADR 0023) register the SAME dev=Console/Resend, non-dev=Null gating without drift.
-    /// The Worker needs <see cref="IEmailSender"/> for the Vag 4 match-notification jobs (Top-direct
-    /// scan hook + <c>DigestDispatchJob</c>) but not the invitation/feature-flag wiring. Binds
-    /// <see cref="EmailOptions"/> and selects the sender per <c>Email:Provider</c>.
+    /// Email provider-switch (ADR 0080 Vag 4 PR-4b). Called by BOTH the Api
+    /// (<see cref="AddInfrastructure"/>) AND the HTTP-free Worker (ADR 0023) so both register the
+    /// SAME dev=Console/Resend, non-dev=Null gating without drift. The Worker needs
+    /// <see cref="IEmailSender"/> for the Vag 4 match-notification jobs (Top-direct scan hook +
+    /// <c>DigestDispatchJob</c>). Binds <see cref="EmailOptions"/> and selects the sender per
+    /// <c>Email:Provider</c>.
     /// <para>
     /// ADR 0066 — AWS SES borttaget; transaktionell mejlväg via Resend (TD-101).
     /// <see cref="ConsoleEmailSender"/> skriver mottagar-email + plaintext-token till ILogger

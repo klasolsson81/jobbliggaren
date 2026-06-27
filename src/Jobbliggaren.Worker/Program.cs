@@ -27,12 +27,12 @@ builder.Logging.AddJobbliggarenLogging(builder.Configuration);
 // Worker registrerar via AddMediator HELA Application-assemblyns handler-set
 // (Mediator.SourceGenerator scannar per assembly — kan inte subset:as), men
 // laddar MEDVETET bara sin minimala DI-yta per ADR 0023 (HTTP-fri) — INTE
-// AddIdentityAndSessions/AddInvitationsAndEmail. Eager ValidateOnBuild
-// försöker därför konstruera Api-only-handlers (Auth/Invitation/Waitlist) vars
-// deps (ISessionStore/IRefreshTokenStore/IInvitationTokenGenerator) Worker
+// AddIdentityAndSessions. Eager ValidateOnBuild
+// försöker därför konstruera Api-only-handlers (Auth) vars
+// deps (ISessionStore/IRefreshTokenStore) Worker
 // aldrig registrerar och aldrig kör → falsk positiv. (IEmailSender registreras
-// numera via den extraherade AddEmailSender för Vag 4-notisjobben, ADR 0080
-// PR-4b — men invitation/feature-flag-bagaget förblir Api-only.) På Fargate
+// via den extraherade AddEmailSender för Vag 4-notisjobben, ADR 0080
+// PR-4b.) På Fargate
 // (Production) var ValidateOnBuild=false så detta dök upp först vid lokal
 // Development-boot efter AWS-avveckling (ADR 0066). ValidateScopes BEHÅLLS
 // (captive-dependency-skydd är hög-värde i Hangfire-host:en där varje job kör i
@@ -75,7 +75,7 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ExpireJobAdsWorker>();
 // ValidateOnBuild=false (TD-103) skulle dölja gapet till Hangfire-invocation 03:20 UTC.
 builder.Services.AddMatchingEngine();
 // ADR 0080 Vag 4 PR-4b — IEmailSender för bakgrundsmatchnings-notiserna (Top-direkt-hook i
-// scannen + DigestDispatchJob). Worker drar INTE in AddInvitationsAndEmail (HTTP-fri, ADR 0023)
+// scannen + DigestDispatchJob). Worker drar INTE in AddInfrastructure (HTTP-fri, ADR 0023)
 // utan den extraherade provider-switchen → samma dev=Console/Resend, non-dev=Null-grindning som
 // Api, utan drift. Non-dev defaultar till NullEmailSender (vilande) tills Resend explicit
 // konfigureras. DI i samma commit som jobben (feedback_di_with_handlers_same_commit).

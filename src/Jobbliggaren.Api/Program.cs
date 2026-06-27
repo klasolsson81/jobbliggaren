@@ -199,14 +199,6 @@ app.Use(async (ctx, next) =>
         ctx.Response.StatusCode = 503;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
-    catch (RegistrationsClosedException ex)
-    {
-        // Kill-switch per ADR 0005 amendment 2026-05-12. Retry-After är
-        // medvetet utelämnad — Klas toggle:ar flaggan manuellt, ingen
-        // automatisk öppning är schemalagd.
-        ctx.Response.StatusCode = 503;
-        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
 });
 
 if (app.Environment.IsDevelopment())
@@ -299,10 +291,6 @@ app.MapMeEndpoints();
 app.MapApplicationsEndpoints();
 app.MapResumesEndpoints();
 app.MapAdminEndpoints();
-app.MapInvitationsEndpoints();
-app.MapWaitlistEndpoints();
-app.MapAdminInvitationsEndpoints();
-app.MapAdminWaitlistEndpoints();
 app.MapAdminJobAdsEndpoints();
 app.MapAdminBackgroundJobsEndpoints();
 app.MapJobAdsEndpoints();

@@ -45,29 +45,6 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// /auth/redeem-invitation — partitionerat per IP. Stoppar brute-force
-    /// mot token-hash + enumeration-attacker. Per ADR 0005 amendment
-    /// 2026-05-12: 5/timme räcker eftersom legitim användare bara redeems
-    /// en gång; angripare som testar massa tokens fångas tidigt.
-    /// </summary>
-    public PolicyOptions InvitationRedeem { get; init; } = new()
-    {
-        PermitLimit = 5,
-        WindowSeconds = 3600,
-    };
-
-    /// <summary>
-    /// /waitlist (publik anonym signup) — partitionerat per IP. Skyddar mot
-    /// spam-signups. 3/24h räcker — legitim användare skriver upp sig en gång.
-    /// Per ADR 0005 amendment 2026-05-12.
-    /// </summary>
-    public PolicyOptions WaitlistSignup { get; init; } = new()
-    {
-        PermitLimit = 3,
-        WindowSeconds = 86400,
-    };
-
-    /// <summary>
     /// List/search-endpoints (GET /api/v1/job-ads med
     /// ?occupationGroup/?municipality/?region/?q) —
     /// partitionerat per UserId (claim "sub"). Skyddar mot multi-query-DoS
@@ -252,7 +229,7 @@ public sealed class RateLimitingOptions
     /// ~1 import var 12:e sekund — täcker iterativ om-uppladdning vid en dålig parse
     /// med marginal, kapar script-flod inom en minut, och håller buffer-taket till
     /// 55 MiB/min/användare (en storleksordning under MeWrite-ekvivalenten).
-    /// Prejudikat: InvitationRedeem (5/fönster för dyr/känslig skriv-yta).
+    /// 5/fönster speglar AccountDeletion-disciplinen för en dyr/känslig skriv-yta.
     /// OWASP API4:2023 "Unrestricted Resource Consumption"; ADR 0045 Worker-512-MiB.
     /// senior-cto-advisor 2026-06-16 (B1a) — riktvärde, security-auditor verifierar/
     /// justerar (BLOCKING). IOptions-bundet (§5.1).

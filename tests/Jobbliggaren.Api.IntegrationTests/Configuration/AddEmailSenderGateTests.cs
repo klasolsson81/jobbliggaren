@@ -10,14 +10,12 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-4b — DI-gate for the NEW <see cref="DependencyInjection.AddEmailSender"/>
-/// extracted from <see cref="DependencyInjection.AddInvitationsAndEmail"/> so the HTTP-free Worker
-/// (ADR 0023) can register <see cref="IEmailSender"/> for the Vag 4 match-notification jobs without
-/// the invitation/feature-flag bagage. This pins the SAME gate the Worker now relies on directly
-/// (the existing <see cref="EmailProviderGateTests"/> exercises the Api path through
-/// AddInvitationsAndEmail; both must agree — no drift): Dev/Test → Console, otherwise → Null, and a
-/// Resend provider without an ApiKey fails LOUD (never a silent no-op that looks like it sends). Pure
-/// registration inspection — no host boot / Testcontainers.
+/// ADR 0080 Vag 4 PR-4b — DI-gate for <see cref="DependencyInjection.AddEmailSender"/>, the email
+/// provider-switch that BOTH the Api (via AddInfrastructure) AND the HTTP-free Worker (ADR 0023) call
+/// to register <see cref="IEmailSender"/> for the Vag 4 match-notification jobs. Pins the gate both
+/// rely on: Dev/Test → Console, otherwise → Null, and a Resend provider without an ApiKey fails LOUD
+/// (never a silent no-op that looks like it sends). Pure registration inspection — no host boot /
+/// Testcontainers. (The Resend-with-key branch is pinned by ResendEmailProviderGateTests.)
 /// </summary>
 public class AddEmailSenderGateTests
 {

@@ -10,9 +10,9 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-4a — DI-gate for the new <c>Email:Provider="Resend"</c> branch in
-/// <see cref="DependencyInjection.AddInvitationsAndEmail"/>. Pure registration inspection
-/// (no host boot / Testcontainers), mirroring <see cref="EmailProviderGateTests"/>.
+/// ADR 0080 Vag 4 PR-4a — DI-gate for the <c>Email:Provider="Resend"</c> branch in
+/// <see cref="DependencyInjection.AddEmailSender"/>. Pure registration inspection
+/// (no host boot / Testcontainers).
 ///
 /// Invariants pinned:
 ///   - Resend WITHOUT an ApiKey fails loud (InvalidOperationException) — never a silent no-op
@@ -35,7 +35,7 @@ public class ResendEmailProviderGateTests
             .Build();
 
         var services = new ServiceCollection();
-        services.AddInvitationsAndEmail(config, env);
+        services.AddEmailSender(config, env);
         return services;
     }
 

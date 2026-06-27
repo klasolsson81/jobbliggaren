@@ -5,6 +5,7 @@
   "nav": {
     "label": "Admin navigation",
     "granskning": "Audit log",
+    "jobb": "Jobs",
     "logout": "Log out"
   },
   "audit": {
@@ -65,6 +66,74 @@
       "summary": "Page {page} of {totalPages} · {totalCount, plural, one {# entry total} other {# entries total}}",
       "previous": "← Previous",
       "next": "Next →"
+    }
+  },
+  "jobb": {
+    "meta": {
+      "title": "Background jobs"
+    },
+    "heading": "Background jobs",
+    "lede": "Status of scheduled and failed background jobs. Read-only view.",
+    "errors": {
+      "forbidden": {
+        "title": "Missing permission",
+        "body": "Your session does not have the Admin role. Contact the system administrator if you need access."
+      },
+      "unauthorized": {
+        "title": "Not signed in",
+        "body": "Sign in and try again."
+      },
+      "rateLimited": {
+        "title": "Too many requests",
+        "body": "You have made too many requests in a short time. Try again in {seconds} seconds."
+      },
+      "error": {
+        "title": "Could not load the job status",
+        "body": "Try again in a moment. Contact operations if the problem persists."
+      }
+    },
+    "states": {
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "processing": "Running",
+      "neverRun": "Never run"
+    },
+    "recurring": {
+      "heading": "Scheduled jobs",
+      "table": {
+        "ariaLabel": "Scheduled jobs",
+        "caption": "Scheduled background jobs sorted by job id.",
+        "id": "Job id",
+        "cron": "Schedule",
+        "lastExecution": "Last run",
+        "status": "Status",
+        "nextExecution": "Next run",
+        "noCron": "No schedule",
+        "neverRun": "Never run"
+      },
+      "empty": {
+        "title": "No scheduled jobs",
+        "body": "No recurring background jobs are registered in Hangfire. Contact operations if you expected scheduled jobs here."
+      }
+    },
+    "failed": {
+      "heading": "Failed jobs",
+      "note": {
+        "truncated": "Showing the most recent {returned} of {totalCount} failed jobs.",
+        "all": "{totalCount, plural, one {# failed job in total} other {# failed jobs in total}}."
+      },
+      "table": {
+        "ariaLabel": "Failed jobs",
+        "caption": "Failed background jobs sorted by time, most recent first.",
+        "jobId": "Job id",
+        "jobType": "Job type",
+        "failedAt": "Time",
+        "errorCategory": "Error category"
+      },
+      "empty": {
+        "title": "No failed jobs",
+        "body": "All background jobs have run without errors."
+      }
     }
   }
 }

@@ -289,6 +289,7 @@ app.MapWaitlistEndpoints();
 app.MapAdminInvitationsEndpoints();
 app.MapAdminWaitlistEndpoints();
 app.MapAdminJobAdsEndpoints();
+app.MapAdminBackgroundJobsEndpoints();
 app.MapJobAdsEndpoints();
 app.MapSavedSearchesEndpoints();
 app.MapRecentSearchesEndpoints();

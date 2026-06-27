@@ -55,6 +55,45 @@ export function formatDate(
 }
 
 /**
+ * Ledger-style timestamp "YYYY-MM-DD HH:mm" (24h, Europe/Stockholm), for admin
+ * operator tables where rows must align column-wise for skim comparison
+ * (audit-log / background-jobs convention, CLAUDE.md §10). Returns null for
+ * missing/unparseable input so callers can show an "Aldrig körd"-style label.
+ *
+ * Unlike `formatDate` this shape is intentionally locale-stable: the ISO-like
+ * `YYYY-MM-DD HH:mm` ordering is a fixed operator convention, not a localized
+ * presentation, so it reads identically in sv and en. The next-intl formatter
+ * is still the timezone authority (resolves the configured Europe/Stockholm
+ * zone deterministically across SSR and client). `hour12` is pinned false.
+ */
+export function formatDateTime(
+  format: JpFormatter,
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return null;
+  // Compose the ledger shape from two timezone-resolved fragments so the row
+  // stays column-aligned in both locales. sv already yields "YYYY-MM-DD" /
+  // "HH:mm"; en yields "MM/DD/YYYY", which is reordered to ISO below. The
+  // formatter (not a hardcoded locale literal) remains the timezone authority.
+  const time = format.dateTime(date, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const day = format.dateTime(date, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(day)
+    ? day
+    : day.replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, "$3-$1-$2");
+  return `${iso} ${time}`;
+}
+
+/**
  * Locale-aware 24-hour clock time: "14:32" in both sv and en. A Swedish civic
  * utility uses the 24h clock per CLAUDE.md §10 (no AM/PM), so `hour12` is pinned
  * false — only the timezone-resolved value is locale/zone-aware, not the clock

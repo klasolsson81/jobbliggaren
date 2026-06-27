@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -78,6 +79,103 @@ public class PdfPigOpenXmlCvTextExtractorTests
         Should.NotThrow(() => result = _sut.Extract(garbage, CvFileKind.Docx));
 
         result.Status.ShouldBe(CvExtractionStatus.Empty);
+    }
+
+    // #268 SEC-1 — a valid ZIP/OPC package with one entry that DECLARES a huge uncompressed
+    // size but compresses to ~KB (a zip bomb). The pre-flight package-size guard must reject it
+    // (Empty) without inflating it (no OOM). Written by streaming a repeated byte so the test
+    // itself stays low-memory.
+    private static byte[] BuildZipWithOversizedEntry(string entryName, long uncompressedBytes)
+    {
+        using var ms = new MemoryStream();
+        using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+            using var es = entry.Open();
+            var chunk = new byte[64 * 1024];
+            Array.Fill(chunk, (byte)' ');
+            long written = 0;
+            while (written < uncompressedBytes)
+            {
+                var n = (int)Math.Min(chunk.Length, uncompressedBytes - written);
+                es.Write(chunk, 0, n);
+                written += n;
+            }
+        }
+
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void Extract_DocxDeclaringOversizedUncompressedSize_FailsSoftEmpty_NoOom()
+    {
+        // 70 MiB declared uncompressed (> the 64 MiB ceiling), a few hundred KB compressed.
+        var bomb = BuildZipWithOversizedEntry("word/document.xml", 70L * 1024 * 1024);
+        bomb.Length.ShouldBeLessThan(2 * 1024 * 1024,
+            "Förutsättning: bomben ska vara liten komprimerad (annars testar vi fel sak).");
+
+        CvExtractionResult result = default!;
+        Should.NotThrow(() => result = _sut.Extract(bomb, CvFileKind.Docx));
+
+        result.Status.ShouldBe(CvExtractionStatus.Empty,
+            "En DOCX vars deklarerade okomprimerade storlek överstiger taket ska avvisas " +
+            "fail-soft FÖRE dekomprimering (#268 SEC-1 zip-bomb-guard).");
+        result.RawText.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Extract_DocxWithSingleOversizedTextNode_TruncatedToCap_NoOom()
+    {
+        // One <w:t> node larger than the 1M output-char cap. Under the package-size ceiling, so
+        // the pre-flight guard passes; the per-node truncation must cap the output rather than
+        // append the whole node, and never throw.
+        var huge = new string('a', 1_500_000);
+        var bytes = BuildDocx(huge);
+
+        CvExtractionResult result = default!;
+        Should.NotThrow(() => result = _sut.Extract(bytes, CvFileKind.Docx));
+
+        result.Status.ShouldBe(CvExtractionStatus.Extracted);
+        result.RawText.Length.ShouldBeLessThanOrEqualTo(1_000_000,
+            "Output ska kapas vid MaxOutputChars även för en enda enorm textnod (#268 SEC-1).");
+        result.RawText.Length.ShouldBeGreaterThan(900_000,
+            "Och den ska faktiskt extrahera (inte fail-soft till tomt) under taket.");
+    }
+
+    [Fact]
+    public void Extract_ValidZipButNotADocx_FailsSoftEmpty_NeverThrows()
+    {
+        // A valid ZIP with no word/document.xml (a renamed archive / degenerate OPC). The
+        // pre-flight guard must iterate the central directory without crashing (total under the
+        // ceiling → no rejection), then WordprocessingDocument.Open / the null-main-part branch
+        // fail soft → Empty. Proves the guard is safe on a degenerate-but-valid zip.
+        using var ms = new MemoryStream();
+        using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var entry = archive.CreateEntry("readme.txt");
+            using var es = entry.Open();
+            es.Write("not a docx"u8);
+        }
+
+        var notADocx = ms.ToArray();
+
+        CvExtractionResult result = default!;
+        Should.NotThrow(() => result = _sut.Extract(notADocx, CvFileKind.Docx));
+
+        result.Status.ShouldBe(CvExtractionStatus.Empty);
+        result.RawText.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Extract_NormalSizedDocx_NotRejectedByZipBombGuard()
+    {
+        // A real CV is well under the ceiling — the guard must not produce false rejections.
+        var bytes = BuildDocx("Anna Andersson", "Systemutvecklare", "C#, PostgreSQL, Docker");
+
+        var result = _sut.Extract(bytes, CvFileKind.Docx);
+
+        result.Status.ShouldBe(CvExtractionStatus.Extracted);
+        result.RawText.ShouldContain("Systemutvecklare");
     }
 
     [Fact]

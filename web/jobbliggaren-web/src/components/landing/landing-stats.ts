@@ -5,7 +5,7 @@ import { type LandingStats } from "./landing-stats-format";
 
 /**
  * Live-stats för landing-toppen ("aktiva annonser · nya idag"). Konsumeras
- * av `<LandingTopbar />` (RSC). Klient-komponenter (`<HeaderStats />`)
+ * av `<LandingHeader />` (RSC). Klient-komponenter (`<HeaderStats />`)
  * importerar `LandingStats`-typen direkt från `./landing-stats-format` —
  * denna fil är server-tainted via `lib/api/landing`. Tal-formateringen går
  * via den delade locale-medvetna `formatNumber` (`lib/i18n/format.ts`, #214).

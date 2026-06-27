@@ -58,7 +58,6 @@
     "tabRegister": "Skapa konto",
     "tabLogin": "Logga in",
     "tablistLabel": "Logga in eller skapa konto",
-    "passwordHint": "Minst 8 tecken.",
     "fine": "Genom att skapa konto godkänner du användarvillkoren och integritetspolicyn. Jobbliggaren säljer aldrig din data."
   },
   "footer": {

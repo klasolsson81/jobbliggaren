@@ -12,9 +12,11 @@ import { SiteFooter } from "@/components/site/site-footer";
  * Landing-routen (`/`) sitter i (marketing)-grupp och har egen LandingHeader
  * med stats (LP-4 / #257) — inte i denna layout.
  *
- * SiteHeader (LP-5a / #258) renderar en första skip-länk till `#main`;
- * innehållswrappern nedan bär det målet (`id="main"`). Sidorna behåller sina
- * egna `<main>`-landmärken innanför wrappern.
+ * SiteHeader (LP-5a / #258) renderar en första skip-länk till `#main`.
+ * Skip-målet `#main` bär nu varje sidas eget `<main>`-landmärke (#284) — varje
+ * marketing-inner-sida exponerar ett `<main id="main">` som omsluter både sin
+ * page-hero (en `<section>`-region, inte längre en andra banner) och innehållet,
+ * i paritet med app/admin/landning. Wrappern nedan är bara en flex-spacer.
  */
 export default function MarketingInnerLayout({
   children,
@@ -24,9 +26,7 @@ export default function MarketingInnerLayout({
   return (
     <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
       <SiteHeader />
-      <div id="main" tabIndex={-1} className="flex-1 focus:outline-none">
-        {children}
-      </div>
+      <div className="flex-1">{children}</div>
       <SiteFooter />
     </div>
   );

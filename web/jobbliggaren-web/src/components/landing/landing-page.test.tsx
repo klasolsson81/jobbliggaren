@@ -1,6 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { createTranslator } from "next-intl";
+import svLanding from "../../../messages/sv/landing.json";
 import LandingPage from "@/app/(marketing)/page";
+
+// The async page now resolves the skip-link label via `getTranslations("landing")`
+// (#284 fold-in into the shared <SkipLink>). next-intl's server entry is
+// unavailable in jsdom → mock it to a real translator over the Swedish landing
+// catalog (source of truth), mirroring matchningar/page.test.tsx. The skip-link
+// assertion below stays green against the real "Hoppa till huvudinnehåll" value.
+vi.mock("next-intl/server", () => ({
+  getTranslations: async (namespace?: "landing") =>
+    createTranslator({
+      locale: "sv",
+      messages: { landing: svLanding },
+      namespace,
+    }),
+}));
 
 // next/navigation: useSearchParams must be mocked in jsdom (no Next router
 // context) — the inline AuthCard's Login/RegisterForm read it, and SiteFooter's

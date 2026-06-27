@@ -1,24 +1,23 @@
 /**
  * SkipLink — the shared "skip to content" link rendered as the first focusable
- * element of every shell/surface (WCAG 2.4.1 Bypass Blocks). LP-5b / #259 (folds
- * in #284), epic #267.
+ * element of every shell/surface (WCAG 2.4.1 Bypass Blocks). LP-5b / #259;
+ * landing page folded in by #284, epic #267.
  *
  * Before #259 the identical `sr-only focus:not-sr-only …` className block was
- * copy-pasted across the four shell/public surfaces — the (app)/(guest)/(admin)
- * layouts plus the public `site-header.tsx` — each reading its own namespaced
- * copy key. That className is a single piece of knowledge (DRY) — it lives here
- * once. The label stays a prop: each surface owns its own i18n key
- * (`pages.layout.skipToContent`, `guest.layout.skipToContent`,
- * `admin.layout.skipToContent`, `landing.common.skipToContent`) and resolves it
- * itself, so the component takes no `next-intl` dependency and renders safely in
- * both Server and Client Components without forcing a `"use client"` boundary.
+ * copy-pasted across the public surfaces — the (app)/(guest)/(admin) layouts,
+ * the public `site-header.tsx`, and the landing page (`(marketing)/page.tsx`,
+ * folded in by #284) — each reading its own namespaced copy key. That className
+ * is a single piece of knowledge (DRY) — it lives here once. The label stays a
+ * prop: each surface owns its own i18n key (`pages.layout.skipToContent`,
+ * `guest.layout.skipToContent`, `admin.layout.skipToContent`,
+ * `landing.common.skipToContent` — the last shared by `site-header.tsx` and the
+ * landing page) and resolves it itself, so the component takes no `next-intl`
+ * dependency and renders safely in both Server and Client Components without
+ * forcing a `"use client"` boundary.
  *
- * One copy is deliberately NOT folded in yet: the landing page
- * (`(marketing)/page.tsx`) keeps its own `LandingSkipLink` because that page is
- * LP-4's (#257) owned hotspot — folding it in is a tracked follow-up (§6.5
- * ownership, not scope).
- *
- * The target is always `#main` — the real `<main>` landmark each surface exposes.
+ * The target is always `#main` — the real `<main>` landmark each surface exposes
+ * (on the marketing-inner pages #284 moved `id="main"` onto each page's own
+ * `<main>`, which wraps the page-hero region + content).
  */
 export function SkipLink({ label }: { label: string }) {
   return (

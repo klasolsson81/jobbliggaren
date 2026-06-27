@@ -1,7 +1,7 @@
 {
   "common": {
     "loginLink": "Log in",
-    "footerNavLabel": "Footer"
+    "skipToContent": "Skip to main content"
   },
   "brand": {
     "homeAriaLabel": "Jobbliggaren, home",
@@ -16,18 +16,6 @@
     "newTodayLabel": "new today"
   },
   "hero": {
-    "title": "Keep your job search in order",
-    "lede": "Search active job ads from Platsbanken, create CVs and letters, and follow up on every application, from draft to response.",
-    "ctaWaitlist": "Join the waitlist",
-    "ctaOverview": "To overview",
-    "ctaGuest": "Explore as a guest",
-    "peekSearchKicker": "Search jobs",
-    "peekSearchText": "Systems developer · Gothenburg",
-    "peekSearchButton": "Search",
-    "peekCard1Title": "Backend developer .NET",
-    "peekCard1Meta": "Volvo Cars Sverige AB · Gothenburg",
-    "peekCard2Title": "Systems developer fullstack",
-    "peekCard2Meta": "Folksam IT · Stockholm",
     "step1": "Find the job.",
     "step2": "Apply for the job.",
     "step3": "Follow up on the application.",
@@ -39,19 +27,19 @@
     "title": "Everything you need to stay organised",
     "search": {
       "key": "Search",
-      "body": "Active job ads from Platsbanken, more sources planned. Sort by CV match, recency or deadline."
+      "body": "All active job ads from Platsbanken, updated around the clock. Search by occupation and location, sort by recency or application deadline."
     },
     "pipeline": {
       "key": "Pipeline",
-      "body": "Track every application from draft to response, through interviews, offers and rejections. Nothing falls through the cracks."
+      "body": "Track every application from draft to response: interviews, offers and rejections. Nothing falls through the cracks."
     },
     "cv": {
-      "key": "CV and letters",
-      "body": "Create and organise several CV variants. Generate cover letters that match your tone. You own every line."
+      "key": "CV",
+      "body": "Create and organise several CV variants, and pick the right CV for each application. You own every line."
     },
     "reminders": {
       "key": "Reminders",
-      "body": "Interviews and application deadlines are captured automatically from your applications, so you do not miss any deadlines."
+      "body": "Interviews and application deadlines are captured automatically from your applications, so you do not miss a deadline."
     }
   },
   "auth": {
@@ -61,12 +49,6 @@
     "fine": "By creating an account you accept the terms of use and the privacy policy. Jobbliggaren never sells your data."
   },
   "footer": {
-    "linkAbout": "About Jobbliggaren",
-    "linkTerms": "Terms of use",
-    "linkPrivacy": "Privacy policy",
-    "linkCookies": "Cookies",
-    "linkAccessibility": "Accessibility",
-    "linkContact": "Contact",
     "blurb": "Keep your whole job search in order. Search, apply and follow up in one place.",
     "source": "Built on open data from the Swedish Public Employment Service",
     "free": "Jobbliggaren is free to use.",

@@ -1,6 +1,10 @@
 using Hangfire;
 using Hangfire.Storage;
+using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Admin.BackgroundJobs.Commands.RequeueFailedJob;
+using Jobbliggaren.Application.Admin.BackgroundJobs.Commands.TriggerRecurringJob;
 using Jobbliggaren.Application.Common.Authorization;
+using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
 
@@ -82,6 +86,38 @@ public static class AdminBackgroundJobsEndpoints
 
             return Results.Ok(new FailedJobsResponse(totalCount, MaxFailedJobs, items));
         });
+
+        // POST /api/v1/admin/jobs/recurring/{id}/trigger — ad-hoc-kör ett schemalagt
+        // jobb nu. Går genom Mediator (audit via IAuditableCommand). Validatorn
+        // släpper bara igenom ett id ur den slutna RecurringJobIds-allowlisten
+        // (fan-out/RCE-skydd) → annars 400. AdminWritePolicy rate-limit (TD-52/98).
+        group.MapPost("/recurring/{id}/trigger", async (
+            string id,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new TriggerRecurringJobCommand(id), ct);
+            return result.IsSuccess
+                ? Results.Ok(new TriggerJobResponse(result.Value))
+                : result.Error.ToProblemResult();
+        })
+        .RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
+
+        // POST /api/v1/admin/jobs/failed/{jobId}/retry — kör om ett misslyckat jobb.
+        // Handlern verifierar via porten att jobbet finns och är i Failed-state
+        // (saknas → 404, finns men ej Failed → 409); en avvisad omkörning ger ingen
+        // audit-rad. AdminWritePolicy rate-limit.
+        group.MapPost("/failed/{jobId}/retry", async (
+            string jobId,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new RequeueFailedJobCommand(jobId), ct);
+            return result.IsSuccess
+                ? Results.Ok(new RequeueJobResponse(result.Value))
+                : result.Error.ToProblemResult();
+        })
+        .RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
     }
 
     // Operatörsdata ska aldrig cacheas av reverse-proxy eller browser
@@ -166,3 +202,15 @@ public sealed record FailedJobsResponse(
     long TotalCount,
     int Returned,
     IReadOnlyList<FailedJobStatusDto> Items);
+
+/// <summary>
+/// Svar för POST /api/v1/admin/jobs/recurring/{id}/trigger. <c>JobId</c> = det
+/// triggade recurring-jobbets id (echo).
+/// </summary>
+public sealed record TriggerJobResponse(string JobId);
+
+/// <summary>
+/// Svar för POST /api/v1/admin/jobs/failed/{jobId}/retry. <c>Requeued</c> = true
+/// när jobbet köades om (annars mappas felet till 404/409 via ToProblemResult).
+/// </summary>
+public sealed record RequeueJobResponse(bool Requeued);

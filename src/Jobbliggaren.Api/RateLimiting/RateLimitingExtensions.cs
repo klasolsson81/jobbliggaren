@@ -34,6 +34,7 @@ public static partial class RateLimitingExtensions
     public const string MeWritePolicy = "me-write";
     public const string ResumeImportPolicy = "resume-import";
     public const string ResumeRenderPolicy = "resume-render";
+    public const string AdminWritePolicy = "admin-write";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -432,6 +433,27 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.ResumeRender.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.ResumeRender.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Admin operator mutations under /api/v1/admin/jobs (trigger/retry, #204 /
+            // TD-83 PR2; absorbs TD-52/TD-98). Partition: UserId (claim "sub"); anonymous
+            // → NoLimiter (admin group is RequireAuthorization-gated → 401 before endpoint).
+            // FixedWindow write policy (parity with AccountDeletion/MeWrite), QueueLimit=0.
+            // The limit ships WITH the first admin write surface — a compromised admin
+            // session could otherwise loop triggers / fan out heavy PII jobs.
+            options.AddPolicy(AdminWritePolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-admin-write");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.AdminWrite.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.AdminWrite.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

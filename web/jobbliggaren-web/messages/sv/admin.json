@@ -2,6 +2,9 @@
   "meta": {
     "title": "Granskning"
   },
+  "layout": {
+    "skipToContent": "Hoppa till huvudinnehåll"
+  },
   "nav": {
     "label": "Admin-navigation",
     "granskning": "Granskning",

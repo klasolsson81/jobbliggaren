@@ -17,17 +17,19 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function VillkorPage() {
   const t = await getTranslations("landing");
   return (
-    <>
-      <header className="jp-pagehero">
+    <main id="main" tabIndex={-1} className="focus:outline-none">
+      <section className="jp-pagehero" aria-labelledby="villkor-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
             <p className="jp-pagehero__kicker">{t("terms.kicker")}</p>
-            <h1 className="jp-pagehero__title">{t("terms.title")}</h1>
+            <h1 id="villkor-heading" className="jp-pagehero__title">
+              {t("terms.title")}
+            </h1>
           </div>
         </div>
-      </header>
+      </section>
 
-      <main className="mx-auto w-full max-w-2xl px-6 py-12">
+      <div className="mx-auto w-full max-w-2xl px-6 py-12">
         <section className="flex flex-col gap-4">
           <p className="text-body text-text-primary">{t("terms.intro")}</p>
           <p className="text-body text-text-secondary">{t("terms.duringBeta")}</p>
@@ -37,7 +39,7 @@ export default async function VillkorPage() {
             <li>{t("terms.dataDeletion")}</li>
           </ul>
         </section>
-      </main>
-    </>
+      </div>
+    </main>
   );
 }

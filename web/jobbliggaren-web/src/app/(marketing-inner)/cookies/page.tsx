@@ -16,17 +16,19 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CookiesPage() {
   const t = await getTranslations("landing");
   return (
-    <>
-      <header className="jp-pagehero">
+    <main id="main" tabIndex={-1} className="focus:outline-none">
+      <section className="jp-pagehero" aria-labelledby="cookies-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
             <p className="jp-pagehero__kicker">{t("cookies.kicker")}</p>
-            <h1 className="jp-pagehero__title">{t("cookies.title")}</h1>
+            <h1 id="cookies-heading" className="jp-pagehero__title">
+              {t("cookies.title")}
+            </h1>
           </div>
         </div>
-      </header>
+      </section>
 
-      <main className="mx-auto w-full max-w-2xl px-6 py-12">
+      <div className="mx-auto w-full max-w-2xl px-6 py-12">
         <section className="flex flex-col gap-4">
           <p className="text-body text-text-primary">{t("cookies.intro")}</p>
           <p className="text-body text-text-secondary">
@@ -52,7 +54,7 @@ export default async function CookiesPage() {
             {t("cookies.fullPolicyNote")}
           </p>
         </section>
-      </main>
-    </>
+      </div>
+    </main>
   );
 }

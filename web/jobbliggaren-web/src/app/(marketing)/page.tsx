@@ -1,28 +1,10 @@
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { LandingHeroSection } from "@/components/landing/landing-hero-section";
 import { LandingFeatures } from "@/components/landing/landing-features";
 import { SiteFooter } from "@/components/site/site-footer";
+import { SkipLink } from "@/components/site/skip-link";
 import { getLandingStats } from "@/components/landing/landing-stats";
-
-/**
- * Skip link to the main landmark. A tiny sync sub-component so the async page
- * shell does not need the `getTranslations` server API for one static string —
- * `useTranslations` resolves synchronously in this RSC and stays renderable in
- * jsdom tests via the shared next-intl provider. Mirrors the shells' first-
- * focusable skip-link pattern (`#main` target, `sr-only focus:` reveal).
- */
-function LandingSkipLink() {
-  const t = useTranslations("landing");
-  return (
-    <a
-      href="#main"
-      className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-    >
-      {t("common.skipToContent")}
-    </a>
-  );
-}
 
 /**
  * Landing route (`/`) — "Liggaren" redesign (epic #267, LP-4 / #257). The
@@ -31,7 +13,9 @@ function LandingSkipLink() {
  * mount; LP-3/LP-5a never touch the landing surface).
  *
  * Async RSC shell composing:
- *  - a skip link to `#main` (the (marketing) group has no layout to carry it)
+ *  - the shared <SkipLink/> to `#main`, rendered first-focusable (the (marketing)
+ *    group has no layout to carry it); label resolved via `getTranslations` like
+ *    the other async surfaces ((app)/(admin) layouts) — #284 fold-in, epic #267
  *  - <LandingHeader/> (`.jp-head`): brand + live Platsbanken stats, no login link
  *  - <LandingHeroSection/>: the ledger hero with the inline Suspense-wrapped
  *    <AuthCard/> (the single account action) + a guest link
@@ -45,9 +29,10 @@ function LandingSkipLink() {
  */
 export default async function LandingPage() {
   const stats = await getLandingStats();
+  const t = await getTranslations("landing");
   return (
     <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
-      <LandingSkipLink />
+      <SkipLink label={t("common.skipToContent")} />
       <LandingHeader stats={stats} />
       <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
         <LandingHeroSection />

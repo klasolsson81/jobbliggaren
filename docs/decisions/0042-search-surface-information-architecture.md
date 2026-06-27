@@ -153,6 +153,8 @@ Beslut B.4 (gammal-rad jsonb-datakompat, ADR-brödtext §39) konkretiseras: mult
 
 Beslut E ("Ny"-badge via `ListJobAdsQuery.Since`) konkretiseras: fönstret är **fast rullande 7 dygn, serverstyrt, ingen UI-kontroll**. Klas-bekräftat 2026-05-17 (civic-enkelhet — ingen användarinställning, ett förutsägbart serverstyrt fönster i linje med jobbpilot-design-principles regel 3/7).
 
+> **Beslut E — Status: SUPERSEDED av amendment 2026-06-28 (issue #293).** Se amendment-blocket nedan. Det tidsbaserade 7-dygns-fönstret pensioneras; `IsNew` definieras om som ett per-user oläst-signal. `JobAdDto.IsNew` och `ListJobAdsQuery.Since` kvarstår temporärt (se implementation-sekvens i amendment).
+
 ### Amendment 2026-06-09 — Beslut B maxantal-cap (MaxConceptIds) 10 → 400 (per ADR 0067 Fas C1)
 
 **Källa:** Platsbanken-sök-paritets-initiativet ([ADR 0067](./0067-platsbanken-search-parity.md)) Fas C1. Additivt amendment-notat — ADR-immutabilitet: Beslut A–F-brödtext ovan är orörd. Detta amendment justerar **endast invariant-värdet** i Beslut B.2 (maxantal-cap), inte mekaniken.
@@ -179,6 +181,80 @@ Beslut B:s multi-värde-mekanik (list-form + fyra invarianter) **beslutade aldri
 - ADR 0039 Beslut 3 — partiellt supersederad av ADR 0042 Beslut B (oförändrat av detta notat).
 - **ADR 0043 (Taxonomi-ACL för sök-ytan, 2026-05-17, Proposed):** korsref-notat (additivt, Beslut A–F-brödtext orörd — ADR-immutabilitet). ADR 0043 utvidgar Beslut C:s *datakälla för inmatningsytan* (svenska namn-väljare matas av en lokal taxonomi-snapshot/ACL) och adresserar concept-id-jargong i UI:t. **Beslut B-domänkontraktet (`SearchCriteria.Ssyk/Region` = `IReadOnlyList<string>` concept-id) ändras EJ.** Beslut C:s typeahead-arkitektur (C1, `SuggestPolicy`, debounce-hook) är oförändrad. Rad 21-constraintet ("inget externt taxonomi-API på sök-vägen") är **uppfyllt, inte brutet** av ADR 0043 (lokal snapshot är per definition inte på sök-vägen). Se [`0043-taxonomy-acl-for-search-surface.md`](./0043-taxonomy-acl-for-search-surface.md).
 
+### Amendment 2026-06-28 — Beslut E: "Ny"-badge omdefinerad som per-user oläst-signal (issue #293)
+
+**Datum:** 2026-06-28
+**Källa:** senior-cto-advisor decision-maker 2026-06-28 + Klas product-GO 2026-06-28. Additivt amendment — ADR-immutabilitet: Beslut A–D + F-brödtext samt alla tidigare implementation-notat är orörda. Enbart Beslut E omdefinieras.
+**Beslutsfattare:** senior-cto-advisor (mechanism W1=A, W4 cold-start, W6 cross-refs) + Klas Olsson (produktval: CreatedAt/ingestion, oläst-signal, scope-sekvens)
+**Livscykel-not:** Klas har explicit godkänt att CC/adr-keeper författar prosan direkt från det bundna beslutet (feedback_klas_can_override_adr_verbatim_source). Prosan är transcription av Klas + CTO-reasoning — inga egna synteser tillförs.
+
 ---
 
-*Referenser: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §4.3, §5.3, §9.1, §9.2, §9.6, §9.7.*
+#### Kontext
+
+Det ursprungliga Beslut E definierade "Ny annons"-markeringen som ett **tidsbaserat rullande 7-dygns-fönster, serverstyrt**: `JobAdDto.IsNew = (PublishedAt >= since)` driven av `ListJobAdsQuery.Since = now - 7 days`. Klas identifierade 2026-06-28 att definitionen ger upphov till en redundans mot det befintliga "X DAGAR sedan"-fräschhets-chipet (issue #293): båda signalerna kommunicerar recency, men "Ny" lägger inte till ny information för användaren — en annons kan vara 6 dygn gammal och ändå bära "Ny", vilket urholkar märkets trovärdighet.
+
+Den parallella arkitekturella kraften: `ListJobAdsQuery.Since` förorenar list-queryn med presentationskontext som omöjliggör delad server-side-cache (strider mot ADR 0045-budgeten för hot-path-latens och shared-cacheability som annars är möjlig för den publika listan).
+
+#### Beslut
+
+"Ny annons"-signalen omdefineras från ett **tidsbaserat fönster** till ett **per-user oläst-signal**:
+
+> **NY = `JobAd.CreatedAt > JobSeeker.LastSeenJobsAt`**
+
+Ingest-tidsstämpeln (`CreatedAt`) används som metric — inte `PublishedAt` (Klas-direktiv 2026-06-28: ingestionstidpunkten är den relevanta gränsen för "sedd sedan sist"). Det tidsbaserade 7-dygns-fönstret pensioneras. "X DAGAR sedan"-fräschhets-chipet kvarstår som enda recency-signal (eliminerar redundansen Klas flaggade).
+
+#### Mechanism (CTO W1=A, senior-cto-advisor 2026-06-28)
+
+**W1=A — FE-beräknad NY från separat skalär watermark**
+
+NY beräknas **FE-sidan** från en separat-läst skalär watermark — **inte** inbakad i `JobAdDto`. Den publika list-queryn tappar `Since`-parametern och blir fullt shared-cacheable igen (förbättrar ADR 0045-budgeten).
+
+Per-user state hålls OFF `JobAdDto` — ADR 0063 Beslut b (inga per-user-fält på publika list-DTOs) hedras. Observera att ADR 0063:s batch-port-mechanism **inte** tillämpas här; en per-user scalar behöver inte en batch-port — ett enkelt per-user GET (scalar watermark) är det naturliga valet, analogt med hur `GetMyNewMatchCount` läser en skalär watermark (se ADR 0080 Beslut 6 nedan).
+
+#### Nytt persisterat tillstånd
+
+`JobSeeker.LastSeenJobsAt` — **nullable kolumn** (first-class), exakt sibling till `LastSeenMatchesAt` (ADR 0080 Beslut 6, som är watermark-precedentet och förblir oförändrat).
+
+Monoton skrivning via `SetLastSeenJobs` — uppdaterar kolumnen till `max(befintligt, now)` för att garantera att watermarken aldrig går bakåt.
+
+#### Nya endpoints och kommandon
+
+| Komponent | Typ | Endpoint | Not |
+|---|---|---|---|
+| `MarkJobsSeenCommand` | Parameterless, owner-scoped, EJ auditerad | `POST /api/v1/me/jobs/seen` | Paritet med `MarkMatchesSeen` (ADR 0080 Beslut 6) |
+| `GetJobsWatermarkQuery` | Auth-gated, anon→null | `GET /api/v1/me/jobs/watermark` | Läser `LastSeenJobsAt` |
+
+**Fetch-then-mark-ordning:** detta besök visar "ny sedan förra besöket" (FE läser watermark *innan* sidan renderas), sedan avanceras watermarken (FE anropar mark *efter* rendering). Ordningen är medveten — den speglar ADR 0080:s watermark-semantik.
+
+#### W4 — Cold-start: null watermark
+
+Vid null `LastSeenJobsAt` (första besöket) visar FE **inga** NY-märkningar. Det första besöket etablerar baseline — alla annonser behandlas som sedda. Valet "inga NY vid null" är aktivt gjort: alternativet "alla annonser = NY vid null" skulle flagga hela korpusen, vilket är meningslöst och missvisande (jfr matchningar-ytan som explicit undviker detta, ADR 0080).
+
+#### Scope och leveranssekvens (Klas + CTO)
+
+Detta amendment är hemmet för beslutet. Leveransen sker i två sekventiella steg:
+
+**Steg 1 — DETTA PR (#293): additivt BE-fundament**
+- `JobSeeker.LastSeenJobsAt` nullable kolumn (EF-migration)
+- `SetLastSeenJobs` monoton skrivning
+- `MarkJobsSeenCommand` + `POST /api/v1/me/jobs/seen`
+- `GetJobsWatermarkQuery` + `GET /api/v1/me/jobs/watermark`
+- Tester för ovanstående
+
+Det tidsbaserade `JobAdDto.IsNew` och `ListJobAdsQuery.Since` **kvarstår temporärt** i detta steg — borttagning sker i steg 2 för att undvika FE Zod-kontraktsbrott under separata BE/FE-deploy och för att undvika kollision med FE-CC:s aktiva #292-yta (§6.5).
+
+**Steg 2 — nästa session / FE-CC, tracker-driven (ej TD):**
+1. FE-rewire på /jobb: läs watermark, rendera NY = `CreatedAt > watermark`, fetch-then-mark, ta bort `localStorage jp-jobb-last-seen` + det 7-dygns-baserade `Since`
+2. DELETE: `JobAdDto.IsNew` + `ListJobAdsQuery.Since` + `ToDto(since)`-grenen + `IsNewTagOrthogonalityTests` (deferred eftersom borttagning bryter FE Zod-kontraktet före rewire under separata BE/FE-deploy, och FE-filerna kolliderar med FE-CC:s aktiva #292)
+3. /matchningar-unifiering: per-rad NY → samma watermark-semantik + eventuell Översikt "nya jobb"-räkning om en konsument tillkommer
+
+#### Korsreferenser
+
+- **ADR 0080 Beslut 6** — `LastSeenMatchesAt` watermark-precedent (sibling-mönster; oförändrat av detta amendment)
+- **ADR 0063 Beslut b** — `JobAdDto` vidgas inte med per-user-fält (honours, men batch-port-mekaniken från Beslut a tillämpas ej; scalar-read är enklare och räcker)
+- **ADR 0045** — shared-cacheability av den publika list-queryn återupprättas när `Since` tas bort i steg 2
+
+---
+
+*Referencias: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §4.3, §5.3, §9.1, §9.2, §9.6, §9.7.*

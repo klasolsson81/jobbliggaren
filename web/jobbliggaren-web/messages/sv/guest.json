@@ -2,8 +2,8 @@
   "banner": {
     "regionAriaLabel": "Demoläge",
     "label": "DEMO",
-    "text": "Du utforskar Jobbliggaren som gäst. Innehållet är exempeldata. Anmäl dig till väntelistan för att spara annonser och följa upp egna ansökningar.",
-    "cta": "Anmäl till väntelistan"
+    "text": "Du utforskar Jobbliggaren som gäst. Innehållet är exempeldata. Skapa ett konto för att spara annonser och följa upp egna ansökningar.",
+    "cta": "Skapa konto"
   },
   "welcome": {
     "title": "Välkommen till demoläget",
@@ -26,7 +26,7 @@
     "navAnsokningar": "Mina ansökningar",
     "navCv": "CV",
     "logIn": "Logga in",
-    "waitlist": "Anmäl till väntelistan"
+    "register": "Skapa konto"
   },
   "layout": {
     "skipToContent": "Hoppa till huvudinnehåll"
@@ -37,13 +37,13 @@
     "lede": "Så här ser det ut när du följer dina ansökningar. Allt här är exempeldata.",
     "noticeOfferLabel": "Erbjudande",
     "noticeOfferText": "<b>{company}</b>: {role}. Erbjudande väntar svar.",
-    "noticeOfferCta": "Anmäl till väntelistan",
+    "noticeOfferCta": "Skapa konto",
     "noticeDraftsLabel": "Påminnelse",
     "noticeDraftsText": "Du har <b>{count} utkast</b> som inte är inskickade. Färdigställ och skicka för att hålla pipeline aktiv.",
     "noticeDraftsCta": "Visa ansökningar",
     "noticeInterviewLabel": "Intervju",
     "noticeInterviewText": "<b>{company}</b> har bekräftat intervjutid.",
-    "noticeInterviewCta": "Anmäl till väntelistan",
+    "noticeInterviewCta": "Skapa konto",
     "noticeMatchLabel": "Matchning",
     "noticeMatchText": "Det finns <b>{count} nya annonser</b> som matchar profilen, de flesta inom <em>{segment}</em>.",
     "noticeMatchCta": "Visa annonser",
@@ -102,7 +102,7 @@
     "heroLede": "Detta är exempelannonser. När du har konto kan du söka och spara riktiga annonser från Platsbanken.",
     "searchLabel": "Sök på ett eller flera ord",
     "searchButton": "Sök",
-    "searchHint": "Sökfunktionen är låst i demoläget. Logga in eller anmäl dig till väntelistan för att söka i hela korpus.",
+    "searchHint": "Sökfunktionen är låst i demoläget. Logga in eller skapa ett konto för att söka i hela korpus.",
     "listTitle": "Exempelannonser",
     "cardAriaLabel": "{title} – {company}",
     "cardPublished": "Publicerad <b>{date}</b>",
@@ -116,7 +116,7 @@
     "source": "Källa",
     "lastUpdated": "Senast uppdaterad",
     "aboutHeading": "Om exempelansökningar",
-    "aboutBody": "Detta är en exempelansökan i demoläget. Logga in eller anmäl dig till väntelistan för att skapa, redigera och följa upp egna ansökningar med statusbyten, anteckningar och uppföljningar.",
+    "aboutBody": "Detta är en exempelansökan i demoläget. Logga in eller skapa ett konto för att skapa, redigera och följa upp egna ansökningar med statusbyten, anteckningar och uppföljningar.",
     "modalSubtitle": "{company} · demo"
   },
   "modal": {

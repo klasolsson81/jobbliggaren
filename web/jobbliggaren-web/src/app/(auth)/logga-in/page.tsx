@@ -21,10 +21,10 @@ export default function LoggaInPage() {
       <p className="text-sm text-text-secondary text-center">
         {t("auth.login.noAccount")}{" "}
         <Link
-          href="/vantelista"
+          href="/registrera"
           className="text-brand-600 hover:text-brand-700 underline underline-offset-2"
         >
-          {t("auth.login.joinWaitlist")}
+          {t("auth.login.createAccount")}
         </Link>
       </p>
     </div>

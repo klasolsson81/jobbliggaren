@@ -59,7 +59,6 @@ const PUBLIC_PAGES: PageTarget[] = [
   { path: "/", name: "landing" },
   { path: "/logga-in", name: "logga-in" },
   { path: "/registrera", name: "registrera" },
-  { path: "/vantelista", name: "vantelista" },
 ];
 
 const VIEWPORTS = [

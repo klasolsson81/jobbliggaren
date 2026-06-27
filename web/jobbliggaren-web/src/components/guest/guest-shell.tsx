@@ -83,10 +83,10 @@ export function GuestShell({ children }: { children: ReactNode }) {
               <LogIn size={16} aria-hidden="true" /> {t("shell.logIn")}
             </Link>
             <Link
-              href="/vantelista"
+              href="/registrera"
               className="jp-btn jp-btn--primary jp-btn--sm"
             >
-              {t("shell.waitlist")}
+              {t("shell.register")}
             </Link>
           </div>
         </div>

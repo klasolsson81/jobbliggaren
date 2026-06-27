@@ -292,6 +292,102 @@ public class HeadingDrivenResumeSegmenterTests
         result.Content.Experience.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
+    // ── #252: skill-section heading + separator coverage ───────────────
+    // A live first-run CV reported zero extracted skills. Root cause: the skill-section
+    // headings the CV used ("Tekniska kompetenser", "Nyckelord") were absent from the
+    // lexicon, so the whole skills block was never extracted; and middot/bullet/pipe
+    // keyword runs were not tokenised. These guard both fixes.
+
+    [Theory]
+    [InlineData("Tekniska kompetenser")]
+    [InlineData("Nyckelord")]
+    [InlineData("Kärnkompetenser")]
+    [InlineData("IT-kompetenser")]
+    [InlineData("Kompetenser:")]              // trailing colon is stripped by NormalizeHeading
+    [InlineData("Tekniska kompetenser:")]
+    public void Segment_RealWorldSkillHeading_RecognisedAsSkillsSectionWithEntries(string heading)
+    {
+        var cv =
+            $"""
+            Erik Eriksson
+            erik@example.com
+
+            {heading}
+            C#, PostgreSQL, Docker
+            """;
+
+        var result = _sut.Segment(cv);
+
+        LevelOf(result, ParsedSectionKind.Skills).ShouldBe(SectionConfidenceLevel.Confident,
+            $"Rubriken '{heading}' ska kännas igen som en kompetenssektion (#252).");
+        result.Content.Skills.ShouldContain("C#");
+        result.Content.Skills.ShouldContain("PostgreSQL");
+    }
+
+    [Theory]
+    [InlineData("C# · PostgreSQL · Docker · Git")]   // middot U+00B7
+    [InlineData("C# • PostgreSQL • Docker • Git")]   // bullet U+2022
+    [InlineData("C# | PostgreSQL | Docker | Git")]   // pipe
+    public void Segment_MiddotBulletOrPipeSeparatedSkills_SplitIntoDiscreteTokens(string run)
+    {
+        // A keyword run separated by middot/bullet/pipe (the "NYCKELORD: A · B · C" CV form)
+        // must tokenise into discrete skills, not survive as one un-resolvable blob (#252).
+        var cv =
+            $"""
+            Erik Eriksson
+            erik@example.com
+
+            Kompetenser
+            {run}
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Skills.ShouldBe(["C#", "PostgreSQL", "Docker", "Git"],
+            "Middot/bullet/pipe-separerade kompetenser ska splittas till diskreta tokens (#252).");
+    }
+
+    [Fact]
+    public void Segment_MixedCommaMiddotPipeSeparatorsInOneRun_AllSplit()
+    {
+        // Real CV keyword lines mix separators ("NYCKELORD: A, B · C | D"). The regex change
+        // must tokenise a run that mixes comma + middot + pipe within one line — pins that the
+        // separators are not mutually exclusive (#252).
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Nyckelord
+            C#, PostgreSQL · Docker | Git
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Skills.ShouldBe(["C#", "PostgreSQL", "Docker", "Git"]);
+    }
+
+    [Fact]
+    public void Segment_SpaceSeparatedSkillRun_KeptAsOneTokenNotShredded()
+    {
+        // Space is deliberately NOT a separator — a multi-word skill ("ASP.NET Core") must not be
+        // shredded. The space-run stays one token (it still resolves downstream via lexeme-bag
+        // containment); this pins the intended boundary of the #252 fix so a future change that
+        // adds space-splitting is caught.
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Kompetenser
+            ASP.NET Core Entity Framework
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Skills.ShouldHaveSingleItem().ShouldBe("ASP.NET Core Entity Framework");
+    }
+
     private static SectionConfidenceLevel LevelOf(
         Application.Resumes.Abstractions.ResumeSegmentationResult result, ParsedSectionKind kind)
     {

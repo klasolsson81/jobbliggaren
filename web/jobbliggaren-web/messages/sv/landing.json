@@ -1,7 +1,7 @@
 {
   "common": {
     "loginLink": "Logga in",
-    "footerNavLabel": "Sidfot"
+    "skipToContent": "Hoppa till huvudinnehåll"
   },
   "brand": {
     "homeAriaLabel": "Jobbliggaren, startsida",
@@ -16,18 +16,6 @@
     "newTodayLabel": "nya idag"
   },
   "hero": {
-    "title": "Håll ordning i ditt jobbsökande",
-    "lede": "Sök bland aktiva annonser från Platsbanken, skapa CV och brev, och följ upp varje ansökan, från utkast till svar.",
-    "ctaWaitlist": "Anmäl till väntelista",
-    "ctaOverview": "Till översikt",
-    "ctaGuest": "Utforska som gäst",
-    "peekSearchKicker": "Sök jobb",
-    "peekSearchText": "Systemutvecklare · Göteborg",
-    "peekSearchButton": "Sök",
-    "peekCard1Title": "Backend-utvecklare .NET",
-    "peekCard1Meta": "Volvo Cars Sverige AB · Göteborg",
-    "peekCard2Title": "Systemutvecklare fullstack",
-    "peekCard2Meta": "Folksam IT · Stockholm",
     "step1": "Hitta jobbet.",
     "step2": "Sök jobbet.",
     "step3": "Följ upp ansökan.",
@@ -39,19 +27,19 @@
     "title": "Allt du behöver för att hålla ordning",
     "search": {
       "key": "Sökning",
-      "body": "Aktiva platsannonser från Platsbanken, fler källor planerade. Sortera efter CV-match, nyhet eller deadline."
+      "body": "Alla aktiva annonser från Platsbanken, uppdaterade dygnet runt. Sök på yrke och ort, sortera efter nyhet eller sista ansökningsdag."
     },
     "pipeline": {
       "key": "Pipeline",
-      "body": "Spåra varje ansökan från utkast till svar, genom intervjuer, erbjudanden och avslag. Inget tappas mellan stolarna."
+      "body": "Spåra varje ansökan från utkast till svar: intervjuer, erbjudanden och avslag. Inget tappas mellan stolarna."
     },
     "cv": {
-      "key": "CV och brev",
-      "body": "Skapa och organisera flera CV-varianter. Generera personliga brev som matchar din ton. Du äger varje rad."
+      "key": "CV",
+      "body": "Skapa och organisera flera CV-varianter, och välj rätt CV för varje ansökan. Du äger varje rad."
     },
     "reminders": {
       "key": "Påminnelser",
-      "body": "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar, så du missar inga deadlines."
+      "body": "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar, så att du inte missar någon deadline."
     }
   },
   "auth": {
@@ -61,12 +49,6 @@
     "fine": "Genom att skapa konto godkänner du användarvillkoren och integritetspolicyn. Jobbliggaren säljer aldrig din data."
   },
   "footer": {
-    "linkAbout": "Om Jobbliggaren",
-    "linkTerms": "Användarvillkor",
-    "linkPrivacy": "Integritetspolicy",
-    "linkCookies": "Cookies",
-    "linkAccessibility": "Tillgänglighet",
-    "linkContact": "Kontakt",
     "blurb": "Håll ordning i hela ditt jobbsökande. Sök, ansök och följ upp på ett ställe.",
     "source": "Byggd på öppen data från Arbetsförmedlingen",
     "free": "Jobbliggaren är gratis att använda.",

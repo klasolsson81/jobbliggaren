@@ -1,117 +1,66 @@
-"use client";
-
-import { useRouter } from "next/navigation";
+import { Suspense } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowRight, Search } from "lucide-react";
+import { Eye } from "lucide-react";
+import { AuthCard } from "@/components/auth/AuthCard";
+import { AuthCardSkeleton } from "@/components/auth/AuthCardSkeleton";
 
 /**
- * LandingHeroSection — produkt-forward ljus hero (G4-redesign, CTO Riktning A).
+ * LandingHeroSection — the "Liggaren" ledger hero (LP-4 / #257), rewritten from
+ * the former product-peek hero. Two columns (`.jp-land-hero__inner--ledger`):
  *
- * Tidigare grön bakgrundsbox bakom H1 är borttagen: hero-canvasen är nu LJUS
- * (`--jp-surface`) och den enda gröna ytan är primär-CTA:ns fill plus ett litet
- * scoped hero-band-fragment INUTI produkt-peeken (ADR 0068-undantaget).
+ *  - left: an editorial numbered ledger `<h1>` (01/02/03 + 800-weight verbs with
+ *    dashed rules) followed by one factual lede. The ledger is REAL heading text
+ *    (not three icon-cards) so the page stays crawlable/SEO-meaningful. Verbs and
+ *    lede resolve to ink-1 (K2 — no grey).
+ *  - right (`.jp-land-hero__authcol`): the on-page tabbed `<AuthCard/>` (LP-6,
+ *    the single account action) under a Suspense boundary. The inner Login/
+ *    RegisterForm read `useSearchParams`, so without the boundary `next build`
+ *    fails static generation (same reason `/logga-in` wraps LoginForm). The
+ *    fallback is a shape-matching skeleton, not `null`, because the card is above
+ *    the fold. A discreet guest link sits below the card.
  *
- * Klient-island enbart för CTA-navigeringen (`useRouter`). Per Klas-direktiv
- * 2026-05-24 (Steg 5 closed-beta) finns ingen "Skapa konto"-CTA. Två CTA:er:
- *  - PRIMÄR "Anmäl till väntelista" → `/vantelista` (`.jp-btn--primary`,
- *    accent-800 grön fill + vit text — RÄTT på ljus canvas, ej grön-på-grön).
- *  - SEKUNDÄR "Utforska som gäst"/"Till översikt" (`.jp-btn--secondary`,
- *    vit/border + ink-text). F-Pre Punkt 5: target `/gast/oversikt` (anonym)
- *    resp `/oversikt` (inloggad); inloggad-state byter även CTA-texten.
+ * Live stats live in the <LandingHeader/> and the single "gratis" mention lives
+ * in the <SiteFooter/> closing row — neither is repeated here (design rule 2).
+ * No CTA buttons, no OAuth, no gradient: civic-utility, deterministic.
  *
- * HÖGER: produkt-peek — STATISK ren markup (ingen interaktivitet, ingen
- * klient-JS, ingen state, ingen animation). Visar produkten i miniatyr: ett
- * litet grönt hero-band-fragment (scoped `--jp-hero-gradient`) med ett
- * sökfält-ATTRAPP (ren markup, ingen riktig `<input>`) ovanför två
- * resultat-kort i flat/papper-stil. `aria-hidden` eftersom peeken är en
- * dekorativ produkt-illustration, inte interaktivt UI.
- *
- * Civic-utility-disciplin: inga Sparkles, inga gradient-bg utöver det scopade
- * peek-bandet, inga trust-pills. CTA-ikon (ArrowRight) är funktionell.
+ * Sync RSC: `useTranslations` resolves synchronously; only <AuthCard/> is a
+ * client island.
  */
-export function LandingHeroSection({
-  isAuthenticated,
-}: {
-  isAuthenticated: boolean;
-}) {
-  const router = useRouter();
-  const t = useTranslations("landing");
 
+const LEDGER = [
+  { num: "01", verbKey: "hero.step1" },
+  { num: "02", verbKey: "hero.step2" },
+  { num: "03", verbKey: "hero.step3" },
+] as const;
+
+export function LandingHeroSection() {
+  const t = useTranslations("landing");
   return (
     <section className="jp-land-hero">
-      <div className="jp-land-hero__inner">
+      <div className="jp-land-hero__inner jp-land-hero__inner--ledger">
         <div className="jp-land-hero__copy">
-          <h1 className="jp-land-hero__title">{t("hero.title")}</h1>
-          <p className="jp-land-hero__lede">{t("hero.lede")}</p>
-          <div className="jp-land-hero__ctas">
-            <button
-              type="button"
-              className="jp-btn jp-btn--lg jp-btn--primary"
-              onClick={() => router.push("/vantelista")}
-            >
-              {t("hero.ctaWaitlist")}
-            </button>
-            <button
-              type="button"
-              className="jp-btn jp-btn--lg jp-btn--secondary"
-              onClick={() =>
-                router.push(isAuthenticated ? "/oversikt" : "/gast/oversikt")
-              }
-            >
-              {isAuthenticated ? t("hero.ctaOverview") : t("hero.ctaGuest")}{" "}
-              <ArrowRight size={16} aria-hidden="true" />
-            </button>
-          </div>
+          <h1 className="jp-land-hero__ledger">
+            {LEDGER.map((row) => (
+              <span key={row.num} className="jp-land-hero__ledger-row">
+                <span className="jp-land-hero__ledger-num">{row.num}</span>
+                <span className="jp-land-hero__ledger-verb">{t(row.verbKey)}</span>
+              </span>
+            ))}
+          </h1>
+          <p className="jp-land-hero__ledger-lede">{t("hero.ledgerLede")}</p>
         </div>
 
-        {/* Produkt-peek: dekorativ, statisk produkt-illustration. aria-hidden
-            eftersom den inte är interaktivt UI och inte ska läsas som sådant
-            av skärmläsare (G4 CTO-spec). */}
-        <div className="jp-land-peek" aria-hidden="true">
-          {/* Scoped hero-band-fragment (ADR 0068-undantaget) — miniatyr av
-              /jobb-bannern. Sökfältet är en ATTRAPP (ren markup, ingen input). */}
-          <div className="jp-land-peek__band">
-            <span className="jp-land-peek__band-kicker">
-              {t("hero.peekSearchKicker")}
-            </span>
-            <div className="jp-land-peek__search">
-              <span className="jp-land-peek__search-text">
-                {t("hero.peekSearchText")}
-              </span>
-              <span className="jp-land-peek__search-btn">
-                <Search size={15} aria-hidden="true" />
-                {t("hero.peekSearchButton")}
-              </span>
-            </div>
+        <div className="jp-land-hero__authcol">
+          <Suspense fallback={<AuthCardSkeleton />}>
+            <AuthCard />
+          </Suspense>
+          <div className="jp-land-hero__guestrow">
+            <Link href="/gast/oversikt" className="jp-land-hero__guestlink">
+              <Eye size={16} aria-hidden="true" />
+              {t("hero.guest")}
+            </Link>
           </div>
-
-          {/* Resultat-kort i flat/papper-stil (hairlines, mono för ID/datum). */}
-          <ul className="jp-land-peek__list">
-            <li className="jp-land-peek__card">
-              <div className="jp-land-peek__card-head">
-                <span className="jp-land-peek__card-id">A-2841</span>
-                <span className="jp-land-peek__card-date">2026-06-09</span>
-              </div>
-              <div className="jp-land-peek__card-title">
-                {t("hero.peekCard1Title")}
-              </div>
-              <div className="jp-land-peek__card-meta">
-                {t("hero.peekCard1Meta")}
-              </div>
-            </li>
-            <li className="jp-land-peek__card">
-              <div className="jp-land-peek__card-head">
-                <span className="jp-land-peek__card-id">A-2838</span>
-                <span className="jp-land-peek__card-date">2026-06-08</span>
-              </div>
-              <div className="jp-land-peek__card-title">
-                {t("hero.peekCard2Title")}
-              </div>
-              <div className="jp-land-peek__card-meta">
-                {t("hero.peekCard2Meta")}
-              </div>
-            </li>
-          </ul>
         </div>
       </div>
     </section>

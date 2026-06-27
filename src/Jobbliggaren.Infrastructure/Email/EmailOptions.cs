@@ -24,8 +24,8 @@ public sealed class EmailOptions
     public string FromName { get; init; } = "Jobbliggaren";
 
     /// <summary>
-    /// Bas-URL för app:en. Används i invitation-länkens
-    /// <c>{BaseUrl}/registrera?token={plaintext}</c>.
+    /// Bas-URL för app:en. Används i bakgrundsmatchnings-notisens länkar
+    /// (<c>{BaseUrl}/matchningar</c> + <c>{BaseUrl}/installningar</c>, ADR 0080 Vag 4).
     /// </summary>
     public string BaseUrl { get; init; } = "http://localhost:3000";
 }

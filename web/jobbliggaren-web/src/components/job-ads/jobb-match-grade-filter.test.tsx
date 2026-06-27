@@ -3,18 +3,37 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
-// STEG 5 (grade-filter) — beteende-kontraktet (Klas-låst produktmodell):
-// switch på/av, "Av = noll grader", på → alla tre, avmarkera-alla → av.
+// issue #292 (Klas + senior-cto-advisor — ERSÄTTER STEG 5:s "av = noll grader"):
+// switchen speglar `active` (matchnings-axelns huvudbrytare), INTE
+// selected.length. PÅ + tom selected = "alla grader visas" (alla ikryssade).
+// PÅ → AV via onTurnOff; AV → PÅ via onTurnOn. Avmarkera sista grad håller
+// switchen PÅ (tom = alla visas igen).
 
 const onChange = vi.fn();
+const onTurnOff = vi.fn();
+const onTurnOn = vi.fn();
 
 beforeEach(() => {
   onChange.mockClear();
+  onTurnOff.mockClear();
+  onTurnOn.mockClear();
 });
 
-describe("JobbMatchGradeFilter — switch + kryssrutor", () => {
-  it("switchen är AV (aria-checked=false) när inga grader är valda", () => {
-    render(<JobbMatchGradeFilter selected={[]} onChange={onChange} />);
+function renderFilter(over: { active: boolean; selected?: string[] }) {
+  return render(
+    <JobbMatchGradeFilter
+      active={over.active}
+      selected={over.selected ?? []}
+      onChange={onChange}
+      onTurnOff={onTurnOff}
+      onTurnOn={onTurnOn}
+    />,
+  );
+}
+
+describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
+  it("switchen speglar active=false (aria-checked=false) — INTE selected.length", () => {
+    renderFilter({ active: false });
     const sw = screen.getByRole("switch", { name: "Matchning" });
     expect(sw).toHaveAttribute("aria-checked", "false");
     // Av-läget döljer kryssrute-gruppen (inga grad-kryssrutor renderas).
@@ -22,23 +41,32 @@ describe("JobbMatchGradeFilter — switch + kryssrutor", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
-  it("slå PÅ switchen → emitterar ALLA TRE grader (ordinal ordning)", async () => {
-    const user = userEvent.setup();
-    render(<JobbMatchGradeFilter selected={[]} onChange={onChange} />);
-    await user.click(screen.getByRole("switch", { name: "Matchning" }));
-    expect(onChange).toHaveBeenCalledWith(["Basic", "Good", "Strong"]);
-  });
-
-  it("switchen är PÅ och kryssrute-gruppen visas när minst en grad är vald", () => {
-    render(
-      <JobbMatchGradeFilter
-        selected={["Basic", "Good", "Strong"]}
-        onChange={onChange}
-      />,
-    );
+  it("switchen är PÅ (aria-checked=true) när active=true ÄVEN med tom selected", () => {
+    renderFilter({ active: true, selected: [] });
     const sw = screen.getByRole("switch", { name: "Matchning" });
     expect(sw).toHaveAttribute("aria-checked", "true");
-    // Grupp-label + tre kryssrutor (Grund/Bra/Stark), alla markerade.
+  });
+
+  it("slå PÅ switchen (active=false) → anropar onTurnOn (föräldern tar bort off)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: false });
+    await user.click(screen.getByRole("switch", { name: "Matchning" }));
+    expect(onTurnOn).toHaveBeenCalledTimes(1);
+    expect(onTurnOff).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("slå AV switchen (active=true) → anropar onTurnOff (föräldern skriver matchning=off)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: [] });
+    await user.click(screen.getByRole("switch", { name: "Matchning" }));
+    expect(onTurnOff).toHaveBeenCalledTimes(1);
+    expect(onTurnOn).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("PÅ + tom selected = 'alla grader visas' → tre kryssrutor, ALLA ikryssade (härlett)", () => {
+    renderFilter({ active: true, selected: [] });
     expect(
       screen.getByRole("group", { name: "Visa matchningsgrader" }),
     ).toBeInTheDocument();
@@ -52,67 +80,67 @@ describe("JobbMatchGradeFilter — switch + kryssrutor", () => {
     expect(screen.getByText("Stark")).toBeInTheDocument();
   });
 
-  it("slå AV switchen (från alla tre) → emitterar tom lista (Av = noll grader)", async () => {
-    const user = userEvent.setup();
-    render(
-      <JobbMatchGradeFilter
-        selected={["Basic", "Good", "Strong"]}
-        onChange={onChange}
-      />,
+  it("PÅ + delmängd → bara de valda kryssrutorna ikryssade", () => {
+    renderFilter({ active: true, selected: ["Good", "Strong"] });
+    expect(screen.getByRole("checkbox", { name: "Grund" })).toHaveAttribute(
+      "aria-checked",
+      "false",
     );
-    await user.click(screen.getByRole("switch", { name: "Matchning" }));
-    expect(onChange).toHaveBeenCalledWith([]);
+    expect(screen.getByRole("checkbox", { name: "Bra" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("checkbox", { name: "Stark" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 
-  it("avmarkera en grad smalnar (bevarar ordinal ordning för resten)", async () => {
+  it("avmarkera en grad från all-visad (tom selected) smalnar till de övriga två", async () => {
     const user = userEvent.setup();
-    render(
-      <JobbMatchGradeFilter
-        selected={["Basic", "Good", "Strong"]}
-        onChange={onChange}
-      />,
-    );
-    // Avmarkera Grund (Basic) → kvar Bra+Stark (Good, Strong).
+    // Tom selected = alla visas → avmarkera Grund → kvar Bra+Stark.
+    renderFilter({ active: true, selected: [] });
     await user.click(screen.getByRole("checkbox", { name: "Grund" }));
     expect(onChange).toHaveBeenCalledWith(["Good", "Strong"]);
   });
 
-  it("avmarkera SISTA grad → tom lista → switchen slår av (härlett)", async () => {
+  it("avmarkera SISTA graden → tom lista (= alla visas igen), switchen förblir PÅ (issue #292)", async () => {
     const user = userEvent.setup();
-    render(<JobbMatchGradeFilter selected={["Strong"]} onChange={onChange} />);
+    // Bara Stark vald; avmarkera → [] (alla visas igen), INTE av.
+    renderFilter({ active: true, selected: ["Strong"] });
     await user.click(screen.getByRole("checkbox", { name: "Stark" }));
     expect(onChange).toHaveBeenCalledWith([]);
+    expect(onTurnOff).not.toHaveBeenCalled();
   });
 
   it("markera en grad till en delmängd lägger till i ordinal ordning", async () => {
     const user = userEvent.setup();
     // Endast Stark valt; lägg till Grund → ordinal [Basic, Strong].
-    render(<JobbMatchGradeFilter selected={["Strong"]} onChange={onChange} />);
+    renderFilter({ active: true, selected: ["Strong"] });
     await user.click(screen.getByRole("checkbox", { name: "Grund" }));
     expect(onChange).toHaveBeenCalledWith(["Basic", "Strong"]);
   });
 
+  it("markera den tredje graden (delmängd → alla tre) normaliseras till [] (alla visas, ren URL)", async () => {
+    const user = userEvent.setup();
+    // Basic + Strong valt; markera Bra → alla tre → normaliseras till [].
+    renderFilter({ active: true, selected: ["Basic", "Strong"] });
+    await user.click(screen.getByRole("checkbox", { name: "Bra" }));
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
   it("kryssruta aktiveras med tangentbord (Space) — a11y", async () => {
     const user = userEvent.setup();
-    render(
-      <JobbMatchGradeFilter
-        selected={["Basic", "Good", "Strong"]}
-        onChange={onChange}
-      />,
-    );
+    renderFilter({ active: true, selected: [] });
     const stark = screen.getByRole("checkbox", { name: "Stark" });
     stark.focus();
     await user.keyboard(" ");
+    // Tom selected = alla visas → avmarkera Stark → kvar Grund+Bra.
     expect(onChange).toHaveBeenCalledWith(["Basic", "Good"]);
   });
 
   it("erbjuder ALDRIG Toppmatch (endast Grund/Bra/Stark)", () => {
-    render(
-      <JobbMatchGradeFilter
-        selected={["Basic", "Good", "Strong"]}
-        onChange={onChange}
-      />,
-    );
+    renderFilter({ active: true, selected: ["Basic", "Good", "Strong"] });
     expect(screen.queryByText("Topp")).toBeNull();
     expect(screen.queryByText("Toppmatch")).toBeNull();
     expect(screen.queryByRole("checkbox", { name: "Topp" })).toBeNull();

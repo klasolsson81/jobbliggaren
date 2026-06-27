@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdList } from "./job-ad-list";
 import type { JobAdDto } from "@/lib/dto/job-ads";
+import type { MatchGrade } from "@/lib/dto/job-ad-match";
 
 // publishedAt > 7 dygn så freshness-tagg INTE renderas (skulle annars läggas
 // till h3:s accessible name och bryta `getByRole("heading", { name })`).
@@ -51,5 +52,39 @@ describe("JobAdList", () => {
   it("uses a labelled list element for screen reader navigation", () => {
     render(<JobAdList jobAds={[sampleAd("a1", "Job A")]} />);
     expect(screen.getByRole("list", { name: "Jobbannonser" })).toBeInTheDocument();
+  });
+
+  // issue #292 — Gate (a) on the badge layer. When the matching axis is OFF,
+  // jobb-results.tsx skips the match-tag fetch and passes an empty (or no)
+  // matchGradeById → JobAdList must render NO MatchChip on any card. This is
+  // the list-level proof of "matchActive=false → no badges" (the toolbar
+  // cannot render the list, so badge-gating is asserted here).
+  it("renders NO MatchChip when matchGradeById is empty (matchActive=false)", () => {
+    const { container } = render(
+      <JobAdList
+        jobAds={[sampleAd("a1", "Job A"), sampleAd("a2", "Job B")]}
+        matchGradeById={new Map<string, MatchGrade>()}
+      />,
+    );
+    expect(container.querySelector(".jp-matchchip")).toBeNull();
+  });
+
+  it("renders NO MatchChip when matchGradeById is omitted (anonymous / off)", () => {
+    const { container } = render(
+      <JobAdList jobAds={[sampleAd("a1", "Job A")]} />,
+    );
+    expect(container.querySelector(".jp-matchchip")).toBeNull();
+  });
+
+  it("renders a MatchChip only for ads present in matchGradeById (matchActive=true)", () => {
+    const { container } = render(
+      <JobAdList
+        jobAds={[sampleAd("a1", "Job A"), sampleAd("a2", "Job B")]}
+        matchGradeById={new Map<string, MatchGrade>([["a1", "Strong"]])}
+      />,
+    );
+    // Exactly one card earns a badge (POSITIVE-ONLY); the other has none.
+    const chips = container.querySelectorAll(".jp-matchchip");
+    expect(chips).toHaveLength(1);
   });
 });

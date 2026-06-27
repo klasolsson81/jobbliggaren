@@ -7,6 +7,7 @@ import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
 import { isListMatchGrade } from "@/lib/dto/job-ad-match";
+import { MATCHNING_OFF_VALUE } from "@/lib/job-ads/search-params";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
@@ -34,6 +35,10 @@ type JobbSearchParams = {
   // STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filter, upprepad param
   // (enum-namn Basic/Good/Strong). Okända värden + Top droppas tyst.
   matchGrades?: string | string[];
+  // issue #292 — matchnings-huvudbrytaren. `?matchning=off` = AV (göm badges +
+  // match-sort). Frånvaro = default PÅ (när användaren angett ett yrke). Allt
+  // annat än "off" tolkas som frånvaro (PÅ) — page.tsx parsar bara off-värdet.
+  matchning?: string;
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -88,6 +93,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const matchGrades = [
     ...new Set(toStringList(params.matchGrades).filter(isListMatchGrade)),
   ];
+  // issue #292 — matchnings-huvudbrytaren. Parsa BARA off-värdet → boolean.
+  // page.tsx förblir presentationellt: den härleder inte matchActive (det är
+  // jobb-results.tsx SSOT — `matchActive = hasStatedDesiredOccupation &&
+  // !matchningOff`), den trådar bara den parsade flaggan vidare.
+  const matchningOff = params.matchning === MATCHNING_OFF_VALUE;
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -147,6 +157,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // STEG 5 — matchningsgrad ingår i Suspense-keyn så listan re-renderas (visar
   // skeleton) när bara grad-filtret ändras (samma princip som dimensionerna).
   const matchGradesKey = matchGrades.join(",");
+  // issue #292 — matchnings-axeln (på/av) ingår i Suspense-keyn så listan
+  // re-renderas när bara huvudbrytaren toggle:as: badge-fetchen och sort-
+  // koercionen i jobb-results.tsx hänger på matchActive, vars värde ändras med
+  // den här flaggan (samma princip som dimensionerna/grad-filtret).
+  const matchningKey = matchningOff ? "off" : "";
 
   return (
     <>
@@ -238,7 +253,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -251,6 +266,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             employmentType={employmentType}
             worktimeExtent={worktimeExtent}
             matchGrades={matchGrades}
+            matchningOff={matchningOff}
             q={q ?? ""}
             since={since}
             commit={commit}

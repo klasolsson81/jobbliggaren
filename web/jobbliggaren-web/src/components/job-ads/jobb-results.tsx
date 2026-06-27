@@ -6,7 +6,7 @@ import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
 import { getMyProfile } from "@/lib/api/me";
 import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
-import type { MatchGrade } from "@/lib/dto/job-ad-match";
+import type { MatchGrade, JobAdMatchBatch } from "@/lib/dto/job-ad-match";
 import { assertNever } from "@/lib/dto/_helpers";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
@@ -52,8 +52,14 @@ interface JobbResultsProps {
   worktimeExtent: string[];
   // STEG 5 (grade-filter, 2026-06-23) — valda matchningsgrader (enum-namn,
   // delmängd av Basic/Good/Strong; validerad + Top-strippad i page.tsx). Tom =
-  // inget grad-filter ("Matchning av"). Skickas vidare till list-queryn.
+  // alla grader visas (NÄR matchningen är PÅ). Skickas vidare till list-queryn.
   matchGrades: string[];
+  /**
+   * issue #292 — matchnings-huvudbrytaren (parsad ur `?matchning=off` i
+   * page.tsx). `true` = AV. Härleds HÄR till `matchActive` (SSOT):
+   * `matchActive = hasStatedDesiredOccupation && !matchningOff`.
+   */
+  matchningOff: boolean;
   q: string;
   since: string;
   /**
@@ -89,6 +95,7 @@ export async function JobbResults({
   employmentType,
   worktimeExtent,
   matchGrades,
+  matchningOff,
   q,
   since,
   commit,
@@ -113,15 +120,44 @@ export async function JobbResults({
     ...employmentType,
     ...worktimeExtent,
   ];
-  // F4-16 (CTO D8) — `hasStatedDesiredOccupation` hämtas här (samma parallella
-  // fetch, ingen waterfall, blockerar ej hero) och tråds in i toolbaren för
-  // in-/jobb-disclosuren. getMyProfile är `cache()`:ad (dedupar mot andra
-  // läsare i samma request). Fel/anonym → false (ingen falsk disclosure).
-  const [result, labelsResult, profileResult] = await Promise.all([
+  // F4-16 (CTO D8) — `hasStatedDesiredOccupation` hämtas via getMyProfile
+  // (`cache()`:ad → dedupar mot andra läsare i samma request). Fel/anonym →
+  // false (ingen falsk disclosure).
+  //
+  // issue #292 — den måste resolveras FÖRE getJobAds: `matchActive` (SSOT,
+  // härledd här) gatar list-queryns sort-koercion (gate (b): MatchDesc →
+  // PublishedAtDesc när matchningen är av/saknar yrke). getMyProfile är
+  // `cache()`:ad och deduppas per request (app-shellen läser den redan), så
+  // detta sekventiella await är en gratis cache-träff utan extra round-trip.
+  // Det är en MINIMAL waterfall — getJobAds startar efter den (instant) cache-
+  // träffen — medvetet motiverad: matchActive måste vara känt för sort-
+  // koercionen + badge-gaten innan list-queryn körs. De tunga anropen
+  // (getJobAds/resolveTaxonomyLabels) körs sedan parallellt i Promise.all nedan.
+  const profileResult = await getMyProfile();
+  const hasStatedDesiredOccupation =
+    profileResult.kind === "ok" &&
+    profileResult.data.hasStatedDesiredOccupation;
+
+  // issue #292 (senior-cto-advisor-bind) — matchnings-axelns SSOT: PÅ exakt när
+  // användaren angett ett yrke OCH huvudbrytaren inte är avstängd. Allt nedan
+  // (badge-fetch, sort-koercion, toolbar) hänger på detta enda härledda värde.
+  const matchActive = hasStatedDesiredOccupation && !matchningOff;
+
+  // Gate (b) — list-queryns sort. När matchningen inte är aktiv coerceras en
+  // aktiv MatchDesc-sort honest tillbaka till nyaste-först (PublishedAtDesc):
+  // match-sorten får inte styra ordningen när matchnings-axeln är av/saknar
+  // yrke. Toolbaren gör samma koercion på SIN sida (select-värdet) — bägge
+  // läser samma matchActive så SYNLIG ordning (select) och faktisk ordning
+  // aldrig divergerar (URL-strängen kan bära en inert MatchDesc-token tills
+  // nästa aktiva sort-byte — pre-existerande self-healing-doktrin).
+  const effectiveSortBy: JobAdSortBy =
+    !matchActive && sortBy === "MatchDesc" ? "PublishedAtDesc" : sortBy;
+
+  const [result, labelsResult] = await Promise.all([
     getJobAds({
       page,
       pageSize,
-      sortBy,
+      sortBy: effectiveSortBy,
       occupationGroup,
       region,
       municipality,
@@ -133,12 +169,7 @@ export async function JobbResults({
       commit,
     }),
     resolveTaxonomyLabels(selectedConceptIds),
-    getMyProfile(),
   ]);
-
-  const hasStatedDesiredOccupation =
-    profileResult.kind === "ok" &&
-    profileResult.data.hasStatedDesiredOccupation;
 
   // Plain Record (EJ Map) — passas över RSC→client-gränsen till
   // JobbResultsToolbar (Map serialiseras inte i RSC-payloaden).
@@ -155,17 +186,26 @@ export async function JobbResults({
       // på list-kort). Anonym/utan-auth → tomma set:n (degraderar civilt,
       // inga taggar visas). Max 100 IDs per anrop = validator-cap.
       const itemIds = result.data.items.map((it) => it.id);
+      // issue #292 — gate (a): badge-fetchen är BARA av när matchningen är aktiv.
+      // När den är av (huvudbrytare av, eller inget angett yrke) hämtas inga
+      // grad-taggar alls → tom matchGradeById → inga MatchChip på korten. Status-
+      // batchen (Sparad/Ansökt) är oberoende av matchnings-axeln och hämtas
+      // alltid.
       const [status, matchTags] = await Promise.all([
         getJobAdStatusBatch(itemIds),
         // F4-13 (ADR 0076) — graderad match-tagg-overlay. Anonym/utan-auth →
         // tom batch (degraderar civilt, inga taggar). POSITIVE-ONLY: bara
-        // annonser med positiv grad finns i `entries`.
-        getJobAdMatchTags(itemIds),
+        // annonser med positiv grad finns i `entries`. Hoppas över helt när
+        // matchningen är av (issue #292) — Promise.resolve undviker round-trip.
+        matchActive
+          ? getJobAdMatchTags(itemIds)
+          : Promise.resolve<JobAdMatchBatch>({ entries: {} }),
       ]);
       const savedIdSet = new Set(status.savedIds);
       const appliedIdSet = new Set(status.appliedIds);
       // Map<JobAdId, MatchGrade> — O(1)-lookup per kort (paritet med
       // savedIdSet/appliedIdSet). `entries` är ett plain Record; bygg Map här.
+      // matchActive=false ⇒ entries={} ⇒ tom Map ⇒ inga badges.
       const matchGradeById = new Map<string, MatchGrade>(
         Object.entries(matchTags.entries).map(
           ([id, entry]) => [id, entry.grade] as const
@@ -191,6 +231,7 @@ export async function JobbResults({
             sortBy={sortBy}
             pageSize={rawParams.pageSize}
             hasStatedDesiredOccupation={hasStatedDesiredOccupation}
+            matchActive={matchActive}
           />
           <div className="flex flex-col gap-2.5">
             <JobAdList

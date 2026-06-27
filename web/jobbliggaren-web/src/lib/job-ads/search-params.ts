@@ -40,13 +40,34 @@ export interface JobbUrlState {
   // URL:en (samma regel som occupationGroup som bär concept-id, inte i18n).
   // Upprepad query-param (?matchGrades=Strong&matchGrades=Good), samma
   // kontrakt som employmentType/worktimeExtent (ADR 0042 Beslut B).
-  // Produktmodell (Klas): "Av = noll grader" — en tom lista ÄR "Matchning av"
-  // (hela listan returneras). matchGrades är runtime-view-state, INTE en
-  // commit/recent-search-angelägenhet (utelämnas medvetet ur den concern:en).
+  // Produktmodell (Klas): matchGrades smalnar BARA av VILKA grader som visas
+  // när matchningen är PÅ (tom = alla grader). "Av" är inte längre en tom
+  // grad-lista (issue #292) utan en EGEN explicit param (`matchningOff`) —
+  // matchGrades överlastas aldrig med en off-sentinel (senior-cto-advisor-bind).
+  // matchGrades är runtime-view-state, INTE en commit/recent-search-
+  // angelägenhet (utelämnas medvetet ur den concern:en).
   matchGrades: ReadonlyArray<string>;
+  // issue #292 (Klas + senior-cto-advisor) — matchnings-axelns huvudbrytare.
+  // `true` = matchningen är AVSTÄNGD (skriver `?matchning=off` i URL:en); badges
+  // + match-sort göms och matchGrades töms. Frånvaro (false) = default PÅ (när
+  // användaren angett ett yrke). Persistent, delningsbar URL-state (till skillnad
+  // från den transienta `commit`-flaggan). Härleds till `matchActive` i
+  // `jobb-results.tsx` (SSOT): `matchActive = hasStatedDesiredOccupation &&
+  // !matchningOff`.
+  matchningOff?: boolean;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
+
+/**
+ * issue #292 — det explicita off-värdet för matchnings-axeln. Param-namnet är
+ * svenskt (`matchning`, paritet med rutterna /jobb /ansokningar); värdet `off`
+ * är ett stabilt sentinel-ord (inte i18n, samma regel som enum-namnen i
+ * matchGrades). Endast `off` skrivs ut — PÅ-läget är paramens FRÅNVARO så
+ * default-URL:en förblir ren (`/jobb`).
+ */
+export const MATCHNING_PARAM = "matchning";
+export const MATCHNING_OFF_VALUE = "off";
 
 export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
 
@@ -88,8 +109,11 @@ export function buildJobbHref(state: JobbUrlState): string {
   for (const v of state.worktimeExtent) params.append("worktimeExtent", v);
   // STEG 5 — matchningsgrad (enum-namn). Upprepad param efter Klass-2-
   // dimensionerna, före q (stabil URL-form för delningsbara länkar). Tom
-  // lista = inget param = "Matchning av" (hela listan).
+  // lista = inget param = alla grader visas (när matchningen är PÅ).
   for (const v of state.matchGrades) params.append("matchGrades", v);
+  // issue #292 — matchnings-huvudbrytaren. Skriv BARA ut när off (PÅ = paramens
+  // frånvaro, ren URL). Placeras efter matchGrades, före q (stabil URL-form).
+  if (state.matchningOff) params.set(MATCHNING_PARAM, MATCHNING_OFF_VALUE);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);

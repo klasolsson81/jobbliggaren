@@ -113,3 +113,34 @@ describe("buildJobbHref STEG 5 (matchGrades — grade-filter)", () => {
     ]);
   });
 });
+
+describe("buildJobbHref issue #292 (matchning huvudbrytare)", () => {
+  it("matchningOff=true emitterar ?matchning=off", () => {
+    expect(buildJobbHref({ ...empty, matchningOff: true })).toBe(
+      "/jobb?matchning=off",
+    );
+  });
+
+  it("matchningOff=false (PÅ) emitterar INTET param (default PÅ = frånvaro)", () => {
+    expect(buildJobbHref({ ...empty, matchningOff: false })).toBe("/jobb");
+  });
+
+  it("matchningOff utelämnad (undefined) emitterar INTET param", () => {
+    // `empty` saknar matchningOff helt → samma som PÅ (frånvaro).
+    expect(buildJobbHref(empty)).toBe("/jobb");
+  });
+
+  it("ordning: matchGrades → matchning → q (stabil URL-form)", () => {
+    // matchningOff är distinkt från matchGrades (CTO-bind: ingen off-sentinel i
+    // matchGrades). Båda kan samexistera i URL:en endast i PÅ-läget — i av-läget
+    // tömmer toolbaren matchGrades, men buildJobbHref serialiserar oavsett.
+    expect(
+      buildJobbHref({
+        ...empty,
+        q: "volvo",
+        matchGrades: ["Strong"],
+        matchningOff: true,
+      }),
+    ).toBe("/jobb?matchGrades=Strong&matchning=off&q=volvo");
+  });
+});

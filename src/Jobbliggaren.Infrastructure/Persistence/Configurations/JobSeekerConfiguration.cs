@@ -55,6 +55,9 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
         // NOT jsonb — both are hot-path-updated; see JobSeeker.cs field comments).
         builder.Property(js => js.LastMatchScanAt);
         builder.Property(js => js.LastSeenMatchesAt);
+        // #293 (ADR 0042 Beslut E amendment) — user-read watermark for the /jobb surface
+        // (first-class nullable column, sibling of last_seen_matches_at).
+        builder.Property(js => js.LastSeenJobsAt);
 
         builder.Property(js => js.CreatedAt).IsRequired();
         builder.Property(js => js.UpdatedAt);

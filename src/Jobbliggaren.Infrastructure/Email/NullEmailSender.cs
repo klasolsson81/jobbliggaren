@@ -7,35 +7,16 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// No-op <see cref="IEmailSender"/> — drops outgoing mail without logging recipient,
 /// token, or body. Registered as the fallback for the "Console" provider in any
 /// environment that is NOT Development/Test (security-auditor Major #1, Pre-4 STEG 6):
-/// <see cref="ConsoleEmailSender"/> writes the recipient email + plaintext invitation
-/// token to <c>ILogger</c>, which becomes durable PII + a live credential once the
-/// persistent Seq sink (TD-104) is attached, so it must never run in a sink-backed,
-/// real-recipient environment. A real transactional provider (SMTP / HTTP-API) replaces
-/// this for beta/prod (TD-101, Hetzner-fas).
+/// <see cref="ConsoleEmailSender"/> writes the recipient email + notification body to
+/// <c>ILogger</c>, which becomes durable PII once the persistent Seq sink (TD-104) is
+/// attached, so it must never run in a sink-backed, real-recipient environment. A real
+/// transactional provider replaces this for beta/prod (TD-101, Hetzner-fas).
 ///
 /// Suppression is logged at Debug WITHOUT any recipient/token so ops can see that mail
 /// is being dropped without leaking PII.
 /// </summary>
 public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : IEmailSender
 {
-    public Task SendInvitationEmailAsync(
-        string toEmail,
-        string plaintextToken,
-        DateTimeOffset expiresAt,
-        CancellationToken cancellationToken)
-    {
-        LogSuppressed("invitation");
-        return Task.CompletedTask;
-    }
-
-    public Task SendWaitlistConfirmationAsync(
-        string toEmail,
-        CancellationToken cancellationToken)
-    {
-        LogSuppressed("waitlist-confirmation");
-        return Task.CompletedTask;
-    }
-
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,

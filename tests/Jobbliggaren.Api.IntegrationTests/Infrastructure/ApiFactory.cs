@@ -186,10 +186,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__WindowSeconds", "60");
-        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__PermitLimit", "10000");
-        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__WindowSeconds", "60");
-        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__PermitLimit", "10000");
-        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", "60");
         // Pre-4 STEG 5 (TD-87 + TD-92): höj de tre nya /me-policyerna så delade
@@ -209,10 +205,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", "60");
-
-        // Default öppen registrering i integration-tester. Kill-switch testas
-        // isolerat av ClosedRegistrationsApiFactory.
-        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", "true");
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes-migrationen. I prod
@@ -263,10 +255,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__WindowSeconds", null);
-        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__InvitationRedeem__WindowSeconds", null);
-        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__WaitlistSignup__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__PermitLimit", null);
@@ -277,7 +265,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
-        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);

@@ -1,5 +1,4 @@
 using Jobbliggaren.Domain.Auditing;
-using Jobbliggaren.Domain.Invitations;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -8,7 +7,6 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
-using Jobbliggaren.Domain.Waitlist;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.Common.Abstractions;
@@ -26,8 +24,6 @@ public interface IAppDbContext
     DbSet<Resume> Resumes { get; }
     DbSet<ParsedResume> ParsedResumes { get; }
     DbSet<AuditLogEntry> AuditLogEntries { get; }
-    DbSet<Invitation> Invitations { get; }
-    DbSet<WaitlistEntry> WaitlistEntries { get; }
     DbSet<SavedSearch> SavedSearches { get; }
     DbSet<RecentJobSearch> RecentJobSearches { get; }
     DbSet<SavedJobAd> SavedJobAds { get; }

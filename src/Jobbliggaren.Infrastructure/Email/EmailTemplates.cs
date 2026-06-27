@@ -14,47 +14,6 @@ internal static class EmailTemplates
 {
     public sealed record EmailContent(string Subject, string PlainTextBody);
 
-    public static EmailContent InvitationEmail(
-        string baseUrl, string plaintextToken, DateTimeOffset expiresAt)
-    {
-        var link = $"{baseUrl.TrimEnd('/')}/registrera?token={plaintextToken}";
-        var expiresLocal = expiresAt
-            .ToOffset(TimeSpan.FromHours(2))
-            .ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-
-        return new EmailContent(
-            Subject: "Inbjudan till Jobbliggaren",
-            PlainTextBody: $"""
-                Du har bjudits in till Jobbliggaren.
-
-                Skapa ditt konto via länken:
-                {link}
-
-                Länken är giltig till {expiresLocal} (svensk tid).
-
-                Om du inte väntar dig denna inbjudan kan du bortse från meddelandet.
-
-                Vänliga hälsningar,
-                Jobbliggaren
-                """);
-    }
-
-    public static EmailContent WaitlistConfirmationEmail() =>
-        new(
-            Subject: "Tack för din anmälan till Jobbliggaren",
-            PlainTextBody: """
-                Vi har tagit emot din anmälan till väntelistan.
-
-                Jobbliggaren släpper in användare i kontrollerade pulser. Du får
-                ett nytt mejl med registreringslänk när din plats är godkänd.
-
-                Vi sparar din e-postadress endast för väntelistan. Om du vill
-                tas bort, svara på detta mejl.
-
-                Vänliga hälsningar,
-                Jobbliggaren
-                """);
-
     /// <summary>
     /// ADR 0080 Vag 4 PR-4 — bakgrundsmatchnings-notis. Icke-PII (jobbtitlar +
     /// företag + grad-LABELS, aldrig en siffra/procent). En OBLIGATORISK inställnings-/

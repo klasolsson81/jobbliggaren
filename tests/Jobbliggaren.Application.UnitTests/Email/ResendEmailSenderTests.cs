@@ -19,7 +19,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 ///   - the SDK send is called EXACTLY once;
 ///   - the match-notification path uses the IDEMPOTENCY overload
 ///     (<see cref="IResend.EmailSendAsync(string, EmailMessage, System.Threading.CancellationToken)"/>)
-///     and forwards the key verbatim (#187); invitation/waitlist stay on the plain overload;
+///     and forwards the key verbatim (#187);
 ///   - on an <see cref="IResend"/> throw the exception PROPAGATES (rethrow) and the recipient/body
 ///     never leak (the SDK is the only sink, and we assert it was hit exactly once with no retry
 ///     that could fan out PII).
@@ -66,49 +66,6 @@ public class ResendEmailSenderTests
 
     private static MatchNotificationIdempotencyKey SampleKey() =>
         MatchNotificationIdempotencyKey.ForDirect(Guid.NewGuid(), Guid.NewGuid());
-
-    // --- Invitation (plain overload — no idempotency key) ---
-
-    [Fact]
-    public async Task SendInvitationEmailAsync_ShouldCallEmailSendAsyncOnce_WhenInvoked()
-    {
-        var sut = CreateSut();
-
-        await sut.SendInvitationEmailAsync(
-            Recipient, "plaintext-token", DateTimeOffset.UtcNow.AddDays(1), CancellationToken.None);
-
-        await _resend.Received(1).EmailSendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SendInvitationEmailAsync_ShouldComposeFromAndRecipientAndInvitationSubject_WhenInvoked()
-    {
-        var sut = CreateSut();
-
-        await sut.SendInvitationEmailAsync(
-            Recipient, "plaintext-token", DateTimeOffset.UtcNow.AddDays(1), CancellationToken.None);
-
-        var message = CapturedMessage();
-        message.From.ShouldBe("Jobbliggaren <no-reply@jobbliggaren.se>");
-        message.To.ShouldContain(Recipient);
-        message.Subject.ShouldBe("Inbjudan till Jobbliggaren");
-        message.TextBody.ShouldNotBeNullOrWhiteSpace();
-    }
-
-    // --- Waitlist confirmation (plain overload) ---
-
-    [Fact]
-    public async Task SendWaitlistConfirmationAsync_ShouldComposeWaitlistSubject_WhenInvoked()
-    {
-        var sut = CreateSut();
-
-        await sut.SendWaitlistConfirmationAsync(Recipient, CancellationToken.None);
-
-        var message = CapturedMessage();
-        message.From.ShouldBe("Jobbliggaren <no-reply@jobbliggaren.se>");
-        message.To.ShouldContain(Recipient);
-        message.Subject.ShouldBe("Tack för din anmälan till Jobbliggaren");
-    }
 
     // --- Match notification (idempotency overload) ---
 
@@ -212,20 +169,6 @@ public class ResendEmailSenderTests
 
         await _resend.Received(1).EmailSendAsync(
             Arg.Any<string>(), Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SendInvitationEmailAsync_ShouldRethrow_WhenResendThrows()
-    {
-        _resend
-            .EmailSendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("resend down"));
-        var sut = CreateSut();
-
-        var act = async () => await sut.SendInvitationEmailAsync(
-            Recipient, "token", DateTimeOffset.UtcNow.AddDays(1), CancellationToken.None);
-
-        await act.ShouldThrowAsync<InvalidOperationException>();
     }
 
     // --- CancellationToken is propagated to the SDK ---

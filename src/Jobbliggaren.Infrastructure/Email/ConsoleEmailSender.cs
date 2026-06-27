@@ -21,26 +21,6 @@ public sealed partial class ConsoleEmailSender(
 {
     private readonly EmailOptions _options = options.Value;
 
-    public Task SendInvitationEmailAsync(
-        string toEmail,
-        string plaintextToken,
-        DateTimeOffset expiresAt,
-        CancellationToken cancellationToken)
-    {
-        var content = EmailTemplates.InvitationEmail(_options.BaseUrl, plaintextToken, expiresAt);
-        LogEmail(toEmail, content.Subject, content.PlainTextBody);
-        return Task.CompletedTask;
-    }
-
-    public Task SendWaitlistConfirmationAsync(
-        string toEmail,
-        CancellationToken cancellationToken)
-    {
-        var content = EmailTemplates.WaitlistConfirmationEmail();
-        LogEmail(toEmail, content.Subject, content.PlainTextBody);
-        return Task.CompletedTask;
-    }
-
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,

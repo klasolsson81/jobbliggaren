@@ -18,8 +18,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 /// Recording (not a pure no-op) so tests can positively assert a side-effect ("a confirmation email
 /// was queued to X") without touching the network. Append-only + thread-safe; tests assert by the
 /// unique per-test recipient, so the singleton's collection-shared lifetime needs no reset. Records
-/// only the kind + recipient — never the plaintext invitation token or any body content (secret/PII
-/// hygiene, even in a test fake).
+/// only the kind + recipient — never any body content (secret/PII hygiene, even in a test fake).
 /// </para>
 /// </summary>
 internal sealed class RecordingEmailSender : IEmailSender
@@ -28,24 +27,6 @@ internal sealed class RecordingEmailSender : IEmailSender
 
     /// <summary>Snapshot of every email queued through this fake since host start.</summary>
     public IReadOnlyList<RecordedEmail> Sent => [.. _sent];
-
-    public Task SendInvitationEmailAsync(
-        string toEmail,
-        string plaintextToken,
-        DateTimeOffset expiresAt,
-        CancellationToken cancellationToken)
-    {
-        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.Invitation, toEmail));
-        return Task.CompletedTask;
-    }
-
-    public Task SendWaitlistConfirmationAsync(
-        string toEmail,
-        CancellationToken cancellationToken)
-    {
-        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.WaitlistConfirmation, toEmail));
-        return Task.CompletedTask;
-    }
 
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
@@ -61,8 +42,6 @@ internal sealed class RecordingEmailSender : IEmailSender
 /// <summary>Which <see cref="IEmailSender"/> method recorded the send.</summary>
 internal enum RecordedEmailKind
 {
-    Invitation,
-    WaitlistConfirmation,
     MatchNotification,
 }
 

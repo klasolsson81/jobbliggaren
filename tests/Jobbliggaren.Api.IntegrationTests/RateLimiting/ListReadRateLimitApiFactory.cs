@@ -97,8 +97,6 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", "3");
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", "60");
 
-        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", "true");
-
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes (se ApiFactory).
         var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -118,7 +116,6 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
-        Environment.SetEnvironmentVariable("FeatureFlags__RegistrationsOpen", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);

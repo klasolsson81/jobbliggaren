@@ -190,7 +190,15 @@ describe("OversiktPage — Sammanfattnings-rad 'Nya matchningar' (ADR 0080 Vag 4
 
   it("mock-28 ('matchCountToday') yttas inte längre i Sammanfattningen", () => {
     const { container } = renderOversikt(true, 42, 7);
-    const text = container.textContent ?? "";
-    expect(text).not.toContain("28");
+    // Scope the guard to the Sammanfattning section (per the test name): the old
+    // matchCountToday mock (28) must not leak into the SUMMARY. Asserting the
+    // whole container is a date-flake — the agenda widget legitimately renders
+    // the day-of-month, which is "28" on the 28th of any month and has nothing
+    // to do with the summary. Section identified by its aria-labelledby anchor.
+    const summary = container.querySelector(
+      '[aria-labelledby="oversikt-sammanfattning"]',
+    );
+    expect(summary).not.toBeNull();
+    expect(summary?.textContent ?? "").not.toContain("28");
   });
 });

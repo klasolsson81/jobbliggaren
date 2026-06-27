@@ -86,6 +86,22 @@
 
   /* Accenter (v3-kanon) */
   --jp-leaf-600:  #1C7530;   --jp-leaf-50:  #DFF3E5;  /* #193: "Ny"-tag 3.76->4.97:1 on leaf-50 */
+  /* #290 — leaf-ramp extensions for the 4-tier match-grade fill ladder
+     (Toppmatch -> Grundmatch). Same named family as leaf-600/-50 (CTO bind:
+     no parallel --jp-grade-* vocabulary). Light tier reads: dark fills carry
+     white text, light fills carry leaf-900 ink — every pair >=4.5:1 (the chip
+     text is 13px/700, BELOW the WCAG large-text floor, so standard text).
+     leaf-700 is deepened (#125C2B -> #0B3D1B, #290 fix-round Major 2) so the
+     Topp<->Stark FILL-vs-FILL step is clearly perceptible (was 1.40:1, now
+     2.14:1 in light); white text keeps ample headroom.
+       leaf-700 #0B3D1B  Topp fill   (white text 12.37:1; step vs Stark 2.14:1)
+       leaf-600 #1C7530  Stark fill  (white text  5.77:1)  [pre-existing rung]
+       leaf-100 #BFE6CC  Bra fill    (leaf-900   11.29:1)
+       leaf-50  #DFF3E5  Grund fill  (leaf-900   13.26:1)  [pre-existing rung]
+       leaf-900 #0B2A1E  ink for the two light fills (= accent-900 tone) */
+  --jp-leaf-900:  #0B2A1E;
+  --jp-leaf-700:  #0B3D1B;
+  --jp-leaf-100:  #BFE6CC;
   --jp-coral-600: #DA2A47;   --jp-coral-50: #FCE4E9;
   --jp-amber-500: #E89A1A;   --jp-amber-50: #FBEBC8;
 
@@ -238,6 +254,22 @@
   --jp-info:    #8FBEEF;  --jp-info-bg:    #1B3358;
 
   --jp-leaf-600:  #5BCB7B;  --jp-leaf-50:  #143E29;
+  /* #290 — dark leaf-ramp extensions (mirror :root rungs). Stark/Bra/Grund
+     re-measured independently in dark (a light pass is NOT assumed to hold):
+     Stark (bright fill) carries dark canvas ink; Bra/Grund (deep fills) carry
+     the light leaf-900 ink. #290 fix-round Major 2: leaf-700 (Topp) is deepened
+     #4CC272 -> #1E7D40 so Topp<->Stark FILL-vs-FILL steps clearly (was 1.11:1,
+     now 2.53:1). At that depth dark canvas-ink text drops below 4.5:1, so dark
+     Topp flips to WHITE text (5.17:1) — same white-text rule as light Topp,
+     keeping the premium rung consistent across themes.
+       leaf-700 #1E7D40  Topp fill   (WHITE text 5.17:1; step vs Stark 2.53:1)
+       leaf-600 #5BCB7B  Stark fill  (canvas text 8.95:1)  [pre-existing rung]
+       leaf-100 #1F6E3E  Bra fill    (leaf-900    4.95:1)
+       leaf-50  #143E29  Grund fill  (leaf-900    9.49:1)  [pre-existing rung]
+       leaf-900 #C7EED4  ink for the two deep fills (light leaf) */
+  --jp-leaf-900:  #C7EED4;
+  --jp-leaf-700:  #1E7D40;
+  --jp-leaf-100:  #1F6E3E;
   --jp-coral-600: #F47185;  --jp-coral-50: #3A1722;
 
   /* --jp-focus omdefinieras EJ här (G1): :root-värdet var(--jp-accent-700)
@@ -1807,9 +1839,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    flex/flex-wrap-kontrakt (CTO-dom 2026-05-20, Variant D). Klas-
    mandat: civic-utility-stil, INGA pills, INGA pastell-chips,
    INGA ikoner-i-taggar (HANDOVER §0 / CLAUDE.md §5.2). .jp-tag
-   ärver färgvarianter via .jp-tag--accent (leaf framhävt, NY),
-   .jp-tag--neutral (border-only, färskhet), .jp-tag--brand
-   (navy svag fyll, match). Återanvänds över rad-komponenter. */
+   bär en base-variant (.jp-tag--accent / --neutral / --brand) men
+   #290 driver de fyra status-chip:arna (NY / freshness / SPARAD /
+   ANSÖKT) via [data-tag]-overrides på en DISTINKT NON-GRÖN axel
+   (grönt är reserverat för match-grad-chip:en) — se #290-blocket
+   nedan. Återanvänds över rad-komponenter. */
 .jp-job-tags {
   margin-left: auto;
   display: inline-flex;
@@ -1855,20 +1889,59 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-1);
   border-color: var(--jp-accent-700);
 }
-/* PR5 (Klas-feedback 2026-05-23) — Sparad/Ansökt-status-taggar får
-   kraftigare navy-kantlinje + ink för att stå ut från färskhet/freshness
-   utan att bryta civic-utility (inga pastellchips, ingen färgad fyll,
-   bara förstärkt outline). Override mot jp-tag--neutral default. */
-.jp-tag[data-tag="saved"],
-.jp-tag[data-tag="applied"] {
-  border-color: var(--jp-accent-700);
-  color: var(--jp-accent-700);
+/* #290 — STATUS CHIPS ON A DISTINCT NON-GREEN AXIS (Klas live-review
+   2026-06-27 + CTO guardrail). Pre-#290 every status chip was a near-
+   colourless outline (you couldn't see you'd APPLIED). Green is now reserved
+   for match-grade chips (.jp-matchchip), so status chips MUST NOT use green
+   or they'd read as a grade. They split across two NON-green axes that are
+   also distinct from each other:
+     - "Your actions" axis (blue / --jp-info): SPARAD + ANSÖKT.
+       ANSÖKT (the terminal action Klas called out) = SOLID info fill; SPARAD
+       = lighter info-bg fill. Fill weight separates the two.
+     - "Time / novelty" axis (neutral ink/surface): NY (strong) + freshness
+       (subtle). Darkness separates the two.
+   .jp-tag text is 11px/700 — standard text, every pair is measured >=4.5:1 in
+   BOTH themes below. These attribute-scoped selectors win over the
+   .jp-tag--accent / .jp-tag--neutral base by SOURCE ORDER at EQUAL (0,2,0)
+   specificity: .jp-tag[data-tag="..."] is one class + one attribute = (0,2,0),
+   the same as .jp-tag--accent (two classes) / [data-theme="dark"] .jp-tag--neutral;
+   the #290 block is later in the file, so it cascades last. (The className
+   contract + tests are unchanged.) */
+
+/* NY — strongest neutral chip (moves off the old leaf-green so green stays
+   grade-only). ink-1 on surface-3. Light 14.84:1, dark 10.30:1. Overrides
+   the leaf fill that .jp-tag--accent still sets on this element. */
+.jp-tag[data-tag="new"] {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+  border-color: var(--jp-border);
   font-weight: 700;
 }
-[data-theme="dark"] .jp-tag[data-tag="saved"],
-[data-theme="dark"] .jp-tag[data-tag="applied"] {
-  border-color: var(--jp-accent-300);
-  color: var(--jp-ink-1);
+/* freshness — subtle neutral chip (lowest emphasis of the four). ink-2 on
+   surface-2. Light 7.24:1, dark 10.24:1. */
+.jp-tag[data-tag="freshness"] {
+  background: var(--jp-surface-2);
+  color: var(--jp-ink-2);
+  border-color: var(--jp-border);
+  font-weight: 600;
+}
+/* SPARAD — lighter blue chip (a personal, non-terminal action). info text on
+   info-bg fill. Light 6.28:1, dark 6.49:1. */
+.jp-tag[data-tag="saved"] {
+  background: var(--jp-info-bg);
+  color: var(--jp-info);
+  border-color: var(--jp-info-bg);
+  font-weight: 700;
+}
+/* ANSÖKT — SOLID blue chip, the most visible status (Klas: "you can't see
+   you've APPLIED"). Inverse ink on a solid info fill so it reads as a filled
+   pill, not an outline. Light: white on info 7.71:1. Dark: dark ink-inverse
+   on the lighter dark-info fill 8.96:1 (white would fail on light blue). */
+.jp-tag[data-tag="applied"] {
+  background: var(--jp-info);
+  color: var(--jp-ink-inverse);
+  border-color: var(--jp-info);
+  font-weight: 700;
 }
 .jp-matchchip {
   display: inline-flex;
@@ -1891,44 +1964,75 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: currentColor;
   flex-shrink: 0;
 }
-.jp-matchchip--high {
-  color: var(--jp-success);
-  background: var(--jp-success-bg);
-  border-color: var(--jp-success);
-}
-/* F4-16 (design-reviewer 2026-06-20, Klas-bind A1) — golden/top-rungen.
-   Diskret namngivet tillstånd i success-familjen, SOLID fyllning. Läses ÖVER
-   --high (tonad grön) via fyllvikt, inte ny hue. INGEN ny token, INGEN
-   gradient/glow (CLAUDE.md §5).
-   Light: vit text på mörkgrön fyllning (knapp-kontraktet; #FFF på #16793B ~5,0:1 AA).
-   Dark:  mörk ink-text på ljusgrön fyllning (dark-input-regeln; --jp-canvas
-          #0B1525 på #5DD894 ~9:1 — vit text faller på ljusgrön, därför invertera). */
+/* #290 — TIERED MATCH-GRADE FILL LADDER (Klas live-review 2026-06-27).
+   Before #290 only --top read as a premium solid green; --high was a toned
+   tint and --mid/--low were neutral outlines (flat, "colourless"). Now ALL
+   four grades are SOLID fills on the SAME --jp-leaf-* ramp, stepping down in
+   weight Topp -> Grund (CTO bind: reuse the locked leaf ramp, no parallel
+   --jp-grade-* hue). Hierarchy comes from fill weight on ONE hue, not from
+   adding a second colour. The dot (.jp-matchchip__dot = currentColor)
+   inherits each tier's text colour, so it stays visible on its own fill.
+
+   The chip text is 13px/700 — BELOW the WCAG large-text floor (14pt/18.66px
+   bold) — so it is STANDARD text needing >=4.5:1, not 3:1. As the fill
+   lightens, white text fails, so the two lighter tiers flip to dark leaf-900
+   ink on a light leaf fill. Dark theme is measured independently: Stark keeps
+   dark canvas ink; Bra/Grund keep light leaf-900 ink; Topp uses WHITE text in
+   BOTH themes (#290 fix-round Major 2 deepened dark leaf-700 so canvas ink no
+   longer clears 4.5:1 — white does, and it keeps the premium rung consistent).
+
+   BORDER (#290 fix-round Minor 3): the chip sits on .jp-job = --jp-surface
+   (WHITE card), NOT surface-2 — a fill-coloured border on the two light tiers
+   was invisible (leaf-50 vs white 1.16:1, leaf-100 1.36:1) so the chips
+   dissolved into the card. All four tiers now use a --jp-leaf-600 border, the
+   one rung that clears the UI non-text 3:1 floor against the card in BOTH
+   themes (5.77:1 vs white light / 6.93:1 vs #1B2B47 dark), giving every grade
+   a crisp 1px edge. On the solid Stark fill (also leaf-600) the border simply
+   merges with the fill, which is fine — Stark's edge is already carried by its
+   strong fill-vs-card contrast.
+
+   Modifier -> grade (match-chip.tsx GRADE_MODIFIER, kept stable):
+     --top  = Toppmatch  -> leaf-700  --high = Stark match -> leaf-600
+     --mid  = Bra match  -> leaf-100  --low  = Grundmatch  -> leaf-50 */
+
+/* Topp — deepest solid fill, the premium rung. White text in both themes.
+   Light: white on leaf-700 12.37:1. Dark: white on the deepened leaf-700
+   5.17:1. Topp<->Stark fill step 2.14:1 light / 2.53:1 dark (clearly visible).
+   border leaf-600 vs white card 5.77:1 / vs dark card 6.93:1. */
 .jp-matchchip--top {
   color: #ffffff;
-  background: var(--jp-success);
-  border-color: var(--jp-success);
+  background: var(--jp-leaf-700);
+  border-color: var(--jp-leaf-600);
 }
-[data-theme="dark"] .jp-matchchip--top {
+/* Stark — solid fill one rung lighter than Topp (clear step-down). Light:
+   white on leaf-600 5.77:1. Dark: canvas ink on leaf-600 8.95:1. border =
+   leaf-600 (= its own fill on the card edge; merges with the fill but the
+   strong fill-vs-card contrast already defines the chip). */
+.jp-matchchip--high {
+  color: #ffffff;
+  background: var(--jp-leaf-600);
+  border-color: var(--jp-leaf-600);
+}
+[data-theme="dark"] .jp-matchchip--high {
   color: var(--jp-canvas);
-  background: var(--jp-success);
-  border-color: var(--jp-success);
 }
+/* Bra — light-green fill, ink flips to dark leaf-900 (white would fail on a
+   light fill). Light: leaf-900 on leaf-100 11.29:1. Dark: light leaf-900 on
+   the deep leaf-100 4.95:1. border leaf-600 gives the chip a crisp edge
+   against the white/dark card (5.77:1 / 6.93:1) — previously it dissolved. */
 .jp-matchchip--mid {
-  /* G1 (architect-fynd): mid får INTE bli accent-grön — skulle kollidera
-     med success-/high-semantiken. Neutral variant. Kant = --jp-border-input
-     (≥3:1 non-text-kontrast i light; --jp-border-strong höjdes till samma
-     3,5:1 i #193). */
-  color: var(--jp-ink-2);
-  background: var(--jp-surface-2);
-  border-color: var(--jp-border-input);
+  color: var(--jp-leaf-900);
+  background: var(--jp-leaf-100);
+  border-color: var(--jp-leaf-600);
 }
+/* Grund — lightest fill, the weakest rung but still clearly tinted (no more
+   neutral outline). Light: leaf-900 on leaf-50 13.26:1. Dark: light leaf-900
+   on deep leaf-50 9.49:1. border leaf-600 edges it against the card
+   (5.77:1 / 6.93:1) — leaf-50 vs white was only 1.16:1. */
 .jp-matchchip--low {
-  /* Text = --jp-ink-2 (body 4,5:1); --jp-ink-3 mäter ~3,0:1 på surface-3 och
-     når ej large-text-tröskeln vid 13px/700 → design-reviewer B1 (WCAG 1.4.3),
-     F4-13. Pricken ärver via currentColor. */
-  color: var(--jp-ink-2);
-  background: var(--jp-surface-3);
-  border-color: var(--jp-border);
+  color: var(--jp-leaf-900);
+  background: var(--jp-leaf-50);
+  border-color: var(--jp-leaf-600);
 }
 .jp-job__body { min-width: 0; }
 /* jp-job ≡ jp-app titel/company/meta: DELADE selektorer (HANDOVER §9

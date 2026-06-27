@@ -11,9 +11,13 @@ import type { MatchGrade } from "@/lib/dto/job-ad-match";
  *   "ingen match"/negativ-state existerar (parent renderar inte chip:en alls).
  * - Goodhart-vakt (hård): INGEN siffra/procent/mätare/stapel — bara en
  *   namngiven kategori + en prick. Aldrig en poäng.
- * - Färg: positiv = grön `--jp-success` (--high); aldrig röd (röd = danger).
- *   `--mid`/`--low` trappar ner mot neutral ink (success-rampen, ej accent-grön
- *   — kollision flaggad i globals.css:1870). Tokens flippar själva i dark.
+ * - Färg (#290): alla fyra grader är SOLIDA fyllningar på SAMMA `--jp-leaf-*`-
+ *   ramp som trappar ner i vikt Topp -> Grund (`--top` leaf-700, `--high`
+ *   leaf-600, `--mid` leaf-100, `--low` leaf-50). Hierarki via fyllvikt på EN
+ *   grön hue, aldrig en andra färg; aldrig röd (röd = danger). De två ljusare
+ *   stegen vänder texten till mörk `--jp-leaf-900` (vit text faller på ljus
+ *   fyllning). Tokens flippar själva i dark (bright fyll bär canvas-ink, deep
+ *   fyll bär ljus leaf-ink) — varje par >=4.5:1 i båda teman (CSS i globals.css).
  * - a11y (WCAG 1.4.1 / 4.1.2): den synliga label-texten ÄR det tillgängliga
  *   namnet → färg bär aldrig betydelse ensam. Pricken är dekorativ
  *   (`aria-hidden`) — den upprepar bara graden som texten redan uttrycker.
@@ -22,10 +26,9 @@ import type { MatchGrade } from "@/lib/dto/job-ad-match";
 // Grad → modifier (design-reviewer 2026-06-20, F4-16); etiketten resolveras via
 // next-intl (`ui.match.grade.*`). Inga utropstecken, ingen emoji, ingen
 // versalisering (§10). Ladder: Grundmatch → Bra match → Stark match →
-// Toppmatch. "Top" är den golden-rungen (Klas-bind: ordet "Toppmatch", färgen
-// djupare/solid grön — INGEN ny token, INGEN guld-token); modifier `--top` ger
-// solid `--jp-success`-fyllning över `--high`:s tonade grön (hierarki via
-// fyllvikt, ej ny hue).
+// Toppmatch. KEEP these modifier names stable — #290 ändrade BARA CSS:en bakom
+// dem (alla fyra blev solida fyllningar på `--jp-leaf-*`-rampen, Topp -> Grund
+// i avtagande vikt; hierarki via fyllvikt på en grön hue, ej ny token/hue).
 const GRADE_MODIFIER: Record<MatchGrade, string> = {
   Top: "jp-matchchip--top",
   Strong: "jp-matchchip--high",

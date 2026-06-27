@@ -1,6 +1,7 @@
 using Hangfire;
 using Jobbliggaren.Application.Applications.Jobs.GhostedDetection;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Application.Common.Auditing.Jobs.AuditLogRetention;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
@@ -47,52 +48,52 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
     public Task StartAsync(CancellationToken cancellationToken)
     {
         manager.AddOrUpdate<SyncPlatsbankenStreamWorker>(
-            "sync-platsbanken-stream",
+            RecurringJobIds.SyncPlatsbankenStream,
             job => job.RunAsync(CancellationToken.None),
             "*/10 * * * *");  // Var 10:e min, overlap-window 15 min, DisableConcurrentExecution-skyddad
 
         manager.AddOrUpdate<SyncPlatsbankenSnapshotWorker>(
-            "sync-platsbanken-snapshot",
+            RecurringJobIds.SyncPlatsbankenSnapshot,
             job => job.RunAsync(CancellationToken.None),
             Cron.Daily(2));  // 02:00 UTC — daglig fullbackfill, DisableConcurrentExecution(3600)-skyddad
 
         manager.AddOrUpdate<AuditLogRetentionJob>(
-            "audit-log-retention",
+            RecurringJobIds.AuditLogRetention,
             job => job.RunAsync(CancellationToken.None),
             Cron.Daily(3));
 
         manager.AddOrUpdate<RetainPlatsbankenJobAdsWorker>(
-            "retain-platsbanken-job-ads",
+            RecurringJobIds.RetainPlatsbankenJobAds,
             job => job.RunAsync(CancellationToken.None),
             "15 3 * * *");  // 03:15 UTC — efter snapshot-fönstret (02:00, upp till 60 min) + audit-log-retention
 
         manager.AddOrUpdate<BackgroundMatchingWorker>(
-            "background-matching",
+            RecurringJobIds.BackgroundMatching,
             job => job.RunAsync(CancellationToken.None),
             "20 3 * * *");  // 03:20 UTC — efter retain (03:15), före detect-ghosted (03:30). Per-user matchnings-scan: läser JobAds (Active) → skriver UserJobAdMatch + JobSeeker.LastMatchScanAt (ortogonalt mot retain/ghosted). ADR 0080 Vag 4 PR-3.
 
         manager.AddOrUpdate<DetectGhostedApplicationsJob>(
-            "detect-ghosted",
+            RecurringJobIds.DetectGhosted,
             job => job.RunAsync(CancellationToken.None),
             "30 3 * * *");  // 03:30 UTC — 30-min padding efter audit-log-retention
 
         manager.AddOrUpdate<ExpireJobAdsWorker>(
-            "expire-job-ads",
+            RecurringJobIds.ExpireJobAds,
             job => job.RunAsync(CancellationToken.None),
             "45 3 * * *");  // 03:45 UTC — defense-in-depth ExpiresAt-cron (ADR 0032-amend 2026-05-23)
 
         manager.AddOrUpdate<HardDeleteAccountsJob>(
-            "hard-delete-accounts",
+            RecurringJobIds.HardDeleteAccounts,
             job => job.RunAsync(CancellationToken.None),
             Cron.Daily(4));
 
         manager.AddOrUpdate<PurgeStaleRawPayloadsJob>(
-            "purge-stale-raw-payloads",
+            RecurringJobIds.PurgeStaleRawPayloads,
             job => job.RunAsync(CancellationToken.None),
             "30 4 * * *");  // 04:30 UTC — 30-min padding efter hard-delete (TD-73 punkt 2)
 
         manager.AddOrUpdate<StrandedMatchReaperWorker>(
-            "reap-stranded-matches",
+            RecurringJobIds.ReapStrandedMatches,
             job => job.RunAsync(CancellationToken.None),
             "45 4 * * *");  // 04:45 UTC — TD-114. Reapar UserJobAdMatch som fastnat i Queued
                             // (failad send) → terminal Failed. EFTER förra cykelns digest-fönster
@@ -100,12 +101,12 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
                             // svans (mellan purge 04:30 och backfill 05:00). DisableConcurrentExecution-skyddad.
 
         manager.AddOrUpdate<BackfillFieldEncryptionWorker>(
-            "backfill-field-encryption",
+            RecurringJobIds.BackfillFieldEncryption,
             job => job.RunAsync(CancellationToken.None),
             "0 5 * * *");  // 05:00 UTC — 30-min padding efter purge (TD-13 C5, ADR 0049 Beslut 4)
 
         manager.AddOrUpdate<ParsedResumeRetentionWorker>(
-            "parsed-resume-retention",
+            RecurringJobIds.ParsedResumeRetention,
             job => job.RunAsync(CancellationToken.None),
             "15 5 * * *");  // 05:15 UTC — TD-111 (ADR 0074 F4-8). Set-based ExecuteDelete-svep av
                             // mognade ParsedResume-staging-rader (Discarded/Promoted ≥30d, övergivna
@@ -117,12 +118,12 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
         // (03:20) och klar av hard-delete-klustret (04:00/04:30) — en Stark-match från i natt hamnar
         // i denna morgons digest, och digesten racear inte 03:xx/04:xx-jobben.
         manager.AddOrUpdate<DigestDispatchWorker>(
-            "digest-dispatch-daily",
+            RecurringJobIds.DigestDispatchDaily,
             job => job.RunDailyAsync(CancellationToken.None),
             Cron.Daily(6));  // 06:00 UTC — daglig digest, DisableConcurrentExecution(1800)-skyddad
 
         manager.AddOrUpdate<DigestDispatchWorker>(
-            "digest-dispatch-weekly",
+            RecurringJobIds.DigestDispatchWeekly,
             job => job.RunWeeklyAsync(CancellationToken.None),
             Cron.Weekly(DayOfWeek.Monday, 6));  // Måndag 06:00 UTC — veckovis digest (civic-default kadens)
 
@@ -133,7 +134,7 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
         // Krockar med stream-cron (*/10) 6×/timme — acceptabelt eftersom
         // stream-cron är HTTP-bunden mot JobTech, inte DB-bunden.
         manager.AddOrUpdate<RefreshLandingStatsWorker>(
-            "refresh-landing-stats",
+            RecurringJobIds.RefreshLandingStats,
             job => job.RunAsync(CancellationToken.None),
             "*/5 * * * *");
 

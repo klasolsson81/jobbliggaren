@@ -98,6 +98,14 @@ builder.Services.AddHangfire(cfg => cfg
             PrepareSchemaIfNecessary = false,
         }));
 
+// #204 / TD-83 PR2 — Api-impl av IBackgroundJobController-porten (admin
+// operatörsytans trigger/retry-mutationer). Wrappar Hangfire-klienten +
+// storage (registrerade av AddHangfire ovan) så Application förblir Hangfire-fri
+// (dotnet-architect-bind). Scoped paritet med Mediator-pipeline-livstiden.
+builder.Services.AddScoped<
+    Jobbliggaren.Application.Admin.BackgroundJobs.IBackgroundJobController,
+    Jobbliggaren.Api.BackgroundJobs.HangfireBackgroundJobController>();
+
 // Health checks — TD-29 / F2-P6 strict readiness-probe.
 //
 // `/api/live`: predicate _ => false → ingen check körs → 200 om processen är upp.

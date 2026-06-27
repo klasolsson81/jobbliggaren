@@ -282,6 +282,23 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// Admin operator mutations under /api/v1/admin/jobs (trigger/retry, #204 /
+    /// TD-83 PR2; absorbs TD-52/TD-98) — partitioned per UserId (claim "sub"),
+    /// anonymous → NoLimiter (the admin group is RequireAuthorization-gated → 401
+    /// before the endpoint). These mutations create the first admin write/DoS
+    /// surface, so the limit ships WITH them (a compromised admin session could
+    /// otherwise loop triggers / fan out heavy PII-processing jobs — security-
+    /// auditor T5 + hangfire-schema.md §5 p.2). 60/min/UserId is generous for an
+    /// operator (manual clicks) yet caps trigger-spam. FixedWindow (write policy,
+    /// parity with AccountDeletion/MeWrite), QueueLimit=0 (queue = memory-DoS).
+    /// </summary>
+    public PolicyOptions AdminWrite { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

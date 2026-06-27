@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -34,6 +35,18 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// confirmation was queued to X") without the network, and locks out the real Resend provider.
     /// </summary>
     internal RecordingEmailSender Emails => _emailSender;
+
+    // #204 / TD-83 PR2 — last-wins IBackgroundJobController override so the host never composes the
+    // real HangfireBackgroundJobController. Held as a field so audit/outcome tests can read recorded
+    // trigger calls and drive the next requeue outcome via Jobs.
+    private readonly RecordingBackgroundJobController _backgroundJobs = new();
+
+    /// <summary>
+    /// #204 / TD-83 PR2 — the recording <see cref="Jobbliggaren.Application.Admin.BackgroundJobs.IBackgroundJobController"/>
+    /// the host resolves. Lets the admin trigger/retry audit + outcome-mapping tests run the full
+    /// Mediator pipeline WITHOUT a bootstrapped Hangfire schema (ApiFactory does not bootstrap it).
+    /// </summary>
+    internal RecordingBackgroundJobController Jobs => _backgroundJobs;
 
     // Set in InitializeAsync before Services is accessed (triggers host creation)
     private string _postgresCs = string.Empty;
@@ -119,6 +132,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // resolves the real sender even via GetServices<IEmailSender>().
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(_emailSender);
+
+            // #204 / TD-83 PR2 — replace the real HangfireBackgroundJobController (composed in the Api
+            // root, wrapping Hangfire's IRecurringJobManager/IBackgroundJobClient/IMonitoringApi) with
+            // a recording fake. The integration host bootstraps NO hangfire schema (Api runs
+            // PrepareSchemaIfNecessary=false; the Worker owns bootstrap), so the real adapter would hit
+            // a missing schema. The fake lets the trigger/retry audit + auth + outcome-mapping tests
+            // exercise the full Mediator pipeline (validation/authorization/AuditBehavior/UnitOfWork).
+            // RemoveAll first so nothing resolves the real adapter via GetServices<IBackgroundJobController>().
+            services.RemoveAll<IBackgroundJobController>();
+            services.AddSingleton<IBackgroundJobController>(_backgroundJobs);
         });
     }
 

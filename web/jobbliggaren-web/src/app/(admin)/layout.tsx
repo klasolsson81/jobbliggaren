@@ -5,6 +5,7 @@ import { getServerSession, ROLES } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { SiteFooter } from "@/components/site/site-footer";
 
 export default async function AdminLayout({
   children,
@@ -57,6 +58,9 @@ export default async function AdminLayout({
         >
           {children}
         </main>
+        {/* LP-3 (#256): shared deep-green footer at the bottom of the admin
+            flex column. */}
+        <SiteFooter />
       </div>
     </>
   );

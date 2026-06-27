@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { GuestShell } from "@/components/guest/guest-shell";
 import { GuestWelcomeModal } from "@/components/guest/guest-welcome-modal";
+import { SiteFooter } from "@/components/site/site-footer";
 import { hasSeenGuestWelcome } from "@/lib/guest/guest-mode";
 
 // F-Pre Punkt 5 — Gäst-tree (CTO-dom 2026-05-24 Beslut 1, Variant A).
@@ -37,6 +38,9 @@ export default async function GuestLayout({
         {children}
         {modal}
       </GuestShell>
+      {/* LP-3 (#256): shared deep-green footer at the shell level (LP-5b/#259
+          handles in-shell footer chrome). */}
+      <SiteFooter />
       <GuestWelcomeModal showWelcome={!welcomed} />
     </>
   );

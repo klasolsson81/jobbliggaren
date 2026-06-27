@@ -104,12 +104,6 @@
       "developers": "För utvecklare"
     }
   },
-  "siteFooter": {
-    "copyright": "© Jobbliggaren · sluten beta",
-    "linkTerms": "Användarvillkor",
-    "linkCookies": "Cookies",
-    "linkLogin": "Logga in"
-  },
   "waitlist": {
     "kicker": "Sluten beta",
     "title": "Anmäl dig till väntelistan",

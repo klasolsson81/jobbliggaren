@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { AppShell } from "@/components/shell/app-shell";
+import { SiteFooter } from "@/components/site/site-footer";
 import { fetchLandingStats } from "@/lib/api/landing";
 import { LANDING_STATS_FLOOR_DTO } from "@/lib/dto/landing";
 
@@ -38,6 +39,9 @@ export default async function AppLayout({
         {children}
         {modal}
       </AppShell>
+      {/* LP-3 (#256): the shared deep-green footer mounts at the shell level.
+          Moving footer chrome inside AppShell's flex column is LP-5b/#259. */}
+      <SiteFooter />
     </>
   );
 }

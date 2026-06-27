@@ -104,12 +104,6 @@
       "developers": "For developers"
     }
   },
-  "siteFooter": {
-    "copyright": "© Jobbliggaren · closed beta",
-    "linkTerms": "Terms of use",
-    "linkCookies": "Cookies",
-    "linkLogin": "Log in"
-  },
   "waitlist": {
     "kicker": "Closed beta",
     "title": "Join the waitlist",

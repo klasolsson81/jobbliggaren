@@ -54,4 +54,30 @@ describe("LanguageSwitcher", () => {
     expect(setLocaleAction).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("default variant renders the light-surface .jp-lang markup", () => {
+    const { container } = render(<LanguageSwitcher />);
+    expect(container.querySelector(".jp-lang")).not.toBeNull();
+    expect(container.querySelector(".jp-lang__btn")).not.toBeNull();
+    expect(container.querySelector(".jp-foot__lang")).toBeNull();
+  });
+
+  it('variant="footer" renders the deep-green .jp-foot__lang markup, same a11y/logic', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<LanguageSwitcher variant="footer" />);
+    // Consumes #254's dormant footer-lang classes, not the light .jp-lang path.
+    expect(container.querySelector(".jp-foot__lang")).not.toBeNull();
+    expect(container.querySelector(".jp-foot__lang-btn")).not.toBeNull();
+    expect(container.querySelector(".jp-lang")).toBeNull();
+    // a11y preserved: labelled group, active locale pressed.
+    const group = screen.getByRole("group", { name: "Språk" });
+    expect(
+      screen.getByRole("button", { name: "Svenska" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(group).toContainElement(screen.getByRole("button", { name: "English" }));
+    // logic preserved: switching still writes the cookie and refreshes.
+    await user.click(screen.getByRole("button", { name: "English" }));
+    expect(setLocaleAction).toHaveBeenCalledWith("en");
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  });
 });

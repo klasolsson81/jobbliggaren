@@ -4144,6 +4144,224 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-land-foot__sep { padding: 0 8px; color: var(--jp-border); }
 
 /* ============================================================
+   Liggaren landing redesign — LP-1 FOUNDATION (#254)
+   ------------------------------------------------------------
+   ADDITIVE, shell-agnostic classes for the "Liggaren" direction
+   (epic #267): ledger hero (01/02/03 + 800-weight verbs, dashed
+   rules), on-page tabbed auth card, shared public header, and one
+   big deep-green footer. Consumed by LP-3 #256 (footer), LP-4 #257
+   (hero/features), LP-5a #258 (header), LP-6 #260 (auth card);
+   adopted across shells in LP-5b #259.
+
+   These are NEW names. The legacy .jp-land-top* / .jp-land-hero* /
+   .jp-land-foot* / .jp-auth-* classes above are LEFT INTACT (still
+   consumed by the live landing + auth pages until those waves swap
+   the components) — nothing here renames or overrides them.
+
+   K2 (epic #267): NO grey ink-2/ink-3 on new landing body/labels —
+   everything resolves to --jp-ink-1 (#0C1A2E). Hierarchy comes from
+   size/weight/font, not washed-out colour.
+   ============================================================ */
+
+/* ── Liggar-chip (egen signatur — sigill-prick + label) ──────
+   .jp-land-chip (INTE .jp-chip — den är den generiska removable-
+   chippen ovan; namnet är taget). Landnings-scopad signatur-tagg. */
+.jp-land-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.jp-land-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 30px; padding: 0 12px 0 9px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-pill);
+  font-size: 13px; font-weight: 600; color: var(--jp-ink-1);
+  white-space: nowrap;
+}
+.jp-land-chip__seal {
+  position: relative; flex: 0 0 auto;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--jp-accent-800);
+}
+.jp-land-chip__seal::after {
+  content: ""; position: absolute; left: 3.5px; top: 6.7px;
+  width: 8px; height: 1.7px; border-radius: 1px; background: var(--jp-gold);
+}
+/* --free = sidans enda gratis-omnämnande (accent-900 på accent-50, hög kontrast) */
+.jp-land-chip--free { border-color: var(--jp-accent-300); background: var(--jp-accent-50); color: var(--jp-accent-900); }
+.jp-land-chip--free .jp-land-chip__seal { background: var(--jp-accent-800); }
+/* --ghost = för mörk/grön yta (literal vit, tema-stabil) */
+.jp-land-chip--ghost { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.28); color: #FFFFFF; }
+
+/* ── Delad publik header (.jp-head-*) ────────────────────────
+   Shell-agnostisk: brand vänster + live-stats höger, INGEN login-länk
+   (auth-kortet i heron bär kontoåtgärden, epic #267). Följer surface/
+   ink-tokens → adapterar per tema (till skillnad mot footern). */
+.jp-head {
+  background: var(--jp-surface);
+  border-bottom: 1px solid var(--jp-border);
+  position: sticky; top: 0; z-index: 30;
+}
+.jp-head__inner {
+  max-width: 1200px; margin-inline: auto;
+  padding: 0 32px; min-height: 88px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+.jp-head__stats { display: flex; align-items: center; gap: 18px; }
+.jp-head__stat { display: flex; flex-direction: column; line-height: 1.1; }
+.jp-head__stat-num {
+  font-family: var(--jp-font-mono); font-size: 17px; font-weight: 700;
+  color: var(--jp-ink-1); letter-spacing: -0.01em;
+}
+.jp-head__stat-label {
+  font-family: var(--jp-font-mono); font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--jp-ink-1); margin-top: 2px;
+}
+.jp-head__stat-delta { color: var(--jp-success); }
+.jp-head__sep { width: 1px; height: 28px; background: var(--jp-border); }
+@media (max-width: 760px) {
+  .jp-head__inner { padding: 0 20px; min-height: 72px; }
+  .jp-head__stats, .jp-head__sep { display: none; }
+}
+
+/* ── Ledger-hero (Variant A "Liggaren") ──────────────────────
+   Additiva sub-element som komponeras INUTI det befintliga
+   .jp-land-hero-skalet (bg/padding orörda). 01/02/03 + 800-verb,
+   streckade radlinjer, höger auth-kolumn, gäst-länk under. */
+.jp-land-hero__inner--ledger { grid-template-columns: minmax(0, 1fr) 440px; }
+.jp-land-hero__eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--jp-font-mono); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--jp-accent-700); margin-bottom: 18px;
+}
+.jp-land-hero__ledger { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.jp-land-hero__ledger-row {
+  display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 18px; padding: 6px 0;
+}
+.jp-land-hero__ledger-row + .jp-land-hero__ledger-row { border-top: 1px dashed var(--jp-border); }
+.jp-land-hero__ledger-num {
+  font-family: var(--jp-font-mono); font-size: 16px; font-weight: 600;
+  color: var(--jp-accent-700); padding-top: 10px;
+}
+.jp-land-hero__ledger-verb {
+  font-size: clamp(36px, 5.2vw, 60px); font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.0; color: var(--jp-ink-1);
+}
+/* Ledger-lede = ink-1 (K2; den befintliga .jp-land-hero__lede ovan är ink-2
+   och rörs inte — den bär nuvarande heron tills #257 byter komponenten). */
+.jp-land-hero__ledger-lede {
+  margin: 22px 0 0; font-size: 18px; line-height: 1.55; color: var(--jp-ink-1); max-width: 52ch;
+}
+.jp-land-hero__authcol { min-width: 0; }
+.jp-land-hero__guestrow { margin-top: 16px; display: flex; justify-content: center; }
+.jp-land-hero__guestlink {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 14.5px; font-weight: 600; color: var(--jp-accent-700); text-decoration: none;
+}
+.jp-land-hero__guestlink:hover { color: var(--jp-accent-600); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 980px) {
+  /* .jp-land-hero__inner (bas) staplar redan vid 980px; modifieraren ärver det. */
+  .jp-land-hero__inner--ledger { grid-template-columns: 1fr; }
+  .jp-land-hero__ledger-verb { font-size: clamp(30px, 9vw, 48px); }
+}
+
+/* ── On-page auth-kort med flikar (.jp-auth-tabcard) ─────────
+   Distinkt från .jp-auth-card/-wrap/-form/-foot (auth-SIDORNA ovan,
+   orörda). Flik-kort i heron som återanvänder LoginForm/RegisterForm.
+   INGEN OAuth/Namn (döda affordanser, borttagna per epic #267). */
+.jp-auth-tabcard {
+  background: var(--jp-surface); border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg); box-shadow: var(--jp-shadow-card); overflow: hidden; width: 100%;
+}
+.jp-auth-tabs { display: flex; border-bottom: 1px solid var(--jp-border); }
+.jp-auth-tab {
+  position: relative; flex: 1; padding: 15px 10px; background: var(--jp-surface-2);
+  border: 0; font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--jp-ink-1); cursor: pointer;
+}
+.jp-auth-tab + .jp-auth-tab { border-left: 1px solid var(--jp-border); }
+.jp-auth-tab[aria-selected="true"] { background: var(--jp-surface); }
+.jp-auth-tab[aria-selected="true"]::after {
+  content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 2px; background: var(--jp-accent-700);
+}
+.jp-auth-panel { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+.jp-auth-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.jp-auth-title { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--jp-ink-1); }
+.jp-auth-fine { margin: 0; font-size: 12.5px; color: var(--jp-ink-1); line-height: 1.5; }
+.jp-auth-fine a { font-weight: 600; }
+
+/* ── Stor djupgrön footer (.jp-foot-*) — Platsbanken-anda ────
+   Bakgrund --jp-accent-900 (#0B2A1E, tema-STABIL: skiftar ej i dark).
+   Text = LITERALA #FFFFFF / rgba(255,255,255,a) — ALDRIG --jp-ink-inverse
+   (som vänder till mörk #0C1A2E i dark och försvinner mot grönt).
+   K2-kontrast (uppmätt på #0B2A1E, identisk light+dark då färgerna är
+   tema-stabila):
+     pure #FFFFFF .................. 15.39:1  (länkar, blurb, brand-ord, panel)
+     rgba(255,255,255,0.92) ........ 13.19:1  (källrad, legal-text+länkar, tagline, lang-knapp)
+     rgba(255,255,255,0.72) ........  8.58:1  (mono kolumnhuvuden, ≥ AA Large)
+     rgba(255,255,255,0.45) ........  4.23:1  (social/lang-border, UI-komponent ≥3:1)
+     rgba(255,255,255,0.40) ........  3.64:1  (legal-separator, dekorativ — klarar ändå 3:1)
+     rgba(255,255,255,0.20) ........  1.89:1  (bar-avdelare, dekorativ hairline — exempt som --jp-border)
+   --jp-accent-900 på --jp-gold (NEW-tagg) = 9.45:1. */
+.jp-foot { background: var(--jp-accent-900); color: #FFFFFF; }
+.jp-foot__main { max-width: 1200px; margin-inline: auto; padding: 64px 32px 40px; }
+.jp-foot__cols { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 40px 32px; }
+.jp-foot__brandcol { max-width: 320px; }
+.jp-foot .jp-brand__word { color: #FFFFFF; }
+.jp-foot .jp-brand__tagline { color: rgba(255, 255, 255, 0.92); }
+.jp-foot__blurb { margin: 18px 0 0; font-size: 14px; line-height: 1.6; color: #FFFFFF; }
+.jp-foot__src {
+  margin-top: 16px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: rgba(255, 255, 255, 0.92);
+}
+.jp-foot__colhead {
+  margin: 0 0 14px; font-family: var(--jp-font-mono); font-size: 11.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.72);
+}
+.jp-foot__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+.jp-foot__links a { color: #FFFFFF; text-decoration: none; font-size: 14.5px; }
+.jp-foot__links a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.jp-foot__tag {
+  margin-left: 7px; font-family: var(--jp-font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--jp-accent-900);
+  background: var(--jp-gold); border-radius: 3px; padding: 1px 5px; vertical-align: middle;
+}
+.jp-foot__bar { border-top: 1px solid rgba(255, 255, 255, 0.20); }
+.jp-foot__bar-inner {
+  max-width: 1200px; margin-inline: auto; padding: 22px 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+}
+.jp-foot__legal { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13px; color: rgba(255, 255, 255, 0.92); }
+.jp-foot__legal a { color: rgba(255, 255, 255, 0.92); text-decoration: none; }
+.jp-foot__legal a:hover { color: #FFFFFF; text-decoration: underline; }
+.jp-foot__legal-sep { color: rgba(255, 255, 255, 0.40); }
+.jp-foot__social { display: flex; align-items: center; gap: 8px; }
+.jp-foot__social a {
+  width: 36px; height: 36px; border-radius: var(--jp-r-md);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #FFFFFF; border: 1px solid rgba(255, 255, 255, 0.45);
+}
+.jp-foot__social a:hover { background: rgba(255, 255, 255, 0.10); }
+.jp-foot__lang {
+  display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: var(--jp-r-md); overflow: hidden;
+}
+.jp-foot__lang-btn {
+  width: 40px; height: 32px; background: transparent; border: 0; cursor: pointer;
+  font-family: var(--jp-font-mono); font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.92);
+}
+.jp-foot__lang-btn[aria-pressed="true"] { background: #FFFFFF; color: var(--jp-accent-900); }
+.jp-foot__lang-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+@media (max-width: 1040px) {
+  .jp-foot__cols { grid-template-columns: 1fr 1fr 1fr; }
+  .jp-foot__brandcol { grid-column: 1 / -1; max-width: 520px; }
+}
+@media (max-width: 760px) {
+  .jp-foot__cols { grid-template-columns: 1fr 1fr; gap: 32px 24px; }
+  .jp-foot__main { padding: 48px 20px 32px; }
+  .jp-foot__bar-inner { padding: 20px; }
+}
+@media (max-width: 460px) {
+  .jp-foot__cols { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
    v2 STRUKTURELL KOMPAT-SHIM (branch-by-abstraction, CTO Beslut 3).
    Verbatim-bevarade v2-klasser som ännu konsumeras av sidor/komponenter
    som refaktoreras i F3-F6 (jobb/ansökningar/cv/mig/sökningar +

@@ -54,4 +54,30 @@ describe("BrandLogo", () => {
     expect(container.querySelectorAll("rect").length).toBe(3);
     expect(container.querySelectorAll("path").length).toBe(1);
   });
+
+  it("default (inverse=false): grön skiva via --jp-mark-primary-token", () => {
+    const { container } = render(<BrandLogo />);
+    // Skivan = första circle (r=45). Default = den gröna mark-token.
+    const disc = container.querySelectorAll("circle")[0];
+    expect(disc!.getAttribute("fill")).toBe("var(--jp-mark-primary)");
+  });
+
+  it("inverse: vit skiva (#FFFFFF) med accent-900-rader för mörk footer", () => {
+    const { container } = render(<BrandLogo inverse />);
+    const circles = container.querySelectorAll("circle");
+    // Skiva vit, inre ring (stroke) accent-900.
+    expect(circles[0]!.getAttribute("fill")).toBe("#FFFFFF");
+    expect(circles[1]!.getAttribute("stroke")).toBe("var(--jp-accent-900)");
+    // Mittraden förblir guld; check-bocken ritas i skivans färg (vit).
+    const goldRow = container.querySelectorAll("rect")[1];
+    expect(goldRow!.getAttribute("fill")).toBe("var(--jp-gold)");
+    expect(container.querySelector("path")!.getAttribute("stroke")).toBe("#FFFFFF");
+  });
+
+  it("inverse fungerar även med variant=mark (vit skiva + aria-label)", () => {
+    const { container } = render(<BrandLogo variant="mark" inverse />);
+    const svg = container.querySelector("svg.jp-brand__mark");
+    expect(svg!.getAttribute("aria-label")).toBe("Jobbliggaren");
+    expect(container.querySelectorAll("circle")[0]!.getAttribute("fill")).toBe("#FFFFFF");
+  });
 });

@@ -2,6 +2,9 @@
   "meta": {
     "title": "Audit log"
   },
+  "layout": {
+    "skipToContent": "Skip to main content"
+  },
   "nav": {
     "label": "Admin navigation",
     "granskning": "Audit log",

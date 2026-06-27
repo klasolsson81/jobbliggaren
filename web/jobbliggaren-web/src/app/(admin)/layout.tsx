@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
+import { AdminNav } from "@/components/admin/admin-nav";
 
 export default async function AdminLayout({
   children,
@@ -22,42 +23,41 @@ export default async function AdminLayout({
   if (!user.roles.includes(ROLES.Admin)) redirect("/");
 
   return (
-    <div className="min-h-full flex flex-col bg-background">
-      <header className="border-b border-border bg-surface-secondary">
-        <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
-          <Link
-            href="/"
-            className="text-body font-medium text-text-primary hover:text-brand-600"
-          >
-            Jobbliggaren
-          </Link>
-          <nav aria-label={t("nav.label")} className="flex items-center gap-1">
+    <>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-surface-secondary focus:px-3 focus:py-2 focus:text-body-sm focus:text-text-primary focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+      >
+        {t("layout.skipToContent")}
+      </a>
+      <div className="min-h-full flex flex-col bg-background">
+        <header className="border-b border-border bg-surface-secondary">
+          <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
             <Link
-              href="/admin/granskning"
-              className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
+              href="/"
+              className="text-body font-medium text-text-primary hover:text-brand-600"
             >
-              {t("nav.granskning")}
+              Jobbliggaren
             </Link>
-            <Link
-              href="/admin/jobb"
-              className="rounded-md px-3 py-1.5 text-body-sm text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
-            >
-              {t("nav.jobb")}
-            </Link>
-          </nav>
-          <div className="flex items-center gap-4">
-            <span className="text-body-sm text-text-secondary">{user.email}</span>
-            <form action={logoutAction}>
-              <Button type="submit" variant="ghost" size="sm">
-                {t("nav.logout")}
-              </Button>
-            </form>
+            <AdminNav />
+            <div className="flex items-center gap-4">
+              <span className="text-body-sm text-text-secondary">{user.email}</span>
+              <form action={logoutAction}>
+                <Button type="submit" variant="ghost" size="sm">
+                  {t("nav.logout")}
+                </Button>
+              </form>
+            </div>
           </div>
-        </div>
-      </header>
-      <main className="flex-1 mx-auto w-full max-w-6xl px-6 py-8">
-        {children}
-      </main>
-    </div>
+        </header>
+        <main
+          id="main"
+          tabIndex={-1}
+          className="flex-1 mx-auto w-full max-w-6xl px-6 py-8 focus:outline-none"
+        >
+          {children}
+        </main>
+      </div>
+    </>
   );
 }

@@ -2,8 +2,8 @@
   "banner": {
     "regionAriaLabel": "Demo mode",
     "label": "DEMO",
-    "text": "You are exploring Jobbliggaren as a guest. The content is sample data. Join the waitlist to save job ads and follow up on your own applications.",
-    "cta": "Join the waitlist"
+    "text": "You are exploring Jobbliggaren as a guest. The content is sample data. Create an account to save job ads and follow up on your own applications.",
+    "cta": "Create account"
   },
   "welcome": {
     "title": "Welcome to demo mode",
@@ -26,7 +26,7 @@
     "navAnsokningar": "My applications",
     "navCv": "CV",
     "logIn": "Log in",
-    "waitlist": "Join the waitlist"
+    "register": "Create account"
   },
   "layout": {
     "skipToContent": "Skip to main content"
@@ -37,13 +37,13 @@
     "lede": "This is how it looks when you follow your applications. Everything here is sample data.",
     "noticeOfferLabel": "Offer",
     "noticeOfferText": "<b>{company}</b>: {role}. Offer awaiting response.",
-    "noticeOfferCta": "Join the waitlist",
+    "noticeOfferCta": "Create account",
     "noticeDraftsLabel": "Reminder",
     "noticeDraftsText": "You have <b>{count} drafts</b> that have not been submitted. Finish and send them to keep the pipeline active.",
     "noticeDraftsCta": "View applications",
     "noticeInterviewLabel": "Interview",
     "noticeInterviewText": "<b>{company}</b> has confirmed an interview time.",
-    "noticeInterviewCta": "Join the waitlist",
+    "noticeInterviewCta": "Create account",
     "noticeMatchLabel": "Matching",
     "noticeMatchText": "There are <b>{count} new job ads</b> that match the profile, most of them within <em>{segment}</em>.",
     "noticeMatchCta": "View job ads",
@@ -102,7 +102,7 @@
     "heroLede": "These are sample job ads. Once you have an account you can search and save real job ads from Platsbanken.",
     "searchLabel": "Search by one or more words",
     "searchButton": "Search",
-    "searchHint": "Search is locked in demo mode. Log in or join the waitlist to search the whole corpus.",
+    "searchHint": "Search is locked in demo mode. Log in or create an account to search the whole corpus.",
     "listTitle": "Sample job ads",
     "cardAriaLabel": "{title} – {company}",
     "cardPublished": "Published <b>{date}</b>",
@@ -116,7 +116,7 @@
     "source": "Source",
     "lastUpdated": "Last updated",
     "aboutHeading": "About sample applications",
-    "aboutBody": "This is a sample application in demo mode. Log in or join the waitlist to create, edit and follow up on your own applications with status changes, notes and follow-ups.",
+    "aboutBody": "This is a sample application in demo mode. Log in or create an account to create, edit and follow up on your own applications with status changes, notes and follow-ups.",
     "modalSubtitle": "{company} · demo"
   },
   "modal": {

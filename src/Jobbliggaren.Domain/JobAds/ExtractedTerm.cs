@@ -64,16 +64,17 @@ public enum ExtractedTermKind
     /// (no concept-id). The honest fallback the OQ4 coverage gap implies.</summary>
     Keyword,
 
-    /// <summary>An employer-stated requirement (must-have/nice-to-have). Reserved
-    /// for F4-4b — never populated this STEG (the structured requirement data is
-    /// not yet ingested; ADR 0074 Path C).</summary>
+    /// <summary>An employer-stated requirement (must-have/nice-to-have), carrying a
+    /// <see cref="ExtractedTerm.ConceptId"/>. Populated by the F4-4b requirement pass
+    /// from JobTech's structured <c>must_have</c>/<c>nice_to_have</c> skills
+    /// (PlatsbankenJobSource.MapRequirements → JobAdKeywordExtractor); ADR 0074 Path C.</summary>
     Requirement,
 }
 
 /// <summary>
 /// Where in the job ad an <see cref="ExtractedTerm"/> originated (cited evidence
-/// provenance). <see cref="MustHave"/>/<see cref="NiceToHave"/> are reserved for
-/// F4-4b (employer requirement extraction) and are never produced this STEG.
+/// provenance). <see cref="MustHave"/>/<see cref="NiceToHave"/> are produced by the
+/// F4-4b requirement pass from JobTech's structured requirement skills.
 /// </summary>
 public enum ExtractedTermSource
 {
@@ -83,9 +84,12 @@ public enum ExtractedTermSource
     /// <summary>The ad free-text description.</summary>
     Description,
 
-    /// <summary>An employer must-have requirement (reserved, F4-4b).</summary>
+    /// <summary>An employer must-have requirement (F4-4b, structured JobTech
+    /// <c>must_have.skills</c>). Gates the requirement-aware grade's upper rungs
+    /// (MustHaveCoverage; ADR 0076 amendment).</summary>
     MustHave,
 
-    /// <summary>An employer nice-to-have requirement (reserved, F4-4b).</summary>
+    /// <summary>An employer nice-to-have requirement (F4-4b, structured JobTech
+    /// <c>nice_to_have.skills</c>). A bonus signal (NiceToHaveCoverage).</summary>
     NiceToHave,
 }

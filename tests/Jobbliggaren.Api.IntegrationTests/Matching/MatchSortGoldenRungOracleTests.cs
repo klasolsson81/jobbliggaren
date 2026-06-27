@@ -55,6 +55,21 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 ///
 /// RED until F4-15 widens <c>SearchPerUserAsync</c> to FullCandidateMatchProfile AND adds
 /// the golden top tier to the ORDER BY.
+///
+/// <para>
+/// <b>#268 audit C3 — the lift fires on ANY extracted lexeme, not only Skill-kind terms.</b>
+/// The golden precondition is <c>extracted_lexemes ?| cvSkillIds</c>, and
+/// <c>extracted_lexemes</c> is the STORED <c>jsonb_path_query_array(extracted_terms,
+/// '$[*].Lexeme')</c> — it harvests EVERY term's Lexeme regardless of Kind (Skill ∪
+/// must_have ∪ nice_to_have ∪ keyword; for Skill/Requirement terms Lexeme == ConceptId).
+/// So this sort lift is a STRICT SUPERSET of the badge's skill signal
+/// (<c>MatchGradeCalculator.HasSkillOrNiceSignal</c>, which counts only <c>Kind==Skill</c>
+/// or <c>Source==NiceToHave</c>): a CV skill that matches an ad's <c>must_have</c>-only
+/// concept-id (not echoed in the free-text description, so no Skill-kind term) lifts the
+/// SORT but badges only "Stark match", never "Toppmatch". This is deliberately one-directional
+/// (the sort is never less-informed than the badge — a must_have hit IS requirement evidence);
+/// <see cref="SearchByMatch_GoldenLift_FiresOnMustHaveOnlyLexeme_NotJustSkillKind"/> pins it.
+/// </para>
 /// </summary>
 [Collection("Api")]
 public class MatchSortGoldenRungOracleTests(ApiFactory factory)
@@ -119,6 +134,16 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         new(
             Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Skill,
             Source: ExtractedTermSource.Description, MatchedOn: display,
+            ConceptId: conceptId, Weight: 1);
+
+    // A structured employer MUST-HAVE requirement term (NOT a Skill-kind term). Its Lexeme is
+    // the ConceptId (parity JobAdKeywordExtractor's requirement pass), so it lands in the STORED
+    // extracted_lexemes companion exactly like a Skill term — used by the #268-C3 oracle to prove
+    // the golden sort-lift fires on a non-Skill lexeme while the badge would stay Strong.
+    private static ExtractedTerm MustHaveTerm(string conceptId, string display) =>
+        new(
+            Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Requirement,
+            Source: ExtractedTermSource.MustHave, MatchedOn: display,
             ConceptId: conceptId, Weight: 1);
 
     // Seeds an ad with the test-run worktime-extent (grade-neutral isolation — Spår 3 PR-C),
@@ -391,6 +416,98 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
                 "(region ej föredragen) — golden-precondition läser ort-UNIONEN (region-träff " +
                 "ELLER kommun-träff), inte en bar region-träff. Den äldre golden-annonsen ska " +
                 "därför ligga ÖVER den nyare plain-Strong (golden-lyften överrider tie-breaken).");
+    }
+
+    // =================================================================
+    // 14. #268 audit C3 — the golden lift fires on a MUST-HAVE-only lexeme.
+    //     An ad whose ONLY extracted term carrying the CV skill concept-id is a
+    //     Requirement/MustHave term (NO Skill-kind term — the skill is stated only in
+    //     JobTech's structured must_have, not echoed in the free-text description) still
+    //     earns the golden top-sort lift, because extracted_lexemes harvests $[*].Lexeme
+    //     across ALL Kinds. PROVES the sort lift is a strict SUPERSET of the badge's
+    //     HasSkillOrNiceSignal (which counts only Skill/NiceToHave). This ad sorts in the
+    //     golden tier yet would badge "Stark match", never "Toppmatch" — the documented,
+    //     one-directional divergence.
+    // =================================================================
+
+    [Fact]
+    public async Task SearchByMatch_GoldenLift_FiresOnMustHaveOnlyLexeme_NotJustSkillKind()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // The CV skill concept-id appears ONLY as a MUST-HAVE requirement term (no Skill term).
+        var mustHaveOnlyTerms = ExtractedTerms.From([MustHaveTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        // golden-via-must-have: Strong (occ+region+employment all Match) AND the CV skill
+        // concept-id is present via a must_have term. Published OLDER than the plain Strong, so
+        // if the lift did NOT fire (e.g. it only read Skill-kind lexemes), the NEWER plain Strong
+        // would sort first. The golden lift must override the publishedAt tie-break.
+        var goldenViaMustHaveOlder = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(1), mustHaveOnlyTerms, ct);
+        var plainStrongNewer = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(2), terms: null, ct);
+
+        var (scope, matchSort) = NewMatchSort();
+        using var _ = scope;
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), Profile(CvSkillConceptId),
+            grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.Count.ShouldBe(2, "Båda annonserna ska returneras.");
+        orderedIds.IndexOf(goldenViaMustHaveOlder.Value)
+            .ShouldBeLessThan(orderedIds.IndexOf(plainStrongNewer.Value),
+                "Golden-lyften ska tända även när CV-skill-concept-id:t bara finns som en " +
+                "must_have-term (ingen Skill-kind-term) — extracted_lexemes skördar $[*].Lexeme " +
+                "över ALLA Kinds. Den äldre golden-annonsen ska därför ligga ÖVER den nyare " +
+                "plain-Strong (lyften överrider tie-breaken). Sort-lyften är ett strikt superset " +
+                "av badgens HasSkillOrNiceSignal; annonsen badgar Stark, aldrig Topp (#268 C3).");
+    }
+
+    // =================================================================
+    // 15. #268 audit C3 (negative) — a must_have lexeme that does NOT overlap the CV
+    //     gives NO lift. Proves the golden lift on a must_have term is OVERLAP-gated
+    //     (JsonExistAny is symmetric set overlap), not triggered by the mere presence of
+    //     a Requirement term. Pairs with #14: the lift fires iff the must_have concept-id
+    //     is in the CV skill set. (#11's negative runs through a Skill term + empty CV;
+    //     this one keeps the CV non-empty and uses a non-matching must_have concept-id.)
+    // =================================================================
+
+    [Fact]
+    public async Task SearchByMatch_GoldenLift_DoesNotFire_WhenMustHaveLexemeNotInCvSkills()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // A must_have term whose concept-id is NOT in the CV skill set (CvSkillConceptId).
+        const string otherConceptId = "skill-golden-9999";
+        var nonMatchingMustHave = ExtractedTerms.From([MustHaveTerm(otherConceptId, "Other-skill")]);
+
+        // The ad with the non-matching must_have term is published OLDER; the plain Strong is
+        // NEWER. With NO overlap there is no golden lift → both are plain Strong → publishedAt
+        // desc puts the NEWER plain ad first. (If a must_have term lifted on mere presence, the
+        // OLDER ad would wrongly sort first.)
+        var mustHaveNoOverlapOlder = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(1), nonMatchingMustHave, ct);
+        var plainStrongNewer = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(2), terms: null, ct);
+
+        var (scope, matchSort) = NewMatchSort();
+        using var _ = scope;
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), Profile(CvSkillConceptId),
+            grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.Count.ShouldBe(2, "Båda annonserna ska returneras.");
+        orderedIds.IndexOf(plainStrongNewer.Value)
+            .ShouldBeLessThan(orderedIds.IndexOf(mustHaveNoOverlapOlder.Value),
+                "En must_have-term vars concept-id INTE finns i CV-skill-mängden ger INGEN " +
+                "golden-lyft (overlap-gated, ej blotta närvaron av en Requirement-term) — " +
+                "ordningen ≡ F4-14 (nyare plain-Strong först).");
     }
 
     private async Task<List<JobAdId>> CanonicalIdOrderAsync(

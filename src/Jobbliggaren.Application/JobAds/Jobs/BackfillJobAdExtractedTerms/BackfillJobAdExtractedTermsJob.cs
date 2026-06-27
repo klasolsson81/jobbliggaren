@@ -112,6 +112,15 @@ public sealed partial class BackfillJobAdExtractedTermsJob(
                     continue;
                 }
 
+                // INTENTIONALLY no structured requirements (the 2-arg JobAdExtractionInput):
+                // this is a pure LOCAL re-projection over the already-stored title+description
+                // and has no requirement source — must_have/nice_to_have skills come only from
+                // a JobTech response (PlatsbankenJobSource.MapRequirements), which this job
+                // deliberately never re-fetches. The requirement backfill is a SEPARATE job
+                // (BackfillJobAdRequirementsJob, F4-4b) that refetches the full payload WITH
+                // requirements and subsumes this one. The idempotent predicate (extracted_lexemes
+                // IS NULL) means this call only ever runs on never-extracted rows and can never
+                // strip an ad that already carries requirement terms (#268 audit, F3).
                 var terms = extractor.Extract(new JobAdExtractionInput(jobAd.Title, jobAd.Description));
                 jobAd.SetExtractedTerms(terms);
                 await scopedDb.SaveChangesAsync(cancellationToken);

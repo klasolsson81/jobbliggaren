@@ -79,14 +79,13 @@ public sealed class ListJobAdsQueryHandler(
                     orderByMatchRank: query.SortByMatch,
                     query.Page,
                     query.PageSize,
-                    query.Since,
                     cancellationToken);
             }
         }
 
         return await search.SearchAsync(
             new JobAdSearchCriteria(
-                filter, query.SortBy, query.Page, query.PageSize, query.Since),
+                filter, query.SortBy, query.Page, query.PageSize),
             cancellationToken);
     }
 }

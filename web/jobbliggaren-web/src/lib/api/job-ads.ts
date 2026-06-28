@@ -38,8 +38,6 @@ export interface ListJobAdsQuery {
   // det). Tom/utelämnad = inget grad-filter ("Matchning av", hela listan).
   matchGrades?: ReadonlyArray<string>;
   q?: string;
-  // ADR 0042 Beslut E — "ny sedan"-fönster (ISO 8601). Driver JobAdDto.isNew.
-  since?: string;
   // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=1
   // skickas och backend auto-capturerar sökningen till Senaste sökningar.
   // Default (live-förhandsvisning) fångas EJ. Transient signal, ej filter.
@@ -72,7 +70,6 @@ function buildQuery(query: ListJobAdsQuery): string {
   // lista = inget param = "Matchning av" (backend returnerar hela listan).
   for (const v of query.matchGrades ?? []) params.append("matchGrades", v);
   if (query.q) params.set("q", query.q);
-  if (query.since) params.set("since", query.since);
   // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend). Värdet
   // är "true" (ASP.NET bool-binding tar inte "1" — skulle 400:a list-queryn).
   if (query.commit) params.set("commit", "true");
@@ -81,7 +78,7 @@ function buildQuery(query: ListJobAdsQuery): string {
 
 /**
  * Hämtar paginerad JobAd-lista med valfria filter (occupationGroup[],
- * region[], q, since) och sort. Konsumerar `GET /api/v1/job-ads` (auth-gated, rate-limit
+ * region[], q) och sort. Konsumerar `GET /api/v1/job-ads` (auth-gated, rate-limit
  * 60/min per UserId via backend ListReadPolicy — F2-P9 TD-70-leverans
  * 2026-05-13).
  *

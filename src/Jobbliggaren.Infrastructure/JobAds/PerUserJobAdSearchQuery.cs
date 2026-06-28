@@ -77,7 +77,6 @@ internal sealed class PerUserJobAdSearchQuery(
         bool orderByMatchRank,
         int page,
         int pageSize,
-        DateTimeOffset? since,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(filter);
@@ -169,7 +168,7 @@ internal sealed class PerUserJobAdSearchQuery(
         var items = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(JobAdSearchComposition.ToDto(since))
+            .Select(JobAdSearchComposition.ToDto())
             .ToListAsync(cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);

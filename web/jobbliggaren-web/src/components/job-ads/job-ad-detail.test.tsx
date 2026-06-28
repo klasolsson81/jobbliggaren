@@ -14,7 +14,6 @@ const baseAd: JobAdDto = {
   publishedAt: "2026-05-13T08:00:00Z",
   expiresAt: "2026-06-13T08:00:00Z",
   createdAt: "2026-05-13T08:01:00Z",
-  isNew: false,
 };
 
 describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {

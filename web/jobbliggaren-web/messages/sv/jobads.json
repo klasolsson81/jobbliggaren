@@ -79,6 +79,7 @@
     },
     "tags": {
       "new": "Ny",
+      "newAriaLabel": "Nytt jobb sedan ditt senaste besök",
       "saved": "Sparad",
       "applied": "Ansökt"
     },

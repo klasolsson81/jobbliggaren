@@ -79,6 +79,7 @@
     },
     "tags": {
       "new": "New",
+      "newAriaLabel": "New job since your last visit",
       "saved": "Saved",
       "applied": "Applied"
     },

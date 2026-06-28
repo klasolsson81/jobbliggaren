@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdCard } from "./job-ad-card";
 import type { JobAdDto } from "@/lib/dto/job-ads";
@@ -17,12 +17,7 @@ const baseAd: JobAdDto = {
   publishedAt: "2026-04-01T08:00:00Z",
   expiresAt: "2026-06-13T08:00:00Z",
   createdAt: "2026-04-01T08:01:00Z",
-  isNew: false,
 };
-
-beforeEach(() => {
-  window.localStorage.clear();
-});
 
 describe("JobAdCard (v3 .jp-job-rad)", () => {
   it("renders title and company", () => {
@@ -57,13 +52,15 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(screen.getByText(/Sista ansökan/)).toBeInTheDocument();
   });
 
-  it("does not render the Ny flag when isNew is false (ADR 0042 Beslut E)", () => {
+  // NY = oläst (#293/#306): driven av `isNew`-propen (beräknad i JobbResults
+  // mot oläst-watermarken), INTE av ett borttaget JobAdDto.isNew-fält.
+  it("does not render the Ny flag without the isNew prop (default false)", () => {
     render(<JobAdCard jobAd={baseAd} />);
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
 
-  it("renders the Ny flag when isNew is true", () => {
-    render(<JobAdCard jobAd={{ ...baseAd, isNew: true }} />);
+  it("renders the Ny flag when isNew prop is true", () => {
+    render(<JobAdCard jobAd={baseAd} isNew={true} />);
     expect(screen.getByText("Ny")).toBeInTheDocument();
   });
 

@@ -24,10 +24,7 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
                 j.Status.Value,
                 j.PublishedAt,
                 j.ExpiresAt,
-                j.CreatedAt,
-                // ADR 0042 Beslut E — IsNew är list-presentationskontext;
-                // single-ad GET har inget Since-fönster.
-                false))
+                j.CreatedAt))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

@@ -240,10 +240,11 @@ internal static class JobAdSearchComposition
 
     // ADR 0062/0042 — den delade items-projektionen (Domain → JobAdDto). Återanvänds
     // av både default-sorten (JobAdSearchQuery) och F4-14 match-sorten — ingen
-    // DTO-kolumn för sort-nyckeln (Goodhart, ADR 0076 Decision 4). ADR 0042 Beslut E:
-    // IsNew = PublishedAt inom "Ny sedan"-fönstret; lokalt fångad nullable → EF
-    // översätter jämförelsen (false när since är null, t.ex. RunSavedSearch).
-    internal static Expression<Func<JobAd, JobAdDto>> ToDto(DateTimeOffset? since) =>
+    // DTO-kolumn för sort-nyckeln (Goodhart, ADR 0076 Decision 4). #293/#306
+    // (ADR 0042 Beslut E-amendment 2026-06-28): den tidigare tidsbaserade
+    // IsNew-projektionen (`PublishedAt >= since`) är BORTTAGEN — "Ny" = OLÄST
+    // beräknas nu på FE ur CreatedAt mot den per-användar oläst-watermarken.
+    internal static Expression<Func<JobAd, JobAdDto>> ToDto() =>
         j => new JobAdDto(
             j.Id.Value,
             j.Title,
@@ -254,6 +255,5 @@ internal static class JobAdSearchComposition
             j.Status.Value,
             j.PublishedAt,
             j.ExpiresAt,
-            j.CreatedAt,
-            since != null && j.PublishedAt >= since);
+            j.CreatedAt);
 }

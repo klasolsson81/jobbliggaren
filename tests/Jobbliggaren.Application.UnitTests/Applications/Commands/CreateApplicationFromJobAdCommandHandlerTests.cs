@@ -42,7 +42,7 @@ public class CreateApplicationFromJobAdCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithValidJobAd_CreatesApplicationLinkedToJobAd()
+    public async Task Handle_WithValidJobAd_CreatesSubmittedApplicationLinkedToJobAd()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -60,6 +60,9 @@ public class CreateApplicationFromJobAdCommandHandlerTests
         app.JobAdId.ShouldBe(jobAd.Id);
         app.ManualPosting.ShouldBeNull();
         app.CoverLetter.ShouldBeNull();
+        // "Har ansökt" → Submitted (not Draft) and stamps AppliedAt (#316/#332).
+        app.Status.ShouldBe(Jobbliggaren.Domain.Applications.ApplicationStatus.Submitted);
+        app.AppliedAt.ShouldBe(_clock.UtcNow);
     }
 
     [Fact]

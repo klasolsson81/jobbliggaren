@@ -8,6 +8,7 @@ import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationRow } from "@/components/applications/application-row";
 import { ApplicationsPipeline } from "@/components/applications/applications-pipeline";
+import { InfoDialog } from "@/components/common/info-dialog";
 import type { ApplicationStatus } from "@/lib/types/applications";
 
 export default async function AnsokningarPage() {
@@ -15,6 +16,7 @@ export default async function AnsokningarPage() {
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  const ta = await getTranslations("aktivitetsrapport");
   const result = await getPipeline();
   switch (result.kind) {
     case "ok":
@@ -82,7 +84,7 @@ export default async function AnsokningarPage() {
                 med /jobb-bannerns vita kontroller (.jp-pagehero .jp-btn--
                 primary = vit; ghost-på-gradient läste som grön). En-primary
                 bibehållen: vit knapp i plattan vs grön i empty-kortet. */}
-            <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
+            <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" /> {t("ansokningar.newApplication")}
             </Link>
           </div>
@@ -95,7 +97,11 @@ export default async function AnsokningarPage() {
             kant) i stället för ghost-på-gradient, som läste som
             grön-genomskinlig (Klas-fynd 2026-06-28; G3-precedens — sekundära
             knappar avgränsas inte rent mot hero-gradienten). */}
-        <div className="mb-6 flex justify-end">
+        <div className="mb-6 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          <InfoDialog
+            title={ta("info.title")}
+            paragraphs={[ta("info.p1"), ta("info.p2"), ta("info.p3")]}
+          />
           <Link
             href="/aktivitetsrapport"
             className="jp-btn jp-btn--secondary"
@@ -110,7 +116,7 @@ export default async function AnsokningarPage() {
             <div className="jp-empty__title">{t("ansokningar.emptyTitle")}</div>
             <p className="jp-empty__body">{t("ansokningar.emptyBody")}</p>
             <div className="jp-empty__actions">
-              <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
+              <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
                 <Plus size={14} aria-hidden="true" /> {t("ansokningar.emptyCreateFirst")}
               </Link>
               <Link href="/jobb" className="jp-btn jp-btn--ghost">

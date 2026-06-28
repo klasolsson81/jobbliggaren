@@ -70,7 +70,17 @@ function isActive(pathname: string, href: string): boolean {
  * .jp-container/.jp-page tas denna lista + .jp-shell-transitional-
  * container bort tillsammans (se globals.css-trail, ADR 0052).
  */
-const V3_NATIVE_ROUTES = ["/jobb", "/ansokningar", "/oversikt", "/cv"];
+const V3_NATIVE_ROUTES = [
+  "/jobb",
+  "/ansokningar",
+  "/oversikt",
+  "/cv",
+  // Own their own .jp-container; top-level (not /ansokningar/[id] siblings, so
+  // the application-detail modal intercept can't catch them on soft-nav — #316,
+  // #332).
+  "/aktivitetsrapport",
+  "/ny-ansokan",
+];
 
 function isV3Native(pathname: string): boolean {
   return V3_NATIVE_ROUTES.some(

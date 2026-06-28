@@ -18,7 +18,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetActivityReport;
 /// excluded; soft-deleted applications are excluded by the global query filter.
 ///
 /// Month boundaries are UTC-derived (half-open). When the caller passes no
-/// month the handler defaults to the previous month from
+/// month the handler defaults to the current month from
 /// <see cref="IDateTimeProvider"/> (CLAUDE.md §5 — never <c>DateTime.UtcNow</c>).
 /// </summary>
 public sealed class GetActivityReportQueryHandler(
@@ -127,10 +127,12 @@ public sealed class GetActivityReportQueryHandler(
         if (query.Year.HasValue && query.Month.HasValue)
             return (query.Year.Value, query.Month.Value);
 
-        // Default = previous month. Validator guarantees both-or-neither, so we
-        // only reach here when both are null.
-        var previous = clock.UtcNow.AddMonths(-1);
-        return (previous.Year, previous.Month);
+        // Default = current month (Klas 2026-06-28: the current month is always
+        // the sensible default; the picker still lets you pick an earlier month
+        // to report). Validator guarantees both-or-neither, so we only reach here
+        // when both are null.
+        var now = clock.UtcNow;
+        return (now.Year, now.Month);
     }
 
     /// <summary>

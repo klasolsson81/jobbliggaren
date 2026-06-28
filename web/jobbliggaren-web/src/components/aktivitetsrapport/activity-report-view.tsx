@@ -46,7 +46,7 @@ export function ActivityReportView({
   const belowMinimum = count < AF_MINIMUM;
 
   function handleMonthChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    router.push(`/ansokningar/aktivitetsrapport?month=${event.target.value}`);
+    router.push(`/aktivitetsrapport?month=${event.target.value}`);
   }
 
   return (

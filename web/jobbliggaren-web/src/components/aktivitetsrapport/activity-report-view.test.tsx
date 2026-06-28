@@ -74,9 +74,7 @@ describe("ActivityReportView", () => {
     fireEvent.change(screen.getByLabelText("Månad"), {
       target: { value: "2026-04" },
     });
-    expect(push).toHaveBeenCalledWith(
-      "/ansokningar/aktivitetsrapport?month=2026-04",
-    );
+    expect(push).toHaveBeenCalledWith("/aktivitetsrapport?month=2026-04");
   });
 
   it("opens the AF activity report in a new tab via the CTA", () => {

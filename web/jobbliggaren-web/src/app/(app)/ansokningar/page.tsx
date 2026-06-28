@@ -85,21 +85,25 @@ export default async function AnsokningarPage() {
             <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" /> {t("ansokningar.newApplication")}
             </Link>
-            {/* #316 — sekundär entry till AF-aktivitetsrapport-hjälpen.
-                Ghost-på-gradient (.jp-pagehero .jp-btn--ghost = vit kant/ink),
-                en-primary bevarad. */}
-            <Link
-              href="/ansokningar/aktivitetsrapport"
-              className="jp-btn jp-btn--ghost"
-            >
-              <FileText size={16} aria-hidden="true" />{" "}
-              {t("ansokningar.activityReport")}
-            </Link>
           </div>
         </div>
       </section>
 
       <div className="jp-container jp-page">
+        {/* #316 — entry till AF-aktivitetsrapport-hjälpen. Sekundär knapp på
+            den vita sid-ytan (jp-btn--secondary = solid yt-bakgrund, mörk ink,
+            kant) i stället för ghost-på-gradient, som läste som
+            grön-genomskinlig (Klas-fynd 2026-06-28; G3-precedens — sekundära
+            knappar avgränsas inte rent mot hero-gradienten). */}
+        <div className="mb-6 flex justify-end">
+          <Link
+            href="/aktivitetsrapport"
+            className="jp-btn jp-btn--secondary"
+          >
+            <FileText size={16} aria-hidden="true" />{" "}
+            {t("ansokningar.activityReport")}
+          </Link>
+        </div>
         {total === 0 ? (
           <div className="jp-empty">
             <div className="jp-empty__kicker">{t("ansokningar.emptyKicker")}</div>

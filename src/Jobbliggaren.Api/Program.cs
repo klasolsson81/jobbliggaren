@@ -299,6 +299,7 @@ app.MapRecentSearchesEndpoints();
 app.MapSavedJobAdsEndpoints();
 app.MapMeJobAdStatusEndpoints();
 app.MapMeJobAdMatchEndpoints();
+app.MapMeJobsEndpoints();
 app.MapLandingEndpoints();
 
 // DEV-ONLY — not mapped in production; remove before launch (Klas). Throwaway

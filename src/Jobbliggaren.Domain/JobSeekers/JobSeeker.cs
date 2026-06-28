@@ -28,6 +28,14 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     public DateTimeOffset? LastMatchScanAt { get; private set; }
     public DateTimeOffset? LastSeenMatchesAt { get; private set; }
 
+    // #293 (ADR 0042 Beslut E amendment) — the user-read watermark for the /jobb surface:
+    // how far the USER has SEEN the job list (advances on each /jobb page load). Drives the
+    // per-user "Ny = arrived since your last visit" tag (NY = JobAd.CreatedAt > this). The
+    // exact sibling of LastSeenMatchesAt for the matches surface — a separate per-user read
+    // concern kept OFF the public JobAdDto projection (ADR 0063 Beslut b). null = never
+    // visited (FE shows no NY on the first visit; that load establishes the baseline).
+    public DateTimeOffset? LastSeenJobsAt { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
@@ -166,6 +174,23 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
             return;
 
         LastSeenMatchesAt = now;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// #293 (ADR 0042 Beslut E amendment) — marks the /jobb job list as seen up to now
+    /// (advances the user-read watermark). The next visit's "Ny" tag then flags only ads
+    /// ingested after this moment. Called on each /jobb page load (the sibling of
+    /// <see cref="SetLastSeenMatches"/>). Monotonic — a stale/duplicate call never rewinds
+    /// the watermark.
+    /// </summary>
+    public void SetLastSeenJobs(IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        if (LastSeenJobsAt is { } current && now <= current)
+            return;
+
+        LastSeenJobsAt = now;
         UpdatedAt = now;
     }
 

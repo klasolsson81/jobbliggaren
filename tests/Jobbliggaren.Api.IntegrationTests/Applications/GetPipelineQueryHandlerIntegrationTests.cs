@@ -5,6 +5,7 @@ using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -57,7 +58,7 @@ public class GetPipelineQueryHandlerIntegrationTests
 
         await SeedSeekerAsync(db, clock, _userId);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -72,8 +73,9 @@ public class GetPipelineQueryHandlerIntegrationTests
 
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetPipelineQueryHandler(db, currentUser);
+        var handler = new GetPipelineQueryHandler(db, currentUser, clock);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -99,7 +101,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(submitted);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -125,7 +127,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -151,7 +153,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(submitted);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -190,7 +192,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(rejected);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -222,10 +224,188 @@ public class GetPipelineQueryHandlerIntegrationTests
 
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         result.Sum(g => g.Count).ShouldBe(1);
+    }
+
+    // #342 (ADR 0085 §3) — HasOverdueFollowUp is projected via a correlated EXISTS
+    // (a Pending follow-up whose ScheduledAt has passed). These run on Npgsql so
+    // they prove the subquery actually translates (an unit/InMemory test would not).
+
+    [Fact]
+    public async Task Handle_ProjectsHasOverdueFollowUp_TrueForPendingPastScheduledFollowUp()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddDays(-1), null, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        dto.HasOverdueFollowUp.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsHasOverdueFollowUp_FalseForFutureScheduledFollowUp()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddDays(1), null, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        dto.HasOverdueFollowUp.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsHasOverdueFollowUp_FalseForRespondedFollowUp()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        // Overdue by schedule, but the outcome is recorded → no longer Pending.
+        var followUpId = app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddDays(-1), null, clock).Value;
+        app.RecordFollowUpOutcome(followUpId, FollowUpOutcome.Responded, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        dto.HasOverdueFollowUp.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsHasOverdueFollowUp_FalseForSoftDeletedFollowUp()
+    {
+        // Proves the ADR 0048 (c) point: the FollowUp global query filter
+        // (DeletedAt == null) already excludes soft-deleted rows from the
+        // correlated EXISTS, so a soft-deleted overdue follow-up does NOT trip the flag.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddDays(-1), null, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // Soft-delete just the follow-up (the aggregate exposes no single-follow-up
+        // delete; set the mapped column directly, mirroring the JobAd soft-delete
+        // pattern in ReadHandlerManualPostingFallbackIntegrationTests).
+        var followUp = app.FollowUps.Single();
+        db.Entry(followUp).Property(f => f.DeletedAt).CurrentValue = clock.UtcNow;
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        dto.HasOverdueFollowUp.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsHasOverdueFollowUp_FalseForNoResponseOutcome()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        // Overdue by schedule, but the outcome is recorded as NoResponse → no
+        // longer Pending, so it must not trip the flag (only Pending counts).
+        var followUpId = app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddDays(-1), null, clock).Value;
+        app.RecordFollowUpOutcome(followUpId, FollowUpOutcome.NoResponse, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        dto.HasOverdueFollowUp.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsHasOverdueFollowUp_TrueForJustPastScheduledFollowUp()
+    {
+        // Pins the strict `<` time boundary: a follow-up scheduled barely in the
+        // past (sub-second) is overdue. AddDays(-1) would not catch a `<` → `<=`
+        // or `<` → `>` regression near the captured `now`.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddSeconds(-1), null, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        dto.HasOverdueFollowUp.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsLastStatusChangeAtAndGhostedThreshold()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        // Postgres timestamptz truncates .NET ticks to microseconds → tolerance.
+        dto.LastStatusChangeAt.ShouldBe(app.LastStatusChangeAt, TimeSpan.FromSeconds(1));
+        dto.GhostedThresholdDays.ShouldBe(21); // per-aggregate default, reused by signal 4
+        dto.HasOverdueFollowUp.ShouldBeFalse();
     }
 }

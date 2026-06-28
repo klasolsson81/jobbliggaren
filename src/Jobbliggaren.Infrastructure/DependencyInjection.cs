@@ -709,6 +709,17 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationSynonymExpander,
             JobAds.OccupationSynonymExpander>();
 
+        // #342 (ADR 0085 §3) — /ansokningar attention-prioritisation thresholds.
+        // Application owns the contract; bound here (ApplicationAttention section)
+        // with data-annotation + start-time validation (parity with the digest/
+        // backfill options). GhostedThresholdDays is intentionally NOT bound — it
+        // reuses the per-aggregate field projected into the read DTO.
+        services.AddOptions<Jobbliggaren.Application.Applications.Attention.ApplicationAttentionOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.Applications.Attention.ApplicationAttentionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         // TD-13 (ADR 0049) — KMS-envelope fält-kryptering. Registrerad i
         // AddPersistence: per-användare-DEK + interceptor-paret (C3) lever på
         // AppDbContext-livscykeln; måste vara tillgänglig i både Api och

@@ -101,7 +101,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -130,7 +130,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -165,7 +165,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -189,7 +189,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
             DomainApplication.Create(otherSeeker.Id, null, null, ManualVo(), clock).Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         result.Items.Count.ShouldBe(1);
@@ -317,7 +317,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -341,7 +341,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -368,7 +368,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -399,7 +399,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
         db.ChangeTracker.Clear();
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         // Application själv finns kvar (ej soft-deletad), men JobAd-grenen

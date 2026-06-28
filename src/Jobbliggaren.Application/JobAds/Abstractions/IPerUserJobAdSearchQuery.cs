@@ -81,7 +81,6 @@ public interface IPerUserJobAdSearchQuery
         bool orderByMatchRank,
         int page,
         int pageSize,
-        DateTimeOffset? since,
         CancellationToken cancellationToken);
 
     /// <summary>

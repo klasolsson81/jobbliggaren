@@ -57,8 +57,6 @@ public static class JobAdsEndpoints
             string[]? employmentType = null,
             string[]? worktimeExtent = null,
             string? q = null,
-            // ADR 0042 Beslut E — "ny sedan"-fönster (runtime-kontext).
-            DateTimeOffset? since = null,
             // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate:
             // ?commit=1 vid avsiktlig sökning (Enter/Sök/förslags-val/toolbar)
             // → auto-capture; utelämnad (live-förhandsvisning) → ingen capture.
@@ -82,7 +80,6 @@ public static class JobAdsEndpoints
                     EmploymentType: employmentType,
                     WorktimeExtent: worktimeExtent,
                     Q: q,
-                    Since: since,
                     Commit: commit,
                     MatchGrades: matchGrades), ct);
             return Results.Ok(result);

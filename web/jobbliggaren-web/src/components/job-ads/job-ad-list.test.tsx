@@ -17,7 +17,6 @@ const sampleAd = (id: string, title: string): JobAdDto => ({
   publishedAt: "2026-04-01T08:00:00Z",
   expiresAt: null,
   createdAt: "2026-04-01T08:01:00Z",
-  isNew: false,
 });
 
 describe("JobAdList", () => {
@@ -86,5 +85,25 @@ describe("JobAdList", () => {
     // Exactly one card earns a badge (POSITIVE-ONLY); the other has none.
     const chips = container.querySelectorAll(".jp-matchchip");
     expect(chips).toHaveLength(1);
+  });
+
+  // #293/#306 — NY = oläst: only ads in newIdSet (createdAt > watermark, computed
+  // in JobbResults) render the "Ny" tag. Omitted set = cold start / anon ⇒ no NY.
+  it("renders the Ny tag only for ads present in newIdSet", () => {
+    const { container } = render(
+      <JobAdList
+        jobAds={[sampleAd("a1", "Job A"), sampleAd("a2", "Job B")]}
+        newIdSet={new Set<string>(["a1"])}
+      />,
+    );
+    const newTags = container.querySelectorAll('[data-tag="new"]');
+    expect(newTags).toHaveLength(1);
+  });
+
+  it("renders NO Ny tag when newIdSet is omitted (anonymous / cold start)", () => {
+    const { container } = render(
+      <JobAdList jobAds={[sampleAd("a1", "Job A"), sampleAd("a2", "Job B")]} />,
+    );
+    expect(container.querySelector('[data-tag="new"]')).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ interface StripCommitParamProps {
  * `?...&commit=1`-länk skulle annars re-capturera sökningen hos mottagaren,
  * och flaggan förorenar URL-renheten).
  *
- * Render-null-ö (paritet `MarkJobbVisited`). `router.replace` till samma URL
+ * Render-null client-ö. `router.replace` till samma URL
  * utan flaggan — eftersom `commit` ALDRIG ingår i `JobbUrlState`/`sameUrlState`
  * ser hero-spegelfältets own-roundtrip/skip-guard-mekanik den som en ren
  * icke-state-ändring och serialiserar INTE om användarens text (E2i-invariant).

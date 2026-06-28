@@ -4,6 +4,7 @@ import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
 import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
 import { getMyProfile } from "@/lib/api/me";
+import { getJobsWatermark, markJobsSeen } from "@/lib/api/me-jobs";
 import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { MatchGrade, JobAdMatchBatch } from "@/lib/dto/job-ad-match";
@@ -61,7 +62,6 @@ interface JobbResultsProps {
    */
   matchningOff: boolean;
   q: string;
-  since: string;
   /**
    * E2j (ADR 0060 amend 2026-06-12) — commit-intent: när URL:en bär
    * ?commit=1 (avsiktlig sökning via Enter/Sök/förslags-val/toolbar) skickas
@@ -97,7 +97,6 @@ export async function JobbResults({
   matchGrades,
   matchningOff,
   q,
-  since,
   commit,
   rawParams,
 }: JobbResultsProps) {
@@ -153,7 +152,11 @@ export async function JobbResults({
   const effectiveSortBy: JobAdSortBy =
     !matchActive && sortBy === "MatchDesc" ? "PublishedAtDesc" : sortBy;
 
-  const [result, labelsResult] = await Promise.all([
+  // #293/#306 — den per-användar oläst-watermarken (`lastSeenJobsAt`) hämtas
+  // parallellt med listan. NY renderas mot den HÄMTADE (gamla) watermarken
+  // (fetch-then-mark, spegling av /matchningar) — sedan flyttas den fram nedan.
+  // Degraderar civilt: läs-fel/anon → null ⇒ ingen NY (W4 cold-start).
+  const [result, labelsResult, watermarkResult] = await Promise.all([
     getJobAds({
       page,
       pageSize,
@@ -165,11 +168,14 @@ export async function JobbResults({
       worktimeExtent,
       matchGrades,
       q,
-      since,
       commit,
     }),
     resolveTaxonomyLabels(selectedConceptIds),
+    getJobsWatermark(),
   ]);
+
+  const watermark =
+    watermarkResult.kind === "ok" ? watermarkResult.data.lastSeenJobsAt : null;
 
   // Plain Record (EJ Map) — passas över RSC→client-gränsen till
   // JobbResultsToolbar (Map serialiseras inte i RSC-payloaden).
@@ -182,6 +188,19 @@ export async function JobbResults({
 
   switch (result.kind) {
     case "ok": {
+      // #293/#306 — NY = oläst: annonser vars `createdAt` (ingestion, Klas-val)
+      // ligger EFTER den hämtade (gamla) watermarken. Kall start (null) eller
+      // läs-fel → tomt set ⇒ ingen NY (W4 cold-start). Beräknas FÖRE mark-seen
+      // (fetch-then-mark) så nästa besök bara visar nytt-sedan-detta-besök.
+      const watermarkMs = watermark != null ? Date.parse(watermark) : Number.NaN;
+      const newIdSet = new Set<string>(
+        Number.isNaN(watermarkMs)
+          ? []
+          : result.data.items
+              .filter((it) => Date.parse(it.createdAt) > watermarkMs)
+              .map((it) => it.id)
+      );
+
       // PR5 / ADR 0063 — per-user-overlay-status batch (Sparad/Ansökt-taggar
       // på list-kort). Anonym/utan-auth → tomma set:n (degraderar civilt,
       // inga taggar visas). Max 100 IDs per anrop = validator-cap.
@@ -212,6 +231,17 @@ export async function JobbResults({
         )
       );
 
+      // fetch-then-mark: flytta fram watermarken till nu EFTER att NY beräknats
+      // mot den gamla (newIdSet ovan) — nästa besök visar då bara annonser som
+      // kommit in sedan detta besök. Icke-blockerande: markJobsSeen degraderar
+      // civilt (kastar aldrig), ett fel lämnar bara watermarken orörd denna
+      // gång. Gatas på en lyckad watermark-LÄSNING: utan en koherent baseline
+      // avancerar vi inte (annars kan en transient läs-miss tyst nolla NY).
+      // Speglar /matchningar (mark-seen on open).
+      if (watermarkResult.kind === "ok") {
+        await markJobsSeen();
+      }
+
       return (
         <>
           {/* Result-toolbar (client-island): N träffar + aktiva chips +
@@ -236,6 +266,7 @@ export async function JobbResults({
           <div className="flex flex-col gap-2.5">
             <JobAdList
               jobAds={result.data.items}
+              newIdSet={newIdSet}
               savedIdSet={savedIdSet}
               appliedIdSet={appliedIdSet}
               matchGradeById={matchGradeById}

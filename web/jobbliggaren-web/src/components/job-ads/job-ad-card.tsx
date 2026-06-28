@@ -10,6 +10,12 @@ import { computeFreshnessLabel } from "./freshness";
 
 interface JobAdCardProps {
   jobAd: JobAdDto;
+  /**
+   * NY = oläst (per-användar watermark, #293/#306). Beräknas i `JobbResults`
+   * (`createdAt > lastSeenJobsAt`) och bärs ner via `JobAdList`s `newIdSet`.
+   * Default false (kall start / anon / list-yta utan auth → ingen NY).
+   */
+  isNew?: boolean;
   /** PR5 — per-user overlay-status (ADR 0063 batch-port). */
   isSaved?: boolean;
   isApplied?: boolean;
@@ -73,15 +79,17 @@ function formatPublishedAtWithTime(
  * `jp-job ≡ jp-app` visuell paritet (HANDOVER §5.3 / §9): samma .jp-job-
  * CSS, ingen avvikande markup. Spara-knapp deferred (FE-action-fas).
  *
- * Tagg-system (pre-F6 Prompt 1, 2026-05-20): NY/färskhet/match-placeholder
- * renderas högerjusterat inom `.jp-job__title` h3 via `JobTags`-client-island
- * (CTO-dom 2026-05-20, Variant D). JobAdCard förblir RSC — tagg-island
- * hydrerar self-contained. NY-modell: high-water mark via lastSeen-timestamp
- * markerad av `<MarkJobbVisited />`-island på sidnivå (Klas-direktiv
- * 2026-05-20 — per-annons "läst" gjorde gamla oöppnade annonser röriga).
+ * Tagg-system (pre-F6 Prompt 1, 2026-05-20): NY/färskhet/match renderas
+ * högerjusterat inom `.jp-job__title` h3 via `JobTags` (CTO-dom 2026-05-20,
+ * Variant D). NY-modell (#293/#306, ADR 0042 Beslut E-amendment 2026-06-28):
+ * NY = OLÄST (per-användar watermark, beräknad i `JobbResults` mot
+ * `lastSeenJobsAt`), INTE tidsbaserat — den tidigare localStorage-high-water-
+ * mark-modellen + `<MarkJobbVisited />`-island är borttagna (watermarken bor
+ * server-side nu, spegling av /matchningar).
  */
 export function JobAdCard({
   jobAd,
+  isNew = false,
   isSaved = false,
   isApplied = false,
   matchGrade,
@@ -94,7 +102,6 @@ export function JobAdCard({
   const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt, tUi, format);
   const expiresAt = formatDate(format, jobAd.expiresAt);
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
-  const publishedAtMs = Date.parse(jobAd.publishedAt);
 
   return (
     <Link
@@ -109,8 +116,7 @@ export function JobAdCard({
         <h3 className="jp-job__title">
           <span>{jobAd.title}</span>
           <JobTags
-            showNew={jobAd.isNew}
-            publishedAtMs={publishedAtMs}
+            isNew={isNew}
             freshnessLabel={freshnessLabel}
             isSaved={isSaved}
             isApplied={isApplied}

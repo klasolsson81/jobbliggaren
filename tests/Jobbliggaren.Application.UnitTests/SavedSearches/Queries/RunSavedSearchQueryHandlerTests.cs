@@ -74,7 +74,7 @@ public class RunSavedSearchQueryHandlerTests
         var dto = new JobAdDto(
             Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",
             "https://example.com/1", "Manual", "Active",
-            DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, IsNew: false);
+            DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow);
         var portResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);
         _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
             .Returns(portResult);
@@ -96,8 +96,8 @@ public class RunSavedSearchQueryHandlerTests
         // C2 (architect F6): SearchCriteria-VO → JobAdSearchCriteria —
         // OccupationGroup/Municipality/Region/Q genomförda (täpper C1:s tomma
         // listor: tidigare skickades OccupationGroup: [] / Municipality: []),
-        // Page/PageSize från queryn, Since alltid null (ADR 0042 Beslut E —
-        // en körning exponerar aldrig IsNew=true).
+        // Page/PageSize från queryn. #293/#306: Since-fältet utgår ur criteria
+        // (NY beräknas på FE; en körning exponerade ändå aldrig "Ny").
         var db = TestAppDbContextFactory.Create();
         var (_, saved) = await SeedAsync(db, _userId,
             occupationGroup: "grp_12345", municipality: "sthlm_kn",
@@ -121,7 +121,6 @@ public class RunSavedSearchQueryHandlerTests
         captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         captured.Page.ShouldBe(2);
         captured.PageSize.ShouldBe(5);
-        captured.Since.ShouldBeNull();
     }
 
     [Fact]

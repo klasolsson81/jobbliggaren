@@ -34,9 +34,6 @@ public sealed record ListJobAdsQuery(
     IReadOnlyList<string>? EmploymentType = null,
     IReadOnlyList<string>? WorktimeExtent = null,
     string? Q = null,
-    // ADR 0042 Beslut E — "Ny sedan"-fönster (runtime-kontext, ej i
-    // SearchCriteria; analog Page/PageSize). Driver JobAdDto.IsNew.
-    DateTimeOffset? Since = null,
     // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate för
     // auto-capture. Default false: live-förhandsvisning (router.replace per
     // ord) fångas ej; FE sätter ?commit=1 vid Enter/Sök/förslags-val/toolbar.

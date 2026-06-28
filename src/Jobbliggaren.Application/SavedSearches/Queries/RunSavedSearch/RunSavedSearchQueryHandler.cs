@@ -56,12 +56,12 @@ public sealed class RunSavedSearchQueryHandler(
 
         // ADR 0039 Beslut 1 — samma sök-väg (IJobAdSearchQuery) som ListJobAds.
         // ADR 0039 Beslut 2 — ingen last_run_at-skrivning (query, ej command).
-        // ADR 0042 Beslut E — Since=null: en körning exponerar aldrig IsNew=true
-        // (Since är ListJobAds-runtime-kontext, ej del av SavedSearch-VO:t).
         // ADR 0067 Fas C2: VO:t bär OccupationGroup + Municipality — mappas in
         // i filter-SPOT:en (C1:s tomma-listor-fönster täppt; sparade
         // yrkesgrupp-/kommun-sökningar filtrerar). Ssyk-dimensionen utgick med
-        // reverse-lookup-migrationen (CTO-dom (e)/(f)).
+        // reverse-lookup-migrationen (CTO-dom (e)/(f)). #293/#306: det tidigare
+        // Since=null-argumentet utgår — "Ny" beräknas på FE (JobAdDto bär ingen
+        // IsNew-flagga; SavedSearch exponerade ändå aldrig "Ny").
         return await search.SearchAsync(
             new JobAdSearchCriteria(
                 new JobAdFilterCriteria(
@@ -74,8 +74,7 @@ public sealed class RunSavedSearchQueryHandler(
                     Q: criteria.Q),
                 criteria.SortBy,
                 query.Page,
-                query.PageSize,
-                Since: null),
+                query.PageSize),
             cancellationToken);
     }
 }

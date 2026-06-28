@@ -2,6 +2,17 @@ import type {
   ApplicationDto,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
+import { daysSince } from "@/lib/i18n/relative-time";
+
+// Relative-time helpers live in `lib/i18n/relative-time` now (#336 DRY
+// extraction). Re-exported here so existing oversikt consumers keep their
+// `@/lib/oversikt/aggregations` import path; new code imports from the i18n
+// module directly.
+export {
+  daysSince,
+  formatDaysAgo,
+  type RelativeTimeTranslator,
+} from "@/lib/i18n/relative-time";
 
 /**
  * F6 P5 Punkt 4 — Översikt-aggregeringar.
@@ -146,28 +157,6 @@ export function formatSwedishShortDateWithYear(isoString: string): string {
   return `${d.getDate()} ${SV_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-/**
- * Heltal kalenderdagar mellan `isoString` och `now` (default: Date.now()).
- * Negativ siffra om datumet ligger i framtiden. Använder UTC-trunkering
- * för stabilitet över DST-gränser.
- */
-export function daysSince(isoString: string, now: Date = new Date()): number {
-  const start = new Date(isoString);
-  if (Number.isNaN(start.getTime())) return 0;
-  const msPerDay = 86_400_000;
-  const startUtc = Date.UTC(
-    start.getUTCFullYear(),
-    start.getUTCMonth(),
-    start.getUTCDate()
-  );
-  const nowUtc = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate()
-  );
-  return Math.floor((nowUtc - startUtc) / msPerDay);
-}
-
 export interface SwedishLongDate {
   readonly day: number;
   readonly weekday: string;
@@ -247,30 +236,3 @@ export function filterFutureDeadlines<
   return deadlines.filter((d) => daysSince(d.date, now) <= 0);
 }
 
-/**
- * Pure helper-translator scoped to `oversikt.relativeTime`. The caller passes
- * `t` from `useTranslations("oversikt.relativeTime")` / `getTranslations`, so
- * this helper stays request-context-free (testable without next-intl plumbing).
- */
-export type RelativeTimeTranslator = (
-  key: "today" | "yesterday" | "daysAgo",
-  values?: Record<string, number>,
-) => string;
-
-/**
- * Härleder en svensk relativ tids-sträng från ett ISO-datum jämfört med `now`.
- * "i dag" (0 dagar), "i går" (1 dag), "{N} dagar sedan" (>=2 dagar). Negativa
- * dagar (framtid) faller på "i dag" — bör inte uppstå vid normala BE-svar.
- * Driver notice-tidstämplar (code-reviewer M2 2026-05-24). Den svenska copyn
- * resolvas via next-intl (`oversikt.relativeTime.*`).
- */
-export function formatDaysAgo(
-  t: RelativeTimeTranslator,
-  isoString: string,
-  now: Date = new Date(),
-): string {
-  const days = daysSince(isoString, now);
-  if (days <= 0) return t("today");
-  if (days === 1) return t("yesterday");
-  return t("daysAgo", { count: days });
-}

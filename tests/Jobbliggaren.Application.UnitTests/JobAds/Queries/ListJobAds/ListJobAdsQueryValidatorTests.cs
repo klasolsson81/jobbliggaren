@@ -417,26 +417,31 @@ public class ListJobAdsQueryValidatorTests
     }
 
     // ---------------------------------------------------------------
-    // ADR 0079 STEG 5 — MatchGrades (grad-filter). Fast-bandet (Grund/Bra/Stark)
-    // är filtrerbart; Topp AVVISAS wire-side (G3-OPT-A — kan inte beräknas i SQL,
-    // en Topp-grad skulle tyst matcha noll = label-lie). Cap = 3.
+    // ADR 0079 STEG 5 + PR-4 (#300, ADR 0084) — MatchGrades (grad-filter). The filterable
+    // band is now {Grund/Basic, Relaterat/Related, Bra/Good, Stark/Strong} (Related inserted
+    // between Basic and Good); Topp AVVISAS wire-side (G3-OPT-A — kan inte beräknas i SQL, en
+    // Topp-grad skulle tyst matcha noll = label-lie). Cap = 4 (defense-in-depth, one slot per
+    // filterable rung).
     // ---------------------------------------------------------------
 
     [Theory]
     [InlineData(MatchGrade.Basic)]
+    [InlineData(MatchGrade.Related)]
     [InlineData(MatchGrade.Good)]
     [InlineData(MatchGrade.Strong)]
-    public void Validate_MatchGrades_SingleFastBandGrade_Passes(MatchGrade grade)
+    public void Validate_MatchGrades_SingleFilterableBandGrade_Passes(MatchGrade grade)
     {
+        // PR-4 (#300): MatchGrade.Related is now an ACCEPTED filter value (no validation error).
         var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: [grade]));
         result.IsValid.ShouldBeTrue();
     }
 
     [Fact]
-    public void Validate_MatchGrades_AllThreeFastBandGrades_Passes()
+    public void Validate_MatchGrades_AllFourFilterableBandGrades_Passes()
     {
+        // The full filterable band {Basic, Related, Good, Strong} (cap 4) passes.
         var result = _validator.Validate(new ListJobAdsQuery(
-            MatchGrades: [MatchGrade.Basic, MatchGrade.Good, MatchGrade.Strong]));
+            MatchGrades: [MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong]));
         result.IsValid.ShouldBeTrue();
     }
 
@@ -474,10 +479,24 @@ public class ListJobAdsQueryValidatorTests
     [Fact]
     public void Validate_MatchGrades_OverCap_IsInvalid()
     {
-        // Cap = 3 (defense-in-depth). Fyra element (med dubblett) faller på cap:en.
+        // PR-4 (#300): cap = 4 (one slot per filterable rung). FEM element (med dubblett) faller
+        // på cap:en — fyra distinkta + en dubblett.
         var result = _validator.Validate(new ListJobAdsQuery(
-            MatchGrades: [MatchGrade.Basic, MatchGrade.Good, MatchGrade.Strong, MatchGrade.Basic]));
+            MatchGrades:
+            [
+                MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong,
+                MatchGrade.Basic,
+            ]));
         result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_MatchGrades_RelatedMixedWithValid_Passes()
+    {
+        // PR-4 (#300): Related composes with the other filterable rungs (it is a peer rung, not Top).
+        var result = _validator.Validate(new ListJobAdsQuery(
+            MatchGrades: [MatchGrade.Related, MatchGrade.Good]));
+        result.IsValid.ShouldBeTrue();
     }
 
     [Theory]

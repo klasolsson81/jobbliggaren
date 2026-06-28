@@ -62,8 +62,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     private static readonly IReadOnlyDictionary<JobAdId, MatchScore> EmptyScores =
         new Dictionary<JobAdId, MatchScore>();
 
-    private static readonly IReadOnlyDictionary<JobAdId, FullMatchScore> EmptyFullScores =
-        new Dictionary<JobAdId, FullMatchScore>();
+    private static readonly IReadOnlyDictionary<JobAdId, FullScoredMatch> EmptyFullScores =
+        new Dictionary<JobAdId, FullScoredMatch>();
 
     public async ValueTask<MatchScore> ScoreAsync(
         JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken)
@@ -184,7 +184,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // must_have is the binding requirement signal but it is just its own dimension's
     // verdict — there is no opaque total it could gate (Goodhart guard, CTO D0).
     // NotFoundException if the ad does not exist (parity ScoreAsync).
-    public async ValueTask<FullMatchScore> ScoreFullAsync(
+    // #300 PR-4 (ADR 0084 §F4): returns a FullScoredMatch — the score PLUS SsykIsRelated (the ad
+    // matched only via a RELATED occupation group). Behaviour-inert in v1 (related set empty).
+    public async ValueTask<FullScoredMatch> ScoreFullAsync(
         JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -225,7 +227,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
         var cvSkills = profile.CvSkillConceptIds.ToHashSet(StringComparer.Ordinal);
 
-        return new FullMatchScore(
+        var fullScore = new FullMatchScore(
             Fast: fastScore,
             SkillOverlap: ScoreConceptCoverage(
                 terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills),
@@ -235,6 +237,11 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             NiceToHaveCoverage: ScoreConceptCoverage(
                 terms.Where(t => t.Kind == ExtractedTermKind.Requirement
                     && t.Source == ExtractedTermSource.NiceToHave), cvSkills));
+
+        return new FullScoredMatch(
+            fullScore,
+            SsykIsRelated: IsSsykRelated(
+                fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId));
     }
 
     // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the zero-N+1 batch form of
@@ -244,7 +251,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // projection of ScoreFullAsync), then runs the SAME Fast + concept-coverage
     // helpers in-memory per row (so each FullMatchScore equals ScoreFullAsync for
     // that ad + profile — the regression contract). NO AI/LLM.
-    public async ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>> ScoreFullBatchAsync(
+    // #300 PR-4 (ADR 0084 §F4): each value is a FullScoredMatch carrying SsykIsRelated per ad.
+    public async ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>> ScoreFullBatchAsync(
         IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(jobAdIds);
@@ -282,7 +290,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var cvTitleLexemes = TryCvTitleLexemes(fast.Title);
         var cvSkills = profile.CvSkillConceptIds.ToHashSet(StringComparer.Ordinal);
 
-        var result = new Dictionary<JobAdId, FullMatchScore>(rows.Count);
+        var result = new Dictionary<JobAdId, FullScoredMatch>(rows.Count);
         foreach (var ad in rows)
         {
             var fastScore = new MatchScore(
@@ -295,7 +303,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
             var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
-            result[ad.Id] = new FullMatchScore(
+            var fullScore = new FullMatchScore(
                 Fast: fastScore,
                 SkillOverlap: ScoreConceptCoverage(
                     terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills),
@@ -305,6 +313,11 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 NiceToHaveCoverage: ScoreConceptCoverage(
                     terms.Where(t => t.Kind == ExtractedTermKind.Requirement
                         && t.Source == ExtractedTermSource.NiceToHave), cvSkills));
+
+            result[ad.Id] = new FullScoredMatch(
+                fullScore,
+                SsykIsRelated: IsSsykRelated(
+                    fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId));
         }
 
         return result;
@@ -411,6 +424,21 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             ? new MatchDimension(MatchDimensionVerdict.Match, [adValue], [])
             : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]);
     }
+
+    // #300 PR-4 (ADR 0084 §F4) — the exact-vs-related SPLIT the union verdict (ScoreSsykMembership)
+    // deliberately does NOT carry: TRUE iff the SSYK gate passed through the RELATED set ONLY, i.e.
+    // the ad's group is in the related set AND NOT in the stated exact set (exact-precedence — a
+    // group in both is an exact hit, not related). Surfaced on the FullScoredMatch carrier beside
+    // the score so MatchGradeCalculator caps a related-only hit at MatchGrade.Related (BEFORE the
+    // RB1/F1(b) gates). Categorical, not a magnitude (Goodhart-safe). Behaviour-inert in v1: the
+    // related set is empty until the PR-5 toggle, so this is always false today. A non-match ad
+    // (group in neither set) reads false here and grades null anyway, so the flag is only consulted
+    // by the calculator after the gate passes.
+    private static bool IsSsykRelated(
+        IReadOnlyList<string> exact, IReadOnlyList<string> related, string? adValue) =>
+        !string.IsNullOrEmpty(adValue)
+        && related.Contains(adValue, StringComparer.Ordinal)
+        && !exact.Contains(adValue, StringComparer.Ordinal);
 
     // Location ("ort") fit as a region ∪ municipality UNION (Spår 3, ADR 0076-amendment
     // 2026-06-21; senior-cto-advisor verdict C). The two granularities fold into ONE

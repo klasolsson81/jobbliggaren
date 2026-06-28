@@ -166,14 +166,18 @@ public sealed partial class BackgroundMatchingJob(
                 .ToListAsync(ct))
                 .ToHashSet();
 
-            foreach (var (jobAdId, score) in scores)
+            foreach (var (jobAdId, scored) in scores)
             {
                 if (existingJobAdIds.Contains(jobAdId))
                     continue;
 
                 // FULL grade (can reach Top — the Worker is the first producer). Map to the
                 // notifiable subset; Basic / no-grade is the honest floor (never persisted).
-                var grade = MatchGradeCalculator.Grade(score);
+                // #300 PR-4 (ADR 0084 §F4 + question D — LIST-ONLY): pass SsykIsRelated so a
+                // related-only hit grades MatchGrade.Related — which ToNotifiable maps to null,
+                // so related matches never persist a UserJobAdMatch nor drive a notification
+                // (behaviour-inert until the PR-5 toggle populates the related set).
+                var grade = MatchGradeCalculator.Grade(scored.Score, scored.SsykIsRelated);
                 if (grade is null || ToNotifiable(grade.Value) is not { } notifiable)
                     continue;
 

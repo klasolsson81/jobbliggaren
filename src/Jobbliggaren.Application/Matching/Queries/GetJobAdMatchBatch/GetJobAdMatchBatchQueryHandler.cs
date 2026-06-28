@@ -55,12 +55,15 @@ public sealed class GetJobAdMatchBatchQueryHandler(
         var scores = await scorer.ScoreFullBatchAsync(ids, profile, cancellationToken);
 
         var entries = new Dictionary<Guid, JobAdMatchEntryDto>(scores.Count);
-        foreach (var (jobAdId, score) in scores)
+        foreach (var (jobAdId, scored) in scores)
         {
             // F4-16 (ADR 0076 Amendment (b) §1) — the VISIBLE grade is now the FULL grade:
             // a Strong Fast match with CV-skill overlap is promoted to Top ("Toppmatch").
             // The golden rung that was sort-key-only in F4-15 (b-ii) now paints the chip.
-            var grade = MatchGradeCalculator.Grade(score);
+            // #300 PR-4 (ADR 0084 §F4): pass SsykIsRelated so a related-only hit caps at
+            // MatchGrade.Related (behaviour-inert until the PR-5 toggle populates the related set).
+            var score = scored.Score;
+            var grade = MatchGradeCalculator.Grade(score, scored.SsykIsRelated);
             if (grade is null)
                 continue;
 

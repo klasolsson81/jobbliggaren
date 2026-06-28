@@ -78,6 +78,14 @@ public class BackgroundMatchingJobTopDirectTests
         MustHaveCoverage: Match(),
         NiceToHaveCoverage: NotAssessed());
 
+    // Related (PR-4 #300): a would-be Strong tuple (Ssyk/Region/Employment Match + must-have Match)
+    // BUT carried on a related-only SSYK hit. Paired with SsykIsRelated:true on the carrier, the
+    // Worker's Grade(FullMatchScore, isRelated) caps flat to MatchGrade.Related, which ToNotifiable
+    // maps to null → the match is scored but NEVER persisted (ADR 0084 fråga D — Related is not
+    // notifiable, list-only). The Fast tuple is deliberately Strong-shaped so the ONLY reason it is
+    // dropped is the related cap, not a weak tuple.
+    private static FullMatchScore WouldBeStrongScore() => StrongScore();
+
     // ───────────────────────────── Seeding
 
     // A consenting JobSeeker (opt-in ON, never withdrawn) → inside the consenting set.
@@ -117,12 +125,31 @@ public class BackgroundMatchingJobTopDirectTests
                 PreferredMunicipalityConceptIds: []),
             CvSkillConceptIds: []);
 
+    // PR-4 (#300, ADR 0084): ScoreFullBatchAsync returns FullScoredMatch carriers. The scan
+    // unwraps .Score to grade and maps Good/Strong/Top → notifiable (Related → null, not
+    // persisted). These Top-direct tests are behaviour-inert on the related bit (SsykIsRelated:
+    // false), so the dispatch routing is unchanged — only the carrier wrapping is new.
     private void StubScorer(JobAdId jobAdId, FullMatchScore score) =>
         _scorer.ScoreFullBatchAsync(
                 Arg.Any<IReadOnlyList<JobAdId>>(),
                 Arg.Any<FullCandidateMatchProfile>(),
                 Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<JobAdId, FullMatchScore> { [jobAdId] = score });
+            .Returns(new Dictionary<JobAdId, FullScoredMatch>
+            {
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false),
+            });
+
+    // PR-4 (#300): stub the carrier with SsykIsRelated:true → the Worker grades Related (flat cap)
+    // → ToNotifiable(Related) == null → the match is scored but NOT persisted.
+    private void StubScorerRelated(JobAdId jobAdId, FullMatchScore score) =>
+        _scorer.ScoreFullBatchAsync(
+                Arg.Any<IReadOnlyList<JobAdId>>(),
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<JobAdId, FullScoredMatch>
+            {
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: true),
+            });
 
     private static async Task<UserJobAdMatch?> ReloadMatchAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
@@ -203,6 +230,43 @@ public class BackgroundMatchingJobTopDirectTests
             "Strong ska ligga kvar Pending för digesten — aldrig direkt-mejlad");
     }
 
+    // ───────────────────────────── 2b. Related → scored but NOT persisted (list-only, no notis)
+
+    // PR-4 (#300, ADR 0084 fråga D): a related-only match is SCORED but NOT persisted as a
+    // UserJobAdMatch — ToNotifiable(Related) == null → it never drives notifications (no email, no
+    // row). The Fast tuple is Strong-shaped, so the ONLY reason it is dropped is the related cap.
+    [Fact]
+    public async Task RunAsync_RelatedMatch_IsScoredButNotPersisted_AndDoesNotEmail()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var jobAdId = await SeedActiveAdAsync(db, "Närliggande-utvecklare", "Hooli AB", ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        // Related carrier (SsykIsRelated:true) over a would-be-Strong tuple → Worker grades Related.
+        StubScorerRelated(jobAdId, WouldBeStrongScore());
+
+        await CreateJob(db).RunAsync(ct);
+
+        // The scorer WAS invoked (the ad was scored), but Related is not notifiable → no row.
+        await _scorer.Received(1).ScoreFullBatchAsync(
+            Arg.Any<IReadOnlyList<JobAdId>>(),
+            Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<CancellationToken>());
+
+        var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
+        match.ShouldBeNull(
+            "en related-only-match ska scoras men ALDRIG persisteras (ToNotifiable(Related) == null, " +
+            "ADR 0084 fråga D — Related är list-only, driver ingen notis).");
+
+        // No email either (no notifiable row to dispatch).
+        await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+    }
+
     // ───────────────────────────── 3. No account email → no send, Top stays Pending
 
     [Fact]
@@ -278,10 +342,10 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<IReadOnlyList<JobAdId>>(),
                 Arg.Any<FullCandidateMatchProfile>(),
                 Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<JobAdId, FullMatchScore>
+            .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = TopScore(),
-                [adB] = TopScore(),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
             });
 
         await CreateJob(db).RunAsync(ct);
@@ -318,10 +382,10 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<IReadOnlyList<JobAdId>>(),
                 Arg.Any<FullCandidateMatchProfile>(),
                 Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<JobAdId, FullMatchScore>
+            .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = TopScore(),
-                [adB] = TopScore(),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
             });
 
         // First send throws, the second succeeds (dispatch order over the score dict is not

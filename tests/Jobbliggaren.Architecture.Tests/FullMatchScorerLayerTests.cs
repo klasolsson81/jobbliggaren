@@ -47,6 +47,16 @@ public class FullMatchScorerLayerTests
             typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
     }
 
+    [Fact]
+    public void FullScoredMatch_is_in_Application_layer()
+    {
+        // PR-4 (#300, ADR 0084): the new FULL-scorer carrier lives beside the F4-6 abstractions
+        // (BCL-only — no Domain/EF/Npgsql type crosses the port surface, parity FullMatchScore).
+        var dto = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
+        dto.Assembly.ShouldBe(
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
+    }
+
     // ===============================================================
     // 2. Goodhart guard extended to F4-6, pinned BY SHAPE (CTO Decision A)
     // ===============================================================
@@ -76,6 +86,57 @@ public class FullMatchScorerLayerTests
             "SkillOverlap, MustHaveCoverage, NiceToHaveCoverage } utan opak total " +
             "(Value) och utan extra/keyword-dim (F4-8/9, CTO Decision A/E). " +
             $"Faktiska: [{string.Join(", ", propNames)}].");
+    }
+
+    [Fact]
+    public void FullScoredMatch_carries_exactly_Score_and_SsykIsRelated()
+    {
+        // PR-4 (#300, ADR 0084 — PR-2 bind): the FULL-scorer carrier is exactly
+        // { Score (the frozen FullMatchScore), SsykIsRelated }. SsykIsRelated is a CATEGORICAL
+        // bool — a ladder BRANCH (the MatchGrade.Related flat cap), NOT a Goodhart magnitude:
+        // it does not blend into a number, it picks which Grade overload-flag fires. Pinned BY
+        // SHAPE so neither a sneak-total nor an extra dimension can creep onto the carrier (the
+        // score types stay arch-pinned; the exact-vs-related distinction rides this carrier, not
+        // a new field on the Goodhart-frozen FullMatchScore).
+        var carrier = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
+
+        var propNames = carrier
+            .GetProperties(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance)
+            .Where(p => p.Name != "EqualityContract")
+            .Select(p => p.Name)
+            .ToList();
+
+        propNames.ShouldBe(
+            ["Score", "SsykIsRelated"],
+            ignoreOrder: true,
+            "FullScoredMatch ska bära EXAKT { Score (frusen FullMatchScore), SsykIsRelated } — " +
+            "ingen extra dimension och ingen opak total. SsykIsRelated är en KATEGORISK ladder-" +
+            "gren (MatchGrade.Related-cap), inte en magnitud. " +
+            $"Faktiska: [{string.Join(", ", propNames)}].");
+    }
+
+    [Fact]
+    public void FullScoredMatch_Score_is_the_frozen_FullMatchScore_and_SsykIsRelated_is_a_bool()
+    {
+        // Composition + categorical-branch shape: Score IS the frozen FullMatchScore type (DRY at
+        // the knowledge level — not a flat re-declaration), and SsykIsRelated is a plain bool (a
+        // ladder branch, never a numeric magnitude the Goodhart guard forbids).
+        var carrier = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
+
+        var score = carrier.GetProperty("Score",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        score.ShouldNotBeNull("FullScoredMatch ska ha en Score-property (embeddad FullMatchScore).");
+        score!.PropertyType.ShouldBe(
+            typeof(Jobbliggaren.Application.Matching.Abstractions.FullMatchScore),
+            "FullScoredMatch.Score ska vara den frusna FullMatchScore-typen (komposition).");
+
+        var isRelated = carrier.GetProperty("SsykIsRelated",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        isRelated.ShouldNotBeNull();
+        isRelated!.PropertyType.ShouldBe(typeof(bool),
+            "SsykIsRelated ska vara en bool (kategorisk ladder-gren, ingen magnitud).");
     }
 
     [Fact]

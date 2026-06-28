@@ -34,11 +34,14 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <c>MatchScorer.ScoreMembership</c> (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c>
 /// (ort = region ∪ kommun, Spår 3):
 /// <list type="bullet">
-/// <item>0 = otaggad (SSYK ej Match) → exkluderas av grad-filtret (positiv-only),
+/// <item>0 = otaggad (SSYK ∉ exact ∪ related) → exkluderas av grad-filtret (positiv-only),
 /// sorteras sist i match-rank;</item>
-/// <item>1 = Basic (SSYK Match, men en angiven ort/anställningsform motsäger — golvar);</item>
-/// <item>1 + antal bekräftade sekundärer (ort (region∪kommun) / anställningsform) =
-/// 1/2/3 (Basic/Good/Strong). En <c>NotAssessed</c>-dimension varken bekräftar eller golvar.</item>
+/// <item>2 = Related (#300 PR-4, ADR 0084 §F2 — SSYK i den RELATERADE/substituerbara mängden
+/// men EJ i den angivna exakta; platt cap MELLAN Basic och Good, oberoende av sekundärer);</item>
+/// <item>1 = Basic (exakt SSYK Match, men en angiven ort/anställningsform motsäger — golvar);</item>
+/// <item>exakt SSYK Match utan motsägelse: 1/3/4 (Basic/Good/Strong) efter antal bekräftade
+/// sekundärer (ort (region∪kommun) / anställningsform) — 0/1/2 st. En <c>NotAssessed</c>-
+/// dimension varken bekräftar eller golvar.</item>
 /// </list>
 /// <b>G3-OPT-A (medveten, bunden divergens):</b> Fast-bandet toppar på Stark — Topp kan
 /// inte beräknas i SQL (ingen kind-separerad must-have-lexem-kolumn) och avvisas wire-side
@@ -88,6 +91,10 @@ internal sealed class PerUserJobAdSearchQuery(
         // (NotAssessed — varken bekräftar eller golvar, MatchScorer.ScoreMembership).
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
+        // #300 PR-4 (ADR 0084 §F4): the RELATED ssyk-4 set (substitutable occupations). Empty
+        // until the PR-5 toggle populates it, so the Related branch in GradeRankExpression is
+        // inert in v1 (every ad either gates out or scores via the exact set, byte-for-byte today).
+        var relatedSsyk = fast.RelatedSsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
         var municipalities = fast.PreferredMunicipalityConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
@@ -100,7 +107,8 @@ internal sealed class PerUserJobAdSearchQuery(
         // CvSkillConceptIds är den BEKRÄFTADE skill-mängden (plaintext PreferredSkills,
         // ingen DEK) — SAMMA källa som verdikt-scorern, så sort och grad aldrig divergerar
         // på en borttagen skill. Tom mängd → skillStated == false → gyllene termen blir
-        // konstant 0 (EF prunes).
+        // konstant 0 (EF prunes). OBS (#300 PR-4): den gyllene termen läser den EXAKTA ssyk-
+        // mängden — en related-only-annons (Related-rank) får ALDRIG den gyllene lyften.
         var cvSkillIds = profile.CvSkillConceptIds.ToArray();
         var skillStated = cvSkillIds.Length > 0;
 
@@ -111,7 +119,7 @@ internal sealed class PerUserJobAdSearchQuery(
         // Konsumeras av grad-WHERE, count OCH match-rank-ORDER BY så filter och sort aldrig
         // divergerar (CTO-re-bind 2026-06-23). Oracle-pinnad.
         var rankExpr = GradeRankExpression(
-            ssyk, regions, municipalities, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, employment, ortStated, employmentStated);
 
         // ADR 0079 STEG 5 — grad-WHERE: den PER-ANVÄNDAR-predikaten. Lever ENBART här,
         // aldrig i den delade anonymt cachebara ApplyFilter (anon-cache + SavedSearch +
@@ -158,8 +166,9 @@ internal sealed class PerUserJobAdSearchQuery(
                     && EF.Functions.JsonExistAny(EF.Property<string>(j, ExtractedLexemesColumn), cvSkillIds)
                         ? 1
                         : 0)
-                // Grad-rank fallande (3=Strong … 0=otaggad sist) — samma delade Expression
-                // som grad-WHERE/count (DRY, oracle-pinnad).
+                // Grad-rank fallande (4=Strong, 3=Good, 2=Related, 1=Basic, 0=otaggad sist —
+                // #300 PR-4-omnumrering) — samma delade Expression som grad-WHERE/count
+                // (DRY, oracle-pinnad).
                 .ThenByDescending(rankExpr)
                 .ThenByDescending(j => j.PublishedAt)
                 .ThenBy(j => j.Id)
@@ -186,6 +195,9 @@ internal sealed class PerUserJobAdSearchQuery(
 
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
+        // #300 PR-4 (ADR 0084 §F4): MÅSTE passera samma relatedSsyk som SearchPerUserAsync —
+        // annars divergerar count från list-vägens TotalCount (spök-paginering). Tom i v1.
+        var relatedSsyk = fast.RelatedSsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
         var municipalities = fast.PreferredMunicipalityConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
@@ -209,7 +221,7 @@ internal sealed class PerUserJobAdSearchQuery(
             return await baseQuery.CountAsync(cancellationToken);
 
         var rankExpr = GradeRankExpression(
-            ssyk, regions, municipalities, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, employment, ortStated, employmentStated);
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
         return await baseQuery
             .Where(RankInSet(rankExpr, selectedRanks))
@@ -217,35 +229,59 @@ internal sealed class PerUserJobAdSearchQuery(
     }
 
     // Den delade grad-rank-Expression:en (SSOT) — en kompilerad spegel av den Fast
-    // MatchGradeCalculator.Grade(MatchScore)-stegen över shadow-kolumnerna. Returnerar
-    // 0 (otaggad/SSYK ej Match), 1 (Basic — golv vid motsägande ort/anställning), 2
-    // (Good — en bekräftad sekundär), 3 (Strong — båda). IMPL-TRAP (CTO C): motsägelse-
-    // golvet är ett KOMBINERAT predikat (angiven preferens OCH annonsen har ett ort-/
-    // anställnings-värde OCH ingen union-träff) — aldrig ett naket !list.Contains(col),
-    // som skulle läsa en NULL-shadow som "inte i listan".
+    // MatchGradeCalculator.Grade(MatchScore, isRelated)-stegen över shadow-kolumnerna.
+    // #300 PR-4 (ADR 0084 §F2/§F4): Related infogad MELLAN Basic och Good → rank-omnumrering.
+    // Returnerar 0 (otaggad/SSYK ∉ exact ∪ related), 1 (Basic — golv vid motsägande ort/
+    // anställning ELLER inga bekräftade sekundärer), 2 (Related — yrket är en SUBSTITUERBAR
+    // granne, ej i den angivna exakta mängden; platt cap), 3 (Good — en bekräftad sekundär),
+    // 4 (Strong — båda). Gren-ordningen speglar calculatorns cap-ordning EXAKT: gate →
+    // Related-cap (FÖRE RB1) → RB1-golv → sekundärer. En related-only-annons i fel stad läser
+    // därför Related (2), ALDRIG Basic (1). IMPL-TRAP (CTO C): motsägelse-golvet är ett
+    // KOMBINERAT predikat (angiven preferens OCH annonsen har ett ort-/anställnings-värde OCH
+    // ingen union-träff) — aldrig ett naket !list.Contains(col), som skulle läsa en NULL-shadow
+    // som "inte i listan". relatedSsyk är tom i v1 (PR-5-toggeln fyller den) → Related-grenen
+    // inert, exact-grenarna byte-for-byte som förr (bara rank-heltalen omnumrerade; GradeToRank
+    // omnumreras likadant så filter/sort/count förblir koherenta — oracle-pinnat).
     private static Expression<Func<JobAd, int>> GradeRankExpression(
         IReadOnlyList<string> ssyk,
+        IReadOnlyList<string> relatedSsyk,
         IReadOnlyList<string> regions,
         IReadOnlyList<string> municipalities,
         IReadOnlyList<string> employment,
         bool ortStated,
         bool employmentStated) =>
         j =>
-            !ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
+            // Gate: yrket måste vara i exact ∪ related, annars otaggad (0). Gaten vinner över
+            // Related-cap (parity calculatorns gate-före-cap).
+            !(ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
+                || relatedSsyk.Contains(EF.Property<string?>(j, OccupationGroupColumn)))
                 ? 0
-                : ((ortStated
-                        && (EF.Property<string?>(j, RegionColumn) != null
-                            || EF.Property<string?>(j, MunicipalityColumn) != null)
-                        && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
-                            || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))))
-                    || (employmentStated
-                        && EF.Property<string?>(j, EmploymentTypeColumn) != null
-                        && !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))))
-                    ? 1
-                    : 1
-                        + ((regions.Contains(EF.Property<string?>(j, RegionColumn))
-                            || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))) ? 1 : 0)
-                        + (employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)) ? 1 : 0);
+                // Related-cap (platt, FÖRST efter gaten — FÖRE RB1-golvet): i unionen men EJ i
+                // den exakta mängden → related-only → Related (2).
+                : !ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
+                    ? 2
+                    // Exakt träff. RB1-motsägelse-golv → Basic (1).
+                    : ((ortStated
+                            && (EF.Property<string?>(j, RegionColumn) != null
+                                || EF.Property<string?>(j, MunicipalityColumn) != null)
+                            && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
+                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))))
+                        || (employmentStated
+                            && EF.Property<string?>(j, EmploymentTypeColumn) != null
+                            && !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))))
+                        ? 1
+                        // Exakt träff, ingen motsägelse: båda sekundärer → Strong (4), en → Good
+                        // (3), ingen → Basic (1). (1+sekundärer-aritmetiken duger inte längre när
+                        // Related sitter på 2 — boolean-mappning i stället.)
+                        : (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
+                            && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                            ? 4
+                            : (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                                    || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
+                                || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                                ? 3
+                                : 1;
 
     // Komponerar ett EF-översättbart predikat `selectedRanks.Contains(rank(j))` genom att
     // ÅTERANVÄNDA exakt samma rank-Body + parameter (ingen duplikat-logik, ingen LINQKit).
@@ -262,16 +298,20 @@ internal sealed class PerUserJobAdSearchQuery(
         return Expression.Lambda<Func<JobAd, bool>>(contains, rank.Parameters[0]);
     }
 
-    // Fast-bandets grad → rank-heltal (parity GradeRankExpression). Top är inte
-    // Fast-beräkningsbar (G3-OPT-A) och avvisas av ListJobAdsQueryValidator wire-side;
-    // skulle den ändå nå hit är det ett programmeringsfel → fail-fast (parity ApplySort).
+    // Fast-bandets grad → rank-heltal (parity GradeRankExpression). #300 PR-4 (ADR 0084 §F2):
+    // Related infogad mellan Basic och Good → Good/Strong omnumrerade upp (Basic=1, Related=2,
+    // Good=3, Strong=4). MÅSTE förbli identisk med GradeRankExpression:s heltal (DRY — annars
+    // väljer grad-WHERE fel rank-hink). Top är inte Fast-beräkningsbar (G3-OPT-A) och avvisas av
+    // ListJobAdsQueryValidator wire-side; skulle den ändå nå hit är det ett programmeringsfel →
+    // fail-fast (parity ApplySort).
     private static int GradeToRank(MatchGrade grade) => grade switch
     {
         MatchGrade.Basic => 1,
-        MatchGrade.Good => 2,
-        MatchGrade.Strong => 3,
+        MatchGrade.Related => 2,
+        MatchGrade.Good => 3,
+        MatchGrade.Strong => 4,
         _ => throw new ArgumentOutOfRangeException(
             nameof(grade), grade,
-            "Endast Grund/Bra/Stark är filtrerbara (Fast-bandet) — validatorn ska ha avvisat Topp."),
+            "Endast Grund/Relaterat/Bra/Stark är filtrerbara (Fast-bandet) — validatorn ska ha avvisat Topp."),
     };
 }

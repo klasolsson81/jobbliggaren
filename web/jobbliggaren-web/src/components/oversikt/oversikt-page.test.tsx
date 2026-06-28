@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { OversiktPage } from "./oversikt-page";
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
+import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
+import { DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 //
@@ -36,7 +38,8 @@ const errored: ApiResult<never> = { kind: "error" };
 function renderOversikt(
   hasStatedDesiredOccupation: boolean,
   matchCount: number | null = 42,
-  newMatchCount = 0
+  newMatchCount = 0,
+  recentSearches: ApiResult<ListRecentSearchesResult> = errored
 ) {
   const profile: ApiResult<JobSeekerProfileDto> = {
     kind: "ok",
@@ -49,13 +52,36 @@ function renderOversikt(
       profile={profile}
       pipeline={errored}
       savedJobAds={errored}
-      recentSearches={errored}
+      recentSearches={recentSearches}
       resumes={errored}
       landingStats={null}
       matchCount={matchCount}
       newMatchCount={newMatchCount}
     />
   );
+}
+
+function makeRecent(
+  overrides: Partial<ListRecentSearchesResult[number]> = {}
+): ListRecentSearchesResult[number] {
+  return {
+    id: "33333333-3333-3333-3333-333333333333",
+    q: "backend",
+    occupationGroupList: [],
+    municipalityList: [],
+    regionList: [],
+    employmentTypeList: [],
+    worktimeExtentList: [],
+    occupationGroupLabels: [],
+    municipalityLabels: [],
+    regionLabels: [],
+    sortBy: DEFAULT_SORT_BY,
+    label: "Backend Stockholm",
+    currentCount: 0,
+    newCount: 0,
+    lastViewedAt: "2026-06-27T10:00:00Z",
+    ...overrides,
+  };
 }
 
 describe("OversiktPage — matchnings-nudge ömsesidig uteslutning", () => {
@@ -206,5 +232,48 @@ describe("OversiktPage — Sammanfattnings-rad 'Nya matchningar' (ADR 0080 Vag 4
       summary?.querySelectorAll(".jp-summary__row__value") ?? [],
     ).map((el) => el.textContent ?? "");
     expect(rowValues).not.toContain("28");
+  });
+});
+
+describe("OversiktPage — sparad-sök-notis (#294)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("featurar senaste recent-search med replay-CTA (kör sökningen, ej /sokningar, ej mock-namn)", () => {
+    // The notice text lazily fetches the count; a never-resolving stub keeps it
+    // in the no-count branch so this test isolates the wiring (name + href).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => {})),
+    );
+
+    renderOversikt(true, 42, 0, {
+      kind: "ok",
+      data: [makeRecent({ label: "Backend Stockholm", q: "backend" })],
+    });
+
+    const cta = screen.getByRole("link", { name: /Kör sökning/ });
+    const href = cta.getAttribute("href") ?? "";
+    // CTA now RUNS the search on /jobb (replay href) — not the old wrong
+    // destination /sokningar, and not a double-step.
+    expect(href).toMatch(/^\/jobb\?/);
+    expect(href).toContain("q=backend");
+    expect(href).not.toBe("/sokningar");
+
+    // Real recent-search name shown in the notice (the name also appears in the
+    // Summary, so scope to the notice text); the old hardcoded mock name is gone.
+    expect(screen.getByText(/Din senaste sökning:/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Backend Stockholm", {
+        selector: ".jp-notice__text b",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Remote \/ Distansjobb/)).toBeNull();
+  });
+
+  it("ingen recent-search → ingen sparad-sök-notis", () => {
+    renderOversikt(true, 42, 0, { kind: "ok", data: [] });
+    expect(
+      screen.queryByRole("link", { name: /Kör sökning/ }),
+    ).toBeNull();
   });
 });

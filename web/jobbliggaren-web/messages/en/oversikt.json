@@ -45,6 +45,7 @@
     "interviewCta": "Open case",
     "savedSearchLabel": "Saved search",
     "savedSearchText": "<b>{name}</b> has <b>{count, plural, one {# new hit} other {# new hits}}</b> since your last run.",
+    "savedSearchTextNoCount": "Your latest search: <b>{name}</b>.",
     "savedSearchCta": "Run search"
   },
   "relativeTime": {

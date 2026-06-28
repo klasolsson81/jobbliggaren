@@ -6,7 +6,7 @@ import { useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Clock, Search, Trash2 } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
-import { buildJobbHref } from "@/lib/job-ads/search-params";
+import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import { deleteRecentSearchAction } from "@/lib/actions/recent-searches";
 import type { RecentSearchCount } from "@/lib/hooks/use-recent-search-counts";
 
@@ -21,24 +21,6 @@ interface RecentSearchRowProps {
   count?: RecentSearchCount;
   onDeleted: (id: string) => void;
   onDeleteFailed: (id: string, error: string) => void;
-}
-
-function buildHrefFor(item: RecentJobSearchDto): string {
-  return buildJobbHref({
-    q: item.q ?? "",
-    occupationGroup: item.occupationGroupList,
-    region: item.regionList,
-    municipality: item.municipalityList,
-    // Klass 2 (ADR 0067 B2) — replay bär anställningsform/omfattning så
-    // "Kör igen" inte tyst tappar filtret (backend-DTO bär listorna sedan #60).
-    employmentType: item.employmentTypeList,
-    worktimeExtent: item.worktimeExtentList,
-    // STEG 5 (grade-filter) — matchGrades är runtime-view-state, INTE en
-    // sparad sök-angelägenhet (Klas: håll det utanför recent-search-concern:en).
-    // En "Kör igen" replayar därför aldrig ett grad-filter — tom lista.
-    matchGrades: [],
-    sortBy: item.sortBy,
-  });
 }
 
 // Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på raden.
@@ -83,7 +65,7 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
   const router = useRouter();
   const t = useTranslations("jobads.recent");
   const [isPending, startTransition] = useTransition();
-  const href = buildHrefFor(item);
+  const href = buildRecentSearchHref(item);
 
   function handleRowClick(e: React.MouseEvent<HTMLElement>) {
     // Skippa när klick var på en knapp/länk inuti raden — de bär egna handlers.

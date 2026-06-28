@@ -20,9 +20,11 @@ import {
 import { OVERSIKT_MOCK } from "@/lib/oversikt/mock-data";
 import { OVERSIKT_MATCH_GRADES } from "@/lib/dto/match-count";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
+import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import { TodayCard } from "./today-card";
 import { NoticeList } from "./notice-list";
 import { Summary } from "./summary";
+import { SavedSearchNoticeText } from "./saved-search-notice-text";
 import type { NoticeData } from "./notice-row";
 
 interface OversiktPageProps {
@@ -196,6 +198,18 @@ export function OversiktPage({
   const hasStatedOccupation =
     profile.kind === "ok" && profile.data.hasStatedDesiredOccupation;
 
+  // Recent searches — consumed by both the saved-search notice (below) and the
+  // Summary. `lastSearch` = the most recently run/viewed search ("din senaste
+  // körning"), which is the one the notice features (#294).
+  const recentSearchesData =
+    recentSearches.kind === "ok" ? recentSearches.data : [];
+  const lastSearch =
+    recentSearchesData.length > 0
+      ? [...recentSearchesData].sort((a, b) =>
+          b.lastViewedAt.localeCompare(a.lastViewedAt),
+        )[0]
+      : null;
+
   const infoNotices: NoticeData[] = [];
 
   if (!hasStatedOccupation) {
@@ -279,25 +293,28 @@ export function OversiktPage({
     });
   }
 
-  // Sparad-sökning-notis: ny-träff-count finns ej i recent-searches-DTO ännu
-  // (newCount finns men gäller bara körda sökningar). Visa mock om vi har
-  // minst en sökning över huvud taget.
-  const recentSearchesData =
-    recentSearches.kind === "ok" ? recentSearches.data : [];
-  if (recentSearchesData.length > 0) {
+  // Sparad-sökning-notis (#294): featurar DIN SENASTE sökning (lastSearch) med
+  // riktigt namn + CTA som KÖR sökningen (replay-href via buildRecentSearchHref),
+  // i stället för det tidigare hårdkodade `/sokningar`-målet (fel destination +
+  // dubbelsteg) och mock-namnet. "Har N nya träffar"-counten hämtas lazy
+  // klient-side i SavedSearchNoticeText (TD-94: server-side per-sök-COUNT hoppas
+  // över, includeCount=false). Klas 2026-06-28: nya-annonser-signalen rankas
+  // UNDER match-/topp-match-notisen → notisen ligger sist i infoNotices (efter
+  // match-notisen + intervju-notisen). Tids-stämpeln är nu riktig (lastViewedAt).
+  if (lastSearch) {
     infoNotices.push({
       id: `n-saved-search-${dateSlug}`,
       kind: "info",
       label: t("notices.savedSearchLabel"),
-      text: t.rich("notices.savedSearchText", {
-        name: OVERSIKT_MOCK.savedSearchHitsLast.name,
-        count: OVERSIKT_MOCK.savedSearchHitsLast.newHits,
-        b: (chunks) => <b>{chunks}</b>,
-      }),
+      text: (
+        <SavedSearchNoticeText
+          searchId={lastSearch.id}
+          name={lastSearch.label}
+        />
+      ),
       cta: t("notices.savedSearchCta"),
-      href: "/sokningar",
-      // MOCK: BE-port saknas för sökning-körnings-stämpel
-      time: t("notices.timeYesterday"),
+      href: buildRecentSearchHref(lastSearch),
+      time: formatDaysAgo(tRelativeTime, lastSearch.lastViewedAt, today),
     });
   }
 
@@ -313,12 +330,6 @@ export function OversiktPage({
     ? formatSwedishShortDate(firstResume.updatedAt)
     : null;
 
-  const lastSearch =
-    recentSearchesData.length > 0
-      ? [...recentSearchesData].sort((a, b) =>
-          b.lastViewedAt.localeCompare(a.lastViewedAt)
-        )[0]
-      : null;
   const lastSearchName = lastSearch?.label ?? null;
 
   // design-reviewer M2: vid endpoint-failure ⇒ null (renders som "—"),

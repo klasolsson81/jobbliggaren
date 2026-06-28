@@ -5,29 +5,12 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Clock } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
-import { buildJobbHref } from "@/lib/job-ads/search-params";
+import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import { HeroChip } from "@/components/job-ads/hero-chip";
 import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 
 interface RecentSearchesHeroChipProps {
   items: ReadonlyArray<RecentJobSearchDto>;
-}
-
-function buildHrefFor(item: RecentJobSearchDto): string {
-  return buildJobbHref({
-    q: item.q ?? "",
-    occupationGroup: item.occupationGroupList,
-    region: item.regionList,
-    municipality: item.municipalityList,
-    // Klass 2 (ADR 0067 B2) — replay bär anställningsform/omfattning så
-    // "Kör igen" inte tyst tappar filtret (backend-DTO bär listorna sedan #60).
-    employmentType: item.employmentTypeList,
-    worktimeExtent: item.worktimeExtentList,
-    // STEG 5 (grade-filter) — runtime-view-state, ingår inte i den sparade
-    // sökningen (Klas: utanför recent-search-concern:en). Replay → tom lista.
-    matchGrades: [],
-    sortBy: item.sortBy,
-  });
 }
 
 /**
@@ -63,7 +46,7 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
       footerLabel={t("chip.footer")}
       onOpenChange={setOpen}
       renderItem={(item, onClose) => {
-        const href = buildHrefFor(item);
+        const href = buildRecentSearchHref(item);
         const count = counts?.get(item.id);
         const countText =
           count === undefined

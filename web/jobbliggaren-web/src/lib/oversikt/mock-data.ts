@@ -55,7 +55,13 @@ export interface OversiktMock {
   readonly personalLettersCount: number;
   /** BE-port saknas: notification-stämpel (HANDOVER §3.3). */
   readonly noticesLastUpdated: string;
-  /** BE-port saknas: SavedSearches "ny-träff-count-since-last-run". */
+  /**
+   * GUEST-ONLY (efter #294): den autentiserade `/oversikt`-notisen läser INTE
+   * längre detta — den featurar användarens SENASTE riktiga recent-search
+   * (`lastSearch`) och hämtar "N nya träffar" lazy via `useRecentSearchCounts`.
+   * Kvar enbart för den publika gäst-förhandsvisningen (`guest-oversikt-page.tsx`),
+   * en avsiktlig demo-yta utanför #294:s scope.
+   */
   readonly savedSearchHitsLast: OversiktSavedSearchHit;
   /** Static notice-snippets (mock — backend-driven content saknar port). */
   readonly bonnierOffer: OversiktNoticeCopy;

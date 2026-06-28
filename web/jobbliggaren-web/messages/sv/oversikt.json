@@ -45,6 +45,7 @@
     "interviewCta": "Öppna ärende",
     "savedSearchLabel": "Sparad sökning",
     "savedSearchText": "<b>{name}</b> har <b>{count, plural, one {# ny träff} other {# nya träffar}}</b> sedan din senaste körning.",
+    "savedSearchTextNoCount": "Din senaste sökning: <b>{name}</b>.",
     "savedSearchCta": "Kör sökning"
   },
   "relativeTime": {

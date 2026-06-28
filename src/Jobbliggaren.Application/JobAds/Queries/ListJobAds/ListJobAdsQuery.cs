@@ -49,7 +49,16 @@ public sealed record ListJobAdsQuery(
     // betyder "Matchning PÅ, visa endast dessa grader"; tom/null = Matchning AV
     // (Klas-val 2026-06-23: av = noll grader). Endast Fast-bandet (Grund/Bra/Stark) är
     // filtrerbart — Topp kan inte beräknas i SQL (G3-OPT-A); validatorn avvisar Top.
-    IReadOnlyList<MatchGrade>? MatchGrades = null)
+    IReadOnlyList<MatchGrade>? MatchGrades = null,
+    // #300 PR-5a (ADR 0084 §A — "Visa relaterade också"-toggeln, off by default) — när true
+    // breddar profil-byggaren yrkes-gaten exakt → exakt ∪ related så related-annonser kan tagga
+    // MatchGrade.Related (rank 2). RUNTIME-KONTEXT (paritet MatchGrades/Commit): ingår
+    // ALDRIG i ICapturesRecentSearch / SearchCriteria / FilterHashCalculator (de läser bara de
+    // namngivna sök-identitets-fälten ovan) — en per-användar-breddning får aldrig förorena den
+    // anonyma sök-identiteten (ADR 0039 Beslut 1 / ADR 0062). Default false = beteende-inert
+    // (exakt-only, dagens beteende). Det publika /jobb-rutt-värdet ?relaterade=on mappas hit av
+    // FE (PR-5b); API-kontraktet bär den engelska flaggan.
+    bool IncludeRelated = false)
     : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
 {
     // ICapturesRecentSearch + default/fallback-väg ser ALLTID ett rent

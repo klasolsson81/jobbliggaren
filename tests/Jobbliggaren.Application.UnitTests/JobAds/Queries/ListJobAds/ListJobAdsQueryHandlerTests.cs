@@ -588,4 +588,126 @@ public class ListJobAdsQueryHandlerTests
         await _search.Received(1).SearchAsync(
             Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
     }
+
+    // --- #300 PR-5a: ListJobAdsQuery.IncludeRelated threads into BuildFullForSortAsync ----
+    // The per-user path builds the FULL profile via BuildFullForSortAsync; PR-5a adds the
+    // includeRelated arg that the FE toggle flips (ADR 0084 question A, off by default). The
+    // flag is RUNTIME-CONTEXT (like MatchGrades) — it NEVER enters ICapturesRecentSearch /
+    // SearchCriteria / FilterHash. These tests stub with Arg.Any<bool>() and capture the
+    // threaded arg via Arg.Do<bool>. RED until ListJobAdsQuery carries IncludeRelated AND the
+    // handler passes includeRelated: query.IncludeRelated into BuildFullForSortAsync (per-user
+    // branch).
+
+    [Fact]
+    public async Task Handle_MatchContextActive_ThreadsIncludeRelatedTrue_ToBuildFullForSort()
+    {
+        var capturedIncludeRelated = false;
+        _profileBuilder.BuildFullForSortAsync(
+                Arg.Any<CancellationToken>(), Arg.Do<bool>(r => capturedIncludeRelated = r))
+            .Returns(FullProfileWithOccupation());
+        _matchSearch.SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(
+                Sort: ListJobAdsSort.PublishedAtDesc,
+                MatchGrades: [MatchGrade.Related, MatchGrade.Good],
+                IncludeRelated: true),
+            TestContext.Current.CancellationToken);
+
+        capturedIncludeRelated.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_SortByMatch_ThreadsIncludeRelatedFalse_ToBuildFullForSort_WhenFalse()
+    {
+        var capturedIncludeRelated = true;
+        _profileBuilder.BuildFullForSortAsync(
+                Arg.Any<CancellationToken>(), Arg.Do<bool>(r => capturedIncludeRelated = r))
+            .Returns(FullProfileWithOccupation());
+        _matchSearch.SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc, IncludeRelated: false),
+            TestContext.Current.CancellationToken);
+
+        capturedIncludeRelated.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_PerUserPath_DefaultsIncludeRelatedToFalse_WhenOmitted()
+    {
+        // ADR 0084 question A — off by default. A per-user request that omits IncludeRelated
+        // (today's only production path until the PR-5 FE toggle) builds the exact-only profile.
+        var capturedIncludeRelated = true;
+        _profileBuilder.BuildFullForSortAsync(
+                Arg.Any<CancellationToken>(), Arg.Do<bool>(r => capturedIncludeRelated = r))
+            .Returns(FullProfileWithOccupation());
+        _matchSearch.SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
+            TestContext.Current.CancellationToken);
+
+        capturedIncludeRelated.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_IncludeRelatedTrue_DoesNotPolluteFilterIdentity_StaysRuntimeContext()
+    {
+        // ADR 0079 STEG 5 isolation parity (MatchGrades): IncludeRelated is runtime-context —
+        // it must NEVER bleed into the JobAdFilterCriteria the per-user path composes (the
+        // anonymous search identity / FilterHash reads only the named filter fields). The filter
+        // for IncludeRelated true must equal the filter for the named dimensions alone.
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
+            .Returns(FullProfileWithOccupation());
+        JobAdFilterCriteria? capturedFilter = null;
+        _matchSearch.SearchPerUserAsync(
+            Arg.Do<JobAdFilterCriteria>(f => capturedFilter = f),
+            Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(
+                Sort: ListJobAdsSort.MatchDesc,
+                OccupationGroup: ["grp-1"],
+                Region: ["stockholm"],
+                MatchGrades: [MatchGrade.Related],
+                IncludeRelated: true),
+            TestContext.Current.CancellationToken);
+
+        // The filter carries ONLY the named dimensions — no IncludeRelated leakage into it.
+        capturedFilter.ShouldNotBeNull();
+        capturedFilter!.OccupationGroup.ShouldBe(["grp-1"]);
+        capturedFilter.Region.ShouldBe(["stockholm"]);
+    }
+
+    [Fact]
+    public void ListJobAdsQuery_IncludeRelated_IsNotPersistedSearchIdentity()
+    {
+        // Defence-in-depth: IncludeRelated is NOT part of ICapturesRecentSearch (the captured
+        // anonymous search identity). The capture interface exposes only the named filter
+        // fields + Commit/Since-style runtime context, never IncludeRelated.
+        typeof(Jobbliggaren.Application.RecentJobSearches.Common.ICapturesRecentSearch)
+            .GetProperty("IncludeRelated").ShouldBeNull(
+                "IncludeRelated är runtime-kontext (analogt MatchGrades) och får aldrig " +
+                "ingå i ICapturesRecentSearch / sök-identiteten (ADR 0084 / ADR 0079 STEG 5).");
+    }
 }

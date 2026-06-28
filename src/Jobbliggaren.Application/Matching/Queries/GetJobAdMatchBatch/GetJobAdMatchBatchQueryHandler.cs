@@ -39,7 +39,10 @@ public sealed class GetJobAdMatchBatchQueryHandler(
         // CONFIRMED skill set (plaintext PreferredSkills, DEK-free) so the F4-16 modal's
         // matched/missing is honest. Empty confirmed set → the three Full dimensions
         // degrade to NotAssessed (never NoMatch).
-        var profile = await profileBuilder.BuildFullForVerdictAsync(cancellationToken);
+        // #300 PR-5a (ADR 0084 §A): includeRelated broadens the gate to exact ∪ related so a
+        // related-occupation ad earns the Related tag in this page overlay (default false = inert).
+        var profile = await profileBuilder.BuildFullForVerdictAsync(
+            cancellationToken, includeRelated: query.IncludeRelated);
 
         // Occupation/SSYK is the gate of the grade ladder (MatchGradeCalculator): without
         // a stated occupation no ad can earn a tag. Short-circuit before the batch query —

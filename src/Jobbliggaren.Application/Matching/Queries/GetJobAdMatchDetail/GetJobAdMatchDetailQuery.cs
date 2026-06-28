@@ -20,4 +20,11 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// PreferredSkills, DEK-free — ADR 0079 STEG 3 PR-D).
 /// </para>
 /// </summary>
-public sealed record GetJobAdMatchDetailQuery(Guid JobAdId) : IQuery<JobAdMatchDetailDto?>;
+/// <para>
+/// #300 PR-5a (ADR 0084 §A): <paramref name="IncludeRelated"/> (default false) broadens the
+/// profile's occupation gate to exact ∪ related so a related-occupation ad grades
+/// <c>MatchGrade.Related</c> in the modal (consistent with the page overlay's toggle). Set by the
+/// "Visa relaterade också" toggle (FE PR-5b maps ?relaterade=on). False = behaviour-inert.
+/// </para>
+public sealed record GetJobAdMatchDetailQuery(Guid JobAdId, bool IncludeRelated = false)
+    : IQuery<JobAdMatchDetailDto?>;

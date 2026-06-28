@@ -17,7 +17,11 @@ namespace Jobbliggaren.Api.Endpoints;
 /// </summary>
 public static class MeJobAdMatchEndpoints
 {
-    public sealed record JobAdMatchBatchRequest(IReadOnlyList<Guid> JobAdIds);
+    // #300 PR-5a (ADR 0084 §A) — IncludeRelated (default false) is the "Visa relaterade också"
+    // toggle on the wire: when true the page overlay broadens the occupation gate to exact ∪
+    // related so related-occupation ads earn the Related tag. FE (PR-5b) maps ?relaterade=on.
+    public sealed record JobAdMatchBatchRequest(
+        IReadOnlyList<Guid> JobAdIds, bool IncludeRelated = false);
 
     public static void MapMeJobAdMatchEndpoints(this IEndpointRouteBuilder app)
     {
@@ -32,7 +36,7 @@ public static class MeJobAdMatchEndpoints
                 JobAdMatchBatchRequest body, IMediator mediator, CancellationToken ct) =>
             {
                 var result = await mediator.Send(
-                    new GetJobAdMatchBatchQuery(body.JobAdIds ?? []), ct);
+                    new GetJobAdMatchBatchQuery(body.JobAdIds ?? [], body.IncludeRelated), ct);
                 return Results.Ok(result);
             })
             .WithTags("Me")
@@ -48,9 +52,15 @@ public static class MeJobAdMatchEndpoints
         // for an absent UserId as defence-in-depth. A 200 with `null` body means "no match
         // section" (the FE renders nothing); a missing ad → 404 (NotFoundException).
         app.MapGet("/api/v1/me/job-ad-match-tags/{jobAdId:guid}", async (
-                Guid jobAdId, IMediator mediator, CancellationToken ct) =>
+                Guid jobAdId, IMediator mediator,
+                // #300 PR-5a (ADR 0084 §A) — optional ?includeRelated=true grades a related-
+                // occupation ad as Related in the modal (consistent with the page overlay toggle).
+                // Optional trailing param → ct gets = default so the optional ordering is valid
+                // (parity JobAdsEndpoints list). FE PR-5b maps the public ?relaterade=on.
+                bool includeRelated = false, CancellationToken ct = default) =>
             {
-                var result = await mediator.Send(new GetJobAdMatchDetailQuery(jobAdId), ct);
+                var result = await mediator.Send(
+                    new GetJobAdMatchDetailQuery(jobAdId, includeRelated), ct);
                 return Results.Ok(result);
             })
             .WithTags("Me")

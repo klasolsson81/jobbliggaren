@@ -66,6 +66,11 @@ public class GetJobAdMatchDetailQueryHandlerTests
 
         public int CvSkillsCallCount { get; private set; }
 
+        // #300 PR-5a — captures the includeRelated arg the modal handler threads into the
+        // verdict-path build. Null = never called; the threading tests assert the captured
+        // value equals query.IncludeRelated.
+        public bool? IncludeRelatedSeen { get; private set; }
+
         // Unchanged F4-12 method — never called by the modal handler.
         public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken, bool includeRelated = false)
             => throw new NotSupportedException("BuildFromPreferencesAsync ska inte anropas av modal-handlern.");
@@ -78,6 +83,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             CvSkillsCallCount++;
+            IncludeRelatedSeen = includeRelated;
             if (_throwOnCvSkills is not null)
                 throw _throwOnCvSkills; // fail-closed — DEK/KMS failure propagates, never swallowed
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);
@@ -416,6 +422,54 @@ public class GetJobAdMatchDetailQueryHandlerTests
 
         // The scorer is never reached when the DEK warm fails (fail-closed before scoring).
         scorer.ScoreFullCallCount.ShouldBe(0);
+    }
+
+    // =================================================================
+    // #300 PR-5a — the request's IncludeRelated flag threads into the verdict-path build
+    // (BuildFullForVerdictAsync). ADR 0084 question A: off by default; the PR-5 toggle is the
+    // only thing that flips it true. RED until GetJobAdMatchDetailQuery carries IncludeRelated
+    // AND the handler passes includeRelated: query.IncludeRelated into BuildFullForVerdictAsync.
+    // =================================================================
+
+    [Fact]
+    public async Task Handle_ShouldThreadIncludeRelatedTrue_ToBuildFullForVerdict_WhenQueryIncludeRelatedIsTrue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(StrongScore());
+        var sut = CreateHandler(builder, scorer);
+
+        await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid(), IncludeRelated: true), ct);
+
+        builder.IncludeRelatedSeen.ShouldBe(true);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldThreadIncludeRelatedFalse_ToBuildFullForVerdict_WhenQueryIncludeRelatedIsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(StrongScore());
+        var sut = CreateHandler(builder, scorer);
+
+        await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid(), IncludeRelated: false), ct);
+
+        builder.IncludeRelatedSeen.ShouldBe(false);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldDefaultIncludeRelatedToFalse_WhenQueryOmitsIt()
+    {
+        // ADR 0084 question A — off by default. The modal's only production caller until the
+        // PR-5 FE toggle omits the flag → the exact-only profile must be built.
+        var ct = TestContext.Current.CancellationToken;
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(StrongScore());
+        var sut = CreateHandler(builder, scorer);
+
+        await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct);
+
+        builder.IncludeRelatedSeen.ShouldBe(false);
     }
 
     // ---------------------------------------------------------------

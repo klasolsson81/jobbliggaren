@@ -42,7 +42,11 @@ public sealed class GetJobAdMatchDetailQueryHandler(
 
         // Full profile from the user's CONFIRMED skill set (plaintext PreferredSkills,
         // DEK-free — ADR 0079 STEG 3 PR-D; the complete, curated set, so no truncation).
-        var profile = await profileBuilder.BuildFullForVerdictAsync(cancellationToken);
+        // #300 PR-5a (ADR 0084 §A): includeRelated broadens the gate to exact ∪ related so a
+        // related-occupation ad grades Related in the modal, consistent with the page overlay
+        // toggle (default false = inert).
+        var profile = await profileBuilder.BuildFullForVerdictAsync(
+            cancellationToken, includeRelated: query.IncludeRelated);
 
         // Score the single ad. ScoreFullAsync throws NotFoundException for a missing ad
         // (→ 404) — propagated, not swallowed. We do NOT gate on the occupation here: the

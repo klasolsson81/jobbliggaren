@@ -32,11 +32,15 @@ internal sealed partial class TaxonomySnapshotSeeder(
     private const string Klass2ResourceName =
         "Jobbliggaren.Infrastructure.Taxonomy.klass2-taxonomy.json";
 
+    private const string SubstitutabilityResourceName =
+        "Jobbliggaren.Infrastructure.Taxonomy.occupation-substitutability.json";
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var snapshot = LoadSnapshot();
         var klass2 = LoadKlass2();
-        var version = CompositeVersion(snapshot, klass2);
+        var substitutability = LoadSubstitutability();
+        var version = CompositeVersion(snapshot, klass2, substitutability);
 
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -70,9 +74,16 @@ internal sealed partial class TaxonomySnapshotSeeder(
             }
 
             await db.Set<TaxonomyConcept>().ExecuteDeleteAsync(cancellationToken);
+            await db.Set<TaxonomyRelation>().ExecuteDeleteAsync(cancellationToken);
 
             var rows = MapRows(snapshot, klass2);
             db.Set<TaxonomyConcept>().AddRange(rows);
+
+            // ADR 0084 — relaterade ssyk-4-grupper (substitutability). Egen tabell,
+            // SAMMA transaktion + composite-version-grind → atomisk re-seed (concepts
+            // och relations bumpas/skrivs tillsammans, aldrig delvis).
+            var relationRows = MapRelationRows(substitutability);
+            db.Set<TaxonomyRelation>().AddRange(relationRows);
 
             if (meta is null)
             {
@@ -91,7 +102,7 @@ internal sealed partial class TaxonomySnapshotSeeder(
             await db.SaveChangesAsync(cancellationToken);
             await tx.CommitAsync(cancellationToken);
 
-            LogSeeded(logger, rows.Count, version);
+            LogSeeded(logger, rows.Count, relationRows.Count, version);
         }
         catch (PostgresException ex)
             when (ex.SqlState == "42P01" && IsSchemaInitGracePeriod(hostEnvironment))
@@ -137,13 +148,30 @@ internal sealed partial class TaxonomySnapshotSeeder(
                 "klass2-taxonomy.json deserialiserade till null.");
     }
 
-    // Komposit-idempotens-nyckel: båda resursernas versioner. När Klass 2
+    // ADR 0084 — relaterade yrkesgrupper (substitutability, occupation-name
+    // `substitutes` rollat upp till ssyk-4 off-repo via generate-substitutability.mjs).
+    // Separat embedded resource (paritet klass2 / Variant A — generatorn rör aldrig
+    // den frusna v30-mappen).
+    internal static OccupationSubstitutabilityFile LoadSubstitutability()
+    {
+        var asm = typeof(TaxonomySnapshotSeeder).Assembly;
+        using var stream = asm.GetManifestResourceStream(SubstitutabilityResourceName)
+            ?? throw new InvalidOperationException(
+                $"Embedded substitutability-snapshot saknas: {SubstitutabilityResourceName}. " +
+                "Verifiera <EmbeddedResource> i Jobbliggaren.Infrastructure.csproj.");
+        return JsonSerializer.Deserialize<OccupationSubstitutabilityFile>(stream)
+            ?? throw new InvalidOperationException(
+                "occupation-substitutability.json deserialiserade till null.");
+    }
+
+    // Komposit-idempotens-nyckel: alla tre resursernas versioner. När någon
     // adderas (eller bumpas) ändras nyckeln → re-seed triggas på redan-seedade
-    // DB:er (meta lagrar t.ex. "30" → "30+klass2-1"). Bump endera versionen
-    // för att tvinga om-seed.
+    // DB:er (meta lagrar t.ex. "30+klass2-1" → "30+klass2-1+subst-1"). Bump
+    // någon version för att tvinga om-seed.
     internal static string CompositeVersion(
-        TaxonomySnapshotFile snapshot, Klass2TaxonomyFile klass2)
-        => $"{snapshot.TaxonomyVersion}+klass2-{klass2.Version}";
+        TaxonomySnapshotFile snapshot, Klass2TaxonomyFile klass2,
+        OccupationSubstitutabilityFile substitutability)
+        => $"{snapshot.TaxonomyVersion}+klass2-{klass2.Version}+subst-{substitutability.Version}";
 
     internal static List<TaxonomyConcept> MapRows(
         TaxonomySnapshotFile snapshot, Klass2TaxonomyFile klass2)
@@ -241,9 +269,47 @@ internal sealed partial class TaxonomySnapshotSeeder(
         return rows;
     }
 
+    // ADR 0084 — emitterar taxonomy_relations-rader (ssyk-4 → ssyk-4-kanter) ur den
+    // committade substitutability-snapshoten. Filens relationKind (v1 = en typ per
+    // fil) mappas EN gång till TaxonomyRelationKind. Helt separat från MapRows som
+    // äger taxonomy_concepts (ingen kant rör concept-tabellen).
+    internal static List<TaxonomyRelation> MapRelationRows(
+        OccupationSubstitutabilityFile substitutability)
+    {
+        var kind = MapRelationKind(substitutability.RelationKind);
+        var rows = new List<TaxonomyRelation>(
+            substitutability.Relations.Sum(r => r.RelatedConceptIds.Count));
+
+        foreach (var relation in substitutability.Relations)
+        {
+            foreach (var relatedConceptId in relation.RelatedConceptIds)
+            {
+                rows.Add(new TaxonomyRelation
+                {
+                    SourceConceptId = relation.SourceConceptId,
+                    RelatedConceptId = relatedConceptId,
+                    Kind = kind,
+                });
+            }
+        }
+
+        return rows;
+    }
+
+    // Fail-loud på okänd relationKind — bad data ska aldrig seedas tyst (CLAUDE.md
+    // §5: ingen magic string; v1 stödjer endast "substitutability", "related" är en
+    // namngiven framtida additiv våg, ADR 0084).
+    internal static TaxonomyRelationKind MapRelationKind(string relationKind) => relationKind switch
+    {
+        "substitutability" => TaxonomyRelationKind.Substitutability,
+        _ => throw new InvalidOperationException(
+            $"Okänd relationKind '{relationKind}' i occupation-substitutability.json. " +
+            "Endast 'substitutability' stöds i v1 (ADR 0084)."),
+    };
+
     [LoggerMessage(EventId = 1, Level = LogLevel.Information,
-        Message = "Taxonomi-snapshot seedad: {RowCount} rader, version {Version}.")]
-    private static partial void LogSeeded(ILogger logger, int rowCount, string version);
+        Message = "Taxonomi-snapshot seedad: {RowCount} concept-rader + {RelationRowCount} relations-rader, version {Version}.")]
+    private static partial void LogSeeded(ILogger logger, int rowCount, int relationRowCount, string version);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Debug,
         Message = "Taxonomi-snapshot redan aktuell (version {Version}) — skippar seed.")]

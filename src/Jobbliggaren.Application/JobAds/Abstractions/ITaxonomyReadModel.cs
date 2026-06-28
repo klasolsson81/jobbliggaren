@@ -52,4 +52,24 @@ public interface ITaxonomyReadModel
     /// </summary>
     ValueTask<IReadOnlyList<TaxonomySuggestionDto>> SuggestByPrefixAsync(
         string prefix, int limit, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// ADR 0084 — yrkesmatchnings-breddning. Givet en användares EXAKT angivna
+    /// ssyk-4-yrkesgrupper, returnera de RELATERADE (utbytbara) ssyk-4-grupperna
+    /// per JobTechs <c>substitutability</c> (occupation-name <c>substitutes</c>
+    /// rollat upp till ssyk-4 off-repo i generatorn — F1 premiss-korrigering
+    /// 2026-06-28). Resultatet UTESLUTER de exakt angivna grupperna själva, så
+    /// exakt-vs-relaterad förblir disjunkt (scorern/SQL splittar dem i PR-2+).
+    /// <para>
+    /// Ren in-memory-uppslagning mot den redan cachade snapshoten (ingen ny
+    /// per-request-DB-träff — ADR 0043 §1.4). Okänd käll-grupp (taxonomi-drift,
+    /// inga relationer) bidrar med tomt — aldrig null/throw (graceful
+    /// degradation, paritet <see cref="ResolveLabelsAsync"/>). Ligger UTANFÖR
+    /// <c>JobAdSearch.ApplyCriteria</c>-shadow-prop-vägen (ADR 0043 Beslut E).
+    /// Deterministisk ordning (Ordinal) → stabila tester. v1: endast
+    /// <c>substitutes</c>-riktningen, any-member-rollup (ADR 0084 svar B).
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
+        IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken);
 }

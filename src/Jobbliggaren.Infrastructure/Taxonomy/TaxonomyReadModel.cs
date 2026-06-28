@@ -23,7 +23,8 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
     private sealed record CacheState(
         TaxonomyTreeDto Tree,
         IReadOnlyDictionary<string, string> LabelByConceptId,
-        IReadOnlyList<TaxonomySuggestionDto> Suggestable);
+        IReadOnlyList<TaxonomySuggestionDto> Suggestable,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> RelatedBySource);
 
     // Cachen fylls en gång och delas av alla läsare. Medvetet INTE
     // Lazy<Task> (security-auditor 2026-05-17 Minor): en faulted Lazy<Task>
@@ -67,6 +68,38 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             .OrderBy(s => s.Kind)
             .ThenBy(s => s.Label, StringComparer.OrdinalIgnoreCase)
             .Take(limit)
+            .ToList();
+    }
+
+    // ADR 0084 — breddning: exakt ssyk-4-mängd → relaterad ssyk-4-mängd
+    // (substitutability). Ren dictionary-union mot den cachade snapshoten;
+    // resultatet EXKLUDERAR den exakt angivna mängden (exakt-vs-relaterad
+    // disjunkt — scorern/SQL splittar dem i PR-2+). Graceful: okänd käll-grupp
+    // bidrar inget, tom input → tom output, aldrig null/throw. Deterministisk
+    // Ordinal-ordning. v1: endast substitutes-riktningen, any-member-rollup.
+    public async ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
+        IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken)
+    {
+        if (ssyk4ConceptIds.Count == 0)
+            return [];
+
+        var state = await GetStateAsync(cancellationToken);
+        var exact = ssyk4ConceptIds.ToHashSet(StringComparer.Ordinal);
+        var related = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var id in exact)
+        {
+            if (!state.RelatedBySource.TryGetValue(id, out var targets))
+                continue;   // okänd/relations-lös käll-grupp → bidrar inget
+            foreach (var target in targets)
+            {
+                if (!exact.Contains(target))   // håll exakt-vs-relaterad disjunkt
+                    related.Add(target);
+            }
+        }
+
+        return related
+            .OrderBy(id => id, StringComparer.Ordinal)
             .ToList();
     }
 
@@ -192,10 +225,29 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             .Select(c => new TaxonomySuggestionDto(MapKind(c.Kind), c.ConceptId, c.Label))
             .ToList();
 
+        // ADR 0084 — relaterade ssyk-4-grupper (substitutability, rollat upp till
+        // ssyk-4 off-repo i generatorn). HELA taxonomy_relations läses en gång in
+        // i cachen (paritet taxonomy_concepts ovan) → GetRelatedOccupationGroupsAsync
+        // blir en ren dictionary-lookup utan per-request-DB-träff (ADR 0043 §1.4).
+        var relations = await db.Set<TaxonomyRelation>()
+            .AsNoTracking()
+            .ToListAsync();
+
+        var relatedBySource = relations
+            .GroupBy(r => r.SourceConceptId, StringComparer.Ordinal)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<string>)g
+                    .Select(r => r.RelatedConceptId)
+                    .OrderBy(id => id, StringComparer.Ordinal)
+                    .ToList(),
+                StringComparer.Ordinal);
+
         return new CacheState(
             new TaxonomyTreeDto(regions, occupationFields, employmentTypes, worktimeExtents),
             labelByConceptId,
-            suggestable);
+            suggestable,
+            relatedBySource);
     }
 
     // ACL-översättning Infrastructure-intern TaxonomyConceptKind → publik

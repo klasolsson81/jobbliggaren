@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { HelpCircle } from "lucide-react";
 import {
@@ -9,6 +8,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 
 /**
@@ -29,14 +29,11 @@ export function InfoDialog({
   triggerClassName?: string;
 }) {
   const t = useTranslations("common.dialog");
-  const [open, setOpen] = useState(false);
   const [first, ...rest] = paragraphs;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
+    <Dialog>
+      <DialogTrigger
         className={
           triggerClassName ??
           "inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:underline"
@@ -44,7 +41,7 @@ export function InfoDialog({
       >
         <HelpCircle size={15} aria-hidden="true" />
         {t("whatIsThis")}
-      </button>
+      </DialogTrigger>
 
       <DialogContent>
         <DialogHeader>

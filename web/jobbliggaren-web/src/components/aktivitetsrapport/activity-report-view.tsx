@@ -37,10 +37,10 @@ export function ActivityReportView({
   monthOptions,
   afUrl,
 }: {
-  rows: ActivityReportRow[];
+  rows: readonly ActivityReportRow[];
   selectedMonth: string; // "YYYY-MM"
   monthLabel: string; // "maj 2026"
-  monthOptions: MonthOption[];
+  monthOptions: readonly MonthOption[];
   afUrl: string;
 }) {
   const t = useTranslations("aktivitetsrapport");
@@ -54,9 +54,9 @@ export function ActivityReportView({
   const filtered =
     showFilter && needle
       ? rows.filter((r) =>
-          [r.employer, r.title, r.location]
-            .filter(Boolean)
-            .some((v) => v!.toLowerCase().includes(needle)),
+          [r.employer, r.title, r.location].some(
+            (v) => v != null && v.toLowerCase().includes(needle),
+          ),
         )
       : rows;
 
@@ -173,9 +173,9 @@ function ApplicationCard({ row }: { row: ActivityReportRow }) {
     <li className="overflow-hidden rounded-md border-2 border-border bg-surface-primary">
       {/* Banner header — the card's identity at a glance (Klas 2026-06-28). */}
       <div className="border-b-2 border-border bg-brand-50 px-5 py-3.5">
-        <h3 className="text-base font-bold wrap-break-word text-text-primary">
+        <h2 className="text-base font-bold wrap-break-word text-text-primary">
           {row.title ?? t("card.titleFallback")}
-        </h3>
+        </h2>
         {subtitle ? (
           <p className="mt-0.5 text-sm wrap-break-word text-text-secondary">
             {subtitle}
@@ -246,7 +246,7 @@ function CopyField({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={t("fields.linkOpen")}
-            className="break-all text-accent-700 underline underline-offset-2 hover:text-accent-800"
+            className="break-all underline underline-offset-2"
           >
             {value}
           </a>

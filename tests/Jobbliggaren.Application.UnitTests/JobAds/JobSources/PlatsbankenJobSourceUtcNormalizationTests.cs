@@ -151,13 +151,6 @@ public class PlatsbankenJobSourceUtcNormalizationTests
 
     private sealed class FakeSearchClient(JobTechHit? hit = null) : IJobTechSearchClient
     {
-        public Task<JobTechSearchResponse> SearchAsync(
-            string? q = null,
-            int offset = 0,
-            int limit = 100,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new JobTechSearchResponse());
-
         public Task<JobTechHit?> GetAdByIdAsync(
             string id,
             CancellationToken cancellationToken = default) =>

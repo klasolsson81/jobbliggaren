@@ -3,27 +3,12 @@ using System.Text.Json.Serialization;
 namespace Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 
 /// <summary>
-/// Wire-format för JobSearch + JobStream snapshot. Speglar JobTech-API:s shape
-/// (web-verifierat 2026-05-12 — `jobsearch.api.jobtechdev.se/search` +
-/// `jobstream.api.jobtechdev.se/snapshot`). Refit deserialiserar via
-/// System.Text.Json. Intern till Infrastructure — exponeras aldrig genom
+/// Wire-format för JobTech-annonser (JobStream snapshot/stream +
+/// <c>jobsearch.api.jobtechdev.se/ad/{id}</c> per-ID-fetch). Speglar
+/// JobTech-API:s shape (web-verifierat 2026-05-12). Refit/System.Text.Json
+/// deserialiserar hit. Intern till Infrastructure — exponeras aldrig genom
 /// <see cref="Jobbliggaren.Application.JobAds.Abstractions.IJobSource"/>.
 /// </summary>
-internal sealed class JobTechSearchResponse
-{
-    [JsonPropertyName("total")]
-    public JobTechTotal? Total { get; set; }
-
-    [JsonPropertyName("hits")]
-    public List<JobTechHit> Hits { get; set; } = [];
-}
-
-internal sealed class JobTechTotal
-{
-    [JsonPropertyName("value")]
-    public int Value { get; set; }
-}
-
 internal sealed class JobTechHit
 {
     [JsonPropertyName("id")]

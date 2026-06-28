@@ -18,7 +18,7 @@ namespace Jobbliggaren.Application.UnitTests.Applications.Queries.GetActivityRep
 // Täcker här (EF InMemory, fake/substitute för ICurrentUser/ITaxonomyReadModel/
 // IDateTimeProvider): månadsfönster [start, end) (half-open), Draft-exkludering,
 // JobSeeker-scoping, anonym-användare-tom-lista (men ekande år/månad),
-// default-månad = föregående månad, explicit år/månad, samt källprojektion
+// default-månad = innevarande månad, explicit år/månad, samt källprojektion
 // (JobAd-kopplad vs ManualPosting). Location-resolvering kan INTE testas här —
 // municipality_concept_id är en EF SHADOW-prop (STORED generated column ur
 // raw_payload) som InMemory-providern inte beräknar (rad blir null). Den täcks
@@ -28,7 +28,7 @@ public class GetActivityReportQueryHandlerTests
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
 
-    // Klocka för default-månad: 2026-06-15 ⇒ föregående månad = maj 2026.
+    // Klocka för default-månad: 2026-06-15 ⇒ innevarande månad = juni 2026.
     private readonly FakeDateTimeProvider _clock =
         new(new DateTimeOffset(2026, 6, 15, 9, 0, 0, TimeSpan.Zero));
 
@@ -218,25 +218,26 @@ public class GetActivityReportQueryHandlerTests
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
 
-        // Klocka = 2026-06-15 ⇒ default = föregående månad = maj 2026.
+        // Klocka = 2026-06-15 ⇒ default = innevarande månad = juni 2026.
         var result = await CreateHandler(db, user: anon).Handle(new GetActivityReportQuery(), ct);
 
         result.Year.ShouldBe(2026);
-        result.Month.ShouldBe(5);
+        result.Month.ShouldBe(6);
     }
 
     // ---------------------------------------------------------------
-    // Default-månad = föregående månad relativt IDateTimeProvider.UtcNow
+    // Default-månad = innevarande månad relativt IDateTimeProvider.UtcNow
+    // (Klas 2026-06-28: innevarande månad är alltid standard)
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task Handle_NoExplicitMonth_DefaultsToPreviousMonthAndFiltersAccordingly()
+    public async Task Handle_NoExplicitMonth_DefaultsToCurrentMonthAndFiltersAccordingly()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId, ct);
 
-        // Klocka = 2026-06-15 ⇒ default-fönster = maj 2026.
+        // Klocka = 2026-06-15 ⇒ default-fönster = juni 2026.
         var inMay = new DateTimeOffset(2026, 5, 20, 12, 0, 0, TimeSpan.Zero);
         var inJune = new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero);
         db.Applications.Add(SubmittedAt(seeker.Id, null, ManualVo("Maj"), inMay));
@@ -246,8 +247,8 @@ public class GetActivityReportQueryHandlerTests
         var result = await CreateHandler(db).Handle(new GetActivityReportQuery(), ct);
 
         result.Year.ShouldBe(2026);
-        result.Month.ShouldBe(5);
-        result.Applications.ShouldHaveSingleItem().Title.ShouldBe("Maj");
+        result.Month.ShouldBe(6);
+        result.Applications.ShouldHaveSingleItem().Title.ShouldBe("Juni");
     }
 
     // ---------------------------------------------------------------

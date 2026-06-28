@@ -19,6 +19,24 @@ describe("InfoDialog", () => {
     expect(screen.getByText("Andra")).toBeInTheDocument();
   });
 
+  it("renders the icon by default and omits it when showIcon is false", () => {
+    const { rerender } = render(
+      <InfoDialog title="Titel" paragraphs={["Text"]} />,
+    );
+    // Default: decorative HelpCircle icon present inside the trigger button.
+    expect(
+      screen.getByRole("button", { name: "Vad är detta?" }).querySelector("svg"),
+    ).not.toBeNull();
+
+    // #337 text-only placement convention: no icon, button still accessible.
+    rerender(
+      <InfoDialog title="Titel" paragraphs={["Text"]} showIcon={false} />,
+    );
+    const trigger = screen.getByRole("button", { name: "Vad är detta?" });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger.querySelector("svg")).toBeNull();
+  });
+
   it("closes via the shared close button", async () => {
     render(<InfoDialog title="Titel" paragraphs={["Text"]} />);
     fireEvent.click(screen.getByRole("button", { name: "Vad är detta?" }));

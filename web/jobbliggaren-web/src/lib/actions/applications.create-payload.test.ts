@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createTranslator } from "next-intl";
 import svValidation from "../../../messages/sv/validation.json";
 
-// createApplicationAction-payload-kontrakt: /ansokningar/ny skapar ALLTID en
+// createApplicationAction-payload-kontrakt: /ny-ansokan skapar ALLTID en
 // manuell ansökan. Backend tar `manual: { title, company, url?, expiresAt? }`
 // och INGET `source`-fält (Source struken — manuell ansökan är implicit
 // Source=Manual, projiceras i read-vägen). Detta test låser kontraktet.

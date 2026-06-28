@@ -41,7 +41,8 @@
     "closeAriaLabel": "Close the dialog"
   },
   "dialog": {
-    "close": "Close"
+    "close": "Close",
+    "whatIsThis": "What is this?"
   },
   "themeToggle": {
     "toLight": "Switch to light mode",

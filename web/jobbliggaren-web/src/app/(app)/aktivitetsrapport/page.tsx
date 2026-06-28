@@ -11,12 +11,13 @@ import {
   type MonthOption,
 } from "@/components/aktivitetsrapport/activity-report-view";
 
-// VERIFY (issue #316): exact Arbetsförmedlingen activity-report URL pending Klas
-// confirmation — web search was waived this session, so this links to AF's
-// site where the user logs in to file the activity report. Correct post-merge
-// if a deeper slug is preferred. The CTA opens it in a new tab.
+// Arbetsförmedlingen's "Mina sidor" — where you log in with BankID and file the
+// activity report (verified live 2026-06-28; the previously-guessed
+// /aktivitetsrapportera slug 404'd). AF surfaces activity reporting from Mina
+// sidor (there is no public deep-link to the form itself). The CTA opens it in
+// a new tab.
 const AF_ACTIVITY_REPORT_URL =
-  "https://arbetsformedlingen.se/for-arbetssokande/aktivitetsrapportera";
+  "https://arbetsformedlingen.se/for-arbetssokande/mina-sidor";
 
 /** Parse a "YYYY-MM" search param to a valid (year, month) pair, else null. */
 function parseMonthParam(raw: string | undefined): { year: number; month: number } | null {

@@ -41,7 +41,8 @@
     "closeAriaLabel": "Stäng dialogrutan"
   },
   "dialog": {
-    "close": "Stäng"
+    "close": "Stäng",
+    "whatIsThis": "Vad är detta?"
   },
   "themeToggle": {
     "toLight": "Byt till ljust läge",

@@ -2,6 +2,12 @@
   "title": "Aktivitetsrapport-hjälp",
   "lede": "Samlar dina ansökningar för en månad så att du kan kopiera dem fält för fält till Arbetsförmedlingens aktivitetsrapport.",
   "back": "Tillbaka till ansökningar",
+  "info": {
+    "title": "Om aktivitetsrapport-hjälpen",
+    "p1": "Arbetsförmedlingen vill att du varje månad rapporterar vad du gjort för att söka jobb. Aktivitetsrapporten lämnas mellan den 1:a och 14:e.",
+    "p2": "Den här hjälpen samlar dina ansökningar för en vald månad så att du enkelt kan föra över dem till aktivitetsrapporten.",
+    "p3": "Arbetsförmedlingens formulär fylls i fält för fält. Kopiera ett fält i taget med kopiera-knapparna i stället för att klistra in en hel text, så att rapporten kan behandlas automatiskt."
+  },
   "month": {
     "label": "Månad"
   },
@@ -10,8 +16,15 @@
     "minimum": "Arbetsförmedlingen vill se minst {minimum}."
   },
   "cta": "Öppna Arbetsförmedlingens aktivitetsrapport",
+  "filter": {
+    "label": "Filtrera på arbetsgivare eller titel",
+    "empty": "Inga ansökningar matchar filtret."
+  },
   "empty": {
     "text": "Inga ansökningar att rapportera för {month}. När du markerar en ansökan som ansökt visas den för månaden du sökte."
+  },
+  "card": {
+    "titleFallback": "Jobbansökan"
   },
   "fields": {
     "employer": "Arbetsgivare",
@@ -20,6 +33,7 @@
     "appliedAt": "Datum sökt",
     "howApplied": "Hur du sökte",
     "link": "Länk till annons",
+    "linkOpen": "Öppna annonsen i ny flik",
     "empty": "Saknas"
   },
   "howApplied": {

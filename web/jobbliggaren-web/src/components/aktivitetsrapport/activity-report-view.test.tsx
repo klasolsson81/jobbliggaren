@@ -110,4 +110,42 @@ describe("ActivityReportView", () => {
     expect(screen.getByText(/Inga ansökningar att rapportera/)).toBeInTheDocument();
     expect(document.body.textContent ?? "").not.toContain("!");
   });
+
+  it("renders the advert as a new-tab link and still offers a copy button", () => {
+    renderView([row({ url: "https://example.se/ad/9" })]);
+    const link = screen.getByRole("link", { name: "Öppna annonsen i ny flik" });
+    expect(link).toHaveAttribute("href", "https://example.se/ad/9");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    expect(
+      screen.getByRole("button", { name: "Kopiera Länk till annons" }),
+    ).toBeInTheDocument();
+  });
+
+  it("filters by employer or title once the list is long enough", () => {
+    const rows = Array.from({ length: 6 }, (_, i) =>
+      row({
+        applicationId: `id-${i}`,
+        employer: i === 0 ? "Skatteverket" : `Bolag ${i}`,
+        title: i === 0 ? "Systemutvecklare" : `Roll ${i}`,
+      }),
+    );
+    renderView(rows);
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+
+    const filter = screen.getByLabelText("Filtrera på arbetsgivare eller titel");
+    fireEvent.change(filter, { target: { value: "skatteverket" } });
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+
+    fireEvent.change(filter, { target: { value: "finns-inte" } });
+    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+    expect(screen.getByText("Inga ansökningar matchar filtret.")).toBeInTheDocument();
+  });
+
+  it("hides the filter for short lists", () => {
+    renderView([row(), row({ applicationId: "b" })]);
+    expect(
+      screen.queryByLabelText("Filtrera på arbetsgivare eller titel"),
+    ).not.toBeInTheDocument();
+  });
 });

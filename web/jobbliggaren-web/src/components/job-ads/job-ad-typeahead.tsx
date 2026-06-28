@@ -91,6 +91,7 @@ export function JobAdTypeahead({
   // Markerad rad för tangentbordsnavigering (-1 = ingen → Enter = fri sökning).
   const [active, setActive] = useState(-1);
   const abortRef = useRef<AbortController | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const effectivePrefix = suggestQuery ?? value;
 
@@ -153,8 +154,35 @@ export function JobAdTypeahead({
     };
   }, [effectivePrefix]);
 
+  // Outside-press dismissal (#295, WAI-ARIA APG combobox): while the popup is
+  // open, a pointer press anywhere outside the widget closes it. Bound to
+  // `pointerdown` (not `mousedown`/`click`) so it is input-modality-agnostic —
+  // mouse, pen AND touch — and fires for a tap on *inert* page content where
+  // mobile browsers synthesise no mouse event and focus never leaves the input
+  // (so neither a `mousedown` listener nor the `onBlur` path below would fire;
+  // that touch tap was the reported bug, just on mobile). `pointerdown` fires
+  // before the focus/blur chain and before the option rows' own `onMouseDown`;
+  // an option press stays inside `rootRef` and is therefore never treated as
+  // "outside". The listener is attached only while open — no idle global handler.
+  useEffect(() => {
+    if (!open) return;
+    function onDocumentPointerDown(e: PointerEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setActive(-1);
+      }
+    }
+    document.addEventListener("pointerdown", onDocumentPointerDown);
+    return () =>
+      document.removeEventListener("pointerdown", onDocumentPointerDown);
+  }, [open]);
+
   const items = state.status === "ready" ? state.items : [];
   const showList = open && items.length > 0;
+  // The rate-limited degradation row shares the popup's open lifecycle so it is
+  // dismissed by the same gestures as the list (#295) — outside-click, Escape,
+  // focus-out — instead of lingering until the next keystroke.
+  const showRateLimited = open && state.status === "rateLimited";
 
   function choose(item: SuggestionDto) {
     onSelect(item);
@@ -183,19 +211,43 @@ export function JobAdTypeahead({
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((i) => (i <= 0 ? items.length - 1 : i - 1));
-    } else if (e.key === "Enter" && active >= 0) {
-      // Markerad rad → välj den (och låt INTE Enter bubbla till form-submit).
-      e.preventDefault();
-      choose(items[active]!);
+    } else if (e.key === "Enter") {
+      if (active >= 0) {
+        // Markerad rad → välj den (och låt INTE Enter bubbla till form-submit).
+        e.preventDefault();
+        choose(items[active]!);
+      } else {
+        // Fri sökning (#295): close the popup but do NOT preventDefault — Enter
+        // still bubbles to the parent <form>, which commits the search. The
+        // commit navigates via router.replace (client navigation, no remount),
+        // so without this explicit setOpen(false) the suggestion list lingered
+        // after the search ran (the reported bug).
+        setOpen(false);
+        setActive(-1);
+      }
     }
-    // Enter utan markerad rad: ingen preventDefault → förälderns <form>
-    // submittar den fria söktexten (q).
   }
 
   const optionId = (i: number) => `${optionBaseId}-${i}`;
 
   return (
-    <div className={wrapperClassName ?? "relative flex flex-col gap-1.5"}>
+    <div
+      ref={rootRef}
+      className={wrapperClassName ?? "relative flex flex-col gap-1.5"}
+      // Focus leaving the combobox widget (Tab to the next control, or a click
+      // on a focusable element outside) closes the popup (#295, APG combobox
+      // dismissal). Selecting an option does not blur the input (its
+      // `onMouseDown` preventDefault keeps focus), so a real selection is never
+      // mistaken for a focus-out. Pointer clicks on non-focusable areas are
+      // also covered by the document `mousedown` listener above; Escape is
+      // handled in `onKeyDown`.
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setOpen(false);
+          setActive(-1);
+        }
+      }}
+    >
       <input
         id={id}
         name={name}
@@ -231,7 +283,7 @@ export function JobAdTypeahead({
             : ""}
       </p>
 
-      {state.status === "rateLimited" && (
+      {showRateLimited && (
         // Absolut-positionerad (som listan) så degraderingsraden escapar en
         // ev. overflow:hidden-wrapper (hero-searchrowen) och blir läsbar på
         // surface-primary i stället för pill-bakgrunden (design-reviewer

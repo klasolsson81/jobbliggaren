@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JobAdTypeahead } from "./job-ad-typeahead";
 import type { SuggestionDto } from "@/lib/dto/job-ads";
@@ -41,6 +41,36 @@ function SelectOnTabHarness({
       />
       <button type="button">Nästa fält</button>
     </>
+  );
+}
+
+// #295 harness: the typeahead inside a <form> so a committed search (Enter with
+// no marked suggestion) can be asserted — Enter must close the popup AND bubble
+// to the form's submit (the free search runs). A submit button is present so
+// userEvent's implicit form submission fires.
+function FormHarness({
+  onSubmit,
+  onSelect,
+}: {
+  onSubmit: () => void;
+  onSelect?: (s: SuggestionDto) => void;
+}) {
+  const [value, setValue] = useState("");
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      <JobAdTypeahead
+        id="q"
+        value={value}
+        onChange={setValue}
+        onSelect={onSelect ?? (() => {})}
+      />
+      <button type="submit">Sök</button>
+    </form>
   );
 }
 
@@ -250,5 +280,162 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
         ).toBeInTheDocument(),
       { timeout: 2000 },
     );
+  });
+
+  // #295 — dismissal (WAI-ARIA APG combobox): the suggestion popup must close on
+  // (1) a committed search (Enter / selected suggestion), (2) an outside pointer
+  // press, (3) focus leaving the widget (Tab / blur) and (4) Escape — and reopen
+  // on new input.
+  function singleOptionFetch() {
+    return vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify([{ kind: 0, conceptId: null, label: "AI-ingenjör" }]),
+          { status: 200 },
+        ),
+    );
+  }
+
+  it("#295: Enter without a marked option closes the list AND commits the search", async () => {
+    vi.stubGlobal("fetch", singleOptionFetch());
+    const onSubmit = vi.fn();
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+
+    render(<FormHarness onSubmit={onSubmit} onSelect={onSelect} />);
+    await user.type(screen.getByRole("combobox"), "AI");
+    await screen.findByRole(
+      "option",
+      { name: "AI-ingenjör" },
+      { timeout: 2000 },
+    );
+
+    // No marked row (active = -1) → Enter = free search: it commits (bubbles to
+    // the <form>) but must also close the popup (the core bug in #295).
+    await user.keyboard("{Enter}");
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("#295: an outside pointer press on a focusable element closes the list", async () => {
+    vi.stubGlobal("fetch", singleOptionFetch());
+    const user = userEvent.setup();
+
+    render(
+      <div>
+        <ControlledHarness onSelect={vi.fn()} />
+        <button type="button">Utanför</button>
+      </div>,
+    );
+    await user.type(screen.getByRole("combobox"), "AI");
+    await screen.findByRole(
+      "option",
+      { name: "AI-ingenjör" },
+      { timeout: 2000 },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Utanför" }));
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("#295: an outside pointerdown on INERT content closes the list without relying on blur (touch-safe)", async () => {
+    vi.stubGlobal("fetch", singleOptionFetch());
+    const user = userEvent.setup();
+
+    render(
+      <div>
+        <ControlledHarness onSelect={vi.fn()} />
+        <div data-testid="inert">inert page content</div>
+      </div>,
+    );
+    const input = screen.getByRole("combobox");
+    await user.type(input, "AI");
+    await screen.findByRole(
+      "option",
+      { name: "AI-ingenjör" },
+      { timeout: 2000 },
+    );
+    expect(input).toHaveFocus();
+
+    // A press on non-focusable (inert) content does not move focus, so the input
+    // keeps focus and no blur fires — exactly the mobile case where tapping inert
+    // content must still dismiss. `pointerdown` is the modality-agnostic signal
+    // (mobile browsers synthesise no mousedown for inert targets). Dismissal here
+    // therefore proves the document pointerdown listener, not the onBlur path.
+    fireEvent.pointerDown(screen.getByTestId("inert"));
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveFocus();
+  });
+
+  it("#295: focus leaving the combobox (Tab-out / blur) closes the list", async () => {
+    vi.stubGlobal("fetch", singleOptionFetch());
+    const user = userEvent.setup();
+
+    render(
+      <>
+        <ControlledHarness onSelect={vi.fn()} />
+        <button type="button">Annat fält</button>
+      </>,
+    );
+    await user.type(screen.getByRole("combobox"), "AI");
+    await screen.findByRole(
+      "option",
+      { name: "AI-ingenjör" },
+      { timeout: 2000 },
+    );
+
+    // No selectOnTab + no marked row → Tab moves focus out of the widget.
+    await user.tab();
+
+    expect(screen.getByRole("combobox")).not.toHaveFocus();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("#295: Escape closes the open suggestion list", async () => {
+    vi.stubGlobal("fetch", singleOptionFetch());
+    const user = userEvent.setup();
+
+    render(<ControlledHarness onSelect={vi.fn()} />);
+    await user.type(screen.getByRole("combobox"), "AI");
+    await screen.findByRole(
+      "option",
+      { name: "AI-ingenjör" },
+      { timeout: 2000 },
+    );
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("#295: typing again reopens the list after a committed-search dismissal", async () => {
+    vi.stubGlobal("fetch", singleOptionFetch());
+    const user = userEvent.setup();
+
+    render(<FormHarness onSubmit={vi.fn()} />);
+    const input = screen.getByRole("combobox");
+    await user.type(input, "AI");
+    await screen.findByRole(
+      "option",
+      { name: "AI-ingenjör" },
+      { timeout: 2000 },
+    );
+
+    await user.keyboard("{Enter}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    // New input → the popup reopens (AC: "reopens on new input").
+    await user.type(input, "x");
+    expect(
+      await screen.findByRole("listbox", undefined, { timeout: 2000 }),
+    ).toBeInTheDocument();
   });
 });

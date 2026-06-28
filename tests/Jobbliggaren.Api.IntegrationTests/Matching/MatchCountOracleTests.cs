@@ -255,7 +255,7 @@ public class MatchCountOracleTests(ApiFactory factory)
             // recomputed TotalCount is the coherence target.
             var page = await query.SearchPerUserAsync(
                 filter, profile, grades, sort: JobAdSortBy.PublishedAtDesc,
-                orderByMatchRank: false, page: 1, pageSize: 1, since: null, ct);
+                orderByMatchRank: false, page: 1, pageSize: 1, ct);
 
             count.ShouldBe(page.TotalCount,
                 $"CountPerUserAsync MÅSTE vara lika med list-vägens recomputed TotalCount för " +
@@ -352,7 +352,7 @@ public class MatchCountOracleTests(ApiFactory factory)
         // Coherence still holds at the empty-grade boundary: count == list TotalCount.
         var page = await query.SearchPerUserAsync(
             filter, profile, grades: [], sort: JobAdSortBy.PublishedAtDesc,
-            orderByMatchRank: false, page: 1, pageSize: 1, since: null, ct);
+            orderByMatchRank: false, page: 1, pageSize: 1, ct);
         count.ShouldBe(page.TotalCount,
             "Även vid tom grad-mängd ska CountPerUserAsync == list-vägens TotalCount.");
     }

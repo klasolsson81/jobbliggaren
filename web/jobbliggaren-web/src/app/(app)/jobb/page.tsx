@@ -12,7 +12,6 @@ import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
-import { MarkJobbVisited } from "@/components/job-ads/mark-jobb-visited";
 import { StripCommitParam } from "@/components/job-ads/strip-commit-param";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
@@ -52,22 +51,6 @@ interface PageProps {
 
 const DEFAULT_PAGE_SIZE = 20;
 
-// ADR 0042 Beslut E — "ny sedan"-fönster. Designval: ett fast, rullande
-// 7-dygnsfönster (server-styrt, ingen extra UI-kontroll). Civic-utility:
-// håll enkelt — "Ny" betyder "publicerad senaste 7 dygnen", inget
-// användaren behöver konfigurera. (Användarstyrt fönster är en medveten
-// icke-leverans här; kan adderas senare utan kontraktsändring.)
-const NEW_WINDOW_DAYS = 7;
-
-// Beräknas i en helper (ej direkt i Server Component-kroppen) — React
-// Compiler-lintregeln flaggar `Date.now()` i render-kroppen som oren.
-// Server Component körs per request så fönstret är färskt vid varje load.
-function newWindowSince(): string {
-  return new Date(
-    Date.now() - NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000
-  ).toISOString();
-}
-
 export default async function JobbPage({ searchParams }: PageProps) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
@@ -102,8 +85,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
   const commit = params.commit === "true";
-
-  const since = newWindowSince();
 
   // ADR 0043 — picker-träd hämtas server-side för hero-filter-popovern
   // (CLAUDE.md §4.3/§5.2 — ingen useEffect-fetch). Träd + senaste
@@ -165,11 +146,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
   return (
     <>
-      {/* MarkJobbVisited — high-water-mark-island som vid mount skriver
-          lastSeen=now till localStorage så NY-taggen visas på allt med
-          publishedAt > lastSeen vid NÄSTA sid-besök (Klas-direktiv
-          2026-05-20). Render-null, ingen visuell yta. */}
-      <MarkJobbVisited />
       {/* E2j — strippar ?commit=1 ur URL:en efter mount (transient capture-
           signal; delad länk får inte re-capturera). Render-null. */}
       <StripCommitParam active={commit} />
@@ -268,7 +244,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
             matchGrades={matchGrades}
             matchningOff={matchningOff}
             q={q ?? ""}
-            since={since}
             commit={commit}
             rawParams={params}
           />

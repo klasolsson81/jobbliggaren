@@ -51,7 +51,7 @@ internal sealed class JobAdSearchQuery(
         var items = await ordered
             .Skip((criteria.Page - 1) * criteria.PageSize)
             .Take(criteria.PageSize)
-            .Select(JobAdSearchComposition.ToDto(criteria.Since))
+            .Select(JobAdSearchComposition.ToDto())
             .ToListAsync(cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, criteria.Page, criteria.PageSize);

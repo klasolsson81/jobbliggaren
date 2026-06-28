@@ -6,6 +6,13 @@ import type { MatchGrade } from "@/lib/dto/job-ad-match";
 interface JobAdListProps {
   jobAds: ReadonlyArray<JobAdDto>;
   /**
+   * #293/#306 — NY = oläst (per-användar watermark). Set av annons-id:n med
+   * `createdAt > lastSeenJobsAt`, beräknat i `JobbResults` mot den hämtade
+   * watermarken. O(1)-lookup per kort (paritet med saved/applied-set:n).
+   * Tomt/utelämnat = kall start / anon / ingen ny annons ⇒ ingen NY.
+   */
+  newIdSet?: ReadonlySet<string>;
+  /**
    * PR5 (ADR 0063) — per-user-overlay-status. Set-storage så lookup är O(1)
    * per kort (`savedIdSet.has(jobAd.id)`). Tomma set:n = anonym/utan-auth
    * (chips visas inte).
@@ -23,6 +30,7 @@ interface JobAdListProps {
 
 export function JobAdList({
   jobAds,
+  newIdSet,
   savedIdSet,
   appliedIdSet,
   matchGradeById,
@@ -48,6 +56,7 @@ export function JobAdList({
         <li key={jobAd.id}>
           <JobAdCard
             jobAd={jobAd}
+            isNew={newIdSet?.has(jobAd.id) ?? false}
             isSaved={savedIdSet?.has(jobAd.id) ?? false}
             isApplied={appliedIdSet?.has(jobAd.id) ?? false}
             matchGrade={matchGradeById?.get(jobAd.id)}

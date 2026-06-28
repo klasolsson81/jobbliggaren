@@ -21,7 +21,6 @@ const baseJobAd = {
   publishedAt: "2026-05-13T08:00:00Z",
   expiresAt: "2026-06-13T08:00:00Z",
   createdAt: "2026-05-13T08:01:00Z",
-  isNew: false,
 };
 
 describe("jobAdStatusSchema", () => {
@@ -82,16 +81,16 @@ describe("jobAdDtoSchema", () => {
     ).toBe(true);
   });
 
-  it("accepts isNew true (ADR 0042 Beslut E)", () => {
-    expect(
-      jobAdDtoSchema.safeParse({ ...baseJobAd, isNew: true }).success
-    ).toBe(true);
-  });
-
-  it("rejects missing isNew (kontrakt kräver fältet)", () => {
-    const partial: Partial<typeof baseJobAd> = { ...baseJobAd };
-    delete partial.isNew;
-    expect(jobAdDtoSchema.safeParse(partial).success).toBe(false);
+  // #293/#306 — `isNew` är BORTTAGET ur kontraktet (tidsbaserad NY ersatt av
+  // FE-beräknad oläst-watermark). Schemat ignorerar extra okända fält (Zod
+  // default strip), så en wire-payload som ännu bär `isNew` parsar ändå — men
+  // typen exponerar det inte längre, och FE läser det aldrig.
+  it("strips an unknown isNew field if present (no longer in the contract)", () => {
+    const parsed = jobAdDtoSchema.safeParse({ ...baseJobAd, isNew: true });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect("isNew" in parsed.data).toBe(false);
+    }
   });
 
   it("rejects unknown status value", () => {

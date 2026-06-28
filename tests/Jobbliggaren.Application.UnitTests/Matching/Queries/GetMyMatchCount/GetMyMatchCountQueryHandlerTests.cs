@@ -88,7 +88,7 @@ public class GetMyMatchCountQueryHandlerTests
         public ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
             JobAdFilterCriteria filter, FullCandidateMatchProfile profile,
             IReadOnlyList<MatchGrade> grades, JobAdSortBy sort, bool orderByMatchRank,
-            int page, int pageSize, DateTimeOffset? since, CancellationToken cancellationToken)
+            int page, int pageSize, CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "SearchPerUserAsync ska inte anropas av count-handlern — den counter:ar bara.");
     }

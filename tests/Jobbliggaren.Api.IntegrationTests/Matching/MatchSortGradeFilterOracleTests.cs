@@ -318,7 +318,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
 
             var page = await query.SearchPerUserAsync(
                 filter, profile, grades: subset, sort: JobAdSortBy.PublishedAtDesc,
-                orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
+                orderByMatchRank: true, page: 1, pageSize: 100, ct);
 
             var returnedIds = page.Items.Select(i => i.Id).ToHashSet();
 
@@ -364,7 +364,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         {
             var page = await query.SearchPerUserAsync(
                 filter, profile, grades: subset, sort: JobAdSortBy.PublishedAtDesc,
-                orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
+                orderByMatchRank: true, page: 1, pageSize: 100, ct);
 
             var returnedIds = page.Items.Select(i => i.Id).ToList();
             returnedIds.ShouldNotContain(untaggedNoMatch.Value,
@@ -411,7 +411,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         // Strong-only band → exactly the 4 Strong ads, NOT the 9-ad corpus.
         var fullPage = await query.SearchPerUserAsync(
             filter, profile, grades: [MatchGrade.Strong], sort: JobAdSortBy.PublishedAtDesc,
-            orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
+            orderByMatchRank: true, page: 1, pageSize: 100, ct);
 
         fullPage.TotalCount.ShouldBe(4,
             "TotalCount ska vara antalet annonser i Strong-bandet (4), inte hela korpusen (9) " +
@@ -422,7 +422,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         // TotalCount still 4, and no phantom items leak onto a page beyond the band.
         var firstPage = await query.SearchPerUserAsync(
             filter, profile, grades: [MatchGrade.Strong], sort: JobAdSortBy.PublishedAtDesc,
-            orderByMatchRank: true, page: 1, pageSize: 2, since: null, ct);
+            orderByMatchRank: true, page: 1, pageSize: 2, ct);
 
         firstPage.Items.Count.ShouldBe(2,
             "Sida 1 med pageSize 2 ska ha exakt 2 träffar ur det grad-filtrerade bandet.");
@@ -433,7 +433,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
 
         var secondPage = await query.SearchPerUserAsync(
             filter, profile, grades: [MatchGrade.Strong], sort: JobAdSortBy.PublishedAtDesc,
-            orderByMatchRank: true, page: 2, pageSize: 2, since: null, ct);
+            orderByMatchRank: true, page: 2, pageSize: 2, ct);
 
         secondPage.Items.Count.ShouldBe(2,
             "Sida 2 ska ha de resterande 2 in-band-träffarna — ingen otaggad/out-of-band " +
@@ -493,7 +493,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         var page = await query.SearchPerUserAsync(
             filter, profile, grades: [MatchGrade.Good, MatchGrade.Strong],
             sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: false,
-            page: 1, pageSize: 100, since: null, ct);
+            page: 1, pageSize: 100, ct);
 
         var returnedIds = page.Items.Select(i => i.Id).ToList();
 
@@ -553,7 +553,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         // ad (and only it), confirming Strong is the ceiling the grade-WHERE can express.
         var page = await query.SearchPerUserAsync(
             filter, profile, grades: [MatchGrade.Strong], sort: JobAdSortBy.PublishedAtDesc,
-            orderByMatchRank: true, page: 1, pageSize: 100, since: null, ct);
+            orderByMatchRank: true, page: 1, pageSize: 100, ct);
 
         var returnedIds = page.Items.Select(i => i.Id).ToList();
         returnedIds.ShouldBe([strong.Value],

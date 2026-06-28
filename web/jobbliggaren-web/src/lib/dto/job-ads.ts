@@ -60,10 +60,11 @@ const jobAdUrlSchema = z
   });
 
 // Backend JobAdDto: Id, Title, CompanyName, Description, Url, Source, Status,
-// PublishedAt, ExpiresAt, CreatedAt, IsNew. Datum-fält är ISO 8601-strängar
-// på wire per ADR 0020 §6. `isNew` (ADR 0042 Beslut E) är runtime-
-// presentationskontext: true om PublishedAt >= ListJobAdsQuery.Since,
-// false när Since ej angivet.
+// PublishedAt, ExpiresAt, CreatedAt. Datum-fält är ISO 8601-strängar på wire
+// per ADR 0020 §6. Den tidigare `isNew`-flaggan (tidsbaserad, ADR 0042 Beslut
+// E) är BORTTAGEN (#293/#306, amendment 2026-06-28): NY = OLÄST beräknas nu på
+// FE ur `createdAt` mot per-användar oläst-watermarken (`me-jobs.ts`), inte
+// server-side mot ett 7-dygnsfönster.
 export const jobAdDtoSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -75,7 +76,6 @@ export const jobAdDtoSchema = z.object({
   publishedAt: z.string(),
   expiresAt: z.string().nullable(),
   createdAt: z.string(),
-  isNew: z.boolean(),
 });
 export type JobAdDto = z.infer<typeof jobAdDtoSchema>;
 

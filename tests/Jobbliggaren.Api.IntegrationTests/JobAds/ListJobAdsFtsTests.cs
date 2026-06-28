@@ -251,33 +251,10 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         result.Items[1].Id.ShouldBe(older);
     }
 
-    // 6. IsNew/Since — Since i det förflutna ⇒ nyligen publicerade annonser får
-    //    IsNew=true; ingen Since ⇒ IsNew=false. (Bevarar assertionen från det
-    //    borttagna RelevanceSort-testet i ListJobAdsMultiFilterTests.)
-    [Fact]
-    public async Task ApplyCriteria_IsNew_ReflectsSinceWindow()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var word = $"isnewtoken{Guid.NewGuid():N}"[..18];
-
-        await SeedJobAdAsync($"{word} annons A", "Beskrivning", ct);
-        await SeedJobAdAsync($"{word} annons B", "Beskrivning", ct);
-
-        using var scope = _factory.Services.CreateScope();
-        var handler = CreateHandler(scope);
-
-        // Since i det förflutna → seedade annonser (publishedAt = now-1d) ligger
-        // inom fönstret → IsNew=true.
-        var withSince = await handler.Handle(
-            new ListJobAdsQuery(Q: word, Since: DateTimeOffset.UtcNow.AddDays(-30)), ct);
-        withSince.TotalCount.ShouldBe(2);
-        withSince.Items.ShouldAllBe(i => i.IsNew);
-
-        // Ingen Since → IsNew=false.
-        var noSince = await handler.Handle(new ListJobAdsQuery(Q: word), ct);
-        noSince.TotalCount.ShouldBe(2);
-        noSince.Items.ShouldAllBe(i => !i.IsNew);
-    }
+    // 6. (Borttaget #293/#306) — det tidigare IsNew/Since-fönstertestet är
+    //    raderat: JobAdDto.IsNew + ListJobAdsQuery.Since utgick när "Ny" = OLÄST
+    //    flyttades till en per-användar oläst-watermark beräknad på FE
+    //    (ADR 0042 Beslut E-amendment 2026-06-28).
 
     // 7. Sortering — coverage-bevarande, flyttad från det omskrivna
     //    ListJobAdsQueryHandlerTests-unit-testet (CLAUDE.md §7). Filtrerar på ett
@@ -439,7 +416,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
 
         // Samma filter via SearchAsync → identisk TotalCount (SPOT).
         var searchCriteria = new JobAdSearchCriteria(
-            filter, JobAdSortBy.PublishedAtDesc, Page: 1, PageSize: 20, Since: null);
+            filter, JobAdSortBy.PublishedAtDesc, Page: 1, PageSize: 20);
         var page = await search.SearchAsync(searchCriteria, ct);
         page.TotalCount.ShouldBe(count);
     }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobTags } from "./job-tags";
 import { computeFreshnessLabel } from "./freshness";
@@ -65,69 +65,32 @@ describe("computeFreshnessLabel", () => {
   });
 });
 
-describe("JobTags (high-water-mark NY-modell)", () => {
-  const RECENT_MS = Date.parse("2026-05-19T12:00:00Z");
-  const OLD_MS = Date.parse("2026-04-01T12:00:00Z");
-
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
-
-  it("renders NY when showNew=true and never-visited (lastSeen=0)", () => {
-    render(
-      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel={null} />,
-    );
+describe("JobTags (NY = oläst, #293/#306)", () => {
+  it("renders NY when isNew=true", () => {
+    render(<JobTags isNew={true} freshnessLabel={null} />);
     expect(screen.getByText("Ny")).toBeInTheDocument();
   });
 
-  it("does not render NY when showNew=false (server-cap >7d)", () => {
-    render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-      />,
-    );
+  it("does not render NY when isNew=false (oläst-watermark/kall start)", () => {
+    render(<JobTags isNew={false} freshnessLabel={null} />);
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
 
-  it("does not render NY when lastSeen >= publishedAtMs (visited after publish)", () => {
-    window.localStorage.setItem(
-      "jp-jobb-last-seen",
-      String(Date.parse("2026-05-20T00:00:00Z")),
+  // #293/#306 — a11y-paritet med /matchningar: NY-taggen bär en aria-label så
+  // skärmläsaren får full kontext (texten "Ny" ensam är terse). Färg är aldrig
+  // ensam signal (WCAG 1.4.1) — texten + label bär betydelsen.
+  it("NY-taggen har en beskrivande aria-label", () => {
+    const { container } = render(<JobTags isNew={true} freshnessLabel={null} />);
+    const ny = container.querySelector('[data-tag="new"]');
+    expect(ny).not.toBeNull();
+    expect(ny).toHaveAttribute(
+      "aria-label",
+      "Nytt jobb sedan ditt senaste besök",
     );
-    render(
-      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel={null} />,
-    );
-    expect(screen.queryByText("Ny")).not.toBeInTheDocument();
-  });
-
-  it("renders NY when lastSeen < publishedAtMs (published after last visit)", () => {
-    window.localStorage.setItem(
-      "jp-jobb-last-seen",
-      String(Date.parse("2026-05-15T00:00:00Z")),
-    );
-    render(
-      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel={null} />,
-    );
-    expect(screen.getByText("Ny")).toBeInTheDocument();
-  });
-
-  it("server-cap (showNew=false) overrides high-water-mark even when lastSeen=0", () => {
-    render(
-      <JobTags showNew={false} publishedAtMs={OLD_MS} freshnessLabel={null} />,
-    );
-    expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
 
   it("renders freshness label when provided", () => {
-    render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel="2 dagar"
-      />,
-    );
+    render(<JobTags isNew={false} freshnessLabel="2 dagar" />);
     expect(screen.getByText("2 dagar")).toBeInTheDocument();
   });
 
@@ -137,8 +100,7 @@ describe("JobTags (high-water-mark NY-modell)", () => {
   it("does not render a match tag (numeric matchScore-modellen borttagen)", () => {
     const { container } = render(
       <JobTags
-        showNew={true}
-        publishedAtMs={RECENT_MS}
+        isNew={true}
         freshnessLabel="Idag"
         isSaved={true}
         isApplied={true}
@@ -149,19 +111,13 @@ describe("JobTags (high-water-mark NY-modell)", () => {
   });
 
   it("renders nothing when all tags are absent (no empty container)", () => {
-    const { container } = render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-      />,
-    );
+    const { container } = render(<JobTags isNew={false} freshnessLabel={null} />);
     expect(container.querySelector(".jp-job-tags")).toBeNull();
   });
 
   it("renders both tags in order: NY → freshness", () => {
     const { container } = render(
-      <JobTags showNew={true} publishedAtMs={RECENT_MS} freshnessLabel="Idag" />,
+      <JobTags isNew={true} freshnessLabel="Idag" />,
     );
     const tags = container.querySelectorAll(".jp-tag");
     expect(tags).toHaveLength(2);
@@ -171,36 +127,18 @@ describe("JobTags (high-water-mark NY-modell)", () => {
 
   // PR5 — Sparad + Ansökt-taggar (ADR 0063 per-user-overlay).
   it("renders Sparad-tagg när isSaved=true", () => {
-    render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        isSaved={true}
-      />,
-    );
+    render(<JobTags isNew={false} freshnessLabel={null} isSaved={true} />);
     expect(screen.getByText("Sparad")).toBeInTheDocument();
   });
 
   it("renders Ansökt-tagg när isApplied=true", () => {
-    render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-        isApplied={true}
-      />,
-    );
+    render(<JobTags isNew={false} freshnessLabel={null} isApplied={true} />);
     expect(screen.getByText("Ansökt")).toBeInTheDocument();
   });
 
   it("renderar inga status-taggar när isSaved=false + isApplied=false (default)", () => {
     const { container } = render(
-      <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
-        freshnessLabel={null}
-      />,
+      <JobTags isNew={false} freshnessLabel={null} />,
     );
     // Inget tagg-block ska renderas alls
     expect(container.querySelector(".jp-job-tags")).toBeNull();
@@ -209,8 +147,7 @@ describe("JobTags (high-water-mark NY-modell)", () => {
   it("renderar både Sparad och Ansökt vid full status", () => {
     const { container } = render(
       <JobTags
-        showNew={false}
-        publishedAtMs={RECENT_MS}
+        isNew={false}
         freshnessLabel={null}
         isSaved={true}
         isApplied={true}
@@ -225,8 +162,7 @@ describe("JobTags (high-water-mark NY-modell)", () => {
   it("renderar alla 4 taggar i ordning: NY → freshness → Sparad → Ansökt", () => {
     const { container } = render(
       <JobTags
-        showNew={true}
-        publishedAtMs={RECENT_MS}
+        isNew={true}
         freshnessLabel="Idag"
         isSaved={true}
         isApplied={true}

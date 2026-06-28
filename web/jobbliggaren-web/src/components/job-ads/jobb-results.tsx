@@ -61,6 +61,13 @@ interface JobbResultsProps {
    * `matchActive = hasStatedDesiredOccupation && !matchningOff`.
    */
   matchningOff: boolean;
+  /**
+   * #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:n (parsad ur
+   * `?relaterade=on` i page.tsx). `true` ⇒ related-graderade annonser tas med i
+   * list-queryn OCH i badge-batchen (master-switch). Default false (ren lista).
+   * Endast meningsfull när `matchActive` (badges hämtas bara då).
+   */
+  includeRelated: boolean;
   q: string;
   /**
    * E2j (ADR 0060 amend 2026-06-12) — commit-intent: när URL:en bär
@@ -81,6 +88,9 @@ interface JobbResultsProps {
     employmentType?: string | string[];
     worktimeExtent?: string | string[];
     matchGrades?: string | string[];
+    // #300 PR-5 — bärs i paginerings-href:en så sida-2-klicket inte tappar
+    // "Visa relaterade också"-toggle:n (samma felklass som matchGrades).
+    relaterade?: string;
     q?: string;
   };
 }
@@ -96,6 +106,7 @@ export async function JobbResults({
   worktimeExtent,
   matchGrades,
   matchningOff,
+  includeRelated,
   q,
   commit,
   rawParams,
@@ -142,6 +153,14 @@ export async function JobbResults({
   // (badge-fetch, sort-koercion, toolbar) hänger på detta enda härledda värde.
   const matchActive = hasStatedDesiredOccupation && !matchningOff;
 
+  // #300 PR-5 — den effektiva "Visa relaterade också". Related är ett MATCHNINGS-
+  // koncept: det är bara meningsfullt när matchnings-axeln är aktiv. En stale URL
+  // som bär `?relaterade=on` MEN matchningen av (eller inget angett yrke) ska inte
+  // bredda listan med related-yrken — gate:a på matchActive (paritet med badge-/
+  // sort-gaterna). Toggle:n renderas ändå bara inne i matchningens PÅ-block, så
+  // det här är skyddet mot en manipulerad/stale URL.
+  const effectiveIncludeRelated = matchActive && includeRelated;
+
   // Gate (b) — list-queryns sort. När matchningen inte är aktiv coerceras en
   // aktiv MatchDesc-sort honest tillbaka till nyaste-först (PublishedAtDesc):
   // match-sorten får inte styra ordningen när matchnings-axeln är av/saknar
@@ -167,6 +186,9 @@ export async function JobbResults({
       employmentType,
       worktimeExtent,
       matchGrades,
+      // #300 PR-5 — master-switch för related-yrken i listan (gate:ad på
+      // matchActive ovan). Default false ⇒ ren exakt-match-lista.
+      includeRelated: effectiveIncludeRelated,
       q,
       commit,
     }),
@@ -216,8 +238,11 @@ export async function JobbResults({
         // tom batch (degraderar civilt, inga taggar). POSITIVE-ONLY: bara
         // annonser med positiv grad finns i `entries`. Hoppas över helt när
         // matchningen är av (issue #292) — Promise.resolve undviker round-trip.
+        // #300 PR-5 — `effectiveIncludeRelated` (master-switch, gate:ad på
+        // matchActive) ⇒ related-graderade annonser får sin `Related`-chip i
+        // listan, koherent med list-queryns breddning ovan.
         matchActive
-          ? getJobAdMatchTags(itemIds)
+          ? getJobAdMatchTags(itemIds, effectiveIncludeRelated)
           : Promise.resolve<JobAdMatchBatch>({ entries: {} }),
       ]);
       const savedIdSet = new Set(status.savedIds);
@@ -256,6 +281,7 @@ export async function JobbResults({
             employmentType={employmentType}
             worktimeExtent={worktimeExtent}
             matchGrades={matchGrades}
+            includeRelated={includeRelated}
             resolvedLabels={resolvedLabels}
             q={q}
             sortBy={sortBy}
@@ -359,6 +385,10 @@ function buildPageHref(
   // sidan av buildJobbHref). Page-validatorn droppar Top/okänt redan.
   for (const v of toStringList(params.matchGrades))
     url.append("matchGrades", v);
+  // #300 PR-5 — utan denna rad tappar sida-2-klicket "Visa relaterade också"-
+  // toggle:n (samma felklass som matchGrades ovan). Bevaras BARA när on (paritet
+  // med buildJobbHref); page.tsx parsar bara on-värdet.
+  if (params.relaterade === "on") url.set("relaterade", "on");
   if (params.q) url.set("q", params.q);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";

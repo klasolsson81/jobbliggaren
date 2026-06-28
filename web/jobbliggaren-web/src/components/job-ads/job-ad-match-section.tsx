@@ -289,6 +289,7 @@ function MatchRow({
   detail,
   t,
   granularityByLabel,
+  isRelatedYrke,
 }: {
   label: string;
   dimensionKey: keyof Omit<JobAdMatchDetail, "grade">;
@@ -296,6 +297,13 @@ function MatchRow({
   t: MatchTranslator;
   /** Spår 3 PR-D — endast satt för RegionFit-raden (label → kommun/län). */
   granularityByLabel?: Record<string, OrtGranularity>;
+  /**
+   * #300 PR-5 (ADR 0084, design-reviewer bind) — true PÅ Yrke-raden (ssykOverlap)
+   * NÄR hela matchen är `Related`. Då ersätts den generiska bevisformen med en
+   * neutral förklaring av VARFÖR annonsen rankas lägre (liknande, inte exakt valt,
+   * yrke). Neutral ink, ALDRIG röd (ett relaterat yrke är inget fel).
+   */
+  isRelatedYrke?: boolean;
 }) {
   const word = t(`verdict.${detail.verdict}`);
   const isNotAssessed = detail.verdict === "NotAssessed";
@@ -336,6 +344,13 @@ function MatchRow({
         {isNotAssessed ? (
           <span className="jp-modal__matchrow-missing">
             {notAssessedReason(dimensionKey, t)}
+          </span>
+        ) : isRelatedYrke ? (
+          // #300 PR-5 — neutral "därför lägre"-förklaring på Yrke-raden för en
+          // Related-match. Ingen siffra (Goodhart), neutral ink (jp-modal__
+          // matchrow-missing = ink-2, ej röd — ett relaterat yrke är inget fel).
+          <span className="jp-modal__matchrow-missing">
+            {t("relatedYrkeReason")}
           </span>
         ) : useOrtGranularity ? (
           <RegionFitEvidence
@@ -426,6 +441,9 @@ export function JobAdMatchSection({
             granularityByLabel={
               key === "regionFit" ? ortGranularityByLabel : undefined
             }
+            // #300 PR-5 — "därför lägre"-förklaring bara på Yrke-raden NÄR hela
+            // matchen är Related (liknande, inte exakt valt, yrke).
+            isRelatedYrke={key === "ssykOverlap" && match.grade === "Related"}
           />
         ))}
       </div>

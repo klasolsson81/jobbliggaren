@@ -15,6 +15,13 @@ describe("MatchChip (F4-13 graderad match-tagg)", () => {
     { grade: "Strong", modifier: "jp-matchchip--high", label: "Stark match" },
     { grade: "Good", modifier: "jp-matchchip--mid", label: "Bra match" },
     { grade: "Basic", modifier: "jp-matchchip--low", label: "Grundmatch" },
+    // #300 PR-5 (ADR 0084) — Related = neutral chip (--related), INTE ett femte
+    // grönt blad-steg. Egen modifier + svensk label "Relaterat yrke".
+    {
+      grade: "Related",
+      modifier: "jp-matchchip--related",
+      label: "Relaterat yrke",
+    },
   ];
 
   for (const { grade, modifier, label } of cases) {
@@ -50,6 +57,21 @@ describe("MatchChip (F4-13 graderad match-tagg)", () => {
     expect(chip).toHaveClass("jp-matchchip--top");
     expect(chip?.textContent).toBe("Toppmatch");
     // Goodhart-vakt håller även på golden-rungen.
+    expect(chip?.textContent).not.toMatch(/\d/);
+  });
+
+  it("Related renderar den NEUTRALA chip:en (--related), INTE ett grönt blad-steg (#300 PR-5)", () => {
+    const { container } = render(<MatchChip grade="Related" />);
+    const chip = container.querySelector(".jp-matchchip");
+    expect(chip).toHaveClass("jp-matchchip--related");
+    // Designkontrakt (design-reviewer bind): Related är INTE en femte grön
+    // fyllning — den bär aldrig någon av leaf-ramp-modifierarna.
+    expect(chip).not.toHaveClass("jp-matchchip--top");
+    expect(chip).not.toHaveClass("jp-matchchip--high");
+    expect(chip).not.toHaveClass("jp-matchchip--mid");
+    expect(chip).not.toHaveClass("jp-matchchip--low");
+    expect(chip?.textContent).toBe("Relaterat yrke");
+    // Goodhart-vakt håller även på related-rungen.
     expect(chip?.textContent).not.toMatch(/\d/);
   });
 });

@@ -7,7 +7,10 @@ import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
 import { isListMatchGrade } from "@/lib/dto/job-ad-match";
-import { MATCHNING_OFF_VALUE } from "@/lib/job-ads/search-params";
+import {
+  MATCHNING_OFF_VALUE,
+  RELATERADE_ON_VALUE,
+} from "@/lib/job-ads/search-params";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
@@ -38,6 +41,10 @@ type JobbSearchParams = {
   // match-sort). Frånvaro = default PÅ (när användaren angett ett yrke). Allt
   // annat än "off" tolkas som frånvaro (PÅ) — page.tsx parsar bara off-värdet.
   matchning?: string;
+  // #300 PR-5 — "Visa relaterade också"-toggle:n. `?relaterade=on` = PÅ (ta med
+  // related-graderade annonser). Frånvaro = default AV. Allt annat än "on" tolkas
+  // som frånvaro (AV) — page.tsx parsar bara on-värdet.
+  relaterade?: string;
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -81,6 +88,10 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // jobb-results.tsx SSOT — `matchActive = hasStatedDesiredOccupation &&
   // !matchningOff`), den trådar bara den parsade flaggan vidare.
   const matchningOff = params.matchning === MATCHNING_OFF_VALUE;
+  // #300 PR-5 — "Visa relaterade också"-toggle:n. Parsa BARA on-värdet → boolean
+  // (master-switch för includeRelated genom alla tre matchnings-anropen). Trådas
+  // vidare till JobbResults; default AV (frånvaro = ren lista).
+  const includeRelated = params.relaterade === RELATERADE_ON_VALUE;
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -143,6 +154,10 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // koercionen i jobb-results.tsx hänger på matchActive, vars värde ändras med
   // den här flaggan (samma princip som dimensionerna/grad-filtret).
   const matchningKey = matchningOff ? "off" : "";
+  // #300 PR-5 — "Visa relaterade också" ingår i Suspense-keyn så listan
+  // re-renderas (visar skeleton) när bara toggle:n flippas: list-/badge-fetchen
+  // hänger på includeRelated (samma princip som matchningsaxeln/grad-filtret).
+  const relateradeKey = includeRelated ? "on" : "";
 
   return (
     <>
@@ -229,7 +244,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -243,6 +258,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             worktimeExtent={worktimeExtent}
             matchGrades={matchGrades}
             matchningOff={matchningOff}
+            includeRelated={includeRelated}
             q={q ?? ""}
             commit={commit}
             rawParams={params}

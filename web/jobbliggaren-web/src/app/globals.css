@@ -2097,6 +2097,23 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-leaf-50);
   border-color: var(--jp-leaf-600);
 }
+/* Relaterat yrke (#300 PR-5, ADR 0084, design-reviewer bind) — the substitut-
+   ability rung between Basic and Good. NOT a fifth green leaf fill: a fill
+   between leaf-50 and leaf-100 would need a NEW hue (§5 Blocker). Instead it
+   reuses the locked status-neutral chip treatment (.jp-tag[data-tag=
+   "status-neutral"] above) — surface-2 fill, ink-2 text, border-strong edge —
+   so it reads as "a different occupation", not "weaker green". The dot
+   (.jp-matchchip__dot = currentColor) inherits ink-2 and stays visible on the
+   surface-2 fill. All three tokens flip themselves per theme: ink-2 on surface-2
+   is AA-cleared in BOTH themes (light 7.24:1 / dark 10.24:1, same pair as the
+   status-neutral tag), and border-strong gives the chip a crisp >=3:1 edge
+   against the .jp-job white/dark card — so no [data-theme="dark"] override is
+   needed (computed, not render-verified). */
+.jp-matchchip--related {
+  color: var(--jp-ink-2);
+  background: var(--jp-surface-2);
+  border-color: var(--jp-border-strong);
+}
 .jp-job__body { min-width: 0; }
 /* jp-job ≡ jp-app titel/company/meta: DELADE selektorer (HANDOVER §9
    "får ALDRIG drifta isär"). Extension av F4 CTO-domen 2026-05-19

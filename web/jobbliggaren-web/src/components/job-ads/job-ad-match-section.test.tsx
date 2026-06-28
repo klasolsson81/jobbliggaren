@@ -193,6 +193,51 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(screen.queryByText("Toppmatch")).not.toBeInTheDocument();
     expect(screen.getByText("Yrke")).toBeInTheDocument();
   });
+
+  // #300 PR-5 (ADR 0084) — Related-match: chip + "därför lägre"-förklaring på
+  // Yrke-raden.
+  it("Related → chip 'Relaterat yrke' + Yrke-raden förklarar VARFÖR lägre (neutral, ingen siffra)", () => {
+    const { container } = render(
+      <JobAdMatchSection
+        match={detail({
+          grade: "Related",
+          ssykOverlap: row("Match", ["Systemutvecklare"]),
+        })}
+      />
+    );
+    // Chippen visas (neutral kategori).
+    expect(screen.getByText("Relaterat yrke")).toBeInTheDocument();
+    // Yrke-raden bär den neutrala "därför lägre"-copyn i stället för den
+    // generiska "Du har:"-bevisformen.
+    expect(
+      screen.getByText(
+        "Liknande yrke, inte ett du valt. Därför rankas annonsen under dina exakta träffar."
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Du har: Systemutvecklare")
+    ).not.toBeInTheDocument();
+    // Neutral ink (ej röd) + ingen siffra (Goodhart).
+    const section = container.querySelector(".jp-modal__matchsection");
+    expect(
+      container.querySelector(".text-danger-600, .text-danger-700")
+    ).toBeNull();
+    expect(section?.textContent ?? "").not.toMatch(/\d/);
+  });
+
+  it("Related-förklaringen visas BARA på Yrke-raden, inte på andra dimensioner", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({
+          grade: "Related",
+          ssykOverlap: row("Match", ["Systemutvecklare"]),
+          regionFit: row("Match", ["Göteborg"]),
+        })}
+      />
+    );
+    // Region-raden behåller sin generiska bevisform (förklaringen är yrkes-scoped).
+    expect(screen.getByText("Du har: Göteborg")).toBeInTheDocument();
+  });
 });
 
 describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {

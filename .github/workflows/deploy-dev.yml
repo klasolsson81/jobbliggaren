@@ -1,3 +1,11 @@
+# HISTORICAL — REFERENCES DECOMMISSIONED AWS INFRASTRUCTURE. DO NOT RE-ENABLE AS-IS.
+# The AWS dev stack (ECR/ECS/RDS/Redis) was torn down 2026-05-26 (ADR 0066, commit
+# a1d9abd); the ECS/ECR/RDS targets below no longer exist. This file is retained as a
+# reversibility/history mechanic per ADR 0066 Beslut 1 + ADR 0069 D3 and is retired via
+# its own teardown PR at the Hetzner cutover (ADR 0050), not here. The auto-trigger
+# (push: tags 'v*-dev') was removed 2026-06-28 so it cannot fire against torn-down infra;
+# only manual workflow_dispatch remains (which will fail at the OIDC/ECR step — expected).
+#
 # Deploy till dev-miljön (STEG 14a, BUILD.md §15.3 / §15.4).
 #
 # Trigger: tag matchande v*-dev (t.ex. v0.1.0-dev). Tag måste pushas på `main`-
@@ -19,10 +27,10 @@
 #   7. Smoke-test https://dev.jobbpilot.se
 name: deploy-dev
 
+# Auto-trigger removed 2026-06-28 (HISTORICAL — see banner above): the former
+# `push: tags v*-dev` trigger targeted the decommissioned AWS dev stack. Only manual
+# dispatch remains; rebuild a real pipeline against Hetzner at cutover (ADR 0050).
 on:
-  push:
-    tags:
-      - 'v*-dev'
   workflow_dispatch:
     inputs:
       tag:

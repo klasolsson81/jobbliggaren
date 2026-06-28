@@ -1,7 +1,7 @@
 # ADR 0040 — Smart CV-härlett filter ovanpå SavedSearch (framtida fas)
 
 **Datum:** 2026-05-16
-**Status:** Proposed (framtida fas — Fas 4+; senior-cto-advisor-vägning 2026-05-16, Klas-bekräftad produktinriktning 2026-05-16)
+**Status:** Superseded by ADR 0076 (matchnings-pivot "tänd matchningen" subsumerar det smarta CV-härledda filtret; reconcile 2026-06-28). AI-premissen (`IAiProvider` + Bedrock) är dessutom upplöst av ADR 0071 (NOLL AI). _Historiskt:_ Proposed 2026-05-16 (framtida fas — Fas 4+; senior-cto-advisor-vägning 2026-05-16, Klas-bekräftad produktinriktning 2026-05-16)
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0039 (SavedSearch-aggregat — detta bygger ovanpå, supersederar ej), ADR 0032 (JobTech occupation-taxonomi), BUILD.md §18 Fas 4 (AI-lager), CLAUDE.md §5.3 (AI EU-routing/GDPR), Resume-domän (Fas 1)
 

@@ -139,9 +139,12 @@
 > (ADR 0066). `local` är enda aktiva miljön. Permanent deploy-mål är **beslutat**
 > (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
-> beta-testare). Tag-baserad deploy (`v*-dev`/`v*-rc*`/`v*`) är pausad —
-> deploy-workflowsen (`deploy-dev.yml` m.fl.) bevarade men inaktiva tills
-> ny Hetzner-pipeline byggs.
+> beta-testare). Tag-baserad AWS-deploy (`v*-dev`/`v*-rc*`/`v*`) refererar
+> **avvecklad infra** — den AWS-baserade stacken är **riven** (ADR 0066,
+> 2026-05-26), inte pausad; deploy-workflowsen (`deploy-dev.yml` m.fl.) är
+> bevarade som reversibilitets-/historik-mekanik (ADR 0066 Beslut 1 + ADR
+> 0069 D3) och `deploy-dev.yml`:s auto-trigger är borttagen 2026-06-28. Ny
+> Hetzner-pipeline byggs vid cutover.
 
 | Miljö | Syfte | Deployment | Status |
 |-------|-------|-----------|--------|
@@ -1294,9 +1297,14 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > Pre-beta-data-gates lösta + andra security-granskning först).
 >
 > `infra/terraform/` (den tidigare AWS-stacken) + AWS-deploy-workflowsen
-> (`deploy-dev.yml`, `rds-ca-bundle-check.yml`) är **bevarade men inaktiva** som
-> reversibilitets-mekanik (ADR 0066 Beslut 1). De retireras via egen ADR/PR vid
-> Hetzner-cutover, inte i en städ-PR.
+> (`deploy-dev.yml`, `rds-ca-bundle-check.yml`) refererar **avvecklad infra** —
+> den AWS-baserade dev-stacken (ECS/ECR/RDS/Redis) är **riven** 2026-05-26
+> (ADR 0066, commit `a1d9abd`), inte pausad; bara prod-baseline (~$2/mån: Route 53,
+> KMS, CloudTrail, IAM) kvarstår. Filerna är **bevarade som reversibilitets-/
+> historik-mekanik** (ADR 0066 Beslut 1 + ADR 0069 D3) och retireras via egen
+> teardown-ADR/PR vid Hetzner-cutover, inte i en städ-PR. `deploy-dev.yml`:s
+> auto-trigger (`push: tags v*-dev`) är **borttagen** 2026-06-28 så den inte kan
+> köra mot riven infra; endast manuell `workflow_dispatch` kvarstår.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 
@@ -1350,8 +1358,9 @@ ej publika, swap/core-dump-hygien) = gate M-6, hemvist TD-106.
 
 Observe-only-jobb (lighthouse / loadtest / audit per ADR 0045) blockerar ej merge.
 
-**Pausat (deploy — bevarat men inaktivt):**
-Tag-baserad AWS-deploy (`deploy-dev.yml` m.fl.) är pausad efter ADR 0066.
+**Historiskt (deploy — refererar avvecklad AWS-infra):**
+Tag-baserad AWS-deploy (`deploy-dev.yml` m.fl.) refererar den **rivna** AWS-dev-stacken
+(ADR 0066, 2026-05-26) — avvecklad, inte pausad; auto-triggern är borttagen 2026-06-28.
 Ny deploy-pipeline mot **Hetzner** byggs vid cutover (ADR 0050: Compose-push till CAX31 — **FE-image byggs i CI (`next build`) och shippas som container**, ingen Vercel-build).
 
 ### 15.4 Deployment-strategi (ADR 0050)
@@ -1377,17 +1386,37 @@ Health-check-kravet `/api/ready` → 200 inom 30 s består oavsett plattform.
 
 ### 16.2 Schedulerade jobb
 
-| Jobb | Schema | Beskrivning |
+> Speglar `src/Jobbliggaren.Worker/Hosting/RecurringJobRegistrar.cs` (verifierat
+> 2026-06-28). Cron-tider är UTC. 30-min-padding mellan natt-jobben ger tydliga
+> recovery-fönster (se klassens XML-doc för rationalen).
+
+| Jobb (Hangfire-id) | Schema (UTC) | Beskrivning |
 |------|--------|-------------|
-| `SyncPlatsbankenJob` | Var 10:e min | Pull JobStream, upsert annonser |
-| `SyncPlatsbankenFullBackfillJob` | Daglig 02:00 | Full sync mot JobSearch för robusthet |
-| `RunSavedSearchesJob` | Var 30:e min | Kolla nya matchningar mot aktiva searches, skicka notifieringar |
-| `DetectGhostedApplicationsJob` | Daglig 03:00 | Transition Submitted/Acknowledged till Ghosted efter threshold |
-| `SendFollowUpRemindersJob` | Daglig 09:00 | Email + in-app: "Det var 10 dagar sen du kontaktade X" |
-| `SyncGmailJob` | Per-user, var 15:e min | För användare med Gmail-connection |
-| `ImportScbSalaryStatsJob` | Månatlig | Uppdatera ssyk_salary_stats |
-| `GdprHardDeleteJob` | Daglig 04:00 | Permanent radera soft-deleted efter 30 dagar |
-| `AuditLogPartitionMaintenanceJob` | Daglig | Skapa nya partitions, rulla 90 dagar |
+| `sync-platsbanken-stream` | `*/10 * * * *` | Pull JobStream (overlap-fönster 15 min), upsert/arkivera annonser |
+| `sync-platsbanken-snapshot` | 02:00 daglig | Full snapshot-backfill mot stream-drift |
+| `audit-log-retention` | 03:00 daglig | Atomisk partition-DDL, rullar 90-dagars audit-retention (ADR 0024) |
+| `retain-platsbanken-job-ads` | 03:15 daglig | Snapshot-miss-retention (ADR 0032-amend) |
+| `background-matching` | 03:20 daglig | Per-user matchnings-scan: JobAds → `UserJobAdMatch` (ADR 0080 Våg 4) |
+| `detect-ghosted` | 03:30 daglig | Submitted/Acknowledged → Ghosted efter threshold |
+| `expire-job-ads` | 03:45 daglig | `ExpiresAt`-cron, defense-in-depth (ADR 0032-amend) |
+| `hard-delete-accounts` | 04:00 daglig | Permanent radera soft-deleted efter 30 dagar (GDPR Art. 17) |
+| `purge-stale-raw-payloads` | 04:30 daglig | Rensa mognad `raw_payload`-jsonb (TD-73 p2) |
+| `reap-stranded-matches` | 04:45 daglig | `UserJobAdMatch` fast i Queued → terminal Failed (TD-114) |
+| `backfill-field-encryption` | 05:00 daglig | DEK-backfill av PII-fält (ADR 0049) |
+| `parsed-resume-retention` | 05:15 daglig | GDPR-svep av mognad ParsedResume-staging (TD-111, ADR 0074) |
+| `digest-dispatch-daily` | 06:00 daglig | Strong-match-digest, daglig kadens (ADR 0080 Våg 4 PR-4b) |
+| `digest-dispatch-weekly` | måndag 06:00 | Strong-match-digest, veckovis kadens (civic-default) |
+| `refresh-landing-stats` | `*/5 * * * *` | Publik landing-stats pre-compute (ADR 0064) |
+
+**Planerat / ej registrerat** (speccat men inte byggt — finns inte i
+`RecurringJobRegistrar`):
+
+| Jobb | Avsedd funktion | Status |
+|------|--------|-------------|
+| `RunSavedSearchesJob` | Kör sparade sökningar → notiser | Ej byggt (#312) |
+| `SendFollowUpRemindersJob` | Uppföljnings-påminnelser | Ej byggt (Fas 5) |
+| `SyncGmailJob` | Per-user Gmail-sync | Ej byggt (Fas 5, #321) |
+| `ImportScbSalaryStatsJob` | Månatlig SCB-lönestatistik | Ej byggt (#320, backlog) |
 
 ### 16.3 Fire-and-forget jobb
 

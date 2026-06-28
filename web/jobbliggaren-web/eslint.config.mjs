@@ -34,6 +34,21 @@ const eslintConfig = defineConfig([
           message:
             "Em-dash (—, U+2014) is forbidden in user-facing UI copy (AI cliché — Klas hard rule 2026-06-20). Use a period, colon, semicolon, comma or parentheses. En-dash (–, U+2013) for ranges is allowed.",
         },
+        {
+          selector: "JSXText[value=/\\.\\.\\./]",
+          message:
+            "Literal three-dot ellipsis (...) is forbidden in user-facing UI copy. Use the ellipsis character … (U+2026), per copy-skill §4 (#278). This targets copy only — spread/rest (...props) are not string literals and never match.",
+        },
+        {
+          selector: "Literal[value=/\\.\\.\\./]",
+          message:
+            "Literal three-dot ellipsis (...) is forbidden in user-facing UI copy. Use the ellipsis character … (U+2026), per copy-skill §4 (#278). This targets copy only — spread/rest (...props) are not string literals and never match.",
+        },
+        {
+          selector: "TemplateElement[value.cooked=/\\.\\.\\./]",
+          message:
+            "Literal three-dot ellipsis (...) is forbidden in user-facing UI copy. Use the ellipsis character … (U+2026), per copy-skill §4 (#278). This targets copy only — spread/rest (...props) are not string literals and never match.",
+        },
       ],
     },
   },

@@ -68,6 +68,15 @@ kod-kommentarer, ADR/doc-prosa och test-`describe()`-labels (ej user-facing).
 En ESLint-regel (`no-restricted-syntax`, U+2014 i `JSXText`/`Literal`/
 `TemplateElement`, exkl. tester) spärrar återinförande i `web/jobbliggaren-web`.
 
+**Inga literala trepunkter (`...`) i copy.** Trepunkt skrivs alltid med
+ellipsis-tecknet `…` (U+2026, `…`), aldrig tre separata punkter `...`
+(typografiskt fel + radbryts felaktigt). Gäller laddnings-/vänte-copy och all
+annan användarvänd text ("Loggar in…", "Sparar…", "Skapar konto…"). En ESLint-
+regel (`no-restricted-syntax`, literala `...` i `JSXText`/`Literal`/
+`TemplateElement`, exkl. tester) spärrar återinförande i `web/jobbliggaren-web`;
+den träffar bara copy-strängar, aldrig spread/rest (`...props`, `[...arr]`) som
+inte är sträng-/text-noder. Se §4 (Loading).
+
 **Inga stats-kort-rubriker.** Skriv inte en mening som inramad rubrik ovanför
 en lista bara för att räkna något ("Du har X aktiva ansökningar"). Visa siffran
 direkt i raden eller tabellhuvudet ovanför listan, i mono — t.ex.

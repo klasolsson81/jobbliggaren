@@ -159,7 +159,7 @@
     "skillYearsLabel": "Years (optional)",
     "removeSkill": "Remove skill {index}",
     "remove": "Remove",
-    "savePending": "Saving...",
+    "savePending": "Saving…",
     "save": "Save CV",
     "savedAt": "Saved {time}.",
     "invalidData": "Invalid data."

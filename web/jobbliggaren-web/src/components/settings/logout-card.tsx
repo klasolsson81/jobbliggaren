@@ -16,7 +16,7 @@ export function LogoutCard() {
       <p className="text-body-sm text-text-secondary">
         {t("logout.description")}
       </p>
-      <form action={logoutAction} style={{ marginTop: 12 }}>
+      <form action={logoutAction} className="mt-3">
         <button type="submit" className="jp-btn jp-btn--secondary">
           <LogOut size={16} aria-hidden="true" />
           <span>{t("logout.action")}</span>

@@ -13,5 +13,12 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch;
 /// unconditionally and branch on the empty map.
 /// </para>
 /// </summary>
-public sealed record GetJobAdMatchBatchQuery(IReadOnlyList<Guid> JobAdIds)
+/// <para>
+/// #300 PR-5a (ADR 0084 §A): <paramref name="IncludeRelated"/> (default false) broadens the
+/// profile's occupation gate to exact ∪ related so a related-occupation ad earns the
+/// <c>MatchGrade.Related</c> tag in the page overlay. Set by the "Visa relaterade också" toggle
+/// (FE PR-5b maps the public ?relaterade=on to this API flag). False = behaviour-inert (exact-only).
+/// </para>
+public sealed record GetJobAdMatchBatchQuery(
+    IReadOnlyList<Guid> JobAdIds, bool IncludeRelated = false)
     : IQuery<JobAdMatchBatchDto>;

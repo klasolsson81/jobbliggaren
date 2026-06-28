@@ -50,6 +50,11 @@ public class GetJobAdMatchBatchQueryHandlerTests
         public int TopSkillsCallCount { get; private set; }
         public int CvSkillsCallCount { get; private set; }
 
+        // #300 PR-5a — captures the includeRelated arg the handler threads into the TAG-path
+        // build (BuildFullForVerdictAsync). Null = never called; the threading tests assert
+        // the captured value equals query.IncludeRelated (true when on, false when off/omitted).
+        public bool? IncludeRelatedSeen { get; private set; }
+
         // Unchanged F4-12 method — never called by the batch handler.
         public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
@@ -68,6 +73,7 @@ public class GetJobAdMatchBatchQueryHandlerTests
         public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             CvSkillsCallCount++;
+            IncludeRelatedSeen = includeRelated;
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);
         }
 
@@ -339,6 +345,73 @@ public class GetJobAdMatchBatchQueryHandlerTests
 
         scorer.LastBatchIds.ShouldNotBeNull();
         scorer.LastBatchIds!.Count.ShouldBe(1);
+    }
+
+    // =================================================================
+    // #300 PR-5a — the request's IncludeRelated flag threads into the TAG-path build
+    // (BuildFullForVerdictAsync). ADR 0084 question A: off by default; the PR-5 toggle is
+    // the only thing that flips it true. The fake captures the arg; we assert it equals
+    // query.IncludeRelated. RED until GetJobAdMatchBatchQuery carries IncludeRelated AND the
+    // handler passes includeRelated: query.IncludeRelated into BuildFullForVerdictAsync.
+    // =================================================================
+
+    [Fact]
+    public async Task Handle_ShouldThreadIncludeRelatedTrue_ToBuildFullForVerdict_WhenQueryIncludeRelatedIsTrue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var ad = new JobAdId(Guid.NewGuid());
+        var scores = new Dictionary<JobAdId, FullMatchScore>
+        {
+            [ad] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed, MatchDimensionVerdict.NotAssessed),
+        };
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(scores);
+        var sut = CreateHandler(builder, scorer);
+
+        await sut.Handle(new GetJobAdMatchBatchQuery([ad.Value], IncludeRelated: true), ct);
+
+        builder.IncludeRelatedSeen.ShouldBe(true);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldThreadIncludeRelatedFalse_ToBuildFullForVerdict_WhenQueryIncludeRelatedIsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var ad = new JobAdId(Guid.NewGuid());
+        var scores = new Dictionary<JobAdId, FullMatchScore>
+        {
+            [ad] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed, MatchDimensionVerdict.NotAssessed),
+        };
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(scores);
+        var sut = CreateHandler(builder, scorer);
+
+        await sut.Handle(new GetJobAdMatchBatchQuery([ad.Value], IncludeRelated: false), ct);
+
+        builder.IncludeRelatedSeen.ShouldBe(false);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldDefaultIncludeRelatedToFalse_WhenQueryOmitsIt()
+    {
+        // ADR 0084 question A — off by default. A caller that does not opt in (today's only
+        // production path until the PR-5 FE toggle) must build the exact-only profile.
+        var ct = TestContext.Current.CancellationToken;
+        var ad = new JobAdId(Guid.NewGuid());
+        var scores = new Dictionary<JobAdId, FullMatchScore>
+        {
+            [ad] = FullScoreOf(
+                MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed, MatchDimensionVerdict.NotAssessed),
+        };
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(scores);
+        var sut = CreateHandler(builder, scorer);
+
+        await sut.Handle(new GetJobAdMatchBatchQuery([ad.Value]), ct);
+
+        builder.IncludeRelatedSeen.ShouldBe(false);
     }
 
     // =================================================================

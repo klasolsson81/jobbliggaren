@@ -69,6 +69,12 @@ public static class JobAdsEndpoints
             // Topp → bunden men avvisas av validatorn (G3-OPT-A). Runtime-kontext —
             // ingår EJ i filter-identiteten/recent-search-hashen.
             MatchGrade[]? matchGrades = null,
+            // #300 PR-5a (ADR 0084 §A) — "Visa relaterade också"-toggeln. ?includeRelated=true
+            // breddar yrkes-gaten exakt → exakt ∪ related så ett Related-grad-filter / match-sort
+            // rankar related-annonser på Related-rungen. Runtime-kontext (paritet matchGrades):
+            // ingår EJ i filter-identiteten/recent-search. Default false = beteende-inert. FE
+            // (PR-5b) mappar det publika ?relaterade=on hit.
+            bool includeRelated = false,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -81,7 +87,8 @@ public static class JobAdsEndpoints
                     WorktimeExtent: worktimeExtent,
                     Q: q,
                     Commit: commit,
-                    MatchGrades: matchGrades), ct);
+                    MatchGrades: matchGrades,
+                    IncludeRelated: includeRelated), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);

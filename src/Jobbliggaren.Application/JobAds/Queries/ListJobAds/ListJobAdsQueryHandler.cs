@@ -63,7 +63,11 @@ public sealed class ListJobAdsQueryHandler(
             // F4-15 (ADR 0076 Decision 6, R5-REBIND Option H): the global sort builds the
             // FULL profile from the confirmed plaintext skill set (ADR 0079 STEG 3 PR-D) —
             // NO DEK on the hottest path. The skill signal adds only the binary golden rung.
-            var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
+            // #300 PR-5a (ADR 0084 §A): includeRelated broadens the gate to exact ∪ related so
+            // a Related grade filter / match-sort ranks related ads at the Related rung. Default
+            // false → behaviour-inert (exact-only), matching today.
+            var profile = await profileBuilder.BuildFullForSortAsync(
+                cancellationToken, includeRelated: query.IncludeRelated);
 
             // SSYK-gate (parity F4-13 GetJobAdMatchBatch): utan angiven yrkesgrupp kan
             // ingen annons få en grad → grad-filter/match-ordning vore meningslös. Honest

@@ -79,7 +79,7 @@ STARTPROMPT-*.md
 infra/terraform/**/*.out
 
 # Visual Studio language-service cache (IDE-artefakt, ej källkod)
-*.csproj.lscache
+*.lscache
 
 # ── Docs-privacy: curated publik fasad (ADR 0072) ──────────────────────────
 # Operativ/strategisk dokumentation hålls lokalt, ej i publika repot.

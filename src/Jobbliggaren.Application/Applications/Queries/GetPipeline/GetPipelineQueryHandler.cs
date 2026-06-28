@@ -1,10 +1,13 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.Applications;
+using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.Applications.Queries.GetPipeline;
 
-public sealed class GetPipelineQueryHandler(IAppDbContext db, ICurrentUser currentUser)
+public sealed class GetPipelineQueryHandler(
+    IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock)
     : IQueryHandler<GetPipelineQuery, IReadOnlyList<PipelineGroupDto>>
 {
     public async ValueTask<IReadOnlyList<PipelineGroupDto>> Handle(
@@ -12,6 +15,9 @@ public sealed class GetPipelineQueryHandler(IAppDbContext db, ICurrentUser curre
     {
         if (!currentUser.UserId.HasValue)
             return [];
+
+        // Captured once so EF parameterises the overdue-follow-up EXISTS below.
+        var now = clock.UtcNow;
 
         var jobSeekerId = await db.JobSeekers
             .AsNoTracking()
@@ -58,7 +64,21 @@ public sealed class GetPipelineQueryHandler(IAppDbContext db, ICurrentUser curre
                             r.a.ManualPosting.Url, "Manual",
                             (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt)
                         : null,
-                r.a.AppliedAt))
+                r.a.AppliedAt,
+                // #342 (ADR 0085 §3): attention envelope, projected at the read
+                // boundary. LastStatusChangeAt anchors signal 4; GhostedThresholdDays
+                // is the reused per-aggregate value; HasOverdueFollowUp is signal 2.
+                r.a.LastStatusChangeAt,
+                // Correlated EXISTS — no followUps[] hydration (CQRS list ≠ detail,
+                // ADR 0048 Alt C rejected). Soft-delete exclusion is carried by the
+                // FollowUp global query filter (FollowUpConfiguration.cs:43, ADR 0048 c —
+                // one SPOT, no duplicate DeletedAt predicate in the handler), pinned by
+                // Handle_ProjectsHasOverdueFollowUp_FalseForSoftDeletedFollowUp.
+                // Index shape + ADR 0045 latency re-validation tracked in #348
+                // (today: the application_id FK index only).
+                r.a.FollowUps.Any(f =>
+                    f.Outcome == FollowUpOutcome.Pending && f.ScheduledAt < now),
+                r.a.GhostedThresholdDays))
             .ToListAsync(cancellationToken);
 
         return rows

@@ -1,12 +1,14 @@
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
+using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.Applications.Queries.GetApplications;
 
-public sealed class GetApplicationsQueryHandler(IAppDbContext db, ICurrentUser currentUser)
+public sealed class GetApplicationsQueryHandler(
+    IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock)
     : IQueryHandler<GetApplicationsQuery, PagedResult<ApplicationDto>>
 {
     public async ValueTask<PagedResult<ApplicationDto>> Handle(
@@ -14,6 +16,9 @@ public sealed class GetApplicationsQueryHandler(IAppDbContext db, ICurrentUser c
     {
         if (!currentUser.UserId.HasValue)
             return Empty(query);
+
+        // Captured once so EF parameterises the overdue-follow-up EXISTS below.
+        var now = clock.UtcNow;
 
         var jobSeekerId = await db.JobSeekers
             .AsNoTracking()
@@ -74,7 +79,16 @@ public sealed class GetApplicationsQueryHandler(IAppDbContext db, ICurrentUser c
                             r.a.ManualPosting.Url, "Manual",
                             (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt)
                         : null,
-                r.a.AppliedAt))
+                r.a.AppliedAt,
+                // #342 (ADR 0085 §3): attention envelope projected atomically in
+                // BOTH read handlers (slice-1 AppliedAt precedent) so the shared
+                // ApplicationDto never carries a lie on either read path. Soft-delete
+                // exclusion via the FollowUp global query filter (ADR 0048 c — one SPOT).
+                // Index shape + ADR 0045 re-validation tracked in #348.
+                r.a.LastStatusChangeAt,
+                r.a.FollowUps.Any(f =>
+                    f.Outcome == FollowUpOutcome.Pending && f.ScheduledAt < now),
+                r.a.GhostedThresholdDays))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<ApplicationDto>(items, totalCount, query.Page, query.PageSize);

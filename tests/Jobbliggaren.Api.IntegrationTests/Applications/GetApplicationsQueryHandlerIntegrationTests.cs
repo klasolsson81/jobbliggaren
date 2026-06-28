@@ -84,8 +84,9 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetApplicationsQueryHandler(db, currentUser);
+        var handler = new GetApplicationsQueryHandler(db, currentUser, clock);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -100,8 +101,9 @@ public class GetApplicationsQueryHandlerIntegrationTests
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -118,7 +120,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -136,7 +138,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var (_, apps) = await SeedAsync(db, clock, _userId, draftCount: 1, submittedCount: 1);
         var submitted = apps.Single(a => a.Status == ApplicationStatus.Submitted);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -160,7 +162,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Draft"), CancellationToken.None);
 
@@ -178,7 +180,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Submitted"), CancellationToken.None);
 
@@ -199,7 +201,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var otherUserId = Guid.NewGuid();
         await SeedAsync(db, clock, otherUserId, draftCount: 3);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -217,7 +219,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 5);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
 
         var result = await handler.Handle(
             new GetApplicationsQuery(Page: 1, PageSize: 2),
@@ -226,5 +228,33 @@ public class GetApplicationsQueryHandlerIntegrationTests
         result.Items.Count.ShouldBe(2);
         result.TotalCount.ShouldBe(5);
         result.TotalPages.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsAttentionEnvelope_HasOverdueFollowUpAndGhostedThreshold()
+    {
+        // #342: the attention envelope (HasOverdueFollowUp EXISTS, LastStatusChangeAt,
+        // GhostedThresholdDays) is projected in BOTH read handlers. The pipeline suite
+        // owns the exhaustive EXISTS cases; this pins the GetApplications call-site so
+        // its identical projection cannot silently drift (ADR 0044 coverage symmetry).
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        db.JobSeekers.Add(seeker);
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddDays(-1), null, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
+
+        var dto = result.Items.Single();
+        dto.HasOverdueFollowUp.ShouldBeTrue();
+        dto.GhostedThresholdDays.ShouldBe(21);
+        dto.LastStatusChangeAt.ShouldBe(app.LastStatusChangeAt, TimeSpan.FromSeconds(1));
     }
 }

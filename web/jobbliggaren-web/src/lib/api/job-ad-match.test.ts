@@ -87,9 +87,45 @@ describe("getJobAdMatchTags", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(
       "Bearer sess-1"
     );
+    // #300 PR-5 — includeRelated defaultar till false (behaviour-inert).
     expect(JSON.parse(init.body as string)).toEqual({
       jobAdIds: [ID_A, ID_B],
+      includeRelated: false,
     });
+  });
+
+  it("#300 PR-5 — includeRelated=true skickas som body-fält (master-switch)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(validBody));
+    global.fetch = fetchMock;
+
+    await getJobAdMatchTags([ID_A], true);
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      jobAdIds: [ID_A],
+      includeRelated: true,
+    });
+  });
+
+  it("#300 PR-5 — batch parsar 'Related' (page-wipe-skydd, ny rung)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        entries: {
+          [ID_A]: {
+            grade: "Related",
+            ssykOverlap: "Match",
+            titleSimilarity: "Partial",
+            regionFit: "Match",
+            employmentFit: "Match",
+          },
+        },
+      })
+    );
+    global.fetch = fetchMock;
+
+    const result = await getJobAdMatchTags([ID_A], true);
+    // Utan att Related finns i enum:et hade record-.catch:en blankat HELA mappen.
+    expect(result.entries[ID_A]?.grade).toBe("Related");
   });
 
   it("!ok (500) → tom batch (civil degradering, inga taggar)", async () => {
@@ -186,10 +222,36 @@ describe("getJobAdMatchDetail", () => {
     expect(result?.skillOverlap.missing).toEqual(["AWS"]);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`http://test-backend/api/v1/me/job-ad-match-tags/${ID_A}`);
+    // #300 PR-5 — includeRelated defaultar till false (query-param, ASP.NET
+    // bool-binding tar "true"/"false", inte "1").
+    expect(url).toBe(
+      `http://test-backend/api/v1/me/job-ad-match-tags/${ID_A}?includeRelated=false`
+    );
     expect((init.headers as Record<string, string>).Authorization).toBe(
       "Bearer sess-1"
     );
+  });
+
+  it("#300 PR-5 — includeRelated=true skickas som query-param", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(validDetail));
+    global.fetch = fetchMock;
+
+    await getJobAdMatchDetail(ID_A, true);
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `http://test-backend/api/v1/me/job-ad-match-tags/${ID_A}?includeRelated=true`
+    );
+  });
+
+  it("#300 PR-5 — detalj parsar grade='Related' (ny rung)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ ...validDetail, grade: "Related" })
+    );
+    global.fetch = fetchMock;
+
+    const result = await getJobAdMatchDetail(ID_A, true);
+    expect(result?.grade).toBe("Related");
   });
 
   it("200 med null-body → null (ingen matchnings-sektion)", async () => {

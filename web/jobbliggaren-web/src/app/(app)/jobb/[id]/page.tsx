@@ -13,6 +13,9 @@ interface PageProps {
   // Next.js 16 App Router: params är Promise (verifierat mot
   // node_modules/next/dist/docs/.../page).
   params: Promise<{ id: string }>;
+  // #300 PR-5 (ADR 0084) — `?relaterade=on` bärs på en delad länk / hard-nav så
+  // fullsidan graderar `Related` likt list-badgen. Default AV (frånvaro).
+  searchParams: Promise<{ relaterade?: string }>;
 }
 
 /**
@@ -24,12 +27,19 @@ interface PageProps {
  * notFound (okänt id) → Next `notFound()` (404-sida). unauthorized →
  * `/logga-in`. rateLimited/error → civil felruta.
  */
-export default async function JobbDetailPage({ params }: PageProps) {
+export default async function JobbDetailPage({
+  params,
+  searchParams,
+}: PageProps) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
   const { id } = await params;
+  // #300 PR-5 — master-switch för related-gradering i detalj-anropet. Parsa BARA
+  // on-värdet (paritet med listans page.tsx). Default AV.
+  const { relaterade } = await searchParams;
+  const includeRelated = relaterade === "on";
   const result = await getJobAd(id);
 
   switch (result.kind) {
@@ -41,7 +51,7 @@ export default async function JobbDetailPage({ params }: PageProps) {
       const [initialSaved, initialApplied, match] = await Promise.all([
         isJobAdSaved(id),
         hasAppliedJobAd(id),
-        getJobAdMatchDetail(id),
+        getJobAdMatchDetail(id, includeRelated),
       ]);
       // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
       // byggs ingen granularitets-karta). En inloggad användare utan match

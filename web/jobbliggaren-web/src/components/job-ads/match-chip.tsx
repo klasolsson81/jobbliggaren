@@ -25,15 +25,24 @@ import type { MatchGrade } from "@/lib/dto/job-ad-match";
 
 // Grad → modifier (design-reviewer 2026-06-20, F4-16); etiketten resolveras via
 // next-intl (`ui.match.grade.*`). Inga utropstecken, ingen emoji, ingen
-// versalisering (§10). Ladder: Grundmatch → Bra match → Stark match →
-// Toppmatch. KEEP these modifier names stable — #290 ändrade BARA CSS:en bakom
-// dem (alla fyra blev solida fyllningar på `--jp-leaf-*`-rampen, Topp -> Grund
-// i avtagande vikt; hierarki via fyllvikt på en grön hue, ej ny token/hue).
+// versalisering (§10). Ladder: Relaterat yrke → Grundmatch → Bra match →
+// Stark match → Toppmatch. KEEP these modifier names stable — #290 ändrade BARA
+// CSS:en bakom de fyra gröna stegen (alla blev solida fyllningar på
+// `--jp-leaf-*`-rampen, Topp -> Grund i avtagande vikt; hierarki via fyllvikt på
+// en grön hue, ej ny token/hue).
+//
+// #300 PR-5 (design-reviewer bind, ADR 0084): `Related` är INTE ett femte grönt
+// blad-steg. En femte fyllning mellan Basic (leaf-50) och Good (leaf-100) hade
+// krävt en NY leaf-hue (§5-Blocker). I stället bär den den etablerade
+// status-neutral-chip-behandlingen (surface-2 fill, ink-2 text, border-strong) —
+// den läser som "annat yrke", inte "svagare grönt". Pricken följer currentColor
+// (ink-2). Färg bär aldrig betydelse ensam: den synliga labeln ÄR namnet.
 const GRADE_MODIFIER: Record<MatchGrade, string> = {
   Top: "jp-matchchip--top",
   Strong: "jp-matchchip--high",
   Good: "jp-matchchip--mid",
   Basic: "jp-matchchip--low",
+  Related: "jp-matchchip--related",
 };
 
 export interface MatchChipProps {

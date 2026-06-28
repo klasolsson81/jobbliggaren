@@ -37,7 +37,7 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
     expect(leafPaths(enJobads)).toEqual(leafPaths(svJobads));
   });
 
-  it("grade-filter-nycklarna finns i båda katalogerna (STEG 5)", () => {
+  it("grade-filter-nycklarna finns i båda katalogerna (STEG 5 + #300 PR-5)", () => {
     const required = [
       "ui.gradeFilter.toggleLabel",
       "ui.gradeFilter.groupLabel",
@@ -45,6 +45,13 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
       "ui.gradeFilter.grade.Basic",
       "ui.gradeFilter.grade.Good",
       "ui.gradeFilter.grade.Strong",
+      // #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:n + Related-graden.
+      "ui.gradeFilter.relatedToggleLabel",
+      "ui.gradeFilter.relatedToggleHelp",
+      "ui.gradeFilter.grade.Related",
+      // Badge + modal-förklaring för Related.
+      "ui.match.grade.Related",
+      "ui.match.relatedYrkeReason",
     ];
     const sv = new Set(leafPaths(svJobads));
     const en = new Set(leafPaths(enJobads));
@@ -63,18 +70,20 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
     expect(en.has("ui.gradeFilter.grade.Top")).toBe(false);
   });
 
-  // issue #291 — drift-guard: filtret (`gradeFilter.grade.*`) och kort-badgen
-  // (`match.grade.*`, via MatchChip) MÅSTE bära IDENTISKA ord för de tre
+  // issue #291 / #300 PR-5 — drift-guard: filtret (`gradeFilter.grade.*`) och
+  // kort-badgen (`match.grade.*`, via MatchChip) MÅSTE bära IDENTISKA ord för de
   // filtrerbara graderna. Det var just den driften (Grund/Bra/Stark vs
   // Grundmatch/Bra match/Stark match) som öppnade #291. Pinnas i bägge
-  // katalogerna så vokabulären inte kan glida isär igen.
+  // katalogerna så vokabulären inte kan glida isär igen. #300 PR-5 lade `Related`
+  // ("Relaterat yrke") som en fjärde filtrerbar grad (bakom toggle:n) — den ingår
+  // därför i paritets-loopen.
   it("filter-graderna delar EXAKT samma ord som kort-badgen (sv + en)", () => {
     const catalogs: ReadonlyArray<[string, unknown]> = [
       ["sv", svJobads],
       ["en", enJobads],
     ];
     for (const [locale, catalog] of catalogs) {
-      for (const grade of ["Basic", "Good", "Strong"] as const) {
+      for (const grade of ["Basic", "Related", "Good", "Strong"] as const) {
         const filterLabel = leaf(catalog, `ui.gradeFilter.grade.${grade}`);
         const badgeLabel = leaf(catalog, `ui.match.grade.${grade}`);
         expect(typeof filterLabel, `${locale} ${grade} filter-label saknas`).toBe(

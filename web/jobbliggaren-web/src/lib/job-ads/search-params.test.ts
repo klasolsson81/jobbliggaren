@@ -144,3 +144,36 @@ describe("buildJobbHref issue #292 (matchning huvudbrytare)", () => {
     ).toBe("/jobb?matchGrades=Strong&matchning=off&q=volvo");
   });
 });
+
+describe("buildJobbHref #300 PR-5 (relaterade — Visa relaterade också)", () => {
+  it("includeRelated=true emitterar ?relaterade=on", () => {
+    expect(buildJobbHref({ ...empty, includeRelated: true })).toBe(
+      "/jobb?relaterade=on",
+    );
+  });
+
+  it("includeRelated=false (AV) emitterar INTET param (default AV = frånvaro)", () => {
+    expect(buildJobbHref({ ...empty, includeRelated: false })).toBe("/jobb");
+  });
+
+  it("includeRelated utelämnad (undefined) emitterar INTET param", () => {
+    // `empty` saknar includeRelated helt → samma som AV (frånvaro, ren URL).
+    expect(buildJobbHref(empty)).toBe("/jobb");
+  });
+
+  it("ordning: matchGrades → matchning → relaterade → q (stabil URL-form)", () => {
+    // relaterade placeras intill matchnings-axelns övriga params (efter matchning,
+    // före q) så delningsbara URL:er får stabil form.
+    expect(
+      buildJobbHref({
+        ...empty,
+        q: "volvo",
+        matchGrades: ["Related", "Strong"],
+        matchningOff: true,
+        includeRelated: true,
+      }),
+    ).toBe(
+      "/jobb?matchGrades=Related&matchGrades=Strong&matchning=off&relaterade=on&q=volvo",
+    );
+  });
+});

@@ -32,6 +32,7 @@ function renderToolbar(over: ToolbarOverrides = {}) {
       employmentType={[]}
       worktimeExtent={[]}
       matchGrades={[]}
+      includeRelated={false}
       resolvedLabels={{}}
       q=""
       sortBy="PublishedAtDesc"
@@ -321,6 +322,45 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       expect(pushMock).toHaveBeenCalledWith("/jobb");
     });
 
+    it("#300 PR-5 — related-toggle PÅ navigerar med ?relaterade=on (utan commit-flaggan)", async () => {
+      const user = userEvent.setup();
+      renderToolbar({ matchActive: true, includeRelated: false });
+      await user.click(
+        screen.getByRole("switch", { name: "Visa relaterade också" }),
+      );
+      // Runtime-view-state → ingen ?commit=true.
+      expect(pushMock).toHaveBeenCalledWith("/jobb?relaterade=on");
+    });
+
+    it("#300 PR-5 — related-toggle AV droppar Related ur matchGrades (state/URL-divergens-skydd)", async () => {
+      const user = userEvent.setup();
+      // Toggle på + Related smalnat i grad-listan → slå AV → Related droppas,
+      // ?relaterade=on försvinner, men de övriga grad-valen behålls.
+      renderToolbar({
+        matchActive: true,
+        includeRelated: true,
+        matchGrades: ["Basic", "Related", "Good"],
+      });
+      await user.click(
+        screen.getByRole("switch", { name: "Visa relaterade också" }),
+      );
+      expect(pushMock).toHaveBeenCalledWith(
+        "/jobb?matchGrades=Basic&matchGrades=Good",
+      );
+    });
+
+    it("#300 PR-5 — Matchning AV nollar även includeRelated (forget-semantik)", async () => {
+      const user = userEvent.setup();
+      renderToolbar({
+        matchActive: true,
+        includeRelated: true,
+        matchGrades: ["Related"],
+      });
+      await user.click(screen.getByRole("switch", { name: "Matchning" }));
+      // matchning=off, matchGrades tömt, relaterade borttaget → ren off-URL.
+      expect(pushMock).toHaveBeenCalledWith("/jobb?matchning=off");
+    });
+
     it("hjälpraden visas när matchningen är PÅ (matchActive), inte i av-läget", () => {
       const HELP = /Filtrerar listan efter din matchningsnivå/;
       const { rerender } = renderToolbar({
@@ -338,6 +378,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
           employmentType={[]}
           worktimeExtent={[]}
           matchGrades={[]}
+          includeRelated={false}
           resolvedLabels={{}}
           q=""
           sortBy="PublishedAtDesc"

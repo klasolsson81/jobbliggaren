@@ -12,21 +12,32 @@ import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 const onChange = vi.fn();
 const onTurnOff = vi.fn();
 const onTurnOn = vi.fn();
+const onRelatedToggle = vi.fn();
 
 beforeEach(() => {
   onChange.mockClear();
   onTurnOff.mockClear();
   onTurnOn.mockClear();
+  onRelatedToggle.mockClear();
 });
 
-function renderFilter(over: { active: boolean; selected?: string[] }) {
+function renderFilter(over: {
+  active: boolean;
+  selected?: string[];
+  // #300 PR-5 — "Visa relaterade också"-toggle:n. Default AV (paritet med
+  // produktens default + den rena URL:en) så de befintliga STEG 5-testerna
+  // (3 grad-kryssrutor, Related dold) förblir oförändrade.
+  includeRelated?: boolean;
+}) {
   return render(
     <JobbMatchGradeFilter
       active={over.active}
       selected={over.selected ?? []}
+      includeRelated={over.includeRelated ?? false}
       onChange={onChange}
       onTurnOff={onTurnOff}
       onTurnOn={onTurnOn}
+      onRelatedToggle={onRelatedToggle}
     />,
   );
 }
@@ -144,5 +155,103 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
     expect(screen.queryByText("Topp")).toBeNull();
     expect(screen.queryByText("Toppmatch")).toBeNull();
     expect(screen.queryByRole("checkbox", { name: "Topp" })).toBeNull();
+  });
+});
+
+// #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:n + Related-kryssrutan +
+// state-model flow-trap (design-reviewer-flaggad: "alla visade = []" mot det
+// SYNLIGA setet, ej fast längd; AV droppar Related ur valet via föräldern).
+describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
+  it("related-toggle:n finns INTE när Matchning är av (renderas inne i PÅ-blocket)", () => {
+    renderFilter({ active: false });
+    expect(
+      screen.queryByRole("switch", { name: "Visa relaterade också" }),
+    ).toBeNull();
+  });
+
+  it("related-toggle:n visas när Matchning är PÅ (egen kontroll, default av)", () => {
+    renderFilter({ active: true, includeRelated: false });
+    const related = screen.getByRole("switch", {
+      name: "Visa relaterade också",
+    });
+    expect(related).toBeInTheDocument();
+    expect(related).toHaveAttribute("aria-checked", "false");
+    // Master-switchen "Matchning" finns kvar separat (ej hopslagen).
+    expect(
+      screen.getByRole("switch", { name: "Matchning" }),
+    ).toBeInTheDocument();
+  });
+
+  it("Related-kryssrutan visas ENBART när related-toggle:n är på, mellan Grund och Bra", () => {
+    // Toggle av → 3 kryssrutor, ingen "Relaterat yrke".
+    const { unmount } = renderFilter({ active: true, includeRelated: false });
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(screen.queryByRole("checkbox", { name: "Relaterat yrke" })).toBeNull();
+    unmount();
+
+    // Toggle på → 4 kryssrutor; Related mellan Grund och Bra (LIST_MATCH_GRADES).
+    renderFilter({ active: true, includeRelated: true });
+    const boxes = screen.getAllByRole("checkbox");
+    expect(boxes).toHaveLength(4);
+    const labels = boxes.map((b) => b.textContent);
+    expect(labels).toEqual([
+      "Grundmatch",
+      "Relaterat yrke",
+      "Bra match",
+      "Stark match",
+    ]);
+  });
+
+  it("växla related-toggle PÅ → onRelatedToggle(true)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, includeRelated: false });
+    await user.click(
+      screen.getByRole("switch", { name: "Visa relaterade också" }),
+    );
+    expect(onRelatedToggle).toHaveBeenCalledWith(true);
+  });
+
+  it("växla related-toggle AV → onRelatedToggle(false) (föräldern droppar Related ur valet)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, includeRelated: true });
+    await user.click(
+      screen.getByRole("switch", { name: "Visa relaterade också" }),
+    );
+    expect(onRelatedToggle).toHaveBeenCalledWith(false);
+  });
+
+  it("STATE-TRAP: 'alla visade = []' räknas mot det SYNLIGA setet — markera sista av FYRA normaliseras till []", async () => {
+    const user = userEvent.setup();
+    // Toggle på (4 synliga); valt = 3 av 4 → markera den fjärde → alla fyra
+    // synliga → normaliseras till [] (ren URL), INTE en kvarvarande lista.
+    renderFilter({
+      active: true,
+      includeRelated: true,
+      selected: ["Basic", "Related", "Good"],
+    });
+    await user.click(screen.getByRole("checkbox", { name: "Stark match" }));
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("STATE-TRAP: med toggle PÅ + tom selected = alla FYRA ikryssade (mot synliga setet)", () => {
+    renderFilter({ active: true, includeRelated: true, selected: [] });
+    const boxes = screen.getAllByRole("checkbox");
+    expect(boxes).toHaveLength(4);
+    for (const box of boxes) {
+      expect(box).toHaveAttribute("aria-checked", "true");
+    }
+  });
+
+  it("STATE-TRAP: avmarkera Related från all-visad (toggle på) smalnar till de övriga tre", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, includeRelated: true, selected: [] });
+    await user.click(screen.getByRole("checkbox", { name: "Relaterat yrke" }));
+    expect(onChange).toHaveBeenCalledWith(["Basic", "Good", "Strong"]);
+  });
+
+  it("STATE-TRAP: med toggle AV ingår Related ALDRIG i 'alla visade' — 3 ikryssade, ej 4", () => {
+    // Även om selected vore tom räknas bara de 3 synliga (Related dold).
+    renderFilter({ active: true, includeRelated: false, selected: [] });
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
   });
 });

@@ -108,6 +108,7 @@
       "uploadCvFoot": "Upload a CV to match on skills and requirements. It is required for a Strong match and a Top match.",
       "youHave": "You have: {items}",
       "alsoRequested": "The ad also asks for: {items}",
+      "relatedYrkeReason": "A similar occupation, not one you picked. That is why the ad ranks below your exact matches.",
       "ort": {
         "matchedMunicipalities": "Municipality that matches: {items}",
         "matchedRegions": "Region that matches: {items}",
@@ -118,7 +119,8 @@
         "Top": "Top match",
         "Strong": "Strong match",
         "Good": "Good match",
-        "Basic": "Basic match"
+        "Basic": "Basic match",
+        "Related": "Related occupation"
       },
       "verdict": {
         "Match": "Matches",
@@ -164,8 +166,11 @@
       "toggleLabel": "Matching",
       "groupLabel": "Show match grades",
       "help": "Filters the list by your match level. Top match is based on your CV and appears only on the cards, not as its own filter. Turn matching off to hide the levels entirely.",
+      "relatedToggleLabel": "Show related too",
+      "relatedToggleHelp": "Includes occupations similar to the ones you picked. They are tagged Related occupation and ranked below your exact matches.",
       "grade": {
         "Basic": "Basic match",
+        "Related": "Related occupation",
         "Good": "Good match",
         "Strong": "Strong match"
       }

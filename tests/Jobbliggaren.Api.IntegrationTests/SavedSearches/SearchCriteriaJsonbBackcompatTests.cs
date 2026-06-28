@@ -29,29 +29,19 @@ namespace Jobbliggaren.Api.IntegrationTests.SavedSearches;
 //   5. Roundtrip: Write → Read = strukturellt samma VO.
 //
 // RÖD tills konvertern implementerar C2-formen.
+// Test-isolation (rename-collateral, ADR 0069). This fixture inserts legacy "Ssyk" rows
+// into the shared [Collection("Api")] saved_searches table; left behind they poison any
+// whole-table assertion in the collection (e.g. C2ReverseLookupMigrationTests' migration
+// guard). #352: the class now derives from MalformedJsonbSeedTestBase, which clears
+// saved_searches on BOTH entry and exit — so neither this fixture nor its neighbours depend
+// on [Collection] execution order (the JobbPilot→Jobbliggaren rename reordered it), and the
+// C2-neighbour hazard noted above is closed even when this fixture's last toxic-seed test has
+// no successor to DELETE its row.
 [Collection("Api")]
-public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAsyncLifetime
+public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
+    : MalformedJsonbSeedTestBase(factory)
 {
-    private readonly ApiFactory _factory = factory;
-
-    // Test-isolation (rename-collateral, ADR 0069). This fixture inserts legacy "Ssyk" rows
-    // into the shared [Collection("Api")] saved_searches table; left behind they poison any
-    // whole-table assertion in the collection (e.g. C2ReverseLookupMigrationTests' migration
-    // guard). Clear before every test so neither this fixture nor its neighbours depend on
-    // [Collection] execution order (the JobbPilot→Jobbliggaren rename reordered it).
-    public async ValueTask InitializeAsync()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM saved_searches;", TestContext.Current.CancellationToken);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
-    }
+    protected override IReadOnlyList<string> TablesToClear => ["saved_searches"];
 
     private static async Task<JobSeeker> SeedSeekerAsync(AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
     {
@@ -66,7 +56,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     private async Task<Guid> InsertRawSavedSearchAsync(
         Guid jobSeekerId, string criteriaJson, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var conn = (NpgsqlConnection)db.Database.GetDbConnection();
         await conn.OpenAsync(ct);
@@ -94,7 +84,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     // inte bara vad konvertern läser tillbaka).
     private async Task<string> ReadRawCriteriaAsync(Guid savedSearchId, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var conn = (NpgsqlConnection)db.Database.GetDbConnection();
         await conn.OpenAsync(ct);
@@ -122,7 +112,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     public async Task NewKeys_ScalarForm_ReadsAsSingleElementList()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
@@ -131,7 +121,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
         var json = """{"OccupationGroup":"g1","Municipality":"m1","Region":"y","Q":null,"SortBy":0}""";
         var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
 
-        using var readScope = _factory.Services.CreateScope();
+        using var readScope = Factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var saved = await readDb.SavedSearches
             .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
@@ -147,7 +137,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     public async Task NewKeys_ArrayForm_ReadsAsList()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
@@ -155,7 +145,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
         var json = """{"OccupationGroup":["g1","g2"],"Municipality":["m1"],"Region":[],"Q":"backend","SortBy":0}""";
         var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
 
-        using var readScope = _factory.Services.CreateScope();
+        using var readScope = Factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var saved = await readDb.SavedSearches
             .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
@@ -177,13 +167,13 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     public async Task LegacySsykKey_FailsLoud_WithMigrationGuidance(string legacyJson)
     {
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
         var id = await InsertRawSavedSearchAsync(seeker.Id.Value, legacyJson, ct);
 
-        using var readScope = _factory.Services.CreateScope();
+        using var readScope = Factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var ex = await Should.ThrowAsync<Exception>(async () =>
@@ -205,7 +195,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     public async Task MissingNewKeys_ReadAsEmptyLists_CreatePasses()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
@@ -215,7 +205,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
         var json = """{"Region":["y"],"Q":null,"SortBy":0}""";
         var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
 
-        using var readScope = _factory.Services.CreateScope();
+        using var readScope = Factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var saved = await readDb.SavedSearches
             .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
@@ -233,7 +223,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
         // som tomma listor → Create passerar (saknad nyckel → tom lista, samma
         // tolerans-mönster som OccupationGroup/Municipality i (3)).
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
@@ -243,7 +233,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
         var json = """{"OccupationGroup":["g1"],"Municipality":[],"Region":[],"Q":null,"SortBy":0}""";
         var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
 
-        using var readScope = _factory.Services.CreateScope();
+        using var readScope = Factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var saved = await readDb.SavedSearches
             .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
@@ -266,7 +256,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     public async Task Write_EmitsNewKeys_AndNeverSsyk()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
@@ -302,7 +292,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     public async Task NewForm_RoundTripsThroughEf()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
@@ -319,7 +309,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
         db.SavedSearches.Add(saved);
         await db.SaveChangesAsync(ct);
 
-        using var readScope = _factory.Services.CreateScope();
+        using var readScope = Factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var reloaded = await readDb.SavedSearches
             .SingleAsync(s => s.Id == saved.Id, ct);
@@ -345,13 +335,13 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory) : IAs
     public async Task MalformedNewKeys_DefaultDeny_Throws(string malformedJson)
     {
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await SeedSeekerAsync(db, clock, ct);
         var id = await InsertRawSavedSearchAsync(seeker.Id.Value, malformedJson, ct);
 
-        using var readScope = _factory.Services.CreateScope();
+        using var readScope = Factory.Services.CreateScope();
         var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // Tolerant default-deny: tyst koercion förbjuden. Materialisering ska

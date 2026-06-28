@@ -315,7 +315,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     it("avmarkera SISTA graden navigerar till tom lista (= alla visas), switchen förblir PÅ", async () => {
       const user = userEvent.setup();
       renderToolbar({ matchActive: true, matchGrades: ["Strong"] });
-      await user.click(screen.getByRole("checkbox", { name: "Stark" }));
+      await user.click(screen.getByRole("checkbox", { name: "Stark match" }));
       // Tom matchGrades + matchningOff=false → buildJobbHref utelämnar bägge
       // paramen → ren /jobb. (issue #292: empty = alla visas, fortfarande PÅ.)
       expect(pushMock).toHaveBeenCalledWith("/jobb");

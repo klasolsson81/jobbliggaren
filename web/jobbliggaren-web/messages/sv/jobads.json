@@ -163,11 +163,11 @@
     "gradeFilter": {
       "toggleLabel": "Matchning",
       "groupLabel": "Visa matchningsgrader",
-      "help": "Filtrerar listan efter din matchningsnivå. Avmarkera en grad för att dölja den, eller stäng av matchningen helt.",
+      "help": "Filtrerar listan efter din matchningsnivå. Toppmatch bygger på ditt CV och visas bara på korten, inte som eget filter. Stäng av matchningen för att dölja nivåerna helt.",
       "grade": {
-        "Basic": "Grund",
-        "Good": "Bra",
-        "Strong": "Stark"
+        "Basic": "Grundmatch",
+        "Good": "Bra match",
+        "Strong": "Stark match"
       }
     },
     "pagination": {

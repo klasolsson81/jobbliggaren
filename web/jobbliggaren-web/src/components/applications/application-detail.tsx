@@ -24,24 +24,6 @@ interface ApplicationDetailProps {
   headless?: boolean;
 }
 
-const BADGE_COLOR_VAR: Record<string, string> = {
-  info: "var(--jp-info)",
-  brand: "var(--jp-accent-700)", /* G1: brand-interaktionsfärg = accent (navy är logo-only) */
-  success: "var(--jp-success)",
-  warning: "var(--jp-warning)",
-  danger: "var(--jp-danger)",
-  neutral: "var(--jp-ink-3)",
-};
-
-const SECTION_LABEL_STYLE: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--jp-ink-2)",
-  marginBottom: 10,
-};
-
 interface TimelineEvent {
   date: string;
   label: string;
@@ -88,7 +70,6 @@ export function ApplicationDetail({
     : tUi("detail.fallbackTitle", { shortId });
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
-  const statusColor = BADGE_COLOR_VAR[variant];
   const statusLabel = applicationStatusLabel(t, application.status);
 
   // Nästa öppna uppföljning (tidigast schemalagd, ej besvarad) → "Nästa"-
@@ -182,45 +163,24 @@ export function ApplicationDetail({
         {/* Status-block (v3 jp-modal__match-stil). Klas pre-F6 Prompt 3
             (2026-05-20): cirkulär status-ikon borttagen — såg AI-genererad
             ut. Status markeras nu med en 4px vänsterkant-stapel i status-
-            färg (civic-utility, dovt). Neutral kort-bg + border (CSS-
-            default) så stapeln blir den enda statusindikatorn. */}
-        <div
-          className="jp-modal__match"
-          style={{
-            borderLeft: `4px solid ${statusColor}`,
-          }}
-        >
+            färg (civic-utility, dovt). Färg + label-färg styrs av
+            data-status-variant (#344, speglar .jp-tag[data-tag="status-*"]).
+            Neutral kort-bg + border (CSS-default) så stapeln blir den enda
+            statusindikatorn. */}
+        <div className="jp-modal__match jp-status-block" data-status-variant={variant}>
           {/* id="jp-modal-desc" OVILLKORLIGT här (status-blocket renderas
               alltid) → ApplicationModalShell aria-describedby dinglar
               aldrig (F5 code-reviewer M1, F3 job-ad-detail.tsx-mönster:
               beskrivnings-id alltid i DOM). */}
           <div className="jp-modal__match__expl" id="jp-modal-desc">
-            <div
-              style={{
-                fontSize: 13,
-                color: statusColor,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                fontWeight: 700,
-                marginBottom: 2,
-              }}
-            >
+            <div className="jp-status-block__label">
               {tUi("detail.statusLabel")}
             </div>
-            <b style={{ fontSize: 16 }}>{statusLabel}</b>
+            <b className="jp-status-block__value">{statusLabel}</b>
             {nextDate && (
-              <div
-                style={{
-                  marginTop: 4,
-                  fontSize: 14,
-                  color: "var(--jp-ink-2)",
-                }}
-              >
+              <div className="jp-status-block__next">
                 {tUi("detail.nextFollowUp")}{" "}
-                <span
-                  className="jp-mono"
-                  style={{ color: "var(--jp-ink-1)", fontWeight: 600 }}
-                >
+                <span className="jp-mono jp-status-block__next-date">
                   {nextDate}
                 </span>
               </div>
@@ -230,67 +190,62 @@ export function ApplicationDetail({
 
         {/* Uppdatera status — REAL transition (ALLOWED_TRANSITIONS) +
             ADR 0047 Area-5 destruktiv-bekräftelse. StatusEditCard
-            oförändrad — bevarat beteende, ej regression. */}
-        <StatusEditCard
-          applicationId={application.id}
-          currentStatus={application.status}
-        />
+            oförändrad — bevarat beteende, ej regression. Hårfin
+            border-top + spacing separerar "var jag är" (status-blocket)
+            från "vad jag kan göra" (åtgärden) — ADR 0047 (#344). */}
+        <div className="jp-status-action">
+          <StatusEditCard
+            applicationId={application.id}
+            currentStatus={application.status}
+          />
+        </div>
 
-        {/* Tidslinje — REALA events, nyast först */}
-        <div>
-          <div style={SECTION_LABEL_STYLE}>{tUi("detail.timelineLabel")}</div>
-          {timeline.length === 0 ? (
-            <p className="text-body-sm text-text-secondary">
-              {tUi("detail.timelineEmpty")}
-            </p>
-          ) : (
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
+        {/* Tidslinje — REALA events, nyast först. Kollapsad som default via
+            native <details> (#344): redundant med status-blockets "Nästa",
+            FollowUpsSection och NotesSection, så den göms bakom en summary.
+            Native <details> håller ApplicationDetail som Server Component
+            (ingen "use client") och är tangentbords-/SR-tillgänglig per
+            default. Tom-fallet renderar ingen <details> alls. */}
+        {timeline.length > 0 && (
+          <details className="jp-timeline">
+            {/* No aria-label: the visible "Tidslinje" is the accessible name
+                (WCAG 2.5.3 Label in Name), and native <details>/<summary>
+                already announces the expand/collapse state. */}
+            <summary className="jp-timeline__summary">
+              <svg
+                className="jp-timeline__chevron"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6 4l4 4-4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {tUi("detail.timelineLabel")}
+            </summary>
+            <ul className="jp-timeline__list">
               {timeline.map((e, i) => (
-                <li
-                  key={`${e.date}-${i}`}
-                  style={{
-                    display: "flex",
-                    gap: 14,
-                    alignItems: "baseline",
-                  }}
-                >
+                <li key={`${e.date}-${i}`} className="jp-timeline__item">
+                  <span className="jp-mono jp-timeline__date">{e.date}</span>
                   <span
-                    className="jp-mono"
-                    style={{
-                      fontSize: 12,
-                      color: "var(--jp-ink-3)",
-                      width: 120,
-                      flexShrink: 0,
-                      // Längsta sv-SE month:"short"-datum ("30 sep. 2026")
-                      // får aldrig wrappa/trunkeras, light+dark (F5
-                      // design-reviewer M2).
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {e.date}
-                  </span>
-                  <span
-                    style={{
-                      color: "var(--jp-ink-1)",
-                      fontWeight: e.primary ? 600 : 400,
-                    }}
+                    className={
+                      e.primary
+                        ? "jp-timeline__label jp-timeline__label--primary"
+                        : "jp-timeline__label"
+                    }
                   >
                     {e.label}
                   </span>
                 </li>
               ))}
             </ul>
-          )}
-        </div>
+          </details>
+        )}
 
         {/* Uppföljningar — REAL followUps[] (Prompt 4: disclosure-mönster
             via client-island FollowUpsSection. State är lokal i client-ön;
@@ -308,14 +263,14 @@ export function ApplicationDetail({
           notes={application.notes}
         />
 
-        {/* Personligt brev — endast om coverLetter finns */}
+        {/* Personligt brev — endast om coverLetter finns. Sist + 68ch
+            läsbredd (#344). */}
         {application.coverLetter && (
           <div>
-            <div style={SECTION_LABEL_STYLE}>{tUi("detail.coverLetterLabel")}</div>
-            <p
-              className="jp-modal__description"
-              style={{ maxWidth: "68ch" }}
-            >
+            <div className="jp-section-label">
+              {tUi("detail.coverLetterLabel")}
+            </div>
+            <p className="jp-modal__description jp-detail-prose">
               {application.coverLetter}
             </p>
           </div>

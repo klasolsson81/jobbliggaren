@@ -2670,6 +2670,175 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin-top: -1px;
 }
 
+/* ── ApplicationDetail — token-only section primitives (#344, ADR 0085 PR E) ──
+   Replaces the inline CSSProperties objects (SECTION_LABEL_STYLE), the inline
+   status-block styles and the inline timeline <ul>/<li> styles that lived in
+   application-detail.tsx. No magic px/colour in the TSX — every value rides a
+   --jp-* token. LIGHT mode only (ADR 0081). */
+
+/* Shared section label — previously duplicated as SECTION_LABEL_STYLE in
+   application-detail / follow-ups-section / notes-section (DRY). */
+.jp-section-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-ink-2);
+  margin-bottom: 10px;
+}
+
+/* Status block (.jp-modal__match) — the 4px status edge + the status label
+   colour key off data-status-variant, mirroring the .jp-tag[data-tag="status-*"]
+   pattern (#336). The 4px edge is decorative (the label text carries the
+   meaning, WCAG 1.4.1); the LABEL text uses the same status token. Neutral edge
+   stays --jp-ink-3 (decorative-only is fine per #344 §5). */
+/* Intentionally overrides the composed .jp-modal__match { display:flex }:
+   the status block has a single child, so block layout is neutral today.
+   A future second child would reflow — revisit display if one is added. */
+.jp-status-block {
+  display: block;
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-left-color: var(--jp-ink-3);
+}
+.jp-status-block[data-status-variant="info"] {
+  border-left-color: var(--jp-info);
+}
+.jp-status-block[data-status-variant="brand"] {
+  border-left-color: var(--jp-accent-700);
+}
+.jp-status-block[data-status-variant="success"] {
+  border-left-color: var(--jp-success);
+}
+.jp-status-block[data-status-variant="warning"] {
+  border-left-color: var(--jp-warning);
+}
+.jp-status-block[data-status-variant="danger"] {
+  border-left-color: var(--jp-danger);
+}
+.jp-status-block[data-status-variant="neutral"] {
+  border-left-color: var(--jp-ink-3);
+}
+/* Status label — uppercase key line, coloured per status variant. */
+.jp-status-block__label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+  color: var(--jp-ink-2);
+}
+.jp-status-block[data-status-variant="info"] .jp-status-block__label {
+  color: var(--jp-info);
+}
+.jp-status-block[data-status-variant="brand"] .jp-status-block__label {
+  color: var(--jp-accent-700);
+}
+.jp-status-block[data-status-variant="success"] .jp-status-block__label {
+  color: var(--jp-success);
+}
+.jp-status-block[data-status-variant="warning"] .jp-status-block__label {
+  color: var(--jp-warning);
+}
+.jp-status-block[data-status-variant="danger"] .jp-status-block__label {
+  color: var(--jp-danger);
+}
+.jp-status-block[data-status-variant="neutral"] .jp-status-block__label {
+  /* ink-2 (not ink-3) so the neutral label clears contrast as info-bearing
+     text — Klas "no gray text" direction (#344 §5). */
+  color: var(--jp-ink-2);
+}
+.jp-status-block__value {
+  font-size: 16px;
+}
+.jp-status-block__next {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--jp-ink-2);
+}
+.jp-status-block__next-date {
+  color: var(--jp-ink-1);
+  font-weight: 600;
+}
+
+/* Status / action separation (ADR 0047 — "where I am" vs "what I can do").
+   Hairline + spacing above the StatusEditCard so the system status block and
+   the action card read as two zones. Subtle, civic — no heavy divider. */
+.jp-status-action {
+  padding-top: 20px;
+  border-top: 1px solid var(--jp-border);
+}
+
+/* Timeline — collapsed-by-default native <details> disclosure (#344). Native
+   <details> keeps ApplicationDetail a Server Component (no client JS). The
+   summary is styled as a section label with a CSS-only chevron that rotates
+   when open. The native marker is removed. */
+.jp-timeline__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  /* reuse section-label typography */
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-ink-2);
+}
+.jp-timeline__summary::-webkit-details-marker {
+  display: none;
+}
+.jp-timeline__summary:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+  border-radius: var(--jp-r-sm);
+}
+.jp-timeline__chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--jp-ink-3);
+  transition: transform 120ms ease;
+}
+.jp-timeline[open] .jp-timeline__summary .jp-timeline__chevron {
+  transform: rotate(90deg);
+}
+.jp-timeline__list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-timeline__item {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+}
+.jp-timeline__date {
+  /* Längsta sv-SE month:"short"-datum ("30 sep. 2026") får aldrig
+     wrappa/trunkeras (F5 design-reviewer M2). ink-2 not ink-3 (#344 §5). */
+  font-size: 12px;
+  color: var(--jp-ink-2);
+  width: 120px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.jp-timeline__label {
+  color: var(--jp-ink-1);
+  font-weight: 400;
+}
+.jp-timeline__label--primary {
+  font-weight: 600;
+}
+
+/* Cover-letter / detail prose readability cap (was inline maxWidth:"68ch"). */
+.jp-detail-prose {
+  max-width: 68ch;
+}
+
 /* ── Segment (radiogroup-pill) — F6 Prompt 2 Inställningar ────
    Aktiv option = navy-800 fyll + vit text i båda lägena (primary-
    knappens "aldrig inverterad"-regel, HANDOVER §5.1). Disabled =

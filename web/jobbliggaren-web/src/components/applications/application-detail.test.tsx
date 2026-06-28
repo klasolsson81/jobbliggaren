@@ -66,8 +66,26 @@ describe("ApplicationDetail", () => {
   it("komponerar tidslinjen av REALA events (skapad + status)", () => {
     render(<ApplicationDetail application={makeDetail()} />);
     expect(screen.getByText("Tidslinje")).toBeInTheDocument();
+    // Native <details> håller barnen i DOM även kollapsad (jsdom renderar inte
+    // display:none-dolning) → events resolvar fortfarande via getByText.
     expect(screen.getByText("Ansökan skapades")).toBeInTheDocument();
     expect(screen.getByText("Status: Skickad")).toBeInTheDocument();
+  });
+
+  it("tidslinjen är kollapsad som default (<details> utan open-attribut)", () => {
+    const { container } = render(
+      <ApplicationDetail application={makeDetail()} />
+    );
+    const details = container.querySelector("details.jp-timeline");
+    expect(details).not.toBeNull();
+    // Kollapsad = inget `open`-attribut på <details>.
+    expect(details?.hasAttribute("open")).toBe(false);
+  });
+
+  it("renderar Tidslinje-etiketten som ett <summary>", () => {
+    render(<ApplicationDetail application={makeDetail()} />);
+    const summary = screen.getByText("Tidslinje").closest("summary");
+    expect(summary).not.toBeNull();
   });
 
   it("renderar real notes[] och utelämnar coverLetter när null", () => {

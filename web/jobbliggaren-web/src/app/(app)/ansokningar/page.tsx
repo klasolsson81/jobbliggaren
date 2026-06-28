@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { Plus, Search } from "lucide-react";
+import { FileText, Plus, Search } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -84,6 +84,16 @@ export default async function AnsokningarPage() {
                 bibehållen: vit knapp i plattan vs grön i empty-kortet. */}
             <Link href="/ansokningar/ny" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" /> {t("ansokningar.newApplication")}
+            </Link>
+            {/* #316 — sekundär entry till AF-aktivitetsrapport-hjälpen.
+                Ghost-på-gradient (.jp-pagehero .jp-btn--ghost = vit kant/ink),
+                en-primary bevarad. */}
+            <Link
+              href="/ansokningar/aktivitetsrapport"
+              className="jp-btn jp-btn--ghost"
+            >
+              <FileText size={16} aria-hidden="true" />{" "}
+              {t("ansokningar.activityReport")}
             </Link>
           </div>
         </div>

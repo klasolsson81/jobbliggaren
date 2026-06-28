@@ -13,6 +13,7 @@
     "title": "Mina ansökningar",
     "lede": "Pipeline över alla ansökningar. Klicka på en rad för detaljer.",
     "newApplication": "Ny ansökan",
+    "activityReport": "Aktivitetsrapport-hjälp",
     "loadErrorTitle": "Kunde inte ladda ansökningar",
     "emptyKicker": "Pipeline",
     "emptyTitle": "Inga ansökningar ännu",

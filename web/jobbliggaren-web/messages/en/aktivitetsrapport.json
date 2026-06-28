@@ -1,0 +1,41 @@
+{
+  "title": "Activity report helper",
+  "lede": "Collects your applications for a month so you can copy them field by field into Arbetsförmedlingen's activity report.",
+  "back": "Back to applications",
+  "month": {
+    "label": "Month"
+  },
+  "counter": {
+    "text": "{count, plural, =0 {No applications} =1 {# application} other {# applications}} in {month}.",
+    "minimum": "Arbetsförmedlingen expects at least {minimum}."
+  },
+  "cta": "Open Arbetsförmedlingen's activity report",
+  "empty": {
+    "text": "No applications to report for {month}. When you mark an application as applied it appears in the month you applied."
+  },
+  "fields": {
+    "employer": "Employer",
+    "title": "Job title",
+    "location": "Location",
+    "appliedAt": "Date applied",
+    "howApplied": "How you applied",
+    "link": "Link to advert",
+    "empty": "Not provided"
+  },
+  "howApplied": {
+    "platsbanken": "Via Platsbanken",
+    "linkedin": "Via LinkedIn",
+    "other": "Via advert"
+  },
+  "copy": {
+    "label": "Copy",
+    "copied": "Copied",
+    "button": "Copy {field}",
+    "announced": "{field} copied"
+  },
+  "error": {
+    "title": "Could not load the activity report",
+    "body": "Try again in a moment.",
+    "rateLimited": "Too many requests. Try again in a moment."
+  }
+}

@@ -140,5 +140,52 @@
     "relatedHeading": "Relaterade sidor",
     "relatedTerms": "Användarvillkor",
     "relatedCookies": "Cookiepolicy"
+  },
+  "about": {
+    "meta": {
+      "title": "Om Jobbliggaren",
+      "description": "Jobbliggaren är en gratis svensk tjänst för att söka jobb och hålla ordning på dina ansökningar, byggd på Arbetsförmedlingens öppna data. Skapad av Klas Olsson."
+    },
+    "kicker": "Om och juridik",
+    "title": "Om Jobbliggaren",
+    "intro": "Jobbliggaren är en gratis svensk tjänst som hjälper dig att söka jobb och hålla ordning på dina ansökningar på ett och samma ställe. Tjänsten bygger på öppna jobbdata från Arbetsförmedlingens JobTech (Platsbanken), så att du kan söka, spara och följa upp dina ansökningar utan att det kostar något.",
+    "whyHeading": "Varför Jobbliggaren finns",
+    "whyParagraphs": [
+      "Jobbliggaren är byggt av Klas Olsson, systemutvecklare med inriktning på .NET och AI, baserad i Göteborg. Det är ett självständigt hobbyprojekt, inte ett företag.",
+      "Drivkraften är densamma som bakom hans tidigare app Kalaskoll, som hjälper föräldrar att planera barnkalas: han saknade en enkel och komplett lösning på ett konkret vardagsproblem, så han byggde en själv. För Jobbliggaren var problemet att hålla ordning på sitt jobbsökande. Det fanns ingen samlad, gratis app som både hjälpte till att hitta jobb som matchar och att hålla reda på vilka jobb man sökt och hur det gått. Jobbliggaren är försöket att lösa det."
+    ],
+    "valuesHeading": "Vad vi står för",
+    "valuesIntro": "Jobbliggaren är byggt som en samhällsnyttig tjänst, i samma anda som offentliga e-tjänster: enkelt, sakligt och pålitligt.",
+    "values": [
+      "Gratis. Tjänsten är kostnadsfri att använda.",
+      "Byggd på öppna data. Jobben kommer från Arbetsförmedlingens öppna JobTech-data.",
+      "Förklarbar matchning, ingen AI. Matchningen mellan dig och jobben är regelbaserad och visar alltid vilka krav och nyckelord som stämmer och vilka som saknas. Jobbliggaren använder ingen AI och fattar inga automatiska beslut om dig.",
+      "Din integritet först. Dina känsligaste uppgifter, som ditt cv, krypteras, och du kan radera ditt konto och dina uppgifter när du vill. Vi använder ingen spårning."
+    ],
+    "moreHeading": "Mer om Klas och hans projekt",
+    "moreText": "Du kan läsa mer om Klas och hans andra projekt på hans webbplats, och se Kalaskoll, hans app för barnkalas.",
+    "linkSite": "klasolsson.se",
+    "linkKalaskoll": "kalaskoll.se",
+    "contactHeading": "Kontakt",
+    "contactText": "Har du frågor, idéer eller hittar något som inte fungerar, hör gärna av dig.",
+    "contactLink": "Kontakta oss"
+  },
+  "contact": {
+    "meta": {
+      "title": "Kontakta oss",
+      "description": "Kontakta Jobbliggaren via e-post med frågor, idéer eller felrapporter."
+    },
+    "kicker": "Om och juridik",
+    "title": "Kontakta oss",
+    "intro": "Jobbliggaren är ett litet hobbyprojekt, och vi tar gärna emot frågor, idéer och felrapporter. Hör av dig, så svarar vi så snart vi kan.",
+    "emailLabel": "Du når oss på e-post:",
+    "email": "klasolsson81@gmail.com",
+    "aboutListIntro": "Du får gärna höra av dig om:",
+    "aboutList": [
+      "frågor om hur tjänsten fungerar,",
+      "förslag och idéer på förbättringar,",
+      "buggar och fel du stöter på,",
+      "frågor om dina personuppgifter eller din integritet."
+    ]
   }
 }

@@ -22,7 +22,7 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
  * All footer colour is LITERAL #FFFFFF / rgba(255,255,255,a) via the `.jp-foot*`
  * classes — never `--jp-ink-inverse` (it flips dark on the green in dark theme).
  *
- * Content routes not built yet (/om, /kontakt, /hjalpcenter, /tillganglighet,
+ * Content routes not built yet (/hjalpcenter, /tillganglighet,
  * /for-utvecklare) and Paminnelser render
  * as aria-disabled, non-focusable spans (out of tab order) — no dead-link window
  * on any shell. They flip to live `<Link>`s once LP-8a/8b/8c ship. start.register
@@ -112,8 +112,8 @@ const COLUMNS: readonly FooterColumn[] = [
     key: "legal",
     headKey: "footer.colLegal",
     links: [
-      { labelKey: "footer.legal.about", href: null },
-      { labelKey: "footer.legal.contact", href: null },
+      { labelKey: "footer.legal.about", href: "/om" },
+      { labelKey: "footer.legal.contact", href: "/kontakt" },
       { labelKey: "footer.legal.terms", href: "/villkor" },
       { labelKey: "footer.legal.privacy", href: "/integritet" },
       { labelKey: "footer.legal.cookies", href: "/cookies" },

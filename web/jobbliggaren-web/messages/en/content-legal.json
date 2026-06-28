@@ -140,5 +140,52 @@
     "relatedHeading": "Related pages",
     "relatedTerms": "Terms of use",
     "relatedCookies": "Cookie policy"
+  },
+  "about": {
+    "meta": {
+      "title": "About Jobbliggaren",
+      "description": "Jobbliggaren is a free Swedish service for finding jobs and keeping track of your applications, built on Arbetsförmedlingen's open data. Created by Klas Olsson."
+    },
+    "kicker": "About and legal",
+    "title": "About Jobbliggaren",
+    "intro": "Jobbliggaren is a free Swedish service that helps you find jobs and keep track of your applications in one place. The service is built on open job data from Arbetsförmedlingen JobTech (Platsbanken), so that you can search for, save and follow up on your applications at no cost.",
+    "whyHeading": "Why Jobbliggaren exists",
+    "whyParagraphs": [
+      "Jobbliggaren is built by Klas Olsson, a software developer focused on .NET and AI, based in Göteborg. It is an independent hobby project, not a company.",
+      "The motivation is the same as behind his earlier app Kalaskoll, which helps parents plan children's parties: he was missing a simple and complete solution to a concrete everyday problem, so he built one himself. For Jobbliggaren, the problem was keeping track of your job search. There was no single, free app that both helped you find jobs that match and kept track of which jobs you had applied for and how it went. Jobbliggaren is the attempt to solve that."
+    ],
+    "valuesHeading": "What we stand for",
+    "valuesIntro": "Jobbliggaren is built as a public-benefit service, in the same spirit as public e-services: simple, factual and reliable.",
+    "values": [
+      "Free. The service is free to use.",
+      "Built on open data. The jobs come from Arbetsförmedlingen's open JobTech data.",
+      "Explainable matching, no AI. The matching between you and the jobs is rule-based and always shows which requirements and keywords match and which are missing. Jobbliggaren uses no AI and makes no automated decisions about you.",
+      "Your privacy first. Your most sensitive data, such as your CV, is encrypted, and you can delete your account and your data whenever you want. We use no tracking."
+    ],
+    "moreHeading": "More about Klas and his projects",
+    "moreText": "You can read more about Klas and his other projects on his website, and see Kalaskoll, his app for children's parties.",
+    "linkSite": "klasolsson.se",
+    "linkKalaskoll": "kalaskoll.se",
+    "contactHeading": "Contact",
+    "contactText": "If you have questions, ideas or find something that does not work, feel free to get in touch.",
+    "contactLink": "Contact us"
+  },
+  "contact": {
+    "meta": {
+      "title": "Contact us",
+      "description": "Contact Jobbliggaren by email with questions, ideas or bug reports."
+    },
+    "kicker": "About and legal",
+    "title": "Contact us",
+    "intro": "Jobbliggaren is a small hobby project, and we are glad to receive questions, ideas and bug reports. Get in touch and we will reply as soon as we can.",
+    "emailLabel": "You can reach us by email:",
+    "email": "klasolsson81@gmail.com",
+    "aboutListIntro": "Feel free to get in touch about:",
+    "aboutList": [
+      "questions about how the service works,",
+      "suggestions and ideas for improvements,",
+      "bugs and errors you come across,",
+      "questions about your personal data or your privacy."
+    ]
   }
 }

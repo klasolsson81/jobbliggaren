@@ -45,6 +45,14 @@ public class MatchCountOracleTests(ApiFactory factory)
     private const string OtherGroup = "grp-matchcount-other";
     private const string OtherRegion = "reg-matchcount-other";
 
+    // PR-4 (#300, ADR 0084) — a ssyk-4 in the RELATED set only (∉ exact). The count is LIST-ONLY
+    // (ADR-question D): Related is filterable on /jobb but does NOT drive the headline count
+    // {Good, Strong}. The profile states RelatedSsykGroupConceptIds = [RelatedGroup] so the related
+    // ad is grade-tagged (Related), yet must be EXCLUDED from the headline-band count.
+    private const string RelatedGroup = "grp-matchcount-related";
+    private static readonly string[] ExactGroups = [PrefGroup];
+    private static readonly string[] RelatedGroups = [RelatedGroup];
+
     // ---------------------------------------------------------------
     // SUT factory — the REAL wired per-user query from DI (proves the registration + the EF
     // translation of CountPerUserAsync's count + SearchPerUserAsync's recomputed TotalCount).
@@ -73,10 +81,16 @@ public class MatchCountOracleTests(ApiFactory factory)
     private static FullCandidateMatchProfile Profile() => new(
         new CandidateMatchProfile(
             Title: string.Empty,
-            SsykGroupConceptIds: [PrefGroup],
+            SsykGroupConceptIds: ExactGroups,
             PreferredRegionConceptIds: [PrefRegion],
             PreferredEmploymentTypeConceptIds: [PrefEmployment],
-            PreferredMunicipalityConceptIds: [PrefMunicipality]),
+            PreferredMunicipalityConceptIds: [PrefMunicipality])
+        {
+            // PR-4 (#300, ADR 0084): the related set the grade-WHERE tags the Related rung from.
+            // Empty in pre-PR-4 → behaviour-inert; non-empty so the list-only-vs-count regression
+            // below can seed a genuinely Related-tagged ad. The headline count must still exclude it.
+            RelatedSsykGroupConceptIds = RelatedGroups,
+        },
         CvSkillConceptIds: []);
 
     // Filter on the unique test-run worktime-extent only → exactly the seeded ads, untagged
@@ -198,6 +212,11 @@ public class MatchCountOracleTests(ApiFactory factory)
     // Basic (rank 1) via the CONTRADICTION floor — region NoMatch even though employment Matches.
     private Task<JobAdId> SeedBasicContradictionAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, publishedAt, ct);
+
+    // Related (PR-4 #300): occupation group ∈ the RELATED set only (∉ exact) → grade-tagged Related
+    // (flat cap, even with both secondaries Match). Filterable on /jobb but NOT in the headline count.
+    private Task<JobAdId> SeedRelatedAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
+        SeedJobAdAsync(run, RelatedGroup, PrefRegion, PrefEmployment, publishedAt, ct);
 
     // Untagged (rank 0): SSYK NoMatch (ad group present, not in profile) → no tag.
     private Task<JobAdId> SeedUntaggedSsykNoMatchAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
@@ -355,5 +374,59 @@ public class MatchCountOracleTests(ApiFactory factory)
             orderByMatchRank: false, page: 1, pageSize: 1, ct);
         count.ShouldBe(page.TotalCount,
             "Även vid tom grad-mängd ska CountPerUserAsync == list-vägens TotalCount.");
+    }
+
+    // ===============================================================
+    // 4. PR-4 (#300, ADR 0084 fråga D) — the count is LIST-ONLY: a Related-grade ad does NOT
+    //    contribute to the headline count {Good, Strong}. A Related ad is filterable on /jobb (the
+    //    {Related} band counts it) but the notification headline never includes Related — pinning
+    //    that broadening the gate did not silently inflate the live-notis number.
+    // ===============================================================
+
+    [Fact]
+    public async Task Count_HeadlineBand_ExcludesRelatedAds_ButRelatedBandCountsThem()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // One Strong + one Good (the headline band = 2) + two Related ads (excluded from headline).
+        var strong = await SeedStrongAsync(run, t.AddDays(20), ct);
+        var good = await SeedGoodAsync(run, t.AddDays(15), ct);
+        var related1 = await SeedRelatedAsync(run, t.AddDays(12), ct);
+        var related2 = await SeedRelatedAsync(run, t.AddDays(11), ct);
+
+        var profile = Profile();
+        var filter = FilterFor(run);
+
+        // Cross-check the SSOT: the two Related ads grade to Related (Fast band + isRelated cap) via
+        // the broadened full scorer; Strong/Good do not carry the related bit.
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var scored = await scorer.ScoreFullBatchAsync([strong, good, related1, related2], profile, ct);
+        MatchGradeCalculator.Grade(scored[related1].Score.Fast, scored[related1].SsykIsRelated)
+            .ShouldBe(MatchGrade.Related);
+        MatchGradeCalculator.Grade(scored[related2].Score.Fast, scored[related2].SsykIsRelated)
+            .ShouldBe(MatchGrade.Related);
+        scored[strong].SsykIsRelated.ShouldBeFalse();
+        scored[good].SsykIsRelated.ShouldBeFalse();
+
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+
+        // Headline band {Good, Strong} → exactly the Strong + Good ads (2). The two Related ads are
+        // NOT counted — the headline count is list-only-blind to Related (ADR-question D).
+        var headlineCount = await query.CountPerUserAsync(
+            filter, profile, [MatchGrade.Good, MatchGrade.Strong], ct);
+        headlineCount.ShouldBe(2,
+            "Headline-counten {Good, Strong} ska EXKLUDERA Related-annonserna (counten är list-only; " +
+            "Related driver inte notis-siffran, ADR 0084 fråga D).");
+
+        // But the {Related} band IS reachable on /jobb → counts exactly the two Related ads (proving
+        // they are genuinely Related-tagged, not silently dropped — just absent from the headline).
+        var relatedCount = await query.CountPerUserAsync(filter, profile, [MatchGrade.Related], ct);
+        relatedCount.ShouldBe(2,
+            "{Related}-bandet ska räkna de två Related-annonserna (list-filtrerbart) — Related är " +
+            "exkluderat från headline-counten, inte från korpusen.");
     }
 }

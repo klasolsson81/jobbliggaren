@@ -92,22 +92,32 @@ public class GetJobAdMatchDetailQueryHandlerTests
     private sealed class FakeScorer : IMatchScorer
     {
         private readonly FullMatchScore? _score;
+        private readonly bool _isRelated;
         private readonly Exception? _throwOnScoreFull;
 
-        public FakeScorer(FullMatchScore score) => _score = score;
+        // PR-4 (#300, ADR 0084): ScoreFullAsync now returns the FullScoredMatch carrier
+        // (score + SsykIsRelated). The optional isRelated flag lets a test set the related
+        // bit the handler forwards into Grade(FullMatchScore, bool); default false keeps every
+        // existing test behaviour-inert (the carrier wraps the stored score, isRelated:false).
+        public FakeScorer(FullMatchScore score, bool isRelated = false)
+        {
+            _score = score;
+            _isRelated = isRelated;
+        }
+
         public FakeScorer(Exception throwOnScoreFull) => _throwOnScoreFull = throwOnScoreFull;
 
         public int ScoreFullCallCount { get; private set; }
         public JobAdId? LastScoredId { get; private set; }
 
-        public ValueTask<FullMatchScore> ScoreFullAsync(
+        public ValueTask<FullScoredMatch> ScoreFullAsync(
             JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
         {
             ScoreFullCallCount++;
             LastScoredId = jobAdId;
             if (_throwOnScoreFull is not null)
                 throw _throwOnScoreFull; // NotFoundException for a missing ad → propagate
-            return new ValueTask<FullMatchScore>(_score!);
+            return new ValueTask<FullScoredMatch>(new FullScoredMatch(_score!, _isRelated));
         }
 
         // The modal handler must NOT touch any of the batch / Fast methods.
@@ -119,7 +129,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
             IReadOnlyList<JobAdId> jobAdIds, CandidateMatchProfile profile, CancellationToken cancellationToken)
             => throw new NotSupportedException("ScoreBatchAsync ska inte anropas av modal-handlern.");
 
-        public ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>> ScoreFullBatchAsync(
+        public ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>> ScoreFullBatchAsync(
             IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "ScoreFullBatchAsync (batch) ska inte anropas av single-ad modal-handlern (CTO D3 — döda inte batch-kontraktet för en enskild fråga).");

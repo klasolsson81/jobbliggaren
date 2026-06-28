@@ -386,9 +386,13 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
 
         var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
         var scores = await scorer.ScoreFullBatchAsync([jobAdId], profile, ct);
-        scores.TryGetValue(jobAdId, out var score).ShouldBeTrue("the seeded ad must be scored");
+        scores.TryGetValue(jobAdId, out var scored).ShouldBeTrue("the seeded ad must be scored");
 
-        var grade = MatchGradeCalculator.Grade(score);
+        // PR-4 (#300, ADR 0084): the carrier holds the score + SsykIsRelated. Recompute the
+        // grade EXACTLY as the Worker does — Grade(FullMatchScore, bool) with the carrier's
+        // related bit — so this SSOT cross-check mirrors the production path (a related-only hit
+        // grades Related, which the switch below maps to null = not notifiable).
+        var grade = MatchGradeCalculator.Grade(scored!.Score, scored.SsykIsRelated);
         return grade switch
         {
             MatchGrade.Good => NotifiableMatchGrade.Good,

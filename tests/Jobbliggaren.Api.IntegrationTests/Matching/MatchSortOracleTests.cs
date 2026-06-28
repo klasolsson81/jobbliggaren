@@ -83,6 +83,15 @@ public class MatchSortOracleTests(ApiFactory factory)
     private const string PrefMunicipality = "mun-oracle-pref";
     private const string OtherMunicipality = "mun-oracle-other";
 
+    // PR-4 (#300, ADR 0084) — a ssyk-4 in the RELATED (substitutable) set, NOT the exact set.
+    // The Related oracle states RelatedSsykGroupConceptIds = [RelatedGroup] so the SQL grade-rank
+    // tags an ad whose occupation_group = RelatedGroup at the Related rung (rank 2, between Basic=1
+    // and Good=3). Hoisted to a single-element static readonly array so the profile builder does not
+    // allocate an inline array per call (CA1861).
+    private const string RelatedGroup = "grp-oracle-related";
+    private static readonly string[] RelatedGroups = [RelatedGroup];
+    private static readonly string[] ExactGroups = [PrefGroup];
+
     // ---------------------------------------------------------------
     // SUT factory — the REAL wired match-sort query from DI (proving the
     // registration + the EF translation of the rank ORDER BY), plus a held scope.
@@ -138,6 +147,22 @@ public class MatchSortOracleTests(ApiFactory factory)
             PreferredRegionConceptIds: preferredRegions,
             PreferredEmploymentTypeConceptIds: [PrefEmployment],
             PreferredMunicipalityConceptIds: preferredMunicipalities),
+        CvSkillConceptIds: []);
+
+    // PR-4 (#300, ADR 0084) — a profile that STATES the related set { RelatedGroup } alongside the
+    // exact set { PrefGroup }. The SQL grade-rank's broadened gate (exact ∪ related) tags a
+    // RelatedGroup ad at the Related rung. Region + employment are stated so the related-only ads
+    // can also carry secondary signals (proving the FLAT cap: Related regardless of secondaries).
+    private static FullCandidateMatchProfile ProfileWithRelated() => new(
+        new CandidateMatchProfile(
+            Title: string.Empty,
+            SsykGroupConceptIds: ExactGroups,
+            PreferredRegionConceptIds: [PrefRegion],
+            PreferredEmploymentTypeConceptIds: [PrefEmployment],
+            PreferredMunicipalityConceptIds: [])
+        {
+            RelatedSsykGroupConceptIds = RelatedGroups,
+        },
         CvSkillConceptIds: []);
 
     // Filter on the unique test-run worktime-extent only → exactly the seeded ads,
@@ -275,8 +300,12 @@ public class MatchSortOracleTests(ApiFactory factory)
     {
         null => 0,
         MatchGrade.Basic => 1,
-        MatchGrade.Good => 2,
-        MatchGrade.Strong => 3,
+        // PR-4 (#300, ADR 0084): Related inserted BETWEEN Basic and Good; Good/Strong renumbered up.
+        // This mirrors the SQL grade-rank integer scheme (untagged/null=0, Basic=1, Related=2,
+        // Good=3, Strong=4) the ORDER BY produces server-side.
+        MatchGrade.Related => 2,
+        MatchGrade.Good => 3,
+        MatchGrade.Strong => 4,
         _ => throw new ArgumentOutOfRangeException(nameof(grade), grade, "Okänd grad."),
     };
 
@@ -343,11 +372,15 @@ public class MatchSortOracleTests(ApiFactory factory)
             id => id.Value,
             id => RankOf(MatchGradeCalculator.Grade(scores[id])));
 
-        // Sanity: the seed genuinely spans all four rank buckets (3,2,1,0) so the
-        // oracle is not vacuously green on a degenerate set.
+        // Sanity: the seed genuinely spans the untagged/Basic/Good/Strong rank buckets so the
+        // oracle is not vacuously green on a degenerate set. PR-4 (#300): the Fast Grade(MatchScore)
+        // overload never yields Related (no related input), so this seed has NO rank-2 row; the
+        // renumbered ranks are {0,1,3,4} (Related=2 is exercised in the dedicated Related oracle
+        // below). The non-increasing oracle assertion is unaffected by the absolute values.
         var distinctRanks = expectedRankById.Values.Distinct().OrderBy(r => r).ToList();
-        distinctRanks.ShouldBe([0, 1, 2, 3],
-            "Seed-mängden ska täcka alla fyra rank-hinkar (otaggad/Basic/Good/Strong).");
+        distinctRanks.ShouldBe([0, 1, 3, 4],
+            "Seed-mängden ska täcka otaggad/Basic/Good/Strong (rank 0/1/3/4 i PR-4-schemat; " +
+            "Related=2 saknas medvetet — Fast-overloaden producerar aldrig Related).");
 
         // THE ORACLE: the SQL-ordered ranks must be non-increasing — no lower-graded
         // ad precedes a higher-graded one. SQL rank ≡ MatchGradeCalculator for every row.
@@ -360,6 +393,106 @@ public class MatchSortOracleTests(ApiFactory factory)
             "SQL-rankens ordning ska vara grad fallande (otaggade sist) och spegla " +
             "MatchGradeCalculator EXAKT — annars har SQL-ranken och C#-SSOT:en drivit isär " +
             $"(anti-drift-orakel). SQL-ordnade rank: [{string.Join(", ", sqlOrderedRanks)}].");
+    }
+
+    // ===============================================================
+    // 1b. PR-4 (#300, ADR 0084) — the RELATED-rung SQL grade-rank oracle. With a profile that
+    //     states RelatedSsykGroupConceptIds = [RelatedGroup], the SQL ORDER BY must tag a
+    //     RelatedGroup ad at the Related rung (rank 2, strictly BETWEEN Basic=1 and Good=3) and
+    //     the cap must be FLAT (Related regardless of secondaries) and BEFORE the RB1 floor (a
+    //     related-only ad in the wrong city is Related, NOT Basic). The C# SSOT is the broadened
+    //     ScoreFullBatchAsync (it broadens the gate AND surfaces SsykIsRelated), graded via
+    //     MatchGradeCalculator.Grade(FullMatchScore, isRelated) — the EXACT production path the SQL
+    //     rank must mirror across the full exact × related × secondary tuple space.
+    // ===============================================================
+
+    [Fact]
+    public async Task SearchByMatch_RelatedRung_OrderingEqualsGradeSsot_BetweenBasicAndGood()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // Profile: exact=[PrefGroup], related=[RelatedGroup], region=[PrefRegion],
+        // employment=[PrefEmployment]. The seed spans every reachable rung incl. the Related rung
+        // (rank 2), reached ONLY via the related set + the flat cap.
+        var seeded = new List<JobAdId>
+        {
+            // --- Strong (rank 4): exact occupation + both secondaries Match.
+            await SeedJobAdAsync(run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(20), ct),
+            // --- Good (rank 3): exact occupation + exactly one confirmed secondary.
+            await SeedJobAdAsync(run, PrefGroup, PrefRegion, null, t.AddDays(16), ct),
+
+            // --- Related (rank 2) + BOTH secondaries Match: an exact hit here would be Strong, but
+            //     the flat related-cap pins it to Related (rank 2 — BELOW Good=3/Strong=4, ABOVE Basic=1).
+            await SeedJobAdAsync(run, RelatedGroup, PrefRegion, PrefEmployment, t.AddDays(12), ct),
+            // --- Related (rank 2) + region NoMatch (wrong city): for an EXACT hit RB1 would floor to
+            //     Basic; the related-cap is BEFORE RB1 → still Related (rank 2, NOT Basic=1).
+            await SeedJobAdAsync(run, RelatedGroup, OtherRegion, PrefEmployment, t.AddDays(11), ct),
+
+            // --- Basic (rank 1): exact occupation, both secondaries NotAssessed.
+            await SeedJobAdAsync(run, PrefGroup, null, null, t.AddDays(8), ct),
+
+            // --- Untagged (rank 0): SSYK in NEITHER exact nor related → gate fails even broadened.
+            await SeedJobAdAsync(run, OtherGroup, PrefRegion, PrefEmployment, t.AddDays(4), ct),
+        };
+
+        var profile = ProfileWithRelated();
+        var filter = FilterFor(run);
+
+        // SQL-ordered page (the real wired impl — its broadened gate + Related rung under test).
+        var (sortScope, matchSort) = NewMatchSort();
+        using var _ = sortScope;
+        var page = await matchSort.SearchPerUserAsync(
+            filter, profile, grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, ct);
+
+        page.Items.Count.ShouldBe(seeded.Count,
+            "Match-sorten ska returnera HELA den filtrerade mängden (otaggade inkluderade).");
+
+        // C# grade-SSOT mirrors the SQL grade-rank, which ranks on the FAST band (G3-OPT-A — the
+        // SQL cannot compute must-have, so Strong is its ceiling). We therefore grade via the FAST
+        // overload Grade(MatchScore, isRelated) over the embedded Fast score, NOT the requirement-
+        // aware Full overload (which would cap a no-CV exact ad at Good via the F1(b) gate and so
+        // diverge from the SQL). We still use ScoreFullBatchAsync — it surfaces SsykIsRelated (the
+        // Fast ScoreBatchAsync does not), and its embedded .Score.Fast is the broadened-gate Fast
+        // score (a RelatedGroup ad reads SsykOverlap=Match via exact ∪ related). The flat Related
+        // cap is applied by passing SsykIsRelated to the Fast overload.
+        var (scoreScope, _, scorer) = NewSearchAndScorer();
+        using var __ = scoreScope;
+        var scored = await scorer.ScoreFullBatchAsync(seeded, profile, ct);
+
+        var expectedRankById = seeded.ToDictionary(
+            id => id.Value,
+            id => RankOf(MatchGradeCalculator.Grade(scored[id].Score.Fast, scored[id].SsykIsRelated)));
+
+        // Sanity: the seed spans EVERY rung incl. the Related rung — distinct ranks == {0,1,2,3,4}.
+        var distinctRanks = expectedRankById.Values.Distinct().OrderBy(r => r).ToList();
+        distinctRanks.ShouldBe([0, 1, 2, 3, 4],
+            "Related-seeden ska täcka otaggad/Basic/Related/Good/Strong (rank 0/1/2/3/4) så " +
+            "Related-rungen (rank 2) faktiskt utövas mellan Basic och Good.");
+
+        // Cross-check the two Related ads (seed positions 2 + 3 — both RelatedGroup) genuinely carry
+        // the related bit via the broadened gate (not a degenerate exact tag), and an exact ad does not.
+        scored[seeded[2]].SsykIsRelated.ShouldBeTrue(
+            "RelatedGroup-annonsen ska bära SsykIsRelated=true via det breddade gate:t.");
+        scored[seeded[3]].SsykIsRelated.ShouldBeTrue(
+            "RelatedGroup-annonsen (fel stad) ska bära SsykIsRelated=true.");
+        scored[seeded[0]].SsykIsRelated.ShouldBeFalse(
+            "en exakt-yrke-annons (Strong) ska aldrig bära SsykIsRelated.");
+
+        // THE RELATED ORACLE: the SQL-ordered ranks must be non-increasing — Related sits strictly
+        // between Basic (1) and Good (3), and a related-only ad in the wrong city ranks at Related
+        // (2), NOT Basic (1). SQL rank ≡ MatchGradeCalculator(Grade with isRelated) for every row.
+        var sqlOrderedRanks = page.Items
+            .Select(dto => expectedRankById[dto.Id])
+            .ToList();
+
+        sqlOrderedRanks.ShouldBe(
+            sqlOrderedRanks.OrderByDescending(r => r).ToList(),
+            "SQL-rankens ordning ska vara grad fallande och spegla MatchGradeCalculator " +
+            "(med isRelated) EXAKT — Related (2) strikt mellan Basic (1) och Good (3); en " +
+            "related-only-annons i fel stad ska rangordnas på Related (2), INTE Basic (1) " +
+            $"(cap före RB1). SQL-ordnade rank: [{string.Join(", ", sqlOrderedRanks)}].");
     }
 
     // ===============================================================
@@ -590,10 +723,11 @@ public class MatchSortOracleTests(ApiFactory factory)
             id => id.Value,
             id => RankOf(MatchGradeCalculator.Grade(scores[id])));
 
-        // Sanity: the ort-union seed spans Strong / Good / Basic / untagged (3,2,1,0).
+        // Sanity: the ort-union seed spans Strong / Good / Basic / untagged. PR-4 (#300): the
+        // renumbered ranks are {0,1,3,4} (no Related row here — the Fast overload yields no Related).
         var distinctRanks = expectedRankById.Values.Distinct().OrderBy(r => r).ToList();
-        distinctRanks.ShouldBe([0, 1, 2, 3],
-            "Ort-union-seeden ska täcka alla fyra rank-hinkar (otaggad/Basic/Good/Strong).");
+        distinctRanks.ShouldBe([0, 1, 3, 4],
+            "Ort-union-seeden ska täcka otaggad/Basic/Good/Strong (rank 0/1/3/4 i PR-4-schemat).");
 
         // THE ORT-UNION ORACLE: SQL-ordered ranks non-increasing ≡ MatchGradeCalculator over
         // the ort-union scorer output. If the SQL ORDER BY's ort fold drifts from
@@ -877,8 +1011,8 @@ public class MatchSortOracleTests(ApiFactory factory)
         using var __ = scoreScope;
         var full = await scorer.ScoreFullBatchAsync([mustHaveMatch, mustHaveNoMatch], profile, ct);
 
-        var gradeMatch = MatchGradeCalculator.Grade(full[mustHaveMatch]);
-        var gradeNoMatch = MatchGradeCalculator.Grade(full[mustHaveNoMatch]);
+        var gradeMatch = MatchGradeCalculator.Grade(full[mustHaveMatch].Score);
+        var gradeNoMatch = MatchGradeCalculator.Grade(full[mustHaveNoMatch].Score);
 
         // must-have Match + both secondaries + skill Match → Top; must-have NoMatch caps at
         // Good. The point is only that they DIFFER (the grade sees must-have).

@@ -83,13 +83,20 @@ public class GetJobAdMatchBatchQueryHandlerTests
         public int FullBatchCallCount { get; private set; }
         public IReadOnlyList<JobAdId>? LastBatchIds { get; private set; }
 
-        public ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>> ScoreFullBatchAsync(
+        // PR-4 (#300, ADR 0084): the batch port now returns FullScoredMatch carriers. The fake
+        // still accepts a FullMatchScore-valued dict (every existing test seeds the score), and
+        // wraps each with SsykIsRelated:false here — behaviour-inert (no related set in any of
+        // these tests). The handler unwraps .Score for the grade verdict rows + forwards
+        // .SsykIsRelated into Grade(FullMatchScore, bool).
+        public ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>> ScoreFullBatchAsync(
             IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile,
             CancellationToken cancellationToken)
         {
             FullBatchCallCount++;
             LastBatchIds = jobAdIds;
-            return new ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>>(scores);
+            IReadOnlyDictionary<JobAdId, FullScoredMatch> carriers = scores.ToDictionary(
+                kvp => kvp.Key, kvp => new FullScoredMatch(kvp.Value, SsykIsRelated: false));
+            return new ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>>(carriers);
         }
 
         // The Fast batch must NOT be used by the upgraded handler.
@@ -101,7 +108,7 @@ public class GetJobAdMatchBatchQueryHandlerTests
             JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken)
             => throw new NotSupportedException("ScoreAsync ska inte anropas av batch-handlern.");
 
-        public ValueTask<FullMatchScore> ScoreFullAsync(
+        public ValueTask<FullScoredMatch> ScoreFullAsync(
             JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
             => throw new NotSupportedException("ScoreFullAsync (single) ska inte anropas av batch-handlern.");
     }

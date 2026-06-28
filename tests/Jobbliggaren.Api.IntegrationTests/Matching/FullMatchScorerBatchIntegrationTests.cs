@@ -237,23 +237,23 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         foreach (var id in new[] { ad1, ad2, ad3 })
         {
             batch.ShouldContainKey(id);
-            var single = await scorer.ScoreFullAsync(id, profile, ct);
-            AssertSameFull(single, batch[id]);
+            var single = (await scorer.ScoreFullAsync(id, profile, ct)).Score;
+            AssertSameFull(single, batch[id].Score);
         }
 
         // Sanity that the seed genuinely exercised the new dims on ad1.
-        batch[ad1].SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+        batch[ad1].Score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
             "CV täcker båda ad-skills → SkillOverlap Match.");
-        batch[ad1].SkillOverlap.Matched.ShouldBe([CSharpDisplay, DockerDisplay], ignoreOrder: true);
-        batch[ad1].MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Match);
-        batch[ad1].NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+        batch[ad1].Score.SkillOverlap.Matched.ShouldBe([CSharpDisplay, DockerDisplay], ignoreOrder: true);
+        batch[ad1].Score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        batch[ad1].Score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
             "Enda nice_to_have (Kubernetes) saknas i CV-skill-setet → NoMatch.");
 
         // ad3 (NULL extracted_terms, CV present): the three new dims are Vacuous, never
         // NoMatch, never NotAssessed (PR-B1 RE-BIND G1-b — ad partition empty, CV present).
-        batch[ad3].SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
-        batch[ad3].MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
-        batch[ad3].NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        batch[ad3].Score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        batch[ad3].Score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
+        batch[ad3].Score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
     }
 
     [Fact]
@@ -281,11 +281,11 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         var batch = await scorer.ScoreFullBatchAsync([ad], profile, ct);
 
         // The embedded Fast in the batch result equals the standalone Fast ScoreAsync.
-        AssertSameDimension(fastScore.SsykOverlap, batch[ad].Fast.SsykOverlap);
-        AssertSameDimension(fastScore.TitleSimilarity, batch[ad].Fast.TitleSimilarity);
-        AssertSameDimension(fastScore.RegionFit, batch[ad].Fast.RegionFit);
-        AssertSameDimension(fastScore.EmploymentFit, batch[ad].Fast.EmploymentFit);
-        batch[ad].Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        AssertSameDimension(fastScore.SsykOverlap, batch[ad].Score.Fast.SsykOverlap);
+        AssertSameDimension(fastScore.TitleSimilarity, batch[ad].Score.Fast.TitleSimilarity);
+        AssertSameDimension(fastScore.RegionFit, batch[ad].Score.Fast.RegionFit);
+        AssertSameDimension(fastScore.EmploymentFit, batch[ad].Score.Fast.EmploymentFit);
+        batch[ad].Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
     }
 
     // =================================================================
@@ -332,14 +332,14 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         foreach (var id in new[] { matchAd, noMatchAd })
         {
             var single = await scorer.ScoreAsync(id, fast, ct);
-            AssertSameDimension(single.RegionFit, batch[id].Fast.RegionFit);
+            AssertSameDimension(single.RegionFit, batch[id].Score.Fast.RegionFit);
         }
 
         // Sanity: both union verdicts genuinely scored through the batch.
-        batch[matchAd].Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
-        batch[matchAd].Fast.RegionFit.Matched.ShouldBe([prefMunicipality]);
-        batch[noMatchAd].Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
-        batch[noMatchAd].Fast.RegionFit.Missing.ShouldNotBeEmpty();
+        batch[matchAd].Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        batch[matchAd].Score.Fast.RegionFit.Matched.ShouldBe([prefMunicipality]);
+        batch[noMatchAd].Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        batch[noMatchAd].Score.Fast.RegionFit.Missing.ShouldNotBeEmpty();
     }
 
     // =================================================================

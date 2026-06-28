@@ -31,20 +31,30 @@ public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory) : I
 {
     private readonly ApiFactory _factory = factory;
 
-    // Test-isolation: rensa job_seekers så raderna inte poison:ar grann-tester i
-    // [Collection("Api")] (oberoende av exekveringsordning).
-    public async ValueTask InitializeAsync()
+    // Test-isolation: rensa job_seekers på BÅDE entry OCH exit (#300 PR-4, senior-cto-advisor).
+    // Flera tester nedan seedar AVSIKTLIGT trasig MatchPreferences-jsonb (ExperienceYears=
+    // "five"/5.5/71 — fail-closed-testerna) som konvertern inte kan läsa. I [Collection("Api")]
+    // delas EN Testcontainers-DB, så en sådan rad poison:ar varje grann-test som gör en bred
+    // JobSeekers.ToListAsync (t.ex. JobAdMatchDetailEndpointTests.FindSeekerByStatedOccupation).
+    // Clean-on-entry ENSAM räckte inte: det SISTA trasiga-seed-testet lämnade sin rad kvar utan
+    // efterföljare som DELETE:ade den. Clean-on-exit gör klassen ordnings-oberoende: ingen test
+    // överlever sina egna toxiska rader.
+    public async ValueTask InitializeAsync() => await ClearJobSeekersAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        await ClearJobSeekersAsync();
+        GC.SuppressFinalize(this);
+    }
+
+    // Raw SQL DELETE — materialiserar INTE jsonb-kolumnen, så den kringgår
+    // MatchPreferences-konvertern (samma skäl som de trasiga raderna inte kan läsas).
+    private async Task ClearJobSeekersAsync()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlRawAsync(
             "DELETE FROM job_seekers;", TestContext.Current.CancellationToken);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
     }
 
     private async Task<JobSeeker> SeedSeekerAsync(MatchPreferences? prefs, CancellationToken ct)

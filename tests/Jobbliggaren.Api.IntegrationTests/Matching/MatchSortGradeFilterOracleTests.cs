@@ -59,6 +59,14 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     // The ort-union (region ∪ municipality) constants.
     private const string PrefMunicipality = "mun-gradefilter-pref";
 
+    // PR-4 (#300, ADR 0084) — a ssyk-4 in the RELATED (substitutable) set, NOT the exact set. The
+    // profile states RelatedSsykGroupConceptIds = [RelatedGroup] so the grade-WHERE can select the
+    // Related rung. Hoisted to a static readonly array (CA1861) for the profile builder + the
+    // unioned scoring profile that opens the Fast gate for a related-only ad's grade SSOT.
+    private const string RelatedGroup = "grp-gradefilter-related";
+    private static readonly string[] ExactGroups = [PrefGroup];
+    private static readonly string[] RelatedGroups = [RelatedGroup];
+
     // ---------------------------------------------------------------
     // SUT factory — the REAL wired per-user query from DI (proving the registration +
     // the EF translation of the grade-WHERE / count / sort), plus a held scope.
@@ -88,10 +96,16 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     private static FullCandidateMatchProfile Profile() => new(
         new CandidateMatchProfile(
             Title: string.Empty,
-            SsykGroupConceptIds: [PrefGroup],
+            SsykGroupConceptIds: ExactGroups,
             PreferredRegionConceptIds: [PrefRegion],
             PreferredEmploymentTypeConceptIds: [PrefEmployment],
-            PreferredMunicipalityConceptIds: [PrefMunicipality]),
+            PreferredMunicipalityConceptIds: [PrefMunicipality])
+        {
+            // PR-4 (#300, ADR 0084): the related set the broadened grade-WHERE selects the Related
+            // rung from. Empty in the pre-PR-4 era → behaviour-inert; non-empty here so the {Related}
+            // band is reachable. Exact-precedence: a group in BOTH would tag exact, not Related.
+            RelatedSsykGroupConceptIds = RelatedGroups,
+        },
         CvSkillConceptIds: []);
 
     // Filter on the unique test-run worktime-extent only → exactly the seeded ads,
@@ -226,6 +240,12 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, publishedAt, ct,
             municipalityConceptId: PrefMunicipality);
 
+    // Related (rank 2, PR-4 #300): occupation group ∈ the RELATED set only (∉ exact). The flat cap
+    // makes it Related regardless of secondaries — region + employment are stated Match here, but an
+    // exact hit's Strong is capped to Related (the load-bearing flat-cap proof).
+    private Task<JobAdId> SeedRelatedAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
+        SeedJobAdAsync(run, RelatedGroup, PrefRegion, PrefEmployment, publishedAt, ct);
+
     // Untagged (rank 0): SSYK NoMatch (ad group present, not in profile) → no tag.
     private Task<JobAdId> SeedUntaggedSsykNoMatchAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, OtherGroup, PrefRegion, PrefEmployment, publishedAt, ct);
@@ -234,16 +254,24 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedUntaggedSsykNullAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, null, PrefRegion, PrefEmployment, publishedAt, ct);
 
-    // The 7 non-empty subsets of the Fast band — singletons, all pairs, and all-three.
+    // A representative family of non-empty subsets of the FOUR-grade filterable band
+    // {Basic, Related, Good, Strong} (PR-4 #300, ADR 0084). Each singleton (incl. {Related}), the
+    // Related-combined pairs {Basic,Related} and {Related,Good}, the legacy Fast-only pairs/triple,
+    // and the all-four set — enough to pin Related both alone and combined without enumerating all
+    // 15 subsets (the oracle is per-subset set-equality, so the family is the load-bearing cover).
     private static IReadOnlyList<IReadOnlyList<MatchGrade>> AllNonEmptyBandSubsets() =>
     [
         [MatchGrade.Basic],
+        [MatchGrade.Related],
         [MatchGrade.Good],
         [MatchGrade.Strong],
+        [MatchGrade.Basic, MatchGrade.Related],
+        [MatchGrade.Related, MatchGrade.Good],
         [MatchGrade.Basic, MatchGrade.Good],
         [MatchGrade.Basic, MatchGrade.Strong],
         [MatchGrade.Good, MatchGrade.Strong],
         [MatchGrade.Basic, MatchGrade.Good, MatchGrade.Strong],
+        [MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong],
     ];
 
     // ===============================================================
@@ -274,6 +302,11 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             await SeedGoodAsync(run, t.AddDays(15), ct),
             await SeedGoodAsync(run, t.AddDays(14), ct),
 
+            // --- Related (≥2, PR-4 #300): occupation ∈ related-only → flat cap Related, even with
+            //     both secondaries Match (a would-be Strong capped to Related).
+            await SeedRelatedAsync(run, t.AddDays(12), ct),
+            await SeedRelatedAsync(run, t.AddDays(11), ct),
+
             // --- Basic (≥2): one neutral, one contradiction-floored
             await SeedBasicNeutralAsync(run, t.AddDays(10), ct),
             await SeedBasicContradictionAsync(run, t.AddDays(9), ct),
@@ -286,18 +319,25 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         var profile = Profile();
         var filter = FilterFor(run);
 
-        // C# grade-SSOT: grade every seeded ad. null grade (untagged) maps to "no band".
+        // C# grade-SSOT for the grade-WHERE (the FAST band + the Related cap). The grade-WHERE ranks
+        // on the Fast band, so the SSOT is Grade(MatchScore, isRelated) — NOT the requirement-aware
+        // Full overload. The broadened full scorer opens the gate for a related-only ad (its Fast
+        // SsykOverlap reads Match) AND surfaces SsykIsRelated, so .Score.Fast + .SsykIsRelated feed
+        // the Fast Grade overload EXACTLY as the broadened SQL grade-WHERE tags. null grade
+        // (untagged) maps to "no band".
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(seeded, profile.Fast, ct);
+        var scored = await scorer.ScoreFullBatchAsync(seeded, profile, ct);
         var gradeById = seeded.ToDictionary(
             id => id.Value,
-            id => MatchGradeCalculator.Grade(scores[id]));
+            id => MatchGradeCalculator.Grade(scored[id].Score.Fast, scored[id].SsykIsRelated));
 
-        // Sanity: the seed genuinely spans Basic, Good, Strong AND untagged (so no subset
+        // Sanity: the seed genuinely spans Basic, Related, Good, Strong AND untagged (so no subset
         // assertion is vacuously green on a degenerate set).
         var distinctGrades = gradeById.Values.Distinct().ToList();
         distinctGrades.ShouldContain(MatchGrade.Basic);
+        distinctGrades.ShouldContain(MatchGrade.Related,
+            "Seeden ska innehålla minst en Related-annons så {Related}-bandet testas på riktigt.");
         distinctGrades.ShouldContain(MatchGrade.Good);
         distinctGrades.ShouldContain(MatchGrade.Strong);
         distinctGrades.ShouldContain((MatchGrade?)null,
@@ -333,6 +373,71 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
                 $"TotalCount ska räknas om över den grad-filtrerade mängden för delmängden " +
                 $"[{string.Join(", ", subset)}] (rad-86-fixen) — inte över hela korpusen.");
         }
+    }
+
+    // ===============================================================
+    // 1b. PR-4 (#300, ADR 0084) — the {Related} band selects EXACTLY the related-only ads, with the
+    //     recomputed count == in-band size, and Related is EXCLUDED when not selected (positive-only
+    //     per band). Self-contained: seeds Related + each Fast rung + untagged, derives the expected
+    //     Related id-set from the seed group membership (the related ads are the SeedRelatedAsync ones).
+    // ===============================================================
+
+    [Fact]
+    public async Task GradeFilter_RelatedBand_ReturnsExactlyRelatedAds_AndExcludesThemOtherwise()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // Two Related ads + one of each Fast rung + an untagged. We track the Related ids directly
+        // from the seed so the expected {Related}-set is unambiguous (no SSOT round-trip needed for
+        // identity — the grade SSOT is still cross-checked below).
+        var related1 = await SeedRelatedAsync(run, t.AddDays(20), ct);
+        var related2 = await SeedRelatedAsync(run, t.AddDays(19), ct);
+        var strong = await SeedStrongAsync(run, t.AddDays(15), ct);
+        var good = await SeedGoodAsync(run, t.AddDays(13), ct);
+        var basic = await SeedBasicNeutralAsync(run, t.AddDays(10), ct);
+        var untagged = await SeedUntaggedSsykNoMatchAsync(run, t.AddDays(5), ct);
+
+        var relatedIds = new HashSet<Guid> { related1.Value, related2.Value };
+
+        var profile = Profile();
+        var filter = FilterFor(run);
+
+        // Cross-check the SSOT: each Related ad grades to Related (Fast band + isRelated cap), each
+        // non-related ad does not. Uses the broadened full scorer (.Score.Fast + .SsykIsRelated).
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var scored = await scorer.ScoreFullBatchAsync(
+            [related1, related2, strong, good, basic, untagged], profile, ct);
+        MatchGradeCalculator.Grade(scored[related1].Score.Fast, scored[related1].SsykIsRelated)
+            .ShouldBe(MatchGrade.Related);
+        MatchGradeCalculator.Grade(scored[related2].Score.Fast, scored[related2].SsykIsRelated)
+            .ShouldBe(MatchGrade.Related);
+        scored[strong].SsykIsRelated.ShouldBeFalse("en exakt-yrke-annons är aldrig related.");
+
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+
+        // The {Related} band returns EXACTLY the two related-only ads, count == in-band size (2).
+        var relatedPage = await query.SearchPerUserAsync(
+            filter, profile, grades: [MatchGrade.Related], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, page: 1, pageSize: 100, ct);
+
+        relatedPage.Items.Select(i => i.Id).ToHashSet().ShouldBe(relatedIds, ignoreOrder: true,
+            "{Related}-bandet ska returnera EXAKT de related-only-annonserna (∈ related ∧ ∉ exakt).");
+        relatedPage.TotalCount.ShouldBe(2,
+            "TotalCount för {Related} ska vara antalet related-annonser (2), inte hela korpusen.");
+
+        // Related is EXCLUDED when not selected: a {Good, Strong} band must contain neither related ad.
+        var fastBandPage = await query.SearchPerUserAsync(
+            filter, profile, grades: [MatchGrade.Good, MatchGrade.Strong], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, page: 1, pageSize: 100, ct);
+
+        var fastBandIds = fastBandPage.Items.Select(i => i.Id).ToHashSet();
+        fastBandIds.ShouldNotContain(related1.Value,
+            "en related-annons får aldrig dyka upp i {Good, Strong} (Related är sin egen rung).");
+        fastBandIds.ShouldNotContain(related2.Value);
     }
 
     // ===============================================================

@@ -83,8 +83,15 @@ public interface IMatchScorer
     /// concept-ids (explainable by design — ADR 0074). Deterministic: equal inputs
     /// yield an equal score with Ordinal-stable evidence.
     /// </para>
+    /// <para>
+    /// #300 PR-4 (ADR 0084 §F4): returns a <see cref="FullScoredMatch"/> — the score PLUS
+    /// <see cref="FullScoredMatch.SsykIsRelated"/> (the ad matched only via a RELATED occupation
+    /// group, not the user's exact set). The caller passes that bit to
+    /// <see cref="Grading.MatchGradeCalculator.Grade(FullMatchScore, bool)"/> for the Related cap.
+    /// Behaviour-inert in v1 (the related set is empty until the PR-5 toggle).
+    /// </para>
     /// </summary>
-    ValueTask<FullMatchScore> ScoreFullAsync(
+    ValueTask<FullScoredMatch> ScoreFullAsync(
         JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken);
 
     /// <summary>
@@ -105,7 +112,12 @@ public interface IMatchScorer
     /// CV side has no skill concept-ids OR the ad has no terms of that kind/source.
     /// Deterministic per key, with Ordinal-stable evidence.
     /// </para>
+    /// <para>
+    /// #300 PR-4 (ADR 0084 §F4): each value is a <see cref="FullScoredMatch"/> — the score PLUS
+    /// <see cref="FullScoredMatch.SsykIsRelated"/> per ad (the ad matched only via a RELATED
+    /// occupation group). Behaviour-inert in v1 (the related set is empty until the PR-5 toggle).
+    /// </para>
     /// </summary>
-    ValueTask<IReadOnlyDictionary<JobAdId, FullMatchScore>> ScoreFullBatchAsync(
+    ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>> ScoreFullBatchAsync(
         IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile, CancellationToken cancellationToken);
 }

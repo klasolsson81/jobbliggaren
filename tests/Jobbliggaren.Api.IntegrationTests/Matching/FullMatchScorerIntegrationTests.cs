@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Matching;
@@ -66,6 +67,24 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     private const string DockerDisplay = "Docker";
     private const string KubernetesConceptId = "skill-k8s-0003";
     private const string KubernetesDisplay = "Kubernetes";
+
+    // PR-4 (#300, ADR 0084) — the ssyk-4 occupation-group concept-ids for the Related-cap cases.
+    // ExactGroup is the user's stated occupation; RelatedGroup is a substitutable neighbour in the
+    // profile's related set ONLY; BothGroup sits in BOTH sets (exact precedence); DisjointGroup is
+    // in NEITHER (the gate-fail case). We control the seed, so the (exact ∪ related) membership the
+    // SsykIsRelated bit reads is exactly what these constants encode.
+    private const string ExactGroup = "grp-exact-0001";
+    private const string RelatedGroup = "grp-related-0002";
+    private const string BothGroup = "grp-both-0003";
+    private const string DisjointGroup = "grp-disjoint-0004";
+
+    // Stated ort/employment preference values for the cap-before-RB1 cases. Hoisted to
+    // static readonly so the per-test args do not allocate a fresh inline array each call
+    // (CA1861). The ad's "wrong city" region (AdWrongRegion) is deliberately NOT in the
+    // preferred set, forcing a region NoMatch the Related-cap must override BEFORE RB1.
+    private static readonly string[] PrefRegions = ["reg-pref-0001"];
+    private static readonly string[] PrefEmployments = ["emp-pref-0001"];
+    private const string AdWrongRegion = "reg-wrong-9999";
 
     // ---------------------------------------------------------------
     // SUT factory — the real Infrastructure scorer (fresh scoped AppDbContext +
@@ -209,6 +228,29 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
                 PreferredMunicipalityConceptIds: []),
             CvSkillConceptIds: cvSkillConceptIds);
 
+    // PR-4 (#300, ADR 0084) — a profile that STATES an exact ssyk-4 set { ExactGroup, BothGroup }
+    // and a related ssyk-4 set { RelatedGroup, BothGroup } (BothGroup is in both → exact wins).
+    // RelatedSsykGroupConceptIds is an additive init-property on the embedded Fast profile (not a
+    // positional arg). preferredRegions/preferredEmployments default empty so the cap-before-RB1
+    // cases can opt into a stated-but-contradicted secondary. The related set is EMPTY for every
+    // pre-PR-4 test (behaviour-inert), so this helper is only used by the B2 Related cases.
+    private static FullCandidateMatchProfile RelatedFullProfile(
+        IReadOnlyList<string>? preferredRegions = null,
+        IReadOnlyList<string>? preferredEmployments = null,
+        IReadOnlyList<string>? preferredMunicipalities = null,
+        params string[] cvSkillConceptIds) =>
+        new(
+            Fast: new CandidateMatchProfile(
+                Title: "Titel",
+                SsykGroupConceptIds: [ExactGroup, BothGroup],
+                PreferredRegionConceptIds: preferredRegions ?? [],
+                PreferredEmploymentTypeConceptIds: preferredEmployments ?? [],
+                PreferredMunicipalityConceptIds: preferredMunicipalities ?? [])
+            {
+                RelatedSsykGroupConceptIds = [RelatedGroup, BothGroup],
+            },
+            CvSkillConceptIds: cvSkillConceptIds);
+
     // =================================================================
     // SkillOverlap — Match / Partial / NoMatch / NotAssessed
     // =================================================================
@@ -228,7 +270,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         // Display labels, NOT raw concept-ids (DE-display-1).
@@ -252,7 +294,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Partial);
         score.SkillOverlap.Matched.ShouldBe([CSharpDisplay]);
@@ -275,7 +317,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
         score.SkillOverlap.Matched.ShouldBeEmpty();
@@ -293,7 +335,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
         score.SkillOverlap.Matched.ShouldBeEmpty();
@@ -316,7 +358,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.SkillOverlap.Matched.ShouldBeEmpty();
@@ -341,7 +383,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.MustHaveCoverage.Matched.ShouldBe([CSharpDisplay, DockerDisplay], ignoreOrder: true);
@@ -362,7 +404,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Partial);
         score.MustHaveCoverage.Matched.ShouldBe([CSharpDisplay]);
@@ -383,7 +425,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
         score.MustHaveCoverage.Matched.ShouldBeEmpty();
@@ -407,7 +449,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.MustHaveCoverage.Matched.ShouldBeEmpty();
@@ -431,7 +473,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.NiceToHaveCoverage.Matched.ShouldBe([DockerDisplay]);
@@ -452,7 +494,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Partial);
         score.NiceToHaveCoverage.Matched.ShouldBe([DockerDisplay]);
@@ -476,7 +518,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.NiceToHaveCoverage.Matched.ShouldBeEmpty();
@@ -502,7 +544,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
@@ -528,7 +570,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
         score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
@@ -547,7 +589,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
         score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
@@ -582,7 +624,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
 
         var fastScore = await scorer.ScoreAsync(jobAdId, fast, ct);
-        var fullScore = await scorer.ScoreFullAsync(jobAdId, full, ct);
+        var fullScore = (await scorer.ScoreFullAsync(jobAdId, full, ct)).Score;
 
         // The four Fast dims must be identical (verdicts + ordered evidence lists).
         AssertSameDimension(fastScore.SsykOverlap, fullScore.Fast.SsykOverlap);
@@ -626,7 +668,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
 
         var fastScore = await scorer.ScoreAsync(jobAdId, fast, ct);
-        var fullScore = await scorer.ScoreFullAsync(jobAdId, full, ct);
+        var fullScore = (await scorer.ScoreFullAsync(jobAdId, full, ct)).Score;
 
         // The embedded Fast RegionFit equals the standalone Fast ScoreAsync RegionFit.
         AssertSameDimension(fastScore.RegionFit, fullScore.Fast.RegionFit);
@@ -658,7 +700,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
 
         var fastScore = await scorer.ScoreAsync(jobAdId, fast, ct);
-        var fullScore = await scorer.ScoreFullAsync(jobAdId, full, ct);
+        var fullScore = (await scorer.ScoreFullAsync(jobAdId, full, ct)).Score;
 
         AssertSameDimension(fastScore.RegionFit, fullScore.Fast.RegionFit);
         fullScore.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
@@ -689,7 +731,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Matched.ShouldBe(
             score.SkillOverlap.Matched.OrderBy(d => d, StringComparer.Ordinal).ToList(),
@@ -733,7 +775,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
-        var score = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
         score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         // ONE entry per concept-id (not two); Title-source Display wins deterministically.
@@ -780,11 +822,11 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         var (scope1, scorer1) = NewScorer();
         using (scope1)
         {
-            var first = await scorer1.ScoreFullAsync(jobAdId, profile, ct);
+            var first = (await scorer1.ScoreFullAsync(jobAdId, profile, ct)).Score;
             var (scope2, scorer2) = NewScorer();
             using (scope2)
             {
-                var second = await scorer2.ScoreFullAsync(jobAdId, profile, ct);
+                var second = (await scorer2.ScoreFullAsync(jobAdId, profile, ct)).Score;
 
                 AssertSameDimension(first.SkillOverlap, second.SkillOverlap);
                 AssertSameDimension(first.MustHaveCoverage, second.MustHaveCoverage);
@@ -828,6 +870,162 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
                 "in-memory overlap, CTO Decision C1).");
         (await OverlapMatchExistsAsync(conn, jobAdId.Value, ["no-match-lexeme-xyz"], ct))
             .ShouldBeFalse("icke-överlappande lexem-set ska inte returnera annonsen.");
+    }
+
+    // =================================================================
+    // PR-4 (#300, ADR 0084) — SsykIsRelated on the FullScoredMatch carrier. TRUE iff the ad's
+    // occupation-group concept-id ∈ profile.Fast.RelatedSsykGroupConceptIds AND ∉
+    // profile.Fast.SsykGroupConceptIds (exact precedence), and only meaningful when the SSYK gate
+    // is a Match; FALSE otherwise. The related set is non-empty here (RelatedFullProfile); it is
+    // EMPTY in every other test in this file, so SsykIsRelated is bit-for-bit false there (the
+    // behaviour-inert v1 invariant, pinned by the last case below).
+    // =================================================================
+
+    [Fact]
+    public async Task ScoreFull_SsykIsRelated_IsFalse_WhenAdGroupInExactSet()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Ad's occupation group ∈ the EXACT stated set → an exact hit → SsykIsRelated false.
+        var jobAdId = await SeedJobAdAsync("Titel", ExactGroup, null, null, terms: null, ct);
+        var profile = RelatedFullProfile();
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.SsykIsRelated.ShouldBeFalse(
+            "ad-gruppen ligger i det EXAKTA setet → exakt-träff, inte related.");
+        // The exact hit makes the SSYK gate a Match (so the bit is meaningful and false, not vacuous).
+        result.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+    }
+
+    [Fact]
+    public async Task ScoreFull_SsykIsRelated_IsTrue_WhenAdGroupInRelatedSetOnly()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Ad's occupation group ∈ the RELATED set, ∉ the exact set → a related-only hit.
+        var jobAdId = await SeedJobAdAsync("Titel", RelatedGroup, null, null, terms: null, ct);
+        var profile = RelatedFullProfile();
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.SsykIsRelated.ShouldBeTrue(
+            "ad-gruppen ligger ENBART i related-setet (∉ exakt) → related-träff.");
+        // The broadened gate (exact ∪ related) still reads SSYK Match for a related-only hit.
+        result.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+    }
+
+    [Fact]
+    public async Task ScoreFull_RelatedOnlyHit_GradesRelated_FlatCap_EvenWithBothSecondariesMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Related-only occupation hit AND both secondaries Match (region + employment confirmed) —
+        // an exact hit here would be Strong. The flat Related-cap must override to Related.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", RelatedGroup, PrefRegions[0], PrefEmployments[0], terms: null, ct);
+        var profile = RelatedFullProfile(
+            preferredRegions: PrefRegions, preferredEmployments: PrefEmployments);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.SsykIsRelated.ShouldBeTrue();
+        // Both secondaries genuinely Match (so this is NOT vacuously Related on a thin tuple).
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        result.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        // Flat cap: a related occupation is always exactly Related, never Good/Strong/Top.
+        MatchGradeCalculator.Grade(result.Score, result.SsykIsRelated).ShouldBe(MatchGrade.Related,
+            "en related-only-träff cap:as platt till Related även med båda sekundärerna Match.");
+    }
+
+    [Fact]
+    public async Task ScoreFull_RelatedOnlyHit_GradesRelated_NotBasic_WhenRegionContradicts_CapBeforeRB1()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Related-only occupation hit AND a stated-region the ad CONTRADICTS (wrong city → region
+        // NoMatch). For an EXACT hit RB1 would floor to Basic; the Related-cap is evaluated BEFORE
+        // RB1, so a related occupation in the wrong city reads Related, NOT Basic.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", RelatedGroup, AdWrongRegion, PrefEmployments[0], terms: null, ct);
+        var profile = RelatedFullProfile(
+            preferredRegions: PrefRegions, preferredEmployments: PrefEmployments);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.SsykIsRelated.ShouldBeTrue();
+        // The region genuinely contradicts (the RB1 trigger an exact hit would floor on).
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        MatchGradeCalculator.Grade(result.Score, result.SsykIsRelated).ShouldBe(MatchGrade.Related,
+            "Related-cap före RB1: en related occupation i fel stad ska läsa Related, INTE Basic " +
+            "(annars presenteras ett substituerbart yrke som ett exakt-yrkes-utfall).");
+    }
+
+    [Fact]
+    public async Task ScoreFull_SsykIsRelated_IsFalse_WhenAdGroupInBothExactAndRelated_ExactPrecedence()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Ad's occupation group ∈ BOTH the exact and related sets → exact precedence → false.
+        var jobAdId = await SeedJobAdAsync("Titel", BothGroup, null, null, terms: null, ct);
+        var profile = RelatedFullProfile();
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.SsykIsRelated.ShouldBeFalse(
+            "ad-gruppen ligger i BÅDE exakt och related → exakt vinner (exact-precedence).");
+        result.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+    }
+
+    [Fact]
+    public async Task ScoreFull_SsykIsRelated_IsFalse_AndGradeNull_WhenAdGroupInNeitherSet_GateFail()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Ad's occupation group ∈ NEITHER set → the broadened gate (exact ∪ related) still fails →
+        // SSYK not a Match → no tag (grade null) and SsykIsRelated false (the bit is not meaningful
+        // when the gate is closed).
+        var jobAdId = await SeedJobAdAsync("Titel", DisjointGroup, null, null, terms: null, ct);
+        var profile = RelatedFullProfile();
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.SsykIsRelated.ShouldBeFalse("gate stängd → related-biten är inte meningsfull → false.");
+        result.Score.Fast.SsykOverlap.Verdict.ShouldNotBe(MatchDimensionVerdict.Match);
+        MatchGradeCalculator.Grade(result.Score, result.SsykIsRelated).ShouldBeNull(
+            "ad-gruppen ligger i varken exakt eller related → gate-fail → ingen tagg (null).");
+    }
+
+    [Fact]
+    public async Task ScoreFull_SsykIsRelated_IsFalse_WhenRelatedSetEmpty_BehaviourInert()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // The behaviour-inert v1 invariant: with an EMPTY related set, a normal exact-occupation ad
+        // reads SsykIsRelated false — bit-for-bit today's behaviour. This is the only profile shape
+        // every OTHER test in this file uses (related set empty), so this pins they are all false.
+        var jobAdId = await SeedJobAdAsync("Titel", ExactGroup, null, null, terms: null, ct);
+        var exactOnly = new FullCandidateMatchProfile(
+            Fast: new CandidateMatchProfile(
+                Title: "Titel",
+                SsykGroupConceptIds: [ExactGroup],
+                PreferredRegionConceptIds: [],
+                PreferredEmploymentTypeConceptIds: [],
+                PreferredMunicipalityConceptIds: []),
+            CvSkillConceptIds: []); // RelatedSsykGroupConceptIds defaults to []
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, exactOnly, ct);
+
+        result.SsykIsRelated.ShouldBeFalse(
+            "tomt related-set → SsykIsRelated alltid false (PR-4 är beteende-inert i v1).");
+        result.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
     }
 
     // ---------------------------------------------------------------

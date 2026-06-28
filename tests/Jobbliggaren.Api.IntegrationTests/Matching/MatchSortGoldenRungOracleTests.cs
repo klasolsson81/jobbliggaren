@@ -80,6 +80,13 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
     private const string PrefRegion = "reg-golden-pref";
     private const string PrefEmployment = "emp-golden-pref";
 
+    // PR-4 (#300, ADR 0084) — a ssyk-4 in the RELATED (substitutable) set only (∉ exact). A
+    // related-only ad caps flat at the Related rung; the golden top-skill lift reads the EXACT
+    // ssyk set, so a shared CV skill must NOT lift a related-only ad above an exact positive.
+    private const string RelatedGroup = "grp-golden-related";
+    private static readonly string[] ExactGroups = [PrefGroup];
+    private static readonly string[] RelatedGroups = [RelatedGroup];
+
     // The CV skill concept-id the golden ad shares; seeded into that ad's extracted_terms.
     private const string CvSkillConceptId = "skill-golden-0001";
     private const string CvSkillDisplay = "Golden-skill";
@@ -117,6 +124,22 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
                 PreferredRegionConceptIds: [],
                 PreferredEmploymentTypeConceptIds: [PrefEmployment],
                 PreferredMunicipalityConceptIds: [preferredMunicipality]),
+            cvSkillConceptIds);
+
+    // PR-4 (#300, ADR 0084) — a profile that STATES the related set { RelatedGroup } alongside the
+    // exact set { PrefGroup }, with the CV skill set driving the (exact-only) golden lift. Used to
+    // prove a related-only ad sharing the CV skill earns NO golden lift and stays at the Related rung.
+    private static FullCandidateMatchProfile ProfileWithRelated(params string[] cvSkillConceptIds) =>
+        new(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: ExactGroups,
+                PreferredRegionConceptIds: [PrefRegion],
+                PreferredEmploymentTypeConceptIds: [PrefEmployment],
+                PreferredMunicipalityConceptIds: [])
+            {
+                RelatedSsykGroupConceptIds = RelatedGroups,
+            },
             cvSkillConceptIds);
 
     // Filter on the unique test-run worktime-extent only (Spår 3 PR-C: moved off municipality —
@@ -508,6 +531,53 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
                 "En must_have-term vars concept-id INTE finns i CV-skill-mängden ger INGEN " +
                 "golden-lyft (overlap-gated, ej blotta närvaron av en Requirement-term) — " +
                 "ordningen ≡ F4-14 (nyare plain-Strong först).");
+    }
+
+    // =================================================================
+    // 16. PR-4 (#300, ADR 0084) — a RELATED-only ad carrying a shared CV skill earns NO golden lift
+    //     and sorts at the Related rung (below exact Good/Strong). The golden top-skill lift reads
+    //     the EXACT ssyk set only — a substitutable occupation is capped flat at Related regardless
+    //     of any skill overlap, so the shared skill must NOT lift it above an exact positive. Pairs
+    //     a related-only Strong-SHAPED ad (region+employment Match) holding the shared skill against
+    //     an exact Good ad (no skill): the exact Good (rung 3) must sort ABOVE the related ad
+    //     (rung 2), even though only the related ad carries the golden skill.
+    // =================================================================
+
+    [Fact]
+    public async Task SearchByMatch_RelatedOnlyAdWithSharedSkill_GetsNoGoldenLift_SortsBelowExactGood()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        // relatedWithSkill: occupation ∈ related-only, region+employment Match (a would-be Strong),
+        // AND carries the shared CV skill term — the golden precondition for an EXACT ad. Published
+        // NEWER, so if the related rung wrongly took a golden lift (or any exact-positive rank), it
+        // would sort first. The flat related-cap (rung 2) must place it BELOW the exact Good.
+        var relatedWithSkill = await SeedJobAdAsync(
+            run, RelatedGroup, PrefRegion, PrefEmployment, t.AddDays(2), goldenTerms, ct);
+        // exactGood: exact occupation + one confirmed secondary (region Match, employment null →
+        // NotAssessed) + NO skill term → plain Good (rung 3). Published OLDER.
+        var exactGood = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, employmentTypeConceptId: null, t.AddDays(1), terms: null, ct);
+
+        var (scope, matchSort) = NewMatchSort();
+        using var _ = scope;
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), ProfileWithRelated(CvSkillConceptId),
+            grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, page: 1, pageSize: 100, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.Count.ShouldBe(2, "Båda annonserna ska returneras.");
+        orderedIds.IndexOf(exactGood.Value)
+            .ShouldBeLessThan(orderedIds.IndexOf(relatedWithSkill.Value),
+                "Den exakta Good-annonsen (rung 3) ska rangordnas ÖVER den related-only-annonsen " +
+                "(rung 2) — den delade CV-skill:en ger INGEN golden-lyft på related-rungen " +
+                "(golden-lyften läser det EXAKTA ssyk-setet; ett substituerbart yrke cap:as platt " +
+                "till Related oavsett skill-överlapp). Den nyare related-annonsen får alltså INTE " +
+                "ligga först.");
     }
 
     private async Task<List<JobAdId>> CanonicalIdOrderAsync(

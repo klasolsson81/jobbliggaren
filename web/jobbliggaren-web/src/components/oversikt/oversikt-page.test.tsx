@@ -190,15 +190,21 @@ describe("OversiktPage — Sammanfattnings-rad 'Nya matchningar' (ADR 0080 Vag 4
 
   it("mock-28 ('matchCountToday') yttas inte längre i Sammanfattningen", () => {
     const { container } = renderOversikt(true, 42, 7);
-    // Scope the guard to the Sammanfattning section (per the test name): the old
-    // matchCountToday mock (28) must not leak into the SUMMARY. Asserting the
-    // whole container is a date-flake — the agenda widget legitimately renders
-    // the day-of-month, which is "28" on the 28th of any month and has nothing
-    // to do with the summary. Section identified by its aria-labelledby anchor.
+    // The old matchCountToday mock (28) must not leak into the SUMMARY as a value.
+    // Assert the row VALUE cells, not the section's full textContent: the section
+    // carries a "registrerat per YYYY-MM-DD" sub-header that legitimately contains
+    // the day-of-month — which is "28" on the 28th of any month. The #303 fix
+    // scoped to the section but the date header lives INSIDE it, so the flake
+    // survived (red FE-CI for the whole team on the 28th). Scoping to the
+    // `.jp-summary__row__value` cells excludes the date header entirely and keeps
+    // the assertion's real intent: no summary row surfaces the mock value 28.
     const summary = container.querySelector(
       '[aria-labelledby="oversikt-sammanfattning"]',
     );
     expect(summary).not.toBeNull();
-    expect(summary?.textContent ?? "").not.toContain("28");
+    const rowValues = Array.from(
+      summary?.querySelectorAll(".jp-summary__row__value") ?? [],
+    ).map((el) => el.textContent ?? "");
+    expect(rowValues).not.toContain("28");
   });
 });

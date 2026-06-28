@@ -8,6 +8,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import { Info } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type {
@@ -107,6 +108,17 @@ interface MatchSetupWizardProps {
 }
 
 const TOTAL_STEPS = 5;
+
+/**
+ * #251 (A4) — AF-taxonomins "Vanlig anställning"-concept-id (FRUSEN, legally-
+ * stable referensnod; klass2-taxonomy.json / ADR 0043-amendment). De flesta
+ * annonser ligger under denna breda bucket, så en användare som väljer en
+ * smalare anställningstyp (t.ex. Tillsvidareanställning) men INTE Vanlig
+ * anställning riskerar att missa träffar. Concept-id (ej label) är den stabila
+ * nyckeln: FE får relabela presentations-labeln (klass2-taxonomy.json-noten),
+ * men concept-id:t är fruset. Driver den icke-blockerande noten i steg 4.
+ */
+const VANLIG_ANSTALLNING_CONCEPT_ID = "PFZr_Syz_cUq";
 
 /**
  * Match-setup-wizard (ADR 0077 STEG 5) — en skippbar fyra-stegs wide
@@ -353,6 +365,22 @@ export function MatchSetupWizard({
           <span className="jp-wizard__counter">
             {t("matchPrefs.wizard.counter", { step, total: TOTAL_STEPS })}
           </span>
+          {/* #251 (Del B) — hairline segmenterad progress-indikator (ADR 0077
+              sanktionerad som valfri: accent-färg, ingen fill-animation). Rent
+              visuell förstärkning; den textuella mono-räknaren ovan bär samma
+              info för skärmläsare → aria-hidden (ingen dubbel-annonsering). */}
+          <div className="jp-wizard__progress" aria-hidden="true">
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <span
+                key={i}
+                className={
+                  i < step
+                    ? "jp-wizard__progress-seg jp-wizard__progress-seg--done"
+                    : "jp-wizard__progress-seg"
+                }
+              />
+            ))}
+          </div>
           <DialogTitle
             ref={titleRef}
             tabIndex={-1}
@@ -475,15 +503,40 @@ export function MatchSetupWizard({
                 />
               )}
               {step === 4 && (
-                <FacetSection
-                  title={t("matchPrefs.facetEmployment")}
-                  options={employmentOptions}
-                  selected={draftEmployment}
-                  onToggle={(id) => setDraftEmployment((prev) => toggle(prev, id))}
-                  onClear={() => setDraftEmployment([])}
-                  pinnedAriaLabel={t("matchPrefs.selectedEmployment")}
-                  showHeading={false}
-                />
+                <>
+                  <FacetSection
+                    title={t("matchPrefs.facetEmployment")}
+                    options={employmentOptions}
+                    selected={draftEmployment}
+                    onToggle={(id) => setDraftEmployment((prev) => toggle(prev, id))}
+                    onClear={() => setDraftEmployment([])}
+                    pinnedAriaLabel={t("matchPrefs.selectedEmployment")}
+                    showHeading={false}
+                  />
+                  {/* #251 (A4) — icke-blockerande not när användaren smalnat av
+                      valet men utelämnat Vanlig anställning (där de flesta jobb
+                      ligger). Tomt val = ärligt "alla" (ADR 0076) → ingen not.
+                      Live-region-sloten är ALLTID monterad så en skärmläsare
+                      annonserar noten när den dyker upp (polite). Påverkar aldrig
+                      Nästa/Spara (propose-and-approve: inget skrivs förrän PUT). */}
+                  <div
+                    className="jp-wizard__note-slot"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {draftEmployment.length > 0 &&
+                      !draftEmployment.includes(VANLIG_ANSTALLNING_CONCEPT_ID) && (
+                        <p className="jp-wizard__note">
+                          <Info
+                            className="jp-wizard__note-icon"
+                            size={16}
+                            aria-hidden="true"
+                          />
+                          <span>{t("matchPrefs.wizard.employmentVanligNote")}</span>
+                        </p>
+                      )}
+                  </div>
+                </>
               )}
             </section>
           </div>

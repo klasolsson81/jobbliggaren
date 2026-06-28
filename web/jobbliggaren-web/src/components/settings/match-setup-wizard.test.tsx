@@ -55,6 +55,9 @@ const regions: ReadonlyArray<TaxonomyRegion> = [
   },
 ];
 const employmentTypes: ReadonlyArray<TaxonomyOption> = [
+  // #251 (A4): "Vanlig anställning" bär det FRUSNA AF-concept-id:t (PFZr_Syz_cUq)
+  // som noten i steg 4 detekterar mot — inte labeln.
+  { conceptId: "PFZr_Syz_cUq", label: "Vanlig anställning" },
   { conceptId: "et_fast", label: "Tillsvidareanställning" },
 ];
 
@@ -157,7 +160,7 @@ describe("MatchSetupWizard — steg-navigering", () => {
   it("Nästa går framåt och Tillbaka går bakåt genom alla fem steg", async () => {
     const user = userEvent.setup();
     renderWizard();
-    // 1 → 2 (Kompetenser) → 3 (Orter) → 4 (Anställningsformer) → 5 (Klart)
+    // 1 → 2 (Kompetenser) → 3 (Orter) → 4 (Anställningsformer) → 5 (Sammanfattning)
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     expect(
       screen.getByRole("heading", { name: "Kompetenser" })
@@ -170,7 +173,9 @@ describe("MatchSetupWizard — steg-navigering", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     expect(screen.getByText("Steg 5 av 5")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Klart" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Sammanfattning" })
+    ).toBeInTheDocument();
     // sista steget: primär = Spara matchning (ej Nästa)
     expect(
       screen.getByRole("button", { name: "Spara matchning" })
@@ -217,6 +222,60 @@ describe("MatchSetupWizard — steg-navigering", () => {
       const heading = screen.getByRole("heading", { name: "Kompetenser" });
       expect(heading).toHaveFocus();
     });
+  });
+});
+
+describe("MatchSetupWizard — 'Vanlig anställning'-not i steg 4 (#251 A4)", () => {
+  /** Navigera 1 → 4 (Anställningsformer). */
+  async function gotoEmployment(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    expect(
+      screen.getByRole("heading", { name: "Anställningsformer" })
+    ).toBeInTheDocument();
+  }
+
+  it("visar en icke-blockerande not när en smalare typ valts men inte Vanlig anställning", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await gotoEmployment(user);
+
+    // Inget valt ännu → ingen not (tomt = ärligt "alla", ADR 0076). Note-specifik
+    // fras (intro-copyn nämner också Vanlig anställning, så vi matchar notens egen).
+    expect(
+      screen.queryByText(/Lägg gärna till den för att inte missa träffar/)
+    ).toBeNull();
+
+    // Välj Tillsvidareanställning (men inte Vanlig anställning) → noten dyker upp.
+    await user.click(
+      screen.getByRole("checkbox", { name: "Tillsvidareanställning" })
+    );
+    expect(
+      screen.getByText(/Lägg gärna till den för att inte missa träffar/)
+    ).toBeInTheDocument();
+    // Noten blockerar aldrig framåt (propose-and-approve: inget skrivs förrän PUT).
+    expect(screen.getByRole("button", { name: "Nästa" })).toBeEnabled();
+  });
+
+  it("döljer noten igen när Vanlig anställning också väljs", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await gotoEmployment(user);
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "Tillsvidareanställning" })
+    );
+    expect(
+      screen.getByText(/Lägg gärna till den för att inte missa träffar/)
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "Vanlig anställning" })
+    );
+    expect(
+      screen.queryByText(/Lägg gärna till den för att inte missa träffar/)
+    ).toBeNull();
   });
 });
 
@@ -357,7 +416,7 @@ describe("MatchSetupWizard — ett enda save på slutet", () => {
     // global profil-siffra. Fältet bär en per-yrke aria-label.
     await user.type(
       screen.getByRole("spinbutton", {
-        name: "Ungefärliga år i yrket Backendutvecklare",
+        name: "År i yrket Backendutvecklare",
       }),
       "5"
     );
@@ -471,10 +530,10 @@ describe("MatchSetupWizard — per-yrke-erfarenhet (exp-per-occ, ADR 0079-amendm
 
     // grp_backend seedas till "0" (skilt från tomt), grp_frontend till tomt (null).
     const backendYears = await screen.findByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Backendutvecklare",
+      name: "År i yrket Backendutvecklare",
     });
     const frontendYears = screen.getByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Frontendutvecklare",
+      name: "År i yrket Frontendutvecklare",
     });
     expect(backendYears).toHaveValue(0);
     expect(frontendYears).toHaveValue(null);
@@ -499,7 +558,7 @@ describe("MatchSetupWizard — per-yrke-erfarenhet (exp-per-occ, ADR 0079-amendm
     });
 
     const backendYears = await screen.findByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Backendutvecklare",
+      name: "År i yrket Backendutvecklare",
     });
     // Det persisterade 3 vinner — CV-seedens 9 skriver aldrig över.
     expect(backendYears).toHaveValue(3);

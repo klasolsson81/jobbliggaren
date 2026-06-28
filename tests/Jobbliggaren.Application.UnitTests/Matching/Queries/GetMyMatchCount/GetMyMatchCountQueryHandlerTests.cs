@@ -176,11 +176,16 @@ public class GetMyMatchCountQueryHandlerTests
         await sut.Handle(new GetMyMatchCountQuery(), ct);
 
         // The headline band (Klas 2026-06-24): EXACTLY {Good, Strong} — never Basic, never
-        // Top (Fast band, G3-OPT-A). This set MUST stay coherent with the FE notis link
-        // (?matchGrades=Good&matchGrades=Strong) so the number == the linked /jobb count.
+        // Top (Fast band, G3-OPT-A), and never Related (PR-4 #300, ADR-question D = count is
+        // LIST-ONLY — Related does NOT drive the notification count). This set MUST stay coherent
+        // with the FE notis link (?matchGrades=Good&matchGrades=Strong) so the number == the linked
+        // /jobb count.
         search.LastGrades.ShouldNotBeNull();
         search.LastGrades!.ShouldBe([MatchGrade.Good, MatchGrade.Strong], ignoreOrder: true);
         search.LastGrades!.ShouldNotContain(MatchGrade.Basic);
+        search.LastGrades!.ShouldNotContain(MatchGrade.Related,
+            "Related ingår ALDRIG i headline-counten (ADR 0084 fråga D — counten är list-only; " +
+            "Related driver inte notis-siffran).");
         search.LastGrades!.ShouldNotContain(MatchGrade.Top);
     }
 

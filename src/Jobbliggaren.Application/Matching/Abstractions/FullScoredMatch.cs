@@ -1,0 +1,45 @@
+namespace Jobbliggaren.Application.Matching.Abstractions;
+
+/// <summary>
+/// #300 PR-4 (ADR 0084 §F4 / §5 point 5; senior-cto-advisor carrier-bind 2026-06-28,
+/// Variant A) — the FULL scorer's port result, the frozen <see cref="FullMatchScore"/>
+/// PLUS the single bit the grade ladder needs to split exact-vs-related:
+/// <see cref="SsykIsRelated"/>.
+/// <para>
+/// <b>Why a separate carrier, not a field on <see cref="FullMatchScore"/> (PR-2 bind):</b>
+/// the score types are arch-pinned BY SHAPE (Goodhart guard — <c>FullMatchScore</c> is
+/// exactly { Fast, SkillOverlap, MustHaveCoverage, NiceToHaveCoverage }, see
+/// <c>FullMatchScorerLayerTests</c>). The exact-vs-related distinction is therefore carried
+/// BESIDE the score, never inside it: PR-2 bound "isRelated = a <c>Grade(...)</c> parameter,
+/// not a score field" so the frozen pin stays green. This carrier delivers that parameter
+/// from the scorer to the three grade call-sites (the page-tag batch, the modal detail, the
+/// background scan) so they can call
+/// <see cref="Grading.MatchGradeCalculator.Grade(FullMatchScore, bool)"/> with the right flag.
+/// </para>
+/// <para>
+/// <b><see cref="SsykIsRelated"/> is CATEGORICAL, not a magnitude (Goodhart-safe, ADR 0084
+/// §F4):</b> it is a single ladder-branch bit ("did the SSYK gate pass via a RELATED
+/// occupation group rather than the user's stated exact group?"), exactly like the
+/// <see cref="Grading.MatchGrade.Related"/> rung it produces. It is set TRUE only when the
+/// ad's occupation group is in the profile's RELATED ssyk-4 set AND NOT in the exact set
+/// (exact-precedence); it cannot be summed into an opaque total or "optimized to 92".
+/// </para>
+/// <para>
+/// <b>Fast vs Full asymmetry (CTO Variant A):</b> only the FULL scorer methods
+/// (<see cref="IMatchScorer.ScoreFullAsync"/> / <see cref="IMatchScorer.ScoreFullBatchAsync"/>)
+/// carry this — they are the only methods whose result is graded in production. The Fast
+/// methods stay <see cref="MatchScore"/>-shaped (no production grade caller); a Fast carrier
+/// is a documented future additive wave, created in-block with its first consumer, not now
+/// (YAGNI — ADR 0084 §C cadence).
+/// </para>
+/// Application-layer <c>record class</c> (CLAUDE.md §3.3) — a never-persisted read projection
+/// (parity <see cref="FullMatchScore"/>); no EF/Npgsql/NLP type crosses the port surface.
+/// </summary>
+/// <param name="Score">The embedded FULL match score (the four Fast dimensions + skill /
+/// must-have / nice-to-have coverage), unchanged — equal to what the pre-PR-4
+/// <c>ScoreFullAsync</c> returned for the same ad and profile.</param>
+/// <param name="SsykIsRelated">Whether the SSYK gate passed via the RELATED occupation set
+/// only (ad group ∈ related ∧ ∉ exact). Drives the
+/// <see cref="Grading.MatchGrade.Related"/> flat cap. Always <c>false</c> until the PR-5
+/// "include related" toggle populates the profile's related set (behaviour-inert in v1).</param>
+public sealed record FullScoredMatch(FullMatchScore Score, bool SsykIsRelated);

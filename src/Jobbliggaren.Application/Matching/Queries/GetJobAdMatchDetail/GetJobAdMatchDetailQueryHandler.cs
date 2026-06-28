@@ -47,10 +47,13 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         // Score the single ad. ScoreFullAsync throws NotFoundException for a missing ad
         // (→ 404) — propagated, not swallowed. We do NOT gate on the occupation here: the
         // modal shows the honest per-dimension breakdown even when the grade is null.
-        var score = await scorer.ScoreFullAsync(
+        var scored = await scorer.ScoreFullAsync(
             new JobAdId(query.JobAdId), profile, cancellationToken);
 
-        var grade = MatchGradeCalculator.Grade(score);
+        // #300 PR-4 (ADR 0084 §F4): pass SsykIsRelated so a related-only occupation hit caps at
+        // MatchGrade.Related (behaviour-inert until the PR-5 toggle populates the related set).
+        var score = scored.Score;
+        var grade = MatchGradeCalculator.Grade(score, scored.SsykIsRelated);
 
         // The three membership dimensions (SSYK / region / employment) carry RAW
         // taxonomy concept-ids in their evidence (MatchScorer.ScoreMembership). A

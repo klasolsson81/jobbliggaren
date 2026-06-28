@@ -56,6 +56,13 @@ export default async function AnsokningarPage() {
   const groups = result.data;
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
+  // "Nu" beräknas EN gång här och trädas in i varje ApplicationRow (CTO-bind
+  // #336) så den relativa tids-taggen ("Skickad för X dagar sedan") är
+  // deterministisk per request — INTE new Date() per rad. Undviker
+  // date-flake-klassen (reference_oversikt_test_dayofmonth_flake) och håller
+  // alla rader förankrade i samma referenspunkt.
+  const now = new Date();
+
   // ApplicationRow förblir server-renderbar (CTO punkt 4). Den server-renderas
   // HÄR i RSC och passas in i client-ön som en serialiserbar ReactNode[]-
   // slot-map keyad på status. Renderad ReactNode är serialiserbar över
@@ -66,7 +73,11 @@ export default async function AnsokningarPage() {
   const rowSlots = {} as Record<ApplicationStatus, ReactNode[]>;
   for (const group of groups) {
     rowSlots[group.status] = group.applications.map((application) => (
-      <ApplicationRow key={application.id} application={application} />
+      <ApplicationRow
+        key={application.id}
+        application={application}
+        now={now}
+      />
     ));
   }
 
@@ -96,19 +107,26 @@ export default async function AnsokningarPage() {
             den vita sid-ytan (jp-btn--secondary = solid yt-bakgrund, mörk ink,
             kant) i stället för ghost-på-gradient, som läste som
             grön-genomskinlig (Klas-fynd 2026-06-28; G3-precedens — sekundära
-            knappar avgränsas inte rent mot hero-gradienten). */}
-        <div className="mb-6 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-          <InfoDialog
-            title={ta("info.title")}
-            paragraphs={[ta("info.p1"), ta("info.p2"), ta("info.p3")]}
-          />
-          <Link
-            href="/aktivitetsrapport"
-            className="jp-btn jp-btn--secondary"
-          >
-            <FileText size={16} aria-hidden="true" />{" "}
-            {t("ansokningar.activityReport")}
-          </Link>
+            knappar avgränsas inte rent mot hero-gradienten).
+            #337 — "Vad är detta?" ligger nu direkt UNDER knappen den
+            förklarar (text-only, ingen ikon), den kanoniska placerings-
+            konventionen för InfoDialog. Knapp + förklaring staplas i en
+            högerjusterad kolumn. */}
+        <div className="mb-6 flex justify-end">
+          <div className="flex flex-col items-end gap-1.5">
+            <Link
+              href="/aktivitetsrapport"
+              className="jp-btn jp-btn--secondary"
+            >
+              <FileText size={16} aria-hidden="true" />{" "}
+              {t("ansokningar.activityReport")}
+            </Link>
+            <InfoDialog
+              title={ta("info.title")}
+              paragraphs={[ta("info.p1"), ta("info.p2"), ta("info.p3")]}
+              showIcon={false}
+            />
+          </div>
         </div>
         {total === 0 ? (
           <div className="jp-empty">

@@ -71,6 +71,21 @@ export function getStatusPillClass(status: ApplicationStatus): string {
   return `jp-pill jp-pill--${PILL_VARIANT_CLASS[variant]}`;
 }
 
+/**
+ * Status → `[data-tag="status-{variant}"]`-attribut för den fyrkantiga
+ * status-taggen i ansökningsraden (#336, slice 1). Återbrukar
+ * STATUS_BADGE_VARIANT + PILL_VARIANT_CLASS så list-radens status-tagg,
+ * .jp-pill-systemet och modalen aldrig kan drifta isär (CLAUDE.md §9.1 DRY).
+ * Konsumeras på en `.jp-tag`-bas (kvadratisk, 2px radie, 11px versal) — ej
+ * den rundade .jp-pill — så status läses som en `.jp-tag`-syskon till
+ * /jobb-taggarna men förblir färgkodad för skannbarhet (design-reviewer-bind:
+ * färg + textetikett, WCAG 1.4.1 inte färg-enbart).
+ */
+export function getStatusTagDataAttr(status: ApplicationStatus): string {
+  const variant = STATUS_BADGE_VARIANT[status];
+  return `status-${PILL_VARIANT_CLASS[variant]}`;
+}
+
 // User-facing enum labels resolve through next-intl. The same `t`-call
 // signature works for both client (`useTranslations("applications.enums")`)
 // and server (`useTranslations` in an RSC) — callers acquire `t` scoped to the

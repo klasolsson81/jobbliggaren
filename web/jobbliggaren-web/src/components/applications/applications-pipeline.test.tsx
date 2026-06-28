@@ -72,13 +72,18 @@ function makePipeline(
 // ApplicationRow-elementen och passar in dem som en ReactNode[]-map keyad på
 // status — renderad ReactNode är serialiserbar över RSC→Client-gränsen, en
 // render-prop-funktion är det INTE. Testet speglar exakt prop-kontraktet.
+// Fast referenstid — ApplicationRow tar `now` (#336) så den relativa tids-
+// taggen är deterministisk; pipeline-testet bryr sig inte om värdet men måste
+// uppfylla prop-kontraktet.
+const FIXED_NOW = new Date("2026-05-20T12:00:00Z");
+
 function makeRowSlots(
   groups: PipelineGroupDto[]
 ): Record<ApplicationStatus, ReactNode[]> {
   const slots = {} as Record<ApplicationStatus, ReactNode[]>;
   for (const group of groups) {
     slots[group.status] = group.applications.map((app) => (
-      <ApplicationRow key={app.id} application={app} />
+      <ApplicationRow key={app.id} application={app} now={FIXED_NOW} />
     ));
   }
   return slots;

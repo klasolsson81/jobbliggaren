@@ -29,6 +29,7 @@ export function RegisterForm() {
           type="email"
           autoComplete="email"
           required
+          aria-required="true"
           aria-describedby="email-hint"
         />
         <p id="email-hint" className="text-body-sm text-text-secondary">
@@ -46,6 +47,7 @@ export function RegisterForm() {
           type="password"
           autoComplete="new-password"
           required
+          aria-required="true"
           aria-describedby="password-hint"
         />
         <p id="password-hint" className="text-body-sm text-text-secondary">

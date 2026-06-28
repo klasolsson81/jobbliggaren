@@ -68,8 +68,9 @@
       "fallbackTitle": "Ansökan #{shortId}",
       "ariaLabelWithIdentity": "{title} – {company} – {status}",
       "ariaLabelFallback": "{title} – {status}",
-      "updated": "Uppdaterad",
-      "applyBy": "Sök senast"
+      "applyBy": "Sök senast",
+      "relativeApplied": "Skickad {days, plural, =0 {i dag} =1 {i går} other {för # dagar sedan}}",
+      "relativeDraftUpdated": "Uppdaterad {days, plural, =0 {i dag} =1 {i går} other {för # dagar sedan}}"
     },
     "pipeline": {
       "statusBarAriaLabel": "Status",

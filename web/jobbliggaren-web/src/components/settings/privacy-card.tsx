@@ -23,7 +23,7 @@ export function PrivacyCard({ userEmail }: PrivacyCardProps) {
       <p className="text-body-sm text-text-secondary">
         {t("privacy.description")}
       </p>
-      <div className="flex flex-wrap gap-3" style={{ marginTop: 8 }}>
+      <div className="flex flex-wrap gap-3 mt-2">
         <button
           type="button"
           className="jp-btn jp-btn--secondary jp-btn--sm"
@@ -36,7 +36,7 @@ export function PrivacyCard({ userEmail }: PrivacyCardProps) {
           {t("privacy.export")}
         </button>
       </div>
-      <div style={{ marginTop: 16 }}>
+      <div className="mt-4">
         <DeleteAccountSection currentEmail={userEmail} />
       </div>
     </section>

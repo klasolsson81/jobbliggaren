@@ -39,6 +39,7 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           required
+          aria-required="true"
           aria-describedby="email-hint"
         />
         <p id="email-hint" className="text-body-sm text-text-secondary">
@@ -56,6 +57,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
+          aria-required="true"
         />
       </div>
 

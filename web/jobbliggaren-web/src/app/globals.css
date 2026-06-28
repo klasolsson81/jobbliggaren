@@ -3181,6 +3181,24 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   letter-spacing: 0.04em;
   color: var(--jp-ink-2);
 }
+/* #251 (Del B) — hairline segmenterad progress-indikator. Klara/aktuella
+   segment i accent-700 (aktiv-tier; dark-skiftar själv till #6EE7A8), kommande
+   i --jp-border. Tunna pill-segment, ingen fill-animation (civic restraint,
+   ADR 0077 design-bind). Delar landingens mono/accent-språk inom låsta tokens. */
+.jp-wizard__progress {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 12px;
+}
+.jp-wizard__progress-seg {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-border);
+}
+.jp-wizard__progress-seg--done {
+  background: var(--jp-accent-700);
+}
 .jp-wizard__title {
   margin: 0;
   font-size: 20px;
@@ -3253,6 +3271,28 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   flex-basis: 100%;
   margin: 0;
 }
+/* #251 (A4) — icke-blockerande "Vanlig anställning"-not i anställningsformer-
+   steget. Lugn info-ton (vägledande info, inte en varnings-banner; status-
+   färger reserveras för status). .jp-wizard__note-slot är en alltid-monterad
+   live-region (SR-annonsering); själva noten renderas villkorligt. Hög kontrast
+   (ink-1 på info-bg) — ingen grå text. */
+.jp-wizard__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  background: var(--jp-info-bg);
+  border-radius: var(--jp-r-md);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__note-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--jp-info);
+}
 
 /* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 / 0079 STEG 1 ──
    Standardmodal med tre interna steg: upload → gapfill → done. Upload/done är
@@ -3321,6 +3361,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-welcome__confirm-icon {
   color: var(--jp-success);
+}
+/* #251 (Del B) — Sigillet på välkomst sida-1 (brand-moment). Centrerat i
+   .jp-welcome__confirm; bara lite andrum. Ingen glow/gradient (marken bär sin
+   egen guld-/grön-signatur via mark-tokens, utanför interaktions-accenten). */
+.jp-welcome__brand {
+  margin: 4px 0 2px;
 }
 .jp-welcome__confirm-title {
   margin: 4px 0 0;

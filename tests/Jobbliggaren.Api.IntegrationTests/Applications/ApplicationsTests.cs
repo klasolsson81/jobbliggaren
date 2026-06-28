@@ -170,6 +170,16 @@ public class ApplicationsTests(ApiFactory factory)
             .FirstOrDefault(g => g.GetProperty("status").GetString() == "Draft");
         draftGroup.ValueKind.ShouldNotBe(JsonValueKind.Undefined);
         draftGroup.GetProperty("count").GetInt32().ShouldBeGreaterThanOrEqualTo(1);
+
+        // #343 (ADR 0085 §3, CTO Option a): attentionSignal is projected end-to-end and
+        // MUST serialize as the enum NAME, not the ordinal — [JsonStringEnumConverter] on
+        // ApplicationAttentionSignal. A bare draft (no linked ad, no deadline) → "None".
+        // A raw int 0 here would mean the converter is missing and the FE z.enum parse
+        // would silently break — this assertion is the STOPP-class guard for that.
+        var draftApp = draftGroup.GetProperty("applications").EnumerateArray().First();
+        var signal = draftApp.GetProperty("attentionSignal");
+        signal.ValueKind.ShouldBe(JsonValueKind.String);
+        signal.GetString().ShouldBe("None");
     }
 
     [Fact]

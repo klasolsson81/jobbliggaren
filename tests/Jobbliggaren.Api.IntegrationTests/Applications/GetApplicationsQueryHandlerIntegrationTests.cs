@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
@@ -6,6 +7,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -39,6 +41,9 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
+
+    private static readonly IOptions<ApplicationAttentionOptions> AttentionOptions =
+        Options.Create(new ApplicationAttentionOptions());
 
     public GetApplicationsQueryHandlerIntegrationTests(ApiFactory factory)
     {
@@ -86,7 +91,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         currentUser.UserId.Returns((Guid?)null);
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetApplicationsQueryHandler(db, currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -103,7 +108,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -120,7 +125,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -138,7 +143,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var (_, apps) = await SeedAsync(db, clock, _userId, draftCount: 1, submittedCount: 1);
         var submitted = apps.Single(a => a.Status == ApplicationStatus.Submitted);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -162,7 +167,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Draft"), CancellationToken.None);
 
@@ -180,7 +185,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Submitted"), CancellationToken.None);
 
@@ -201,7 +206,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var otherUserId = Guid.NewGuid();
         await SeedAsync(db, clock, otherUserId, draftCount: 3);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -219,7 +224,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 5);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(
             new GetApplicationsQuery(Page: 1, PageSize: 2),
@@ -249,12 +254,16 @@ public class GetApplicationsQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.Single();
         dto.HasOverdueFollowUp.ShouldBeTrue();
         dto.GhostedThresholdDays.ShouldBe(21);
         dto.LastStatusChangeAt.ShouldBe(app.LastStatusChangeAt, TimeSpan.FromSeconds(1));
+        // #343 (CTO Option a): the paged handler must stamp AttentionSignal too —
+        // lockstep with GetPipeline so the shared ApplicationDto is truthful on BOTH
+        // read paths (#342 invariant). The overdue follow-up above → signal 2.
+        dto.AttentionSignal.ShouldBe(ApplicationAttentionSignal.OverdueFollowUp);
     }
 }

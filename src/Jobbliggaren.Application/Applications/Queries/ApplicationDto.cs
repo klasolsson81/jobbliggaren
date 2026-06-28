@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Applications.Attention;
+
 namespace Jobbliggaren.Application.Applications.Queries;
 
 public sealed record ApplicationDto(
@@ -26,4 +28,12 @@ public sealed record ApplicationDto(
     // (Application.GhostedThresholdDays, default 21), reused by attention signal 4.
     // Projected (not a new config threshold) so the pure Application-layer
     // evaluator can honour the per-aggregate value without a magic number.
-    int GhostedThresholdDays);
+    int GhostedThresholdDays,
+    // #343 (ADR 0085 §3, CTO Option a): the single highest-priority reason this
+    // application needs action now, computed ONCE on the read side by
+    // ApplicationAttentionEvaluator.Evaluate (the SSOT) and projected here so the
+    // /ansokningar "Kräver åtgärd" section reads it directly — no attention rule is
+    // re-implemented in TypeScript (SPOT). Default None keeps it out of the EF
+    // projection (Evaluate is not SQL-translatable); both read handlers re-stamp it
+    // in-memory after materialisation. Serialized by NAME (JsonStringEnumConverter).
+    ApplicationAttentionSignal AttentionSignal = ApplicationAttentionSignal.None);

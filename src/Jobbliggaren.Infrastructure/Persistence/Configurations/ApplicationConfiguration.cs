@@ -78,6 +78,12 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
         builder.Property(a => a.CreatedAt).IsRequired();
         builder.Property(a => a.UpdatedAt).IsRequired();
         builder.Property(a => a.LastStatusChangeAt).IsRequired();
+
+        // The apply/"ansökt" date (issue #316, BUILD.md §5.3). Nullable column:
+        // Draft applications have not been submitted yet, so they carry no apply
+        // date; the value is stamped on the first Submitted transition
+        // (Application.TransitionTo) and never overwritten.
+        builder.Property(a => a.AppliedAt).HasColumnName("applied_at");
         builder.Property(a => a.GhostedThresholdDays)
             .IsRequired()
             .HasDefaultValue(21);

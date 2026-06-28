@@ -248,9 +248,15 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   worktree — the stack-owner injects them at runtime via env override
   (`ConnectionStrings__Postgres` from `.env`) so its worktree runs the real
   stack without committing or copying secrets.
-- **Backlog = GitHub Issues** (`area:` + `hotspot:` labels); `steg-tracker.md`
-  is the strategic map. A PR-babysitter runs via cloud `/schedule` on PR events
-  (review + automerge).
+- **Backlog = GitHub Issues** (`area:`/`hotspot:`/`P0`–`P3`/lane `BE`·`FE`·
+  `BE+FE`/`wip`·`blocked`·`next-up` labels); `steg-tracker.md` is the strategic
+  map. **Claim-on-pickup:** the moment you start an issue, assign yourself + add
+  `wip` so no other CC duplicates it (lighter coordination model, playbook §9 —
+  soft lane affinity + claim signal, not hard per-CC ownership). A PR-babysitter
+  runs via cloud `/schedule` on PR events (review + automerge); it should also
+  `gh issue close` referenced issues (the automerge squash can drop the
+  `Closes #N` keyword → the issue stays open; see playbook §8.1/§9). Side-track
+  PRs you own are shepherded to green before new scope.
 
 ## 7. Testing
 

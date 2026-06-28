@@ -285,8 +285,9 @@ close it manually with a comment referencing the merged PR if not.
 ## 9. Backlog = GitHub Issues
 
 The strategic map is `steg-tracker.md`; the actionable queue is GitHub Issues.
-Labels (created in FAS 0): `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}`,
-`hotspot:{ef-migration,di,i18n}`, `P0`–`P3`.
+Labels: `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}`,
+`hotspot:{ef-migration,di,i18n}`, `P0`–`P3`, lane `{BE,FE,BE+FE}`, and the
+coordination set `{wip, blocked, next-up}` (2026-06-28).
 
 ### Issue template
 
@@ -304,6 +305,41 @@ Labels (created in FAS 0): `area:{matching,applications,jobads-cv,auth,landing,f
 Pick an issue → claim its context → create the worktree → work → PR with
 `automerge`. A `hotspot:*` label means the task touches a shared file: confirm
 no other session owns it first.
+
+### Lane affinity + claim-on-pickup (lighter coordination model, Klas 2026-06-28)
+
+Three CCs run concurrently. The model is **soft affinity + a hard claim signal**,
+NOT a hand-ranked per-CC sequence (that drifts every merge):
+
+1. **Lane = soft affinity via the `BE`/`FE`/`BE+FE` labels.** CC1 leans `BE`/stack,
+   CC3 leans `FE`, CC2 is flex/overflow (may take `BE` when its lane is dry).
+   Labels mark *area*, never *ownership* — an idle CC takes the top item in any
+   lane, **but lane pickup is still subject to §5/§6: a `hotspot:*`/`ef-migration`
+   issue requires the hotspot/migration single-owner token FIRST** (claim-on-pickup
+   is an additional anti-duplication signal, not a replacement for single-ownership;
+   for migrations, serial order is harder than "first to `wip` wins").
+2. **Priority = `P0`>`P1`>`P2`>`P3`** (`P0` = drop-everything hotfix, out-of-band)
+   + a thin **`next-up`** label on the one obvious next pick per lane (so you don't
+   re-rank the whole backlog each session).
+3. **Claim-on-pickup (the anti-collision signal — this was the gap behind the
+   #293/#306 duplicate-work collision):** the moment you start an issue,
+   `gh issue edit <N> --add-assignee @me` **and add the `wip` label**. Another CC
+   sees it's taken and skips it. Drop `wip` if you stand down.
+4. **`blocked`** = blocked by another open issue/decision (e.g. #291 ⟵ #298) —
+   skip until unblocked.
+5. **Side-track PRs FIRST.** At session start, before new scope, shepherd your own
+   open/red PRs to green (CI rerun on a known Docker-Hub flake; rebase a `BEHIND`
+   PR via `git merge origin/main`). New work waits behind a stuck PR you own.
+6. **`steg-tracker.md` §2.1 holds the strategic sequence** — ONE place, not three
+   per-CC lists. It is updated by one session (stack-owner / a designated
+   docs-owner) when Klas sets the order.
+
+> Why issues sometimes look "merged but not done": see §8.1 — automerge squashes
+> and the squash commit subject often drops the PR body's `Closes #N` keyword, so
+> the issue stays OPEN (a Swedish close-keyword never closes it either). Remedy:
+> the PR-babysitter `gh issue close`s the referenced issues on merge, or a periodic
+> sweep does; PR bodies use English `Closes #N`. (2026-06-28 sweep closed 10 such
+> stragglers: #204/#258/#261/#265/#266/#272/#273/#317/#318/#319.)
 
 ---
 

@@ -12,7 +12,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// per-entry DTO live in Application, carry EXACTLY the named-category + four verdicts and
 /// NO numeric/score field (ADR 0076 Decision 4 / ADR 0071 / CLAUDE.md §5 — the Goodhart
 /// guard realised ON THE WIRE), and the <see cref="Jobbliggaren.Application.Matching.Grading.MatchGrade"/>
-/// enum is exactly the four named rungs (no numeric band). The existing
+/// enum is exactly the FIVE named rungs (no numeric band) — { Basic, Related, Good, Strong,
+/// Top } since #300 PR-2 added the exact-vs-related Related rung (ADR 0084 §F2). The existing
 /// MatchScore/MatchDimension/MatchDimensionVerdict shape pins stay in MatchScorerLayerTests.
 /// </summary>
 public class MatchTagBatchLayerTests
@@ -66,7 +67,8 @@ public class MatchTagBatchLayerTests
     }
 
     // ===============================================================
-    // 2. MatchGrade enum is EXACTLY the four named rungs (no numeric band)
+    // 2. MatchGrade enum is EXACTLY the five named rungs (no numeric band) —
+    //    { Basic, Related, Good, Strong, Top } since #300 PR-2 (ADR 0084 §F2)
     // ===============================================================
 
     [Fact]
@@ -78,20 +80,22 @@ public class MatchTagBatchLayerTests
     }
 
     [Fact]
-    public void MatchGrade_is_the_locked_four_member_set()
+    public void MatchGrade_is_the_locked_five_member_set()
     {
-        // F4-16 golden rung (ADR 0076 Amendment (b) §1 rework-free upward extension) —
-        // exactly { Basic, Good, Strong, Top }. Top ("Toppmatch", Klas-bound name) is the
-        // new highest rung ABOVE Strong; the F4-13 three are unchanged. Still NO
-        // numeric-band member (e.g. a "Score92"/percentage rung would be the forbidden
-        // opaque total — the Goodhart intent is preserved, the ladder just grew one
-        // named rung upward).
+        // #300 PR-2 (ADR 0084 §F2) — the ladder grows a new rung Related BETWEEN Basic and
+        // Good: exactly { Basic, Related, Good, Strong, Top }. Related is the exact-vs-related
+        // SSYK split (an ad matched only via a RELATED occupation group, never via the user's
+        // exact group). The F4-16 golden rung Top stays the top; the F4-13 three are unchanged.
+        // Still NO numeric-band member (e.g. a "Score92"/percentage rung would be the forbidden
+        // opaque total — the Goodhart intent is preserved, the ladder just grew one named rung
+        // between Basic and Good). The new member-set is pinned AT the moment of change (CTO
+        // BIND 2).
         var names = Enum.GetNames<Jobbliggaren.Application.Matching.Grading.MatchGrade>();
 
-        names.ShouldBe(["Basic", "Good", "Strong", "Top"], ignoreOrder: true,
-            "MatchGrade ska vara exakt { Basic, Good, Strong, Top } (F4-16 golden rung, " +
-            "ADR 0076 Amendment (b) §1 rework-free upward extension). " +
-            $"Faktiska: [{string.Join(", ", names)}].");
+        names.ShouldBe(["Basic", "Related", "Good", "Strong", "Top"], ignoreOrder: true,
+            "MatchGrade ska vara exakt { Basic, Related, Good, Strong, Top } (#300 PR-2, " +
+            "ADR 0084 §F2 — den nya Related-pinnen mellan Basic/Good; fortfarande INGEN " +
+            $"numerisk-band-medlem, Goodhart-vakten bevarad). Faktiska: [{string.Join(", ", names)}].");
     }
 
     // ===============================================================

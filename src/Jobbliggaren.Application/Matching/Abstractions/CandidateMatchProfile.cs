@@ -36,4 +36,25 @@ public sealed record CandidateMatchProfile(
     IReadOnlyList<string> SsykGroupConceptIds,
     IReadOnlyList<string> PreferredRegionConceptIds,
     IReadOnlyList<string> PreferredEmploymentTypeConceptIds,
-    IReadOnlyList<string> PreferredMunicipalityConceptIds);
+    IReadOnlyList<string> PreferredMunicipalityConceptIds)
+{
+    /// <summary>
+    /// <b><see cref="RelatedSsykGroupConceptIds"/> (ADR 0084 §F2/§5, issue #300):</b> the
+    /// RELATED (substitutable) ssyk-4 group concept-ids — the neighbouring occupation groups
+    /// derived from the user's confirmed occupations via JobTech's <c>substitutability</c>
+    /// relation (PR-1's <c>taxonomy_relations</c> snapshot behind <c>ITaxonomyReadModel</c>).
+    /// The scorer's SSYK gate broadens from "ad group ∈ exact" to "ad group ∈ (exact ∪
+    /// related)"; the calculator caps a related-only hit at <see cref="Grading.MatchGrade.Related"/>.
+    /// <para>
+    /// <b>Additive init-property with an empty default (NOT a positional parameter):</b> an
+    /// empty list = "no related set supplied" = today's exact-only behaviour, so every existing
+    /// 5-argument construction is unchanged and PR-2 is behavior-inert. The profile builder that
+    /// POPULATES this from the taxonomy read-model is wired in PR-3 (ADR 0084 §Implementation —
+    /// the SPOT injection in <c>MatchProfileBuilder.FastFromPreferences</c>); until then the set
+    /// is always empty in production. <see cref="FullCandidateMatchProfile"/> reads it via its
+    /// embedded <see cref="FullCandidateMatchProfile.Fast"/> profile (mirrored, no own field —
+    /// the Full profile is arch-pinned to exactly { Fast, CvSkillConceptIds }).
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<string> RelatedSsykGroupConceptIds { get; init; } = [];
+}

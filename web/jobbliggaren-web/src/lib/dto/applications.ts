@@ -60,8 +60,29 @@ export const applicationDtoSchema = z.object({
   // optional ger deploy-skew-resiliens (cachead/äldre svar utan fältet
   // kraschar ej parse — architect §6 deploy-säkerhets-intent).
   jobAd: jobAdSummaryDtoSchema.nullable().optional(),
+  // #343 (ADR 0085 §3, CTO Option a): the single highest-priority reason this
+  // application needs action now, computed ONCE on the backend by
+  // ApplicationAttentionEvaluator (the SSOT) and serialized by NAME. The FE only
+  // reads it — the attention rule is NOT re-implemented in TypeScript (SPOT).
+  // Drives the pinned "Kräver åtgärd" section on /ansokningar; priority order is
+  // already encoded (the backend returns the single highest-priority signal).
+  // .optional(): deploy-skew resilience (an older BE response without the field
+  // does not crash parse) — a missing value is read as "None" (no attention).
+  attentionSignal: z
+    .enum([
+      "None",
+      "OfferAwaitingReply",
+      "OverdueFollowUp",
+      "DraftDeadlineApproaching",
+      "NoResponseLong",
+      "ProactiveFollowUpNudge",
+    ])
+    .optional(),
 });
 export type ApplicationDto = z.infer<typeof applicationDtoSchema>;
+export type ApplicationAttentionSignal = NonNullable<
+  ApplicationDto["attentionSignal"]
+>;
 
 export const followUpDtoSchema = z.object({
   id: z.string(),

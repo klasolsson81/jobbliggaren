@@ -91,7 +91,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         }
 
         return new MatchScore(
-            SsykOverlap: ScoreMembership(profile.SsykGroupConceptIds, ad.OccupationGroupConceptId),
+            SsykOverlap: ScoreSsykMembership(
+                profile.SsykGroupConceptIds, profile.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
             TitleSimilarity: ScoreTitle(profile.Title, ad.Title),
             RegionFit: ScoreOrtUnion(
                 profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
@@ -151,7 +152,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         foreach (var ad in rows)
         {
             result[ad.Id] = new MatchScore(
-                SsykOverlap: ScoreMembership(profile.SsykGroupConceptIds, ad.OccupationGroupConceptId),
+                SsykOverlap: ScoreSsykMembership(
+                    profile.SsykGroupConceptIds, profile.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
                 RegionFit: ScoreOrtUnion(
                     profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
@@ -212,7 +214,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // is identical (the regression contract).
         var fast = profile.Fast;
         var fastScore = new MatchScore(
-            SsykOverlap: ScoreMembership(fast.SsykGroupConceptIds, ad.OccupationGroupConceptId),
+            SsykOverlap: ScoreSsykMembership(
+                fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
             TitleSimilarity: ScoreTitle(fast.Title, ad.Title),
             RegionFit: ScoreOrtUnion(
                 fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
@@ -283,7 +286,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         foreach (var ad in rows)
         {
             var fastScore = new MatchScore(
-                SsykOverlap: ScoreMembership(fast.SsykGroupConceptIds, ad.OccupationGroupConceptId),
+                SsykOverlap: ScoreSsykMembership(
+                    fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
                 RegionFit: ScoreOrtUnion(
                     fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
@@ -375,6 +379,35 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         }
 
         return cvPreferred.Contains(adValue, StringComparer.Ordinal)
+            ? new MatchDimension(MatchDimensionVerdict.Match, [adValue], [])
+            : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]);
+    }
+
+    // SSYK gate broadened to exact ∪ related (ADR 0084 §5 / §F4, issue #300). The CV side
+    // holds TWO ssyk-4 lists — the user's STATED exact occupation groups and the substitutable
+    // RELATED groups (derived from PR-1's taxonomy_relations snapshot behind ITaxonomyReadModel).
+    // Match when the ad's group is in EITHER set; NotAssessed when BOTH CV-side lists are empty
+    // OR the ad has no group (parity ScoreMembership rule 1 — NoMatch stays reserved for "data
+    // present on both sides, disjoint"). Matched carries the hit concept-id; Missing carries the
+    // ad's group the union lacks (the civic "what the ad offers that you did not pick" direction).
+    //
+    // PR-2 SCOPE (senior-cto-advisor Shape α): this broadens the GATE only and is behaviour-inert
+    // — the related set is always empty until the PR-3 profile builder populates it, so every
+    // existing caller (related defaults to []) sees today's exact-only behaviour bit-for-bit. The
+    // exact-vs-related distinction (which set produced the hit) is surfaced to MatchGradeCalculator
+    // via its isRelated parameter in PR-4, together with the Related-cap wiring + the GradeRank
+    // SQL-rank parity oracle (ADR 0084 §Implementation). Exact precedence is therefore moot for
+    // the verdict here (the union is a Match regardless of which set hit).
+    private static MatchDimension ScoreSsykMembership(
+        IReadOnlyList<string> exact, IReadOnlyList<string> related, string? adValue)
+    {
+        if ((exact.Count == 0 && related.Count == 0) || string.IsNullOrEmpty(adValue))
+        {
+            return NotAssessed();
+        }
+
+        return exact.Contains(adValue, StringComparer.Ordinal)
+               || related.Contains(adValue, StringComparer.Ordinal)
             ? new MatchDimension(MatchDimensionVerdict.Match, [adValue], [])
             : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]);
     }

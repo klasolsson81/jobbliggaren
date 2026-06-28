@@ -51,6 +51,22 @@ public enum MatchGrade
     Basic,
 
     /// <summary>
+    /// A <i>related-occupation</i> grade (ADR 0084 §F2, issue #300): the ad's occupation
+    /// group is NOT among the user's stated (exact) occupations but IS a substitutable
+    /// neighbour of one (the broadened ssyk-4 gate, exact ∪ related). Placed BETWEEN
+    /// <see cref="Basic"/> and <see cref="Good"/>: a substitutable occupation in the right
+    /// city is a stronger civic signal than the user's exact occupation in the wrong city
+    /// (the RB1-floored <see cref="Basic"/>), but it never outranks a positive EXACT-occupation
+    /// outcome (<see cref="Good"/>+). v1 is a <b>flat cap</b> — a related match is always
+    /// exactly <see cref="Related"/>, regardless of secondary/skill/requirement signals: a
+    /// related occupation shares fewer of the occupation's competencies by definition, so
+    /// never reaching the skill-backed rungs is precisely how the grade expresses "lower grade
+    /// the fewer competencies match" (#300). "Relaterat yrke". Skill-coverage falloff within
+    /// the related band is a documented future additive wave (ADR 0084 §C), not v1.
+    /// </summary>
+    Related,
+
+    /// <summary>
     /// A <i>preference-fit</i> grade: occupation matches and at least one stated
     /// region/employment preference is confirmed, but the ad's must-have requirements are
     /// NOT met — or there is no CV to assess them (the honest no-CV ceiling). "Bra match".

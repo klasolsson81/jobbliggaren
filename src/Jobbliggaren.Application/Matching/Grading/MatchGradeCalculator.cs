@@ -41,13 +41,26 @@ public static class MatchGradeCalculator
     /// <c>null</c> when the ad does not earn a tag (occupation not a Match). See the
     /// type summary for the full ladder.
     /// </summary>
-    public static MatchGrade? Grade(MatchScore score)
+    public static MatchGrade? Grade(MatchScore score, bool isRelated = false)
     {
         ArgumentNullException.ThrowIfNull(score);
 
-        // Gate: occupation/SSYK must Match to show any positive tag.
+        // Gate: occupation/SSYK must Match to show any positive tag. The gate WINS over the
+        // Related-cap below: a related occupation still earns no tag when the ad's ssyk is in
+        // neither the exact nor the related set.
         if (score.SsykOverlap.Verdict != MatchDimensionVerdict.Match)
             return null;
+
+        // Related-cap (ADR 0084 §F4, issue #300): the SSYK gate passed via the broadened
+        // exact ∪ related membership, and this hit came through the RELATED set (not the stated
+        // exact set) → cap flat at Related. Evaluated BEFORE the RB1 contradiction floor below,
+        // so a related occupation in the wrong city reads Related, NOT Basic (which would
+        // present a substitutable occupation as an exact-occupation outcome). Flat and first:
+        // a related match never reaches Good/Strong — a related occupation shares fewer of the
+        // occupation's competencies, so the cap is exactly how "lower grade the fewer
+        // competencies" is expressed categorically (Goodhart-safe — a named rung, not a number).
+        if (isRelated)
+            return MatchGrade.Related;
 
         // A stated region/employment preference the ad contradicts floors to Basic.
         var regionContradicts = score.RegionFit.Verdict == MatchDimensionVerdict.NoMatch;
@@ -118,15 +131,26 @@ public static class MatchGradeCalculator
     /// categorical verdict, not a magnitude.
     /// </para>
     /// </summary>
-    public static MatchGrade? Grade(FullMatchScore score)
+    public static MatchGrade? Grade(FullMatchScore score, bool isRelated = false)
     {
         ArgumentNullException.ThrowIfNull(score);
 
         var fast = score.Fast;
 
-        // Gate: occupation/SSYK must Match to earn any tag.
+        // Gate: occupation/SSYK must Match to earn any tag. The gate WINS over the Related-cap.
         if (fast.SsykOverlap.Verdict != MatchDimensionVerdict.Match)
             return null;
+
+        // Related-cap (ADR 0084 §F4, issue #300): a RELATED-occupation hit caps flat at Related,
+        // evaluated BEFORE the RB1 contradiction floor AND the F1(b) requirement gate below. A
+        // related occupation therefore never reaches the contradiction-floor logic (so a related
+        // ad in the wrong city reads Related, not Basic) NOR the requirement-backed rungs
+        // (Strong/Top): meeting an ad's must-haves on a substitutable occupation does not make it
+        // your stated occupation. Both the cap and F1(b) are independent evidence gates on the
+        // upper rungs; they do not contradict. Goodhart-safe — a categorical condition, not a
+        // magnitude. Flat and first.
+        if (isRelated)
+            return MatchGrade.Related;
 
         // Contradiction floor (RB1) — evaluated BEFORE the requirement gate, so a stated
         // region/employment the ad contradicts caps at Basic even with must-haves met.

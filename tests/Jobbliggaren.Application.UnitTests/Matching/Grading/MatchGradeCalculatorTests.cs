@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Shouldly;
@@ -262,12 +263,19 @@ public class MatchGradeCalculatorTests
 
     // =================================================================
     // Full reachable space — exhaustive [Theory] over
-    // (SsykOverlap × RegionFit × EmploymentFit) ∈ {Match, NoMatch, NotAssessed}³.
-    // The expected value is computed by an INDEPENDENT re-statement of the ladder
-    // (not by calling the SUT), so a regression in either implementation diverges.
+    // (SsykOverlap × RegionFit × EmploymentFit) ∈ {Match, NoMatch, NotAssessed}³
+    // CROSS-PRODUCTED with isRelated ∈ {true, false} (#300 PR-2, ADR 0084 §F2/§F4;
+    // senior-cto-advisor + dotnet-architect bound contract). The expected value is
+    // computed by an INDEPENDENT re-statement of the ladder (not by calling the SUT),
+    // so a regression in either implementation diverges.
+    //   • isRelated == false → the EXISTING table, bit-for-bit (the cap is purely
+    //     additive — the regression guard).
+    //   • isRelated == true  → the flat Related-cap: gate passes → Related; gate fails →
+    //     null. The cap sits AFTER the gate and BEFORE the RB1 floor — so even a wrong-city
+    //     (region NoMatch) related ad is Related, not Basic.
     // =================================================================
 
-    public static TheoryData<MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchGrade?>
+    public static TheoryData<MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, bool, MatchGrade?>
         FullVerdictSpace()
     {
         var verdicts = new[]
@@ -278,24 +286,37 @@ public class MatchGradeCalculatorTests
         };
 
         var data = new TheoryData<
-            MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchGrade?>();
+            MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, bool, MatchGrade?>();
 
         foreach (var ssyk in verdicts)
             foreach (var region in verdicts)
                 foreach (var employment in verdicts)
-                    data.Add(ssyk, region, employment, Expected(ssyk, region, employment));
+                    foreach (var isRelated in new[] { false, true })
+                        data.Add(ssyk, region, employment, isRelated,
+                            Expected(ssyk, region, employment, isRelated));
 
         return data;
     }
 
     // Independent oracle — the ladder restated from the spec, NOT delegating to the SUT.
+    // #300 PR-2: the Related-cap is threaded in EXACTLY where the bound contract places it —
+    // gate first (gate WINS over the cap), then the flat cap, then (isRelated == false only)
+    // the existing ladder, untouched.
     private static MatchGrade? Expected(
         MatchDimensionVerdict ssyk,
         MatchDimensionVerdict region,
-        MatchDimensionVerdict employment)
+        MatchDimensionVerdict employment,
+        bool isRelated = false)
     {
+        // Gate first (unchanged) — beats the cap: a non-matching occupation earns no tag
+        // even when isRelated is true.
         if (ssyk != MatchDimensionVerdict.Match)
             return null;
+
+        // Related-cap (NEW, step 2): gate passed AND isRelated → flat Related, regardless of
+        // secondaries (BEFORE the RB1 contradiction floor below).
+        if (isRelated)
+            return MatchGrade.Related;
 
         if (region == MatchDimensionVerdict.NoMatch
             || employment == MatchDimensionVerdict.NoMatch)
@@ -319,12 +340,14 @@ public class MatchGradeCalculatorTests
         MatchDimensionVerdict ssyk,
         MatchDimensionVerdict region,
         MatchDimensionVerdict employment,
+        bool isRelated,
         MatchGrade? expected)
     {
         var score = Score(ssyk, region, employment);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(expected,
-            $"ssyk={ssyk}, region={region}, employment={employment} ska ge {expected}.");
+        MatchGradeCalculator.Grade(score, isRelated).ShouldBe(expected,
+            $"ssyk={ssyk}, region={region}, employment={employment}, " +
+            $"isRelated={isRelated} ska ge {expected}.");
     }
 
     // =================================================================
@@ -379,17 +402,28 @@ public class MatchGradeCalculatorTests
 
     // INDEPENDENT oracle — the requirement-aware function restated from the spec, NOT
     // delegating to the SUT. A regression in either implementation diverges.
+    // #300 PR-2 (ADR 0084 §F2/§F4): isRelated is threaded in BETWEEN the gate and the RB1
+    // floor — gate WINS over the cap, the cap WINS over BOTH the RB1 floor and the F1(b)
+    // requirement gate. isRelated == false reproduces the requirement-aware ladder unchanged.
     private static MatchGrade? ExpectedFull(
         MatchDimensionVerdict ssyk,
         MatchDimensionVerdict region,
         MatchDimensionVerdict employment,
         MatchDimensionVerdict skill,
         MatchDimensionVerdict mustHave,
-        MatchDimensionVerdict niceToHave)
+        MatchDimensionVerdict niceToHave,
+        bool isRelated = false)
     {
-        // 3. Gate.
+        // 3. Gate (unchanged) — beats the cap: a non-matching occupation earns no tag even
+        //    when isRelated is true.
         if (ssyk != MatchDimensionVerdict.Match)
             return null;
+
+        // 3b. Related-cap (NEW, step 2): gate passed AND isRelated → flat Related, BEFORE the
+        //     RB1 floor AND the F1(b) requirement gate — regardless of must-have, skill,
+        //     secondaries, or a contradicting region/employment.
+        if (isRelated)
+            return MatchGrade.Related;
 
         // 4. RB1 floor — evaluated BEFORE must-have; a contradicted stated preference
         //    floors to Basic even if must-have is met and skills are perfect.
@@ -441,11 +475,15 @@ public class MatchGradeCalculatorTests
     // The three Fast dims only reach {Match, NoMatch, NotAssessed} in practice (binary
     // set-membership never reports Partial/Vacuous on the Fast tuple), so the sweep
     // keeps the Fast axes at those three and lets skill/mustHave/niceToHave range over
-    // ALL FIVE verdicts — a pure-function exhaustive cross-product over the reachable
-    // FULL space (3³ × 5 × 5 × 5 = 3 375 cells). SUT ≡ oracle for every cell.
+    // ALL FIVE verdicts — CROSS-PRODUCTED with isRelated ∈ {true, false} (#300 PR-2). A
+    // pure-function exhaustive cross-product over the reachable FULL space
+    // (3³ × 5 × 5 × 5 × 2 = 6 750 cells). SUT ≡ oracle for every cell.
+    //   • isRelated == false half  → the EXISTING requirement-aware table, bit-for-bit
+    //     (the regression guard — the cap is purely additive).
+    //   • isRelated == true half   → Related whenever the gate passes; null when it fails.
     public static TheoryData<
         MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict,
-        MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchGrade?>
+        MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, bool, MatchGrade?>
         RequirementAwareFullVerdictSpace()
     {
         var fastVerdicts = new[]
@@ -457,7 +495,7 @@ public class MatchGradeCalculatorTests
 
         var data = new TheoryData<
             MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict,
-            MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, MatchGrade?>();
+            MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, bool, MatchGrade?>();
 
         foreach (var ssyk in fastVerdicts)
             foreach (var region in fastVerdicts)
@@ -465,8 +503,11 @@ public class MatchGradeCalculatorTests
                     foreach (var skill in AllVerdicts)
                         foreach (var mustHave in AllVerdicts)
                             foreach (var niceToHave in AllVerdicts)
-                                data.Add(ssyk, region, employment, skill, mustHave, niceToHave,
-                                    ExpectedFull(ssyk, region, employment, skill, mustHave, niceToHave));
+                                foreach (var isRelated in new[] { false, true })
+                                    data.Add(ssyk, region, employment, skill, mustHave, niceToHave,
+                                        isRelated,
+                                        ExpectedFull(ssyk, region, employment, skill, mustHave,
+                                            niceToHave, isRelated));
 
         return data;
     }
@@ -480,13 +521,14 @@ public class MatchGradeCalculatorTests
         MatchDimensionVerdict skill,
         MatchDimensionVerdict mustHave,
         MatchDimensionVerdict niceToHave,
+        bool isRelated,
         MatchGrade? expected)
     {
         var score = FullScore(ssyk, region, employment, skill, mustHave, niceToHave);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(expected,
+        MatchGradeCalculator.Grade(score, isRelated).ShouldBe(expected,
             $"ssyk={ssyk}, region={region}, employment={employment}, skill={skill}, " +
-            $"mustHave={mustHave}, niceToHave={niceToHave} ska ge {expected}.");
+            $"mustHave={mustHave}, niceToHave={niceToHave}, isRelated={isRelated} ska ge {expected}.");
     }
 
     // -----------------------------------------------------------------
@@ -884,5 +926,281 @@ public class MatchGradeCalculatorTests
     {
         Should.Throw<ArgumentNullException>(
             () => MatchGradeCalculator.Grade((FullMatchScore)null!));
+    }
+
+    // =================================================================
+    // #300 PR-2 — Related-cap (ADR 0084 §F2/§F4; ADR 0076 F1(b); senior-cto-advisor +
+    // dotnet-architect bound contract). BOTH Grade overloads gain `bool isRelated = false`.
+    // The cap sits AFTER the SSYK gate and BEFORE everything else:
+    //   • Fast:  after the gate, BEFORE the RB1 contradiction floor.
+    //   • Full:  after the gate, BEFORE both the RB1 floor AND the F1(b) requirement gate.
+    // Bound evaluation order (per overload):
+    //   1. Gate (unchanged): SsykOverlap.Verdict != Match → null. The gate WINS over the cap.
+    //   2. Related-cap (NEW): gate passed AND isRelated == true → MatchGrade.Related. STOP.
+    //      A FLAT cap — regardless of secondaries, must-have, skill, or a contradicting
+    //      region/employment.
+    //   3. Else (isRelated == false): the existing ladder, bit-for-bit (regression).
+    //
+    // MatchGrade.Related is the new rung BETWEEN Basic and Good
+    // (Basic=0, Related=1, Good=2, Strong=3, Top=4). RED until the enum member + the
+    // isRelated parameter on both overloads ship.
+    // =================================================================
+
+    // --- Fast overload: the load-bearing Related cells (each fails BY NAME on regression) ---
+
+    [Fact]
+    public void Grade_ShouldReturnRelated_WhenIsRelatedTrue_AndBothSecondariesMatch()
+    {
+        // SsykOverlap Match + region Match + employment Match would be Strong for an EXACT
+        // hit — the flat Related-cap forces Related instead (the headline exact-vs-related split).
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+            "En related-yrkes-träff med båda sekundärerna bekräftade ska kapas till Related, " +
+            "inte Strong (flat-cap, ADR 0084 §F2).");
+    }
+
+    [Fact]
+    public void Grade_ShouldReturnRelated_WhenIsRelatedTrue_AndRegionContradicts()
+    {
+        // region NoMatch would floor an EXACT hit to Basic via the RB1 floor — but the cap
+        // sits BEFORE the floor, so a wrong-city related ad is Related, NOT Basic.
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NoMatch,
+            employment: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+            "Related-cap sitter FÖRE RB1-golvet — fel ort kapar inte ner till Basic (ADR 0084 §F4).");
+    }
+
+    [Fact]
+    public void Grade_ShouldReturnNull_WhenIsRelatedTrue_ButSsykOverlapIsNoMatch()
+    {
+        // The gate WINS over the cap: a non-matching occupation earns no tag even when related.
+        var score = Score(
+            ssyk: MatchDimensionVerdict.NoMatch,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBeNull(
+            "Grinden slår capen: ingen SSYK-träff → null, även om isRelated är true (ADR 0084 §F4).");
+    }
+
+    [Fact]
+    public void Grade_ShouldReturnRelated_WhenIsRelatedTrue_AndBothSecondariesNotAssessed()
+    {
+        // Both secondaries NotAssessed would be Basic for an EXACT hit — the cap still yields
+        // Related (the flat cap is indifferent to the secondaries).
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.NotAssessed);
+
+        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related);
+    }
+
+    // --- Full overload: the load-bearing Related cells ---
+
+    [Fact]
+    public void GradeFull_ShouldReturnRelated_WhenIsRelatedTrue_AndEverythingMatches()
+    {
+        // mustHave Match + skill Match + both secondaries Match would be Top for an EXACT hit
+        // — the cap sits BEFORE the requirement gate, so it is Related, NOT Top.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Match,
+            mustHave: MatchDimensionVerdict.Match,
+            niceToHave: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+            "Related-cap sitter FÖRE F1(b)-kravgrinden — perfekt full-träff kapas till Related, " +
+            "inte Top (ADR 0084 §F2).");
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnRelated_WhenIsRelatedTrue_AndRegionContradicts_WithMustHaveAndSkillMatch()
+    {
+        // region NoMatch + mustHave Match + skill Match would floor to Basic via RB1 for an
+        // EXACT hit — the cap sits BEFORE RB1, so it is Related, NOT Basic.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NoMatch,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Match,
+            mustHave: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+            "Related-cap sitter FÖRE RB1-golvet på Full-overloaden — fel ort kapar inte ner " +
+            "till Basic (ADR 0084 §F4).");
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnNull_WhenIsRelatedTrue_ButSsykOverlapIsNoMatch()
+    {
+        // The gate WINS over the cap on the Full overload too.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.NoMatch,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Match,
+            mustHave: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBeNull(
+            "Grinden slår capen även på Full-overloaden: ingen SSYK-träff → null (ADR 0084 §F4).");
+    }
+
+    // --- Flat-cap invariant headline: for isRelated == true, a gate-passing score is ALWAYS
+    //     exactly Related across a representative spread of Fast + Full tuples. Never
+    //     Basic/Good/Strong/Top/null. The single guard the whole exact-vs-related split rests on. ---
+
+    public static TheoryData<MatchDimensionVerdict, MatchDimensionVerdict,
+        MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict>
+        RelatedFlatCapSpread()
+    {
+        // A representative spread where SSYK == Match (the gate passes): every secondary /
+        // must-have / skill / nice combination below must collapse to exactly Related.
+        var verdicts = new[]
+        {
+            MatchDimensionVerdict.Match,
+            MatchDimensionVerdict.NoMatch,
+            MatchDimensionVerdict.NotAssessed,
+            MatchDimensionVerdict.Vacuous,
+        };
+
+        var data = new TheoryData<MatchDimensionVerdict, MatchDimensionVerdict,
+            MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict>();
+
+        // Fast axes kept at {Match, NoMatch, NotAssessed} (binary membership never reaches
+        // Vacuous); skill/mustHave/niceToHave range over all four representative verdicts.
+        var fast = new[]
+        {
+            MatchDimensionVerdict.Match,
+            MatchDimensionVerdict.NoMatch,
+            MatchDimensionVerdict.NotAssessed,
+        };
+
+        foreach (var region in fast)
+            foreach (var employment in fast)
+                foreach (var skill in verdicts)
+                    foreach (var mustHave in verdicts)
+                        // niceToHave pinned at NotAssessed to keep the spread representative,
+                        // not exhaustive (the full exhaustive sweep already lives above).
+                        data.Add(region, employment, skill, mustHave, MatchDimensionVerdict.NotAssessed);
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(RelatedFlatCapSpread))]
+    public void Grade_ShouldAlwaysReturnExactlyRelated_WhenIsRelatedTrue_AndSsykMatches(
+        MatchDimensionVerdict region,
+        MatchDimensionVerdict employment,
+        MatchDimensionVerdict skill,
+        MatchDimensionVerdict mustHave,
+        MatchDimensionVerdict niceToHave)
+    {
+        // Fast: only the secondaries matter; the flat cap collapses them all to Related.
+        var fastScore = Score(MatchDimensionVerdict.Match, region, employment);
+        MatchGradeCalculator.Grade(fastScore, isRelated: true).ShouldBe(MatchGrade.Related,
+            $"Fast: SSYK Match + isRelated true ska ALLTID ge exakt Related " +
+            $"(region={region}, employment={employment}).");
+
+        // Full: secondaries + must-have + skill + nice — still exactly Related.
+        var fullScore = FullScore(
+            MatchDimensionVerdict.Match, region, employment, skill, mustHave, niceToHave);
+        MatchGradeCalculator.Grade(fullScore, isRelated: true).ShouldBe(MatchGrade.Related,
+            $"Full: SSYK Match + isRelated true ska ALLTID ge exakt Related " +
+            $"(region={region}, employment={employment}, skill={skill}, mustHave={mustHave}).");
+    }
+
+    // --- Regression guard: isRelated == false over the full reachable space equals the
+    //     pre-existing expected table for BOTH overloads (so the cap is purely additive). ---
+
+    [Theory]
+    [MemberData(nameof(FullVerdictSpace))]
+    public void Grade_ShouldReproduceTheExistingTable_WhenIsRelatedFalse_Fast(
+        MatchDimensionVerdict ssyk,
+        MatchDimensionVerdict region,
+        MatchDimensionVerdict employment,
+        bool isRelated,
+        MatchGrade? expected)
+    {
+        // Only the isRelated == false rows; assert against the PRE-existing 3-arg oracle
+        // (no isRelated thread) to prove the cap added nothing to the false path.
+        if (isRelated)
+            return;
+
+        var preExisting = Expected(ssyk, region, employment); // default isRelated:false
+        preExisting.ShouldBe(expected, "Sanity: cross-product-oraklet matchar pre-cap-oraklet.");
+
+        var score = Score(ssyk, region, employment);
+        MatchGradeCalculator.Grade(score, isRelated: false).ShouldBe(preExisting,
+            $"isRelated:false ska reproducera den befintliga Fast-tabellen bit-för-bit " +
+            $"(ssyk={ssyk}, region={region}, employment={employment}).");
+    }
+
+    [Theory]
+    [MemberData(nameof(RequirementAwareFullVerdictSpace))]
+    public void Grade_ShouldReproduceTheExistingTable_WhenIsRelatedFalse_Full(
+        MatchDimensionVerdict ssyk,
+        MatchDimensionVerdict region,
+        MatchDimensionVerdict employment,
+        MatchDimensionVerdict skill,
+        MatchDimensionVerdict mustHave,
+        MatchDimensionVerdict niceToHave,
+        bool isRelated,
+        MatchGrade? expected)
+    {
+        if (isRelated)
+            return;
+
+        var preExisting = ExpectedFull(ssyk, region, employment, skill, mustHave, niceToHave);
+        preExisting.ShouldBe(expected, "Sanity: cross-product-oraklet matchar pre-cap-oraklet.");
+
+        var score = FullScore(ssyk, region, employment, skill, mustHave, niceToHave);
+        MatchGradeCalculator.Grade(score, isRelated: false).ShouldBe(preExisting,
+            $"isRelated:false ska reproducera den befintliga requirement-aware-tabellen bit-för-bit " +
+            $"(ssyk={ssyk}, region={region}, employment={employment}, skill={skill}, mustHave={mustHave}).");
+    }
+
+    // =================================================================
+    // #300 PR-2 — MatchGrade.Related serialization (ADR 0084 §F2). The enum carries
+    // [JsonConverter(typeof(JsonStringEnumConverter))], so the wire value is the NAME
+    // "Related", never the ordinal 1. Mirrors how the other rungs go on the wire.
+    // =================================================================
+
+    [Theory]
+    [InlineData(MatchGrade.Basic, "\"Basic\"")]
+    [InlineData(MatchGrade.Related, "\"Related\"")]
+    [InlineData(MatchGrade.Good, "\"Good\"")]
+    [InlineData(MatchGrade.Strong, "\"Strong\"")]
+    [InlineData(MatchGrade.Top, "\"Top\"")]
+    public void MatchGrade_ShouldSerializeByName_WhenWrittenToJson(
+        MatchGrade grade, string expectedJson)
+    {
+        // The Related rung is serialized by NAME via the enum's JsonStringEnumConverter —
+        // parity the four existing rungs (named verdicts on the wire are reorder-safe,
+        // so the new ordinal 1 between Basic and Good never leaks as a number).
+        JsonSerializer.Serialize(grade).ShouldBe(expectedJson,
+            $"{grade} ska serialiseras som namnet {expectedJson} (ADR 0084 §F2).");
+    }
+
+    [Fact]
+    public void MatchGrade_Related_ShouldSitBetweenBasicAndGood_ByOrdinal()
+    {
+        // The ordinals are bound: Basic=0, Related=1, Good=2, Strong=3, Top=4. Pin the new
+        // member's position so a re-order (which the name-serialization tolerates on the wire)
+        // does not silently move it relative to the ladder used in-process.
+        ((int)MatchGrade.Basic).ShouldBe(0);
+        ((int)MatchGrade.Related).ShouldBe(1);
+        ((int)MatchGrade.Good).ShouldBe(2);
+        ((int)MatchGrade.Strong).ShouldBe(3);
+        ((int)MatchGrade.Top).ShouldBe(4);
     }
 }

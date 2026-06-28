@@ -1029,6 +1029,172 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
     }
 
+    // =================================================================
+    // #300 PR-2 — SSYK gate broadened to exact ∪ related (ADR 0084 §5; senior-cto-advisor
+    // + dotnet-architect bound contract). The new CandidateMatchProfile.RelatedSsykGroupConceptIds
+    // init-property carries the RELATED occupation-group concept-ids (the neighbouring SSYK
+    // groups derived from the user's confirmed occupation). The SsykOverlap dimension's gate
+    // broadens from "ad group ∈ exact" to "ad group ∈ (exact ∪ related)":
+    //   • ad group ∈ RELATED only (NOT in exact) → Match   (the gate-broadening; today NoMatch)
+    //   • ad group ∈ EXACT                       → Match   (exact precedence, unchanged)
+    //   • ad group ∈ NEITHER (both non-empty)    → NoMatch
+    //   • exact EMPTY AND related EMPTY          → NotAssessed (behavior-inert: existing
+    //                                              5-arg callers default related to [] and
+    //                                              see NO change — PR-2 changes nothing for them)
+    // The related set is constructed DIRECTLY in the test via the init-property (the profile
+    // builder that POPULATES it is NOT wired until PR-3 — out of scope here). Existing test
+    // constructions of CandidateMatchProfile are UNCHANGED (related defaults to []).
+    //
+    // RED until CandidateMatchProfile gains the RelatedSsykGroupConceptIds init-property AND
+    // MatchScorer's SsykOverlap gate reads the exact ∪ related union.
+    // =================================================================
+
+    [Fact]
+    public async Task MatchScorer_SsykOverlap_AdGroupInRelatedOnly_IsMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var jobAdId = await SeedJobAdAsync("Systemutvecklare", adGroup, null, null, ct);
+        // The ad's group is NOT in the exact set, but IS in the related set → the broadened
+        // gate makes it a Match (today, with related unsupported, it would be NoMatch).
+        var profile = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [NewConceptId("grp"), NewConceptId("grp")], // exact: disjoint
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: [])
+        {
+            RelatedSsykGroupConceptIds = [adGroup, NewConceptId("grp")], // related: contains the ad group
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+            "En ad-grupp som ligger i RELATED-mängden (men inte exact) ska ge SsykOverlap " +
+            "Match — den breddade grinden exact ∪ related (ADR 0084 §5).");
+        score.SsykOverlap.Matched.ShouldBe([adGroup]);
+        score.SsykOverlap.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_SsykOverlap_AdGroupInExact_StillMatch_WhenRelatedAlsoPresent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var jobAdId = await SeedJobAdAsync("Systemutvecklare", adGroup, null, null, ct);
+        // The ad's group is in the EXACT set (and a non-empty related set is also supplied) →
+        // exact precedence: still Match, unchanged from today.
+        var profile = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [adGroup, NewConceptId("grp")], // exact: contains the ad group
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: [])
+        {
+            RelatedSsykGroupConceptIds = [NewConceptId("grp")], // related: non-empty, irrelevant here
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+            "En exact-träff ska förbli Match även när en related-mängd också finns " +
+            "(exact precedence, oförändrat — ADR 0084 §5).");
+        score.SsykOverlap.Matched.ShouldBe([adGroup]);
+        score.SsykOverlap.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_SsykOverlap_AdGroupInNeitherSet_BothNonEmpty_IsNoMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var jobAdId = await SeedJobAdAsync("Systemutvecklare", adGroup, null, null, ct);
+        // The ad's group is in NEITHER the exact nor the related set (both non-empty, both
+        // disjoint from the ad) → NoMatch (the union still misses).
+        var profile = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [NewConceptId("grp"), NewConceptId("grp")], // exact: disjoint
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: [])
+        {
+            RelatedSsykGroupConceptIds = [NewConceptId("grp"), NewConceptId("grp")], // related: disjoint
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "En ad-grupp utanför BÅDE exact och related (båda icke-tomma) ska ge NoMatch " +
+            "(unionen missar fortfarande — ADR 0084 §5).");
+        score.SsykOverlap.Matched.ShouldBeEmpty();
+        // Missing = the ad's group the union lacks (civic direction, parity the exact-only path).
+        score.SsykOverlap.Missing.ShouldBe([adGroup]);
+    }
+
+    [Fact]
+    public async Task MatchScorer_SsykOverlap_BothExactAndRelatedEmpty_IsNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var jobAdId = await SeedJobAdAsync("Systemutvecklare", adGroup, null, null, ct);
+        // Empty exact AND empty related (the related default) → NotAssessed, never NoMatch.
+        // This is the behavior-inert regression: every existing 5-arg caller (related defaults
+        // to []) sees EXACTLY today's behaviour — PR-2 changes nothing when no related set is
+        // supplied. We construct the profile the legacy way (no init-property) ON PURPOSE.
+        var profile = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [], // exact empty
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: []); // related defaults to [] (init-property)
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed,
+            "Tom exact OCH tom related (default) ska ge NotAssessed, aldrig NoMatch — " +
+            "PR-2 är beteende-inert för befintliga anropare (ADR 0084 §5).");
+        score.SsykOverlap.Matched.ShouldBeEmpty();
+        score.SsykOverlap.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MatchScorer_SsykOverlap_ExactEmptyButRelatedHits_IsMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var jobAdId = await SeedJobAdAsync("Systemutvecklare", adGroup, null, null, ct);
+        // Edge: exact EMPTY but related NON-empty and hits → the union is non-empty (the CV
+        // side is assessable), so the gate is Match, not NotAssessed. Pins that an empty exact
+        // does NOT short-circuit to NotAssessed when a related hit exists.
+        var profile = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [], // exact empty
+            PreferredRegionConceptIds: [],
+            PreferredEmploymentTypeConceptIds: [],
+            PreferredMunicipalityConceptIds: [])
+        {
+            RelatedSsykGroupConceptIds = [adGroup], // related hits the ad group
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+            "Tom exact men en related-träff ska ge Match — unionen är icke-tom och träffar " +
+            "(ADR 0084 §5).");
+        score.SsykOverlap.Matched.ShouldBe([adGroup]);
+        score.SsykOverlap.Missing.ShouldBeEmpty();
+    }
+
     private static void AssertSameDimension(MatchDimension a, MatchDimension b)
     {
         b.Verdict.ShouldBe(a.Verdict);

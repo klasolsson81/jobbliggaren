@@ -1954,6 +1954,58 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-color: var(--jp-info);
   font-weight: 700;
 }
+/* #336 slice 1 — APPLICATION STATUS TAG FAMILY (Klas decisions + design-
+   reviewer bind 2026-06-28). Replaces the rounded .jp-pill status pill in the
+   ansökningsrad with a SQUARE .jp-tag sibling of the /jobb tags (same 11px/700
+   uppercase, 2px radius). Status MUST stay colour-coded for scannability AND
+   carry its text label (WCAG 1.4.1 — colour is the enhancement, not the sole
+   signal). The fill is the neutral surface-2 (as .jp-matchchip) so the COLOUR
+   rides the 1px status-coloured border + the status-coloured text — a uniform
+   light fill lets every status text clear >=4.5:1 at 11px in BOTH themes, which
+   the .jp-pill--* status-bg fills do NOT at this size (warning text on
+   warning-bg is 4.20:1 light → fails 1.4.3). This is the only #290-family chip
+   that splits onto the status colour axis (info/brand/success/warning/danger/
+   neutral); it does not collide with the SPARAD/ANSÖKT "your actions" blue chips
+   on /jobb because those live on different rows. Each ratio below is text on the
+   surface-2 fill, measured in both themes. (0,2,0) specificity + source-order
+   after the base .jp-tag--* per the #290 convention. NO dot — the /jobb .jp-tag
+   has none, so a dotless coloured square tag is the consistent civic form. */
+.jp-tag[data-tag="status-info"] {
+  background: var(--jp-surface-2);
+  color: var(--jp-info);
+  border-color: var(--jp-info);
+  font-weight: 700;
+} /* light 7.12:1 · dark 8.29:1 */
+.jp-tag[data-tag="status-brand"] {
+  background: var(--jp-surface-2);
+  color: var(--jp-accent-700);
+  border-color: var(--jp-accent-700);
+  font-weight: 700;
+} /* light 6.99:1 · dark 10.50:1 */
+.jp-tag[data-tag="status-success"] {
+  background: var(--jp-surface-2);
+  color: var(--jp-success);
+  border-color: var(--jp-success);
+  font-weight: 700;
+} /* light 5.06:1 · dark 9.01:1 */
+.jp-tag[data-tag="status-warning"] {
+  background: var(--jp-surface-2);
+  color: var(--jp-warning);
+  border-color: var(--jp-warning);
+  font-weight: 700;
+} /* light 4.61:1 · dark 10.01:1 */
+.jp-tag[data-tag="status-danger"] {
+  background: var(--jp-surface-2);
+  color: var(--jp-danger);
+  border-color: var(--jp-danger);
+  font-weight: 700;
+} /* light 5.77:1 · dark 6.95:1 */
+.jp-tag[data-tag="status-neutral"] {
+  background: var(--jp-surface-2);
+  color: var(--jp-ink-2);
+  border-color: var(--jp-border-strong);
+  font-weight: 700;
+} /* light 7.24:1 · dark 10.24:1 */
 .jp-matchchip {
   display: inline-flex;
   align-items: center;

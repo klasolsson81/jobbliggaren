@@ -56,6 +56,13 @@ export default async function AnsokningarPage() {
   const groups = result.data;
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
+  // "Nu" beräknas EN gång här och trädas in i varje ApplicationRow (CTO-bind
+  // #336) så den relativa tids-taggen ("Skickad för X dagar sedan") är
+  // deterministisk per request — INTE new Date() per rad. Undviker
+  // date-flake-klassen (reference_oversikt_test_dayofmonth_flake) och håller
+  // alla rader förankrade i samma referenspunkt.
+  const now = new Date();
+
   // ApplicationRow förblir server-renderbar (CTO punkt 4). Den server-renderas
   // HÄR i RSC och passas in i client-ön som en serialiserbar ReactNode[]-
   // slot-map keyad på status. Renderad ReactNode är serialiserbar över
@@ -66,7 +73,11 @@ export default async function AnsokningarPage() {
   const rowSlots = {} as Record<ApplicationStatus, ReactNode[]>;
   for (const group of groups) {
     rowSlots[group.status] = group.applications.map((application) => (
-      <ApplicationRow key={application.id} application={application} />
+      <ApplicationRow
+        key={application.id}
+        application={application}
+        now={now}
+      />
     ));
   }
 

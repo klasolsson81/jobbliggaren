@@ -30,37 +30,28 @@ namespace Jobbliggaren.Api.IntegrationTests.SavedSearches;
 //   15e8_KDZ_31Z -> mcRJ_kq2_jFr
 //   1Cjx_ooE_HT9 -> vPP6_rsw_dck
 //   1DSQ_YqU_AMs -> vPP6_rsw_dck   (två yrken → samma grupp = distinct-case)
+// Test-isolation (rename-collateral, ADR 0069). Tests in [Collection("Api")] share one
+// Testcontainers Postgres. The C2 reverse-lookup migration replayed here scans AND mutates
+// the WHOLE saved_searches table (guard RAISE EXCEPTIONs on any scalar/unmappable "Ssyk"
+// across every row). A whole-table migration replay must own a clean precondition — it
+// cannot rely on [Collection] execution order (name-based order is not a contract; the
+// JobbPilot→Jobbliggaren rename reordered it and surfaced this latent shared-fixture
+// coupling). #352: deriving from MalformedJsonbSeedTestBase clears saved_searches on BOTH
+// entry and exit so the global scan sees only this test's own row. The per-test
+// try/finally DeleteRowAsync calls stay — they guard mid-test isolation between the
+// whole-table migration replays; the base only adds the class-exit safety net so a crash
+// BEFORE a finally no longer leaks a toxic row to a neighbour.
 [Collection("Api")]
-public class C2ReverseLookupMigrationTests(ApiFactory factory) : IAsyncLifetime
+public class C2ReverseLookupMigrationTests(ApiFactory factory)
+    : MalformedJsonbSeedTestBase(factory)
 {
-    private readonly ApiFactory _factory = factory;
+    protected override IReadOnlyList<string> TablesToClear => ["saved_searches"];
 
     private const string MappedName1 = "15e8_KDZ_31Z";
     private const string MappedGroup1 = "mcRJ_kq2_jFr";
     private const string MappedName2 = "1Cjx_ooE_HT9";
     private const string MappedName3 = "1DSQ_YqU_AMs";
     private const string MappedGroup23 = "vPP6_rsw_dck";
-
-    // Test-isolation (rename-collateral, ADR 0069). Tests in [Collection("Api")] share one
-    // Testcontainers Postgres. The C2 reverse-lookup migration replayed here scans AND mutates
-    // the WHOLE saved_searches table (guard RAISE EXCEPTIONs on any scalar/unmappable "Ssyk"
-    // across every row). A whole-table migration replay must own a clean precondition — it
-    // cannot rely on [Collection] execution order (name-based order is not a contract; the
-    // JobbPilot→Jobbliggaren rename reordered it and surfaced this latent shared-fixture
-    // coupling). Clear before every test so the global scan sees only this test's own row.
-    public async ValueTask InitializeAsync()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM saved_searches;", TestContext.Current.CancellationToken);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
-    }
 
     // ── (a) Mappad rad: transform + Ssyk-strip + converter-läsbar ───────────
 
@@ -70,7 +61,7 @@ public class C2ReverseLookupMigrationTests(ApiFactory factory) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var id = Guid.NewGuid();
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         try
         {
@@ -125,7 +116,7 @@ public class C2ReverseLookupMigrationTests(ApiFactory factory) : IAsyncLifetime
         var id = Guid.NewGuid();
         const string region = "CifL_Rzy_Mku";
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         try
         {
@@ -158,7 +149,7 @@ public class C2ReverseLookupMigrationTests(ApiFactory factory) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var id = Guid.NewGuid();
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         try
         {
@@ -196,7 +187,7 @@ public class C2ReverseLookupMigrationTests(ApiFactory factory) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var id = Guid.NewGuid();
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         try
         {
@@ -228,7 +219,7 @@ public class C2ReverseLookupMigrationTests(ApiFactory factory) : IAsyncLifetime
         // som NOT NULL bevisar samtidigt DELETE-före-DDL-ordningen i Up().
         var ct = TestContext.Current.CancellationToken;
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var columns = await db.Database
@@ -260,7 +251,7 @@ public class C2ReverseLookupMigrationTests(ApiFactory factory) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var id = Guid.NewGuid();
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         try
         {

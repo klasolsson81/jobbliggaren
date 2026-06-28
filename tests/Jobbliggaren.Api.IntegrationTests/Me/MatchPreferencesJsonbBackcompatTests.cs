@@ -26,40 +26,24 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 // Seedar via JobSeeker-aggregatet (EF fyller alla obligatoriska kolumner) och muterar
 // sedan ENBART match_preferences-kolumnen med rå jsonb för att simulera en godtycklig
 // redan-persistent form. RÖD tills MatchPreferences + konvertern bär municipality-nyckeln.
+// Test-isolation: rensa job_seekers på BÅDE entry OCH exit (#300 PR-4, senior-cto-advisor;
+// #352 generaliserade detta till MalformedJsonbSeedTestBase). Flera tester nedan seedar
+// AVSIKTLIGT trasig MatchPreferences-jsonb (ExperienceYears="five"/5.5/71 — fail-closed-
+// testerna) som konvertern inte kan läsa. I [Collection("Api")] delas EN Testcontainers-DB,
+// så en sådan rad poison:ar varje grann-test som gör en bred JobSeekers.ToListAsync (t.ex.
+// JobAdMatchDetailEndpointTests.FindSeekerByStatedOccupation). Clean-on-entry ENSAM räcker
+// inte: det SISTA trasiga-seed-testet lämnar sin rad kvar utan efterföljare som DELETE:ar den.
+// Basklassens clean-on-exit gör klassen ordnings-oberoende: ingen test överlever sina egna
+// toxiska rader.
 [Collection("Api")]
-public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory) : IAsyncLifetime
+public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory)
+    : MalformedJsonbSeedTestBase(factory)
 {
-    private readonly ApiFactory _factory = factory;
-
-    // Test-isolation: rensa job_seekers på BÅDE entry OCH exit (#300 PR-4, senior-cto-advisor).
-    // Flera tester nedan seedar AVSIKTLIGT trasig MatchPreferences-jsonb (ExperienceYears=
-    // "five"/5.5/71 — fail-closed-testerna) som konvertern inte kan läsa. I [Collection("Api")]
-    // delas EN Testcontainers-DB, så en sådan rad poison:ar varje grann-test som gör en bred
-    // JobSeekers.ToListAsync (t.ex. JobAdMatchDetailEndpointTests.FindSeekerByStatedOccupation).
-    // Clean-on-entry ENSAM räckte inte: det SISTA trasiga-seed-testet lämnade sin rad kvar utan
-    // efterföljare som DELETE:ade den. Clean-on-exit gör klassen ordnings-oberoende: ingen test
-    // överlever sina egna toxiska rader.
-    public async ValueTask InitializeAsync() => await ClearJobSeekersAsync();
-
-    public async ValueTask DisposeAsync()
-    {
-        await ClearJobSeekersAsync();
-        GC.SuppressFinalize(this);
-    }
-
-    // Raw SQL DELETE — materialiserar INTE jsonb-kolumnen, så den kringgår
-    // MatchPreferences-konvertern (samma skäl som de trasiga raderna inte kan läsas).
-    private async Task ClearJobSeekersAsync()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM job_seekers;", TestContext.Current.CancellationToken);
-    }
+    protected override IReadOnlyList<string> TablesToClear => ["job_seekers"];
 
     private async Task<JobSeeker> SeedSeekerAsync(MatchPreferences? prefs, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = JobSeeker.Register(Guid.NewGuid(), "Backcompat User", clock).Value;
@@ -75,7 +59,7 @@ public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory) : I
     private async Task SetRawMatchPreferencesAsync(
         Guid jobSeekerId, string json, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var conn = (NpgsqlConnection)db.Database.GetDbConnection();
         await conn.OpenAsync(ct);
@@ -91,7 +75,7 @@ public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory) : I
     // Läser match_preferences som RÅ text (verifierar Write-formen on-disk).
     private async Task<string> ReadRawMatchPreferencesAsync(Guid jobSeekerId, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var conn = (NpgsqlConnection)db.Database.GetDbConnection();
         await conn.OpenAsync(ct);
@@ -105,7 +89,7 @@ public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory) : I
 
     private async Task<MatchPreferences> ReloadPreferencesAsync(JobSeekerId id, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var reloaded = await db.JobSeekers.SingleAsync(js => js.Id == id, ct);
         return reloaded.MatchPreferences;

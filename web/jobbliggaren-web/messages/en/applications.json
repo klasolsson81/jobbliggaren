@@ -52,7 +52,6 @@
       "statusLabel": "Status",
       "nextFollowUp": "Next follow-up:",
       "timelineLabel": "Timeline",
-      "timelineEmpty": "No events recorded yet.",
       "eventCreated": "Application created",
       "eventNoteAdded": "Note added",
       "eventFollowUpScheduled": "Follow-up ({channel}) scheduled",

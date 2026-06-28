@@ -17,15 +17,6 @@ interface FollowUpsSectionProps {
   followUps: ReadonlyArray<FollowUpDto>;
 }
 
-const SECTION_LABEL_STYLE: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--jp-ink-2)",
-  marginBottom: 10,
-};
-
 /**
  * Disclosure-sektion för uppföljningar (Klas pre-F6 Prompt 4 2026-05-20).
  *
@@ -70,7 +61,7 @@ export function FollowUpsSection({
 
   return (
     <div>
-      <div style={SECTION_LABEL_STYLE}>{tUi("followUps.sectionLabel")}</div>
+      <div className="jp-section-label">{tUi("followUps.sectionLabel")}</div>
 
       {sorted.length === 0 ? (
         <p className="text-body-sm text-text-secondary">

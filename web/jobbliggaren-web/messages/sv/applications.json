@@ -52,7 +52,6 @@
       "statusLabel": "Status",
       "nextFollowUp": "Nästa uppföljning:",
       "timelineLabel": "Tidslinje",
-      "timelineEmpty": "Inga händelser registrerade ännu.",
       "eventCreated": "Ansökan skapades",
       "eventNoteAdded": "Anteckning tillagd",
       "eventFollowUpScheduled": "Uppföljning ({channel}) schemalagd",

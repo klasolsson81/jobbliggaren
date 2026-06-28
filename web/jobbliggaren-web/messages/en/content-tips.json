@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "title": "Tips for job seekers",
+    "description": "Practical advice for your job search: tailor your CV, write a clear application, follow up, prepare for interviews and watch the application deadline."
+  },
+  "kicker": "Advice",
+  "title": "Tips for job seekers",
+  "intro": "A few practical pieces of advice for your job search. None of this is required, but it tends to help.",
+  "sections": {
+    "cv": {
+      "title": "Tailor your CV",
+      "body": "Tailor your CV to the ad. Highlight the experience and skills that match the requirements of the specific role."
+    },
+    "ansokan": {
+      "title": "Write a concrete application",
+      "body": "Be concrete. Describe what you have done and the result it produced, rather than general statements about yourself."
+    },
+    "uppfoljning": {
+      "title": "Follow up",
+      "body": "Note when you applied and get in touch if you have not heard back within a reasonable time. A short reminder is rarely wrong."
+    },
+    "intervju": {
+      "title": "Prepare for the interview",
+      "body": "Read up on the employer and the role before the interview. Have examples ready of situations you have handled and what you learned."
+    },
+    "deadlines": {
+      "title": "Watch the application deadline",
+      "body": "Many ads close earlier than you expect. An early application has time to be read without a rush."
+    }
+  },
+  "links": {
+    "cvLabel": "Go to CV",
+    "jobbLabel": "Search jobs"
+  }
+}

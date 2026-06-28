@@ -20,7 +20,7 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 |---|---|---|---|---|
 | `ink-1` (#0C1A2E) | `surface` (#FFFFFF) | ~17.5:1 | AAA ✓ | Body text, rubriker |
 | `ink-2` (#455366) | `surface` (#FFFFFF) | ~7.8:1 | AAA ✓ | Lede, metadata, mono-labels |
-| `ink-3` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | ✗ body / ✓ large+UI | **Dekorativt/large endast** — aldrig brödtext, aldrig placeholder |
+| `ink-3` (#4F5D72) | `surface` (#FFFFFF) | ~6.7:1 | AA ✓ | Demoterad metadata-tier (mörkad från #7C8AA0/3.5:1, issue #296; min 5.45:1 över surfaces/info-bg) — placeholder = `--jp-placeholder` |
 | `accent-700` (#15603F) | `surface` (#FFFFFF) | 7.56:1 | AAA ✓ | Länkar, aktiv nav, titlar, fokusring |
 | `accent-700` (#15603F) | `canvas` (#F4F6FA) | ~7.0:1 | AAA ✓ | Länk på canvas |
 | vit (#FFFFFF) | `accent-800` (#15603F) | 7.56:1 | AAA ✓ | Vit text på primärknapp (fill-kontraktet) |
@@ -96,7 +96,6 @@ mot grönt.
 
 | Text | Background | Issue |
 |---|---|---|
-| `ink-3` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 — fails body. Dekorativt/large endast; aldrig placeholder (använd `--jp-placeholder` #626B78). |
 | vit text | `accent-700` dark (#6EE7A8) som fill | ~1.5:1 — kontraktsbrott. #6EE7A8 är ENDAST text/länk/fokus/border; fill = `accent-800` (skiftas EJ). |
 | Ljus knapp + mörk text som "primary" | — | Bryter knapp-kontraktet (ADR 0068): primärknapp är alltid mörkgrön accent-800 + vit text, båda teman. |
 | Grön fokusring | gradient-ytor | Syns inte mot grönt — gradient-scope sätter `--jp-focus: #FFFFFF`. |

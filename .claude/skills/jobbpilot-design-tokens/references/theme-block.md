@@ -56,7 +56,7 @@ names, not class sets.
   --jp-canvas:#F4F6FA;
 
   /* Text */
-  --jp-ink-1:#0C1A2E; --jp-ink-2:#455366; --jp-ink-3:#7C8AA0;
+  --jp-ink-1:#0C1A2E; --jp-ink-2:#455366; --jp-ink-3:#4F5D72;  /* ink-3 mörkad i #296 (var #7C8AA0) */
   --jp-ink-inverse:#FFFFFF;
 
   /* Borders (synliga, inte hairlines) */

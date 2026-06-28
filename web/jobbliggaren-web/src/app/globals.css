@@ -64,7 +64,17 @@
   /* Text (v3-kanon) */
   --jp-ink-1: #0C1A2E;
   --jp-ink-2: #455366;
-  --jp-ink-3: #7C8AA0;
+  /* #296: ink-3 (text-tertiary) darkened from #7C8AA0. The old value failed AA
+     on every 11-12.5px metadata surface that consumes it (notice/översikt times,
+     summary hints, disclosure dates, criterion ids): 3.50:1 on white, 2.98-3.23:1
+     on surface-2/-3 + info-bg. New value is a high-contrast slate-navy (NOT a gray
+     — hue-coherent third rung of the ink-1/-2 navy ramp): 6.69:1 white, 6.18:1
+     surf-2, 5.68:1 surf-3, 5.45:1 info-bg (min 5.45). Clears AA with headroom per
+     Klas civic directive (no light-gray text), keeps a perceptible step below
+     ink-2 (luminance sep 1.17). Borders that share the OLD hex (--jp-border-strong/
+     -input) are a separate Klas-tuned UI-floor token and are intentionally NOT
+     changed. */
+  --jp-ink-3: #4F5D72;
   --jp-ink-inverse: #FFFFFF;
 
   /* Borders (v3-kanon — synliga, inte hairlines) */
@@ -128,7 +138,8 @@
      båda fält-bakgrunderna (#FFFFFF ≈ 5.4:1, #F0F4FB ≈ 4.9:1). OBS: inga fält
      har exempel-placeholder (Klas hård regel, ADR 0068) — tokenen är STANDARDEN
      för ev. framtida funktionella placeholder (t.ex. datumformat) och för
-     .jp-input-instansernas planerade a11y-touch (ersätter ink-3 3.5:1). */
+     .jp-input-instansernas planerade a11y-touch (placeholder = egen token,
+     aldrig text-tertiary — ink-3 var 3.5:1 före #296-mörkningen). */
   --jp-placeholder: #626B78;
 
   /* Focus (G1, ADR 0068): följer accent-700 — #15603F light, #6EE7A8 dark
@@ -609,7 +620,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   --jp-surface-3:  #E8EDF4;
   --jp-ink-1: #0C1A2E;
   --jp-ink-2: #455366;
-  --jp-ink-3: #7C8AA0;
+  --jp-ink-3: #4F5D72;  /* #296: mirror :root tertiary darken — always-light header strip */
   --jp-border:      #C9D2E0;
   --jp-border-soft: #E3E8F0;
   /* Navy-pins behålls för .jp-brand (logo currentColor) på vit remsa */
@@ -3902,7 +3913,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   --jp-surface-3:  #E8EDF4;
   --jp-ink-1: #0C1A2E;
   --jp-ink-2: #455366;
-  --jp-ink-3: #7C8AA0;
+  --jp-ink-3: #4F5D72;  /* #296: mirror :root tertiary darken — always-light top-bar */
   --jp-border: #C9D2E0;
   /* G1: light-accent-pins (paritet med [data-theme="dark"] .jp-header) —
      dark-accent #6EE7A8 vore AA-fail som länk/aktiv-färg på vit remsa. */
@@ -5799,8 +5810,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
   font-size: 14px;
   /* Brödtext-kontrast: --jp-ink-2 (~7,8:1 light / ~11,6:1 dark), paritet med
-     .jp-cvreview__unavailable. --jp-ink-3 (~3,5:1) underkänns av WCAG 1.4.3 för
-     brödtext (contrast-table "Pairs that FAIL") — aldrig löpande prosa. */
+     .jp-cvreview__unavailable. Löpande prosa använder ink-2, inte ink-3 — ink-3
+     (#296-mörkad till ~6,7:1, klarar nu AA) är metadata-tier (tider/ids/hints),
+     inte brödtext. */
   color: var(--jp-ink-2);
   line-height: 1.55;
   max-width: 68ch;

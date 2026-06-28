@@ -248,7 +248,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
 
     // Yrket renderas med ett "ungefärliga år"-fält (per-yrke aria-label).
     const yearsInput = screen.getByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Backendutvecklare",
+      name: "År i yrket Backendutvecklare",
     });
     await user.type(yearsInput, "8");
 
@@ -274,7 +274,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       persistedOccupationExperience: [{ conceptId: "grp_backend", years: 4 }],
     });
     const yearsInput = screen.getByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Backendutvecklare",
+      name: "År i yrket Backendutvecklare",
     });
     expect(yearsInput).toHaveValue(4);
   });

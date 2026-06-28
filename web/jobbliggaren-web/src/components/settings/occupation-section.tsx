@@ -506,8 +506,8 @@ export function parseYearsInput(raw: string): number | null {
  * (label/hjälptext bär instruktionen, hård Klas-regel) och INGEN magnitud-
  * visualisering (det är ett preferens-input, aldrig en poäng — Goodhart/§5).
  *
- * Varje fält associeras till sitt yrke via en synlig kort-etikett ("Ungefärliga
- * år") + en per-yrke aria-label ("Ungefärliga år i yrket X") så skärmläsaren
+ * Varje fält associeras till sitt yrke via en synlig kort-etikett ("År i
+ * yrket") + en per-yrke aria-label ("År i yrket X") så skärmläsaren
  * vet vilket yrke fältet gäller (WCAG 1.3.1/4.1.2). En delad hjälptext länkas
  * via aria-describedby. Tom mängd → inget renderas.
  */

@@ -28,11 +28,14 @@ import type {
 import { markSetupWelcomeSeen } from "@/lib/onboarding/setup-welcome-actions";
 
 /** Welcome-modalens interna steg (klient-only — ingen route per steg).
+ * #251: ett `welcome`-steg (sida 1) inleder flödet med en kort rekommendation
+ * att ställa in matchningen, FÖRE CV-uppladdningen (sida 2). Rubriken på
+ * upload-steget namnger steget ("Ladda upp CV"), inte hela flödet.
  * Onboarding-frikoppling (DEL 1 / ADR 0074-amend): gap-fill-steget är BORTTAGET.
  * Det uppladdade CV:t befordras INTE i välkomstflödet — det lever kvar som en
  * PendingReview-artefakt och ytas som ett "slutför ditt CV"-kort på /cv. Upload
  * går därför rakt till "done" (bekräftelse + matchnings-val i EN slide). */
-type WelcomeStep = "upload" | "done";
+type WelcomeStep = "welcome" | "upload" | "done";
 
 interface WelcomeSetupModalProps {
   readonly showWelcome: boolean;
@@ -66,10 +69,11 @@ interface WelcomeSetupModalProps {
  * Onboarding-frikoppling (DEL 1, CTO-bind pending-card): flödet tvingar INTE
  * längre en gap-fill innan användaren kan gå vidare. Det uppladdade CV:t LÄSES
  * men SPARAS INTE i välkomstflödet — det stannar som en PendingReview-artefakt
- * och ytas som ett "slutför ditt CV"-kort på /cv. Flödet (Klas-vision): ladda
- * upp CV → ärlig bekräftelse "CV inläst" (inte "sparat") → val "ställa in
- * matchning nu?" → wizarden (welcome step 2). Eftersom CV:t INTE befordras lever
- * staging-artefakten kvar, så wizarden auto-föreslår live ur det (parsedResumeId).
+ * och ytas som ett "slutför ditt CV"-kort på /cv. Flödet (#251 / Klas-vision):
+ * sida 1 "Välkommen" (kort rekommendation) → ladda upp CV → ärlig bekräftelse
+ * "CV inläst" (inte "sparat") → val "ställa in matchning nu?" → wizarden.
+ * Eftersom CV:t INTE befordras lever staging-artefakten kvar, så wizarden
+ * auto-föreslår live ur det (parsedResumeId).
  *
  * Skriver inget själv utöver cookien — den enda preferens-skrivningen är
  * wizardens befintliga MatchPreferences-PUT.
@@ -91,7 +95,8 @@ export function WelcomeSetupModal({
   const router = useRouter();
   const [welcomeOpen, setWelcomeOpen] = useState(showWelcome);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [step, setStep] = useState<WelcomeStep>("upload");
+  // #251: starta på sida 1 ("Välkommen") — en kort rekommendation före uppladdning.
+  const [step, setStep] = useState<WelcomeStep>("welcome");
   // Om ett CV faktiskt laddades upp (styr grön check + "CV inläst"-copy i
   // "done"-steget; "Fortsätt utan CV" hoppar direkt till "done" UTAN check).
   const [uploaded, setUploaded] = useState(false);
@@ -177,7 +182,40 @@ export function WelcomeSetupModal({
           }}
         >
           <DialogContent className="jp-stdmodal jp-stdmodal--narrow">
-            {step === "upload" ? (
+            {step === "welcome" ? (
+              // #251 sida 1 — "Välkommen": en kort, lugn rekommendation att
+              // ställa in matchningen. Centrerad framing (samma som "done") så
+              // de inramande sidorna känns sammanhängande; uppladdningen (sida 2)
+              // bär det vanliga formulär-huvudet. DialogTitle får programmatisk
+              // fokus vid stegbyte (WCAG 2.4.3).
+              <>
+                <div className="jp-welcome__confirm">
+                  <DialogTitle
+                    ref={titleRef}
+                    tabIndex={-1}
+                    className="jp-welcome__confirm-title"
+                  >
+                    {t("onboarding.welcomeTitle")}
+                  </DialogTitle>
+                  <DialogDescription className="jp-welcome__confirm-note">
+                    {t("onboarding.welcomeBody")}
+                  </DialogDescription>
+                </div>
+                <div className="jp-welcome__foot">
+                  <button
+                    type="button"
+                    className="jp-welcome__skip"
+                    onClick={dismissWelcome}
+                  >
+                    {t("onboarding.welcomeLater")}
+                  </button>
+                  <span className="jp-welcome__foot-spacer" />
+                  <Button type="button" onClick={() => setStep("upload")}>
+                    {t("onboarding.welcomeStart")}
+                  </Button>
+                </div>
+              </>
+            ) : step === "upload" ? (
               <>
                 <div className="jp-welcome__head">
                   <DialogTitle

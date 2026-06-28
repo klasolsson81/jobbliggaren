@@ -91,6 +91,11 @@ function renderModal(
   );
 }
 
+/** #251 — flödet börjar på sida 1 ("Välkommen"); klicka "Kom igång" → upload. */
+async function gotoUpload(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Kom igång" }));
+}
+
 beforeEach(() => {
   markSeenMock.mockClear();
   refreshMock.mockClear();
@@ -100,18 +105,57 @@ describe("WelcomeSetupModal — gating", () => {
   it("renderar inte när showWelcome=false", () => {
     renderModal({ showWelcome: false });
     expect(
-      screen.queryByRole("heading", { name: "Kom igång med matchning" })
+      screen.queryByRole("heading", { name: "Välkommen till Jobbliggaren" })
     ).toBeNull();
   });
 
-  it("öppnar på upload-steget när showWelcome=true", () => {
+  it("öppnar på välkomst-steget (sida 1) när showWelcome=true (#251)", () => {
     renderModal();
     expect(
-      screen.getByRole("heading", { name: "Kom igång med matchning" })
+      screen.getByRole("heading", { name: "Välkommen till Jobbliggaren" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kom igång" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Gör det senare" })
+    ).toBeInTheDocument();
+    // Uppladdningen visas först på sida 2 (efter "Kom igång").
+    expect(
+      screen.queryByRole("button", { name: "MOCK_LADDA_UPP" })
+    ).toBeNull();
+  });
+});
+
+describe("WelcomeSetupModal — sida 1 → sida 2 (#251)", () => {
+  it("'Kom igång' visar uppladdnings-steget med rubriken 'Ladda upp CV'", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await gotoUpload(user);
+
+    // Rubriken namnger STEGET ("Ladda upp CV"), inte hela flödet (#251 A1).
+    expect(
+      screen.getByRole("heading", { name: "Ladda upp CV" })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "MOCK_LADDA_UPP" })
     ).toBeInTheDocument();
+    // Den gamla rubriken ska vara borta.
+    expect(
+      screen.queryByRole("heading", { name: "Kom igång med matchning" })
+    ).toBeNull();
+  });
+
+  it("'Gör det senare' på sida 1 markerar cookien sedd och stänger", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(screen.getByRole("button", { name: "Gör det senare" }));
+
+    await waitFor(() => expect(markSeenMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("heading", { name: "Välkommen till Jobbliggaren" })
+    ).toBeNull();
   });
 });
 
@@ -120,6 +164,7 @@ describe("WelcomeSetupModal — upload → done (onboarding-frikoppling: ingen g
     const user = userEvent.setup();
     renderModal();
 
+    await gotoUpload(user);
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
 
     // Direkt efter upload: done-steget (bekräftelse + matchnings-val) i EN slide.
@@ -130,8 +175,9 @@ describe("WelcomeSetupModal — upload → done (onboarding-frikoppling: ingen g
     expect(
       screen.queryByRole("heading", { name: "Komplettera ditt CV" })
     ).toBeNull();
-    // Copyn är ärlig: inläst men inte sparat (CTO-bind, pending-card).
-    expect(screen.getByText(/inläst men inte sparat/)).toBeInTheDocument();
+    // Copyn är ärlig och förklarar VARFÖR (inläst för förslag, sparas inte
+    // automatiskt) — #251 A2 / CTO-bind pending-card.
+    expect(screen.getByText(/sparas inte automatiskt/)).toBeInTheDocument();
     // Får aldrig påstå att CV:t är sparat.
     expect(screen.queryByText(/Ditt CV är sparat/)).toBeNull();
     expect(
@@ -149,6 +195,7 @@ describe("WelcomeSetupModal — upload → done (onboarding-frikoppling: ingen g
     const user = userEvent.setup();
     renderModal();
 
+    await gotoUpload(user);
     await user.click(screen.getByRole("button", { name: "Fortsätt utan CV" }));
 
     expect(
@@ -167,6 +214,7 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
     const user = userEvent.setup();
     renderModal();
 
+    await gotoUpload(user);
     await user.click(screen.getByRole("button", { name: "MOCK_LADDA_UPP" }));
     await user.click(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
@@ -187,6 +235,7 @@ describe("WelcomeSetupModal — 'Ja' öppnar wizarden", () => {
     const user = userEvent.setup();
     renderModal();
 
+    await gotoUpload(user);
     await user.click(screen.getByRole("button", { name: "Fortsätt utan CV" }));
     await user.click(
       screen.getByRole("button", { name: "Ja, ställ in matchning" })
@@ -202,6 +251,7 @@ describe("WelcomeSetupModal — skip markerar cookien sedd", () => {
     const user = userEvent.setup();
     renderModal();
 
+    await gotoUpload(user);
     await user.click(screen.getByRole("button", { name: "Fortsätt utan CV" }));
     await user.click(screen.getByRole("button", { name: "Hoppa över" }));
 
@@ -209,7 +259,7 @@ describe("WelcomeSetupModal — skip markerar cookien sedd", () => {
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
     // Välkomsten är stängd efter skip.
     expect(
-      screen.queryByRole("heading", { name: "Kom igång med matchning" })
+      screen.queryByRole("heading", { name: "Ställ in din matchning" })
     ).toBeNull();
   });
 });

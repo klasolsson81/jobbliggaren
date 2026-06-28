@@ -3253,6 +3253,28 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   flex-basis: 100%;
   margin: 0;
 }
+/* #251 (A4) — icke-blockerande "Vanlig anställning"-not i anställningsformer-
+   steget. Lugn info-ton (vägledande info, inte en varnings-banner; status-
+   färger reserveras för status). .jp-wizard__note-slot är en alltid-monterad
+   live-region (SR-annonsering); själva noten renderas villkorligt. Hög kontrast
+   (ink-1 på info-bg) — ingen grå text. */
+.jp-wizard__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  background: var(--jp-info-bg);
+  border-radius: var(--jp-r-md);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__note-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--jp-info);
+}
 
 /* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 / 0079 STEG 1 ──
    Standardmodal med tre interna steg: upload → gapfill → done. Upload/done är

@@ -335,7 +335,7 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
     render(<YearsHost initial={["grp_backend"]} />);
     expect(
       screen.getByRole("spinbutton", {
-        name: "Ungefärliga år i yrket Backendutvecklare",
+        name: "År i yrket Backendutvecklare",
       })
     ).toBeInTheDocument();
   });
@@ -344,7 +344,7 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
     render(<HostHarness initial={["grp_backend"]} />);
     expect(
       screen.queryByRole("spinbutton", {
-        name: "Ungefärliga år i yrket Backendutvecklare",
+        name: "År i yrket Backendutvecklare",
       })
     ).toBeNull();
   });
@@ -353,7 +353,7 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
     const user = userEvent.setup();
     render(<YearsHost initial={["grp_backend"]} />);
     const field = screen.getByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Backendutvecklare",
+      name: "År i yrket Backendutvecklare",
     });
     await user.type(field, "7");
     expect(field).toHaveValue(7);
@@ -378,10 +378,10 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
     render(<YearsHost rest={{ autoSuggestFromCv: true }} />);
 
     const backend = await screen.findByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Backendutvecklare",
+      name: "År i yrket Backendutvecklare",
     });
     const frontend = screen.getByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Frontendutvecklare",
+      name: "År i yrket Frontendutvecklare",
     });
     // 0 seedas som "0" (skilt), null som tomt.
     expect(backend).toHaveValue(0);
@@ -409,7 +409,7 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
 
     await waitFor(() => expect(cvSuggestMock).toHaveBeenCalledTimes(1));
     const backend = screen.getByRole("spinbutton", {
-      name: "Ungefärliga år i yrket Backendutvecklare",
+      name: "År i yrket Backendutvecklare",
     });
     // Befintliga 3 bevaras — seedens 9 skriver inte över.
     expect(backend).toHaveValue(3);
@@ -423,7 +423,7 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
     );
     expect(
       screen.queryByRole("spinbutton", {
-        name: "Ungefärliga år i yrket Backendutvecklare",
+        name: "År i yrket Backendutvecklare",
       })
     ).toBeNull();
   });

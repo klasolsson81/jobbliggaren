@@ -28,11 +28,20 @@ gets `automerge`; a cloud `/schedule` **PR-babysitter** reviews + merges.
 
 | Role | Count | Runtime | Notes |
 |---|---|---|---|
-| **Stack-owner** | exactly 1 | Main working copy `C:/DOTNET-UTB/JobbPilot`; runs dev Postgres (5435) + Api + Worker + FE | Owns runtime verification, rendered-verify, manual dev testing. Holds the bin-lock. |
+| **Stack-owner** | exactly 1 | Its OWN `c:/tmp` worktree; runs dev Postgres (5435) + Api + Worker + FE **from that worktree** | Owns runtime verification, rendered-verify, manual dev testing. Holds the bin-lock **on its own worktree only** (each worktree has its own `bin/` → no cross-worktree lock under Model 1). Injects secrets via env override (below). |
 | **Worktree session** | 1–3 | Isolated worktree; code + `dotnet test` (unit/arch) + **Testcontainers** integration; FE `pnpm test`/`build` | Never runs Api/Worker against 5435; never the migration owner unless explicitly handed the token. |
 
-The stack-owner is the **main checkout** (it already holds the running stack
-and the real secrets). Worktree sessions are the parallel feature workers.
+**Model 1 (Klas, 2026-06-28) — EVERY session works in its own `c:/tmp`
+worktree, including the stack-owner. NO session works in the shared main
+working copy** (`C:/DOTNET-UTB/JobbPilot`): two sessions there share one
+HEAD/index, so either's `git checkout` silently reverts the other's working
+tree (incident 2026-06-28). The stack-owner runs the real stack from its
+worktree by injecting secrets at runtime —
+`export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$POSTGRES_PASSWORD_DEV"`
+(read `POSTGRES_PASSWORD_DEV` from `.env`; the dev `appsettings` uses a
+`${...}` placeholder the launch must expand, else `28P01`). It does NOT copy
+`appsettings.Local.json` into the worktree. The main checkout is left on `main`
+and untouched (a fallback/reference, not a workspace).
 
 ---
 
@@ -84,12 +93,17 @@ gitignored (ADR 0072) and absent.
   ```
   The list lives in [`.worktreeinclude`](../../.worktreeinclude); the script
   **refuses secret-like entries** (`appsettings.Local.json`, `.env.local` are
-  NEVER synced — only the stack-owner runs against real secrets).
+  NEVER synced into a worktree — under Model 1 the stack-owner injects secrets
+  at runtime via a `ConnectionStrings__Postgres` env override built from `.env`,
+  so its worktree runs the real stack without copying secret files).
 
 **Do not fork these shared docs in a worktree.** `current-work.md` / `steg-tracker.md`
-/ `tech-debt.md` are owned centrally (the stack-owner updates them); a worktree
-session reads them for context and writes only its own gitignored
-`docs/sessions/<log>.md`.
+/ `tech-debt.md` are owned centrally and updated in the **main checkout's copy**
+(the canonical gitignored baseline — editing a gitignored doc there is a single
+`cd`-and-edit, NOT "working in" the copy: no `checkout`/`commit`/stack, so it does
+not trip the Model-1 collision rule). One session (the stack-owner or a designated
+docs-owner) writes them; a worktree session reads its `sync-worktree-docs`-synced
+copy for context and writes only its own gitignored `docs/sessions/<log>.md`.
 
 ### 3.3 Push (rebase first)
 

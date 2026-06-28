@@ -204,10 +204,24 @@ Several Claude Code sessions (2–4, Max x20) run concurrently in isolated git
 worktrees. The rules below keep parallel work collision-free; full playbook in
 [`docs/runbooks/parallel-sessions.md`](docs/runbooks/parallel-sessions.md).
 
-- **Worktree-per-task.** Each session works in its own worktree (branched from
-  `origin/main`, never a shared working copy). Rebase on `origin/main` before
-  push; use pathspec-scoped commits (`git commit -- <paths>`) in a shared
-  index, and verify with `git show --stat HEAD`.
+- **Worktree-per-task (NO exception — the stack-lane too).** Every session
+  works in its own `c:/tmp` worktree off `origin/main`; **NEVER the shared main
+  working copy.** Two sessions in one copy share one HEAD/index → either's
+  `git checkout` silently reverts the other's working tree (real incident
+  2026-06-28: a parallel checkout yanked an active branch mid-session; the
+  commit survived only because it was already pushed). **Session-start
+  pre-flight, before any work:** `git worktree list` (see active sessions +
+  their branches) → confirm the issue is not already claimed (`gh issue view
+  <N>` + open PRs) → create + enter your worktree (**Path A, recommended:** the
+  `EnterWorktree` tool → `.claude/worktrees/<name>`, zero-setup; **or Path B:**
+  raw `git worktree add c:/tmp/jbl-<slug> origin/main -b <type>/<slug>` +
+  `pwsh scripts/sync-worktree-docs.ps1 <path>` — see the playbook) → `cd` in →
+  claim the issue visibly if it has one (`gh issue edit <N> --add-assignee
+  @me`). **ABORT if launched in the main copy on a non-main branch** — another
+  session owns it; never
+  `git checkout` there. Own worktree = own index: rebase on `origin/main` before
+  push, verify with `git show --stat HEAD`. The session-start hook surfaces the
+  worktree list + a main-copy warning automatically.
 - **Hotspot ownership.** Files many contexts touch (DI composition roots,
   `AppDbContext`, shared builders, `messages/{sv,en}.json`, `.sln` /
   `Directory.Packages.props`) are owned by ONE session at a time — coordinate
@@ -217,15 +231,23 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   session creates or applies migrations at a time; migration order is serial.
   Other sessions wait for a merged migration before touching the schema.
 - **Shared-Postgres rule.** Only ONE "stack-owner" session runs the local dev
-  Postgres (port 5435) + Api/Worker (binary lock + shared DB). Every other
-  session runs code + unit + architecture + **Testcontainers** (ephemeral DB,
-  parallel-safe) — never against the shared dev DB.
+  Postgres (port 5435) + Api/Worker (single-owner: the shared dev DB + port
+  5435; the running stack bin-locks only its OWN worktree's `bin/`) — **from its
+  own worktree** (Model 1), passing secrets via a `ConnectionStrings__Postgres`
+  env
+  override built from `.env`'s `POSTGRES_PASSWORD_DEV` (NOT by copying
+  `appsettings.Local.json`; the dev `appsettings` uses a `${...}` placeholder
+  the launch must expand, else `28P01`). Every other session runs code + unit +
+  architecture + **Testcontainers** (ephemeral DB, parallel-safe) — never
+  against the shared dev DB.
 - **Local docs in worktrees.** Gitignored session state (`current-work.md`,
   `steg-tracker.md`, `tech-debt.md`, `sessions/`, local `reviews/` and ADRs
   0074+) is absent from a fresh worktree. `.worktreeinclude` lists them; run
   `scripts/sync-worktree-docs.ps1 <worktree-path>` after creating a worktree.
-  Secrets (`appsettings.Local.json`, `.env.local`) are NEVER synced — only the
-  stack-owner (the main working copy) runs against real secrets.
+  Secrets (`appsettings.Local.json`, `.env.local`) are NEVER synced into a
+  worktree — the stack-owner injects them at runtime via env override
+  (`ConnectionStrings__Postgres` from `.env`) so its worktree runs the real
+  stack without committing or copying secrets.
 - **Backlog = GitHub Issues** (`area:` + `hotspot:` labels); `steg-tracker.md`
   is the strategic map. A PR-babysitter runs via cloud `/schedule` on PR events
   (review + automerge).

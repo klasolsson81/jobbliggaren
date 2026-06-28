@@ -52,4 +52,32 @@ if [ -f "$WEB_DIR/package.json" ] && [ -f "$WEB_DIR/node_modules/next/package.js
     fi
 fi
 
+# 6. Parallell-session collision-pre-flight (CLAUDE.md §6.5, Modell 1).
+#    Två sessioner i SAMMA arbetskopia delar en HEAD/index → den enas
+#    `git checkout` reverterar tyst den andras arbetsträd (incident 2026-06-28).
+#    Modell 1: varje session jobbar i en EGEN c:/tmp-worktree, ALDRIG i
+#    huvudkopian. Hooken ytlägger fleet-läget + varnar om du startas i
+#    huvudkopian (där .git är en katalog; i en worktree är .git en fil).
+echo ""
+echo "== Parallella sessioner (git worktree list) =="
+git worktree list 2>/dev/null || echo "  (ej ett git-repo)"
+# Huvudkopia ⇔ git-dir == git-common-dir; en linked worktree (Path A inne i
+# trädet ELLER Path B i c:/tmp) har en EGEN git-dir skild från common-dir.
+# Robustare än `[ -d .git ]` (Path A-worktree under .claude/worktrees/ ligger
+# inom huvudkopians träd) — dotnet-architect 2026-06-28.
+_gitdir=$(git rev-parse --git-dir 2>/dev/null)
+_commondir=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$_gitdir" ] && [ "$_gitdir" = "$_commondir" ]; then
+    _branch=$(git branch --show-current 2>/dev/null)
+    echo "⚠ Du står i HUVUDKOPIAN (branch: ${_branch:-?}). Modell 1: jobba ALDRIG"
+    echo "  här — skapa en isolerad worktree FÖRST (annars rycker en annan sessions"
+    echo "  checkout ditt arbetsträd):"
+    echo "    git worktree add c:/tmp/jbl-<slug> origin/main -b <type>/<slug>"
+    echo "    pwsh scripts/sync-worktree-docs.ps1 c:/tmp/jbl-<slug> && cd c:/tmp/jbl-<slug>"
+    if [ -n "$_branch" ] && [ "$_branch" != "main" ]; then
+        echo "⚠ HUVUDKOPIANS HEAD = '$_branch' (ej main) — en annan session äger den."
+        echo "  Rör den INTE (ingen checkout/commit/stack-omstart här)."
+    fi
+fi
+
 exit 0

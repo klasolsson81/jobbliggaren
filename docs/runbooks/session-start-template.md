@@ -23,8 +23,15 @@ diverge.
 ```
 Hej. Klas-prompt: {phase/scope name} — {one-line delivery goal}.
 
-Pre-flight: `git pull origin main`; verify HEAD = `{expected-sha}`
-(`{latest commit message snippet}`); `git status` clean; Docker stack up.
+Pre-flight (CLAUDE.md §6.5, Modell 1 — worktree-first, ALDRIG huvudkopian):
+`git fetch origin`; `git worktree list` (se aktiva sessioner + deras branchar);
+bekräfta att issuet inte redan är taget (`gh issue view {N}` + öppna PRs);
+skapa + gå in i din EGNA worktree: `git worktree add c:/tmp/jbl-{slug}
+origin/main -b {type}/{slug}` → `pwsh scripts/sync-worktree-docs.ps1
+c:/tmp/jbl-{slug}` → `cd` in; claima issuet om det finns ett (`gh issue edit
+{N} --add-assignee @me`); verifiera
+HEAD = `{expected-sha}` (`{latest commit message snippet}`); Docker stack uppe.
+ABORT om huvudkopians HEAD är en icke-main-branch — en annan session äger den.
 ```
 
 ### 2. Scope (the unique payload)

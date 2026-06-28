@@ -68,6 +68,13 @@ interface JobbResultsToolbarProps {
    * inte till recent-search-capturen, till skillnad från chip/sort).
    */
   matchGrades: ReadonlyArray<string>;
+  /**
+   * #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:ns på/av (URL:
+   * `?relaterade=on`). Driver toggle:ns aria-checked + om `Related`-kryssrutan
+   * renderas i grad-filtret. Runtime-view-state (navigerar utan commit-flaggan,
+   * paritet matchGrades).
+   */
+  includeRelated: boolean;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -141,6 +148,7 @@ export function JobbResultsToolbar({
   employmentType,
   worktimeExtent,
   matchGrades,
+  includeRelated,
   resolvedLabels,
   q,
   sortBy,
@@ -176,6 +184,10 @@ export function JobbResultsToolbar({
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
+      // #300 PR-5 — bär "Visa relaterade också" i URL-state-basen så ALLA
+      // toolbar-navigeringar (chip-×, Rensa, sort, grad-justeringar) bevarar
+      // toggle:n (paritet matchGrades/matchningOff).
+      includeRelated,
       sortBy,
       pageSize,
     }),
@@ -187,6 +199,7 @@ export function JobbResultsToolbar({
       employmentType,
       worktimeExtent,
       matchGrades,
+      includeRelated,
       sortBy,
       pageSize,
     ],
@@ -265,14 +278,38 @@ export function JobbResultsToolbar({
   // issue #292 — huvudbrytaren AV: skriv `?matchning=off` + TÖM matchGrades
   // ("forget"-semantik, CTO-bind: en senare PÅ återställer till alla grader,
   // inte den tidigare smalnade delmängden).
+  // #300 PR-5 — samma "forget"-semantik för related: AV nollar `includeRelated`
+  // (den subordinerade toggle:n försvinner med matchningen ⇒ `?relaterade=on` får
+  // inte ligga kvar inert i URL:en). `Related` försvinner ur matchGrades med
+  // tömningen ovan, så ingen state/URL-divergens kvarstår.
   function onMatchTurnOff() {
-    navigate({ ...urlState, matchningOff: true, matchGrades: [] });
+    navigate({
+      ...urlState,
+      matchningOff: true,
+      matchGrades: [],
+      includeRelated: false,
+    });
   }
 
   // issue #292 — huvudbrytaren PÅ: ta bort off-flaggan + lämna matchGrades tomt
   // (= alla grader visas). Renderas av grad-filtret som ALLA-ikryssade.
   function onMatchTurnOn() {
     navigate({ ...urlState, matchningOff: false, matchGrades: [] });
+  }
+
+  // #300 PR-5 — "Visa relaterade också"-toggle:n. Skriver/tar bort `?relaterade=on`.
+  // STATE-MODEL FLOW-TRAP (design-reviewer): vid AV MÅSTE `Related` droppas ur den
+  // valda grad-listan — en kvarvarande `Related`-token filtrerar på en grad vars
+  // kontroll (kryssrutan) inte längre renderas (state/URL-divergens). Navigerar
+  // utan commit-flaggan (runtime-view-state, paritet matchGrades).
+  function onRelatedToggle(next: boolean) {
+    navigate({
+      ...urlState,
+      includeRelated: next,
+      matchGrades: next
+        ? urlState.matchGrades
+        : urlState.matchGrades.filter((g) => g !== "Related"),
+    });
   }
 
   function removeChip(chip: SearchChip) {
@@ -387,9 +424,11 @@ export function JobbResultsToolbar({
           <JobbMatchGradeFilter
             active={matchActive}
             selected={urlState.matchGrades}
+            includeRelated={urlState.includeRelated ?? false}
             onChange={onMatchGradesChange}
             onTurnOff={onMatchTurnOff}
             onTurnOn={onMatchTurnOn}
+            onRelatedToggle={onRelatedToggle}
           />
         )}
         {/* issue #292 — "Sortera"-labeln flyttad OVANFÖR select:en som ett

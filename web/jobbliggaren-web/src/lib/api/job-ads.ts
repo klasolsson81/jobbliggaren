@@ -37,6 +37,12 @@ export interface ListJobAdsQuery {
   // (`Basic` | `Good` | `Strong` — ALDRIG `Top`; backend-validatorn avvisar
   // det). Tom/utelämnad = inget grad-filter ("Matchning av", hela listan).
   matchGrades?: ReadonlyArray<string>;
+  // #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:n. true ⇒
+  // ?includeRelated=true skickas och backend tar med yrken som LIKNAR de valda
+  // (graderade `Related`, rung mellan Basic och Good) i listan. Default false
+  // (behaviour-inert: ren exakt-match-lista). Master-switch härledd ur
+  // `?relaterade=on` uppströms.
+  includeRelated?: boolean;
   q?: string;
   // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=1
   // skickas och backend auto-capturerar sökningen till Senaste sökningar.
@@ -69,6 +75,9 @@ function buildQuery(query: ListJobAdsQuery): string {
   // STEG 5 — matchningsgrad (enum-namn), upprepad nyckel per element. Tom
   // lista = inget param = "Matchning av" (backend returnerar hela listan).
   for (const v of query.matchGrades ?? []) params.append("matchGrades", v);
+  // #300 PR-5 — "Visa relaterade också". Skriv BARA ut när true (default false =
+  // ren lista). Värdet är "true" (ASP.NET bool-binding tar inte "1").
+  if (query.includeRelated) params.set("includeRelated", "true");
   if (query.q) params.set("q", query.q);
   // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend). Värdet
   // är "true" (ASP.NET bool-binding tar inte "1" — skulle 400:a list-queryn).

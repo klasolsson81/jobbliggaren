@@ -26,9 +26,15 @@ function authHeaders(sessionId: string): HeadersInit {
  * POSITIVE-ONLY: bara annonser som tjänade in en positiv grad finns i
  * `entries` — frånvarande annons ⇒ ingen tagg. FE behöver därför ingen
  * "ingen match"-logik.
+ *
+ * #300 PR-5 (ADR 0084): `includeRelated` (default false) skickas som BODY-fält.
+ * `true` ⇒ backend graderar yrken som LIKNAR de valda som `Related` (rung mellan
+ * Basic och Good). AV ⇒ inga related-taggar (behaviour-inert default). Master-
+ * switchen härleds ur `?relaterade=on` uppströms och trådas in via callern.
  */
 export async function getJobAdMatchTags(
-  jobAdIds: ReadonlyArray<string>
+  jobAdIds: ReadonlyArray<string>,
+  includeRelated = false
 ): Promise<JobAdMatchBatch> {
   if (jobAdIds.length === 0) return EMPTY_BATCH;
 
@@ -39,7 +45,7 @@ export async function getJobAdMatchTags(
     const res = await fetch(`${env.BACKEND_URL}/api/v1/me/job-ad-match-tags`, {
       method: "POST",
       headers: authHeaders(sessionId),
-      body: JSON.stringify({ jobAdIds }),
+      body: JSON.stringify({ jobAdIds, includeRelated }),
       cache: "no-store",
     });
     if (!res.ok) return EMPTY_BATCH;
@@ -60,16 +66,23 @@ export async function getJobAdMatchTags(
  * null` (200 med `null`-body = "ingen matchnings-sektion": anonym / ingen
  * träffdata). `.nullable()` fångar det `null`:et och degraderar identiskt med
  * resten.
+ *
+ * #300 PR-5 (ADR 0084): `includeRelated` (default false) skickas som QUERY-param
+ * (`?includeRelated=true`). `true` ⇒ en related-yrkes-annons graderas `Related`
+ * (i stället för att inte tjäna in någon grad alls). Trådas in via callern ur
+ * `?relaterade=on` så modalen visar samma grad som listans badge. Värdet är
+ * "true"/"false" (ASP.NET bool-binding tar inte "1").
  */
 export async function getJobAdMatchDetail(
-  jobAdId: string
+  jobAdId: string,
+  includeRelated = false
 ): Promise<JobAdMatchDetail | null> {
   const sessionId = await getSessionId();
   if (!sessionId) return null;
 
   try {
     const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/job-ad-match-tags/${jobAdId}`,
+      `${env.BACKEND_URL}/api/v1/me/job-ad-match-tags/${jobAdId}?includeRelated=${includeRelated}`,
       {
         headers: authHeaders(sessionId),
         cache: "no-store",

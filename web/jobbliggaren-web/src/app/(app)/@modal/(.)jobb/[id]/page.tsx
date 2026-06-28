@@ -12,6 +12,9 @@ import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  // #300 PR-5 (ADR 0084) — `?relaterade=on` bärs över från listans URL (soft-nav
+  // behåller list-searchParams) så modalen graderar `Related` likt list-badgen.
+  searchParams: Promise<{ relaterade?: string }>;
 }
 
 /**
@@ -29,12 +32,19 @@ interface PageProps {
  * "use client". JobAdDetail-trädet förblir Server Component (passeras
  * som children — serialiserbart RSC-träd, ingen funktion över gränsen).
  */
-export default async function InterceptedJobbModal({ params }: PageProps) {
+export default async function InterceptedJobbModal({
+  params,
+  searchParams,
+}: PageProps) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
   const { id } = await params;
+  // #300 PR-5 — master-switch för related-gradering i detalj-anropet. Parsa BARA
+  // on-värdet (paritet med listans page.tsx). Default AV.
+  const { relaterade } = await searchParams;
+  const includeRelated = relaterade === "on";
   const result = await getJobAd(id);
 
   switch (result.kind) {
@@ -44,7 +54,7 @@ export default async function InterceptedJobbModal({ params }: PageProps) {
       const [initialSaved, initialApplied, match] = await Promise.all([
         isJobAdSaved(id),
         hasAppliedJobAd(id),
-        getJobAdMatchDetail(id),
+        getJobAdMatchDetail(id, includeRelated),
       ]);
       // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
       // byggs ingen granularitets-karta). En inloggad användare utan match

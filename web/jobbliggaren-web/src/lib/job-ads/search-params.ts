@@ -55,6 +55,13 @@ export interface JobbUrlState {
   // `jobb-results.tsx` (SSOT): `matchActive = hasStatedDesiredOccupation &&
   // !matchningOff`.
   matchningOff?: boolean;
+  // #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:n. `true` =
+  // related-graderade annonser (yrken som LIKNAR de valda) tas med i listan +
+  // matchnings-anropen (skriver `?relaterade=on`). Frånvaro (undefined/false) =
+  // default AV (ren URL, paritet med matchningOff). Master-switch för
+  // includeRelated genom alla tre anropen (lista/batch/detalj). Runtime-view-
+  // state (navigerar utan commit-flaggan, paritet matchGrades).
+  includeRelated?: boolean;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -68,6 +75,17 @@ export interface JobbUrlState {
  */
 export const MATCHNING_PARAM = "matchning";
 export const MATCHNING_OFF_VALUE = "off";
+
+/**
+ * #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:ns URL-param. Param-namnet
+ * är svenskt (`relaterade`, paritet med rutterna /jobb /ansokningar + `matchning`);
+ * värdet `on` är ett stabilt sentinel-ord (inte i18n, samma regel som `matchning=off`
+ * och enum-namnen i matchGrades). Endast `on` skrivs ut — AV-läget är paramens
+ * FRÅNVARO så default-URL:en förblir ren (`/jobb`). Separat från `matchGrades`/
+ * `matchning` (senior-cto-advisor-bind: egen master-switch, ingen överlastning).
+ */
+export const RELATERADE_PARAM = "relaterade";
+export const RELATERADE_ON_VALUE = "on";
 
 export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
 
@@ -114,6 +132,10 @@ export function buildJobbHref(state: JobbUrlState): string {
   // issue #292 — matchnings-huvudbrytaren. Skriv BARA ut när off (PÅ = paramens
   // frånvaro, ren URL). Placeras efter matchGrades, före q (stabil URL-form).
   if (state.matchningOff) params.set(MATCHNING_PARAM, MATCHNING_OFF_VALUE);
+  // #300 PR-5 — "Visa relaterade också"-toggle:n. Skriv BARA ut när on (AV =
+  // paramens frånvaro, ren URL). Placeras direkt efter matchning, före q (stabil
+  // URL-form, intill matchnings-axelns övriga params).
+  if (state.includeRelated) params.set(RELATERADE_PARAM, RELATERADE_ON_VALUE);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);

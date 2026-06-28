@@ -25,8 +25,15 @@ import { z } from "zod";
  * `.record` `.catch({})`:ar HELA mappen till tomt vid okänd grad — så denna
  * widening MÅSTE skeppa atomiskt med backend, annars blankas ALLA taggar på
  * sidan (CTO D2 page-wipe-fällan). Backend serialiserar by NAME.
+ *
+ * #300 PR-5 (ADR 0084): `Related` ("Relaterat yrke") är den femte rungen MELLAN
+ * Basic och Good. Backend emitterar den nu (bakom `includeRelated`-flaggan, off
+ * by default) — `Related` MÅSTE därför finnas i enumet, annars `.catch({})`:ar
+ * batch-mappen HELA sidan till tomt så fort en related-graderad annons dyker upp
+ * (samma page-wipe-fälla som Top). Ordningen i enumet spelar ingen roll (enumet
+ * är bara accept-listan); ordinaliteten lever i `LIST_MATCH_GRADES`.
  */
-export const matchGradeSchema = z.enum(["Strong", "Good", "Basic", "Top"]);
+export const matchGradeSchema = z.enum(["Strong", "Good", "Basic", "Top", "Related"]);
 export type MatchGrade = z.infer<typeof matchGradeSchema>;
 
 /**
@@ -34,10 +41,12 @@ export type MatchGrade = z.infer<typeof matchGradeSchema>;
  * lever). Det finns FYRA grader, men listfiltret kan bara erbjuda TRE.
  *
  * Nivåer (svag → stark), svenska labels från `match.grade.*`:
- *   Basic  = "Grundmatch"  — yrket matchar, men inga bekräftade sekundärsignaler.
- *   Good   = "Bra match"   — yrket + minst en av region/anställning bekräftad.
- *   Strong = "Stark match" — du möter annonsens ska-krav (requirement-backed).
- *   Top    = "Toppmatch"   — Stark PLUS att CV-kompetenser/meriterande överlappar.
+ *   Related = "Relaterat yrke" — ett yrke som LIKNAR ett du valt (ADR 0084
+ *             substituerbarhet), inte ett du valt exakt. Rankas UNDER Basic.
+ *   Basic   = "Grundmatch"  — yrket matchar, men inga bekräftade sekundärsignaler.
+ *   Good    = "Bra match"   — yrket + minst en av region/anställning bekräftad.
+ *   Strong  = "Stark match" — du möter annonsens ska-krav (requirement-backed).
+ *   Top     = "Toppmatch"   — Stark PLUS att CV-kompetenser/meriterande överlappar.
  *
  * Varför filtret bara har Grund/Bra/Stark (Top UTESLUTET, honest by design):
  * listans grad-filter + sort kör FAST-BANDET (preferens-byggt: yrke + region +
@@ -60,21 +69,22 @@ export type MatchGrade = z.infer<typeof matchGradeSchema>;
  * dokumenterat; `gradeFilter.help` lovar medvetet ALDRIG exakt göm (ingen
  * BE-ändring per (iii)).
  *
- * Forward-not — `Related` (ADR 0084, Accepted 2026-06-28): en femte rung
- * `MatchGrade.Related` ("Relaterat yrke") placeras MELLAN Basic och Good.
- * `Related` ÄR Fast-beräkningsbar (till skillnad från Top) och blir därför en
- * filtrerbar grad bakom en "Visa relaterade också"-toggle (off by default).
- * Dess FE är #300:s egen PR-5 (ännu obyggd; ingen backend emitterar `Related`
- * ännu). När den landar: lägg `Related` i `matchGradeSchema`, i
- * `LIST_MATCH_GRADES` (mellan Basic och Good) och i `*.grade.Related` i bägge
- * katalogerna. Tas medvetet INTE in här (skulle skeppa död UI + krocka lanen).
+ * #300 PR-5 (ADR 0084, Accepted 2026-06-28) — den femte rungen `Related`
+ * ("Relaterat yrke") är nu LANDAD och placeras ordinalt MELLAN Basic och Good
+ * (den rankas svagast: ett liknande, inte exakt valt, yrke). `Related` ÄR
+ * Fast-beräkningsbar (till skillnad från Top) och är därför en filtrerbar grad —
+ * MEN bara bakom "Visa relaterade också"-toggle:n (`?relaterade=on`, off by
+ * default). Den ingår alltså i `LIST_MATCH_GRADES` (SPOT för ordinaliteten +
+ * filter-kryssrutornas ordning), men det SYNLIGA/effektiva grad-setet i filtret
+ * inkluderar `Related` ENBART när toggle:n är på (jobb-match-grade-filter.tsx
+ * härleder det). `gradeFilter.help` lovar fortfarande aldrig per-kort-exakthet.
  *
  * Wire-formen är enum-NAMN (svenska labels lever bara i UI). `as const` så
  * `LIST_MATCH_GRADES.includes` ger en bekväm typvakt i page-validatorn (drop
  * unknown/Top tyst). Ordningen är Goodhart-medvetet ordinal men listan
  * poängsätter aldrig — den filtrerar på namngivna kategorier.
  */
-export const LIST_MATCH_GRADES = ["Basic", "Good", "Strong"] as const;
+export const LIST_MATCH_GRADES = ["Basic", "Related", "Good", "Strong"] as const;
 export type ListMatchGrade = (typeof LIST_MATCH_GRADES)[number];
 
 /** Typvakt: är strängen en av de tre filtrerbara graderna (ej `Top`)? */

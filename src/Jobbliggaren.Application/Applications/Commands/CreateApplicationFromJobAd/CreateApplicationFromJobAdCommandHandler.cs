@@ -8,7 +8,14 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
 
 /// <summary>
-/// F6 P5 Punkt 2 Del B — handler för quick-create från JobAd-modal-footer.
+/// F6 P5 Punkt 2 Del B — handler för "Har ansökt"-quick-create från
+/// JobAd-modal-footer.
+///
+/// The button says "Har ansökt" (I have applied), so the application is created
+/// AND immediately transitioned to <see cref="ApplicationStatus.Submitted"/> —
+/// it must NOT linger as a Draft (Klas 2026-06-28: a Draft after clicking "Har
+/// ansökt" is misleading). The Draft→Submitted transition stamps
+/// <c>AppliedAt</c> (issue #316), so the job appears in the activity report.
 ///
 /// Precondition: JobAd existerar och är inte soft-deletad (global query
 /// filter på <c>db.JobAds</c> respekteras automatiskt). Använder befintlig
@@ -56,6 +63,13 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
             jobSeekerId, jobAdId, coverLetter: null, manualPosting: null, clock);
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);
+
+        // "Har ansökt" → submit immediately (stamps AppliedAt, issue #316). A
+        // freshly-created application is Draft; Draft→Submitted is a valid
+        // transition.
+        var submit = result.Value.TransitionTo(ApplicationStatus.Submitted, clock);
+        if (submit.IsFailure)
+            return Result.Failure<Guid>(submit.Error);
 
         db.Applications.Add(result.Value);
 

@@ -101,7 +101,7 @@ export async function createApplicationAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
   }
 
-  // /ansokningar/ny skapar alltid en manuell ansökan (jobAdId == null).
+  // /ny-ansokan skapar alltid en manuell ansökan (jobAdId == null).
   // Backend tar `manual: { title, company, url?, expiresAt? }` (ingen
   // source — manuell ansökan är implicit Source=Manual).
   let applicationId: string;

@@ -21,6 +21,9 @@ export type MonthOption = { value: string; label: string };
 
 const AF_MINIMUM = 6;
 
+// Show the filter only once the list is long enough to be worth filtering.
+const FILTER_THRESHOLD = 6;
+
 /**
  * AF activity-report helper view (issue #316). Lists the month's applications,
  * one card per sought job, with a per-field copy button so the user fills
@@ -34,16 +37,28 @@ export function ActivityReportView({
   monthOptions,
   afUrl,
 }: {
-  rows: ActivityReportRow[];
+  rows: readonly ActivityReportRow[];
   selectedMonth: string; // "YYYY-MM"
   monthLabel: string; // "maj 2026"
-  monthOptions: MonthOption[];
+  monthOptions: readonly MonthOption[];
   afUrl: string;
 }) {
   const t = useTranslations("aktivitetsrapport");
   const router = useRouter();
+  const [query, setQuery] = useState("");
   const count = rows.length;
   const belowMinimum = count < AF_MINIMUM;
+  const showFilter = count >= FILTER_THRESHOLD;
+
+  const needle = query.trim().toLowerCase();
+  const filtered =
+    showFilter && needle
+      ? rows.filter((r) =>
+          [r.employer, r.title, r.location].some(
+            (v) => v != null && v.toLowerCase().includes(needle),
+          ),
+        )
+      : rows;
 
   function handleMonthChange(event: React.ChangeEvent<HTMLSelectElement>) {
     router.push(`/aktivitetsrapport?month=${event.target.value}`);
@@ -106,11 +121,35 @@ export function ActivityReportView({
           </p>
         </div>
       ) : (
-        <ol className="flex list-none flex-col gap-4 p-0">
-          {rows.map((row) => (
-            <ApplicationCard key={row.applicationId} row={row} />
-          ))}
-        </ol>
+        <div className="flex flex-col gap-4">
+          {showFilter ? (
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="aktivitetsrapport-filter"
+                className="text-sm font-medium text-text-secondary"
+              >
+                {t("filter.label")}
+              </label>
+              <input
+                id="aktivitetsrapport-filter"
+                type="search"
+                className="jp-input"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+          ) : null}
+
+          {filtered.length === 0 ? (
+            <p className="text-text-primary">{t("filter.empty")}</p>
+          ) : (
+            <ol className="flex list-none flex-col gap-4 p-0">
+              {filtered.map((row) => (
+                <ApplicationCard key={row.applicationId} row={row} />
+              ))}
+            </ol>
+          )}
+        </div>
       )}
     </div>
   );
@@ -128,64 +167,100 @@ function ApplicationCard({ row }: { row: ActivityReportRow }) {
         : t("howApplied.other");
   const [howApplied, setHowApplied] = useState(howAppliedDefault);
 
-  return (
-    <li className="jp-card flex flex-col gap-0">
-      <CopyField label={t("fields.employer")} value={row.employer} />
-      <CopyField label={t("fields.title")} value={row.title} />
-      <CopyField label={t("fields.location")} value={row.location} />
-      <CopyField label={t("fields.appliedAt")} value={row.appliedDate} />
+  const subtitle = [row.employer, row.location].filter(Boolean).join(" · ");
 
-      <div className="flex flex-col gap-1.5 border-t border-border py-3 first:pt-0">
-        <label
-          htmlFor={`how-${row.applicationId}`}
-          className="text-sm font-medium text-text-secondary"
-        >
-          {t("fields.howApplied")}
-        </label>
-        <div className="flex items-center gap-2">
-          <input
-            id={`how-${row.applicationId}`}
-            className="jp-input flex-1"
-            value={howApplied}
-            onChange={(event) => setHowApplied(event.target.value)}
-          />
-          <CopyButton value={howApplied} fieldLabel={t("fields.howApplied")} />
-        </div>
+  return (
+    <li className="overflow-hidden rounded-md border-2 border-border bg-surface-primary">
+      {/* Banner header — the card's identity at a glance (Klas 2026-06-28). */}
+      <div className="border-b-2 border-border bg-brand-50 px-5 py-3.5">
+        <h2 className="text-base font-bold wrap-break-word text-text-primary">
+          {row.title ?? t("card.titleFallback")}
+        </h2>
+        {subtitle ? (
+          <p className="mt-0.5 text-sm wrap-break-word text-text-secondary">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
 
-      {row.url ? (
-        <CopyField label={t("fields.link")} value={row.url} />
-      ) : null}
+      <div className="px-5 py-1">
+        <CopyField label={t("fields.employer")} value={row.employer} />
+        <CopyField label={t("fields.title")} value={row.title} />
+        <CopyField label={t("fields.location")} value={row.location} />
+        <CopyField label={t("fields.appliedAt")} value={row.appliedDate} />
+
+        <div className="flex flex-col gap-1.5 border-t border-border py-3">
+          <label
+            htmlFor={`how-${row.applicationId}`}
+            className="text-sm font-medium text-text-secondary"
+          >
+            {t("fields.howApplied")}
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id={`how-${row.applicationId}`}
+              className="jp-input flex-1"
+              value={howApplied}
+              onChange={(event) => setHowApplied(event.target.value)}
+            />
+            <CopyButton value={howApplied} fieldLabel={t("fields.howApplied")} />
+          </div>
+        </div>
+
+        {row.url ? (
+          <CopyField
+            label={t("fields.link")}
+            value={row.url}
+            href={row.url}
+          />
+        ) : null}
+      </div>
     </li>
   );
 }
 
 /**
- * A label + value row with its own copy button. Empty values render a neutral
- * "Saknas" placeholder with no button (we never copy nothing, and never surface
- * an unavailable field as if it had data).
+ * A label + value row with its own copy button. When <paramref name="href"/> is
+ * given the value renders as a link that opens the advert in a new tab (in
+ * addition to the copy button). Empty values render a neutral "Saknas"
+ * placeholder with no button (we never copy nothing, and never surface an
+ * unavailable field as if it had data).
  */
 function CopyField({
   label,
   value,
+  href,
 }: {
   label: string;
   value: string | null;
+  href?: string;
 }) {
   const t = useTranslations("aktivitetsrapport");
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-border py-3 first:border-t-0 first:pt-0">
+    <div className="flex items-center justify-between gap-3 border-t border-border py-3">
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="text-sm font-medium text-text-secondary">{label}</span>
-        <span
-          className={
-            value
-              ? "break-words text-text-primary"
-              : "break-words text-text-secondary"
-          }
-        >
-          {value ?? t("fields.empty")}
-        </span>
+        {value && href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t("fields.linkOpen")}
+            className="break-all underline underline-offset-2"
+          >
+            {value}
+          </a>
+        ) : (
+          <span
+            className={
+              value
+                ? "wrap-break-word text-text-primary"
+                : "wrap-break-word text-text-secondary"
+            }
+          >
+            {value ?? t("fields.empty")}
+          </span>
+        )}
       </div>
       {value ? <CopyButton value={value} fieldLabel={label} /> : null}
     </div>

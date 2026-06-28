@@ -28,11 +28,20 @@ gets `automerge`; a cloud `/schedule` **PR-babysitter** reviews + merges.
 
 | Role | Count | Runtime | Notes |
 |---|---|---|---|
-| **Stack-owner** | exactly 1 | Main working copy `C:/DOTNET-UTB/JobbPilot`; runs dev Postgres (5435) + Api + Worker + FE | Owns runtime verification, rendered-verify, manual dev testing. Holds the bin-lock. |
+| **Stack-owner** | exactly 1 | Its OWN `c:/tmp` worktree; runs dev Postgres (5435) + Api + Worker + FE **from that worktree** | Owns runtime verification, rendered-verify, manual dev testing. Holds the bin-lock **on its own worktree only** (each worktree has its own `bin/` → no cross-worktree lock under Model 1). Injects secrets via env override (below). |
 | **Worktree session** | 1–3 | Isolated worktree; code + `dotnet test` (unit/arch) + **Testcontainers** integration; FE `pnpm test`/`build` | Never runs Api/Worker against 5435; never the migration owner unless explicitly handed the token. |
 
-The stack-owner is the **main checkout** (it already holds the running stack
-and the real secrets). Worktree sessions are the parallel feature workers.
+**Model 1 (Klas, 2026-06-28) — EVERY session works in its own `c:/tmp`
+worktree, including the stack-owner. NO session works in the shared main
+working copy** (`C:/DOTNET-UTB/JobbPilot`): two sessions there share one
+HEAD/index, so either's `git checkout` silently reverts the other's working
+tree (incident 2026-06-28). The stack-owner runs the real stack from its
+worktree by injecting secrets at runtime —
+`export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$POSTGRES_PASSWORD_DEV"`
+(read `POSTGRES_PASSWORD_DEV` from `.env`; the dev `appsettings` uses a
+`${...}` placeholder the launch must expand, else `28P01`). It does NOT copy
+`appsettings.Local.json` into the worktree. The main checkout is left on `main`
+and untouched (a fallback/reference, not a workspace).
 
 ---
 
@@ -84,12 +93,17 @@ gitignored (ADR 0072) and absent.
   ```
   The list lives in [`.worktreeinclude`](../../.worktreeinclude); the script
   **refuses secret-like entries** (`appsettings.Local.json`, `.env.local` are
-  NEVER synced — only the stack-owner runs against real secrets).
+  NEVER synced into a worktree — under Model 1 the stack-owner injects secrets
+  at runtime via a `ConnectionStrings__Postgres` env override built from `.env`,
+  so its worktree runs the real stack without copying secret files).
 
 **Do not fork these shared docs in a worktree.** `current-work.md` / `steg-tracker.md`
-/ `tech-debt.md` are owned centrally (the stack-owner updates them); a worktree
-session reads them for context and writes only its own gitignored
-`docs/sessions/<log>.md`.
+/ `tech-debt.md` are owned centrally and updated in the **main checkout's copy**
+(the canonical gitignored baseline — editing a gitignored doc there is a single
+`cd`-and-edit, NOT "working in" the copy: no `checkout`/`commit`/stack, so it does
+not trip the Model-1 collision rule). One session (the stack-owner or a designated
+docs-owner) writes them; a worktree session reads its `sync-worktree-docs`-synced
+copy for context and writes only its own gitignored `docs/sessions/<log>.md`.
 
 ### 3.3 Push (rebase first)
 
@@ -271,8 +285,9 @@ close it manually with a comment referencing the merged PR if not.
 ## 9. Backlog = GitHub Issues
 
 The strategic map is `steg-tracker.md`; the actionable queue is GitHub Issues.
-Labels (created in FAS 0): `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}`,
-`hotspot:{ef-migration,di,i18n}`, `P0`–`P3`.
+Labels: `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}`,
+`hotspot:{ef-migration,di,i18n}`, `P0`–`P3`, lane `{BE,FE,BE+FE}`, and the
+coordination set `{wip, blocked, next-up}` (2026-06-28).
 
 ### Issue template
 
@@ -290,6 +305,41 @@ Labels (created in FAS 0): `area:{matching,applications,jobads-cv,auth,landing,f
 Pick an issue → claim its context → create the worktree → work → PR with
 `automerge`. A `hotspot:*` label means the task touches a shared file: confirm
 no other session owns it first.
+
+### Lane affinity + claim-on-pickup (lighter coordination model, Klas 2026-06-28)
+
+Three CCs run concurrently. The model is **soft affinity + a hard claim signal**,
+NOT a hand-ranked per-CC sequence (that drifts every merge):
+
+1. **Lane = soft affinity via the `BE`/`FE`/`BE+FE` labels.** CC1 leans `BE`/stack,
+   CC3 leans `FE`, CC2 is flex/overflow (may take `BE` when its lane is dry).
+   Labels mark *area*, never *ownership* — an idle CC takes the top item in any
+   lane, **but lane pickup is still subject to §5/§6: a `hotspot:*`/`ef-migration`
+   issue requires the hotspot/migration single-owner token FIRST** (claim-on-pickup
+   is an additional anti-duplication signal, not a replacement for single-ownership;
+   for migrations, serial order is harder than "first to `wip` wins").
+2. **Priority = `P0`>`P1`>`P2`>`P3`** (`P0` = drop-everything hotfix, out-of-band)
+   + a thin **`next-up`** label on the one obvious next pick per lane (so you don't
+   re-rank the whole backlog each session).
+3. **Claim-on-pickup (the anti-collision signal — this was the gap behind the
+   #293/#306 duplicate-work collision):** the moment you start an issue,
+   `gh issue edit <N> --add-assignee @me` **and add the `wip` label**. Another CC
+   sees it's taken and skips it. Drop `wip` if you stand down.
+4. **`blocked`** = blocked by another open issue/decision (e.g. #291 ⟵ #298) —
+   skip until unblocked.
+5. **Side-track PRs FIRST.** At session start, before new scope, shepherd your own
+   open/red PRs to green (CI rerun on a known Docker-Hub flake; rebase a `BEHIND`
+   PR via `git merge origin/main`). New work waits behind a stuck PR you own.
+6. **`steg-tracker.md` §2.1 holds the strategic sequence** — ONE place, not three
+   per-CC lists. It is updated by one session (stack-owner / a designated
+   docs-owner) when Klas sets the order.
+
+> Why issues sometimes look "merged but not done": see §8.1 — automerge squashes
+> and the squash commit subject often drops the PR body's `Closes #N` keyword, so
+> the issue stays OPEN (a Swedish close-keyword never closes it either). Remedy:
+> the PR-babysitter `gh issue close`s the referenced issues on merge, or a periodic
+> sweep does; PR bodies use English `Closes #N`. (2026-06-28 sweep closed 10 such
+> stragglers: #204/#258/#261/#265/#266/#272/#273/#317/#318/#319.)
 
 ---
 

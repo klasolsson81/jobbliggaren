@@ -4,9 +4,9 @@
   "back": "Back to applications",
   "info": {
     "title": "About the activity report helper",
-    "p1": "Arbetsförmedlingen asks you to report each month what you have done to look for work. The activity report is submitted between the 1st and the 14th.",
-    "p2": "This helper collects your applications for a chosen month so you can transfer them into the activity report.",
-    "p3": "Arbetsförmedlingen's form is filled in field by field. Copy one field at a time with the copy buttons instead of pasting a whole text, so the report can be processed automatically."
+    "p1": "Each month you must report to Arbetsförmedlingen what you have done to look for work. The report for a month is submitted between the 1st and the 14th of the following month. May's activities, for example, are reported on 1–14 June.",
+    "p2": "If you do not submit the report in time it can affect your benefit, so make sure it is in by the 14th. The helper gathers your applications for the month you choose so you can transfer them into the report.",
+    "p3": "Arbetsförmedlingen's form is filled in field by field. Copy one field at a time with the copy buttons instead of pasting a whole text, so the details land correctly and the report can be processed automatically."
   },
   "month": {
     "label": "Month"

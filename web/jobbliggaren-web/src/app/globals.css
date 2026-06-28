@@ -4530,7 +4530,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-foot__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
 .jp-foot__links a { color: #FFFFFF; text-decoration: none; font-size: 14.5px; }
-.jp-foot__links a:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* Re-pin hover to literal white (15.39:1 on #0B2A1E). Without it the global
+   `a:not(.jp-btn):hover` brand-green (globals.css:415) bleeds through → green
+   text on the green footer (same class as the 2026-06-10 green-on-green button
+   fix). Mirrors `.jp-foot__legal a:hover`. */
+.jp-foot__links a:hover { color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px; }
 .jp-foot__tag {
   margin-left: 7px; font-family: var(--jp-font-mono); font-size: 9.5px; font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--jp-accent-900);

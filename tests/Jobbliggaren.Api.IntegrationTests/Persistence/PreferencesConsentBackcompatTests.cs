@@ -18,27 +18,14 @@ namespace Jobbliggaren.Api.IntegrationTests.Persistence;
 // ADR 0080 (lacking the new keys) MUST deserialize to BackgroundMatchNotificationsEnabled
 // == false (and consent timestamps null), never a crash and never an accidental opt-IN.
 [Collection("Api")]
-public sealed class PreferencesConsentBackcompatTests(ApiFactory factory) : IAsyncLifetime
+public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
+    : MalformedJsonbSeedTestBase(factory)
 {
-    private readonly ApiFactory _factory = factory;
-
-    public async ValueTask InitializeAsync()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM job_seekers;", TestContext.Current.CancellationToken);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
-    }
+    protected override IReadOnlyList<string> TablesToClear => ["job_seekers"];
 
     private async Task<JobSeeker> SeedSeekerAsync(CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = JobSeeker.Register(Guid.NewGuid(), "Consent Backcompat", clock).Value;
@@ -49,7 +36,7 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory) : IAsy
 
     private async Task SetRawPreferencesAsync(Guid jobSeekerId, string json, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var conn = (NpgsqlConnection)db.Database.GetDbConnection();
         await conn.OpenAsync(ct);
@@ -63,7 +50,7 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory) : IAsy
 
     private async Task<Preferences> ReloadPreferencesAsync(JobSeekerId id, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var reloaded = await db.JobSeekers.SingleAsync(js => js.Id == id, ct);
         return reloaded.Preferences;
@@ -140,7 +127,7 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory) : IAsy
     {
         // The forward path: opt-in stamps consent and round-trips through the owned-JSON.
         var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = JobSeeker.Register(Guid.NewGuid(), "Consent On", clock).Value;

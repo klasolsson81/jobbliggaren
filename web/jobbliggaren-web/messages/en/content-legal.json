@@ -187,5 +187,169 @@
       "bugs and errors you come across,",
       "questions about your personal data or your privacy."
     ]
+  },
+  "terms": {
+    "meta": {
+      "title": "Terms of use",
+      "description": "Terms of use for Jobbliggaren, a free service for finding jobs and keeping track of your applications. Built on Arbetsförmedlingen's open data."
+    },
+    "kicker": "About and legal",
+    "title": "Terms of use",
+    "updated": "Last updated: 2026-06-28",
+    "intro": "These terms of use apply to your use of Jobbliggaren. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open job data from Arbetsförmedlingen JobTech (Platsbanken). By creating an account and using the service, you accept the terms below. How we process your personal data is described in the privacy policy, and which cookies we use is described in the cookie policy.",
+    "sections": [
+      {
+        "heading": "Who provides the service",
+        "paragraphs": [
+          "Jobbliggaren is provided by Klas Olsson as a non-profit hobby project and is not run commercially. You can reach us by email at klasolsson81@gmail.com, where you can also send questions about the terms."
+        ]
+      },
+      {
+        "heading": "What Jobbliggaren is",
+        "paragraphs": [
+          "Jobbliggaren is a tool for finding jobs and gathering your applications in one place. The service retrieves public job ads from Arbetsförmedlingen's open JobTech data (Platsbanken) and lets you search and filter ads, save ads, add your CV and your application texts, keep notes and follow-ups, and get a match between your data and the ads.",
+          "The matching is rule-based and predictable. It shows which keywords and requirements match and which are missing, so that you can see for yourself why a job matches. Jobbliggaren uses no AI and makes no automated decisions with legal or similarly significant effect for you. The matching is a support, not a verdict on your chances of getting a job.",
+          "Jobbliggaren is free. We do not charge you for creating an account or using the service. Because the service is free and under development, features may be added, changed or removed. We strive to keep the service available, but we cannot guarantee that it is always free of interruptions or errors."
+        ]
+      },
+      {
+        "heading": "Who can use the service",
+        "paragraphs": [
+          "To create an account you need a valid email address. You are responsible for ensuring that the data you provide is accurate and for keeping your login details protected. If you suspect that someone unauthorised has gained access to your account, you should change your password and contact us.",
+          "The service is aimed at you who are looking for work and is not intended for children. If you are under 18, you should have a guardian's consent before using the service."
+        ]
+      },
+      {
+        "heading": "Your account and how the service may be used",
+        "paragraphs": [
+          "Your account is personal. You are responsible for the content you upload, for example your CV, your application texts, notes and follow-ups. You are also responsible for having the right to use the content you add.",
+          "When you use Jobbliggaren, you may not:"
+        ],
+        "list": [
+          "use the service for anything illegal or to infringe anyone else's rights,",
+          "upload content that is illegal, offensive or that is not yours to share,",
+          "try to access other users' accounts or data,",
+          "disrupt, overload or try to circumvent the security of the service, or automatically harvest data from the service in a way that loads it unreasonably,",
+          "use the service in a way that harms Jobbliggaren or other users."
+        ]
+      },
+      {
+        "heading": "Who owns what",
+        "paragraphs": [
+          "Jobbliggaren as a service, including the software, the source code, the interface, the name and the trademark Jobbliggaren, belongs to Klas Olsson or its licensors. Your use of the service does not give you any right to this beyond what is needed to use Jobbliggaren in the ordinary way.",
+          "The content you upload yourself, for example your CV and your application texts, is and remains yours. You retain all rights to it. In order to run the service for you, you grant us a limited right to process the content for that purpose, for example to store, display and match it against ads. That right applies only for as long as it is needed to deliver the service to you and ends when you delete the content or your account. We do not use your content for any other purpose, and we do not sell it on.",
+          "The job ads come from Arbetsförmedlingen's open data via JobTech (Platsbanken). That data belongs to its respective sources and is provided as open data by Arbetsförmedlingen. Jobbliggaren is not responsible for the content of individual ads and cannot guarantee that an ad is current, correct or still valid. It is the employer or whoever published the ad who is responsible for its content."
+        ]
+      },
+      {
+        "heading": "The service is provided as is",
+        "paragraphs": [
+          "Jobbliggaren is provided free of charge and as is. We do our best to keep the service useful and correct, but we cannot guarantee that job ads are always current, that the matching suits every situation or that the service is always available without interruption.",
+          "We are not responsible for decisions you make based on the information in the service, for example which jobs you apply for, nor for the content of the job ads retrieved from open data.",
+          "We limit our liability as far as the law allows. We do not remove or restrict any liability that under mandatory law may not be limited. If you are a consumer, your rights under mandatory consumer protection legislation always apply, and a term that would be unfair to you does not apply in that part."
+        ]
+      },
+      {
+        "heading": "Changes to the terms",
+        "paragraphs": [
+          "We may update these terms, for example if the service develops or if requirements change. The latest version is always available on this page, with the date of the most recent update at the top. For more significant changes, we try to inform you in reasonable time before they take effect. If you continue to use Jobbliggaren after a change has taken effect, you accept the updated version. If you do not want to accept the change, you can close your account."
+        ]
+      },
+      {
+        "heading": "Closing and deleting the account",
+        "paragraphs": [
+          "You can stop using Jobbliggaren and delete your account at any time. When you delete the account, your data is removed as described in the privacy policy. Your encrypted content is made unreadable by discarding your encryption key, and your data is deleted in the service. Some data may remain for a short time or to the extent required by law.",
+          "We may need to close or restrict an account if it is used in breach of these terms or if we are required to do so by law. If we were to need to discontinue the service, we will inform you in reasonable time in advance, so that you have time to save the content you want to keep."
+        ]
+      },
+      {
+        "heading": "Applicable law and disputes",
+        "paragraphs": [
+          "Swedish law applies to these terms and to your use of Jobbliggaren. Disputes are heard by the Swedish general courts, unless otherwise follows from mandatory law.",
+          "If you are a consumer and not satisfied, we would like you to contact us first, so that we can try to resolve the matter. You can also turn to the Swedish National Board for Consumer Disputes (ARN), arn.se, if the matter meets their requirements to be heard, or use the European Commission's platform for online dispute resolution (ODR), ec.europa.eu/consumers/odr."
+        ]
+      }
+    ],
+    "relatedHeading": "Related pages",
+    "relatedPrivacy": "Privacy policy",
+    "relatedCookies": "Cookie policy"
+  },
+  "cookies": {
+    "meta": {
+      "title": "Cookie policy",
+      "description": "Which cookies Jobbliggaren uses and why. Only necessary and functional cookies, no tracking and no consent banner."
+    },
+    "kicker": "About and legal",
+    "title": "Cookie policy",
+    "updated": "Last updated: 2026-06-28",
+    "intro": "This cookie policy describes which cookies and similar storage techniques Jobbliggaren uses, why they are used and how you control them. The policy is informational. Jobbliggaren uses no tracking, analytics or marketing cookies, and therefore no consent banner is shown.",
+    "sections": [
+      {
+        "heading": "What a cookie is",
+        "paragraphs": [
+          "A cookie is a small text file that a website saves in your browser. The file can be read back on a later visit and helps the website, for example, keep you logged in or remember your language choice. Some cookies remain only for as long as your visit lasts (session cookies), others are saved for a set period (persistent cookies).",
+          "In addition to cookies, Jobbliggaren also uses storage directly in your browser (so-called localStorage) for a couple of features. That storage is never sent to our servers and is described separately further down."
+        ]
+      },
+      {
+        "heading": "Necessary cookies",
+        "paragraphs": [
+          "Necessary cookies are required for basic functions to work, above all login. Without them you cannot log in or use your account. These cookies are not set for visitors who do not log in."
+        ],
+        "list": [
+          "__Host-jobbliggaren_session: keeps you logged in. It contains only a random session id, no personal data. It is set with HttpOnly, Secure and SameSite=Strict and lasts 14 days.",
+          "Protection against forged requests (CSRF): Jobbliggaren protects you against so-called cross-site request forgery attacks. The protection builds on how the session cookie is configured (SameSite=Strict) together with a server-side check of where the request comes from. No special, separate protection cookie is required."
+        ]
+      },
+      {
+        "heading": "Functional cookies",
+        "paragraphs": [
+          "Functional cookies remember choices and settings that you make yourself, so that the interface behaves as you expect on your next visit. They are not necessary for the service to work, but they improve your experience. All of them are set with Secure and HttpOnly."
+        ],
+        "list": [
+          "NEXT_LOCALE: remembers whether you chose Swedish or English. It is set when you change the language yourself and lasts 365 days.",
+          "__Host-jobbliggaren_guest_welcomed and __Host-jobbliggaren_setup_welcomed: remember that you have already closed a welcome box, so that it is not shown again in the same browser. They last 365 days."
+        ]
+      },
+      {
+        "heading": "Storage in the browser (localStorage)",
+        "paragraphs": [
+          "In addition to cookies, Jobbliggaren saves a couple of simple settings directly in your browser using localStorage. This information never leaves your device and is not sent to our servers. You can clear localStorage at any time via your browser's settings, which does not affect your account or your saved data."
+        ],
+        "list": [
+          "Which information boxes you have closed on the overview page.",
+          "Your choice of theme (light or dark)."
+        ]
+      },
+      {
+        "heading": "No tracking, analytics or marketing cookies",
+        "paragraphs": [
+          "Jobbliggaren uses no cookies for analytics, statistics, tracking, A/B testing, advertising or marketing. We use no third-party cookies and no tools such as Google Analytics, the Meta pixel or the like. There is no profiling and no automated decisions linked to the cookies.",
+          "Because we use only necessary and functional cookies, and the functional ones are set based on choices you make yourself, no consent banner is required under the Electronic Communications Act (2022:482). Instead, we inform you about the cookies here."
+        ]
+      },
+      {
+        "heading": "How you control cookies",
+        "paragraphs": [
+          "You can control and delete cookies via the settings in your browser. There you can block cookies, delete existing cookies and get a message before a cookie is saved. How you do this differs between browsers.",
+          "Keep in mind that if you block or delete the necessary cookies, you cannot log in or use your account. If you block the functional cookies, the service still works, but your choices, for example language, may not be remembered between visits."
+        ]
+      },
+      {
+        "heading": "If we introduce more cookies in the future",
+        "paragraphs": [
+          "If Jobbliggaren were to introduce in the future any cookie that is not necessary or purely functional, for example for analytics, statistics, A/B testing or marketing, we will first obtain your consent. We will then introduce a solution where it is just as easy to decline as to accept, and where you can withdraw your consent at any time. Such a cookie is not set before you have given your consent, and this policy is updated before the change takes effect."
+        ]
+      },
+      {
+        "heading": "Changes to this policy",
+        "paragraphs": [
+          "We may update this cookie policy, for example if the service develops or if requirements change. The latest version is always available on this page, with the date of the most recent update at the top."
+        ]
+      }
+    ],
+    "relatedHeading": "Related pages",
+    "relatedPrivacy": "Privacy policy",
+    "relatedTerms": "Terms of use"
   }
 }

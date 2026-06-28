@@ -187,5 +187,169 @@
       "buggar och fel du stöter på,",
       "frågor om dina personuppgifter eller din integritet."
     ]
+  },
+  "terms": {
+    "meta": {
+      "title": "Användarvillkor",
+      "description": "Användarvillkor för Jobbliggaren, en kostnadsfri tjänst för att söka jobb och hålla ordning på dina ansökningar. Byggd på Arbetsförmedlingens öppna data."
+    },
+    "kicker": "Om och juridik",
+    "title": "Användarvillkor",
+    "updated": "Senast uppdaterad: 2026-06-28",
+    "intro": "De här användarvillkoren gäller för din användning av Jobbliggaren. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att söka och hålla ordning på dina jobbansökningar, byggd på öppna jobbdata från Arbetsförmedlingens JobTech (Platsbanken). Genom att skapa ett konto och använda tjänsten godkänner du villkoren nedan. Hur vi behandlar dina personuppgifter beskrivs i integritetspolicyn, och vilka kakor vi använder beskrivs i cookiepolicyn.",
+    "sections": [
+      {
+        "heading": "Vem som tillhandahåller tjänsten",
+        "paragraphs": [
+          "Jobbliggaren tillhandahålls av Klas Olsson som ett ideellt hobbyprojekt och drivs inte kommersiellt. Du når oss på e-post: klasolsson81@gmail.com, dit du också kan skicka frågor om villkoren."
+        ]
+      },
+      {
+        "heading": "Vad Jobbliggaren är",
+        "paragraphs": [
+          "Jobbliggaren är ett verktyg för att söka jobb och samla dina ansökningar på ett ställe. Tjänsten hämtar publika jobbannonser från Arbetsförmedlingens öppna JobTech-data (Platsbanken) och låter dig söka och filtrera bland annonser, spara annonser, lägga upp ditt cv och dina ansökningstexter, föra anteckningar och uppföljningar samt få en matchning mellan dina uppgifter och annonser.",
+          "Matchningen är regelbaserad och förutsägbar. Den visar vilka nyckelord och krav som stämmer och vilka som saknas, så att du själv kan se varför ett jobb matchar. Jobbliggaren använder ingen AI och fattar inga automatiserade beslut med rättslig eller liknande betydande effekt om dig. Matchningen är ett stöd, inte ett besked om dina chanser att få ett jobb.",
+          "Jobbliggaren är kostnadsfri. Vi tar inte betalt för att du skapar konto eller använder tjänsten. Eftersom tjänsten är kostnadsfri och under utveckling kan funktioner komma att läggas till, ändras eller tas bort. Vi strävar efter att tjänsten ska vara tillgänglig, men vi kan inte garantera att den alltid är fri från avbrott eller fel."
+        ]
+      },
+      {
+        "heading": "Vem som kan använda tjänsten",
+        "paragraphs": [
+          "För att skapa ett konto behöver du en giltig e-postadress. Du ansvarar för att de uppgifter du lämnar är riktiga och för att hålla dina inloggningsuppgifter skyddade. Om du misstänker att någon obehörig har fått tillgång till ditt konto bör du byta lösenord och kontakta oss.",
+          "Tjänsten riktar sig till dig som söker arbete och är inte avsedd för barn. Om du är under 18 år bör du ha en vårdnadshavares medgivande innan du använder tjänsten."
+        ]
+      },
+      {
+        "heading": "Ditt konto och hur tjänsten får användas",
+        "paragraphs": [
+          "Ditt konto är personligt. Du ansvarar för det innehåll du lägger upp, till exempel ditt cv, dina ansökningstexter, anteckningar och uppföljningar. Du ansvarar också för att du har rätt att använda det innehåll du lägger in.",
+          "När du använder Jobbliggaren får du inte:"
+        ],
+        "list": [
+          "använda tjänsten för något olagligt eller för att kränka någon annans rättigheter,",
+          "lägga upp innehåll som är olagligt, kränkande eller som inte är ditt att dela,",
+          "försöka komma åt andra användares konton eller uppgifter,",
+          "störa, överbelasta eller försöka kringgå tjänstens säkerhet, eller automatiskt skörda data ur tjänsten på ett sätt som belastar den oskäligt,",
+          "använda tjänsten på ett sätt som skadar Jobbliggaren eller andra användare."
+        ]
+      },
+      {
+        "heading": "Vem som äger vad",
+        "paragraphs": [
+          "Jobbliggaren som tjänst, inklusive programvaran, källkoden, gränssnittet, namnet och varumärket Jobbliggaren, tillhör Klas Olsson eller dess licensgivare. Att du använder tjänsten ger dig inte någon rätt till detta utöver vad som behövs för att använda Jobbliggaren på vanligt sätt.",
+          "Det innehåll du själv lägger upp, till exempel ditt cv och dina ansökningstexter, är och förblir ditt. Du behåller alla rättigheter till det. För att kunna driva tjänsten åt dig ger du oss en begränsad rätt att behandla innehållet för det ändamålet, till exempel lagra, visa och matcha det mot annonser. Den rätten gäller bara så länge det behövs för att leverera tjänsten till dig och upphör när du raderar innehållet eller ditt konto. Vi använder inte ditt innehåll för något annat ändamål, och vi säljer det inte vidare.",
+          "Jobbannonserna kommer från Arbetsförmedlingens öppna data via JobTech (Platsbanken). De uppgifterna tillhör sina respektive källor och tillhandahålls som öppna data av Arbetsförmedlingen. Jobbliggaren ansvarar inte för innehållet i enskilda annonser och kan inte garantera att en annons är aktuell, korrekt eller fortfarande gäller. Det är arbetsgivaren eller den som publicerat annonsen som ansvarar för dess innehåll."
+        ]
+      },
+      {
+        "heading": "Tjänsten tillhandahålls i befintligt skick",
+        "paragraphs": [
+          "Jobbliggaren tillhandahålls kostnadsfritt och i befintligt skick. Vi gör vårt bästa för att tjänsten ska vara användbar och korrekt, men vi kan inte garantera att jobbannonser alltid är aktuella, att matchningen passar varje situation eller att tjänsten alltid är tillgänglig utan avbrott.",
+          "Vi ansvarar inte för beslut du fattar utifrån informationen i tjänsten, till exempel vilka jobb du söker, och inte heller för innehållet i de jobbannonser som hämtas från öppna data.",
+          "Vi begränsar vårt ansvar så långt lagen tillåter. Vi tar inte bort eller inskränker något ansvar som enligt tvingande lag inte får begränsas. Är du konsument gäller alltid dina rättigheter enligt tvingande konsumentskyddslagstiftning, och ett villkor som skulle vara oskäligt mot dig gäller inte i den delen."
+        ]
+      },
+      {
+        "heading": "Ändringar av villkoren",
+        "paragraphs": [
+          "Vi kan komma att uppdatera de här villkoren, till exempel om tjänsten utvecklas eller om kraven förändras. Den senaste versionen finns alltid på den här sidan, med datum för senaste uppdatering högst upp. Vid mer betydande ändringar försöker vi informera dig i rimlig tid innan de börjar gälla. Om du fortsätter att använda Jobbliggaren efter att en ändring har trätt i kraft godkänner du den uppdaterade versionen. Vill du inte godkänna ändringen kan du avsluta ditt konto."
+        ]
+      },
+      {
+        "heading": "Avsluta och radera kontot",
+        "paragraphs": [
+          "Du kan när som helst sluta använda Jobbliggaren och radera ditt konto. När du raderar kontot tas dina uppgifter bort enligt det som beskrivs i integritetspolicyn. Ditt krypterade innehåll görs oläsbart genom att din krypteringsnyckel kastas, och dina uppgifter raderas i tjänsten. Vissa uppgifter kan finnas kvar en kortare tid eller i den utsträckning lagen kräver.",
+          "Vi kan behöva avsluta eller begränsa ett konto om det används i strid med dessa villkor eller om vi är skyldiga till det enligt lag. Om vi skulle behöva lägga ner tjänsten informerar vi i rimlig tid i förväg, så att du hinner spara det innehåll du vill behålla."
+        ]
+      },
+      {
+        "heading": "Tillämplig lag och tvister",
+        "paragraphs": [
+          "Svensk lag gäller för dessa villkor och för din användning av Jobbliggaren. Tvister prövas av svensk allmän domstol, om inte annat följer av tvingande lag.",
+          "Är du konsument och inte nöjd vill vi gärna att du först kontaktar oss, så försöker vi lösa frågan. Du kan också vända dig till Allmänna reklamationsnämnden (ARN), arn.se, om ärendet uppfyller deras krav för att prövas, eller använda EU-kommissionens plattform för tvistlösning online (ODR), ec.europa.eu/consumers/odr."
+        ]
+      }
+    ],
+    "relatedHeading": "Relaterade sidor",
+    "relatedPrivacy": "Integritetspolicy",
+    "relatedCookies": "Cookiepolicy"
+  },
+  "cookies": {
+    "meta": {
+      "title": "Cookiepolicy",
+      "description": "Vilka kakor (cookies) Jobbliggaren använder och varför. Endast nödvändiga och funktionella kakor, ingen spårning och ingen samtyckesbanner."
+    },
+    "kicker": "Om och juridik",
+    "title": "Cookiepolicy",
+    "updated": "Senast uppdaterad: 2026-06-28",
+    "intro": "Den här cookiepolicyn beskriver vilka kakor (cookies) och liknande lagringstekniker Jobbliggaren använder, varför de används och hur du kontrollerar dem. Policyn är informativ. Jobbliggaren använder inga spårnings-, analys- eller marknadsföringskakor, och därför visas ingen samtyckesbanner.",
+    "sections": [
+      {
+        "heading": "Vad är en cookie",
+        "paragraphs": [
+          "En cookie är en liten textfil som en webbplats sparar i din webbläsare. Filen kan läsas tillbaka vid senare besök och hjälper webbplatsen att till exempel hålla dig inloggad eller komma ihåg ditt språkval. Vissa kakor finns kvar bara så länge ditt besök pågår (sessionskakor), andra sparas under en bestämd tid (permanenta kakor).",
+          "Utöver kakor använder Jobbliggaren även lagring direkt i din webbläsare (så kallad localStorage) för ett par funktioner. Den lagringen skickas aldrig till våra servrar och beskrivs separat längre ner."
+        ]
+      },
+      {
+        "heading": "Nödvändiga cookies",
+        "paragraphs": [
+          "Nödvändiga cookies krävs för att grundläggande funktioner ska fungera, framför allt inloggning. Utan dem kan du inte logga in eller använda ditt konto. Dessa kakor sätts inte för besökare som inte loggar in."
+        ],
+        "list": [
+          "__Host-jobbliggaren_session: håller dig inloggad. Innehåller endast ett slumpmässigt sessions-id, inga personuppgifter. Sätts med HttpOnly, Secure och SameSite=Strict och varar i 14 dagar.",
+          "Skydd mot förfalskade förfrågningar (CSRF): Jobbliggaren skyddar dig mot så kallade cross-site request forgery-attacker. Skyddet bygger på hur sessionskakan är inställd (SameSite=Strict) tillsammans med kontroll på serversidan av varifrån förfrågan kommer. Det krävs ingen särskild, separat skyddskaka."
+        ]
+      },
+      {
+        "heading": "Funktionella cookies",
+        "paragraphs": [
+          "Funktionella cookies kommer ihåg val och inställningar som du själv gör, så att gränssnittet beter sig som du förväntar dig vid nästa besök. De är inte nödvändiga för att tjänsten ska fungera, men de förbättrar din upplevelse. Samtliga sätts med Secure och HttpOnly."
+        ],
+        "list": [
+          "NEXT_LOCALE: kommer ihåg om du valt svenska eller engelska. Sätts när du själv byter språk och varar i 365 dagar.",
+          "__Host-jobbliggaren_guest_welcomed och __Host-jobbliggaren_setup_welcomed: kommer ihåg att du redan stängt en välkomstruta, så att den inte visas igen i samma webbläsare. Varar i 365 dagar."
+        ]
+      },
+      {
+        "heading": "Lagring i webbläsaren (localStorage)",
+        "paragraphs": [
+          "Förutom kakor sparar Jobbliggaren ett par enkla inställningar direkt i din webbläsare med localStorage. Den här informationen lämnar aldrig din enhet och skickas inte till våra servrar. Du kan rensa localStorage när som helst via din webbläsares inställningar, vilket inte påverkar ditt konto eller dina sparade uppgifter."
+        ],
+        "list": [
+          "Vilka informationsrutor du har stängt på översiktssidan.",
+          "Ditt val av tema (ljust eller mörkt)."
+        ]
+      },
+      {
+        "heading": "Inga spårnings-, analys- eller marknadsföringskakor",
+        "paragraphs": [
+          "Jobbliggaren använder inga cookies för analys, statistik, spårning, A/B-tester, annonsering eller marknadsföring. Vi använder inga tredjepartskakor och inga verktyg som Google Analytics, Meta-pixel eller motsvarande. Det finns ingen profilering och inga automatiserade beslut kopplade till kakorna.",
+          "Eftersom vi bara använder nödvändiga och funktionella kakor, och de funktionella sätts utifrån val som du själv gör, krävs ingen samtyckesbanner enligt lagen om elektronisk kommunikation (2022:482). Vi informerar i stället om kakorna här."
+        ]
+      },
+      {
+        "heading": "Så styr du kakor",
+        "paragraphs": [
+          "Du kan styra och radera cookies via inställningarna i din webbläsare. Där kan du blockera kakor, radera befintliga kakor och få meddelande innan en kaka sparas. Hur du gör skiljer sig mellan olika webbläsare.",
+          "Tänk på att om du blockerar eller raderar de nödvändiga kakorna kan du inte logga in eller använda ditt konto. Om du blockerar de funktionella kakorna fungerar tjänsten fortfarande, men dina val, till exempel språk, kanske inte kommer ihåg mellan besöken."
+        ]
+      },
+      {
+        "heading": "Om vi inför fler kakor i framtiden",
+        "paragraphs": [
+          "Om Jobbliggaren i framtiden skulle införa någon kaka som inte är nödvändig eller rent funktionell, till exempel för analys, statistik, A/B-tester eller marknadsföring, kommer vi först att inhämta ditt samtycke. Då införs en lösning där det är lika enkelt att tacka nej som att tacka ja, och där du kan återkalla ditt samtycke när som helst. En sådan kaka sätts inte innan du har lämnat ditt samtycke, och den här policyn uppdateras innan ändringen träder i kraft."
+        ]
+      },
+      {
+        "heading": "Ändringar i denna policy",
+        "paragraphs": [
+          "Vi kan komma att uppdatera den här cookiepolicyn, till exempel om tjänsten utvecklas eller om kraven förändras. Den senaste versionen finns alltid på den här sidan, med datum för senaste uppdatering högst upp."
+        ]
+      }
+    ],
+    "relatedHeading": "Relaterade sidor",
+    "relatedPrivacy": "Integritetspolicy",
+    "relatedTerms": "Användarvillkor"
   }
 }

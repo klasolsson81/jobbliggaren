@@ -51,21 +51,21 @@ public class GetJobAdMatchBatchQueryHandlerTests
         public int CvSkillsCallCount { get; private set; }
 
         // Unchanged F4-12 method — never called by the batch handler.
-        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken)
+        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             FastCallCount++;
             return new ValueTask<CandidateMatchProfile>(fullProfile.Fast);
         }
 
         // SORT path — not used by the TAG batch handler.
-        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             TopSkillsCallCount++;
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);
         }
 
         // TAG path — the one the batch handler uses (DEK-warmed CV-skill profile).
-        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             CvSkillsCallCount++;
             return new ValueTask<FullCandidateMatchProfile>(fullProfile);

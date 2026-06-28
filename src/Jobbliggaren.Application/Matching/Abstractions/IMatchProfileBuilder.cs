@@ -25,8 +25,18 @@ public interface IMatchProfileBuilder
     /// user from their stored preferences. Owner-scoped (reads only the current user's
     /// preferences). Returns the honest empty profile when there is no authenticated
     /// user, no JobSeeker, or no stated preferences.
+    /// <para>
+    /// <b><paramref name="includeRelated"/> (ADR 0084 §Architecture(4), issue #300):</b> when
+    /// <c>true</c>, the stated exact ssyk-4 occupation set is broadened with its RELATED
+    /// (substitutable) groups via <see cref="JobAds.Abstractions.ITaxonomyReadModel.GetRelatedOccupationGroupsAsync"/>
+    /// into <see cref="CandidateMatchProfile.RelatedSsykGroupConceptIds"/>. Default <c>false</c>
+    /// = today's exact-only behaviour (the PR-5 FE include-related toggle, ADR 0084 question A
+    /// off by default, is the only thing that flips it true; no caller passes <c>true</c> yet,
+    /// so this is behavior-inert).
+    /// </para>
     /// </summary>
-    ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken);
+    ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(
+        CancellationToken cancellationToken, bool includeRelated = false);
 
     /// <summary>
     /// Builds the FULL profile for the GLOBAL match-SORT path: the embedded Fast profile
@@ -45,8 +55,16 @@ public interface IMatchProfileBuilder
     /// The only CV read is the denormalized plaintext <c>Resume.LatestRole</c> for the Title
     /// dimension (STEG 4, ADR 0058/0059, DEK-free). Empty confirmed set →
     /// <c>CvSkillConceptIds</c> empty (skill dimensions <c>NotAssessed</c>). Owner-scoped.
+    /// <para>
+    /// <b><paramref name="includeRelated"/> (ADR 0084 §Architecture(4)):</b> when <c>true</c>,
+    /// broadens the exact ssyk-4 set with its substitutable groups into the embedded
+    /// <c>Fast.RelatedSsykGroupConceptIds</c>. Default <c>false</c> (behavior-inert; the PR-5
+    /// toggle flips it). Related ads cap at <c>MatchGrade.Related</c> — never Good/Strong (so
+    /// they never enter this path's headline-grade count, ADR 0084 question D list-only).
+    /// </para>
     /// </summary>
-    ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken);
+    ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(
+        CancellationToken cancellationToken, bool includeRelated = false);
 
     /// <summary>
     /// Builds the FULL profile for the page-scoped match-TAG / modal VERDICT surface: the
@@ -65,8 +83,15 @@ public interface IMatchProfileBuilder
     /// dimension (STEG 4, ADR 0058/0059, DEK-free). Empty confirmed set →
     /// <c>CvSkillConceptIds</c> empty (skill/requirement dimensions <c>NotAssessed</c>,
     /// honest). Owner-scoped.
+    /// <para>
+    /// <b><paramref name="includeRelated"/> (ADR 0084 §Architecture(4)):</b> when <c>true</c>,
+    /// broadens the exact ssyk-4 set with its substitutable groups into the embedded
+    /// <c>Fast.RelatedSsykGroupConceptIds</c>. Default <c>false</c> (behavior-inert; the PR-5
+    /// toggle flips it). A related hit caps at <c>MatchGrade.Related</c> in the verdict.
+    /// </para>
     /// </summary>
-    ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken);
+    ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(
+        CancellationToken cancellationToken, bool includeRelated = false);
 
     /// <summary>
     /// ADR 0080 Vag 4 PR-2 (Beslut 3) — builds the FULL profile for an EXPLICIT user-id,

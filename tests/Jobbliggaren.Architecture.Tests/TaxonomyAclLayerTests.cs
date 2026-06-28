@@ -106,11 +106,11 @@ public class TaxonomyAclLayerTests
     }
 
     [Fact]
-    public void Only_query_handlers_consume_ITaxonomyReadModel_in_Application()
+    public void Only_allowlisted_read_side_consumers_inject_ITaxonomyReadModel_in_Application()
     {
-        // Konsumentlista: porten ska bara injiceras i query-handlare som
-        // gör reverse-lookup/picker-träd (tunna ACL-konsumenter) — inte
-        // spridas in i command-/write-use-cases.
+        // Konsumentlista: porten ska bara injiceras i READ-SIDE-konsumenter
+        // (reverse-lookup/picker-träd-query-handlare + den läs-sidiga match-
+        // profilbyggaren) — ALDRIG i command-/write-use-cases.
         //
         // ADR 0043-utvidgning (CTO 2026-05-17, Approach A):
         // ListSavedSearchesQueryHandler är en LEGITIM tredje konsument —
@@ -119,6 +119,13 @@ public class TaxonomyAclLayerTests
         // samma mönster som handlern redan har mot IAppDbContext; ingen
         // Clean Arch-brott — porten är Application-ägd, CLAUDE.md §2.1).
         // Allowlisten utökas ADDITIVT — inte öppnas upp.
+        //
+        // ADR 0084 (2026-06-28) — åttonde legitim konsument: MatchProfileBuilder
+        // (yrkesmatchnings-breddning, #300 PR-3 SPOT-injektion §Architecture punkt 4).
+        // Den är INTE en query-handler men ÄR läs-sidig (SSOT preference→profile-
+        // mappern) och konsumerar GetRelatedOccupationGroupsAsync på exakt EN plats
+        // (SPOT). En Application-klass som injicerar en Application-ägd port — inget
+        // lagerläckage (ADR 0084 §Architecture: "No layer leak"; CLAUDE.md §2.1).
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyReadModel);
         var appAsm = typeof(Jobbliggaren.Application.AssemblyMarker).Assembly;
 
@@ -153,6 +160,11 @@ public class TaxonomyAclLayerTests
             // listans label-berikning, identiskt mönster med SavedSearch-listan.
             nameof(Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches.ListRecentSearchesQueryHandler),
             nameof(Jobbliggaren.Application.SavedSearches.Queries.ListSavedSearches.ListSavedSearchesQueryHandler),
+            // ADR 0084 (#300 PR-3) — den läs-sidiga match-profilbyggaren (SPOT-injektion,
+            // §Architecture punkt 4): breddar exakt→relaterad yrkesmängd via
+            // GetRelatedOccupationGroupsAsync på exakt EN plats. Sorterar "MatchP" mellan
+            // "ListS" och "Resolve" (L < M < R).
+            nameof(Jobbliggaren.Application.Matching.Profiles.MatchProfileBuilder),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree.ResolveTaxonomyLabelsQueryHandler),
             // ADR 0067 Beslut 5a (2026-06-10) — femte legitim konsument: utökad
             // typeahead-suggest unionar taxonomi-snapshot-prefix (SuggestByPrefixAsync)

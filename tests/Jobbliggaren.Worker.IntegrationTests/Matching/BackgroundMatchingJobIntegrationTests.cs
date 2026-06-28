@@ -400,9 +400,14 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
 
     // The real Application-layer preference→profile mapper. BuildFullForUserIdAsync loads by an
     // explicit user-id (the background/system seam) and does NOT consult ICurrentUser, but the
-    // ctor requires one — resolve the fixture's WorkerSystemUser.
+    // ctor requires one — resolve the fixture's WorkerSystemUser. #300 PR-3: the ctor also takes
+    // ITaxonomyReadModel (the related-occupation ACL) — resolved from the fixture SP, which gets
+    // it via AddMatchingEngine()'s TryAddSingleton (the Worker is HTTP-free, no AddJobSources).
+    // The background path never broadens, so it is never called, but the ctor needs it.
     private static MatchProfileBuilder NewProfileBuilder(AppDbContext db, IServiceProvider sp) =>
-        new(db, sp.GetRequiredService<ICurrentUser>());
+        new(db,
+            sp.GetRequiredService<ICurrentUser>(),
+            sp.GetRequiredService<Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyReadModel>());
 
     // The real Infrastructure scorer (internal — visible via InternalsVisibleTo) + the real
     // Swedish Snowball analyzer. Parity FullMatchScorerIntegrationTests.NewScorer.

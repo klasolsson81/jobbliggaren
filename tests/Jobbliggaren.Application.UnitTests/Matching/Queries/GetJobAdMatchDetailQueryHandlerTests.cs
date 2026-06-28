@@ -67,15 +67,15 @@ public class GetJobAdMatchDetailQueryHandlerTests
         public int CvSkillsCallCount { get; private set; }
 
         // Unchanged F4-12 method — never called by the modal handler.
-        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken)
+        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken, bool includeRelated = false)
             => throw new NotSupportedException("BuildFromPreferencesAsync ska inte anropas av modal-handlern.");
 
         // SORT path — not used by the modal handler.
-        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken, bool includeRelated = false)
             => throw new NotSupportedException("BuildFullForSortAsync ska inte anropas av modal-handlern.");
 
         // The modal path — full CV-skill profile (DEK-warmed, fail-closed).
-        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             CvSkillsCallCount++;
             if (_throwOnCvSkills is not null)

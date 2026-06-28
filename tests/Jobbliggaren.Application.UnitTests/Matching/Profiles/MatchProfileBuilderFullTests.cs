@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Profiles;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -45,6 +46,13 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Profiles;
 /// <c>MatchProfileBuilder(IAppDbContext db, ICurrentUser currentUser)</c>.
 /// </para>
 /// </summary>
+//
+// CA2012: NSubstitute-stubbning/verifiering av ValueTask-returnerande port-medlemmar
+// (ITaxonomyReadModel.GetRelatedOccupationGroupsAsync) är ett känt analyzer-false-positive —
+// substitute-anropet KONSUMERAS aldrig, det interceptas av NSubstitute för Returns/Received.
+// Suppression scoped till test-klassen (mock-setup), ej produktionskod. Speglar
+// DeriveOccupationCodesQueryHandlerTests / TaxonomyQueryHandlersTests.
+#pragma warning disable CA2012
 public class MatchProfileBuilderFullTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -54,13 +62,37 @@ public class MatchProfileBuilderFullTests
     // so seed and assert against an already-sorted set to keep the assertion deterministic.
     private static readonly string[] ConfirmedSkills = ["skill_csharp", "skill_dotnet"];
 
+    // CA1861: hoist the repeated constant occupation arrays out of the Arg.Is matchers so the
+    // same instance is reused in both the taxonomy stub setup and the Received(1) verification.
+    // Prefs() confirms exactly ["grp_12345"] as the occupation set — that is the exact set the
+    // broadening cases feed the ACL.
+    private static readonly string[] ExactGroups = ["grp_12345"];
+    private static readonly string[] RelatedGroups = ["grp_R1", "grp_R2"];
+
     public MatchProfileBuilderFullTests()
     {
         _currentUser.UserId.Returns(_userId);
     }
 
-    private MatchProfileBuilder NewBuilder(Jobbliggaren.Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser);
+    // ADR 0084 §Implementation PR-3 (#300) widened the ctor to (db, currentUser, taxonomy). The
+    // default substitute returns [] for GetRelatedOccupationGroupsAsync, so every existing Full
+    // case (none of which passes includeRelated:true) is behavior-identical. Cases that broaden
+    // pass their own configured taxonomy.
+    private MatchProfileBuilder NewBuilder(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
+        ITaxonomyReadModel? taxonomy = null) =>
+        new(db, _currentUser, taxonomy ?? NewTaxonomy());
+
+    // A taxonomy substitute whose GetRelatedOccupationGroupsAsync returns [] by default.
+    private static ITaxonomyReadModel NewTaxonomy()
+    {
+        var taxonomy = Substitute.For<ITaxonomyReadModel>();
+        taxonomy
+            .GetRelatedOccupationGroupsAsync(
+                Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<IReadOnlyList<string>>((IReadOnlyList<string>)[]));
+        return taxonomy;
+    }
 
     // ---------------------------------------------------------------
     // Seeding helpers.
@@ -281,7 +313,7 @@ public class MatchProfileBuilderFullTests
         var db = TestAppDbContextFactory.Create();
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var builder = new MatchProfileBuilder(db, anon);
+        var builder = new MatchProfileBuilder(db, anon, NewTaxonomy());
 
         var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
 
@@ -297,7 +329,7 @@ public class MatchProfileBuilderFullTests
         var db = TestAppDbContextFactory.Create();
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var builder = new MatchProfileBuilder(db, anon);
+        var builder = new MatchProfileBuilder(db, anon, NewTaxonomy());
 
         var profile = await builder.BuildFullForVerdictAsync(CancellationToken.None);
 
@@ -404,7 +436,7 @@ public class MatchProfileBuilderFullTests
         // Build a builder whose ICurrentUser yields NO user — proving the by-id path ignores it.
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var builder = new MatchProfileBuilder(db, anon);
+        var builder = new MatchProfileBuilder(db, anon, NewTaxonomy());
 
         var byId = await builder.BuildFullForUserIdAsync(seeker.UserId, CancellationToken.None);
         var bySort = await builder.BuildFullForSortAsync(CancellationToken.None);
@@ -510,4 +542,152 @@ public class MatchProfileBuilderFullTests
         profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
         AssertFastFromPrefs(profile.Fast);
     }
+
+    // =================================================================
+    // ADR 0084 §Implementation PR-3 (#300) — SPOT injection on the Full path. The broadening
+    // lives on the embedded Fast profile (FullCandidateMatchProfile mirrors
+    // RelatedSsykGroupConceptIds via Fast — no own field). When includeRelated:true the two
+    // OWNER Full methods (sort + verdict) carry the related set from the taxonomy ACL into
+    // Fast.RelatedSsykGroupConceptIds; the rest of the Full profile (CvSkillConceptIds, Title)
+    // is unchanged. When false (default), the ACL is NOT consulted and Related stays [].
+    //
+    // The BACKGROUND by-id method (BuildFullForUserIdAsync) has NO includeRelated parameter and
+    // STRUCTURALLY cannot broaden (product answer D: related is list-only, drives no
+    // notifications) — pinned by the load-bearing guard below.
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullForSort_NarBreddningPa_FyllerFastRelaterade_FranACL_OvrigtOforandrat()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // Prefs() confirms exactly ["grp_12345"] as the occupation set — the ACL broadens that.
+        var taxonomy = NewTaxonomy();
+        taxonomy
+            .GetRelatedOccupationGroupsAsync(
+                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+                Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<string>>(RelatedGroups));
+        var builder = NewBuilder(db, taxonomy);
+
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None, includeRelated: true);
+
+        // Related lands on the embedded Fast profile (the Full profile has no own related field).
+        profile.Fast.RelatedSsykGroupConceptIds.ShouldBe(
+            RelatedGroups,
+            "Full-vägen bär relaterade via Fast.RelatedSsykGroupConceptIds.");
+        // Exact + the rest of the Full profile is untouched by broadening.
+        profile.Fast.SsykGroupConceptIds.ShouldBe(ExactGroups);
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+        await taxonomy.Received(1).GetRelatedOccupationGroupsAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildFullForVerdict_NarBreddningPa_FyllerFastRelaterade_FranACL_OvrigtOforandrat()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var taxonomy = NewTaxonomy();
+        taxonomy
+            .GetRelatedOccupationGroupsAsync(
+                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+                Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<string>>(RelatedGroups));
+        var builder = NewBuilder(db, taxonomy);
+
+        var profile = await builder.BuildFullForVerdictAsync(CancellationToken.None, includeRelated: true);
+
+        profile.Fast.RelatedSsykGroupConceptIds.ShouldBe(RelatedGroups);
+        profile.Fast.SsykGroupConceptIds.ShouldBe(ExactGroups);
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+        await taxonomy.Received(1).GetRelatedOccupationGroupsAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildFullForSort_NarBreddningAv_ArDefault_LamnarRelateradeTom_OchAnroparEjACL()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, Prefs());
+        var taxonomy = NewTaxonomy();
+        var builder = NewBuilder(db, taxonomy);
+
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
+
+        profile.Fast.RelatedSsykGroupConceptIds.ShouldBeEmpty(
+            "Default (includeRelated:false) → ingen breddning → Related tom.");
+        AssertFastFromPrefs(profile.Fast);
+        await taxonomy.DidNotReceive().GetRelatedOccupationGroupsAsync(
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildFullForVerdict_NarBreddningAv_ArDefault_LamnarRelateradeTom_OchAnroparEjACL()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId, Prefs());
+        var taxonomy = NewTaxonomy();
+        var builder = NewBuilder(db, taxonomy);
+
+        var profile = await builder.BuildFullForVerdictAsync(CancellationToken.None);
+
+        profile.Fast.RelatedSsykGroupConceptIds.ShouldBeEmpty();
+        AssertFastFromPrefs(profile.Fast);
+        await taxonomy.DidNotReceive().GetRelatedOccupationGroupsAsync(
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    // =================================================================
+    // The load-bearing question-D guard: the BACKGROUND path NEVER broadens. There is no
+    // includeRelated parameter on BuildFullForUserIdAsync to flip — so even with a taxonomy
+    // substitute primed to return a non-empty related set, the by-id build leaves
+    // Fast.RelatedSsykGroupConceptIds empty AND never consults the ACL. This proves the
+    // structural guarantee (product answer D: related is list-only, drives no notifications),
+    // not merely a default-value behaviour.
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullForUserId_NeverBroadens_EvenWhenTaxonomySubstituteReturnsNonEmpty()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, Prefs());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // The substitute is PRIMED to broaden — if the background path consulted it, Related
+        // would be non-empty. It must stay empty because there is no param to enable broadening.
+        var taxonomy = NewTaxonomy();
+        taxonomy
+            .GetRelatedOccupationGroupsAsync(
+                Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<string>>(RelatedGroups));
+        var builder = NewBuilder(db, taxonomy);
+
+        var profile = await builder.BuildFullForUserIdAsync(seeker.UserId, CancellationToken.None);
+
+        // The real profile is built (exact + skills + title) ...
+        profile.Fast.SsykGroupConceptIds.ShouldBe(ExactGroups);
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+        // ... but Related is EMPTY: the background path structurally cannot broaden.
+        profile.Fast.RelatedSsykGroupConceptIds.ShouldBeEmpty(
+            "Bakgrundsvägen breddar ALDRIG (svar D: relaterade är list-only, driver inga notiser).");
+        await taxonomy.DidNotReceive().GetRelatedOccupationGroupsAsync(
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
 }
+#pragma warning restore CA2012

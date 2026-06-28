@@ -18,7 +18,7 @@ public class BuildMatchProfileFromPreferencesQueryHandlerTests
     {
         public int CallCount { get; private set; }
 
-        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken)
+        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             CallCount++;
             return new ValueTask<CandidateMatchProfile>(result);
@@ -27,11 +27,11 @@ public class BuildMatchProfileFromPreferencesQueryHandlerTests
         // F4-15 (ADR 0076 Decision 6) added the two FULL builders to the interface. This
         // handler delegates ONLY to BuildFromPreferencesAsync (the explicit preference
         // query is preference-only); the Full builders are never reached here.
-        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken, bool includeRelated = false)
             => throw new NotSupportedException(
                 "BuildMatchProfileFromPreferences-handlern delegerar bara till BuildFromPreferencesAsync.");
 
-        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken, bool includeRelated = false)
             => throw new NotSupportedException(
                 "BuildMatchProfileFromPreferences-handlern delegerar bara till BuildFromPreferencesAsync.");
 

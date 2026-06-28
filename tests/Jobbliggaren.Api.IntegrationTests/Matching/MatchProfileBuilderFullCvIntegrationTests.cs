@@ -57,9 +57,13 @@ public class MatchProfileBuilderFullCvIntegrationTests(ApiFactory factory)
     private static MatchProfileBuilder NewBuilder(IServiceScope scope, Guid userId)
     {
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        // #300 PR-3: the ctor now also takes ITaxonomyReadModel (the related-occupation ACL).
+        // Resolved from the real scope; these CV tests never broaden, so it is never called.
+        var taxonomy = scope.ServiceProvider
+            .GetRequiredService<Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyReadModel>();
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
-        return new MatchProfileBuilder(db, currentUser);
+        return new MatchProfileBuilder(db, currentUser, taxonomy);
     }
 
     // Seeds a JobSeeker (with prefs carrying the confirmed skill set) + a primary Resume whose

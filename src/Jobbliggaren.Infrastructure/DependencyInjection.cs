@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
@@ -426,6 +427,15 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder,
             Jobbliggaren.Application.Matching.Profiles.MatchProfileBuilder>();
+        // #300 PR-3: MatchProfileBuilder now depends on ITaxonomyReadModel (the related-occupation
+        // ACL). The API/Worker register it via AddJobSources, but the HTTP-free Worker test fixture
+        // calls only AddMatchingEngine() — so make the matching engine self-contained re: its own
+        // dependency closure. TryAdd is idempotent: a no-op where AddJobSources already registered
+        // it (AddJobSources runs first in every dual-caller), and the sole registrar elsewhere.
+        // TaxonomyReadModel needs only IServiceScopeFactory (always present) → resolves in any SP.
+        services.TryAddSingleton<
+            Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyReadModel,
+            Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>();
         return services;
     }
 

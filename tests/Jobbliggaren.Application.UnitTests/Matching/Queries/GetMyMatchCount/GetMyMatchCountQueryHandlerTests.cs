@@ -37,21 +37,21 @@ public class GetMyMatchCountQueryHandlerTests
         public int PreferencesCallCount { get; private set; }
 
         // The SORT path — the one the count handler uses (DEK-free).
-        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             SortCallCount++;
             return new ValueTask<FullCandidateMatchProfile>(sortProfile);
         }
 
         // The VERDICT (DEK-warmed) path — must NEVER be called by the count handler.
-        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken)
+        public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             VerdictCallCount++;
             throw new NotSupportedException(
                 "Count-handlern ska bygga DEK-fria SORT-profilen, aldrig verdict-profilen (DEK).");
         }
 
-        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken)
+        public ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(CancellationToken cancellationToken, bool includeRelated = false)
         {
             PreferencesCallCount++;
             return new ValueTask<CandidateMatchProfile>(sortProfile.Fast);

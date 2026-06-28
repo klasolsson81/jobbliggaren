@@ -68,8 +68,9 @@
       "fallbackTitle": "Application #{shortId}",
       "ariaLabelWithIdentity": "{title} – {company} – {status}",
       "ariaLabelFallback": "{title} – {status}",
-      "updated": "Updated",
-      "applyBy": "Apply by"
+      "applyBy": "Apply by",
+      "relativeApplied": "Submitted {days, plural, =0 {today} =1 {yesterday} other {# days ago}}",
+      "relativeDraftUpdated": "Updated {days, plural, =0 {today} =1 {yesterday} other {# days ago}}"
     },
     "pipeline": {
       "statusBarAriaLabel": "Status",

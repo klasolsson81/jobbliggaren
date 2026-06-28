@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { BrandMarkSvg } from "@/components/brand/brand-mark-svg";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
 import { MatchSetupWizard } from "@/components/settings/match-setup-wizard";
 import type {
@@ -190,6 +191,18 @@ export function WelcomeSetupModal({
               // fokus vid stegbyte (WCAG 2.4.3).
               <>
                 <div className="jp-welcome__confirm">
+                  {/* #251 (Del B) — lugnt brand-moment: Sigillet (logon, ej
+                      dekoration). Rubriken bär namnet → marken är aria-hidden.
+                      Tema-stabila mark-tokens; ingen glow/gradient. */}
+                  <BrandMarkSvg
+                    className="jp-welcome__brand"
+                    width={48}
+                    height={48}
+                    primaryFill="var(--jp-mark-primary)"
+                    accentFill="var(--jp-mark-accent)"
+                    paperFill="var(--jp-mark-paper)"
+                    ariaHidden
+                  />
                   <DialogTitle
                     ref={titleRef}
                     tabIndex={-1}

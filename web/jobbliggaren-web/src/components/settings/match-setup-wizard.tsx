@@ -365,6 +365,22 @@ export function MatchSetupWizard({
           <span className="jp-wizard__counter">
             {t("matchPrefs.wizard.counter", { step, total: TOTAL_STEPS })}
           </span>
+          {/* #251 (Del B) — hairline segmenterad progress-indikator (ADR 0077
+              sanktionerad som valfri: accent-färg, ingen fill-animation). Rent
+              visuell förstärkning; den textuella mono-räknaren ovan bär samma
+              info för skärmläsare → aria-hidden (ingen dubbel-annonsering). */}
+          <div className="jp-wizard__progress" aria-hidden="true">
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <span
+                key={i}
+                className={
+                  i < step
+                    ? "jp-wizard__progress-seg jp-wizard__progress-seg--done"
+                    : "jp-wizard__progress-seg"
+                }
+              />
+            ))}
+          </div>
           <DialogTitle
             ref={titleRef}
             tabIndex={-1}

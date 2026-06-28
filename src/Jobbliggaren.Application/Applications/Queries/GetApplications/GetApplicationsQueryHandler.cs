@@ -73,7 +73,8 @@ public sealed class GetApplicationsQueryHandler(IAppDbContext db, ICurrentUser c
                             null, r.a.ManualPosting.Title, r.a.ManualPosting.Company,
                             r.a.ManualPosting.Url, "Manual",
                             (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt)
-                        : null))
+                        : null,
+                r.a.AppliedAt))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<ApplicationDto>(items, totalCount, query.Page, query.PageSize);

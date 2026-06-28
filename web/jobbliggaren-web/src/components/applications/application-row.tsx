@@ -3,13 +3,20 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ChevronRight } from "lucide-react";
 import {
   applicationStatusLabel,
-  getStatusPillClass,
+  getStatusTagDataAttr,
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
+import { daysSince } from "@/lib/i18n/relative-time";
 import type { ApplicationDto } from "@/lib/types/applications";
 
 interface ApplicationRowProps {
   application: ApplicationDto;
+  /**
+   * "Nu" beräknas EN gång i page.tsx och trädas in per rad (CTO-bind #336) så
+   * den relativa tids-taggen är deterministisk och testbar med injicerat datum
+   * — undviker date-flake-klassen (reference_oversikt_test_dayofmonth_flake).
+   */
+  now: Date;
 }
 
 /**
@@ -19,37 +26,61 @@ interface ApplicationRowProps {
  * grid-barn (body-div + `.jp-app__actions`), prototyp-exakt (pages.jsx
  * ApplicationRow). INGEN `.jp-app__statusbadge` i raden — den 56px-
  * statusbadgen hör till MODALEN/detaljen (ApplicationDetail status-block),
- * ej raden (F5 B1, design-reviewer). Med statusbadgen borta finns ingen
- * topologi-avvikelse mot .jp-job: enda kvarvarande jp-app-unika är
- * `.jp-app__id`-chip + `.jp-app__actions` (jp-job har motsvarande).
+ * ej raden (F5 B1, design-reviewer).
+ *
+ * #336 slice 1 (Klas-beslut + design-reviewer-bind 2026-06-28): de tre
+ * inkonsekventa behandlingarna (rundad `.jp-pill`-status + lös "Uppdaterad
+ * {date}" + lös "Sök senast {date}") ersätts av ETT kvadratiskt tagg-template
+ * i linje med /jobb:s `.jp-tag`:
+ *   - Status förblir sitt eget skannbara element i höger-kolumnen
+ *     (`.jp-app__actions`) men som en KVADRATISK färgkodad status-tagg
+ *     (`[data-tag="status-*"]`) i stället för den rundade `.jp-pill`. Färg +
+ *     textetikett (WCAG 1.4.1 — inte färg-enbart). Ingen dot (likt /jobb-taggen).
+ *   - En relativ tids-tagg i meta-raden (neutral `.jp-tag`): "Skickad för X
+ *     dagar sedan" för ALLA post-submit-tillstånd (ankrat på appliedAt);
+ *     "Uppdaterad för X sedan" för Draft (ankrat på updatedAt).
+ *   - "Sök senast {date}" visas ENBART för Draft (sista ansökningsdag är bara
+ *     relevant innan du sökt; efter inskickad är den irrelevant).
  *
  * Hela raden är en Link till `/ansokningar/[id]` → vid soft-nav fångar
  * `@modal/(.)ansokningar/[id]` den och visar modal; hard-nav / delad länk
- * renderar fullsidan (ADR 0053, speglar F3 JobAdCard exakt). Link (ej
- * div+onClick) ger tangentbordsnåbarhet och rätt semantik utan extra ARIA
- * (CLAUDE.md §5.2 / jobbliggaren-design-a11y). Förblir Server Component
- * (server-renderas i page.tsx, passas som serialiserbar slot — F3-mönster).
+ * renderar fullsidan (ADR 0053, speglar F3 JobAdCard exakt). Förblir Server
+ * Component (server-renderas i page.tsx, passas som serialiserbar slot).
  *
  * Primär identitet = jobtitel; företag separat. Fallback till mono-kort-id
- * när ingen kopplad/manuell annons finns (tillstånd 3). NEXT-datum =
- * jobAd.expiresAt (sista ansökningsdag) — REAL fält, ej v3-mock nextDate.
+ * när ingen kopplad/manuell annons finns (tillstånd 3).
  */
-export function ApplicationRow({ application }: ApplicationRowProps) {
+export function ApplicationRow({ application, now }: ApplicationRowProps) {
   // Synchronous next-intl translator — keeps ApplicationRow a non-async RSC so
   // it remains server-renderable as a serialized slot (the page.tsx pattern)
   // and its synchronous render test stays green.
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const format = useFormatter();
-  const { jobAd } = application;
+  const { jobAd, status } = application;
 
   const hasIdentity = jobAd != null;
   const title = hasIdentity
     ? jobAd.title
     : tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
-  const updatedAt = formatDate(format, application.updatedAt);
-  const expiresAt = formatDate(format, jobAd?.expiresAt);
+  const isDraft = status === "Draft";
+
+  // Relativ tids-tagg. Draft → "Uppdaterad …" ankrad på updatedAt; post-submit
+  // → "Skickad …" ankrad på appliedAt. Defensivt: om en icke-Draft saknar
+  // appliedAt (deploy-skew / dataglapp) faller vi tillbaka på updatedAt så
+  // taggen aldrig blir tom. days clampas till >=0 (negativ framtid → "i dag").
+  const relativeAnchor = isDraft
+    ? application.updatedAt
+    : application.appliedAt ?? application.updatedAt;
+  const relativeDays = Math.max(0, daysSince(relativeAnchor, now));
+  const relativeLabel = isDraft
+    ? tUi("row.relativeDraftUpdated", { days: relativeDays })
+    : tUi("row.relativeApplied", { days: relativeDays });
+
+  // Sista ansökningsdag — ENBART för Draft (Klas-beslut: irrelevant efter
+  // inskickad ansökan).
+  const expiresAt = isDraft ? formatDate(format, jobAd?.expiresAt) : null;
 
   return (
     <Link
@@ -60,11 +91,11 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
           ? tUi("row.ariaLabelWithIdentity", {
               title: jobAd.title,
               company: jobAd.company,
-              status: applicationStatusLabel(t, application.status),
+              status: applicationStatusLabel(t, status),
             })
           : tUi("row.ariaLabelFallback", {
               title,
-              status: applicationStatusLabel(t, application.status),
+              status: applicationStatusLabel(t, status),
             })
       }
     >
@@ -81,11 +112,7 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
         )}
         <div className="jp-app__meta">
           <span className="jp-app__id">#{application.id.slice(0, 8)}</span>
-          {updatedAt && (
-            <span>
-              {tUi("row.updated")} <b>{updatedAt}</b>
-            </span>
-          )}
+          <span className="jp-tag jp-tag--neutral">{relativeLabel}</span>
           {expiresAt && (
             <span>
               {tUi("row.applyBy")} <b>{expiresAt}</b>
@@ -95,9 +122,8 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
       </div>
 
       <div className="jp-app__actions">
-        <span className={getStatusPillClass(application.status)}>
-          <span className="jp-pill__dot" aria-hidden="true" />
-          {applicationStatusLabel(t, application.status)}
+        <span className="jp-tag" data-tag={getStatusTagDataAttr(status)}>
+          {applicationStatusLabel(t, status)}
         </span>
         <ChevronRight
           size={20}

@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "title": "Frequently asked questions",
+    "description": "Answers to common questions about Jobbliggaren: pricing, where the ads come from, matching, CV and how your data is handled."
+  },
+  "kicker": "Help",
+  "title": "Frequently asked questions",
+  "intro": "Here are answers to what we are asked most often. If you cannot find your answer, you can contact us.",
+  "items": {
+    "pris": {
+      "q": "Does Jobbliggaren cost anything?",
+      "a": "Jobbliggaren is free to use. There are no fees and no paywall."
+    },
+    "kalla": {
+      "q": "Where do the job ads come from?",
+      "a": "The ads are sourced from the Swedish Public Employment Service's Platsbanken via open data. You search the same active ads found there."
+    },
+    "matchning": {
+      "q": "How does matching work?",
+      "a": "Matching compares your profile with the requirements in an ad and shows which requirements match and which are missing. There is no hidden score."
+    },
+    "ai": {
+      "q": "Do you use AI to read my CV?",
+      "a": "No. Jobbliggaren uses no AI. Review and matching are rule-based, and your CV is never sent to an external AI service."
+    },
+    "konto": {
+      "q": "Do I need an account?",
+      "a": "You need an account to search for jobs, save searches and upload a CV. Registration is open and free of charge."
+    },
+    "uppgifter": {
+      "q": "How is my personal data protected?",
+      "a": "Your data is stored within the EU and sensitive fields are encrypted. We use only necessary cookies and no tracking cookies."
+    },
+    "cv": {
+      "q": "Can I upload my CV?",
+      "a": "Yes. You can upload a CV in PDF or Word. Jobbliggaren can review it and suggest improvements that you choose whether to apply."
+    },
+    "radera": {
+      "q": "How do I delete my data?",
+      "a": "You can ask us to delete your data at any time. Contact us and we will remove it."
+    }
+  }
+}

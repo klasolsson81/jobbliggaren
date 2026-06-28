@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "title": "Vanliga frågor",
+    "description": "Svar på vanliga frågor om Jobbliggaren: pris, var annonserna kommer ifrån, matchning, CV och hur dina uppgifter hanteras."
+  },
+  "kicker": "Hjälp",
+  "title": "Vanliga frågor",
+  "intro": "Här är svar på det vi får frågor om oftast. Hittar du inte svaret kan du kontakta oss.",
+  "items": {
+    "pris": {
+      "q": "Kostar Jobbliggaren något?",
+      "a": "Jobbliggaren är gratis att använda. Det finns inga avgifter och ingen betalvägg."
+    },
+    "kalla": {
+      "q": "Var kommer jobbannonserna ifrån?",
+      "a": "Annonserna hämtas från Arbetsförmedlingens Platsbanken via öppna data. Du söker bland samma aktiva annonser som finns där."
+    },
+    "matchning": {
+      "q": "Hur fungerar matchningen?",
+      "a": "Matchningen jämför din profil med kraven i en annons och visar vilka krav som matchar och vilka som saknas. Det finns ingen dold poäng."
+    },
+    "ai": {
+      "q": "Använder ni AI för att läsa mitt CV?",
+      "a": "Nej. Jobbliggaren använder ingen AI. Granskning och matchning bygger på regler, och ditt CV skickas aldrig till en extern AI-tjänst."
+    },
+    "konto": {
+      "q": "Behöver jag ett konto?",
+      "a": "Du behöver ett konto för att söka jobb, spara sökningar och ladda upp CV. Registreringen är öppen och kostnadsfri."
+    },
+    "uppgifter": {
+      "q": "Hur skyddas mina personuppgifter?",
+      "a": "Dina uppgifter lagras inom EU och känsliga fält krypteras. Vi använder bara nödvändiga cookies och inga spårningscookies."
+    },
+    "cv": {
+      "q": "Kan jag ladda upp mitt CV?",
+      "a": "Ja. Du kan ladda upp ett CV i PDF eller Word. Jobbliggaren kan gå igenom det och föreslå förbättringar som du själv väljer att använda."
+    },
+    "radera": {
+      "q": "Hur raderar jag mina uppgifter?",
+      "a": "Du kan be oss radera dina uppgifter när som helst. Kontakta oss så tar vi bort din data."
+    }
+  }
+}

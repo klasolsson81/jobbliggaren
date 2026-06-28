@@ -72,10 +72,17 @@ describe("LoginForm", () => {
     );
   });
 
-  it("marks email and password as required (HTML attribute)", () => {
+  it("marks email and password as required (HTML attribute + aria-required)", () => {
     render(<LoginForm />);
-    expect(screen.getByLabelText("E-postadress")).toBeRequired();
-    expect(screen.getByLabelText("Lösenord")).toBeRequired();
+    // Native `required` plus explicit `aria-required="true"` — the design-a11y
+    // skill §5 mandates aria-required in addition to the HTML attribute so the
+    // required state is announced consistently across assistive tech.
+    const email = screen.getByLabelText("E-postadress");
+    const password = screen.getByLabelText("Lösenord");
+    expect(email).toBeRequired();
+    expect(password).toBeRequired();
+    expect(email).toHaveAttribute("aria-required", "true");
+    expect(password).toHaveAttribute("aria-required", "true");
   });
 
   it("flyttar focus till email-fältet när action returnerar { error } (TD-45)", async () => {

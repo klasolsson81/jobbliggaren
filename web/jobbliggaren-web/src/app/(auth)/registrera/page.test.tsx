@@ -29,9 +29,14 @@ describe("RegistreraPage (#265 — open public registration)", () => {
       screen.getByRole("heading", { level: 1, name: "Skapa konto" }),
     ).toBeInTheDocument();
 
-    // RegisterForm fields are present (email + password).
-    expect(screen.getByLabelText("E-postadress")).toBeInTheDocument();
-    expect(screen.getByLabelText("Lösenord")).toBeInTheDocument();
+    // RegisterForm fields are present (email + password) and carry both the
+    // native `required` and the design-a11y §5 `aria-required="true"` marker.
+    const email = screen.getByLabelText("E-postadress");
+    const password = screen.getByLabelText("Lösenord");
+    expect(email).toBeInTheDocument();
+    expect(password).toBeInTheDocument();
+    expect(email).toHaveAttribute("aria-required", "true");
+    expect(password).toHaveAttribute("aria-required", "true");
 
     // Live submit button (distinct from the heading by role).
     expect(

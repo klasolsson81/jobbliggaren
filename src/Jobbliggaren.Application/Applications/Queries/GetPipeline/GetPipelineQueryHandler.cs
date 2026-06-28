@@ -57,7 +57,8 @@ public sealed class GetPipelineQueryHandler(IAppDbContext db, ICurrentUser curre
                             null, r.a.ManualPosting.Title, r.a.ManualPosting.Company,
                             r.a.ManualPosting.Url, "Manual",
                             (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt)
-                        : null))
+                        : null,
+                r.a.AppliedAt))
             .ToListAsync(cancellationToken);
 
         return rows

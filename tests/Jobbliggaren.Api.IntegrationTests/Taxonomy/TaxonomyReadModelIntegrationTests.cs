@@ -72,6 +72,13 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
         return await db.Set<TaxonomyConcept>().CountAsync(ct);
     }
 
+    private async Task<int> RelationRowCountAsync(CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Set<TaxonomyRelation>().CountAsync(ct);
+    }
+
     [Fact]
     public async Task GetTreeAsync_ShouldReturnRegionsAndNestedOccupations_WhenSnapshotSeeded()
     {
@@ -404,10 +411,17 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
         var countAfterFirst = await ConceptRowCountAsync(ct);
         countAfterFirst.ShouldBeGreaterThan(0);
 
+        // ADR 0084 — relation rows are seeded in the SAME transaction as concepts.
+        var relationsAfterFirst = await RelationRowCountAsync(ct);
+        relationsAfterFirst.ShouldBeGreaterThan(0);
+
         await RunSeederAsync(ct); // andra körningen: version matchar → skip
         var countAfterSecond = await ConceptRowCountAsync(ct);
+        var relationsAfterSecond = await RelationRowCountAsync(ct);
 
         countAfterSecond.ShouldBe(countAfterFirst);
+        // Relation rows survive an idempotent re-run (version matches → skip).
+        relationsAfterSecond.ShouldBe(relationsAfterFirst);
     }
 
     [Fact]
@@ -418,6 +432,8 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await RunSeederAsync(ct);
         var baseline = await ConceptRowCountAsync(ct);
+        var relationBaseline = await RelationRowCountAsync(ct);
+        relationBaseline.ShouldBeGreaterThan(0);
 
         using (var scope = _provider.CreateScope())
         {
@@ -431,6 +447,13 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
                 Kind = TaxonomyConceptKind.Region,
                 Label = "Stale",
             });
+            // ADR 0084 — a stale relation edge that must also be wiped on re-seed.
+            db.Set<TaxonomyRelation>().Add(new TaxonomyRelation
+            {
+                SourceConceptId = "stale-src-1",
+                RelatedConceptId = "stale-rel-1",
+                Kind = TaxonomyRelationKind.Substitutability,
+            });
             await db.SaveChangesAsync(ct);
         }
 
@@ -439,9 +462,110 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
         var afterReseed = await ConceptRowCountAsync(ct);
         afterReseed.ShouldBe(baseline); // falsk rad borttagen, snapshot återställd
 
+        // Relation rows are restored to baseline after a version-bump re-seed
+        // (concepts and relations re-seed together, ADR 0084 — same transaction).
+        var relationsAfterReseed = await RelationRowCountAsync(ct);
+        relationsAfterReseed.ShouldBe(relationBaseline);
+
         using var verifyScope = _provider.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await verifyDb.Set<TaxonomyConcept>()
             .AnyAsync(c => c.ConceptId == "stale-row-1", ct)).ShouldBeFalse();
+        (await verifyDb.Set<TaxonomyRelation>()
+            .AnyAsync(r => r.SourceConceptId == "stale-src-1", ct)).ShouldBeFalse();
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // ADR 0084 (PR-1) — substitutability data + ACL broadening op. Seeder
+    // persists taxonomy_relations; GetRelatedOccupationGroupsAsync resolves an
+    // exact ssyk-4 set to the related (substitutable) set. Against real Postgres
+    // (NEVER InMemory — enum→string conversion + the cached dictionary lookup
+    // must be verified relationally). The spot-check pair
+    // DJh5_yyF_hEM → UXKZ_3zZ_ipB is stable committed data.
+    // ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Seeder_ShouldPersistRelationRows_WhenSnapshotSeeded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var relations = await db.Set<TaxonomyRelation>().ToListAsync(ct);
+
+        relations.ShouldNotBeEmpty();
+        relations.ShouldAllBe(r => r.Kind == TaxonomyRelationKind.Substitutability);
+        relations.ShouldAllBe(r =>
+            !string.IsNullOrWhiteSpace(r.SourceConceptId)
+            && !string.IsNullOrWhiteSpace(r.RelatedConceptId));
+    }
+
+    [Fact]
+    public async Task GetRelatedOccupationGroupsAsync_ShouldReturnRelatedGroups_WhenSeeded()
+    {
+        // Stable spot-check pair from the committed data: Mjukvaru- och
+        // systemutvecklare m.fl. (DJh5_yyF_hEM) is substitutable with
+        // Systemanalytiker och IT-arkitekter m.fl. (UXKZ_3zZ_ipB). The result
+        // must contain the related group and NOT echo the input id itself.
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var related = await sut.GetRelatedOccupationGroupsAsync(["DJh5_yyF_hEM"], ct);
+
+        related.ShouldNotBeEmpty();
+        related.ShouldContain("UXKZ_3zZ_ipB");
+        related.ShouldNotContain("DJh5_yyF_hEM"); // exact input is excluded
+    }
+
+    [Fact]
+    public async Task GetRelatedOccupationGroupsAsync_ShouldExcludeExactInputSet_WhenSeeded()
+    {
+        // If the input set contains both a source AND one of its related ids, that
+        // related id is excluded from the result (exact-vs-related stays disjoint —
+        // the scorer/SQL splits them in PR-2+).
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        // Baseline: UXKZ_3zZ_ipB is a related group of DJh5_yyF_hEM.
+        var baseline = await sut.GetRelatedOccupationGroupsAsync(["DJh5_yyF_hEM"], ct);
+        baseline.ShouldContain("UXKZ_3zZ_ipB");
+
+        // Now pass BOTH the source and that related id as the exact set.
+        var withBothInExactSet = await sut.GetRelatedOccupationGroupsAsync(
+            ["DJh5_yyF_hEM", "UXKZ_3zZ_ipB"], ct);
+
+        withBothInExactSet.ShouldNotContain("UXKZ_3zZ_ipB"); // now part of the exact set
+        withBothInExactSet.ShouldNotContain("DJh5_yyF_hEM");
+    }
+
+    [Fact]
+    public async Task GetRelatedOccupationGroupsAsync_ShouldReturnEmptyNotThrow_WhenSourceUnknown()
+    {
+        // Graceful degradation (parity ResolveLabelsAsync): an unknown / relation-less
+        // source group contributes nothing — empty list, never null/throw.
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var related = await sut.GetRelatedOccupationGroupsAsync(
+            ["definitivt-okand-ssyk-99"], ct);
+
+        related.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetRelatedOccupationGroupsAsync_ShouldReturnEmpty_WhenInputEmpty()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var related = await sut.GetRelatedOccupationGroupsAsync([], ct);
+
+        related.ShouldBeEmpty();
     }
 }

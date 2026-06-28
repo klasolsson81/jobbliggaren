@@ -105,8 +105,11 @@ does not extend to the application.
   https://jobtechdev.se/en/products/jobtech-taxonomy
 - **Use:** committed, frozen reference-data snapshots derived from the public
   taxonomy and reprojected into our own JSON shape — `taxonomy-snapshot.json`
-  (regions/occupations/ssyk-4, F2-P9/B1/B2) and `jobad-skill-taxonomy.v30.json`
-  (skill/competence + ESCO skill concepts, F4-4). Generated off-build by the
+  (regions/occupations/ssyk-4, F2-P9/B1/B2), `jobad-skill-taxonomy.v30.json`
+  (skill/competence + ESCO skill concepts, F4-4), and
+  `occupation-substitutability.json` (ssyk-4 → ssyk-4 substitutability edges,
+  rolled up from occupation-name `substitutes` via the frozen
+  occupation-name→ssyk-4 map; #300 / ADR 0084). Generated off-build by the
   `tools/taxonomy-snapshot/` and `tools/jobad-skill-taxonomy/` scripts;
   version-pinned `v30`. EPL-2.0 is a weak (file-level) copyleft with no
   network-use clause; the product runs server-side and is **not distributed**

@@ -63,6 +63,31 @@ public class TaxonomyAclLayerTests
     }
 
     [Fact]
+    public void Taxonomy_relation_types_are_internal_to_Infrastructure()
+    {
+        // ADR 0084 (PR-1) — the new substitutability types (relation entity, kind
+        // enum, deserialization file-form) are Infrastructure-internal reference
+        // data, parity TaxonomyConcept. They must NOT be public — the only way the
+        // broadening op crosses into Application is the ITaxonomyReadModel port
+        // (ACL-isolation, Evans ch. 14). Named assertion documents the intent in
+        // addition to the namespace-wide scan above.
+        var infrastructureAsm = typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
+        var relationTypeNames = new[]
+        {
+            "Jobbliggaren.Infrastructure.Taxonomy.TaxonomyRelation",
+            "Jobbliggaren.Infrastructure.Taxonomy.TaxonomyRelationKind",
+            "Jobbliggaren.Infrastructure.Taxonomy.OccupationSubstitutabilityFile",
+        };
+
+        foreach (var name in relationTypeNames)
+        {
+            var type = infrastructureAsm.GetType(name, throwOnError: true)!;
+            type.IsVisible.ShouldBeFalse(
+                $"{name} ska vara internal (ACL-isolation, ADR 0084).");
+        }
+    }
+
+    [Fact]
     public void Domain_should_not_contain_any_Taxonomy_type()
     {
         // ADR 0043 — taxonomi är INTE Jobbliggarens ubiquitous language. Ingen

@@ -32,6 +32,26 @@ public class TaxonomySnapshotSeederTests
             WorktimeExtents = worktimeExtents,
         };
 
+    // ADR 0084 — empty substitutability fixture, parity EmptyKlass2(). Keeps the
+    // CompositeVersion / MapRelationRows tests that do not care about relations
+    // orthogonal (emits zero relation rows).
+    private static OccupationSubstitutabilityFile EmptySubstitutability() => new()
+    {
+        Version = "test",
+        RelationKind = "substitutability",
+        Relations = [],
+    };
+
+    private static OccupationSubstitutabilityFile Substitutability(
+        string version,
+        IReadOnlyList<OccupationSubstitutabilityFile.SubstitutabilityRelation> relations,
+        string relationKind = "substitutability") => new()
+        {
+            Version = version,
+            RelationKind = relationKind,
+            Relations = relations,
+        };
+
     [Theory]
     [InlineData("Development", true)]
     [InlineData("Test", true)]
@@ -622,9 +642,10 @@ public class TaxonomySnapshotSeederTests
     [Fact]
     public void CompositeVersion_ShouldCombineSnapshotAndKlass2Versions_WhenCalled()
     {
-        // Idempotens-nyckel: "{taxonomyVersion}+klass2-{klass2Version}". Bump av
-        // endera versionen ändrar nyckeln → re-seed triggas (meta-jämförelsen
-        // i StartAsync). Verifierar exakt format mot sample-inputs.
+        // Idempotency key: "{taxonomyVersion}+klass2-{klass2Version}+subst-{substVersion}".
+        // Bumping ANY of the three versions changes the key → re-seed is triggered
+        // (the meta comparison in StartAsync). Asserts the exact format against
+        // sample inputs (ADR 0084 added the third +subst- segment).
         var snapshot = new TaxonomySnapshotFile
         {
             TaxonomyVersion = "30",
@@ -633,9 +654,10 @@ public class TaxonomySnapshotSeederTests
         };
         var klass2 = Klass2(employmentTypes: [], worktimeExtents: []);
 
-        var version = TaxonomySnapshotSeeder.CompositeVersion(snapshot, klass2);
+        var version = TaxonomySnapshotSeeder.CompositeVersion(
+            snapshot, klass2, EmptySubstitutability());
 
-        version.ShouldBe("30+klass2-test");
+        version.ShouldBe("30+klass2-test+subst-test");
     }
 
     [Fact]
@@ -649,12 +671,159 @@ public class TaxonomySnapshotSeederTests
         };
 
         var v1 = TaxonomySnapshotSeeder.CompositeVersion(
-            snapshot, new Klass2TaxonomyFile { Version = "1" });
+            snapshot, new Klass2TaxonomyFile { Version = "1" }, EmptySubstitutability());
         var v2 = TaxonomySnapshotSeeder.CompositeVersion(
-            snapshot, new Klass2TaxonomyFile { Version = "2" });
+            snapshot, new Klass2TaxonomyFile { Version = "2" }, EmptySubstitutability());
 
-        v1.ShouldBe("30+klass2-1");
-        v2.ShouldBe("30+klass2-2");
-        v1.ShouldNotBe(v2); // bump → ny idempotens-nyckel → re-seed
+        v1.ShouldBe("30+klass2-1+subst-test");
+        v2.ShouldBe("30+klass2-2+subst-test");
+        v1.ShouldNotBe(v2); // bump → new idempotency key → re-seed
+    }
+
+    [Fact]
+    public void CompositeVersion_ShouldReflectSubstitutabilityVersionBump_WhenSubstVersionDiffers()
+    {
+        // ADR 0084 — bumping ONLY the substitutability version must change the
+        // composite key so a relations-only regeneration re-seeds existing DBs.
+        var snapshot = new TaxonomySnapshotFile
+        {
+            TaxonomyVersion = "30",
+            Regions = [],
+            OccupationFields = [],
+        };
+        var klass2 = Klass2(employmentTypes: [], worktimeExtents: []);
+
+        var v1 = TaxonomySnapshotSeeder.CompositeVersion(
+            snapshot, klass2, Substitutability("1", []));
+        var v2 = TaxonomySnapshotSeeder.CompositeVersion(
+            snapshot, klass2, Substitutability("2", []));
+
+        v1.ShouldBe("30+klass2-test+subst-1");
+        v2.ShouldBe("30+klass2-test+subst-2");
+        v1.ShouldNotBe(v2); // subst bump → new idempotency key → re-seed
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // ADR 0084 (PR-1) — substitutability load + MapRelationRows. Off-search-path
+    // ssyk-4 → ssyk-4 edges from a SEPARATE frozen embedded resource
+    // (occupation-substitutability.json), mapped into taxonomy_relations rows.
+    // Mirrors the LoadKlass2 / MapRows style above: synthetic fixtures for the
+    // unit behaviour + a committed-file round-trip that is drift-robust (asserts
+    // a relations invariant, not a hardcoded edge count).
+    // ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void LoadSubstitutability_ShouldDeserializeEmbeddedResource_WhenCalled()
+    {
+        // Proves occupation-substitutability.json is registered as an
+        // <EmbeddedResource> in Jobbliggaren.Infrastructure.csproj AND parses
+        // against OccupationSubstitutabilityFile. Drift-robust: asserts structure
+        // and invariants, not exact counts (the file is regenerated off-repo).
+        var file = TaxonomySnapshotSeeder.LoadSubstitutability();
+
+        file.ShouldNotBeNull();
+        file.Version.ShouldBe("1");
+        file.RelationKind.ShouldBe("substitutability");
+        file.Relations.ShouldNotBeEmpty();
+
+        // Every source id and every related id is a non-empty concept-id.
+        file.Relations.ShouldAllBe(r => !string.IsNullOrWhiteSpace(r.SourceConceptId));
+        file.Relations.SelectMany(r => r.RelatedConceptIds)
+            .ShouldAllBe(id => !string.IsNullOrWhiteSpace(id));
+
+        // No relation list is self-referential (a source never substitutes for
+        // itself — the generator excludes the identity edge so exact-vs-related
+        // stays disjoint, ADR 0084).
+        file.Relations.ShouldAllBe(r => !r.RelatedConceptIds.Contains(r.SourceConceptId));
+    }
+
+    [Fact]
+    public void LoadSubstitutability_ShouldBeByConceptIdSorted_WhenCommitted()
+    {
+        // Determinism watchdog (CTO bind 2026-06-28 §5): the committed snapshot
+        // MUST be byConceptId(Ordinal)-sorted — both the outer source list and
+        // every inner related list — so a future `node generate-substitutability.mjs`
+        // run produces a byte-stable diff (no reorder noise). This pins the exact
+        // invariant a generator-sort regression would break.
+        var file = TaxonomySnapshotSeeder.LoadSubstitutability();
+
+        var sources = file.Relations.Select(r => r.SourceConceptId).ToList();
+        sources.ShouldBe(sources.OrderBy(id => id, StringComparer.Ordinal).ToList());
+
+        foreach (var relation in file.Relations)
+        {
+            relation.RelatedConceptIds.ShouldBe(
+                relation.RelatedConceptIds.OrderBy(id => id, StringComparer.Ordinal).ToList());
+        }
+    }
+
+    [Fact]
+    public void MapRelationRows_ShouldEmitOneRowPerEdgeWithSubstitutabilityKind_WhenCalled()
+    {
+        // 2 sources (one with 2 related, one with 1) → 3 edge rows, all carrying
+        // Kind = Substitutability with source/related ids preserved verbatim.
+        var file = Substitutability("test",
+        [
+            new OccupationSubstitutabilityFile.SubstitutabilityRelation(
+                "src-1", ["rel-1a", "rel-1b"]),
+            new OccupationSubstitutabilityFile.SubstitutabilityRelation(
+                "src-2", ["rel-2a"]),
+        ]);
+
+        var rows = TaxonomySnapshotSeeder.MapRelationRows(file);
+
+        rows.Count.ShouldBe(3);
+        rows.ShouldAllBe(r => r.Kind == TaxonomyRelationKind.Substitutability);
+        rows.ShouldContain(r => r.SourceConceptId == "src-1" && r.RelatedConceptId == "rel-1a");
+        rows.ShouldContain(r => r.SourceConceptId == "src-1" && r.RelatedConceptId == "rel-1b");
+        rows.ShouldContain(r => r.SourceConceptId == "src-2" && r.RelatedConceptId == "rel-2a");
+    }
+
+    [Fact]
+    public void MapRelationRows_ShouldEmitNoRows_WhenNoRelations()
+    {
+        // An empty file maps to zero edge rows (orthogonality / back-compat).
+        var rows = TaxonomySnapshotSeeder.MapRelationRows(EmptySubstitutability());
+
+        rows.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapRelationKind_ShouldMapSubstitutability_WhenKnown()
+    {
+        TaxonomySnapshotSeeder.MapRelationKind("substitutability")
+            .ShouldBe(TaxonomyRelationKind.Substitutability);
+    }
+
+    [Fact]
+    public void MapRelationKind_ShouldThrow_WhenUnknown()
+    {
+        // Fail-loud on an unknown relationKind — bad data must never seed silently
+        // (CLAUDE.md §5). "related" is a documented future additive wave, not v1.
+        Should.Throw<InvalidOperationException>(
+            () => TaxonomySnapshotSeeder.MapRelationKind("related"));
+    }
+
+    [Fact]
+    public void MapRelationRows_ShouldRoundTripCommittedSnapshot_WhenInvariantHolds()
+    {
+        // Bridge between unit MapRelationRows and the actual committed file:
+        // row count == sum of relatedConceptIds across every relation. Drift-robust
+        // (a relations invariant, not a hardcoded 832), with a soft sanity bound.
+        var file = TaxonomySnapshotSeeder.LoadSubstitutability();
+
+        var rows = TaxonomySnapshotSeeder.MapRelationRows(file);
+
+        var expectedEdges = file.Relations.Sum(r => r.RelatedConceptIds.Count);
+        rows.Count.ShouldBe(expectedEdges);
+
+        // Soft bound: a real generator output, not empty and not absurdly large.
+        rows.Count.ShouldBeGreaterThan(0);
+        rows.Count.ShouldBeLessThan(100_000);
+
+        rows.ShouldAllBe(r => r.Kind == TaxonomyRelationKind.Substitutability);
+        rows.ShouldAllBe(r =>
+            !string.IsNullOrWhiteSpace(r.SourceConceptId)
+            && !string.IsNullOrWhiteSpace(r.RelatedConceptId));
     }
 }

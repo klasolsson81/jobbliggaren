@@ -6,6 +6,7 @@ import aktivitetsrapport from "./aktivitetsrapport.json";
 import applications from "./applications.json";
 import common from "./common.json";
 import contentFaq from "./content-faq.json";
+import contentLegal from "./content-legal.json";
 import contentTips from "./content-tips.json";
 import errors from "./errors.json";
 import guest from "./guest.json";
@@ -24,6 +25,7 @@ const messages = {
   applications,
   common,
   "content-faq": contentFaq,
+  "content-legal": contentLegal,
   "content-tips": contentTips,
   errors,
   guest,

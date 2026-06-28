@@ -1,0 +1,144 @@
+{
+  "privacy": {
+    "meta": {
+      "title": "Integritetspolicy",
+      "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
+    },
+    "kicker": "Integritet",
+    "title": "Integritetspolicy",
+    "updated": "Senast uppdaterad: 2026-06-28",
+    "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
+    "sections": [
+      {
+        "heading": "Personuppgiftsansvarig och kontakt",
+        "paragraphs": [
+          "Personuppgiftsansvarig för behandlingen av dina personuppgifter i Jobbliggaren är Klas Olsson, privatperson, som driver Jobbliggaren som ett ideellt hobbyprojekt. Du når personuppgiftsansvarig på klasolsson81@gmail.com i alla frågor om den här policyn och om hur dina personuppgifter behandlas.",
+          "Det är den personuppgiftsansvariga som avgör varför och hur dina uppgifter behandlas, och som ansvarar för att behandlingen följer dataskyddsförordningen (GDPR)."
+        ]
+      },
+      {
+        "heading": "Dataskyddsombud",
+        "paragraphs": [
+          "Jobbliggaren har inget dataskyddsombud utsett. Tjänsten omfattas inte av kravet på dataskyddsombud i artikel 37 i dataskyddsförordningen. Du vänder dig i stället direkt till oss på kontaktuppgifterna ovan i alla frågor om dina personuppgifter."
+        ]
+      },
+      {
+        "heading": "Konto, profil och ansökningar (laglig grund: avtal)",
+        "paragraphs": [
+          "För att du ska kunna skapa ett konto och använda Jobbliggaren behandlar vi uppgifterna nedan. Den rättsliga grunden är att behandlingen är nödvändig för att vi ska kunna leverera tjänsten till dig (artikel 6.1 b, fullgörande av avtal). Utan dessa uppgifter kan vi inte tillhandahålla ett konto.",
+          "Ditt cv, dina personliga brev, dina anteckningar och dina uppföljningar är känsligare uppgifter och skyddas med kryptering, se avsnittet om säkerhet längre ner."
+        ],
+        "list": [
+          "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext), visningsnamn och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Används för att skapa och säkra ditt konto och identifiera dig i tjänsten.",
+          "Visningsnamn, språkval och dina matchningsönskemål, till exempel yrke, region, anställningsform och kompetenser du vill matcha mot. Används för att visa relevanta jobb och anpassa tjänsten efter dina val.",
+          "Ditt cv och tolkat innehåll från det. Används för att spara, visa och arbeta med ditt cv i tjänsten.",
+          "Dina ansökningar, personliga brev, egna anteckningar och uppföljningar kopplade till jobb. Används för att hjälpa dig att hålla ordning på dina ansökningar och påminna dig om uppföljning."
+        ]
+      },
+      {
+        "heading": "Säkerhet, drift och produktfunktioner (laglig grund: berättigat intresse)",
+        "paragraphs": [
+          "För vissa ändamål stödjer vi oss på berättigat intresse (artikel 6.1 f). Det innebär att vi har gjort en avvägning och bedömt att behandlingen är nödvändig för vårt berättigade intresse och inte väger tyngre än ditt intresse av skydd för dina uppgifter. Du har rätt att invända mot behandling som grundas på berättigat intresse, se avsnittet om dina rättigheter."
+        ],
+        "list": [
+          "Säkerhets- och händelselogg. Vi loggar händelser i tjänsten, till exempel inloggningar, tillsammans med IP-adress och webbläsarinformation. Vårt berättigade intresse är att skydda tjänsten och ditt konto mot missbruk, intrång och felaktig användning, och att kunna utreda säkerhetshändelser.",
+          "Hämtning av jobbannonser från JobTech. Vi hämtar och bearbetar öppna data om lediga jobb från Arbetsförmedlingens JobTech. Vårt berättigade intresse är att kunna erbjuda en fungerande jobbtjänst. De annonser vi hämtar är offentliga data och är inte dina personuppgifter.",
+          "Markering av nytt sedan ditt förra besök. Vi håller reda på vad som är nytt för dig sedan du senast var inloggad, så att du snabbt ser vad som tillkommit. Vårt berättigade intresse är att ge dig en användbar och överskådlig tjänst."
+        ]
+      },
+      {
+        "heading": "Bevakningsnotiser i bakgrunden (laglig grund: samtycke)",
+        "paragraphs": [
+          "Om du vill kan du slå på notiser om nya jobb som matchar dina önskemål. Den behandlingen sker bara om du själv aktivt slår på den. Den rättsliga grunden är ditt samtycke (artikel 6.1 a). Funktionen är avstängd som standard. Slår du på den sparar vi en uppgift om att och när du lämnade ditt samtycke, så att vi kan visa att behandlingen är laglig.",
+          "Du kan när som helst återkalla ditt samtycke genom att stänga av notiserna i dina inställningar. Då upphör vi att skicka dem. Att du återkallar samtycket påverkar inte att behandlingen var laglig innan du återkallade det."
+        ]
+      },
+      {
+        "heading": "Mottagare av uppgifter",
+        "paragraphs": [
+          "Jobbliggaren säljer aldrig dina uppgifter och delar dem inte för marknadsföring. För att kunna drifta tjänsten anlitar vi vissa leverantörer som behandlar uppgifter för vår räkning (personuppgiftsbiträden). Med dem har vi personuppgiftsbiträdesavtal.",
+          "Arbetsförmedlingens JobTech (Platsbanken) är vår källa för öppna data om lediga jobb, inte en mottagare av dina personuppgifter. Vi skickar inga uppgifter om dig till JobTech.",
+          "Jobbliggaren skickar i dagsläget inga e-postnotiser, och inga uppgifter om dig lämnas till någon e-postleverantör. Om e-postnotiser införs i framtiden uppdaterar vi den här policyn och informerar om vilken leverantör som anlitas och hur dina uppgifter skyddas innan funktionen aktiveras."
+        ],
+        "list": [
+          "Hetzner (planerad driftsleverantör, EU). Jobbliggaren planeras att driftas hos Hetzner i EU, där applikationen och databasen körs. Detta är planerat och ännu inte i drift.",
+          "Cloudflare (planerad DNS- och CDN-leverantör, EU). Cloudflare planeras att hantera namnuppslag och trafik fram till tjänsten. Detta är planerat och ännu inte i drift."
+        ]
+      },
+      {
+        "heading": "Överföring till tredje land",
+        "paragraphs": [
+          "Vi behandlar dina uppgifter inom EU/EES. I dagsläget sker inga överföringar av dina personuppgifter till länder utanför EU/EES. Om vi i framtiden skulle anlita en leverantör utanför EU/EES säkerställer vi en laglig grund för överföringen enligt dataskyddsförordningens kapitel V, till exempel EU-kommissionens standardavtalsklausuler eller ett giltigt adekvansbeslut, och uppdaterar den här policyn innan en sådan överföring sker."
+        ]
+      },
+      {
+        "heading": "Hur länge vi sparar uppgifter",
+        "paragraphs": [
+          "Vi sparar inte dina uppgifter längre än nödvändigt för ändamålen ovan."
+        ],
+        "list": [
+          "Ditt konto och innehåll (cv, ansökningar, brev, anteckningar, uppföljningar) sparas så länge ditt konto är aktivt, så att du kan använda tjänsten. Du kan när som helst radera enskilt innehåll eller hela ditt konto.",
+          "När du raderar ditt konto tas uppgifterna bort och de krypterade uppgifterna görs permanent oläsbara, se avsnittet om säkerhet. Efter att du begärt radering finns en period på 30 dagar då ett konto kan återställas, innan det raderas slutgiltigt.",
+          "Säkerhets- och händelseloggen sparas i 90 dagar och rensas därefter automatiskt. När ditt konto raderas slutgiltigt avidentifieras de uppgifter i loggen som kan kopplas till dig.",
+          "Jobbannonser från JobTech rensas inom 30 dagar."
+        ]
+      },
+      {
+        "heading": "Dina rättigheter",
+        "paragraphs": [
+          "Enligt dataskyddsförordningen har du följande rättigheter. Du använder dem genom att kontakta oss på e-postadressen ovan. Vi svarar utan onödigt dröjsmål och som regel inom en månad."
+        ],
+        "list": [
+          "Tillgång. Du har rätt att få veta om vi behandlar uppgifter om dig och att få en kopia av dem.",
+          "Rättelse. Du har rätt att få felaktiga uppgifter rättade och ofullständiga uppgifter kompletterade. En del uppgifter, som profil och cv, kan du också ändra direkt i tjänsten.",
+          "Radering. Du har rätt att få dina uppgifter raderade. Du kan radera ditt konto i tjänsten, vilket tar bort dina uppgifter.",
+          "Begränsning. Du har rätt att begära att behandlingen begränsas i vissa fall, till exempel medan en invändning eller en fråga om riktighet utreds.",
+          "Invändning. Du har rätt att invända mot behandling som grundas på berättigat intresse. Då upphör vi med den behandlingen om vi inte har tvingande berättigade skäl som väger tyngre.",
+          "Dataportabilitet. För uppgifter du själv lämnat och som behandlas med stöd av avtal eller samtycke har du rätt att få ut dem i ett strukturerat, allmänt använt och maskinläsbart format, och att få dem överförda till en annan aktör där det är tekniskt möjligt.",
+          "Återkalla samtycke. Där behandlingen grundas på ditt samtycke kan du återkalla samtycket när som helst i dina inställningar, utan att det påverkar lagligheten av behandlingen dessförinnan."
+        ]
+      },
+      {
+        "heading": "Klagomål till tillsynsmyndighet",
+        "paragraphs": [
+          "Om du anser att vi behandlar dina personuppgifter felaktigt har du rätt att lämna klagomål till Integritetsskyddsmyndigheten (IMY), som är tillsynsmyndighet för dataskydd i Sverige. Du hittar kontaktuppgifter och information på imy.se. Vi tar gärna emot dina synpunkter direkt också, så att vi kan rätta till eventuella fel."
+        ]
+      },
+      {
+        "heading": "Krav för att använda tjänsten",
+        "paragraphs": [
+          "För att skapa ett konto behöver du ange en e-postadress. Den är nödvändig för att vi ska kunna identifiera dig, säkra ditt konto och kommunicera med dig om tjänsten. Du kan inte skapa ett konto utan e-postadress. Att lämna uppgiften är ett krav för att ingå avtalet om att använda Jobbliggaren, inte ett lagstadgat krav. Övriga uppgifter, som cv och matchningsönskemål, lämnar du själv när och om du vill använda de funktionerna."
+        ]
+      },
+      {
+        "heading": "Inga automatiserade beslut och ingen profilering",
+        "paragraphs": [
+          "Jobbliggaren fattar inga automatiserade beslut och använder ingen profilering med rättslig eller liknande betydande effekt för dig. Det finns inget sådant beslutsfattande enligt artikel 22 i dataskyddsförordningen.",
+          "Matchningen mellan dig och jobb är regelbaserad, förutsägbar och förklarbar. Den bygger på de önskemål och uppgifter du själv anger och på en bestämd jämförelse mot annonserna. Vi visar alltid vilka nyckelord som matchar och vilka som saknas, så att du kan se varför ett jobb föreslås. Jobbliggaren använder ingen AI och inga språkmodeller för matchning, bedömning eller beslut. Det är alltid du som avgör vilka jobb du söker."
+        ]
+      },
+      {
+        "heading": "Säkerhet",
+        "paragraphs": [
+          "Vi skyddar dina uppgifter med tekniska och organisatoriska åtgärder. Dina känsligaste uppgifter, det vill säga ditt cv, dina personliga brev, dina anteckningar och dina uppföljningar, krypteras fält för fält med stark kryptering (AES-256-GCM) och med en krypteringsnyckel som är unik för just dig.",
+          "När du raderar ditt konto förstörs din krypteringsnyckel. Det gör att dina krypterade uppgifter blir permanent oläsbara och inte kan återskapas, även från en eventuell säkerhetskopia (så kallad kryptoradering). På så sätt försvinner dina uppgifter på riktigt när du väljer att lämna tjänsten."
+        ]
+      },
+      {
+        "heading": "Cookies",
+        "paragraphs": [
+          "Jobbliggaren använder bara nödvändiga och funktionella förstapartskakor och inga spårnings-, analys- eller marknadsföringskakor. Hur kakor och lagring i webbläsaren fungerar beskrivs i vår cookiepolicy."
+        ]
+      },
+      {
+        "heading": "Ändringar i denna policy",
+        "paragraphs": [
+          "Vi kan komma att uppdatera den här integritetspolicyn, till exempel om tjänsten utvecklas eller om kraven förändras. Den senaste versionen finns alltid på den här sidan, med datum för senaste uppdatering högst upp. Vid mer betydande ändringar informerar vi dig på lämpligt sätt."
+        ]
+      }
+    ],
+    "relatedHeading": "Relaterade sidor",
+    "relatedTerms": "Användarvillkor",
+    "relatedCookies": "Cookiepolicy"
+  }
+}

@@ -165,6 +165,12 @@ public class GetJobAdMatchDetailQueryHandlerTests
         public ValueTask<IReadOnlyList<TaxonomySuggestionDto>> SuggestByPrefixAsync(
             string prefix, int limit, CancellationToken cancellationToken)
             => throw new NotSupportedException("SuggestByPrefixAsync ska inte anropas av modal-handlern.");
+
+        // ADR 0084 — the match-detail modal handler never broadens occupation groups
+        // (it resolves labels only), so this member must not be reached.
+        public ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
+            IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken)
+            => throw new NotSupportedException("GetRelatedOccupationGroupsAsync ska inte anropas av modal-handlern.");
     }
 
     private GetJobAdMatchDetailQueryHandler CreateHandler(

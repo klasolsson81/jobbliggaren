@@ -58,6 +58,12 @@ public class GetActivityReportQueryHandlerTests
         public ValueTask<IReadOnlyList<TaxonomySuggestionDto>> SuggestByPrefixAsync(
             string prefix, int limit, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+
+        // ADR 0084 — the activity-report handler never broadens occupation groups,
+        // so this stub is an inert no-op (empty result, never throws).
+        public ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
+            IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken)
+            => ValueTask.FromResult<IReadOnlyList<string>>([]);
     }
 
     private GetActivityReportQueryHandler CreateHandler(

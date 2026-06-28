@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "title": "Tips för jobbsökande",
+    "description": "Konkreta råd för jobbsökandet: anpassa CV, skriv en tydlig ansökan, följ upp, förbered intervjun och håll koll på sista ansökningsdag."
+  },
+  "kicker": "Råd",
+  "title": "Tips för jobbsökande",
+  "intro": "Några konkreta råd för jobbsökandet. Inget av detta är obligatoriskt, men det brukar hjälpa.",
+  "sections": {
+    "cv": {
+      "title": "Anpassa ditt CV",
+      "body": "Anpassa ditt CV efter annonsen. Lyft fram den erfarenhet och kompetens som matchar kraven i den specifika tjänsten."
+    },
+    "ansokan": {
+      "title": "Skriv en konkret ansökan",
+      "body": "Var konkret. Beskriv vad du har gjort och vilket resultat det gav, hellre än allmänna omdömen om dig själv."
+    },
+    "uppfoljning": {
+      "title": "Följ upp",
+      "body": "Notera när du har sökt och hör av dig om du inte fått svar inom rimlig tid. En kort påminnelse är sällan fel."
+    },
+    "intervju": {
+      "title": "Förbered intervjun",
+      "body": "Läs på om arbetsgivaren och tjänsten innan intervjun. Ha exempel redo på situationer du har hanterat och vad du lärde dig."
+    },
+    "deadlines": {
+      "title": "Håll koll på sista ansökningsdag",
+      "body": "Många annonser stänger tidigare än du tror. En tidig ansökan hinner bli läst i lugn och ro."
+    }
+  },
+  "links": {
+    "cvLabel": "Gå till CV",
+    "jobbLabel": "Sök jobb"
+  }
+}

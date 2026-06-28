@@ -4,6 +4,8 @@
 import admin from "./admin.json";
 import applications from "./applications.json";
 import common from "./common.json";
+import contentFaq from "./content-faq.json";
+import contentTips from "./content-tips.json";
 import errors from "./errors.json";
 import guest from "./guest.json";
 import jobads from "./jobads.json";
@@ -19,6 +21,8 @@ const messages = {
   admin,
   applications,
   common,
+  "content-faq": contentFaq,
+  "content-tips": contentTips,
   errors,
   guest,
   jobads,

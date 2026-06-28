@@ -66,7 +66,7 @@ Full hex per token in `tokens-full.md`. Key shifts:
   `#E8EDF4` → `#283C5E`. (v3 har ingen egen sunken-token — aliaset
   `--jp-surface-sunken` pekar på surface-2.)
 - **Text:** ink-1 `#0C1A2E` → `#F4F7FC`; ink-2 `#455366` → `#C2CFE2`; ink-3
-  `#7C8AA0` → `#8DA0BD`; ink-inverse `#FFFFFF` → `#0C1A2E`.
+  `#4F5D72` → `#8DA0BD` (light mörkad i #296, var `#7C8AA0`); ink-inverse `#FFFFFF` → `#0C1A2E`.
   `--jp-placeholder` `#626B78` är **tema-oberoende** (input-fälten är ljusa
   i båda teman).
 - **Accent (G1):** 700 `#15603F` → `#6EE7A8`; 600 `#1E6B4C` → `#A7F3D0`;

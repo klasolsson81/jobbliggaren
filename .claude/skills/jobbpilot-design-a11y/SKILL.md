@@ -142,9 +142,11 @@ to pass in dark — recompute and check contrast in both `:root` and
 `references/contrast-table.md` in `jobbpilot-design-tokens`.
 
 Never create a new color combination without verifying at
-webaim.org/resources/contrastchecker. text-tertiary (light #94A3B8) fails for
-body text on white (~2.6:1) — only use it for decorative/non-essential text
-(IDs, dimmed dates).
+webaim.org/resources/contrastchecker. text-tertiary (light `#4F5D72`, darkened
+from `#7C8AA0` in issue #296) now clears AA on white (~6.7:1, min 5.45:1 across
+surfaces/info-bg) — it is the demoted metadata tier (timestamps, hints, IDs,
+dimmed dates), no longer body-text-blocked. Placeholders still use
+`--jp-placeholder`, never tertiary.
 
 ### Hairline / divider contrast
 

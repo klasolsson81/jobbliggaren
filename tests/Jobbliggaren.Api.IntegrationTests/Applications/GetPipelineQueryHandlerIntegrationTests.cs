@@ -135,6 +135,73 @@ public class GetPipelineQueryHandlerIntegrationTests
     }
 
     [Fact]
+    public async Task Handle_ProjectsAppliedAt_SetForSubmitted_NullForDraft()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var draft = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        var submitted = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        submitted.TransitionTo(ApplicationStatus.Submitted, clock);
+
+        db.Applications.Add(draft);
+        db.Applications.Add(submitted);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser);
+
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        // #336: AppliedAt is projected into the read DTO. Draft never submitted →
+        // null; Submitted → the idempotent first-submit stamp. UpdatedAt is NOT a
+        // valid proxy (it moves on every status change), hence the dedicated field.
+        var draftDto = result.First(g => g.Status == "Draft").Applications.Single();
+        draftDto.AppliedAt.ShouldBeNull();
+
+        var submittedDto = result.First(g => g.Status == "Submitted").Applications.Single();
+        submittedDto.AppliedAt.ShouldNotBeNull();
+        // Postgres timestamptz truncates .NET ticks to microseconds, so compare
+        // with a tolerance rather than exact equality on the round-tripped value.
+        submittedDto.AppliedAt!.Value.ShouldBe(submitted.AppliedAt!.Value, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsAppliedAt_SurvivesTransitionToTerminalStatus()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        // Draft → Submitted (stamps AppliedAt) → Rejected (terminal). The domain
+        // stamps AppliedAt once on first Submit and never overwrites it
+        // (Application.cs), so it must survive into a terminal state. Klas Q1:
+        // the row keeps "Skickad för X sedan" for terminal states — that copy is
+        // anchored on AppliedAt, so the projection must still carry it here.
+        var rejected = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        rejected.TransitionTo(ApplicationStatus.Submitted, clock);
+        var stampedAt = rejected.AppliedAt;
+        rejected.TransitionTo(ApplicationStatus.Rejected, clock);
+
+        db.Applications.Add(rejected);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser);
+
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var rejectedDto = result.First(g => g.Status == "Rejected").Applications.Single();
+        rejectedDto.AppliedAt.ShouldNotBeNull();
+        // Same idempotent first-submit stamp — NOT re-stamped by the Rejected
+        // transition. Postgres timestamptz → microsecond tolerance.
+        rejectedDto.AppliedAt!.Value.ShouldBe(stampedAt!.Value, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task Handle_DoesNotReturnApplicationsBelongingToOtherJobSeeker()
     {
         using var scope = _factory.Services.CreateScope();

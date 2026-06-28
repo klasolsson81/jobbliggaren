@@ -127,6 +127,31 @@ public class GetApplicationsQueryHandlerIntegrationTests
     }
 
     [Fact]
+    public async Task Handle_ProjectsAppliedAt_SetForSubmitted_NullForDraft()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var (_, apps) = await SeedAsync(db, clock, _userId, draftCount: 1, submittedCount: 1);
+        var submitted = apps.Single(a => a.Status == ApplicationStatus.Submitted);
+
+        var handler = new GetApplicationsQueryHandler(db, _currentUser);
+
+        var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
+
+        // #336: AppliedAt is projected into the read DTO here too (same DTO, two
+        // call-sites). Draft → null; Submitted → the first-submit stamp.
+        var draftDto = result.Items.Single(a => a.Status == "Draft");
+        draftDto.AppliedAt.ShouldBeNull();
+
+        var submittedDto = result.Items.Single(a => a.Status == "Submitted");
+        submittedDto.AppliedAt.ShouldNotBeNull();
+        // Postgres timestamptz truncates .NET ticks to microseconds → tolerance.
+        submittedDto.AppliedAt!.Value.ShouldBe(submitted.AppliedAt!.Value, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task Handle_WithStatusFilter_ReturnsOnlyMatchingApplications()
     {
         using var scope = _factory.Services.CreateScope();

@@ -51,6 +51,11 @@ export const applicationDtoSchema = z.object({
   status: applicationStatusSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
+  // #336: ansökningsdatum (Application.AppliedAt). null för Draft (aldrig
+  // skickad). Driver den relativa "Skickad för X dagar sedan"-taggen. nullable
+  // + optional: optional ger deploy-skew-resiliens (FE deploy:ad före BE → äldre
+  // svar utan fältet kraschar ej parse — samma intent som jobAd nedan).
+  appliedAt: z.string().nullable().optional(),
   // nullable + optional: backend skickar alltid jobAd (null|objekt), men
   // optional ger deploy-skew-resiliens (cachead/äldre svar utan fältet
   // kraschar ej parse — architect §6 deploy-säkerhets-intent).

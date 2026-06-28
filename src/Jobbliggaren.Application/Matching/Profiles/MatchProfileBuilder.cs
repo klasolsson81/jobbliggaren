@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
@@ -53,7 +54,8 @@ namespace Jobbliggaren.Application.Matching.Profiles;
 /// </summary>
 public sealed class MatchProfileBuilder(
     IAppDbContext db,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    ITaxonomyReadModel taxonomy)
     : IMatchProfileBuilder
 {
     private static readonly CandidateMatchProfile EmptyFast = new(
@@ -66,10 +68,12 @@ public sealed class MatchProfileBuilder(
     private static readonly FullCandidateMatchProfile EmptyFull = new(EmptyFast, []);
 
     public async ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool includeRelated = false)
     {
         var jobSeeker = await LoadJobSeekerAsync(cancellationToken);
-        return jobSeeker is null ? EmptyFast : FastFromPreferences(jobSeeker);
+        return jobSeeker is null
+            ? EmptyFast
+            : await FastFromPreferencesAsync(jobSeeker, includeRelated, cancellationToken);
     }
 
     // ADR 0079 STEG 3 PR-D — the global SORT path. Reads the confirmed skill set
@@ -77,14 +81,16 @@ public sealed class MatchProfileBuilder(
     // the sort and the tag/modal read the SAME confirmed source, so they can never diverge
     // on a removed/added skill (sort==grade coherent; no false lift).
     public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(
-        CancellationToken cancellationToken) => BuildFullAsync(cancellationToken);
+        CancellationToken cancellationToken, bool includeRelated = false) =>
+        BuildFullAsync(includeRelated, cancellationToken);
 
     // ADR 0079 STEG 3 PR-D — the page-scoped TAG/modal verdict surface. Reads the confirmed
     // skill set (plaintext, DEK-free). The former DEK-warm + encrypted-content read is gone:
     // the verdict is computed against what the user CONFIRMED (complete by definition), not the
     // encrypted CV skills — no truncation/mis-report risk, no per-request KMS dependency.
     public ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(
-        CancellationToken cancellationToken) => BuildFullAsync(cancellationToken);
+        CancellationToken cancellationToken, bool includeRelated = false) =>
+        BuildFullAsync(includeRelated, cancellationToken);
 
     // ADR 0080 Vag 4 PR-2 (Beslut 3) — the background/system variant: loads the JobSeeker by
     // an EXPLICIT user-id (no ICurrentUser) and shares the EXACT same DEK-free build body as
@@ -93,26 +99,29 @@ public sealed class MatchProfileBuilder(
         Guid userId, CancellationToken cancellationToken)
     {
         var jobSeeker = await LoadJobSeekerByUserIdAsync(userId, cancellationToken);
-        return await BuildFullCoreAsync(jobSeeker, cancellationToken);
+        // BACKGROUND/SYSTEM path NEVER broadens (ADR 0084 question D — related occupations are
+        // list-only and drive no notifications). There is deliberately NO includeRelated param
+        // on this overload: the Worker scan structurally cannot broaden (hardcoded false).
+        return await BuildFullCoreAsync(jobSeeker, includeRelated: false, cancellationToken);
     }
 
     private async ValueTask<FullCandidateMatchProfile> BuildFullAsync(
-        CancellationToken cancellationToken)
+        bool includeRelated, CancellationToken cancellationToken)
     {
         var jobSeeker = await LoadJobSeekerAsync(cancellationToken);
-        return await BuildFullCoreAsync(jobSeeker, cancellationToken);
+        return await BuildFullCoreAsync(jobSeeker, includeRelated, cancellationToken);
     }
 
     // The shared DEK-free build body (one knowledge piece, DRY) — used by both the
     // owner-scoped overloads and the explicit-user-id background variant. The load key is the
     // ONLY thing that differs between the call paths.
     private async ValueTask<FullCandidateMatchProfile> BuildFullCoreAsync(
-        JobSeeker? jobSeeker, CancellationToken cancellationToken)
+        JobSeeker? jobSeeker, bool includeRelated, CancellationToken cancellationToken)
     {
         if (jobSeeker is null)
             return EmptyFull;
 
-        var fast = FastFromPreferences(jobSeeker);
+        var fast = await FastFromPreferencesAsync(jobSeeker, includeRelated, cancellationToken);
 
         // The CONFIRMED skill set IS the capability source (ADR 0079 Beslut 1) — plaintext
         // concept-ids already on the JobSeeker. No resolve, no CV-skill read, no DEK. Present
@@ -168,14 +177,33 @@ public sealed class MatchProfileBuilder(
             .FirstOrDefaultAsync(js => js.UserId == userId, cancellationToken);
     }
 
-    private static CandidateMatchProfile FastFromPreferences(JobSeeker jobSeeker)
+    // SPOT injection (ADR 0084 §Architecture point 4, issue #300) — the ONE place the exact
+    // ssyk-4 preference set is broadened with its RELATED (substitutable) groups. When
+    // <paramref name="includeRelated"/> is true, GetRelatedOccupationGroupsAsync (an in-memory
+    // lookup against the already-cached taxonomy snapshot — no per-request DB hit, ADR 0043
+    // §1.4) returns the substitutable ssyk-4 groups EXCLUDING the exact ones (already disjoint),
+    // filled into the additive RelatedSsykGroupConceptIds init-property (PR-2). When false — every
+    // production caller today; the PR-5 FE include-related toggle (ADR 0084 question A, off by
+    // default) is the only thing that flips it true — the ACL is NOT called and the related set
+    // stays empty, so PR-3 is behavior-inert. Broadening in exactly one place keeps sort==grade
+    // coherence by construction: the scorer's exact ∪ related gate (PR-2) and (PR-4) the SQL rank
+    // read the SAME broadened profile. The BACKGROUND overload passes false (question D, list-only).
+    private async ValueTask<CandidateMatchProfile> FastFromPreferencesAsync(
+        JobSeeker jobSeeker, bool includeRelated, CancellationToken cancellationToken)
     {
         var preferences = jobSeeker.MatchPreferences;
-        return new CandidateMatchProfile(
+        var fast = new CandidateMatchProfile(
             Title: string.Empty,
             SsykGroupConceptIds: preferences.PreferredOccupationGroups,
             PreferredRegionConceptIds: preferences.PreferredRegions,
             PreferredEmploymentTypeConceptIds: preferences.PreferredEmploymentTypes,
             PreferredMunicipalityConceptIds: preferences.PreferredMunicipalities);
+
+        if (!includeRelated)
+            return fast;
+
+        var related = await taxonomy.GetRelatedOccupationGroupsAsync(
+            preferences.PreferredOccupationGroups, cancellationToken);
+        return fast with { RelatedSsykGroupConceptIds = related };
     }
 }

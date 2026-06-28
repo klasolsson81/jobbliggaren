@@ -152,7 +152,7 @@
       "emailHint": "Formatet är namn@domän.se",
       "passwordLabel": "Lösenord",
       "submit": "Logga in",
-      "submitting": "Loggar in...",
+      "submitting": "Loggar in…",
       "noAccount": "Inget konto?",
       "createAccount": "Skapa konto"
     },
@@ -164,7 +164,7 @@
       "passwordLabel": "Lösenord",
       "passwordHint": "Minst 8 tecken.",
       "submit": "Skapa konto",
-      "submitting": "Skapar konto...",
+      "submitting": "Skapar konto…",
       "haveAccount": "Har du redan ett konto?",
       "logIn": "Logga in"
     },

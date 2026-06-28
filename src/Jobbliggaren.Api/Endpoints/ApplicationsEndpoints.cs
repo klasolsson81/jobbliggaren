@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Applications.Commands.CreateApplication;
 using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
 using Jobbliggaren.Application.Applications.Commands.RecordFollowUpOutcome;
 using Jobbliggaren.Application.Applications.Commands.TransitionTo;
+using Jobbliggaren.Application.Applications.Queries.GetActivityReport;
 using Jobbliggaren.Application.Applications.Queries.GetApplicationById;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
@@ -33,6 +34,20 @@ public static class ApplicationsEndpoints
         group.MapGet("/pipeline", async (IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetPipelineQuery(), ct);
+            return Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // #316 — AF activity-report helper. Owner-scoped read; year/month
+        // optional (absent → previous month, computed server-side). Validation
+        // pipeline returns 400 on a malformed pair.
+        group.MapGet("/activity-report", async (
+            IMediator mediator,
+            int? year = null,
+            int? month = null,
+            CancellationToken ct = default) =>
+        {
+            var result = await mediator.Send(new GetActivityReportQuery(year, month), ct);
             return Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);

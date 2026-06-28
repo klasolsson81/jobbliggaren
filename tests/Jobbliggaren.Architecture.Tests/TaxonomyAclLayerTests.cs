@@ -109,6 +109,13 @@ public class TaxonomyAclLayerTests
         // listan nedan MÅSTE vara alfabetisk. Allowlisten utökas ADDITIVT.
         consumers.ShouldBe(
         [
+            // #316 (2026-06-28) — sjunde legitim konsument: AF-aktivitetsrapporten
+            // resolvar JobAd:s kommun-concept-id (shadow-prop) till människo-läsbar
+            // ort (ADR 0043 ACL — ett concept-id når aldrig användaren; CLAUDE.md §5
+            // — opakt id är motsatsen till förklarbart). Tunn query-handler, samma
+            // ResolveLabelsAsync-mönster; ingen Clean Arch-brott (§2.1). Sorterar
+            // först: "GetA" < "GetJ".
+            nameof(Jobbliggaren.Application.Applications.Queries.GetActivityReport.GetActivityReportQueryHandler),
             // F4-16 (2026-06-20) — sjätte legitim konsument: jobbmodalens match-detalj
             // resolvar SSYK/region/anställningsform-membership-evidensens RÅA concept-id
             // till människo-labels (ADR 0043 ACL — ett concept-id når aldrig användaren;

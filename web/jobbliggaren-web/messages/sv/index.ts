@@ -4,6 +4,7 @@
 // barrel. Swedish values are the source of truth and are kept verbatim from the
 // original in-component literals.
 import admin from "./admin.json";
+import aktivitetsrapport from "./aktivitetsrapport.json";
 import applications from "./applications.json";
 import common from "./common.json";
 import contentFaq from "./content-faq.json";
@@ -21,6 +22,7 @@ import validation from "./validation.json";
 
 const messages = {
   admin,
+  aktivitetsrapport,
   applications,
   common,
   "content-faq": contentFaq,

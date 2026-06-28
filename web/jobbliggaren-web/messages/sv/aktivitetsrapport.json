@@ -1,0 +1,41 @@
+{
+  "title": "Aktivitetsrapport-hjälp",
+  "lede": "Samlar dina ansökningar för en månad så att du kan kopiera dem fält för fält till Arbetsförmedlingens aktivitetsrapport.",
+  "back": "Tillbaka till ansökningar",
+  "month": {
+    "label": "Månad"
+  },
+  "counter": {
+    "text": "{count, plural, =0 {Inga ansökningar} =1 {# ansökan} other {# ansökningar}} i {month}.",
+    "minimum": "Arbetsförmedlingen vill se minst {minimum}."
+  },
+  "cta": "Öppna Arbetsförmedlingens aktivitetsrapport",
+  "empty": {
+    "text": "Inga ansökningar att rapportera för {month}. När du markerar en ansökan som ansökt visas den för månaden du sökte."
+  },
+  "fields": {
+    "employer": "Arbetsgivare",
+    "title": "Jobbtitel",
+    "location": "Ort",
+    "appliedAt": "Datum sökt",
+    "howApplied": "Hur du sökte",
+    "link": "Länk till annons",
+    "empty": "Saknas"
+  },
+  "howApplied": {
+    "platsbanken": "Via Platsbanken",
+    "linkedin": "Via LinkedIn",
+    "other": "Via annons"
+  },
+  "copy": {
+    "label": "Kopiera",
+    "copied": "Kopierad",
+    "button": "Kopiera {field}",
+    "announced": "{field} kopierad"
+  },
+  "error": {
+    "title": "Det gick inte att hämta aktivitetsrapporten",
+    "body": "Försök igen om en stund.",
+    "rateLimited": "För många förfrågningar. Försök igen om en stund."
+  }
+}

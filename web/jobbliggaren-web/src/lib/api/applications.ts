@@ -10,6 +10,10 @@ import {
   type PipelineGroupDto,
 } from "@/lib/dto/applications";
 import {
+  activityReportDtoSchema,
+  type ActivityReportDto,
+} from "@/lib/dto/activity-report";
+import {
   responseToResult,
   type ApiResult,
 } from "@/lib/dto/_helpers";
@@ -64,6 +68,38 @@ export async function getApplications(
       res,
       getApplicationsResultSchema,
       "GET /api/v1/applications"
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+// #316 — AF activity-report helper. year/month optional: omit both to let the
+// backend default to the previous month (echoed back in the response so the
+// month picker can reflect it).
+export async function getActivityReport(
+  year?: number,
+  month?: number
+): Promise<ApiResult<ActivityReportDto>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  const params = new URLSearchParams();
+  if (year !== undefined && month !== undefined) {
+    params.set("year", String(year));
+    params.set("month", String(month));
+  }
+  const qs = params.toString();
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}/api/v1/applications/activity-report${qs ? `?${qs}` : ""}`,
+      { headers: authHeaders(sessionId), cache: "no-store" }
+    );
+    return await responseToResult(
+      res,
+      activityReportDtoSchema,
+      "GET /api/v1/applications/activity-report"
     );
   } catch {
     return { kind: "error" };

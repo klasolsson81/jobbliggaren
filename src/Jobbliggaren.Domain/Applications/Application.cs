@@ -17,6 +17,21 @@ public sealed class Application : AggregateRoot<ApplicationId>
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public DateTimeOffset LastStatusChangeAt { get; private set; }
+
+    /// <summary>
+    /// The moment the application was first submitted to the employer (the
+    /// "ansökt"/applied date), stamped on the first transition into
+    /// <see cref="ApplicationStatus.Submitted"/> and never overwritten by later
+    /// transitions or a Ghosted→Submitted reactivation. This is a first-class
+    /// domain fact (BUILD.md §5.3 — the canonical aggregate specifies
+    /// <c>AppliedAt</c>): unlike <see cref="LastStatusChangeAt"/>, which every
+    /// transition overwrites, the apply date is stable. Nullable here (not the
+    /// §5.3 non-null) because the shipped lifecycle creates in Draft, so a
+    /// not-yet-submitted application has no apply date; the non-null is the
+    /// post-Submit invariant. Used by the AF activity report (issue #316).
+    /// </summary>
+    public DateTimeOffset? AppliedAt { get; private set; }
+
     public int GhostedThresholdDays { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
 
@@ -92,6 +107,15 @@ public sealed class Application : AggregateRoot<ApplicationId>
         Status = target;
         UpdatedAt = clock.UtcNow;
         LastStatusChangeAt = clock.UtcNow;
+
+        // Stamp the apply date on the FIRST submit only (idempotent). A
+        // Ghosted→Submitted reactivation (ApplicationStatus.cs:47) finds
+        // AppliedAt already set and does not re-stamp — AF reporting wants the
+        // month you originally applied, not the month you re-opened a ghosted
+        // thread (issue #316; senior-cto-advisor 2026-06-28 D3 amendment).
+        if (target == ApplicationStatus.Submitted && AppliedAt is null)
+            AppliedAt = clock.UtcNow;
+
         RaiseDomainEvent(
             new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, clock.UtcNow));
         return Result.Success();

@@ -162,8 +162,8 @@ function ApplicationCard({ row }: { row: ActivityReportRow }) {
 
 /**
  * A label + value row with its own copy button. Empty values render a neutral
- * "—" with no button (we never copy nothing, and never surface an unavailable
- * field as if it had data).
+ * "Saknas" placeholder with no button (we never copy nothing, and never surface
+ * an unavailable field as if it had data).
  */
 function CopyField({
   label,

@@ -32,6 +32,16 @@ public sealed class GetActivityReportQueryHandler(
         GetActivityReportQuery query, CancellationToken cancellationToken)
     {
         var (year, month) = ResolveMonth(query);
+
+        // Conscious v1 decision (review 2026-06-28, code-reviewer + dotnet-
+        // architect): the month window is UTC-derived [start, end). The FE
+        // renders/copies "Datum sökt" in Europe/Stockholm, so a submit within
+        // the UTC offset of a month boundary (e.g. 2026-04-30 22:30Z = May 1
+        // 00:30 in Swedish summer time) buckets into the UTC month but shows the
+        // Stockholm date — a ~2 h/month edge. Accepted for v1: pre-prod, the
+        // backend has no timezone infrastructure today, and the user can always
+        // pick the correct month. A future refinement may bucket on Europe/
+        // Stockholm boundaries (TimeZoneInfo) so window and display coincide.
         var start = new DateTimeOffset(year, month, 1, 0, 0, 0, TimeSpan.Zero);
         var end = start.AddMonths(1);
 
@@ -146,10 +156,11 @@ public sealed class GetActivityReportQueryHandler(
         var map = new Dictionary<string, string>(labels.Count);
         foreach (var label in labels)
         {
-            // Drop the graceful-degradation fallback (TaxonomyReadModel.cs:49
-            // — "Okänd kod ({id})") so an unresolved code renders as "—", never
-            // as a leaked concept-id.
-            if (label.Label != $"Okänd kod ({label.ConceptId})")
+            // Drop the taxonomy port's graceful-degradation fallback so an
+            // unresolved code renders as the neutral empty placeholder, never as
+            // a leaked concept-id (§5). The fallback format is owned in one place
+            // (TaxonomyLabels) — no magic string across the layer boundary.
+            if (!TaxonomyLabels.IsUnresolved(label))
                 map[label.ConceptId] = label.Label;
         }
         return map;

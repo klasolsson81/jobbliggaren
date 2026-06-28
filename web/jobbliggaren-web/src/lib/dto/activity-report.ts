@@ -3,8 +3,9 @@ import { z } from "zod";
 // AF activity-report read model (issue #316). Job metadata is nullable: a
 // soft-deleted JobAd or a degenerate cover-letter-only application yields no
 // employer/title/location; a manual posting has no location. The FE renders a
-// neutral "—" and no copy button for an empty field. nullable + optional gives
-// deploy-skew resilience (an older cached response missing a field still parses).
+// neutral "Saknas" placeholder and no copy button for an empty field. nullable +
+// optional gives deploy-skew resilience (an older cached response missing a
+// field still parses).
 export const activityReportItemDtoSchema = z.object({
   applicationId: z.string(),
   appliedAt: z.string(),

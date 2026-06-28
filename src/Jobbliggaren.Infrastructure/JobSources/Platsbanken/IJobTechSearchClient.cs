@@ -11,17 +11,6 @@ namespace Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 internal interface IJobTechSearchClient
 {
     /// <summary>
-    /// Sökmotor-endpoint. Default fritext + paginering. Konkret filtrering
-    /// (occupation-concept-id, location-concept-id) tillkommer i TD-70.
-    /// </summary>
-    [Get("/search")]
-    Task<JobTechSearchResponse> SearchAsync(
-        [Query] string? q = null,
-        [Query] int offset = 0,
-        [Query] int limit = 100,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Per-ID-fetch mot <c>jobsearch.api.jobtechdev.se/ad/{id}</c>. Använd av
     /// <c>BackfillJobAdSsykJob</c> för att re-hämta enskilda annonser vars
     /// raw_payload importerades före 2026-05-20-`JobTechHit.Occupation`-fixen

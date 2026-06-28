@@ -26,10 +26,15 @@ import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
  *   SISTA graden håller switchen PÅ (tom = alla visas igen) — "av" styrs nu av
  *   switchen, inte av att man avmarkerar bort allt (beteendeändring, issue #292).
  *
- * Honesty (CLAUDE.md §5 / ADR 0076): kontrollen erbjuder EXAKT Grund/Bra/Stark
- * — ALDRIG Toppmatch (listfiltret är Fast-bandet, kan inte beräkna Topp).
- * Ingen magnitud-visualisering (ingen stapel/mätare/fyllnad) — graderna är
- * namngivna kategorier (Goodhart). En prick/kryssruta + namn, inget annat.
+ * Honesty (CLAUDE.md §5 / ADR 0076): kontrollen erbjuder EXAKT Basic/Good/Strong
+ * med labels "Grundmatch"/"Bra match"/"Stark match" — IDENTISKA med kort-badgen
+ * (issue #291). ALDRIG Toppmatch: listfiltret är Fast-bandet och kan inte beräkna
+ * Topp (kräver CV mot annonsens krav på den Fulla per-kort-vägen); Topp visas
+ * bara som badge på kort/modal. Toolbar-hjälptexten förklarar det och lovar
+ * aldrig exakt göm (#298-beslut (iii)). Ingen magnitud-visualisering (ingen
+ * stapel/mätare/fyllnad) — graderna är namngivna kategorier (Goodhart). En
+ * prick/kryssruta + namn, inget annat. Grad-taxonomins SSOT-doc:
+ * `lib/dto/job-ad-match.ts` (LIST_MATCH_GRADES).
  *
  * Renderas BARA när `hasStatedDesiredOccupation` är true (föräldern gatar) —
  * graden kan inte beräknas utan angivet yrke (paritet med match-sort-
@@ -66,8 +71,10 @@ interface JobbMatchGradeFilterProps {
   onTurnOn: () => void;
 }
 
-// Renderas i ordinal ordning (Grund → Bra → Stark). LIST_MATCH_GRADES är SPOT
-// för de tre filtrerbara graderna (job-ad-match.ts) — `Top` finns inte här.
+// Renderas i ordinal ordning (Grundmatch → Bra match → Stark match).
+// LIST_MATCH_GRADES är SPOT för de tre filtrerbara graderna (job-ad-match.ts) —
+// `Top` finns inte här. Labels resolveras via `gradeFilter.grade.*`, identiska
+// med `match.grade.*` (badge) per issue #291 (drift-guard-pinnat i parity-testet).
 const GRADES: ReadonlyArray<ListMatchGrade> = LIST_MATCH_GRADES;
 
 export function JobbMatchGradeFilter({

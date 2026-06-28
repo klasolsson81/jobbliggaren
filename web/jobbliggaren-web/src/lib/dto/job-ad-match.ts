@@ -30,14 +30,49 @@ export const matchGradeSchema = z.enum(["Strong", "Good", "Basic", "Top"]);
 export type MatchGrade = z.infer<typeof matchGradeSchema>;
 
 /**
- * STEG 5 (grade-filter, 2026-06-23) — de grader /jobb-listfiltret kan filtrera
- * på. EXAKT `Basic` | `Good` | `Strong` — `Top` är medvetet UTESLUTET: listans
- * grade-filter är Fast-bandet och kan inte beräkna Toppmatch (honest by design;
- * backend-validatorn 400:ar `Top`). Wire-formen är enum-NAMN (svenska labels
- * Grund/Bra/Stark lever bara i UI). Ordningen är Goodhart-medvetet ordinal
- * (Grund → Bra → Stark) men listan poängsätter aldrig — den filtrerar på
- * namngivna kategorier. `as const` så `LIST_MATCH_GRADES.includes` ger en
- * bekväm typvakt i page-validatorn (drop unknown/Top tyst).
+ * Grad-taxonomin (issue #291 — SSOT-dokumentation av de fyra nivåerna + var de
+ * lever). Det finns FYRA grader, men listfiltret kan bara erbjuda TRE.
+ *
+ * Nivåer (svag → stark), svenska labels från `match.grade.*`:
+ *   Basic  = "Grundmatch"  — yrket matchar, men inga bekräftade sekundärsignaler.
+ *   Good   = "Bra match"   — yrket + minst en av region/anställning bekräftad.
+ *   Strong = "Stark match" — du möter annonsens ska-krav (requirement-backed).
+ *   Top    = "Toppmatch"   — Stark PLUS att CV-kompetenser/meriterande överlappar.
+ *
+ * Varför filtret bara har Grund/Bra/Stark (Top UTESLUTET, honest by design):
+ * listans grad-filter + sort kör FAST-BANDET (preferens-byggt: yrke + region +
+ * anställning, DEK-fritt och cachebart, ADR 0045 300 ms-budget). Det bandet kan
+ * INTE beräkna Toppmatch — Top kräver CV-kompetenser mot annonsens krav på den
+ * FULLA, DEK-värmda per-kort-vägen. Backend-validatorn 400:ar därför `Top` som
+ * filtervärde. Toppmatch syns som badge på kort + i modalen, aldrig som
+ * filter-kryssruta.
+ *
+ * Samma vokabulär filter ↔ badge ↔ modal (issue #291 AC): `gradeFilter.grade.*`
+ * (filtret) och `match.grade.*` (badge/modal, via `MatchChip`) bär IDENTISKA ord
+ * för Basic/Good/Strong. Likheten pinnas av ett drift-guard-test
+ * (`jobads-parity.test.ts`) så de aldrig glider isär igen (regressionen som
+ * öppnade #291).
+ *
+ * Fast/Full-divergens (ADR 0076 §4 G3-OPT-A / #298-beslut (iii)): filtret
+ * smalnar på Fast-bandet medan badgen visar den requirement-aware Fulla graden.
+ * Det är två KOHERENTA men skilda axlar — att avmarkera en grad döljer därför
+ * inte garanterat varje kort som visar just det ordet. Accepterat och
+ * dokumenterat; `gradeFilter.help` lovar medvetet ALDRIG exakt göm (ingen
+ * BE-ändring per (iii)).
+ *
+ * Forward-not — `Related` (ADR 0084, Accepted 2026-06-28): en femte rung
+ * `MatchGrade.Related` ("Relaterat yrke") placeras MELLAN Basic och Good.
+ * `Related` ÄR Fast-beräkningsbar (till skillnad från Top) och blir därför en
+ * filtrerbar grad bakom en "Visa relaterade också"-toggle (off by default).
+ * Dess FE är #300:s egen PR-5 (ännu obyggd; ingen backend emitterar `Related`
+ * ännu). När den landar: lägg `Related` i `matchGradeSchema`, i
+ * `LIST_MATCH_GRADES` (mellan Basic och Good) och i `*.grade.Related` i bägge
+ * katalogerna. Tas medvetet INTE in här (skulle skeppa död UI + krocka lanen).
+ *
+ * Wire-formen är enum-NAMN (svenska labels lever bara i UI). `as const` så
+ * `LIST_MATCH_GRADES.includes` ger en bekväm typvakt i page-validatorn (drop
+ * unknown/Top tyst). Ordningen är Goodhart-medvetet ordinal men listan
+ * poängsätter aldrig — den filtrerar på namngivna kategorier.
  */
 export const LIST_MATCH_GRADES = ["Basic", "Good", "Strong"] as const;
 export type ListMatchGrade = (typeof LIST_MATCH_GRADES)[number];

@@ -75,22 +75,22 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
     for (const box of boxes) {
       expect(box).toHaveAttribute("aria-checked", "true");
     }
-    expect(screen.getByText("Grund")).toBeInTheDocument();
-    expect(screen.getByText("Bra")).toBeInTheDocument();
-    expect(screen.getByText("Stark")).toBeInTheDocument();
+    expect(screen.getByText("Grundmatch")).toBeInTheDocument();
+    expect(screen.getByText("Bra match")).toBeInTheDocument();
+    expect(screen.getByText("Stark match")).toBeInTheDocument();
   });
 
   it("PÅ + delmängd → bara de valda kryssrutorna ikryssade", () => {
     renderFilter({ active: true, selected: ["Good", "Strong"] });
-    expect(screen.getByRole("checkbox", { name: "Grund" })).toHaveAttribute(
+    expect(screen.getByRole("checkbox", { name: "Grundmatch" })).toHaveAttribute(
       "aria-checked",
       "false",
     );
-    expect(screen.getByRole("checkbox", { name: "Bra" })).toHaveAttribute(
+    expect(screen.getByRole("checkbox", { name: "Bra match" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
-    expect(screen.getByRole("checkbox", { name: "Stark" })).toHaveAttribute(
+    expect(screen.getByRole("checkbox", { name: "Stark match" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
@@ -100,7 +100,7 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
     const user = userEvent.setup();
     // Tom selected = alla visas → avmarkera Grund → kvar Bra+Stark.
     renderFilter({ active: true, selected: [] });
-    await user.click(screen.getByRole("checkbox", { name: "Grund" }));
+    await user.click(screen.getByRole("checkbox", { name: "Grundmatch" }));
     expect(onChange).toHaveBeenCalledWith(["Good", "Strong"]);
   });
 
@@ -108,7 +108,7 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
     const user = userEvent.setup();
     // Bara Stark vald; avmarkera → [] (alla visas igen), INTE av.
     renderFilter({ active: true, selected: ["Strong"] });
-    await user.click(screen.getByRole("checkbox", { name: "Stark" }));
+    await user.click(screen.getByRole("checkbox", { name: "Stark match" }));
     expect(onChange).toHaveBeenCalledWith([]);
     expect(onTurnOff).not.toHaveBeenCalled();
   });
@@ -117,7 +117,7 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
     const user = userEvent.setup();
     // Endast Stark valt; lägg till Grund → ordinal [Basic, Strong].
     renderFilter({ active: true, selected: ["Strong"] });
-    await user.click(screen.getByRole("checkbox", { name: "Grund" }));
+    await user.click(screen.getByRole("checkbox", { name: "Grundmatch" }));
     expect(onChange).toHaveBeenCalledWith(["Basic", "Strong"]);
   });
 
@@ -125,21 +125,21 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
     const user = userEvent.setup();
     // Basic + Strong valt; markera Bra → alla tre → normaliseras till [].
     renderFilter({ active: true, selected: ["Basic", "Strong"] });
-    await user.click(screen.getByRole("checkbox", { name: "Bra" }));
+    await user.click(screen.getByRole("checkbox", { name: "Bra match" }));
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
   it("kryssruta aktiveras med tangentbord (Space) — a11y", async () => {
     const user = userEvent.setup();
     renderFilter({ active: true, selected: [] });
-    const stark = screen.getByRole("checkbox", { name: "Stark" });
+    const stark = screen.getByRole("checkbox", { name: "Stark match" });
     stark.focus();
     await user.keyboard(" ");
     // Tom selected = alla visas → avmarkera Stark → kvar Grund+Bra.
     expect(onChange).toHaveBeenCalledWith(["Basic", "Good"]);
   });
 
-  it("erbjuder ALDRIG Toppmatch (endast Grund/Bra/Stark)", () => {
+  it("erbjuder ALDRIG Toppmatch (endast Grundmatch/Bra match/Stark match)", () => {
     renderFilter({ active: true, selected: ["Basic", "Good", "Strong"] });
     expect(screen.queryByText("Topp")).toBeNull();
     expect(screen.queryByText("Toppmatch")).toBeNull();

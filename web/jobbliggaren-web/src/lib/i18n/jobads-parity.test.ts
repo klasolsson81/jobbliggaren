@@ -21,6 +21,17 @@ function leafPaths(obj: unknown, prefix = ""): string[] {
   return out.sort();
 }
 
+// Slår upp ett löv via dot-path (unknown + guards, ingen `any`). Returnerar
+// `undefined` om någon nivå saknas.
+function leaf(obj: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((acc, key) => {
+    if (acc !== null && typeof acc === "object" && key in acc) {
+      return (acc as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj);
+}
+
 describe("jobads i18n-paritet (sv ↔ en)", () => {
   it("sv och en har identisk nyckel-struktur", () => {
     expect(leafPaths(enJobads)).toEqual(leafPaths(svJobads));
@@ -50,5 +61,30 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
     const en = new Set(leafPaths(enJobads));
     expect(sv.has("ui.gradeFilter.grade.Top")).toBe(false);
     expect(en.has("ui.gradeFilter.grade.Top")).toBe(false);
+  });
+
+  // issue #291 — drift-guard: filtret (`gradeFilter.grade.*`) och kort-badgen
+  // (`match.grade.*`, via MatchChip) MÅSTE bära IDENTISKA ord för de tre
+  // filtrerbara graderna. Det var just den driften (Grund/Bra/Stark vs
+  // Grundmatch/Bra match/Stark match) som öppnade #291. Pinnas i bägge
+  // katalogerna så vokabulären inte kan glida isär igen.
+  it("filter-graderna delar EXAKT samma ord som kort-badgen (sv + en)", () => {
+    const catalogs: ReadonlyArray<[string, unknown]> = [
+      ["sv", svJobads],
+      ["en", enJobads],
+    ];
+    for (const [locale, catalog] of catalogs) {
+      for (const grade of ["Basic", "Good", "Strong"] as const) {
+        const filterLabel = leaf(catalog, `ui.gradeFilter.grade.${grade}`);
+        const badgeLabel = leaf(catalog, `ui.match.grade.${grade}`);
+        expect(typeof filterLabel, `${locale} ${grade} filter-label saknas`).toBe(
+          "string",
+        );
+        expect(
+          filterLabel,
+          `${locale} ${grade}: filter "${String(filterLabel)}" ≠ badge "${String(badgeLabel)}"`,
+        ).toBe(badgeLabel);
+      }
+    }
   });
 });

@@ -1,4 +1,8 @@
-import type { ApplicationStatus, FollowUpOutcome } from "@/lib/types/applications";
+import type {
+  ApplicationAttentionSignal,
+  ApplicationStatus,
+  FollowUpOutcome,
+} from "@/lib/dto/applications";
 
 export type BadgeVariant = "Info" | "Brand" | "Success" | "Warning" | "Danger" | "Neutral";
 
@@ -143,4 +147,70 @@ export function getAllowedTransitions(status: ApplicationStatus): ApplicationSta
 
 export function isDestructiveTransition(target: ApplicationStatus): boolean {
   return DESTRUCTIVE_STATUSES.includes(target);
+}
+
+// ─── Attention feed (#343, ADR 0085) ──────────────────────────────────────
+//
+// The firing RULE lives on the backend (ApplicationAttentionEvaluator, SSOT —
+// CLAUDE.md §5 / ADR 0071); the FE only consumes the already-decided
+// `attentionSignal`. The constants below are pure DISPLAY metadata — feed order
+// + i18n key + colour bucket — mirroring the existing STATUS_BADGE_VARIANT
+// helpers (CLAUDE.md §9.1 DRY). They never decide WHETHER a signal fires.
+
+/**
+ * Display order of the pinned "Kräver åtgärd" feed — most urgent first. Mirrors
+ * the backend enum order so the feed reads the same priority the evaluator
+ * encodes (offer → overdue → draft-deadline → no-response → nudge). This is
+ * DISPLAY ordering only, NOT the firing rule. "None" is not listed: a "None"/
+ * undefined signal is never lifted into the feed.
+ */
+export const ATTENTION_SIGNAL_ORDER: Exclude<
+  ApplicationAttentionSignal,
+  "None"
+>[] = [
+  "OfferAwaitingReply",
+  "OverdueFollowUp",
+  "DraftDeadlineApproaching",
+  "NoResponseLong",
+  "ProactiveFollowUpNudge",
+];
+
+/**
+ * Colour bucket for the feed item's leading indicator, emitted as a
+ * `data-signal` attribute the `.jp-attention__dot` CSS resolves to a status
+ * token. NEVER green (green = interaction/grade, design-reviewer bind): offer →
+ * success, the overdue/deadline/no-response trio → warning, the proactive nudge
+ * → info. Colour only REINFORCES; the reason text carries the meaning
+ * (WCAG 1.4.1 — not colour alone).
+ */
+export const ATTENTION_SIGNAL_BUCKET: Record<
+  Exclude<ApplicationAttentionSignal, "None">,
+  "success" | "warning" | "info"
+> = {
+  OfferAwaitingReply: "success",
+  OverdueFollowUp: "warning",
+  DraftDeadlineApproaching: "warning",
+  NoResponseLong: "warning",
+  ProactiveFollowUpNudge: "info",
+};
+
+/**
+ * Attention signal → `applications.ui.attention.reason.{signal}` i18n key.
+ * Typed against the firing signals (no "None"), so the caller cannot ask for a
+ * reason line for a non-firing signal.
+ */
+export function attentionReasonKey(
+  signal: Exclude<ApplicationAttentionSignal, "None">,
+): `reason.${Exclude<ApplicationAttentionSignal, "None">}` {
+  return `reason.${signal}`;
+}
+
+/**
+ * Narrowing guard: a signal that actually lifts an application into the feed.
+ * Treats missing/undefined (deploy-skew) and "None" identically — no attention.
+ */
+export function isFiringSignal(
+  signal: ApplicationAttentionSignal | undefined,
+): signal is Exclude<ApplicationAttentionSignal, "None"> {
+  return signal != null && signal !== "None";
 }

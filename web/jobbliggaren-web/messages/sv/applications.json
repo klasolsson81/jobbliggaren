@@ -76,7 +76,19 @@
       "statusBarAriaLabel": "Status",
       "all": "Alla",
       "emptyTitle": "Inga ansökningar i den här statusen",
-      "emptyBody": "Välj en annan flik eller skapa en ny ansökan."
+      "emptyBody": "Välj en annan flik eller skapa en ny ansökan.",
+      "attentionTitle": "Kräver åtgärd",
+      "sectionShownOfTotal": "visar {shown} av {total}",
+      "showMore": "Visa fler ({count})"
+    },
+    "attention": {
+      "reason": {
+        "OfferAwaitingReply": "Erbjudande väntar på svar.",
+        "OverdueFollowUp": "Uppföljningen har passerat sin tid.",
+        "DraftDeadlineApproaching": "Utkastet stänger snart för ansökan.",
+        "NoResponseLong": "Inget svar på länge.",
+        "ProactiveFollowUpNudge": "Dags att följa upp."
+      }
     },
     "followUps": {
       "sectionLabel": "Uppföljningar",

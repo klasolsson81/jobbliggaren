@@ -3571,41 +3571,67 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-pill--warning { background: var(--jp-warning-bg); color: var(--jp-warning); border-color: var(--jp-warning); }
 .jp-pill--danger  { background: var(--jp-danger-bg);  color: var(--jp-danger);  border-color: var(--jp-danger); }
 
-/* ── Applications: status tabs + sections ────────── */
-.jp-statusbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 18px 0 32px;
-  padding: 14px;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
+/* ── Applications: prioritised pipeline (#343, ADR 0085) ──────────
+   Tidigare statusbar-filtret (.jp-statusbar*) är borttaget. Kollaps är
+   navigerings-/skalningsmekanismen (RULING 2). "Kräver åtgärd"-feeden pinnas
+   överst (boxlös), statussektioner kollapsar via en knapp-head. */
+
+/* "Kräver åtgärd"-feed: boxlös (transparent, ingen kant/radie/skugga på
+   blocket). Rubriken bär den ENDA emfasen mot statussektionerna via en
+   STARKARE 2px-underlinje (--jp-border-strong vs sektionernas --jp-border). */
+.jp-attention {
+  margin-top: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
-.jp-statusbar__item {
-  display: inline-flex;
+.jp-attention__title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  letter-spacing: -0.01em;
+  color: var(--jp-ink-1);
+  border-bottom: 2px solid var(--jp-border-strong);
+}
+/* Varje lyft item: en orsaksrad ÖVANFÖR den återbrukade rad-noden. All
+   feed-unik dekoration bor i wrappern. Rad-noden (.jp-app) delas med ledgern
+   och rörs ALDRIG (design-reviewer-bind). */
+.jp-attention__item {
+  margin-bottom: 12px;
+}
+.jp-attention__reason {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
-  border-radius: var(--jp-r-pill);
+  margin: 0 0 6px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  /* Aldrig grå: informationsbärande text, hög kontrast (WCAG 1.4.1). */
   color: var(--jp-ink-1);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
 }
-.jp-statusbar__item:hover { background: var(--jp-surface-3); }
-.jp-statusbar__item[data-active="true"] {
-  background: var(--jp-ink-1);
-  color: var(--jp-ink-inverse);
+.jp-attention__text {
+  /* Löpande prosa capad till ~68ch (WCAG 1.4.8). */
+  max-width: 68ch;
 }
-.jp-statusbar__count {
-  font-family: var(--jp-font-mono);
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.85;
+/* Liten färgkodad indikator. Färgen REINFORCERAR; texten bär meningen.
+   ALDRIG grön (grön = interaktion/grad). Buckets: success/warning/info. */
+.jp-attention__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-ink-3);
+}
+.jp-attention__reason[data-signal="success"] .jp-attention__dot {
+  background: var(--jp-success);
+}
+.jp-attention__reason[data-signal="warning"] .jp-attention__dot {
+  background: var(--jp-warning);
+}
+.jp-attention__reason[data-signal="info"] .jp-attention__dot {
+  background: var(--jp-info);
 }
 
 .jp-section {
@@ -3629,6 +3655,51 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-family: var(--jp-font-mono);
   font-size: 14px;
   color: var(--jp-ink-2);
+}
+
+/* ── Prioriterad pipeline: kollapsbar sektions-head (#343) ──────────
+   WAI accordion: en <h2>.jp-section__heading wrappar knappen. Wrappern bär
+   ingen layout (margin:0) — knappen (.jp-section__head .jp-section__toggle) bär
+   flex/underlinjen. Allt nedan är SCOPAT till .jp-section__toggle så de delade
+   .jp-section__head/__title/__count-reglerna (oversikt + guest-vyer) inte
+   påverkas. */
+.jp-section__heading {
+  margin: 0;
+  font: inherit;
+}
+.jp-section__toggle {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--jp-border);
+  cursor: pointer;
+  text-align: left;
+  align-items: center;
+  color: inherit;
+}
+/* Titel-typografin flyttad från .jp-section__title (h2) till en inre span,
+   eftersom h2 nu är wrappern. Samma 20px/700/letter-spacing. */
+.jp-section__title-text {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.jp-section__toggle .jp-section__count {
+  margin-left: auto;
+}
+.jp-section__chevron {
+  flex-shrink: 0;
+  color: var(--jp-ink-2);
+  transition: transform 150ms ease;
+}
+.jp-section__chevron[data-open="false"] {
+  transform: rotate(-90deg);
+}
+.jp-section__more {
+  margin-top: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-section__chevron { transition: none; }
 }
 
 /* ── Application row (mina ansökningar) ───────────

@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
@@ -7,6 +8,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -31,6 +33,12 @@ public class GetPipelineQueryHandlerIntegrationTests
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
+
+    // #343: the read handlers now inject IOptions<ApplicationAttentionOptions> to
+    // stamp AttentionSignal. The defaults (FollowUpNudgeDays=7, DraftDeadlineDays=5)
+    // are what these tests assert against.
+    private static readonly IOptions<ApplicationAttentionOptions> AttentionOptions =
+        Options.Create(new ApplicationAttentionOptions());
 
     public GetPipelineQueryHandlerIntegrationTests(ApiFactory factory)
     {
@@ -58,7 +66,7 @@ public class GetPipelineQueryHandlerIntegrationTests
 
         await SeedSeekerAsync(db, clock, _userId);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -75,7 +83,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         currentUser.UserId.Returns((Guid?)null);
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetPipelineQueryHandler(db, currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -101,7 +109,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(submitted);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -127,7 +135,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -153,7 +161,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(submitted);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -192,7 +200,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(rejected);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -224,7 +232,7 @@ public class GetPipelineQueryHandlerIntegrationTests
 
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -250,7 +258,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -272,7 +280,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -296,7 +304,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -328,7 +336,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Entry(followUp).Property(f => f.DeletedAt).CurrentValue = clock.UtcNow;
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -353,7 +361,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -378,7 +386,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -399,7 +407,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -407,5 +415,83 @@ public class GetPipelineQueryHandlerIntegrationTests
         dto.LastStatusChangeAt.ShouldBe(app.LastStatusChangeAt, TimeSpan.FromSeconds(1));
         dto.GhostedThresholdDays.ShouldBe(21); // per-aggregate default, reused by signal 4
         dto.HasOverdueFollowUp.ShouldBeFalse();
+    }
+
+    // #343 (ADR 0085 §3, CTO Option a) — the handler stamps AttentionSignal in-memory
+    // via ApplicationAttentionEvaluator (the SSOT). The full rule matrix is unit-tested
+    // in ApplicationAttentionEvaluatorTests; these prove the WIRING (signal flows from
+    // Evaluate onto the projected DTO) for cases reachable with the real clock.
+
+    [Fact]
+    public async Task Handle_StampsAttentionSignal_OfferReceived_AsOfferAwaitingReply()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        app.TransitionTo(ApplicationStatus.Acknowledged, clock);
+        app.TransitionTo(ApplicationStatus.InterviewScheduled, clock);
+        app.TransitionTo(ApplicationStatus.Interviewing, clock);
+        app.TransitionTo(ApplicationStatus.OfferReceived, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "OfferReceived").Applications.Single();
+        dto.AttentionSignal.ShouldBe(ApplicationAttentionSignal.OfferAwaitingReply);
+    }
+
+    [Fact]
+    public async Task Handle_StampsAttentionSignal_OverdueFollowUp_ForSubmittedWithPastPendingFollowUp()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        app.AddFollowUp(FollowUpChannel.Email, clock.UtcNow.AddDays(-1), null, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        // Signal 2 (overdue follow-up) outranks the proactive nudge — Evaluate returns
+        // the single highest-priority signal.
+        dto.AttentionSignal.ShouldBe(ApplicationAttentionSignal.OverdueFollowUp);
+    }
+
+    [Fact]
+    public async Task Handle_StampsAttentionSignal_None_ForRecentlySubmittedWithoutFollowUp()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+
+        var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
+        app.TransitionTo(ApplicationStatus.Submitted, clock);
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Submitted").Applications.Single();
+        // Submitted just now: within the 7-day nudge and 21-day ghosted windows, no
+        // follow-up → None. Proves the "Kräver åtgärd" feed is not a dumping ground —
+        // a calm application surfaces no signal.
+        dto.AttentionSignal.ShouldBe(ApplicationAttentionSignal.None);
     }
 }

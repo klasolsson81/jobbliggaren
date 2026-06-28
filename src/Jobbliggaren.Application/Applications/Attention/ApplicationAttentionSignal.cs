@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jobbliggaren.Application.Applications.Attention;
 
 /// <summary>
@@ -11,7 +13,16 @@ namespace Jobbliggaren.Application.Applications.Attention;
 /// proactive nudge. The evaluator returns the first signal that fires in this
 /// order.
 /// </para>
+///
+/// <para>
+/// Serialized by NAME, not ordinal (<c>[JsonStringEnumConverter]</c>, parity with
+/// <c>MatchGrade</c> / <c>DigestCadence</c> / <c>NotificationStatus</c>): the read
+/// DTO carries this signal across the API as e.g. <c>"OverdueFollowUp"</c>, which
+/// the /ansokningar Zod schema binds as a string union. Without the converter the
+/// wire value would be the int <c>0</c> (None) and the FE enum parse would break.
+/// </para>
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ApplicationAttentionSignal
 {
     /// <summary>The application does not currently require action.</summary>

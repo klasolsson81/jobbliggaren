@@ -76,7 +76,19 @@
       "statusBarAriaLabel": "Status",
       "all": "All",
       "emptyTitle": "No applications in this status",
-      "emptyBody": "Select another tab or create a new application."
+      "emptyBody": "Select another tab or create a new application.",
+      "attentionTitle": "Needs action",
+      "sectionShownOfTotal": "showing {shown} of {total}",
+      "showMore": "Show more ({count})"
+    },
+    "attention": {
+      "reason": {
+        "OfferAwaitingReply": "Offer awaiting your reply.",
+        "OverdueFollowUp": "Follow-up is past due.",
+        "DraftDeadlineApproaching": "Draft deadline is approaching.",
+        "NoResponseLong": "No reply for a long time.",
+        "ProactiveFollowUpNudge": "Time to follow up."
+      }
     },
     "followUps": {
       "sectionLabel": "Follow-ups",

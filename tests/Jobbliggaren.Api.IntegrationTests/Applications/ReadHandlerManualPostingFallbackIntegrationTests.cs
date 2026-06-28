@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Applications.Queries.GetApplicationById;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
@@ -10,6 +11,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -42,6 +44,9 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
+
+    private static readonly IOptions<ApplicationAttentionOptions> AttentionOptions =
+        Options.Create(new ApplicationAttentionOptions());
 
     public ReadHandlerManualPostingFallbackIntegrationTests(ApiFactory factory)
     {
@@ -101,7 +106,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -130,7 +135,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -165,7 +170,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -189,7 +194,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
             DomainApplication.Create(otherSeeker.Id, null, null, ManualVo(), clock).Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         result.Items.Count.ShouldBe(1);
@@ -317,7 +322,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -341,7 +346,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -368,7 +373,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -399,12 +404,44 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
         db.ChangeTracker.Clear();
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         // Application själv finns kvar (ej soft-deletad), men JobAd-grenen
         // faller ut via JobAd:s query-filter + DefaultIfEmpty → JobAd == null.
         var dto = result.Items.ShouldHaveSingleItem();
         dto.JobAd.ShouldBeNull();
+    }
+
+    // ---------------------------------------------------------------
+    // #343 (ADR 0085 §3, CTO Option a) — the draft-deadline attention signal (5)
+    // reads JobAd?.ExpiresAt, which the handler populates from ManualPosting.ExpiresAt
+    // when there is no linked JobAd. Pins that the signal is NOT silently lost on the
+    // manual-posting fallback branch (architect's flagged case).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task GetPipeline_ManualPostingDraftClosingSoon_StampsDraftDeadlineApproaching()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+        // Draft (Create defaults to Draft) with a manual posting closing in 3 days —
+        // inside the default DraftDeadlineDays = 5 window. The signal must fire from the
+        // ManualPosting.ExpiresAt fallback, not just from a linked JobAd.
+        var manualClosingSoon = ManualPosting.Create(
+            "Manuell titel", "Manuellt företag", "https://example.com/manuell",
+            clock.UtcNow.AddDays(3)).Value;
+        var app = DomainApplication.Create(seeker.Id, null, null, manualClosingSoon, clock).Value;
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var dto = result.First(g => g.Status == "Draft").Applications.Single();
+        dto.AttentionSignal.ShouldBe(ApplicationAttentionSignal.DraftDeadlineApproaching);
     }
 }

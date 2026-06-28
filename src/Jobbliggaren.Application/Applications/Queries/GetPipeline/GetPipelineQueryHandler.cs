@@ -1,13 +1,16 @@
+using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.Applications.Queries.GetPipeline;
 
 public sealed class GetPipelineQueryHandler(
-    IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock)
+    IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock,
+    IOptions<ApplicationAttentionOptions> attentionOptions)
     : IQueryHandler<GetPipelineQuery, IReadOnlyList<PipelineGroupDto>>
 {
     public async ValueTask<IReadOnlyList<PipelineGroupDto>> Handle(
@@ -81,7 +84,20 @@ public sealed class GetPipelineQueryHandler(
                 r.a.GhostedThresholdDays))
             .ToListAsync(cancellationToken);
 
+        // #343 (ADR 0085 §3, CTO Option a): stamp the attention signal in-memory over
+        // the already-materialised rows. ApplicationAttentionEvaluator.Evaluate is the
+        // SSOT and is not SQL-translatable, so it runs after ToListAsync — pure CPU over
+        // the bounded (<=500) set: no extra DB round-trip, no query-plan change (the
+        // in-memory note folds into the #348 ADR 0045 re-validation thread). Lockstep
+        // with GetApplicationsQueryHandler so the shared ApplicationDto never carries a
+        // lie on either read path (#342 invariant). Priority order is already encoded —
+        // Evaluate returns the single highest-priority signal.
+        var options = attentionOptions.Value;
         return rows
+            .Select(dto => dto with
+            {
+                AttentionSignal = ApplicationAttentionEvaluator.Evaluate(dto, options, now),
+            })
             .GroupBy(r => r.Status)
             .Select(g => new PipelineGroupDto(g.Key, g.Count(), g.ToList()))
             .ToList();

@@ -338,6 +338,39 @@ describe("MatchSetupWizard — kompetens-steget (STEG 3 / ADR 0079)", () => {
     expect(await screen.findByText("SQL")).toBeInTheDocument();
     expect(skillSuggestMock).not.toHaveBeenCalled();
   });
+
+  it("steg 5 visar LABEL (inte rått concept-id) för en MANUELLT tillagd kompetens (#253)", async () => {
+    // #253: en manuellt sökt+tillagd kompetens fick sin label bara i
+    // SkillSections interna store. Utan att wizarden fångar den speglade storen
+    // renderade review-steget det råa concept-id:t. BE-söket returnerar labeln.
+    skillSearchMock.mockResolvedValue({
+      success: true,
+      options: [{ conceptId: "jBKc_5Yx_Y6T", label: "Maskininlärning" }],
+    });
+    const user = userEvent.setup();
+    renderWizard();
+
+    // Steg 2: öppna "Lägg till kompetens", sök, addera träffen som chip.
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    await user.click(screen.getByRole("button", { name: "Lägg till kompetens" }));
+    await user.type(screen.getByRole("searchbox"), "maskin");
+    await user.click(
+      await screen.findByRole("button", { name: /Maskininlärning/ })
+    );
+
+    // Navigera till sammanfattningen (steg 5). SkillSection avmonteras men
+    // wizarden har redan fångat den speglade labeln.
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 2 → 3
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 3 → 4
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 4 → 5
+
+    // Kompetens-gruppen i sammanfattningen visar LABELN, ALDRIG det råa id:t.
+    const reviewSkills = screen.getByRole("group", { name: "Kompetenser" });
+    expect(
+      within(reviewSkills).getByText("Maskininlärning")
+    ).toBeInTheDocument();
+    expect(within(reviewSkills).queryByText("jBKc_5Yx_Y6T")).toBeNull();
+  });
 });
 
 describe("MatchSetupWizard — CV-prefill in i steg 1", () => {

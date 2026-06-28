@@ -205,6 +205,21 @@ export function MatchSetupWizard({
     ...(proposedSkills ?? []),
   ];
 
+  // #253: labels för MANUELLT tillagda kompetenser (sök-träffar i steg 2) lever
+  // bara i SkillSections interna label-store. Utan att spegla ut dem hit renderade
+  // steg-5-sammanfattningen (och en steg-2-återgång efter avmontering) det råa
+  // concept-id:t. SkillSection mirror:ar HELA sin label-store (seed ∪ sök ∪ CV) via
+  // onLabelsChange; vi fångar den så review-steget och en remount kan slå upp namnet.
+  const [discoveredSkillLabels, setDiscoveredSkillLabels] = useState<
+    ReadonlyArray<Option>
+  >([]);
+  // Alla kända skill-labels: seed (persisterade + welcome-förslag) ∪ upptäckta
+  // (sök/CV). Map-uppslag i labelsForSelected dedupar på concept-id.
+  const allSkillLabels: ReadonlyArray<Option> = [
+    ...skillSeedLabels,
+    ...discoveredSkillLabels,
+  ];
+
   const [isSaving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -243,6 +258,9 @@ export function MatchSetupWizard({
     // in WITHOUT overwriting a persisted/user value (`seedOccupationExperience`
     // below). So a user/persisted value wins over the CV-derived one.
     setDraftOccupationExperience(recordFromOccupationExperience(persistedOccupationExperience));
+    // #253: re-discover manual-skill labels per opening (SkillSection re-mirrors its
+    // store on mount); seed/welcome labels remain available via allSkillLabels.
+    setDiscoveredSkillLabels([]);
     setSaveError(null);
   }
   if (!open && seededFor) {
@@ -419,7 +437,7 @@ export function MatchSetupWizard({
             occupationYearsValue={(years) =>
               t("matchPrefs.occupation.reviewYearsValue", { years })
             }
-            skills={labelsForSelected(draftSkills, skillSeedLabels)}
+            skills={labelsForSelected(draftSkills, allSkillLabels)}
             orter={[
               ...labelsForSelected(draftRegions, regionOptions),
               ...labelsForSelected(draftMunicipalities, municipalityOptions),
@@ -482,7 +500,12 @@ export function MatchSetupWizard({
                   onClear={() => setDraftSkills([])}
                   idPrefix="match-wizard-skill"
                   showHeading={false}
-                  initialLabels={skillSeedLabels}
+                  // #253: seed with ALL known labels (incl. previously-discovered
+                  // search labels) so a remount after navigating away keeps showing
+                  // names, and capture the section's mirrored store so the step-5
+                  // summary can resolve manually-added skills (not their raw id).
+                  initialLabels={allSkillLabels}
+                  onLabelsChange={setDiscoveredSkillLabels}
                   // Förhämtade förslag (welcome-flödet) → draften är redan
                   // seedad, staging-artefakten finns inte längre → ingen
                   // auto-suggest. Annars läser parsed-vägen (just uppladdat CV).

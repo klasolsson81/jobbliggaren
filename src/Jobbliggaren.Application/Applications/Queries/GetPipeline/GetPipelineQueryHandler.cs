@@ -77,8 +77,17 @@ public sealed class GetPipelineQueryHandler(
                 // FollowUp global query filter (FollowUpConfiguration.cs:43, ADR 0048 c —
                 // one SPOT, no duplicate DeletedAt predicate in the handler), pinned by
                 // Handle_ProjectsHasOverdueFollowUp_FalseForSoftDeletedFollowUp.
-                // Index shape + ADR 0045 latency re-validation tracked in #348
-                // (today: the application_id FK index only).
+                // #348 RESOLVED (measured 2026-06-30, EXPLAIN ANALYZE @ 60k apps /
+                // 181k follow_ups): the application_id FK index already index-serves
+                // this EXISTS (Bitmap Index Scan on ix_follow_ups_application_id, NO
+                // seqscan); the 500-row worst case runs ~1.6-2.5 ms warm — ≈2 orders
+                // of magnitude under the ADR 0045 p95 budget, which stays observe-only
+                // (§2.5). No index added. Pre-selected remedy if a ratchet fires
+                // (follow-ups-per-application grows materially / Klas ratchets): a
+                // partial (application_id, scheduled_at) WHERE deleted_at IS NULL AND
+                // outcome = 'Pending' (Index-Only-Scan, ~2x, 2.3 MB). A composite
+                // (application_id, scheduled_at) was measured and rejected (no warm
+                // gain, 2x storage). See ADR 0085 §3.
                 r.a.FollowUps.Any(f =>
                     f.Outcome == FollowUpOutcome.Pending && f.ScheduledAt < now),
                 r.a.GhostedThresholdDays))

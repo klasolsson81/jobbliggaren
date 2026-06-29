@@ -9,6 +9,7 @@ import applications from "./applications.json";
 import common from "./common.json";
 import contentFaq from "./content-faq.json";
 import contentLegal from "./content-legal.json";
+import contentMatchning from "./content-matchning.json";
 import contentTips from "./content-tips.json";
 import errors from "./errors.json";
 import guest from "./guest.json";
@@ -28,6 +29,7 @@ const messages = {
   common,
   "content-faq": contentFaq,
   "content-legal": contentLegal,
+  "content-matchning": contentMatchning,
   "content-tips": contentTips,
   errors,
   guest,

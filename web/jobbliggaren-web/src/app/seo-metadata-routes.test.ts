@@ -53,6 +53,7 @@ describe("sitemap.ts", () => {
       `${SITE_URL}/villkor`,
       `${SITE_URL}/tips`,
       `${SITE_URL}/vanliga-fragor`,
+      `${SITE_URL}/matchning`,
     ]);
   });
 

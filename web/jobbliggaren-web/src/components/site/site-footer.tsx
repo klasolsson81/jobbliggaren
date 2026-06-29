@@ -52,6 +52,7 @@ type FooterLinkKey =
   | "footer.start.login"
   | "footer.start.guest"
   | "footer.support.help"
+  | "footer.support.howMatching"
   | "footer.support.faq"
   | "footer.support.tips"
   | "footer.support.accessibility"
@@ -103,8 +104,9 @@ const COLUMNS: readonly FooterColumn[] = [
     headKey: "footer.colSupport",
     links: [
       { labelKey: "footer.support.help", href: null },
-      { labelKey: "footer.support.faq", href: null },
-      { labelKey: "footer.support.tips", href: null },
+      { labelKey: "footer.support.howMatching", href: "/matchning" },
+      { labelKey: "footer.support.faq", href: "/vanliga-fragor" },
+      { labelKey: "footer.support.tips", href: "/tips" },
       { labelKey: "footer.support.accessibility", href: null },
     ],
   },

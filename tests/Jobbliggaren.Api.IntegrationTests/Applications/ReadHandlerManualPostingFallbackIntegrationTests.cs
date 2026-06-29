@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -218,7 +219,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var handler = new GetApplicationByIdQueryHandler(
-            db, _currentUser, Substitute.For<IFailedAccessLogger>());
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
         var result = await handler.Handle(
             new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -242,7 +243,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var handler = new GetApplicationByIdQueryHandler(
-            db, _currentUser, Substitute.For<IFailedAccessLogger>());
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
         var result = await handler.Handle(
             new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -272,7 +273,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var handler = new GetApplicationByIdQueryHandler(
-            db, _currentUser, Substitute.For<IFailedAccessLogger>());
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
         var result = await handler.Handle(
             new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -296,7 +297,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         await SeedSeekerAsync(db, clock, _userId);
 
         var logger = Substitute.For<IFailedAccessLogger>();
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, logger);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, logger, Substitute.For<ITaxonomyReadModel>());
 
         var result = await handler.Handle(
             new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);

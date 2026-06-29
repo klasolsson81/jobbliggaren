@@ -1,7 +1,6 @@
 using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +9,12 @@ using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Applications.Commands;
 
+// #315 / ADR 0086 (D4 final ruling: concept-id-at-read). Write-handlern rör
+// INTE taxonomi-ACL:en — den fryser JobAd:ens råa MunicipalityConceptId (STORED
+// shadow) som-den-är; namn-resolvering sker på läs-vägen
+// (GetApplicationByIdQueryHandler). Ctorn är därför tillbaka till 3 argument
+// (db, currentUser, clock) — ingen ITaxonomyReadModel. Det codifierade
+// read-side-only-invariantet för porten (TaxonomyAclLayerTests) hålls intakt.
 public class CreateApplicationFromJobAdCommandHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -63,6 +68,19 @@ public class CreateApplicationFromJobAdCommandHandlerTests
         // "Har ansökt" → Submitted (not Draft) and stamps AppliedAt (#316/#332).
         app.Status.ShouldBe(Jobbliggaren.Domain.Applications.ApplicationStatus.Submitted);
         app.AppliedAt.ShouldBe(_clock.UtcNow);
+
+        // #315 (ADR 0086): an AdSnapshot is captured from the seeded JobAd's fields
+        // at apply-time. MunicipalityConceptId is null here — InMemory does not
+        // compute the STORED municipality shadow column (the raw concept-id capture
+        // is exercised against Postgres in Api.IntegrationTests). NO taxonomy
+        // interaction on the write side (D4 final ruling).
+        app.AdSnapshot.ShouldNotBeNull();
+        app.AdSnapshot.Title.ShouldBe("Backendutvecklare");
+        app.AdSnapshot.Company.ShouldBe("Acme AB");
+        app.AdSnapshot.Source.ShouldBe(JobSource.Manual.Value);
+        app.AdSnapshot.Description.ShouldBe("Beskrivning");
+        app.AdSnapshot.MunicipalityConceptId.ShouldBeNull();
+        app.AdSnapshot.CapturedAt.ShouldBe(_clock.UtcNow);
     }
 
     [Fact]

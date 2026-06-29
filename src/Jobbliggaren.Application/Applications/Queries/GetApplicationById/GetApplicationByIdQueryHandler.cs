@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,8 @@ namespace Jobbliggaren.Application.Applications.Queries.GetApplicationById;
 public sealed class GetApplicationByIdQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    ITaxonomyReadModel taxonomy)
     : IQueryHandler<GetApplicationByIdQuery, ApplicationDetailDto?>
 {
     public async ValueTask<ApplicationDetailDto?> Handle(
@@ -83,6 +85,23 @@ public sealed class GetApplicationByIdQueryHandler(
                 (DateTimeOffset?)null, manual.ExpiresAt)
             : null;
 
+        // #315 (ADR 0086): the preserved ad-text snapshot, mapped from the
+        // materialised aggregate's owned VO. The municipality is captured as a raw
+        // concept-id (write-side purity, ADR 0086 D4) and resolved to a name HERE,
+        // on the read path, via the taxonomy ACL (this read handler is an
+        // allowlisted ITaxonomyReadModel consumer — TaxonomyAclLayerTests; the
+        // #316 activity-report pattern). Graceful null on drift/absence — an opaque
+        // concept-id never reaches the user (§5). null for manual/cover-letter-only
+        // and pre-#315 applications.
+        AdSnapshotDto? preservedAd = null;
+        if (app.AdSnapshot is { } snap)
+        {
+            var location = await ResolveLocationAsync(snap.MunicipalityConceptId, cancellationToken);
+            preservedAd = new AdSnapshotDto(
+                snap.Title, snap.Company, location, snap.Url, snap.Source,
+                snap.PublishedAt, snap.ExpiresAt, snap.Description, snap.CapturedAt);
+        }
+
         return new ApplicationDetailDto(
             app.Id.Value,
             app.JobSeekerId.Value,
@@ -97,6 +116,26 @@ public sealed class GetApplicationByIdQueryHandler(
                 f.Outcome.Name, f.OutcomeAt, f.CreatedAt))],
             [.. app.Notes.Select(n => new NoteDto(
                 n.Id.Value, n.Content, n.CreatedAt))],
-            jobAd);
+            jobAd,
+            preservedAd);
+    }
+
+    // Resolve the snapshot's frozen municipality concept-id to a human name at
+    // read-time (ADR 0086 D4). Graceful null when absent or unresolvable —
+    // dropping the port's "Okänd kod (id)" fallback so an opaque concept-id is
+    // never surfaced (§5; TaxonomyLabels = single owner of the fallback format).
+    // Mirrors the #316 activity-report resolution.
+    private async Task<string?> ResolveLocationAsync(
+        string? municipalityConceptId, CancellationToken cancellationToken)
+    {
+        if (municipalityConceptId is null)
+            return null;
+
+        var labels = await taxonomy.ResolveLabelsAsync([municipalityConceptId], cancellationToken);
+        var label = labels.FirstOrDefault(l => l.ConceptId == municipalityConceptId);
+
+        return label is not null && !TaxonomyLabels.IsUnresolved(label)
+            ? label.Label
+            : null;
     }
 }

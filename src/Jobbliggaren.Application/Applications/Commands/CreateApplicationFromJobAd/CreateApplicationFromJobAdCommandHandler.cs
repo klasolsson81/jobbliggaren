@@ -17,13 +17,19 @@ namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJo
 /// ansökt" is misleading). The Draft→Submitted transition stamps
 /// <c>AppliedAt</c> (issue #316), so the job appears in the activity report.
 ///
-/// Precondition: JobAd existerar och är inte soft-deletad (global query
-/// filter på <c>db.JobAds</c> respekteras automatiskt). Använder befintlig
-/// <see cref="DomainApplication.Create"/>-factory med <c>jobAdId</c>-arg +
-/// <c>coverLetter=null, manualPosting=null</c> — ingen ny Domain-yta krävs
-/// (ADR 0048 Beslut d — write-side-disciplin respekterad: ingen
-/// snapshot-/duplicering, ADR 0048 in-handler-read-join visar JobAd-
-/// metadata på read-vägen).
+/// #315 (ADR 0086): this is the capture point for the ad-text SNAPSHOT. The ad's
+/// fields are PROJECTED (not the JobAd aggregate materialised — dotnet-architect
+/// B2) into a frozen <see cref="AdSnapshot"/> stored on the Application, so the
+/// ad content survives the source JobAd being archived. The municipality is
+/// captured as the raw <c>MunicipalityConceptId</c> STORED shadow property (via
+/// EF.Property) and resolved to a name on the READ path (ADR 0086 D4, final
+/// ruling): the write side stays free of <c>ITaxonomyReadModel</c>, honouring the
+/// project's codified read-side-only ACL invariant (TaxonomyAclLayerTests). The
+/// projection inherits the JobAd global query filter (DeletedAt == null) so a
+/// soft-deleted ad yields no row → NotFound — exactly the prior <c>AnyAsync</c>
+/// precondition. This is the deliberate write-side amendment of ADR 0048 Beslut
+/// (d): the read-path reference-by-id stance is unchanged; the snapshot is an
+/// additive, orthogonal write-side concern.
 /// </summary>
 public sealed class CreateApplicationFromJobAdCommandHandler(
     IAppDbContext db,
@@ -49,18 +55,44 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
 
         var jobAdId = new JobAdId(command.JobAdId);
 
-        // Precondition: JobAd måste existera (global query filter exkluderar
-        // soft-deletade) — vi vill inte skapa Application kopplad till en
-        // borttagen annons. NotFound om saknas.
-        var jobAdExists = await db.JobAds
+        // Project the snapshot-relevant JobAd fields (ADR 0086 / ADR 0048 Beslut d
+        // amendment): a one-time write-side copy, NOT materialising the JobAd
+        // aggregate (dotnet-architect B2). The MunicipalityConceptId STORED shadow
+        // property is read via EF.Property (the #316 pattern) and FROZEN as-is — it
+        // is resolved to a name on the read path, keeping this write handler free
+        // of the taxonomy ACL port (ADR 0086 D4). The global query filter
+        // (DeletedAt == null) is inherited → a soft-deleted ad yields no row →
+        // NotFound, replacing the prior AnyAsync existence precondition.
+        var jobAdData = await db.JobAds
             .AsNoTracking()
-            .AnyAsync(j => j.Id == jobAdId, cancellationToken);
+            .Where(j => j.Id == jobAdId)
+            .Select(j => new JobAdSnapshotSource(
+                j.Title,
+                j.Company.Name,
+                j.Description,
+                j.Url,
+                j.Source.Value,
+                j.PublishedAt,
+                j.ExpiresAt,
+                EF.Property<string?>(j, "MunicipalityConceptId")))
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (!jobAdExists)
+        if (jobAdData is null)
             return Result.Failure<Guid>(DomainError.NotFound("JobAd", command.JobAdId));
 
-        var result = DomainApplication.Create(
-            jobSeekerId, jobAdId, coverLetter: null, manualPosting: null, clock);
+        var snapshot = AdSnapshot.Capture(
+            jobAdData.Title,
+            jobAdData.Company,
+            jobAdData.MunicipalityConceptId,
+            jobAdData.Url,
+            jobAdData.Source,
+            jobAdData.PublishedAt,
+            jobAdData.ExpiresAt,
+            jobAdData.Description, // sanitised JobAd.Description — NEVER raw_payload (ADR 0086 D5)
+            clock.UtcNow);
+
+        var result = DomainApplication.CreateFromJobAd(
+            jobSeekerId, jobAdId, snapshot, coverLetter: null, clock);
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);
 
@@ -75,4 +107,17 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
 
         return Result.Success(result.Value.Id.Value);
     }
+
+    // Private projection shape for the snapshot capture (a record, not an
+    // anonymous type, so the EF projection has a named target the rest of the
+    // handler reads).
+    private sealed record JobAdSnapshotSource(
+        string Title,
+        string Company,
+        string Description,
+        string Url,
+        string Source,
+        DateTimeOffset PublishedAt,
+        DateTimeOffset? ExpiresAt,
+        string? MunicipalityConceptId);
 }

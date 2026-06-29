@@ -11,6 +11,18 @@ public sealed class Application : AggregateRoot<ApplicationId>
     public JobSeekerId JobSeekerId { get; private set; }
     public JobAdId? JobAdId { get; private set; }
     public ManualPosting? ManualPosting { get; private set; }
+
+    /// <summary>
+    /// Frozen copy of the linked JobAd's text, captured at apply-time so the ad
+    /// content survives the source ad being archived (issue #315, ADR 0086).
+    /// Owned value object; present only on JobAd-linked applications
+    /// (snapshot ⇒ <see cref="JobAdId"/>, enforced structurally by
+    /// <see cref="CreateFromJobAd"/> — the only writer; <see cref="Create"/>
+    /// never sets a snapshot). Minimised (its description dropped) on the user's
+    /// terminal transition; see <see cref="TransitionTo"/>.
+    /// </summary>
+    public AdSnapshot? AdSnapshot { get; private set; }
+
     public string? CoverLetter { get; private set; }
     public ResumeVersionId? ResumeVersionId { get; private set; }
     public ApplicationStatus Status { get; private set; } = null!;
@@ -50,11 +62,13 @@ public sealed class Application : AggregateRoot<ApplicationId>
         JobAdId? jobAdId,
         string? coverLetter,
         ManualPosting? manualPosting,
+        AdSnapshot? adSnapshot,
         DateTimeOffset now) : base(id)
     {
         JobSeekerId = jobSeekerId;
         JobAdId = jobAdId;
         ManualPosting = manualPosting;
+        AdSnapshot = adSnapshot;
         CoverLetter = coverLetter;
         Status = ApplicationStatus.Draft;
         CreatedAt = now;
@@ -90,7 +104,47 @@ public sealed class Application : AggregateRoot<ApplicationId>
 
         var now = clock.UtcNow;
         var id = ApplicationId.New();
-        var application = new Application(id, jobSeekerId, jobAdId, coverLetter?.Trim(), manualPosting, now);
+        var application = new Application(id, jobSeekerId, jobAdId, coverLetter?.Trim(), manualPosting, adSnapshot: null, now);
+        application.RaiseDomainEvent(
+            new ApplicationCreatedDomainEvent(id, jobSeekerId, jobAdId, now));
+        return Result.Success(application);
+    }
+
+    /// <summary>
+    /// Creates a JobAd-linked application carrying a frozen <see cref="AdSnapshot"/>
+    /// of the ad's text (issue #315, ADR 0086). Dedicated factory: this is the
+    /// ONLY writer that sets a snapshot, and it always sets a <paramref name="jobAdId"/>,
+    /// so the snapshot ⇒ JobAdId invariant holds structurally (symmetry with the
+    /// <see cref="ManualPosting"/> XOR; a JobAd-linked application is never manual,
+    /// so <see cref="ManualPosting"/> is always null here). Capture (loading the
+    /// JobAd fields + resolving the ort name) happens upstream in the handler; the
+    /// aggregate receives an already-built, validation-free snapshot value object.
+    /// </summary>
+    public static Result<Application> CreateFromJobAd(
+        JobSeekerId jobSeekerId,
+        JobAdId jobAdId,
+        AdSnapshot adSnapshot,
+        string? coverLetter,
+        IDateTimeProvider clock)
+    {
+        ArgumentNullException.ThrowIfNull(adSnapshot);
+
+        if (jobSeekerId == default)
+            return Result.Failure<Application>(
+                DomainError.Validation("Application.JobSeekerIdRequired", "JobSeekerId krävs."));
+
+        if (jobAdId == default)
+            return Result.Failure<Application>(
+                DomainError.Validation("Application.JobAdIdRequired", "JobAdId krävs."));
+
+        if (coverLetter is not null && coverLetter.Length > 10_000)
+            return Result.Failure<Application>(
+                DomainError.Validation("Application.CoverLetterTooLong", "Personligt brev får vara max 10 000 tecken."));
+
+        var now = clock.UtcNow;
+        var id = ApplicationId.New();
+        var application = new Application(
+            id, jobSeekerId, jobAdId, coverLetter?.Trim(), manualPosting: null, adSnapshot, now);
         application.RaiseDomainEvent(
             new ApplicationCreatedDomainEvent(id, jobSeekerId, jobAdId, now));
         return Result.Success(application);
@@ -115,6 +169,18 @@ public sealed class Application : AggregateRoot<ApplicationId>
         // thread (issue #316; senior-cto-advisor 2026-06-28 D3 amendment).
         if (target == ApplicationStatus.Submitted && AppliedAt is null)
             AppliedAt = clock.UtcNow;
+
+        // Retention / GDPR data-minimisation (issue #315, ADR 0086 D3, GDPR Art.
+        // 5(1)(c)): on the user's TERMINAL transition (Accepted/Rejected/
+        // Withdrawn) only, drop the bulky preserved ad body, keeping the minimal
+        // stats/identity metadata (title/employer/location/dates). NEVER cleared
+        // because the source ad disappeared — that is exactly when it is needed.
+        // Idempotent, mirroring the AppliedAt stamp above. Ghosted is not
+        // terminal (reactivatable), so the body is never minimised there; and
+        // terminal statuses have no outgoing transitions, so a re-activation
+        // cannot regress an already-minimised snapshot.
+        if (IsTerminal(target))
+            AdSnapshot = AdSnapshot?.WithoutDescription();
 
         RaiseDomainEvent(
             new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, clock.UtcNow));
@@ -142,10 +208,20 @@ public sealed class Application : AggregateRoot<ApplicationId>
     /// delete-guard (BUILD §5.6) lists the three terminals explicitly in SQL
     /// because a SmartEnum property does not translate.
     /// </summary>
-    public bool CanAttachResumeVersion() =>
-        Status != ApplicationStatus.Accepted &&
-        Status != ApplicationStatus.Rejected &&
-        Status != ApplicationStatus.Withdrawn;
+    public bool CanAttachResumeVersion() => !IsTerminal(Status);
+
+    /// <summary>
+    /// A terminal kanban status (Accepted/Rejected/Withdrawn) — no outgoing
+    /// transitions (ApplicationStatus.cs). Distinct from
+    /// <see cref="IsClosedForActivity"/>, which ALSO counts Ghosted (closed for
+    /// follow-ups, but reactivatable, so NOT terminal). Single source for the
+    /// three-terminal check reused by <see cref="CanAttachResumeVersion"/> and
+    /// the snapshot-retention rule in <see cref="TransitionTo"/>.
+    /// </summary>
+    private static bool IsTerminal(ApplicationStatus status) =>
+        status == ApplicationStatus.Accepted ||
+        status == ApplicationStatus.Rejected ||
+        status == ApplicationStatus.Withdrawn;
 
     /// <summary>
     /// Links the exact CV version used for this application (F4-11, BUILD §5.3).
@@ -233,9 +309,10 @@ public sealed class Application : AggregateRoot<ApplicationId>
         RaiseDomainEvent(new ApplicationDeletedDomainEvent(Id, JobSeekerId, clock.UtcNow));
     }
 
+    // Closed for follow-up activity: the three terminals PLUS Ghosted. Ghosted
+    // is deliberately included here (no activity on a ghosted thread) but is NOT
+    // terminal (it is reactivatable) — see IsTerminal (architect M3: do not let
+    // IsTerminal swallow this intentionally wider scope).
     private bool IsClosedForActivity() =>
-        Status == ApplicationStatus.Accepted ||
-        Status == ApplicationStatus.Rejected ||
-        Status == ApplicationStatus.Withdrawn ||
-        Status == ApplicationStatus.Ghosted;
+        IsTerminal(Status) || Status == ApplicationStatus.Ghosted;
 }

@@ -132,3 +132,51 @@ ADR 0038 §41 löste placeholder-frågan smalt (borttagning i sök/filter-fält,
 
 - jobbpilot-design-skills (`.claude/skills/jobbpilot-design-components/SKILL.md`, `.claude/skills/jobbpilot-design-copy/SKILL.md`) — regeln kodifierad där.
 - ADR 0042 implementerings-notat 2026-05-17 (samma session — relaterad design-stängning).
+
+---
+
+## Amendment 2026-06-29 — informationsbärande siffror i läsbar sans (låg-syn-glyf-golv)
+
+**Datum:** 2026-06-29
+**Källa:** senior-cto-advisor binding `CTO-376-A-numerals-to-sans` (issue #376); Klas co-binder estetiken vid rendered-verify (§12 design-token-grind).
+**Trigger:** Issue #376 (P1, hårt a11y-krav): §1.1-målanvändaren kan inte entydigt skilja siffror satta i appens monospace (JetBrains Mono) — `0` förväxlas med `8`, `6`/`8` tvetydiga. Rapporterat live på landningens header-stats, men gäller alla ~26 globals.css-klasser som använder `--jp-font-mono` för informationsbärande tal (header-/landning-stats, resultaträkning, sektion-/list-/notis-räknare, hero/pagehero-chip-tal, datum/tider, criterion-siffror).
+**Beslutsfattare:** senior-cto-advisor (binding token `CTO-376-A-numerals-to-sans`); Klas Olsson (estetisk co-bind vid rendered-verify per §12).
+**Status:** Accepted. Additivt — ADR 0038:s ursprungliga mono-doktrin i §Beslut (Mono-avsnittet) är funktionellt upphävd för SIFFER-innehåll; brödtexten lämnas orörd per ADR-immutabilitet.
+
+### Kontext för amendment
+
+ADR 0038 §Beslut (Mono-avsnittet) definierade `--jp-font-mono` 13px/500 som typsnitt för "mono inline-data som användaren läser (datum, ID, räknare)". JetBrains Mono default-nolla är prickad (löser `0`/`O`-förväxling) men löser inte `0`/`8`- eller `6`/`8`-förväxling — glyf-formerna är otillräckligt isärskilja för en synnedsatt användare (DESIGN.md §1.1-målanvändare).
+
+Tre alternativ utreddes (web-research 2026-06-29):
+
+- **Approach A — byt till Hanken Grotesk (sans) + `font-variant-numeric: tabular-nums`** för informationsbärande siffror. Löser glyf-problemet i sin helhet; tabular-nums bevarar kolumn-justering.
+- **Approach B — behåll JetBrains Mono + aktivera `font-feature-settings: "zero" 1` (slashed-zero).** Avvisad på teknisk grund: web-research 2026-06-29 bekräftar att slashed-zero inte fungerar på Google-Fonts-subsetet av JetBrains Mono (upstream-issues google/fonts #7881, JetBrains/JetBrainsMono #551) — aktivering kräver separat font-binär — och löser ändå bara `0`, inte `8`/`6` (glyf-form opåverkad).
+- **Approach C — hybrid: mono kvar på vissa ytor, sans på andra (differentierat per yt-typ).** Avvisad: splittrar regeln på yt-typ i stället för styrande princip → framtida drift (CCP-brott, Martin *Clean Architecture* kap. 13).
+
+CTO valde Approach A.
+
+### Beslut
+
+Informationsbärande siffror — antal, belopp, datum, tider, räknare, stats och ID-/SSYK-siffror som användaren läser och agerar på — sätts i Hanken Grotesk (sans, `--font-sans`/`--jp-font-sans`) med `font-variant-numeric: tabular-nums`. `tabular-nums` är progressive enhancement: bevarar kolumn-justering och gör tabellliknande listor metriskt stabila.
+
+Monospace (`--jp-font-mono`) behålls ENDAST för bokstavs-/kod-identifierare och versala caps-labels (mono-kickers, kolumnrubriker, `SV`/`EN`, versionssträngar, opaka stöd-koder som `.jp-criterion__id`) där rollen är *etikett/kod*, inte *läs talet*.
+
+**Styrande princip (framtida klasser följer denna regel):** bär siffran innebörd användaren agerar på → sans + `tabular-nums`; är det dekorativ struktur eller opak kod → mono OK.
+
+Detta utsträcker ADR 0038:s GOV.UK-läsbarhetsgolv från skala/färg/fältstorlek till **siffer-glyfform**.
+
+### Implementation
+
+~26 globals.css-klasser med `--jp-font-mono` för informationsbärande tal flippas till `--jp-font-sans` + `font-variant-numeric: tabular-nums` (PR för issue #376). DESIGN.md §4 omkalibreras parallellt (mono-doktrinen uppdateras). Inga nya tokens eller klasser tillkommer — ändringen sker på existerande klasser (AC#5-konfirm).
+
+### Relation till ADR 0038 Beslut-brödtext
+
+§Beslut Mono-avsnittet ("Mono inline-data som användaren läser (datum, ID, räknare) → 13px/500, färg text-secondary/primary.") är **funktionellt upphävd** för siffer-innehåll av detta amendment: dessa klasser sätts nu i sans. Caps-labels och kod-identifierare i mono är oförändrade. Civic-ledger-formen (flata tabeller, hairlines, inga cards) är oförändrad. Brödtexten lämnas orörd per ADR-immutabilitet (Nygard 2011) — läsare läser §Beslut tillsammans med detta amendment, där amendmentet har företräde.
+
+### Korsreferens
+
+- Issue #376 (P1 a11y — trigger).
+- DESIGN.md §4 — mono-doktrinen omkalibreras i samma PR.
+- ADR 0052 §Beslut 5 (typografi: "mono **endast** för IDs, datum, antal") — siffer-klausulen (datum/antal) **funktionellt inskränkt** av detta amendment (mono→sans, samma sätt som 0038:s egen mono-doktrin); ADR 0052:s mono-för-koder/labels och övrig typografi-/färgskala består (komplementär, ej supersederad). Forward-not i 0052:s README-rad.
+- `.claude/skills/jobbpilot-design-tokens` (`text-mono`-raden) — synkad i samma PR till siffer-doktrinen (skill speglar DESIGN.md §4, drift-skydd per DESIGN.md §2).
+- web-research 2026-06-29: google/fonts #7881, JetBrains/JetBrainsMono #551 (slashed-zero ej tillgänglig i Google-Fonts-subset).

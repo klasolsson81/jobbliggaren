@@ -42,6 +42,16 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// NOT worktime-extent, so the isolation key never perturbs the grade — every seeded ad
 /// (incl. untagged, SSYK not-Match) is in the filtered mass before the grade-WHERE runs.
 /// </para>
+/// <para>
+/// <b>The UNIFIED Fast/Full rule (#371/#382, senior-cto-advisor bind):</b> the /jobb list's
+/// SORT + grade-FILTER + headline-COUNT all pin to the FAST band
+/// (<see cref="MatchGradeCalculator.Grade(MatchScore)"/>, mirrored in SQL); the card BADGE is the
+/// Full requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore)"/>, F1(b)-gated).
+/// The Fast/Full divergence is bound + bidirectional + oracle-pinned (G3-OPT-A) — a Fast-Strong ad in
+/// the <c>{Strong}</c> filter bucket can carry a Full BADGE of Top (up) OR Good (down) and that is by
+/// design, never drift. The sort-side twin is pinned in <see cref="MatchSortOracleTests"/>; the
+/// filter-side pin is the divergence test below. See ADR 0076 (amendment) and issues #371/#382.
+/// </para>
 /// </summary>
 [Collection("Api")]
 public class MatchSortGradeFilterOracleTests(ApiFactory factory)
@@ -665,5 +675,182 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             "Strong-bandet är taket: grad-filtret returnerar den starkaste Fast-annonsen " +
             "(och bara den) — det finns ingen Top-nivå att filtrera på i Fast-bandet.");
         page.TotalCount.ShouldBe(1);
+    }
+
+    // ===============================================================
+    // 6. #371/#382 (RE-BIND G3-OPT-A — the FILTER-side twin of MatchSortOracleTests'
+    //    SearchByMatch_DoesNotSeparateSameFastTupleByMustHave_WhileGradeWould_DivergenceG3OptA).
+    //    The UNIFIED rule: SORT + grade-FILTER + headline-COUNT all rank on the Fast band
+    //    (Grade(MatchScore)); the card BADGE is the Full requirement-aware grade
+    //    (Grade(FullMatchScore), F1(b)-gated). Fast is an honest COARSENING of Full (no
+    //    Kind-separated must-have-lexeme column → Fast can compute neither Top nor the F1(b)
+    //    degrade). So an ad in the ?matchGrades=Strong bucket (Fast-Strong) can carry a Full
+    //    BADGE of Top (UP) or Good (DOWN, F1(b) degrade). This is the #371 manifestation, and
+    //    it is BOUND (Fast filter ≡ Fast band; badge = Full; they diverge by design), never drift.
+    //
+    //    Provenance-safe overlap (F4-2/F4-3 lesson): BOTH ads carry the SAME skill concept-id in
+    //    extracted_terms and that id sits in the CV-skill set; the fullTop ad ALSO puts it in its
+    //    must_have partition (covered → must-have Match → Top), while the fullGood ad's must_have is
+    //    a DISJOINT term the CV does not cover (must-have NoMatch/Partial → not requirement-backed →
+    //    Good). The CV top-5 plaintext set (filter/Fast path) is identical for both → SAME Fast-Strong
+    //    bucket; the full CV-skill set (badge/Full path) sees different must-have coverage → Top vs Good.
+    //
+    //    Helpers below (SkillTerm / MustHaveTerm / SeedJobAdWithTermsAsync / ProfileWithCvSkill +
+    //    the SharedSkill/OtherMustHave consts) are deliberately COPIED from MatchSortOracleTests
+    //    (kept self-contained per the scaffold convention — this oracle never shares mutable state
+    //    with the sort oracle).
+    // ===============================================================
+
+    private const string SharedSkillConceptId = "skill-shared-gradefilter-1";
+    private const string SharedSkillDisplay = "Delad-skill";
+    private const string OtherMustHaveConceptId = "skill-other-musthave-gradefilter-1";
+    private const string OtherMustHaveDisplay = "Annat-skallkrav";
+
+    private static ExtractedTerm SkillTerm(string conceptId, string display) =>
+        new(
+            Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Skill,
+            Source: ExtractedTermSource.Description, MatchedOn: display,
+            ConceptId: conceptId, Weight: 1);
+
+    private static ExtractedTerm MustHaveTerm(string conceptId, string display) =>
+        new(
+            Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Requirement,
+            Source: ExtractedTermSource.MustHave, MatchedOn: display,
+            ConceptId: conceptId, Weight: 1);
+
+    // Same seeding as SeedJobAdAsync, plus an extracted_terms VO (→ STORED extracted_lexemes GIN
+    // for the Fast top-5 skill overlap AND the in-memory must-have partition the Full grade reads).
+    private async Task<JobAdId> SeedJobAdWithTermsAsync(
+        string runWorktimeExtent,
+        string? occupationGroupConceptId,
+        string? regionConceptId,
+        string? employmentTypeConceptId,
+        DateTimeOffset publishedAt,
+        ExtractedTerms terms,
+        CancellationToken ct)
+    {
+        var externalId = $"ext-{Guid.NewGuid():N}";
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var rawPayload = BuildRawPayload(
+            externalId, occupationGroupConceptId, regionConceptId,
+            runWorktimeExtent, employmentTypeConceptId);
+
+        var jobAd = JobAd.Import(
+            title: "Gradefilter-divergence-annons",
+            company: Company.Create("Test Company AB").Value,
+            description: "beskrivning",
+            url: $"https://example.com/jobs/{externalId}",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: rawPayload,
+            publishedAt: publishedAt,
+            expiresAt: clock.UtcNow.AddDays(30),
+            clock: clock).Value;
+
+        jobAd.SetExtractedTerms(terms);
+
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(ct);
+        return jobAd.Id;
+    }
+
+    // A FULL profile whose CV-skill set contains the shared skill (so BOTH ads overlap on skill
+    // for the Fast/filter path AND the Full grade's must-have set-difference is computable).
+    private static FullCandidateMatchProfile ProfileWithCvSkill(params string[] cvSkillConceptIds) =>
+        new(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: ExactGroups,
+                PreferredRegionConceptIds: [PrefRegion],
+                PreferredEmploymentTypeConceptIds: [PrefEmployment],
+                PreferredMunicipalityConceptIds: []),
+            cvSkillConceptIds);
+
+    [Fact]
+    public async Task GradeFilter_StrongBand_ContainsAds_WhoseFullBadgeDiffers_BoundDivergenceG3OptA()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // BOTH ads: SAME Fast-Strong tuple (occ + region + employment all Match → Fast rank Strong)
+        // and BOTH carry the shared skill term (equal Fast top-5 skill overlap — no Fast split).
+        // fullTop:  must_have = the shared skill (CV covers it) + a Skill term → Full grade Top.
+        // fullGood: must_have = a DISJOINT must-have (CV does NOT cover) + a Skill term → Full grade
+        //           Good (F1(b) degrade — not requirement-backed, but both secondaries confirmed).
+        var fullTopTerms = ExtractedTerms.From(
+        [
+            SkillTerm(SharedSkillConceptId, SharedSkillDisplay),
+            MustHaveTerm(SharedSkillConceptId, SharedSkillDisplay),
+        ]);
+        var fullGoodTerms = ExtractedTerms.From(
+        [
+            SkillTerm(SharedSkillConceptId, SharedSkillDisplay),
+            MustHaveTerm(OtherMustHaveConceptId, OtherMustHaveDisplay),
+        ]);
+
+        var fullTop = await SeedJobAdWithTermsAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(2), fullTopTerms, ct);
+        var fullGood = await SeedJobAdWithTermsAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(1), fullGoodTerms, ct);
+
+        var profile = ProfileWithCvSkill(SharedSkillConceptId);
+        var filter = FilterFor(run);
+
+        // ---- Cross-check the SSOT both ways. ----
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var full = await scorer.ScoreFullBatchAsync([fullTop, fullGood], profile, ct);
+
+        // (a) The FAST band (filter/sort/count SSOT) reads Strong for BOTH — same Fast-Strong bucket.
+        MatchGradeCalculator.Grade(full[fullTop].Score.Fast, full[fullTop].SsykIsRelated)
+            .ShouldBe(MatchGrade.Strong,
+                "fullTop ligger i Fast-Strong-bandet (yrke+ort+anställning Match) — det är " +
+                "den bucket grad-filtret gallrar på.");
+        MatchGradeCalculator.Grade(full[fullGood].Score.Fast, full[fullGood].SsykIsRelated)
+            .ShouldBe(MatchGrade.Strong,
+                "fullGood ligger i SAMMA Fast-Strong-band — Fast ser inte must-have, så båda " +
+                "annonserna hamnar i {Strong}-bucketen oavsett sina olika Full-badgar.");
+
+        // (b) The FULL overload (the card BADGE) DIFFERS — Top (up) vs Good (down, F1(b) degrade).
+        var gradeFull_top = MatchGradeCalculator.Grade(full[fullTop].Score);
+        var gradeFull_good = MatchGradeCalculator.Grade(full[fullGood].Score);
+        gradeFull_top.ShouldBe(MatchGrade.Top,
+            "fullTops BADGE = Full requirement-aware Top (must-have Match + båda sekundärer + " +
+            "skill-signal) — \"Toppmatch\".");
+        gradeFull_good.ShouldBe(MatchGrade.Good,
+            "fullGoods BADGE = Full Good (disjunkt must-have ej täckt → F1(b)-degrade under Strong) " +
+            "— \"Bra match\".");
+        gradeFull_top.ShouldNotBe(gradeFull_good,
+            "BADGEN (Full-graden) skiljer de två annonserna åt fastän de delar Fast-Strong-bucket.");
+
+        // ---- The REAL filter: grades:[Strong] (the Fast filter bucket) returns BOTH. ----
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+
+        var page = await query.SearchPerUserAsync(
+            filter, profile, grades: [MatchGrade.Strong], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, page: 1, pageSize: 100, ct);
+
+        var returnedIds = page.Items.Select(i => i.Id).ToHashSet();
+
+        // The load-bearing assertion: the {Strong} filter bucket contains BOTH ads — the one whose
+        // Full BADGE reads "Bra match" (Good) AND the one whose badge reads "Toppmatch" (Top) — because
+        // the filter gates on the Fast band (≡ Fast-Strong for both), REGARDLESS of their differing
+        // Full badges. This IS the #371 manifestation, and it is BOUND (Fast filter ≡ Fast band; badge =
+        // Full; they diverge by design, G3-OPT-A), not drift. The sort-side twin is pinned by
+        // MatchSortOracleTests.SearchByMatch_DoesNotSeparateSameFastTupleByMustHave_WhileGradeWould_DivergenceG3OptA.
+        returnedIds.ShouldBe([fullTop.Value, fullGood.Value], ignoreOrder: true,
+            "{Strong}-grad-filtret ska returnera BÅDA Fast-Strong-annonserna — den vars Full-BADGE " +
+            "är \"Bra match\" (Good) OCH den vars badge är \"Toppmatch\" (Top) — eftersom filtret " +
+            "gallrar på FAST-bandet (≡ Fast-Strong för båda), oberoende av deras olika Full-badgar. " +
+            "Detta är #371-manifestationen: grad-FILTRET pinnar Fast, BADGEN är Full, och de divergerar " +
+            "med avsikt (G3-OPT-A) — bundet, aldrig drift (jfr sort-sidans pin i MatchSortOracleTests).");
+        page.TotalCount.ShouldBe(2,
+            "TotalCount för {Strong} ska vara 2 — räknat över Fast-Strong-bandet (båda annonserna), " +
+            "inte över Full-badgen.");
     }
 }

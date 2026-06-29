@@ -25,6 +25,7 @@ import {
   toggle,
   type Option,
 } from "./match-preferences-shared";
+import type { SkillGroup } from "@/lib/dto/skills";
 import { OccupationSection } from "./occupation-section";
 import { SkillSection } from "./skill-section";
 import { ExperienceField } from "./experience-field";
@@ -55,8 +56,10 @@ interface MatchPreferencesDialogProps {
     readonly conceptId: string;
     readonly years: number | null;
   }>;
-  /** STEG 3 / ADR 0079: labels för sparade kompetens-concept-id (chip-render). */
-  readonly persistedSkillLabels?: ReadonlyArray<Option>;
+  /** STEG 3 / ADR 0079 + #277: GRUPPER för sparade kompetens-concept-id
+   *  (chip-render). Ett sparat twin-par renderas som EN chip via gruppens
+   *  member-id (BE-resolvad cold-load via ResolveSkillLabels). */
+  readonly persistedSkillGroups?: ReadonlyArray<SkillGroup>;
   /**
    * Anropas efter lyckad save med den sparade fulla mängden, så kortet kan
    * anta den lokalt (annars driver kortets klient-state isär från SSOT tills
@@ -75,9 +78,10 @@ interface MatchPreferencesDialogProps {
       readonly conceptId: string;
       readonly years: number | null;
     }>;
-    /** Labels för de sparade kompetenserna så kortet kan rendera namn (skills
-     *  saknar träd-uppslagning). Spegel av SkillSections label-store. */
-    skillLabels: ReadonlyArray<Option>;
+    /** GRUPPER för de sparade kompetenserna så kortet kan rendera EN chip per
+     *  twin-par (skills saknar träd-uppslagning). Spegel av SkillSections
+     *  grupp-store (#277). */
+    skillGroups: ReadonlyArray<SkillGroup>;
   }) => void;
   /** URL till CV-importflödet (tom-state-länken). */
   readonly importCvHref: string;
@@ -96,7 +100,7 @@ export function MatchPreferencesDialog({
   persistedSkills,
   persistedExperienceYears,
   persistedOccupationExperience,
-  persistedSkillLabels = [],
+  persistedSkillGroups = [],
   onSaved,
   importCvHref,
 }: MatchPreferencesDialogProps) {
@@ -134,9 +138,10 @@ export function MatchPreferencesDialog({
   const [draftOccupationExperience, setDraftOccupationExperience] = useState<
     Readonly<Record<string, number | null>>
   >(() => recordFromOccupationExperience(persistedOccupationExperience));
-  // Speglar SkillSections label-store så onSaved kan bära namn ut till kortet.
-  const [skillLabels, setSkillLabels] = useState<ReadonlyArray<Option>>(
-    persistedSkillLabels
+  // Speglar SkillSections grupp-store så onSaved kan bära EN chip per twin-par
+  // ut till kortet (#277).
+  const [skillGroups, setSkillGroups] = useState<ReadonlyArray<SkillGroup>>(
+    persistedSkillGroups
   );
 
   // Save.
@@ -223,7 +228,7 @@ export function MatchPreferencesDialog({
           skills: draftSkills,
           experienceYears: draftExperience,
           occupationExperience,
-          skillLabels,
+          skillGroups,
         });
         onOpenChange(false);
       } else {
@@ -277,13 +282,12 @@ export function MatchPreferencesDialog({
           >
             <SkillSection
               selected={draftSkills}
-              onToggle={(id) => setDraftSkills((prev) => toggle(prev, id))}
               onReplace={(next) => setDraftSkills(next)}
               onClear={() => setDraftSkills([])}
               idPrefix="match-dialog-skill"
               headingId="match-dialog-skill-head"
-              initialLabels={persistedSkillLabels}
-              onLabelsChange={setSkillLabels}
+              initialGroups={persistedSkillGroups}
+              onGroupsChange={setSkillGroups}
             />
             {/* Erfarenhet bor i samma sektion som kompetens (samma steg/host). */}
             <div className="mt-4">

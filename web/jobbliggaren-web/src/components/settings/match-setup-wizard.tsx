@@ -19,12 +19,16 @@ import type {
 import { updateMatchPreferencesAction } from "@/lib/actions/match-preferences";
 import {
   flattenOccupationGroups,
+  groupsForSelected,
   labelsForSelected,
   projectOccupationExperience,
   recordFromOccupationExperience,
+  removeSkillGroup,
   toggle,
   type Option,
+  type SkillChip,
 } from "./match-preferences-shared";
+import type { SkillGroup } from "@/lib/dto/skills";
 import { OccupationSection } from "./occupation-section";
 import { SkillSection } from "./skill-section";
 import { FacetSection } from "./facet-section";
@@ -59,11 +63,12 @@ interface MatchSetupWizardProps {
     readonly years: number | null;
   }>;
   /**
-   * STEG 3 / ADR 0079: labels för redan-sparade kompetens-concept-id (den
+   * STEG 3 / ADR 0079 + #277: GRUPPER för redan-sparade kompetens-concept-id (den
    * platta skill-taxonomin skickas aldrig som träd → värden läser tillbaka
-   * labels när de finns; saknade faller tillbaka på id-strängen).
+   * grupperna när de finns; saknade faller tillbaka på id-strängen). Ett sparat
+   * twin-par renderas som EN chip i steg-5-sammanfattningen.
    */
-  readonly persistedSkillLabels?: ReadonlyArray<Option>;
+  readonly persistedSkillGroups?: ReadonlyArray<SkillGroup>;
   /** Anropas efter lyckad save med den sparade fulla mängden. */
   readonly onSaved?: (saved: {
     occupations: ReadonlyArray<string>;
@@ -97,14 +102,15 @@ interface MatchSetupWizardProps {
    */
   readonly proposedOccupationGroups?: ReadonlyArray<string>;
   /**
-   * STEG 3 / ADR 0079 — welcome-flödet befordrar CV:t FÖRE wizarden, vilket
-   * raderar staging-artefakten som bär CV-kompetens-förslagen. Welcome-modalen
-   * förhämtar dem (med labels, {@link Option}) innan promote och bär in dem hit.
-   * När satt seedas kompetens-draften med dessa förslag och SkillSection
-   * auto-föreslår INTE (staging-artefakten finns inte längre). Utelämnad →
-   * oförändrat (inget CV-förslag i kompetens-steget).
+   * STEG 3 / ADR 0079 + #277 — welcome-flödet befordrar CV:t FÖRE wizarden,
+   * vilket raderar staging-artefakten som bär CV-kompetens-förslagen.
+   * Welcome-modalen förhämtar dem (som {@link SkillGroup}, twin-grupperade) innan
+   * promote och bär in dem hit. När satt seedas kompetens-draften med dessa
+   * förslags member-id (platt union) och SkillSection auto-föreslår INTE
+   * (staging-artefakten finns inte längre). Utelämnad → oförändrat (inget
+   * CV-förslag i kompetens-steget).
    */
-  readonly proposedSkills?: ReadonlyArray<Option>;
+  readonly proposedSkills?: ReadonlyArray<SkillGroup>;
 }
 
 const TOTAL_STEPS = 5;
@@ -139,7 +145,7 @@ export function MatchSetupWizard({
   persistedEmploymentTypes,
   persistedSkills,
   persistedOccupationExperience,
-  persistedSkillLabels = [],
+  persistedSkillGroups = [],
   onSaved,
   importCvHref,
   parsedResumeId,
@@ -197,27 +203,29 @@ export function MatchSetupWizard({
     Readonly<Record<string, number | null>>
   >(() => recordFromOccupationExperience(persistedOccupationExperience));
 
-  // Labels för kompetens-chips: persisterade labels UNION welcome-förslagens
-  // labels (den platta skill-taxonomin skickas aldrig som träd, så SkillSection
-  // saknar annars uppslagning för en seedad chip).
-  const skillSeedLabels: ReadonlyArray<Option> = [
-    ...persistedSkillLabels,
+  // Grupper för kompetens-chips: persisterade grupper UNION welcome-förslagens
+  // grupper (den platta skill-taxonomin skickas aldrig som träd, så SkillSection
+  // saknar annars grupp-uppslagning för en seedad chip). #277.
+  const skillSeedGroups: ReadonlyArray<SkillGroup> = [
+    ...persistedSkillGroups,
     ...(proposedSkills ?? []),
   ];
 
-  // #253: labels för MANUELLT tillagda kompetenser (sök-träffar i steg 2) lever
-  // bara i SkillSections interna label-store. Utan att spegla ut dem hit renderade
-  // steg-5-sammanfattningen (och en steg-2-återgång efter avmontering) det råa
-  // concept-id:t. SkillSection mirror:ar HELA sin label-store (seed ∪ sök ∪ CV) via
-  // onLabelsChange; vi fångar den så review-steget och en remount kan slå upp namnet.
-  const [discoveredSkillLabels, setDiscoveredSkillLabels] = useState<
-    ReadonlyArray<Option>
+  // #253 (#277-grupp-medveten): grupperna för MANUELLT tillagda kompetenser
+  // (sök-träffar i steg 2) lever bara i SkillSections interna grupp-store. Utan
+  // att spegla ut dem hit renderade steg-5-sammanfattningen (och en steg-2-
+  // återgång efter avmontering) det råa concept-id:t. SkillSection mirror:ar HELA
+  // sin grupp-store (seed ∪ sök ∪ CV) via onGroupsChange; vi fångar den så
+  // review-steget och en remount kan slå upp gruppen (EN chip per twin-par).
+  const [discoveredSkillGroups, setDiscoveredSkillGroups] = useState<
+    ReadonlyArray<SkillGroup>
   >([]);
-  // Alla kända skill-labels: seed (persisterade + welcome-förslag) ∪ upptäckta
-  // (sök/CV). Map-uppslag i labelsForSelected dedupar på concept-id.
-  const allSkillLabels: ReadonlyArray<Option> = [
-    ...skillSeedLabels,
-    ...discoveredSkillLabels,
+  // Alla kända skill-grupper: seed (persisterade + welcome-förslag) ∪ upptäckta
+  // (sök/CV). De upptäckta läggs SIST så en rikare twin-grupp från sök vinner
+  // över en singleton-seed för samma canonical (groupsForSelected: last-wins).
+  const allSkillGroups: ReadonlyArray<SkillGroup> = [
+    ...skillSeedGroups,
+    ...discoveredSkillGroups,
   ];
 
   const [isSaving, startSaving] = useTransition();
@@ -243,13 +251,14 @@ export function MatchSetupWizard({
     setDraftRegions(persistedRegions);
     setDraftMunicipalities(persistedMunicipalities);
     setDraftEmployment(persistedEmploymentTypes);
-    // STEG 3 / ADR 0079: seed med persisterad SSOT UNION welcome-flödets
-    // förhämtade CV-kompetens-förslag (de bärs in när staging-artefakten redan
-    // promotats). Erfarenhet seedas direkt (ingen förslags-väg).
+    // STEG 3 / ADR 0079 + #277: seed med persisterad SSOT UNION welcome-flödets
+    // förhämtade CV-kompetens-förslag. Ett förslag är nu en GRUPP → seeda ALLA
+    // dess member-id (platt union, grad-inert) så ett twin-par seedas helt och
+    // renderas som EN chip. Erfarenhet seedas direkt (ingen förslags-väg).
     setDraftSkills([
       ...new Set([
         ...persistedSkills,
-        ...(proposedSkills ?? []).map((s) => s.conceptId),
+        ...(proposedSkills ?? []).flatMap((s) => s.memberConceptIds),
       ]),
     ]);
     // exp-per-occ (ADR 0079-amendment PR-4): seed from the persisted overlay.
@@ -258,9 +267,10 @@ export function MatchSetupWizard({
     // in WITHOUT overwriting a persisted/user value (`seedOccupationExperience`
     // below). So a user/persisted value wins over the CV-derived one.
     setDraftOccupationExperience(recordFromOccupationExperience(persistedOccupationExperience));
-    // #253: re-discover manual-skill labels per opening (SkillSection re-mirrors its
-    // store on mount); seed/welcome labels remain available via allSkillLabels.
-    setDiscoveredSkillLabels([]);
+    // #253 (#277): re-discover manual-skill groups per opening (SkillSection
+    // re-mirrors its store on mount); seed/welcome groups remain available via
+    // allSkillGroups.
+    setDiscoveredSkillGroups([]);
     setSaveError(null);
   }
   if (!open && seededFor) {
@@ -437,7 +447,9 @@ export function MatchSetupWizard({
             occupationYearsValue={(years) =>
               t("matchPrefs.occupation.reviewYearsValue", { years })
             }
-            skills={labelsForSelected(draftSkills, allSkillLabels)}
+            // #277: EN chip per twin-grupp (member-id bärs på chippen så en
+            // borttagning i review:n droppar HELA gruppen).
+            skills={groupsForSelected(draftSkills, allSkillGroups)}
             orter={[
               ...labelsForSelected(draftRegions, regionOptions),
               ...labelsForSelected(draftMunicipalities, municipalityOptions),
@@ -446,7 +458,10 @@ export function MatchSetupWizard({
             onRemoveOccupation={(id) =>
               setDraftOccupations((prev) => toggle(prev, id))
             }
-            onRemoveSkill={(id) => setDraftSkills((prev) => toggle(prev, id))}
+            // #277: ta bort kompetens-chip = differens av ALLA gruppens member-id.
+            onRemoveSkill={(members) =>
+              setDraftSkills((prev) => removeSkillGroup(prev, members))
+            }
             // En ort-chip kan vara län ELLER kommun — ta bort ur rätt axel.
             onRemoveOrt={(id) => {
               setDraftRegions((prev) => prev.filter((r) => r !== id));
@@ -495,17 +510,17 @@ export function MatchSetupWizard({
                 // anges nu per yrke (på yrkes-chippen i steg 1).
                 <SkillSection
                   selected={draftSkills}
-                  onToggle={(id) => setDraftSkills((prev) => toggle(prev, id))}
                   onReplace={(next) => setDraftSkills(next)}
                   onClear={() => setDraftSkills([])}
                   idPrefix="match-wizard-skill"
                   showHeading={false}
-                  // #253: seed with ALL known labels (incl. previously-discovered
-                  // search labels) so a remount after navigating away keeps showing
-                  // names, and capture the section's mirrored store so the step-5
-                  // summary can resolve manually-added skills (not their raw id).
-                  initialLabels={allSkillLabels}
-                  onLabelsChange={setDiscoveredSkillLabels}
+                  // #253 (#277): seed with ALL known GROUPS (incl. previously-
+                  // discovered search groups) so a remount after navigating away
+                  // keeps showing names AND one chip per twin-par, and capture the
+                  // section's mirrored group-store so the step-5 summary can
+                  // resolve manually-added skills as groups (not their raw id).
+                  initialGroups={allSkillGroups}
+                  onGroupsChange={setDiscoveredSkillGroups}
                   // Förhämtade förslag (welcome-flödet) → draften är redan
                   // seedad, staging-artefakten finns inte längre → ingen
                   // auto-suggest. Annars läser parsed-vägen (just uppladdat CV).
@@ -669,11 +684,13 @@ function ReviewStep({
   readonly occupationExperience: Readonly<Record<string, number | null>>;
   /** exp-per-occ PR-4: "{years} år"-formatteraren (i18n, decimal-fri int). */
   readonly occupationYearsValue: (years: number) => string;
-  readonly skills: ReadonlyArray<Option>;
+  /** #277: kompetens-chips är GRUPPER (member-id bärs på chippen). */
+  readonly skills: ReadonlyArray<SkillChip>;
   readonly orter: ReadonlyArray<Option>;
   readonly employment: ReadonlyArray<Option>;
   readonly onRemoveOccupation: (conceptId: string) => void;
-  readonly onRemoveSkill: (conceptId: string) => void;
+  /** #277: ta bort kompetens-grupp = differens av ALLA dess member-id. */
+  readonly onRemoveSkill: (memberConceptIds: ReadonlyArray<string>) => void;
   readonly onRemoveOrt: (conceptId: string) => void;
   readonly onRemoveEmployment: (conceptId: string) => void;
 }) {
@@ -690,7 +707,9 @@ function ReviewStep({
         onRemove={onRemoveOccupation}
         ariaLabel={labels.occupationsAria}
       />
-      <ReviewFacet
+      {/* #277: kompetens-facetten renderar EN chip per twin-grupp; en
+          borttagning droppar HELA gruppens member-id. */}
+      <ReviewSkillFacet
         title={labels.skillsTitle}
         empty={labels.skillsEmpty}
         chips={skills}
@@ -816,6 +835,55 @@ function ReviewFacet({
               <PreferenceChip
                 label={chip.label}
                 onRemove={() => onRemove(chip.conceptId)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * #277 — kompetens-facetten på review-steget: som ReviewFacet men EN chip per
+ * twin-grupp, och en borttagning droppar HELA gruppens member-id (inte bara den
+ * canonical). Identisk markup/roller (zero visuell skillnad); skillnaden är att
+ * `onRemove` bär `chip.memberConceptIds`.
+ */
+function ReviewSkillFacet({
+  title,
+  empty,
+  chips,
+  onRemove,
+  ariaLabel,
+}: {
+  readonly title: string;
+  readonly empty: string;
+  readonly chips: ReadonlyArray<SkillChip>;
+  readonly onRemove: (memberConceptIds: ReadonlyArray<string>) => void;
+  readonly ariaLabel: string;
+}) {
+  const headId = `match-wizard-review-${ariaLabel.replace(/\s+/g, "-")}`;
+  return (
+    <section
+      className="jp-matchdialog__section"
+      role="group"
+      aria-labelledby={headId}
+    >
+      <div className="jp-matchdialog__sectionhead">
+        <span id={headId} className="jp-popover__title">
+          {title}
+        </span>
+      </div>
+      {chips.length === 0 ? (
+        <p className="text-body-sm text-text-secondary">{empty}</p>
+      ) : (
+        <ul className="jp-chiplist" aria-label={ariaLabel}>
+          {chips.map((chip) => (
+            <li key={chip.conceptId}>
+              <PreferenceChip
+                label={chip.label}
+                onRemove={() => onRemove(chip.memberConceptIds)}
               />
             </li>
           ))}

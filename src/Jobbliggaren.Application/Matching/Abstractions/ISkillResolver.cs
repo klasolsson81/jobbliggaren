@@ -70,6 +70,19 @@ public interface ISkillResolver
     /// </summary>
     IReadOnlyList<ResolvedSkill> ResolveLabels(
         IEnumerable<string> conceptIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #277 — group a set of skill concept-ids by the exact-label surface they share, so the
+    /// ESCO + AF twins that one literal surface co-produces (e.g. "C#") render as ONE chip with
+    /// both member ids. Each output group carries its canonical (preferred-first) concept-id +
+    /// label and ALL member concept-ids (a concept-id with no co-resolving twin in the set → a
+    /// one-member group). NEVER drops a concept-id (every input id appears in exactly one
+    /// output group). Unknown/blank ids resolve to their own one-member group (id as label).
+    /// Deterministic; honours <paramref name="cancellationToken"/> at the call boundary. The
+    /// confirmed PreferredSkills set stays FLAT — this groups only at the read/offer surface.
+    /// </summary>
+    IReadOnlyList<ResolvedSkillGroup> GroupConceptIds(
+        IEnumerable<string> conceptIds, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -79,3 +92,15 @@ public interface ISkillResolver
 /// <c>ProposedSkill</c> at the seeding call-site.
 /// </summary>
 public sealed record ResolvedSkill(string ConceptId, string Label);
+
+/// <summary>
+/// #277 — a grouped JobTech skill surface: the canonical (preferred-first) concept-id + its
+/// display label, plus ALL the member concept-ids that share one exact-label surface (the ESCO
+/// + AF twins one literal co-produces; a singleton carries exactly one member). Non-PII taxonomy
+/// metadata. The Application-layer return shape of <see cref="ISkillResolver.GroupConceptIds"/>
+/// (BCL-only). A read/offer-side projection only — the confirmed
+/// <c>MatchPreferences.PreferredSkills</c> set stays FLAT (grade-inert by construction); a
+/// chip carrying a multi-member group confirms ALL its member ids on the FE full-replace save.
+/// </summary>
+public sealed record ResolvedSkillGroup(
+    string CanonicalConceptId, string Label, IReadOnlyList<string> MemberConceptIds);

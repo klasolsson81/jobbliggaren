@@ -82,4 +82,18 @@ internal sealed class SkillResolver(SkillTaxonomyIndex index) : ISkillResolver
             .Select(hit => new ResolvedSkill(hit.ConceptId, hit.Label))
             .ToList();
     }
+
+    // #277 — group concept-ids by shared exact-label surface (ESCO + AF twins → one chip). Thin
+    // adapter over the shared index's GroupConceptIds; the index guards the no-drop/partition
+    // invariant. Synchronous CPU over the in-memory index (ct honoured at the call boundary).
+    public IReadOnlyList<ResolvedSkillGroup> GroupConceptIds(
+        IEnumerable<string> conceptIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(conceptIds);
+        cancellationToken.ThrowIfCancellationRequested();
+        return index
+            .GroupConceptIds(conceptIds)
+            .Select(g => new ResolvedSkillGroup(g.CanonicalConceptId, g.CanonicalLabel, g.MemberConceptIds))
+            .ToList();
+    }
 }

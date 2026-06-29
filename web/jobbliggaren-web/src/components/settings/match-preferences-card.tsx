@@ -18,12 +18,15 @@ import { Button } from "@/components/ui/button";
 import {
   flattenOccupationGroups,
   filterOptions,
+  groupsForSelected,
   labelsForSelected,
   projectOccupationExperience,
   recordFromOccupationExperience,
   type Option,
   type OccupationExperienceEntry,
+  type SkillChip,
 } from "./match-preferences-shared";
+import type { SkillGroup } from "@/lib/dto/skills";
 import { PreferenceChip } from "./preference-chip";
 import { MatchPreferencesDialog } from "./match-preferences-dialog";
 
@@ -35,6 +38,12 @@ export { flattenOccupationGroups, filterOptions };
  * "orter" är EN dimension i två granulariteter (län + kommun, Spår 3 PR-D);
  * "skills" är CV-seedade kompetenser (STEG 3 / ADR 0079). */
 type Facet = "occupations" | "skills" | "orter" | "employment";
+
+/** A rendered chip + the FULL set of ids it stands for. Most facets are 1:1
+ *  (`memberConceptIds === [conceptId]`); a skill chip is a GROUP whose member
+ *  ids (the ESCO + AF twin) are all dropped on removal (#277). Structurally a
+ *  `SkillChip` — reused so the uniform chip render carries member ids. */
+type RenderChip = SkillChip;
 
 interface MatchPreferencesCardProps {
   /** Yrkesområden (med underordnade yrkesgrupper) → kortet plattar själv. */
@@ -52,15 +61,15 @@ interface MatchPreferencesCardProps {
   /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (sparade från profilen). */
   readonly initialSkills: ReadonlyArray<string>;
   /**
-   * STEG 3 / ADR 0079 + ADR 0047: pre-resolverade labels för de sparade
+   * STEG 3 / ADR 0079 + ADR 0047 + #277: pre-resolverade GRUPPER för de sparade
    * kompetens-concept-id (server-side reverse-lookup i settings-sidan). Seedar
-   * label-storen så en återvändande användare ser NAMN på sina kompetens-chips
+   * grupp-storen så en återvändande användare ser NAMN och EN chip per twin-par
    * vid kall laddning, utan att öppna dialogen. Den platta skill-taxonomin
    * skickas aldrig som träd → utan denna seed renderas råa concept-id (rå
    * token på läs-yta, ADR 0047). Okänt/borttaget id faller fortfarande
    * tillbaka på id-strängen (graceful, backend droppar okända).
    */
-  readonly initialSkillLabels: ReadonlyArray<Option>;
+  readonly initialSkillGroups: ReadonlyArray<SkillGroup>;
   readonly initialExperienceYears: number | null;
   /**
    * exp-per-occ (ADR 0079-amendment PR-4): den persisterade per-yrke-
@@ -89,7 +98,7 @@ export function MatchPreferencesCard({
   initialMunicipalities,
   initialEmploymentTypes,
   initialSkills,
-  initialSkillLabels,
+  initialSkillGroups,
   initialExperienceYears,
   initialOccupationExperience,
   degraded,
@@ -152,15 +161,15 @@ export function MatchPreferencesCard({
   const [occupationExperience, setOccupationExperience] = useState<
     Readonly<Record<string, number | null>>
   >(() => recordFromOccupationExperience(initialOccupationExperience));
-  // Skill label-store (conceptId → label). The flat skill taxonomy is never
-  // shipped to the FE as a tree, so a saved skill has no tree lookup — the card
-  // adopts labels the dialog surfaced (post-save) and otherwise falls back to
-  // the id (labelsForSelected). Seeded server-side from the persisted skills'
-  // reverse-lookup (ADR 0047) so a returning user sees NAMES on a cold load
-  // without opening the dialog; the on-save adoption (onDialogSaved) still
-  // refreshes the store afterwards.
-  const [skillLabels, setSkillLabels] =
-    useState<ReadonlyArray<Option>>(initialSkillLabels);
+  // Skill group-store (canonical conceptId → SkillGroup). The flat skill
+  // taxonomy is never shipped to the FE as a tree, so a saved skill has no tree
+  // lookup — the card adopts the groups the dialog surfaced (post-save) and
+  // otherwise falls back to the id (groupsForSelected). Seeded server-side from
+  // the persisted skills' grouped reverse-lookup (ADR 0047 + #277) so a
+  // returning user sees NAMES and ONE chip per twin-par on a cold load without
+  // opening the dialog; the on-save adoption (onDialogSaved) refreshes it after.
+  const [skillGroups, setSkillGroups] =
+    useState<ReadonlyArray<SkillGroup>>(initialSkillGroups);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSaving, startSaving] = useTransition();
@@ -242,7 +251,16 @@ export function MatchPreferencesCard({
    * id:t faktiskt bor i (län ELLER kommun), så grannskaps-/revert-logiken
    * fortsätter att vara axel-exakt.
    */
-  function removeChip(facet: Facet, conceptId: string, keyboard: boolean) {
+  // #277: `memberConceptIds` carries the FULL set of ids a chip stands for.
+  // For most facets that is just `[conceptId]`, but a skill chip is a GROUP — its
+  // member ids (the ESCO + AF twin) must ALL be dropped in one removal, otherwise
+  // a saved twin-pair would leave a dangling member id behind.
+  function removeChip(
+    facet: Facet,
+    conceptId: string,
+    keyboard: boolean,
+    memberConceptIds: ReadonlyArray<string> = [conceptId]
+  ) {
     const prev = currentSets();
     const axisFor: keyof PrefSets =
       facet === "occupations"
@@ -253,15 +271,21 @@ export function MatchPreferencesCard({
             ? "employment"
             : ortAxisOf(conceptId);
     const list = prev[axisFor];
-    const removedIndex = list.indexOf(conceptId);
-    const nextList = list.filter((v) => v !== conceptId);
+    // Drop EVERY member id of the chip's group (difference), not just the
+    // canonical — so a twin chip removes both twin ids in one action.
+    const drop = new Set(memberConceptIds);
+    const nextList = list.filter((v) => !drop.has(v));
     const next: PrefSets = { ...prev, [axisFor]: nextList };
 
-    // Bestäm grannen att flytta fokus till (conceptId, inte index): nästa
-    // kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
-    // borttagningen mot den gamla listan.
+    // Bestäm grannen att flytta fokus till (CHIP-ordning, inte rå member-lista):
+    // nästa kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
+    // borttagningen mot den renderade chip-listan — så ett twin-grupp-chip (vars
+    // member-id ej är egna chips) får en korrekt chip-granne med en ref. (Skills
+    // = canonical-keyade grupp-chips; övriga facetter = 1:1, samma beteende.)
+    const chipIds = facetData[facet].map((c) => c.conceptId);
+    const chipIndex = chipIds.indexOf(conceptId);
     const neighbourConceptId =
-      list[removedIndex + 1] ?? list[removedIndex - 1] ?? null;
+      chipIds[chipIndex + 1] ?? chipIds[chipIndex - 1] ?? null;
 
     applyAxis(axisFor, nextList);
 
@@ -296,7 +320,7 @@ export function MatchPreferencesCard({
     skills: ReadonlyArray<string>;
     experienceYears: number | null;
     occupationExperience: ReadonlyArray<OccupationExperienceEntry>;
-    skillLabels: ReadonlyArray<Option>;
+    skillGroups: ReadonlyArray<SkillGroup>;
   }) {
     // Dialogen skrev den fulla mängden (SSOT). Anta den lokalt så kortets chips
     // är koherenta direkt, och visa status-raden. (revalidatePath om-renderar
@@ -311,9 +335,9 @@ export function MatchPreferencesCard({
     setOccupationExperience(
       recordFromOccupationExperience(saved.occupationExperience)
     );
-    // Adoptera labels dialogen löst upp (sök/CV-förslag) så kortets kompetens-
-    // chips kan rendera namn i stället för id.
-    setSkillLabels(saved.skillLabels);
+    // Adoptera grupperna dialogen löst upp (sök/CV-förslag) så kortets
+    // kompetens-chips renderar EN chip per twin-par med namn (#277).
+    setSkillGroups(saved.skillGroups);
     setSavedAt(new Date());
   }
 
@@ -328,17 +352,27 @@ export function MatchPreferencesCard({
     );
   }
 
-  const facetData: Record<Facet, ReadonlyArray<Option>> = {
-    occupations: labelsForSelected(occupationGroups, occupationOptions),
-    // Kompetens-chips: labels ur den adopterade label-storen; saknade faller
-    // tillbaka på id (ingen träd-uppslagning för skills).
-    skills: labelsForSelected(selectedSkills, skillLabels),
+  // Each rendered chip carries its member-id set: most facets are 1:1
+  // (`[conceptId]`), but a SKILL chip is a GROUP whose member ids (the ESCO + AF
+  // twin) must ALL be dropped on removal (#277). `asChips` lifts a plain
+  // {conceptId,label} Option to that shape; skills use `groupsForSelected`
+  // directly so a saved twin-pair collapses to ONE chip.
+  const asChips = (
+    options: ReadonlyArray<Option>
+  ): ReadonlyArray<RenderChip> =>
+    options.map((o) => ({ ...o, memberConceptIds: [o.conceptId] }));
+
+  const facetData: Record<Facet, ReadonlyArray<RenderChip>> = {
+    occupations: asChips(labelsForSelected(occupationGroups, occupationOptions)),
+    // Kompetens-chips: EN chip per grupp (twin-par) ur den adopterade grupp-
+    // storen; saknade faller tillbaka på id (ingen träd-uppslagning för skills).
+    skills: groupsForSelected(selectedSkills, skillGroups),
     // Ort-facetten: valda län FÖRST (helläns-axeln), sedan enskilda kommuner.
-    orter: [
+    orter: asChips([
       ...labelsForSelected(selectedRegions, regionOptions),
       ...labelsForSelected(selectedMunicipalities, municipalityOptions),
-    ],
-    employment: labelsForSelected(selectedEmployment, employmentOptions),
+    ]),
+    employment: asChips(labelsForSelected(selectedEmployment, employmentOptions)),
   };
 
   return (
@@ -380,10 +414,20 @@ export function MatchPreferencesCard({
                         }}
                         label={chip.label}
                         onRemove={() =>
-                          removeChip(facet, chip.conceptId, false)
+                          removeChip(
+                            facet,
+                            chip.conceptId,
+                            false,
+                            chip.memberConceptIds
+                          )
                         }
                         onRemoveKey={() =>
-                          removeChip(facet, chip.conceptId, true)
+                          removeChip(
+                            facet,
+                            chip.conceptId,
+                            true,
+                            chip.memberConceptIds
+                          )
                         }
                       />
                     </li>
@@ -464,7 +508,7 @@ export function MatchPreferencesCard({
           occupationExperience,
           occupationGroups
         )}
-        persistedSkillLabels={skillLabels}
+        persistedSkillGroups={skillGroups}
         onSaved={onDialogSaved}
         importCvHref={IMPORT_CV_HREF}
       />

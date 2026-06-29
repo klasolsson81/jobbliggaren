@@ -1203,4 +1203,137 @@ public class MatchGradeCalculatorTests
         ((int)MatchGrade.Strong).ShouldBe(3);
         ((int)MatchGrade.Top).ShouldBe(4);
     }
+
+    // =================================================================
+    // #277 — grade-inert pin: PreferredSkills/scorer stay FLAT and set-based, so adding the
+    // SECOND C# twin concept-id to the confirmed set (which is grouped only at the read/offer
+    // surface) cannot change the grade or the FullMatchScore. The confirmed set is the scorer's
+    // CvSkillConceptIds; the scorer's concept-coverage is a SET intersection against the ad's
+    // cited concept-ids, so a non-cited extra twin id is inert. We RE-STATE the production
+    // ScoreConceptCoverage rule independently (parity the grade oracle above — not a delegation
+    // to the SUT) and derive the twin ids LIVE from the committed asset (§5 — never hardcode).
+    // =================================================================
+
+    [Fact]
+    public void Grade_WithBothCSharpTwinIds_EqualsSingleTwinBaseline_ProvingPreferredSkillsStayFlat()
+    {
+        var twins = CSharpTwinConceptIds();
+        twins.Count.ShouldBeGreaterThanOrEqualTo(2,
+            "Förutsättning: 'C#' bärs av minst två concepts (ESCO + AF) — härled, gissa aldrig.");
+        var cited = twins[0]; // the ad cites exactly ONE of the twins.
+        var otherTwin = twins[1];
+
+        // Baseline: the confirmed set holds ONLY the cited twin id.
+        var baseline = ScoreFullForAd(cited, cvSkills: [cited]);
+        // Twin-pair: the confirmed set holds BOTH twin ids (the flat PreferredSkills the read
+        // surface would group into one chip). The ad still cites only `cited`.
+        var both = ScoreFullForAd(cited, cvSkills: [cited, otherTwin]);
+
+        // The non-cited extra twin id is inert: identical dimensions (compared by VALUE — record
+        // equality over IReadOnlyList members is reference-based, so assert content) and grade.
+        AssertScoreEquivalent(both, baseline);
+        MatchGradeCalculator.Grade(both).ShouldBe(MatchGradeCalculator.Grade(baseline),
+            "PreferredSkills hålls platt + scorad som mängd → graden är tvilling-cardinalitet-inert (#277).");
+
+        // Sanity: the baseline actually exercises a positive skill match (else the pin is vacuous).
+        baseline.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        MatchGradeCalculator.Grade(baseline).ShouldNotBeNull();
+    }
+
+    // Value-equality of two FullMatchScores by dimension verdict + matched/missing CONTENT (record
+    // equality treats the IReadOnlyList members by reference, so equal-content scores from distinct
+    // calls are not record-equal — we compare semantics, which is what grade-inertness means).
+    private static void AssertScoreEquivalent(FullMatchScore actual, FullMatchScore expected)
+    {
+        AssertFastEquivalent(actual.Fast, expected.Fast);
+        AssertDimEquivalent(actual.SkillOverlap, expected.SkillOverlap);
+        AssertDimEquivalent(actual.MustHaveCoverage, expected.MustHaveCoverage);
+        AssertDimEquivalent(actual.NiceToHaveCoverage, expected.NiceToHaveCoverage);
+    }
+
+    private static void AssertFastEquivalent(MatchScore actual, MatchScore expected)
+    {
+        AssertDimEquivalent(actual.SsykOverlap, expected.SsykOverlap);
+        AssertDimEquivalent(actual.TitleSimilarity, expected.TitleSimilarity);
+        AssertDimEquivalent(actual.RegionFit, expected.RegionFit);
+        AssertDimEquivalent(actual.EmploymentFit, expected.EmploymentFit);
+    }
+
+    private static void AssertDimEquivalent(MatchDimension actual, MatchDimension expected)
+    {
+        actual.Verdict.ShouldBe(expected.Verdict);
+        actual.Matched.ShouldBe(expected.Matched);
+        actual.Missing.ShouldBe(expected.Missing);
+    }
+
+    // An ad that cites <paramref name="adSkillConceptId"/> as its sole Skill term and states one
+    // must-have == that same id, scored against <paramref name="cvSkills"/>. Models the production
+    // scorer: Fast dims fixed at SSYK=Match + both secondaries Match; the concept-coverage dims via
+    // the independently-restated SET-intersection rule (ScoreConceptCoverage parity).
+    private static FullMatchScore ScoreFullForAd(string adSkillConceptId, IReadOnlyList<string> cvSkills)
+    {
+        var cv = cvSkills.ToHashSet(StringComparer.Ordinal);
+        var fast = new MatchScore(
+            SsykOverlap: Dim(MatchDimensionVerdict.Match),
+            TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
+            RegionFit: Dim(MatchDimensionVerdict.Match),
+            EmploymentFit: Dim(MatchDimensionVerdict.Match));
+
+        return new FullMatchScore(
+            Fast: fast,
+            SkillOverlap: Coverage([adSkillConceptId], cv),
+            MustHaveCoverage: Coverage([adSkillConceptId], cv),
+            NiceToHaveCoverage: Coverage([], cv));
+    }
+
+    // Independent re-statement of MatchScorer.ScoreConceptCoverage (SET-emptiness verdict, no
+    // threshold): CV empty → NotAssessed; ad partition empty → Vacuous; else matched/missing by
+    // set membership → Match / Partial / NoMatch. Matched/missing carry the concept-ids
+    // (Ordinal-sorted) — the test does not need Display labels.
+    private static MatchDimension Coverage(IReadOnlyList<string> adConceptIds, HashSet<string> cvSkills)
+    {
+        if (cvSkills.Count == 0)
+            return Dim(MatchDimensionVerdict.NotAssessed);
+        if (adConceptIds.Count == 0)
+            return Dim(MatchDimensionVerdict.Vacuous);
+
+        var matched = adConceptIds.Where(cvSkills.Contains).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        var missing = adConceptIds.Where(x => !cvSkills.Contains(x)).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        var verdict = matched.Count == 0
+            ? MatchDimensionVerdict.NoMatch
+            : missing.Count == 0 ? MatchDimensionVerdict.Match : MatchDimensionVerdict.Partial;
+        return new MatchDimension(verdict, matched, missing);
+    }
+
+    // Live provenance: the concept-ids carrying the literal "C#" (preferred label OR synonym),
+    // read from the committed JobTech skill-taxonomy asset (Ordinal-sorted, deterministic). Never
+    // hardcoded (§5). Mirrors SkillResolverIntegrationTests / SkillSurfaceGroupingTests.
+    private static List<string> CSharpTwinConceptIds()
+    {
+        const string resource = "Jobbliggaren.Infrastructure.Taxonomy.jobad-skill-taxonomy.v30.json";
+        var asm = typeof(Jobbliggaren.Infrastructure.TextAnalysis.LocalTextAnalyzer).Assembly;
+        using var stream = asm.GetManifestResourceStream(resource);
+        stream.ShouldNotBeNull($"Skill-taxonomi-resursen '{resource}' ska vara en <EmbeddedResource>.");
+
+        using var doc = JsonDocument.Parse(stream!);
+        var ids = new List<string>();
+        foreach (var el in doc.RootElement.GetProperty("skills").EnumerateArray())
+        {
+            var carries = string.Equals(
+                el.GetProperty("preferredLabel").GetString()?.Trim(), "C#", StringComparison.OrdinalIgnoreCase);
+            if (!carries && el.TryGetProperty("synonyms", out var syns) && syns.ValueKind == JsonValueKind.Array)
+                foreach (var s in syns.EnumerateArray())
+                    if (string.Equals(s.GetString()?.Trim(), "C#", StringComparison.OrdinalIgnoreCase))
+                    {
+                        carries = true;
+                        break;
+                    }
+
+            if (carries)
+                ids.Add(el.GetProperty("conceptId").GetString()!);
+        }
+
+        ids.Sort(StringComparer.Ordinal);
+        return ids;
+    }
 }

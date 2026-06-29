@@ -83,7 +83,7 @@ function renderCard(
       initialMunicipalities={[]}
       initialEmploymentTypes={[]}
       initialSkills={[]}
-      initialSkillLabels={[]}
+      initialSkillGroups={[]}
       initialExperienceYears={null}
       initialOccupationExperience={[]}
       degraded={false}
@@ -182,10 +182,12 @@ describe("MatchPreferencesCard — summary + chips", () => {
     ).toBeInTheDocument();
   });
 
-  it("sparade kompetenser renderar NAMN vid kall laddning ur initialSkillLabels (ADR 0047)", () => {
+  it("sparade kompetenser renderar NAMN vid kall laddning ur initialSkillGroups (ADR 0047)", () => {
     renderCard({
       initialSkills: ["skill_react"],
-      initialSkillLabels: [{ conceptId: "skill_react", label: "React" }],
+      initialSkillGroups: [
+        { conceptId: "skill_react", label: "React", memberConceptIds: ["skill_react"] },
+      ],
     });
     const skills = screen.getByRole("group", { name: "Kompetenser" });
     expect(within(skills).getByText("React")).toBeInTheDocument();
@@ -194,12 +196,51 @@ describe("MatchPreferencesCard — summary + chips", () => {
     ).toBeInTheDocument();
   });
 
-  it("sparad kompetens utan label faller tillbaka på id:t (borttaget concept)", () => {
-    renderCard({ initialSkills: ["skill_gone"], initialSkillLabels: [] });
+  it("sparad kompetens utan grupp faller tillbaka på id:t (borttaget concept)", () => {
+    renderCard({ initialSkills: ["skill_gone"], initialSkillGroups: [] });
     const skills = screen.getByRole("group", { name: "Kompetenser" });
     expect(
       within(skills).getByRole("button", { name: "Ta bort skill_gone" })
     ).toBeInTheDocument();
+  });
+
+  it("#277: ett sparat twin-par renderar EN kompetens-chip vid kall laddning (grupperad resolve)", () => {
+    renderCard({
+      initialSkills: ["esco_csharp", "af_csharp"],
+      initialSkillGroups: [
+        {
+          conceptId: "esco_csharp",
+          label: "C#",
+          memberConceptIds: ["esco_csharp", "af_csharp"],
+        },
+      ],
+    });
+    const skills = screen.getByRole("group", { name: "Kompetenser" });
+    expect(
+      within(skills).getAllByRole("button", { name: "Ta bort C#" })
+    ).toHaveLength(1);
+  });
+
+  it("#277: att ta bort en twin-chip på kortet persisterar en FLAT string[] utan BÅDA member-id", async () => {
+    const user = userEvent.setup();
+    renderCard({
+      initialSkills: ["esco_csharp", "af_csharp"],
+      initialSkillGroups: [
+        {
+          conceptId: "esco_csharp",
+          label: "C#",
+          memberConceptIds: ["esco_csharp", "af_csharp"],
+        },
+      ],
+    });
+    const skills = screen.getByRole("group", { name: "Kompetenser" });
+    await user.click(within(skills).getByRole("button", { name: "Ta bort C#" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    // Optimistisk full-replace: BÅDA twin-id är borta ur den flata listan.
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ preferredSkills: [] })
+    );
   });
 
   it("'Lägg till' är en dialog-affordans (aria-haspopup=dialog)", () => {

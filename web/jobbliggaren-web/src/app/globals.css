@@ -869,7 +869,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   position: relative;
 }
 .jp-header-stats__num {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 17px;
   font-weight: 700;
   color: var(--jp-ink-1);
@@ -893,7 +894,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   position: absolute;
   top: -10px;
   right: 0;
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   font-weight: 700;
   color: var(--jp-success);
@@ -1114,7 +1116,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-color: #97A4B8;
 }
 .jp-hero-chip__count {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   color: #455366; /* banner-lokal v3-light-ink-2 — tema-stabil på vit chip */
   font-size: 13px;
   font-weight: 600;
@@ -1265,7 +1268,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: #2C8A3F; /* banner-lokal light-leaf — tema-stabil på vit pill */
 }
 .jp-hero-pill__count {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   font-weight: 700;
   background: var(--jp-accent-800); /* EJ dark-skiftad — tema-stabil fill */
@@ -1349,7 +1353,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-hero-ink);
 }
 .jp-pagehero-chip__value {
-  font-family: var(--jp-font-mono); font-weight: 700;
+  font-family: var(--jp-font-sans); font-weight: 700;
+  font-variant-numeric: tabular-nums;
   font-size: 18px; letter-spacing: -0.01em;
   color: var(--jp-hero-ink);
 }
@@ -1569,7 +1574,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-checkitem__count,
 .jp-radioitem__count {
   margin-left: auto;
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   /* 13px = chip-count-precedenten (design-reviewer Minor 1 E2c — inga
      off-scale-fraktioner). */
   font-size: 13px;
@@ -2159,7 +2165,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-job__meta b,
 .jp-app__meta b {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 500;
   color: var(--jp-ink-1);
   margin-left: 4px;
@@ -2330,7 +2337,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-1);
 }
 .jp-results-count b {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
   /* E2f: ink — talet är information, inte interaktion. */
   color: var(--jp-ink-1);
@@ -2471,7 +2479,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
   font-size: 15px;
   color: var(--jp-ink-1);
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 500;
 }
 .jp-modal__match {
@@ -3409,12 +3418,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   padding: 22px 56px 16px 24px;
   border-bottom: 1px solid var(--jp-border-soft);
 }
-/* Stegräknare i mono (regel 4 "mono som signal"). Informationsbärande →
-   --jp-ink-2, aldrig --jp-ink-3. */
+/* Stegräknaren ("Steg 2 av 5") är informationsbärande siffror → sans +
+   tabular-nums (#376, CTO-376-A-numerals-to-sans). --jp-ink-2, aldrig --jp-ink-3. */
 .jp-wizard__counter {
   display: block;
   margin: 0 0 4px;
-  font-family: var(--font-mono), monospace;
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   letter-spacing: 0.04em;
   color: var(--jp-ink-2);
@@ -3838,7 +3848,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   letter-spacing: -0.01em;
 }
 .jp-section__count {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 14px;
   color: var(--jp-ink-2);
 }
@@ -3911,7 +3922,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    återinför dem ALDRIG (skulle drifta isär jp-job≡jp-app). Endast
    genuint app-unika element (id-chip, actions-layout) nedan. */
 .jp-app__id {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--jp-ink-2);
   background: var(--jp-surface-2);
@@ -3965,7 +3977,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-cv__meta {
   display: flex;
   gap: 14px;
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 12.5px;
   color: var(--jp-ink-2);
   border-top: 1px solid var(--jp-border-soft);
@@ -3976,9 +3989,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   gap: 8px;
 }
-/* HANDOVER §3 — "sektioner" är inte ren data, ska EJ vara mono. Override
-   container-defaulten för enbart sektioner-spannet (språk + datum förblir
-   mono som data-fält). */
+/* #376: hela .jp-cv__meta sätts nu i sans (informationsbärande datum läsbart
+   för låg-syn — ADR 0038-linjen). "Sektioner" var aldrig ren data; språkkoden
+   SV/EN (bokstäver) och datumet renderas nu också sans utan läsbarhetskostnad.
+   Detta override-block är kvar som explicit no-op-markör av den distinktionen. */
 .jp-cv__meta__sections {
   font-family: var(--jp-font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
 }
@@ -4177,7 +4191,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-notif__item:hover { background: var(--jp-surface-3); }
 .jp-notif__item__time {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   color: var(--jp-ink-3);
 }
@@ -4317,7 +4332,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   line-height: 1.1;
 }
 .jp-land-top__stat__num {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 17px;
   font-weight: 700;
   color: var(--jp-ink-1);
@@ -4678,7 +4694,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-head__stats { display: flex; align-items: center; gap: 18px; }
 .jp-head__stat { display: flex; flex-direction: column; line-height: 1.1; }
 .jp-head__stat-num {
-  font-family: var(--jp-font-mono); font-size: 17px; font-weight: 700;
+  font-family: var(--jp-font-sans); font-size: 17px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1); letter-spacing: -0.01em;
 }
 .jp-head__stat-label {
@@ -4708,7 +4725,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-land-hero__ledger-row + .jp-land-hero__ledger-row { border-top: 1px dashed var(--jp-border); }
 .jp-land-hero__ledger-num {
-  font-family: var(--jp-font-mono); font-size: 16px; font-weight: 600;
+  font-family: var(--jp-font-sans); font-size: 16px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--jp-accent-700); padding-top: 10px;
 }
 .jp-land-hero__ledger-verb {
@@ -5047,20 +5065,21 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 10px;
 }
 .jp-oversikt__today__day {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
   font-size: 30px;
   font-weight: 700;
   /* E2f: ink — datumet är information, inte interaktion. */
   color: var(--jp-ink-1);
   line-height: 1;
   letter-spacing: -0.02em;
-  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
 }
 .jp-oversikt__today__rest {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   line-height: 1.2;
   letter-spacing: 0.02em;
@@ -5105,11 +5124,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-left-color: var(--jp-info);
 }
 .jp-oversikt__today__time {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
   font-weight: 700;
   font-size: 13px;
   color: var(--jp-ink-1);
-  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
 }
 .jp-oversikt__today__title {
   color: var(--jp-ink-1);
@@ -5193,7 +5212,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-notice__text em {
   font-style: normal;
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 13.5px;
   color: var(--jp-ink-2);
 }
@@ -5218,7 +5238,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 
 .jp-notice__time {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--jp-ink-3);
   white-space: nowrap;
@@ -5331,7 +5352,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   line-height: 1.35;
 }
 .jp-summary__row__hint {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   font-weight: 500;
   color: var(--jp-ink-3);
@@ -5344,12 +5366,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   height: 0;
 }
 .jp-summary__row__value {
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
   font-weight: 700;
   font-size: 19px;
   color: var(--jp-ink-1);
   letter-spacing: -0.01em;
-  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
 }
 .jp-summary__row--highlight .jp-summary__row__value {
   color: var(--jp-accent-700);
@@ -5394,6 +5416,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-2);
 }
 .jp-notice-group__count {
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   color: var(--jp-ink-3);
   font-weight: 600;
 }
@@ -5922,7 +5946,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cvreview__count-value {
   margin: 0;
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 18px;
   font-weight: 700;
   color: var(--jp-ink-1);
@@ -6119,7 +6144,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-improve__count {
   margin: 0;
-  font-family: var(--jp-font-mono);
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--jp-ink-2);
 }

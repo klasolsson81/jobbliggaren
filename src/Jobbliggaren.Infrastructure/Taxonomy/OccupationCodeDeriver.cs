@@ -260,11 +260,22 @@ internal sealed class OccupationCodeDeriver(
         var tree = await taxonomy.GetTreeAsync(ct);
         var groupToSsyk = OccupationGroupMappingLoader.Load();
 
-        // ssyk-4 group id → label (from the tree's occupation-groups).
+        // ssyk-4 group id → label (from the tree's occupation-groups). If one
+        // concept-id ever surfaces under more than one occupation field, pick the
+        // Ordinal-minimum label deterministically — NEVER an enumeration-order-
+        // dependent First(): this deriver's whole contract is reproducibility
+        // (class docstring; ADR 0040/0071), and the rest of the file already
+        // Ordinal-tie-breaks (the candidate ThenBy on GroupLabel). Today the
+        // snapshot carries one label per group, so this is a defensive pin, not a
+        // visible change — it forecloses a silent drift if a future snapshot ever
+        // lists a group twice with diverging labels.
         var groupLabelById = tree.OccupationFields
             .SelectMany(f => f.OccupationGroups)
             .GroupBy(g => g.ConceptId, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First().Label, StringComparer.Ordinal);
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(x => x.Label, StringComparer.Ordinal).First().Label,
+                StringComparer.Ordinal);
 
         var entries = new List<NameEntry>();
         foreach (var occupation in tree.OccupationFields.SelectMany(f => f.Occupations))

@@ -115,6 +115,20 @@
       "hide": "Dölj",
       "show": "Visa"
     },
+    "preservedAd": {
+      "headerCompany": "{company} · sparad kopia",
+      "panelTitle": "Om annonsen (sparad kopia)",
+      "savedNotice": "Den ursprungliga annonsen finns inte längre. Det här är en sparad kopia från {date}.",
+      "company": "Företag",
+      "location": "Ort",
+      "published": "Publicerad",
+      "applyBy": "Sista ansökningsdag",
+      "source": "Källa",
+      "viewAdAriaLabel": "Visa annonsen hos {source} (öppnas i ny flik)",
+      "viewAd": "Visa annonsen",
+      "descriptionLabel": "Annonstext",
+      "minimizedNotice": "Annonstexten har rensats eftersom ansökan är avslutad. Sparad metadata finns kvar."
+    },
     "notes": {
       "sectionLabel": "Anteckningar",
       "empty": "Inga anteckningar ännu.",

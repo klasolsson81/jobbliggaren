@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ApplicationDetail } from "./application-detail";
-import type { ApplicationDetailDto } from "@/lib/types/applications";
+import type {
+  AdSnapshotDto,
+  ApplicationDetailDto,
+} from "@/lib/types/applications";
 
 // Server-actions mockas (samma repo-mönster som status-edit-card.test) så
 // StatusEditCard/AddNoteForm/AddFollowUpForm-öarna kan renderas i jsdom.
@@ -34,6 +37,23 @@ function makeDetail(
     coverLetter: null,
     followUps: [],
     notes: [],
+    ...overrides,
+  };
+}
+
+function makeSnapshot(
+  overrides: Partial<AdSnapshotDto> = {}
+): AdSnapshotDto {
+  return {
+    title: "Systemutvecklare .NET",
+    company: "Spotify",
+    location: "Stockholm",
+    url: "https://example.com/saved-ad",
+    source: "Platsbanken",
+    publishedAt: "2026-04-10T08:00:00Z",
+    expiresAt: "2026-05-10T08:00:00Z",
+    description: "Vi söker en utvecklare med erfarenhet av distribuerade system.",
+    capturedAt: "2026-04-12T08:00:00Z",
     ...overrides,
   };
 }
@@ -125,5 +145,116 @@ describe("ApplicationDetail", () => {
       />
     );
     expect(screen.getByText("Ansökan #aaaaaaaa")).toBeInTheDocument();
+  });
+
+  // ── #315 (ADR 0086): bevarad annons-snapshot som fallback ──────────────
+
+  it("(a) visar INGEN sparad-kopia-panel när live-annonsen finns", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({ preservedAd: makeSnapshot() })}
+      />
+    );
+    // Live-annonsen styr headern (oförändrat beteende).
+    expect(
+      screen.getByRole("heading", { name: "Backend-utvecklare" })
+    ).toBeInTheDocument();
+    // Den bevarade panelen renderas EJ när live-annonsen finns (scope:
+    // snapshotten är fallback för när annonsen är borta).
+    expect(
+      screen.queryByText("Om annonsen (sparad kopia)")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Vi söker en utvecklare med erfarenhet av distribuerade system."
+      )
+    ).not.toBeInTheDocument();
+  });
+
+  it("(b) live-annons borta + snapshot med text → bevarad titel/företag/not/kropp", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAd: null,
+          preservedAd: makeSnapshot(),
+        })}
+      />
+    );
+    // Headern bär den BEVARADE titeln (riktig prosa, ej mono-id-fallback).
+    expect(
+      screen.getByRole("heading", { name: "Systemutvecklare .NET" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Ansökan #aaaaaaaa")
+    ).not.toBeInTheDocument();
+    // Subtitle bär bevarat företag + "sparad kopia"-markör.
+    expect(
+      screen.getByText(/Spotify · sparad kopia/)
+    ).toBeInTheDocument();
+    // Panel + lugn "sparad kopia"-not.
+    expect(
+      screen.getByText("Om annonsen (sparad kopia)")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Den ursprungliga annonsen finns inte längre/)
+    ).toBeInTheDocument();
+    // Bevarad metadata (företag + ort i panelen).
+    expect(screen.getByText("Ort")).toBeInTheDocument();
+    expect(screen.getByText("Stockholm")).toBeInTheDocument();
+    // Annonstexten — den enda platsen annonskroppen visas på detaljen.
+    expect(screen.getByText("Annonstext")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Vi söker en utvecklare med erfarenhet av distribuerade system."
+      )
+    ).toBeInTheDocument();
+    // Ingen minimerings-not när kroppen finns.
+    expect(
+      screen.queryByText(/Annonstexten har rensats/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("(c) live-annons borta + snapshot utan text (terminal) → metadata + minimerings-not, ingen kropp", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAd: null,
+          status: "Rejected",
+          preservedAd: makeSnapshot({ description: null }),
+        })}
+      />
+    );
+    // Titel/företag/metadata visas fortfarande.
+    expect(
+      screen.getByRole("heading", { name: "Systemutvecklare .NET" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Stockholm")).toBeInTheDocument();
+    // Annonstext-etiketten finns kvar men kroppen ersätts av en neutral not.
+    expect(screen.getByText("Annonstext")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Annonstexten har rensats eftersom ansökan är avslutad/)
+    ).toBeInTheDocument();
+    // Ingen tom annonskropp renderas.
+    expect(
+      screen.queryByText(
+        "Vi söker en utvecklare med erfarenhet av distribuerade system."
+      )
+    ).not.toBeInTheDocument();
+  });
+
+  it("(d) preservedAd null (manuell/pre-#315) → oförändrad mono-id-fallback", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAd: null,
+          jobAdId: null,
+          preservedAd: null,
+        })}
+      />
+    );
+    expect(screen.getByText("Ansökan #aaaaaaaa")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Om annonsen (sparad kopia)")
+    ).not.toBeInTheDocument();
   });
 });

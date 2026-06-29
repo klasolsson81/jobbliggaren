@@ -115,6 +115,20 @@
       "hide": "Hide",
       "show": "Show"
     },
+    "preservedAd": {
+      "headerCompany": "{company} · saved copy",
+      "panelTitle": "About the ad (saved copy)",
+      "savedNotice": "The original ad is no longer available. This is a saved copy from {date}.",
+      "company": "Company",
+      "location": "Location",
+      "published": "Published",
+      "applyBy": "Application deadline",
+      "source": "Source",
+      "viewAdAriaLabel": "View the ad at {source} (opens in a new tab)",
+      "viewAd": "View the ad",
+      "descriptionLabel": "Ad text",
+      "minimizedNotice": "The full ad text was cleared because the application is concluded. The saved metadata is kept."
+    },
     "notes": {
       "sectionLabel": "Notes",
       "empty": "No notes yet.",

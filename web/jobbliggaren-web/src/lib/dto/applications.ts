@@ -102,10 +102,37 @@ export const noteDtoSchema = z.object({
 });
 export type NoteDto = z.infer<typeof noteDtoSchema>;
 
+// #315 (ADR 0086) — frozen ad-text snapshot captured at apply-time. Mirrors the
+// backend AdSnapshot projected on the detail read. It is the FALLBACK that lets
+// the ad text survive the source JobAd being archived/soft-deleted (the existing
+// `jobAd` field goes null then). `description` is the full ad body; it is NULL
+// once the application reaches a terminal status (retention minimisation — the
+// body is cleared, metadata kept). `location` is the resolved "ort" name frozen
+// at apply-time. publishedAt/capturedAt are ISO datetimes (z.string(), same
+// convention as the other date fields above). Detail-only — NOT on the list DTO.
+export const adSnapshotDtoSchema = z.object({
+  title: z.string(),
+  company: z.string(),
+  location: z.string().nullable(),
+  url: z.string().nullable(),
+  source: z.string(),
+  publishedAt: z.string(),
+  expiresAt: z.string().nullable(),
+  description: z.string().nullable(),
+  capturedAt: z.string(),
+});
+export type AdSnapshotDto = z.infer<typeof adSnapshotDtoSchema>;
+
 export const applicationDetailDtoSchema = applicationDtoSchema.extend({
   coverLetter: z.string().nullable(),
   followUps: z.array(followUpDtoSchema),
   notes: z.array(noteDtoSchema),
+  // null for manual/cover-letter-only and pre-#315 applications; present for
+  // JobAd-linked ones (including while the live ad still exists). .nullable()
+  // .optional() for deploy-skew resilience — same convention as `jobAd`/
+  // `appliedAt` above (an older BE response without the field does not crash
+  // parse).
+  preservedAd: adSnapshotDtoSchema.nullable().optional(),
 });
 export type ApplicationDetailDto = z.infer<typeof applicationDetailDtoSchema>;
 

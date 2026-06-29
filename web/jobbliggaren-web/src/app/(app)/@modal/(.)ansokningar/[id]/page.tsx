@@ -48,20 +48,38 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       const jobAd = application.jobAd ?? null;
       const shortId = application.id.slice(0, 8);
       const hasIdentity = jobAd != null;
+      // #315 (ADR 0086): the modal header MUST agree with the body
+      // (ApplicationDetail, headless). The body shows the "Om annonsen (sparad
+      // kopia)" panel with the PRESERVED title when the live ad is archived
+      // (jobAd == null) but a snapshot exists — so the modal's title (the
+      // dialog's accessible name via aria-labelledby) must show the same
+      // preserved title, not the generic mono "#id" fallback. Mirror the exact
+      // 3-state precedence the component uses: live → preserved → generic-#id.
+      const preservedAd = application.preservedAd ?? null;
+      const showPreservedAd = jobAd == null && preservedAd != null;
       const title = hasIdentity
         ? jobAd.title
-        : t("ansokningar.detail.fallbackTitle", { shortId });
-      // !hasIdentity: titel = "Ansökan #shortId"-fallback; ekas EJ som
-      // subtitle (duplikat). Skapad-datum = informativ metadata istället
-      // (design-reviewer F5 Major #2 2026-05-20).
+        : showPreservedAd
+          ? preservedAd.title
+          : t("ansokningar.detail.fallbackTitle", { shortId });
+      // Subtitle precedence mirrors the title: live → "{company} · #shortId";
+      // preserved → "{company} · sparad kopia · #shortId" (saved-copy marker,
+      // same key shape as the component's preservedAd.headerCompany); generic
+      // (no snapshot) → "Skapad {date}" (created-date metadata, NOT an echo of
+      // the "#shortId"-fallback title — design-reviewer F5 Major #2 2026-05-20).
       const subtitle = hasIdentity
         ? t("ansokningar.detail.subtitle", {
             company: jobAd.company,
             shortId,
           })
-        : t("ansokningar.detail.createdSubtitle", {
-            date: formatDate(format, application.createdAt) ?? "",
-          }).trim();
+        : showPreservedAd
+          ? t("ansokningar.detail.preservedSubtitle", {
+              company: preservedAd.company,
+              shortId,
+            })
+          : t("ansokningar.detail.createdSubtitle", {
+              date: formatDate(format, application.createdAt) ?? "",
+            }).trim();
       const canWithdraw = getAllowedTransitions(
         application.status
       ).includes("Withdrawn");
@@ -70,7 +88,10 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
         <ApplicationModalShell
           title={title}
           subtitle={subtitle}
-          mono={!hasIdentity}
+          // mono only for the truly-no-identity case (no live ad AND no
+          // snapshot). The preserved title is real prose, so it renders
+          // non-mono — matching the component header (#315).
+          mono={!hasIdentity && !showPreservedAd}
           footer={
             canWithdraw ? (
               <WithdrawApplicationButton

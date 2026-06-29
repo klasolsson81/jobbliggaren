@@ -83,8 +83,8 @@ public sealed class ListJobAdsQueryHandler(
             // FULL profile from the confirmed plaintext skill set (ADR 0079 STEG 3 PR-D) —
             // NO DEK on the hottest path. The skill signal adds only the binary golden rung.
             // #300 PR-5a (ADR 0084 §A): includeRelated broadens the gate to exact ∪ related so
-            // a Related grade filter / match-sort ranks related ads at the Related rung. Default
-            // false → behaviour-inert (exact-only), matching today.
+            // a Related grade filter / match-sort ranks related ads at the Related rung. Driven by
+            // the live ?relaterade=on toggle (off by default → exact-only, byte-identical to pre-#300).
             var profile = await profileBuilder.BuildFullForSortAsync(
                 cancellationToken, includeRelated: query.IncludeRelated);
 

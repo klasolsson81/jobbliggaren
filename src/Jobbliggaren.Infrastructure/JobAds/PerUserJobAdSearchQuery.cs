@@ -94,9 +94,10 @@ internal sealed class PerUserJobAdSearchQuery(
         // (NotAssessed — varken bekräftar eller golvar, MatchScorer.ScoreMembership).
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
-        // #300 PR-4 (ADR 0084 §F4): the RELATED ssyk-4 set (substitutable occupations). Empty
-        // until the PR-5 toggle populates it, so the Related branch in GradeRankExpression is
-        // inert in v1 (every ad either gates out or scores via the exact set, byte-for-byte today).
+        // #300 PR-4 (ADR 0084 §F4): the RELATED ssyk-4 set (substitutable occupations). Populated
+        // when the live ?relaterade=on toggle is on (off by default); with it off the Related
+        // branch in GradeRankExpression is inert (every ad either gates out or scores via the
+        // exact set, byte-for-byte the pre-#300 result).
         var relatedSsyk = fast.RelatedSsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
         var municipalities = fast.PreferredMunicipalityConceptIds;
@@ -208,7 +209,8 @@ internal sealed class PerUserJobAdSearchQuery(
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
         // #300 PR-4 (ADR 0084 §F4): MÅSTE passera samma relatedSsyk som SearchPerUserAsync —
-        // annars divergerar count från list-vägens TotalCount (spök-paginering). Tom i v1.
+        // annars divergerar count från list-vägens TotalCount (spök-paginering). relatedSsyk
+        // fylls bara när den live ?relaterade=on-toggeln är på (av som standard).
         var relatedSsyk = fast.RelatedSsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
         var municipalities = fast.PreferredMunicipalityConceptIds;
@@ -352,8 +354,9 @@ internal sealed class PerUserJobAdSearchQuery(
     // därför Related (2), ALDRIG Basic (1). IMPL-TRAP (CTO C): motsägelse-golvet är ett
     // KOMBINERAT predikat (angiven preferens OCH annonsen har ett ort-/anställnings-värde OCH
     // ingen union-träff) — aldrig ett naket !list.Contains(col), som skulle läsa en NULL-shadow
-    // som "inte i listan". relatedSsyk är tom i v1 (PR-5-toggeln fyller den) → Related-grenen
-    // inert, exact-grenarna byte-for-byte som förr (bara rank-heltalen omnumrerade; GradeToRank
+    // som "inte i listan". relatedSsyk fylls när den live ?relaterade=on-toggeln är på (av som
+    // standard); med den av är Related-grenen inert och exact-grenarna byte-for-byte som pre-#300
+    // (bara rank-heltalen omnumrerade; GradeToRank
     // omnumreras likadant så filter/sort/count förblir koherenta — oracle-pinnat).
     private static Expression<Func<JobAd, int>> GradeRankExpression(
         IReadOnlyList<string> ssyk,

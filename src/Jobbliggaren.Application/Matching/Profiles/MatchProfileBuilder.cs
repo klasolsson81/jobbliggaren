@@ -182,10 +182,10 @@ public sealed class MatchProfileBuilder(
     // <paramref name="includeRelated"/> is true, GetRelatedOccupationGroupsAsync (an in-memory
     // lookup against the already-cached taxonomy snapshot — no per-request DB hit, ADR 0043
     // §1.4) returns the substitutable ssyk-4 groups EXCLUDING the exact ones (already disjoint),
-    // filled into the additive RelatedSsykGroupConceptIds init-property (PR-2). When false — every
-    // production caller today; the PR-5 FE include-related toggle (ADR 0084 question A, off by
-    // default) is the only thing that flips it true — the ACL is NOT called and the related set
-    // stays empty, so PR-3 is behavior-inert. Broadening in exactly one place keeps sort==grade
+    // filled into the additive RelatedSsykGroupConceptIds init-property. When false the ACL is NOT
+    // called and the related set stays empty (exact-only); the live FE include-related toggle (ADR
+    // 0084 question A, ?relaterade=on, off by default) is the only thing that flips it true.
+    // Broadening in exactly one place keeps sort==grade
     // coherence by construction: the scorer's exact ∪ related gate (PR-2) and (PR-4) the SQL rank
     // read the SAME broadened profile. The BACKGROUND overload passes false (question D, list-only).
     private async ValueTask<CandidateMatchProfile> FastFromPreferencesAsync(

@@ -13,24 +13,6 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// </summary>
 internal sealed class SkillResolver(SkillTaxonomyIndex index) : ISkillResolver
 {
-    public IReadOnlySet<string> Resolve(
-        IEnumerable<string> freeTextSkills, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(freeTextSkills);
-
-        var resolved = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var skill in freeTextSkills)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(skill))
-                continue;
-            foreach (var conceptId in index.ResolveConceptIds(skill))
-                resolved.Add(conceptId);
-        }
-
-        return resolved;
-    }
-
     // ADR 0079 STEG 3 — labelled resolution for CV-seeded skill chips. Unions across CV
     // skills, dedupes per concept-id (first preferred label wins — MatchForms already
     // keeps one form per concept-id, and the same concept-id resolves to the same label

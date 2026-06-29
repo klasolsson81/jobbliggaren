@@ -30,20 +30,14 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 public interface ISkillResolver
 {
     /// <summary>
-    /// Resolves the distinct JobTech skill concept-ids for <paramref name="freeTextSkills"/>
-    /// (each a CV skill name). Unresolvable / blank entries are dropped; the result is
-    /// the union of resolved concept-ids (possibly empty). Deterministic. Honours
-    /// <paramref name="cancellationToken"/> between entries.
-    /// </summary>
-    IReadOnlySet<string> Resolve(IEnumerable<string> freeTextSkills, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// ADR 0079 STEG 3 — like <see cref="Resolve"/> but carries each concept-id's
+    /// ADR 0079 STEG 3 — resolves the distinct JobTech skill concept-ids for
+    /// <paramref name="freeTextSkills"/> (each a CV skill name), carrying each concept-id's
     /// preferred (canonical) label so the CV-seeded skill <b>chips</b> are user-readable
     /// (a bare concept-id is not — propose-and-approve needs the label, CLAUDE.md §5).
     /// Deduped per concept-id (one canonical label each), deterministic ordinal order.
-    /// Same fail-closed/honest-drop semantics: unresolvable / blank entries are dropped,
-    /// the result is possibly empty, never throws on an unresolvable name.
+    /// Fail-closed/honest-drop: unresolvable / blank entries are dropped, the result is
+    /// possibly empty, never throws on an unresolvable name. Honours
+    /// <paramref name="cancellationToken"/> between entries.
     /// </summary>
     IReadOnlyList<ResolvedSkill> ResolveDetailed(
         IEnumerable<string> freeTextSkills, CancellationToken cancellationToken);
@@ -55,8 +49,8 @@ public interface ISkillResolver
     /// browsable hierarchy, unlike occupations). Deduped per concept-id, ranked
     /// prefix-before-contains then shortest label, capped. Each hit carries the canonical
     /// preferred label (never a synonym). A query shorter than the minimum, or blank,
-    /// returns empty (no flooding). Distinct from <see cref="Resolve"/> /
-    /// <see cref="ResolveDetailed"/>, which resolve a FULL skill name via Snowball lexemes.
+    /// returns empty (no flooding). Distinct from <see cref="ResolveDetailed"/>, which
+    /// resolves a FULL skill name via Snowball lexemes.
     /// </summary>
     IReadOnlyList<ResolvedSkill> Search(string query, CancellationToken cancellationToken);
 

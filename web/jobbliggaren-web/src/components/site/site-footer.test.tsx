@@ -17,15 +17,20 @@ vi.mock("@/i18n/set-locale-action", () => ({
 }));
 
 // The global test provider renders with locale "sv", so labels are Swedish.
-describe("SiteFooter (LP-3, #256; civic-IA #390)", () => {
+describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
   it("renders exactly one footer landmark", () => {
     render(<SiteFooter />);
     expect(screen.getAllByRole("contentinfo")).toHaveLength(1);
   });
 
-  it("renders the three named navigation columns and NO Produkt column (#390)", () => {
+  it("renders the four even navigation columns and NO Produkt column (#390/#393)", () => {
     render(<SiteFooter />);
-    for (const name of ["Kom igång", "Stöd och guider", "Om Jobbliggaren"]) {
+    for (const name of [
+      "Kom igång",
+      "Stöd och guider",
+      "Om Jobbliggaren",
+      "Juridik",
+    ]) {
       expect(screen.getByRole("navigation", { name })).toBeInTheDocument();
     }
     // The auth-gated product deep-links column was removed (#390).
@@ -67,7 +72,7 @@ describe("SiteFooter (LP-3, #256; civic-IA #390)", () => {
 
   it("renders not-yet-built content links as aria-disabled spans, out of tab order", () => {
     render(<SiteFooter />);
-    // Hjälpcenter (support), För utvecklare (about), Tillgänglighet (legal bar)
+    // Hjälpcenter (support), För utvecklare (about), Tillgänglighet (legal)
     // are all gated content routes — disabled spans, never links.
     for (const name of ["Hjälpcenter", "För utvecklare", "Tillgänglighet"]) {
       expect(screen.queryByRole("link", { name })).toBeNull();
@@ -77,23 +82,18 @@ describe("SiteFooter (LP-3, #256; civic-IA #390)", () => {
     }
   });
 
-  it("renders aria-disabled social text placeholders (no accounts yet)", () => {
+  it("has no social block or 'Följ oss' (removed — accounts not coming soon, #393)", () => {
     render(<SiteFooter />);
+    expect(screen.queryByText("Följ oss")).toBeNull();
     for (const name of ["LinkedIn", "Facebook", "YouTube", "Instagram"]) {
-      const el = screen.getByText(name);
-      expect(el.tagName).toBe("SPAN");
-      expect(el).toHaveAttribute("aria-disabled", "true");
-      // Out of tab order: not a link.
-      expect(screen.queryByRole("link", { name })).toBeNull();
+      expect(screen.queryByText(name)).toBeNull();
     }
   });
 
-  it("groups legal/policy links in the thin bottom utility nav, once each (#390)", () => {
+  it("groups legal/policy links in their own 'Juridik' column, once each (#393)", () => {
     render(<SiteFooter />);
-    const legalNav = screen.getByRole("navigation", {
-      name: "Juridik och policyer",
-    });
-    // Live policy links live ONLY here (a single home each — no column dup).
+    const legalNav = screen.getByRole("navigation", { name: "Juridik" });
+    // Live policy links live ONLY in this column (a single home each — no dup).
     const links: ReadonlyArray<readonly [string, string]> = [
       ["Användarvillkor", "/villkor"],
       ["Integritetspolicy", "/integritet"],
@@ -105,6 +105,11 @@ describe("SiteFooter (LP-3, #256; civic-IA #390)", () => {
       expect(all[0]).toHaveAttribute("href", href);
       expect(within(legalNav).getByRole("link", { name })).toBe(all[0]);
     }
+    // Tillgänglighet is not built yet → disabled span inside the Juridik column.
+    expect(within(legalNav).getByText("Tillgänglighet")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("reuses the real language toggle in the footer variant (.jp-foot__lang)", () => {

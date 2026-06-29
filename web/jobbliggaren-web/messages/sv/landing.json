@@ -53,12 +53,11 @@
     "blurb": "Håll ordning i hela ditt jobbsökande. Sök, ansök och följ upp på ett ställe.",
     "source": "Byggd på öppen data från Arbetsförmedlingen",
     "free": "Jobbliggaren är gratis att använda.",
-    "followUs": "Följ oss",
     "copyright": "© 2026 Jobbliggaren",
     "colStart": "Kom igång",
     "colSupport": "Stöd och guider",
     "colAbout": "Om Jobbliggaren",
-    "legalNavAriaLabel": "Juridik och policyer",
+    "colLegal": "Juridik",
     "start": {
       "register": "Skapa konto",
       "login": "Logga in",

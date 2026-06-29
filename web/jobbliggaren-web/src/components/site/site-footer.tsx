@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Database } from "lucide-react";
@@ -7,19 +6,24 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 
 /**
  * SiteFooter — the shared deep-green footer (LP-3, #256). ONE footer mounted on
- * every shell: a brand column + three link columns + a thin closing bar.
+ * every shell: a brand column + four link columns + a thin closing bar.
  *
- * Civic-standard information architecture (#390, Klas 2026-06-29, ref AF/GOV.UK):
+ * Civic information architecture (#390 → #393, Klas 2026-06-29):
  *   • NO "Produkt" column — the deep app links (/jobb, /ansokningar, /cv,
  *     /matchningar) are auth-gated, so they redirect logged-out visitors to
  *     login and merely duplicate the header / app shell nav. The footer is for
- *     orientation (start, support, about) + a thin legal utility row, not a
- *     mirror of the primary navigation.
- *   • Legal/policy links (Användarvillkor, Integritet, Cookies, Tillgänglighet)
- *     live ONLY in the thin bottom bar (the civic "utility row" pattern), never
- *     in a content column — exactly one home for each, no duplication.
- *   • The about column is "Om Jobbliggaren" (Om, Kontakt, För utvecklare), not
- *     the old "Om och juridik" that mixed about + legal.
+ *     orientation (start, support, about) + legal, not a mirror of the primary
+ *     navigation.
+ *   • FOUR even columns, ONE link style. #392 first moved legal into a thin
+ *     bottom utility row, but with Produkt gone that left 3 sparse columns +
+ *     a second (inline) link style → unbalanced. #393 makes legal its own
+ *     "Juridik" column instead: four even columns (Kom igång / Stöd och guider /
+ *     Om Jobbliggaren / Juridik), and the closing bar carries only copyright +
+ *     the free line + the language toggle (no social block — social accounts
+ *     are not coming for a long while, #393 — and no content links).
+ *   • The about column is "Om Jobbliggaren" (Om, Kontakt, För utvecklare); the
+ *     "Juridik" column carries the policy links (Villkor, Integritet, Cookies,
+ *     Tillgänglighet) — the old "Om och juridik" mix is split into the two.
  *
  * Sync RSC: `useTranslations("landing")` resolves synchronously; `LanguageSwitcher`
  * is the only client island (the real cookie NEXT_LOCALE toggle, ADR 0078),
@@ -40,7 +44,8 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 type FooterHeadKey =
   | "footer.colStart"
   | "footer.colSupport"
-  | "footer.colAbout";
+  | "footer.colAbout"
+  | "footer.colLegal";
 
 type FooterLinkKey =
   | "footer.start.register"
@@ -53,17 +58,15 @@ type FooterLinkKey =
   | "footer.support.tips"
   | "footer.about.self"
   | "footer.about.contact"
-  | "footer.about.developers";
-
-type LegalLinkKey =
+  | "footer.about.developers"
   | "footer.legal.terms"
   | "footer.legal.privacy"
   | "footer.legal.cookies"
   | "footer.legal.accessibility";
 
-type FooterLink<K extends string> = {
+type FooterLink = {
   /** i18n key under `landing.footer.*` for the label. */
-  readonly labelKey: K;
+  readonly labelKey: FooterLinkKey;
   /** Live route, or `null` for a not-yet-built route (renders aria-disabled). */
   readonly href: string | null;
 };
@@ -71,7 +74,7 @@ type FooterLink<K extends string> = {
 type FooterColumn = {
   readonly key: string;
   readonly headKey: FooterHeadKey;
-  readonly links: readonly FooterLink<FooterLinkKey>[];
+  readonly links: readonly FooterLink[];
 };
 
 // Live hrefs point at existing routes; `null` = not built yet → aria-disabled,
@@ -106,21 +109,17 @@ const COLUMNS: readonly FooterColumn[] = [
       { labelKey: "footer.about.developers", href: null },
     ],
   },
+  {
+    key: "legal",
+    headKey: "footer.colLegal",
+    links: [
+      { labelKey: "footer.legal.terms", href: "/villkor" },
+      { labelKey: "footer.legal.privacy", href: "/integritet" },
+      { labelKey: "footer.legal.cookies", href: "/cookies" },
+      { labelKey: "footer.legal.accessibility", href: null },
+    ],
+  },
 ];
-
-// The thin bottom "utility row" — legal/policy links only (civic standard).
-// Tillganglighet (/tillganglighet) is not built yet → aria-disabled.
-const LEGAL: readonly FooterLink<LegalLinkKey>[] = [
-  { labelKey: "footer.legal.terms", href: "/villkor" },
-  { labelKey: "footer.legal.privacy", href: "/integritet" },
-  { labelKey: "footer.legal.cookies", href: "/cookies" },
-  { labelKey: "footer.legal.accessibility", href: null },
-];
-
-// Social accounts do not exist yet → aria-disabled text placeholders, out of tab
-// order. Brand names are proper nouns (not localized); lucide-react ships no
-// brand marks, so these are text-links per the issue, not icon buttons.
-const SOCIAL = ["LinkedIn", "Facebook", "YouTube", "Instagram"] as const;
 
 export function SiteFooter() {
   const t = useTranslations("landing");
@@ -171,52 +170,15 @@ export function SiteFooter() {
 
       <div className="jp-foot__bar">
         <div className="jp-foot__bar-inner">
-          <div className="flex flex-col gap-3">
-            <nav
-              className="jp-foot__legal"
-              aria-label={t("footer.legalNavAriaLabel")}
-            >
-              {LEGAL.map((link, i) => (
-                <Fragment key={link.labelKey}>
-                  {i > 0 ? (
-                    <span className="jp-foot__legal-sep" aria-hidden="true">
-                      ·
-                    </span>
-                  ) : null}
-                  {link.href ? (
-                    <Link href={link.href}>{t(link.labelKey)}</Link>
-                  ) : (
-                    <span className="opacity-70" aria-disabled="true">
-                      {t(link.labelKey)}
-                    </span>
-                  )}
-                </Fragment>
-              ))}
-            </nav>
-            <div className="jp-foot__legal">
-              <span>{t("footer.copyright")}</span>
-              <span className="jp-foot__legal-sep" aria-hidden="true">
-                ·
-              </span>
-              <span>{t("footer.free")}</span>
-            </div>
+          <div className="jp-foot__legal">
+            <span>{t("footer.copyright")}</span>
+            <span className="jp-foot__legal-sep" aria-hidden="true">
+              ·
+            </span>
+            <span>{t("footer.free")}</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span>{t("footer.followUs")}</span>
-              <ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {SOCIAL.map((name) => (
-                  <li key={name}>
-                    <span className="opacity-70" aria-disabled="true">
-                      {name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <LanguageSwitcher variant="footer" />
-          </div>
+          <LanguageSwitcher variant="footer" />
         </div>
       </div>
     </footer>

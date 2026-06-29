@@ -526,15 +526,19 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
     //     against real Postgres, and that hideApplied's NOT EXISTS likewise ignores it.
     // ===============================================================
 
-    // A MANUAL application — JobAdId == null (cover-letter-only, no linked ad). Degenerate
-    // (null, null) is a valid Create (Application.cs aggregate-invariant comment).
+    // A MANUAL application — JobAdId == null (degenerate cover-letter-only, no linked ad;
+    // (null, null) is a valid Create per Application.cs's aggregate-invariant comment).
+    // coverLetter MUST be null: it is a DEK-encrypted field (ADR 0049) and a direct
+    // SaveChangesAsync (bypassing FieldEncryptionKeyPrefetchBehavior) has no warmed owner-DEK
+    // → CryptographicException. We only need a row with JobAdId == null, so leave it null
+    // (parity ApplyToJobAdAsync, which also passes coverLetter: null).
     private async Task ApplyManuallyAsync(JobSeekerId seeker)
     {
         var (db, scope, clock) = NewScope();
         using (scope)
         {
             var app = DomainApplication.Create(
-                seeker, jobAdId: null, coverLetter: "manuell ansökan", manualPosting: null, clock).Value;
+                seeker, jobAdId: null, coverLetter: null, manualPosting: null, clock).Value;
             db.Applications.Add(app);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }

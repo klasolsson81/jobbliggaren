@@ -77,8 +77,8 @@ export function computeApplicationCounts(
 
 /**
  * Samlar alla ansökningar från pipeline-grupper i en platt array. Behövs
- * för datum-filter (Uppföljning >14d, Intervju <1d) som inte kan beräknas
- * från counts alone.
+ * för datum-filter (uppföljnings-fönstret {@link OVERSIKT_FOLLOW_UP_DAYS},
+ * Intervju <1d) som inte kan beräknas från counts alone.
  */
 export function flattenPipeline(
   pipeline: ReadonlyArray<PipelineGroupDto>
@@ -176,8 +176,29 @@ export function formatSwedishLongDate(date: Date): SwedishLongDate {
 }
 
 /**
+ * Uppföljnings-fönstret för Översikt-notisen, i dagar (#384). Exporterad som EN
+ * SSOT: filtret nedan OCH copy-talet (`notices.followUpText` via en ICU
+ * `{days}`-param) läser samma konstant, så tröskeln och det visade talet aldrig
+ * kan drifta isär (drift-guard-mönstret från #291). Detta är FE-side view-policy
+ * (parallellt med `findRecentInterviews` ≤1d / `filterFutureDeadlines`), MEDVETET
+ * SKILT från /ansokningar-attentionens ADR 0085-trösklar (proaktiv nudge 7d,
+ * NoResponseLong 21d) — Översikten är en lättare nudge-yta (CTO-dom #384).
+ */
+export const OVERSIKT_FOLLOW_UP_DAYS = 14;
+
+/**
  * Returnerar ansökningar som behöver uppföljning: status ∈ {Submitted,
- * Acknowledged} och `createdAt` ligger > 14 dagar sedan.
+ * Acknowledged} och `appliedAt` (datumet ansökan SKICKADES) ligger mer än
+ * {@link OVERSIKT_FOLLOW_UP_DAYS} dagar sedan.
+ *
+ * #384: ankras i `appliedAt`, INTE `createdAt`. "Inte fått svar på X dagar" mäts
+ * från när arbetsgivaren fick ansökan, inte när användaren skapade ett utkast i
+ * sitt eget verktyg. Ett utkast skapat 2026-06-11 men skickat 2026-06-28 har
+ * väntat 1 dag på svar, inte 18 — samma datum-SSOT (`appliedAt`) som "skickad i
+ * går" på Mina ansökningar. `appliedAt` är nullable i DTO:n; en Submitted/
+ * Acknowledged-ansökan har alltid ett (domänen stämplar det vid Submitted-
+ * övergången), men null-guarden gör helpern defensiv — inget apply-datum ⇒ inget
+ * ankare ⇒ ingen kandidat (paritet BE `ApplicationAttentionEvaluator`).
  *
  * Driver Uppföljning-notisen. Tom array ⇒ dölj notisen helt (HANDOVER §3.3).
  */
@@ -188,8 +209,24 @@ export function findFollowUpCandidates(
   return apps.filter(
     (a) =>
       (a.status === "Submitted" || a.status === "Acknowledged") &&
-      daysSince(a.createdAt, now) > 14
+      a.appliedAt != null &&
+      daysSince(a.appliedAt, now) > OVERSIKT_FOLLOW_UP_DAYS
   );
+}
+
+/**
+ * Formaterar notis-panelens "senast uppdaterad"-stämpel som
+ * `YYYY-MM-DD · HH:mm` (UTC, konsekvent med sidans övriga UTC-datumhantering —
+ * `daysSince`-trunkering, sammanfattnings-stämpeln). #384: ersätter den stale
+ * mock-stämpeln. Översikt-sidan är `force-dynamic` och beräknar notiserna LIVE
+ * per request, så render-tiden ÄR den ärliga "senast uppdaterad"-tidpunkten.
+ * Ren helper (injicerat datum) → deterministiskt testbar. Returnerar "–" vid
+ * ogiltig input i stället för att kasta.
+ */
+export function formatNoticesStamp(date: Date): string {
+  if (Number.isNaN(date.getTime())) return "–";
+  const iso = date.toISOString();
+  return `${iso.slice(0, 10)} · ${iso.slice(11, 16)}`;
 }
 
 /**

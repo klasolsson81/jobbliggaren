@@ -53,8 +53,6 @@ export interface OversiktMock {
   readonly savedJobsDeadlines: ReadonlyArray<OversiktSavedJobDeadline>;
   /** BE-port saknas: letters-tabell (HANDOVER §3.6). */
   readonly personalLettersCount: number;
-  /** BE-port saknas: notification-stämpel (HANDOVER §3.3). */
-  readonly noticesLastUpdated: string;
   /**
    * GUEST-ONLY (efter #294): den autentiserade `/oversikt`-notisen läser INTE
    * längre detta — den featurar användarens SENASTE riktiga recent-search
@@ -94,7 +92,6 @@ export const OVERSIKT_MOCK: OversiktMock = {
     { date: "2026-05-27", label: "27 maj" },
   ],
   personalLettersCount: 4,
-  noticesLastUpdated: "2026-05-23 · 08:42",
   savedSearchHitsLast: { name: "Remote / Distansjobb", newHits: 4 },
   bonnierOffer: {
     company: "Bonnier News",

@@ -25,6 +25,7 @@ const MARKETING_PATHS = [
   "/tips",
   "/vanliga-fragor",
   "/matchning",
+  "/cv-granskning",
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {

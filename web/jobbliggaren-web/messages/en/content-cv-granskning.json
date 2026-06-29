@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "title": "How we review your CV",
+    "description": "How Jobbliggaren's CV review works: fully rule-based, no AI. Four verdicts with cited evidence, no hidden score, and improvement suggestions you work in yourself."
+  },
+  "kicker": "Review",
+  "title": "How we review your CV",
+  "updated": "Last updated: 2026-06-29",
+  "intro": "Jobbliggaren reviews your CV with fixed rules, without AI, and shows exactly where in the text each verdict comes from. Here we explain how the review works and how the improvement suggestions are given.",
+  "deterministic": {
+    "heading": "Fully rule-based, no AI",
+    "paragraphs": [
+      "The review is rule-based. We read the text in your uploaded CV (PDF or Word) and compare it against a versioned knowledge bank of criteria, using local Swedish language tools on our server. No AI, no language models, nothing is sent to any external service.",
+      "Because the engine only compares rules, it can only point to what your CV actually says. It does not guess and never invents qualifications you have not written."
+    ],
+    "pipelineLabel": "How the review works",
+    "pipeline": [
+      "Upload your CV",
+      "Read the text",
+      "Compare against the rules",
+      "Show verdict with evidence"
+    ]
+  },
+  "verdicts": {
+    "heading": "Four verdicts, always with evidence",
+    "intro": "Each criterion gets one of four verdicts. For every verdict we show the place in your CV it is based on, either as a quote or as an observation. We never show a verdict without pointing to where it comes from.",
+    "exampleLabel": "Example",
+    "items": [
+      {
+        "label": "Pass",
+        "tone": "success",
+        "name": "Measurable results",
+        "quote": "Increased online sales by 32 percent during 2025.",
+        "observation": null,
+        "note": null,
+        "reason": null
+      },
+      {
+        "label": "Partial",
+        "tone": "warning",
+        "name": "Clear profile text",
+        "quote": "Driven and committed person who enjoys challenges.",
+        "observation": null,
+        "note": "The profile text is vague. Add what you actually do and what you have achieved.",
+        "reason": null
+      },
+      {
+        "label": "Fail",
+        "tone": "danger",
+        "name": "Contact details",
+        "quote": null,
+        "observation": "No email address was found in the CV.",
+        "note": null,
+        "reason": null
+      },
+      {
+        "label": "Not assessed",
+        "tone": "neutral",
+        "name": "Visual hierarchy",
+        "quote": null,
+        "observation": null,
+        "note": null,
+        "reason": "This version reads the text in your CV, not the page layout, so fonts and colors are not assessed. We say so openly instead of guessing."
+      }
+    ]
+  },
+  "noScore": {
+    "heading": "No hidden score",
+    "paragraphs": [
+      "You do not get a score between 0 and 100, no gauge and no ring. A hidden score tempts you to optimize the number instead of the content.",
+      "Instead, for each category you see a level plus the number of passed, partially passed, failed and not assessed criteria. The verdicts are the primary thing, the level is just a summary, and you always see which criteria lie behind it. We also save which version of the rules the review was made against."
+    ],
+    "bandsLabel": "The levels per category",
+    "bands": [
+      { "label": "Not ready", "tone": "danger" },
+      { "label": "Needs rework", "tone": "warning" },
+      { "label": "Competitive", "tone": "info" },
+      { "label": "Top tier", "tone": "success" }
+    ]
+  },
+  "assessable": {
+    "heading": "What we can and cannot assess from text",
+    "intro": "Because we read the text in your CV, not the page's appearance, some things are not assessed in this version. We mark them as not assessed instead of pretending.",
+    "assessedLabel": "Assessed",
+    "assessed": [
+      "Content, for example measurable results and concrete examples",
+      "Structure, for example headings and order",
+      "Language, for example clichés and weak verbs",
+      "ATS readability, that is, whether the systems can read the CV"
+    ],
+    "notAssessedLabel": "Not assessed in this version",
+    "notAssessed": [
+      "Visual hierarchy, fonts and colors",
+      "Deeper grammar",
+      "Career progression over time"
+    ]
+  },
+  "personnummer": {
+    "heading": "Personal identity numbers and privacy",
+    "paragraphs": [
+      "If your CV contains a personal identity number or coordination number, we flag it and ask you to remove it before you continue. We never ask you to add it. The number itself is never shown, neither in the interface nor in logs.",
+      "Your CV content is encrypted, read only on our server and never sent to any AI. You can delete your CV and your account whenever you want."
+    ],
+    "exampleLabel": "Example",
+    "exampleFlag": "Personal identity number found. Remove it before you use the CV."
+  },
+  "improvements": {
+    "heading": "How we give improvement suggestions",
+    "paragraphs": [
+      "Beyond the verdicts, the engine can suggest concrete improvements. Each suggestion shows the same thing as a verdict: the quoted place in your CV, a before and after (or a structural change), a short rationale, and always a source, that is, which rule the suggestion comes from.",
+      "The suggestions are guidance you read and work into your CV yourself. You decide. The system never rewrites your CV for you silently, and it never invents qualifications you have not written. It diagnoses and structures, it does not dictate."
+    ],
+    "exampleLabel": "Example",
+    "pillLabel": "Text suggestion",
+    "currentLabel": "Current",
+    "suggestionLabel": "Suggestion",
+    "before": "Responsible for various tasks within marketing.",
+    "after": "Ran three social media campaigns that increased reach by 40 percent.",
+    "rationale": "Concrete and measurable wording says more than general descriptions of responsibilities.",
+    "source": "Source: Criterion A3 v3"
+  },
+  "promise": {
+    "heading": "This is what we promise",
+    "items": [
+      "Every verdict has evidence from your CV.",
+      "We never invent qualifications you have not written.",
+      "We never rewrite your CV silently.",
+      "Personal identity numbers are always flagged and never shown.",
+      "No hidden score, only verdicts you can follow.",
+      "The rules are versioned and traceable."
+    ]
+  },
+  "links": {
+    "heading": "Get started",
+    "text": "Upload your CV to see your review, or read our tips for job seekers.",
+    "cvLink": "To CV",
+    "tipsLink": "Tips for job seekers"
+  }
+}

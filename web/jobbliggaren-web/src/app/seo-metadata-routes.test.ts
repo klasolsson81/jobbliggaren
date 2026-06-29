@@ -54,6 +54,7 @@ describe("sitemap.ts", () => {
       `${SITE_URL}/tips`,
       `${SITE_URL}/vanliga-fragor`,
       `${SITE_URL}/matchning`,
+      `${SITE_URL}/cv-granskning`,
     ]);
   });
 

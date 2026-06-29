@@ -36,6 +36,31 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}`);
   });
 
+  // #380 — radlänken bär list-URL:ens view-state (filter + match + sort + sök)
+  // så soft-nav till modalen inte tappar filter/match-läget vid öppna→stäng
+  // (children-slotten re-rendras annars till tomma searchParams under modalen;
+  // router.back() återställer bara modal-slotten). `listQuery` byggs i
+  // `JobbResults` via `buildJobbHref` (+ page). Default tom = naken länk.
+  it("#380 — bär list-staten (relaterade + grader + sortering + sök) i radlänken", () => {
+    const listQuery =
+      "q=backend&occupationGroup=MVqp_eS8_kDZ&matchGrades=Strong&relaterade=on&sortBy=Relevance";
+    render(<JobAdCard jobAd={baseAd} listQuery={listQuery} />);
+    const link = screen.getByRole("link", {
+      name: "Senior Backend Developer – Acme AB",
+    });
+    // Modal-URL:en speglar listans URL exakt → router.back() bevarar HELA
+    // filter-/match-läget. relaterade=on tas dessutom in i modalens grad-anrop.
+    expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}?${listQuery}`);
+  });
+
+  it("#380 — tom listQuery (gäst-/övrig yta) ger en naken länk utan query", () => {
+    render(<JobAdCard jobAd={baseAd} listQuery="" />);
+    const link = screen.getByRole("link", {
+      name: "Senior Backend Developer – Acme AB",
+    });
+    expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}`);
+  });
+
   it("renders source label and published date in meta", () => {
     render(<JobAdCard jobAd={baseAd} />);
     expect(screen.getByText("Platsbanken")).toBeInTheDocument();

@@ -26,6 +26,13 @@ interface JobAdListProps {
    * eller ingen match (chips visas inte).
    */
   matchGradeById?: ReadonlyMap<string, MatchGrade>;
+  /**
+   * #380 — nuvarande listans query-sträng (utan `?`), byggd i `JobbResults`.
+   * Trådas oförändrat ner till varje `JobAdCard` så radlänken bär list-URL:ens
+   * view-state in i modal-soft-naven (annars tappas filter/match-läget vid
+   * öppna→stäng). Default tom = naken länk (gäst-/övriga ytor).
+   */
+  listQuery?: string;
 }
 
 export function JobAdList({
@@ -34,6 +41,7 @@ export function JobAdList({
   savedIdSet,
   appliedIdSet,
   matchGradeById,
+  listQuery,
 }: JobAdListProps) {
   // Synchronous next-intl translator — keeps JobAdList a non-async RSC.
   const t = useTranslations("jobads.ui");
@@ -60,6 +68,7 @@ export function JobAdList({
             isSaved={savedIdSet?.has(jobAd.id) ?? false}
             isApplied={appliedIdSet?.has(jobAd.id) ?? false}
             matchGrade={matchGradeById?.get(jobAd.id)}
+            listQuery={listQuery}
           />
         </li>
       ))}

@@ -15,7 +15,9 @@ import {
   findRecentInterviews,
   flattenPipeline,
   formatDaysAgo,
+  formatNoticesStamp,
   formatSwedishShortDate,
+  OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
 import { OVERSIKT_MOCK } from "@/lib/oversikt/mock-data";
 import { OVERSIKT_MATCH_GRADES } from "@/lib/dto/match-count";
@@ -154,6 +156,9 @@ export function OversiktPage({
       label: t("notices.followUpLabel"),
       text: t.rich("notices.followUpText", {
         count: followUps.length,
+        // #384 — talet kommer från samma SSOT som filter-tröskeln (ingen
+        // hårdkodad "14" i copyn) så de aldrig kan drifta isär.
+        days: OVERSIKT_FOLLOW_UP_DAYS,
         b: (chunks) => <b>{chunks}</b>,
       }),
       cta: t("notices.followUpCta"),
@@ -378,7 +383,9 @@ export function OversiktPage({
         <NoticeList
           actionNotices={actionNotices}
           infoNotices={infoNotices}
-          lastUpdated={OVERSIKT_MOCK.noticesLastUpdated}
+          // #384 — notiserna beräknas LIVE per request (force-dynamic), så
+          // "senast uppdaterad" är render-tiden, inte en stale mock-stämpel.
+          lastUpdated={formatNoticesStamp(today)}
         />
 
         {/* Sammanfattning */}

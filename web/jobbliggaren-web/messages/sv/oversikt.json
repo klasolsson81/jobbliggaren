@@ -29,7 +29,7 @@
     "offerText": "<b>{company}</b>. Erbjudande väntar svar.",
     "offerCta": "Granska erbjudande",
     "followUpLabel": "Uppföljning",
-    "followUpText": "Du har <b>{count, plural, one {# ansökan} other {# ansökningar}}</b> som inte fått svar på över 14 dagar. Överväg att höra av dig.",
+    "followUpText": "Du har <b>{count, plural, one {# ansökan} other {# ansökningar}}</b> som inte fått svar på över {days, number} dagar. Överväg att höra av dig.",
     "followUpCta": "Visa ansökningar",
     "deadlineLabel": "Deadline",
     "deadlineText": "<b>{count, plural, one {# sparad annons} other {# sparade annonser}}</b> har sista ansökningsdag denna vecka ({labels}).",

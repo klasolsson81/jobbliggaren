@@ -164,11 +164,28 @@ public sealed class AccountHardDeleter(
             db.UserJobAdMatches.RemoveRange(userJobAdMatches);
             db.JobSeekers.Remove(jobSeeker);
 
+            // GDPR Art. 17 (#370, found by the #268 audit) — ParsedResume is an FK-less
+            // by-JobSeekerId aggregate (ADR 0011 strongly-typed soft-reference; the raw-CV
+            // staging aggregate, ADR 0074). Like UserJobAdMatch/SavedSearches it must be deleted
+            // EXPLICITLY or its rows orphan on hard-delete. Crypto-erasure (DeleteDataKeysAsync
+            // below) only makes the DEK-encrypted columns (raw_text/parsed_content_enc) unreadable
+            // — it does NOT remove the PLAINTEXT columns (source_file_name, frequently the data
+            // subject's name; job_seeker_id), so the rows themselves must go. ExecuteDeleteAsync =
+            // a SQL DELETE with NO DEK/jsonb materialization (parity ParsedResumeRetentionJob),
+            // and it participates in the ambient BeginTransactionAsync transaction (rollback-safe,
+            // same guarantee as DeleteDataKeysAsync). IgnoreQueryFilters so any soft-/status-state
+            // row is included. Idempotent (0 rows = no-op).
+            await db.ParsedResumes
+                .IgnoreQueryFilters()
+                .Where(p => p.JobSeekerId == jsId)
+                .ExecuteDeleteAsync(cancellationToken);
+
             // Steg 2 e2 — Crypto-erasure (TD-13 ADR 0049 Beslut 2 + C6,
             // GDPR Art. 17). Kastar användarens per-användare-DEK INOM samma
             // transaktion → backup-resident ciphertext (cover_letter/
             // application_notes.content/follow_ups.note/resume_versions.
-            // content_enc) blir omedelbart olesbar. ExecuteDeleteAsync deltar
+            // content_enc/parsed_resumes.raw_text/parsed_content_enc) blir
+            // omedelbart olesbar. ExecuteDeleteAsync deltar
             // i den ambienta BeginTransactionAsync-transaktionen (dotnet-
             // architect-verifierad 2026-05-19, Microsoft Learn): vid rollback
             // rullas DEK-deletet med aggregat-deletet → ingen partiell

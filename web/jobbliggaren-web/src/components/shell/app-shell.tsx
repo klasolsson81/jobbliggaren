@@ -77,8 +77,9 @@ const V3_NATIVE_ROUTES = [
   "/cv",
   // Own their own .jp-container; top-level (not /ansokningar/[id] siblings, so
   // the application-detail modal intercept can't catch them on soft-nav — #316,
-  // #332).
+  // #332, #313).
   "/aktivitetsrapport",
+  "/statistik",
   "/ny-ansokan",
 ];
 

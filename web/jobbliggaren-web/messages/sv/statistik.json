@@ -1,0 +1,56 @@
+{
+  "title": "Statistik",
+  "lede": "Översikt över hur dina ansökningar går: svar, intervjuer, avslag och utveckling över tid.",
+  "back": "Tillbaka till ansökningar",
+  "summary": "Du har {total} ansökningar totalt, varav {sent} skickade.",
+  "error": {
+    "title": "Kunde inte ladda statistik",
+    "body": "Något gick fel när statistiken skulle hämtas. Ladda om sidan och försök igen.",
+    "rateLimited": "Du har hämtat statistik många gånger på kort tid. Vänta en stund och försök igen."
+  },
+  "empty": {
+    "title": "Ingen statistik ännu",
+    "body": "Så fort du registrerar din första ansökan börjar statistiken byggas upp här.",
+    "createFirst": "Skapa första ansökan",
+    "searchFirst": "Sök annonser först"
+  },
+  "rates": {
+    "heading": "Utfall",
+    "intro": "Andelarna räknas på dina skickade ansökningar.",
+    "metric": "Mått",
+    "value": "Antal",
+    "share": "Andel",
+    "response": "Svarsfrekvens",
+    "interview": "Intervjufrekvens",
+    "rejection": "Avslagsfrekvens",
+    "ofSent": "{numerator} av {denominator}",
+    "empty": "Du har inga skickade ansökningar ännu. Utfall visas när du skickat minst en ansökan."
+  },
+  "funnel": {
+    "heading": "Från skickad till accepterad",
+    "intro": "Hur många av dina skickade ansökningar som nått varje steg.",
+    "stage": "Steg",
+    "count": "Antal",
+    "share": "Andel av skickade",
+    "stages": {
+      "Sent": "Skickad",
+      "Responded": "Svar",
+      "Interview": "Intervju",
+      "Offer": "Erbjudande",
+      "Accepted": "Accepterad"
+    },
+    "limitation": "{count, plural, =1 {En ansökan avslutades} other {# ansökningar avslutades}} utanför processen (avslag, återkallad eller utan svar) och räknas bara som skickad i tratten. Tidigare steg kan därför vara underskattade."
+  },
+  "statusBreakdown": {
+    "heading": "Per status",
+    "intro": "Alla dina ansökningar fördelade på status, inklusive utkast.",
+    "status": "Status",
+    "count": "Antal"
+  },
+  "monthly": {
+    "heading": "Ansökningar per månad",
+    "intro": "Skickade ansökningar de senaste tolv månaderna.",
+    "month": "Månad",
+    "count": "Antal"
+  }
+}

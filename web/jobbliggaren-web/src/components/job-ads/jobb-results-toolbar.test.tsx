@@ -362,7 +362,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     });
 
     it("hjälpraden visas när matchningen är PÅ (matchActive), inte i av-läget", () => {
-      const HELP = /Filtrerar listan efter din matchningsnivå/;
+      const HELP = /Filtrerar listan efter hur väl annonserna passar/;
       const { rerender } = renderToolbar({
         matchActive: false,
         hasStatedDesiredOccupation: true,

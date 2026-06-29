@@ -87,7 +87,12 @@ public sealed class GetApplicationsQueryHandler(
                 // BOTH read handlers (slice-1 AppliedAt precedent) so the shared
                 // ApplicationDto never carries a lie on either read path. Soft-delete
                 // exclusion via the FollowUp global query filter (ADR 0048 c — one SPOT).
-                // Index shape + ADR 0045 re-validation tracked in #348.
+                // #348 RESOLVED (measured 2026-06-30): the application_id FK index
+                // index-serves this EXISTS at scale (~1.6-2.5 ms warm @ 60k apps /
+                // 181k follow_ups, ≈2 orders under the ADR 0045 budget, observe-only
+                // §2.5); no index added. Pre-selected remedy on a future ratchet: a
+                // partial (application_id, scheduled_at) WHERE deleted_at IS NULL AND
+                // outcome = 'Pending'. Lockstep with GetPipelineQueryHandler. See ADR 0085 §3.
                 r.a.LastStatusChangeAt,
                 r.a.FollowUps.Any(f =>
                     f.Outcome == FollowUpOutcome.Pending && f.ScheduledAt < now),

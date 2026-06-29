@@ -5,6 +5,7 @@ using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Domain.Resumes;
@@ -277,6 +278,98 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             + "annars orphan:as plaintext source_file_name (PII) + job_seeker_id efter konto-radering");
     }
 
+    [Fact]
+    public async Task RunAsync_CascadesHardDelete_ToApplicationResumeAndUserJobAdMatch()
+    {
+        // GDPR Art. 17 cascade-completeness (#399, behavioral follow-up to the #374
+        // build-time fitness function). AccountHardDeleteCascadeFitnessTests proves
+        // every FK-less user-owned aggregate is WIRED into HardDeleteAccountAsync
+        // (structural); this oracle proves the cascade RUNS for the three not yet
+        // asserted here — Application (by JobSeekerId), Resume (by JobSeekerId; its
+        // ResumeVersions go via DB-FK CASCADE), and UserJobAdMatch (FK-less by UserId,
+        // ADR 0080). Together with the SavedSearches/RecentJobSearches/SavedJobAds/
+        // ParsedResume tests above, all 7 CascadeMap aggregates are now covered both
+        // structurally (build-time) and behaviorally (here) — symmetric layers.
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var oldDeletedAt = now.AddDays(-(RestoreWindowDays + 1));
+
+        var (userId, jobSeekerId) = await SeedSoftDeletedAccountAsync(oldDeletedAt, ct);
+
+        // Application — coverLetter null (the DEK-encrypted column) so the seed write
+        // needs no warm owner DEK (parity ApplyToJobAdAsync); job_ad_id is a soft
+        // reference, NO FK (ApplicationConfiguration). UserJobAdMatch — DEK-free
+        // plaintext concept-ids, keyed by UserId. Both seeded in one scope.
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seedClock = new FixedClock(oldDeletedAt.AddDays(-2));
+
+            var application = DomainApplication.Create(
+                jobSeekerId, JobAdId.New(), coverLetter: null,
+                manualPosting: null, seedClock).Value;
+            db.Applications.Add(application);
+
+            var match = UserJobAdMatch.Create(
+                userId, JobAdId.New(), NotifiableMatchGrade.Top, ["csharp"], seedClock).Value;
+            db.UserJobAdMatches.Add(match);
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        // Resume — its initial Master ResumeVersion carries DEK-encrypted content
+        // (content_enc, ADR 0049), so the seed warms the owner DEK first.
+        await SeedResumeForJobSeekerAsync(jobSeekerId, ct);
+
+        // Pre-condition: one row each exists (so no assertion is vacuously green).
+        // IgnoreQueryFilters — the account is soft-deleted; counts project no
+        // encrypted column (SQL COUNT), so no warm DEK is needed in this scope.
+        using (var preScope = _fixture.Services.CreateScope())
+        {
+            var preDb = preScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var appCount = await preDb.Applications
+                .IgnoreQueryFilters().AsNoTracking()
+                .Where(a => a.JobSeekerId == jobSeekerId).CountAsync(ct);
+            appCount.ShouldBe(1, "seed must persist exactly one application row before the job runs");
+
+            var resumeCount = await preDb.Resumes
+                .IgnoreQueryFilters().AsNoTracking()
+                .Where(r => r.JobSeekerId == jobSeekerId).CountAsync(ct);
+            resumeCount.ShouldBe(1, "seed must persist exactly one resume row before the job runs");
+
+            var matchCount = await preDb.UserJobAdMatches
+                .IgnoreQueryFilters().AsNoTracking()
+                .Where(m => m.UserId == userId).CountAsync(ct);
+            matchCount.ShouldBe(1, "seed must persist exactly one user_job_ad_match row before the job runs");
+        }
+
+        await RunJobAsync(now, ct);
+
+        using var verifyScope = _fixture.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var applicationsAfter = await verifyDb.Applications
+            .IgnoreQueryFilters().AsNoTracking()
+            .Where(a => a.JobSeekerId == jobSeekerId).CountAsync(ct);
+        applicationsAfter.ShouldBe(0,
+            "Application ska hard-raderas vid konto-radering (GDPR Art. 17)");
+
+        var resumesAfter = await verifyDb.Resumes
+            .IgnoreQueryFilters().AsNoTracking()
+            .Where(r => r.JobSeekerId == jobSeekerId).CountAsync(ct);
+        resumesAfter.ShouldBe(0,
+            "Resume ska hard-raderas vid konto-radering (GDPR Art. 17); dess ResumeVersions "
+            + "(aggregat-interna barn, ingen egen DbSet) följer via DB-FK ON DELETE CASCADE "
+            + "(ResumeConfiguration) när parent-raden tas bort");
+
+        var matchesAfter = await verifyDb.UserJobAdMatches
+            .IgnoreQueryFilters().AsNoTracking()
+            .Where(m => m.UserId == userId).CountAsync(ct);
+        matchesAfter.ShouldBe(0,
+            "UserJobAdMatch (FK-löst by UserId, ADR 0080) ska hard-raderas vid konto-radering (GDPR Art. 17)");
+    }
+
     // ─── Helpers ───
 
     /// <summary>
@@ -329,6 +422,36 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             clock).Value;
 
         db.ParsedResumes.Add(parsed);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Seeds ONE <see cref="Resume"/> (with its initial Master <c>ResumeVersion</c>) for
+    /// <paramref name="jobSeekerId"/> against real Postgres. The Master version carries
+    /// DEK-encrypted content (<c>content_enc</c> Form B, ADR 0049) → the write goes through
+    /// the field-encryption interceptor, which fails-closed without a WARM owner DEK. So we
+    /// warm the owner DEK in-scope (<see cref="ICurrentDataOwner.SetOwner"/> +
+    /// <c>GetOrCreateDataKeyAsync</c>) before <c>SaveChangesAsync</c> — the same pattern
+    /// <see cref="SeedParsedResumeForJobSeekerAsync"/> and <c>ResumeEncryptionTests</c> use.
+    /// </summary>
+    private async Task SeedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct)
+    {
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+
+        using var scope = _fixture.Services.CreateScope();
+
+        // Warm the owner DEK so the field-encryption write interceptor encrypts (not
+        // fails-closed). Keyed by JobSeekerId — the data owner of the CV.
+        var dataKeyStore = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
+        var currentDataOwner = scope.ServiceProvider.GetRequiredService<ICurrentDataOwner>();
+        currentDataOwner.SetOwner(jobSeekerId);
+        var dek = await dataKeyStore.GetOrCreateDataKeyAsync(jobSeekerId, ct);
+        CryptographicOperations.ZeroMemory(dek);
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var resume = Resume.Create(jobSeekerId, "Mitt CV", "Test Person", clock).Value;
+        db.Resumes.Add(resume);
         await db.SaveChangesAsync(ct);
     }
 

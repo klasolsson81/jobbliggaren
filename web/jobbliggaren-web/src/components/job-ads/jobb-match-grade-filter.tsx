@@ -9,6 +9,7 @@ import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
+import { OVERSIKT_MATCH_GRADES } from "@/lib/dto/match-count";
 
 /**
  * STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filtret på /jobb.
@@ -107,6 +108,15 @@ interface JobbMatchGradeFilterProps {
 // (badge) per issue #291 / #300 (drift-guard-pinnat i parity-testet).
 const GRADES: ReadonlyArray<ListMatchGrade> = LIST_MATCH_GRADES;
 
+// #381 — "Visa bara matchade" = Bra + Stark match (Good/Strong). Återbruka
+// `OVERSIKT_MATCH_GRADES` (SSOT, drift-guardad mot backend
+// `GetMyMatchCountQueryHandler.HeadlineGrades`) i stället för en egen kopia, så
+// snabbvalet landar BEVISLIGT på exakt samma grad-set som Översiktens "visa
+// matchade jobb"-länk + notis-count (?matchGrades=Good&matchGrades=Strong).
+// Exkluderar Grundmatch (Basic) OCH Relaterat yrke (Related) — "matchad" mäter
+// grad-STYRKA, inte yrkes-bredd; relaterade yrken styrs av sin egen toggle.
+const ONLY_MATCHED_GRADES = OVERSIKT_MATCH_GRADES;
+
 export function JobbMatchGradeFilter({
   active,
   selected,
@@ -141,6 +151,19 @@ export function JobbMatchGradeFilter({
   // Härledd effektiv mängd: PÅ + tom lista = alla SYNLIGA grader visas
   // (kryssrutorna renderas ALLA ikryssade). PÅ + delmängd = bara de graderna.
   const allShown = selected.length === 0;
+
+  // #381 — "Visa bara matchade" är aktiv (knappen pressad) EXAKT när det valda
+  // grad-setet är {Good, Strong} (oavsett relaterade-toggle:n — Related räknas
+  // aldrig som matchad). En custom-delmängd (t.ex. bara Stark, eller med Basic)
+  // → ej aktiv (opressad). Ett klick när opressad sätter Good+Strong; ett klick
+  // när pressad återställer till alla ([] = alla synliga grader visas).
+  const onlyMatched =
+    selected.length === ONLY_MATCHED_GRADES.length &&
+    ONLY_MATCHED_GRADES.every((g) => selected.includes(g));
+
+  function toggleOnlyMatched() {
+    onChange(onlyMatched ? [] : [...ONLY_MATCHED_GRADES]);
+  }
 
   function toggleSwitch() {
     // PÅ → AV: föräldern skriver `?matchning=off` + tömmer grader. AV → PÅ:
@@ -226,6 +249,29 @@ export function JobbMatchGradeFilter({
             >
               {t("relatedToggleHelp")}
             </span>
+          </div>
+
+          {/* #381 — "Visa bara matchade"-snabbval: ETT klick smalnar till Bra +
+              Stark match (Good/Strong), paritet med Översiktens "visa matchade
+              jobb"-länk; ett klick till återställer alla nivåer. Toggle-knapp
+              (aria-pressed) — pressad = aktiv filtrering. Återanvänder .jp-btn-
+              tokenen: sekundär (kontur) opressad, primär (grön accent-fyll
+              `--jp-accent-800`, ADR 0068) pressad — accent-fyllen = "på"/aktiv
+              selektion i hela design-systemet (switch-`data-checked`/segment-
+              `data-active`). Grad-kryssrutorna nedan speglar resultatet (Bra +
+              Stark ikryssade), så förhållandet är självförklarande. EGEN rad
+              ovanför grupperna; inga nya globals.css-klasser. */}
+          <div>
+            <button
+              type="button"
+              aria-pressed={onlyMatched}
+              onClick={toggleOnlyMatched}
+              className={`jp-btn jp-btn--sm ${
+                onlyMatched ? "jp-btn--primary" : "jp-btn--secondary"
+              }`}
+            >
+              {t("onlyMatchedLabel")}
+            </button>
           </div>
 
           <div

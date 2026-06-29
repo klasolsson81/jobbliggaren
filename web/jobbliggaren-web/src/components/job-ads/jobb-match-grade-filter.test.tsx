@@ -255,3 +255,63 @@ describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
     expect(screen.getAllByRole("checkbox")).toHaveLength(3);
   });
 });
+
+// #381 — "Visa bara matchade"-snabbval: ett klick smalnar till Bra + Stark
+// match (Good/Strong), paritet med Översiktens "visa matchade jobb"-länk; ett
+// klick till återställer alla nivåer. Toggle-knapp (aria-pressed). "Matchad" =
+// Good+Strong oavsett relaterade-toggle:n (Related räknas aldrig som matchad).
+describe("JobbMatchGradeFilter — Visa bara matchade (#381)", () => {
+  it("snabbvalet finns INTE när Matchning är av (renderas inne i PÅ-blocket)", () => {
+    renderFilter({ active: false });
+    expect(
+      screen.queryByRole("button", { name: "Visa bara matchade" }),
+    ).toBeNull();
+  });
+
+  it("visas när Matchning är PÅ; opressad när alla grader visas (tom selected)", () => {
+    renderFilter({ active: true, selected: [] });
+    const btn = screen.getByRole("button", { name: "Visa bara matchade" });
+    expect(btn).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("ett klick (opressad) smalnar till Good + Strong (Översiktslänk-paritet)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: [] });
+    await user.click(screen.getByRole("button", { name: "Visa bara matchade" }));
+    expect(onChange).toHaveBeenCalledWith(["Good", "Strong"]);
+  });
+
+  it("pressad (aria-pressed=true) exakt när selected === {Good, Strong}", () => {
+    renderFilter({ active: true, selected: ["Good", "Strong"] });
+    expect(
+      screen.getByRole("button", { name: "Visa bara matchade" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("ett klick (pressad) återställer till alla nivåer ([])", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: ["Good", "Strong"] });
+    await user.click(screen.getByRole("button", { name: "Visa bara matchade" }));
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("custom-delmängd (bara Strong) → opressad; ett klick sätter Good + Strong", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: ["Strong"] });
+    const btn = screen.getByRole("button", { name: "Visa bara matchade" });
+    expect(btn).toHaveAttribute("aria-pressed", "false");
+    await user.click(btn);
+    expect(onChange).toHaveBeenCalledWith(["Good", "Strong"]);
+  });
+
+  it("Related räknas ALDRIG som matchad: med relaterade PÅ + selected {Good,Strong} är knappen pressad (Related uteslutet)", () => {
+    renderFilter({
+      active: true,
+      includeRelated: true,
+      selected: ["Good", "Strong"],
+    });
+    expect(
+      screen.getByRole("button", { name: "Visa bara matchade" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+});

@@ -33,6 +33,10 @@ function renderToolbar(over: ToolbarOverrides = {}) {
       worktimeExtent={[]}
       matchGrades={[]}
       includeRelated={false}
+      savedOnly={false}
+      appliedOnly={false}
+      hideApplied={false}
+      hasSeeker={false}
       resolvedLabels={{}}
       q=""
       sortBy="PublishedAtDesc"
@@ -379,6 +383,10 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
           worktimeExtent={[]}
           matchGrades={[]}
           includeRelated={false}
+          savedOnly={false}
+          appliedOnly={false}
+          hideApplied={false}
+          hasSeeker={false}
           resolvedLabels={{}}
           q=""
           sortBy="PublishedAtDesc"
@@ -387,6 +395,56 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         />,
       );
       expect(screen.getByText(HELP)).toBeInTheDocument();
+    });
+  });
+
+  // #383 — status-facetterna (Sparade/Ansökta/Dölj ansökta). ORTOGONALA mot
+  // matchningen: renderas på hasSeeker, INTE på angivet yrke. Navigerar utan
+  // commit-flaggan (runtime-view-state).
+  describe("status-facetterna (#383)", () => {
+    it("DÖLJER status-kontrollen när hasSeeker=false", () => {
+      renderToolbar({ hasSeeker: false });
+      expect(screen.queryByRole("group", { name: "Status" })).toBeNull();
+    });
+
+    it("VISAR status-kontrollen när hasSeeker=true (oavsett yrke/matchning)", () => {
+      renderToolbar({
+        hasSeeker: true,
+        hasStatedDesiredOccupation: false,
+        matchActive: false,
+      });
+      expect(
+        screen.getByRole("group", { name: "Status" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", { name: "Sparade" }),
+      ).toBeInTheDocument();
+    });
+
+    it("klick på Sparade navigerar med ?sparade=on (utan commit-flaggan)", async () => {
+      const user = userEvent.setup();
+      renderToolbar({ hasSeeker: true });
+      await user.click(screen.getByRole("checkbox", { name: "Sparade" }));
+      expect(pushMock).toHaveBeenCalledTimes(1);
+      expect(pushMock).toHaveBeenCalledWith(expect.stringContaining("sparade=on"));
+      // Runtime-view-state — ingen recent-search-capture.
+      expect(pushMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("commit=true"),
+      );
+    });
+
+    it("MUTEX via toolbaren: Dölj ansökta när Ansökta var på → ?doljAnsokta=on utan ?ansokta", async () => {
+      const user = userEvent.setup();
+      renderToolbar({ hasSeeker: true, appliedOnly: true });
+      await user.click(screen.getByRole("checkbox", { name: "Dölj ansökta" }));
+      expect(pushMock).toHaveBeenCalledWith(
+        expect.stringContaining("doljAnsokta=on"),
+      );
+      // appliedOnly (?ansokta=on, gemener) slogs av av mutex:en — bara
+      // doljAnsokta=on (versal A i camelCase) finns kvar.
+      expect(pushMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("ansokta=on"),
+      );
     });
   });
 });

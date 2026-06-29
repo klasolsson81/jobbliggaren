@@ -1,11 +1,16 @@
 using Jobbliggaren.Application.Common;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
+using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Infrastructure.Persistence;
 using NSubstitute;
 using Shouldly;
 
@@ -38,6 +43,10 @@ public class ListJobAdsQueryHandlerTests
     private readonly IMatchProfileBuilder _profileBuilder =
         Substitute.For<IMatchProfileBuilder>();
     private readonly ISearchQueryParser _parser = new SearchQueryParser();
+    // #383 — db + currentUser drive the seeker-resolution branch; only touched when the
+    // status filter is active (these adapter tests never activate it → unused stubs).
+    private readonly IAppDbContext _db = Substitute.For<IAppDbContext>();
+    private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
 
     public ListJobAdsQueryHandlerTests()
     {
@@ -69,7 +78,7 @@ public class ListJobAdsQueryHandlerTests
             cvSkills ?? []);
 
     private ListJobAdsQueryHandler NewHandler() =>
-        new(_search, _matchSearch, _profileBuilder, _parser);
+        new(_search, _matchSearch, _profileBuilder, _parser, _db, _currentUser);
 
     private static PagedResult<JobAdDto> EmptyPage(int page = 1, int pageSize = 20) =>
         new([], 0, page, pageSize);
@@ -332,6 +341,7 @@ public class ListJobAdsQueryHandlerTests
         _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -343,6 +353,7 @@ public class ListJobAdsQueryHandlerTests
         await _matchSearch.Received(1).SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _search.DidNotReceive().SearchAsync(
             Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
@@ -365,6 +376,7 @@ public class ListJobAdsQueryHandlerTests
             Arg.Do<JobAdFilterCriteria>(f => capturedFilter = f),
             Arg.Do<FullCandidateMatchProfile>(p => capturedProfile = p),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Do<int>(p => capturedPage = p),
             Arg.Do<int>(ps => capturedPageSize = ps),
             Arg.Any<CancellationToken>())
@@ -411,6 +423,7 @@ public class ListJobAdsQueryHandlerTests
         await _matchSearch.DidNotReceive().SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _search.Received(1).SearchAsync(
             Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
@@ -433,6 +446,7 @@ public class ListJobAdsQueryHandlerTests
         await _matchSearch.DidNotReceive().SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _search.Received(1).SearchAsync(
             Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
@@ -448,6 +462,7 @@ public class ListJobAdsQueryHandlerTests
         _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -473,6 +488,7 @@ public class ListJobAdsQueryHandlerTests
         _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(matchResult);
         var handler = NewHandler();
@@ -503,6 +519,7 @@ public class ListJobAdsQueryHandlerTests
             Arg.Do<IReadOnlyList<MatchGrade>>(g => capturedGrades = g),
             Arg.Do<JobAdSortBy>(s => capturedSort = s),
             Arg.Do<bool>(o => capturedOrderByRank = o),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -516,6 +533,7 @@ public class ListJobAdsQueryHandlerTests
         await _matchSearch.Received(1).SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _search.DidNotReceive().SearchAsync(
             Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
@@ -535,6 +553,7 @@ public class ListJobAdsQueryHandlerTests
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(),
             Arg.Do<bool>(o => capturedOrderByRank = o),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -568,6 +587,7 @@ public class ListJobAdsQueryHandlerTests
         await _matchSearch.DidNotReceive().SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
@@ -608,6 +628,7 @@ public class ListJobAdsQueryHandlerTests
         _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -632,6 +653,7 @@ public class ListJobAdsQueryHandlerTests
         _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -655,6 +677,7 @@ public class ListJobAdsQueryHandlerTests
         _matchSearch.SearchPerUserAsync(
             Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -680,6 +703,7 @@ public class ListJobAdsQueryHandlerTests
             Arg.Do<JobAdFilterCriteria>(f => capturedFilter = f),
             Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
@@ -709,5 +733,211 @@ public class ListJobAdsQueryHandlerTests
             .GetProperty("IncludeRelated").ShouldBeNull(
                 "IncludeRelated är runtime-kontext (analogt MatchGrades) och får aldrig " +
                 "ingå i ICapturesRecentSearch / sök-identiteten (ADR 0084 / ADR 0079 STEG 5).");
+    }
+
+    // --- #383 (CTO-bind cto-7f3a9c2e1b4d8a6f): status-filter-grenen ----------
+    // Status (SavedOnly/AppliedOnly/HideApplied) driver seeker-resolution + en av två
+    // status-vägar, FRIKOPPLAT från match-gaten:
+    //   * status INAKTIVT → byte-for-byte som förr (anon search.SearchAsync, eller match-
+    //     vägen med JobAdStatusFilter.None) — _db rörs ALDRIG.
+    //   * status AKTIVT, ingen SSYK → SearchByStatusAsync (status-only, ingen profil/grad).
+    //   * status AKTIVT, SSYK + MatchDesc → SearchPerUserAsync (status komponeras IN i match).
+    //   * status AKTIVT, ingen seeker → tom sida (defense-in-depth-backstopp).
+    //
+    // Seeker-resolution är en trivial equality+projektion (db.JobSeekers.Where(UserId ==
+    // ...).Select(Id).FirstOrDefaultAsync) — provider-agnostisk, INGEN Postgres-/VO-kolumn-
+    // översättning (den hårda VO==VO-EXISTS:en bor i Infrastructure-query:n och pinnas av
+    // Testcontainers-oraklet). Den NSubstitute-stubbade IAppDbContext implementerar inte
+    // IAsyncEnumerable → kan inte köra den async-LINQ:n; vi använder därför en RIKTIG
+    // InMemory-AppDbContext (TestAppDbContextFactory) ENBART för seeker-lookupen, med kvar
+    // de mockade portarna för router-assertions. (CV-/jsonb-/constraint-fällorna som gör
+    // InMemory olämplig finns inte i denna lookup.)
+
+    private static readonly DateTimeOffset SeedClockInstant =
+        new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    private static IDateTimeProvider SeedClock()
+    {
+        var clock = Substitute.For<IDateTimeProvider>();
+        clock.UtcNow.Returns(SeedClockInstant);
+        return clock;
+    }
+
+    private ListJobAdsQueryHandler NewHandlerWith(IAppDbContext db) =>
+        new(_search, _matchSearch, _profileBuilder, _parser, db, _currentUser);
+
+    // Seeds a JobSeeker for userId into a fresh InMemory context and returns it + the seeker id.
+    private static async Task<(AppDbContext Db, JobSeekerId SeekerId)> SeededDbAsync(
+        Guid userId, CancellationToken ct)
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = JobSeeker.Register(userId, "Status User", SeedClock()).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+        return (db, seeker.Id);
+    }
+
+    [Fact]
+    public async Task Handle_StatusInactive_RoutesToAnonSearch_AndNeverTouchesDb()
+    {
+        // Default query (status av) → den anonyma sök-vägen, oförändrad. _db (mocken) rörs
+        // aldrig — seeker-resolution sker bara när status är aktivt.
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
+
+        await _search.Received(1).SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+        // Status inaktiv → ingen seeker-lookup på den mockade IAppDbContext.
+        _ = _db.DidNotReceive().JobSeekers;
+    }
+
+    [Fact]
+    public async Task Handle_MatchPathWithStatusInactive_PassesJobAdStatusFilterNone()
+    {
+        // Match-vägen (SSYK + MatchDesc) utan status → SearchPerUserAsync får
+        // JobAdStatusFilter.None (no-op), byte-for-byte som före #383.
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
+            .Returns(FullProfileWithOccupation());
+        var capturedStatus = new JobAdStatusFilter(true, true, true);
+        _matchSearch.SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Do<JobAdStatusFilter>(s => capturedStatus = s), Arg.Any<JobSeekerId>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
+            TestContext.Current.CancellationToken);
+
+        capturedStatus.ShouldBe(JobAdStatusFilter.None);
+        capturedStatus.IsActive.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_StatusActive_NoOccupation_RoutesToSearchByStatus_WithResolvedSeekerAndStatus()
+    {
+        // Status aktivt + ingen SSYK → den frikopplade status-only-vägen (SearchByStatusAsync),
+        // ALDRIG SearchPerUserAsync eller anon-search. Den resolverade seekern + status-filtret
+        // bärs vidare.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var (db, seekerId) = await SeededDbAsync(userId, ct);
+        using var _ = db;
+        _currentUser.UserId.Returns(userId);
+
+        JobAdStatusFilter capturedStatus = default;
+        JobSeekerId capturedSeeker = default;
+        _matchSearch.SearchByStatusAsync(
+            Arg.Any<JobAdFilterCriteria>(),
+            Arg.Do<JobSeekerId>(s => capturedSeeker = s),
+            Arg.Do<JobAdStatusFilter>(s => capturedStatus = s),
+            Arg.Any<JobAdSortBy>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandlerWith(db);
+
+        await handler.Handle(new ListJobAdsQuery(SavedOnly: true), ct);
+
+        await _matchSearch.Received(1).SearchByStatusAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<JobSeekerId>(), Arg.Any<JobAdStatusFilter>(),
+            Arg.Any<JobAdSortBy>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _search.DidNotReceive().SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+        await _matchSearch.DidNotReceive().SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        capturedSeeker.ShouldBe(seekerId);
+        capturedStatus.ShouldBe(new JobAdStatusFilter(SavedOnly: true, AppliedOnly: false, HideApplied: false));
+    }
+
+    [Fact]
+    public async Task Handle_StatusActive_WithOccupationAndMatchSort_RoutesToPerUserSearch_WithStatusAndSeeker()
+    {
+        // Status aktivt + SSYK + MatchDesc → match-vägen, med status komponerat IN i
+        // SearchPerUserAsync (samma grad-rank, plus status-EXISTS:en) och den resolverade seekern.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var (db, seekerId) = await SeededDbAsync(userId, ct);
+        using var _ = db;
+        _currentUser.UserId.Returns(userId);
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
+            .Returns(FullProfileWithOccupation());
+
+        JobAdStatusFilter capturedStatus = default;
+        JobSeekerId capturedSeeker = default;
+        _matchSearch.SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Do<JobAdStatusFilter>(s => capturedStatus = s),
+            Arg.Do<JobSeekerId>(s => capturedSeeker = s),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandlerWith(db);
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc, SavedOnly: true, HideApplied: true),
+            ct);
+
+        await _matchSearch.Received(1).SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _matchSearch.DidNotReceive().SearchByStatusAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<JobSeekerId>(), Arg.Any<JobAdStatusFilter>(),
+            Arg.Any<JobAdSortBy>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        capturedSeeker.ShouldBe(seekerId);
+        capturedStatus.ShouldBe(new JobAdStatusFilter(SavedOnly: true, AppliedOnly: false, HideApplied: true));
+    }
+
+    [Fact]
+    public async Task Handle_StatusActive_NoSeekerResolves_ReturnsEmptyPage_AndCallsNoPort()
+    {
+        // Status aktivt men ingen JobSeeker-rad för UserId (eller anonym) → tom sida,
+        // ingen port anropas alls (defense-in-depth-backstoppen; FE döljer kontrollen).
+        var ct = TestContext.Current.CancellationToken;
+        using var db = TestAppDbContextFactory.Create(); // tom — ingen seeker
+        _currentUser.UserId.Returns(Guid.NewGuid());
+        var handler = NewHandlerWith(db);
+
+        var result = await handler.Handle(
+            new ListJobAdsQuery(Page: 2, PageSize: 10, AppliedOnly: true), ct);
+
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
+        result.Page.ShouldBe(2);
+        result.PageSize.ShouldBe(10);
+        await _search.DidNotReceive().SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+        await _matchSearch.DidNotReceive().SearchByStatusAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<JobSeekerId>(), Arg.Any<JobAdStatusFilter>(),
+            Arg.Any<JobAdSortBy>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _matchSearch.DidNotReceive().SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_StatusActive_AnonymousUser_ReturnsEmptyPage_WithoutQueryingDb()
+    {
+        // Anonym (ingen UserId) + aktivt status → tom sida utan att ens slå mot db.JobSeekers
+        // (ResolveSeekerIdAsync kortsluter på !UserId.HasValue). Mockad IAppDbContext räcker.
+        var ct = TestContext.Current.CancellationToken;
+        _currentUser.UserId.Returns((Guid?)null);
+        var handler = NewHandler();
+
+        var result = await handler.Handle(new ListJobAdsQuery(SavedOnly: true), ct);
+
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
+        _ = _db.DidNotReceive().JobSeekers;
     }
 }

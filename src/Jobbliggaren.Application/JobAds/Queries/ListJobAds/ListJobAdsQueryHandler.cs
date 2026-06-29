@@ -1,7 +1,10 @@
 using Jobbliggaren.Application.Common;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Domain.JobSeekers;
 using Mediator;
+using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 
@@ -35,7 +38,9 @@ public sealed class ListJobAdsQueryHandler(
     IJobAdSearchQuery search,
     IPerUserJobAdSearchQuery perUserSearch,
     IMatchProfileBuilder profileBuilder,
-    ISearchQueryParser parser)
+    ISearchQueryParser parser,
+    IAppDbContext db,
+    ICurrentUser currentUser)
     : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
 {
     public async ValueTask<PagedResult<JobAdDto>> Handle(
@@ -53,6 +58,20 @@ public sealed class ListJobAdsQueryHandler(
             EmploymentType: query.EmploymentType ?? [],
             WorktimeExtent: query.WorktimeExtent ?? [],
             Q: parser.Parse(query.Q).ResidualQ);
+
+        // #383 — resolvera seekern EN gång, ENDAST när status-filtret är aktivt (status
+        // är den enda per-användar-nycklade predikaten i list-vägen; match-profilen
+        // resolverar användaren internt). Anon/seeker-lös begäran med aktivt status → tom
+        // sida (FE döljer kontrollen; detta är defense-in-depth-backstoppen).
+        var status = query.Status;
+        JobSeekerId seekerId = default;
+        if (status.IsActive)
+        {
+            seekerId = await ResolveSeekerIdAsync(cancellationToken);
+            // default(JobSeekerId) = Guid.Empty → ingen seeker (paritet GetJobAdStatusBatch).
+            if (seekerId == default)
+                return new PagedResult<JobAdDto>([], 0, query.Page, query.PageSize);
+        }
 
         // ADR 0079 STEG 5 — enter the per-user path when EITHER a grade filter is
         // active (MatchContextActive) OR the user asked for match-rank order
@@ -75,21 +94,51 @@ public sealed class ListJobAdsQueryHandler(
             // tom grad-filtrerad sida (CTO-re-bind case 2). FE döljer kontrollen då.
             if (profile.Fast.SsykGroupConceptIds.Count > 0)
             {
+                // #383 — status (om aktivt) komponeras IN i match-vägen: samma grad-WHERE/
+                // rank, plus status-EXISTS:en ovanpå den delade filter-SPOT:en (counten räknas
+                // om över båda). Inaktivt status ⇒ JobAdStatusFilter.None (no-op, byte-for-byte).
                 return await perUserSearch.SearchPerUserAsync(
                     filter,
                     profile,
                     grades: query.MatchGrades ?? [],
                     sort: query.SortBy,
                     orderByMatchRank: query.SortByMatch,
+                    status,
+                    seekerId,
                     query.Page,
                     query.PageSize,
                     cancellationToken);
             }
         }
 
+        // #383 — ingen match-gate (inget angivet yrke / matchning av): är status aktivt
+        // körs den frikopplade status-only-vägen (ingen profil/grad-rank), annars den
+        // delade anonyma sökningen. SRP: "visa mina sparade/ansökta" fungerar utan SSYK.
+        if (status.IsActive)
+        {
+            return await perUserSearch.SearchByStatusAsync(
+                filter, seekerId, status, query.SortBy, query.Page, query.PageSize,
+                cancellationToken);
+        }
+
         return await search.SearchAsync(
             new JobAdSearchCriteria(
                 filter, query.SortBy, query.Page, query.PageSize),
             cancellationToken);
+    }
+
+    // #383 — seeker-resolution (paritet GetJobAdStatusBatchQueryHandler): UserId →
+    // JobSeekerId. Anonym (ingen UserId) eller ingen JobSeeker-rad → Empty (anroparen
+    // returnerar en tom sida). .AsNoTracking() (CLAUDE §3.6, ren läsning).
+    private async ValueTask<JobSeekerId> ResolveSeekerIdAsync(CancellationToken cancellationToken)
+    {
+        if (!currentUser.UserId.HasValue)
+            return default;
+
+        return await db.JobSeekers
+            .AsNoTracking()
+            .Where(js => js.UserId == currentUser.UserId.Value)
+            .Select(js => js.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

@@ -92,7 +92,9 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
             Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
-            new SearchQueryParser());
+            new SearchQueryParser(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
 
         // Multi-värde ⇒ IN(groupA, groupB) → UNION-match (Npgsql Contains-mot-
         // shadow-prop-translation: den arkitekt-flaggade gaten).
@@ -122,7 +124,9 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
             Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
-            new SearchQueryParser());
+            new SearchQueryParser(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
 
         var result = await handler.Handle(
             new ListJobAdsQuery(Region: [regA, regB]), ct);
@@ -150,7 +154,9 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
             Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
-            new SearchQueryParser());
+            new SearchQueryParser(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
 
         var result = await handler.Handle(new ListJobAdsQuery(OccupationGroup: [group]), ct);
 
@@ -173,7 +179,9 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
             Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
-            new SearchQueryParser());
+            new SearchQueryParser(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
 
         var result = await handler.Handle(new ListJobAdsQuery(OccupationGroup: []), ct);
 
@@ -205,7 +213,9 @@ public class ListJobAdsMultiFilterTests(ApiFactory factory)
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
             Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
-            new SearchQueryParser());
+            new SearchQueryParser(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
 
         var result = await handler.Handle(
             new ListJobAdsQuery(OccupationGroup: [groupA, groupB], Region: [regX, regY]), ct);

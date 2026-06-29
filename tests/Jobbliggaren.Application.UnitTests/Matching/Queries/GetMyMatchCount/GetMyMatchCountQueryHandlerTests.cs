@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Queries.GetMyMatchCount;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Matching.Queries.GetMyMatchCount;
@@ -88,9 +89,17 @@ public class GetMyMatchCountQueryHandlerTests
         public ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
             JobAdFilterCriteria filter, FullCandidateMatchProfile profile,
             IReadOnlyList<MatchGrade> grades, JobAdSortBy sort, bool orderByMatchRank,
+            JobAdStatusFilter status, JobSeekerId seekerId,
             int page, int pageSize, CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "SearchPerUserAsync ska inte anropas av count-handlern — den counter:ar bara.");
+
+        // #383 — status-only list path; not used by the count handler.
+        public ValueTask<PagedResult<JobAdDto>> SearchByStatusAsync(
+            JobAdFilterCriteria filter, JobSeekerId seekerId, JobAdStatusFilter status,
+            JobAdSortBy sort, int page, int pageSize, CancellationToken cancellationToken)
+            => throw new NotSupportedException(
+                "SearchByStatusAsync ska inte anropas av count-handlern — den counter:ar bara.");
     }
 
     // ---------------------------------------------------------------

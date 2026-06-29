@@ -79,7 +79,9 @@ public class ListJobAdsGeoUnionTests(ApiFactory factory)
             new JobAdSearchQuery(db, Substitute.For<IOccupationSynonymExpander>()),
             Substitute.For<IPerUserJobAdSearchQuery>(),
             Substitute.For<IMatchProfileBuilder>(),
-            new SearchQueryParser());
+            new SearchQueryParser(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
     }
 
     [Fact]

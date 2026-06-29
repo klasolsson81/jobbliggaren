@@ -29,6 +29,10 @@ import {
 } from "@/lib/job-ads/chip-models";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
+import {
+  JobbStatusFilter,
+  type StatusFilterState,
+} from "./jobb-status-filter";
 
 /**
  * Result-toolbar för /jobb (HANDOVER-v3.md §7.2, ADR 0055). En rad:
@@ -75,6 +79,23 @@ interface JobbResultsToolbarProps {
    * paritet matchGrades).
    */
   includeRelated: boolean;
+  /**
+   * #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetterna (URL:
+   * `?sparade/?ansokta/?doljAnsokta=on`). Driver status-kontrollens kryssrutor.
+   * ORTOGONALA mot matchningen — kontrollen renderas på `hasSeeker`, inte på
+   * matchnings-axeln. Runtime-view-state (navigerar utan commit-flaggan, paritet
+   * matchGrades).
+   */
+  savedOnly: boolean;
+  appliedOnly: boolean;
+  hideApplied: boolean;
+  /**
+   * #383 — true när användaren har en seeker (`getMyProfile().kind === "ok"`).
+   * Gatar enbart status-kontrollens rendering (status filtrerar mot seekerns
+   * sparade/ansökta; utan seeker finns inget att filtrera). Skild från
+   * `hasStatedDesiredOccupation`: status kräver INTE ett angivet yrke.
+   */
+  hasSeeker: boolean;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -149,6 +170,10 @@ export function JobbResultsToolbar({
   worktimeExtent,
   matchGrades,
   includeRelated,
+  savedOnly,
+  appliedOnly,
+  hideApplied,
+  hasSeeker,
   resolvedLabels,
   q,
   sortBy,
@@ -188,6 +213,11 @@ export function JobbResultsToolbar({
       // toolbar-navigeringar (chip-×, Rensa, sort, grad-justeringar) bevarar
       // toggle:n (paritet matchGrades/matchningOff).
       includeRelated,
+      // #383 — bär status-facetterna i URL-state-basen så ALLA toolbar-
+      // navigeringar (chip-×, Rensa, sort, grad-/status-justeringar) bevarar dem.
+      savedOnly,
+      appliedOnly,
+      hideApplied,
       sortBy,
       pageSize,
     }),
@@ -200,6 +230,9 @@ export function JobbResultsToolbar({
       worktimeExtent,
       matchGrades,
       includeRelated,
+      savedOnly,
+      appliedOnly,
+      hideApplied,
       sortBy,
       pageSize,
     ],
@@ -310,6 +343,14 @@ export function JobbResultsToolbar({
         ? urlState.matchGrades
         : urlState.matchGrades.filter((g) => g !== "Related"),
     });
+  }
+
+  // #383 — status-facetterna. Runtime-view-state (paritet matchGrades): navigerar
+  // UTAN commit-flaggan (ingen recent-search-capture). Komponenten upprätthåller
+  // mutex:en (Ansökta XOR Dölj ansökta) och levererar hela nästa status-läget; vi
+  // trådar bara vidare det till URL:en via den optimistiska overlay:n.
+  function onStatusChange(next: StatusFilterState) {
+    navigate({ ...urlState, ...next });
   }
 
   function removeChip(chip: SearchChip) {
@@ -451,6 +492,23 @@ export function JobbResultsToolbar({
       </div>
     </div>
 
+    {/* #383 — status-facetterna (Sparade/Ansökta/Dölj ansökta). EGEN rad i
+        match-strippens area, ORTOGONAL mot matchningen: renderas så snart
+        användaren har en seeker (`hasSeeker`) — INTE gatat på angivet yrke
+        (till skillnad från grad-filtret nedan). Filtrerar listan mot seekerns
+        sparade/ansökta annonser. Navigerar utan commit-flaggan (runtime-view-
+        state). Återbrukar .jp-gradefilter__*-tokenen (samma kontroll-rytm) —
+        ingen ny globals.css. */}
+    {hasSeeker && (
+      <div className="mb-4 flex flex-col gap-2">
+        <JobbStatusFilter
+          savedOnly={urlState.savedOnly ?? false}
+          appliedOnly={urlState.appliedOnly ?? false}
+          hideApplied={urlState.hideApplied ?? false}
+          onChange={onStatusChange}
+        />
+      </div>
+    )}
     {/* #378 — sammanhållen match-rad: en EGEN full-bredds rad under träff/sort-
         raden, vänster-grupperad. Renderas när yrke är angett (paritet med
         kontrollens tidigare gate i höger-klustret). Switchen speglar `matchActive`

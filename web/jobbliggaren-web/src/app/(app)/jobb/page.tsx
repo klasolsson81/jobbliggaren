@@ -10,6 +10,7 @@ import { isListMatchGrade } from "@/lib/dto/job-ad-match";
 import {
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
+  STATUS_ON_VALUE,
 } from "@/lib/job-ads/search-params";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
@@ -45,6 +46,11 @@ type JobbSearchParams = {
   // related-graderade annonser). Frånvaro = default AV. Allt annat än "on" tolkas
   // som frånvaro (AV) — page.tsx parsar bara on-värdet.
   relaterade?: string;
+  // #383 — status-facetterna. `?sparade=on`/`?ansokta=on`/`?doljAnsokta=on`.
+  // Frånvaro = ingen status-gallring. Endast on-värdet parsas (paritet relaterade).
+  sparade?: string;
+  ansokta?: string;
+  doljAnsokta?: string;
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -92,6 +98,12 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // (master-switch för includeRelated genom alla tre matchnings-anropen). Trådas
   // vidare till JobbResults; default AV (frånvaro = ren lista).
   const includeRelated = params.relaterade === RELATERADE_ON_VALUE;
+  // #383 — status-facetterna. Parsa BARA on-värdet → boolean (paritet relaterade).
+  // page.tsx förblir presentationellt: den trådar de parsade flaggorna vidare;
+  // jobb-results.tsx gatar dem på seeker-närvaro (ortogonalt mot matchningen).
+  const savedOnly = params.sparade === STATUS_ON_VALUE;
+  const appliedOnly = params.ansokta === STATUS_ON_VALUE;
+  const hideApplied = params.doljAnsokta === STATUS_ON_VALUE;
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -158,6 +170,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // re-renderas (visar skeleton) när bara toggle:n flippas: list-/badge-fetchen
   // hänger på includeRelated (samma princip som matchningsaxeln/grad-filtret).
   const relateradeKey = includeRelated ? "on" : "";
+  // #383 — status-facetterna ingår i Suspense-keyn så listan re-renderas (visar
+  // skeleton) när bara en facett toggle:as (samma princip som matchnings-axeln).
+  const statusKey = `${savedOnly ? "s" : ""}${appliedOnly ? "a" : ""}${
+    hideApplied ? "h" : ""
+  }`;
 
   return (
     <>
@@ -244,7 +261,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -259,6 +276,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
             matchGrades={matchGrades}
             matchningOff={matchningOff}
             includeRelated={includeRelated}
+            savedOnly={savedOnly}
+            appliedOnly={appliedOnly}
+            hideApplied={hideApplied}
             q={q ?? ""}
             commit={commit}
             rawParams={params}

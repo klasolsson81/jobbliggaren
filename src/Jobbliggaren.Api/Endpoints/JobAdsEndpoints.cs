@@ -75,6 +75,16 @@ public static class JobAdsEndpoints
             // ingår EJ i filter-identiteten/recent-search. Default false = beteende-inert. FE
             // (PR-5b) mappar det publika ?relaterade=on hit.
             bool includeRelated = false,
+            // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f, Approach B) — status-facetterna
+            // (sparade/ansökta/dölj ansökta). Per-användar runtime-kontext (paritet
+            // matchGrades/includeRelated): ingår EJ i filter-identiteten/recent-search.
+            // savedOnly ∨ appliedOnly = OR (union); appliedOnly ∧ hideApplied → 400
+            // (validator-mutex). Default false = ingen status-gallring. ASP.NET bool-
+            // binding tar "true" (ej "1"); FE skickar "true". FE mappar de svenska
+            // rutt-värdena ?sparade=on/?ansokta=on/?doljAnsokta=on hit.
+            bool savedOnly = false,
+            bool appliedOnly = false,
+            bool hideApplied = false,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -88,7 +98,10 @@ public static class JobAdsEndpoints
                     Q: q,
                     Commit: commit,
                     MatchGrades: matchGrades,
-                    IncludeRelated: includeRelated), ct);
+                    IncludeRelated: includeRelated,
+                    SavedOnly: savedOnly,
+                    AppliedOnly: appliedOnly,
+                    HideApplied: hideApplied), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);

@@ -3,6 +3,7 @@ using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
 
 namespace Jobbliggaren.Application.JobAds.Abstractions;
 
@@ -73,12 +74,47 @@ public interface IPerUserJobAdSearchQuery
     /// <param name="orderByMatchRank"><c>true</c> = ordna på match-rank (grad + gyllene
     /// rung); <c>false</c> = ordna på <paramref name="sort"/> över den grad-filtrerade
     /// mängden.</param>
+    /// <param name="status">#383 — den per-användar-status-predikaten (sparade/ansökta/
+    /// dölj ansökta) som <c>EXISTS</c>-stackas ovanpå filter-SPOT:en FÖRE grad-WHERE/count.
+    /// <see cref="JobAdStatusFilter.None"/> för match-only-vägen (no-op, byte-for-byte som
+    /// förr). När den är aktiv MÅSTE counten räknas om över den status-filtrerade mängden.</param>
+    /// <param name="seekerId">Den inloggade jobbsökarens id (handlern resolverar den ur
+    /// <c>ICurrentUser</c>). Driver status-EXISTS:en; oanvänd när
+    /// <paramref name="status"/> är inaktiv.</param>
     ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
         JobAdFilterCriteria filter,
         FullCandidateMatchProfile profile,
         IReadOnlyList<MatchGrade> grades,
         JobAdSortBy sort,
         bool orderByMatchRank,
+        JobAdStatusFilter status,
+        JobSeekerId seekerId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #383 (CTO-bind <c>cto-7f3a9c2e1b4d8a6f</c>, Approach B) — den STATUS-ONLY-vägen:
+    /// filtrerar listan på den per-användar-status-predikaten
+    /// (<paramref name="status"/>) UTAN profil, grad-rank eller match-ordning. Frikopplad
+    /// från SSYK-match-gaten (SRP): "visa mina sparade/ansökta" måste fungera även för en
+    /// användare som inte angett någon yrkesgrupp. Återanvänder EXAKT samma filter-SPOT
+    /// (<c>JobAdSearchComposition.ApplyFilter</c>) + rena sort
+    /// (<c>JobAdSearchComposition.ApplySort</c>) som default-vägen — bara
+    /// status-<c>EXISTS</c>:en läggs på. <b>Count-korrekthet:</b> total-antalet räknas
+    /// över den status-filtrerade mängden (aldrig den anonyma port-counten → annars
+    /// spök-paginering).
+    /// <para>
+    /// Anropas endast med en aktiv <paramref name="status"/> och en resolverad seeker
+    /// (handlern returnerar en tom sida för anon/seeker-lös begäran innan porten nås;
+    /// FE döljer kontrollen då).
+    /// </para>
+    /// </summary>
+    ValueTask<PagedResult<JobAdDto>> SearchByStatusAsync(
+        JobAdFilterCriteria filter,
+        JobSeekerId seekerId,
+        JobAdStatusFilter status,
+        JobAdSortBy sort,
         int page,
         int pageSize,
         CancellationToken cancellationToken);

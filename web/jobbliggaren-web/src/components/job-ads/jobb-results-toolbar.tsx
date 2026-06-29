@@ -413,70 +413,85 @@ export function JobbResultsToolbar({
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-        {/* STEG 5 / issue #292 (grade-filter) — RENDERAS när användaren angett
-            ett yrke (graden kan inte beräknas annars; paritet med match-sort-
-            disclosurens gate). Switchen speglar `matchActive` (matchnings-axelns
-            huvudbrytare) — INTE selected.length. PÅ → grad-kryssrutor
-            (Grund/Bra/Stark, aldrig Toppmatch). Navigerar utan commit-flaggan
-            (runtime-view-state). */}
-        {hasStatedDesiredOccupation && (
-          <JobbMatchGradeFilter
-            active={matchActive}
-            selected={urlState.matchGrades}
-            includeRelated={urlState.includeRelated ?? false}
-            onChange={onMatchGradesChange}
-            onTurnOff={onMatchTurnOff}
-            onTurnOn={onMatchTurnOn}
-            onRelatedToggle={onRelatedToggle}
-          />
-        )}
-        {/* issue #292 — "Sortera"-labeln flyttad OVANFÖR select:en som ett
-            block-element (svag inline-label borttagen, Klas-feedback). htmlFor-
-            associationen behålls (a11y: labeln namnger fortfarande select:en). */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label
-            htmlFor="jobb-sort"
-            style={{
-              display: "block",
-              fontSize: 14,
-              color: "var(--jp-ink-2)",
-            }}
-          >
-            {t("toolbar.sortLabel")}
-          </label>
-          <select
-            id="jobb-sort"
-            className="jp-select"
-            style={{ height: 40, width: "auto", minWidth: 180 }}
-            value={selectValue}
-            onChange={onSortChange}
-          >
-            {sortOptions.map((opt) => (
-              <option
-                key={opt.value}
-                value={opt.value}
-                disabled={opt.value === "Relevance" && !qReady}
-              >
-                {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* #378 — höger-kluster = ENBART sortering. Matchnings-kontrollerna
+          (switch + grad-chips + "Visa relaterade också") låg tidigare HÄR och
+          växte vertikalt när matchningen slogs PÅ, vilket sköt "Sortera" till en
+          ensam, obalanserad position. De flyttade till en egen, sammanhållen
+          match-rad UNDER träff/sort-raden (se nedan) så denna rad är höjd-stabil
+          i både av- och på-läge. "Sortera"-labeln ligger kvar OVANFÖR select:en
+          (htmlFor-associationen behålls — a11y). */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label
+          htmlFor="jobb-sort"
+          style={{
+            display: "block",
+            fontSize: 14,
+            color: "var(--jp-ink-2)",
+          }}
+        >
+          {t("toolbar.sortLabel")}
+        </label>
+        <select
+          id="jobb-sort"
+          className="jp-select"
+          style={{ height: 40, width: "auto", minWidth: 180 }}
+          value={selectValue}
+          onChange={onSortChange}
+        >
+          {sortOptions.map((opt) => (
+            <option
+              key={opt.value}
+              value={opt.value}
+              disabled={opt.value === "Relevance" && !qReady}
+            >
+              {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
-    {/* STEG 5 / issue #292 (grade-filter) — kort, valfri hjälprad. Förklarar att
-        kontrollen filtrerar på DIN matchningsnivå utan att antyda per-kort-
-        exakthet (aldrig "Visa endast Toppmatchningar" — listan är Fast-bandet).
-        Visas när matchningen är PÅ (matchActive), dvs. när grad-kryssrutorna är
-        synliga — off-läget förblir tyst. Platt civic info-not (samma
-        .jp-matchsort-note-rytm, ingen box/skugga). */}
-    {matchActive && (
-      // role="status" (ej "note") så SR aviserar hjälptexten när den tonar in
-      // vid switch-PÅ (paritet med match-sort-disclosuren nedan, a11y §6).
-      <p className="jp-matchsort-note" role="status">
-        {t("gradeFilter.help")}
-      </p>
+
+    {/* #378 — sammanhållen match-rad: en EGEN full-bredds rad under träff/sort-
+        raden, vänster-grupperad. Renderas när yrke är angett (paritet med
+        kontrollens tidigare gate i höger-klustret). Switchen speglar `matchActive`
+        (huvudbrytaren) — PÅ → grad-chips (Grund/Bra/Stark) + "Visa relaterade
+        också"; AV → bara switchen. Att kontrollen bor på sin egen rad ger en
+        balanserad, stabil layout (ingen "hoppande" rytm mellan av/på) och håller
+        "Sortera" ensam i sin höger-kolumn ovan. Flat civic: inga nya
+        globals.css-klasser, bara layout-utilities + befintliga
+        .jp-gradefilter__*-tokens. */}
+    {hasStatedDesiredOccupation && (
+      <div className="mb-4 flex flex-col gap-2">
+        <JobbMatchGradeFilter
+          active={matchActive}
+          selected={urlState.matchGrades}
+          includeRelated={urlState.includeRelated ?? false}
+          onChange={onMatchGradesChange}
+          onTurnOff={onMatchTurnOff}
+          onTurnOn={onMatchTurnOn}
+          onRelatedToggle={onRelatedToggle}
+        />
+        {/* STEG 5 / issue #292 (grade-filter) — kort, valfri hjälprad. Förklarar
+            att kontrollen filtrerar på DIN matchningsnivå utan att antyda
+            per-kort-exakthet (aldrig "Visa endast Toppmatchningar" — listan är
+            Fast-bandet). #378 — integrerad som lugn hint-text (ink-2,
+            informationsbärande — samma honesty-copy) i stället för en separat blå
+            info-banner; det tar bort det visuella bruset Klas påtalade utan att
+            tappa ärlighets-disclosuren. Paritet med "Visa relaterade också"-
+            hjälpraden ovanför (samma text-token). Visas när matchningen är PÅ
+            (matchActive), dvs. när grad-chipsen är synliga.
+            role="status" så SR aviserar hjälptexten när den tonar in vid
+            switch-PÅ (a11y §6). */}
+        {matchActive && (
+          <p
+            className="text-body-sm text-text-secondary"
+            role="status"
+            style={{ maxWidth: "68ch" }}
+          >
+            {t("gradeFilter.help")}
+          </p>
+        )}
+      </div>
     )}
     {/* F4-16 (CTO D8) — in-/jobb-disclosure. Platt civic info-not (ingen
         boxad alert, ingen skugga/gradient — design §3.D). Namnger orsak

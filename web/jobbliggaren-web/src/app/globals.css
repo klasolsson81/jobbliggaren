@@ -4790,7 +4790,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    --jp-accent-900 på --jp-gold (NEW-tagg) = 9.45:1. */
 .jp-foot { background: var(--jp-accent-900); color: #FFFFFF; }
 .jp-foot__main { max-width: 1200px; margin-inline: auto; padding: 64px 32px 40px; }
-.jp-foot__cols { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 40px 32px; }
+.jp-foot__cols { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 40px 32px; }
 .jp-foot__brandcol { max-width: 320px; }
 .jp-foot .jp-brand__word { color: #FFFFFF; }
 .jp-foot .jp-brand__tagline { color: rgba(255, 255, 255, 0.92); }
@@ -4824,13 +4824,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-foot__legal a { color: rgba(255, 255, 255, 0.92); text-decoration: none; }
 .jp-foot__legal a:hover { color: #FFFFFF; text-decoration: underline; }
 .jp-foot__legal-sep { color: rgba(255, 255, 255, 0.40); }
-.jp-foot__social { display: flex; align-items: center; gap: 8px; }
-.jp-foot__social a {
-  width: 36px; height: 36px; border-radius: var(--jp-r-md);
-  display: inline-flex; align-items: center; justify-content: center;
-  color: #FFFFFF; border: 1px solid rgba(255, 255, 255, 0.45);
-}
-.jp-foot__social a:hover { background: rgba(255, 255, 255, 0.10); }
 .jp-foot__lang {
   display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: var(--jp-r-md); overflow: hidden;
 }
@@ -4841,7 +4834,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-foot__lang-btn[aria-pressed="true"] { background: #FFFFFF; color: var(--jp-accent-900); }
 .jp-foot__lang-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 @media (max-width: 1040px) {
-  .jp-foot__cols { grid-template-columns: 1fr 1fr 1fr; }
+  /* Brand spans the row; the four nav columns stay even (mirror the desktop
+     track count) so the last column never wraps alone into a gap (#393). */
+  .jp-foot__cols { grid-template-columns: repeat(4, 1fr); }
   .jp-foot__brandcol { grid-column: 1 / -1; max-width: 520px; }
 }
 @media (max-width: 760px) {

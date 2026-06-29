@@ -722,7 +722,8 @@ public class TaxonomySnapshotSeederTests
         var file = TaxonomySnapshotSeeder.LoadSubstitutability();
 
         file.ShouldNotBeNull();
-        file.Version.ShouldBe("1");
+        // v2 (#359 / ADR 0084 same-field amendment) — bumped to force the re-seed.
+        file.Version.ShouldBe("2");
         file.RelationKind.ShouldBe("substitutability");
         file.Relations.ShouldNotBeEmpty();
 

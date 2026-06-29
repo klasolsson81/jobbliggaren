@@ -194,7 +194,7 @@ globals.css). Tailwind `@theme`-skala (on-disk):
 | `text-body-sm` | 14px | Secondary info, timestamps |
 | `text-caption` | 13px | Caption |
 | `text-label` | 14px | Form-labels |
-| `text-mono` | 13px | IDs, datum, räknare (JetBrains Mono) |
+| `text-mono` | 13px | Bokstavs-/kod-IDs, caps-labels (JetBrains Mono). **Informationsbärande siffror → sans + `font-variant-numeric: tabular-nums`, ej mono** (#376 / ADR 0038-amendment) |
 
 **Dokumenterat undantag (ADR 0068):** hero-plattans display-rubrik är
 44px/800 — gäller ENBART `.jp-hero__title`, inte H1-token-skalan (28px).

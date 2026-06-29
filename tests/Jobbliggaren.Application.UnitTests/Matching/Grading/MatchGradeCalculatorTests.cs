@@ -711,6 +711,28 @@ public class MatchGradeCalculatorTests
     }
 
     [Fact]
+    public void GradeFull_ShouldReturnTop_WhenMustHaveVacuous_AndBothSecondariesMatch_AndSkillPartial()
+    {
+        // #373 nice-to-have #3 (found by the #268 audit) — names a cross-product-theory cell
+        // by hand. A Vacuous gate BACKED by a skill PARTIAL (not a full Match) is still
+        // requirement-backed (F1(b) spirit — parity the Strong cell at
+        // GradeFull_ShouldReturnStrong_WhenMustHaveVacuous_OneSecondaryMatch_AndSkillSignal), so
+        // with confirmed==2 it reaches Top. The Strong->Top branch is confirmed==2 AND a skill/nice
+        // signal (here the Partial — which a Vacuous gate needs anyway to be requirement-backed); it
+        // does NOT additionally require a full skill Match. Pinned by name because it is the
+        // load-bearing edge between Strong and Top (the theory sweep covers it, but a named [Fact]
+        // documents the exact tuple as a living spec).
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Match,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Partial,
+            mustHave: MatchDimensionVerdict.Vacuous);
+
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+    }
+
+    [Fact]
     public void GradeFull_ShouldReturnGood_WhenMustHaveVacuous_OneSecondaryMatch_NoSkillSignal()
     {
         // F1(b) CHANGED CELL: a Vacuous gate WITHOUT a skill/nice signal is not requirement-

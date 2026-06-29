@@ -1030,7 +1030,10 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
         /page.tsx             -- tabell
         /[id]/page.tsx        -- detalj
         /pipeline/page.tsx    -- status-grupperad vy
-        /statistik/page.tsx   -- avslags-analys
+      /statistik              -- avslags-analys + pipeline-konvertering (#313).
+        /page.tsx             -- Top-level, INTE /ansokningar-nästlad: en sub-route
+                              -- fångas av @modal/(.)ansokningar/[id]-intercepten på
+                              -- soft-nav (samma skäl som /aktivitetsrapport — #316/#332).
       /cv
         /page.tsx
         /[id]/page.tsx

@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "title": "Så granskar vi ditt CV",
+    "description": "Hur Jobbliggarens CV-granskning fungerar: helt regelstyrd, ingen AI. Fyra omdömen med citerade bevis, inget hemligt betyg, och förbättringsförslag du själv arbetar in."
+  },
+  "kicker": "Granskning",
+  "title": "Så granskar vi ditt CV",
+  "updated": "Senast uppdaterad: 2026-06-29",
+  "intro": "Jobbliggaren granskar ditt CV med fasta regler, utan AI, och visar exakt var i texten varje omdöme kommer ifrån. Här förklarar vi hur granskningen går till och hur förbättringsförslagen ges.",
+  "deterministic": {
+    "heading": "Helt regelstyrt, ingen AI",
+    "paragraphs": [
+      "Granskningen är regelstyrd. Vi läser texten i ditt uppladdade CV (PDF eller Word) och jämför den mot en versionerad kunskapsbank med kriterier, med hjälp av lokala svenska språkverktyg på vår server. Ingen AI, inga språkmodeller, inget skickas till någon extern tjänst.",
+      "Eftersom motorn bara jämför regler kan den bara peka på det som faktiskt står i ditt CV. Den gissar inte och hittar aldrig på meriter du inte har skrivit."
+    ],
+    "pipelineLabel": "Så går granskningen till",
+    "pipeline": [
+      "Ladda upp ditt CV",
+      "Läs texten",
+      "Jämför mot reglerna",
+      "Visa omdöme med bevis"
+    ]
+  },
+  "verdicts": {
+    "heading": "Fyra omdömen, och alltid med bevis",
+    "intro": "Varje kriterium får ett av fyra omdömen. För varje omdöme visar vi det ställe i ditt CV som det bygger på, antingen som ett citat eller som en observation. Vi visar aldrig ett omdöme utan att peka på var det kommer ifrån.",
+    "exampleLabel": "Exempel",
+    "items": [
+      {
+        "label": "Godkänt",
+        "tone": "success",
+        "name": "Mätbara resultat",
+        "quote": "Ökade onlineförsäljningen med 32 procent under 2025.",
+        "observation": null,
+        "note": null,
+        "reason": null
+      },
+      {
+        "label": "Delvis",
+        "tone": "warning",
+        "name": "Tydlig profiltext",
+        "quote": "Driven och engagerad person som gillar utmaningar.",
+        "observation": null,
+        "note": "Profiltexten är vag. Lägg till vad du faktiskt gör och vad du har åstadkommit.",
+        "reason": null
+      },
+      {
+        "label": "Underkänt",
+        "tone": "danger",
+        "name": "Kontaktuppgifter",
+        "quote": null,
+        "observation": "Ingen e-postadress hittades i CV:t.",
+        "note": null,
+        "reason": null
+      },
+      {
+        "label": "Ej bedömt",
+        "tone": "neutral",
+        "name": "Visuell hierarki",
+        "quote": null,
+        "observation": null,
+        "note": null,
+        "reason": "Den här versionen läser texten i ditt CV, inte sidans layout, så typsnitt och färger bedöms inte. Vi säger det öppet i stället för att gissa."
+      }
+    ]
+  },
+  "noScore": {
+    "heading": "Inget hemligt betyg",
+    "paragraphs": [
+      "Du får inget poäng mellan 0 och 100, ingen mätare och ingen ring. Ett dolt betyg frestar till att optimera siffran i stället för innehållet.",
+      "I stället ser du per kategori en nivå plus antalet godkända, delvis godkända, underkända och ej bedömda kriterier. Omdömena är det primära, nivån är bara en sammanfattning, och du ser alltid vilka kriterier som ligger bakom. Vi sparar också vilken version av reglerna granskningen gjordes mot."
+    ],
+    "bandsLabel": "Nivåerna per kategori",
+    "bands": [
+      { "label": "Ej redo", "tone": "danger" },
+      { "label": "Behöver omarbetning", "tone": "warning" },
+      { "label": "Konkurrenskraftigt", "tone": "info" },
+      { "label": "Toppskikt", "tone": "success" }
+    ]
+  },
+  "assessable": {
+    "heading": "Vad vi kan och inte kan bedöma från text",
+    "intro": "Eftersom vi läser texten i ditt CV, inte sidans utseende, bedöms vissa saker inte i den här versionen. Vi markerar dem som ej bedömda i stället för att låtsas.",
+    "assessedLabel": "Bedöms",
+    "assessed": [
+      "Innehåll, till exempel mätbara resultat och konkreta exempel",
+      "Struktur, till exempel rubriker och ordning",
+      "Språk, till exempel klyschor och svaga verb",
+      "ATS-läsbarhet, det vill säga om systemen kan läsa CV:t"
+    ],
+    "notAssessedLabel": "Ej bedömt i den här versionen",
+    "notAssessed": [
+      "Visuell hierarki, typsnitt och färger",
+      "Djupare grammatik",
+      "Karriärsprogression över tid"
+    ]
+  },
+  "personnummer": {
+    "heading": "Personnummer och integritet",
+    "paragraphs": [
+      "Om ditt CV innehåller personnummer eller samordningsnummer flaggar vi det och ber dig ta bort det innan du går vidare. Vi ber dig aldrig lägga till det. Själva numret visas aldrig, varken i gränssnittet eller i loggar.",
+      "Ditt CV-innehåll krypteras, läses bara på vår server och skickas aldrig till någon AI. Du kan radera ditt CV och ditt konto när du vill."
+    ],
+    "exampleLabel": "Exempel",
+    "exampleFlag": "Personnummer hittat. Ta bort det innan du använder CV:t."
+  },
+  "improvements": {
+    "heading": "Så ger vi förbättringsförslag",
+    "paragraphs": [
+      "Utöver omdömena kan motorn föreslå konkreta förbättringar. Varje förslag visar samma sak som ett omdöme: det citerade stället i ditt CV, ett före och efter (eller en strukturell ändring), en kort motivering, och alltid en källa, det vill säga vilken regel förslaget kommer från.",
+      "Förslagen är vägledning du läser och själv arbetar in i ditt CV. Du bestämmer. Systemet skriver aldrig om ditt CV åt dig i tysthet, och det hittar aldrig på meriter du inte har skrivit. Det diagnostiserar och strukturerar, det dikterar inte."
+    ],
+    "exampleLabel": "Exempel",
+    "pillLabel": "Textförslag",
+    "currentLabel": "Nuvarande",
+    "suggestionLabel": "Förslag",
+    "before": "Ansvarig för olika uppgifter inom marknadsföring.",
+    "after": "Drev tre kampanjer i sociala medier som ökade räckvidden med 40 procent.",
+    "rationale": "Konkreta och mätbara formuleringar säger mer än allmänna ansvarsbeskrivningar.",
+    "source": "Källa: Rubrik A3 v3"
+  },
+  "promise": {
+    "heading": "Det här lovar vi",
+    "items": [
+      "Varje omdöme har bevis ur ditt CV.",
+      "Vi hittar aldrig på meriter du inte har skrivit.",
+      "Vi skriver aldrig om ditt CV i tysthet.",
+      "Personnummer flaggas alltid och visas aldrig.",
+      "Inget hemligt betyg, bara omdömen du kan följa.",
+      "Reglerna är versionerade och spårbara."
+    ]
+  },
+  "links": {
+    "heading": "Kom igång",
+    "text": "Ladda upp ditt CV för att se din granskning, eller läs våra tips för jobbsökande.",
+    "cvLink": "Till CV",
+    "tipsLink": "Tips för jobbsökande"
+  }
+}

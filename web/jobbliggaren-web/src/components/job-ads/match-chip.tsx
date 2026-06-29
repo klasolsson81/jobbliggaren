@@ -55,8 +55,18 @@ export function MatchChip({ grade }: MatchChipProps) {
   const t = useTranslations("jobads.ui.match");
   const modifier = GRADE_MODIFIER[grade];
   const label = t(`grade.${grade}`);
+  // #379 (CTO bind) — explainability touch for the neutral "Relaterat yrke" chip.
+  // On a list card it can read as illogical (e.g. a generically-titled "Administratör"
+  // ad that JobTech/AF classified into the Data/IT group "Systemadministratörer" — a
+  // LEGITIMATE same-field relation of a software-dev profile after #359). The matching is
+  // correct; the gap is "why is this related?". Surface a SUPPLEMENTARY hint reusing the
+  // existing reason copy (`relatedYrkeReason` — the same string the modal already shows),
+  // so hovering/long-pressing explains the relatedness WITHOUT touching the visible label
+  // (the visible text stays the accessible name; the modal carries the specific matched
+  // occupation group). Only `Related` carries it — the four green grades are self-evident.
+  const title = grade === "Related" ? t("relatedYrkeReason") : undefined;
   return (
-    <span className={`jp-matchchip ${modifier}`} data-tag="match">
+    <span className={`jp-matchchip ${modifier}`} data-tag="match" title={title}>
       <span className="jp-matchchip__dot" aria-hidden="true" />
       {label}
     </span>

@@ -568,4 +568,73 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
 
         related.ShouldBeEmpty();
     }
+
+    // ───────────────────────────────────────────────────────────────────
+    // #379 — SAME-FIELD invariant regression guard. ROOT CAUSE: a "Administratör"
+    // (Randstad) ad surfaces as Related for a Data/IT profile ONLY because JobTech/AF
+    // misclassified that office role into the Data/IT ssyk-4 group "Systemadministratörer"
+    // (MYAz_x9m_2LJ) — which IS a legitimate same-field substitutability edge of
+    // "Mjukvaru- och systemutvecklare" (DJh5_yyF_hEM) after #359. The engine is CORRECT;
+    // the mislabel is upstream. This test pins the #359 same-field constraint so the
+    // phantom bug never re-opens: a Data/IT profile's related set is Data/IT-field-only —
+    // no Administration-field group (e.g. eQ4M_CNm_ozj) ever leaks in.
+    // ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetRelatedOccupationGroupsAsync_ShouldReturnOnlySameOccupationField_ForDataItProfile_Issue379()
+    {
+        // Spot-check ids from stable committed snapshot data (verified present):
+        //   DJh5_yyF_hEM = "Mjukvaru- och systemutvecklare m.fl." (Data/IT ssyk-4)
+        //   MYAz_x9m_2LJ = "Systemadministratörer" (Data/IT ssyk-4) — the group the
+        //                  mislabeled Randstad "Administratör" ad lands in; intended Related.
+        //   eQ4M_CNm_ozj = "Övriga kontorsassistenter och sekreterare" — a genuine
+        //                  Administration-field group; must NEVER be Related to Data/IT.
+        const string dataItProfileGroup = "DJh5_yyF_hEM";
+        const string mislabeledAdminGroup = "MYAz_x9m_2LJ";   // surfacing this IS intended
+        const string genuineAdministrationGroup = "eQ4M_CNm_ozj"; // cross-field — never Related
+
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var related = await sut.GetRelatedOccupationGroupsAsync([dataItProfileGroup], ct);
+
+        // (1) Systemadministratörer IS a correct same-field (Data/IT) related group.
+        // Surfacing it for a Data/IT profile is INTENDED — it is the very mechanism by
+        // which the (upstream-mislabeled) Randstad "Administratör" ad becomes Related.
+        related.ShouldContain(mislabeledAdminGroup,
+            "Systemadministratörer (MYAz_x9m_2LJ) ÄR en korrekt same-field (Data/IT) related-grupp " +
+            "till Mjukvaru- och systemutvecklare. Att den ytas för en Data/IT-profil är AVSIKTLIGT — " +
+            "det är just mekanismen bakom den (uppströms-felklassade) Randstad-Administratör-annonsen (#379).");
+
+        // (2) Derive DJh5's own occupation field from its snapshot row (do NOT hardcode the
+        // field id) — OccupationGroup rows carry ParentConceptId = the occupation-field id.
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var dataItProfileRow = await db.Set<TaxonomyConcept>()
+            .SingleAsync(c => c.ConceptId == dataItProfileGroup
+                              && c.Kind == TaxonomyConceptKind.OccupationGroup, ct);
+        var dataItField = dataItProfileRow.ParentConceptId;
+        dataItField.ShouldNotBeNull(
+            "DJh5_yyF_hEM ska vara en ssyk-4-yrkesgrupp med ParentConceptId = sitt yrkesområde (Data/IT).");
+
+        // For EVERY related id, load its concept row and assert it sits in the SAME field.
+        // This pins the #359 same-field constraint: a Data/IT profile's related set is
+        // Data/IT-field-only — no group from another occupation field may leak in.
+        var relatedRows = await db.Set<TaxonomyConcept>()
+            .Where(c => related.Contains(c.ConceptId))
+            .ToListAsync(ct);
+        relatedRows.Count.ShouldBe(related.Count,
+            "Varje related-id ska ha en motsvarande taxonomy_concepts-rad (inga föräldralösa edges).");
+        relatedRows.ShouldAllBe(c => c.ParentConceptId == dataItField,
+            "#359 same-field-constraint: VARJE related-grupp till en Data/IT-profil ligger i Data/IT-" +
+            "yrkesområdet. Ingen Administration-fält-grupp läcker in (cross-field-edges droppas i generatorn).");
+
+        // (3) Explicit guard: a genuine Administration-field office-assistant group is NEVER
+        // related to a Data/IT profile (the cross-field edge is dropped at generation time).
+        related.ShouldNotContain(genuineAdministrationGroup,
+            "Övriga kontorsassistenter och sekreterare (eQ4M_CNm_ozj) tillhör yrkesområdet " +
+            "Administration/ekonomi/juridik och är ALDRIG related till en Data/IT-profil (#359).");
+    }
 }

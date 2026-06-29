@@ -175,8 +175,9 @@ public sealed partial class BackgroundMatchingJob(
                 // notifiable subset; Basic / no-grade is the honest floor (never persisted).
                 // #300 PR-4 (ADR 0084 §F4 + question D — LIST-ONLY): pass SsykIsRelated so a
                 // related-only hit grades MatchGrade.Related — which ToNotifiable maps to null,
-                // so related matches never persist a UserJobAdMatch nor drive a notification
-                // (behaviour-inert until the PR-5 toggle populates the related set).
+                // so related matches never persist a UserJobAdMatch nor drive a notification. The
+                // background scan always builds with includeRelated=false, so the related set is
+                // empty here and SsykIsRelated never fires (related is an interactive-surface concept).
                 var grade = MatchGradeCalculator.Grade(scored.Score, scored.SsykIsRelated);
                 if (grade is null || ToNotifiable(grade.Value) is not { } notifiable)
                     continue;

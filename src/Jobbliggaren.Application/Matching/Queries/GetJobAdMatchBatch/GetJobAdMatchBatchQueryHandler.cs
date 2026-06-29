@@ -64,7 +64,8 @@ public sealed class GetJobAdMatchBatchQueryHandler(
             // a Strong Fast match with CV-skill overlap is promoted to Top ("Toppmatch").
             // The golden rung that was sort-key-only in F4-15 (b-ii) now paints the chip.
             // #300 PR-4 (ADR 0084 §F4): pass SsykIsRelated so a related-only hit caps at
-            // MatchGrade.Related (behaviour-inert until the PR-5 toggle populates the related set).
+            // MatchGrade.Related (lit by the live ?relaterade=on toggle, off by default; with it
+            // off the related set is empty so SsykIsRelated is false).
             var score = scored.Score;
             var grade = MatchGradeCalculator.Grade(score, scored.SsykIsRelated);
             if (grade is null)

@@ -88,7 +88,8 @@ public interface IMatchScorer
     /// <see cref="FullScoredMatch.SsykIsRelated"/> (the ad matched only via a RELATED occupation
     /// group, not the user's exact set). The caller passes that bit to
     /// <see cref="Grading.MatchGradeCalculator.Grade(FullMatchScore, bool)"/> for the Related cap.
-    /// Behaviour-inert in v1 (the related set is empty until the PR-5 toggle).
+    /// Lit by the live <c>?includeRelated</c> toggle (off by default, #300); with it off the
+    /// related set is empty, so the flag is <c>false</c> and behaviour is exact-only.
     /// </para>
     /// </summary>
     ValueTask<FullScoredMatch> ScoreFullAsync(
@@ -115,7 +116,8 @@ public interface IMatchScorer
     /// <para>
     /// #300 PR-4 (ADR 0084 §F4): each value is a <see cref="FullScoredMatch"/> — the score PLUS
     /// <see cref="FullScoredMatch.SsykIsRelated"/> per ad (the ad matched only via a RELATED
-    /// occupation group). Behaviour-inert in v1 (the related set is empty until the PR-5 toggle).
+    /// occupation group). Lit by the live <c>?includeRelated</c> toggle (off by default, #300);
+    /// with it off the related set is empty, so the flag is <c>false</c> (exact-only).
     /// </para>
     /// </summary>
     ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>> ScoreFullBatchAsync(

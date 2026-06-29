@@ -30,9 +30,9 @@ public interface IMatchProfileBuilder
     /// <c>true</c>, the stated exact ssyk-4 occupation set is broadened with its RELATED
     /// (substitutable) groups via <see cref="JobAds.Abstractions.ITaxonomyReadModel.GetRelatedOccupationGroupsAsync"/>
     /// into <see cref="CandidateMatchProfile.RelatedSsykGroupConceptIds"/>. Default <c>false</c>
-    /// = today's exact-only behaviour (the PR-5 FE include-related toggle, ADR 0084 question A
-    /// off by default, is the only thing that flips it true; no caller passes <c>true</c> yet,
-    /// so this is behavior-inert).
+    /// = exact-only behaviour. The live FE include-related toggle (ADR 0084 question A,
+    /// <c>?relaterade=on</c>, off by default) is the only thing that flips it true; with it off
+    /// no related set is supplied, so behaviour is exact-only.
     /// </para>
     /// </summary>
     ValueTask<CandidateMatchProfile> BuildFromPreferencesAsync(
@@ -58,8 +58,8 @@ public interface IMatchProfileBuilder
     /// <para>
     /// <b><paramref name="includeRelated"/> (ADR 0084 §Architecture(4)):</b> when <c>true</c>,
     /// broadens the exact ssyk-4 set with its substitutable groups into the embedded
-    /// <c>Fast.RelatedSsykGroupConceptIds</c>. Default <c>false</c> (behavior-inert; the PR-5
-    /// toggle flips it). Related ads cap at <c>MatchGrade.Related</c> — never Good/Strong (so
+    /// <c>Fast.RelatedSsykGroupConceptIds</c>. Default <c>false</c> = exact-only; the live
+    /// <c>?relaterade=on</c> toggle flips it. Related ads cap at <c>MatchGrade.Related</c> — never Good/Strong (so
     /// they never enter this path's headline-grade count, ADR 0084 question D list-only).
     /// </para>
     /// </summary>
@@ -86,8 +86,8 @@ public interface IMatchProfileBuilder
     /// <para>
     /// <b><paramref name="includeRelated"/> (ADR 0084 §Architecture(4)):</b> when <c>true</c>,
     /// broadens the exact ssyk-4 set with its substitutable groups into the embedded
-    /// <c>Fast.RelatedSsykGroupConceptIds</c>. Default <c>false</c> (behavior-inert; the PR-5
-    /// toggle flips it). A related hit caps at <c>MatchGrade.Related</c> in the verdict.
+    /// <c>Fast.RelatedSsykGroupConceptIds</c>. Default <c>false</c> = exact-only; the live
+    /// <c>?relaterade=on</c> toggle flips it. A related hit caps at <c>MatchGrade.Related</c> in the verdict.
     /// </para>
     /// </summary>
     ValueTask<FullCandidateMatchProfile> BuildFullForVerdictAsync(

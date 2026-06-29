@@ -40,6 +40,7 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// <c>ScoreFullAsync</c> returned for the same ad and profile.</param>
 /// <param name="SsykIsRelated">Whether the SSYK gate passed via the RELATED occupation set
 /// only (ad group ∈ related ∧ ∉ exact). Drives the
-/// <see cref="Grading.MatchGrade.Related"/> flat cap. Always <c>false</c> until the PR-5
-/// "include related" toggle populates the profile's related set (behaviour-inert in v1).</param>
+/// <see cref="Grading.MatchGrade.Related"/> flat cap. <c>false</c> unless the live
+/// <c>?includeRelated</c> / <c>?relaterade=on</c> toggle (off by default, #300) populated the
+/// profile's related set; with the toggle off that set is empty, so this stays <c>false</c>.</param>
 public sealed record FullScoredMatch(FullMatchScore Score, bool SsykIsRelated);

@@ -9,6 +9,7 @@ import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { MatchGrade, JobAdMatchBatch } from "@/lib/dto/job-ad-match";
 import { assertNever } from "@/lib/dto/_helpers";
+import { buildJobbHref } from "@/lib/job-ads/search-params";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
@@ -171,6 +172,37 @@ export async function JobbResults({
   const effectiveSortBy: JobAdSortBy =
     !matchActive && sortBy === "MatchDesc" ? "PublishedAtDesc" : sortBy;
 
+  // #380 — bygg den nuvarande listans query-sträng som varje radlänk bär in i
+  // modal-soft-naven (se `JobAdCard.listQuery`). En NAKEN `/jobb/[id]`-länk lät
+  // children-slottens `/jobb` re-rendras till tomma searchParams under modalen
+  // (Suspense-keyn flippade relaterade/grader/matchning till av), och
+  // `router.back()` återställer bara `@modal`-slotten ⇒ listan fastnade i av-
+  // läget. Med hela list-staten i länken speglar modal-URL:en listan exakt, så
+  // öppna→stäng bevarar HELA filter-/match-läget. Spegla den RÅA URL-staten
+  // (sortBy/includeRelated/matchningOff/matchGrades som de ligger i adressen),
+  // INTE de coercerade `effective*`-värdena — målet är att close-URL === open-
+  // URL. Återbruka den kanoniska `buildJobbHref` (hanterar default-utelämning)
+  // och lägg på `page` så djupa sidor också överlever.
+  const listHref = buildJobbHref({
+    q,
+    occupationGroup,
+    region,
+    municipality,
+    employmentType,
+    worktimeExtent,
+    matchGrades,
+    matchningOff,
+    includeRelated,
+    sortBy,
+    pageSize: rawParams.pageSize,
+  });
+  const listBaseQuery = listHref.includes("?")
+    ? listHref.slice(listHref.indexOf("?") + 1)
+    : "";
+  const pageParam =
+    rawParams.page && rawParams.page !== "1" ? `page=${rawParams.page}` : "";
+  const listQuery = [listBaseQuery, pageParam].filter(Boolean).join("&");
+
   // #293/#306 — den per-användar oläst-watermarken (`lastSeenJobsAt`) hämtas
   // parallellt med listan. NY renderas mot den HÄMTADE (gamla) watermarken
   // (fetch-then-mark, spegling av /matchningar) — sedan flyttas den fram nedan.
@@ -296,6 +328,7 @@ export async function JobbResults({
               savedIdSet={savedIdSet}
               appliedIdSet={appliedIdSet}
               matchGradeById={matchGradeById}
+              listQuery={listQuery}
             />
             <JobAdPagination
               page={result.data.page}

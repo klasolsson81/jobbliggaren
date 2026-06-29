@@ -12,6 +12,11 @@ namespace Jobbliggaren.Application.Matching.Queries.ResolveSkillLabels;
 /// rendering opaque ids. Unknown/removed ids are dropped silently (graceful). Reference
 /// data (non-PII taxonomy labels) — thin query, no auth requirement on the query itself
 /// (the endpoint is auth-gated + rate-limited).
+/// <para>
+/// #277 — the result is GROUPED by shared exact-label surface: a saved twin-pair (the ESCO + AF
+/// "C#" ids both in the user's PreferredSkills) renders as ONE chip carrying both member ids on
+/// cold load (a singleton concept carries one member). No saved id is ever dropped.
+/// </para>
 /// </summary>
 public sealed record ResolveSkillLabelsQuery(IReadOnlyList<string> ConceptIds)
-    : IQuery<IReadOnlyList<SkillOptionDto>>;
+    : IQuery<IReadOnlyList<SkillOptionGroupDto>>;

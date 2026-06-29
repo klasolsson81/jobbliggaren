@@ -78,6 +78,178 @@ internal sealed class SkillTaxonomyIndex
         return result;
     }
 
+    // #277 — group ESCO + AF twin skill concept-ids that share ONE exact-label surface into a
+    // single chip. A "surface group" is the set of concept-ids one exact-label surface
+    // co-produces (the value list in ExactByLabel); the canonical id is the surface's already-
+    // materialised element [0] (preferred-first, then ConceptId Ordinal — #253) and its label is
+    // that element's PreferredLabel. This is NOT a pairwise twin rule: it groups strictly by
+    // shared literal surface, so genuinely-distinct same-surface concepts each stay their own
+    // group only if they DON'T share a surface — two concepts carrying the SAME literal (the
+    // "C#" twins) are one group; "scala"/"oracle-kunskaper" group by whichever surface each
+    // concept's preferred label is. NEVER drops a concept-id (every input id is in exactly one
+    // output group). NO new asset parsing — reuses the lazy ExactByLabel / LabelByConceptId.
+
+    /// <summary>
+    /// (#277, saved/resolved chips): partition an input set of concept-ids by the
+    /// exact-label surface they share. Two input ids are in the SAME group iff one appears in the
+    /// other's preferred-label surface (LabelByConceptId → ExactByLabel) — a SYMMETRIC,
+    /// order-independent relation, computed by union-find so the partition does not depend on input
+    /// order (the C# twins collapse whether the ESCO or AF id is seen first). The canonical id of a
+    /// component is the member that is the [0] (preferred-first) of the broadest surface linking the
+    /// component — concretely the member with the most input-members on its preferred-label surface,
+    /// tie-broken by being that surface's element [0] (preferred), then ConceptId Ordinal; its label
+    /// is the canonical's PreferredLabel. An id with no co-resolving twin in the set, an unknown id,
+    /// or an id whose preferred label is absent → a one-member group (its own label if known, else
+    /// the bare id — never dropped). Every input id appears in EXACTLY one output group (guarded).
+    /// Groups are returned in first-seen order of their members over the distinct input.
+    /// </summary>
+    public IReadOnlyList<SkillSurfaceGroup> GroupConceptIds(IEnumerable<string> conceptIds)
+    {
+        ArgumentNullException.ThrowIfNull(conceptIds);
+
+        var index = _index.Value;
+
+        // Distinct, blank-skipped, input order preserved — the universe every output id comes from.
+        var inputOrder = new List<string>();
+        var inputSet = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in conceptIds)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !inputSet.Add(id))
+                continue;
+            inputOrder.Add(id);
+        }
+
+        // Union-find over the distinct input. Link id ↔ every co-resolving id on id's OWN
+        // preferred-label surface that is also in the input set (symmetric: if A's surface holds B
+        // OR B's surface holds A, the union merges them either way).
+        var parent = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var id in inputOrder)
+            parent[id] = id;
+
+        foreach (var id in inputOrder)
+        {
+            foreach (var coId in SurfaceMembersInSet(index, id, inputSet))
+                Union(parent, id, coId);
+        }
+
+        // Collect components in first-seen member order; pick a deterministic canonical per group.
+        var componentMembers = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var componentOrder = new List<string>();
+        foreach (var id in inputOrder)
+        {
+            var root = Find(parent, id);
+            if (!componentMembers.TryGetValue(root, out var list))
+            {
+                componentMembers[root] = list = [];
+                componentOrder.Add(root);
+            }
+
+            list.Add(id);
+        }
+
+        var groups = new List<SkillSurfaceGroup>(componentOrder.Count);
+        foreach (var root in componentOrder)
+        {
+            var members = componentMembers[root];
+            var (canonicalId, canonicalLabel) = ChooseCanonical(index, members, inputSet);
+            groups.Add(new SkillSurfaceGroup(canonicalId, canonicalLabel, members));
+        }
+
+        // Guard the no-drop/partition invariant (#277): every distinct input id is in exactly one
+        // output group.
+        var emitted = groups.SelectMany(g => g.MemberConceptIds).ToList();
+        if (emitted.Count != inputSet.Count
+            || !emitted.ToHashSet(StringComparer.Ordinal).SetEquals(inputSet))
+        {
+            throw new InvalidOperationException(
+                "SkillTaxonomyIndex.GroupConceptIds violated the no-drop/partition invariant " +
+                "(#277): every input concept-id must appear in exactly one output group.");
+        }
+
+        return groups;
+    }
+
+    // The input-set ids that co-resolve with <paramref name="id"/> on ITS OWN preferred-label
+    // surface (excluding itself). Empty for an unknown id / an id whose preferred label is absent.
+    private static IEnumerable<string> SurfaceMembersInSet(
+        SkillIndex index, string id, HashSet<string> inputSet)
+    {
+        if (!index.LabelByConceptId.TryGetValue(id, out var preferredLabel)
+            || !index.ExactByLabel.TryGetValue(preferredLabel, out var surface))
+            yield break;
+
+        foreach (var form in surface)
+            if (!string.Equals(form.ConceptId, id, StringComparison.Ordinal)
+                && inputSet.Contains(form.ConceptId))
+                yield return form.ConceptId;
+    }
+
+    // Deterministic canonical for a component: the member whose preferred-label surface carries the
+    // MOST input-members (the broadest/"bare" surface — e.g. ESCO "C#" over AF "C#,
+    // programmeringsspråk"), tie-broken by being that surface's element [0] (preferred), then by
+    // ConceptId Ordinal. Its label is the canonical's PreferredLabel (or the bare id if unknown).
+    private static (string CanonicalId, string CanonicalLabel) ChooseCanonical(
+        SkillIndex index, List<string> members, HashSet<string> inputSet)
+    {
+        string bestId = members[0];
+        int bestBreadth = -1;
+        bool bestIsSurfaceHead = false;
+        foreach (var id in members)
+        {
+            var breadth = 0;
+            var isSurfaceHead = false;
+            if (index.LabelByConceptId.TryGetValue(id, out var preferredLabel)
+                && index.ExactByLabel.TryGetValue(preferredLabel, out var surface))
+            {
+                breadth = surface.Count(f => inputSet.Contains(f.ConceptId));
+                isSurfaceHead = surface.Count > 0
+                    && string.Equals(surface[0].ConceptId, id, StringComparison.Ordinal);
+            }
+
+            var better = breadth > bestBreadth
+                || (breadth == bestBreadth && isSurfaceHead && !bestIsSurfaceHead)
+                || (breadth == bestBreadth && isSurfaceHead == bestIsSurfaceHead
+                    && string.CompareOrdinal(id, bestId) < 0);
+            if (better)
+            {
+                bestId = id;
+                bestBreadth = breadth;
+                bestIsSurfaceHead = isSurfaceHead;
+            }
+        }
+
+        return (bestId, index.LabelByConceptId.GetValueOrDefault(bestId, bestId));
+    }
+
+    private static string Find(Dictionary<string, string> parent, string id)
+    {
+        var root = id;
+        while (!string.Equals(parent[root], root, StringComparison.Ordinal))
+            root = parent[root];
+        // Path-compression for the next lookup.
+        while (!string.Equals(parent[id], root, StringComparison.Ordinal))
+        {
+            var next = parent[id];
+            parent[id] = root;
+            id = next;
+        }
+
+        return root;
+    }
+
+    private static void Union(Dictionary<string, string> parent, string a, string b)
+    {
+        var ra = Find(parent, a);
+        var rb = Find(parent, b);
+        if (string.Equals(ra, rb, StringComparison.Ordinal))
+            return;
+        // Deterministic merge: the Ordinal-smaller root becomes the parent.
+        if (string.CompareOrdinal(ra, rb) <= 0)
+            parent[rb] = ra;
+        else
+            parent[ra] = rb;
+    }
+
     public IReadOnlyList<(string ConceptId, string Label)> Search(string query, int max)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -370,3 +542,15 @@ internal sealed record SkillForm(
     string PreferredLabel,
     string MatchedOn,
     IReadOnlySet<string> Lexemes);
+
+/// <summary>
+/// #277 — one grouped skill surface: the canonical (preferred-first) concept-id + its label,
+/// and ALL the member concept-ids that share the exact-label surface (a singleton carries one
+/// member). The Infrastructure-internal result of <see cref="SkillTaxonomyIndex"/>'s grouping
+/// helpers; the resolver maps it to the Application <c>ResolvedSkillGroup</c> port shape so the
+/// member ids never leak the internal SkillForm. Non-PII taxonomy metadata.
+/// </summary>
+internal sealed record SkillSurfaceGroup(
+    string CanonicalConceptId,
+    string CanonicalLabel,
+    IReadOnlyList<string> MemberConceptIds);

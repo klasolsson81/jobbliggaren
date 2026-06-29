@@ -10,5 +10,11 @@ namespace Jobbliggaren.Application.Matching.Queries.SearchSkills;
 /// the <c>GetTaxonomyTreeQuery</c> shape (thin query, no auth requirement on the query
 /// itself; the endpoint is rate-limited). A blank/too-short query returns an empty list
 /// (graceful typeahead — never a 400 mid-typing).
+/// <para>
+/// #277 — the result is GROUPED: a search for "C#" yields ONE addable
+/// <see cref="SkillOptionGroupDto"/> carrying BOTH the ESCO + AF member concept-ids (a
+/// singleton carries one member), so the user never sees twin duplicates and selecting one
+/// chip confirms both ids on the full-replace save.
+/// </para>
 /// </summary>
-public sealed record SearchSkillsQuery(string Query) : IQuery<IReadOnlyList<SkillOptionDto>>;
+public sealed record SearchSkillsQuery(string Query) : IQuery<IReadOnlyList<SkillOptionGroupDto>>;

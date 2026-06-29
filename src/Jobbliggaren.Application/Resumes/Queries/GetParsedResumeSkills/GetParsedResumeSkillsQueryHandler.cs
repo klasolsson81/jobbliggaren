@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,8 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetParsedResumeSkills;
 public sealed class GetParsedResumeSkillsQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    ISkillResolver skillResolver)
     : IQueryHandler<GetParsedResumeSkillsQuery, IReadOnlyList<SkillProposalDto>?>
 {
     public async ValueTask<IReadOnlyList<SkillProposalDto>?> Handle(
@@ -73,8 +75,17 @@ public sealed class GetParsedResumeSkillsQueryHandler(
             return null;
         }
 
-        return found.Proposals
-            .Select(p => new SkillProposalDto(p.ConceptId, p.Label))
+        // #277 — GROUP the flat-persisted proposals by shared exact-label surface at this READ
+        // surface (ImportResumeCommandHandler keeps the persisted ProposedSkill jsonb FLAT —
+        // grouping is a read-projection concern). Feed the proposal concept-ids in their stored
+        // order; the index guards the no-drop invariant (every proposal id lands in exactly one
+        // group) and supplies the canonical (preferred-first) id + label per group. A twin-pair
+        // proposal collapses to ONE chip carrying both member ids.
+        var proposalIds = found.Proposals.Select(p => p.ConceptId).ToList();
+
+        return skillResolver
+            .GroupConceptIds(proposalIds, cancellationToken)
+            .Select(g => new SkillProposalDto(g.CanonicalConceptId, g.Label, g.MemberConceptIds))
             .ToList();
     }
 }

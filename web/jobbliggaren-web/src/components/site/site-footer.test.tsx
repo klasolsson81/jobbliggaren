@@ -17,17 +17,21 @@ vi.mock("@/i18n/set-locale-action", () => ({
 }));
 
 // The global test provider renders with locale "sv", so labels are Swedish.
-describe("SiteFooter (LP-3, #256)", () => {
+describe("SiteFooter (LP-3, #256; civic-IA #390)", () => {
   it("renders exactly one footer landmark", () => {
     render(<SiteFooter />);
     expect(screen.getAllByRole("contentinfo")).toHaveLength(1);
   });
 
-  it("renders the four named navigation columns", () => {
+  it("renders the three named navigation columns and NO Produkt column (#390)", () => {
     render(<SiteFooter />);
-    for (const name of ["Produkt", "Kom igång", "Stöd och guider", "Om och juridik"]) {
+    for (const name of ["Kom igång", "Stöd och guider", "Om Jobbliggaren"]) {
       expect(screen.getByRole("navigation", { name })).toBeInTheDocument();
     }
+    // The auth-gated product deep-links column was removed (#390).
+    expect(screen.queryByRole("navigation", { name: "Produkt" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Sök jobb" })).toBeNull();
+    expect(screen.queryByText("Påminnelser")).toBeNull();
   });
 
   it("renders the single free line exactly once (K5)", () => {
@@ -44,10 +48,6 @@ describe("SiteFooter (LP-3, #256)", () => {
 
   it("links live routes (no dead hrefs)", () => {
     render(<SiteFooter />);
-    expect(screen.getByRole("link", { name: "Sök jobb" })).toHaveAttribute(
-      "href",
-      "/jobb",
-    );
     // start.register is live per the CTO verdict (forward-compatible /registrera).
     expect(screen.getByRole("link", { name: "Skapa konto" })).toHaveAttribute(
       "href",
@@ -57,19 +57,24 @@ describe("SiteFooter (LP-3, #256)", () => {
       "href",
       "/gast/oversikt",
     );
+    // about.self resolves to the public /om page (link, distinct from the
+    // identically-named column heading).
+    expect(screen.getByRole("link", { name: "Om Jobbliggaren" })).toHaveAttribute(
+      "href",
+      "/om",
+    );
   });
 
   it("renders not-yet-built content links as aria-disabled spans, out of tab order", () => {
     render(<SiteFooter />);
-    // Paminnelser is explicitly not built.
-    const reminders = screen.getByText("Påminnelser");
-    expect(reminders.tagName).toBe("SPAN");
-    expect(reminders).toHaveAttribute("aria-disabled", "true");
-    // A gated content route (Hjälpcenter) is also disabled, never a link.
-    expect(screen.queryByRole("link", { name: "Hjälpcenter" })).toBeNull();
-    const help = screen.getByText("Hjälpcenter");
-    expect(help.tagName).toBe("SPAN");
-    expect(help).toHaveAttribute("aria-disabled", "true");
+    // Hjälpcenter (support), För utvecklare (about), Tillgänglighet (legal bar)
+    // are all gated content routes — disabled spans, never links.
+    for (const name of ["Hjälpcenter", "För utvecklare", "Tillgänglighet"]) {
+      expect(screen.queryByRole("link", { name })).toBeNull();
+      const el = screen.getByText(name);
+      expect(el.tagName).toBe("SPAN");
+      expect(el).toHaveAttribute("aria-disabled", "true");
+    }
   });
 
   it("renders aria-disabled social text placeholders (no accounts yet)", () => {
@@ -83,15 +88,23 @@ describe("SiteFooter (LP-3, #256)", () => {
     }
   });
 
-  it("does not duplicate legal links (K3 dedupe): each appears once, only in the column", () => {
+  it("groups legal/policy links in the thin bottom utility nav, once each (#390)", () => {
     render(<SiteFooter />);
-    // Villkor + Cookies live ONLY in the legal column, once each, as links.
-    const terms = screen.getAllByRole("link", { name: "Användarvillkor" });
-    expect(terms).toHaveLength(1);
-    expect(terms[0]).toHaveAttribute("href", "/villkor");
-    const cookies = screen.getAllByRole("link", { name: "Cookies" });
-    expect(cookies).toHaveLength(1);
-    expect(cookies[0]).toHaveAttribute("href", "/cookies");
+    const legalNav = screen.getByRole("navigation", {
+      name: "Juridik och policyer",
+    });
+    // Live policy links live ONLY here (a single home each — no column dup).
+    const links: ReadonlyArray<readonly [string, string]> = [
+      ["Användarvillkor", "/villkor"],
+      ["Integritetspolicy", "/integritet"],
+      ["Cookies", "/cookies"],
+    ];
+    for (const [name, href] of links) {
+      const all = screen.getAllByRole("link", { name });
+      expect(all).toHaveLength(1);
+      expect(all[0]).toHaveAttribute("href", href);
+      expect(within(legalNav).getByRole("link", { name })).toBe(all[0]);
+    }
   });
 
   it("reuses the real language toggle in the footer variant (.jp-foot__lang)", () => {

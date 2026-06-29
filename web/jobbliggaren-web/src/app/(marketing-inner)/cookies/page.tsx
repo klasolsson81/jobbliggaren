@@ -32,7 +32,6 @@ export default async function CookiesPage() {
       <section className="jp-pagehero" aria-labelledby="cookies-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("cookies.kicker")}</p>
             <h1 id="cookies-heading" className="jp-pagehero__title">
               {t("cookies.title")}
             </h1>

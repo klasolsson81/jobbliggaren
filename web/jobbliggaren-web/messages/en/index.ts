@@ -19,6 +19,7 @@ import oversikt from "./oversikt.json";
 import pages from "./pages.json";
 import resumes from "./resumes.json";
 import settings from "./settings.json";
+import statistik from "./statistik.json";
 import validation from "./validation.json";
 
 const messages = {
@@ -40,6 +41,7 @@ const messages = {
   pages,
   resumes,
   settings,
+  statistik,
   validation,
 };
 

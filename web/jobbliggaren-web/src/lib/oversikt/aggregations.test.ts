@@ -9,8 +9,10 @@ import {
   findRecentInterviews,
   flattenPipeline,
   formatDaysAgo,
+  formatNoticesStamp,
   formatSwedishLongDate,
   formatSwedishShortDate,
+  OVERSIKT_FOLLOW_UP_DAYS,
 } from "./aggregations";
 import type {
   ApplicationDto,
@@ -31,7 +33,13 @@ const tRelativeTime = createTranslator({
 function makeApp(
   status: ApplicationStatus,
   createdAt: string,
-  updatedAt: string = createdAt
+  updatedAt: string = createdAt,
+  // #384: `findFollowUpCandidates` ankras numera i `appliedAt` (datumet ansökan
+  // SKICKADES), inte `createdAt`. Defaultar till `createdAt` så de befintliga
+  // follow-up-testerna — som bara skickar ett gammalt `createdAt` — fortsatt
+  // ankrar mot det datumet och förblir gröna. Sätt explicit (inkl. `null`) för
+  // att skilja skapande- från ansökningsdatum, som i #384-regressionsfallen.
+  appliedAt: string | null = createdAt
 ): ApplicationDto {
   return {
     id: `app-${status}-${createdAt}`,
@@ -40,6 +48,7 @@ function makeApp(
     status,
     createdAt,
     updatedAt,
+    appliedAt,
     jobAd: null,
   };
 }
@@ -193,6 +202,119 @@ describe("findFollowUpCandidates", () => {
 
   it("returnerar tom array när inga matchar", () => {
     expect(findFollowUpCandidates([], now)).toEqual([]);
+  });
+
+  // #384 (THE pin): notisen "inte fått svar på över 14 dagar" ankras i
+  // `appliedAt` (när arbetsgivaren fick ansökan), INTE `createdAt`. Buggen:
+  // ett utkast skapat 2026-06-11 men SKICKAT 2026-06-28 räknades som 18 dagar
+  // obesvarat (createdAt) medan "Mina ansökningar" korrekt visade "skickad i
+  // går" (appliedAt). Här: createdAt 18 dagar sedan men appliedAt 1 dag sedan
+  // ⇒ INGEN kandidat (ansökan har väntat 1 dag på svar, inte 18).
+  it("exkluderar Submitted med gammalt createdAt men färskt appliedAt (#384)", () => {
+    const sentYesterday = makeApp(
+      "Submitted",
+      "2026-05-06T00:00:00Z", // createdAt: 18 dagar sedan (utkast skapat)
+      "2026-05-23T00:00:00Z",
+      "2026-05-23T00:00:00Z" // appliedAt: 1 dag sedan (faktiskt skickad)
+    );
+    expect(findFollowUpCandidates([sentYesterday], now)).toEqual([]);
+  });
+
+  // Spegel: appliedAt 15 dagar sedan ⇒ kandidat (createdAt irrelevant här).
+  it("inkluderar Submitted med appliedAt 15 dagar sedan (ankrar i appliedAt)", () => {
+    const waitedTooLong = makeApp(
+      "Submitted",
+      "2026-05-23T00:00:00Z", // createdAt: färskt — bevisar att appliedAt styr
+      "2026-05-23T00:00:00Z",
+      "2026-05-09T00:00:00Z" // appliedAt: 15 dagar sedan
+    );
+    expect(findFollowUpCandidates([waitedTooLong], now)).toEqual([
+      waitedTooLong,
+    ]);
+  });
+
+  // Gräns: filtret är strikt `> OVERSIKT_FOLLOW_UP_DAYS` (14). Exakt 14 dagar
+  // ⇒ INTE kandidat; 15 dagar ⇒ kandidat. Pinnar `>`-gränsen mot `>=`-drift.
+  it("exkluderar appliedAt exakt 14 dagar sedan (gräns: strikt >)", () => {
+    const exactlyFourteen = makeApp(
+      "Submitted",
+      "2026-05-10T00:00:00Z",
+      "2026-05-10T00:00:00Z",
+      "2026-05-10T00:00:00Z" // appliedAt: exakt 14 dagar sedan
+    );
+    expect(findFollowUpCandidates([exactlyFourteen], now)).toEqual([]);
+  });
+
+  it("inkluderar appliedAt 15 dagar sedan (gräns: precis över tröskeln)", () => {
+    const fifteen = makeApp(
+      "Submitted",
+      "2026-05-09T00:00:00Z",
+      "2026-05-09T00:00:00Z",
+      "2026-05-09T00:00:00Z" // appliedAt: 15 dagar sedan
+    );
+    expect(findFollowUpCandidates([fifteen], now)).toEqual([fifteen]);
+  });
+
+  // Null-guard: ingen apply-stämpel ⇒ inget ankare ⇒ ingen kandidat (även om
+  // createdAt vore gammalt). Defensiv paritet med BE-evaluatorn.
+  it("exkluderar Submitted med appliedAt = null (ingen anchor, null-guard)", () => {
+    const noAnchor = makeApp(
+      "Submitted",
+      "2026-01-01T00:00:00Z", // gammalt createdAt — får INTE läcka in
+      "2026-01-01T00:00:00Z",
+      null // appliedAt saknas
+    );
+    expect(findFollowUpCandidates([noAnchor], now)).toEqual([]);
+  });
+});
+
+describe("OVERSIKT_FOLLOW_UP_DAYS / followUpText drift-guard", () => {
+  // Real next-intl translator scoped to `oversikt.notices` (Swedish catalog =
+  // source of truth). Speglar produktionens `t.rich("notices.followUpText", …)`
+  // i notice-list.tsx. Renderar copyn med samma konstant som filtret läser, så
+  // ett framtida byte av OVERSIKT_FOLLOW_UP_DAYS MÅSTE flöda in i copyn — det
+  // hårdkodade talet och tröskeln kan aldrig drifta isär (mönster från #291).
+  const tNotices = createTranslator({
+    locale: "sv",
+    messages: { oversikt: svOversikt },
+    namespace: "oversikt.notices",
+  });
+
+  it("renderar copyn med tröskelkonstanten (count: 1, days: konstanten)", () => {
+    // `t.rich` med en pass-through `b`-chunk ger en sträng (inga nästlade noder).
+    const rendered = tNotices.rich("followUpText", {
+      count: 1,
+      days: OVERSIKT_FOLLOW_UP_DAYS,
+      b: (chunks) => chunks,
+    });
+    const text = Array.isArray(rendered) ? rendered.join("") : String(rendered);
+    // Talet kommer från konstanten via `{days}`-paramen, följt av "dagar" (sv).
+    expect(text).toContain(`${OVERSIKT_FOLLOW_UP_DAYS} dagar`);
+  });
+
+  it("har en {days}-param i katalogen (inget hårdkodat tal i copyn)", () => {
+    // Katalog-strängen bär INTE ett standalone-tal — tröskeln injiceras via
+    // `{days}`. Skulle någon hårdkoda "14" i copyn skulle drift bli möjlig.
+    const raw = svOversikt.notices.followUpText;
+    expect(raw).toContain("{days");
+    expect(raw).not.toContain(String(OVERSIKT_FOLLOW_UP_DAYS));
+  });
+});
+
+describe("formatNoticesStamp", () => {
+  it("formaterar känt UTC-datum som 'YYYY-MM-DD · HH:mm'", () => {
+    const out = formatNoticesStamp(new Date("2026-06-29T13:52:30Z"));
+    expect(out).toBe("2026-06-29 · 13:52");
+  });
+
+  it("är INTE den gamla hårdkodade mock-stämpeln (#384)", () => {
+    const out = formatNoticesStamp(new Date("2026-06-29T13:52:30Z"));
+    // Tidigare visades en stale mock "2026-05-23 · 08:42"; nu är stämpeln live.
+    expect(out).not.toBe("2026-05-23 · 08:42");
+  });
+
+  it("returnerar streck för ogiltigt datum", () => {
+    expect(formatNoticesStamp(new Date("invalid"))).toBe("–");
   });
 });
 

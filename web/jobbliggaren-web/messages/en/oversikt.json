@@ -29,7 +29,7 @@
     "offerText": "<b>{company}</b>. Offer awaiting response.",
     "offerCta": "Review offer",
     "followUpLabel": "Follow-up",
-    "followUpText": "You have <b>{count, plural, one {# application} other {# applications}}</b> that have not had a response in over 14 days. Consider getting in touch.",
+    "followUpText": "You have <b>{count, plural, one {# application} other {# applications}}</b> that have not had a response in over {days, number} days. Consider getting in touch.",
     "followUpCta": "View applications",
     "deadlineLabel": "Deadline",
     "deadlineText": "<b>{count, plural, one {# saved job ad} other {# saved job ads}}</b> have an application deadline this week ({labels}).",

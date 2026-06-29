@@ -2,7 +2,7 @@
   "title": "Statistik",
   "lede": "Översikt över hur dina ansökningar går: svar, intervjuer, avslag och utveckling över tid.",
   "back": "Tillbaka till ansökningar",
-  "summary": "Du har {total} ansökningar totalt, varav {sent} skickade.",
+  "summary": "Du har {total, number} ansökningar totalt, varav {sent, number} skickade.",
   "error": {
     "title": "Kunde inte ladda statistik",
     "body": "Något gick fel när statistiken skulle hämtas. Ladda om sidan och försök igen.",

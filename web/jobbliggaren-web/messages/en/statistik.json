@@ -2,7 +2,7 @@
   "title": "Statistics",
   "lede": "An overview of how your applications are going: responses, interviews, rejections and trends over time.",
   "back": "Back to applications",
-  "summary": "You have {total} applications in total, of which {sent} were sent.",
+  "summary": "You have {total, number} applications in total, of which {sent, number} were sent.",
   "error": {
     "title": "Could not load statistics",
     "body": "Something went wrong while loading the statistics. Reload the page and try again.",

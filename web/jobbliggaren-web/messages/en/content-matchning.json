@@ -11,7 +11,7 @@
     "heading": "Fully rule-based, no AI",
     "paragraphs": [
       "The matching is rule-based. It compares the details in the ad with yours, looks up occupations in an official occupation taxonomy and compares words by Swedish word stems. The same details always give the same result. It does not guess and does not invent qualifications for you.",
-      "You do not get a black box telling you that you are a ’92 percent match’. Instead you see which parts fit and which are missing, and you decide for yourself whether you want to apply."
+      "You do not get a black box telling you that you are a “92 percent match”. Instead you see which parts fit and which are missing, and you decide for yourself whether you want to apply."
     ],
     "youProvide": "You enter",
     "adProvides": "The ad states",
@@ -81,7 +81,7 @@
       "cover letter",
       "how many jobs you have applied for"
     ],
-    "why": "A hidden score tempts you to optimise the number instead of the actual job fit. A requirement such as ’at least 5 years of experience’ we read as a term you have or lack in your CV, not as a numeric comparison. You judge for yourself whether you fit."
+    "why": "A hidden score tempts you to optimise the number instead of the actual job fit. A requirement such as “at least 5 years of experience” we read as a term you have or lack in your CV, not as a numeric comparison. You judge for yourself whether you fit."
   },
   "transparency": {
     "heading": "You always see why",

@@ -141,7 +141,7 @@ export default async function MatchningPage() {
         <div className="mt-4 rounded-md border border-border-default p-3">
           <p className="flex flex-col gap-1.5 text-body-sm text-text-primary sm:flex-row sm:items-baseline sm:gap-3">
             <span className="shrink-0">
-              <MatchChip grade={"Related" as MatchGrade} />
+              <MatchChip grade="Related" />
             </span>
             <span>
               <span className="font-semibold">{t("grades.relatedLabel")}</span>{" "}

@@ -11,7 +11,7 @@
     "heading": "Helt regelstyrd, ingen AI",
     "paragraphs": [
       "Matchningen är regelstyrd. Den jämför annonsens uppgifter med dina, slår upp yrken i en officiell yrkestaxonomi och jämför ord på svenska ordstammar. Samma uppgifter ger alltid samma resultat. Den gissar inte och hittar inte på kvalifikationer åt dig.",
-      "Du får ingen svart låda som säger att du är en ’92-procentig matchning’. I stället ser du vilka delar som stämmer och vilka som saknas, och avgör själv om du vill söka."
+      "Du får ingen svart låda som säger att du är en ”92-procentig matchning”. I stället ser du vilka delar som stämmer och vilka som saknas, och avgör själv om du vill söka."
     ],
     "youProvide": "Du anger",
     "adProvides": "Annonsen anger",
@@ -81,7 +81,7 @@
       "personligt brev",
       "hur många jobb du har sökt"
     ],
-    "why": "Ett dolt poängtal frestar till att optimera siffran i stället för själva jobbpassningen. Ett krav som ’minst 5 års erfarenhet’ läser vi som en term du har eller saknar i ditt CV, inte som en sifferjämförelse. Du bedömer själv om du passar."
+    "why": "Ett dolt poängtal frestar till att optimera siffran i stället för själva jobbpassningen. Ett krav som ”minst 5 års erfarenhet” läser vi som en term du har eller saknar i ditt CV, inte som en sifferjämförelse. Du bedömer själv om du passar."
   },
   "transparency": {
     "heading": "Du ser alltid varför",

@@ -55,17 +55,10 @@
     "free": "Jobbliggaren är gratis att använda.",
     "followUs": "Följ oss",
     "copyright": "© 2026 Jobbliggaren",
-    "colProduct": "Produkt",
     "colStart": "Kom igång",
     "colSupport": "Stöd och guider",
-    "colLegal": "Om och juridik",
-    "product": {
-      "jobs": "Sök jobb",
-      "applications": "Mina ansökningar",
-      "cv": "CV",
-      "reminders": "Påminnelser",
-      "matches": "Matchningar"
-    },
+    "colAbout": "Om Jobbliggaren",
+    "legalNavAriaLabel": "Juridik och policyer",
     "start": {
       "register": "Skapa konto",
       "login": "Logga in",
@@ -76,16 +69,18 @@
       "howMatching": "Så fungerar matchningen",
       "cvReview": "Så granskar vi ditt CV",
       "faq": "Vanliga frågor",
-      "tips": "Tips för jobbsökande",
-      "accessibility": "Tillgänglighet"
+      "tips": "Tips för jobbsökande"
+    },
+    "about": {
+      "self": "Om Jobbliggaren",
+      "contact": "Kontakt",
+      "developers": "För utvecklare"
     },
     "legal": {
-      "about": "Om Jobbliggaren",
-      "contact": "Kontakt",
       "terms": "Användarvillkor",
       "privacy": "Integritetspolicy",
       "cookies": "Cookies",
-      "developers": "För utvecklare"
+      "accessibility": "Tillgänglighet"
     }
   },
   "cookies": {

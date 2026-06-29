@@ -84,7 +84,11 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     ).toBeInTheDocument();
     // Exactly one footer landmark (the shared SiteFooter, K3 dedupe).
     expect(screen.getAllByRole("contentinfo")).toHaveLength(1);
-    expect(screen.getByText("Om Jobbliggaren")).toBeInTheDocument();
+    // The "Om Jobbliggaren" about column renders (its nav is uniquely named by
+    // its heading — distinct from the same-named about link inside it, #390).
+    expect(
+      screen.getByRole("navigation", { name: "Om Jobbliggaren" }),
+    ).toBeInTheDocument();
   });
 
   it("hero <h1> is the crawlable 01/02/03 ledger with real verb text", async () => {

@@ -28,7 +28,6 @@ export default async function OmPage() {
       <section className="jp-pagehero" aria-labelledby="om-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("about.kicker")}</p>
             <h1 id="om-heading" className="jp-pagehero__title">
               {t("about.title")}
             </h1>

@@ -518,4 +518,64 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
         page.TotalCount.ShouldBe(0,
             "TotalCount ska vara 0 (status-filtrerad mängd), aldrig korpus-counten (3).");
     }
+
+    // ===============================================================
+    // 10. dotnet-architect Nit — a MANUAL application (JobAdId == null, ADR 0011/0048) must NEVER
+    //     ghost-match the appliedOnly EXISTS (`a.JobAdId == j.Id`): SQL NULL == j.Id → false. Pins
+    //     the last VO-translation branch (nullable JobAdId) that the other tests don't exercise
+    //     against real Postgres, and that hideApplied's NOT EXISTS likewise ignores it.
+    // ===============================================================
+
+    // A MANUAL application — JobAdId == null (cover-letter-only, no linked ad). Degenerate
+    // (null, null) is a valid Create (Application.cs aggregate-invariant comment).
+    private async Task ApplyManuallyAsync(JobSeekerId seeker)
+    {
+        var (db, scope, clock) = NewScope();
+        using (scope)
+        {
+            var app = DomainApplication.Create(
+                seeker, jobAdId: null, coverLetter: "manuell ansökan", manualPosting: null, clock).Value;
+            db.Applications.Add(app);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task SearchByStatus_AppliedOnly_IgnoresManualApplicationsWithNullJobAd()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var seeker = await SeedSeekerAsync();
+
+        var appliedAd = await SeedJobAdAsync(run, T0.AddDays(10));
+        var notApplied = await SeedJobAdAsync(run, T0.AddDays(9));
+        await ApplyToJobAdAsync(seeker, appliedAd);
+        // Two MANUAL applications (no linked JobAd) for the SAME seeker — must not perturb the set.
+        await ApplyManuallyAsync(seeker);
+        await ApplyManuallyAsync(seeker);
+
+        var (scope, query) = NewPerUserQuery();
+        using var _ = scope;
+
+        var appliedPage = await query.SearchByStatusAsync(
+            FilterFor(run), seeker, new JobAdStatusFilter(false, AppliedOnly: true, false),
+            JobAdSortBy.PublishedAtDesc, page: 1, pageSize: 100, ct);
+
+        IdSet(appliedPage.Items.Select(i => new JobAdId(i.Id))).ShouldBe(IdSet([appliedAd]), ignoreOrder: true,
+            "appliedOnly ska bara returnera den JobAd-kopplade ansökta annonsen — en manuell " +
+            "ansökan (JobAdId == null) får ALDRIG spökmatcha EXISTS:en (SQL NULL == j.Id → false).");
+        appliedPage.Items.Select(i => i.Id).ShouldNotContain(notApplied.Value);
+        appliedPage.TotalCount.ShouldBe(1,
+            "manuella ansökningar (null JobAdId) påverkar inte count:en över den status-filtrerade mängden.");
+
+        // hideApplied's NOT EXISTS likewise ignores the manual rows → both run ads remain (only the
+        // JobAd-linked applied one is hidden).
+        var hidePage = await query.SearchByStatusAsync(
+            FilterFor(run), seeker, new JobAdStatusFilter(false, false, HideApplied: true),
+            JobAdSortBy.PublishedAtDesc, page: 1, pageSize: 100, ct);
+
+        IdSet(hidePage.Items.Select(i => new JobAdId(i.Id))).ShouldBe(IdSet([notApplied]), ignoreOrder: true,
+            "hideApplied ska dölja den JobAd-kopplade ansökta annonsen men aldrig påverkas av de " +
+            "manuella ansökningarna (null JobAdId matchar ingen annons).");
+    }
 }

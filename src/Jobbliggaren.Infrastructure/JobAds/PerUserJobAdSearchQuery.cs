@@ -250,6 +250,15 @@ internal sealed class PerUserJobAdSearchQuery(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(filter);
+        // Fail-fast (CLAUDE §3.4 — dotnet-architect Minor): denna väg är ENBART för
+        // ett aktivt status-filter (handlern gatar den bakom status.IsActive). Slank
+        // JobAdStatusFilter.None in skulle ApplyStatusFilter no-op:a och porten tyst
+        // degenerera till "lista allt med count-omräkning" — synliggör felet i stället.
+        if (!status.IsActive)
+            throw new ArgumentException(
+                "SearchByStatusAsync kräver ett aktivt status-filter; använd den anonyma "
+                + "sökvägen när inget status är valt.",
+                nameof(status));
 
         // Status-only (#383): återanvänder EXAKT samma filter-SPOT + rena sort som
         // default-vägen — ingen profil, ingen grad-rank, ingen match-ordning (frikopplad
@@ -280,7 +289,11 @@ internal sealed class PerUserJobAdSearchQuery(
     // savedOnly ∨ appliedOnly = UNION (OR — samma som status-batchen, ADR 0063); hideApplied
     // = NOT EXISTS (ansökt), giltig tillsammans med savedOnly men ömsesidigt uteslutande mot
     // appliedOnly (validatorn 400:ar). SavedJobAd är hard-delete (rad finns iff sparad nu);
-    // Application bär soft-delete-HasQueryFilter som ärvs automatiskt in i EXISTS-subqueryn.
+    // Application bär soft-delete-HasQueryFilter (DeletedAt == null) som ärvs automatiskt in
+    // i EXISTS-subqueryn — och kort-badgen (GetJobAdStatusBatchQueryHandler) läser db.Applications
+    // med SAMMA globala filter, så badge↔filter förblir koherenta ÄVEN för en raderad ansökan
+    // (båda exkluderar den). Koherensen vilar alltså på det delade HasQueryFilter, inte på en
+    // slump — håll ihop dem om filtret någonsin flyttas.
     //
     // "Ansökt" = vilken som helst (ej soft-deletad) Application-rad mot annonsen — INGEN
     // ApplicationStatus-gallring. Detta är MEDVETET koherent med kort-badgen

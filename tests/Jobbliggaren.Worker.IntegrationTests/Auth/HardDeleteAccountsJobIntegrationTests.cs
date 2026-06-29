@@ -1,9 +1,14 @@
+using System.Security.Cryptography;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.RecentJobSearches;
+using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.Identity;
@@ -218,7 +223,114 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             "SavedJobAd ska cascade-raderas vid hard-delete (GDPR Art. 17, ADR 0024 amend 2026-05-23)");
     }
 
+    [Fact]
+    public async Task RunAsync_CascadesHardDelete_ToParsedResume()
+    {
+        // GDPR Art. 17-cascade (#370, found by the #268 audit). ParsedResume is the
+        // raw-CV staging aggregate (ADR 0074) and an FK-less by-JobSeekerId
+        // soft-reference (ADR 0011 — no DB-FK to job_seekers, same pattern as
+        // SavedSearches/RecentJobSearches/SavedJobAds/UserJobAdMatch). It must be
+        // deleted EXPLICITLY in HardDeleteAccountAsync. Crypto-erasure
+        // (DeleteDataKeysAsync) only renders the DEK-encrypted columns
+        // (raw_text/parsed_content_enc) unreadable — it does NOT remove the PLAINTEXT
+        // columns (source_file_name, frequently the data subject's name; job_seeker_id),
+        // so the orphaned ROWS themselves leak PII. This test seeds a GENUINELY
+        // encrypted parsed_resumes row (full DEK pipeline, parity
+        // ParsedResumeEncryptionTests) for a matured soft-deleted account, asserts it
+        // EXISTS pre-run (so the test is not vacuously green), then asserts 0 rows
+        // remain for that JobSeekerId after the job.
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var oldDeletedAt = now.AddDays(-(RestoreWindowDays + 1));
+
+        var (_, jobSeekerId) = await SeedSoftDeletedAccountAsync(oldDeletedAt, ct);
+
+        await SeedParsedResumeForJobSeekerAsync(jobSeekerId, ct);
+
+        // Pre-condition: exactly one parsed_resumes row exists for this JobSeeker
+        // (IgnoreQueryFilters — the account is soft-deleted, so its children are
+        // filtered out of default queries). Projects Id only — never materialises the
+        // encrypted aggregate (no warmed DEK in this scope).
+        using (var preScope = _fixture.Services.CreateScope())
+        {
+            var preDb = preScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var preCount = await preDb.ParsedResumes
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.JobSeekerId == jobSeekerId)
+                .CountAsync(ct);
+            preCount.ShouldBe(1, "seed must persist exactly one parsed_resumes row before the job runs");
+        }
+
+        await RunJobAsync(now, ct);
+
+        using var verifyScope = _fixture.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var remaining = await verifyDb.ParsedResumes
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(p => p.JobSeekerId == jobSeekerId)
+            .CountAsync(ct);
+        remaining.ShouldBe(0,
+            "ParsedResume ska cascade-raderas vid hard-delete (GDPR Art. 17, #370, found by #268 audit) — "
+            + "annars orphan:as plaintext source_file_name (PII) + job_seeker_id efter konto-radering");
+    }
+
     // ─── Helpers ───
+
+    /// <summary>
+    /// Seeds ONE genuinely encrypted <see cref="ParsedResume"/> row for
+    /// <paramref name="jobSeekerId"/> against real Postgres. ParsedResume carries
+    /// DEK-encrypted columns (<c>raw_text</c> Form A, <c>parsed_content_enc</c> Form B,
+    /// ADR 0074 Invariant 3) → the write goes through the field-encryption interceptor,
+    /// which fails-closed without a WARM owner DEK. So we warm the owner DEK in-scope
+    /// (<see cref="ICurrentDataOwner.SetOwner"/> + <c>GetOrCreateDataKeyAsync</c>) before
+    /// <c>SaveChangesAsync</c> — the exact pattern <c>ParsedResumeEncryptionTests</c>
+    /// uses. A PII-bearing <c>source_file_name</c> ("CV_Test_Person.pdf") makes the
+    /// orphan-leak the test guards against concrete.
+    /// </summary>
+    private async Task SeedParsedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct)
+    {
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+
+        using var scope = _fixture.Services.CreateScope();
+
+        // Warm the owner DEK so the field-encryption write interceptor encrypts (not
+        // fails-closed). Keyed by JobSeekerId — the data owner of the parsed CV.
+        var dataKeyStore = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
+        var currentDataOwner = scope.ServiceProvider.GetRequiredService<ICurrentDataOwner>();
+        currentDataOwner.SetOwner(jobSeekerId);
+        var dek = await dataKeyStore.GetOrCreateDataKeyAsync(jobSeekerId, ct);
+        CryptographicOperations.ZeroMemory(dek);
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var content = new ParsedResumeContent(
+            new ParsedContact("Test Person", "test@example.com", "070-0000000", "Stockholm"),
+            profile: "Backend-utvecklare.",
+            skills: ["C#", "PostgreSQL"]);
+
+        var confidence = ParseConfidence.FromSections(
+        [
+            new SectionConfidence(ParsedSectionKind.Contact, SectionConfidenceLevel.Confident, ["name extracted"]),
+        ]);
+
+        var parsed = ParsedResume.Create(
+            jobSeekerId,
+            "CV_Test_Person.pdf", // plaintext PII column — the orphan-leak this test guards
+            "application/pdf",
+            ResumeLanguage.Sv,
+            content,
+            rawText: "Test Person\nBackend-utvecklare",
+            confidence,
+            PersonnummerScanOutcome.None,
+            [],
+            clock).Value;
+
+        db.ParsedResumes.Add(parsed);
+        await db.SaveChangesAsync(ct);
+    }
 
     private async Task<(Guid UserId, JobSeekerId JobSeekerId)> SeedSoftDeletedAccountAsync(
         DateTimeOffset deletedAt, CancellationToken ct)

@@ -53,12 +53,11 @@
     "blurb": "Keep your whole job search in order. Search, apply and follow up in one place.",
     "source": "Built on open data from the Swedish Public Employment Service",
     "free": "Jobbliggaren is free to use.",
-    "followUs": "Follow us",
     "copyright": "© 2026 Jobbliggaren",
     "colStart": "Get started",
     "colSupport": "Support and guides",
     "colAbout": "About Jobbliggaren",
-    "legalNavAriaLabel": "Legal and policies",
+    "colLegal": "Legal",
     "start": {
       "register": "Create account",
       "login": "Log in",

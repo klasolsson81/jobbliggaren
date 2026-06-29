@@ -47,11 +47,12 @@ public sealed record CandidateMatchProfile(
     /// related)"; the calculator caps a related-only hit at <see cref="Grading.MatchGrade.Related"/>.
     /// <para>
     /// <b>Additive init-property with an empty default (NOT a positional parameter):</b> an
-    /// empty list = "no related set supplied" = today's exact-only behaviour, so every existing
-    /// 5-argument construction is unchanged and PR-2 is behavior-inert. The profile builder that
-    /// POPULATES this from the taxonomy read-model is wired in PR-3 (ADR 0084 §Implementation —
-    /// the SPOT injection in <c>MatchProfileBuilder.FastFromPreferences</c>); until then the set
-    /// is always empty in production. <see cref="FullCandidateMatchProfile"/> reads it via its
+    /// empty list = "no related set supplied" = exact-only behaviour, so every existing
+    /// 5-argument construction is unchanged. The profile builder POPULATES this from the
+    /// taxonomy read-model (ADR 0084 §Implementation — the SPOT injection in
+    /// <c>MatchProfileBuilder.FastFromPreferences</c>) when the live <c>?includeRelated</c> /
+    /// <c>?relaterade=on</c> toggle is on (off by default, #300); with it off the set stays
+    /// empty in production. <see cref="FullCandidateMatchProfile"/> reads it via its
     /// embedded <see cref="FullCandidateMatchProfile.Fast"/> profile (mirrored, no own field —
     /// the Full profile is arch-pinned to exactly { Fast, CvSkillConceptIds }).
     /// </para>

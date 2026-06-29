@@ -55,7 +55,8 @@ public sealed class GetJobAdMatchDetailQueryHandler(
             new JobAdId(query.JobAdId), profile, cancellationToken);
 
         // #300 PR-4 (ADR 0084 §F4): pass SsykIsRelated so a related-only occupation hit caps at
-        // MatchGrade.Related (behaviour-inert until the PR-5 toggle populates the related set).
+        // MatchGrade.Related (lit by the live ?relaterade=on toggle, off by default; with it off
+        // the related set is empty so SsykIsRelated is false).
         var score = scored.Score;
         var grade = MatchGradeCalculator.Grade(score, scored.SsykIsRelated);
 

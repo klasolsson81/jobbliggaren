@@ -185,7 +185,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // verdict — there is no opaque total it could gate (Goodhart guard, CTO D0).
     // NotFoundException if the ad does not exist (parity ScoreAsync).
     // #300 PR-4 (ADR 0084 §F4): returns a FullScoredMatch — the score PLUS SsykIsRelated (the ad
-    // matched only via a RELATED occupation group). Behaviour-inert in v1 (related set empty).
+    // matched only via a RELATED occupation group). Lit by the live ?includeRelated toggle (off
+    // by default, #300); with it off the related set is empty, so SsykIsRelated is false.
     public async ValueTask<FullScoredMatch> ScoreFullAsync(
         JobAdId jobAdId, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
     {
@@ -404,9 +405,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // present on both sides, disjoint"). Matched carries the hit concept-id; Missing carries the
     // ad's group the union lacks (the civic "what the ad offers that you did not pick" direction).
     //
-    // PR-2 SCOPE (senior-cto-advisor Shape α): this broadens the GATE only and is behaviour-inert
-    // — the related set is always empty until the PR-3 profile builder populates it, so every
-    // existing caller (related defaults to []) sees today's exact-only behaviour bit-for-bit. The
+    // SCOPE (senior-cto-advisor Shape α): this broadens the GATE only — the profile builder
+    // populates the related set when the live ?includeRelated toggle is on (off by default, #300);
+    // with it off (or no related supplied) every caller sees exact-only behaviour bit-for-bit. The
     // exact-vs-related distinction (which set produced the hit) is surfaced to MatchGradeCalculator
     // via its isRelated parameter in PR-4, together with the Related-cap wiring + the GradeRank
     // SQL-rank parity oracle (ADR 0084 §Implementation). Exact precedence is therefore moot for
@@ -430,8 +431,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // the ad's group is in the related set AND NOT in the stated exact set (exact-precedence — a
     // group in both is an exact hit, not related). Surfaced on the FullScoredMatch carrier beside
     // the score so MatchGradeCalculator caps a related-only hit at MatchGrade.Related (BEFORE the
-    // RB1/F1(b) gates). Categorical, not a magnitude (Goodhart-safe). Behaviour-inert in v1: the
-    // related set is empty until the PR-5 toggle, so this is always false today. A non-match ad
+    // RB1/F1(b) gates). Categorical, not a magnitude (Goodhart-safe). Lit by the live ?includeRelated
+    // toggle (off by default, #300): with it off the related set is empty, so this is false. A non-match ad
     // (group in neither set) reads false here and grades null anyway, so the flag is only consulted
     // by the calculator after the gate passes.
     private static bool IsSsykRelated(

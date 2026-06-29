@@ -3,10 +3,9 @@ import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import {
-  skillProposalsSchema,
-  skillOptionsSchema,
-  type SkillProposal,
-  type SkillOption,
+  skillProposalGroupsSchema,
+  skillOptionGroupsSchema,
+  type SkillGroup,
 } from "@/lib/dto/skills";
 import { isValidId } from "@/lib/validation/guid";
 
@@ -29,10 +28,15 @@ function authHeaders(sessionId: string): HeadersInit {
  *
  * The proposal is never written (propose-and-approve, ADR 0040/0071) — the user
  * confirms by keeping the chips and saving. Bearer session stays server-side.
+ *
+ * #277 — the wire shape is now a GROUP (`SkillProposalDto`:
+ * `{conceptId, label, memberConceptIds}`), so an ESCO + AF twin-pair proposal
+ * resolves to ONE `SkillGroup` chip carrying both member ids. The Zod transform
+ * degrades a missing `memberConceptIds` to a singleton group (deploy-skew safe).
  */
 export async function getParsedResumeSkills(
   id: string
-): Promise<ApiResult<SkillProposal[]>> {
+): Promise<ApiResult<SkillGroup[]>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
   // Allowlist-guard: reject non-GUID before it reaches the backend URL (SSRF
@@ -46,7 +50,7 @@ export async function getParsedResumeSkills(
     );
     return await responseToResult(
       res,
-      skillProposalsSchema,
+      skillProposalGroupsSchema,
       `GET /api/v1/resumes/parsed/${id}/skills`,
       { includeNotFound: true }
     );
@@ -68,10 +72,15 @@ export async function getParsedResumeSkills(
  * symmetric with the `resolveTaxonomyLabels` empty-list branch); the backend
  * also returns [] for blank/short q. Cache: `no-store` — per-query response,
  * not cacheable.
+ *
+ * #277 — the wire shape is now a GROUP (`SkillOptionGroupDto`:
+ * `{canonicalConceptId, label, memberConceptIds}`), so a search for "C#" yields
+ * ONE addable `SkillGroup` carrying BOTH the ESCO + AF member ids. Adding the
+ * chip stores all member ids on the flat full-replace save.
  */
 export async function searchSkills(
   query: string
-): Promise<ApiResult<SkillOption[]>> {
+): Promise<ApiResult<SkillGroup[]>> {
   const trimmed = query.trim();
   // Min 2 chars: matches the component's debounce gate and the backend's
   // blank/short-query contract; avoids a useless round-trip on a single keypress.
@@ -89,7 +98,7 @@ export async function searchSkills(
     );
     return await responseToResult(
       res,
-      skillOptionsSchema,
+      skillOptionGroupsSchema,
       "GET /api/v1/job-ads/taxonomy/skills/search"
     );
   } catch {
@@ -114,10 +123,16 @@ export async function searchSkills(
  * Empty id-list → empty list with no backend round-trip (no DoS surface,
  * symmetric with `resolveTaxonomyLabels`). Cache: `no-store` — the response
  * varies per ids and per auth, so it is not cacheable.
+ *
+ * #277 — the response is now GROUPED by shared exact-label surface
+ * (`SkillOptionGroupDto`), so a saved twin-pair (both the ESCO + AF "C#" ids in
+ * the user's PreferredSkills) resolves to ONE `SkillGroup` chip carrying both
+ * member ids on cold load. No saved id is dropped (the BE groups only the KNOWN
+ * ids; the consumer keeps the id-fallback for any unresolved id).
  */
 export async function resolveSkillLabels(
   conceptIds: ReadonlyArray<string>
-): Promise<ApiResult<SkillOption[]>> {
+): Promise<ApiResult<SkillGroup[]>> {
   if (conceptIds.length === 0) return { kind: "ok", data: [] };
 
   const sessionId = await getSessionId();
@@ -134,7 +149,7 @@ export async function resolveSkillLabels(
     );
     return await responseToResult(
       res,
-      skillOptionsSchema,
+      skillOptionGroupsSchema,
       "GET /api/v1/job-ads/taxonomy/skills/labels"
     );
   } catch {

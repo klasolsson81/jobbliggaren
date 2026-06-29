@@ -174,7 +174,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       skills: [],
       experienceYears: null,
       occupationExperience: [],
-      skillLabels: [],
+      skillGroups: [],
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -207,7 +207,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       skills: [],
       experienceYears: null,
       occupationExperience: [],
-      skillLabels: [],
+      skillGroups: [],
     });
   });
 
@@ -216,7 +216,9 @@ describe("MatchPreferencesDialog — shell + draft", () => {
     const { onSaved } = renderDialog({
       persistedSkills: ["skill_react"],
       persistedExperienceYears: 7,
-      persistedSkillLabels: [{ conceptId: "skill_react", label: "React" }],
+      persistedSkillGroups: [
+        { conceptId: "skill_react", label: "React", memberConceptIds: ["skill_react"] },
+      ],
     });
 
     // Spara utan att röra kompetens/erfarenhet: båda måste bäras oförändrade.
@@ -237,6 +239,52 @@ describe("MatchPreferencesDialog — shell + draft", () => {
         skills: ["skill_react"],
         experienceYears: 7,
       })
+    );
+  });
+
+  it("#277: ett sparat twin-par renderar EN kompetens-chip (cold-load via grupperad resolve)", () => {
+    renderDialog({
+      persistedSkills: ["esco_csharp", "af_csharp"],
+      persistedSkillGroups: [
+        {
+          conceptId: "esco_csharp",
+          label: "C#",
+          memberConceptIds: ["esco_csharp", "af_csharp"],
+        },
+      ],
+    });
+    const skills = screen.getByRole("group", { name: "Kompetenser" });
+    expect(
+      within(skills).getAllByRole("button", { name: "Ta bort C#" })
+    ).toHaveLength(1);
+  });
+
+  it("#277: att ta bort en twin-chip i dialogen droppar BÅDA member-id på spara (flat union)", async () => {
+    const user = userEvent.setup();
+    const { onSaved } = renderDialog({
+      persistedSkills: ["esco_csharp", "af_csharp"],
+      persistedSkillGroups: [
+        {
+          conceptId: "esco_csharp",
+          label: "C#",
+          memberConceptIds: ["esco_csharp", "af_csharp"],
+        },
+      ],
+    });
+
+    const skills = screen.getByRole("group", { name: "Kompetenser" });
+    await user.click(
+      within(skills).getByRole("button", { name: "Ta bort C#" })
+    );
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    // Save-payloaden förblir en FLAT string[] — twin-parets BÅDA id är borta.
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ preferredSkills: [] })
+    );
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ skills: [] })
     );
   });
 

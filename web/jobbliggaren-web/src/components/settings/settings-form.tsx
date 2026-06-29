@@ -11,7 +11,7 @@ import {
 import { updateMyProfileAction } from "@/lib/actions/me";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
-import type { Option } from "./match-preferences-shared";
+import type { SkillGroup } from "@/lib/dto/skills";
 import { PersonalInfoCard } from "./personal-info-card";
 import { DisplayCard } from "./display-card";
 import { BackgroundMatchCard } from "./background-match-card";
@@ -29,12 +29,13 @@ interface SettingsFormProps {
    */
   taxonomy: TaxonomyTree | null;
   /**
-   * STEG 3 / ADR 0079 + ADR 0047: server-resolverade labels för de sparade
-   * kompetens-concept-id. Seedar matchnings-kortets skill-label-store så chips
-   * visar namn vid kall laddning (den platta skill-taxonomin har ingen
-   * träd-uppslagning på FE). Tom lista vid fel → graceful id-fallback kvarstår.
+   * STEG 3 / ADR 0079 + ADR 0047 + #277: server-resolverade GRUPPER för de
+   * sparade kompetens-concept-id. Seedar matchnings-kortets skill-grupp-store så
+   * chips visar namn OCH EN chip per twin-par vid kall laddning (den platta
+   * skill-taxonomin har ingen träd-uppslagning på FE). Tom lista vid fel →
+   * graceful id-fallback kvarstår.
    */
-  initialSkillLabels: ReadonlyArray<Option>;
+  initialSkillGroups: ReadonlyArray<SkillGroup>;
 }
 
 type LanguageValue = "sv" | "en";
@@ -67,7 +68,7 @@ export function SettingsForm({
   initialProfile,
   userEmail,
   taxonomy,
-  initialSkillLabels,
+  initialSkillGroups,
 }: SettingsFormProps) {
   const t = useTranslations("validation");
   const ts = useTranslations("settings");
@@ -164,7 +165,7 @@ export function SettingsForm({
           initialMunicipalities={initialProfile.preferredMunicipalities}
           initialEmploymentTypes={initialProfile.preferredEmploymentTypes}
           initialSkills={initialProfile.preferredSkills}
-          initialSkillLabels={initialSkillLabels}
+          initialSkillGroups={initialSkillGroups}
           initialExperienceYears={initialProfile.experienceYears}
           initialOccupationExperience={initialProfile.preferredOccupationExperience}
           degraded={taxonomy === null}

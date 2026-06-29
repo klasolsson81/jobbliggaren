@@ -55,7 +55,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
-        initialSkillLabels={[]}
+        initialSkillGroups={[]}
       />,
     );
     const headings = screen
@@ -82,7 +82,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
-        initialSkillLabels={[]}
+        initialSkillGroups={[]}
       />,
     );
     const name = screen.getByLabelText("Namn") as HTMLInputElement;
@@ -99,7 +99,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
-        initialSkillLabels={[]}
+        initialSkillGroups={[]}
       />,
     );
     expect(screen.queryByLabelText(/Telefon/i)).not.toBeInTheDocument();
@@ -111,7 +111,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
-        initialSkillLabels={[]}
+        initialSkillGroups={[]}
       />,
     );
     // MVP (Klas 2026-06-24): dark-mode "släckt" → Tema-segmentet är borttaget.
@@ -131,7 +131,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
-        initialSkillLabels={[]}
+        initialSkillGroups={[]}
       />,
     );
     // TD-115: det gamla Aviseringar-kortets två toggles (EmailNotifications +
@@ -149,7 +149,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
-        initialSkillLabels={[]}
+        initialSkillGroups={[]}
       />,
     );
     expect(screen.getByTestId("delete-account-stub")).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialProfile={baseProfile}
         userEmail="klas@example.se"
         taxonomy={null}
-        initialSkillLabels={[]}
+        initialSkillGroups={[]}
       />,
     );
     expect(

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Option } from "./match-preferences-shared";
+import type { SkillGroup } from "@/lib/dto/skills";
 import type {
   SkillSearchResult,
   SkillSuggestResult,
@@ -19,36 +19,46 @@ vi.mock("@/lib/actions/match-preferences", () => ({
 
 import { SkillSection } from "./skill-section";
 
+/** Singleton-grupp-fabrik (member = sig själv) — den vanliga icke-twin-yta. */
+function singleton(conceptId: string, label: string): SkillGroup {
+  return { conceptId, label, memberConceptIds: [conceptId] };
+}
+
 /**
- * Mini-host: holds the skill draft and mirrors how the dialog/wizard wire
- * onToggle/onReplace/onClear so the test can observe pre-add and chip removal.
+ * Mini-host: holds the skill draft (a FLAT string[]) and mirrors how the
+ * dialog/wizard wire onReplace/onClear so the test can observe the flat union
+ * pre-add and group removal. `selected` stays a flat list of ALL member ids
+ * (#277). An optional `onReplaceSpy` OBSERVES the full-replace calls WITHOUT
+ * breaking state (the host still applies the new value) — so a test can both
+ * assert the exact payload AND see the resulting chip render.
  */
 function HostHarness(
   props: Partial<React.ComponentProps<typeof SkillSection>> & {
     initial?: ReadonlyArray<string>;
+    onReplaceSpy?: (next: string[]) => void;
   }
 ) {
-  const { initial = [], ...rest } = props;
-  return <Host initial={initial} rest={rest} />;
+  const { initial = [], onReplaceSpy, ...rest } = props;
+  return <Host initial={initial} onReplaceSpy={onReplaceSpy} rest={rest} />;
 }
 
 function Host({
   initial,
+  onReplaceSpy,
   rest,
 }: {
   initial: ReadonlyArray<string>;
+  onReplaceSpy?: (next: string[]) => void;
   rest: Partial<React.ComponentProps<typeof SkillSection>>;
 }) {
   const [selected, setSelected] = useState<ReadonlyArray<string>>(initial);
   return (
     <SkillSection
       selected={selected}
-      onToggle={(id) =>
-        setSelected((prev) =>
-          prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
-        )
-      }
-      onReplace={(next) => setSelected(next)}
+      onReplace={(next) => {
+        onReplaceSpy?.(next);
+        setSelected(next);
+      }}
       onClear={() => setSelected([])}
       {...rest}
     />
@@ -78,11 +88,11 @@ describe("SkillSection — rubrik (showHeading)", () => {
 });
 
 describe("SkillSection — pre-fyllda chips (settings-pre-fill)", () => {
-  it("renderar sparade kompetenser som borttagbara chips med labels ur initialLabels", () => {
+  it("renderar sparade kompetenser som borttagbara chips med labels ur initialGroups", () => {
     render(
       <HostHarness
         initial={["skill_react"]}
-        initialLabels={[{ conceptId: "skill_react", label: "React" }] satisfies Option[]}
+        initialGroups={[singleton("skill_react", "React")]}
       />
     );
     expect(
@@ -90,7 +100,7 @@ describe("SkillSection — pre-fyllda chips (settings-pre-fill)", () => {
     ).toBeInTheDocument();
   });
 
-  it("faller tillbaka på id:t när en sparad kompetens saknar label", () => {
+  it("faller tillbaka på id:t när en sparad kompetens saknar grupp", () => {
     render(<HostHarness initial={["skill_unknown"]} />);
     expect(
       screen.getByRole("button", { name: "Ta bort skill_unknown" })
@@ -157,10 +167,10 @@ describe("SkillSection — sök-disclosure (search-as-you-type)", () => {
     expect(skillSearchMock).not.toHaveBeenCalled();
   });
 
-  it("söker (debounced) och renderar träffar som add-rader", async () => {
+  it("söker (debounced) och renderar grupp-träffar som add-rader", async () => {
     skillSearchMock.mockResolvedValue({
       success: true,
-      options: [{ conceptId: "skill_react", label: "React" }],
+      options: [singleton("skill_react", "React")],
     } satisfies SkillSearchResult);
     const user = userEvent.setup();
     render(<HostHarness />);
@@ -176,7 +186,7 @@ describe("SkillSection — sök-disclosure (search-as-you-type)", () => {
   it("klick på en sök-träff pinnar den som borttagbar chip (med dess label)", async () => {
     skillSearchMock.mockResolvedValue({
       success: true,
-      options: [{ conceptId: "skill_sql", label: "SQL" }],
+      options: [singleton("skill_sql", "SQL")],
     } satisfies SkillSearchResult);
     const user = userEvent.setup();
     render(<HostHarness />);
@@ -207,11 +217,112 @@ describe("SkillSection — sök-disclosure (search-as-you-type)", () => {
   });
 });
 
+describe("SkillSection — #277 twin chips (en grupp = en chip = alla member-id)", () => {
+  // The twin "C#" group: ESCO + AF ids share one exact-label surface.
+  const csharp: SkillGroup = {
+    conceptId: "esco_csharp",
+    label: "C#",
+    memberConceptIds: ["esco_csharp", "af_csharp"],
+  };
+
+  it("en twin-grupp-träff renderar EN add-rad och bekräftelsen lägger BÅDA member-id i draften", async () => {
+    skillSearchMock.mockResolvedValue({
+      success: true,
+      options: [csharp],
+    } satisfies SkillSearchResult);
+    const user = userEvent.setup();
+    const onReplace = vi.fn();
+    render(<HostHarness onReplaceSpy={onReplace} />);
+    await user.click(screen.getByRole("button", { name: "Lägg till kompetens" }));
+    await user.type(screen.getByLabelText("Sök kompetens"), "c#");
+
+    // EXAKT EN add-rad för "C#" (twin-paret kollapsar till en grupp).
+    const rows = await screen.findAllByRole("button", { name: /C#/ });
+    expect(rows).toHaveLength(1);
+
+    await user.click(rows[0]!);
+    // Bekräftelsen lägger HELA gruppens member-id (platt union) i draften.
+    expect(onReplace).toHaveBeenCalledWith(["esco_csharp", "af_csharp"]);
+  });
+
+  it("att ta bort en twin-chip rensar ALLA dess member-id (differens)", async () => {
+    const user = userEvent.setup();
+    const onReplace = vi.fn();
+    render(
+      <HostHarness
+        initial={["esco_csharp", "af_csharp"]}
+        initialGroups={[csharp]}
+        onReplaceSpy={onReplace}
+      />
+    );
+    // EXAKT EN chip för det sparade twin-paret.
+    expect(screen.getAllByRole("button", { name: "Ta bort C#" })).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "Ta bort C#" }));
+    // Differensen droppar BÅDA member-id på en gång.
+    expect(onReplace).toHaveBeenCalledWith([]);
+  });
+
+  it("ett sparat twin-par renderas som EN chip vid pre-fill (cold-load via grupperad resolve)", () => {
+    render(
+      <HostHarness initial={["esco_csharp", "af_csharp"]} initialGroups={[csharp]} />
+    );
+    expect(screen.getAllByRole("button", { name: "Ta bort C#" })).toHaveLength(1);
+  });
+
+  it("'redan tillagd' är sant bara när ALLA member-id är valda (halvt par är fortfarande addbart)", async () => {
+    skillSearchMock.mockResolvedValue({
+      success: true,
+      options: [csharp],
+    } satisfies SkillSearchResult);
+    const user = userEvent.setup();
+    const onReplace = vi.fn();
+    // Bara ENA twin-id valt → gruppen ska INTE räknas som "redan tillagd".
+    render(
+      <HostHarness
+        initial={["esco_csharp"]}
+        initialGroups={[csharp]}
+        onReplaceSpy={onReplace}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Lägg till kompetens" }));
+    await user.type(screen.getByLabelText("Sök kompetens"), "c#");
+
+    // Scope to the picker panel so the search-result ROW (which carries
+    // aria-pressed) is matched, not the pinned chip's "Ta bort C#" remove button.
+    const panel = screen.getByRole("group", { name: "Lägg till kompetens" });
+    const row = await within(panel).findByRole("button", { name: /C#/ });
+    expect(row).toHaveAttribute("aria-pressed", "false");
+
+    // Klick kompletterar paret (union av member-id mot existerande val).
+    await user.click(row);
+    expect(onReplace).toHaveBeenCalledWith(["esco_csharp", "af_csharp"]);
+  });
+
+  it("en redan fullt vald grupp visar 'Tillagd' och är aria-pressed", async () => {
+    skillSearchMock.mockResolvedValue({
+      success: true,
+      options: [csharp],
+    } satisfies SkillSearchResult);
+    const user = userEvent.setup();
+    render(
+      <HostHarness initial={["esco_csharp", "af_csharp"]} initialGroups={[csharp]} />
+    );
+    await user.click(screen.getByRole("button", { name: "Lägg till kompetens" }));
+    await user.type(screen.getByLabelText("Sök kompetens"), "c#");
+
+    // Scope to the picker panel (the search-result row carries aria-pressed).
+    const panel = screen.getByRole("group", { name: "Lägg till kompetens" });
+    const row = await within(panel).findByRole("button", { name: /C#/ });
+    expect(row).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
 describe("SkillSection — CV-förslag pre-addas som chips (welcome/just-uppladdat)", () => {
-  it("auto-suggest pre-addar kandidaterna till draften (chips), ingen checklista", async () => {
+  it("auto-suggest pre-addar kandidat-grupperna till draften (chips), ingen checklista", async () => {
     skillSuggestMock.mockResolvedValue({
       kind: "candidates",
-      candidates: [{ conceptId: "skill_react", label: "React" }],
+      candidates: [singleton("skill_react", "React")],
     } satisfies SkillSuggestResult);
     render(<HostHarness autoSuggestFromCv parsedResumeId="parsed-1" />);
 
@@ -223,12 +334,36 @@ describe("SkillSection — CV-förslag pre-addas som chips (welcome/just-uppladd
     ).toBeInTheDocument();
   });
 
+  it("en CV-twin-grupp pre-addar BÅDA member-id som EN chip", async () => {
+    skillSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        {
+          conceptId: "esco_csharp",
+          label: "C#",
+          memberConceptIds: ["esco_csharp", "af_csharp"],
+        },
+      ],
+    } satisfies SkillSuggestResult);
+    const onReplace = vi.fn();
+    render(
+      <HostHarness autoSuggestFromCv parsedResumeId="parsed-1" onReplaceSpy={onReplace} />
+    );
+
+    await waitFor(() => expect(skillSuggestMock).toHaveBeenCalledTimes(1));
+    // EN chip för paret, och draften fick BÅDA member-id (platt union).
+    expect(
+      await screen.findByRole("button", { name: "Ta bort C#" })
+    ).toBeInTheDocument();
+    expect(onReplace).toHaveBeenCalledWith(["esco_csharp", "af_csharp"]);
+  });
+
   it("pre-add MERGAR med befintligt manuellt val (dedupe)", async () => {
     skillSuggestMock.mockResolvedValue({
       kind: "candidates",
       candidates: [
-        { conceptId: "skill_react", label: "React" },
-        { conceptId: "skill_sql", label: "SQL" },
+        singleton("skill_react", "React"),
+        singleton("skill_sql", "SQL"),
       ],
     } satisfies SkillSuggestResult);
     render(
@@ -236,7 +371,7 @@ describe("SkillSection — CV-förslag pre-addas som chips (welcome/just-uppladd
         autoSuggestFromCv
         parsedResumeId="parsed-1"
         initial={["skill_react"]}
-        initialLabels={[{ conceptId: "skill_react", label: "React" }]}
+        initialGroups={[singleton("skill_react", "React")]}
       />
     );
 
@@ -273,7 +408,7 @@ describe("SkillSection — rensa", () => {
     render(
       <HostHarness
         initial={["skill_react"]}
-        initialLabels={[{ conceptId: "skill_react", label: "React" }]}
+        initialGroups={[singleton("skill_react", "React")]}
       />
     );
     await user.click(screen.getByRole("button", { name: "Rensa" }));

@@ -313,7 +313,9 @@ describe("MatchSetupWizard — kompetens-steget (STEG 3 / ADR 0079)", () => {
   it("med parsedResumeId auto-föreslår kompetenser ur det uppladdade CV:t (steg 2)", async () => {
     skillSuggestMock.mockResolvedValue({
       kind: "candidates",
-      candidates: [{ conceptId: "skill_react", label: "React" }],
+      candidates: [
+        { conceptId: "skill_react", label: "React", memberConceptIds: ["skill_react"] },
+      ],
     });
     const user = userEvent.setup();
     renderWizard({ parsedResumeId: "parsed-xyz" });
@@ -331,7 +333,9 @@ describe("MatchSetupWizard — kompetens-steget (STEG 3 / ADR 0079)", () => {
   it("med proposedSkills (welcome-flödet) seedar kompetens-draften OCH auto-föreslår INTE", async () => {
     const user = userEvent.setup();
     renderWizard({
-      proposedSkills: [{ conceptId: "skill_sql", label: "SQL" }],
+      proposedSkills: [
+        { conceptId: "skill_sql", label: "SQL", memberConceptIds: ["skill_sql"] },
+      ],
     });
     await user.click(screen.getByRole("button", { name: "Nästa" }));
     // Det förhämtade förslaget visas som en borttagbar chip på steg 2.
@@ -345,7 +349,13 @@ describe("MatchSetupWizard — kompetens-steget (STEG 3 / ADR 0079)", () => {
     // renderade review-steget det råa concept-id:t. BE-söket returnerar labeln.
     skillSearchMock.mockResolvedValue({
       success: true,
-      options: [{ conceptId: "jBKc_5Yx_Y6T", label: "Maskininlärning" }],
+      options: [
+        {
+          conceptId: "jBKc_5Yx_Y6T",
+          label: "Maskininlärning",
+          memberConceptIds: ["jBKc_5Yx_Y6T"],
+        },
+      ],
     });
     const user = userEvent.setup();
     renderWizard();
@@ -370,6 +380,72 @@ describe("MatchSetupWizard — kompetens-steget (STEG 3 / ADR 0079)", () => {
       within(reviewSkills).getByText("Maskininlärning")
     ).toBeInTheDocument();
     expect(within(reviewSkills).queryByText("jBKc_5Yx_Y6T")).toBeNull();
+  });
+
+  it("#277: steg 5 visar EN 'C#'-chip för ett bekräftat twin-par (sökt + tillagt)", async () => {
+    // Sök ger en twin-grupp (ESCO + AF "C#") → EN add-rad; bekräftelsen lägger
+    // BÅDA member-id i draften; steg-5-sammanfattningen visar EN chip.
+    skillSearchMock.mockResolvedValue({
+      success: true,
+      options: [
+        {
+          conceptId: "esco_csharp",
+          label: "C#",
+          memberConceptIds: ["esco_csharp", "af_csharp"],
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 1 → 2
+    await user.click(screen.getByRole("button", { name: "Lägg till kompetens" }));
+    await user.type(screen.getByRole("searchbox"), "c#");
+    const rows = await screen.findAllByRole("button", { name: /C#/ });
+    expect(rows).toHaveLength(1); // EN add-rad för twin-paret
+    await user.click(rows[0]!);
+
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 2 → 3
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 3 → 4
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 4 → 5
+
+    const reviewSkills = screen.getByRole("group", { name: "Kompetenser" });
+    expect(
+      within(reviewSkills).getAllByRole("button", { name: "Ta bort C#" })
+    ).toHaveLength(1);
+  });
+
+  it("#277: en bekräftad twin-grupp skrivs som BÅDA member-id i en FLAT preferredSkills på spara", async () => {
+    skillSearchMock.mockResolvedValue({
+      success: true,
+      options: [
+        {
+          conceptId: "esco_csharp",
+          label: "C#",
+          memberConceptIds: ["esco_csharp", "af_csharp"],
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 1 → 2
+    await user.click(screen.getByRole("button", { name: "Lägg till kompetens" }));
+    await user.type(screen.getByRole("searchbox"), "c#");
+    await user.click(await screen.findByRole("button", { name: /C#/ }));
+
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 2 → 3
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 3 → 4
+    await user.click(screen.getByRole("button", { name: "Nästa" })); // 4 → 5
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    // Save-payloaden är en FLAT string[] med BÅDA twin-id (grad-inert).
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferredSkills: ["esco_csharp", "af_csharp"],
+      })
+    );
   });
 });
 

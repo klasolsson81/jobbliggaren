@@ -8,7 +8,7 @@ import { deriveOccupations } from "@/lib/api/occupation-derive";
 import { getResumes, getParsedResumeOccupations } from "@/lib/api/resumes";
 import { getParsedResumeSkills, searchSkills } from "@/lib/api/skills";
 import type { OccupationCandidate } from "@/lib/dto/match-preferences";
-import type { SkillOption } from "@/lib/dto/skills";
+import type { SkillGroup } from "@/lib/dto/skills";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 import {
   makeSetMatchPreferencesSchema,
@@ -228,7 +228,7 @@ export async function suggestOccupationsFromParsedResumeAction(
 }
 
 export type SkillSearchResult =
-  | { success: true; options: ReadonlyArray<SkillOption> }
+  | { success: true; options: ReadonlyArray<SkillGroup> }
   | { success: false; error: string };
 
 /**
@@ -273,13 +273,14 @@ export async function searchSkillsAction(
 /**
  * STEG 3 / ADR 0079 (Beslut 1) — discriminated union for the CV skill
  * suggestion, parallel to {@link CvSuggestResult} for occupations so the
- * SkillSection renders the same honest states. `candidates` carries the full
- * `{conceptId, label}` so chips can render their Swedish labels (the skill
- * taxonomy is never shipped to the FE as a tree, so there is no client-side
- * label lookup — the proposal IS the label source).
+ * SkillSection renders the same honest states. #277 — `candidates` now carries
+ * the GROUP shape (`SkillGroup`: canonical id + label + member ids) so an
+ * ESCO + AF twin-pair proposal renders as ONE chip; keeping the chip confirms
+ * all member ids on the flat full-replace save. The proposal IS the label/group
+ * source (the skill taxonomy is never shipped to the FE as a tree).
  */
 export type SkillSuggestResult =
-  | { kind: "candidates"; candidates: ReadonlyArray<SkillOption> }
+  | { kind: "candidates"; candidates: ReadonlyArray<SkillGroup> }
   | { kind: "noCv" }
   | { kind: "noRole" }
   | { kind: "unauthorized" }

@@ -37,18 +37,19 @@ export default async function InstallningarPage() {
   const taxonomy =
     taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
 
-  // Reverse-resolve the saved skill concept-ids to labels server-side (ADR
-  // 0047): the flat skill taxonomy is never shipped to the FE as a tree, so
-  // without this seed the matchnings-kort would render raw concept-ids on a
-  // cold load. Depends on the profile, so it runs after the parallel fetch.
-  // Failure (or a missing profile) → empty list; the card keeps its graceful
-  // id-fallback. Unknown/removed ids are dropped by the backend.
-  const skillLabelsResult =
+  // Reverse-resolve the saved skill concept-ids to GROUPS server-side (ADR
+  // 0047 + #277): the flat skill taxonomy is never shipped to the FE as a tree,
+  // so without this seed the matchnings-kort would render raw concept-ids on a
+  // cold load. The result is grouped by shared exact-label surface, so a saved
+  // twin-pair renders as ONE chip. Depends on the profile, so it runs after the
+  // parallel fetch. Failure (or a missing profile) → empty list; the card keeps
+  // its graceful id-fallback. Unknown/removed ids are dropped by the backend.
+  const skillGroupsResult =
     profileResult.kind === "ok"
       ? await resolveSkillLabels(profileResult.data.preferredSkills)
       : null;
-  const initialSkillLabels =
-    skillLabelsResult?.kind === "ok" ? skillLabelsResult.data : [];
+  const initialSkillGroups =
+    skillGroupsResult?.kind === "ok" ? skillGroupsResult.data : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,7 +63,7 @@ export default async function InstallningarPage() {
           initialProfile={profileResult.data}
           userEmail={user.email}
           taxonomy={taxonomy}
-          initialSkillLabels={initialSkillLabels}
+          initialSkillGroups={initialSkillGroups}
         />
       ) : (
         <p className="text-body text-text-secondary">

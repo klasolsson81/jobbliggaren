@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Applications.Queries.GetApplicationById;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -153,7 +154,7 @@ public class ApplicationResumeVersionPersistenceTests(ApiFactory factory)
         db.Applications.Add(app);
         await db.SaveChangesAsync(ct);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), ct);
 
         result.ShouldNotBeNull();
@@ -176,7 +177,7 @@ public class ApplicationResumeVersionPersistenceTests(ApiFactory factory)
         db.Applications.Add(app);
         await db.SaveChangesAsync(ct);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), ct);
 
         result.ShouldNotBeNull();

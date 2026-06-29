@@ -5,6 +5,7 @@ export type {
   FollowUpChannel,
   FollowUpOutcome,
   JobAdSummaryDto,
+  AdSnapshotDto,
   ApplicationDto,
   FollowUpDto,
   NoteDto,

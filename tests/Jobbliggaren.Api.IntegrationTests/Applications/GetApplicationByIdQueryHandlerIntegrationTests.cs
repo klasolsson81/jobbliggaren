@@ -1,11 +1,15 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
 using Jobbliggaren.Application.Applications.Queries.GetApplicationById;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -72,7 +76,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
 
         var (_, app) = await SeedAsync(scope, db, clock, _userId, "Mitt personliga brev.");
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -97,7 +101,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
             clock);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -117,7 +121,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         app.AddNote("Bra arbetsgivare.", clock);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
@@ -137,7 +141,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -154,7 +158,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var otherUserId = Guid.NewGuid();
         var (_, otherApp) = await SeedAsync(scope, db, clock, otherUserId);
 
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(otherApp.Id.Value), CancellationToken.None);
 
@@ -179,7 +183,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, failedAccessLogger);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, failedAccessLogger, Substitute.For<ITaxonomyReadModel>());
 
         await handler.Handle(new GetApplicationByIdQuery(otherApp.Id.Value), CancellationToken.None);
 
@@ -203,7 +207,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var failedAccessLogger = Substitute.For<IFailedAccessLogger>();
-        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, failedAccessLogger);
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, failedAccessLogger, Substitute.For<ITaxonomyReadModel>());
 
         await handler.Handle(new GetApplicationByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -223,10 +227,137 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new GetApplicationByIdQueryHandler(db, currentUser, Substitute.For<IFailedAccessLogger>());
+        var handler = new GetApplicationByIdQueryHandler(db, currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
 
         var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
 
         result.ShouldBeNull();
+    }
+
+    // ---------------------------------------------------------------
+    // #315 (ADR 0086) — PreservedAd (AdSnapshotDto) surfaceras i detail-DTO:n
+    // för en JobAd-länkad ansökan, men är null för en manuell/cover-letter-only.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_WhenApplicationHasAdSnapshot_PopulatesPreservedAd()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var taxonomy = scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
+        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        db.JobSeekers.Add(seeker);
+
+        // En JobAd-länkad ansökan med snapshot skapas BARA via "Har ansökt"-vägen
+        // (CreateApplicationFromJobAdCommandHandler) — den enda writer:n som sätter
+        // ett AdSnapshot. Seeda via den handlern så snapshot:et fångas naturligt.
+        var jobAd = JobAd.Create(
+            "Backend-utvecklare", Company.Create("Klarna").Value, "En beskrivning.",
+            "https://example.com/jobb/1", JobSource.Platsbanken,
+            clock.UtcNow, clock.UtcNow.AddDays(30), clock).Value;
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // Write-handlern (3-arg ctor, INGEN taxonomi — D4 final ruling) fryser
+        // JobAd:ens råa MunicipalityConceptId; namn-resolvering sker på läs-vägen.
+        var createHandler = new CreateApplicationFromJobAdCommandHandler(
+            db, _currentUser, clock);
+        var created = await createHandler.Handle(
+            new CreateApplicationFromJobAdCommand(jobAd.Id.Value), CancellationToken.None);
+        created.IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        // Read-handlern fick ITaxonomyReadModel (4:e param) — resolverar snapshot:ets
+        // concept-id → namn i PreservedAd.Location.
+        var handler = new GetApplicationByIdQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), taxonomy);
+
+        var result = await handler.Handle(
+            new GetApplicationByIdQuery(created.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.PreservedAd.ShouldNotBeNull();
+        result.PreservedAd!.Title.ShouldBe("Backend-utvecklare");
+        result.PreservedAd.Company.ShouldBe("Klarna");
+        result.PreservedAd.Description.ShouldBe("En beskrivning.");
+        // JobAd.Create bär ingen kommun (raw_payload saknas) → STORED-shadow null →
+        // captured concept-id null → resolverad Location null (graceful).
+        result.PreservedAd.Location.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenApplicationIsManual_PreservedAdIsNull()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        // Cover-letter-only ansökan (Application.Create) sätter aldrig ett snapshot.
+        var (_, app) = await SeedAsync(scope, db, clock, _userId, "Bara brev");
+
+        var handler = new GetApplicationByIdQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
+
+        var result = await handler.Handle(
+            new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.PreservedAd.ShouldBeNull();
+    }
+
+    // ---------------------------------------------------------------
+    // #315 (ADR 0086 D4) — read-time ort-resolvering: en JobAd-länkad ansökan
+    // vars JobAd bär ett municipality-concept-id → PreservedAd.Location resolveras
+    // till svensk label av read-handlern (riktig ITaxonomyReadModel). Importerad
+    // JobAd m. raw_payload krävs (STORED shadow beräknas bara av Postgres).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_WhenAdSnapshotHasMunicipality_ResolvesPreservedAdLocation()
+    {
+        const string olofstromConceptId = "1gEC_kvM_TXK";
+        const string olofstromLabel = "Olofström";
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var taxonomy = scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
+        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
+
+        // Importerad JobAd m. municipality_concept_id på den path STORED-kolumnen läser.
+        var externalId = $"ext-{Guid.NewGuid():N}";
+        var rawPayload =
+            $"{{\"id\":\"{externalId}\",\"workplace_address\":{{" +
+            $"\"municipality_concept_id\":\"{olofstromConceptId}\"}}}}";
+        var jobAd = JobAd.Import(
+            "Backend-utvecklare", Company.Create("Klarna").Value, "En beskrivning.",
+            "https://example.com/jobb/1",
+            ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload, clock.UtcNow, null, clock).Value;
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var createHandler = new CreateApplicationFromJobAdCommandHandler(db, _currentUser, clock);
+        var created = await createHandler.Handle(
+            new CreateApplicationFromJobAdCommand(jobAd.Id.Value), CancellationToken.None);
+        created.IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var handler = new GetApplicationByIdQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), taxonomy);
+
+        var result = await handler.Handle(
+            new GetApplicationByIdQuery(created.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.PreservedAd.ShouldNotBeNull();
+        result.PreservedAd!.Location.ShouldBe(olofstromLabel);
     }
 }

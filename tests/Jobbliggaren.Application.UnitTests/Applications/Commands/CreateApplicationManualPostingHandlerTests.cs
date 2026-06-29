@@ -102,6 +102,11 @@ public class CreateApplicationManualPostingHandlerTests
     [Fact]
     public async Task Handle_WithJobAdIdAndNoManual_StillSucceedsUnchanged()
     {
+        // #315 / ADR 0086: the API now fail-closes a generic JobAdId via
+        // CreateApplicationCommandValidator (RuleFor(JobAdId).Null()) — a JobAd
+        // link is created only via the dedicated "Har ansökt" path. This test
+        // exercises the HANDLER directly (the validation pipeline is NOT in the
+        // loop), so the handler's isolated behaviour is unchanged → stays GREEN.
         var db = TestAppDbContextFactory.Create();
         await SeedSeekerAsync(db);
 

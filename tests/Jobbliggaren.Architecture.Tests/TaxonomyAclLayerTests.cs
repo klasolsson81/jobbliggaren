@@ -148,6 +148,15 @@ public class TaxonomyAclLayerTests
             // ResolveLabelsAsync-mönster; ingen Clean Arch-brott (§2.1). Sorterar
             // först: "GetA" < "GetJ".
             nameof(Jobbliggaren.Application.Applications.Queries.GetActivityReport.GetActivityReportQueryHandler),
+            // #315 (2026-06-29, ADR 0086 D4) — nionde legitim konsument, READ-SIDE:
+            // ansökningsdetaljen resolvar den bevarade annons-snapshotens FRUSNA
+            // kommun-concept-id till människo-läsbar ort. Resolveringen lever
+            // MEDVETET på read-vägen (concept-id-at-read) — write-side-capture-
+            // handlern injicerar INTE porten, så det kodifierade read-side-only-
+            // invariantet ("ALDRIG i command-/write-use-cases") består oförändrat
+            // (CTO-dom 2026-06-29 option B; architect B1). Samma ResolveLabelsAsync-
+            // mönster som #316. Sorterar "GetAp" mellan "GetAc" och "GetJ".
+            nameof(Jobbliggaren.Application.Applications.Queries.GetApplicationById.GetApplicationByIdQueryHandler),
             // F4-16 (2026-06-20) — sjätte legitim konsument: jobbmodalens match-detalj
             // resolvar SSYK/region/anställningsform-membership-evidensens RÅA concept-id
             // till människo-labels (ADR 0043 ACL — ett concept-id når aldrig användaren;

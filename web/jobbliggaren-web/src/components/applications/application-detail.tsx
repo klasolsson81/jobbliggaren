@@ -1,8 +1,10 @@
+import { ExternalLink } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { StatusEditCard } from "@/components/applications/status-edit-card";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
 import { NotesSection } from "@/components/applications/notes-section";
 import {
+  applicationSourceLabel,
   applicationStatusLabel,
   channelLabel,
   followUpOutcomeLabel,
@@ -64,13 +66,33 @@ export function ApplicationDetail({
   const format = useFormatter();
   const { jobAd } = application;
   const hasIdentity = jobAd != null;
+  // #315 (ADR 0086): the frozen ad snapshot is the FALLBACK shown when the live
+  // JobAd is archived (jobAd == null) but a copy was captured at apply-time. It
+  // is captured for every JobAd-linked application, so it is present even while
+  // the live ad exists — but the preserved panel is the archived-ad fallback,
+  // so it renders ONLY when the live ad is gone (scope: do not duplicate the
+  // live ad). preservedAd may be undefined on deploy-skewed/older responses.
+  const preservedAd = application.preservedAd ?? null;
+  const showPreservedAd = jobAd == null && preservedAd != null;
   const shortId = application.id.slice(0, 8);
   const title = hasIdentity
     ? jobAd.title
-    : tUi("detail.fallbackTitle", { shortId });
+    : showPreservedAd
+      ? preservedAd.title
+      : tUi("detail.fallbackTitle", { shortId });
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusLabel = applicationStatusLabel(t, application.status);
+
+  // #315: bevarad annons-metadata, formaterad för panelen nedan. Rader utelämnas
+  // när källfältet är null (samma omissions-mönster som resten av detaljen — inga
+  // platshållar-streck). Datum via den delade formatDate-hjälparen (locale-YMD).
+  const preservedPublished = formatDate(format, preservedAd?.publishedAt);
+  const preservedExpires = formatDate(format, preservedAd?.expiresAt);
+  const preservedCaptured = formatDate(format, preservedAd?.capturedAt);
+  const preservedSourceLabel = preservedAd
+    ? applicationSourceLabel(t, preservedAd.source)
+    : null;
 
   // Nästa öppna uppföljning (tidigast schemalagd, ej besvarad) → "Nästa"-
   // raden i status-blocket. REAL fält (followUps[].scheduledAt), ej v3-mock.
@@ -132,7 +154,13 @@ export function ApplicationDetail({
       {!headless && (
         <header className="jp-modal__head">
           <div style={{ flex: 1 }}>
-            <h1 className={hasIdentity ? "jp-modal__title" : "jp-modal__title jp-mono"}>
+            <h1
+              className={
+                hasIdentity || showPreservedAd
+                  ? "jp-modal__title"
+                  : "jp-modal__title jp-mono"
+              }
+            >
               {title}
             </h1>
             <p className="jp-modal__company">
@@ -140,6 +168,17 @@ export function ApplicationDetail({
                 <>
                   {jobAd.company} ·{" "}
                   <span className="jp-mono">#{shortId}</span>
+                </>
+              ) : showPreservedAd ? (
+                /* #315: live-annonsen är borta men en kopia finns. Titel =
+                   bevarad titel (riktig prosa, ej mono-id); subtitle bär
+                   bevarat företag + "sparad kopia"-markör så headern signalerar
+                   fallback-tillståndet direkt. */
+                <>
+                  {tUi("preservedAd.headerCompany", {
+                    company: preservedAd.company,
+                  })}{" "}
+                  · <span className="jp-mono">#{shortId}</span>
                 </>
               ) : (
                 /* Titel = "Ansökan #shortId"-fallback. Ekas EJ som subtitle
@@ -262,6 +301,131 @@ export function ApplicationDetail({
           applicationId={application.id}
           notes={application.notes}
         />
+
+        {/* Om annonsen (sparad kopia) — #315 (ADR 0086). Renderas ENDAST som
+            fallback när live-annonsen är arkiverad (jobAd == null) men en kopia
+            fångades vid ansökningstillfället. Detta är den ENDA platsen annons-
+            texten visas på ansökningsdetaljen, så bevarad description renderas
+            som läsbar prosa (samma .jp-modal__description .jp-detail-prose-
+            behandling som personligt brev, ~68ch). Lugn, informativ ton — inte
+            varning/fel (design-reviewer: calm notice, ej alert). */}
+        {showPreservedAd && (
+          <section aria-labelledby="jp-preserved-ad-title">
+            <div className="jp-section-label" id="jp-preserved-ad-title">
+              {tUi("preservedAd.panelTitle")}
+            </div>
+
+            {/* Lugn "sparad kopia"-not: den befintliga neutrala bordered
+                surface-2-rutan (.jp-modal__match), ingen status-färg, ingen
+                varningston. */}
+            <div className="jp-modal__match">
+              <div className="jp-modal__match__expl">
+                {tUi("preservedAd.savedNotice", {
+                  date: preservedCaptured ?? "",
+                })}
+              </div>
+            </div>
+
+            {/* Bevarad metadata: label · värde-rader, hårfin separator
+                (.jp-modal__matchrow återbrukad — ingen ny klass). Rader
+                utelämnas när källfältet är null. */}
+            <dl className="jp-modal__matchrows" style={{ marginTop: "12px" }}>
+              <div className="jp-modal__matchrow">
+                <dt className="jp-modal__matchrow-label">
+                  {tUi("preservedAd.company")}
+                </dt>
+                <dd className="jp-modal__matchrow-evidence">
+                  {preservedAd.company}
+                </dd>
+              </div>
+
+              {preservedAd.location && (
+                <div className="jp-modal__matchrow">
+                  <dt className="jp-modal__matchrow-label">
+                    {tUi("preservedAd.location")}
+                  </dt>
+                  <dd className="jp-modal__matchrow-evidence">
+                    {preservedAd.location}
+                  </dd>
+                </div>
+              )}
+
+              {preservedPublished && (
+                <div className="jp-modal__matchrow">
+                  <dt className="jp-modal__matchrow-label">
+                    {tUi("preservedAd.published")}
+                  </dt>
+                  <dd className="jp-modal__matchrow-evidence jp-mono">
+                    {preservedPublished}
+                  </dd>
+                </div>
+              )}
+
+              {preservedExpires && (
+                <div className="jp-modal__matchrow">
+                  <dt className="jp-modal__matchrow-label">
+                    {tUi("preservedAd.applyBy")}
+                  </dt>
+                  <dd className="jp-modal__matchrow-evidence jp-mono">
+                    {preservedExpires}
+                  </dd>
+                </div>
+              )}
+
+              {preservedSourceLabel && (
+                <div className="jp-modal__matchrow">
+                  <dt className="jp-modal__matchrow-label">
+                    {tUi("preservedAd.source")}
+                  </dt>
+                  <dd className="jp-modal__matchrow-evidence">
+                    {preservedSourceLabel}
+                  </dd>
+                </div>
+              )}
+            </dl>
+
+            {/* Säker länk (befintlig F3-behandling, speglar JobAdDetail):
+                jp-btn--secondary + ExternalLink-ikon, ny flik, noopener/
+                noreferrer. aria-label bär källa + "öppnas i ny flik" så
+                den utgående länken annonseras tydligt. */}
+            {preservedAd.url && (
+              <p style={{ marginTop: "12px" }}>
+                <a
+                  href={preservedAd.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={tUi("preservedAd.viewAdAriaLabel", {
+                    source: preservedSourceLabel ?? preservedAd.source,
+                  })}
+                  className="jp-btn jp-btn--secondary"
+                >
+                  <ExternalLink size={14} aria-hidden="true" />{" "}
+                  {tUi("preservedAd.viewAd")}
+                </a>
+              </p>
+            )}
+
+            {/* Annonstexten. Vid description == null (terminal status →
+                retention-minimering) visas EJ en tom kropp: en kort, neutral
+                not förklarar att texten rensats men metadatan finns kvar. */}
+            <div style={{ marginTop: "16px" }}>
+              <div className="jp-section-label">
+                {tUi("preservedAd.descriptionLabel")}
+              </div>
+              {preservedAd.description ? (
+                <p className="jp-modal__description jp-detail-prose">
+                  {preservedAd.description}
+                </p>
+              ) : (
+                <div className="jp-modal__match">
+                  <div className="jp-modal__match__expl">
+                    {tUi("preservedAd.minimizedNotice")}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Personligt brev — endast om coverLetter finns. Sist + 68ch
             läsbredd (#344). */}

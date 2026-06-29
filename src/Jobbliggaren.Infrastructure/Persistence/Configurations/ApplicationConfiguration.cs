@@ -68,6 +68,46 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
         });
         builder.Navigation(a => a.ManualPosting).IsRequired(false);
 
+        // AdSnapshot — optional owned entity (issue #315, ADR 0086): the frozen
+        // copy of a JobAd's text captured at apply-time. Same separate-column
+        // OwnsOne pattern as ManualPosting above. Explicit snapshot_*
+        // HasColumnName on EVERY property (the global UseSnakeCaseNamingConvention
+        // would otherwise prefix the navigation name → ad_snapshot_*); distinct
+        // prefix so columns never collide with manual_*. Navigation.IsRequired(false)
+        // is obligatory — EF Core 10 defaults an owned reference to required;
+        // without it EF cannot distinguish "no snapshot" (all snapshot_* NULL →
+        // navigation null) from an all-null AdSnapshot instance (back-compat for
+        // pre-#315 rows). Public Platsbanken metadata → plaintext, NO DEK (ADR
+        // 0086 D5). snapshot_description is unbounded TEXT (no HasMaxLength), like
+        // cover_letter — a full ad body exceeds any varchar cap.
+        builder.OwnsOne(a => a.AdSnapshot, snap =>
+        {
+            snap.Property(s => s.Title)
+                .HasColumnName("snapshot_title")
+                .HasMaxLength(300);
+            snap.Property(s => s.Company)
+                .HasColumnName("snapshot_company")
+                .HasMaxLength(200);
+            snap.Property(s => s.MunicipalityConceptId)
+                .HasColumnName("snapshot_municipality_concept_id")
+                .HasMaxLength(64);
+            snap.Property(s => s.Url)
+                .HasColumnName("snapshot_url")
+                .HasMaxLength(2000);
+            snap.Property(s => s.Source)
+                .HasColumnName("snapshot_source")
+                .HasMaxLength(50);
+            snap.Property(s => s.PublishedAt)
+                .HasColumnName("snapshot_published_at");
+            snap.Property(s => s.ExpiresAt)
+                .HasColumnName("snapshot_expires_at");
+            snap.Property(s => s.Description)
+                .HasColumnName("snapshot_description");
+            snap.Property(s => s.CapturedAt)
+                .HasColumnName("snapshot_captured_at");
+        });
+        builder.Navigation(a => a.AdSnapshot).IsRequired(false);
+
         builder.Property(a => a.Status)
             .HasConversion(
                 s => s.Name,

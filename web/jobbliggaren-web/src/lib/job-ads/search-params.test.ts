@@ -177,3 +177,54 @@ describe("buildJobbHref #300 PR-5 (relaterade — Visa relaterade också)", () =
     );
   });
 });
+
+describe("buildJobbHref #383 (status-facetterna — sparade/ansökta/dölj ansökta)", () => {
+  it("savedOnly=true emitterar ?sparade=on", () => {
+    expect(buildJobbHref({ ...empty, savedOnly: true })).toBe(
+      "/jobb?sparade=on",
+    );
+  });
+
+  it("appliedOnly=true emitterar ?ansokta=on", () => {
+    expect(buildJobbHref({ ...empty, appliedOnly: true })).toBe(
+      "/jobb?ansokta=on",
+    );
+  });
+
+  it("hideApplied=true emitterar ?doljAnsokta=on", () => {
+    expect(buildJobbHref({ ...empty, hideApplied: true })).toBe(
+      "/jobb?doljAnsokta=on",
+    );
+  });
+
+  it("savedOnly + hideApplied (giltig kombination) emitterar båda", () => {
+    expect(
+      buildJobbHref({ ...empty, savedOnly: true, hideApplied: true }),
+    ).toBe("/jobb?sparade=on&doljAnsokta=on");
+  });
+
+  it("alla status-flaggor falska/utelämnade ger inget param (ren URL)", () => {
+    expect(buildJobbHref(empty)).toBe("/jobb");
+    expect(
+      buildJobbHref({
+        ...empty,
+        savedOnly: false,
+        appliedOnly: false,
+        hideApplied: false,
+      }),
+    ).toBe("/jobb");
+  });
+
+  it("ordning: relaterade → status-facetterna → q (stabil URL-form)", () => {
+    // Status-facetterna placeras efter matchnings-axelns params, före q.
+    expect(
+      buildJobbHref({
+        ...empty,
+        q: "volvo",
+        includeRelated: true,
+        savedOnly: true,
+        appliedOnly: true,
+      }),
+    ).toBe("/jobb?relaterade=on&sparade=on&ansokta=on&q=volvo");
+  });
+});

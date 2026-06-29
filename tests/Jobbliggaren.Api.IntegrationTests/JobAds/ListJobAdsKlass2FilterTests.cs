@@ -96,7 +96,9 @@ public class ListJobAdsKlass2FilterTests(ApiFactory factory)
                 Substitute.For<IOccupationSynonymExpander>()),
             Substitute.For<Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery>(),
             Substitute.For<Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder>(),
-            new SearchQueryParser());
+            new SearchQueryParser(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
 
     // ---------------------------------------------------------------
     // (a) EmploymentType single

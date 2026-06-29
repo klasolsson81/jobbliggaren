@@ -120,5 +120,16 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
             .WithMessage(
                 "Endast Grund/Relaterat/Bra/Stark kan filtreras — Topp kräver CV-styrkt "
                 + "kravtäckning och kan inte beräknas i listfiltret.");
+
+        // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetterna är ömsesidigt
+        // uteslutande där de motsäger varandra: "visa endast ansökta" OCH "dölj ansökta"
+        // samtidigt är självmotsägande (tom mängd by construction) → rent 400 wire-side i
+        // stället för en tyst tom sida. SavedOnly är fritt kombinerbart med båda ("sparade
+        // jag inte sökt ännu" = savedOnly + hideApplied är giltigt). Validerar på hela
+        // queryn (de två bool:arna läses tillsammans).
+        RuleFor(q => q)
+            .Must(q => !(q.AppliedOnly && q.HideApplied))
+            .WithMessage(
+                "Det går inte att både visa endast ansökta och dölja ansökta annonser samtidigt.");
     }
 }

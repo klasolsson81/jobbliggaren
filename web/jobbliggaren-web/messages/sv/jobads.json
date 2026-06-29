@@ -176,6 +176,12 @@
         "Strong": "Stark match"
       }
     },
+    "statusFilter": {
+      "label": "Status",
+      "saved": "Sparade",
+      "applied": "Ansökta",
+      "hideApplied": "Dölj ansökta"
+    },
     "pagination": {
       "navLabel": "Paginering",
       "previous": "Föregående",

@@ -176,6 +176,12 @@
         "Strong": "Strong match"
       }
     },
+    "statusFilter": {
+      "label": "Status",
+      "saved": "Saved",
+      "applied": "Applied",
+      "hideApplied": "Hide applied"
+    },
     "pagination": {
       "navLabel": "Pagination",
       "previous": "Previous",

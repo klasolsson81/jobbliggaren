@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -58,7 +59,20 @@ public sealed record ListJobAdsQuery(
     // anonyma sök-identiteten (ADR 0039 Beslut 1 / ADR 0062). Default false = beteende-inert
     // (exakt-only, dagens beteende). Det publika /jobb-rutt-värdet ?relaterade=on mappas hit av
     // FE (PR-5b); API-kontraktet bär den engelska flaggan.
-    bool IncludeRelated = false)
+    bool IncludeRelated = false,
+    // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f, Approach B) — den per-användar-status-
+    // filtreringen ("Sparade"/"Ansökta"/"Dölj ansökta"-facetterna). RUNTIME-KONTEXT
+    // (paritet MatchGrades/IncludeRelated): de ingår ALDRIG i ICapturesRecentSearch /
+    // SearchCriteria / FilterHashCalculator (de läser bara de namngivna sök-identitets-
+    // fälten ovan — de tre nya bool:arna exkluderas automatiskt) — en personlig
+    // status-vy får aldrig förorena den anonyma, cachebara sök-identiteten. Bunds från
+    // ?savedOnly=/?appliedOnly=/?hideApplied=; FE mappar de svenska rutt-värdena
+    // ?sparade=on/?ansokta=on/?doljAnsokta=on hit (API-kontraktet bär engelska flaggor,
+    // paritet relaterade→includeRelated). savedOnly ∨ appliedOnly = OR (union);
+    // appliedOnly ∧ hideApplied = 400 (validator-mutex — självmotsägande).
+    bool SavedOnly = false,
+    bool AppliedOnly = false,
+    bool HideApplied = false)
     : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
 {
     // ICapturesRecentSearch + default/fallback-väg ser ALLTID ett rent
@@ -78,4 +92,8 @@ public sealed record ListJobAdsQuery(
     // utan grader (case 3) faller fortfarande in på per-användar-vägen via
     // SortByMatch (match-rank-ordning utan grad-filter, otaggade sist).
     public bool MatchContextActive => MatchGrades is { Count: > 0 };
+
+    // #383 — den per-användar-status-predikaten samlad. Aktiv ⇔ minst en facett vald;
+    // driver handlerns seeker-resolution + status-gren (frikopplad från match-gaten).
+    public JobAdStatusFilter Status => new(SavedOnly, AppliedOnly, HideApplied);
 }

@@ -5,6 +5,7 @@ using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -78,6 +79,8 @@ internal sealed class PerUserJobAdSearchQuery(
         IReadOnlyList<MatchGrade> grades,
         JobAdSortBy sort,
         bool orderByMatchRank,
+        JobAdStatusFilter status,
+        JobSeekerId seekerId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -115,6 +118,13 @@ internal sealed class PerUserJobAdSearchQuery(
         var baseQuery = JobAdSearchComposition.ApplyFilter(
             db.JobAds.AsNoTracking(), filter, synonymExpander);
 
+        // #383 — den per-användar-status-predikaten (sparade/ansökta/dölj ansökta)
+        // EXISTS-stackas ovanpå filter-SPOT:en FÖRE grad-WHERE/count (count-korrekthet —
+        // counten nedan måste räknas över den status-filtrerade mängden). No-op när
+        // status är inaktiv (match-only-vägen passerar JobAdStatusFilter.None) → byte-for-
+        // byte som förr. Soft-delete på Application ärvs automatiskt via EXISTS-subqueryn.
+        baseQuery = ApplyStatusFilter(baseQuery, status, seekerId);
+
         // EN delad rank-Expression (DRY) — speglar MatchGradeCalculator.Grade(MatchScore).
         // Konsumeras av grad-WHERE, count OCH match-rank-ORDER BY så filter och sort aldrig
         // divergerar (CTO-re-bind 2026-06-23). Oracle-pinnad.
@@ -132,11 +142,13 @@ internal sealed class PerUserJobAdSearchQuery(
             graded = graded.Where(RankInSet(rankExpr, selectedRanks));
         }
 
-        // Count-korrekthet (CTO-re-bind rad-86-fix): när grad-WHERE är aktiv MÅSTE
-        // total-antalet räknas om över den grad-filtrerade mängden — annars överräknar
-        // den delade port-counten → spök-paginering. Separat count-query (CLAUDE §3.6).
-        // Tom grad-mängd ⇒ port-counten är exakt rätt (och bär TD-94-bitmap-plan-hygienen).
-        var totalCount = grades.Count > 0
+        // Count-korrekthet (CTO-re-bind rad-86-fix + #383): när grad-WHERE ELLER status-
+        // filtret är aktivt MÅSTE total-antalet räknas om över den (grad/status-)filtrerade
+        // mängden (`graded` bär redan status-EXISTS:en från baseQuery) — annars överräknar
+        // den delade anonyma port-counten → spök-paginering. Separat count-query (CLAUDE
+        // §3.6). Varken grad eller status aktiv ⇒ port-counten är exakt rätt (och bär
+        // TD-94-bitmap-plan-hygienen).
+        var totalCount = grades.Count > 0 || status.IsActive
             ? await graded.CountAsync(cancellationToken)
             : await searchQuery.CountAsync(filter, cancellationToken);
 
@@ -226,6 +238,107 @@ internal sealed class PerUserJobAdSearchQuery(
         return await baseQuery
             .Where(RankInSet(rankExpr, selectedRanks))
             .CountAsync(cancellationToken);
+    }
+
+    public async ValueTask<PagedResult<JobAdDto>> SearchByStatusAsync(
+        JobAdFilterCriteria filter,
+        JobSeekerId seekerId,
+        JobAdStatusFilter status,
+        JobAdSortBy sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        // Fail-fast (CLAUDE §3.4 — dotnet-architect Minor): denna väg är ENBART för
+        // ett aktivt status-filter (handlern gatar den bakom status.IsActive). Slank
+        // JobAdStatusFilter.None in skulle ApplyStatusFilter no-op:a och porten tyst
+        // degenerera till "lista allt med count-omräkning" — synliggör felet i stället.
+        if (!status.IsActive)
+            throw new ArgumentException(
+                "SearchByStatusAsync kräver ett aktivt status-filter; använd den anonyma "
+                + "sökvägen när inget status är valt.",
+                nameof(status));
+
+        // Status-only (#383): återanvänder EXAKT samma filter-SPOT + rena sort som
+        // default-vägen — ingen profil, ingen grad-rank, ingen match-ordning (frikopplad
+        // från SSYK-match-gaten, SRP). Bara status-EXISTS:en läggs på.
+        var baseQuery = JobAdSearchComposition.ApplyFilter(
+            db.JobAds.AsNoTracking(), filter, synonymExpander);
+        var filtered = ApplyStatusFilter(baseQuery, status, seekerId);
+
+        // Count-korrekthet: över den status-filtrerade mängden, aldrig den anonyma
+        // port-counten (annars spök-paginering). Separat count-query (CLAUDE §3.6).
+        var totalCount = await filtered.CountAsync(cancellationToken);
+
+        var items = await JobAdSearchComposition.ApplySort(filtered, sort, filter.Q)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(JobAdSearchComposition.ToDto())
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
+    }
+
+    // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f, Approach B) — den delade status-WHERE:n
+    // (EXISTS/NOT EXISTS), använd av BÅDE SearchPerUserAsync (status+match) och
+    // SearchByStatusAsync (status-only). EXISTS (VO==VO-kolumnjämförelse `s.JobAdId == j.Id`),
+    // INTE IN (`List<VO>.Contains` 500:ar i översättningen — ef_strongly_typed_vo_contains).
+    // No-op när status är inaktiv (match-only-vägen) → seekerId oanvänd.
+    //
+    // savedOnly ∨ appliedOnly = UNION (OR — samma som status-batchen, ADR 0063); hideApplied
+    // = NOT EXISTS (ansökt), giltig tillsammans med savedOnly men ömsesidigt uteslutande mot
+    // appliedOnly (validatorn 400:ar). SavedJobAd är hard-delete (rad finns iff sparad nu);
+    // Application bär soft-delete-HasQueryFilter (DeletedAt == null) som ärvs automatiskt in
+    // i EXISTS-subqueryn — och kort-badgen (GetJobAdStatusBatchQueryHandler) läser db.Applications
+    // med SAMMA globala filter, så badge↔filter förblir koherenta ÄVEN för en raderad ansökan
+    // (båda exkluderar den). Koherensen vilar alltså på det delade HasQueryFilter, inte på en
+    // slump — håll ihop dem om filtret någonsin flyttas.
+    //
+    // "Ansökt" = vilken som helst (ej soft-deletad) Application-rad mot annonsen — INGEN
+    // ApplicationStatus-gallring. Detta är MEDVETET koherent med kort-badgen
+    // (GetJobAdStatusBatchQueryHandler, ADR 0063), som taggar "Ansökt" på exakt samma
+    // any-application-villkor: filtret "Ansökta"/"Dölj ansökta" MÅSTE spegla badgen (annars
+    // visar ett kort "Ansökt" men göms/visas inte av filtret — drift, jfr badge↔status-
+    // synk-disciplinen). Skulle "Ansökt" senare omdefinieras till submittad (AppliedAt != null)
+    // ändras BÅDE badgen och detta filter tillsammans (ADR 0063-amendment), aldrig bara ett.
+    private IQueryable<JobAd> ApplyStatusFilter(
+        IQueryable<JobAd> source, JobAdStatusFilter status, JobSeekerId seekerId)
+    {
+        if (!status.IsActive)
+            return source;
+
+        // Lokal kopia → EF binder seekern som en parameter (parity profil-listorna).
+        var seeker = seekerId;
+        var query = source;
+
+        if (status.SavedOnly && status.AppliedOnly)
+        {
+            // Union (OR): annonser jag sparat ELLER sökt.
+            query = query.Where(j =>
+                db.SavedJobAds.Any(s => s.JobSeekerId == seeker && s.JobAdId == j.Id)
+                || db.Applications.Any(a => a.JobSeekerId == seeker && a.JobAdId == j.Id));
+        }
+        else if (status.SavedOnly)
+        {
+            query = query.Where(j =>
+                db.SavedJobAds.Any(s => s.JobSeekerId == seeker && s.JobAdId == j.Id));
+        }
+        else if (status.AppliedOnly)
+        {
+            query = query.Where(j =>
+                db.Applications.Any(a => a.JobSeekerId == seeker && a.JobAdId == j.Id));
+        }
+
+        if (status.HideApplied)
+        {
+            // NOT EXISTS — dölj annonser jag redan sökt (giltig med savedOnly; mutex mot
+            // appliedOnly, validator-grindad).
+            query = query.Where(j =>
+                !db.Applications.Any(a => a.JobSeekerId == seeker && a.JobAdId == j.Id));
+        }
+
+        return query;
     }
 
     // Den delade grad-rank-Expression:en (SSOT) — en kompilerad spegel av den Fast

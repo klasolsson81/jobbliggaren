@@ -519,4 +519,70 @@ public class ListJobAdsQueryValidatorTests
             Sort: ListJobAdsSort.Relevance, Q: "developer", MatchGrades: [MatchGrade.Good]));
         result.IsValid.ShouldBeTrue();
     }
+
+    // ---------------------------------------------------------------
+    // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetterna (SavedOnly/AppliedOnly/
+    // HideApplied). Den ENDA validator-regeln är mutex:en AppliedOnly ∧ HideApplied
+    // (självmotsägande → tom mängd by construction → rent 400 i stället för en tyst tom
+    // sida). Alla andra kombinationer är giltiga — särskilt SavedOnly ∧ HideApplied
+    // ("sparade jag inte sökt ännu") och SavedOnly ∧ AppliedOnly (union).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Validate_AppliedOnlyAndHideApplied_IsInvalid()
+    {
+        // Den enda förbjudna kombinationen: "visa endast ansökta" OCH "dölj ansökta"
+        // samtidigt är självmotsägande.
+        var result = _validator.Validate(new ListJobAdsQuery(
+            AppliedOnly: true, HideApplied: true));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_SavedOnlyAndHideApplied_IsValid()
+    {
+        // "Sparade jag inte sökt ännu" — fritt kombinerbart (savedOnly + NOT EXISTS ansökt).
+        var result = _validator.Validate(new ListJobAdsQuery(
+            SavedOnly: true, HideApplied: true));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_SavedOnlyAndAppliedOnly_IsValid()
+    {
+        // Union (OR) — sparade ELLER ansökta. Giltig.
+        var result = _validator.Validate(new ListJobAdsQuery(
+            SavedOnly: true, AppliedOnly: true));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(true, false, false)] // SavedOnly
+    [InlineData(false, true, false)] // AppliedOnly
+    [InlineData(false, false, true)] // HideApplied
+    public void Validate_SingleStatusFacet_IsValid(bool savedOnly, bool appliedOnly, bool hideApplied)
+    {
+        // Varje enskild facett för sig är giltig (mutex:en biter bara på AppliedOnly+HideApplied).
+        var result = _validator.Validate(new ListJobAdsQuery(
+            SavedOnly: savedOnly, AppliedOnly: appliedOnly, HideApplied: hideApplied));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_AllStatusFacetsFalse_IsValid()
+    {
+        // Inget status-filter alls (default) — giltigt (status av).
+        var result = _validator.Validate(new ListJobAdsQuery(
+            SavedOnly: false, AppliedOnly: false, HideApplied: false));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_SavedOnlyAndAppliedOnlyAndHideApplied_IsInvalid()
+    {
+        // Alla tre samtidigt innehåller den förbjudna AppliedOnly ∧ HideApplied-paret → ogiltig.
+        var result = _validator.Validate(new ListJobAdsQuery(
+            SavedOnly: true, AppliedOnly: true, HideApplied: true));
+        result.IsValid.ShouldBeFalse();
+    }
 }

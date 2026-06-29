@@ -25,6 +25,20 @@ interface JobAdCardProps {
    * (POSITIVE-ONLY). Aldrig en siffra — graden är en namngiven kategori.
    */
   matchGrade?: MatchGrade;
+  /**
+   * #380 — den nuvarande listans query-sträng (filter + match + sort + sök,
+   * byggd i `JobbResults` via `buildJobbHref`), utan inledande `?`. Bärs in i
+   * radlänken så att soft-nav till modalen ALDRIG tappar list-URL:ens view-
+   * state. Den intercepting modalen byter bara `@modal`-slotten; en NAKEN
+   * `/jobb/[id]`-länk lät däremot children-slottens `/jobb` re-rendras till
+   * tomma searchParams (Suspense-keyn flippade relaterade/grader/matchning till
+   * av), och `router.back()` återställer bara modal-slotten ⇒ listan fastnade i
+   * av-läget. Med hela list-staten i länken speglar modal-URL:en listan exakt,
+   * så öppna→stäng bevarar HELA filter-/match-läget. Default tom = naken länk
+   * (gäst-/övriga ytor som inte trådar list-state). Modalen läser bara
+   * `relaterade` ur denna; övriga params är inerta på detalj-/modal-sidan.
+   */
+  listQuery?: string;
 }
 
 /**
@@ -93,6 +107,7 @@ export function JobAdCard({
   isSaved = false,
   isApplied = false,
   matchGrade,
+  listQuery = "",
 }: JobAdCardProps) {
   // Synchronous next-intl translators — keep JobAdCard a non-async RSC (it
   // renders as a serialized list slot and has synchronous render tests).
@@ -103,9 +118,13 @@ export function JobAdCard({
   const expiresAt = formatDate(format, jobAd.expiresAt);
   const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
 
+  // #380 — bär list-URL:ens view-state in i radlänken så modal-soft-nav inte
+  // tappar filter/match-läget (se `listQuery`-doc). Tom query ⇒ naken länk.
+  const href = listQuery ? `/jobb/${jobAd.id}?${listQuery}` : `/jobb/${jobAd.id}`;
+
   return (
     <Link
-      href={`/jobb/${jobAd.id}`}
+      href={href}
       className="jp-job"
       aria-label={tUi("ariaLabel", {
         title: jobAd.title,

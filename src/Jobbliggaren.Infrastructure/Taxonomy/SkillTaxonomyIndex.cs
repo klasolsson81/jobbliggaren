@@ -286,21 +286,12 @@ internal sealed class SkillTaxonomyIndex
     }
 
     /// <summary>
-    /// The CV-side resolver (F4-15): free text → distinct JobTech skill concept-ids.
-    /// Normalises <paramref name="freeText"/> to its Swedish lexeme set (the same
-    /// pipeline the ad side uses), matches the best form per concept-id (bag
-    /// containment), and returns each winning concept-id. Blank/empty input or no
-    /// match → empty (never throws — an unresolvable CV skill is normal, not an error).
-    /// </summary>
-    public IReadOnlyList<string> ResolveConceptIds(string freeText) =>
-        // Distinct concept-ids (MatchForms already keeps one form per concept-id).
-        ResolveForms(freeText).Select(f => f.ConceptId).Distinct(StringComparer.Ordinal).ToList();
-
-    /// <summary>
-    /// ADR 0079 STEG 3 — like <see cref="ResolveConceptIds"/> but returns the winning
+    /// ADR 0079 STEG 3 — the CV-side resolver (F4-15): free text → the winning
     /// <see cref="SkillForm"/> per concept-id (carrying the preferred label) so the CV-side
-    /// resolver can surface user-readable skill chips. Blank/empty input or no match → empty
-    /// (never throws — an unresolvable CV skill is normal, not an error).
+    /// resolver can surface user-readable skill chips. Normalises <paramref name="freeText"/>
+    /// to its Swedish lexeme set (the same pipeline the ad side uses) and matches the best
+    /// form per concept-id (bag containment). Blank/empty input or no match → empty (never
+    /// throws — an unresolvable CV skill is normal, not an error).
     /// </summary>
     public IReadOnlyCollection<SkillForm> ResolveForms(string freeText)
     {
@@ -470,7 +461,7 @@ internal sealed class SkillTaxonomyIndex
         if (string.IsNullOrWhiteSpace(label))
             return;
         var key = label.Trim();
-        // The CV fast-path consumers (ResolveConceptIds/ResolveDetailed) read only
+        // The CV fast-path consumers (ResolveForms/ResolveDetailed) read only
         // ConceptId + PreferredLabel, so this form's Lexemes are not read on that path.
         // We still build them faithfully (never []) so a SkillForm stays a CONSISTENT
         // value object regardless of which path constructed it (the lexeme-bag path

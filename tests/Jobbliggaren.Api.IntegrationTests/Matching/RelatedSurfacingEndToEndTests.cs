@@ -57,13 +57,18 @@ public class RelatedSurfacingEndToEndTests(ApiFactory factory)
 
     // States the seeker's exact occupation (the SSYK-gate source). Region/employment left empty
     // — the flat Related cap (ADR 0084 §F2) makes secondaries irrelevant to the Related grade.
-    private async Task SetExactOccupationAsync(CancellationToken ct)
+    private Task SetExactOccupationAsync(CancellationToken ct) =>
+        SetExactOccupationAsync(ExactSourceGroup, ct);
+
+    // Parameterized variant (#379): states an arbitrary exact occupation group. Mirrors the
+    // default helper exactly — only the group concept-id varies.
+    private async Task SetExactOccupationAsync(string occupationGroup, CancellationToken ct)
     {
         var response = await _client.PutAsJsonAsync(
             "/api/v1/me/match-preferences",
             new
             {
-                preferredOccupationGroups = new[] { ExactSourceGroup },
+                preferredOccupationGroups = new[] { occupationGroup },
                 preferredRegions = Array.Empty<string>(),
                 preferredEmploymentTypes = Array.Empty<string>(),
                 preferredSkills = Array.Empty<string>(),
@@ -75,7 +80,15 @@ public class RelatedSurfacingEndToEndTests(ApiFactory factory)
     // Seeds an Imported JobAd whose raw_payload drives the STORED occupation_group shadow column
     // to the related-only group (parity MatchTagBatchEndpointsTests.SeedJobAdAsync). Region/
     // employment null → those shadows NULL (irrelevant under the flat Related cap).
-    private async Task<Guid> SeedRelatedOnlyAdAsync(string title, CancellationToken ct)
+    private Task<Guid> SeedRelatedOnlyAdAsync(string title, CancellationToken ct) =>
+        SeedAdInOccupationGroupAsync(title, RelatedOnlyGroup, ct);
+
+    // Parameterized seeder (#379): seeds an Imported JobAd whose STORED occupation_group shadow
+    // column is the GIVEN concept-id. Mirrors SeedRelatedOnlyAdAsync exactly — only the
+    // occupation-group varies — so a Data/IT-misclassified ad (occupation_group = MYAz_x9m_2LJ)
+    // and a genuine Administration-field ad (occupation_group = eQ4M_CNm_ozj) can be seeded.
+    private async Task<Guid> SeedAdInOccupationGroupAsync(
+        string title, string occupationGroup, CancellationToken ct)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -85,7 +98,7 @@ public class RelatedSurfacingEndToEndTests(ApiFactory factory)
 
         var rawPayload =
             $"{{\"id\":\"{externalId}\","
-            + $"\"occupation_group\":{{\"concept_id\":\"{RelatedOnlyGroup}\"}},"
+            + $"\"occupation_group\":{{\"concept_id\":\"{occupationGroup}\"}},"
             + "\"workplace_address\":null,"
             + "\"employment_type\":null}";
 
@@ -226,5 +239,65 @@ public class RelatedSurfacingEndToEndTests(ApiFactory factory)
         withoutIds.ShouldNotContain(relatedAd,
             "Med includeRelated=false är related-mängden tom → inget taggas Related → " +
             "{Related}-filtret kan inte returnera annonsen.");
+    }
+
+    // =================================================================
+    // 4. #379 — SAME-FIELD surfacing guard on the wire. ROOT CAUSE: a "Administratör"
+    //    (Randstad) ad surfaces as Related for a Data/IT profile ONLY because JobTech/AF
+    //    misclassified that office role into the Data/IT ssyk-4 group "Systemadministratörer"
+    //    (MYAz_x9m_2LJ) — a legitimate same-field substitutability edge of DJh5_yyF_hEM after
+    //    #359. The engine is CORRECT. This test pins BOTH halves of the invariant end-to-end:
+    //    a Data/IT-misclassified ad (occupation_group = MYAz) IS tagged Related (intended), while
+    //    a GENUINE Administration-field office-assistant ad (occupation_group = eQ4M_CNm_ozj) is
+    //    NEVER tagged Related — the #359 same-field gate drops the cross-field edge. This is the
+    //    "Om bugg" guard so the phantom never re-opens.
+    //
+    //    Both MYAz_x9m_2LJ and eQ4M_CNm_ozj are committed snapshot edge SOURCES already loaded by
+    //    ApiFactory's startup seeder, so the process-singleton TaxonomyReadModel cache resolves
+    //    them (parity the cache-race note above — no per-test taxonomy_relations row).
+    // =================================================================
+
+    // Data/IT profile source (seeker states this) — "Mjukvaru- och systemutvecklare m.fl.".
+    private const string DataItProfileGroup = "DJh5_yyF_hEM";
+    // Same-field (Data/IT) related group — the mislabeled Randstad "Administratör" ad lands here.
+    private const string MislabeledAdminGroup = "MYAz_x9m_2LJ";   // Systemadministratörer — Related is intended
+    // Genuine Administration-field office-assistant group — must NEVER be Related to Data/IT.
+    private const string AdministrationFieldGroup = "eQ4M_CNm_ozj"; // cross-field — dropped by #359
+
+    [Fact]
+    public async Task POST_match_tags_DataItProfile_tags_MYAz_ad_Related_but_not_Administration_field_ad_Issue379()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        // Seeker is a Data/IT profile (states DJh5_yyF_hEM as the exact occupation group).
+        await SetExactOccupationAsync(DataItProfileGroup, ct);
+
+        // (a) The mislabeled-Administratör scenario: an ad upstream-classified into the Data/IT
+        //     ssyk-4 group Systemadministratörer (MYAz) — same-field related to the profile.
+        var mislabeledAdminAd = await SeedAdInOccupationGroupAsync(
+            "Administratör (Systemadministratörer-klassad)", MislabeledAdminGroup, ct);
+
+        // (b) A genuine Administration-field office-assistant ad (eQ4M) — cross-field.
+        var administrationFieldAd = await SeedAdInOccupationGroupAsync(
+            "Administrativ assistent (kontor)", AdministrationFieldGroup, ct);
+
+        var dto = await PostMatchTagsAsync(
+            [mislabeledAdminAd, administrationFieldAd], includeRelated: true, ct);
+
+        // The MYAz ad MUST be tagged Related — Systemadministratörer is a CORRECT same-field
+        // (Data/IT) related group of the profile. This is the intended Randstad-ad mechanism (#379).
+        TryGetEntry(dto, mislabeledAdminAd, out var mislabeledEntry).ShouldBeTrue(
+            "Den Data/IT-klassade (MYAz) annonsen ska taggas — Systemadministratörer är same-field " +
+            "related till Mjukvaru- och systemutvecklare. Surfacing är AVSIKTLIGT (#379).");
+        mislabeledEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Related),
+            "MYAz-annonsen ska graderas Related (same-field substitutability efter #359).");
+
+        // The eQ4M (Administration-field) ad MUST be ABSENT — the #359 same-field gate drops the
+        // cross-field edge. A Data/IT profile NEVER surfaces an Administration-FIELD ad as Related.
+        TryGetEntry(dto, administrationFieldAd, out _).ShouldBeFalse(
+            "Den Administration-fält-annonsen (eQ4M_CNm_ozj) ska vara FRÅNVARANDE — #359 same-field-" +
+            "gaten droppar cross-field-edgen. En Data/IT-profil ytar ALDRIG en Administration-fält-" +
+            "annons som Related (#379 'Om bugg'-guard).");
     }
 }

@@ -74,4 +74,25 @@ describe("MatchChip (F4-13 graderad match-tagg)", () => {
     // Goodhart-vakt håller även på related-rungen.
     expect(chip?.textContent).not.toMatch(/\d/);
   });
+
+  // #379 (CTO bind) — explainability touch: ENBART Related-chip:en bär en
+  // supplementär hint (samma reason-copy som modalen visar) så "Relaterat yrke"
+  // blir begripligt på kortet utan att den synliga labeln ändras. De fyra gröna
+  // graderna är självförklarande och bär ingen title.
+  it("Related-chip:en bär en förklarande title (reason-copy), de gröna graderna gör det inte (#379)", () => {
+    const { container: related } = render(<MatchChip grade="Related" />);
+    const relatedChip = related.querySelector(".jp-matchchip");
+    expect(relatedChip).toHaveAttribute(
+      "title",
+      "Liknande yrke, inte ett du valt. Därför rankas annonsen under dina exakta träffar.",
+    );
+    // Den synliga labeln är oförändrad (title är supplementär, ej det tillgängliga namnet).
+    expect(relatedChip?.textContent).toBe("Relaterat yrke");
+
+    for (const grade of ["Top", "Strong", "Good", "Basic"] as const) {
+      const { container } = render(<MatchChip grade={grade} />);
+      const chip = container.querySelector(".jp-matchchip");
+      expect(chip).not.toHaveAttribute("title");
+    }
+  });
 });

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { FileText, Plus, Search } from "lucide-react";
+import { BarChart3, FileText, Plus, Search } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -112,7 +112,10 @@ export default async function AnsokningarPage() {
             förklarar (text-only, ingen ikon), den kanoniska placerings-
             konventionen för InfoDialog. Knapp + förklaring staplas i en
             högerjusterad kolumn. */}
-        <div className="mb-6 flex justify-end">
+        <div className="mb-6 flex flex-wrap justify-end gap-3">
+          <Link href="/statistik" className="jp-btn jp-btn--secondary">
+            <BarChart3 size={16} aria-hidden="true" /> {t("ansokningar.statistics")}
+          </Link>
           <div className="flex flex-col items-end gap-1.5">
             <Link
               href="/aktivitetsrapport"

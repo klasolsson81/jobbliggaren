@@ -9,6 +9,7 @@ using Jobbliggaren.Application.Applications.Commands.TransitionTo;
 using Jobbliggaren.Application.Applications.Queries.GetActivityReport;
 using Jobbliggaren.Application.Applications.Queries.GetApplicationById;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
+using Jobbliggaren.Application.Applications.Queries.GetApplicationStats;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
 using Mediator;
 
@@ -48,6 +49,17 @@ public static class ApplicationsEndpoints
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(new GetActivityReportQuery(year, month), ct);
+            return Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // #313 — application statistics (BUILD.md §6.2: avslags-analys, pipeline-
+        // konvertering). Owner-scoped read aggregate; no parameters (fixed metric
+        // set + rolling 12-month window). Same read rate-limit policy as the other
+        // list/aggregate reads.
+        group.MapGet("/stats", async (IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetApplicationStatsQuery(), ct);
             return Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);

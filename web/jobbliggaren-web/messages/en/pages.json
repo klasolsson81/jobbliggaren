@@ -14,6 +14,7 @@
     "lede": "A pipeline of all your applications. Click a row for details.",
     "newApplication": "New application",
     "activityReport": "Activity report helper",
+    "statistics": "Statistics",
     "loadErrorTitle": "Could not load applications",
     "emptyKicker": "Pipeline",
     "emptyTitle": "No applications yet",

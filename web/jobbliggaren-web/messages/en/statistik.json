@@ -1,0 +1,56 @@
+{
+  "title": "Statistics",
+  "lede": "An overview of how your applications are going: responses, interviews, rejections and trends over time.",
+  "back": "Back to applications",
+  "summary": "You have {total, number} applications in total, of which {sent, number} were sent.",
+  "error": {
+    "title": "Could not load statistics",
+    "body": "Something went wrong while loading the statistics. Reload the page and try again.",
+    "rateLimited": "You have loaded statistics many times in a short period. Wait a moment and try again."
+  },
+  "empty": {
+    "title": "No statistics yet",
+    "body": "As soon as you register your first application, statistics start building up here.",
+    "createFirst": "Create your first application",
+    "searchFirst": "Search ads first"
+  },
+  "rates": {
+    "heading": "Outcomes",
+    "intro": "The shares are calculated on your sent applications.",
+    "metric": "Metric",
+    "value": "Count",
+    "share": "Share",
+    "response": "Response rate",
+    "interview": "Interview rate",
+    "rejection": "Rejection rate",
+    "ofSent": "{numerator} of {denominator}",
+    "empty": "You have no sent applications yet. Outcomes appear once you have sent at least one application."
+  },
+  "funnel": {
+    "heading": "From sent to accepted",
+    "intro": "How many of your sent applications reached each stage.",
+    "stage": "Stage",
+    "count": "Count",
+    "share": "Share of sent",
+    "stages": {
+      "Sent": "Sent",
+      "Responded": "Response",
+      "Interview": "Interview",
+      "Offer": "Offer",
+      "Accepted": "Accepted"
+    },
+    "limitation": "{count, plural, =1 {One application ended} other {# applications ended}} outside the process (rejected, withdrawn or no response) and counts only as sent in the funnel. Earlier stages may therefore be undercounted."
+  },
+  "statusBreakdown": {
+    "heading": "By status",
+    "intro": "All your applications broken down by status, including drafts.",
+    "status": "Status",
+    "count": "Count"
+  },
+  "monthly": {
+    "heading": "Applications per month",
+    "intro": "Sent applications over the last twelve months.",
+    "month": "Month",
+    "count": "Count"
+  }
+}

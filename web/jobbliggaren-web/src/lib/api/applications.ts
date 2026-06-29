@@ -14,6 +14,10 @@ import {
   type ActivityReportDto,
 } from "@/lib/dto/activity-report";
 import {
+  applicationStatsDtoSchema,
+  type ApplicationStatsDto,
+} from "@/lib/dto/application-stats";
+import {
   responseToResult,
   type ApiResult,
 } from "@/lib/dto/_helpers";
@@ -100,6 +104,29 @@ export async function getActivityReport(
       res,
       activityReportDtoSchema,
       "GET /api/v1/applications/activity-report"
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+// #313 — application statistics (BUILD.md §6.2). Owner-scoped read aggregate; no
+// parameters (fixed metric set + rolling 12-month window).
+export async function getApplicationStats(): Promise<
+  ApiResult<ApplicationStatsDto>
+> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await fetch(`${env.BACKEND_URL}/api/v1/applications/stats`, {
+      headers: authHeaders(sessionId),
+      cache: "no-store",
+    });
+    return await responseToResult(
+      res,
+      applicationStatsDtoSchema,
+      "GET /api/v1/applications/stats"
     );
   } catch {
     return { kind: "error" };

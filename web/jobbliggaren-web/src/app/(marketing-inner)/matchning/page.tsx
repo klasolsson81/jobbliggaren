@@ -43,7 +43,6 @@ export default async function MatchningPage() {
       <section className="jp-pagehero" aria-labelledby="matchning-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("kicker")}</p>
             <h1 id="matchning-heading" className="jp-pagehero__title">
               {t("title")}
             </h1>

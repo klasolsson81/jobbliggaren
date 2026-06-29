@@ -26,7 +26,6 @@ export default async function KontaktPage() {
       <section className="jp-pagehero" aria-labelledby="kontakt-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("contact.kicker")}</p>
             <h1 id="kontakt-heading" className="jp-pagehero__title">
               {t("contact.title")}
             </h1>

@@ -4772,7 +4772,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    --jp-accent-900 på --jp-gold (NEW-tagg) = 9.45:1. */
 .jp-foot { background: var(--jp-accent-900); color: #FFFFFF; }
 .jp-foot__main { max-width: 1200px; margin-inline: auto; padding: 64px 32px 40px; }
-.jp-foot__cols { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 40px 32px; }
+.jp-foot__cols { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 40px 32px; }
 .jp-foot__brandcol { max-width: 320px; }
 .jp-foot .jp-brand__word { color: #FFFFFF; }
 .jp-foot .jp-brand__tagline { color: rgba(255, 255, 255, 0.92); }

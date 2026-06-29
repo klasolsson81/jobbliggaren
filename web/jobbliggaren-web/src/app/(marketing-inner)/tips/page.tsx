@@ -40,7 +40,6 @@ export default async function TipsPage() {
       <section className="jp-pagehero" aria-labelledby="tips-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("kicker")}</p>
             <h1 id="tips-heading" className="jp-pagehero__title">
               {t("title")}
             </h1>

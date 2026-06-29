@@ -50,7 +50,6 @@ export default async function CvGranskningPage() {
       <section className="jp-pagehero" aria-labelledby="cv-granskning-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("kicker")}</p>
             <h1 id="cv-granskning-heading" className="jp-pagehero__title">
               {t("title")}
             </h1>

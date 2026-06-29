@@ -30,7 +30,6 @@ export default async function VillkorPage() {
       <section className="jp-pagehero" aria-labelledby="villkor-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("terms.kicker")}</p>
             <h1 id="villkor-heading" className="jp-pagehero__title">
               {t("terms.title")}
             </h1>

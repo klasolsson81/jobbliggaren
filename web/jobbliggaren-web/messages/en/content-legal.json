@@ -4,7 +4,6 @@
       "title": "Privacy policy",
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
-    "kicker": "Privacy",
     "title": "Privacy policy",
     "updated": "Last updated: 2026-06-28",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
@@ -146,7 +145,6 @@
       "title": "About Jobbliggaren",
       "description": "Jobbliggaren is a free Swedish service for finding jobs and keeping track of your applications, built on Arbetsförmedlingen's open data. Created by Klas Olsson."
     },
-    "kicker": "About and legal",
     "title": "About Jobbliggaren",
     "intro": "Jobbliggaren is a free Swedish service that helps you find jobs and keep track of your applications in one place. The service is built on open job data from Arbetsförmedlingen JobTech (Platsbanken), so that you can search for, save and follow up on your applications at no cost.",
     "whyHeading": "Why Jobbliggaren exists",
@@ -175,7 +173,6 @@
       "title": "Contact us",
       "description": "Contact Jobbliggaren by email with questions, ideas or bug reports."
     },
-    "kicker": "About and legal",
     "title": "Contact us",
     "intro": "Jobbliggaren is a small hobby project, and we are glad to receive questions, ideas and bug reports. Get in touch and we will reply as soon as we can.",
     "emailLabel": "You can reach us by email:",
@@ -193,7 +190,6 @@
       "title": "Terms of use",
       "description": "Terms of use for Jobbliggaren, a free service for finding jobs and keeping track of your applications. Built on Arbetsförmedlingen's open data."
     },
-    "kicker": "About and legal",
     "title": "Terms of use",
     "updated": "Last updated: 2026-06-28",
     "intro": "These terms of use apply to your use of Jobbliggaren. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open job data from Arbetsförmedlingen JobTech (Platsbanken). By creating an account and using the service, you accept the terms below. How we process your personal data is described in the privacy policy, and which cookies we use is described in the cookie policy.",
@@ -279,7 +275,6 @@
       "title": "Cookie policy",
       "description": "Which cookies Jobbliggaren uses and why. Only necessary and functional cookies, no tracking and no consent banner."
     },
-    "kicker": "About and legal",
     "title": "Cookie policy",
     "updated": "Last updated: 2026-06-28",
     "intro": "This cookie policy describes which cookies and similar storage techniques Jobbliggaren uses, why they are used and how you control them. The policy is informational. Jobbliggaren uses no tracking, analytics or marketing cookies, and therefore no consent banner is shown.",

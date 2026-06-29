@@ -33,7 +33,6 @@ export default async function IntegritetPage() {
       <section className="jp-pagehero" aria-labelledby="integritet-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <p className="jp-pagehero__kicker">{t("privacy.kicker")}</p>
             <h1 id="integritet-heading" className="jp-pagehero__title">
               {t("privacy.title")}
             </h1>

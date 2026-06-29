@@ -55,17 +55,10 @@
     "free": "Jobbliggaren is free to use.",
     "followUs": "Follow us",
     "copyright": "© 2026 Jobbliggaren",
-    "colProduct": "Product",
     "colStart": "Get started",
     "colSupport": "Support and guides",
-    "colLegal": "About and legal",
-    "product": {
-      "jobs": "Search jobs",
-      "applications": "My applications",
-      "cv": "CV",
-      "reminders": "Reminders",
-      "matches": "Matches"
-    },
+    "colAbout": "About Jobbliggaren",
+    "legalNavAriaLabel": "Legal and policies",
     "start": {
       "register": "Create account",
       "login": "Log in",
@@ -76,16 +69,18 @@
       "howMatching": "How matching works",
       "cvReview": "How we review your CV",
       "faq": "FAQ",
-      "tips": "Tips for job seekers",
-      "accessibility": "Accessibility"
+      "tips": "Tips for job seekers"
+    },
+    "about": {
+      "self": "About Jobbliggaren",
+      "contact": "Contact",
+      "developers": "For developers"
     },
     "legal": {
-      "about": "About Jobbliggaren",
-      "contact": "Contact",
       "terms": "Terms of use",
       "privacy": "Privacy policy",
       "cookies": "Cookies",
-      "developers": "For developers"
+      "accessibility": "Accessibility"
     }
   },
   "cookies": {

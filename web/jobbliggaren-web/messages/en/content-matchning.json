@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "title": "How matching works",
+    "description": "How Jobbliggaren's matching works: fully rule-based, no AI. What is compared, what the match grades mean and what we deliberately do not assess."
+  },
+  "kicker": "Matching",
+  "title": "How matching works",
+  "updated": "Last updated: 2026-06-29",
+  "intro": "Jobbliggaren compares every job ad against what you have entered yourself and always shows what matches and what is missing. No AI, no hidden score. Here we explain how it is done.",
+  "deterministic": {
+    "heading": "Fully rule-based, no AI",
+    "paragraphs": [
+      "The matching is rule-based. It compares the details in the ad with yours, looks up occupations in an official occupation taxonomy and compares words by Swedish word stems. The same details always give the same result. It does not guess and does not invent qualifications for you.",
+      "You do not get a black box telling you that you are a “92 percent match”. Instead you see which parts fit and which are missing, and you decide for yourself whether you want to apply."
+    ],
+    "youProvide": "You enter",
+    "adProvides": "The ad states",
+    "compareLabel": "compared",
+    "youItems": [
+      "Occupations you want",
+      "Locations",
+      "Forms of employment",
+      "Your CV"
+    ],
+    "adItems": [
+      "Occupation group",
+      "Location",
+      "Form of employment",
+      "Requirements and skills"
+    ]
+  },
+  "compare": {
+    "heading": "What we compare",
+    "intro": "The matching looks at the following parts. The last three require that you have uploaded a CV.",
+    "needsCv": "Requires CV",
+    "colPart": "Part",
+    "colWhat": "What it compares",
+    "rows": [
+      { "part": "Occupation", "what": "The ad's occupation group against the occupations you have chosen. This is the gate: if the occupation does not match, the ad gets no label.", "cv": false },
+      { "part": "Title", "what": "The ad's title against the role in your CV. Background only, it never affects the grade.", "cv": false },
+      { "part": "Region", "what": "The ad's county or municipality against the locations you have chosen.", "cv": false },
+      { "part": "Form of employment", "what": "The ad's form of employment against the forms you have chosen.", "cv": false },
+      { "part": "Skills", "what": "The ad's skill terms against the skills in your CV.", "cv": true },
+      { "part": "Must-have requirements", "what": "The ad's mandatory requirements against your CV.", "cv": true },
+      { "part": "Desirable", "what": "The ad's desirable merits against your CV.", "cv": true }
+    ]
+  },
+  "grades": {
+    "heading": "The match grades",
+    "intro": "An ad that matches gets one of four green grades, from Basic match up to Top match. The more that fits, the higher the grade.",
+    "reqLabel": "Required:",
+    "items": [
+      { "grade": "Top", "req": "The right occupation, everything you have chosen (both location and form of employment) fits, and your CV covers the ad's requirements." },
+      { "grade": "Strong", "req": "The right occupation, something you have chosen (location or form of employment) fits, and your CV covers the ad's requirements." },
+      { "grade": "Good", "req": "The right occupation and something you have chosen fits, but your CV is not uploaded or does not cover the requirements." },
+      { "grade": "Basic", "req": "The right occupation, but neither the location nor the form of employment you have chosen fits." }
+    ],
+    "relatedLabel": "And there is also:",
+    "relatedReq": "A similar occupation that you have not chosen. It ranks below your exact hits and is shown only when you turn on seeing related occupations yourself. That is why it is neutral grey, not a green step.",
+    "topNote": "Top match is based on your CV and is shown only as a label on the ads, not as a separate filter.",
+    "cvNote": "Upload a CV to match on skills and requirements. It is required for Strong match and Top match."
+  },
+  "order": {
+    "heading": "The order that decides the grade",
+    "intro": "The grade is decided in this order. The first rule that applies decides.",
+    "steps": [
+      { "rule": "Does the ad not match any of your occupations?", "outcome": "No label at all." },
+      { "rule": "Is it a similar occupation you have not chosen?", "outcome": "Related occupation, and it stops there." },
+      { "rule": "Does the ad contradict the location or form you have chosen?", "outcome": "At most a Basic match, even if the requirements are met." },
+      { "rule": "Otherwise: how much fits, and does your CV cover the requirements?", "outcome": "Basic match, Good match, Strong match or Top match." }
+    ],
+    "worstNote": "The worst case is the wrong location. An ad in a place you have ruled out can never become more than a basic match."
+  },
+  "notScored": {
+    "heading": "What we deliberately do not assess",
+    "intro": "Some things we deliberately do not weigh into the grade:",
+    "items": [
+      "number of years of experience or seniority level",
+      "level of education",
+      "salary",
+      "cover letter",
+      "how many jobs you have applied for"
+    ],
+    "why": "A hidden score tempts you to optimise the number instead of the actual job fit. A requirement such as “at least 5 years of experience” we read as a term you have or lack in your CV, not as a numeric comparison. You judge for yourself whether you fit."
+  },
+  "transparency": {
+    "heading": "You always see why",
+    "paragraphs": [
+      "For each ad we show what you have and what the ad also asks for, as concrete terms. No percentage, no gauge. You see the gap and decide for yourself whether you apply, add to your CV or move on."
+    ],
+    "youHaveLabel": "You have",
+    "youHave": ["Java", "SQL"],
+    "missingLabel": "The ad also asks for",
+    "missing": ["Docker"]
+  },
+  "cta": {
+    "heading": "Get started",
+    "text": "Create an account, enter your occupations and locations, and upload your CV to see your matches.",
+    "button": "Create account"
+  }
+}

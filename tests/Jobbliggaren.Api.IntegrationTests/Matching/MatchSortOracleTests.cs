@@ -59,6 +59,15 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> WOULD grade them differently —
 /// "sort is an honest Fast-band coarsening; grade is the per-ad requirement-aware truth."
 /// </para>
+/// <para>
+/// <b>The UNIFIED Fast/Full rule (#371/#382, senior-cto-advisor bind):</b> the /jobb list's
+/// SORT + grade-FILTER + headline-COUNT all pin to the FAST band
+/// (<see cref="MatchGradeCalculator.Grade(MatchScore)"/>, mirrored in SQL); the card BADGE is the Full
+/// requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore)"/>). The Fast/Full
+/// divergence is bound + bidirectional + oracle-pinned (G3-OPT-A) — this file pins the SORT side; the
+/// filter-side twin lives in <see cref="MatchSortGradeFilterOracleTests"/>. See ADR 0076 (amendment)
+/// and issues #371/#382.
+/// </para>
 /// </summary>
 [Collection("Api")]
 public class MatchSortOracleTests(ApiFactory factory)

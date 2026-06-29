@@ -165,7 +165,7 @@
     "gradeFilter": {
       "toggleLabel": "Matchning",
       "groupLabel": "Visa matchningsgrader",
-      "help": "Filtrerar listan efter din matchningsnivå. Toppmatch bygger på ditt CV och visas bara på korten, inte som eget filter. Stäng av matchningen för att dölja nivåerna helt.",
+      "help": "Filtrerar listan efter hur väl annonserna passar dina val (yrke, ort, anställningsform). Märkningen på ett kort kan visa en annan nivå, eftersom den även väger in om ditt CV möter annonsens krav: samma annons kan märkas Toppmatch eller en nivå lägre än filtret. Toppmatch bygger på ditt CV och visas bara på korten, inte som eget filter. Stäng av matchningen för att dölja nivåerna helt.",
       "relatedToggleLabel": "Visa relaterade också",
       "relatedToggleHelp": "Tar med yrken som liknar dina valda. De märks Relaterat yrke och rankas under dina exakta träffar.",
       "onlyMatchedLabel": "Visa bara matchade",

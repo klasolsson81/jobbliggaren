@@ -472,9 +472,11 @@ export function JobbResultsToolbar({
           onRelatedToggle={onRelatedToggle}
         />
         {/* STEG 5 / issue #292 (grade-filter) — kort, valfri hjälprad. Förklarar
-            att kontrollen filtrerar på DIN matchningsnivå utan att antyda
-            per-kort-exakthet (aldrig "Visa endast Toppmatchningar" — listan är
-            Fast-bandet). #378 — integrerad som lugn hint-text (ink-2,
+            att filter/sort gallrar på DIN preferensnivå (Fast-bandet) medan ett
+            korts märkning är den CV-styrkta Full-graden, så badgen kan visa en
+            annan nivå än filtret (#371/#382 enhetliga Fast/Full-regel, ADR 0076 —
+            aldrig "Visa endast Toppmatchningar"; per-kort-exakthet utlovas aldrig).
+            #378 — integrerad som lugn hint-text (ink-2,
             informationsbärande — samma honesty-copy) i stället för en separat blå
             info-banner; det tar bort det visuella bruset Klas påtalade utan att
             tappa ärlighets-disclosuren. Paritet med "Visa relaterade också"-

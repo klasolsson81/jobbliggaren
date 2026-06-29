@@ -69,23 +69,14 @@ public sealed class SkillResolverIntegrationTests
     }
 
     // ===============================================================
-    // 1. A known Swedish skill label resolves to its concept-id
+    // 1. Skill-label resolution via ResolveDetailed (concept-id + label). The plain
+    //    concept-id-only path was the removed ISkillResolver.Resolve overload (#373 #1);
+    //    its concept-id resolution coverage lives in the ResolveDetailed_* tests in
+    //    section 5 — the tests here pin the resolution behaviour Resolve uniquely covered.
     // ===============================================================
 
     [Fact]
-    public void Resolve_KnownSwedishSkillLabel_YieldsItsConceptId()
-    {
-        var golden = FirstSingleTokenSkillGolden();
-        var sut = NewResolver();
-
-        var resolved = sut.Resolve([golden.PreferredLabel], TestContext.Current.CancellationToken);
-
-        resolved.ShouldContain(golden.ConceptId,
-            $"Skill-labeln '{golden.PreferredLabel}' ska resolvas till concept {golden.ConceptId}.");
-    }
-
-    [Fact]
-    public void Resolve_InflectedSkillLabel_ResolvesViaSnowballStemming()
+    public void ResolveDetailed_InflectedSkillLabel_ResolvesViaSnowballStemming()
     {
         // A CV writes the definite Swedish form; Snowball must bridge it to the label's
         // lexeme (same NLP tier the ad side uses). Verified LIVE before asserting.
@@ -100,104 +91,33 @@ public sealed class SkillResolverIntegrationTests
             });
         var sut = NewResolver();
 
-        var resolved = sut.Resolve([DefiniteForm(golden.PreferredLabel)], TestContext.Current.CancellationToken);
+        var resolved = sut.ResolveDetailed([DefiniteForm(golden.PreferredLabel)], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
 
         resolved.ShouldContain(golden.ConceptId,
             $"Böjd form ska stemma till samma lexem som labeln '{golden.PreferredLabel}' (Snowball).");
     }
 
     // ===============================================================
-    // 2. Unresolvable garbage / blank input → empty, never throws
+    // 2. Multiple skills → distinct union of concept-ids.
+    //    (Garbage / blank / empty-list drop semantics are covered by the
+    //    ResolveDetailed_* tests in section 5; the removed Resolve overload's
+    //    duplicate garbage/blank/empty tests were dropped — #373 #1.)
     // ===============================================================
 
     [Fact]
-    public void Resolve_UnresolvableGarbage_ReturnsEmpty_NeverThrows()
-    {
-        var sut = NewResolver();
-
-        var resolved = sut.Resolve(["zzqxyw"], TestContext.Current.CancellationToken);
-
-        resolved.ShouldBeEmpty(
-            "En CV-kompetens taxonomin inte bär ska droppas tyst (normalt, ej fel).");
-    }
-
-    [Fact]
-    public void Resolve_EmptyList_ReturnsEmpty()
-    {
-        var sut = NewResolver();
-
-        sut.Resolve([], TestContext.Current.CancellationToken).ShouldBeEmpty();
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData("\t")]
-    public void Resolve_BlankOrWhitespaceEntries_AreDropped_NeverThrows(string blank)
-    {
-        var sut = NewResolver();
-
-        var resolved = sut.Resolve([blank], TestContext.Current.CancellationToken);
-
-        resolved.ShouldBeEmpty("Tom/whitespace-post ska droppas tyst, aldrig kasta.");
-    }
-
-    [Fact]
-    public void Resolve_MixedResolvableAndGarbage_DropsGarbage_KeepsResolved()
-    {
-        var golden = FirstSingleTokenSkillGolden();
-        var sut = NewResolver();
-
-        var resolved = sut.Resolve(
-            ["zzqxyw", golden.PreferredLabel, "   "], TestContext.Current.CancellationToken);
-
-        resolved.ShouldContain(golden.ConceptId);
-        resolved.ShouldNotContain("zzqxyw");
-    }
-
-    // ===============================================================
-    // 3. Multiple skills → distinct union of concept-ids
-    // ===============================================================
-
-    [Fact]
-    public void Resolve_MultipleDistinctSkills_UnionsDistinctConceptIds()
+    public void ResolveDetailed_MultipleDistinctSkills_UnionsDistinctConceptIds()
     {
         var goldens = SingleTokenSkillGoldens().Take(3).ToList();
         goldens.Count.ShouldBe(3, "Behöver minst tre distinkta single-token-goldens.");
         var sut = NewResolver();
 
-        var resolved = sut.Resolve(
-            goldens.Select(g => g.PreferredLabel), TestContext.Current.CancellationToken);
+        var resolved = sut.ResolveDetailed(
+                goldens.Select(g => g.PreferredLabel), TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
 
         foreach (var golden in goldens)
             resolved.ShouldContain(golden.ConceptId);
-    }
-
-    [Fact]
-    public void Resolve_SameSkillTwice_YieldsConceptIdOnce()
-    {
-        var golden = FirstSingleTokenSkillGolden();
-        var sut = NewResolver();
-
-        var resolved = sut.Resolve(
-            [golden.PreferredLabel, golden.PreferredLabel], TestContext.Current.CancellationToken);
-
-        // IReadOnlySet → membership is inherently distinct; assert the count for the concept.
-        resolved.Count(c => c == golden.ConceptId).ShouldBe(1,
-            "Distinkt concept-id-union — samma skill två gånger ger EN post.");
-    }
-
-    [Fact]
-    public void Resolve_IsDeterministic_SameInputTwice_EqualSets()
-    {
-        var goldens = SingleTokenSkillGoldens().Take(2).Select(g => g.PreferredLabel).ToList();
-        var sut = NewResolver();
-
-        var first = sut.Resolve(goldens, TestContext.Current.CancellationToken);
-        var second = NewResolver().Resolve(goldens, TestContext.Current.CancellationToken);
-
-        first.ShouldBe(second, ignoreOrder: true,
-            "Resolvern är ren över immutable reference-data → identiska resultat.");
     }
 
     // ===============================================================
@@ -211,40 +131,12 @@ public sealed class SkillResolverIntegrationTests
     // ===============================================================
 
     [Fact]
-    public void Resolve_ExactPunctuationSkill_ShortCircuitsLexemeFanout_KeepingOnlyLiteralTwins()
+    public void ResolveDetailed_ExactSkill_IsCaseInsensitiveOnTheLiteralSurface()
     {
-        const string skill = "C#";
-        var concepts = ReadSearchConcepts();
-        var literalTwins = concepts
-            .Where(c => LiteralMatches(c, skill))
-            .Select(c => c.ConceptId)
-            .ToHashSet(StringComparer.Ordinal);
-        literalTwins.Count.ShouldBeGreaterThanOrEqualTo(2,
-            "Förutsättning: 'C#' bär minst två literal-concepts (ESCO bare + AF qualified).");
-
-        // What the OLD bare-lexeme path resolves: "C#" -> {c} -> every concept-form
-        // whose lexemes are a subset of {c} (the C language, C++ x layers, C# x layers).
-        var fanout = NewIndex()
-            .MatchForms(Analyzer.ToLexemes(skill, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal))
-            .Select(f => f.ConceptId)
-            .ToHashSet(StringComparer.Ordinal);
-        fanout.Count.ShouldBeGreaterThan(literalTwins.Count,
-            "Förutsättning: lexeme-vägen fan-out:ar bredare än literal-träffarna (annars ingen ACC-2-bugg).");
-
-        var resolved = NewResolver().Resolve([skill], TestContext.Current.CancellationToken);
-
-        resolved.ShouldBe(literalTwins, ignoreOrder: true,
-            "Exact-label fast-path: 'C#' resolvar till EXAKT sina literal-matchande concepts (ESCO + AF).");
-        foreach (var garbage in fanout.Except(literalTwins))
-            resolved.ShouldNotContain(garbage,
-                "Fan-out-garbage (C/C++/C-språket) får ALDRIG resolvas från 'C#' (ACC-2 #253).");
-    }
-
-    [Fact]
-    public void Resolve_ExactSkill_IsCaseInsensitiveOnTheLiteralSurface()
-    {
-        var upper = NewResolver().Resolve(["C#"], TestContext.Current.CancellationToken);
-        var lower = NewResolver().Resolve(["c#"], TestContext.Current.CancellationToken);
+        var upper = NewResolver().ResolveDetailed(["C#"], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
+        var lower = NewResolver().ResolveDetailed(["c#"], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
 
         upper.Count.ShouldBeGreaterThanOrEqualTo(2);
         lower.ShouldBe(upper, ignoreOrder: true,
@@ -262,11 +154,27 @@ public sealed class SkillResolverIntegrationTests
         var literalTwins = concepts.Where(c => LiteralMatches(c, skill)).ToList();
         literalTwins.Count.ShouldBeGreaterThanOrEqualTo(2);
 
+        // Precondition (grafted from the removed Resolve_ExactPunctuationSkill test, #373 #1):
+        // the OLD bare-lexeme path ("C#" -> {c}) fans out broader than the literal twins, so the
+        // exact-label fast-path's short-circuit is exercised non-vacuously.
+        var fanout = NewIndex()
+            .MatchForms(Analyzer.ToLexemes(skill, TextLanguage.Swedish).ToHashSet(StringComparer.Ordinal))
+            .Select(f => f.ConceptId)
+            .ToHashSet(StringComparer.Ordinal);
+        fanout.Count.ShouldBeGreaterThan(literalTwins.Count,
+            "Förutsättning: lexeme-vägen fan-out:ar bredare än literal-träffarna (annars ingen ACC-2-bugg).");
+
         var resolved = NewResolver().ResolveDetailed([skill], TestContext.Current.CancellationToken);
 
-        resolved.Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal).ShouldBe(
+        var resolvedIds = resolved.Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
+        resolvedIds.ShouldBe(
             literalTwins.Select(c => c.ConceptId).ToHashSet(StringComparer.Ordinal), ignoreOrder: true,
             "ResolveDetailed för 'C#' bär exakt sina literal-twins (A-pure, behåll båda).");
+        // Fan-out garbage (C/C++/C-språket) must NEVER resolve from 'C#' (ACC-2 #253) — the
+        // short-circuit guard the removed Resolve test carried, now on the ResolveDetailed path.
+        foreach (var garbage in fanout.Except(literalTwins.Select(c => c.ConceptId)))
+            resolvedIds.ShouldNotContain(garbage,
+                "Fan-out-garbage (C/C++/C-språket) får ALDRIG resolvas från 'C#' (ACC-2 #253).");
         foreach (var chip in resolved)
         {
             chip.Label.ShouldNotBeNullOrWhiteSpace();
@@ -275,23 +183,6 @@ public sealed class SkillResolverIntegrationTests
             concepts.ShouldContain(c => c.ConceptId == chip.ConceptId && c.PreferredLabel == chip.Label,
                 "Chip-labeln är en riktig preferredLabel ur den committade taxonomin.");
         }
-    }
-
-    [Fact]
-    public void ResolveDetailed_And_Resolve_AgreeOnConceptIds_ForExactTwinSkill()
-    {
-        // The shared-path invariant must hold for the AMBIGUOUS twin input too (the
-        // existing ProvingOneSharedPath test only exercises lexeme-unique goldens).
-        const string skill = "C#";
-        var ids = NewResolver().Resolve([skill], TestContext.Current.CancellationToken)
-            .ToHashSet(StringComparer.Ordinal);
-        var detailedIds = NewResolver().ResolveDetailed([skill], TestContext.Current.CancellationToken)
-            .Select(r => r.ConceptId)
-            .ToHashSet(StringComparer.Ordinal);
-
-        ids.Count.ShouldBeGreaterThanOrEqualTo(2);
-        detailedIds.ShouldBe(ids, ignoreOrder: true,
-            "ResolveDetailed och Resolve delar samma fast-path → identiska concept-id-mängder.");
     }
 
     [Fact]
@@ -324,7 +215,7 @@ public sealed class SkillResolverIntegrationTests
     }
 
     [Fact]
-    public void Resolve_ExactSingleLabelMatch_ResolvesToExactlyThatOneConcept()
+    public void ResolveDetailed_ExactSingleLabelMatch_ResolvesToExactlyThatOneConcept()
     {
         // A literal carried by exactly ONE concept → the fast-path resolves to that one
         // and never broadens (the positive complement of the twin fan-out test). LIVE.
@@ -334,7 +225,8 @@ public sealed class SkillResolverIntegrationTests
             .Where(c => !string.IsNullOrWhiteSpace(c.PreferredLabel))
             .First(c => ownerCount.GetValueOrDefault(c.PreferredLabel.Trim()) == 1);
 
-        var resolved = NewResolver().Resolve([golden.PreferredLabel], TestContext.Current.CancellationToken);
+        var resolved = NewResolver().ResolveDetailed([golden.PreferredLabel], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
 
         resolved.ShouldBe([golden.ConceptId], ignoreOrder: true,
             $"Exact single-label-match '{golden.PreferredLabel}' resolvar till exakt sitt enda concept.");
@@ -344,12 +236,14 @@ public sealed class SkillResolverIntegrationTests
     [InlineData(" C#")]
     [InlineData("C# ")]
     [InlineData("  C#  ")]
-    public void Resolve_ExactSkill_TrimsSurroundingWhitespace(string padded)
+    public void ResolveDetailed_ExactSkill_TrimsSurroundingWhitespace(string padded)
     {
-        var baseline = NewResolver().Resolve(["C#"], TestContext.Current.CancellationToken);
+        var baseline = NewResolver().ResolveDetailed(["C#"], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
         baseline.Count.ShouldBeGreaterThanOrEqualTo(2);
 
-        var resolved = NewResolver().Resolve([padded], TestContext.Current.CancellationToken);
+        var resolved = NewResolver().ResolveDetailed([padded], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
 
         resolved.ShouldBe(baseline, ignoreOrder: true,
             $"Omgivande whitespace ska trimmas före exact-label-uppslaget ('{padded}' == 'C#').");
@@ -363,7 +257,7 @@ public sealed class SkillResolverIntegrationTests
     // ===============================================================
 
     [Fact]
-    public void Resolve_OverAdSkillLabels_EqualsExtractorSkillConceptIds_ProvingSharedIndex()
+    public void ResolveDetailed_OverAdSkillLabels_EqualsExtractorSkillConceptIds_ProvingSharedIndex()
     {
         // Build an ad whose description plainly contains several distinctive skill
         // labels; the (shared-index) extractor emits Skill terms for them. The CV-side
@@ -382,7 +276,8 @@ public sealed class SkillResolverIntegrationTests
             .ToHashSet(StringComparer.Ordinal);
 
         // The resolver, over the SAME individual label strings, resolves each one.
-        var resolved = resolver.Resolve(labels, TestContext.Current.CancellationToken);
+        var resolved = resolver.ResolveDetailed(labels, TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
 
         // Every label the extractor recognised as a Skill, the resolver also resolves to
         // the same concept-id (shared index — same anchoring/most-specific/Snowball).
@@ -393,7 +288,7 @@ public sealed class SkillResolverIntegrationTests
     }
 
     [Fact]
-    public void Resolve_SingleAdSkillLabel_MatchesExtractorConceptIdExactly()
+    public void ResolveDetailed_SingleAdSkillLabel_MatchesExtractorConceptIdExactly()
     {
         // Sharpest form: one distinctive label → the extractor's lone Skill concept-id
         // equals the resolver's lone resolved concept-id (no divergence at all).
@@ -409,7 +304,8 @@ public sealed class SkillResolverIntegrationTests
         extractorConceptIds.ShouldContain(golden.ConceptId,
             "Förutsättning: extractorn känner igen labeln som en Skill-term.");
 
-        var resolved = resolver.Resolve([golden.PreferredLabel], TestContext.Current.CancellationToken);
+        var resolved = resolver.ResolveDetailed([golden.PreferredLabel], TestContext.Current.CancellationToken)
+            .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
 
         resolved.ShouldContain(golden.ConceptId);
     }
@@ -509,26 +405,6 @@ public sealed class SkillResolverIntegrationTests
         first.Select(s => s.ConceptId).ShouldBe(second.Select(s => s.ConceptId),
             "ResolveDetailed är ren över immutable reference-data → identisk ordnad sekvens.");
         first.Select(s => s.Label).ShouldBe(second.Select(s => s.Label));
-    }
-
-    [Fact]
-    public void ResolveDetailed_ConceptIds_MatchResolveConceptIds_ProvingOneSharedPath()
-    {
-        // ResolveDetailed and Resolve must agree on WHICH concept-ids resolve from the same
-        // input — ResolveDetailed only ADDS the label, it must not change the resolution set
-        // (one shared SkillTaxonomyIndex, no second labelled path that could diverge).
-        var labels = SingleTokenSkillGoldens().Take(3).Select(g => g.PreferredLabel).ToList();
-        var sut = NewResolver();
-
-        var resolveIds = sut.Resolve(labels, TestContext.Current.CancellationToken);
-        var detailedIds = NewResolver()
-            .ResolveDetailed(labels, TestContext.Current.CancellationToken)
-            .Select(s => s.ConceptId)
-            .ToHashSet(StringComparer.Ordinal);
-
-        detailedIds.ShouldBe(resolveIds.ToHashSet(StringComparer.Ordinal), ignoreOrder: true,
-            "ResolveDetailed:s concept-id-mängd måste vara identisk med Resolve:s — labeln " +
-            "läggs till, resolutionen ändras inte (ADR 0079, EN delad index).");
     }
 
     // ===============================================================

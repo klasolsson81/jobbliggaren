@@ -258,7 +258,8 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
                      .Where(x => lexemeOwners[x.Lexeme].Count == 1)
                      .OrderBy(x => x.ConceptId, StringComparer.Ordinal))
         {
-            var resolved = resolver.Resolve([cand.Label], TestContext.Current.CancellationToken);
+            var resolved = resolver.ResolveDetailed([cand.Label], TestContext.Current.CancellationToken)
+                .Select(r => r.ConceptId).ToHashSet(StringComparer.Ordinal);
             if (resolved.Contains(cand.ConceptId))
                 return (cand.Label, cand.ConceptId);
         }

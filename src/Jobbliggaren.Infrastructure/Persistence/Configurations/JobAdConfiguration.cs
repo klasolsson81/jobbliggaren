@@ -25,9 +25,14 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
 
         // ADR 0032 §4 — raw_payload som jsonb för debug/replay-artefakter.
         // PII-yta: JobTech-payload kan innehålla rekryterar-PII (namn, email,
-        // telefon, firmatecknare). Encryption-at-rest täcks av AWS RDS KMS;
-        // envelope encryption (app-side) skjuts till TD-13 (Fas 2 Major).
-        // PII-stripping vid ingest dokumenterad i ADR 0032 §8-amendment 2026-05-12.
+        // telefon, firmatecknare). PII-stripping vid ingest (ADR 0032 §8-amendment
+        // 2026-05-12, JobTechPayloadSanitizer allowlist default-deny) droppar
+        // email/telefon/kontakt och behåller publika fält (namn + org.nr).
+        // AT-REST: PLAINTEXT jsonb. (Den tidigare "AWS RDS KMS"-noten var stale —
+        // AWS pensionerat, ADR 0066; allt körs lokalt.) DEK-envelope (ADR 0049/0066)
+        // är reserverad för hög-känslig ANVÄNDAR-författad PII (CV-/personligt-brev-
+        // innehåll), INTE publik ingest-data — så raw_payload DEK-krypteras ej (TD-13
+        // återuppväcks ej för denna dataklass). org.nr-vid-vila-posturen: ADR 0087 D8.
         builder.Property(j => j.RawPayload).HasColumnType("jsonb");
 
         builder.OwnsOne(j => j.Company, company =>
@@ -130,9 +135,15 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // omöjlig (Postgres härleder ur raw_payload, ingen C#-skrivväg). Partial-index
         // (WHERE … IS NOT NULL) skapas i migrationen (fluent-API saknar partial-stöd för
         // shadow-properties → raw SQL, samma skäl som F6P7/F2P9). LINQ-referens:
-        // EF.Property<string?>(j, "OrganizationNumber"). ENSKILD FIRMA-NOT (GDPR,
-        // ADR 0087): org.nr kan vara ett personnummer — publik Platsbanken-data,
-        // krypterad at-rest, ALDRIG loggad/surfad oflaggat (CLAUDE.md §5).
+        // EF.Property<string?>(j, "OrganizationNumber"). ENSKILD FIRMA-NOT (GDPR
+        // Art. 32, ADR 0087 D8): org.nr kan vara ett personnummer (enskild firma).
+        // PUBLIK Platsbanken-data (arbetsgivaren publicerade det på annonsen) och en
+        // STORED generated column → PLAINTEXT at-rest (en generated column kan inte
+        // DEK-krypteras; raw_payload är redan plaintext, ADR 0032 §8). Accept-risk
+        // per ADR 0087 D8 (Klas Art. 32-sign-off 2026-06-30; Art. 32-balanstest:
+        // publik källa + queryability-nödvändighet). Skyddet ligger vid SURFNINGS-/
+        // LOGG-gränsen, INTE at-rest: ALDRIG loggad/surfad oflaggat; sole-prop
+        // flaggas/maskeras i disambiguerings-display (CLAUDE.md §5, högsta prioritet).
         builder.Property<string?>("OrganizationNumber")
             .HasColumnName("organization_number")
             .HasComputedColumnSql("raw_payload->'employer'->>'organization_number'", stored: true);

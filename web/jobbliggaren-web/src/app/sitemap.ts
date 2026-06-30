@@ -23,6 +23,7 @@ const MARKETING_PATHS = [
   "/cookies",
   "/villkor",
   "/tillganglighet",
+  "/hjalpcenter",
   "/tips",
   "/vanliga-fragor",
   "/matchning",

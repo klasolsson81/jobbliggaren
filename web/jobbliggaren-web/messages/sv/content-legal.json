@@ -407,5 +407,43 @@
     "relatedHeading": "Relaterade sidor",
     "relatedContact": "Kontakta oss",
     "relatedPrivacy": "Integritetspolicy"
+  },
+  "help": {
+    "meta": {
+      "title": "Hjälpcenter",
+      "description": "Hjälpcenter för Jobbliggaren. Här samlar vi guider och svar om hur tjänsten fungerar, hur matchningen och granskningen av ditt cv går till och hur du når oss."
+    },
+    "title": "Hjälpcenter",
+    "intro": "Här samlar vi hjälpen för Jobbliggaren på ett ställe. Nedan hittar du guider och svar om hur tjänsten fungerar, hur matchningen och granskningen av ditt cv går till och hur du kontaktar oss om du behöver mer hjälp.",
+    "guidesHeading": "Guider och svar",
+    "guidesIntro": "Börja här om du undrar hur något fungerar eller vill komma igång.",
+    "moreHeading": "Mer hjälp",
+    "moreIntro": "Hittar du inte svaret, eller stöter du på ett hinder, hör gärna av dig.",
+    "items": {
+      "faq": {
+        "label": "Vanliga frågor",
+        "description": "Korta svar om pris, datakälla, konto, dina uppgifter och hur du raderar dem."
+      },
+      "matching": {
+        "label": "Så fungerar matchningen",
+        "description": "Hur Jobbliggaren jämför dig mot annonserna. Regelbaserat och förklarbart, utan AI."
+      },
+      "cvReview": {
+        "label": "Så granskar vi ditt CV",
+        "description": "Vad granskningen av ditt cv tittar på och hur du läser resultatet."
+      },
+      "tips": {
+        "label": "Tips för jobbsökande",
+        "description": "Konkreta råd för cv, ansökan, uppföljning och intervju."
+      },
+      "contact": {
+        "label": "Kontakta oss",
+        "description": "Hör av dig med frågor, idéer eller felrapporter, så svarar vi så snart vi kan."
+      },
+      "accessibility": {
+        "label": "Tillgänglighet",
+        "description": "Hur tillgänglig tjänsten är och hur du rapporterar ett hinder."
+      }
+    }
   }
 }

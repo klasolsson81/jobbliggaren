@@ -122,4 +122,54 @@ public class ImprovementEvidenceRedactorTests
 
         redacted.ShouldBeSameAs(change, "a pnr-free change is returned unchanged (no allocation).");
     }
+
+    [Fact]
+    public void Redact_ShouldMaskAStructuralEvidenceObservation_WhenItCarriesAPersonnummer()
+    {
+        // #268 C2: the StructuralEvidence channel is now redacted too (parity with the review-side
+        // EvidenceRedactor). No production improvement transform emits a pnr-bearing structural
+        // observation today — this seam test pins the by-construction guard so a future
+        // phrase-level structural transform is safe. A null replacement isolates the evidence channel.
+        var change = ProposedChange.FromStructuralOp(
+            targetId: "structural:0",
+            kind: ProposedChangeKind.HeadingNormalization,
+            category: RubricCategory.Structure,
+            criterionId: "D6",
+            evidence: new StructuralEvidence($"Strukturell observation som råkar bära {Pnr}."),
+            replacement: null,
+            operation: new StructuralOperation(StructuralTransformKind.NormalizeHeadingCase, "rubrik"),
+            rationale: "Strukturell not.",
+            provenance: new StructuralTransformProvenance(StructuralTransformKind.NormalizeHeadingCase),
+            pureTransform: null);
+
+        var redacted = ImprovementEvidenceRedactor.Redact([change]).ShouldHaveSingleItem();
+
+        var observation = redacted.Evidence.ShouldBeOfType<StructuralEvidence>().Observation;
+        observation.ShouldContain(Mask, Case.Sensitive,
+            "a structural observation carrying a personnummer must be masked (#268 C2, Inv. 1).");
+        observation.ShouldNotContain(Pnr);
+        observation.ShouldNotContain(RawDigits);
+    }
+
+    [Fact]
+    public void Redact_ShouldReturnSameInstance_ForACountOnlyStructuralObservation()
+    {
+        // A genuine count-only structural observation holds no Luhn-valid number → returned
+        // unchanged (the B4-style channel is not disturbed by the #268 C2 widening).
+        var change = ProposedChange.FromStructuralOp(
+            targetId: "structural:1",
+            kind: ProposedChangeKind.HeadingNormalization,
+            category: RubricCategory.Structure,
+            criterionId: "D6",
+            evidence: new StructuralEvidence("1 personnummer hittat."),
+            replacement: null,
+            operation: new StructuralOperation(StructuralTransformKind.NormalizeHeadingCase, "rubrik"),
+            rationale: "Strukturell not.",
+            provenance: new StructuralTransformProvenance(StructuralTransformKind.NormalizeHeadingCase),
+            pureTransform: null);
+
+        var redacted = ImprovementEvidenceRedactor.Redact([change]).ShouldHaveSingleItem();
+
+        redacted.ShouldBeSameAs(change, "a count-only structural observation is returned unchanged.");
+    }
 }

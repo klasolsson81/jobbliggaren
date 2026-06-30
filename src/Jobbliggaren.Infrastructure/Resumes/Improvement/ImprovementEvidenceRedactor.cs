@@ -54,25 +54,45 @@ internal static class ImprovementEvidenceRedactor
 
     private static CitedEvidence RedactEvidence(CitedEvidence evidence)
     {
-        // StructuralEvidence is the count-only, non-PII channel (e.g. B4) — left untouched.
-        if (evidence is not TextSpanEvidence textSpan)
-            return evidence;
+        switch (evidence)
+        {
+            case TextSpanEvidence textSpan:
+                {
+                    var redactedQuote = PersonnummerRedactor.Redact(textSpan.Span.Quote);
+                    var quoteHadPnr = !string.Equals(redactedQuote, textSpan.Span.Quote, StringComparison.Ordinal);
+                    var redactedNote = textSpan.Note is null ? null : PersonnummerRedactor.Redact(textSpan.Note);
+                    var noteHadPnr = redactedNote is not null
+                        && !string.Equals(redactedNote, textSpan.Note, StringComparison.Ordinal);
 
-        var redactedQuote = PersonnummerRedactor.Redact(textSpan.Span.Quote);
-        var quoteHadPnr = !string.Equals(redactedQuote, textSpan.Span.Quote, StringComparison.Ordinal);
-        var redactedNote = textSpan.Note is null ? null : PersonnummerRedactor.Redact(textSpan.Note);
-        var noteHadPnr = redactedNote is not null
-            && !string.Equals(redactedNote, textSpan.Note, StringComparison.Ordinal);
+                    if (!quoteHadPnr && !noteHadPnr)
+                        return evidence;
 
-        if (!quoteHadPnr && !noteHadPnr)
-            return evidence;
+                    // Fork 3B: a span that quoted a personnummer keeps no offset back into RawText.
+                    var span = quoteHadPnr
+                        ? new TextSpan(0, 0, redactedQuote)
+                        : textSpan.Span with { Quote = redactedQuote };
 
-        // Fork 3B: a span that quoted a personnummer keeps no offset back into RawText.
-        var span = quoteHadPnr
-            ? new TextSpan(0, 0, redactedQuote)
-            : textSpan.Span with { Quote = redactedQuote };
+                    return new TextSpanEvidence(span, redactedNote);
+                }
 
-        return new TextSpanEvidence(span, redactedNote);
+            // #268 C2 (ADR 0074 Invariant 1): redact the StructuralEvidence channel too, in parity
+            // with the review-side EvidenceRedactor. No production improvement transform emits a
+            // pnr-bearing structural observation today, but redacting it here keeps the structural
+            // channel PII-safe BY CONSTRUCTION for any future phrase-level structural transform —
+            // the same defensive posture this redactor already takes for a structural Replacement.After
+            // (CTO D1 = Variant B). A count-only observation holds no Luhn-valid number, so Redact
+            // returns it unchanged (same reference) and the original instance is reused.
+            case StructuralEvidence structural:
+                {
+                    var redacted = PersonnummerRedactor.Redact(structural.Observation);
+                    return ReferenceEquals(redacted, structural.Observation)
+                        ? evidence
+                        : new StructuralEvidence(redacted);
+                }
+
+            default:
+                return evidence;
+        }
     }
 
     private static ProposedReplacement? RedactReplacement(

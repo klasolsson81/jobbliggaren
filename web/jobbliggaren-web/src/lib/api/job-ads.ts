@@ -48,6 +48,11 @@ export interface ListJobAdsQuery {
   // false (ingen status-gallring). Härledd ur ?doljAnsokta. (savedOnly/appliedOnly
   // borttagna med "Visa sparade"/"Visa bara ansökta" — backend behåller fälten.)
   hideApplied?: boolean;
+  // #419 punkt 1 (CTO Approach A) — "Visa bara matchade". true ⇒ ?onlyMatched=true
+  // skickas; backend visar ENDAST annonser med en positiv matchningsgrad för seekern
+  // (rank > 0). Default false (hela listan). Härledd ur ?baraMatchade uppströms; gatad
+  // på matchnings-axeln aktiv (jobb-results.tsx) — som includeRelated.
+  onlyMatched?: boolean;
   q?: string;
   // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=1
   // skickas och backend auto-capturerar sökningen till Senaste sökningar.
@@ -86,6 +91,9 @@ function buildQuery(query: ListJobAdsQuery): string {
   // #383 → förenklat — "Dölj ansökta". Skriv BARA ut när true (default false =
   // ingen gallring). Värdet är "true" (ASP.NET bool-binding tar inte "1").
   if (query.hideApplied) params.set("hideApplied", "true");
+  // #419 pt1 — "Visa bara matchade". Skriv BARA ut när true (default false = hela
+  // listan). Värdet är "true" (ASP.NET bool-binding tar inte "1").
+  if (query.onlyMatched) params.set("onlyMatched", "true");
   if (query.q) params.set("q", query.q);
   // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend). Värdet
   // är "true" (ASP.NET bool-binding tar inte "1" — skulle 400:a list-queryn).

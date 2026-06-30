@@ -71,6 +71,13 @@ export interface JobbUrlState {
   // seeker). Runtime-view-state (navigerar utan commit). Backend `JobAdStatusFilter`
   // (#383) behåller savedOnly/appliedOnly-fälten — FE skickar dem bara aldrig längre.
   hideApplied?: boolean;
+  // #419 punkt 1 (CTO Approach A, 2026-06-30) — "Visa bara matchade". `true` = visa
+  // ENDAST annonser med en positiv matchningsgrad för användaren (skriver
+  // `?baraMatchade=on`). Frånvaro (undefined/false) = default AV (ren URL, paritet
+  // matchningOff/includeRelated/hideApplied). Runtime-view-state (navigerar utan
+  // commit-flaggan). Kontrollen (en kryssruta) bor i Matchning-popovern, gatad på
+  // matchnings-axeln PÅ; FE mappar den till API-kontraktets engelska flagga `onlyMatched`.
+  onlyMatched?: boolean;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -106,6 +113,15 @@ export const RELATERADE_ON_VALUE = "on";
  */
 export const DOLJ_ANSOKTA_PARAM = "doljAnsokta";
 export const STATUS_ON_VALUE = "on";
+
+/**
+ * #419 punkt 1 (CTO Approach A) — "Visa bara matchade"-togglens URL-param. Svenskt namn
+ * (paritet rutterna /jobb /ansokningar + `matchning`/`relaterade`/`doljAnsokta`); värdet
+ * `on` är ett stabilt sentinel-ord (inte i18n, samma regel som de övriga). Endast `on`
+ * skrivs ut — AV-läget är paramens FRÅNVARO så default-URL:en förblir ren. FE mappar den
+ * till API-kontraktets engelska flagga `onlyMatched`.
+ */
+export const BARA_MATCHADE_PARAM = "baraMatchade";
 
 export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
 
@@ -159,6 +175,9 @@ export function buildJobbHref(state: JobbUrlState): string {
   // #383 → förenklat — "Dölj ansökta". Skriv BARA ut när på (AV = paramens
   // frånvaro, ren URL). Placeras efter matchnings-axelns params, före q.
   if (state.hideApplied) params.set(DOLJ_ANSOKTA_PARAM, STATUS_ON_VALUE);
+  // #419 pt1 — "Visa bara matchade". Skriv BARA ut när på (AV = paramens frånvaro, ren
+  // URL). Placeras efter "Dölj ansökta", före q (stabil URL-form, intill status-paramen).
+  if (state.onlyMatched) params.set(BARA_MATCHADE_PARAM, STATUS_ON_VALUE);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);

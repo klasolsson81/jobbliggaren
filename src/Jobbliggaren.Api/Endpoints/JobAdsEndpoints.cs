@@ -92,6 +92,12 @@ public static class JobAdsEndpoints
             bool savedOnly = false,
             bool appliedOnly = false,
             bool hideApplied = false,
+            // #419 punkt 1 (CTO Approach A) — "Visa bara matchade": ?onlyMatched=true visar
+            // ENDAST annonser med en positiv matchningsgrad för användaren (rank > 0).
+            // Per-användar runtime-kontext (paritet matchGrades/includeRelated/status): ingår
+            // EJ i filter-identiteten/recent-search. Default false. ASP.NET bool-binding tar
+            // "true" (ej "1"). FE mappar den svenska sentinel-paramen ?baraMatchade=on hit.
+            bool onlyMatched = false,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -109,7 +115,8 @@ public static class JobAdsEndpoints
                     IncludeRelated: includeRelated,
                     SavedOnly: savedOnly,
                     AppliedOnly: appliedOnly,
-                    HideApplied: hideApplied), ct);
+                    HideApplied: hideApplied,
+                    OnlyMatched: onlyMatched), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);

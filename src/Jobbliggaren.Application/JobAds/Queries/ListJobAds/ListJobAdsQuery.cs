@@ -85,7 +85,20 @@ public sealed record ListJobAdsQuery(
     // appliedOnly ∧ hideApplied = 400 (validator-mutex — självmotsägande).
     bool SavedOnly = false,
     bool AppliedOnly = false,
-    bool HideApplied = false)
+    bool HideApplied = false,
+    // #419 punkt 1 (CTO Approach A, 2026-06-30) — "Visa bara matchade": visa ENDAST
+    // annonser med en positiv matchningsgrad för användaren (rank > 0 = SSYK ∈ exakt ∪
+    // related), oavsett vilken specifik grad. RUNTIME-KONTEXT (paritet MatchGrades/
+    // IncludeRelated/status): ingår ALDRIG i ICapturesRecentSearch / SearchCriteria /
+    // FilterHashCalculator (de läser bara de namngivna sök-identitets-fälten) — en
+    // per-användar-vy får aldrig förorena den anonyma, cachebara sök-identiteten (ADR
+    // 0039 Beslut 1 / 0062). Bunds från ?onlyMatched=; FE mappar den svenska sentinel-
+    // paramen ?baraMatchade=on hit. Handlern implementerar den genom att injicera HELA
+    // det filtrerbara Fast-bandet (Grund/Relaterat/Bra/Stark = rank {1,2,3,4}) NÄR ingen
+    // specifik grad-delmängd är vald → återbrukar det BEFINTLIGA positiv-only grad-WHERE:t
+    // verbatim (DRY; ingen ny rank>0-Expression, ingen ny port-param). En specifik
+    // grad-delmängd VINNER (only-matched = det tomma-delmängds-fallet). Default false.
+    bool OnlyMatched = false)
     : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
 {
     // ICapturesRecentSearch + default/fallback-väg ser ALLTID ett rent

@@ -31,9 +31,12 @@ import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
  * switch-raden överst, sedan (när PÅ) "Visa relaterade också"-raden och
  * grad-kryssrutorna staplade i panel-rytm. Hjälptexten lever inte längre inline
  * — den bor i popoverns "?"-InfoDialog (verbatim `gradeFilter.help` +
- * `relatedToggleHelp`). "Visa bara matchade"-snabbvalet är borttaget (#408
- * DECISION 1): {Good,Strong} nås via Bra+Stark-kryssrutorna och Översikt-
- * djuplänken. #292-master-gaten och #300 PR-5-related-divergensen är OFÖRÄNDRADE.
+ * `relatedToggleHelp`). #408 DECISION 1 tog bort det gamla `aria-pressed`-snabbvalet
+ * "Visa bara matchade" ur grad-filtret (en aria-pressed-knapp förbjöds där). #419 pt1
+ * (CTO Approach A) återinför "Visa bara matchade" men som en `role="checkbox"`-rad (den
+ * tillåtna formen, INTE aria-pressed): PÅ → listan visar bara annonser med positiv grad
+ * (rank > 0, otaggade döljs); backend injicerar hela det filtrerbara Fast-bandet i
+ * handlern. #292-master-gaten och #300 PR-5-related-divergensen är OFÖRÄNDRADE.
  *
  * #300 PR-5 (ADR 0084, design-reviewer bind) — "Visa relaterade också"-toggle:n:
  * - En SEPARAT kontroll UNDERORDNAD "Matchning"-switchen (aldrig hopslagen med
@@ -108,6 +111,22 @@ interface JobbMatchGradeFilterProps {
    * ur den valda grad-listan (kontroll dold ⇒ inget kvarvarande filter).
    */
   onRelatedToggle: (next: boolean) => void;
+  /**
+   * #419 pt1 (CTO Approach A) — "Visa bara matchade"-kryssrutans på/av (SSOT i föräldern:
+   * `?baraMatchade=on`). PÅ → listan visar ENDAST annonser med en positiv matchningsgrad
+   * (otaggade döljs). Bara meningsfull när `active` (kryssrutan renderas inne i PÅ-blocket).
+   * Den derive-checkas dessutom när en specifik grad-delmängd är vald: en delmängd är ETT
+   * STRIKTARE bara-matchade (positiv-only per band), så kryssrutan speglar "vi visar bara
+   * matchade" (paritet med "tom = alla grader visas"-härledningen i denna fil).
+   */
+  onlyMatched: boolean;
+  /**
+   * #419 pt1 — "Visa bara matchade"-kryssrutan växlas. `next` = nästa läge. Föräldern
+   * skriver/tar bort `?baraMatchade=on`; vid AV nollar den dessutom en ev. grad-delmängd
+   * (att "kryssa ur bara matchade" = visa allt, även otaggade — delmängden implicerar
+   * bara-matchade så den måste rensas med).
+   */
+  onOnlyMatchedToggle: (next: boolean) => void;
 }
 
 // LIST_MATCH_GRADES är SPOT för de filtrerbara graderna OCH deras ordinala
@@ -124,6 +143,8 @@ export function JobbMatchGradeFilter({
   onTurnOff,
   onTurnOn,
   onRelatedToggle,
+  onlyMatched,
+  onOnlyMatchedToggle,
 }: JobbMatchGradeFilterProps) {
   const t = useTranslations("jobads.ui.gradeFilter");
   // Den synliga "Matchning"-labeln ÄR det programmatiska namnet (a11y §2/§6):
@@ -149,6 +170,12 @@ export function JobbMatchGradeFilter({
   // Härledd effektiv mängd: PÅ + tom lista = alla SYNLIGA grader visas
   // (kryssrutorna renderas ALLA ikryssade). PÅ + delmängd = bara de graderna.
   const allShown = selected.length === 0;
+
+  // #419 pt1 — "Visa bara matchade" derive-checkas: en vald grad-delmängd ÄR ett striktare
+  // bara-matchade (positiv-only per band), så kryssrutan speglar "vi visar bara matchade"
+  // även utan att onlyMatched-flaggan är satt explicit. Samma derive-idiom som
+  // grad-kryssrutornas `allShown`/`checked`.
+  const onlyMatchedChecked = onlyMatched || selected.length > 0;
 
   function toggleSwitch() {
     // PÅ → AV: föräldern skriver `?matchning=off` + tömmer grader. AV → PÅ:
@@ -223,6 +250,33 @@ export function JobbMatchGradeFilter({
             <span id={relatedLabelId} className="jp-gradefilter__label">
               {t("relatedToggleLabel")}
             </span>
+          </div>
+
+          {/* "Visa bara matchade" (#419 pt1, CTO Approach A) — EGEN rad MELLAN "Visa
+              relaterade också" och grad-kryssrutorna. role="checkbox" precis som
+              grad-raderna (INTE en aria-pressed knapp — #408 DECISION 1 förbjöd ett
+              aria-pressed snabbval i grad-filtret; en kryssruta är den tillåtna formen).
+              Derive-checkad när en grad-delmängd är vald (en delmängd implicerar
+              bara-matchade). Att kryssa UR den nollar onlyMatched OCH ev. grad-delmängd
+              (föräldern) = visa allt igen, även otaggade. Återbrukar .jp-checkitem (ingen
+              ny globals.css; samma kontroll-rad som grad-/status-popovern). */}
+          <div
+            className="jp-checkitem"
+            role="checkbox"
+            aria-checked={onlyMatchedChecked}
+            tabIndex={0}
+            onClick={() => onOnlyMatchedToggle(!onlyMatchedChecked)}
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                onOnlyMatchedToggle(!onlyMatchedChecked);
+              }
+            }}
+          >
+            <span className="jp-checkitem__box">
+              {onlyMatchedChecked && <Check size={14} aria-hidden="true" />}
+            </span>
+            {t("onlyMatchedLabel")}
           </div>
 
           {/* Grad-kryssrutorna i panel-rytm (vertikal .jp-panel__group +

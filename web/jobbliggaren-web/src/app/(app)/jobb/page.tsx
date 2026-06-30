@@ -13,6 +13,8 @@ import {
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
 } from "@/lib/job-ads/search-params";
+// #419 pt1 — "Visa bara matchade"-sentinelparamen delar STATUS_ON_VALUE ("on") med
+// doljAnsokta/relaterade; den separata param-konstanten dokumenterar nyckeln.
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
@@ -51,6 +53,9 @@ type JobbSearchParams = {
   // Frånvaro = ingen status-gallring. Endast on-värdet parsas (paritet relaterade).
   // (`sparade`/`ansokta` borttagna med "Visa sparade"/"Visa bara ansökta".)
   doljAnsokta?: string;
+  // #419 pt1 — "Visa bara matchade"-toggle:n. `?baraMatchade=on`. Frånvaro = hela
+  // listan. Endast on-värdet parsas (paritet doljAnsokta/relaterade).
+  baraMatchade?: string;
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -102,6 +107,10 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // relaterade). page.tsx förblir presentationellt: den trådar flaggan vidare;
   // hero-filterraden gatar den på seeker-närvaro (ortogonalt mot matchningen).
   const hideApplied = params.doljAnsokta === STATUS_ON_VALUE;
+  // #419 pt1 — "Visa bara matchade". Parsa BARA on-värdet → boolean (paritet
+  // doljAnsokta/relaterade). Trådas vidare till hero-filterraden (kontrollen, gatad på
+  // matchnings-axeln) + JobbResults (gatad på matchActive där, paritet includeRelated).
+  const onlyMatched = params.baraMatchade === STATUS_ON_VALUE;
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -180,6 +189,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // #383 → förenklat — "Dölj ansökta" ingår i Suspense-keyn så listan re-renderas
   // (visar skeleton) när toggle:n flippas (samma princip som matchnings-axeln).
   const statusKey = hideApplied ? "h" : "";
+  // #419 pt1 — "Visa bara matchade" ingår i Suspense-keyn så listan re-renderas (visar
+  // skeleton) när toggle:n flippas (samma princip som status/matchnings-axeln).
+  const onlyMatchedKey = onlyMatched ? "m" : "";
 
   return (
     <>
@@ -254,6 +266,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 initialMatchningOff={matchningOff}
                 initialIncludeRelated={includeRelated}
                 initialHideApplied={hideApplied}
+                initialOnlyMatched={onlyMatched}
                 hasStatedDesiredOccupation={hasStatedDesiredOccupation}
                 hasSeeker={hasSeeker}
                 q={q ?? ""}
@@ -271,7 +284,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -287,6 +300,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             matchningOff={matchningOff}
             includeRelated={includeRelated}
             hideApplied={hideApplied}
+            onlyMatched={onlyMatched}
             q={q ?? ""}
             commit={commit}
             rawParams={params}

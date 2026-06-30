@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
@@ -13,12 +13,14 @@ const onChange = vi.fn();
 const onTurnOff = vi.fn();
 const onTurnOn = vi.fn();
 const onRelatedToggle = vi.fn();
+const onOnlyMatchedToggle = vi.fn();
 
 beforeEach(() => {
   onChange.mockClear();
   onTurnOff.mockClear();
   onTurnOn.mockClear();
   onRelatedToggle.mockClear();
+  onOnlyMatchedToggle.mockClear();
 });
 
 function renderFilter(over: {
@@ -28,6 +30,9 @@ function renderFilter(over: {
   // produktens default + den rena URL:en) så de befintliga STEG 5-testerna
   // (3 grad-kryssrutor, Related dold) förblir oförändrade.
   includeRelated?: boolean;
+  // #419 pt1 — "Visa bara matchade". Default AV så befintliga tester (utan kryssrutan
+  // checkad) förblir oförändrade.
+  onlyMatched?: boolean;
 }) {
   return render(
     <JobbMatchGradeFilter
@@ -38,8 +43,19 @@ function renderFilter(over: {
       onTurnOff={onTurnOff}
       onTurnOn={onTurnOn}
       onRelatedToggle={onRelatedToggle}
+      onlyMatched={over.onlyMatched ?? false}
+      onOnlyMatchedToggle={onOnlyMatchedToggle}
     />,
   );
+}
+
+// Bara grad-kryssrutorna (inne i "Visa matchningsgrader"-gruppen). Exkluderar
+// "Visa bara matchade"-kryssrutan (#419 pt1), som är ett role="checkbox"-syskon
+// UTANFÖR grad-gruppen → grad-count-assertionerna förblir precisa.
+function gradeBoxes() {
+  return within(
+    screen.getByRole("group", { name: "Visa matchningsgrader" }),
+  ).getAllByRole("checkbox");
 }
 
 describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
@@ -81,7 +97,7 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
     expect(
       screen.getByRole("group", { name: "Visa matchningsgrader" }),
     ).toBeInTheDocument();
-    const boxes = screen.getAllByRole("checkbox");
+    const boxes = gradeBoxes();
     expect(boxes).toHaveLength(3);
     for (const box of boxes) {
       expect(box).toHaveAttribute("aria-checked", "true");
@@ -185,13 +201,13 @@ describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
   it("Related-kryssrutan visas ENBART när related-toggle:n är på, mellan Grund och Bra", () => {
     // Toggle av → 3 kryssrutor, ingen "Relaterat yrke".
     const { unmount } = renderFilter({ active: true, includeRelated: false });
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(gradeBoxes()).toHaveLength(3);
     expect(screen.queryByRole("checkbox", { name: "Relaterat yrke" })).toBeNull();
     unmount();
 
     // Toggle på → 4 kryssrutor; Related mellan Grund och Bra (LIST_MATCH_GRADES).
     renderFilter({ active: true, includeRelated: true });
-    const boxes = screen.getAllByRole("checkbox");
+    const boxes = gradeBoxes();
     expect(boxes).toHaveLength(4);
     const labels = boxes.map((b) => b.textContent);
     expect(labels).toEqual([
@@ -235,7 +251,7 @@ describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
 
   it("STATE-TRAP: med toggle PÅ + tom selected = alla FYRA ikryssade (mot synliga setet)", () => {
     renderFilter({ active: true, includeRelated: true, selected: [] });
-    const boxes = screen.getAllByRole("checkbox");
+    const boxes = gradeBoxes();
     expect(boxes).toHaveLength(4);
     for (const box of boxes) {
       expect(box).toHaveAttribute("aria-checked", "true");
@@ -252,15 +268,17 @@ describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
   it("STATE-TRAP: med toggle AV ingår Related ALDRIG i 'alla visade' — 3 ikryssade, ej 4", () => {
     // Även om selected vore tom räknas bara de 3 synliga (Related dold).
     renderFilter({ active: true, includeRelated: false, selected: [] });
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(gradeBoxes()).toHaveLength(3);
   });
 });
 
-// #408 DECISION 1 — "Visa bara matchade"-snabbvalet är BORTTAGET. {Good,Strong}
-// nås via Bra+Stark-kryssrutorna och Översikt-djuplänken; ingen aria-pressed-
-// knapp finns kvar i kontrollen. (Översikt-exporten OVERSIKT_MATCH_GRADES rörs ej.)
-describe("JobbMatchGradeFilter — 'Visa bara matchade' borttagen (#408 DECISION 1)", () => {
-  it("ingen 'Visa bara matchade'-knapp finns (PÅ + tom selected)", () => {
+// #408 DECISION 1 + #419 pt1 — #408 tog bort det gamla `aria-pressed`-SNABBVALET
+// "Visa bara matchade" ur grad-filtret (en aria-pressed-knapp förbjöds). #419 pt1
+// (CTO Approach A) återinför "Visa bara matchade" men som en role="checkbox"-rad
+// (den tillåtna formen). Dessa tester pinnar att #408-grinden FORTSATT hålls: kontrollen
+// är ALDRIG en role="button" / aria-pressed-knapp. (Översikt-exporten rörs ej.)
+describe("JobbMatchGradeFilter — 'Visa bara matchade' är checkbox, ej aria-pressed-knapp (#408 D1 / #419 pt1)", () => {
+  it("ingen 'Visa bara matchade'-KNAPP finns (kontrollen är en kryssruta) (PÅ + tom selected)", () => {
     renderFilter({ active: true, selected: [] });
     expect(
       screen.queryByRole("button", { name: "Visa bara matchade" }),
@@ -277,5 +295,65 @@ describe("JobbMatchGradeFilter — 'Visa bara matchade' borttagen (#408 DECISION
       selected: ["Good", "Strong"],
     });
     expect(c2.querySelector("[aria-pressed]")).toBeNull();
+  });
+});
+
+// #419 pt1 (CTO Approach A) — "Visa bara matchade"-kryssrutans beteende: renderas i
+// PÅ-blocket (göms när matchningen är av), togglar via onOnlyMatchedToggle, och
+// derive-checkas när en grad-delmängd är vald (en delmängd är ett striktare bara-matchade).
+describe("JobbMatchGradeFilter — 'Visa bara matchade'-kryssrutan (#419 pt1)", () => {
+  const NAME = "Visa bara matchade";
+
+  it("kryssrutan finns INTE när matchningen är av (renderas inne i PÅ-blocket)", () => {
+    renderFilter({ active: false });
+    expect(screen.queryByRole("checkbox", { name: NAME })).toBeNull();
+  });
+
+  it("PÅ + onlyMatched=false + tom selected → kryssrutan finns men är OKRYSSAD", () => {
+    renderFilter({ active: true, selected: [], onlyMatched: false });
+    expect(screen.getByRole("checkbox", { name: NAME })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+
+  it("klick på okryssad → onOnlyMatchedToggle(true)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: [], onlyMatched: false });
+    await user.click(screen.getByRole("checkbox", { name: NAME }));
+    expect(onOnlyMatchedToggle).toHaveBeenCalledWith(true);
+  });
+
+  it("onlyMatched=true → kryssrutan är ikryssad; klick → onOnlyMatchedToggle(false)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: [], onlyMatched: true });
+    const box = screen.getByRole("checkbox", { name: NAME });
+    expect(box).toHaveAttribute("aria-checked", "true");
+    await user.click(box);
+    expect(onOnlyMatchedToggle).toHaveBeenCalledWith(false);
+  });
+
+  it("derive-checkad när en grad-delmängd är vald (en delmängd är ett striktare bara-matchade)", () => {
+    renderFilter({ active: true, selected: ["Good"], onlyMatched: false });
+    expect(screen.getByRole("checkbox", { name: NAME })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("klick på derive-checkad (delmängd vald) → onOnlyMatchedToggle(false) (föräldern nollar delmängden = visa allt)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: ["Good"], onlyMatched: false });
+    await user.click(screen.getByRole("checkbox", { name: NAME }));
+    expect(onOnlyMatchedToggle).toHaveBeenCalledWith(false);
+  });
+
+  it("tangentbord (Space) togglar kryssrutan — a11y", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true, selected: [], onlyMatched: false });
+    const box = screen.getByRole("checkbox", { name: NAME });
+    box.focus();
+    await user.keyboard(" ");
+    expect(onOnlyMatchedToggle).toHaveBeenCalledWith(true);
   });
 });

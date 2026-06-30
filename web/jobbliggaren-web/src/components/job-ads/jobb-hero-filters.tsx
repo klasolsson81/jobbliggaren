@@ -79,6 +79,12 @@ interface JobbHeroFiltersProps {
   initialIncludeRelated: boolean;
   initialHideApplied: boolean;
   /**
+   * #419 pt1 (CTO Approach A) — "Visa bara matchade" (`?baraMatchade=on`). Runtime-
+   * view-state (paritet matchGrades/includeRelated): visa ENDAST annonser med positiv
+   * matchningsgrad. Kontrollen (kryssrutan) bor i Matchning-popovern.
+   */
+  initialOnlyMatched: boolean;
+  /**
    * F4-16 (CTO D8) — server-härlett: true så snart minst en yrkesgrupp angetts i
    * matchnings-preferenserna. Gatar Matchning-pillen (utan angivet yrke kan
    * graden inte beräknas). Härlett i page.tsx via cache():ad getMyProfile.
@@ -117,6 +123,9 @@ interface FilterSelection {
   matchningOff: boolean;
   includeRelated: boolean;
   hideApplied: boolean;
+  // #419 pt1 — "Visa bara matchade" i samma optimistiska overlay (paritet hideApplied)
+  // så kryssrutan svarar omedelbart och varje facett-commit bär den vidare.
+  onlyMatched: boolean;
 }
 
 export function JobbHeroFilters({
@@ -130,6 +139,7 @@ export function JobbHeroFilters({
   initialMatchningOff,
   initialIncludeRelated,
   initialHideApplied,
+  initialOnlyMatched,
   hasStatedDesiredOccupation,
   hasSeeker,
   q,
@@ -161,6 +171,7 @@ export function JobbHeroFilters({
       matchningOff: initialMatchningOff,
       includeRelated: initialIncludeRelated,
       hideApplied: initialHideApplied,
+      onlyMatched: initialOnlyMatched,
     }),
     [
       initialOccupationGroup,
@@ -172,6 +183,7 @@ export function JobbHeroFilters({
       initialMatchningOff,
       initialIncludeRelated,
       initialHideApplied,
+      initialOnlyMatched,
     ],
   );
   const [selection, setOptimisticSelection] = useOptimistic(
@@ -248,6 +260,7 @@ export function JobbHeroFilters({
           matchningOff: next.matchningOff,
           includeRelated: next.includeRelated,
           hideApplied: next.hideApplied,
+          onlyMatched: next.onlyMatched,
           sortBy,
           pageSize,
         }),
@@ -333,6 +346,10 @@ export function JobbHeroFilters({
       matchningOff: true,
       matchGrades: [],
       includeRelated: false,
+      // #419 pt1 — "forget"-semantik: matchningen av ⇒ "Visa bara matchade" nollas också
+      // (kontrollen göms med PÅ-blocket; en kvarvarande flagga utan synlig kryssruta vore
+      // state/URL-divergens, paritet matchGrades/includeRelated).
+      onlyMatched: false,
     });
   }
   function onMatchTurnOn() {
@@ -353,6 +370,19 @@ export function JobbHeroFilters({
   // matchningen (gatad på hasSeeker, inte på matchnings-axeln).
   function toggleHideApplied() {
     commit({ ...selection, hideApplied: !selection.hideApplied });
+  }
+  // #419 pt1 — "Visa bara matchade"-kryssrutan i Matchning-popovern. PÅ ⇒ visa bara
+  // annonser med positiv grad (rank > 0). AV ⇒ nolla onlyMatched OCH ev. grad-delmängd:
+  // att "kryssa ur bara matchade" betyder "visa allt" (även otaggade), och en grad-delmängd
+  // implicerar bara-matchade så den måste rensas med (annars vore kryssrutan derive-checkad
+  // direkt igen och klicket ett no-op). PÅ bevarar ev. delmängd (en redan smalnad vy är
+  // fortfarande bara-matchade, nu smalare). Navigerar utan commit-flaggan (runtime-view-state).
+  function onOnlyMatchedToggle(next: boolean) {
+    commit({
+      ...selection,
+      onlyMatched: next,
+      matchGrades: next ? selection.matchGrades : [],
+    });
   }
 
   const ortCount = ort.region.length + ort.municipality.length;
@@ -520,7 +550,11 @@ export function JobbHeroFilters({
           <InfoDialog
             iconOnly
             title={tGrade("helpTitle")}
-            paragraphs={[tGrade("help"), tGrade("relatedToggleHelp")]}
+            paragraphs={[
+              tGrade("help"),
+              tGrade("relatedToggleHelp"),
+              tGrade("onlyMatchedHelp"),
+            ]}
           />
         </span>
       )}
@@ -614,9 +648,9 @@ export function JobbHeroFilters({
 
       {/* [Matchning ▾]-popovern (flyttad hit från resultat-toolbaren 2026-06-30).
           Samma enkelkolumns JobbToolbarPopover-skal; JobbMatchGradeFilter-kroppen
-          är OFÖRÄNDRAD (switch + relaterad-toggle + grad-kryssrutor), wired till
-          hero-handlers (commit = navigera utan commit-flaggan, #292/#300-semantiken
-          bevarad). */}
+          bär switch + relaterad-toggle + "Visa bara matchade"-kryssrutan (#419 pt1) +
+          grad-kryssrutor, wired till hero-handlers (commit = navigera utan commit-flaggan,
+          #292/#300/#419-semantiken bevarad). */}
       {hasStatedDesiredOccupation && (
         <JobbToolbarPopover
           open={openPop === "match"}
@@ -632,6 +666,8 @@ export function JobbHeroFilters({
             onTurnOff={onMatchTurnOff}
             onTurnOn={onMatchTurnOn}
             onRelatedToggle={onRelatedToggle}
+            onlyMatched={selection.onlyMatched}
+            onOnlyMatchedToggle={onOnlyMatchedToggle}
           />
         </JobbToolbarPopover>
       )}

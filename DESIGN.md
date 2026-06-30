@@ -126,6 +126,7 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 - `.jp-banner` — info-banner med 3px brand-vänsterkant, används sparsamt
 - Knappar: höjd **40px (sm 36px)**, radius 4px, transition 80ms, max EN `--primary` per skärm (ADR 0038)
 - Inputs/Select: höjd **44px (sm 40px)**, label alltid ovanför, hint under. **Inga beskrivande placeholder-exempel i sök/filter-fält** (Nielsen/WCAG-anti-pattern). Format-placeholder i auth-formulär OK (`namn@exempel.se` = syntax, ej exempelinnehåll)
+- **Kontroll-storlek (filterrader)** — `--jp-control-h` (40px) + `--jp-control-fs` (14px) + `--jp-control-px` (14px) i `globals.css` är SSOT för filterradernas kontroll-storlek (hero-pills + sort-select på /jobb). Ändra storlek/textstorlek HÄR, aldrig inline per komponent — så hela filterraden förblir EN form med EN textstorlek (Klas 2026-06-30). Textstorlek ≥ 14px-golvet (§4 — kontrolltext aldrig under body-sm); mobil bumpar hit-targets till 44px (WCAG 2.5.5).
 
 Regler:
 - En primary button per form — aldrig två primärknappar sida vid sida

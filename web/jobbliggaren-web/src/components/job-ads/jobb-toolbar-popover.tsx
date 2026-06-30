@@ -1,15 +1,16 @@
 "use client";
 
-// Client Component: popover-skal (öppen/stäng + position + dismiss) som de två
-// toolbar-popovrarna (Matchning/Status, #408) delar. INGEN egen filtrerings-
-// logik — det bor i barn-komponenterna (JobbMatchGradeFilter/JobbStatusFilter).
+// Client Component: enkelkolumns popover-skal (öppen/stäng + position + dismiss).
+// INGEN egen filtreringslogik — det bor i barn-komponenten. Används av
+// Matchning-pillen i hero-filterraden (`JobbMatchGradeFilter`); 2026-06-30
+// flyttades Matchning från toolbaren hit och Status-popovern togs bort.
 
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { usePanelPosition } from "@/lib/hooks/use-panel-position";
 
 /**
- * #408 — delat enkelkolumns popover-skal för /jobb-toolbarens
- * `[Matchning ▾]`/`[Status ▾]`-pillar. Speglar `JobbKlass2Panel`-skalet
+ * Enkelkolumns popover-skal för /jobb-filterradens `[Matchning ▾]`-pill
+ * (#408; flyttad till hero-raden 2026-06-30). Speglar `JobbKlass2Panel`-skalet
  * (`.jp-popover.jp-panel` `role="dialog"`, `usePanelPosition` ur triggerns ref,
  * `useDismissable` för Esc/utanför-klick + fokus-retur till triggern) men tar
  * en titel-header + children i stället för Klass-2:ans sektioner. SPOT för

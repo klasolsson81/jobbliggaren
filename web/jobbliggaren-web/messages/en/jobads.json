@@ -177,9 +177,6 @@
       }
     },
     "statusFilter": {
-      "label": "Status",
-      "saved": "Saved",
-      "applied": "Applied",
       "hideApplied": "Hide applied"
     },
     "pagination": {

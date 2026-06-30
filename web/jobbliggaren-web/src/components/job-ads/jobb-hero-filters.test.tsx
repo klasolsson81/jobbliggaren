@@ -61,6 +61,11 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroFilters>[0]>) {
       initialEmploymentType={[]}
       initialWorktimeExtent={[]}
       initialMatchGrades={[]}
+      initialMatchningOff={false}
+      initialIncludeRelated={false}
+      initialHideApplied={false}
+      hasStatedDesiredOccupation={false}
+      hasSeeker={false}
       q=""
       sortBy="PublishedAtDesc"
       {...extra}
@@ -224,6 +229,11 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
+        initialMatchningOff={false}
+        initialIncludeRelated={false}
+        initialHideApplied={false}
+        hasStatedDesiredOccupation={false}
+        hasSeeker={false}
         q=""
         sortBy="PublishedAtDesc"
       />,
@@ -243,6 +253,11 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
+        initialMatchningOff={false}
+        initialIncludeRelated={false}
+        initialHideApplied={false}
+        hasStatedDesiredOccupation={false}
+        hasSeeker={false}
         q=""
         sortBy="PublishedAtDesc"
       />,
@@ -436,6 +451,11 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
+        initialMatchningOff={false}
+        initialIncludeRelated={false}
+        initialHideApplied={false}
+        hasStatedDesiredOccupation={false}
+        hasSeeker={false}
         q=""
         sortBy="PublishedAtDesc"
       />,
@@ -444,5 +464,106 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
     expect(
       screen.getByText(/Län kunde inte laddas just nu/),
     ).toBeInTheDocument();
+  });
+});
+
+// 2026-06-30 (Klas) — Matchning flyttad hit från resultat-toolbaren. Samma
+// .jp-hero-pill-form som Ort/Yrke/Filter; gatad på hasStatedDesiredOccupation.
+// Popover-kroppen (JobbMatchGradeFilter) är oförändrad; här verifieras hero-
+// wiringen (gate, pill-state, navigering utan commit-flaggan).
+describe("JobbHeroFilters — Matchning (flyttad från toolbaren)", () => {
+  it("DÖLJER Matchning-pillen när hasStatedDesiredOccupation=false", () => {
+    setup({ hasStatedDesiredOccupation: false });
+    expect(screen.queryByRole("button", { name: /^Matchning/ })).toBeNull();
+  });
+
+  it("VISAR pillen när hasStatedDesiredOccupation=true (även när matchningen är AV)", () => {
+    setup({ hasStatedDesiredOccupation: true, initialMatchningOff: true });
+    expect(
+      screen.getByRole("button", { name: /^Matchning/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("pillen är data-active=true när matchningen är PÅ", () => {
+    setup({ hasStatedDesiredOccupation: true });
+    expect(
+      screen.getByRole("button", { name: /^Matchning/ }),
+    ).toHaveAttribute("data-active", "true");
+  });
+
+  it("pillen är data-active=false när matchningen är AV", () => {
+    setup({ hasStatedDesiredOccupation: true, initialMatchningOff: true });
+    expect(
+      screen.getByRole("button", { name: /^Matchning/ }),
+    ).toHaveAttribute("data-active", "false");
+  });
+
+  it("count-badge speglar antal smalnade grad-val (2 valda → 2)", () => {
+    setup({
+      hasStatedDesiredOccupation: true,
+      initialMatchGrades: ["Good", "Strong"],
+    });
+    const pill = screen.getByRole("button", { name: /^Matchning/ });
+    expect(within(pill).getByText("2")).toBeInTheDocument();
+  });
+
+  it("öppnar popovern (role=dialog Matchning) med switchen", async () => {
+    const user = userEvent.setup();
+    setup({ hasStatedDesiredOccupation: true });
+    await user.click(screen.getByRole("button", { name: /^Matchning/ }));
+    expect(
+      screen.getByRole("dialog", { name: "Matchning" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Matchning" }),
+    ).toBeInTheDocument();
+  });
+
+  it("slå AV switchen → navigerar med ?matchning=off (utan commit-flaggan)", async () => {
+    const user = userEvent.setup();
+    setup({ hasStatedDesiredOccupation: true });
+    await user.click(screen.getByRole("button", { name: /^Matchning/ }));
+    await user.click(screen.getByRole("switch", { name: "Matchning" }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb?matchning=off");
+  });
+});
+
+// 2026-06-30 (Klas) — "Dölj ansökta" = en enda toggle-pill (#383 förenklat;
+// "Visa sparade"/"Visa bara ansökta" borttagna). Gatad på hasSeeker; aria-pressed
+// (toggle, inte dialog-trigger); navigerar utan commit-flaggan.
+describe("JobbHeroFilters — Dölj ansökta (hero-toggle)", () => {
+  it("DÖLJER toggle:n när hasSeeker=false", () => {
+    setup({ hasSeeker: false });
+    expect(
+      screen.queryByRole("button", { name: "Dölj ansökta" }),
+    ).toBeNull();
+  });
+
+  it("VISAR toggle:n när hasSeeker=true", () => {
+    setup({ hasSeeker: true });
+    expect(
+      screen.getByRole("button", { name: "Dölj ansökta" }),
+    ).toBeInTheDocument();
+  });
+
+  it("aria-pressed speglar på-läget", () => {
+    setup({ hasSeeker: true, initialHideApplied: true });
+    expect(
+      screen.getByRole("button", { name: "Dölj ansökta", pressed: true }),
+    ).toBeInTheDocument();
+  });
+
+  it("klick (av → på) navigerar med ?doljAnsokta=on (utan commit-flaggan)", async () => {
+    const user = userEvent.setup();
+    setup({ hasSeeker: true });
+    await user.click(screen.getByRole("button", { name: "Dölj ansökta" }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb?doljAnsokta=on");
+  });
+
+  it("klick (på → av) navigerar till ren /jobb", async () => {
+    const user = userEvent.setup();
+    setup({ hasSeeker: true, initialHideApplied: true });
+    await user.click(screen.getByRole("button", { name: "Dölj ansökta" }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb");
   });
 });

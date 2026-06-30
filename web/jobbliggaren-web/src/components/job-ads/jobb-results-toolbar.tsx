@@ -4,8 +4,6 @@ import {
   useEffect,
   useMemo,
   useOptimistic,
-  useRef,
-  useState,
   useTransition,
 } from "react";
 import Link from "next/link";
@@ -13,15 +11,11 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { formatNumber } from "@/lib/i18n/format";
 import {
-  Bookmark,
   Briefcase,
-  ChevronDown,
   Clock,
-  EyeOff,
   FileText,
   MapPin,
   Search,
-  Send,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -44,45 +38,30 @@ import {
   type SearchChip,
 } from "@/lib/job-ads/chip-models";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
-import { InfoDialog } from "@/components/common/info-dialog";
-import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
-import {
-  JobbStatusFilter,
-  type StatusFilterState,
-} from "./jobb-status-filter";
-import { JobbToolbarPopover } from "./jobb-toolbar-popover";
 
 /**
  * Result-toolbar för /jobb (HANDOVER-v3.md §7.2, ADR 0055).
  *
- * #408 (IA-konsolidering) — filter-arean är EN höjd-stabil rad + en chips-rad:
- * - ROW 1: `N träffar` (mono) vänster; höger-kluster `[Matchning ▾]`-pill + en
- *   ikon-only "?"-InfoDialog + `[Status ▾]`-pill + `Sortera [select ▾]`. Pillarna
- *   återbrukar hero-öns `.jp-hero-pill`-mönster (dot + mono count-badge +
- *   ChevronDown) och öppnar var sin enkelkolumns-popover (`JobbToolbarPopover`)
- *   som hyser de befintliga `JobbMatchGradeFilter`/`JobbStatusFilter`-kropparna.
- *   Matchnings-pillen renderas på `hasStatedDesiredOccupation`, Status-pillen på
- *   `hasSeeker` — annars är raden bara count + sort (fortfarande höjd-stabil).
- * - ROW 2 (chips): de befintliga sök/q-chipsen (SPOT via buildChipModels) PLUS
- *   toolbar-lokala chips för popover-valen (vald grad / aktiv status-facett) så
- *   filter-staten alltid syns utan att öppna en popover. Grad/status läggs
- *   ALDRIG i den delade buildChipModels (SPOT med hero-fältets in-field-chips,
- *   som inte får visa grad/status) — de härleds lokalt här.
- *
- * Tidigare (#378) tre staplade block (status-rad + match-rad + 387-tecken
- * hjälp-`<p>`) är ersatta; hjälptexten lever nu BARA i pillens "?"-InfoDialog.
+ * 2026-06-30 (Klas: symmetri + EN form + ingen hårdkodning + läsbarhet) —
+ * Matchning + Dölj ansökta flyttades UPP i hero-filterraden (bredvid Ort/Yrke/
+ * Filter, samma `.jp-hero-pill`). Toolbaren är nu:
+ * - ROW 1: `N träffar` vänster; `Sortera [select ▾]` höger — den ENDA kontrollen
+ *   kvar nära jobben. Sort-selecten läser de delade kontroll-tokenen
+ *   (`--jp-control-h/-fs`) via `.jp-sortfield`; ingen inline-px längre.
+ * - ROW 2 (chips): sök/q-chipsen (SPOT via buildChipModels) + toolbar-lokala
+ *   grad-chips (vald matchningsgrad) så filter-staten alltid syns. Grad läggs
+ *   ALDRIG i buildChipModels (SPOT med hero-fältets in-field-chips) — härleds
+ *   lokalt här. Grad-chip-× navigerar via samma buildJobbHref-väg som
+ *   hero-popovern (matchnings-kontrollen ägs nu av hero:n; toolbaren behåller
+ *   bara chip-spegeln + dess ×). Status-chips borttagna med "Visa sparade"/
+ *   "Visa bara ansökta"; "Dölj ansökta" syns på sin egen hero-toggle.
  *
  * E2h: chips deriveras ur props (URL-sanningen) via delade
- * `buildChipModels`/`removeChipFromState` (lib/job-ads/chip-models —
- * SPOT med hero-fältets in-field-chips; × är SAMMA operation i båda
- * renderingarna). Tidigare lokala useState-kopior (E2g-divergent mönster
- * som bara överlevde via Suspense-remounten) ersatta med useOptimistic —
- * URL är enda sanningen, overlay:t ger omedelbar ×-respons.
+ * `buildChipModels`/`removeChipFromState`. useOptimistic-overlay = omedelbar
+ * ×-respons; URL är enda sanningen.
  *
  * Labels: server-resolverad conceptId→label (ADR 0043 Beslut B, "Okänd
- * kod (<id>)"-fallback). Toolbar-× PUSHAR (CTO E2h VAL 2-asymmetrin:
- * fältet = pågående komposition → replace; toolbaren = redigering av
- * etablerad sökning → push).
+ * kod (<id>)"-fallback). Toolbar-× PUSHAR.
  *
  * Sort: native `<select>`. Relevance disablad när q < 2 tecken
  * (ADR 0042 Beslut D — härledd ur q-searchParam-propen, EJ lokal state).
@@ -107,28 +86,23 @@ interface JobbResultsToolbarProps {
   matchGrades: ReadonlyArray<string>;
   /**
    * #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:ns på/av (URL:
-   * `?relaterade=on`). Driver toggle:ns aria-checked + om `Related`-kryssrutan
-   * renderas i grad-filtret. Runtime-view-state (navigerar utan commit-flaggan,
-   * paritet matchGrades).
+   * `?relaterade=on`). Bärs vidare i toolbar-navigeringar (grad-chip-×, sort,
+   * Rensa) så de inte raderar toggle:n. Matchnings-kontrollen ägs nu av hero:n.
    */
   includeRelated: boolean;
   /**
-   * #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetterna (URL:
-   * `?sparade/?ansokta/?doljAnsokta=on`). Driver status-kontrollens kryssrutor.
-   * ORTOGONALA mot matchningen — kontrollen renderas på `hasSeeker`, inte på
-   * matchnings-axeln. Runtime-view-state (navigerar utan commit-flaggan, paritet
-   * matchGrades).
+   * issue #292 — matchnings-huvudbrytaren (`?matchning=off`). Bärs i toolbarens
+   * bas-URL-state så sort/chip-×/Rensa bevarar den (förut tappades den eftersom
+   * basen saknade fältet). Toolbaren togglar den ALDRIG — det gör hero-popovern.
    */
-  savedOnly: boolean;
-  appliedOnly: boolean;
-  hideApplied: boolean;
+  matchningOff: boolean;
   /**
-   * #383 — true när användaren har en seeker (`getMyProfile().kind === "ok"`).
-   * Gatar enbart status-kontrollens rendering (status filtrerar mot seekerns
-   * sparade/ansökta; utan seeker finns inget att filtrera). Skild från
-   * `hasStatedDesiredOccupation`: status kräver INTE ett angivet yrke.
+   * #383 → förenklat — "Dölj ansökta" (`?doljAnsokta=on`). Bärs i toolbarens
+   * bas-URL-state så sort/chip-×/Rensa bevarar den (samma param-bevarande-skäl som
+   * matchningOff — annars tappar en toolbar-navigering tyst toggle:n). Toolbaren
+   * togglar den ALDRIG — toggle:n ägs av hero-filterraden.
    */
-  hasSeeker: boolean;
+  hideApplied: boolean;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -203,10 +177,8 @@ export function JobbResultsToolbar({
   worktimeExtent,
   matchGrades,
   includeRelated,
-  savedOnly,
-  appliedOnly,
+  matchningOff,
   hideApplied,
-  hasSeeker,
   resolvedLabels,
   q,
   sortBy,
@@ -216,19 +188,12 @@ export function JobbResultsToolbar({
 }: JobbResultsToolbarProps) {
   const tEnum = useTranslations("jobads.enums");
   const t = useTranslations("jobads.ui");
-  // #408 — grad/status-labels för toolbar-lokala chips + InfoDialog. Skilda
-  // namespaces (next-intl typar `t()` mot den literala message-key-unionen).
+  // Grad-labels för toolbar-lokala grad-chips. Eget namespace (next-intl typar
+  // `t()` mot den literala message-key-unionen).
   const tGrade = useTranslations("jobads.ui.gradeFilter");
-  const tStatus = useTranslations("jobads.ui.statusFilter");
   const format = useFormatter();
   const router = useRouter();
   const [, startTransition] = useTransition();
-
-  // #408 — vilken toolbar-popover som är öppen (en i taget, samma mönster som
-  // hero-öns `openPop`). Triggerns ref driver popoverns position + fokus-retur.
-  const [openPop, setOpenPop] = useState<"match" | "status" | null>(null);
-  const matchBtnRef = useRef<HTMLButtonElement>(null);
-  const statusBtnRef = useRef<HTMLButtonElement>(null);
 
   // q ägs av hero-fältet; toolbaren härleder bara Relevance-gaten
   // ur searchParam-propen (ADR 0042 Beslut D).
@@ -256,10 +221,10 @@ export function JobbResultsToolbar({
       // toolbar-navigeringar (chip-×, Rensa, sort, grad-justeringar) bevarar
       // toggle:n (paritet matchGrades/matchningOff).
       includeRelated,
-      // #383 — bär status-facetterna i URL-state-basen så ALLA toolbar-
-      // navigeringar (chip-×, Rensa, sort, grad-/status-justeringar) bevarar dem.
-      savedOnly,
-      appliedOnly,
+      // issue #292 / #383 — bär matchnings-huvudbrytaren OCH "Dölj ansökta" i
+      // basen så sort/chip-×/Rensa bevarar `?matchning=off`/`?doljAnsokta=on`
+      // (förut tappades de; toolbaren togglar dem ej — det gör hero-raden).
+      matchningOff,
       hideApplied,
       sortBy,
       pageSize,
@@ -273,8 +238,7 @@ export function JobbResultsToolbar({
       worktimeExtent,
       matchGrades,
       includeRelated,
-      savedOnly,
-      appliedOnly,
+      matchningOff,
       hideApplied,
       sortBy,
       pageSize,
@@ -344,56 +308,11 @@ export function JobbResultsToolbar({
     });
   }
 
+  // Grad-chip-× navigerar via samma väg som hero-popovern (matchnings-kontrollen
+  // ägs nu av hero:n; toolbaren behåller bara grad-chip-spegeln + dess ×). En tom
+  // lista = "alla grader visas", INTE "av" (av styrs av hero-huvudbrytaren).
   function onMatchGradesChange(next: string[]) {
-    // issue #292 — grad-justeringar sker BARA när matchningen redan är PÅ
-    // (matchningOff=false). En tom lista betyder här "alla grader visas",
-    // INTE "av" (av styrs av huvudbrytaren). Behåll matchningOff=false.
     navigate({ ...urlState, matchGrades: next, matchningOff: false });
-  }
-
-  // issue #292 — huvudbrytaren AV: skriv `?matchning=off` + TÖM matchGrades
-  // ("forget"-semantik, CTO-bind: en senare PÅ återställer till alla grader,
-  // inte den tidigare smalnade delmängden).
-  // #300 PR-5 — samma "forget"-semantik för related: AV nollar `includeRelated`
-  // (den subordinerade toggle:n försvinner med matchningen ⇒ `?relaterade=on` får
-  // inte ligga kvar inert i URL:en). `Related` försvinner ur matchGrades med
-  // tömningen ovan, så ingen state/URL-divergens kvarstår.
-  function onMatchTurnOff() {
-    navigate({
-      ...urlState,
-      matchningOff: true,
-      matchGrades: [],
-      includeRelated: false,
-    });
-  }
-
-  // issue #292 — huvudbrytaren PÅ: ta bort off-flaggan + lämna matchGrades tomt
-  // (= alla grader visas). Renderas av grad-filtret som ALLA-ikryssade.
-  function onMatchTurnOn() {
-    navigate({ ...urlState, matchningOff: false, matchGrades: [] });
-  }
-
-  // #300 PR-5 — "Visa relaterade också"-toggle:n. Skriver/tar bort `?relaterade=on`.
-  // STATE-MODEL FLOW-TRAP (design-reviewer): vid AV MÅSTE `Related` droppas ur den
-  // valda grad-listan — en kvarvarande `Related`-token filtrerar på en grad vars
-  // kontroll (kryssrutan) inte längre renderas (state/URL-divergens). Navigerar
-  // utan commit-flaggan (runtime-view-state, paritet matchGrades).
-  function onRelatedToggle(next: boolean) {
-    navigate({
-      ...urlState,
-      includeRelated: next,
-      matchGrades: next
-        ? urlState.matchGrades
-        : urlState.matchGrades.filter((g) => g !== "Related"),
-    });
-  }
-
-  // #383 — status-facetterna. Runtime-view-state (paritet matchGrades): navigerar
-  // UTAN commit-flaggan (ingen recent-search-capture). Komponenten upprätthåller
-  // mutex:en (Ansökta XOR Dölj ansökta) och levererar hela nästa status-läget; vi
-  // trådar bara vidare det till URL:en via den optimistiska overlay:n.
-  function onStatusChange(next: StatusFilterState) {
-    navigate({ ...urlState, ...next });
   }
 
   function removeChip(chip: SearchChip) {
@@ -453,77 +372,17 @@ export function JobbResultsToolbar({
           .filter(isListMatchGrade)
           .map((grade) => ({ grade, label: tGrade(`grade.${grade}`) }))
       : [];
-  // Status-chips: en per aktiv facett (Sparade/Ansökta/Dölj ansökta).
-  const statusChips: ReadonlyArray<{
-    key: "saved" | "applied" | "hideApplied";
-    label: string;
-    icon: LucideIcon;
-    next: StatusFilterState;
-  }> = [
-    ...(urlState.savedOnly
-      ? [
-          {
-            key: "saved" as const,
-            label: tStatus("saved"),
-            icon: Bookmark,
-            // × stänger av just denna facett (övriga bevaras).
-            next: {
-              savedOnly: false,
-              appliedOnly: urlState.appliedOnly ?? false,
-              hideApplied: urlState.hideApplied ?? false,
-            },
-          },
-        ]
-      : []),
-    ...(urlState.appliedOnly
-      ? [
-          {
-            key: "applied" as const,
-            label: tStatus("applied"),
-            icon: Send,
-            next: {
-              savedOnly: urlState.savedOnly ?? false,
-              appliedOnly: false,
-              hideApplied: urlState.hideApplied ?? false,
-            },
-          },
-        ]
-      : []),
-    ...(urlState.hideApplied
-      ? [
-          {
-            key: "hideApplied" as const,
-            label: tStatus("hideApplied"),
-            icon: EyeOff,
-            next: {
-              savedOnly: urlState.savedOnly ?? false,
-              appliedOnly: urlState.appliedOnly ?? false,
-              hideApplied: false,
-            },
-          },
-        ]
-      : []),
-  ];
-
-  // Pill-tillstånd. Matchnings-pillen: data-active = matchningen PÅ; count-badge
-  // = antal smalnade grad-val (0 = "alla visas", ingen badge). Visa prick när
-  // PÅ även utan smalning. Status-pillen: data-active = någon facett på; count =
-  // antal aktiva facetter.
-  // Gatat på matchActive (paritet med matchGradeChips): en stale URL
-  // (`?matchning=off&matchGrades=Good`) får aldrig en count-badge på en pill som
-  // inte är aktiv och inte har någon chip — badge, prick och chips berättar samma.
-  const matchActiveCount = matchActive ? activeMatchGrades.length : 0;
-  const statusActiveCount = statusChips.length;
+  // Chips-rad syns när det finns sök/q-chips ELLER smalnade grad-chips. Status-
+  // chips borttagna (Dölj ansökta syns på sin egen hero-toggle, inte som chip).
   const hasAnyToolbarChips =
-    chips.length > 0 || matchGradeChips.length > 0 || statusChips.length > 0;
+    chips.length > 0 || matchGradeChips.length > 0;
 
   return (
     <>
-    {/* ROW 1 — höjd-stabil canvas-rad: träffräknaren vänster, höger-kluster
-        (Matchning-pill + "?" + Status-pill + Sortera). Pillarna renderas bara när
-        deras axel är relevant; raden faller annars tillbaka till count + sort
-        (fortfarande höjd-stabil). Återbrukar .jp-results-toolbar flex-space-
-        between-idiomet. */}
+    {/* ROW 1 — höjd-stabil canvas-rad: träffräknaren vänster, Sortera höger.
+        Matchning + Dölj ansökta bor nu i hero-filterraden (2026-06-30, Klas), så
+        sort är den enda kontrollen kvar nära jobben. Återbrukar .jp-results-toolbar
+        flex-space-between-idiomet. */}
     <div className="jp-results-toolbar">
       <div
         className="jp-results-count"
@@ -540,141 +399,31 @@ export function JobbResultsToolbar({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        {/* [Matchning ▾] — renderas på hasStatedDesiredOccupation (så switchen
-            i popovern kan slå PÅ matchningen igen även när den är av). data-active
-            = matchActive; prick visas när PÅ; count-badge = antal smalnade
-            grad-val (0 = alla visas, ingen badge). Hero-pill-mönstret (dot +
-            mono-count + ChevronDown, aria-haspopup="dialog"/aria-expanded). */}
-        {hasStatedDesiredOccupation && (
-          <button
-            ref={matchBtnRef}
-            type="button"
-            className="jp-hero-pill"
-            data-active={openPop === "match" || matchActive}
-            aria-haspopup="dialog"
-            aria-expanded={openPop === "match"}
-            onClick={() => setOpenPop(openPop === "match" ? null : "match")}
-          >
-            {matchActive && (
-              <span className="jp-hero-pill__dot" aria-hidden="true" />
-            )}
-            {tGrade("toggleLabel")}
-            {matchActiveCount > 0 && (
-              <span className="jp-hero-pill__count">{matchActiveCount}</span>
-            )}
-            <ChevronDown size={14} aria-hidden="true" />
-          </button>
-        )}
-
-        {/* "?" — ikon-only InfoDialog OMEDELBART till höger om Matchnings-pillen
-            (entydig referent). Texten är verbatim gradeFilter.help +
-            relatedToggleHelp (#408 kriterium 9 — ingen omformulering). Renderas
-            tillsammans med pillen (samma gate) så den inte står referent-lös. */}
-        {hasStatedDesiredOccupation && (
-          <InfoDialog
-            iconOnly
-            title={tGrade("helpTitle")}
-            paragraphs={[tGrade("help"), tGrade("relatedToggleHelp")]}
-          />
-        )}
-
-        {/* [Status ▾] — renderas på hasSeeker (status filtrerar mot seekerns
-            sparade/ansökta; utan seeker finns inget att filtrera). data-active =
-            någon facett på; count-badge = antal aktiva facetter. */}
-        {hasSeeker && (
-          <button
-            ref={statusBtnRef}
-            type="button"
-            className="jp-hero-pill"
-            data-active={openPop === "status" || statusActiveCount > 0}
-            aria-haspopup="dialog"
-            aria-expanded={openPop === "status"}
-            onClick={() => setOpenPop(openPop === "status" ? null : "status")}
-          >
-            {statusActiveCount > 0 && (
-              <span className="jp-hero-pill__dot" aria-hidden="true" />
-            )}
-            {tStatus("label")}
-            {statusActiveCount > 0 && (
-              <span className="jp-hero-pill__count">{statusActiveCount}</span>
-            )}
-            <ChevronDown size={14} aria-hidden="true" />
-          </button>
-        )}
-
-        {/* Sortering — "Sortera"-labeln behåller htmlFor-associationen (a11y). */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label
-            htmlFor="jobb-sort"
-            style={{
-              display: "block",
-              fontSize: 14,
-              color: "var(--jp-ink-2)",
-            }}
-          >
-            {t("toolbar.sortLabel")}
-          </label>
-          <select
-            id="jobb-sort"
-            className="jp-select"
-            style={{ height: 40, width: "auto", minWidth: 180 }}
-            value={selectValue}
-            onChange={onSortChange}
-          >
-            {sortOptions.map((opt) => (
-              <option
-                key={opt.value}
-                value={opt.value}
-                disabled={opt.value === "Relevance" && !qReady}
-              >
-                {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Sortering — label + select läser de delade kontroll-tokenen
+          (.jp-sortfield → --jp-control-h/-fs), ingen inline-px. "Sortera"-labeln
+          behåller htmlFor-associationen (a11y). */}
+      <div className="jp-sortfield">
+        <label htmlFor="jobb-sort" className="jp-sortfield__label">
+          {t("toolbar.sortLabel")}
+        </label>
+        <select
+          id="jobb-sort"
+          className="jp-sortfield__select"
+          value={selectValue}
+          onChange={onSortChange}
+        >
+          {sortOptions.map((opt) => (
+            <option
+              key={opt.value}
+              value={opt.value}
+              disabled={opt.value === "Relevance" && !qReady}
+            >
+              {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
-
-    {/* #408 — Matchnings-popovern: enkelkolumns-skal (JobbToolbarPopover) som
-        hyser den befintliga JobbMatchGradeFilter-kroppen, wired till SAMMA
-        parent-handlers (commit-/navigate-semantiken oförändrad). */}
-    {hasStatedDesiredOccupation && (
-      <JobbToolbarPopover
-        open={openPop === "match"}
-        title={tGrade("toggleLabel")}
-        triggerRef={matchBtnRef}
-        onClose={() => setOpenPop(null)}
-      >
-        <JobbMatchGradeFilter
-          active={matchActive}
-          selected={urlState.matchGrades}
-          includeRelated={urlState.includeRelated ?? false}
-          onChange={onMatchGradesChange}
-          onTurnOff={onMatchTurnOff}
-          onTurnOn={onMatchTurnOn}
-          onRelatedToggle={onRelatedToggle}
-        />
-      </JobbToolbarPopover>
-    )}
-
-    {/* #408 — Status-popovern: samma skal, egen triggerRef. JobbStatusFilter
-        bevarar mutex-logiken (Ansökta ⊕ Dölj ansökta). */}
-    {hasSeeker && (
-      <JobbToolbarPopover
-        open={openPop === "status"}
-        title={tStatus("label")}
-        triggerRef={statusBtnRef}
-        onClose={() => setOpenPop(null)}
-      >
-        <JobbStatusFilter
-          savedOnly={urlState.savedOnly ?? false}
-          appliedOnly={urlState.appliedOnly ?? false}
-          hideApplied={urlState.hideApplied ?? false}
-          onChange={onStatusChange}
-        />
-      </JobbToolbarPopover>
-    )}
 
     {/* ROW 2 — chips-rad: de befintliga sök/q-chipsen (SPOT via buildChipModels)
         + toolbar-lokala grad/status-chips, så filter-staten ALLTID syns utan att
@@ -731,27 +480,6 @@ export function JobbResultsToolbar({
             </button>
           </span>
         ))}
-
-        {/* Status-chips (toolbar-lokala, #408): en per aktiv facett. × kör samma
-            onStatusChange-väg (mutex bevaras i state-objektet). Egen civic-ikon
-            per facett (Bookmark/Send/EyeOff). */}
-        {statusChips.map((c) => {
-          const ChipIcon = c.icon;
-          return (
-            <span key={`status-${c.key}`} className="jp-filterchip">
-              <ChipIcon size={12} aria-hidden="true" />
-              {c.label}
-              <button
-                type="button"
-                className="jp-filterchip__rm"
-                onClick={() => onStatusChange(c.next)}
-                aria-label={t("toolbar.removeFilter", { label: c.label })}
-              >
-                <X size={12} aria-hidden="true" />
-              </button>
-            </span>
-          );
-        })}
 
         {/* "Rensa sökord och filter" — visas bara när det finns sök/q-chips att
             rensa (oförändrad clearAll: nollar dimensioner + q via commit). */}

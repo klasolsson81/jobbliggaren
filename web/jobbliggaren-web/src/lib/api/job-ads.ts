@@ -43,13 +43,10 @@ export interface ListJobAdsQuery {
   // (behaviour-inert: ren exakt-match-lista). Master-switch härledd ur
   // `?relaterade=on` uppströms.
   includeRelated?: boolean;
-  // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetterna. true ⇒
-  // ?savedOnly=/?appliedOnly=/?hideApplied=true skickas; backend EXISTS-filtrerar
-  // listan mot den inloggade seekerns sparade/ansökta. savedOnly ∨ appliedOnly = OR;
-  // appliedOnly + hideApplied → backend 400 (kontrollen tillåter inte kombinationen).
-  // Default false (ingen status-gallring). Härledda ur ?sparade/?ansokta/?doljAnsokta.
-  savedOnly?: boolean;
-  appliedOnly?: boolean;
+  // #383 → förenklat 2026-06-30 — "Dölj ansökta". true ⇒ ?hideApplied=true skickas;
+  // backend EXISTS-filtrerar bort annonser den inloggade seekern redan sökt. Default
+  // false (ingen status-gallring). Härledd ur ?doljAnsokta. (savedOnly/appliedOnly
+  // borttagna med "Visa sparade"/"Visa bara ansökta" — backend behåller fälten.)
   hideApplied?: boolean;
   q?: string;
   // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=1
@@ -86,10 +83,8 @@ function buildQuery(query: ListJobAdsQuery): string {
   // #300 PR-5 — "Visa relaterade också". Skriv BARA ut när true (default false =
   // ren lista). Värdet är "true" (ASP.NET bool-binding tar inte "1").
   if (query.includeRelated) params.set("includeRelated", "true");
-  // #383 — status-facetterna. Skriv BARA ut när true (default false = ingen
-  // gallring). Värdet är "true" (ASP.NET bool-binding tar inte "1").
-  if (query.savedOnly) params.set("savedOnly", "true");
-  if (query.appliedOnly) params.set("appliedOnly", "true");
+  // #383 → förenklat — "Dölj ansökta". Skriv BARA ut när true (default false =
+  // ingen gallring). Värdet är "true" (ASP.NET bool-binding tar inte "1").
   if (query.hideApplied) params.set("hideApplied", "true");
   if (query.q) params.set("q", query.q);
   // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend). Värdet

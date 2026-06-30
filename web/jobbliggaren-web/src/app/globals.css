@@ -158,6 +158,16 @@
   --jp-font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
 
+  /* Kontroll-storlek (SSOT — ändra HÄR, aldrig inline per komponent).
+     /jobb-filterraden (hero-pills + sort-select) läser dessa två så alla
+     kontroller delar EN höjd och EN textstorlek (Klas 2026-06-30: symmetri +
+     ingen hårdkodning + läsbarhet). Höjd 40px = DESIGN.md §6 standard-knapphöjd;
+     textstorlek 14px = body-sm-golvet (DESIGN.md §4 — aldrig informationsbärande
+     kontrolltext < 14px). Mobil bumpar hit-targets till 44px nedan (WCAG 2.5.5). */
+  --jp-control-h:  40px;
+  --jp-control-fs: 14px;
+  --jp-control-px: 14px;
+
   /* Density-multiplikator — v2-system, behålls (v3 har ingen density men
      befintliga .jp-*-klasser konsumerar tokens; harmlöst, städas senare) */
   --jp-density:   1;
@@ -1245,13 +1255,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  height: 36px;
-  padding: 0 14px;
+  /* Höjd + textstorlek = delade kontroll-tokens (SSOT). EN form för hela
+     /jobb-filterraden: Ort/Yrke/Filter + Matchning + Dölj ansökta. */
+  height: var(--jp-control-h);
+  padding: 0 var(--jp-control-px);
   background: var(--jp-hero-pill-bg);
   color: var(--jp-hero-pill-ink);
   border: 1px solid var(--jp-hero-pill-border);
   border-radius: var(--jp-r-sm);
-  font-size: 13.5px;
+  font-size: var(--jp-control-fs);
   font-weight: 500;
   cursor: pointer;
 }
@@ -2229,8 +2241,45 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
+}
+/* Sorteringsfältet — den ENDA kontrollen i resultat-toolbaren (Matchning +
+   Dölj ansökta bor nu i hero-filterraden, Klas 2026-06-30). Label ovanför,
+   select under; båda läser de delade kontroll-tokenen (samma höjd + textstorlek
+   som hero-pillarna) i stället för hårdkodade inline-px. */
+.jp-sortfield {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jp-sortfield__label {
+  font-size: var(--jp-control-fs);
+  color: var(--jp-ink-2);
+}
+.jp-sortfield__select {
+  height: var(--jp-control-h);
+  min-width: 180px;
+  padding: 0 var(--jp-control-px);
+  border-radius: var(--jp-r-md);
+  border: 1.5px solid var(--jp-border-input);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  font-family: inherit;
+  font-size: var(--jp-control-fs);
+  outline: 0;
+  cursor: pointer;
+  transition: border-color 80ms, box-shadow 80ms;
+}
+.jp-sortfield__select:focus {
+  border-color: var(--jp-accent-700);
+  box-shadow: 0 0 0 3px rgba(46, 139, 99, 0.20);
+}
+[data-theme="dark"] .jp-sortfield__select {
+  /* Paritet .jp-select dark: ljust fält, mörk text (HANDOVER §5.2). */
+  background: #F0F4FB;
+  color: #0C1A2E;
+  border-color: #94A3B8;
 }
 /* F4-16 (design-reviewer 2026-06-20 §3.D) — in-/jobb-disclosure: platt civic
    info-not under sort-toolbaren. INGEN boxad alert/skugga/gradient, ingen ny

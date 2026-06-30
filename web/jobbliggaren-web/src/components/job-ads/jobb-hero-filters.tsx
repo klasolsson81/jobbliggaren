@@ -27,6 +27,9 @@ import {
   JobbFilterPopover,
   type PopoverGroup,
 } from "./jobb-filter-popover";
+import { InfoDialog } from "@/components/common/info-dialog";
+import { JobbToolbarPopover } from "./jobb-toolbar-popover";
+import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
 /**
  * Hero-filter-pills + Platsbanken-popovers (HANDOVER-v3.md §5.4/§5.5,
@@ -65,13 +68,36 @@ interface JobbHeroFiltersProps {
    * grad-filter (samma param-bevarande-disciplin som q/sort/Klass-2).
    */
   initialMatchGrades: ReadonlyArray<string>;
+  /**
+   * Matchnings-/status-axeln (2026-06-30 — flyttad hit från resultat-toolbaren
+   * så hela filterraden delar EN form på ETT ställe, Klas). Runtime-view-state
+   * (navigerar utan commit-flaggan, paritet matchGrades): `matchningOff` =
+   * huvudbrytaren av (`?matchning=off`); `includeRelated` = "Visa relaterade
+   * också" (`?relaterade=on`); `hideApplied` = "Dölj ansökta" (`?doljAnsokta=on`).
+   */
+  initialMatchningOff: boolean;
+  initialIncludeRelated: boolean;
+  initialHideApplied: boolean;
+  /**
+   * F4-16 (CTO D8) — server-härlett: true så snart minst en yrkesgrupp angetts i
+   * matchnings-preferenserna. Gatar Matchning-pillen (utan angivet yrke kan
+   * graden inte beräknas). Härlett i page.tsx via cache():ad getMyProfile.
+   */
+  hasStatedDesiredOccupation: boolean;
+  /**
+   * #383 — true när användaren har en seeker (lyckad profil-läsning). Gatar
+   * "Dölj ansökta"-toggle:n (den gallrar mot seekerns ansökta; utan seeker finns
+   * inget att dölja). Skild från `hasStatedDesiredOccupation`: status kräver
+   * INTE ett angivet yrke.
+   */
+  hasSeeker: boolean;
   /** Hero-sökordet — bärs vidare så filter-klick inte raderar q. */
   q: string;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
 
-type OpenPop = "ort" | "yrke" | "filter" | null;
+type OpenPop = "ort" | "yrke" | "filter" | "match" | null;
 
 // Öns filterval-vy (E2g): bas = props (URL-sanningen), optimistiskt
 // overlay under pågående router.push-transition.
@@ -83,6 +109,14 @@ interface FilterSelection {
   // så pill-count + panel-markeringar svarar omedelbart under transitionen.
   employmentType: string[];
   worktimeExtent: string[];
+  // Matchnings-/status-axeln (2026-06-30 — flyttad hit från toolbaren). I SAMMA
+  // optimistiska overlay så Matchning-pillen/popovern + Dölj ansökta-toggle:n
+  // svarar omedelbart, och varje facett-commit bär dem vidare (param-bevarande,
+  // ADR 0042 Beslut B). Runtime-view-state (navigerar utan commit-flaggan).
+  matchGrades: string[];
+  matchningOff: boolean;
+  includeRelated: boolean;
+  hideApplied: boolean;
 }
 
 export function JobbHeroFilters({
@@ -93,12 +127,20 @@ export function JobbHeroFilters({
   initialEmploymentType,
   initialWorktimeExtent,
   initialMatchGrades,
+  initialMatchningOff,
+  initialIncludeRelated,
+  initialHideApplied,
+  hasStatedDesiredOccupation,
+  hasSeeker,
   q,
   sortBy,
   pageSize,
 }: JobbHeroFiltersProps) {
   const router = useRouter();
   const t = useTranslations("jobads.ui");
+  // Skilda namespaces (next-intl typar `t()` mot den literala message-key-unionen).
+  const tGrade = useTranslations("jobads.ui.gradeFilter");
+  const tStatus = useTranslations("jobads.ui.statusFilter");
   const [, startTransition] = useTransition();
 
   // E2g (CTO-dom 2026-06-11, Variant A — useOptimistic): URL:en (via props)
@@ -115,6 +157,10 @@ export function JobbHeroFilters({
       municipality: [...initialMunicipality],
       employmentType: [...initialEmploymentType],
       worktimeExtent: [...initialWorktimeExtent],
+      matchGrades: [...initialMatchGrades],
+      matchningOff: initialMatchningOff,
+      includeRelated: initialIncludeRelated,
+      hideApplied: initialHideApplied,
     }),
     [
       initialOccupationGroup,
@@ -122,6 +168,10 @@ export function JobbHeroFilters({
       initialMunicipality,
       initialEmploymentType,
       initialWorktimeExtent,
+      initialMatchGrades,
+      initialMatchningOff,
+      initialIncludeRelated,
+      initialHideApplied,
     ],
   );
   const [selection, setOptimisticSelection] = useOptimistic(
@@ -136,6 +186,7 @@ export function JobbHeroFilters({
   const ortBtnRef = useRef<HTMLButtonElement>(null);
   const yrkeBtnRef = useRef<HTMLButtonElement>(null);
   const filterBtnRef = useRef<HTMLButtonElement>(null);
+  const matchBtnRef = useRef<HTMLButtonElement>(null);
 
   // Taxonomi → popover-form. Län→Kommuner (E2b-kaskad) + Yrkesområde→
   // Yrkesgrupper (ssyk-level-4, E2a nivå-skifte).
@@ -177,6 +228,11 @@ export function JobbHeroFilters({
 
   // Optimistiskt overlay + navigering i SAMMA transition (CTO-krav 1 —
   // setOptimisticSelection utanför en transition kastas direkt av React).
+  // Alla hero-ändringar (facetter OCH matchning/status) navigerar UTAN commit-
+  // flaggan — hero:n auto-capturar aldrig till Senaste sökningar (det gör bara
+  // explicit Sök/Enter/förslags-val + toolbar-handlingar). matchGrades/matchning/
+  // related/hideApplied är dessutom uttryckligen runtime-view-state (#292/#383).
+  // Hela `next`-staten bärs ut (param-bevarande symmetri, ADR 0042 Beslut B).
   function commit(next: FilterSelection) {
     startTransition(() => {
       setOptimisticSelection(next);
@@ -188,9 +244,10 @@ export function JobbHeroFilters({
           municipality: next.municipality,
           employmentType: next.employmentType,
           worktimeExtent: next.worktimeExtent,
-          // STEG 5 — bär det aktiva grad-filtret oförändrat vidare (ön
-          // redigerar det inte; den får bara inte radera det vid ett pill-klick).
-          matchGrades: [...initialMatchGrades],
+          matchGrades: next.matchGrades,
+          matchningOff: next.matchningOff,
+          includeRelated: next.includeRelated,
+          hideApplied: next.hideApplied,
           sortBy,
           pageSize,
         }),
@@ -257,6 +314,45 @@ export function JobbHeroFilters({
         municipalityIdsOfRegion.get(regionConceptId) ?? [],
       ),
     );
+  }
+
+  // Matchnings-axeln (flyttad hit från toolbaren 2026-06-30). SSOT-härledning =
+  // toolbarens: PÅ exakt när yrke angetts OCH huvudbrytaren inte är av. Handlers
+  // speglar toolbaren 1:1 (commit = navigera utan flagga); en tom matchGrades-
+  // lista = "alla grader visas" (ej av), av styrs av matchningOff (#292). AV nollar
+  // grader + relaterade ("forget"-semantik, CTO-bind).
+  const matchActive = hasStatedDesiredOccupation && !selection.matchningOff;
+  const matchActiveCount = matchActive ? selection.matchGrades.length : 0;
+
+  function onMatchGradesChange(nextGrades: string[]) {
+    commit({ ...selection, matchGrades: nextGrades, matchningOff: false });
+  }
+  function onMatchTurnOff() {
+    commit({
+      ...selection,
+      matchningOff: true,
+      matchGrades: [],
+      includeRelated: false,
+    });
+  }
+  function onMatchTurnOn() {
+    commit({ ...selection, matchningOff: false, matchGrades: [] });
+  }
+  // #300 PR-5 — vid AV droppas `Related` ur den valda grad-listan (kontrollen
+  // dold ⇒ inget kvarvarande filter på en grad utan kryssruta).
+  function onRelatedToggle(next: boolean) {
+    commit({
+      ...selection,
+      includeRelated: next,
+      matchGrades: next
+        ? selection.matchGrades
+        : selection.matchGrades.filter((g) => g !== "Related"),
+    });
+  }
+  // #383 → förenklat — "Dölj ansökta"-toggle:n (en enda boolean). Ortogonal mot
+  // matchningen (gatad på hasSeeker, inte på matchnings-axeln).
+  function toggleHideApplied() {
+    commit({ ...selection, hideApplied: !selection.hideApplied });
   }
 
   const ortCount = ort.region.length + ort.municipality.length;
@@ -390,6 +486,64 @@ export function JobbHeroFilters({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
+      {/* [Matchning ▾] + "?" — flyttade hit från resultat-toolbaren (2026-06-30,
+          Klas: en form, en plats). Samma .jp-hero-pill som Ort/Yrke/Filter.
+          Renderas på hasStatedDesiredOccupation (så switchen i popovern kan slå PÅ
+          matchningen igen även när den är av). data-active = matchActive; prick när
+          PÅ; count-badge = antal smalnade grad-val (0 = alla visas, ingen badge).
+          Pillen + "?" hålls ihop i en inline-flex-grupp så "?" alltid wrappar
+          TILLSAMMANS med pillen (entydig referent — pill-raden bryts i den smala
+          hero-panelen, och en lös "?" hamnade annars på egen rad bredvid en annan
+          kontroll). */}
+      {hasStatedDesiredOccupation && (
+        <span className="inline-flex items-center gap-2">
+          <button
+            ref={matchBtnRef}
+            type="button"
+            className="jp-hero-pill"
+            data-active={openPop === "match" || matchActive}
+            aria-haspopup="dialog"
+            aria-expanded={openPop === "match"}
+            onClick={() => setOpenPop(openPop === "match" ? null : "match")}
+          >
+            {matchActive && (
+              <span className="jp-hero-pill__dot" aria-hidden="true" />
+            )}
+            {tGrade("toggleLabel")}
+            {matchActiveCount > 0 && (
+              <span className="jp-hero-pill__count">{matchActiveCount}</span>
+            )}
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+          {/* "?" — ikon-only InfoDialog. Verbatim gradeFilter.help +
+              relatedToggleHelp (ingen omformulering). */}
+          <InfoDialog
+            iconOnly
+            title={tGrade("helpTitle")}
+            paragraphs={[tGrade("help"), tGrade("relatedToggleHelp")]}
+          />
+        </span>
+      )}
+
+      {/* [Dölj ansökta] — en enda toggle-pill (#383 → förenklat, Klas: droppat
+          "Visa sparade"/"Visa bara ansökta"). Samma pill-form men INGEN chevron
+          (öppnar ingen meny) och `aria-pressed` (toggle, inte dialog-trigger).
+          Renderas på hasSeeker. data-active + prick visar att den är på. */}
+      {hasSeeker && (
+        <button
+          type="button"
+          className="jp-hero-pill"
+          data-active={selection.hideApplied}
+          aria-pressed={selection.hideApplied}
+          onClick={toggleHideApplied}
+        >
+          {selection.hideApplied && (
+            <span className="jp-hero-pill__dot" aria-hidden="true" />
+          )}
+          {tStatus("hideApplied")}
+        </button>
+      )}
+
       {/* key-remount vid öppning → activeLeft re-initieras till TOM (E2f
           Platsbanken-paritet — höger kolumn tom tills län valts) utan
           setState-i-effect. */}
@@ -457,6 +611,30 @@ export function JobbHeroFilters({
         onClose={() => setOpenPop(null)}
         triggerRef={filterBtnRef}
       />
+
+      {/* [Matchning ▾]-popovern (flyttad hit från resultat-toolbaren 2026-06-30).
+          Samma enkelkolumns JobbToolbarPopover-skal; JobbMatchGradeFilter-kroppen
+          är OFÖRÄNDRAD (switch + relaterad-toggle + grad-kryssrutor), wired till
+          hero-handlers (commit = navigera utan commit-flaggan, #292/#300-semantiken
+          bevarad). */}
+      {hasStatedDesiredOccupation && (
+        <JobbToolbarPopover
+          open={openPop === "match"}
+          title={tGrade("toggleLabel")}
+          triggerRef={matchBtnRef}
+          onClose={() => setOpenPop(null)}
+        >
+          <JobbMatchGradeFilter
+            active={matchActive}
+            selected={selection.matchGrades}
+            includeRelated={selection.includeRelated}
+            onChange={onMatchGradesChange}
+            onTurnOff={onMatchTurnOff}
+            onTurnOn={onMatchTurnOn}
+            onRelatedToggle={onRelatedToggle}
+          />
+        </JobbToolbarPopover>
+      )}
     </div>
   );
 }

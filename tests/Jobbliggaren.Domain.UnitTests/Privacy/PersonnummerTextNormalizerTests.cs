@@ -5,11 +5,11 @@ namespace Jobbliggaren.Domain.UnitTests.Privacy;
 
 // Fas 4 STEG 8 (F4-8, ADR 0074 Invariant 1) — the spaced-form personnummer
 // call-site. F4-1 deferred the "spaced/OCR-gapped false-negative" here:
-// PersonnummerTextNormalizer.Normalize bridges a (8-or-6 digits)(1–2 spaces/tabs)
-// (4 digits) gap on a TRANSIENT scan-copy so the UNCHANGED context-free
-// PersonnummerScanner.Scan can then FLAG the form. The safety stays in the
-// untouched validation layer (Personnummer.TryParse date+Luhn), so bridging can
-// never manufacture a VALID false positive out of two unrelated numbers.
+// PersonnummerTextNormalizer.Normalize bridges a (8-or-6 digits)(1–2 space
+// separators or tabs)(4 digits) gap on a TRANSIENT scan-copy so the UNCHANGED
+// context-free PersonnummerScanner.Scan can then FLAG the form. The safety stays
+// in the untouched validation layer (Personnummer.TryParse date+Luhn), so bridging
+// can never manufacture a VALID false positive out of two unrelated numbers.
 //
 // SPEC-DRIVEN: these assert the documented behaviour (scanner blind to spaced
 // form directly, sees it after Normalize; idempotence; determinism; newline NOT
@@ -68,7 +68,7 @@ public class PersonnummerTextNormalizerTests
     [Fact]
     public void Scan_TabSeparatedValidPersonnummer_FlaggedAfterNormalize()
     {
-        // A tab is the other OCR-gap shape the normalizer bridges ([ \t]{1,2}).
+        // A tab is the other OCR-gap shape the normalizer bridges ([\p{Zs}\t]{1,2}).
         const string spaced = "811218\t9876";
         var text = $"Pnr {spaced}.";
 
@@ -80,15 +80,70 @@ public class PersonnummerTextNormalizerTests
     }
 
     // ===============================================================
+    // #268 C1 (ADR 0074 Invariant 1): a Unicode SPACE SEPARATOR (\p{Zs}) gap —
+    // the NON-BREAKING SPACE (U+00A0) this product emits as its own digit-group
+    // separator, plus narrow-NBSP / thin / figure / en space, all of which
+    // PDF/DOCX extraction passes through verbatim — is now bridged, so the spaced
+    // personnummer is FLAGGED instead of silently stored as "no personnummer found".
+    // Before the fix the bridge class was ASCII [ \t] only, so these slipped through.
+    // The separators are written as \u escapes so each distinct code point is explicit.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218\u00A09876")] // U+00A0 NO-BREAK SPACE — the Swedish digit-group separator this app emits
+    [InlineData("811218\u202F9876")] // U+202F NARROW NO-BREAK SPACE
+    [InlineData("811218\u20099876")] // U+2009 THIN SPACE
+    [InlineData("811218\u20079876")] // U+2007 FIGURE SPACE
+    [InlineData("811218\u20029876")] // U+2002 EN SPACE
+    public void Scan_UnicodeSpaceSeparatedPersonnummer_FalseNegativeDirectly_FlaggedAfterNormalize(
+        string spaced)
+    {
+        var text = $"Personnummer {spaced} i CV.";
+
+        // Directly: the context-free scanner does not bridge the gap → false negative.
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        // After Normalize joins the digits, the SAME unchanged scanner flags it.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_NonBreakingSpaceSeparated12DigitPersonnummer_FlaggedAfterNormalize()
+    {
+        // The 12-digit full-century form gapped by U+00A0 (the exact #268 C1 vector).
+        const string text = "19811218\u00A09876";
+
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_TwoCharGapNbspThenSpace_FlaggedAfterNormalize()
+    {
+        // A two-character gap mixing an NBSP and an ASCII space is within the {1,2}
+        // bound and is bridged (digit-group separator immediately before a stray space).
+        const string text = "Pnr 811218\u00A0 9876.";
+
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    // ===============================================================
     // No false positive: two UNRELATED adjacent numbers that do NOT together
     // form a date+Luhn-valid personnummer are NOT manufactured into a match —
-    // because TryParse's date+Luhn gate is untouched.
+    // because TryParse's date+Luhn gate is untouched (true for the widened class too).
     // ===============================================================
 
     [Fact]
     public void Scan_TwoUnrelatedAdjacentNumbers_NotManufacturedIntoMatch_AfterNormalize()
     {
-        // 8-digit run + space + 4-digit run that, joined, fails date-sanity/Luhn.
+        // 8-digit run + ASCII space + 4-digit run that, joined, fails date-sanity/Luhn.
         // "12345678 0000" → joined 123456780000: month field "34" is impossible,
         // so TryParse rejects it regardless of the bridge. The bridge changes only
         // which candidate the scanner sees; the validation gate stays the law.
@@ -99,6 +154,20 @@ public class PersonnummerTextNormalizerTests
         // The gap is bridged (candidate shaping) ...
         normalized.ShouldContain("123456780000");
         // ... but the scanner still reports nothing (date+Luhn gate rejects it).
+        PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Scan_TwoUnrelatedNumbers_NonBreakingSpaceGap_NotManufacturedIntoMatch()
+    {
+        // The widened \p{Zs} bridge still cannot manufacture a valid personnummer: the
+        // joined "123456780000" fails date-sanity ("34" is no month), so the Luhn/date
+        // gate rejects it exactly as for the ASCII-space case.
+        const string text = "Referens 12345678\u00A00000 i systemet.";
+
+        var normalized = PersonnummerTextNormalizer.Normalize(text);
+
+        normalized.ShouldContain("123456780000");
         PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
     }
 

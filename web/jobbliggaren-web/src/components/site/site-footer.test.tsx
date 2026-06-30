@@ -72,9 +72,10 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
 
   it("renders not-yet-built content links as aria-disabled spans, out of tab order", () => {
     render(<SiteFooter />);
-    // Hjälpcenter (support), För utvecklare (about), Tillgänglighet (legal)
-    // are all gated content routes — disabled spans, never links.
-    for (const name of ["Hjälpcenter", "För utvecklare", "Tillgänglighet"]) {
+    // Hjälpcenter (support) and För utvecklare (about) are still gated content
+    // routes — disabled spans, never links. Tillgänglighet (legal) is now live
+    // (#263) and asserted as a real link in the Juridik-column test below.
+    for (const name of ["Hjälpcenter", "För utvecklare"]) {
       expect(screen.queryByRole("link", { name })).toBeNull();
       const el = screen.getByText(name);
       expect(el.tagName).toBe("SPAN");
@@ -94,10 +95,12 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     render(<SiteFooter />);
     const legalNav = screen.getByRole("navigation", { name: "Juridik" });
     // Live policy links live ONLY in this column (a single home each — no dup).
+    // Tillgänglighet flipped to a live route in #263, joining the column.
     const links: ReadonlyArray<readonly [string, string]> = [
       ["Användarvillkor", "/villkor"],
       ["Integritetspolicy", "/integritet"],
       ["Cookies", "/cookies"],
+      ["Tillgänglighet", "/tillganglighet"],
     ];
     for (const [name, href] of links) {
       const all = screen.getAllByRole("link", { name });
@@ -105,11 +108,6 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
       expect(all[0]).toHaveAttribute("href", href);
       expect(within(legalNav).getByRole("link", { name })).toBe(all[0]);
     }
-    // Tillgänglighet is not built yet → disabled span inside the Juridik column.
-    expect(within(legalNav).getByText("Tillgänglighet")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
   });
 
   it("reuses the real language toggle in the footer variant (.jp-foot__lang)", () => {

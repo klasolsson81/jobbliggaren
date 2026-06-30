@@ -32,9 +32,10 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
  * All footer colour is LITERAL #FFFFFF / rgba(255,255,255,a) via the `.jp-foot*`
  * classes — never `--jp-ink-inverse` (it flips dark on the green in dark theme).
  *
- * Content routes not built yet (/hjalpcenter, /tillganglighet, /for-utvecklare)
- * render as aria-disabled, non-focusable spans (out of tab order) — no dead-link
- * window on any shell. They flip to live `<Link>`s once LP-8a/8b/8c ship.
+ * Content routes not built yet (/hjalpcenter, /for-utvecklare) render as
+ * aria-disabled, non-focusable spans (out of tab order) — no dead-link window
+ * on any shell. They flip to live `<Link>`s once LP-8a/8b/8c ship.
+ * /tillganglighet is now live (#263) → a real `<Link>` in the Juridik column.
  * start.register points at the live `/registrera` route (CTO verdict 2026-06-27):
  * a real route, forward-compatible once the open-registration flip lands.
  */
@@ -116,7 +117,7 @@ const COLUMNS: readonly FooterColumn[] = [
       { labelKey: "footer.legal.terms", href: "/villkor" },
       { labelKey: "footer.legal.privacy", href: "/integritet" },
       { labelKey: "footer.legal.cookies", href: "/cookies" },
-      { labelKey: "footer.legal.accessibility", href: null },
+      { labelKey: "footer.legal.accessibility", href: "/tillganglighet" },
     ],
   },
 ];

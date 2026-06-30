@@ -32,11 +32,13 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
  * All footer colour is LITERAL #FFFFFF / rgba(255,255,255,a) via the `.jp-foot*`
  * classes — never `--jp-ink-inverse` (it flips dark on the green in dark theme).
  *
- * Content routes ship incrementally. The one remaining unbuilt route
- * (/for-utvecklare) renders as an aria-disabled, non-focusable span (out of tab
- * order) — no dead-link window on any shell — and flips to a live `<Link>` once
- * it ships. /tillganglighet (#263, Juridik column) and /hjalpcenter (#262, this
- * support column) are now live `<Link>`s.
+ * Content routes shipped incrementally and ALL footer content routes are now
+ * live `<Link>`s — there is currently no gated route, so no aria-disabled span
+ * renders anywhere in the footer (/tillganglighet #263, /hjalpcenter #262,
+ * /for-utvecklare #263). The `href: null` → aria-disabled-span mechanism below
+ * is kept as forward-compat scaffolding for any FUTURE not-yet-built footer
+ * link (CTO verdict 2026-06-30: the route series is demonstrably recurring, so
+ * keeping the OCP extension point beats re-introducing it per route).
  * start.register points at the live `/registrera` route (CTO verdict 2026-06-27):
  * a real route, forward-compatible once the open-registration flip lands.
  */
@@ -108,7 +110,7 @@ const COLUMNS: readonly FooterColumn[] = [
     links: [
       { labelKey: "footer.about.self", href: "/om" },
       { labelKey: "footer.about.contact", href: "/kontakt" },
-      { labelKey: "footer.about.developers", href: null },
+      { labelKey: "footer.about.developers", href: "/for-utvecklare" },
     ],
   },
   {

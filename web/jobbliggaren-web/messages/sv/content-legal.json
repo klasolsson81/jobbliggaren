@@ -445,5 +445,54 @@
         "description": "Hur tillgänglig tjänsten är och hur du rapporterar ett hinder."
       }
     }
+  },
+  "developers": {
+    "meta": {
+      "title": "För utvecklare",
+      "description": "Jobbliggaren är ett källtillgängligt civilt projekt. Här finns koden på GitHub, hur tjänsten är byggd, de öppna jobbdata den vilar på och varför matchningen är regelbaserad utan AI."
+    },
+    "title": "För utvecklare",
+    "intro": "Den här sidan är för dig som är nyfiken på hur Jobbliggaren fungerar under huven. Jobbliggaren är ett självständigt hobbyprojekt byggt i öppenhet, och vi berättar gärna hur det är gjort, vilka data det vilar på och varför matchningen ser ut som den gör.",
+    "sections": [
+      {
+        "heading": "Källtillgänglig kod",
+        "paragraphs": [
+          "Källkoden till Jobbliggaren är publik och går att läsa på GitHub. Projektet är källtillgängligt under PolyForm Noncommercial 1.0.0, en licens som låter dig läsa, använda och bygga vidare på koden för icke-kommersiella ändamål.",
+          "Det är inte en tillåtande open source-licens i klassisk mening. Kommersiell användning kräver särskilt tillstånd. Tanken är att koden ska vara öppen att granska och lära av, samtidigt som tjänsten förblir ett ideellt projekt."
+        ]
+      },
+      {
+        "heading": "Så är Jobbliggaren byggt",
+        "paragraphs": [
+          "Jobbliggaren är byggt med några få, väletablerade verktyg och en tydlig arkitektur, så att koden ska vara enkel att följa."
+        ],
+        "list": [
+          "Backend i C# och .NET, strukturerad enligt Clean Architecture med domändriven design och CQRS.",
+          "Frontend i TypeScript och React med Next.js.",
+          "PostgreSQL som databas.",
+          "Matchningen är en regelbaserad motor. Jobbliggaren använder ingen AI och inga språkmodeller, varken för matchning, granskning eller beslut."
+        ]
+      },
+      {
+        "heading": "Öppna jobbdata",
+        "paragraphs": [
+          "Jobben i Jobbliggaren kommer från Arbetsförmedlingens öppna data via JobTech (Platsbanken). Det är offentliga annonser, inte personuppgifter om dig.",
+          "Vill du själv arbeta med samma rådata hämtar du den direkt från Arbetsförmedlingens JobTech, som tillhandahåller den som öppna data för utvecklare."
+        ]
+      },
+      {
+        "heading": "Inget publikt API i den här versionen",
+        "paragraphs": [
+          "Jobbliggaren erbjuder ännu inget publikt API att bygga integrationer mot. Tjänstens egna gränssnitt är till för inloggade användare. Behöver du jobbdata att bygga på är Arbetsförmedlingens JobTech rätt källa.",
+          "Skulle ett publikt API bli aktuellt längre fram beskriver vi det här."
+        ]
+      }
+    ],
+    "repoHeading": "Koden på GitHub",
+    "repoText": "Du hittar källkoden och licensen i kodförrådet.",
+    "repoLinkLabel": "github.com/klasolsson81/jobbliggaren",
+    "relatedHeading": "Relaterade sidor",
+    "relatedAbout": "Om Jobbliggaren",
+    "relatedContact": "Kontakta oss"
   }
 }

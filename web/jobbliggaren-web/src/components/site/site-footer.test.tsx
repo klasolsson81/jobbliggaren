@@ -70,17 +70,23 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     );
   });
 
-  it("renders not-yet-built content links as aria-disabled spans, out of tab order", () => {
+  it("renders the one remaining not-yet-built content link as an aria-disabled span, out of tab order", () => {
     render(<SiteFooter />);
-    // Hjälpcenter (support) and För utvecklare (about) are still gated content
-    // routes — disabled spans, never links. Tillgänglighet (legal) is now live
-    // (#263) and asserted as a real link in the Juridik-column test below.
-    for (const name of ["Hjälpcenter", "För utvecklare"]) {
-      expect(screen.queryByRole("link", { name })).toBeNull();
-      const el = screen.getByText(name);
-      expect(el.tagName).toBe("SPAN");
-      expect(el).toHaveAttribute("aria-disabled", "true");
-    }
+    // För utvecklare (about) is the only still-gated content route — a disabled
+    // span, never a link. Hjälpcenter flipped live in #262 and Tillgänglighet in
+    // #263; both are asserted as real links below.
+    const name = "För utvecklare";
+    expect(screen.queryByRole("link", { name })).toBeNull();
+    const el = screen.getByText(name);
+    expect(el.tagName).toBe("SPAN");
+    expect(el).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("links the now-live Hjälpcenter hub in the support column (#262)", () => {
+    render(<SiteFooter />);
+    const supportNav = screen.getByRole("navigation", { name: "Stöd och guider" });
+    const link = within(supportNav).getByRole("link", { name: "Hjälpcenter" });
+    expect(link).toHaveAttribute("href", "/hjalpcenter");
   });
 
   it("has no social block or 'Följ oss' (removed — accounts not coming soon, #393)", () => {

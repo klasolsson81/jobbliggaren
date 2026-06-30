@@ -407,5 +407,43 @@
     "relatedHeading": "Related pages",
     "relatedContact": "Contact us",
     "relatedPrivacy": "Privacy policy"
+  },
+  "help": {
+    "meta": {
+      "title": "Help centre",
+      "description": "Help centre for Jobbliggaren. Here we gather guides and answers about how the service works, how matching and CV review work and how to reach us."
+    },
+    "title": "Help centre",
+    "intro": "Here we gather the help for Jobbliggaren in one place. Below you will find guides and answers about how the service works, how matching and CV review work and how to contact us if you need more help.",
+    "guidesHeading": "Guides and answers",
+    "guidesIntro": "Start here if you are wondering how something works or want to get going.",
+    "moreHeading": "More help",
+    "moreIntro": "If you cannot find the answer, or you run into a barrier, please get in touch.",
+    "items": {
+      "faq": {
+        "label": "Frequently asked questions",
+        "description": "Short answers about price, data source, account, your data and how to delete it."
+      },
+      "matching": {
+        "label": "How matching works",
+        "description": "How Jobbliggaren compares you against the listings. Rule-based and explainable, with no AI."
+      },
+      "cvReview": {
+        "label": "How we review your CV",
+        "description": "What the CV review looks at and how to read the result."
+      },
+      "tips": {
+        "label": "Tips for job seekers",
+        "description": "Concrete advice for your CV, application, follow-up and interview."
+      },
+      "contact": {
+        "label": "Contact us",
+        "description": "Get in touch with questions, ideas or bug reports, and we will reply as soon as we can."
+      },
+      "accessibility": {
+        "label": "Accessibility",
+        "description": "How accessible the service is and how to report a barrier."
+      }
+    }
   }
 }

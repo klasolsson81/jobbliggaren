@@ -21,13 +21,25 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// Alla listor är aldrig null — en tom lista betyder "inget filter" (handlern
 /// normaliserar <c>null → []</c>, ADR 0042 Beslut B). <see cref="Q"/> är
 /// null/whitespace = ingen fritextsökning. <b>Named arguments obligatoriskt</b>
-/// vid konstruktion (fem listor i rad = tyst-fel-fälla vid positionell mappning).
+/// vid konstruktion (sex listor i rad = tyst-fel-fälla vid positionell mappning).
 /// </para>
 /// <para>
 /// <b>ADR 0067 Beslut 6 (Fas B2, 2026-06-12):</b> <see cref="EmploymentType"/>
 /// (anställningsform) + <see cref="WorktimeExtent"/> (omfattning) tillkom — Klass 2
 /// query-wiring mot re-ingestad data. Ortogonala dimensioner: enkel IN-equality,
 /// AND mot allt annat (till skillnad mot Municipality/Region som geo-union:as).
+/// </para>
+/// <para>
+/// <b>#311 D6 (följ arbetsgivare, ADR 0087, 2026-06-30):</b> <see cref="Employer"/>
+/// (org.nr — den KANONISKA arbetsgivar-nyckeln, ingen fuzzy namn-matchning,
+/// "Volvo×20"-fällan) tillkom. Speglar Klass 2 EXAKT: ortogonal dimension, enkel
+/// IN-equality på den STORED generated <c>organization_number</c>-kolumnen, AND mot
+/// allt annat (INTE geo-union). <b>CONTAINED-scope (CTO-bind 2026-06-30):</b> denna
+/// SPOT (live-sök-filtret) bär employer, men Domän-VO:t <c>SearchCriteria</c> +
+/// RecentJobSearch/SavedSearch-identiteten gör det INTE i PR-2 — de persisterade
+/// vägarna (<c>RunSavedSearchQueryHandler</c>/<c>ListRecentSearchesQueryHandler</c>)
+/// passerar <c>Employer: []</c> tills PR-2b trådar in dimensionen i sök-identiteten
+/// (landar med #408 FE-konsumenten).
 /// </para>
 /// </summary>
 public sealed record JobAdFilterCriteria(
@@ -36,4 +48,5 @@ public sealed record JobAdFilterCriteria(
     IReadOnlyList<string> Region,
     IReadOnlyList<string> EmploymentType,
     IReadOnlyList<string> WorktimeExtent,
+    IReadOnlyList<string> Employer,
     string? Q);

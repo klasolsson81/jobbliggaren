@@ -119,6 +119,21 @@ internal static class JobAdSearchComposition
                 worktimeExtentValues.Contains(EF.Property<string?>(j, "WorktimeExtentConceptId")));
         }
 
+        // #311 D6 (följ arbetsgivare, ADR 0087) — arbetsgivar-facet på org.nr.
+        // ORTOGONAL dimension (som Klass 2, INTE geo-union à la kommun/län): eget
+        // IN(...)-villkor AND mot allt annat. STORED generated column
+        // organization_number (raw_payload->'employer'->>'organization_number'),
+        // B-tree partial-indexerad (WHERE … IS NOT NULL), NULL för annons utan org.nr
+        // i payload (B2-era: 100% NULL tills re-ingest) → matchas ej ("0 träff" ≠ bug,
+        // paritet med övriga taxonomi-dims). org.nr = kanonisk nyckel (ingen fuzzy
+        // namn-matchning). Delas av anon- OCH per-användar-vägen (båda kör ApplyFilter).
+        if (criteria.Employer.Count > 0)
+        {
+            var employerValues = criteria.Employer;
+            source = source.Where(j =>
+                employerValues.Contains(EF.Property<string?>(j, "OrganizationNumber")));
+        }
+
         if (!string.IsNullOrWhiteSpace(criteria.Q))
         {
             var q = criteria.Q;

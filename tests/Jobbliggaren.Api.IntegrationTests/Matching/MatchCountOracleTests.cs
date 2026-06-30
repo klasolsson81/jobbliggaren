@@ -101,6 +101,7 @@ public class MatchCountOracleTests(ApiFactory factory)
         Region: [],
         EmploymentType: [],
         WorktimeExtent: [runWorktimeExtent],
+        Employer: [],
         Q: null);
 
     // ---------------------------------------------------------------

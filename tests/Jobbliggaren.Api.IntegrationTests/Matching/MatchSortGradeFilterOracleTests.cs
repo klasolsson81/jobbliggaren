@@ -126,6 +126,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         Region: [],
         EmploymentType: [],
         WorktimeExtent: [runWorktimeExtent],
+        Employer: [],
         Q: null);
 
     // ---------------------------------------------------------------

@@ -72,6 +72,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
         Region: [],
         EmploymentType: [],
         WorktimeExtent: [runWorktimeExtent],
+        Employer: [],
         Q: null);
 
     // A run tag (≤23 chars to match the grade oracle's column width assumptions).

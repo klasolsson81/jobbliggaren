@@ -26,7 +26,7 @@ public sealed class GetMyMatchCountQueryHandler(
 
     // Notisen räknar över HELA den aktiva korpusen (ingen sök-/dimensions-filter) — bara
     // profil-graden gallrar. Tom filter-SPOT = alla Active annonser. Named arguments per
-    // JobAdFilterCriteria:s konstruktions-kontrakt (fem listor i rad = tyst-fel-fälla).
+    // JobAdFilterCriteria:s konstruktions-kontrakt (sex listor i rad = tyst-fel-fälla).
     private static readonly JobAdFilterCriteria NoFilter =
         new(
             OccupationGroup: [],
@@ -34,6 +34,8 @@ public sealed class GetMyMatchCountQueryHandler(
             Region: [],
             EmploymentType: [],
             WorktimeExtent: [],
+            // #311 D6 — notisen filtrerar aldrig på arbetsgivare (grad-only).
+            Employer: [],
             Q: null);
 
     public async ValueTask<MyMatchCountDto> Handle(

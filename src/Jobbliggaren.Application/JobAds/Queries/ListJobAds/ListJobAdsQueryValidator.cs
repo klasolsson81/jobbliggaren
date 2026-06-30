@@ -14,6 +14,13 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
     // pre-handler-yta, samma mönster som single-värde-validatorn hade).
     private const string ConceptIdPattern = @"^[A-Za-z0-9_-]{1,32}\z";
 
+    // #311 D6 (ADR 0087) — org.nr är INTE en JobTech concept-id: ett svenskt
+    // organisationsnummer är exakt 10 siffror (live-verifierad form i JobStream,
+    // t.ex. 5592804784; lagras verbatim i organization_number-kolumnen, ingen
+    // bindestrecks-normalisering). Strikt \d{10}\z (\z, ej $, mot newline-injektion,
+    // paritet ConceptIdPattern). Default-deny defense-in-depth (Saltzer/Schroeder).
+    private const string OrganizationNumberPattern = @"^\d{10}\z";
+
     public ListJobAdsQueryValidator()
     {
         RuleFor(q => q.Page).GreaterThanOrEqualTo(1);
@@ -82,6 +89,19 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
             .Matches(ConceptIdPattern)
             .When(q => q.WorktimeExtent is not null)
             .WithMessage("Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
+        // #311 D6 (ADR 0087) — arbetsgivar-facet (org.nr). Samma cap-yta som övriga
+        // dimensioner (IN(...)-blowup-tak); per-element-formatet är dock org.nr
+        // (10 siffror), INTE concept-id. Defense-in-depth pre-handler-yta.
+        RuleFor(q => q.Employer!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.Employer is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} arbetsgivare per sökning.");
+
+        RuleForEach(q => q.Employer)
+            .Matches(OrganizationNumberPattern)
+            .When(q => q.Employer is not null)
+            .WithMessage("Organisationsnummer måste vara 10 siffror.");
 
         // q MinLength(2) hindrar `?q=a` (matchar närapå hela tabellen → DoS-yta).
         // MaxLength(100) räcker för normal söksträng + safety margin mot injection-

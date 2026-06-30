@@ -34,6 +34,19 @@ public sealed record ListJobAdsQuery(
     // IN-filter (ej geo-union). Matchar ICapturesRecentSearch automatiskt.
     IReadOnlyList<string>? EmploymentType = null,
     IReadOnlyList<string>? WorktimeExtent = null,
+    // #311 D6 (följ arbetsgivare, ADR 0087) — arbetsgivar-facet på org.nr (den
+    // KANONISKA nyckeln; ingen fuzzy namn-matchning). Ortogonal IN-equality-dimension
+    // (speglar EmploymentType/WorktimeExtent). Bunds från ?employer=; upprepad
+    // query-string binds till string[].
+    // CONTAINED-scope (CTO-bind 2026-06-30): Employer är en ÄKTA persisterad
+    // sök-dimension (ADR 0087 D6), MEN PR-2 trådar den ENDAST in i live-sök-vägen.
+    // Den ingår därför INTE i ICapturesRecentSearch (interfacet listar inte Employer
+    // → capture-behaviorn ser den aldrig) och INTE i SearchCriteria/SavedSearch i
+    // PR-2. Detta skiljer Employer från runtime-kontext-flaggorna nedan (MatchGrades/
+    // IncludeRelated/status), som ALDRIG persisteras by design: Employer SKA
+    // persisteras, men den threadingen (VO + RecentJobSearch-kolumn + FilterHash +
+    // SavedSearch jsonb) är sekvenserad till PR-2b (landar med #408 FE-konsumenten).
+    IReadOnlyList<string>? Employer = null,
     string? Q = null,
     // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate för
     // auto-capture. Default false: live-förhandsvisning (router.replace per

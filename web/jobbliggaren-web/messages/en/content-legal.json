@@ -346,5 +346,66 @@
     "relatedHeading": "Related pages",
     "relatedPrivacy": "Privacy policy",
     "relatedTerms": "Terms of use"
+  },
+  "accessibility": {
+    "meta": {
+      "title": "Accessibility statement",
+      "description": "Accessibility statement for Jobbliggaren: our aim to meet WCAG 2.1 AA, what we do, known gaps and how to report accessibility problems."
+    },
+    "title": "Accessibility statement",
+    "updated": "Last updated: 2026-06-30",
+    "intro": "Jobbliggaren should be usable by as many people as possible, regardless of ability and regardless of the assistive technology you use. We aim to meet the international standard WCAG 2.1 at level AA, the same level that the Swedish public sector follows. Jobbliggaren is a private hobby project and is not covered by the Swedish law on accessibility to digital public service (2018:1937), but we hold ourselves to the same standard voluntarily, because accessibility is part of the service being a public good.",
+    "sections": [
+      {
+        "heading": "How accessible the service is",
+        "paragraphs": [
+          "We assess that Jobbliggaren partially meets WCAG 2.1 at level AA. Most of the service can be used with the keyboard alone and with a screen reader, but there are known gaps that we are working to fix. They are described further down this page."
+        ]
+      },
+      {
+        "heading": "What we do for accessibility",
+        "paragraphs": [
+          "Accessibility is built into how Jobbliggaren is structured. In practice that includes the following."
+        ],
+        "list": [
+          "You can reach and use everything with the keyboard alone, and it is always clearly visible where focus is.",
+          "Every page has a skip-to-content link and clear landmarks, so that you who use a screen reader can quickly skip past menus to the main content.",
+          "We use semantic markup with headings, buttons, links and form fields, so that assistive technology understands what each part is. Buttons and icons without visible text have a descriptive label.",
+          "We aim for good contrast between text and background, with black or dark text on a light surface for body text.",
+          "Status is always conveyed by both colour and text or symbol, never by colour alone.",
+          "Pages can be magnified to 200 percent without content disappearing or requiring horizontal scrolling, and the text reflows to the width of the screen.",
+          "If you have chosen to limit motion in your operating system, we turn off animations.",
+          "The language is plain and concrete, and the matching against jobs is rule-based and explainable. We always show which keywords match and which are missing, and we use no AI."
+        ]
+      },
+      {
+        "heading": "Known gaps",
+        "paragraphs": [
+          "We are aware that the service is not yet fully accessible. We know about the following gaps and are working on them."
+        ],
+        "list": [
+          "The assessment is a self-assessment. The service has not yet been reviewed by an independent party.",
+          "Jobbliggaren is developed continuously, and a new feature may temporarily have accessibility gaps until it has been reviewed.",
+          "A few minor interface details, for example some status markers, do not yet reach full contrast at level AA. We are reviewing them.",
+          "A dark theme is prepared but not yet activated, and has therefore not been assessed for accessibility."
+        ]
+      },
+      {
+        "heading": "If you run into a barrier",
+        "paragraphs": [
+          "Get in touch if you run into something in Jobbliggaren that you cannot use because of an accessibility gap. Please describe which page it concerns and what does not work, and we will try to fix it. If you need content or a function another way in the meantime, we will help you as far as we can.",
+          "You can reach us by email: klasolsson81@gmail.com. We reply without undue delay."
+        ]
+      },
+      {
+        "heading": "How we have assessed the service",
+        "paragraphs": [
+          "The assessment of how well Jobbliggaren meets WCAG 2.1 AA is based on our own review. We use automated checks with the tools axe and Lighthouse together with manual tests using the keyboard alone and a screen reader. The assessment was last made on 30 June 2026."
+        ]
+      }
+    ],
+    "relatedHeading": "Related pages",
+    "relatedContact": "Contact us",
+    "relatedPrivacy": "Privacy policy"
   }
 }

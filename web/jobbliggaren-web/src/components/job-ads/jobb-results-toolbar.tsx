@@ -1,20 +1,36 @@
 "use client";
 
-import { useEffect, useMemo, useOptimistic, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { formatNumber } from "@/lib/i18n/format";
 import {
+  Bookmark,
   Briefcase,
+  ChevronDown,
   Clock,
+  EyeOff,
   FileText,
   MapPin,
   Search,
+  Send,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
+import {
+  isListMatchGrade,
+  type ListMatchGrade,
+} from "@/lib/dto/job-ad-match";
 import { jobAdSortLabel } from "@/lib/job-ads/status";
 import {
   buildJobbHref,
@@ -28,16 +44,33 @@ import {
   type SearchChip,
 } from "@/lib/job-ads/chip-models";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
+import { InfoDialog } from "@/components/common/info-dialog";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 import {
   JobbStatusFilter,
   type StatusFilterState,
 } from "./jobb-status-filter";
+import { JobbToolbarPopover } from "./jobb-toolbar-popover";
 
 /**
- * Result-toolbar för /jobb (HANDOVER-v3.md §7.2, ADR 0055). En rad:
- * `N träffar` (mono) vänster + aktiva filter-chips + `Sortera [select ▾]`
- * höger. INGET separat sorterings-block (Klas F4-spec).
+ * Result-toolbar för /jobb (HANDOVER-v3.md §7.2, ADR 0055).
+ *
+ * #408 (IA-konsolidering) — filter-arean är EN höjd-stabil rad + en chips-rad:
+ * - ROW 1: `N träffar` (mono) vänster; höger-kluster `[Matchning ▾]`-pill + en
+ *   ikon-only "?"-InfoDialog + `[Status ▾]`-pill + `Sortera [select ▾]`. Pillarna
+ *   återbrukar hero-öns `.jp-hero-pill`-mönster (dot + mono count-badge +
+ *   ChevronDown) och öppnar var sin enkelkolumns-popover (`JobbToolbarPopover`)
+ *   som hyser de befintliga `JobbMatchGradeFilter`/`JobbStatusFilter`-kropparna.
+ *   Matchnings-pillen renderas på `hasStatedDesiredOccupation`, Status-pillen på
+ *   `hasSeeker` — annars är raden bara count + sort (fortfarande höjd-stabil).
+ * - ROW 2 (chips): de befintliga sök/q-chipsen (SPOT via buildChipModels) PLUS
+ *   toolbar-lokala chips för popover-valen (vald grad / aktiv status-facett) så
+ *   filter-staten alltid syns utan att öppna en popover. Grad/status läggs
+ *   ALDRIG i den delade buildChipModels (SPOT med hero-fältets in-field-chips,
+ *   som inte får visa grad/status) — de härleds lokalt här.
+ *
+ * Tidigare (#378) tre staplade block (status-rad + match-rad + 387-tecken
+ * hjälp-`<p>`) är ersatta; hjälptexten lever nu BARA i pillens "?"-InfoDialog.
  *
  * E2h: chips deriveras ur props (URL-sanningen) via delade
  * `buildChipModels`/`removeChipFromState` (lib/job-ads/chip-models —
@@ -183,9 +216,19 @@ export function JobbResultsToolbar({
 }: JobbResultsToolbarProps) {
   const tEnum = useTranslations("jobads.enums");
   const t = useTranslations("jobads.ui");
+  // #408 — grad/status-labels för toolbar-lokala chips + InfoDialog. Skilda
+  // namespaces (next-intl typar `t()` mot den literala message-key-unionen).
+  const tGrade = useTranslations("jobads.ui.gradeFilter");
+  const tStatus = useTranslations("jobads.ui.statusFilter");
   const format = useFormatter();
   const router = useRouter();
   const [, startTransition] = useTransition();
+
+  // #408 — vilken toolbar-popover som är öppen (en i taget, samma mönster som
+  // hero-öns `openPop`). Triggerns ref driver popoverns position + fokus-retur.
+  const [openPop, setOpenPop] = useState<"match" | "status" | null>(null);
+  const matchBtnRef = useRef<HTMLButtonElement>(null);
+  const statusBtnRef = useRef<HTMLButtonElement>(null);
 
   // q ägs av hero-fältet; toolbaren härleder bara Relevance-gaten
   // ur searchParam-propen (ADR 0042 Beslut D).
@@ -390,136 +433,219 @@ export function JobbResultsToolbar({
     { includeQ: true },
   );
 
+  // #408 — toolbar-lokala chips för popover-valen (grad + status). DERIVERAS
+  // lokalt (INTE via buildChipModels — den är SPOT med hero-fältets in-field-
+  // chips som inte får visa grad/status). Varje × kör samma navigate-väg som
+  // popover-kontrollen (onMatchGradesChange / onStatusChange) så chip-× och
+  // popover-avmarkering är samma state-operation, två renderingar.
+  const activeMatchGrades = urlState.matchGrades;
+  // Grad-chips: en per vald grad NÄR matchningen är PÅ och en delmängd är vald.
+  // Tom lista ([] = alla visas) eller matchningen av → inga grad-chips. Filtrera
+  // till de FILTRERBARA graderna (isListMatchGrade) så `grade.${G}` typar mot den
+  // literala message-key-unionen (next-intl) — en stale icke-grad-token i URL:en
+  // får aldrig en chip (samma drop-unknown-disciplin som page-validatorn).
+  const matchGradeChips: ReadonlyArray<{
+    grade: ListMatchGrade;
+    label: string;
+  }> =
+    matchActive && activeMatchGrades.length > 0
+      ? activeMatchGrades
+          .filter(isListMatchGrade)
+          .map((grade) => ({ grade, label: tGrade(`grade.${grade}`) }))
+      : [];
+  // Status-chips: en per aktiv facett (Sparade/Ansökta/Dölj ansökta).
+  const statusChips: ReadonlyArray<{
+    key: "saved" | "applied" | "hideApplied";
+    label: string;
+    icon: LucideIcon;
+    next: StatusFilterState;
+  }> = [
+    ...(urlState.savedOnly
+      ? [
+          {
+            key: "saved" as const,
+            label: tStatus("saved"),
+            icon: Bookmark,
+            // × stänger av just denna facett (övriga bevaras).
+            next: {
+              savedOnly: false,
+              appliedOnly: urlState.appliedOnly ?? false,
+              hideApplied: urlState.hideApplied ?? false,
+            },
+          },
+        ]
+      : []),
+    ...(urlState.appliedOnly
+      ? [
+          {
+            key: "applied" as const,
+            label: tStatus("applied"),
+            icon: Send,
+            next: {
+              savedOnly: urlState.savedOnly ?? false,
+              appliedOnly: false,
+              hideApplied: urlState.hideApplied ?? false,
+            },
+          },
+        ]
+      : []),
+    ...(urlState.hideApplied
+      ? [
+          {
+            key: "hideApplied" as const,
+            label: tStatus("hideApplied"),
+            icon: EyeOff,
+            next: {
+              savedOnly: urlState.savedOnly ?? false,
+              appliedOnly: urlState.appliedOnly ?? false,
+              hideApplied: false,
+            },
+          },
+        ]
+      : []),
+  ];
+
+  // Pill-tillstånd. Matchnings-pillen: data-active = matchningen PÅ; count-badge
+  // = antal smalnade grad-val (0 = "alla visas", ingen badge). Visa prick när
+  // PÅ även utan smalning. Status-pillen: data-active = någon facett på; count =
+  // antal aktiva facetter.
+  // Gatat på matchActive (paritet med matchGradeChips): en stale URL
+  // (`?matchning=off&matchGrades=Good`) får aldrig en count-badge på en pill som
+  // inte är aktiv och inte har någon chip — badge, prick och chips berättar samma.
+  const matchActiveCount = matchActive ? activeMatchGrades.length : 0;
+  const statusActiveCount = statusChips.length;
+  const hasAnyToolbarChips =
+    chips.length > 0 || matchGradeChips.length > 0 || statusChips.length > 0;
+
   return (
     <>
+    {/* ROW 1 — höjd-stabil canvas-rad: träffräknaren vänster, höger-kluster
+        (Matchning-pill + "?" + Status-pill + Sortera). Pillarna renderas bara när
+        deras axel är relevant; raden faller annars tillbaka till count + sort
+        (fortfarande höjd-stabil). Återbrukar .jp-results-toolbar flex-space-
+        between-idiomet. */}
     <div className="jp-results-toolbar">
-      <div>
-        <div
-          className="jp-results-count"
-          role="status"
-          aria-live="polite"
-        >
-          {totalCount === 0 ? (
-            t("toolbar.noHits")
-          ) : (
-            <>
-              <b>{formatNumber(format, totalCount)}</b>{" "}
-              {t("toolbar.hits", { count: totalCount })}
-            </>
-          )}
-        </div>
-        {/* role="group" krävs för att aria-label ska exponeras på en
-            generisk container (design Mi3 E2i); namnet täcker både
-            sökord och filter (M2). */}
-        {chips.length > 0 && (
-          <div
-            className="jp-filterchips"
-            role="group"
-            aria-label={t("toolbar.activeFiltersLabel")}
-          >
-            {chips.map((chip) => {
-              // Ikon per tagg-typ (CHIP_ICON — Klass 2 lade employmentType/
-              // worktimeExtent; E2i — q-taggar särskiljs som Search).
-              const ChipIcon = CHIP_ICON[chip.axis];
-              return (
-              <span key={`${chip.axis}-${chip.value}`} className="jp-filterchip">
-                <ChipIcon size={12} aria-hidden="true" />
-                {chip.label}
-                <button
-                  type="button"
-                  className="jp-filterchip__rm"
-                  onClick={() => removeChip(chip)}
-                  aria-label={
-                    chip.axis === "q"
-                      ? t("toolbar.removeSearchTerm", { label: chip.label })
-                      : t("toolbar.removeFilter", { label: chip.label })
-                  }
-                >
-                  <X size={12} aria-hidden="true" />
-                </button>
-              </span>
-              );
-            })}
-            {/* Länktexten säger vad den gör (design M2 E2i — ADR 0047:
-                handlingen raderar även egenskrivna sökord och ska
-                kommunicera det före klicket). */}
-            <button
-              type="button"
-              className="jp-clearlink"
-              onClick={clearAllFilters}
-            >
-              {t("toolbar.clearAll")}
-            </button>
-          </div>
+      <div
+        className="jp-results-count"
+        role="status"
+        aria-live="polite"
+      >
+        {totalCount === 0 ? (
+          t("toolbar.noHits")
+        ) : (
+          <>
+            <b>{formatNumber(format, totalCount)}</b>{" "}
+            {t("toolbar.hits", { count: totalCount })}
+          </>
         )}
       </div>
 
-      {/* #378 — höger-kluster = ENBART sortering. Matchnings-kontrollerna
-          (switch + grad-chips + "Visa relaterade också") låg tidigare HÄR och
-          växte vertikalt när matchningen slogs PÅ, vilket sköt "Sortera" till en
-          ensam, obalanserad position. De flyttade till en egen, sammanhållen
-          match-rad UNDER träff/sort-raden (se nedan) så denna rad är höjd-stabil
-          i både av- och på-läge. "Sortera"-labeln ligger kvar OVANFÖR select:en
-          (htmlFor-associationen behålls — a11y). */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label
-          htmlFor="jobb-sort"
-          style={{
-            display: "block",
-            fontSize: 14,
-            color: "var(--jp-ink-2)",
-          }}
-        >
-          {t("toolbar.sortLabel")}
-        </label>
-        <select
-          id="jobb-sort"
-          className="jp-select"
-          style={{ height: 40, width: "auto", minWidth: 180 }}
-          value={selectValue}
-          onChange={onSortChange}
-        >
-          {sortOptions.map((opt) => (
-            <option
-              key={opt.value}
-              value={opt.value}
-              disabled={opt.value === "Relevance" && !qReady}
-            >
-              {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-center gap-3">
+        {/* [Matchning ▾] — renderas på hasStatedDesiredOccupation (så switchen
+            i popovern kan slå PÅ matchningen igen även när den är av). data-active
+            = matchActive; prick visas när PÅ; count-badge = antal smalnade
+            grad-val (0 = alla visas, ingen badge). Hero-pill-mönstret (dot +
+            mono-count + ChevronDown, aria-haspopup="dialog"/aria-expanded). */}
+        {hasStatedDesiredOccupation && (
+          <button
+            ref={matchBtnRef}
+            type="button"
+            className="jp-hero-pill"
+            data-active={openPop === "match" || matchActive}
+            aria-haspopup="dialog"
+            aria-expanded={openPop === "match"}
+            onClick={() => setOpenPop(openPop === "match" ? null : "match")}
+          >
+            {matchActive && (
+              <span className="jp-hero-pill__dot" aria-hidden="true" />
+            )}
+            {tGrade("toggleLabel")}
+            {matchActiveCount > 0 && (
+              <span className="jp-hero-pill__count">{matchActiveCount}</span>
+            )}
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+        )}
+
+        {/* "?" — ikon-only InfoDialog OMEDELBART till höger om Matchnings-pillen
+            (entydig referent). Texten är verbatim gradeFilter.help +
+            relatedToggleHelp (#408 kriterium 9 — ingen omformulering). Renderas
+            tillsammans med pillen (samma gate) så den inte står referent-lös. */}
+        {hasStatedDesiredOccupation && (
+          <InfoDialog
+            iconOnly
+            title={tGrade("helpTitle")}
+            paragraphs={[tGrade("help"), tGrade("relatedToggleHelp")]}
+          />
+        )}
+
+        {/* [Status ▾] — renderas på hasSeeker (status filtrerar mot seekerns
+            sparade/ansökta; utan seeker finns inget att filtrera). data-active =
+            någon facett på; count-badge = antal aktiva facetter. */}
+        {hasSeeker && (
+          <button
+            ref={statusBtnRef}
+            type="button"
+            className="jp-hero-pill"
+            data-active={openPop === "status" || statusActiveCount > 0}
+            aria-haspopup="dialog"
+            aria-expanded={openPop === "status"}
+            onClick={() => setOpenPop(openPop === "status" ? null : "status")}
+          >
+            {statusActiveCount > 0 && (
+              <span className="jp-hero-pill__dot" aria-hidden="true" />
+            )}
+            {tStatus("label")}
+            {statusActiveCount > 0 && (
+              <span className="jp-hero-pill__count">{statusActiveCount}</span>
+            )}
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+        )}
+
+        {/* Sortering — "Sortera"-labeln behåller htmlFor-associationen (a11y). */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label
+            htmlFor="jobb-sort"
+            style={{
+              display: "block",
+              fontSize: 14,
+              color: "var(--jp-ink-2)",
+            }}
+          >
+            {t("toolbar.sortLabel")}
+          </label>
+          <select
+            id="jobb-sort"
+            className="jp-select"
+            style={{ height: 40, width: "auto", minWidth: 180 }}
+            value={selectValue}
+            onChange={onSortChange}
+          >
+            {sortOptions.map((opt) => (
+              <option
+                key={opt.value}
+                value={opt.value}
+                disabled={opt.value === "Relevance" && !qReady}
+              >
+                {opt.uiKey ? t(opt.uiKey) : jobAdSortLabel(tEnum, opt.value)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
 
-    {/* #383 — status-facetterna (Sparade/Ansökta/Dölj ansökta). EGEN rad i
-        match-strippens area, ORTOGONAL mot matchningen: renderas så snart
-        användaren har en seeker (`hasSeeker`) — INTE gatat på angivet yrke
-        (till skillnad från grad-filtret nedan). Filtrerar listan mot seekerns
-        sparade/ansökta annonser. Navigerar utan commit-flaggan (runtime-view-
-        state). Återbrukar .jp-gradefilter__*-tokenen (samma kontroll-rytm) —
-        ingen ny globals.css. */}
-    {hasSeeker && (
-      <div className="mb-4 flex flex-col gap-2">
-        <JobbStatusFilter
-          savedOnly={urlState.savedOnly ?? false}
-          appliedOnly={urlState.appliedOnly ?? false}
-          hideApplied={urlState.hideApplied ?? false}
-          onChange={onStatusChange}
-        />
-      </div>
-    )}
-    {/* #378 — sammanhållen match-rad: en EGEN full-bredds rad under träff/sort-
-        raden, vänster-grupperad. Renderas när yrke är angett (paritet med
-        kontrollens tidigare gate i höger-klustret). Switchen speglar `matchActive`
-        (huvudbrytaren) — PÅ → grad-chips (Grund/Bra/Stark) + "Visa relaterade
-        också"; AV → bara switchen. Att kontrollen bor på sin egen rad ger en
-        balanserad, stabil layout (ingen "hoppande" rytm mellan av/på) och håller
-        "Sortera" ensam i sin höger-kolumn ovan. Flat civic: inga nya
-        globals.css-klasser, bara layout-utilities + befintliga
-        .jp-gradefilter__*-tokens. */}
+    {/* #408 — Matchnings-popovern: enkelkolumns-skal (JobbToolbarPopover) som
+        hyser den befintliga JobbMatchGradeFilter-kroppen, wired till SAMMA
+        parent-handlers (commit-/navigate-semantiken oförändrad). */}
     {hasStatedDesiredOccupation && (
-      <div className="mb-4 flex flex-col gap-2">
+      <JobbToolbarPopover
+        open={openPop === "match"}
+        title={tGrade("toggleLabel")}
+        triggerRef={matchBtnRef}
+        onClose={() => setOpenPop(null)}
+      >
         <JobbMatchGradeFilter
           active={matchActive}
           selected={urlState.matchGrades}
@@ -529,27 +655,114 @@ export function JobbResultsToolbar({
           onTurnOn={onMatchTurnOn}
           onRelatedToggle={onRelatedToggle}
         />
-        {/* STEG 5 / issue #292 (grade-filter) — kort, valfri hjälprad. Förklarar
-            att filter/sort gallrar på DIN preferensnivå (Fast-bandet) medan ett
-            korts märkning är den CV-styrkta Full-graden, så badgen kan visa en
-            annan nivå än filtret (#371/#382 enhetliga Fast/Full-regel, ADR 0076 —
-            aldrig "Visa endast Toppmatchningar"; per-kort-exakthet utlovas aldrig).
-            #378 — integrerad som lugn hint-text (ink-2,
-            informationsbärande — samma honesty-copy) i stället för en separat blå
-            info-banner; det tar bort det visuella bruset Klas påtalade utan att
-            tappa ärlighets-disclosuren. Paritet med "Visa relaterade också"-
-            hjälpraden ovanför (samma text-token). Visas när matchningen är PÅ
-            (matchActive), dvs. när grad-chipsen är synliga.
-            role="status" så SR aviserar hjälptexten när den tonar in vid
-            switch-PÅ (a11y §6). */}
-        {matchActive && (
-          <p
-            className="text-body-sm text-text-secondary"
-            role="status"
-            style={{ maxWidth: "68ch" }}
+      </JobbToolbarPopover>
+    )}
+
+    {/* #408 — Status-popovern: samma skal, egen triggerRef. JobbStatusFilter
+        bevarar mutex-logiken (Ansökta ⊕ Dölj ansökta). */}
+    {hasSeeker && (
+      <JobbToolbarPopover
+        open={openPop === "status"}
+        title={tStatus("label")}
+        triggerRef={statusBtnRef}
+        onClose={() => setOpenPop(null)}
+      >
+        <JobbStatusFilter
+          savedOnly={urlState.savedOnly ?? false}
+          appliedOnly={urlState.appliedOnly ?? false}
+          hideApplied={urlState.hideApplied ?? false}
+          onChange={onStatusChange}
+        />
+      </JobbToolbarPopover>
+    )}
+
+    {/* ROW 2 — chips-rad: de befintliga sök/q-chipsen (SPOT via buildChipModels)
+        + toolbar-lokala grad/status-chips, så filter-staten ALLTID syns utan att
+        öppna en popover (kriterium 5). role="group" exponerar aria-label på den
+        generiska containern; namnet täcker sökord + filter (M2). */}
+    {hasAnyToolbarChips && (
+      <div
+        className="jp-filterchips"
+        role="group"
+        aria-label={t("toolbar.activeFiltersLabel")}
+      >
+        {chips.map((chip) => {
+          // Ikon per tagg-typ (CHIP_ICON — Klass 2 lade employmentType/
+          // worktimeExtent; E2i — q-taggar särskiljs som Search).
+          const ChipIcon = CHIP_ICON[chip.axis];
+          return (
+            <span key={`${chip.axis}-${chip.value}`} className="jp-filterchip">
+              <ChipIcon size={12} aria-hidden="true" />
+              {chip.label}
+              <button
+                type="button"
+                className="jp-filterchip__rm"
+                onClick={() => removeChip(chip)}
+                aria-label={
+                  chip.axis === "q"
+                    ? t("toolbar.removeSearchTerm", { label: chip.label })
+                    : t("toolbar.removeFilter", { label: chip.label })
+                }
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+
+        {/* Grad-chips (toolbar-lokala, #408): en per smalnad grad. × kör samma
+            navigate-väg som popover-avmarkering (onMatchGradesChange med graden
+            borttagen). Civic-återhållen ikon: SlidersHorizontal (filter-justering). */}
+        {matchGradeChips.map((c) => (
+          <span key={`grade-${c.grade}`} className="jp-filterchip">
+            <SlidersHorizontal size={12} aria-hidden="true" />
+            {c.label}
+            <button
+              type="button"
+              className="jp-filterchip__rm"
+              onClick={() =>
+                onMatchGradesChange(
+                  activeMatchGrades.filter((g) => g !== c.grade),
+                )
+              }
+              aria-label={t("toolbar.removeFilter", { label: c.label })}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </span>
+        ))}
+
+        {/* Status-chips (toolbar-lokala, #408): en per aktiv facett. × kör samma
+            onStatusChange-väg (mutex bevaras i state-objektet). Egen civic-ikon
+            per facett (Bookmark/Send/EyeOff). */}
+        {statusChips.map((c) => {
+          const ChipIcon = c.icon;
+          return (
+            <span key={`status-${c.key}`} className="jp-filterchip">
+              <ChipIcon size={12} aria-hidden="true" />
+              {c.label}
+              <button
+                type="button"
+                className="jp-filterchip__rm"
+                onClick={() => onStatusChange(c.next)}
+                aria-label={t("toolbar.removeFilter", { label: c.label })}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+
+        {/* "Rensa sökord och filter" — visas bara när det finns sök/q-chips att
+            rensa (oförändrad clearAll: nollar dimensioner + q via commit). */}
+        {chips.length > 0 && (
+          <button
+            type="button"
+            className="jp-clearlink"
+            onClick={clearAllFilters}
           >
-            {t("gradeFilter.help")}
-          </p>
+            {t("toolbar.clearAll")}
+          </button>
         )}
       </div>
     )}

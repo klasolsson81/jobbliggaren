@@ -36,8 +36,19 @@ describe("JobbStatusFilter — status-kryssrutor (#383)", () => {
     expect(
       screen.getByRole("checkbox", { name: "Dölj ansökta" }),
     ).toBeInTheDocument();
-    // Gruppen får sitt tillgängliga namn från den synliga "Status"-labeln.
+    // Gruppen får sitt tillgängliga namn från den (sr-only) "Status"-labeln.
     expect(screen.getByRole("group", { name: "Status" })).toBeInTheDocument();
+  });
+
+  // #408 kriterium 4 — kontrollen slutar låna grad-filtrets .jp-gradefilter-rytm;
+  // den bor nu i popover-/panel-idiomet (.jp-panel__group + .jp-checkitem).
+  it("använder INTE .jp-gradefilter längre (panel-idiom, #408)", () => {
+    const { container } = renderFilter({});
+    expect(container.querySelector(".jp-gradefilter")).toBeNull();
+    expect(container.querySelector(".jp-gradefilter__grades")).toBeNull();
+    // Gruppen bär panel-token; raderna bär ren .jp-checkitem (ej __grade).
+    expect(container.querySelector(".jp-panel__group")).not.toBeNull();
+    expect(container.querySelector(".jp-checkitem")).not.toBeNull();
   });
 
   it("speglar aria-checked ur props:arna (ingen egen state)", () => {

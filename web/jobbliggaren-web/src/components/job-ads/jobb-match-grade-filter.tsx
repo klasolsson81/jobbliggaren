@@ -9,7 +9,6 @@ import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
-import { OVERSIKT_MATCH_GRADES } from "@/lib/dto/match-count";
 
 /**
  * STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filtret på /jobb.
@@ -26,6 +25,15 @@ import { OVERSIKT_MATCH_GRADES } from "@/lib/dto/match-count";
  * - Avmarkera en grad smalnar (t.ex. bara Bra+Stark döljer Grund). Avmarkera
  *   SISTA graden håller switchen PÅ (tom = alla visas igen) — "av" styrs nu av
  *   switchen, inte av att man avmarkerar bort allt (beteendeändring, issue #292).
+ *
+ * #408 — kontrollen är nu PRESENTATIONS-kroppen i `[Matchning ▾]`-popovern
+ * (`JobbToolbarPopover` → `.jp-popover.jp-panel`). Den läses som en ren kolumn:
+ * switch-raden överst, sedan (när PÅ) "Visa relaterade också"-raden och
+ * grad-kryssrutorna staplade i panel-rytm. Hjälptexten lever inte längre inline
+ * — den bor i popoverns "?"-InfoDialog (verbatim `gradeFilter.help` +
+ * `relatedToggleHelp`). "Visa bara matchade"-snabbvalet är borttaget (#408
+ * DECISION 1): {Good,Strong} nås via Bra+Stark-kryssrutorna och Översikt-
+ * djuplänken. #292-master-gaten och #300 PR-5-related-divergensen är OFÖRÄNDRADE.
  *
  * #300 PR-5 (ADR 0084, design-reviewer bind) — "Visa relaterade också"-toggle:n:
  * - En SEPARAT kontroll UNDERORDNAD "Matchning"-switchen (aldrig hopslagen med
@@ -108,15 +116,6 @@ interface JobbMatchGradeFilterProps {
 // (badge) per issue #291 / #300 (drift-guard-pinnat i parity-testet).
 const GRADES: ReadonlyArray<ListMatchGrade> = LIST_MATCH_GRADES;
 
-// #381 — "Visa bara matchade" = Bra + Stark match (Good/Strong). Återbruka
-// `OVERSIKT_MATCH_GRADES` (SSOT, drift-guardad mot backend
-// `GetMyMatchCountQueryHandler.HeadlineGrades`) i stället för en egen kopia, så
-// snabbvalet landar BEVISLIGT på exakt samma grad-set som Översiktens "visa
-// matchade jobb"-länk + notis-count (?matchGrades=Good&matchGrades=Strong).
-// Exkluderar Grundmatch (Basic) OCH Relaterat yrke (Related) — "matchad" mäter
-// grad-STYRKA, inte yrkes-bredd; relaterade yrken styrs av sin egen toggle.
-const ONLY_MATCHED_GRADES = OVERSIKT_MATCH_GRADES;
-
 export function JobbMatchGradeFilter({
   active,
   selected,
@@ -133,7 +132,6 @@ export function JobbMatchGradeFilter({
   // "Visa relaterade också"-toggle:n (#300 PR-5).
   const labelId = useId();
   const relatedLabelId = useId();
-  const relatedHelpId = useId();
 
   // issue #292 — switchen speglar matchnings-axeln (`active`), INTE
   // selected.length. PÅ + tom selected = "alla grader visas" (ej "av").
@@ -151,19 +149,6 @@ export function JobbMatchGradeFilter({
   // Härledd effektiv mängd: PÅ + tom lista = alla SYNLIGA grader visas
   // (kryssrutorna renderas ALLA ikryssade). PÅ + delmängd = bara de graderna.
   const allShown = selected.length === 0;
-
-  // #381 — "Visa bara matchade" är aktiv (knappen pressad) EXAKT när det valda
-  // grad-setet är {Good, Strong} (oavsett relaterade-toggle:n — Related räknas
-  // aldrig som matchad). En custom-delmängd (t.ex. bara Stark, eller med Basic)
-  // → ej aktiv (opressad). Ett klick när opressad sätter Good+Strong; ett klick
-  // när pressad återställer till alla ([] = alla synliga grader visas).
-  const onlyMatched =
-    selected.length === ONLY_MATCHED_GRADES.length &&
-    ONLY_MATCHED_GRADES.every((g) => selected.includes(g));
-
-  function toggleOnlyMatched() {
-    onChange(onlyMatched ? [] : [...ONLY_MATCHED_GRADES]);
-  }
 
   function toggleSwitch() {
     // PÅ → AV: föräldern skriver `?matchning=off` + tömmer grader. AV → PÅ:
@@ -189,95 +174,64 @@ export function JobbMatchGradeFilter({
   }
 
   return (
-    <div className="jp-gradefilter">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={isOn}
-        // Den synliga labeln (syskon-spanen nedan) bär det tillgängliga namnet
-        // via aria-labelledby — switchen är en knapp, inte en native checkbox,
-        // så ingen <label htmlFor>; namnet dupliceras aldrig i ett aria-label.
-        aria-labelledby={labelId}
-        onClick={toggleSwitch}
-        className="jp-gradefilter__switch"
-        data-checked={isOn}
-      >
-        <span className="jp-gradefilter__thumb" aria-hidden="true" />
-      </button>
-      <span id={labelId} className="jp-gradefilter__label">
-        {t("toggleLabel")}
-      </span>
+    // #408 — ren kolumn inne i popovern: switch-raden överst, sedan (när PÅ)
+    // related-raden + grad-kryssrutorna staplade i panel-rytm. Ren layout-utility
+    // (flex/kolumn/gap) — INGEN ny globals.css; switch/label/kryssrutor bär de
+    // befintliga .jp-gradefilter__*-/.jp-checkitem-tokenen.
+    <div className="flex flex-col gap-3 px-2 py-1">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isOn}
+          // Den synliga labeln (syskon-spanen nedan) bär det tillgängliga namnet
+          // via aria-labelledby — switchen är en knapp, inte en native checkbox,
+          // så ingen <label htmlFor>; namnet dupliceras aldrig i ett aria-label.
+          aria-labelledby={labelId}
+          onClick={toggleSwitch}
+          className="jp-gradefilter__switch"
+          data-checked={isOn}
+        >
+          <span className="jp-gradefilter__thumb" aria-hidden="true" />
+        </button>
+        <span id={labelId} className="jp-gradefilter__label">
+          {t("toggleLabel")}
+        </span>
+      </div>
 
       {isOn && (
-        // #300 PR-5 — egen full-bredds rad-wrapper: "Visa relaterade också"-
-        // toggle:n OVANFÖR grad-kryssrutorna, sedan kryssrute-gruppen. `basis-full`
-        // bryter raden så toggle:n + grupperna staplas (den horisontella
-        // .jp-gradefilter-raden wrappar annars allt på samma rytm). Ren
-        // layout-utility (flex/kolumn/gap) — INGEN ny gradefilter-CSS i
-        // globals.css-hotspoten; switch/label/kryssrutor bär de befintliga
-        // .jp-gradefilter__*-tokenen.
-        <div className="flex basis-full flex-col gap-2">
+        // PÅ-blocket: "Visa relaterade också"-toggle:n (#300 PR-5) OVANFÖR
+        // grad-kryssrutorna, sedan kryssrute-gruppen i panel-rytm.
+        <div className="flex flex-col gap-3">
           {/* "Visa relaterade också" — subordinerad toggle, EGEN rad ovanför
-              kryssrutorna, med en hjälprad under. Återanvänder
-              .jp-gradefilter__switch-tokenet + aria-labelledby-mönstret (a11y
-              §2/§6 — synlig label = namnet); hjälptexten kopplas via
-              aria-describedby. */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={includeRelated}
-                aria-labelledby={relatedLabelId}
-                aria-describedby={relatedHelpId}
-                onClick={() => onRelatedToggle(!includeRelated)}
-                className="jp-gradefilter__switch"
-                data-checked={includeRelated}
-              >
-                <span className="jp-gradefilter__thumb" aria-hidden="true" />
-              </button>
-              <span id={relatedLabelId} className="jp-gradefilter__label">
-                {t("relatedToggleLabel")}
-              </span>
-            </div>
-            {/* Civic hjälprad (ink-2, informationsbärande — aldrig ink-3, ADR
-                0038). Förklarar vad toggle:n gör utan att lova per-kort-exakthet
-                (samma honesty-linje som gradeFilter.help). */}
-            <span
-              id={relatedHelpId}
-              className="text-body-sm text-text-secondary"
+              kryssrutorna. Återanvänder .jp-gradefilter__switch-tokenet +
+              aria-labelledby-mönstret (a11y §2/§6 — synlig label = namnet).
+              #408 — hjälptexten bor nu i popoverns "?"-InfoDialog (verbatim
+              relatedToggleHelp), inte längre som inline-rad här. */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={includeRelated}
+              aria-labelledby={relatedLabelId}
+              onClick={() => onRelatedToggle(!includeRelated)}
+              className="jp-gradefilter__switch"
+              data-checked={includeRelated}
             >
-              {t("relatedToggleHelp")}
+              <span className="jp-gradefilter__thumb" aria-hidden="true" />
+            </button>
+            <span id={relatedLabelId} className="jp-gradefilter__label">
+              {t("relatedToggleLabel")}
             </span>
           </div>
 
-          {/* #381 — "Visa bara matchade"-snabbval: ETT klick smalnar till Bra +
-              Stark match (Good/Strong), paritet med Översiktens "visa matchade
-              jobb"-länk; ett klick till återställer alla nivåer. Toggle-knapp
-              (aria-pressed) — pressad = aktiv filtrering. Återanvänder .jp-btn-
-              tokenen: sekundär (kontur) opressad, primär (grön accent-fyll
-              `--jp-accent-800`, ADR 0068) pressad — accent-fyllen = "på"/aktiv
-              selektion i hela design-systemet (switch-`data-checked`/segment-
-              `data-active`). Grad-kryssrutorna nedan speglar resultatet (Bra +
-              Stark ikryssade), så förhållandet är självförklarande. EGEN rad
-              ovanför grupperna; inga nya globals.css-klasser. */}
-          <div>
-            <button
-              type="button"
-              aria-pressed={onlyMatched}
-              onClick={toggleOnlyMatched}
-              className={`jp-btn jp-btn--sm ${
-                onlyMatched ? "jp-btn--primary" : "jp-btn--secondary"
-              }`}
-            >
-              {t("onlyMatchedLabel")}
-            </button>
-          </div>
-
+          {/* Grad-kryssrutorna i panel-rytm (vertikal .jp-panel__group +
+              .jp-checkitem-rader), samma kontroll-rad som Status-popovern.
+              Fokus-ring kommer från .jp-panel .jp-checkitem:focus-visible. */}
           <div
             role="group"
             aria-label={t("groupLabel")}
-            className="jp-gradefilter__grades"
+            className="jp-panel__group"
           >
             {visibleGrades.map((grade) => {
               // issue #292 — PÅ + tom selected = "alla grader visas" → varje
@@ -287,7 +241,7 @@ export function JobbMatchGradeFilter({
               return (
                 <div
                   key={grade}
-                  className="jp-checkitem jp-gradefilter__grade"
+                  className="jp-checkitem"
                   role="checkbox"
                   aria-checked={checked}
                   tabIndex={0}

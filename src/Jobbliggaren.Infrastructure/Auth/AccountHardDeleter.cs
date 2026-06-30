@@ -145,6 +145,15 @@ public sealed class AccountHardDeleter(
             .Where(m => m.UserId == userId)
             .ToListAsync(cancellationToken);
 
+        // ADR 0087 D3 (#311 PR-3) — CompanyWatch is an FK-less by-UserId aggregate (ADR 0058/0059
+        // soft-reference; the watched org.nr is user-owned PII per D8(b) — it reveals WHOM the user
+        // follows). Like UserJobAdMatch it must be deleted EXPLICITLY in the Art. 17 cascade or its
+        // rows orphan on hard-delete. IgnoreQueryFilters also takes soft-deleted (unfollowed) rows.
+        var companyWatches = await db.CompanyWatches
+            .IgnoreQueryFilters()
+            .Where(w => w.UserId == userId)
+            .ToListAsync(cancellationToken);
+
         // Steg 2 a — Öppna explicit transaction (UoWBehavior är inte i pipelinen
         // för worker-jobb-anrop direkt mot porten).
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -162,6 +171,7 @@ public sealed class AccountHardDeleter(
             db.RecentJobSearches.RemoveRange(recentSearches);
             db.SavedJobAds.RemoveRange(savedJobAds);
             db.UserJobAdMatches.RemoveRange(userJobAdMatches);
+            db.CompanyWatches.RemoveRange(companyWatches);
             db.JobSeekers.Remove(jobSeeker);
 
             // GDPR Art. 17 (#370, found by the #268 audit) — ParsedResume is an FK-less

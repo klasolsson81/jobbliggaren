@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Auditing;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -27,6 +28,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SavedJobAd> SavedJobAds => Set<SavedJobAd>();
     // ADR 0080 Vag 4 — background match results.
     public DbSet<UserJobAdMatch> UserJobAdMatches => Set<UserJobAdMatch>();
+    // ADR 0087 D3 (#311 PR-3) — user follows of an employer by org.nr.
+    public DbSet<CompanyWatch> CompanyWatches => Set<CompanyWatch>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

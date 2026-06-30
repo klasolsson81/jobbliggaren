@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import type { TaxonomyOption } from "@/lib/dto/taxonomy";
 import { formatNumber } from "@/lib/i18n/format";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
+import { usePanelPosition } from "@/lib/hooks/use-panel-position";
 
 /**
  * Klass-2-filterpanel (ADR 0067 Fas E, rad 109 "Filter-panel", 2026-06-13).
@@ -60,40 +60,6 @@ interface JobbKlass2PanelProps {
   footer?: React.ReactNode;
   /** Civil degradering när options inte kunde laddas. */
   emptyText: string;
-}
-
-// Position härleds ur triggerns ref INNE I en effect (refs får inte läsas
-// under render). Speglar JobbFilterPopover.usePopoverPosition men en smalare
-// panel (enkelkolumn) — 320px.
-function usePanelPosition(
-  open: boolean,
-  triggerRef: React.RefObject<HTMLButtonElement | null>,
-) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  useEffect(() => {
-    const trigger = triggerRef.current;
-    if (!open || !trigger) {
-      setPos(null);
-      return;
-    }
-    const measure = () => {
-      const r = trigger.getBoundingClientRect();
-      setPos({
-        top: r.bottom + 8 + window.scrollY,
-        left: r.left + window.scrollX,
-      });
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [open, triggerRef]);
-
-  return pos;
 }
 
 function toggleEmployment(

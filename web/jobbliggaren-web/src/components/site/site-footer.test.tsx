@@ -70,16 +70,15 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     );
   });
 
-  it("renders the one remaining not-yet-built content link as an aria-disabled span, out of tab order", () => {
-    render(<SiteFooter />);
-    // För utvecklare (about) is the only still-gated content route — a disabled
-    // span, never a link. Hjälpcenter flipped live in #262 and Tillgänglighet in
-    // #263; both are asserted as real links below.
-    const name = "För utvecklare";
-    expect(screen.queryByRole("link", { name })).toBeNull();
-    const el = screen.getByText(name);
-    expect(el.tagName).toBe("SPAN");
-    expect(el).toHaveAttribute("aria-disabled", "true");
+  it("renders no aria-disabled link spans — every footer content route is now live (#263)", () => {
+    const { container } = render(<SiteFooter />);
+    // /for-utvecklare flipped live in #263 — the last gated content route. The
+    // null → aria-disabled-span mechanism is kept as forward-compat scaffolding
+    // (CTO 2026-06-30) but no COLUMNS entry exercises it now, so the footer must
+    // render zero aria-disabled spans.
+    expect(container.querySelectorAll('span[aria-disabled="true"]')).toHaveLength(
+      0,
+    );
   });
 
   it("links the now-live Hjälpcenter hub in the support column (#262)", () => {
@@ -87,6 +86,13 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     const supportNav = screen.getByRole("navigation", { name: "Stöd och guider" });
     const link = within(supportNav).getByRole("link", { name: "Hjälpcenter" });
     expect(link).toHaveAttribute("href", "/hjalpcenter");
+  });
+
+  it("links the now-live För utvecklare page in the about column (#263)", () => {
+    render(<SiteFooter />);
+    const aboutNav = screen.getByRole("navigation", { name: "Om Jobbliggaren" });
+    const link = within(aboutNav).getByRole("link", { name: "För utvecklare" });
+    expect(link).toHaveAttribute("href", "/for-utvecklare");
   });
 
   it("has no social block or 'Följ oss' (removed — accounts not coming soon, #393)", () => {

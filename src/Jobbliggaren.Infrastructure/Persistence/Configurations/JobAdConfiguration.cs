@@ -119,6 +119,24 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasColumnName("worktime_extent_concept_id")
             .HasComputedColumnSql("raw_payload->'working_hours_type'->>'concept_id'", stored: true);
 
+        // #311 D1 (följ arbetsgivare, org.nr-promotion, ADR 0087) — STORED generated
+        // column för arbetsgivarens organisationsnummer, den KANONISKA följ-nyckeln
+        // (ingen fuzzy namn-matchning, "Volvo×20"-fällan). NESTED under employer
+        // (raw_payload->'employer'->>'organization_number') — EJ top-level som
+        // occupation_group/employment_type. Samma B2-mönster som F6P7: raw_payload
+        // saknar employer.organization_number för 100% av befintliga rader
+        // (JobTechEmployer-POCO:n deserialiserade den aldrig förrän #311) → kolumnen
+        // NULL tills POCO-tillägg + full re-ingest re-serialiserar raw_payload. Drift
+        // omöjlig (Postgres härleder ur raw_payload, ingen C#-skrivväg). Partial-index
+        // (WHERE … IS NOT NULL) skapas i migrationen (fluent-API saknar partial-stöd för
+        // shadow-properties → raw SQL, samma skäl som F6P7/F2P9). LINQ-referens:
+        // EF.Property<string?>(j, "OrganizationNumber"). ENSKILD FIRMA-NOT (GDPR,
+        // ADR 0087): org.nr kan vara ett personnummer — publik Platsbanken-data,
+        // krypterad at-rest, ALDRIG loggad/surfad oflaggat (CLAUDE.md §5).
+        builder.Property<string?>("OrganizationNumber")
+            .HasColumnName("organization_number")
+            .HasComputedColumnSql("raw_payload->'employer'->>'organization_number'", stored: true);
+
         // F6 P4 (ADR 0062) — FTS search_vector. STORED tsvector generated column,
         // härledd från title + description av PostgreSQL ('swedish'-config för
         // svensk stemming). Shadow-property (ej CLR-property på JobAd — NpgsqlTsVector

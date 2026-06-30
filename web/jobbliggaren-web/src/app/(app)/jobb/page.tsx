@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
+import { getMyProfile } from "@/lib/api/me";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
@@ -46,10 +47,9 @@ type JobbSearchParams = {
   // related-graderade annonser). Frånvaro = default AV. Allt annat än "on" tolkas
   // som frånvaro (AV) — page.tsx parsar bara on-värdet.
   relaterade?: string;
-  // #383 — status-facetterna. `?sparade=on`/`?ansokta=on`/`?doljAnsokta=on`.
+  // #383 → förenklat 2026-06-30 — "Dölj ansökta"-toggle:n. `?doljAnsokta=on`.
   // Frånvaro = ingen status-gallring. Endast on-värdet parsas (paritet relaterade).
-  sparade?: string;
-  ansokta?: string;
+  // (`sparade`/`ansokta` borttagna med "Visa sparade"/"Visa bara ansökta".)
   doljAnsokta?: string;
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
@@ -98,11 +98,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // (master-switch för includeRelated genom alla tre matchnings-anropen). Trådas
   // vidare till JobbResults; default AV (frånvaro = ren lista).
   const includeRelated = params.relaterade === RELATERADE_ON_VALUE;
-  // #383 — status-facetterna. Parsa BARA on-värdet → boolean (paritet relaterade).
-  // page.tsx förblir presentationellt: den trådar de parsade flaggorna vidare;
-  // jobb-results.tsx gatar dem på seeker-närvaro (ortogonalt mot matchningen).
-  const savedOnly = params.sparade === STATUS_ON_VALUE;
-  const appliedOnly = params.ansokta === STATUS_ON_VALUE;
+  // #383 → förenklat — "Dölj ansökta". Parsa BARA on-värdet → boolean (paritet
+  // relaterade). page.tsx förblir presentationellt: den trådar flaggan vidare;
+  // hero-filterraden gatar den på seeker-närvaro (ortogonalt mot matchningen).
   const hideApplied = params.doljAnsokta === STATUS_ON_VALUE;
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
@@ -115,12 +113,21 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // och blockerar därför INTE resultat-streamingen. getJobAds() +
   // chip-label-resolvern flyttades till `JobbResults` (F6 P4 B1) så att
   // bara resultat-ytan — inte hero:n — byts mot skeleton under en sökning.
-  const [taxonomyResult, recentSearchesResult, savedJobAdsResult] =
+  // getMyProfile är `cache()`:ad (app-shellen + JobbResults läser samma värde
+  // per request — noll extra round-trip). Hoistad hit så hero-filterraden (utanför
+  // Suspense) kan rendera Matchning + Dölj ansökta: `hasStatedDesiredOccupation`
+  // gatar Matchning-pillen, en lyckad profil-läsning ⇒ seekern finns och gatar
+  // Dölj ansökta (paritet med backend-guarden). Fel/anon → false (kontrollerna göms).
+  const [taxonomyResult, recentSearchesResult, savedJobAdsResult, profileResult] =
     await Promise.all([
       getTaxonomyTree(),
       getRecentSearches(),
       getSavedJobAds(),
+      getMyProfile(),
     ]);
+  const hasStatedDesiredOccupation =
+    profileResult.kind === "ok" && profileResult.data.hasStatedDesiredOccupation;
+  const hasSeeker = profileResult.kind === "ok";
 
   // ADR 0060: Senaste-sökningar-hero-chip degraderar civilt — vid fel
   // (network/parse/auth-edge) faller chipen till tom-tillstånd och inget
@@ -170,11 +177,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // re-renderas (visar skeleton) när bara toggle:n flippas: list-/badge-fetchen
   // hänger på includeRelated (samma princip som matchningsaxeln/grad-filtret).
   const relateradeKey = includeRelated ? "on" : "";
-  // #383 — status-facetterna ingår i Suspense-keyn så listan re-renderas (visar
-  // skeleton) när bara en facett toggle:as (samma princip som matchnings-axeln).
-  const statusKey = `${savedOnly ? "s" : ""}${appliedOnly ? "a" : ""}${
-    hideApplied ? "h" : ""
-  }`;
+  // #383 → förenklat — "Dölj ansökta" ingår i Suspense-keyn så listan re-renderas
+  // (visar skeleton) när toggle:n flippas (samma princip som matchnings-axeln).
+  const statusKey = hideApplied ? "h" : "";
 
   return (
     <>
@@ -246,6 +251,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 initialEmploymentType={employmentType}
                 initialWorktimeExtent={worktimeExtent}
                 initialMatchGrades={matchGrades}
+                initialMatchningOff={matchningOff}
+                initialIncludeRelated={includeRelated}
+                initialHideApplied={hideApplied}
+                hasStatedDesiredOccupation={hasStatedDesiredOccupation}
+                hasSeeker={hasSeeker}
                 q={q ?? ""}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
@@ -276,8 +286,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
             matchGrades={matchGrades}
             matchningOff={matchningOff}
             includeRelated={includeRelated}
-            savedOnly={savedOnly}
-            appliedOnly={appliedOnly}
             hideApplied={hideApplied}
             q={q ?? ""}
             commit={commit}

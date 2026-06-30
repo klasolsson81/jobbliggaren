@@ -70,14 +70,12 @@ interface JobbResultsProps {
    */
   includeRelated: boolean;
   /**
-   * #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetterna (parsade ur
-   * `?sparade/?ansokta/?doljAnsokta=on` i page.tsx). ORTOGONALA mot matchningen —
-   * de gallrar listan mot den inloggade seekerns sparade/ansökta annonser oavsett
-   * om matchningen är på. Skickas vidare till list-queryn; kontrollen renderas bara
-   * när användaren har en seeker (`hasSeeker`, härledd nedan).
+   * #383 → förenklat 2026-06-30 — "Dölj ansökta" (parsad ur `?doljAnsokta=on` i
+   * page.tsx). ORTOGONAL mot matchningen — gallrar bort annonser den inloggade
+   * seekern redan sökt. Skickas vidare till list-queryn; kontrollen (toggle:n) bor
+   * i hero-filterraden (gatad på hasSeeker där). ("Visa sparade"/"Visa bara
+   * ansökta" borttagna — Klas-förenkling.)
    */
-  savedOnly: boolean;
-  appliedOnly: boolean;
   hideApplied: boolean;
   q: string;
   /**
@@ -102,10 +100,8 @@ interface JobbResultsProps {
     // #300 PR-5 — bärs i paginerings-href:en så sida-2-klicket inte tappar
     // "Visa relaterade också"-toggle:n (samma felklass som matchGrades).
     relaterade?: string;
-    // #383 — bärs i paginerings-href:en så sida-2-klicket inte tappar status-
-    // facetterna (samma felklass som relaterade/matchGrades).
-    sparade?: string;
-    ansokta?: string;
+    // #383 → förenklat — bärs i paginerings-href:en så sida-2-klicket inte tappar
+    // "Dölj ansökta" (samma felklass som relaterade/matchGrades).
     doljAnsokta?: string;
     q?: string;
   };
@@ -123,8 +119,6 @@ export async function JobbResults({
   matchGrades,
   matchningOff,
   includeRelated,
-  savedOnly,
-  appliedOnly,
   hideApplied,
   q,
   commit,
@@ -166,12 +160,6 @@ export async function JobbResults({
   const hasStatedDesiredOccupation =
     profileResult.kind === "ok" &&
     profileResult.data.hasStatedDesiredOccupation;
-
-  // #383 — status-facetterna (sparade/ansökta/dölj ansökta) är ORTOGONALA mot
-  // matchningen men kräver en seeker (de gallrar mot seekerns sparade/ansökta). En
-  // lyckad profil-läsning ⇒ seekern finns; fel/anon → false ⇒ kontrollen göms
-  // (paritet med backend-guarden, som ger en tom sida för en seeker-lös begäran).
-  const hasSeeker = profileResult.kind === "ok";
 
   // issue #292 (senior-cto-advisor-bind) — matchnings-axelns SSOT: PÅ exakt när
   // användaren angett ett yrke OCH huvudbrytaren inte är avstängd. Allt nedan
@@ -217,10 +205,8 @@ export async function JobbResults({
     matchGrades,
     matchningOff,
     includeRelated,
-    // #383 — bär status-facetterna i modal-soft-naven så öppna→stäng av ett
-    // jobbkort bevarar HELA list-läget inkl. status (paritet relaterade/matchGrades).
-    savedOnly,
-    appliedOnly,
+    // #383 → förenklat — bär "Dölj ansökta" i modal-soft-naven så öppna→stäng av
+    // ett jobbkort bevarar HELA list-läget (paritet relaterade/matchGrades).
     hideApplied,
     sortBy,
     pageSize: rawParams.pageSize,
@@ -250,11 +236,9 @@ export async function JobbResults({
       // #300 PR-5 — master-switch för related-yrken i listan (gate:ad på
       // matchActive ovan). Default false ⇒ ren exakt-match-lista.
       includeRelated: effectiveIncludeRelated,
-      // #383 — status-facetterna. Skickas rakt igenom; backend gallrar mot
-      // seekern och guardar en seeker-lös begäran (tom sida). ORTOGONALA mot
-      // matchningen — passeras oavsett matchActive.
-      savedOnly,
-      appliedOnly,
+      // #383 → förenklat — "Dölj ansökta". Skickas rakt igenom; backend gallrar
+      // bort annonser seekern redan sökt (guardar en seeker-lös begäran med tom
+      // sida). ORTOGONAL mot matchningen — passeras oavsett matchActive.
       hideApplied,
       q,
       commit,
@@ -349,10 +333,8 @@ export async function JobbResults({
             worktimeExtent={worktimeExtent}
             matchGrades={matchGrades}
             includeRelated={includeRelated}
-            savedOnly={savedOnly}
-            appliedOnly={appliedOnly}
+            matchningOff={matchningOff}
             hideApplied={hideApplied}
-            hasSeeker={hasSeeker}
             resolvedLabels={resolvedLabels}
             q={q}
             sortBy={sortBy}
@@ -461,10 +443,8 @@ function buildPageHref(
   // toggle:n (samma felklass som matchGrades ovan). Bevaras BARA när on (paritet
   // med buildJobbHref); page.tsx parsar bara on-värdet.
   if (params.relaterade === "on") url.set("relaterade", "on");
-  // #383 — utan dessa rader tappar sida-2-klicket status-facetterna (samma
+  // #383 → förenklat — utan denna rad tappar sida-2-klicket "Dölj ansökta" (samma
   // felklass som relaterade ovan). Bevaras BARA när on (paritet buildJobbHref).
-  if (params.sparade === "on") url.set("sparade", "on");
-  if (params.ansokta === "on") url.set("ansokta", "on");
   if (params.doljAnsokta === "on") url.set("doljAnsokta", "on");
   if (params.q) url.set("q", params.q);
   const qs = url.toString();

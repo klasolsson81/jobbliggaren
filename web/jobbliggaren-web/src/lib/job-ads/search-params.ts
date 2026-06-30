@@ -62,16 +62,14 @@ export interface JobbUrlState {
   // includeRelated genom alla tre anropen (lista/batch/detalj). Runtime-view-
   // state (navigerar utan commit-flaggan, paritet matchGrades).
   includeRelated?: boolean;
-  // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetterna (per-användar-vy).
-  // `savedOnly`/`appliedOnly` = visa BARA sparade/ansökta (OR-union när båda är på);
-  // `hideApplied` = dölj annonser jag redan sökt. Frånvaro (undefined/false) =
-  // ingen status-gallring (ren URL, paritet matchningOff/includeRelated). Svenska
-  // sentinel-params `?sparade=on`/`?ansokta=on`/`?doljAnsokta=on`. ORTOGONALA mot
-  // matchningen (renderas även när matchningen är av; gatas bara på inloggad seeker).
-  // appliedOnly + hideApplied är ömsesidigt uteslutande (kontrollen tillåter inte
-  // båda; backend-validatorn 400:ar). Runtime-view-state (navigerar utan commit).
-  savedOnly?: boolean;
-  appliedOnly?: boolean;
+  // #383 → förenklat 2026-06-30 (Klas: en enda "Dölj ansökta"-toggle i
+  // hero-filterraden; "Visa sparade" + "Visa bara ansökta" borttagna — sparade nås
+  // via Sparade annonser-dropdownen + /sparade). `hideApplied` = dölj annonser jag
+  // redan sökt. Frånvaro (undefined/false) = ingen status-gallring (ren URL, paritet
+  // matchningOff/includeRelated). Svensk sentinel-param `?doljAnsokta=on`. ORTOGONAL
+  // mot matchningen (renderas även när matchningen är av; gatas bara på inloggad
+  // seeker). Runtime-view-state (navigerar utan commit). Backend `JobAdStatusFilter`
+  // (#383) behåller savedOnly/appliedOnly-fälten — FE skickar dem bara aldrig längre.
   hideApplied?: boolean;
   sortBy: JobAdSortBy;
   pageSize?: string;
@@ -99,14 +97,13 @@ export const RELATERADE_PARAM = "relaterade";
 export const RELATERADE_ON_VALUE = "on";
 
 /**
- * #383 (CTO-bind cto-7f3a9c2e1b4d8a6f) — status-facetternas URL-params. Svenska
- * namn (paritet rutterna /jobb /ansokningar + `matchning`/`relaterade`); värdet `on`
- * är ett stabilt sentinel-ord (inte i18n, samma regel som de övriga). Endast `on`
+ * #383 → förenklat 2026-06-30 — "Dölj ansökta"-togglens URL-param. Svenskt namn
+ * (paritet rutterna /jobb /ansokningar + `matchning`/`relaterade`); värdet `on` är
+ * ett stabilt sentinel-ord (inte i18n, samma regel som de övriga). Endast `on`
  * skrivs ut — AV-läget är paramens FRÅNVARO så default-URL:en förblir ren. FE mappar
- * dessa till API-kontraktets engelska flaggor savedOnly/appliedOnly/hideApplied.
+ * den till API-kontraktets engelska flagga `hideApplied`. (`sparade`/`ansokta`
+ * borttagna med "Visa sparade"/"Visa bara ansökta" — Klas-förenkling.)
  */
-export const SPARADE_PARAM = "sparade";
-export const ANSOKTA_PARAM = "ansokta";
 export const DOLJ_ANSOKTA_PARAM = "doljAnsokta";
 export const STATUS_ON_VALUE = "on";
 
@@ -159,10 +156,8 @@ export function buildJobbHref(state: JobbUrlState): string {
   // paramens frånvaro, ren URL). Placeras direkt efter matchning, före q (stabil
   // URL-form, intill matchnings-axelns övriga params).
   if (state.includeRelated) params.set(RELATERADE_PARAM, RELATERADE_ON_VALUE);
-  // #383 — status-facetterna. Skriv BARA ut när på (AV = paramens frånvaro, ren
-  // URL). Placeras efter matchnings-axelns params, före q (stabil URL-form).
-  if (state.savedOnly) params.set(SPARADE_PARAM, STATUS_ON_VALUE);
-  if (state.appliedOnly) params.set(ANSOKTA_PARAM, STATUS_ON_VALUE);
+  // #383 → förenklat — "Dölj ansökta". Skriv BARA ut när på (AV = paramens
+  // frånvaro, ren URL). Placeras efter matchnings-axelns params, före q.
   if (state.hideApplied) params.set(DOLJ_ANSOKTA_PARAM, STATUS_ON_VALUE);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);

@@ -28,6 +28,14 @@ public sealed class GetFacetCountsQueryHandler(
                 Region: query.Region ?? [],
                 EmploymentType: query.EmploymentType ?? [],
                 WorktimeExtent: query.WorktimeExtent ?? [],
+                // #311 D6 (ADR 0087): inget Employer-facett-stöd i PR-2. Employer är
+                // INTE en FacetDimension (ADR 0087 D6 — får ej foldas in i
+                // IJobAdSearchQuery; arbetsgivar-count görs av den separata
+                // disambiguerings-projektionen, ej facett-machineriet). Det fanns
+                // heller ingen Employer-filterkontext att respektera här i PR-2 (ingen
+                // FE-konsument före #408) → []. Facett-interaktionen med ett aktivt
+                // arbetsgivar-filter landar i PR-2b med disambiguerings-ytan.
+                Employer: [],
                 Q: parser.Parse(query.Q).ResidualQ),
             query.Dimension,
             cancellationToken);

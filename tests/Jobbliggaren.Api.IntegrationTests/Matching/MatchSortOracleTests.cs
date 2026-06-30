@@ -185,6 +185,7 @@ public class MatchSortOracleTests(ApiFactory factory)
         Region: [],
         EmploymentType: [],
         WorktimeExtent: [runWorktimeExtent],
+        Employer: [],
         Q: null);
 
     // ---------------------------------------------------------------

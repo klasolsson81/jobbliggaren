@@ -56,6 +56,13 @@ public static class JobAdsEndpoints
             // query-string binds till string[] (samma som dims ovan).
             string[]? employmentType = null,
             string[]? worktimeExtent = null,
+            // #311 D6 (ADR 0087) — arbetsgivar-facet: ?employer=<org.nr> (den
+            // KANONISKA arbetsgivar-nyckeln). Ortogonalt IN-filter; upprepad
+            // query-string binds till string[] (samma som dims ovan). org.nr är
+            // INPUT — det ekas aldrig tillbaka (JobAdDto bär ingen org.nr). org.nr-
+            // SURFANDE (disambiguerings-listan) + personnummer-guarden är sekvenserad
+            // till PR-2b med #408 FE-konsumenten (CTO-bind 2026-06-30).
+            string[]? employer = null,
             string? q = null,
             // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate:
             // ?commit=1 vid avsiktlig sökning (Enter/Sök/förslags-val/toolbar)
@@ -95,6 +102,7 @@ public static class JobAdsEndpoints
                     Region: region,
                     EmploymentType: employmentType,
                     WorktimeExtent: worktimeExtent,
+                    Employer: employer,
                     Q: q,
                     Commit: commit,
                     MatchGrades: matchGrades,

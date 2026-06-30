@@ -314,6 +314,89 @@ public class ListJobAdsQueryValidatorTests
     }
 
     // ---------------------------------------------------------------
+    // Employer (NY dimension — #311 D6, ADR 0087). Arbetsgivar-facet på org.nr.
+    // Per-element-format är ORG.NR (exakt 10 siffror), INTE concept-id; cap-ytan
+    // delas med övriga dims (SearchCriteria.MaxConceptIds, ALDRIG literalen).
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("5592804784")] // live-verifierad form
+    [InlineData("0000000000")]
+    [InlineData("9999999999")]
+    public void Validate_Employer_SingleValidOrgNumber_Passes(string orgNr)
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(Employer: [orgNr]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Employer_MultipleValidOrgNumbers_Passes()
+    {
+        var result = _validator.Validate(
+            new ListJobAdsQuery(Employer: ["5592804784", "5560360793"]));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("559280478")]      // 9 siffror (för kort)
+    [InlineData("55928047840")]    // 11 siffror (för långt)
+    [InlineData("559280-4784")]    // bindestrecks-form (lagras utan bindestreck)
+    [InlineData("55928O4784")]     // bokstav O i stället för siffra 0
+    [InlineData("abcdefghij")]     // alfabetiskt
+    [InlineData("")]               // tom sträng
+    [InlineData(" 592804784")]     // ledande blanksteg
+    public void Validate_Employer_AnyInvalidElement_Fails(string bad)
+    {
+        var result = _validator.Validate(
+            new ListJobAdsQuery(Employer: ["5592804784", bad]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Employer_NewlineInjection_Fails()
+    {
+        // \z (ej $) i mönstret → en newline efter 10 siffror får inte passera.
+        var result = _validator.Validate(
+            new ListJobAdsQuery(Employer: ["5592804784\n"]));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Employer_Null_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(Employer: null));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Employer_EmptyList_Passes()
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(Employer: []));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Employer_ExactlyMax_Passes()
+    {
+        // 10-siffriga org.nr exakt upp till cap:en (deterministiska, distinkta).
+        var max = Enumerable.Range(0, SearchCriteria.MaxConceptIds)
+            .Select(i => i.ToString("D10", System.Globalization.CultureInfo.InvariantCulture))
+            .ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(Employer: max));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Employer_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(0, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => i.ToString("D10", System.Globalization.CultureInfo.InvariantCulture))
+            .ToArray();
+        var result = _validator.Validate(new ListJobAdsQuery(Employer: overMax));
+        result.IsValid.ShouldBeFalse();
+    }
+
+    // ---------------------------------------------------------------
     // Q oförändrat — 2-100 tecken
     // ---------------------------------------------------------------
 

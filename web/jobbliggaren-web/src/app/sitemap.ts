@@ -19,6 +19,7 @@ const MARKETING_PATHS = [
   "", // the landing page (/)
   "/om",
   "/kontakt",
+  "/for-utvecklare",
   "/integritet",
   "/cookies",
   "/villkor",

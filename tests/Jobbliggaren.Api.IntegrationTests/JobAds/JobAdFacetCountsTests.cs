@@ -120,6 +120,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
             Region: region ?? [],
             EmploymentType: employmentType ?? [],
             WorktimeExtent: worktimeExtent ?? [],
+            Employer: [],
             Q: q);
 
     [Fact]

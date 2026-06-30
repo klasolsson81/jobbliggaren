@@ -410,7 +410,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
 
         var filter = new JobAdFilterCriteria(
             OccupationGroup: [], Municipality: [], Region: [],
-            EmploymentType: [], WorktimeExtent: [], Q: word);
+            EmploymentType: [], WorktimeExtent: [], Employer: [], Q: word);
 
         // CountAsync (recent-search-konsumentens väg) i bitmap-plan-transaktionen.
         var count = await search.CountAsync(filter, ct);

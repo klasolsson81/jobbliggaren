@@ -346,5 +346,66 @@
     "relatedHeading": "Relaterade sidor",
     "relatedPrivacy": "Integritetspolicy",
     "relatedTerms": "Användarvillkor"
+  },
+  "accessibility": {
+    "meta": {
+      "title": "Tillgänglighetsredogörelse",
+      "description": "Tillgänglighetsredogörelse för Jobbliggaren: vår ambition att nå WCAG 2.1 AA, vad vi gör, kända brister och hur du rapporterar tillgänglighetsproblem."
+    },
+    "title": "Tillgänglighetsredogörelse",
+    "updated": "Senast uppdaterad: 2026-06-30",
+    "intro": "Jobbliggaren ska gå att använda för så många som möjligt, oavsett funktionsförmåga och oavsett vilka hjälpmedel du använder. Vi strävar efter att uppfylla den internationella standarden WCAG 2.1 på nivå AA, samma nivå som svensk offentlig sektor håller. Jobbliggaren är ett privat hobbyprojekt och omfattas inte av lagen om tillgänglighet till digital offentlig service (2018:1937), men vi håller oss till samma standard frivilligt, eftersom tillgänglighet hör ihop med att tjänsten ska vara samhällsnyttig.",
+    "sections": [
+      {
+        "heading": "Hur tillgänglig tjänsten är",
+        "paragraphs": [
+          "Vi bedömer att Jobbliggaren delvis uppfyller WCAG 2.1 på nivå AA. Det mesta av tjänsten går att använda med enbart tangentbord och med skärmläsare, men det finns kända brister som vi arbetar med att åtgärda. De beskrivs längre ner på sidan."
+        ]
+      },
+      {
+        "heading": "Vad vi gör för tillgänglighet",
+        "paragraphs": [
+          "Tillgänglighet är inbyggt i hur Jobbliggaren är uppbyggt. Konkret innebär det bland annat följande."
+        ],
+        "list": [
+          "Du kan nå och använda allt med enbart tangentbord, och det syns alltid tydligt var fokus ligger.",
+          "Varje sida har en hoppa-till-innehåll-länk och tydliga landmärken, så att du som använder skärmläsare snabbt kan hoppa förbi menyer till huvudinnehållet.",
+          "Vi använder semantisk uppmärkning med rubriker, knappar, länkar och formulärfält, så att hjälpmedel förstår vad varje del är. Knappar och ikoner utan synlig text har en beskrivande etikett.",
+          "Vi siktar på god kontrast mellan text och bakgrund, med svart eller mörk text på ljus yta för brödtext.",
+          "Status visas alltid med både färg och text eller symbol, aldrig med enbart färg.",
+          "Sidorna går att förstora till 200 procent utan att innehåll försvinner eller kräver vågrät rullning, och texten flödar om efter skärmens bredd.",
+          "Om du har valt att begränsa rörelse i ditt operativsystem stänger vi av animationer.",
+          "Språket är enkelt och konkret, och matchningen mot jobb är regelbaserad och förklarbar. Vi visar alltid vilka nyckelord som stämmer och vilka som saknas, och använder ingen AI."
+        ]
+      },
+      {
+        "heading": "Kända brister",
+        "paragraphs": [
+          "Vi känner till att tjänsten ännu inte är fullständigt tillgänglig. Följande brister är vi medvetna om och arbetar med."
+        ],
+        "list": [
+          "Bedömningen är en egen självskattning. Tjänsten har ännu inte granskats av en oberoende part.",
+          "Jobbliggaren utvecklas löpande, och en ny funktion kan tillfälligt ha tillgänglighetsbrister tills den har gåtts igenom.",
+          "Enstaka mindre gränssnittsdetaljer, till exempel vissa statusmarkeringar, når ännu inte full kontrast på nivå AA. Vi ser över dem.",
+          "Ett mörkt tema är förberett men ännu inte aktiverat, och har därför inte tillgänglighetsgranskats."
+        ]
+      },
+      {
+        "heading": "Om du stöter på ett hinder",
+        "paragraphs": [
+          "Hör av dig om du stöter på något i Jobbliggaren som du inte kan använda på grund av en tillgänglighetsbrist. Beskriv gärna vilken sida det gäller och vad som inte fungerar, så försöker vi rätta till det. Behöver du innehåll eller en funktion på ett annat sätt under tiden, hjälper vi dig så långt vi kan.",
+          "Du når oss på e-post: klasolsson81@gmail.com. Vi svarar utan onödigt dröjsmål."
+        ]
+      },
+      {
+        "heading": "Hur vi har bedömt tjänsten",
+        "paragraphs": [
+          "Bedömningen av hur väl Jobbliggaren uppfyller WCAG 2.1 AA bygger på en egen granskning. Vi använder automatiska kontroller med verktygen axe och Lighthouse tillsammans med manuella tester med enbart tangentbord och med skärmläsare. Bedömningen gjordes senast den 30 juni 2026."
+        ]
+      }
+    ],
+    "relatedHeading": "Relaterade sidor",
+    "relatedContact": "Kontakta oss",
+    "relatedPrivacy": "Integritetspolicy"
   }
 }

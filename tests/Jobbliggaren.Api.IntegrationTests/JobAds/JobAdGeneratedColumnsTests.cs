@@ -43,7 +43,8 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
         string? OccupationGroupConceptId,
         string? MunicipalityConceptId,
         string? EmploymentTypeConceptId,
-        string? WorktimeExtentConceptId);
+        string? WorktimeExtentConceptId,
+        string? OrganizationNumber);
 
     // Seedar en importerad JobAd och returnerar dess unika title (för readback).
     private async Task<string> SeedImportedAsync(
@@ -53,7 +54,8 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
         string? municipality,
         CancellationToken ct,
         string? employmentType = null,
-        string? workingHoursType = null)
+        string? workingHoursType = null,
+        string? organizationNumber = null)
     {
         var title = $"GenCol {Guid.NewGuid():N}";
         var externalId = $"ext-{Guid.NewGuid():N}";
@@ -64,7 +66,7 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
 
         var rawPayload = BuildRawPayload(
             externalId, ssyk, region, occupationGroup, municipality,
-            employmentType, workingHoursType);
+            employmentType, workingHoursType, organizationNumber);
 
         var jobAd = JobAd.Import(
             title: title,
@@ -98,7 +100,8 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
                        occupation_group_concept_id,
                        municipality_concept_id,
                        employment_type_concept_id,
-                       worktime_extent_concept_id
+                       worktime_extent_concept_id,
+                       organization_number
                 FROM job_ads
                 WHERE title = {0}
                 """,
@@ -127,7 +130,8 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
         string? occupationGroup,
         string? municipality,
         string? employmentType = null,
-        string? workingHoursType = null)
+        string? workingHoursType = null,
+        string? organizationNumber = null)
     {
         var occupationJson = ssyk is null
             ? "null"
@@ -158,12 +162,22 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
             ? "null"
             : $"{{\"concept_id\":\"{workingHoursType}\"}}";
 
+        // #311 D1 — employer-blocket bär org.nr (nested, EJ top-level). Kolumnen
+        // organization_number läser raw_payload->'employer'->>'organization_number'.
+        // organizationNumber == null speglar B2-era-payloaden: employer finns men
+        // bär bara name (JobTechEmployer-POCO:n deserialiserade aldrig org.nr förrän
+        // #311) → kolumnen MÅSTE bli NULL.
+        var employerJson = organizationNumber is null
+            ? "{\"name\":\"Test Company AB\"}"
+            : $"{{\"name\":\"Test Company AB\",\"organization_number\":\"{organizationNumber}\"}}";
+
         return $"{{\"id\":\"{externalId}\","
             + $"\"occupation\":{occupationJson},"
             + $"\"occupation_group\":{occupationGroupJson},"
             + $"\"workplace_address\":{workplaceAddressJson},"
             + $"\"employment_type\":{employmentTypeJson},"
-            + $"\"working_hours_type\":{workingHoursTypeJson}}}";
+            + $"\"working_hours_type\":{workingHoursTypeJson},"
+            + $"\"employer\":{employerJson}}}";
     }
 
     [Fact]
@@ -345,5 +359,51 @@ public class JobAdGeneratedColumnsTests(ApiFactory factory)
         // B2-kolumner förblir NULL (gammal payload saknar keys).
         row.EmploymentTypeConceptId.ShouldBeNull();
         row.WorktimeExtentConceptId.ShouldBeNull();
+    }
+
+    // ── #311 D1 (följ arbetsgivare, org.nr-promotion) ────────────────────────
+    // STORED generated column organization_number ← raw_payload->'employer'->>
+    // 'organization_number' (NESTED under employer, EJ top-level — skiljer sig från
+    // occupation_group/employment_type). Samma B2-mönster som F6P7: befintliga rader
+    // är NULL tills POCO-tillägget (JobTechEmployer.organization_number) + re-ingest
+    // re-serialiserar raw_payload. EF-InMemory ignorerar STORED → endast Postgres
+    // (Testcontainers) beräknar kolumnen; org.nr får ALDRIG härledas i C# (drift).
+
+    [Fact]
+    public async Task OrganizationNumber_ShouldPopulateFromEmployerPath_WhenPresent()
+    {
+        // Org.nr finns i employer-blocket → kolumnen populeras verbatim (ingen
+        // normalisering/transform — org.nr lagras exakt som i raw_payload).
+        var ct = TestContext.Current.CancellationToken;
+        const string orgNumber = "5592804784"; // 10-siffrig svensk org.nr (live-verifierad form)
+
+        var title = await SeedImportedAsync(
+            ssyk: null, region: null, occupationGroup: null, municipality: null, ct,
+            organizationNumber: orgNumber);
+
+        var row = await ReadGeneratedColumnsAsync(title, ct);
+
+        row.OrganizationNumber.ShouldBe(orgNumber);
+    }
+
+    [Fact]
+    public async Task OrganizationNumber_ShouldBeNull_WhenEmployerHasNoOrgNumber()
+    {
+        // B2-era-payload: employer-blocket finns men bär bara name (POCO:n
+        // deserialiserade aldrig org.nr förrän #311). Kolumnen MÅSTE bli NULL →
+        // bevisar grace-degradering + att partial-indexet exkluderar dessa rader
+        // (tom index-yta tills re-ingest, exakt som F6P7).
+        var ct = TestContext.Current.CancellationToken;
+
+        var title = await SeedImportedAsync(
+            ssyk: "Ssyk_uwa_555", region: null,
+            occupationGroup: null, municipality: null, ct,
+            organizationNumber: null);
+
+        var row = await ReadGeneratedColumnsAsync(title, ct);
+
+        // Orörda kolumner populeras; org.nr förblir NULL.
+        row.SsykConceptId.ShouldBe("Ssyk_uwa_555");
+        row.OrganizationNumber.ShouldBeNull();
     }
 }

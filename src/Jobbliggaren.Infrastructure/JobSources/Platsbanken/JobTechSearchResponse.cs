@@ -126,6 +126,20 @@ internal sealed class JobTechEmployer
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
+
+    // #311 D1 (följ arbetsgivare) — org.nr är den KANONISKA arbetsgivar-nyckeln
+    // (ingen fuzzy namn-matchning, "Volvo×20"-fällan). Live-verifierad i JobStream-
+    // källan (employer.organization_number, 10-siffrig svensk org.nr, 2026-06-30) men
+    // POCO:n deserialiserade den aldrig → JsonSerializer.Serialize(hit) i
+    // PlatsbankenJobSource producerade raw_payload UTAN org.nr → STORED generated
+    // column organization_number NULL på alla befintliga rader tills detta POCO-
+    // tillägg + full re-ingest (samma B2-rotorsaks-mönster som employment_type/
+    // working_hours_type i F6P7). Sanitizer-allowlist (JobTechPayloadSanitizer:64)
+    // passerar redan organization_number; PII (email, phone_number, contact_email)
+    // ligger INTE i allowlistan → droppas. OBS enskild firma: org.nr KAN vara ett
+    // personnummer (ADR 0087 GDPR-not) — får aldrig loggas/surfas oflaggat (CLAUDE.md §5).
+    [JsonPropertyName("organization_number")]
+    public string? OrganizationNumber { get; set; }
 }
 
 internal sealed class JobTechSourceLink

@@ -165,10 +165,10 @@
     "gradeFilter": {
       "toggleLabel": "Matching",
       "groupLabel": "Show match grades",
+      "helpTitle": "About the matching filter",
       "help": "Filters the list by how well the ads fit your choices (occupation, location, employment type). A card's label can show a different level because it also weighs whether your CV meets the ad's requirements: the same ad can read Top match or a level below the filter. Top match is based on your CV and appears only on the cards, not as its own filter. Turn matching off to hide the levels entirely.",
       "relatedToggleLabel": "Show related too",
       "relatedToggleHelp": "Includes occupations similar to the ones you picked. They are tagged Related occupation and ranked below your exact matches.",
-      "onlyMatchedLabel": "Show matched only",
       "grade": {
         "Basic": "Basic match",
         "Related": "Related occupation",

@@ -37,6 +37,31 @@ describe("InfoDialog", () => {
     expect(trigger.querySelector("svg")).toBeNull();
   });
 
+  it("icon-only mode: renders just the glyph, accessible name from aria-label, opens both paragraphs (#408)", async () => {
+    render(
+      <InfoDialog
+        iconOnly
+        title="Om matchningsfiltret"
+        paragraphs={["Första stycket", "Andra stycket"]}
+      />,
+    );
+    // Accessible name still "Vad är detta?" (shared common.dialog string) via
+    // aria-label; no visible text on the dense control row.
+    const trigger = screen.getByRole("button", { name: "Vad är detta?" });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("");
+    // The decorative HelpCircle glyph is present.
+    expect(trigger.querySelector("svg")).not.toBeNull();
+
+    fireEvent.click(trigger);
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument(),
+    );
+    // Both verbatim paragraphs render (criterion 9: help + relatedToggleHelp).
+    expect(screen.getByText("Första stycket")).toBeInTheDocument();
+    expect(screen.getByText("Andra stycket")).toBeInTheDocument();
+  });
+
   it("closes via the shared close button", async () => {
     render(<InfoDialog title="Titel" paragraphs={["Text"]} />);
     fireEvent.click(screen.getByRole("button", { name: "Vad är detta?" }));

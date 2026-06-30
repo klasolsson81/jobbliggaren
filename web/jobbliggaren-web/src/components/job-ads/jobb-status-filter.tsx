@@ -32,10 +32,14 @@ import { Check } from "lucide-react";
  *
  * a11y (jobbliggaren-design-a11y §2/§5/§6): `role="group"` + grupp-label; varje
  * kryssruta är `role="checkbox"` med tangentbords-aktivering (Space/Enter) och
- * synligt fokus (`.jp-gradefilter__grade:focus-visible`). Färg bär aldrig
- * betydelse ensam — den synliga labeln ÄR namnet. Återbrukar de befintliga
- * `.jp-gradefilter__*`/`.jp-checkitem`-tokenen (samma kontroll-rytm som
- * grad-filtret) — INGEN ny globals.css-CSS (#378-mönstret).
+ * synligt fokus (`.jp-panel .jp-checkitem:focus-visible`). Färg bär aldrig
+ * betydelse ensam — den synliga labeln ÄR namnet.
+ *
+ * #408 — kontrollen bor nu i en enkelkolumns toolbar-popover (`[Status ▾]`), så
+ * den slutar låna grad-filtrets horisontella `.jp-gradefilter`-rytm och använder
+ * popover-/panel-idiomet i stället: `.jp-panel__group` + vertikala
+ * `.jp-checkitem`-rader (samma kontroll-rad som Klass-2-panelen). INGEN ny
+ * globals.css-CSS — bara befintliga panel-/checkitem-tokens.
  */
 
 export interface StatusFilterState {
@@ -98,37 +102,38 @@ export function JobbStatusFilter({
   ];
 
   return (
-    <div className="jp-gradefilter">
-      <span id={labelId} className="jp-gradefilter__label">
+    <div
+      role="group"
+      aria-labelledby={labelId}
+      className="jp-panel__group"
+    >
+      {/* Visuellt dolt grupp-namn: popover-headern visar redan "Status", men
+          gruppen behöver ett programmatiskt namn (a11y §2). sr-only håller det
+          tillgängligt utan att dubbla rubriken visuellt. */}
+      <span id={labelId} className="sr-only">
         {t("label")}
       </span>
-      <div
-        role="group"
-        aria-labelledby={labelId}
-        className="jp-gradefilter__grades"
-      >
-        {items.map((item) => (
-          <div
-            key={item.key}
-            className="jp-checkitem jp-gradefilter__grade"
-            role="checkbox"
-            aria-checked={item.checked}
-            tabIndex={0}
-            onClick={item.toggle}
-            onKeyDown={(e) => {
-              if (e.key === " " || e.key === "Enter") {
-                e.preventDefault();
-                item.toggle();
-              }
-            }}
-          >
-            <span className="jp-checkitem__box">
-              {item.checked && <Check size={14} aria-hidden="true" />}
-            </span>
-            {t(item.key)}
-          </div>
-        ))}
-      </div>
+      {items.map((item) => (
+        <div
+          key={item.key}
+          className="jp-checkitem"
+          role="checkbox"
+          aria-checked={item.checked}
+          tabIndex={0}
+          onClick={item.toggle}
+          onKeyDown={(e) => {
+            if (e.key === " " || e.key === "Enter") {
+              e.preventDefault();
+              item.toggle();
+            }
+          }}
+        >
+          <span className="jp-checkitem__box">
+            {item.checked && <Check size={14} aria-hidden="true" />}
+          </span>
+          {t(item.key)}
+        </div>
+      ))}
     </div>
   );
 }

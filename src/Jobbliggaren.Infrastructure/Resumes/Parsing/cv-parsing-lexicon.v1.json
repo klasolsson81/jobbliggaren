@@ -142,5 +142,17 @@
       "developed",
       "managed"
     ]
-  }
+  },
+  "nameBanners": [
+    "cv",
+    "c v",
+    "curriculum vitae",
+    "meritförteckning",
+    "meritforteckning",
+    "résumé",
+    "resumé",
+    "resume",
+    "personligt brev",
+    "cover letter"
+  ]
 }

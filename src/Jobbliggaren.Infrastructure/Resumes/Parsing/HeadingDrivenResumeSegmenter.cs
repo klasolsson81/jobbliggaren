@@ -30,6 +30,11 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private static readonly FrozenSet<string> SwedishHints;
     private static readonly FrozenSet<string> EnglishHints;
 
+    // #428: CV-title banners ("Curriculum Vitae", "Meritförteckning", "CV", ...) that must NOT
+    // be read as the person's name. Versioned lexicon data (§5), normalized with the same
+    // NormalizeHeading pass HeadingMap uses so a banner matches regardless of case/punctuation.
+    private static readonly FrozenSet<string> NameBanners;
+
     private static readonly JsonSerializerOptions LexiconJsonOptions =
         new() { PropertyNameCaseInsensitive = true };
 
@@ -50,6 +55,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         HeadingMap = headingMap.ToFrozenDictionary(StringComparer.Ordinal);
         SwedishHints = ToHintSet(lexicon.LanguageHints, "sv");
         EnglishHints = ToHintSet(lexicon.LanguageHints, "en");
+        NameBanners = (lexicon.NameBanners ?? [])
+            .Select(NormalizeHeading)
+            .Where(banner => banner.Length > 0)
+            .ToFrozenSet(StringComparer.Ordinal);
     }
 
     public ResumeSegmentationResult Segment(string rawText)
@@ -219,6 +228,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         // (or under an explicit Kontakt heading) — not an e-mail/phone/heading line.
         foreach (var line in preamble)
         {
+            if (IsNameBanner(line))
+                continue;
             if (IsNameLike(line))
                 return line.Trim();
         }
@@ -227,6 +238,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         {
             foreach (var line in contactBlock.Split('\n'))
             {
+                if (IsNameBanner(line))
+                    continue;
                 if (IsNameLike(line))
                     return line.Trim();
             }
@@ -234,6 +247,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
         return null;
     }
+
+    // #428: a CV-title banner ("Curriculum Vitae", "Meritförteckning", "CV", ...) at the top of
+    // a CV is document metadata, not the person's name — skip it so DetectName does not return
+    // the banner as FullName (which also inflated ContactConfidence via hasName). Banners are
+    // versioned lexicon data (§5), matched after the same NormalizeHeading pass headings use.
+    private static bool IsNameBanner(string line) => NameBanners.Contains(NormalizeHeading(line));
 
     private static bool IsNameLike(string line)
     {
@@ -290,7 +309,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
                 break;
 
             var (title, organization) = SplitTitleOrganization(entry);
-            result.Add(new ParsedExperience(title, organization, ExtractPeriod(entry.Text), entry.Text));
+            result.Add(new ParsedExperience(title, organization, ExtractPeriod(entry), entry.Text));
         }
 
         return result;
@@ -309,7 +328,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
                 break;
 
             var (degree, institution) = SplitTitleOrganization(entry);
-            result.Add(new ParsedEducation(institution, degree, ExtractPeriod(entry.Text), entry.Text));
+            result.Add(new ParsedEducation(institution, degree, ExtractPeriod(entry), entry.Text));
         }
 
         return result;
@@ -416,13 +435,22 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private static readonly string[] TitleOrgSeparators =
         [" — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos "];
 
-    private static string? ExtractPeriod(string text)
+    // #428: a full DATE RANGE is unambiguous anywhere in the entry, but a BARE YEAR is only a
+    // reliable period signal on the HEADER line (Lines[0]) — the same scope StripTrailingPeriod
+    // trusts. Scanning the full entry text for a bare year mis-attributes an incidental year in a
+    // description bullet ("Migrerade den gamla 1998-stordatorn") as the entry's period. A bare
+    // year on a non-header line is deliberately NOT treated as a period (honest-absent over
+    // confidently-wrong; the user fills the gap via ADR 0040 propose-and-approve) — ADR 0071.
+    private static string? ExtractPeriod(Entry entry)
     {
-        var range = DateRangeRegex().Match(text);
+        var range = DateRangeRegex().Match(entry.Text);
         if (range.Success)
             return range.Value.Trim();
 
-        var year = YearRegex().Match(text);
+        if (entry.Lines.Count == 0)
+            return null;
+
+        var year = YearRegex().Match(entry.Lines[0]);
         return year.Success ? year.Value : null;
     }
 
@@ -597,7 +625,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
     private sealed record Lexicon(
         Dictionary<string, string[]> Headings,
-        Dictionary<string, string[]> LanguageHints);
+        Dictionary<string, string[]> LanguageHints,
+        string[]? NameBanners);
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespaceRegex();

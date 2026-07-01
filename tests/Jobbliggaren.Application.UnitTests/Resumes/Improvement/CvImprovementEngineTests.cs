@@ -207,6 +207,21 @@ public class CvImprovementEngineTests
         Of(await SuggestAsync(resume), ProposedChangeKind.DateNormalization).ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeDateNormalization_WhenPeriodIsIsoYearMonthRange()
+    {
+        // #420 harm 2: an ISO 8601 YYYY-MM range is canonical and machine-readable — the segmenter
+        // itself extracts it. B6 must NOT emit a false "icke-standard datumformat" ReformatDate flag
+        // on a date the engine already parsed (CLAUDE.md §5: a propose-and-approve flag must not
+        // mis-report correct data).
+        var resume = Resume(experience:
+        [
+            Experience(period: "2020-06 – 2024-03", rawText: "Sjuksköterska 2020-06 – 2024-03"),
+        ]);
+
+        Of(await SuggestAsync(resume), ProposedChangeKind.DateNormalization).ShouldBeEmpty();
+    }
+
     // ===============================================================
     // 4. GpaStrip — Structural arm RemoveGpa, TextSpan evidence
     // ===============================================================

@@ -595,6 +595,26 @@ public class CvReviewEngineTests
         }
     }
 
+    [Fact]
+    public async Task ReviewAsync_ShouldPassB6_WhenIsoAndSlashPeriodsShareMonthGranularity()
+    {
+        // #420 token binding: an ISO 8601 YYYY-MM point maps to the SAME month-granularity token
+        // ("MM/YYYY") as slash notation, so a CV mixing "2020-06 – 2024-03" and "01/2019 – 05/2020"
+        // reads as ONE consistent date format → B6 PASS, not a spurious "blandade datumformat" WARN.
+        // B6DateFormatRule verdicts on the DISTINCT FormatToken set, so the binding is decision-
+        // relevant. Reverse-chronological order keeps B7 happy; only B6 is asserted here.
+        var resume = Resume(experience:
+        [
+            Experience(period: "2020-06 – 2024-03", rawText: "Sjuksköterska 2020-06 – 2024-03"),
+            Experience(period: "01/2019 – 05/2020", rawText: "Undersköterska 01/2019 – 05/2020"),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "B6").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "ISO YYYY-MM och MM/YYYY är samma månads-granularitet → ett datumformat → B6 PASS (#420).");
+    }
+
     // ===============================================================
     // 13. Critical-fail surfacing — A1/B4/D1 → CriticalFails; C1 never fires
     // ===============================================================

@@ -292,6 +292,44 @@ public class HeadingDrivenResumeSegmenterTests
         result.Content.Experience.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
+    [Fact]
+    public void Segment_ExperienceWithIsoYearMonthRange_ProducesPeriodThePeriodParserCanConsume()
+    {
+        // #420 drift guard: the segmenter's DateRangeRegex extracts a period whose START carries the
+        // ISO 8601 YYYY-MM granularity ("2020-06"), but PeriodParser used to reject that — the first
+        // ASCII hyphen (the month separator) was mistaken for the range split, so a fully machine-
+        // readable ~4-year span silently vanished (CLAUDE.md §5 silent-drop) and B6 raised a false
+        // reformat flag. This round-trip pins the contract that diverged: whatever Period the
+        // segmenter extracts MUST be consumable by the PeriodParser the downstream engine feeds it
+        // to, so the two regexes cannot drift apart again. (Note: DateRangeRegex's alternation order
+        // truncates the range END to a bare year — "2020-06 – 2024" — a separate, non-§5 cosmetic
+        // quirk out of #420 scope; the load-bearing part is that the ISO-month START now parses and
+        // the year span is correct. The direct "2020-06 – 2024-03" case is covered in
+        // PeriodParserYearSpanTests, so this test is robust whether or not that quirk is later fixed.)
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Sjuksköterska, Region Skåne
+            2020-06 – 2024-03
+            Vårdade patienter.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Period.ShouldNotBeNull();
+        exp.Period.ShouldContain("2020-06"); // the ISO-month start that used to break the parser
+
+        var parsed = PeriodParser.TryParseYearSpan(exp.Period, currentYear: 2026, out var start, out var end);
+
+        parsed.ShouldBeTrue("den ISO-period segmenteraren extraherar måste kunna tolkas av PeriodParser (#420).");
+        start.ShouldBe(2020);
+        end.ShouldBe(2024);
+    }
+
     // ── #252: skill-section heading + separator coverage ───────────────
     // A live first-run CV reported zero extracted skills. Root cause: the skill-section
     // headings the CV used ("Tekniska kompetenser", "Nyckelord") were absent from the

@@ -21,8 +21,11 @@ public class PeriodParserYearSpanTests
     [InlineData("2019 to 2021", 2019, 2021)] // English "to" separator
     [InlineData("01/2020 – 06/2024", 2020, 2024)]
     [InlineData("2019 - 06/2024", 2019, 2024)] // mixed granularity (year start, MM/YYYY end)
+    [InlineData("2020-06 – 2024-03", 2020, 2024)] // #420: ISO 8601 YYYY-MM range the segmenter extracts — the hyphen INSIDE a point is the month separator, not the range split
+    [InlineData("2020-06-2024-03", 2020, 2024)]   // #420: spaceless ISO range — a hyphen with a 4-digit year on its right still splits; a 2-digit month on its right does not
     [InlineData("2019", 2019, 2019)]        // single year-only point → zero-length span (→ 0, NOT null; #191/ADR 0079 Variant A — a bare year IS parseable)
     [InlineData("03/2020", 2020, 2020)]     // single MM/YYYY point → zero-length span (same #191 rule)
+    [InlineData("2020-06", 2020, 2020)]     // #420: single ISO YYYY-MM point → zero-length span (month granularity, parity with 03/2020)
     public void TryParseYearSpan_RecognisedRangeOrPoint_ReturnsYearBounds(
         string period, int expectedStart, int expectedEnd)
     {

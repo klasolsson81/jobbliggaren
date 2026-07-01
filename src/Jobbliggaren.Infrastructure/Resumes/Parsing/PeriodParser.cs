@@ -5,8 +5,9 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
 /// Deterministically parses a CV experience period string (e.g. "01/2022 – 06/2024",
-/// "2019–2021", "03/2020 – nuvarande") to a start/end date + a format token (Fas 4 STEG 9,
-/// F4-9). Anchored to the full trimmed string so free-text ("någon gång på 2020-talet",
+/// "2019–2021", "2020-06 – 2024-03" (ISO 8601), "03/2020 – nuvarande") to a start/end date + a
+/// format token (Fas 4 STEG 9, F4-9). Anchored to the full trimmed string so free-text
+/// ("någon gång på 2020-talet",
 /// "ett tag sen") does NOT parse — the conditional-Period criteria (A4/B6/B7) then report
 /// NotAssessed rather than guess gaps/chronology from garbage (V-C, honest-data §5/OQ3).
 /// <para>
@@ -18,12 +19,22 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// </summary>
 internal static partial class PeriodParser
 {
-    // A point is an optional month (MM with / or . or - separator) + a 4-digit year.
-    [GeneratedRegex(@"^(?:(\d{1,2})[/.\-])?(\d{4})$", RegexOptions.CultureInvariant)]
+    // A point is one of: MM<sep>YYYY (month-first, sep = / . or -), YYYY-MM (ISO 8601 year-first,
+    // #420 — the granularity the segmenter's DateRangeRegex extracts), or a bare YYYY. Month and
+    // year land in the named groups regardless of order; the ISO month is exactly two digits.
+    [GeneratedRegex(
+        @"^(?:(?<month>\d{1,2})[/.\-](?<year>\d{4})|(?<year>\d{4})(?:-(?<month>\d{2}))?)$",
+        RegexOptions.CultureInvariant)]
     private static partial Regex PointRegex();
 
-    // Range separators: en/em dash, hyphen, or the words "till"/"to" (spaces optional).
-    [GeneratedRegex(@"\s*(?:[–—-]|\btill\b|\bto\b)\s*", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    // Range separators: en/em dash, an ASCII hyphen, or the words "till"/"to" (spaces optional).
+    // The ASCII hyphen is ambiguous — it is the range split in "2019-2021" (a \d{4}-\d{4} year
+    // range) but the MONTH separator inside a "2020-06" ISO point (\d{4}-\d{2}), #420. So a hyphen
+    // is NOT a range split when it sits between exactly four digits and exactly two (a point-
+    // internal month hyphen); "\d{4}-\d{4}" still splits (its right side has four digits, not two).
+    [GeneratedRegex(
+        @"\s*(?:[–—]|(?<!\d{4})-|-(?!\d{2}(?!\d))|\btill\b|\bto\b)\s*",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex SeparatorRegex();
 
     private static readonly string[] PresentKeywords =
@@ -138,21 +149,24 @@ internal static partial class PeriodParser
             return false;
         }
 
-        var year = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+        var year = int.Parse(match.Groups["year"].Value, CultureInfo.InvariantCulture);
         if (year is < 1900 or > 2100)
         {
             return false;
         }
 
-        if (match.Groups[1].Success)
+        if (match.Groups["month"].Success)
         {
-            var month = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            var month = int.Parse(match.Groups["month"].Value, CultureInfo.InvariantCulture);
             if (month is < 1 or > 12)
             {
                 return false;
             }
 
             date = new DateOnly(year, month, 1);
+            // Month granularity → the "MM/YYYY" token regardless of the source notation (MM/YYYY,
+            // MM-YYYY or ISO YYYY-MM). B6 verdicts on the DISTINCT token set (StructureRules B6),
+            // so an ISO point and a slash point read as ONE consistent format, not "blandade" (#420).
             formatToken = "MM/YYYY";
             return true;
         }

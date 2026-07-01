@@ -1,5 +1,8 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -28,9 +31,19 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 /// </summary>
 public sealed class ListCompanyWatchesQueryHandler(
     IAppDbContext db,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    IMatchProfileBuilder profileBuilder,
+    IPerUserJobAdSearchQuery perUserSearch)
     : IQueryHandler<ListCompanyWatchesQuery, IReadOnlyList<CompanyWatchDto>>
 {
+    // #452 — "matchande annonser" = grade >= Good in the Fast band (parity
+    // GetMyMatchCountQueryHandler.HeadlineGrades). Top is not Fast-computable (G3-OPT-A) and is
+    // irrelevant to a >= Good COUNT: skills only elevate WITHIN the notifiable band, never lift a
+    // Basic across the Good threshold, so the Fast-band >= Good set == the Full-band >= Good set
+    // (Fast==Full oracle, ADR 0087 D5-tillägg).
+    private static readonly IReadOnlyList<MatchGrade> MatchingGrades =
+        [MatchGrade.Good, MatchGrade.Strong];
+
     public async ValueTask<IReadOnlyList<CompanyWatchDto>> Handle(
         ListCompanyWatchesQuery query, CancellationToken cancellationToken)
     {
@@ -86,6 +99,27 @@ public sealed class ListCompanyWatchesQueryHandler(
             .Where(x => x.OrgNr is not null)
             .ToDictionary(x => x.OrgNr!, x => x.Count);
 
+        // #452 (ADR 0087 D5-tillägg) — "matchande annonser"-count per watched employer, computed at
+        // READ by the SAME shared Fast GradeRankExpression /jobb uses (sort==grade coherence,
+        // ADR 0079). The company-watch SCAN stays scorer-free (D5) and FollowedCompanyAdHit gains no
+        // grade column — the grade is a derived read label only. SSYK-gate (parity
+        // GetMyMatchCountQueryHandler): a user who has stated no occupation gets NULL (not-assessed),
+        // never a hard 0 — a 0 would read as "no matching ads" when the truth is "state your
+        // occupations" (the FE renders that nudge). No cross-user JOIN: the count reads only PUBLIC
+        // job_ads + the CURRENT user's own Fast profile (BuildFullForSortAsync is ICurrentUser-scoped),
+        // so there is no cross-user surface (ADR 0087 D8 / GDPR). Bounded to the watched org.nr set.
+        var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
+        IReadOnlyDictionary<string, int>? matchingByOrgNr = null;
+        if (profile.Fast.SsykGroupConceptIds.Count > 0)
+        {
+            var watchedOrgNrs = watches
+                .Select(w => w.OrganizationNumber.Value)
+                .Distinct()
+                .ToList();
+            matchingByOrgNr = await perUserSearch.CountPerUserByEmployerAsync(
+                watchedOrgNrs, profile, MatchingGrades, cancellationToken);
+        }
+
         return watches
             .Select(w =>
             {
@@ -99,7 +133,13 @@ public sealed class ListCompanyWatchesQueryHandler(
                     FollowedAt: w.CreatedAt,
                     // #447: public open-role count — surfaced even when the org.nr is masked (no PII);
                     // 0 when the employer has no active ad (or none ingested yet).
-                    ActiveAdCount: activeAdCountByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value));
+                    ActiveAdCount: activeAdCountByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value),
+                    // #452: null = not-assessed (no stated occupation); else the >= Good matching
+                    // count (0 when this employer has no matching active ad). Surfaced even when the
+                    // org.nr is masked (public data, no user-PII).
+                    MatchingAdCount: matchingByOrgNr is null
+                        ? null
+                        : matchingByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value));
             })
             .ToList();
     }

@@ -37,6 +37,13 @@ export interface CompanyFollowState {
  * `companyName` (resolved server-side from public Platsbanken data) and renders org.nr only when it
  * is present (a legal-entity number). `activeAdCount` is a public open-role count (#447), carries no
  * PII, and is surfaced even when the org.nr is masked.
+ *
+ * `matchingAdCount` (#452, mirrors backend `CompanyWatchDto.MatchingAdCount`) is how many of the
+ * employer's active ads match this user's profile at grade >= Good, computed at READ by the same
+ * shared grade expression /jobb uses (never diverges from /jobb). It is a count of ADS over a named
+ * grade threshold, never an opaque match score (Goodhart, ADR 0071). Nullable = honest not-assessed:
+ * `null` when the user has stated no occupation (empty SSYK profile). The FE renders a nudge for
+ * `null`, never "0" (parity /jobb + `GetMyMatchCount`); a non-null value (incl. `0`) means assessed.
  */
 export const companyWatchSchema = z.object({
   id: z.string(),
@@ -45,6 +52,7 @@ export const companyWatchSchema = z.object({
   companyName: z.string().nullable(),
   followedAt: z.string(),
   activeAdCount: z.number().int().nonnegative(),
+  matchingAdCount: z.number().int().nullable(),
 });
 export type CompanyWatch = z.infer<typeof companyWatchSchema>;
 

@@ -21,6 +21,20 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// sole-prop still shows its public open-role count). It is a plain <c>int</c>, never derived from or
 /// exposing the raw org.nr. Zero when the employer has no active ads (or none are ingested yet).
 /// </para>
+///
+/// <para>
+/// <b><see cref="MatchingAdCount"/> — "X matchande annonser" (#452, ADR 0087 D5-tillägg).</b> Of the
+/// employer's currently-active ads, how many match this user's Fast match profile at grade >= Good
+/// (Good/Strong) — computed at READ by the SAME shared <c>GradeRankExpression</c> /jobb uses, so the
+/// hub count can never diverge from what /jobb shows (sort==grade coherence, ADR 0079). The
+/// company-watch SCAN stays scorer-free and <c>FollowedCompanyAdHit</c> gains no grade column — the
+/// grade is a derived read label only. <b>Nullable = honest not-assessed:</b> <c>null</c> when the
+/// user has stated no occupation (empty SSYK profile) — a hard <c>0</c> would falsely read as "this
+/// employer has no matching ads for you" when the truth is "state your occupations" (the FE renders
+/// that nudge, parity /jobb and <c>GetMyMatchCount</c>). A non-null value (including <c>0</c>) means
+/// assessed. A count of ADS over a named grade threshold, never an opaque match score (Goodhart,
+/// ADR 0071); carries no user-PII and never exposes the raw org.nr.
+/// </para>
 /// </summary>
 public sealed record CompanyWatchDto(
     Guid Id,
@@ -28,4 +42,5 @@ public sealed record CompanyWatchDto(
     bool IsProtectedIdentity,
     string? CompanyName,
     DateTimeOffset FollowedAt,
-    int ActiveAdCount);
+    int ActiveAdCount,
+    int? MatchingAdCount);

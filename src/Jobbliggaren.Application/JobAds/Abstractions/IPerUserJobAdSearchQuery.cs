@@ -138,4 +138,34 @@ public interface IPerUserJobAdSearchQuery
         FullCandidateMatchProfile profile,
         IReadOnlyList<MatchGrade> grades,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #452 (ADR 0087 D5-tillägg) — per WATCHED EMPLOYER, count the currently-Active public ads
+    /// whose grade for this user's Fast <paramref name="profile"/> falls in
+    /// <paramref name="grades"/> (the hub "matchande annonser"-count). One bounded
+    /// <c>GROUP BY organization_number</c> over the <paramref name="organizationNumbers"/> set,
+    /// reusing the EXACT same shared <c>GradeRankExpression</c> as
+    /// <see cref="SearchPerUserAsync"/> / <see cref="CountPerUserAsync"/> — so the hub count can
+    /// never diverge from what /jobb shows for the same profile + grade band (sort==grade
+    /// coherence, ADR 0079).
+    /// <para>
+    /// <b>Fast band (≥Good) is EXACT here, not an approximation:</b> CV-skills only elevate a match
+    /// WITHIN the notifiable band (Good→Strong→Top) and never lift a Basic across the Good
+    /// threshold, so the Fast-band ≥Good set is identical to the Full-band ≥Good set — Top's
+    /// SQL-incomputability (G3-OPT-A) is irrelevant to a ≥Good COUNT. A Testcontainers oracle pins
+    /// Fast ≡ Full over the verdict-tuple space.
+    /// </para>
+    /// <para>
+    /// <b>GDPR (ADR 0087 D8):</b> org.nr is read SERVER-SIDE only as the GROUP key — never
+    /// surfaced (the value returned is a plain <c>int</c> count over PUBLIC ads) nor logged. No
+    /// cross-user data: the query reads only public <c>job_ads</c> and the caller's own profile.
+    /// Employers with zero matches are ABSENT from the result (the caller defaults them to 0).
+    /// Empty <paramref name="organizationNumbers"/> or <paramref name="grades"/> → empty dict.
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyDictionary<string, int>> CountPerUserByEmployerAsync(
+        IReadOnlyList<string> organizationNumbers,
+        FullCandidateMatchProfile profile,
+        IReadOnlyList<MatchGrade> grades,
+        CancellationToken cancellationToken);
 }

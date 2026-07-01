@@ -210,6 +210,8 @@ describe("getCompanyWatches (#448) — followed-company list read", () => {
     companyName: "Skatteverket",
     followedAt: "2026-06-14T08:00:00+00:00",
     activeAdCount: 3,
+    // #452 — matchande-räknare (>= Good); nullable = not-assessed (no stated occupation).
+    matchingAdCount: 2,
   };
   const soleProp = {
     id: "cw-2",
@@ -218,6 +220,7 @@ describe("getCompanyWatches (#448) — followed-company list read", () => {
     companyName: "Anna Andersson Konsult",
     followedAt: "2026-06-10T08:00:00+00:00",
     activeAdCount: 1,
+    matchingAdCount: null,
   };
 
   it("no session → unauthorized without a backend round-trip", async () => {

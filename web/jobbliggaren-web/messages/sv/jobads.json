@@ -38,8 +38,16 @@
     "protectedIdentity": "Skyddad identitet",
     "protectedIdentityHint": "Organisationsnumret visas inte eftersom det kan vara ett personnummer.",
     "activeAds": "{count, plural, =0 {Inga aktiva annonser just nu} one {# aktiv annons just nu} other {# aktiva annonser just nu}}",
+    "matchingAds": "{count, plural, =0 {Inga matchande annonser just nu} one {# matchande annons just nu} other {# matchande annonser just nu}}",
+    "matchNudge": "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser.",
+    "matchNudgeCta": "Ställ in matchning",
     "followedSince": "Bevakad sedan {date}",
-    "unfollowAria": "Sluta bevaka {company}"
+    "unfollowAria": "Sluta bevaka {company}",
+    "view": {
+      "groupLabel": "Visa antal annonser",
+      "matching": "Matchande",
+      "all": "Alla annonser"
+    }
   },
   "recent": {
     "emptyTitle": "Inga senaste sökningar",

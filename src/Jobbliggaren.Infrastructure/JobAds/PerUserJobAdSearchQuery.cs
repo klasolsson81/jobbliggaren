@@ -73,6 +73,11 @@ internal sealed class PerUserJobAdSearchQuery(
     // gyllene rung testar `extracted_lexemes ?| @cvSkillIds` (EF.Functions.JsonExistAny).
     private const string ExtractedLexemesColumn = "ExtractedLexemes";
 
+    // #452 — STORED generated org.nr shadow column (ADR 0087 D1), the GROUP key for the per-employer
+    // matching-count. Column name is an Infrastructure secret (parity the columns above); it never
+    // leaks to Application. org.nr is read server-side as the GROUP key ONLY (never surfaced/logged).
+    private const string OrganizationNumberColumn = "OrganizationNumber";
+
     public async ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
         JobAdFilterCriteria filter,
         FullCandidateMatchProfile profile,
@@ -240,6 +245,62 @@ internal sealed class PerUserJobAdSearchQuery(
         return await baseQuery
             .Where(RankInSet(rankExpr, selectedRanks))
             .CountAsync(cancellationToken);
+    }
+
+    public async ValueTask<IReadOnlyDictionary<string, int>> CountPerUserByEmployerAsync(
+        IReadOnlyList<string> organizationNumbers,
+        FullCandidateMatchProfile profile,
+        IReadOnlyList<MatchGrade> grades,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(organizationNumbers);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(grades);
+
+        // No watched employers / no grade band → nothing to count (the handler already gates the
+        // no-SSYK case, but stay defensive: an empty selectedRanks would translate to `= ANY('{}')`
+        // and return nothing anyway).
+        if (organizationNumbers.Count == 0 || grades.Count == 0)
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+
+        var fast = profile.Fast;
+        var ssyk = fast.SsykGroupConceptIds;
+        var relatedSsyk = fast.RelatedSsykGroupConceptIds;
+        var regions = fast.PreferredRegionConceptIds;
+        var municipalities = fast.PreferredMunicipalityConceptIds;
+        var employment = fast.PreferredEmploymentTypeConceptIds;
+        var ortStated = regions.Count > 0 || municipalities.Count > 0;
+        var employmentStated = employment.Count > 0;
+
+        // Captured locals → EF binds them as parameters (= ANY(...)). string? element type so the
+        // EF.Property<string?> Contains translates cleanly (the org.nr shadow column is nullable; a
+        // NULL-org.nr ad never matches). Values themselves non-null.
+        var orgNrs = organizationNumbers.Select(o => (string?)o).ToList();
+
+        // SAME shared GradeRankExpression SSOT as SearchPerUserAsync/CountPerUserAsync — so the hub
+        // count can never diverge from /jobb's grade for the same ad (ADR 0079). Grade-WHERE via the
+        // same RankInSet helper (positive-only: rank 0 excluded once a grade is selected).
+        var rankExpr = GradeRankExpression(
+            ssyk, relatedSsyk, regions, municipalities, employment, ortStated, employmentStated);
+        var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
+
+        // Bounded per-employer GROUP BY over PUBLIC Active job_ads (parity #447 ActiveAdCount +
+        // the CountPerUserAsync grade-WHERE). Soft-delete inherited from the global query filter
+        // (ADR 0048 — never a hand-rolled deleted_at). org.nr is the GROUP key only, server-side.
+        // Only Postgres computes the generated shadow columns + translates GradeRankExpression +
+        // the GROUP BY, so the count is proven by the Testcontainers oracle (InMemory hides all).
+        var counts = await db.JobAds
+            .AsNoTracking()
+            .Where(j => orgNrs.Contains(EF.Property<string?>(j, OrganizationNumberColumn))
+                        && j.Status == JobAdStatus.Active)
+            .Where(RankInSet(rankExpr, selectedRanks))
+            .GroupBy(j => EF.Property<string?>(j, OrganizationNumberColumn))
+            .Select(g => new { OrgNr = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        return counts
+            .Where(x => x.OrgNr is not null)
+            .ToDictionary(x => x.OrgNr!, x => x.Count, StringComparer.Ordinal);
     }
 
     public async ValueTask<PagedResult<JobAdDto>> SearchByStatusAsync(

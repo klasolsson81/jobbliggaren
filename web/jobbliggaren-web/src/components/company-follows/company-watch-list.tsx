@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
-import { CompanyWatchRow } from "./company-watch-row";
+import { CompanyWatchListView } from "./company-watch-list-view";
 
 interface CompanyWatchListProps {
   items: ReadonlyArray<CompanyWatch>;
@@ -8,9 +8,10 @@ interface CompanyWatchListProps {
 
 /**
  * #311 #448 (ADR 0087 D2) — the list on `/foretag`: the user's followed companies, newest first
- * (backend `ListCompanyWatchesQuery` orders by `CreatedAt DESC`). A pure presentation Server Component
- * (no client state — the per-row unfollow is the only interactivity, isolated in the client
- * `CompanyWatchRow`; parity with `MatchList` rendering client-free while its rows carry the behaviour).
+ * (backend `ListCompanyWatchesQuery` orders by `CreatedAt DESC`). A Server Component that owns only the
+ * static shell: the civic empty state (client-free) and delegating the populated list to the client
+ * `CompanyWatchListView`. The view holds the #452 "matchande / alla annonser" toggle state (shared
+ * across rows) — the smallest possible client boundary; the RSC page still does all data fetching.
  *
  * <para>Empty state names where a follow is created (civic-utility, honest no-data copy — the follow
  * affordance lives on the job-ad detail, not here; consistent with `/sparade`).</para>
@@ -27,11 +28,5 @@ export function CompanyWatchList({ items }: CompanyWatchListProps) {
     );
   }
 
-  return (
-    <ul className="jp-jobs" aria-label={t("listLabel")}>
-      {items.map((item) => (
-        <CompanyWatchRow key={item.id} item={item} />
-      ))}
-    </ul>
-  );
+  return <CompanyWatchListView items={items} />;
 }

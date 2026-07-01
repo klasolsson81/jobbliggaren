@@ -100,6 +100,15 @@ public class GetMyMatchCountQueryHandlerTests
             JobAdSortBy sort, int page, int pageSize, CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "SearchByStatusAsync ska inte anropas av count-handlern — den counter:ar bara.");
+
+        // #452 — the per-employer hub match-count path; not used by the Översikt count handler
+        // (it belongs to the company-watch hub, ListCompanyWatchesQueryHandler).
+        public ValueTask<IReadOnlyDictionary<string, int>> CountPerUserByEmployerAsync(
+            IReadOnlyList<string> organizationNumbers, FullCandidateMatchProfile profile,
+            IReadOnlyList<MatchGrade> grades, CancellationToken cancellationToken)
+            => throw new NotSupportedException(
+                "CountPerUserByEmployerAsync ska inte anropas av Översikts count-handler — den " +
+                "counter:ar den globala match-siffran, aldrig per-arbetsgivare-hub-counten.");
     }
 
     // ---------------------------------------------------------------

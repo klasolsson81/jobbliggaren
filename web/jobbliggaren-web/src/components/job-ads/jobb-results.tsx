@@ -77,6 +77,14 @@ interface JobbResultsProps {
    * ansökta" borttagna — Klas-förenkling.)
    */
   hideApplied: boolean;
+  /**
+   * #419 pt1 (CTO Approach A) — "Visa bara matchade" (parsad ur `?baraMatchade=on` i
+   * page.tsx). Visar ENDAST annonser med en positiv matchningsgrad för seekern. Som
+   * includeRelated är den ett MATCHNINGS-koncept: gate:as på `matchActive` här
+   * (`effectiveOnlyMatched`) så en stale URL utan angivet yrke / matchning av inte gallrar
+   * listan. Kontrollen (kryssrutan) bor i Matchning-popovern (hero-filterraden).
+   */
+  onlyMatched: boolean;
   q: string;
   /**
    * E2j (ADR 0060 amend 2026-06-12) — commit-intent: när URL:en bär
@@ -103,6 +111,9 @@ interface JobbResultsProps {
     // #383 → förenklat — bärs i paginerings-href:en så sida-2-klicket inte tappar
     // "Dölj ansökta" (samma felklass som relaterade/matchGrades).
     doljAnsokta?: string;
+    // #419 pt1 — bärs i paginerings-href:en så sida-2-klicket inte tappar "Visa bara
+    // matchade" (samma felklass som doljAnsokta/relaterade).
+    baraMatchade?: string;
     q?: string;
   };
 }
@@ -120,6 +131,7 @@ export async function JobbResults({
   matchningOff,
   includeRelated,
   hideApplied,
+  onlyMatched,
   q,
   commit,
   rawParams,
@@ -174,6 +186,14 @@ export async function JobbResults({
   // det här är skyddet mot en manipulerad/stale URL.
   const effectiveIncludeRelated = matchActive && includeRelated;
 
+  // #419 pt1 — den effektiva "Visa bara matchade". Som includeRelated är "bara matchade"
+  // ett MATCHNINGS-koncept: bara meningsfullt när matchnings-axeln är aktiv. En stale URL
+  // som bär `?baraMatchade=on` MEN matchningen av (eller inget angett yrke) ska inte gallra
+  // listan till positiv-grad-only — gate:a på matchActive (paritet effectiveIncludeRelated).
+  // Kontrollen renderas ändå bara inne i matchningens PÅ-block; detta är skyddet mot en
+  // manipulerad/stale URL.
+  const effectiveOnlyMatched = matchActive && onlyMatched;
+
   // Gate (b) — list-queryns sort. När matchningen inte är aktiv coerceras en
   // aktiv MatchDesc-sort honest tillbaka till nyaste-först (PublishedAtDesc):
   // match-sorten får inte styra ordningen när matchnings-axeln är av/saknar
@@ -208,6 +228,10 @@ export async function JobbResults({
     // #383 → förenklat — bär "Dölj ansökta" i modal-soft-naven så öppna→stäng av
     // ett jobbkort bevarar HELA list-läget (paritet relaterade/matchGrades).
     hideApplied,
+    // #419 pt1 — bär "Visa bara matchade" i modal-soft-naven så öppna→stäng bevarar HELA
+    // list-läget. Spegla den RÅA URL-staten (onlyMatched, INTE effectiveOnlyMatched) — målet
+    // är close-URL === open-URL (paritet hideApplied/includeRelated/matchningOff).
+    onlyMatched,
     sortBy,
     pageSize: rawParams.pageSize,
   });
@@ -240,6 +264,9 @@ export async function JobbResults({
       // bort annonser seekern redan sökt (guardar en seeker-lös begäran med tom
       // sida). ORTOGONAL mot matchningen — passeras oavsett matchActive.
       hideApplied,
+      // #419 pt1 — "Visa bara matchade" (gate:ad på matchActive ovan → effectiveOnlyMatched).
+      // Backend visar då ENDAST annonser med positiv matchningsgrad för seekern.
+      onlyMatched: effectiveOnlyMatched,
       q,
       commit,
     }),
@@ -335,6 +362,7 @@ export async function JobbResults({
             includeRelated={includeRelated}
             matchningOff={matchningOff}
             hideApplied={hideApplied}
+            onlyMatched={onlyMatched}
             resolvedLabels={resolvedLabels}
             q={q}
             sortBy={sortBy}
@@ -446,6 +474,9 @@ function buildPageHref(
   // #383 → förenklat — utan denna rad tappar sida-2-klicket "Dölj ansökta" (samma
   // felklass som relaterade ovan). Bevaras BARA när on (paritet buildJobbHref).
   if (params.doljAnsokta === "on") url.set("doljAnsokta", "on");
+  // #419 pt1 — utan denna rad tappar sida-2-klicket "Visa bara matchade" (samma felklass
+  // som doljAnsokta ovan). Bevaras BARA när on (paritet buildJobbHref).
+  if (params.baraMatchade === "on") url.set("baraMatchade", "on");
   if (params.q) url.set("q", params.q);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";

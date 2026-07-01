@@ -103,6 +103,13 @@ interface JobbResultsToolbarProps {
    * togglar den ALDRIG — toggle:n ägs av hero-filterraden.
    */
   hideApplied: boolean;
+  /**
+   * #419 pt1 — "Visa bara matchade" (`?baraMatchade=on`). Bärs i toolbarens bas-URL-state
+   * så sort/chip-×/Rensa bevarar den (samma param-bevarande-skäl som hideApplied/matchningOff
+   * — annars tappar en toolbar-navigering tyst toggle:n). Toolbaren togglar den ALDRIG —
+   * kontrollen (kryssrutan) ägs av Matchning-popovern i hero-filterraden.
+   */
+  onlyMatched: boolean;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -179,6 +186,7 @@ export function JobbResultsToolbar({
   includeRelated,
   matchningOff,
   hideApplied,
+  onlyMatched,
   resolvedLabels,
   q,
   sortBy,
@@ -226,6 +234,9 @@ export function JobbResultsToolbar({
       // (förut tappades de; toolbaren togglar dem ej — det gör hero-raden).
       matchningOff,
       hideApplied,
+      // #419 pt1 — bär "Visa bara matchade" i basen så sort/chip-×/Rensa bevarar
+      // `?baraMatchade=on` (samma param-bevarande-skäl; toolbaren togglar den ej).
+      onlyMatched,
       sortBy,
       pageSize,
     }),
@@ -240,6 +251,7 @@ export function JobbResultsToolbar({
       includeRelated,
       matchningOff,
       hideApplied,
+      onlyMatched,
       sortBy,
       pageSize,
     ],

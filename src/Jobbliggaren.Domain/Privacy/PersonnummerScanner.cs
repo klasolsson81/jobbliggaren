@@ -98,26 +98,40 @@ public static partial class PersonnummerScanner
 
         List<PersonnummerMatch>? matches = null;
 
-        // The stripped token is at most 12 digits + one '-'/'+' separator = 13 chars
-        // (the regex guarantees the shape). Allocated once and reused per match.
-        Span<char> token = stackalloc char[13];
+        // The stripped token is at most 12 digits + TWO '-'/'+' separators = 14 chars: the
+        // widened GapAwareCandidateRegex admits an optional separator on EITHER side of the
+        // {0,2} space run, so a span may carry two (e.g. "811218- -9876"). TryParse then
+        // rejects the second separator (a two-separator token is not a personnummer), so such
+        // a span is matched-then-rejected, never masked. Allocated once and reused per match.
+        Span<char> token = stackalloc char[14];
 
         foreach (var candidate in GapAwareCandidateRegex().EnumerateMatches(text))
         {
             var span = text.AsSpan(candidate.Index, candidate.Length);
 
-            // Strip the bridging gap chars (\p{Zs}/\t/\p{Cf}) to form the token the
-            // UNCHANGED TryParse validates; the '-'/'+' separator is kept because
-            // TryParse tolerates it. The ORIGINAL span (gap included) is what we hand
-            // to the match for in-place masking.
+            // Strip the bridging gap chars (\p{Zs}/\t/\p{Cf}) to form the token the UNCHANGED
+            // TryParse validates; a '-'/'+' separator is kept because TryParse tolerates one.
+            // The ORIGINAL span (gap included) is what we hand to the match for in-place
+            // masking. Bail defensively if a span ever carries more digit/separator chars than
+            // any personnummer shape can — no valid token exceeds the buffer, so this only
+            // future-proofs the buffer against a later regex change (never reached today).
             var length = 0;
+            var overflowed = false;
             foreach (var c in span)
             {
                 if (char.IsAsciiDigit(c) || c is '-' or '+')
+                {
+                    if (length == token.Length)
+                    {
+                        overflowed = true;
+                        break;
+                    }
+
                     token[length++] = c;
+                }
             }
 
-            if (!Personnummer.TryParse(token[..length], out var personnummer))
+            if (overflowed || !Personnummer.TryParse(token[..length], out var personnummer))
                 continue;
 
             matches ??= [];

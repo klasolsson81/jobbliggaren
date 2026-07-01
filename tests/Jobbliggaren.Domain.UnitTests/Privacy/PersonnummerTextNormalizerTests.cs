@@ -365,13 +365,13 @@ public class PersonnummerTextNormalizerTests
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
 
-    [Fact]
-    public void Scan_TwoUnrelated_SeparatorAdjacentSpace_NotManufacturedAfterNormalize()
+    [Theory]
+    [InlineData("Referens 12345678- 0000 i systemet.")] // R2a: dash then space
+    [InlineData("Referens 12345678 -0000 i systemet.")] // R2b: space then dash
+    public void Scan_TwoUnrelated_SeparatorAdjacentSpace_NotManufacturedAfterNormalize(string text)
     {
         // The widened separator-adjacent-space bridge must NOT manufacture a valid pnr:
         // "12345678- 0000" joins to 123456780000 whose month "34" fails date sanity.
-        const string text = "Referens 12345678- 0000 i systemet.";
-
         PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).ShouldBeEmpty();
     }
 }

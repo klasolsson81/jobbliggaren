@@ -305,12 +305,50 @@ public class PersonnummerScannerTests
         match.Masked.ShouldNotContain("9876");
     }
 
-    [Fact]
-    public void ScanWithGaps_TwoUnrelatedNumbers_SeparatorAdjacentSpace_NotManufactured()
+    [Theory]
+    [InlineData("Referens 12345678- 0000 i systemet.")] // R2a: dash then space
+    [InlineData("Referens 12345678 -0000 i systemet.")] // R2b: space then dash
+    public void ScanWithGaps_TwoUnrelatedNumbers_SeparatorAdjacentSpace_NotManufactured(string text)
     {
         // The widened separator-adjacent-space shape must NOT over-flag: "12345678- 0000"
         // joins to 123456780000, whose month "34" fails date sanity → the unchanged gate rejects it.
-        const string text = "Referens 12345678- 0000 i systemet.";
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_DoubleSeparatorAroundSpace_NotFlagged_AndNeverThrows()
+    {
+        // The widened gap permits an optional '-'/'+' on EACH side of the space run, so
+        // "811218- -9876" strips to the 14-char token "811218--9876". This must NOT overflow
+        // the strip buffer (regression guard for the stackalloc size), and the UNCHANGED
+        // TryParse rejects the second separator, so the redaction path deliberately does NOT
+        // flag it — a documented residual (the import guard still flags the CV at import).
+        const string text = "Pnr 811218- -9876 i CV.";
+
+        var act = () => PersonnummerScanner.ScanWithGaps(text);
+
+        act.ShouldNotThrow().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_DoubleSeparatorNoSpace_NotFlagged_AndNeverThrows()
+    {
+        // "12345678--0000" (two adjacent separators, no space) also strips to a 14-char token;
+        // same buffer regression guard, same TryParse two-separator rejection.
+        const string text = "Referens 12345678--0000 i systemet.";
+
+        var act = () => PersonnummerScanner.ScanWithGaps(text);
+
+        act.ShouldNotThrow().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_SeparatorFlankedByTwoSpaces_NotBridged_V3BoundHolds()
+    {
+        // A '-'/'+' flanked by a space on BOTH sides ("811218 - 9876") is a 3-visible-column
+        // gap: the widening did not open it (the {0,2} space bound governs each side), so the
+        // V3 accepted residual still holds and the form is not flagged.
+        const string text = "Pnr 811218 - 9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
     }

@@ -266,9 +266,14 @@ public class CvReviewEvidenceRedactionTests
     }
 
     // ===============================================================
-    // 7. #268 C2 — a personnummer in the CV FILENAME (B8 StructuralEvidence) is masked.
-    //    B8 interpolates the raw SourceFileName into a StructuralEvidence observation; the
-    //    redactor now runs over that channel too, so a filename-borne pnr never surfaces.
+    // 7. #268 C2 / #465 — a personnummer in the CV FILENAME (B8 StructuralEvidence) never
+    //    surfaces. TWO independent layers now cover it: since #465 the filename is masked at
+    //    ParsedResume.Create, so the fixture below already holds "CV_******-****.pdf" before B8
+    //    reads it (Layer 1, at-rest minimisation); and B8's EvidenceRedactor still redacts the
+    //    StructuralEvidence observation channel (#268 C2, Layer 2, belt-and-suspenders). This
+    //    test therefore pins the END-TO-END invariant (no raw pnr in B8 evidence, the masked
+    //    form is present) rather than B8's redaction in isolation — the EvidenceRedactor channel
+    //    stays independently exercised by the Quote/Note vectors above.
     // ===============================================================
 
     [Theory]

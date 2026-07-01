@@ -384,4 +384,45 @@ public class PersonnummerRedactorTests
         redacted.ShouldContain("*");
         redacted.Length.ShouldBe(text.Length); // length-preserving in-place masking
     }
+
+    // ===============================================================
+    // #465 (senior-cto-advisor, docs/reviews/2026-07-01-465-srcfilename-pnr-cto.md):
+    // superset-equivalence GUARD. The import guard (#426) FLAGS a filename via the
+    // Scan(Normalize(x)) path (SpacedCandidateRegex bridges up-to-2 visible-space gaps and
+    // strips \p{Cf}); the redactor (this class) MASKS via ScanWithGaps. Both gate on the SAME
+    // unchanged Personnummer.TryParse and share the gap-class rule, so ScanWithGaps is a
+    // SUPERSET of Scan(Normalize(x)). This test pins the ONLY direction that protects the
+    // at-rest plaintext: every form the #426 flag detects, the redactor also masks
+    // (Scan(Normalize(x)).Count > 0  implies  Redact(x) != x). If a future divergence let the
+    // flag fire while the redactor left the plaintext, THIS fails first (loud). The reverse
+    // implication is deliberately NOT asserted: the redactor's legitimately-wider coverage
+    // (e.g. an OCR gap the older flag missed) is desirable, not a defect.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218-9876")] // contiguous personnummer
+    [InlineData("811278-9873")] // contiguous samordningsnummer
+    [InlineData("19811218-9876")] // full-century 12-digit
+    [InlineData("811218 9876")] // U+0020 spaced
+    [InlineData("811218\u00A09876")] // U+00A0 NO-BREAK SPACE (this app's digit-group separator)
+    [InlineData("811218\u202F9876")] // U+202F NARROW NO-BREAK SPACE
+    [InlineData("811218\u20099876")] // U+2009 THIN SPACE
+    [InlineData("811218\u200B9876")] // U+200B ZERO WIDTH SPACE (\p{Cf}, stripped by Normalize)
+    [InlineData("811218\uFEFF9876")] // U+FEFF ZERO WIDTH NO-BREAK SPACE (\p{Cf})
+    [InlineData("811218- 9876")] // R2a dash-space
+    [InlineData("811218 -9876")] // R2b space-dash
+    [InlineData("811218 \u200B 9876")] // R1 interleaved zero-width between two spaces
+    [InlineData("CV_811218-9876.pdf")] // filename-wrapped (the #465 motivating shape)
+    public void Redact_MasksEveryFormThe426FlagPathDetects_SupersetGuard(string form)
+    {
+        // Precondition: the #426 import-flag path detects a personnummer in this form. If a
+        // vector ever stops satisfying this, the corpus (not the invariant) is stale; fix here.
+        var flagged = PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(form)).Count > 0;
+        flagged.ShouldBeTrue(
+            $"corpus vector should be detectable by the #426 flag path: {form}");
+
+        // The load-bearing invariant: what #426 flags, the redactor masks, so the plaintext
+        // is never left at rest when the flag fired.
+        PersonnummerRedactor.Redact(form).ShouldNotBe(form);
+    }
 }

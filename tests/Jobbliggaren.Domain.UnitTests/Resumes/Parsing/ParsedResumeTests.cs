@@ -98,6 +98,67 @@ public class ParsedResumeTests
         result.Value.SourceContentType.ShouldBe("application/pdf");
     }
 
+    // ===============================================================
+    // Create — #465 (GDPR Art. 5(1)(c)/25 minimisation): a personnummer-shaped span in the
+    // source filename is MASKED at construction, so the unencrypted source_file_name column
+    // and the owner-scoped read DTOs never carry a plaintext personnummer. Reuses the same
+    // gap-aware, Luhn+date-gated redactor as the CV-evidence path (#427). All vectors are
+    // SYNTHETIC Luhn-valid test numbers (parity PersonnummerRedactorTests). The gap-aware
+    // NBSP/zero-width filename coverage lives in PersonnummerRedactorTests' superset guard.
+    // ===============================================================
+
+    [Fact]
+    public void Create_PersonnummerInSourceFileName_IsMasked_ExtensionKept()
+    {
+        var result = ParsedResume.Create(
+            Owner, "CV_811218-9876.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            PersonnummerScanOutcome.None, [], Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        // The raw personnummer (delimited and separator-free) is gone; the digits are masked
+        // with '*', the surrounding filename text and the extension are preserved verbatim.
+        result.Value.SourceFileName.ShouldBe("CV_******-****.pdf");
+        result.Value.SourceFileName.ShouldNotContain("811218");
+        result.Value.SourceFileName.ShouldNotContain("9876");
+    }
+
+    [Fact]
+    public void Create_SpacedPersonnummerInSourceFileName_IsMasked()
+    {
+        // A filename can carry the spaced/OCR-gapped form too (PDF/DOCX extraction and this
+        // app's own NBSP digit-group separator produce it) — the gap-aware redactor (#427)
+        // masks it in place, so a contiguous-only matcher would not suffice.
+        var result = ParsedResume.Create(
+            Owner, "cv-811218 9876.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            PersonnummerScanOutcome.None, [], Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SourceFileName.ShouldNotContain("811218");
+        result.Value.SourceFileName.ShouldNotContain("9876");
+        result.Value.SourceFileName.ShouldContain("*");
+    }
+
+    [Theory]
+    [InlineData("cv.pdf")] // no digits
+    [InlineData("CV2023.pdf")] // a year — a 4-digit run, not a personnummer shape
+    [InlineData("CV_811218-9875.pdf")] // Luhn-INVALID 10-digit run (last digit changed) → untouched
+    public void Create_FileNameWithoutValidPersonnummer_PassesThroughUnchanged(string fileName)
+    {
+        // Precision guard: the redactor is Luhn+date-gated, so it touches ONLY a real
+        // personnummer span — an arbitrary digit run (a year) or a Luhn-invalid 10-digit
+        // run is left exactly as uploaded (no blanket digit-nuking).
+        var result = ParsedResume.Create(
+            Owner, fileName, "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            PersonnummerScanOutcome.None, [], Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SourceFileName.ShouldBe(fileName);
+        result.Value.SourceFileName.ShouldNotContain("*");
+    }
+
     [Fact]
     public void Create_CarriesOccupationProposals()
     {

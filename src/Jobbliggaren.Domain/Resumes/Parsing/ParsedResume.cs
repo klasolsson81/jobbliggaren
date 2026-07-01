@@ -25,6 +25,10 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
 {
     public JobSeekerId JobSeekerId { get; private set; }
 
+    /// <summary>The uploaded file's name — plaintext metadata (never CV body content). Any
+    /// personnummer-shaped span is masked at <see cref="Create"/> (#465, GDPR Art. 5(1)(c)/25
+    /// minimisation) so this unencrypted column and the owner-scoped read DTOs never carry a
+    /// plaintext personnummer.</summary>
     public string SourceFileName { get; private set; } = null!;
 
     public string SourceContentType { get; private set; } = null!;
@@ -146,11 +150,24 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         if (personnummer is null)
             return Fail("ParsedResume.PersonnummerOutcomeRequired", "Personnummer-utfall krävs.");
 
+        // #465 (GDPR Art. 5(1)(c)/25 minimisation): a personnummer can ride in on the source
+        // filename (e.g. "CV_811218-9876.pdf"); left as-is it would persist as plaintext in the
+        // unencrypted source_file_name column and be surfaced verbatim to the owner-scoped read
+        // DTOs. Mask it at construction so the aggregate owns the invariant "SourceFileName carries
+        // no plaintext personnummer" for every caller (not one handler). Reuses the SAME gap-aware,
+        // Luhn+date-gated redactor as the CV-evidence path (#427): only a REAL personnummer span is
+        // masked (an arbitrary digit run — a year, a phone number — is untouched), the extension and
+        // separators are kept, length is preserved ("CV_811218-9876.pdf" → "CV_******-****.pdf").
+        // The SEPARATE #426 FoundInFileName flag is computed from the ORIGINAL filename BEFORE this
+        // factory runs, so the B4 "rename your file" warn is unaffected — this only minimises what
+        // is stored at rest. Deterministic, no AI (ADR 0071); §5 personnummer guard.
+        var redactedFileName = PersonnummerRedactor.Redact(sourceFileName.Trim());
+
         var now = clock.UtcNow;
         var parsed = new ParsedResume(
             ParsedResumeId.New(),
             jobSeekerId,
-            sourceFileName.Trim(),
+            redactedFileName,
             sourceContentType.Trim(),
             detectedLanguage,
             content,

@@ -35,7 +35,7 @@ public class RunSavedSearchQueryHandlerTests
     private static async Task<(JobSeeker seeker, SavedSearch saved)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId,
         string? occupationGroup = null, string? municipality = null,
-        string? region = null, string? q = null)
+        string? region = null, string? q = null, string? employer = null)
     {
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
@@ -49,12 +49,13 @@ public class RunSavedSearchQueryHandlerTests
         var municipalityList = municipality is not null
             ? new[] { municipality } : System.Array.Empty<string>();
         var regionList = region is not null ? new[] { region } : System.Array.Empty<string>();
+        var employerList = employer is not null ? new[] { employer } : System.Array.Empty<string>();
         var criteria = SearchCriteria.Create(
             occupationGroup: groupList,
             municipality: municipalityList,
             region: regionList,
             employmentType: null,
-            worktimeExtent: null,
+            worktimeExtent: null, employer: employerList,
             q: q,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Kör mig", criteria, false,
@@ -101,7 +102,7 @@ public class RunSavedSearchQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, saved) = await SeedAsync(db, _userId,
             occupationGroup: "grp_12345", municipality: "sthlm_kn",
-            region: "stockholm", q: "backend");
+            region: "stockholm", q: "backend", employer: "5566010101");
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage(page: 2, pageSize: 5));
@@ -117,6 +118,9 @@ public class RunSavedSearchQueryHandlerTests
         captured!.Filter.OccupationGroup.ShouldBe(["grp_12345"]);
         captured.Filter.Municipality.ShouldBe(["sthlm_kn"]);
         captured.Filter.Region.ShouldBe(["stockholm"]);
+        // #311 PR-2b C1: the SavedSearch's employer (org.nr) is reproduced into the filter on run
+        // (the CONTAINED-seam replacement — a regression back to Employer: [] would fail here).
+        captured.Filter.Employer.ShouldBe(["5566010101"]);
         captured.Filter.Q.ShouldBe("backend");
         captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         captured.Page.ShouldBe(2);

@@ -41,6 +41,10 @@ public sealed class ConfirmDerivedSearchCommandHandler(
             region: command.Region,
             employmentType: command.EmploymentType,
             worktimeExtent: command.WorktimeExtent,
+            // #311 PR-2b C1: a CV-derived saved search has no employer dimension (it is derived from
+            // occupation/location, not a watched org.nr). Employer is empty here by nature, not a
+            // deferred seam. The VO/jsonb remain employer-aware for other paths.
+            employer: [],
             q: command.Q,
             sortBy: command.SortBy);
         if (criteriaResult.IsFailure)

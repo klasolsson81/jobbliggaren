@@ -156,6 +156,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             var criteria = SearchCriteria.Create(
                 occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
                 region: ["stockholm"], employmentType: null, worktimeExtent: null,
+                employer: null,
                 q: "developer",
                 sortBy: JobAdSortBy.PublishedAtDesc).Value;
 

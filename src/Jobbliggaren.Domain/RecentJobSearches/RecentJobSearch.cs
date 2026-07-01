@@ -20,8 +20,8 @@ namespace Jobbliggaren.Domain.RecentJobSearches;
 /// <list type="number">
 /// <item><b>Identitet via FilterHash:</b> UNIQUE(JobSeekerId, FilterHash) på persistens-yta.
 /// <see cref="FilterHashCalculator"/> är canonical-källan; Q/OccupationGroup/Municipality/
-/// Region/EmploymentType/WorktimeExtent/SortBy är derivat av hash och får aldrig divergera
-/// (Bump muterar dem ej).</item>
+/// Region/EmploymentType/WorktimeExtent/Employer/SortBy är derivat av hash och får aldrig
+/// divergera (Bump muterar dem ej).</item>
 /// <item><b>Cap per seeker:</b> <see cref="MaxPerSeeker"/> — affärsregel, enforce:as i
 /// <c>IRecentJobSearchCapturer</c>-implementationen (evict äldsta LastViewedAt vid
 /// overflow). Konstanten deklareras i Domain (CLAUDE.md §5.1 — ingen magic number).</item>
@@ -66,6 +66,13 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
     private readonly List<string> _worktimeExtent = [];
     public IReadOnlyList<string> WorktimeExtent => _worktimeExtent.AsReadOnly();
 
+    // #311 PR-2b C1 (ADR 0087 D6) — arbetsgivar-dimensionen (org.nr). Persisteras som
+    // employer_list text[] i samma shadow-backing-field-mönster som ovan; ingår i FilterHash →
+    // en recent-rad reproducerar exakt sökningen inkl. arbetsgivar-filtret. PR-2 shippade filter-
+    // dimensionen CONTAINED (Employer: []); denna PR trådar in den i sök-identiteten.
+    private readonly List<string> _employer = [];
+    public IReadOnlyList<string> Employer => _employer.AsReadOnly();
+
     public JobAdSortBy SortBy { get; private set; }
     public DateTimeOffset LastViewedAt { get; private set; }
     public int LastSeenCount { get; private set; }
@@ -90,6 +97,7 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
         _region.AddRange(criteria.Region);
         _employmentType.AddRange(criteria.EmploymentType);
         _worktimeExtent.AddRange(criteria.WorktimeExtent);
+        _employer.AddRange(criteria.Employer);
         SortBy = criteria.SortBy;
         LastViewedAt = now;
         LastSeenCount = currentCount;

@@ -43,6 +43,7 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         List<string> region = [];
         List<string> employmentType = [];
         List<string> worktimeExtent = [];
+        List<string> employer = [];
         string? q = null;
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc;
 
@@ -76,6 +77,13 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
                     break;
                 case "WorktimeExtent":
                     worktimeExtent = ReadStringOrStringArray(ref reader, "WorktimeExtent");
+                    break;
+                // #311 PR-2b C1 (ADR 0087 D6): Employer-nyckeln (org.nr). Saknad nyckel (rad
+                // sparad före C1) → tom lista via switch-default → Create passerar tom-invarianten
+                // additivt (samma bakåtkompat-mönster som Klass 2 — bevisat av back-compat-testet).
+                // Property-namn = jsonb-kontrakt (PascalCase).
+                case "Employer":
+                    employer = ReadStringOrStringArray(ref reader, "Employer");
                     break;
                 case "Q":
                     q = reader.TokenType switch
@@ -114,6 +122,7 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
             region: region,
             employmentType: employmentType,
             worktimeExtent: worktimeExtent,
+            employer: employer,
             q: q,
             sortBy: sortBy);
         if (result.IsFailure)
@@ -160,6 +169,14 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         writer.WriteStartArray();
         foreach (var w in value.WorktimeExtent)
             writer.WriteStringValue(w);
+        writer.WriteEndArray();
+
+        // #311 PR-2b C1 (ADR 0087 D6) — Employer (org.nr) i kanonisk ordning efter WorktimeExtent
+        // (matchar VO:ts Equals/GetHashCode-ordning + FilterHash). Alltid array-form.
+        writer.WritePropertyName("Employer");
+        writer.WriteStartArray();
+        foreach (var emp in value.Employer)
+            writer.WriteStringValue(emp);
         writer.WriteEndArray();
 
         if (value.Q is null)

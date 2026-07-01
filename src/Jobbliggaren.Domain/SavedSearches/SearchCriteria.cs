@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 
 namespace Jobbliggaren.Domain.SavedSearches;
@@ -89,6 +90,17 @@ public sealed record SearchCriteria
     public IReadOnlyList<string> EmploymentType { get; private init; } = [];
     public IReadOnlyList<string> WorktimeExtent { get; private init; } = [];
 
+    // #311 PR-2b C1 (ADR 0087 D6) — arbetsgivar-dimensionen: org.nr (den KANONISKA
+    // följ-/filter-nyckeln, "Volvo×20"-fällan). En ÄKTA persisterad sök-identitets-
+    // dimension (del av FilterHash + SavedSearch jsonb + RecentJobSearch), till skillnad
+    // mot runtime-kontext-flaggorna (MatchGrades/status) som aldrig persisteras. ORTOGONAL
+    // IN-equality-axel (som EmploymentType/WorktimeExtent). Elementen är 10-siffriga org.nr,
+    // INTE JobTech concept-ids → egen format-validering (ValidateEmployerList) mot org.nr-
+    // formatet (DRY:at via OrganizationNumber.Create, ej ConceptIdPattern). PR-2 shippade
+    // filter-dimensionen CONTAINED (live-sök endast, Employer: [] i persistens); denna PR
+    // (2b C1) trådar in den i sök-identiteten (senior-cto-advisor 2026-07-01).
+    public IReadOnlyList<string> Employer { get; private init; } = [];
+
     public string? Q { get; private init; }
     public JobAdSortBy SortBy { get; private init; }
 
@@ -101,6 +113,7 @@ public sealed record SearchCriteria
         IEnumerable<string>? region,
         IEnumerable<string>? employmentType,
         IEnumerable<string>? worktimeExtent,
+        IEnumerable<string>? employer,
         string? q,
         JobAdSortBy sortBy)
     {
@@ -113,15 +126,18 @@ public sealed record SearchCriteria
         var normRegion = NormalizeList(region);
         var normEmploymentType = NormalizeList(employmentType);
         var normWorktimeExtent = NormalizeList(worktimeExtent);
+        var normEmployer = NormalizeList(employer);
         var normQ = NormalizeString(q);
 
+        // #311 PR-2b C1: Employer deltar i tom-invarianten — en arbetsgivar-only-sökning
+        // (Employer:[x] ensam) är en giltig sökning (speglar EmploymentType-only, CTO-bind D3).
         if (normOccupationGroup.Length == 0 && normMunicipality.Length == 0
             && normRegion.Length == 0 && normEmploymentType.Length == 0
-            && normWorktimeExtent.Length == 0 && normQ is null)
+            && normWorktimeExtent.Length == 0 && normEmployer.Length == 0 && normQ is null)
         {
             return Result.Failure<SearchCriteria>(DomainError.Validation(
                 "SearchCriteria.Empty",
-                "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning eller fritext) krävs."));
+                "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare eller fritext) krävs."));
         }
 
         // Cap + per-element-regex per dimension (invariant 2 + default-deny).
@@ -156,7 +172,11 @@ public sealed record SearchCriteria
                 "SearchCriteria.TooManyWorktimeExtent",
                 $"Max {MaxConceptIds} omfattningar per sökning.",
                 "SearchCriteria.InvalidWorktimeExtent",
-                "Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+                "Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).")
+            // #311 PR-2b C1: Employer valideras mot org.nr-formatet (10 siffror), INTE
+            // ConceptIdPattern — arbetsgivar-nyckeln är ett organisationsnummer, inte en JobTech
+            // concept-id. Se ValidateEmployerList (DRY:ar OrganizationNumber-VO:ts format).
+            ?? ValidateEmployerList(normEmployer);
 
         if (error is not null)
             return Result.Failure<SearchCriteria>(error);
@@ -179,9 +199,33 @@ public sealed record SearchCriteria
             Region = normRegion,
             EmploymentType = normEmploymentType,
             WorktimeExtent = normWorktimeExtent,
+            Employer = normEmployer,
             Q = normQ,
             SortBy = sortBy,
         });
+    }
+
+    // #311 PR-2b C1: per-element org.nr-format-validering + cap. DRY:ar org.nr-formatet
+    // (^\d{10}\z) via OrganizationNumber.Create i stället för att re-literala regexen (CTO-bind
+    // D3 constraint 1: DRY:a format-konstanten). OrganizationNumber-VO:t är den kanoniska källan
+    // (samma format som ListJobAdsQueryValidator, PR-2). Vi kastar bort VO:t — bara giltigheten
+    // behövs här; SearchCriteria persisterar org.nr som råa strängar (paritet övriga list-dims).
+    // Egna SearchCriteria-felkoder (ej OrganizationNumber-VO:ts) för konsekvent felkontrakt.
+    private static DomainError? ValidateEmployerList(string[] values)
+    {
+        if (values.Length > MaxConceptIds)
+            return DomainError.Validation(
+                "SearchCriteria.TooManyEmployer", $"Max {MaxConceptIds} arbetsgivare per sökning.");
+
+        foreach (var v in values)
+        {
+            if (OrganizationNumber.Create(v).IsFailure)
+                return DomainError.Validation(
+                    "SearchCriteria.InvalidEmployer",
+                    "Arbetsgivare måste vara ett giltigt 10-siffrigt organisationsnummer.");
+        }
+
+        return null;
     }
 
     private static DomainError? ValidateConceptList(
@@ -242,7 +286,8 @@ public sealed record SearchCriteria
             && Municipality.SequenceEqual(other.Municipality, StringComparer.Ordinal)
             && Region.SequenceEqual(other.Region, StringComparer.Ordinal)
             && EmploymentType.SequenceEqual(other.EmploymentType, StringComparer.Ordinal)
-            && WorktimeExtent.SequenceEqual(other.WorktimeExtent, StringComparer.Ordinal);
+            && WorktimeExtent.SequenceEqual(other.WorktimeExtent, StringComparer.Ordinal)
+            && Employer.SequenceEqual(other.Employer, StringComparer.Ordinal);
     }
 
     public override int GetHashCode()
@@ -260,6 +305,8 @@ public sealed record SearchCriteria
             hash.Add(e, StringComparer.Ordinal);
         foreach (var w in WorktimeExtent)
             hash.Add(w, StringComparer.Ordinal);
+        foreach (var emp in Employer)
+            hash.Add(emp, StringComparer.Ordinal);
         return hash.ToHashCode();
     }
 }

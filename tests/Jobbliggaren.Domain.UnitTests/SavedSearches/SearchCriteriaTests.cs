@@ -28,6 +28,7 @@ public class SearchCriteriaTests
         IEnumerable<string>? region = null,
         IEnumerable<string>? employmentType = null,
         IEnumerable<string>? worktimeExtent = null,
+        IEnumerable<string>? employer = null,
         string? q = null,
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc) =>
         SearchCriteria.Create(
@@ -36,6 +37,7 @@ public class SearchCriteriaTests
             region: region,
             employmentType: employmentType,
             worktimeExtent: worktimeExtent,
+            employer: employer,
             q: q,
             sortBy: sortBy);
 
@@ -401,7 +403,7 @@ public class SearchCriteriaTests
         // Copy-kontrakt per architect F1. B2 (ADR 0067 Beslut 6/7): meddelandet
         // nämner nu även anställningsform + omfattning (de två nya dimensionerna).
         result.Error.Message.ShouldBe(
-            "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning eller fritext) krävs.");
+            "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare eller fritext) krävs.");
     }
 
     [Fact]
@@ -831,5 +833,132 @@ public class SearchCriteriaTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.EmploymentType.ShouldBe([et]);
+    }
+
+    // ===============================================================
+    // #311 PR-2b C1 (ADR 0087 D6) — Employer (org.nr) som SJÄTTE list-dimension.
+    // Samma ADR 0042 Beslut B-invarianter (normalisering, cap, tom-invariant,
+    // equality/hash) MEN med org.nr-FORMAT (exakt 10 siffror) i stället för
+    // ConceptIdPattern — arbetsgivar-nyckeln är ett organisationsnummer, inte en
+    // JobTech concept-id. Nya felkoder SearchCriteria.{TooMany,Invalid}Employer.
+    // ===============================================================
+
+    [Fact]
+    public void Create_WithEmployerOnly_ReturnsSuccess()
+    {
+        // Tom-invarianten utökad: enbart Employer (alla andra tomma, Q null) räcker
+        // → giltig sökning (CTO-bind D3: employer-only är en giltig sökning).
+        var result = Create(employer: ["5566010101"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Employer.ShouldBe(["5566010101"]);
+        result.Value.OccupationGroup.ShouldBeEmpty();
+        result.Value.EmploymentType.ShouldBeEmpty();
+        result.Value.Q.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Create_Employer_DefaultsToEmpty_WhenNotSupplied()
+    {
+        var result = Create(occupationGroup: ["grp1"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Employer.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Create_NormalizesEmployer_SortedDistinctOrdinal()
+    {
+        var result = Create(employer: ["5566020202", "5566010101", "5566020202", " 5566030303 "]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Employer.ShouldBe(["5566010101", "5566020202", "5566030303"]);
+    }
+
+    [Fact]
+    public void TwoCriteria_DifferentEmployer_AreNotValueEqual()
+    {
+        var a = Create(employer: ["5566010101"]).Value;
+        var b = Create(employer: ["5566020202"]).Value;
+
+        a.Equals(b).ShouldBeFalse();
+        (a == b).ShouldBeFalse();
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void TwoCriteria_SameEmployerDifferentOrder_AreValueEqual()
+    {
+        // Normalisering → strukturell likhet trots input-ordning (jsonb-dedupe).
+        var a = Create(employer: ["5566020202", "5566010101"]).Value;
+        var b = Create(employer: ["5566010101", "5566020202"]).Value;
+
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void TwoCriteria_SameValueInEmployerVsOtherDimension_AreNotValueEqual()
+    {
+        // Dimension-förväxlingsgrind: ett org.nr som råkar vara alfanumeriskt-giltigt
+        // som concept-id i en annan dimension får aldrig dedupe:a fel sökning bort.
+        var a = Create(employer: ["5566010101"]).Value;
+        var b = Create(occupationGroup: ["5566010101"]).Value;
+
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void Create_WithExactlyMaxEmployer_ReturnsSuccess()
+    {
+        // Distinkta 10-siffriga org.nr (5-prefix + 9-siffrig löpande, alltid 10 siffror).
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds)
+            .Select(i => $"5{i:D9}").ToArray();
+
+        var result = Create(employer: max);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Employer.Count.ShouldBe(SearchCriteria.MaxConceptIds);
+    }
+
+    [Fact]
+    public void Create_WithOneOverMaxEmployer_ReturnsFailure()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1)
+            .Select(i => $"5{i:D9}").ToArray();
+
+        var result = Create(employer: overMax);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.TooManyEmployer");
+        result.Error.Message.ShouldBe($"Max {SearchCriteria.MaxConceptIds} arbetsgivare per sökning.");
+    }
+
+    [Theory]
+    [InlineData("123")]              // för kort
+    [InlineData("55660101011")]      // 11 siffror
+    [InlineData("55660A0101")]       // ej rena siffror
+    [InlineData("grp_12345")]        // giltig concept-id men INTE ett org.nr
+    [InlineData("556601-0101")]      // bindestreck (org.nr lagras utan)
+    public void Create_WithInvalidEmployerElement_ReturnsFailure(string bad)
+    {
+        // org.nr-formatet (exakt 10 siffror) skiljer sig från ConceptIdPattern —
+        // ett giltigt concept-id är INTE nödvändigtvis ett giltigt org.nr.
+        var result = Create(employer: ["5566010101", bad]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.InvalidEmployer");
+    }
+
+    [Theory]
+    [InlineData("5566010101")]
+    [InlineData("0000000000")]
+    [InlineData("9999999999")]
+    public void Create_WithValidEmployerFormat_ReturnsSuccess(string orgNr)
+    {
+        var result = Create(employer: [orgNr]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Employer.ShouldBe([orgNr]);
     }
 }

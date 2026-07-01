@@ -70,9 +70,14 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         var regionCount = capt.Region?.Count ?? 0;
         var employmentTypeCount = capt.EmploymentType?.Count ?? 0;
         var worktimeExtentCount = capt.WorktimeExtent?.Count ?? 0;
+        // #311 PR-2b C1 (ADR 0087 D6): en committad sökning med ENBART arbetsgivar-filter
+        // (?employer=) ska fångas (annars tyst gap analogt C1/Klass 2). Employer räknas därför i
+        // default-browse-guarden.
+        var employerCount = capt.Employer?.Count ?? 0;
         if (string.IsNullOrWhiteSpace(capt.Q) && occupationGroupCount == 0
             && municipalityCount == 0 && regionCount == 0
-            && employmentTypeCount == 0 && worktimeExtentCount == 0)
+            && employmentTypeCount == 0 && worktimeExtentCount == 0
+            && employerCount == 0)
         {
             return response;
         }
@@ -85,6 +90,7 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
                 region: capt.Region ?? [],
                 employmentType: capt.EmploymentType ?? [],
                 worktimeExtent: capt.WorktimeExtent ?? [],
+                employer: capt.Employer ?? [],
                 q: capt.Q,
                 sortBy: capt.SortBy);
 

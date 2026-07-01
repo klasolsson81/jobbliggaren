@@ -34,12 +34,13 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// (org.nr — den KANONISKA arbetsgivar-nyckeln, ingen fuzzy namn-matchning,
 /// "Volvo×20"-fällan) tillkom. Speglar Klass 2 EXAKT: ortogonal dimension, enkel
 /// IN-equality på den STORED generated <c>organization_number</c>-kolumnen, AND mot
-/// allt annat (INTE geo-union). <b>CONTAINED-scope (CTO-bind 2026-06-30):</b> denna
-/// SPOT (live-sök-filtret) bär employer, men Domän-VO:t <c>SearchCriteria</c> +
-/// RecentJobSearch/SavedSearch-identiteten gör det INTE i PR-2 — de persisterade
-/// vägarna (<c>RunSavedSearchQueryHandler</c>/<c>ListRecentSearchesQueryHandler</c>)
-/// passerar <c>Employer: []</c> tills PR-2b trådar in dimensionen i sök-identiteten
-/// (landar med #408 FE-konsumenten).
+/// allt annat (INTE geo-union). <b>PERSISTERAD (PR-2b C1, 2026-07-01):</b> PR-2:s
+/// CONTAINED-seam är ersatt — Domän-VO:t <c>SearchCriteria</c> bär nu employer, så de
+/// persisterade vägarna (<c>RunSavedSearchQueryHandler</c> +
+/// <c>ListRecentSearchesQueryHandler</c>) passerar det verkliga värdet och reproducerar
+/// arbetsgivar-filtret. (Rena facet-/count-vägar utan employer-facet, t.ex.
+/// <c>GetFacetCounts</c>/<c>GetMyMatchCount</c>, passerar fortfarande medvetet
+/// <c>Employer: []</c> — de har ingen employer-dimension.)
 /// </para>
 /// </summary>
 public sealed record JobAdFilterCriteria(

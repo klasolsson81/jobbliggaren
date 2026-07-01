@@ -27,11 +27,14 @@ namespace Jobbliggaren.Architecture.Tests;
 ///     <see cref="AccountHardDeleteCascadeFitnessTests"/>). The one present subject is
 ///     <see cref="CompanyWatchDto"/> (PR-3); the guard is forward-looking for PR-2b's disambiguation
 ///     DTO — the "reactive-catch" failure mode #374 was built to end.</item>
-///   <item><b>Scan log-boundary (source-scan, the one present real subject).</b>
-///     <c>CompanyWatchScanJob</c> reads raw org.nr to build its <c>IN</c>-set — its logging surface
+///   <item><b>Log-boundary (source-scan over every path that reads a raw org.nr into scope).</b>
+///     A source file that reads a raw org.nr server-side must never log it — its logging surface
 ///     (<c>[LoggerMessage]</c> templates + <c>Log*</c> call sites) must never reference an org.nr
-///     token, so a raw org.nr is never logged (ADR 0087 D8 / §5). Load-bearing the moment PR-4
-///     lands.</item>
+///     token (ADR 0087 D8 / §5). The scanned set (<see cref="RawOrgNrReadingSourcePaths"/>):
+///     <c>CompanyWatchScanJob</c> reads raw org.nr to build its <c>IN</c>-set (PR-4), and
+///     <c>ListCompanyWatchesQueryHandler</c> reads raw org.nr to resolve <c>company_name</c> (PR-3)
+///     AND to compute the #447 active-ad count (the "second read path" the PR-3 forward-note
+///     anticipated). Extend the set whenever a new path reads a raw org.nr into scope.</item>
 /// </list>
 /// </para>
 ///
@@ -40,8 +43,16 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public class OrganizationNumberSurfacingGuardTests
 {
-    private const string ScanJobRelativePath =
-        "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs";
+    /// <summary>
+    /// Source files that read a raw org.nr into scope (server-side) and therefore must never log one.
+    /// The log-boundary invariant scans each. Add a path here whenever a new read path reads a raw
+    /// org.nr into scope (ADR 0087 D8 / §5, enskild firma = personnummer).
+    /// </summary>
+    private static readonly IReadOnlyList<string> RawOrgNrReadingSourcePaths =
+    [
+        "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
+        "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
+    ];
 
     /// <summary>
     /// org.nr-surfacing <c>*Dto</c>s that MASK + FLAG a personnummer-shaped org.nr at the boundary
@@ -114,18 +125,22 @@ public class OrganizationNumberSurfacingGuardTests
     }
 
     [Fact]
-    public void CompanyWatchScanJob_logging_surface_never_references_org_nr()
+    public void Raw_org_nr_reading_sources_never_log_an_org_nr()
     {
-        // The one present real subject: the scan reads raw org.nr, so its logging surface must be
-        // clean (ADR 0087 D8 / §5 — never log an org.nr un-flagged).
-        var source = ReadScanJobSource();
+        // Every source that reads a raw org.nr into scope must keep its logging surface clean (ADR
+        // 0087 D8 / §5 — never log an org.nr un-flagged). CompanyWatchScanJob (IN-set, PR-4) +
+        // ListCompanyWatchesQueryHandler (company_name projection PR-3 + #447 active-ad count).
+        foreach (var relativePath in RawOrgNrReadingSourcePaths)
+        {
+            var source = ReadSource(relativePath);
 
-        var offending = OrgNrSurfaceScan.FindOrgNrLoggingFragments(source);
+            var offending = OrgNrSurfaceScan.FindOrgNrLoggingFragments(source);
 
-        offending.ShouldBeEmpty(
-            "CompanyWatchScanJob loggar (eller kan logga) ett rått org.nr — dess [LoggerMessage]-" +
-            "mallar / Log*-anrop får ALDRIG referera ett org.nr-token (ADR 0087 D8, CLAUDE.md §5, " +
-            "enskild firma = personnummer). Träffar: " + string.Join(" | ", offending));
+            offending.ShouldBeEmpty(
+                $"{relativePath} loggar (eller kan logga) ett rått org.nr — dess [LoggerMessage]-" +
+                "mallar / Log*-anrop får ALDRIG referera ett org.nr-token (ADR 0087 D8, CLAUDE.md §5, " +
+                "enskild firma = personnummer). Träffar: " + string.Join(" | ", offending));
+        }
     }
 
     [Fact]
@@ -147,21 +162,25 @@ public class OrganizationNumberSurfacingGuardTests
     }
 
     [Fact]
-    public void Scan_job_source_path_exists()
+    public void Raw_org_nr_reading_source_paths_all_exist()
     {
-        // Pins the source path — a moved/renamed scan job fails loud here instead of making the log
-        // guard silently vacuous.
-        File.Exists(ScanJobAbsolutePath()).ShouldBeTrue(
-            $"arch-testet pekar på en fil som inte finns: {ScanJobAbsolutePath()}. Uppdatera " +
-            "sökvägen om CompanyWatchScanJob flyttats/döpts om.");
+        // Pins every scanned source path — a moved/renamed source fails loud here instead of making
+        // the log guard silently vacuous.
+        foreach (var relativePath in RawOrgNrReadingSourcePaths)
+        {
+            var absolute = SourceAbsolutePath(relativePath);
+            File.Exists(absolute).ShouldBeTrue(
+                $"arch-testet pekar på en fil som inte finns: {absolute}. Uppdatera sökvägen i " +
+                "RawOrgNrReadingSourcePaths om källfilen flyttats/döpts om.");
+        }
     }
 
-    private static string ReadScanJobSource() => File.ReadAllText(ScanJobAbsolutePath());
+    private static string ReadSource(string relativePath) => File.ReadAllText(SourceAbsolutePath(relativePath));
 
-    private static string ScanJobAbsolutePath()
+    private static string SourceAbsolutePath(string relativePath)
     {
         var repoRoot = FindRepoRoot();
-        return Path.Combine(repoRoot, ScanJobRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        return Path.Combine(repoRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
     }
 
     private static string FindRepoRoot()

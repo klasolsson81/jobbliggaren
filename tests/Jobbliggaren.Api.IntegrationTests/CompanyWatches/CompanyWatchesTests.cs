@@ -7,6 +7,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -335,13 +336,119 @@ public class CompanyWatchesTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    // ---- #447 — "X aktiva annonser just nu" per followed company (derived count over public job_ads) ----
+
+    // Org.nrs UNIQUE to the #447 count assertions. The [Collection("Api")] Postgres is SHARED and never
+    // reset between tests, so the shared LegalOrgNr accumulates active ads across the file — a count
+    // assertion MUST seed a private org.nr no other test touches to stay deterministic (memory
+    // api_integration_shared_db_contamination). Third digit ≥ 2 → legal entity (unmasked); the sole-prop
+    // one has third digit < 2 → personnummer-shaped (masked). OrganizationNumber.Create validates only
+    // 10 digits (no Luhn), so these are valid follow keys.
+    private const string CountEmployerLegal = "5544700447";   // followed: 2 active + 1 archived → 2
+    private const string CountEmployerOther = "5544800447";   // different employer, 1 active (excluded)
+    private const string CountEmployerArchivedOnly = "5544900447"; // 1 archived only → 0
+    private const string CountEmployerSoleProp = "9012310447"; // third digit 1 → masked, 1 active → 1
+    private const string CountEmployerSoftDeleted = "5545000447"; // 1 Active-but-soft-deleted → 0
+
+    [Fact]
+    public async Task GET_list_reports_active_ad_count_over_public_job_ads()
+    {
+        // #447 (ADR 0087 D2) — the active-ad count is a derived count over PUBLIC job_ads
+        // (status='Active' AND organization_number), via the GLOBAL soft-delete query filter (ADR
+        // 0048). Only Postgres computes the STORED organization_number column + translates the GROUP BY
+        // count, so this is Testcontainers-only. Seeds 2 Active ads + 1 Archived ad for the followed
+        // org.nr, plus 1 Active ad for a DIFFERENT org.nr → the count must be exactly 2 (Archived
+        // excluded by the status filter, the other employer excluded by the org.nr filter).
+        var ct = TestContext.Current.CancellationToken;
+        await SeedImportedJobAdAsync(CountEmployerLegal, "Acme Bygg AB", ct);
+        await SeedImportedJobAdAsync(CountEmployerLegal, "Acme Bygg AB", ct);
+        await SeedImportedJobAdAsync(CountEmployerLegal, "Acme Bygg AB", ct, archived: true);
+        await SeedImportedJobAdAsync(CountEmployerOther, "Beta Data AB", ct); // different employer, active
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(CountEmployerLegal, ct);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("activeAdCount").GetInt32().ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task GET_list_reports_active_ad_count_even_when_org_number_is_masked()
+    {
+        // #447 + D8(c) — the count is PUBLIC data (over public ads), surfaced even for a sole-prop
+        // whose personnummer-shaped org.nr is masked. Proves the count is independent of the mask.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedImportedJobAdAsync(CountEmployerSoleProp, "Enskild Firma", ct);
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(CountEmployerSoleProp, ct);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("isProtectedIdentity").GetBoolean().ShouldBeTrue();
+        item.GetProperty("organizationNumber").ValueKind.ShouldBe(JsonValueKind.Null);
+        item.GetProperty("activeAdCount").GetInt32().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task GET_list_reports_zero_active_ad_count_when_employer_has_no_active_ad()
+    {
+        // #447 — a followed org.nr with no public ad (or only retracted/archived ones) reports 0, not
+        // a null or a missing member. Here the employer has one ARCHIVED ad only → count 0.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedImportedJobAdAsync(CountEmployerArchivedOnly, "Gamla Firman AB", ct, archived: true);
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(CountEmployerArchivedOnly, ct);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("activeAdCount").GetInt32().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task GET_list_excludes_soft_deleted_active_ad_from_active_ad_count()
+    {
+        // #447 — soft-delete is ORTHOGONAL to status: a retracted ad keeps status='Active', so the
+        // status='Active' count predicate alone does NOT exclude it. The ONLY thing that removes it is
+        // the GLOBAL soft-delete query filter (JobAdConfiguration HasQueryFilter DeletedAt == null,
+        // ADR 0048) which the count query inherits — the exact contract the handler comment leans on
+        // ("the global soft-delete filter already excludes retracted ads"). This is the branch the
+        // status-only cases (Archived → count 0) cannot prove. Seed one Active ad, follow the org.nr,
+        // then soft-delete the ad (JobAd has no domain SoftDelete; DeletedAt is stamped via EF direct —
+        // established pattern, ManualPostingPersistenceTests) → the count must be 0, not 1.
+        var ct = TestContext.Current.CancellationToken;
+        var adId = await SeedImportedJobAdAsync(CountEmployerSoftDeleted, "Retraherad Firma AB", ct);
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(CountEmployerSoftDeleted, ct);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+            var jobAd = await db.JobAds.SingleAsync(j => j.Id == new JobAdId(adId), ct);
+            // status stays 'Active' — only DeletedAt is stamped, exercising the query-filter exclusion,
+            // not the status predicate.
+            db.Entry(jobAd).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("activeAdCount").GetInt32().ShouldBe(0);
+    }
+
     // Imports a public job_ad whose raw_payload carries employer.organization_number, so the STORED
     // generated `organization_number` column auto-populates (mirrors ListJobAdsEmployerFilterTests).
-    // Returns the ad's id so the #455 by-job-ad endpoint can target it.
-    private async Task<Guid> SeedImportedJobAdAsync(string orgNr, string companyName, CancellationToken ct)
+    // Returns the ad's id so the #455 by-job-ad endpoint can target it. When <paramref name="archived"/>
+    // is true the ad is Archived after import (#447 — proves the status='Active' count filter).
+    private async Task<Guid> SeedImportedJobAdAsync(
+        string orgNr, string companyName, CancellationToken ct, bool archived = false)
     {
         var employer = $"{{\"name\":\"{companyName}\",\"organization_number\":\"{orgNr}\"}}";
-        return await SeedImportedJobAdCoreAsync(companyName, employer, ct);
+        return await SeedImportedJobAdCoreAsync(companyName, employer, ct, archived);
     }
 
     // #455 — a job_ad whose employer carries NO organization_number, so the STORED column is NULL
@@ -352,7 +459,8 @@ public class CompanyWatchesTests(ApiFactory factory)
         return await SeedImportedJobAdCoreAsync(companyName, employer, ct);
     }
 
-    private async Task<Guid> SeedImportedJobAdCoreAsync(string companyName, string employerJson, CancellationToken ct)
+    private async Task<Guid> SeedImportedJobAdCoreAsync(
+        string companyName, string employerJson, CancellationToken ct, bool archived = false)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -371,6 +479,9 @@ public class CompanyWatchesTests(ApiFactory factory)
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;
+
+        if (archived)
+            jobAd.Archive(clock);
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,18 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 /// name per org.nr. The personnummer guard (FORK C1 / D8(c)) is applied per row in the projection —
 /// a personnummer-shaped org.nr is masked (null) and flagged; the raw value never leaves this
 /// handler un-flagged.
+///
+/// <para>
+/// #447 (ADR 0087 D2; senior-cto-advisor 2026-07-01) — each row also carries <c>ActiveAdCount</c>
+/// ("X aktiva annonser just nu"): a SECOND bounded in-handler projection over public <c>job_ads</c>
+/// keyed by the SAME org.nr set (ADR 0048 in-handler cross-aggregate read; the global soft-delete
+/// query filter excludes retracted ads — never a hand-rolled <c>deleted_at</c>), counting only
+/// <c>status='Active'</c>. Kept as a separate additive projection (the name projection is unchanged)
+/// rather than merged into one GROUP BY — two bounded round-trips over a handful of distinct org.nrs
+/// is the accepted cost of a lower-risk additive diff (CTO verdict b). The raw org.nr is read
+/// SERVER-SIDE only, to GROUP BY — it is never surfaced (the count is a plain <c>int</c>, public
+/// data) nor logged (the org.nr surfacing-guard log-scan covers this handler).
+/// </para>
 /// </summary>
 public sealed class ListCompanyWatchesQueryHandler(
     IAppDbContext db,
@@ -56,6 +69,23 @@ public sealed class ListCompanyWatchesQueryHandler(
             .GroupBy(x => x.OrgNr!)
             .ToDictionary(g => g.Key, g => g.First().Name);
 
+        // #447 — active-ad count per followed employer. Same org.nr set, PUBLIC job_ads, but keyed on
+        // status='Active' (repo-wide translation form j.Status == JobAdStatus.Active, value-converted
+        // to `status = 'Active'`). GROUP BY the STORED organization_number shadow column server-side;
+        // the global soft-delete filter already excludes retracted ads (ADR 0048 — IgnoreQueryFilters
+        // / manual deleted_at forbidden). Bounded to the handful of watched org.nrs. Only Postgres
+        // computes the generated column + translates this GROUP BY, so the count is proven by the
+        // Testcontainers integration test (InMemory hides both).
+        var activeAdCountByOrgNr = (await db.JobAds
+                .AsNoTracking()
+                .Where(j => orgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber"))
+                            && j.Status == JobAdStatus.Active)
+                .GroupBy(j => EF.Property<string?>(j, "OrganizationNumber"))
+                .Select(g => new { OrgNr = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken))
+            .Where(x => x.OrgNr is not null)
+            .ToDictionary(x => x.OrgNr!, x => x.Count);
+
         return watches
             .Select(w =>
             {
@@ -66,7 +96,10 @@ public sealed class ListCompanyWatchesQueryHandler(
                     OrganizationNumber: isProtected ? null : w.OrganizationNumber.Value,
                     IsProtectedIdentity: isProtected,
                     CompanyName: nameByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value),
-                    FollowedAt: w.CreatedAt);
+                    FollowedAt: w.CreatedAt,
+                    // #447: public open-role count — surfaced even when the org.nr is masked (no PII);
+                    // 0 when the employer has no active ad (or none ingested yet).
+                    ActiveAdCount: activeAdCountByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value));
             })
             .ToList();
     }

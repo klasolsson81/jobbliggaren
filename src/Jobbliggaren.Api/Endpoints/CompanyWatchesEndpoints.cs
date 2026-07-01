@@ -1,24 +1,31 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany;
+using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompanyFromJobAd;
 using Jobbliggaren.Application.CompanyWatches.Commands.UnfollowCompany;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusBatch;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
-/// #311 PR-3 (ADR 0087 D3) — follow employers by org.nr. Route prefix
-/// <c>/api/v1/me/company-watches</c> ("my data" convention).
+/// #311 PR-3 (ADR 0087 D3) + #455 — follow employers by org.nr, and from a job ad. Route prefix
+/// <c>/api/v1/me/company-watches</c> ("my data" convention); the whole group is auth-gated.
 ///
 /// <para>
-/// <b>FORK D2 (surrogate resource):</b> POST takes the org.nr in the request BODY and returns the
-/// <c>CompanyWatchId</c>; DELETE addresses the watch by that opaque id. The raw org.nr NEVER appears
-/// in a URL path (and thus never in an access-log) — a sole-prop org.nr can equal a personnummer,
-/// and a URL is logged un-flagged by infra we don't control (ADR 0087 D8(c), CLAUDE.md §5).
+/// <b>FORK D2 (surrogate resource) + #455 Approach A:</b> the raw org.nr NEVER appears in a URL path
+/// (and thus never in an access-log) — a sole-prop org.nr can equal a personnummer, and a URL is logged
+/// un-flagged by infra we don't control (ADR 0087 D8(c), CLAUDE.md §5). POST <c>/</c> takes org.nr in the
+/// BODY; POST <c>/by-job-ad/{jobAdId}</c> takes the non-PII JobAdId and resolves org.nr server-side;
+/// DELETE addresses the watch by its opaque <c>CompanyWatchId</c>. POST <c>/status</c> returns per-ad
+/// follow-state (opaque <c>CompanyWatchId</c> + <c>Followable</c>, never org.nr).
 /// </para>
 /// </summary>
 public static class CompanyWatchesEndpoints
 {
+    /// <summary>#455 follow-state batch request. <c>JobAdIds</c> is a page of ids (validator caps at 100).</summary>
+    public sealed record CompanyWatchStatusBatchRequest(IReadOnlyList<Guid> JobAdIds);
+
     public static void MapCompanyWatchesEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/me/company-watches")
@@ -40,6 +47,27 @@ public static class CompanyWatchesEndpoints
                 ? Results.Created($"/api/v1/me/company-watches/{result.Value}", new { id = result.Value })
                 : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #455 (ADR 0087 D8(c) Approach A) — follow FROM a job ad. JobAdId (non-PII) in the path; the
+        // handler resolves org.nr server-side. Same 201 { id } shape as POST / — the org.nr never wires.
+        group.MapPost("/by-job-ad/{jobAdId:guid}", async (
+            Guid jobAdId, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new FollowCompanyFromJobAdCommand(jobAdId), ct);
+            return result.IsSuccess
+                ? Results.Created($"/api/v1/me/company-watches/{result.Value}", new { id = result.Value })
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #455 — per-ad follow-state overlay (auth-gated, per-user-private; NOT anon-tolerant like the
+        // ADR 0063 status batch). POST carries the id list in the body; response bears no org.nr.
+        group.MapPost("/status", async (
+            CompanyWatchStatusBatchRequest body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new GetCompanyWatchStatusBatchQuery(body.JobAdIds ?? []), ct);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         group.MapDelete("/{id:guid}", async (
             Guid id, IMediator mediator, CancellationToken ct) =>

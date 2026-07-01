@@ -5,9 +5,11 @@ import { jobAdStatusLabel } from "@/lib/job-ads/status";
 import { formatDate } from "@/lib/i18n/format";
 import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
+import type { CompanyFollowState } from "@/lib/dto/company-follows";
 import type { OrtGranularity } from "@/lib/job-ads/ort-granularity";
 import { SaveJobAdToggle } from "@/components/saved-job-ads/save-job-ad-toggle";
 import { HarAnsoktButton } from "@/components/applications/har-ansokt-button";
+import { FollowCompanyToggle } from "@/components/company-follows/follow-company-toggle";
 import { JobAdMatchSection } from "./job-ad-match-section";
 import { formatAdDescription } from "./format-ad-description";
 
@@ -42,6 +44,14 @@ interface JobAdDetailProps {
   initialSaved?: boolean;
   initialApplied?: boolean;
   /**
+   * #311 #455 (ADR 0087 D8(c)) — server-fetched follow-state for this ad's employer. `undefined` =
+   * anonymous/guest → the follow toggle is not rendered. When present, the toggle renders only if
+   * `followable` (the ad carries an employer org.nr — B2-null ads have no dead affordance); a non-null
+   * `companyWatchId` means the user already follows it. Server-fetched in the page handler alongside
+   * `initialSaved`/`initialApplied` (the raw org.nr never reaches the client).
+   */
+  followState?: CompanyFollowState;
+  /**
    * F4-16 (ADR 0076, CTO D3) — matchnings-detalj mot användarens profil.
    * `undefined`/`null` = ingen sektion renderas (anonym / ingen träffdata /
    * gäst — frånvaro, ej teater, ADR 0053). Server-fetchad parallellt i
@@ -71,6 +81,7 @@ export function JobAdDetail({
   headless = false,
   initialSaved,
   initialApplied,
+  followState,
   match,
   ortGranularityByLabel,
 }: JobAdDetailProps) {
@@ -164,6 +175,14 @@ export function JobAdDetail({
           <>
             <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={userActions.saved} />
             <HarAnsoktButton jobAdId={jobAd.id} initialApplied={userActions.applied} />
+            {/* #455 — follow the employer. Rendered only when the ad carries an org.nr (followable);
+                a B2-null ad has no dead affordance (CTO deldom 5, civic-utility). */}
+            {followState?.followable && (
+              <FollowCompanyToggle
+                jobAdId={jobAd.id}
+                initialCompanyWatchId={followState.companyWatchId}
+              />
+            )}
           </>
         )}
         {jobAd.url && (

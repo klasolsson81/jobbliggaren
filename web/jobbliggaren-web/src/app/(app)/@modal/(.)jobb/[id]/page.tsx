@@ -4,6 +4,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
+import { getCompanyWatchStatus } from "@/lib/api/company-follows";
 import { getJobAdMatchDetail } from "@/lib/api/job-ad-match";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { buildOrtGranularityMap } from "@/lib/job-ads/ort-granularity";
@@ -51,9 +52,10 @@ export default async function InterceptedJobbModal({
     case "ok": {
       // F4-16 — matchnings-detalj parallellt med Spara/Har-ansökt (ingen
       // waterfall). Degraderar civilt till null (ingen sektion) vid fel.
-      const [initialSaved, initialApplied, match] = await Promise.all([
+      const [initialSaved, initialApplied, followState, match] = await Promise.all([
         isJobAdSaved(id),
         hasAppliedJobAd(id),
+        getCompanyWatchStatus(id),
         getJobAdMatchDetail(id, includeRelated),
       ]);
       // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
@@ -78,6 +80,7 @@ export default async function InterceptedJobbModal({
             headless
             initialSaved={initialSaved}
             initialApplied={initialApplied}
+            followState={followState}
             match={match}
             ortGranularityByLabel={ortGranularityByLabel}
           />

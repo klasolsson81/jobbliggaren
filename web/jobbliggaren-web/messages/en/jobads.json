@@ -23,6 +23,12 @@
       "footer": "View all saved ads"
     }
   },
+  "follow": {
+    "follow": "Follow the company",
+    "following": "Following the company",
+    "followAria": "Follow this company",
+    "unfollowAria": "Stop following this company"
+  },
   "recent": {
     "emptyTitle": "No recent searches",
     "emptyBody": "Run a search under Jobs. It is saved here automatically.",
@@ -45,7 +51,10 @@
     "recentSearchDeleteFailed": "Could not remove the search. Try again.",
     "savedJobAdNotFound": "The ad could not be found. It may have been removed.",
     "savedJobAdSaveFailed": "Could not save the ad. Try again.",
-    "savedJobAdRemoveFailed": "Could not remove the bookmark. Try again."
+    "savedJobAdRemoveFailed": "Could not remove the bookmark. Try again.",
+    "followCompanyNotFound": "The ad could not be found. It may have been removed.",
+    "followCompanyFailed": "Could not follow the company. Try again.",
+    "unfollowCompanyFailed": "Could not stop following the company. Try again."
   },
   "enums": {
     "status": {

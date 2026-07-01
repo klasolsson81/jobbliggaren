@@ -10,7 +10,7 @@
          Provider-specific packages (Npgsql, Relational) stay in Infrastructure. -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
     <!-- Test stack -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
@@ -43,17 +43,17 @@
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.6" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
     <!-- Integration testing -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
     <!-- Worker host -->
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <!-- DI-abstraktion i Application (IServiceScopeFactory för snapshot child-scope,
          root-cause-fix 2026-05-16). Ren DI-abstraktion (ej EF/ASP.NET) → Clean Arch OK.
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
     <!-- Auth + JWT -->
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
     <!-- Health checks — TD-29 / F2-P6 strict readiness-probe.
          Microsoft.Extensions.Diagnostics.HealthChecks.* är Microsoft-paket (inte Xabaril).
@@ -62,8 +62,8 @@
          — undviker third-party Xabaril-dep, ~10 rader kod. -->
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.9" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.8" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.12.0" />
     <!-- Smart enum — state machines i domänen -->
@@ -116,8 +116,8 @@
          NU3012 i audit-jobbet. Bump till 10.2.0 löser cert-blockern utan kodändring.
          11.x medvetet EJ valt (breaking error/exception-modell — egen framtida touch).
          Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
-    <PackageVersion Include="Refit" Version="11.0.1" />
-    <PackageVersion Include="Refit.HttpClientFactory" Version="11.0.1" />
+    <PackageVersion Include="Refit" Version="11.2.0" />
+    <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
     <PackageVersion Include="WireMock.Net" Version="1.25.0" />
     <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
@@ -179,7 +179,7 @@
              asset → net10.0 forward-compat (parity libstemmer.net/Hunspell), 0 transitive
              conflict; sub-1.0 API-instability noted → exact pin, bump only under review.
            DocumentFormat.OpenXml 3.5.1 = latest stable; NATIVE net10.0 asset. -->
-    <PackageVersion Include="PdfPig" Version="0.1.14" />
+    <PackageVersion Include="PdfPig" Version="0.1.15" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
 
     <!-- Fas 4 STEG 10 (F4-10, ADR 0071/0074, BUILD §3.1) — deterministic CV render tier
@@ -191,7 +191,7 @@
          Web-verified 2026-06-15 (nuget.org / questpdf.com/license): 2026.6.0 = latest stable,
          native net8.0 asset → net10.0 forward-compat. Klas-chosen version (deviates from the
          earlier 2026.2.x baseline; BUILD §3.1 updated in the same change). -->
-    <PackageVersion Include="QuestPDF" Version="2026.6.0" />
+    <PackageVersion Include="QuestPDF" Version="2026.6.1" />
     <!-- ADR 0080 Vag 4 PR-4 (BUILD §3.1, Klas-GO 2026-06-24) — transaktionell e-post
          via Resend (löser TD-101 dev-vägen). Officiella .NET-SDK:n; PackageReference lever
          ENDAST i Jobbliggaren.Infrastructure (Clean Arch — IResend/EmailMessage korsar aldrig

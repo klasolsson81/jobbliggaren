@@ -11,9 +11,11 @@ namespace Jobbliggaren.Domain.Privacy;
 ///
 /// <para>Used to harden CV-review evidence: a verdict's cited text-span may quote a slice of the
 /// user's CV that contains a personnummer (the user wrote it there); this strips it before the
-/// evidence can be logged/cached/persisted. Detection runs on the ORIGINAL text directly so the
-/// match offsets map correctly (a spaced/OCR-gapped personnummer inside a single quoted snippet
-/// is a documented v1 limitation — the import-time guard already flags the CV regardless).</para>
+/// evidence can be logged/cached/persisted. Detection uses the GAP-AWARE scan
+/// (<see cref="PersonnummerScanner.ScanWithGaps"/>), whose match spans point into the ORIGINAL
+/// text INCLUDING any bridging gap — so a spaced/OCR-gapped or zero-width-gapped personnummer
+/// INSIDE a single quoted snippet is masked too (#427 V1/V2), and the offsets still map correctly
+/// because the span is masked in place.</para>
 /// </summary>
 public static class PersonnummerRedactor
 {
@@ -26,12 +28,12 @@ public static class PersonnummerRedactor
         if (string.IsNullOrEmpty(text))
             return text ?? string.Empty;
 
-        var matches = PersonnummerScanner.Scan(text);
+        var matches = PersonnummerScanner.ScanWithGaps(text);
         if (matches.Count == 0)
             return text;
 
-        // Replace right-to-left so each replacement does not shift the offsets of the ones still
-        // to come (a masked form may differ in length from the original separator-bearing token).
+        // Each masked form is length-preserving (Personnummer.MaskSpan keeps every non-digit),
+        // so replacing right-to-left keeps the not-yet-processed offsets valid regardless.
         var buffer = new StringBuilder(text);
         foreach (var match in matches.OrderByDescending(m => m.StartOffset))
             buffer.Remove(match.StartOffset, match.Length).Insert(match.StartOffset, match.Masked);

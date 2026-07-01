@@ -135,6 +135,22 @@ public class PersonnummerTests
         result.ShouldBeNull();
     }
 
+    [Theory]
+    [InlineData("811218--9876")] // two hyphens (whose 10 digits are otherwise Luhn-valid)
+    [InlineData("811218+-9876")] // plus then hyphen
+    public void TryParse_TwoSeparators_ReturnsFalse(string candidate)
+    {
+        // The at-most-one-separator rule (Personnummer.TryParse) is the load-bearing backstop
+        // for the widened gap-aware scan (#427): the gap regex can strip a token carrying a
+        // separator on either side of the space run, so "811218--9876" reaches TryParse — which
+        // must reject it (a personnummer never has two separators), even though its 10 digits
+        // are Luhn-valid. This keeps the double-separator shape out of the redaction path.
+        var ok = Personnummer.TryParse(candidate, out var result);
+
+        ok.ShouldBeFalse();
+        result.ShouldBeNull();
+    }
+
     // ===============================================================
     // Group C — Century / separator edge cases
     // ===============================================================

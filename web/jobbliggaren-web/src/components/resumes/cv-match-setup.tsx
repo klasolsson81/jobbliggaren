@@ -15,6 +15,7 @@ import type {
   TaxonomyOption,
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
+import type { SkillGroup } from "@/lib/dto/skills";
 import { MatchSetupWizard } from "@/components/settings/match-setup-wizard";
 
 interface CvMatchSetupProps {
@@ -28,6 +29,24 @@ interface CvMatchSetupProps {
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /** STEG 3 / ADR 0079: kompetens-axeln (pre-fill för wizardens kompetens-steg). */
   readonly persistedSkills: ReadonlyArray<string>;
+  /**
+   * #422 (#253/#277 group-resolution): reverse-resolved GROUPS for the saved
+   * skill ids, resolved server-side in /cv (`resolveSkillLabels`, mirroring
+   * `/installningar`). Forwarded straight to the wizard so a returning user's
+   * saved skills render Swedish labels, not raw concept-ids, on a cold load
+   * (the #422 defect). Optional + defaults to `[]`; the wizard keeps its
+   * graceful id-fallback if unresolved.
+   *
+   * NOT adopted into local state: the wizard's `onSaved` contract carries only
+   * the flat saved skill ids (no groups), and `updateMatchPreferencesAction`
+   * revalidates only /installningar + /oversikt — never /cv. So, unlike the
+   * /installningar card (which adopts `saved.skillGroups`), CvMatchSetup cannot
+   * refresh these groups after an in-page save without a contract change. A
+   * skill added via the wizard's search and then re-viewed without a full page
+   * reload may fall back to its concept-id; that after-save-reopen gap is out of
+   * scope for #422, which is the cold-load path.
+   */
+  readonly persistedSkillGroups?: ReadonlyArray<SkillGroup>;
   /** exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (pre-fill). */
   readonly persistedOccupationExperience: ReadonlyArray<{
     readonly conceptId: string;
@@ -64,6 +83,7 @@ export function CvMatchSetup({
   persistedMunicipalities,
   persistedEmploymentTypes,
   persistedSkills,
+  persistedSkillGroups = [],
   persistedOccupationExperience,
   importCvHref,
   hasPreferences,
@@ -143,6 +163,7 @@ export function CvMatchSetup({
         persistedMunicipalities={municipalityPrefs}
         persistedEmploymentTypes={employmentPrefs}
         persistedSkills={skillPrefs}
+        persistedSkillGroups={persistedSkillGroups}
         persistedOccupationExperience={occupationExperiencePref}
         importCvHref={importCvHref}
         onSaved={(saved) => {

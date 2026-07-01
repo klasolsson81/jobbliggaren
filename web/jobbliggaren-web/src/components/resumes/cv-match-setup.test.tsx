@@ -131,3 +131,39 @@ describe("CvMatchSetup — post-promote-prompt (design C.3)", () => {
     expect(await screen.findByText("Steg 1 av 5")).toBeInTheDocument();
   });
 });
+
+describe("CvMatchSetup — sparade skill-labels (#422, #253/#277-regr)", () => {
+  // #422: /cv trådade `persistedSkills` (platta ids) men INTE `persistedSkillGroups`
+  // (de reverse-resolvade labels-grupperna) → wizardens steg 2/5 renderade råa
+  // concept-id:n för en återvändande användares sparade kompetenser på kall laddning.
+  // Detta pinnar att gruppen nu trådas hela vägen CvMatchSetup → MatchSetupWizard.
+  it("kall laddning: steg 2 visar den svenska labeln, ALDRIG det råa concept-id:t", async () => {
+    const user = userEvent.setup();
+    renderSetup({
+      hasPreferences: true,
+      persistedSkills: ["kZdb_kS6_xyz"],
+      persistedSkillGroups: [
+        {
+          conceptId: "kZdb_kS6_xyz",
+          label: "Systemutveckling",
+          memberConceptIds: ["kZdb_kS6_xyz"],
+        },
+      ],
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Uppdatera matchning" })
+    );
+    // Steg 1 → steg 2 (Kompetenser).
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+    expect(
+      screen.getByRole("heading", { name: "Kompetenser" })
+    ).toBeInTheDocument();
+
+    // Chippen bär labeln (seedad via persistedSkillGroups), inte concept-id:t.
+    expect(await screen.findByText("Systemutveckling")).toBeInTheDocument();
+    expect(screen.queryByText("kZdb_kS6_xyz")).toBeNull();
+    // Ingen CV-auto-suggest fyrar (CvMatchSetup skickar aldrig parsedResumeId).
+    expect(skillSuggestMock).not.toHaveBeenCalled();
+  });
+});

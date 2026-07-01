@@ -14,7 +14,7 @@ namespace Jobbliggaren.Domain.UnitTests.Privacy;
 ///
 /// <para>Contract under test (derived from the existing <see cref="PersonnummerScanner"/> +
 /// <see cref="PersonnummerMatch"/>, never guessed): <c>Redact</c> scans via
-/// <see cref="PersonnummerScanner.Scan"/> and replaces each matched span (right-to-left by
+/// <see cref="PersonnummerScanner.ScanWithGaps"/> and replaces each matched span (right-to-left by
 /// <see cref="PersonnummerMatch.StartOffset"/> to preserve earlier offsets) with that match's
 /// <see cref="PersonnummerMatch.Masked"/> form. <c>Masked</c> replaces every ASCII digit with
 /// '*' and keeps the separator (e.g. "811218-9876" → "******-****").</para>
@@ -208,5 +208,100 @@ public class PersonnummerRedactorTests
         redacted.ShouldNotContain("8112789873");
         // The phone number (not a pnr) is left intact — proves precision, not blanket digit-nuking.
         redacted.ShouldContain("070-123 45 67");
+    }
+
+    // ===============================================================
+    // #427 V1 (ADR 0074 Invariant 1): a spaced/OCR-gapped or zero-width-gapped
+    // personnummer INSIDE a single quoted snippet is now masked too. The redactor uses
+    // the gap-aware scan (PersonnummerScanner.ScanWithGaps), whose spans cover the
+    // ORIGINAL text INCLUDING the bridging gap, so the raw digit groups are stripped in
+    // place. Before the fix the redactor scanned the un-normalized text with the
+    // contiguous scanner and left these forms un-masked — a residual PII leak on the
+    // review/improvement evidence surface. Gap separators are written as \u escapes so
+    // each code point is explicit; all vectors are SYNTHETIC Luhn-valid test numbers.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218 9876")] // U+0020 ASCII SPACE
+    [InlineData("811218\u00A09876")] // U+00A0 NO-BREAK SPACE (this app's digit-group separator)
+    [InlineData("811218\u202F9876")] // U+202F NARROW NO-BREAK SPACE
+    [InlineData("811218\u20099876")] // U+2009 THIN SPACE
+    [InlineData("811218\u200B9876")] // U+200B ZERO WIDTH SPACE (\p{Cf})
+    [InlineData("811218\uFEFF9876")] // U+FEFF ZERO WIDTH NO-BREAK SPACE (\p{Cf})
+    public void Redact_GappedPersonnummerInsideQuote_MasksTheRawDigitsInPlace(string gapped)
+    {
+        const string prefix = "Personnummer: ";
+        const string suffix = " (uppgift i CV).";
+        var text = $"{prefix}{gapped}{suffix}";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        // The load-bearing invariant: BOTH raw digit groups are gone (no separator-free
+        // form appears in the gapped source, so the digit groups are the honest assertion).
+        redacted.ShouldNotContain("811218");
+        redacted.ShouldNotContain("9876");
+        // Masking happened; the gap character is kept so the span length is preserved.
+        redacted.ShouldContain("*");
+        redacted.Length.ShouldBe(text.Length);
+        // Surrounding (non-PII) text preserved verbatim.
+        redacted.ShouldStartWith(prefix);
+        redacted.ShouldEndWith(suffix);
+    }
+
+    [Fact]
+    public void Redact_ZeroWidthGapped12DigitPersonnummer_MasksTheRawDigits()
+    {
+        // The full-century 12-digit form gapped by a ZERO WIDTH SPACE (a PDF/DOCX artefact).
+        const string text = "Kandidat 19811218\u200B9876 i dokumentet.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotContain("19811218");
+        redacted.ShouldNotContain("9876");
+        redacted.ShouldContain("*");
+    }
+
+    [Fact]
+    public void Redact_SpacedSamordningsnummerInsideQuote_MasksTheRawDigits()
+    {
+        // 811278-9873 is a Luhn-valid samordningsnummer (day 18+60=78); spaced form.
+        const string text = "Samordningsnummer 811278 9873 i CV.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotContain("811278");
+        redacted.ShouldNotContain("9873");
+        redacted.ShouldContain("*");
+    }
+
+    // ===============================================================
+    // #427 V1/V3 — no over-redaction: the wider gap-aware shape is still gated by the
+    // UNCHANGED date+Luhn authority, and the 3+ visible-column gap is deliberately not
+    // bridged (accepted residual). Both forms are left untouched by the redactor.
+    // ===============================================================
+
+    [Fact]
+    public void Redact_TwoUnrelatedAdjacentNumbers_GappedButNotAPersonnummer_LeftUnchanged()
+    {
+        // "12345678 0000" bridges to 123456780000, whose month field "34" fails date
+        // sanity, so TryParse rejects it — the redactor must not touch it.
+        const string text = "Referens 12345678 0000 i systemet.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldBe(text);
+    }
+
+    [Fact]
+    public void Redact_ThreeVisibleColumnGap_NotBridged_LeftUnchanged()
+    {
+        // A 3-visible-space gap is deliberately NOT bridged (#427 V3 accepted residual —
+        // a wider window would risk bridging two unrelated numbers). The import-time guard
+        // still flags the CV; here the redactor leaves the form as-is.
+        const string text = "Pnr 811218   9876 i CV.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldBe(text);
     }
 }

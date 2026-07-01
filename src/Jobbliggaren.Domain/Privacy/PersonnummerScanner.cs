@@ -53,4 +53,75 @@ public static partial class PersonnummerScanner
 
         return matches is null ? [] : matches;
     }
+
+    // Gap-aware candidate for the REDACTION path (#427 V1/V2). The same personnummer
+    // shape as CandidateRegex, but tolerant of a bridging gap between the leading
+    // 8-or-6 digit run and the trailing 4 digits:
+    //   * Unicode space separators or a tab ([\p{Zs}\t], bounded {1,2} EXACTLY like
+    //     PersonnummerTextNormalizer — so a 3+ visible-column gap is deliberately NOT
+    //     bridged; a wider window would raise the chance of bridging two unrelated
+    //     numbers, and the {1,2} bound is a reviewed, accepted residual, #427 V3), and/or
+    //   * zero-width format characters (\p{Cf}: U+200B ZERO WIDTH SPACE, U+FEFF, ...)
+    //     which PDF/DOCX extraction emits and which are invisible non-content, so they
+    //     are unbounded (\p{Cf}*) — #427 V2.
+    // Unlike the import guard's Normalize→Scan path (which joins digits on a transient
+    // copy and discards offsets), the redactor must mask IN PLACE, so this match must
+    // span the ORIGINAL text INCLUDING the gap. The gap-class rule (\p{Zs}, \t, \p{Cf})
+    // is shared with PersonnummerTextNormalizer; the UNCHANGED Personnummer.TryParse
+    // date+Luhn gate stays the ONLY authority, so a wider candidate SHAPE can never
+    // manufacture a valid false positive out of two unrelated numbers.
+    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})\p{Cf}*(?:[-+]|[\p{Zs}\t]{1,2})?\p{Cf}*(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
+    private static partial Regex GapAwareCandidateRegex();
+
+    /// <summary>
+    /// Gap-aware sibling of <see cref="Scan"/> for the REDACTION path
+    /// (<see cref="PersonnummerRedactor"/>). Detects the same personnummer/
+    /// samordningsnummer shapes PLUS spaced/OCR-gapped and zero-width-gapped forms
+    /// (#427 V1/V2), returning each match's offset + length into the ORIGINAL
+    /// <paramref name="text"/> — the gap characters are part of the span — so a redactor
+    /// can mask the raw digits IN PLACE without any offset translation. Each match's
+    /// <see cref="PersonnummerMatch.Masked"/> keeps every non-digit (separator + bridging
+    /// gap) and preserves length, so it maps 1:1 onto the original span. Detection is
+    /// gated by the UNCHANGED <see cref="Personnummer.TryParse"/> (date sanity + Luhn),
+    /// so the wider candidate shape never over-flags. Never returns raw digits.
+    /// </summary>
+    public static IReadOnlyList<PersonnummerMatch> ScanWithGaps(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return [];
+
+        List<PersonnummerMatch>? matches = null;
+
+        // The stripped token is at most 12 digits + one '-'/'+' separator = 13 chars
+        // (the regex guarantees the shape). Allocated once and reused per match.
+        Span<char> token = stackalloc char[13];
+
+        foreach (var candidate in GapAwareCandidateRegex().EnumerateMatches(text))
+        {
+            var span = text.AsSpan(candidate.Index, candidate.Length);
+
+            // Strip the bridging gap chars (\p{Zs}/\t/\p{Cf}) to form the token the
+            // UNCHANGED TryParse validates; the '-'/'+' separator is kept because
+            // TryParse tolerates it. The ORIGINAL span (gap included) is what we hand
+            // to the match for in-place masking.
+            var length = 0;
+            foreach (var c in span)
+            {
+                if (char.IsAsciiDigit(c) || c is '-' or '+')
+                    token[length++] = c;
+            }
+
+            if (!Personnummer.TryParse(token[..length], out var personnummer))
+                continue;
+
+            matches ??= [];
+            matches.Add(PersonnummerMatch.Create(
+                candidate.Index,
+                candidate.Length,
+                personnummer.Kind,
+                Personnummer.MaskSpan(span)));
+        }
+
+        return matches is null ? [] : matches;
+    }
 }

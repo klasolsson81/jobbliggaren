@@ -30,6 +30,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<UserJobAdMatch> UserJobAdMatches => Set<UserJobAdMatch>();
     // ADR 0087 D3 (#311 PR-3) — user follows of an employer by org.nr.
     public DbSet<CompanyWatch> CompanyWatches => Set<CompanyWatch>();
+    // ADR 0087 D5 (#311 PR-4) — company-follow notification hits.
+    public DbSet<FollowedCompanyAdHit> FollowedCompanyAdHits => Set<FollowedCompanyAdHit>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

@@ -40,7 +40,7 @@ public class RecurringJobRegistrarParityTests
 
         // Read the recurringJobId (first arg) of every interface AddOrUpdate(string, Job, string,
         // RecurringJobOptions) call recorded on the substitute. The generic AddOrUpdate<T> extension
-        // funnels here, so this captures all 15 registrations regardless of the worker type.
+        // funnels here, so this captures all 16 registrations regardless of the worker type.
         return manager.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
             .Select(c => (string)c.GetArguments()[0]!)
@@ -66,7 +66,7 @@ public class RecurringJobRegistrarParityTests
     {
         var registered = await CapturedRegisteredIdsAsync();
 
-        // 15 calls, all distinct — guards a copy-paste double-registration (which a set comparison
+        // 16 calls, all distinct — guards a copy-paste double-registration (which a set comparison
         // alone would silently absorb).
         registered.Count.ShouldBe(RecurringJobIds.All.Count);
         registered.Distinct(StringComparer.Ordinal).Count().ShouldBe(registered.Count);

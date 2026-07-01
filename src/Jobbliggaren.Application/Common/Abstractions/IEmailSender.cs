@@ -27,4 +27,26 @@ public interface IEmailSender
         MatchNotificationEmail content,
         MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Skickar en företagsföljnings-notis (ADR 0087 D5, #311 PR-4) — en sammanfattning av nya
+    /// annonser från arbetsgivare användaren följer. En SEPARAT väg från
+    /// <see cref="SendMatchNotificationEmailAsync"/> (senior-cto-advisor D1): en följnings-träff har
+    /// INGEN grad, så <paramref name="content"/> bär bara publika annons-fält (titel + företag),
+    /// aldrig en grad-label/siffra/CV-data eller org.nr (ADR 0087 D8 — personnummer-formad org.nr
+    /// surfas aldrig; följnings-mejlet visar det publika företagsNAMNET). Mottagar-adressen bärs
+    /// separat i <paramref name="toEmail"/>; mallen lägger en OBLIGATORISK inställnings-/
+    /// avregistreringslänk (GDPR Art. 7(3)). Consent-grindas av anroparen (den SEPARATA
+    /// FollowedCompanyNotificationsEnabled-flaggan, opt-in OFF default, withdrawal stoppar omedelbart).
+    /// <para>
+    /// <paramref name="idempotencyKey"/> är en deterministisk, PII-fri idempotensmarkör
+    /// (namespace <c>follow/v1/…</c>) som Resend använder för att inte dubbel-leverera vid en
+    /// transport-retry. Icke-transaktionella impls (Console/Null) ignorerar den.
+    /// </para>
+    /// </summary>
+    Task SendFollowedCompanyNotificationEmailAsync(
+        string toEmail,
+        FollowedCompanyNotificationEmail content,
+        FollowedCompanyNotificationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken);
 }

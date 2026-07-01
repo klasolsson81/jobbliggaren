@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Matching.Notifications;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,15 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// <para>
 /// <b>Per-user failure is isolated</b> (one user's exception does not abort the run — TD-25),
 /// parity <see cref="BackgroundMatching.BackgroundMatchingJob"/>.
+/// </para>
+/// <para>
+/// <b>ADR 0087 D5 (#311 PR-4) — company-follow digest pass.</b> This job ALSO dispatches
+/// <c>FollowedCompanyAdHit</c> rows (new ads from employers a user follows) via the SEPARATE
+/// <see cref="IEmailSender.SendFollowedCompanyNotificationEmailAsync"/> contract, gated by the
+/// SEPARATE <c>FollowedCompanyNotificationsEnabled</c> consent flag on the SHARED cadence. The
+/// follow pass is a fully INDEPENDENT second pass (its own due-set query, per-user loop, and failure
+/// isolation) — fetching/dispatching follow hits never shares state with the Strong-match pass (the
+/// SoC ADR 0087 D5 mandates). A user consenting to both at this cadence honestly gets two emails.
 /// </para>
 /// </summary>
 public sealed partial class DigestDispatchJob(
@@ -87,6 +97,48 @@ public sealed partial class DigestDispatchJob(
         }
 
         LogComplete(logger, cadence, processed, sent);
+
+        // ─── Company-follow digest pass (ADR 0087 D5) — INDEPENDENT of the Strong-match pass above.
+        // A SEPARATE consent flag (FollowedCompanyNotificationsEnabled) gates a SEPARATE source
+        // aggregate (FollowedCompanyAdHit) sent via a SEPARATE email contract. Its own due-set query
+        // + per-user loop + failure isolation → the two sources never share fetch/dispatch state (the
+        // SoC ADR 0087 D5 mandates). The digest CADENCE is shared (ADR 0087 D2), so a user consenting
+        // to BOTH at this cadence honestly gets two emails (two distinct GDPR purposes).
+        await DispatchFollowedCompanyDigestsAsync(cadence, cancellationToken);
+    }
+
+    private async Task DispatchFollowedCompanyDigestsAsync(
+        DigestCadence cadence, CancellationToken cancellationToken)
+    {
+        var dueUserIds = await db.JobSeekers
+            .Where(js => js.Preferences.FollowedCompanyNotificationsEnabled
+                         && js.Preferences.FollowedCompanyNotificationConsentWithdrawnAt == null
+                         && js.Preferences.DigestCadence == cadence)
+            .Select(js => js.UserId)
+            .ToListAsync(cancellationToken);
+
+        LogFollowDue(logger, cadence, dueUserIds.Count);
+
+        var processed = 0;
+        var sent = 0;
+        foreach (var userId in dueUserIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (await DispatchUserFollowedCompanyDigestAsync(userId, cadence, cancellationToken))
+                    sent++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Per-user isolation (TD-25), parity the match pass.
+                LogFollowUserFailed(logger, ex, userId);
+            }
+
+            processed++;
+        }
+
+        LogFollowComplete(logger, cadence, processed, sent);
     }
 
     private async Task<bool> DispatchUserDigestAsync(
@@ -199,6 +251,101 @@ public sealed partial class DigestDispatchJob(
             match.MarkSent(clock);
     }
 
+    // ─── Company-follow digest (ADR 0087 D5) — the exact SHAPE of DispatchUserDigestAsync above, but
+    // over FollowedCompanyAdHit rows (no grade) + the FollowedCompanyNotificationEmail contract. Kept
+    // as a SEPARATE method so the two aggregate sources never share fetch/dispatch state (SoC).
+    private async Task<bool> DispatchUserFollowedCompanyDigestAsync(
+        Guid userId, DigestCadence cadence, CancellationToken ct)
+    {
+        // The user's Pending follow-hit rows (tracked — MarkQueued/MarkSent mutate them). Ordered by
+        // recency (CreatedAt desc, then Id for determinism) — no grade concept for follows.
+        var pending = await db.FollowedCompanyAdHits
+            .Where(h => h.UserId == userId
+                        && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending)
+            .OrderByDescending(h => h.CreatedAt)
+            .ThenBy(h => h.Id)
+            .ToListAsync(ct);
+
+        if (pending.Count == 0)
+            return false;
+
+        // Display items (capped) joined to each ad's PUBLIC title/company (never the org.nr — ADR
+        // 0087 D8). Read BEFORE the claim, AsNoTracking, same ordering. The inner join honours the
+        // JobAd soft-delete query filter, so a retracted ad falls out of the body but is still
+        // drained below. Joining (not filtering by an id set) sidesteps the strongly-typed-VO
+        // Contains trap (parity the match digest).
+        var displayRows = await (
+                from h in db.FollowedCompanyAdHits.AsNoTracking()
+                where h.UserId == userId
+                      && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
+                join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
+                orderby h.CreatedAt descending, h.Id
+                select new { j.Title, Company = j.Company.Name })
+            .Take(_options.MaxItemsPerDigest)
+            .ToListAsync(ct);
+
+        // Claim ALL pending follow rows (Pending → Queued) and commit BEFORE the send — the
+        // idempotency spine (parity the match digest; single-threaded, DisableConcurrentExecution).
+        foreach (var hit in pending)
+            hit.MarkQueued();
+        await db.SaveChangesAsync(ct);
+
+        var toEmail = await userAccounts.GetEmailAsync(userId, ct);
+        if (string.IsNullOrWhiteSpace(toEmail))
+        {
+            // Orphan consent row without an account email — claimed rows stay Queued (TD-114 posture).
+            LogFollowNoEmail(logger, userId);
+            return false;
+        }
+
+        if (displayRows.Count == 0)
+        {
+            // Every followed-ad was retracted since detection — drain (mark Sent) so the empty window
+            // doesn't re-process every run; send nothing (an empty digest is noise).
+            DrainSent(pending);
+            await db.SaveChangesAsync(ct);
+            LogFollowEmptyDrained(logger, pending.Count, userId);
+            return false;
+        }
+
+        var items = displayRows
+            .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
+            .ToList();
+        var content = new FollowedCompanyNotificationEmail(cadence, items, pending.Count);
+
+        // Idempotency key: CONTENT fingerprint of the claimed hit set (namespaced follow/v1/…), NOT a
+        // wall-clock window — two same-period runs that claimed different sets get different keys.
+        var idempotencyKey = FollowedCompanyNotificationIdempotencyKey.ForDigest(
+            userId, cadence, pending.Select(h => h.Id.Value));
+
+        try
+        {
+            await emailSender.SendFollowedCompanyNotificationEmailAsync(
+                toEmail, content, idempotencyKey, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Send failed AFTER the claim → rows stay Queued, never re-sent ("never double-email >
+            // never miss"). No rethrow — the hits persist; only this run's email is missed.
+            LogFollowSendFailed(logger, ex, userId);
+            return false;
+        }
+
+        // Drain: mark ALL window rows Sent (not just the displayed cap) so the un-displayed remainder
+        // cannot re-surface next digest.
+        DrainSent(pending);
+        await db.SaveChangesAsync(ct);
+        LogFollowSent(logger, userId, pending.Count, items.Count);
+        return true;
+    }
+
+    // Queued → Sent for the whole claimed follow-hit batch (parity the match DrainSent).
+    private void DrainSent(IReadOnlyList<FollowedCompanyAdHit> hits)
+    {
+        foreach (var hit in hits)
+            hit.MarkSent(clock);
+    }
+
     [LoggerMessage(Level = LogLevel.Information,
         Message = "DigestDispatchJob: {Cadence} — {Count} consenting users due")]
     private static partial void LogDue(ILogger logger, DigestCadence cadence, int count);
@@ -226,4 +373,34 @@ public sealed partial class DigestDispatchJob(
     [LoggerMessage(Level = LogLevel.Information,
         Message = "DigestDispatchJob: done — {Cadence}, {Processed} users processed, {Sent} digests sent")]
     private static partial void LogComplete(ILogger logger, DigestCadence cadence, int processed, int sent);
+
+    // ─── Company-follow digest pass log messages (ADR 0087 D5). NEVER carry an org.nr (D8/§5) —
+    // only counts + opaque user ids (parity the match pass).
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "DigestDispatchJob (follow): {Cadence} — {Count} consenting users due")]
+    private static partial void LogFollowDue(ILogger logger, DigestCadence cadence, int count);
+
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "DigestDispatchJob (follow): digest failed for user {UserId} — isolated, will retry next run")]
+    private static partial void LogFollowUserFailed(ILogger logger, Exception ex, Guid userId);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "DigestDispatchJob (follow): no account email for user {UserId} — skipped (rows left Queued)")]
+    private static partial void LogFollowNoEmail(ILogger logger, Guid userId);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "DigestDispatchJob (follow): all {Count} followed ads retracted for user {UserId} — drained, no email")]
+    private static partial void LogFollowEmptyDrained(ILogger logger, int count, Guid userId);
+
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "DigestDispatchJob (follow): send failed for user {UserId} — rows left Queued (no double-send)")]
+    private static partial void LogFollowSendFailed(ILogger logger, Exception ex, Guid userId);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "DigestDispatchJob (follow): digest sent to user {UserId} — {Total} new ads ({Displayed} shown)")]
+    private static partial void LogFollowSent(ILogger logger, Guid userId, int total, int displayed);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "DigestDispatchJob (follow): done — {Cadence}, {Processed} users processed, {Sent} digests sent")]
+    private static partial void LogFollowComplete(ILogger logger, DigestCadence cadence, int processed, int sent);
 }

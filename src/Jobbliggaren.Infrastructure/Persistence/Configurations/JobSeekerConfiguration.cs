@@ -58,6 +58,9 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
         // #293 (ADR 0042 Beslut E amendment) — user-read watermark for the /jobb surface
         // (first-class nullable column, sibling of last_seen_matches_at).
         builder.Property(js => js.LastSeenJobsAt);
+        // ADR 0087 D5 (#311 PR-4) — company-follow scan high-water-mark (first-class nullable
+        // column, sibling of last_match_scan_at; advanced atomically by CompanyWatchScanJob).
+        builder.Property(js => js.LastCompanyWatchScanAt);
 
         builder.Property(js => js.CreatedAt).IsRequired();
         builder.Property(js => js.UpdatedAt);

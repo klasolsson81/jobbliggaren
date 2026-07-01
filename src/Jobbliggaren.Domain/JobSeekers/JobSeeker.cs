@@ -36,6 +36,13 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     // visited (FE shows no NY on the first visit; that load establishes the baseline).
     public DateTimeOffset? LastSeenJobsAt { get; private set; }
 
+    // ADR 0087 D5 (#311 PR-4) — the company-follow scan high-water-mark (a first-class column,
+    // parity LastMatchScanAt; ADR 0087 D4). How far the CompanyWatchScanJob has scanned this user's
+    // followed employers (advances atomically with each scan's FollowedCompanyAdHit inserts, drives
+    // idempotency). A DISTINCT concern from LastMatchScanAt — the two scans (skill-match vs.
+    // watched-org.nr) advance independently (never merged). null = never scanned.
+    public DateTimeOffset? LastCompanyWatchScanAt { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
@@ -140,6 +147,51 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
+    /// ADR 0087 D5 (#311 PR-4) — sets the SEPARATE company-follow notification consent (opt-in,
+    /// GDPR Art. 6/7). A DISTINCT processing purpose from background-match notifications, so it
+    /// stamps its OWN Art. 7(1)/7(3) evidence pair independently: enabling stamps
+    /// <see cref="Preferences.FollowedCompanyNotificationConsentAt"/> ONCE (immutable) and clears the
+    /// withdrawal; disabling (from enabled) stamps
+    /// <see cref="Preferences.FollowedCompanyNotificationConsentWithdrawnAt"/> (Art. 7(3) revocation).
+    /// Withdrawal stops company-follow dispatch immediately (the digest filters on enabled AND
+    /// withdrawn-null). The digest CADENCE is shared with background-match notifications (ADR 0087
+    /// D2) — this method deliberately does NOT touch <see cref="Preferences.DigestCadence"/>.
+    /// <para>
+    /// <b>Write API deferred (ADR 0087 D5, senior-cto-advisor 2026-07-01):</b> PR-4 ships this domain
+    /// method + persistence so the scan/dispatch can READ the flag; the Application command + Api
+    /// endpoint to TOGGLE it lands with the #408-blocked FE PR (mirrors PR-2b's endpoint deferral),
+    /// where the mandatory security-auditor consent gate has a real surface. Default OFF ⇒ a
+    /// not-yet-settable flag is inert (nobody silently opted in), not dishonest.
+    /// </para>
+    /// </summary>
+    public void UpdateFollowedCompanyNotificationConsent(bool enabled, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        var consentAt = Preferences.FollowedCompanyNotificationConsentAt;
+        var withdrawnAt = Preferences.FollowedCompanyNotificationConsentWithdrawnAt;
+
+        if (enabled)
+        {
+            // Stamp the first-ever opt-in once (immutable Art. 7(1)); re-consent clears the withdrawal.
+            consentAt ??= now;
+            withdrawnAt = null;
+        }
+        else if (Preferences.FollowedCompanyNotificationsEnabled)
+        {
+            // Opt-out from an enabled state — record the revocation time (Art. 7(3)).
+            withdrawnAt = now;
+        }
+
+        Preferences = Preferences with
+        {
+            FollowedCompanyNotificationsEnabled = enabled,
+            FollowedCompanyNotificationConsentAt = consentAt,
+            FollowedCompanyNotificationConsentWithdrawnAt = withdrawnAt,
+        };
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// ADR 0080 Vag 4 (Beslut 2) — advances the Worker's scan high-water-mark. Set ATOMICALLY
     /// with the match upsert in the SAME unit of work (hard invariant — else a crash mid-scan
     /// either re-notifies or drops matches). Monotonic: never moves backwards.
@@ -159,6 +211,28 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
             return;
 
         LastMatchScanAt = scannedThrough;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// ADR 0087 D5 (#311 PR-4) — advances the company-follow scan high-water-mark. Set ATOMICALLY
+    /// with the <c>FollowedCompanyAdHit</c> inserts in the SAME unit of work (hard invariant —
+    /// parity <see cref="AdvanceMatchScan"/>: else a crash mid-scan either re-notifies or drops
+    /// hits). A DISTINCT watermark from <see cref="LastMatchScanAt"/> (the two scans advance
+    /// independently). Monotonic; clamped to now so a bad window-calc can never run the watermark
+    /// ahead of reality (CLAUDE §2.2 — the aggregate protects its own invariant).
+    /// </summary>
+    public void AdvanceCompanyWatchScan(DateTimeOffset scannedThrough, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+
+        if (scannedThrough > now)
+            scannedThrough = now;
+
+        if (LastCompanyWatchScanAt is { } current && scannedThrough <= current)
+            return;
+
+        LastCompanyWatchScanAt = scannedThrough;
         UpdatedAt = now;
     }
 

@@ -32,6 +32,9 @@ public interface IAppDbContext
     DbSet<UserJobAdMatch> UserJobAdMatches { get; }
     // ADR 0087 D3 (#311 PR-3) — user follows of an employer by org.nr.
     DbSet<CompanyWatch> CompanyWatches { get; }
+    // ADR 0087 D5 (#311 PR-4) — company-follow notification hits (written by CompanyWatchScanJob,
+    // read/dispatched by DigestDispatchJob).
+    DbSet<FollowedCompanyAdHit> FollowedCompanyAdHits { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

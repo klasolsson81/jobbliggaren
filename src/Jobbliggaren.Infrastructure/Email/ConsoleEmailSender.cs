@@ -34,6 +34,18 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
+    public Task SendFollowedCompanyNotificationEmailAsync(
+        string toEmail,
+        FollowedCompanyNotificationEmail content,
+        FollowedCompanyNotificationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
+        var body = EmailTemplates.FollowedCompanyNotification(_options.BaseUrl, content);
+        LogEmail(toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
     [LoggerMessage(3001, LogLevel.Information,
         "[ConsoleEmailSender] To={To} Subject={Subject}\n---\n{Body}\n---")]
     private partial void LogEmail(string to, string subject, string body);

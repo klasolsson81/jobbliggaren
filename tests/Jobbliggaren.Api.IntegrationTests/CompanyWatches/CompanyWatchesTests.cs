@@ -182,18 +182,171 @@ public class CompanyWatchesTests(ApiFactory factory)
         item.GetProperty("organizationNumber").GetString().ShouldBe(LegalOrgNr);
     }
 
+    // ---- #455 — follow from a job ad + follow-state batch (Approach A: org.nr resolved server-side) ----
+
+    private static string ByJobAd(Guid jobAdId) => $"{Endpoint}/by-job-ad/{jobAdId}";
+    private const string StatusEndpoint = Endpoint + "/status";
+
+    [Fact]
+    public async Task POST_follow_by_job_ad_returns_201_and_appears_in_list_without_org_nr_on_wire()
+    {
+        // Proves the STORED organization_number column is resolved SERVER-SIDE (Postgres-computed, so
+        // Testcontainers-only) and the raw org.nr never appears in the request/response of the follow.
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedImportedJobAdAsync(LegalOrgNr, "Acme Bygg AB", ct);
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PostAsync(ByJobAd(jobAdId), content: null, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var created = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var watchId = created.GetProperty("id").GetString()!;
+        watchId.ShouldNotBeNullOrEmpty();
+
+        // The follow landed a watch on the ad's org.nr (visible via the list's masked projection).
+        var list = await ListAsync(ct);
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == watchId);
+        item.GetProperty("organizationNumber").GetString().ShouldBe(LegalOrgNr);
+    }
+
+    [Fact]
+    public async Task POST_follow_by_job_ad_sole_proprietor_follows_but_never_surfaces_org_nr()
+    {
+        // ADR 0087 D8 — a sole-prop (personnummer-shaped) employer stays followable; the org.nr is
+        // masked in the surfaced list (never leaves the server raw).
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedImportedJobAdAsync(SoleProprietorOrgNr, "Enskild Firma", ct);
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PostAsync(ByJobAd(jobAdId), content: null, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var watchId = (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
+
+        var list = await ListAsync(ct);
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == watchId);
+        item.GetProperty("isProtectedIdentity").GetBoolean().ShouldBeTrue();
+        item.GetProperty("organizationNumber").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task POST_follow_by_job_ad_without_org_number_returns_400()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedImportedJobAdWithoutOrgNrAsync("Namnlös AB", ct);
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PostAsync(ByJobAd(jobAdId), content: null, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task POST_follow_by_job_ad_unknown_id_returns_404()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PostAsync(ByJobAd(Guid.NewGuid()), content: null, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_follow_by_job_ad_without_auth_returns_401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = await _client.PostAsync(ByJobAd(Guid.NewGuid()), content: null, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task POST_follow_by_job_ad_twice_is_idempotent_same_id()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedImportedJobAdAsync(LegalOrgNr, "Acme Bygg AB", ct);
+        await AuthenticateAsync(ct);
+
+        var firstId = (await (await _client.PostAsync(ByJobAd(jobAdId), null, ct))
+            .Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString();
+        var secondId = (await (await _client.PostAsync(ByJobAd(jobAdId), null, ct))
+            .Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString();
+
+        secondId.ShouldBe(firstId);
+        var list = await ListAsync(ct);
+        list.EnumerateArray().Count(w => w.GetProperty("organizationNumber").GetString() == LegalOrgNr)
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task POST_status_reports_followed_followable_and_absent_org_nr()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var followedAdId = await SeedImportedJobAdAsync(LegalOrgNr, "Acme Bygg AB", ct);
+        var otherAdId = await SeedImportedJobAdAsync("5560360793", "Beta Data AB", ct);
+        var noOrgAdId = await SeedImportedJobAdWithoutOrgNrAsync("Namnlös AB", ct);
+        await AuthenticateAsync(ct);
+
+        // Follow only the first ad's employer (by-job-ad), then ask for the batch status of all three.
+        var followResp = await _client.PostAsync(ByJobAd(followedAdId), null, ct);
+        var expectedWatchId = (await followResp.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("id").GetString();
+
+        var statusResp = await _client.PostAsJsonAsync(
+            StatusEndpoint, new { jobAdIds = new[] { followedAdId, otherAdId, noOrgAdId } }, ct);
+        statusResp.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await statusResp.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var statuses = body.GetProperty("statuses").EnumerateArray().ToList();
+
+        // No org.nr is ever present in the batch response (guard by construction).
+        statuses.All(s => !s.TryGetProperty("organizationNumber", out _)).ShouldBeTrue(
+            "the follow-state batch response must never carry an org.nr member (ADR 0087 D8(c)).");
+
+        var followed = statuses.Single(s => s.GetProperty("jobAdId").GetGuid() == followedAdId);
+        followed.GetProperty("followable").GetBoolean().ShouldBeTrue();
+        followed.GetProperty("companyWatchId").GetString().ShouldBe(expectedWatchId);
+
+        var other = statuses.Single(s => s.GetProperty("jobAdId").GetGuid() == otherAdId);
+        other.GetProperty("followable").GetBoolean().ShouldBeTrue();
+        other.GetProperty("companyWatchId").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        var noOrg = statuses.Single(s => s.GetProperty("jobAdId").GetGuid() == noOrgAdId);
+        noOrg.GetProperty("followable").GetBoolean().ShouldBeFalse();
+        noOrg.GetProperty("companyWatchId").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task POST_status_without_auth_returns_401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = await _client.PostAsJsonAsync(
+            StatusEndpoint, new { jobAdIds = new[] { Guid.NewGuid() } }, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
     // Imports a public job_ad whose raw_payload carries employer.organization_number, so the STORED
     // generated `organization_number` column auto-populates (mirrors ListJobAdsEmployerFilterTests).
-    private async Task SeedImportedJobAdAsync(string orgNr, string companyName, CancellationToken ct)
+    // Returns the ad's id so the #455 by-job-ad endpoint can target it.
+    private async Task<Guid> SeedImportedJobAdAsync(string orgNr, string companyName, CancellationToken ct)
+    {
+        var employer = $"{{\"name\":\"{companyName}\",\"organization_number\":\"{orgNr}\"}}";
+        return await SeedImportedJobAdCoreAsync(companyName, employer, ct);
+    }
+
+    // #455 — a job_ad whose employer carries NO organization_number, so the STORED column is NULL
+    // (the B2 not-re-ingested reality). The by-job-ad follow must reject it with 400.
+    private async Task<Guid> SeedImportedJobAdWithoutOrgNrAsync(string companyName, CancellationToken ct)
+    {
+        var employer = $"{{\"name\":\"{companyName}\"}}";
+        return await SeedImportedJobAdCoreAsync(companyName, employer, ct);
+    }
+
+    private async Task<Guid> SeedImportedJobAdCoreAsync(string companyName, string employerJson, CancellationToken ct)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
         var externalId = $"cw-name-{Guid.NewGuid()}";
-        var rawPayload =
-            $"{{\"id\":\"{externalId}\"," +
-            $"\"employer\":{{\"name\":\"{companyName}\",\"organization_number\":\"{orgNr}\"}}}}";
+        var rawPayload = $"{{\"id\":\"{externalId}\",\"employer\":{employerJson}}}";
 
         var jobAd = JobAd.Import(
             title: "Snickare",
@@ -208,5 +361,6 @@ public class CompanyWatchesTests(ApiFactory factory)
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
+        return jobAd.Id.Value;
     }
 }

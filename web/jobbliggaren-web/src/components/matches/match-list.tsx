@@ -66,68 +66,68 @@ export function MatchList({ items }: MatchListProps) {
 
   return (
     <>
-    <ul className="jp-jobs" aria-label={t("listLabel")}>
-      {items.map((item) => (
-        <li key={item.jobAdId}>
-          <article
-            className="jp-job"
-            style={{ gridTemplateColumns: "1fr auto" }}
-          >
-            <div className="jp-job__body">
-              <h3 className="jp-job__title">
-                <Link
-                  href={`/jobb/${item.jobAdId}`}
-                  style={{ color: "inherit", textDecoration: "none" }}
-                >
-                  {item.title}
-                </Link>
-                {item.isNew && (
-                  <span
-                    className="jp-tag jp-tag--accent"
-                    data-tag="new"
-                    aria-label={t("newBadgeAriaLabel")}
-                  >
-                    {t("newBadge")}
-                  </span>
-                )}
-              </h3>
-              <div className="jp-job__company">{item.company}</div>
-              <div className="jp-job__meta">
-                <span>
-                  {t("matchedAt")}{" "}
-                  <b>{formatSwedishShortDateWithYear(item.createdAt)}</b>
-                </span>
-              </div>
-            </div>
-            <div
-              className="jp-job__actions"
-              style={{ flexDirection: "row", alignItems: "center" }}
+      <ul className="jp-jobs" aria-label={t("listLabel")}>
+        {items.map((item) => (
+          <li key={item.jobAdId}>
+            <article
+              className="jp-job"
+              style={{ gridTemplateColumns: "1fr auto" }}
             >
-              <MatchChip grade={item.grade} />
-              {item.url && (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="jp-icon-btn"
-                  aria-label={tJobads("openExternal")}
-                >
-                  <ExternalLink size={16} aria-hidden="true" />
-                </a>
-              )}
-            </div>
-          </article>
-        </li>
-      ))}
-    </ul>
-    {atCap && (
-      <p className="jp-matchsort-note">
-        {t("boundedNote", { count: MATCH_LIST_CAP })}{" "}
-        <Link href={MORE_MATCHES_HREF} className="jp-matchsort-note__link">
-          {t("boundedLink")}
-        </Link>
-      </p>
-    )}
+              <div className="jp-job__body">
+                <h3 className="jp-job__title">
+                  <Link
+                    href={`/jobb/${item.jobAdId}`}
+                    style={{ color: "inherit", textDecoration: "none" }}
+                  >
+                    {item.title}
+                  </Link>
+                  {item.isNew && (
+                    <span
+                      className="jp-tag jp-tag--accent"
+                      data-tag="new"
+                      aria-label={t("newBadgeAriaLabel")}
+                    >
+                      {t("newBadge")}
+                    </span>
+                  )}
+                </h3>
+                <div className="jp-job__company">{item.company}</div>
+                <div className="jp-job__meta">
+                  <span>
+                    {t("matchedAt")}{" "}
+                    <b>{formatSwedishShortDateWithYear(item.createdAt)}</b>
+                  </span>
+                </div>
+              </div>
+              <div
+                className="jp-job__actions"
+                style={{ flexDirection: "row", alignItems: "center" }}
+              >
+                <MatchChip grade={item.grade} />
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="jp-icon-btn"
+                    aria-label={tJobads("openExternal")}
+                  >
+                    <ExternalLink size={16} aria-hidden="true" />
+                  </a>
+                )}
+              </div>
+            </article>
+          </li>
+        ))}
+      </ul>
+      {atCap && (
+        <p className="jp-matchsort-note">
+          {t("boundedNote", { count: MATCH_LIST_CAP })}{" "}
+          <Link href={MORE_MATCHES_HREF} className="jp-matchsort-note__link">
+            {t("boundedLink")}
+          </Link>
+        </p>
+      )}
     </>
   );
 }

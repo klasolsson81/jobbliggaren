@@ -26,7 +26,7 @@ beforeEach(() => {
 function renderFilter(over: {
   active: boolean;
   selected?: string[];
-  // #300 PR-5 — "Visa relaterade också"-toggle:n. Default AV (paritet med
+  // #300 PR-5 — "Visa relaterade yrken"-toggle:n. Default AV (paritet med
   // produktens default + den rena URL:en) så de befintliga STEG 5-testerna
   // (3 grad-kryssrutor, Related dold) förblir oförändrade.
   includeRelated?: boolean;
@@ -174,21 +174,21 @@ describe("JobbMatchGradeFilter — switch + kryssrutor (issue #292)", () => {
   });
 });
 
-// #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:n + Related-kryssrutan +
+// #300 PR-5 (ADR 0084) — "Visa relaterade yrken"-toggle:n + Related-kryssrutan +
 // state-model flow-trap (design-reviewer-flaggad: "alla visade = []" mot det
 // SYNLIGA setet, ej fast längd; AV droppar Related ur valet via föräldern).
-describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
+describe("JobbMatchGradeFilter — Visa relaterade yrken (#300 PR-5)", () => {
   it("related-toggle:n finns INTE när Matchning är av (renderas inne i PÅ-blocket)", () => {
     renderFilter({ active: false });
     expect(
-      screen.queryByRole("switch", { name: "Visa relaterade också" }),
+      screen.queryByRole("switch", { name: "Visa relaterade yrken" }),
     ).toBeNull();
   });
 
   it("related-toggle:n visas när Matchning är PÅ (egen kontroll, default av)", () => {
     renderFilter({ active: true, includeRelated: false });
     const related = screen.getByRole("switch", {
-      name: "Visa relaterade också",
+      name: "Visa relaterade yrken",
     });
     expect(related).toBeInTheDocument();
     expect(related).toHaveAttribute("aria-checked", "false");
@@ -222,7 +222,7 @@ describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
     const user = userEvent.setup();
     renderFilter({ active: true, includeRelated: false });
     await user.click(
-      screen.getByRole("switch", { name: "Visa relaterade också" }),
+      screen.getByRole("switch", { name: "Visa relaterade yrken" }),
     );
     expect(onRelatedToggle).toHaveBeenCalledWith(true);
   });
@@ -231,7 +231,7 @@ describe("JobbMatchGradeFilter — Visa relaterade också (#300 PR-5)", () => {
     const user = userEvent.setup();
     renderFilter({ active: true, includeRelated: true });
     await user.click(
-      screen.getByRole("switch", { name: "Visa relaterade också" }),
+      screen.getByRole("switch", { name: "Visa relaterade yrken" }),
     );
     expect(onRelatedToggle).toHaveBeenCalledWith(false);
   });
@@ -355,5 +355,73 @@ describe("JobbMatchGradeFilter — 'Visa bara matchade'-kryssrutan (#419 pt1)", 
     box.focus();
     await user.keyboard(" ");
     expect(onOnlyMatchedToggle).toHaveBeenCalledWith(true);
+  });
+});
+
+// #419 pt7 (Klas) — kontextuell "?"-hjälp per kontroll: varje icke-självklar
+// kontroll-rad (Matchning / Visa relaterade yrken / Visa bara matchade) bär en
+// InfoDialog-"?" med ett UNIKT, kontext-bärande aria-namn (ej det generiska
+// "Vad är detta?"), och klick öppnar hjälp-dialogen.
+describe("JobbMatchGradeFilter — kontextuell '?'-hjälp per kontroll (#419 pt7)", () => {
+  it("Matchning-raden har en '?' (finns även när matchningen är av)", () => {
+    renderFilter({ active: false });
+    expect(
+      screen.getByRole("button", { name: "Vad betyder matchning?" }),
+    ).toBeInTheDocument();
+  });
+
+  it("de tre kontrollernas '?' finns när matchningen är PÅ, med UNIKA aria-namn", () => {
+    renderFilter({ active: true });
+    expect(
+      screen.getByRole("button", { name: "Vad betyder matchning?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Vad betyder Visa relaterade yrken?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vad betyder Visa bara matchade?" }),
+    ).toBeInTheDocument();
+    // Unika namn (a11y — inte kollapsade till samma generiska "Vad är detta?").
+    const helpNames = screen
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+      .filter((n): n is string => (n?.startsWith("Vad betyder") ?? false));
+    expect(new Set(helpNames).size).toBe(3);
+  });
+
+  it("relaterade/bara-matchade-'?' bor i PÅ-blocket → dolda när matchningen är av", () => {
+    renderFilter({ active: false });
+    expect(
+      screen.queryByRole("button", {
+        name: "Vad betyder Visa relaterade yrken?",
+      }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Vad betyder Visa bara matchade?" }),
+    ).toBeNull();
+  });
+
+  it("klick på Matchning-'?' öppnar dialogen med hjälptexten", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true });
+    await user.click(
+      screen.getByRole("button", { name: "Vad betyder matchning?" }),
+    );
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Filtrerar listan efter hur väl/),
+    ).toBeInTheDocument();
+  });
+
+  it("klick på Matchning-'?' togglar INTE Matchning-switchen (syskon, ej barn)", async () => {
+    const user = userEvent.setup();
+    renderFilter({ active: true });
+    await user.click(
+      screen.getByRole("button", { name: "Vad betyder matchning?" }),
+    );
+    expect(onTurnOff).not.toHaveBeenCalled();
+    expect(onTurnOn).not.toHaveBeenCalled();
   });
 });

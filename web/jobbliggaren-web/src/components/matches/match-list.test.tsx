@@ -17,11 +17,18 @@ const baseItem: MatchListData[number] = {
 };
 
 describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
-  it("tom lista → honest civic nollstate-copy", () => {
+  it("tom lista → honest civic nollstate-copy (#423: BÅDA opt-in-villkoren)", () => {
     render(<MatchList items={[]} />);
 
     expect(screen.getByText("Du har inga matchningar än")).toBeInTheDocument();
-    expect(screen.getByText(/Bakgrundsmatchningen körs varje natt/)).toBeInTheDocument();
+    // #423: copyn får inte påstå att bara ett angivet yrke räcker. Den måste
+    // nämna BÅDA villkoren — opt-in-kontrollen (av som standard) OCH yrket — så
+    // en användare på standardvägen inte tror att hen kvalificerar och väntar
+    // förgäves. ADR 0080: konstatera villkoret, värva inte (ingen nudge/banner).
+    const emptyBody = screen.getByText(/Bakgrundsmatchningen körs varje natt/);
+    expect(emptyBody).toHaveTextContent(/Matchningsnotiser under Inställningar/);
+    expect(emptyBody).toHaveTextContent(/avstängt som standard/);
+    expect(emptyBody).toHaveTextContent(/angett vilka yrken du söker inom/);
     // Ingen lista renderas.
     expect(screen.queryByRole("list")).toBeNull();
   });

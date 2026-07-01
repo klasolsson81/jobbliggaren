@@ -136,7 +136,7 @@
     "newBadgeAriaLabel": "Ny matchning sedan ditt senaste besök",
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
-    "emptyBody": "Bakgrundsmatchningen körs varje natt för dig som har angett vilka yrken du söker inom. Så snart en annons matchar din profil dyker den upp här.",
+    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Inställningar (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
     "loadErrorTitle": "Kunde inte ladda dina matchningar"
   },
   "installningar": {

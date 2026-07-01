@@ -87,6 +87,11 @@ interface JobbHeroSearchProps {
   matchGrades: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
+  // #419 pt6 (CTO A1) — commit-intent på mount-URL:en (page.tsx parsar `?commit=true`).
+  // Init-värde för `savedByIntent`: true ⇒ sökningen är redan sparad (Enter/Sök/förslag/
+  // no-JS-submit fångade den) → ingen "Spara sökningen"-länk. false (delad/bokmärkt URL
+  // utan commit) ⇒ länken visas så mottagaren kan spara söket i sin lista.
+  initialCommitted: boolean;
 }
 
 const emptySubscribe = () => () => {};
@@ -102,6 +107,7 @@ export function JobbHeroSearch({
   matchGrades,
   sortBy,
   pageSize,
+  initialCommitted,
 }: JobbHeroSearchProps) {
   const router = useRouter();
   const t = useTranslations("jobads.ui");
@@ -153,6 +159,15 @@ export function JobbHeroSearch({
   const [caret, setCaret] = useState<number | null>(null);
   const [limitNotice, setLimitNotice] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+
+  // #419 pt6 (CTO A1) — "är det här söket sparat i Senaste sökningar?". SSOT-signalen
+  // är commit-INTENT: true efter en avsiktlig commit (Enter/Sök/förslags-val/×-clear —
+  // alla markCommit), false efter en live-delta (typeahead utan Enter). Init ur
+  // mount-URL:ens commit-flagga. Sätts på ETT ställe (commit()); extern-divergens sätter
+  // det direkt (recent-nav = redan sparad). `savedNotice` = den korta inline-bekräftelsen
+  // efter ett explicit spara-klick (självrensande vid nästa redigering).
+  const [savedByIntent, setSavedByIntent] = useState(initialCommitted);
+  const [savedNotice, setSavedNotice] = useState(false);
 
   // Senast applicerade text-anspråk (delta-basen). Init mot start-texten
   // så landnings-spegeln inte re-committas som "nya" anspråk. State (inte
@@ -229,6 +244,11 @@ export function JobbHeroSearch({
       setAnnouncement("");
       setLastCommitted(base);
       setRecentCommits([]);
+      // #419 pt6 — extern divergens (recent-nav/toolbar-×/Rensa): state kom utifrån
+      // URL:en → behandla som redan-i-världen (recent-nav ÄR en sparad sökning). Nolla
+      // spara-bekräftelsen; capture förblir backendens best-effort-ansvar.
+      setSavedByIntent(true);
+      setSavedNotice(false);
     }
     setPrevBase(base);
   }
@@ -241,6 +261,10 @@ export function JobbHeroSearch({
   function commit(next: JobbUrlState, announce: string, markCommit = false) {
     setLastCommitted(next);
     setRecentCommits((prev) => [...prev, next].slice(-10));
+    // #419 pt6 (CTO A1) — ETT ställe för spar-signalen: en avsiktlig commit (markCommit)
+    // capture:as av backend (?commit=true) → sparad; en live-delta (markCommit=false) är
+    // en ny osparad sökning → länken återkommer. Enda mutationspunkten utöver spara-klicket.
+    setSavedByIntent(markCommit);
     startTransition(() => {
       const href = buildJobbHref(next);
       router.replace(markCommit ? withCommitFlag(href) : href, {
@@ -274,6 +298,10 @@ export function JobbHeroSearch({
   function onFieldChange(nextText: string, caretIndex: number | null) {
     setText(nextText);
     setCaret(caretIndex);
+    // #419 pt6 — börja användaren redigera söket är ev. "sparad"-bekräftelse inaktuell
+    // (redan på första tecknet, före delta-commit) → nolla den så UI:t inte påstår sparat
+    // om texten redan divergerat. Länken återkommer när deltat committas (savedByIntent).
+    if (savedNotice) setSavedNotice(false);
     // Commit-punkt = tecknet före caret är en avgränsare (ordet avslutades
     // nyss). Ren radering committas inte per keystroke — deltat landar vid
     // nästa commit-punkt/Enter (CTO VAL 3, dokumenterad konsekvens).
@@ -382,6 +410,32 @@ export function JobbHeroSearch({
 
   const committedQ = lastCommitted.q.trim();
 
+  // #419 pt6 (CTO A1) — "sparbart sök?" speglar backendens capture-guard
+  // (RecentJobSearchCaptureBehavior: q ELLER någon dimension icke-tom; matchGrades/
+  // sortBy/runtime-flaggor räknas INTE). Samma knowledge piece, inte en egen definition.
+  const hasSavableSearch =
+    committedQ.length > 0 ||
+    lastCommitted.occupationGroup.length > 0 ||
+    lastCommitted.region.length > 0 ||
+    lastCommitted.municipality.length > 0 ||
+    lastCommitted.employmentType.length > 0 ||
+    lastCommitted.worktimeExtent.length > 0;
+
+  // "Spara sökningen"-länken visas när det finns ett sparbart sök som ännu inte
+  // committats med intent (typeahead-komponerat utan Enter/Sök). Klick återkommittar
+  // nuvarande state MED intent → backend auto-capturerar (samma väg som "kör om sök",
+  // ingen ny navigeringsmekanik); commit() sätter savedByIntent → länken försvinner.
+  function onSaveSearch() {
+    // Dirigera bekräftelsen genom den BEFINTLIGA persistenta aria-live-regionen
+    // (commit → setAnnouncement) i stället för en villkorligt mountad role="status" —
+    // en live-region som injiceras med sitt innehåll redan på plats annonseras inte
+    // tillförlitligt av alla skärmläsare (design-reviewer Minor, a11y §6). Den synliga
+    // .jp-hero__searchsaved-spanen är då rent visuell (aria-hidden) → ingen dubbel.
+    commit(lastCommitted, t("heroSearch.saved"), true);
+    setSavedNotice(true);
+  }
+  const showSaveAction = hydrated && hasSavableSearch && !savedByIntent;
+
   return (
     <form
       action="/jobb"
@@ -446,6 +500,29 @@ export function JobbHeroSearch({
           ? t("heroSearch.limitNotice", { max: Q_MAX_LENGTH })
           : t("heroSearch.help")}
       </p>
+
+      {/* #419 pt6 (Klas + CTO A1) — "Spara sökningen"-länken: diskret text-knapp
+          (INTE <a> — ingen navigering) som visas när ett sparbart sök komponerats via
+          typeahead utan Enter/Sök (osparat). Klick capture:ar via ?commit=true + visar en
+          kort inline-bekräftelse (role="status", polite) på samma plats — inget toast-
+          bibliotek (§9.2). Bekräftelsen står kvar tills söket ändras (civic, ingen
+          animation). Placerad direkt efter hjälptexten, delar dess soft-ink-ton. */}
+      {showSaveAction && (
+        <button
+          type="button"
+          className="jp-hero__searchsaveaction"
+          onClick={onSaveSearch}
+        >
+          {t("heroSearch.save")}
+        </button>
+      )}
+      {savedNotice && (
+        // Rent visuell (aria-hidden) — SR-annonsen bärs av den persistenta
+        // aria-live-regionen nedan (announcement), satt av onSaveSearch via commit.
+        <p className="jp-hero__searchsaved" aria-hidden="true">
+          {t("heroSearch.saved")}
+        </p>
+      )}
 
       {/* aria-live-annons för tagg-tillägg/-borttagning — viktigare än i
           E2h: den visuella feedbacken (taggarna) sitter nu i filter-raden

@@ -248,6 +248,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 matchGrades={matchGrades}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
+                initialCommitted={commit}
               />
 
               {/* Hero-filter-pills + Platsbanken-popovers (client-island,

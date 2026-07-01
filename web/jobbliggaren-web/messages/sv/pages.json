@@ -137,6 +137,8 @@
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
     "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Inställningar (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
+    "boundedNote": "Visar dina {count} senaste matchningar.",
+    "boundedLink": "Hitta fler via matchningsfiltret i jobblistan",
     "loadErrorTitle": "Kunde inte ladda dina matchningar"
   },
   "installningar": {

@@ -1,0 +1,109 @@
+import "server-only";
+import { env } from "@/lib/env";
+import { getSessionId } from "@/lib/auth/session";
+import {
+  companyWatchStatusBatchSchema,
+  followCompanyResultSchema,
+  type CompanyFollowState,
+} from "@/lib/dto/company-follows";
+import { type ApiResult } from "@/lib/dto/_helpers";
+import { isValidId } from "@/lib/validation/guid";
+
+const BASE = "/api/v1/me/company-watches";
+
+function authHeaders(sessionId: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${sessionId}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/**
+ * #455 (ADR 0087 D8(c), Approach A) — follow a job ad's employer. The FE passes the non-PII JobAdId;
+ * the backend resolves the org.nr server-side (it never crosses the wire). Returns the CompanyWatchId so
+ * the toggle can later unfollow by opaque id. `POST /api/v1/me/company-watches/by-job-ad/{jobAdId}`.
+ */
+export async function followCompanyFromJobAd(
+  jobAdId: string
+): Promise<ApiResult<{ companyWatchId: string }>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: reject a non-GUID before it reaches the backend URL (SSRF barrier + path-injection).
+  if (!isValidId(jobAdId)) return { kind: "notFound" };
+
+  try {
+    const res = await fetch(`${env.BACKEND_URL}${BASE}/by-job-ad/${encodeURIComponent(jobAdId)}`, {
+      method: "POST",
+      headers: authHeaders(sessionId),
+      cache: "no-store",
+    });
+    if (res.status === 201) {
+      const parsed = followCompanyResultSchema.safeParse(await res.json());
+      return parsed.success
+        ? { kind: "ok", data: { companyWatchId: parsed.data.id } }
+        : { kind: "error" };
+    }
+    if (res.status === 401) return { kind: "unauthorized" };
+    if (res.status === 404) return { kind: "notFound" };
+    // 400 = the ad carries no employer org.nr (B2). The FE hides the affordance when !followable, so
+    // this is a stale-FE backstop → generic error.
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * #455 — stop following, by the opaque CompanyWatchId (never the org.nr, per D8(c)). Idempotent
+ * (already-unfollowed → 204). `DELETE /api/v1/me/company-watches/{companyWatchId}`.
+ */
+export async function unfollowCompany(companyWatchId: string): Promise<ApiResult<void>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(companyWatchId)) return { kind: "notFound" };
+
+  try {
+    const res = await fetch(`${env.BACKEND_URL}${BASE}/${encodeURIComponent(companyWatchId)}`, {
+      method: "DELETE",
+      headers: authHeaders(sessionId),
+      cache: "no-store",
+    });
+    if (res.status === 204) return { kind: "ok", data: undefined };
+    if (res.status === 401) return { kind: "unauthorized" };
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * #455 — single-ad follow-state for the detail footer, resolved via the auth-gated batch endpoint with a
+ * one-element id list (parity with how `isJobAdSaved` reuses the list read for a single check). Any
+ * failure / anon → not-followable, not-following (the toggle then hides; civic-utility no-teater).
+ * `POST /api/v1/me/company-watches/status`.
+ */
+export async function getCompanyWatchStatus(jobAdId: string): Promise<CompanyFollowState> {
+  const fallback: CompanyFollowState = { companyWatchId: null, followable: false };
+
+  const sessionId = await getSessionId();
+  if (!sessionId) return fallback;
+  if (!isValidId(jobAdId)) return fallback;
+
+  try {
+    const res = await fetch(`${env.BACKEND_URL}${BASE}/status`, {
+      method: "POST",
+      headers: authHeaders(sessionId),
+      body: JSON.stringify({ jobAdIds: [jobAdId] }),
+      cache: "no-store",
+    });
+    if (!res.ok) return fallback;
+    const parsed = companyWatchStatusBatchSchema.safeParse(await res.json());
+    if (!parsed.success) return fallback;
+    const status = parsed.data.statuses.find((s) => s.jobAdId === jobAdId);
+    return status
+      ? { companyWatchId: status.companyWatchId, followable: status.followable }
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}

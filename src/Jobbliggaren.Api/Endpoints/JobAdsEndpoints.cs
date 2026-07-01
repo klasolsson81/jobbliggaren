@@ -3,6 +3,7 @@ using System.Text.Json;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.CreateJobAd;
+using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 using Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
@@ -171,6 +172,26 @@ public static class JobAdsEndpoints
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.FacetCountsPolicy);
+
+        // ADR 0087 D6/D8(c) (#311 PR-2b C2) — employer disambiguation: given a company-name term
+        // (?q=), the DISTINCT legal entities in the ad corpus that match, one row per org.nr (the
+        // canonical follow key; the "Volvo×20" trap) with the ad count, so a user resolves the org.nr
+        // needed to follow/filter a specific legal entity. The sole-prop personnummer guard (D8(c))
+        // masks a personnummer-shaped org.nr (null + IsProtectedIdentity flag) in the handler — a raw
+        // org.nr is never surfaced un-flagged (CLAUDE.md §5). PUBLIC ad-corpus data, auth-gated via
+        // the group; NOT owner-scoped. A missing/too-short q is a clean 400 (the validator trims +
+        // enforces 2–100 chars). ListReadPolicy: the ILIKE + GROUP BY is a heavier scan than the
+        // typeahead suggest — parity the list route's multi-query-DoS floor. Cache-Control: private,
+        // no-store (varies per term + corpus + auth).
+        group.MapGet("/employers", async (
+            IMediator mediator, HttpContext http,
+            string? q = null, CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new DisambiguateEmployersQuery(q ?? string.Empty), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
 
         // ADR 0043 — picker-träd (Län + Yrkesområde→Yrke). concept-id
         // försvinner ur UI (Anticorruption Layer). Statisk referensdata →

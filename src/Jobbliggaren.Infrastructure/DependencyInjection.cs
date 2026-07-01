@@ -697,6 +697,16 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery,
             JobAds.PerUserJobAdSearchQuery>();
 
+        // ADR 0087 D6/D7 (#311 PR-2b C2) — IEmployerDisambiguationQuery: the org.nr disambiguation
+        // projection (DISTINCT org.nr + company_name + COUNT via ILIKE + GROUP BY). A SEPARATE read
+        // concern from IJobAdSearchQuery (D6 — never folded into the filter/facet port); lives in
+        // Infrastructure because ILIKE/GROUP BY are Npgsql-assembly LINQ (arch-test-forbidden in
+        // Application, parity IJobAdSearchQuery). Scoped (shares the request AppDbContext). DI in the
+        // same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Abstractions.IEmployerDisambiguationQuery,
+            JobAds.EmployerDisambiguationQuery>();
+
         // STEG 6 Approach B (2026-05-24) — fritext→SSYK-expansion för
         // recall-lift på terms som "systemutvecklare". IOptions-binding från
         // appsettings.json SearchSynonyms-sektion. DI i samma commit som

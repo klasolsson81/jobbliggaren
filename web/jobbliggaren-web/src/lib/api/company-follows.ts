@@ -4,9 +4,11 @@ import { getSessionId } from "@/lib/auth/session";
 import {
   companyWatchStatusBatchSchema,
   followCompanyResultSchema,
+  listCompanyWatchesResultSchema,
   type CompanyFollowState,
+  type ListCompanyWatchesResult,
 } from "@/lib/dto/company-follows";
-import { type ApiResult } from "@/lib/dto/_helpers";
+import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
 
 const BASE = "/api/v1/me/company-watches";
@@ -105,5 +107,30 @@ export async function getCompanyWatchStatus(jobAdId: string): Promise<CompanyFol
       : fallback;
   } catch {
     return fallback;
+  }
+}
+
+/**
+ * #448 — list the current user's followed companies for the `/foretag` page. Auth-gated
+ * (`GET /api/v1/me/company-watches`, parity with `getSavedJobAds`). The backend masks any
+ * personnummer-shaped org.nr before it reaches the wire (ADR 0087 D8(c)) and never logs it. List
+ * semantics: a 404 collapses to `error` (no `notFound` for a collection endpoint — ADR 0030).
+ */
+export async function getCompanyWatches(): Promise<ApiResult<ListCompanyWatchesResult>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await fetch(`${env.BACKEND_URL}${BASE}`, {
+      headers: authHeaders(sessionId),
+      cache: "no-store",
+    });
+    return await responseToResult(
+      res,
+      listCompanyWatchesResultSchema,
+      "GET /api/v1/me/company-watches"
+    );
+  } catch {
+    return { kind: "error" };
   }
 }

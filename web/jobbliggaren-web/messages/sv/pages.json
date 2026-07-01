@@ -128,6 +128,11 @@
     "lede": "Annonser du har sparat för att kunna återvända till. Öppna annonsen för att se detaljer eller ta bort bokmärket.",
     "loadErrorTitle": "Kunde inte ladda sparade annonser"
   },
+  "foretag": {
+    "title": "Bevakade företag",
+    "lede": "Företag du bevakar. Slå på företagsnotiser under Inställningar för att få en notis när ett bevakat företag publicerar en ny annons.",
+    "loadErrorTitle": "Kunde inte ladda bevakade företag"
+  },
   "matchningar": {
     "title": "Mina matchningar",
     "lede": "Annonser som bakgrundsmatchningen har hittat åt dig, nyast först. Öppna en annons för att läsa hela den.",

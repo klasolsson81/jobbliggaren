@@ -128,6 +128,11 @@
     "lede": "Listings you have saved to return to later. Open a listing to see details or remove the bookmark.",
     "loadErrorTitle": "Could not load saved listings"
   },
+  "foretag": {
+    "title": "Followed companies",
+    "lede": "Companies you follow. Turn on company notifications under Settings to get a notice when a followed company publishes a new job ad.",
+    "loadErrorTitle": "Could not load followed companies"
+  },
   "matchningar": {
     "title": "My matches",
     "lede": "Job ads that background matching has found for you, most recent first. Open an ad to read all of it.",

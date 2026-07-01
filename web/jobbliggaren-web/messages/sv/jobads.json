@@ -29,6 +29,19 @@
     "followAria": "Bevaka det här företaget",
     "unfollowAria": "Sluta bevaka det här företaget"
   },
+  "companyWatches": {
+    "listLabel": "Bevakade företag",
+    "emptyTitle": "Du bevakar inga företag än",
+    "emptyBody": "Öppna en annons under Jobb och välj <i>Bevaka företaget</i>. Företaget samlas här.",
+    "unknownCompany": "Företagets namn är inte tillgängligt",
+    "orgNr": "Org.nr {orgNr}",
+    "protectedIdentity": "Skyddad identitet",
+    "protectedIdentityHint": "Organisationsnumret visas inte eftersom det kan vara ett personnummer.",
+    "activeAds": "{count, plural, =0 {Inga aktiva annonser just nu} one {# aktiv annons just nu} other {# aktiva annonser just nu}}",
+    "followedSince": "Bevakad sedan {date}",
+    "unfollow": "Sluta bevaka",
+    "unfollowAria": "Sluta bevaka {company}"
+  },
   "recent": {
     "emptyTitle": "Inga senaste sökningar",
     "emptyBody": "Gör en sökning under Jobb. Den sparas här automatiskt.",

@@ -28,3 +28,26 @@ export interface CompanyFollowState {
   companyWatchId: string | null;
   followable: boolean;
 }
+
+/**
+ * #311 #448 (ADR 0087 D2/D3/D8(c)) — one owner-facing followed-company row for the `/foretag` list.
+ * Mirrors the backend `CompanyWatchDto`. The backend already applies the personnummer guard: a
+ * sole-prop (personnummer-shaped) org.nr arrives with `organizationNumber: null` and
+ * `isProtectedIdentity: true` — the raw value NEVER crosses the wire. The FE identifies the watch by
+ * `companyName` (resolved server-side from public Platsbanken data) and renders org.nr only when it
+ * is present (a legal-entity number). `activeAdCount` is a public open-role count (#447), carries no
+ * PII, and is surfaced even when the org.nr is masked.
+ */
+export const companyWatchSchema = z.object({
+  id: z.string(),
+  organizationNumber: z.string().nullable(),
+  isProtectedIdentity: z.boolean(),
+  companyName: z.string().nullable(),
+  followedAt: z.string(),
+  activeAdCount: z.number().int().nonnegative(),
+});
+export type CompanyWatch = z.infer<typeof companyWatchSchema>;
+
+/** `GET /me/company-watches` returns a bare array (no pagination — the watch set is user-bounded). */
+export const listCompanyWatchesResultSchema = z.array(companyWatchSchema);
+export type ListCompanyWatchesResult = z.infer<typeof listCompanyWatchesResultSchema>;

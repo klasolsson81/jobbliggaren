@@ -292,6 +292,150 @@ public class HeadingDrivenResumeSegmenterTests
         result.Content.Experience.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
+    // ===============================================================
+    // #428 finding 1 — a CV-title banner at the top must not be extracted as the name
+    // ===============================================================
+
+    [Fact]
+    public void Segment_CvTitleBannerAboveRealName_ExtractsRealName_NotBanner()
+    {
+        // #428 F1 repro: a document-title banner ("Curriculum Vitae") on the first line,
+        // followed by the real name, was returned as FullName. DetectName must skip the
+        // banner (versioned lexicon reject-list, §5) and return the real name.
+        const string cv =
+            """
+            Curriculum Vitae
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Backend-utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.FullName.ShouldBe("Anna Andersson");
+    }
+
+    [Fact]
+    public void Segment_CvTitleBannerWithoutRealName_YieldsNoName_AndContactNotConfident()
+    {
+        // #428 F1: a banner-only preamble (no real name) was mis-read as the name, which
+        // inflated ContactConfidence to Confident (hasName=true) on a nameless CV. After the
+        // fix FullName is null and — with only an email — the contact section is Degraded, not
+        // Confident. Proves the fix propagates to ContactConfidence.
+        const string cv =
+            """
+            Meritförteckning
+            anna@example.com
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.FullName.ShouldBeNull();
+        LevelOf(result, ParsedSectionKind.Contact).ShouldBe(SectionConfidenceLevel.Degraded);
+    }
+
+    [Fact]
+    public void Segment_SingleTokenName_IsStillExtracted()
+    {
+        // #428 F1: the fix is a banner reject-list, NOT a "require >=2 alphabetic tokens"
+        // heuristic — a legitimate single-token name (mononym / first-name-only CV) must still
+        // be extracted, never traded away to avoid a banner.
+        const string cv =
+            """
+            Zlatan
+            zlatan@example.com
+
+            Arbetslivserfarenhet
+            Anfallare — Klubben
+            2001 - 2020
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.FullName.ShouldBe("Zlatan");
+    }
+
+    // ===============================================================
+    // #428 finding 2 — a bare year is only a period signal on the header line
+    // ===============================================================
+
+    [Fact]
+    public void Segment_IncidentalYearInDescription_IsNotExtractedAsPeriod()
+    {
+        // #428 F2 repro: an entry with NO date line but a year in a description bullet
+        // ("Migrerade den gamla 1998-stordatorn") reported "1998" as the Period. The bare-year
+        // fallback is now scoped to the header line, so an incidental year is ignored.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Backend-utvecklare — Acme AB
+            Migrerade den gamla 1998-stordatorn till .NET.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Period.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Segment_DateRangeOnSeparateLine_IsStillExtractedAsPeriod()
+    {
+        // #428 F2 no-regression: a full DATE RANGE on its own (non-header) line is unambiguous
+        // and must still be extracted — DateRange matching stays full-text; only the weaker
+        // bare-year signal is restricted to the header line.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Backend-utvecklare — Acme AB
+            2018 - 2022
+            Byggde saker.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Period.ShouldNotBeNull();
+        exp.Period.ShouldContain("2018");
+        exp.Period.ShouldContain("2022");
+    }
+
+    [Fact]
+    public void Segment_EducationBareYearOnNonHeaderLine_IsNotExtractedAsPeriod_ByDesign()
+    {
+        // #428 F2 documented edge (EXPECTED, not a bug): a bare year on a NON-header line is an
+        // ambiguous signal (graduation year vs incidental year), so the deterministic engine
+        // (ADR 0071) reports NO period rather than risk a wrong one — honest-absent over
+        // confidently-wrong. The user supplies it via the propose-and-approve gap-fill (ADR 0040).
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Utbildning
+            KTH
+            Civilingenjör
+            2015
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var edu = result.Content.Education.ShouldHaveSingleItem();
+        edu.Period.ShouldBeNull();
+    }
+
     [Fact]
     public void Segment_ExperienceWithIsoYearMonthRange_ProducesPeriodThePeriodParserCanConsume()
     {

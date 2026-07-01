@@ -92,4 +92,43 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     expect(links[0]).toHaveTextContent("Nyare roll");
     expect(links[1]).toHaveTextContent("Äldre roll");
   });
+
+  // #424: the backend caps the list at 50 (#273). A full window must not read as
+  // the total — surface the bound + point to the /jobb match filter, honestly.
+  it("cap (50 rader) → bounded-window-hint med länk till /jobb-matchningsfiltret", () => {
+    const items: MatchListData = Array.from({ length: 50 }, (_, i) => ({
+      ...baseItem,
+      jobAdId: `id-${i}`,
+    }));
+    render(<MatchList items={items} />);
+
+    // Konstaterar fönstret (count interpolerad ur FE-konstanten, ingen drift).
+    expect(
+      screen.getByText("Visar dina 50 senaste matchningar.")
+    ).toBeInTheDocument();
+    // Länken går till /jobb filtrerat på de FILTRERBARA notifierbara graderna
+    // (Good + Strong). Top är honest-by-design ofiltrerbar → aldrig i länken.
+    const moreLink = screen.getByRole("link", {
+      name: "Hitta fler via matchningsfiltret i jobblistan",
+    });
+    expect(moreLink).toHaveAttribute(
+      "href",
+      "/jobb?matchGrades=Good&matchGrades=Strong"
+    );
+  });
+
+  it("under cap (49 rader) → ingen bounded-window-hint", () => {
+    const items: MatchListData = Array.from({ length: 49 }, (_, i) => ({
+      ...baseItem,
+      jobAdId: `id-${i}`,
+    }));
+    render(<MatchList items={items} />);
+
+    expect(screen.queryByText(/Visar dina 50 senaste matchningar/)).toBeNull();
+    expect(
+      screen.queryByRole("link", {
+        name: "Hitta fler via matchningsfiltret i jobblistan",
+      })
+    ).toBeNull();
+  });
 });

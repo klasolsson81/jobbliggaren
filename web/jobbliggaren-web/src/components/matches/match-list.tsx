@@ -9,6 +9,20 @@ interface MatchListProps {
   items: MatchListData;
 }
 
+// Backend hard-caps the persisted match list at 50 (`GetMyMatchesQueryHandler`
+// `MaxItems`, #273 — intentional cap; `GetMyNewMatchCount` stays uncapped). When
+// the list fills the window a heavy opted-in user would otherwise read 50 as the
+// total, so #424 surfaces the bound honestly beneath the list.
+const MATCH_LIST_CAP = 50;
+
+// The bounded-window hint links to /jobb filtered to the two NOTIFIABLE grades
+// that ARE filterable there (Good + Strong). `Top` is honest-by-design NOT
+// filterable on /jobb — `LIST_MATCH_GRADES` excludes it because the cacheable
+// Fast band cannot compute Toppmatch (#291), and the list validator 400s `Top`.
+// So the copy points to "fler matchande jobb" rather than claiming to surface
+// every match (a Top-graded overflow ad stays reachable only as a card badge).
+const MORE_MATCHES_HREF = "/jobb?matchGrades=Good&matchGrades=Strong";
+
 /**
  * ADR 0080 Vag 4 PR-5 — listan på `/matchningar`: användarens persisterade
  * bakgrundsmatchningar, nyast först (cap:at 50 av backend). REN presentations-
@@ -45,7 +59,13 @@ export function MatchList({ items }: MatchListProps) {
     );
   }
 
+  // #424: the list is the front of a window the backend capped at 50. When it is
+  // full, name the bound (honest-data ethos, CLAUDE.md §5) and point to where more
+  // matching jobs are browsable — never let 50 read as the total.
+  const atCap = items.length === MATCH_LIST_CAP;
+
   return (
+    <>
     <ul className="jp-jobs" aria-label={t("listLabel")}>
       {items.map((item) => (
         <li key={item.jobAdId}>
@@ -100,5 +120,14 @@ export function MatchList({ items }: MatchListProps) {
         </li>
       ))}
     </ul>
+    {atCap && (
+      <p className="jp-matchsort-note">
+        {t("boundedNote", { count: MATCH_LIST_CAP })}{" "}
+        <Link href={MORE_MATCHES_HREF} className="jp-matchsort-note__link">
+          {t("boundedLink")}
+        </Link>
+      </p>
+    )}
+    </>
   );
 }

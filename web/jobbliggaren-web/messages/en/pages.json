@@ -137,6 +137,8 @@
     "matchedAt": "Matched",
     "emptyTitle": "You have no matches yet",
     "emptyBody": "Background matching runs every night once you have turned on Match notifications under Settings (off by default) and specified which occupations you are looking for. As soon as a job ad matches your profile it appears here.",
+    "boundedNote": "Showing your {count} most recent matches.",
+    "boundedLink": "Find more via the match filter in the job list",
     "loadErrorTitle": "Could not load your matches"
   },
   "installningar": {

@@ -388,6 +388,188 @@ public class HeadingDrivenResumeSegmenterTests
         result.Content.Skills.ShouldHaveSingleItem().ShouldBe("ASP.NET Core Entity Framework");
     }
 
+    // ── #421 (#252-class): inline "heading: content" on the SAME line ──────
+    // A heading that carries its content inline after the colon ("Kompetenser: C#, …") — a
+    // common one-line-per-section CV layout — must be recognised as the section, with the
+    // right-hand remainder as its first content line. Previously NormalizeHeading only stripped
+    // a TRAILING colon, so the inline form registered no heading and the whole section was lost.
+
+    [Fact]
+    public void Segment_InlineSkillHeadingColonContent_ExtractsSkillsConfident()
+    {
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Kompetenser: C#, PostgreSQL, Docker
+            """;
+
+        var result = _sut.Segment(cv);
+
+        LevelOf(result, ParsedSectionKind.Skills).ShouldBe(SectionConfidenceLevel.Confident);
+        result.Content.Skills.ShouldBe(["C#", "PostgreSQL", "Docker"]);
+    }
+
+    [Fact]
+    public void Segment_InlineProfileHeadingColonContent_CapturesSummaryText()
+    {
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Profil: Erfaren backend-utvecklare med fokus på betaltjänster.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        LevelOf(result, ParsedSectionKind.Profile).ShouldBe(SectionConfidenceLevel.Confident);
+        result.Content.Profile.ShouldBe("Erfaren backend-utvecklare med fokus på betaltjänster.");
+    }
+
+    [Fact]
+    public void Segment_InlineEducationHeadingColonContent_ExtractsEducationEntry()
+    {
+        // The remainder is parsed as the section's content, so the same " — " title/organization
+        // split runs: for education, title slot → Degree, org slot → Institution.
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Utbildning: Civilingenjör — KTH
+            """;
+
+        var result = _sut.Segment(cv);
+
+        LevelOf(result, ParsedSectionKind.Education).ShouldBe(SectionConfidenceLevel.Confident);
+        var edu = result.Content.Education.ShouldHaveSingleItem();
+        edu.Degree.ShouldBe("Civilingenjör");
+        edu.Institution.ShouldBe("KTH");
+    }
+
+    [Fact]
+    public void Segment_InlineHeadingWithSecondColonInContent_SplitsOnFirstColonOnly()
+    {
+        // Bounded to the FIRST colon only: a second colon belongs to the content and must not
+        // trigger another heading split. "Kompetenser: Verktyg: Docker, Git" → a Skills section
+        // whose content keeps "Verktyg: Docker" intact (comma-split), never a nested heading.
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Kompetenser: Verktyg: Docker, Git
+            """;
+
+        var result = _sut.Segment(cv);
+
+        LevelOf(result, ParsedSectionKind.Skills).ShouldBe(SectionConfidenceLevel.Confident);
+        result.Content.Skills.ShouldBe(["Verktyg: Docker", "Git"]);
+    }
+
+    [Fact]
+    public void Segment_NonHeadingColonLine_NotSplitIntoSpuriousSection()
+    {
+        // Non-regression: a colon line whose left part is NOT a known heading ("Ansvarig för: …")
+        // must pass through untouched — it stays inside its section as ordinary content, never a
+        // spurious heading and never fragmented at the colon.
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Profil
+            Ansvarig för: budget, personal och rekrytering.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        LevelOf(result, ParsedSectionKind.Profile).ShouldBe(SectionConfidenceLevel.Confident);
+        result.Content.Profile.ShouldNotBeNull();
+        result.Content.Profile.ShouldContain("Ansvarig för: budget");
+    }
+
+    // ── #421 section-boundary gate (senior-cto-advisor 2026-07-01) ─────────
+    // The inline-heading split fires ONLY at a section boundary — the document's first line, or a
+    // line preceded by a blank line. A prose line whose first word is a heading token
+    // ("Erfarenhet: …", "Språk: …") sitting directly under a heading is that heading's content, not
+    // a new section: it must NOT hijack/truncate the section into a phantom one (the mirror risk of
+    // the silent-drop fix, §5). Position, not content shape, is the distinguisher (the wanted inline
+    // "Profil: <prose>" is content-shape-identical to unwanted prose). Adjacency without a blank
+    // line is a deliberate, safe miss (the line stays as content, never mis-attributed).
+
+    [Fact]
+    public void Segment_ProseWithInlineHeadingWordDirectlyUnderHeading_DoesNotTruncateOrSpawnPhantom()
+    {
+        // "Erfarenhet: över 10 år …" as the first line under the Profil heading (no blank line
+        // between) is profile prose, not a section start: no phantom Experience, the whole profile
+        // text is retained, and no stray year is pulled into an experience period.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Profil
+            Erfarenhet: över 10 år inom IT och ledarskap.
+            Trivs bäst i team.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Experience.ShouldBeEmpty();
+        LevelOf(result, ParsedSectionKind.Experience).ShouldBe(SectionConfidenceLevel.NotFound);
+        result.Content.Profile.ShouldNotBeNull();
+        result.Content.Profile.ShouldContain("Erfarenhet: över 10 år");
+        result.Content.Profile.ShouldContain("Trivs bäst i team.");
+    }
+
+    [Fact]
+    public void Segment_InlineLanguageWordProseDirectlyUnderHeading_NoPhantomLanguagesSection()
+    {
+        // Sibling case with a LIST-section predecessor (Arbetslivserfarenhet): "Språk: flytande
+        // svenska …" directly under it must not spawn a phantom Languages section. Pins that the
+        // gate closes this regardless of the preceding heading's kind — a "prose-section only"
+        // exception would have missed a list-section predecessor.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Språk: flytande svenska och engelska.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Languages.ShouldBeEmpty();
+        LevelOf(result, ParsedSectionKind.Languages).ShouldBe(SectionConfidenceLevel.NotFound);
+    }
+
+    [Fact]
+    public void Segment_InlineHeadingImmediatelyAfterHeadingNoBlankLine_NotTreatedAsSectionStart()
+    {
+        // Accepted trade-off: an inline heading on the line directly after another heading, with NO
+        // blank line between, is NOT detected as a new section (it stays as the first heading's
+        // content). Adjacency without a blank line is rare in real CVs and the failure mode is the
+        // safe one — no phantom section, no mis-attribution. The blank-line-separated form (the
+        // common case) is covered by the inline tests above.
+        const string cv =
+            """
+            Erik Eriksson
+            erik@example.com
+
+            Kontakt
+            Kompetenser: C#, PostgreSQL
+            """;
+
+        var result = _sut.Segment(cv);
+
+        LevelOf(result, ParsedSectionKind.Skills).ShouldBe(SectionConfidenceLevel.NotFound);
+        result.Content.Skills.ShouldBeEmpty();
+    }
+
     private static SectionConfidenceLevel LevelOf(
         Application.Resumes.Abstractions.ResumeSegmentationResult result, ParsedSectionKind kind)
     {

@@ -23,6 +23,7 @@ namespace Jobbliggaren.Worker.Hosting;
 ///   03:00   — audit-log-retention (atomisk partition-DDL, &lt; 100ms typiskt)
 ///   03:15   — retain-platsbanken-job-ads (snapshot-miss-retention, ADR 0032-amend 2026-05-23)
 ///   03:20   — background-matching (per-user matchnings-scan: läser JobAds → skriver UserJobAdMatch, ADR 0080 Vag 4 PR-3)
+///   03:25   — company-watch-scan (per-user följnings-scan: JobAds IN watched org.nr → FollowedCompanyAdHit, ADR 0087 D5)
 ///   03:30   — detect-ghosted (DML på applications + audit-skrivningar)
 ///   03:45   — expire-job-ads (ExpiresAt-cron, defense-in-depth, ADR 0032-amend 2026-05-23)
 ///   04:00   — hard-delete-accounts (1h efter retention)
@@ -71,6 +72,14 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             RecurringJobIds.BackgroundMatching,
             job => job.RunAsync(CancellationToken.None),
             "20 3 * * *");  // 03:20 UTC — efter retain (03:15), före detect-ghosted (03:30). Per-user matchnings-scan: läser JobAds (Active) → skriver UserJobAdMatch + JobSeeker.LastMatchScanAt (ortogonalt mot retain/ghosted). ADR 0080 Vag 4 PR-3.
+
+        manager.AddOrUpdate<CompanyWatchScanWorker>(
+            RecurringJobIds.CompanyWatchScan,
+            job => job.RunAsync(CancellationToken.None),
+            "25 3 * * *");  // 03:25 UTC — samma nattfönster som background-matching (03:20), egen
+                            // watermark. Företagsföljnings-scan: läser JobAds (Active) IN watched org.nr
+                            // → skriver FollowedCompanyAdHit + JobSeeker.LastCompanyWatchScanAt (ortogonalt
+                            // mot background-matching; ingen scorer). Före digest (06:00). ADR 0087 D5.
 
         manager.AddOrUpdate<DetectGhostedApplicationsJob>(
             RecurringJobIds.DetectGhosted,

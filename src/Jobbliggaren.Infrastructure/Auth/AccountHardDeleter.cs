@@ -154,6 +154,16 @@ public sealed class AccountHardDeleter(
             .Where(w => w.UserId == userId)
             .ToListAsync(cancellationToken);
 
+        // ADR 0087 D5 (#311 PR-4) — FollowedCompanyAdHit is an FK-less by-UserId aggregate (ADR
+        // 0058/0059 soft-reference; it records WHICH followed-employer ad a user was notified about —
+        // user-owned personal data). Like UserJobAdMatch/CompanyWatch it must be deleted EXPLICITLY in
+        // the Art. 17 cascade or its rows orphan on hard-delete. IgnoreQueryFilters also takes
+        // soft-deleted rows.
+        var followedCompanyAdHits = await db.FollowedCompanyAdHits
+            .IgnoreQueryFilters()
+            .Where(h => h.UserId == userId)
+            .ToListAsync(cancellationToken);
+
         // Steg 2 a — Öppna explicit transaction (UoWBehavior är inte i pipelinen
         // för worker-jobb-anrop direkt mot porten).
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -172,6 +182,7 @@ public sealed class AccountHardDeleter(
             db.SavedJobAds.RemoveRange(savedJobAds);
             db.UserJobAdMatches.RemoveRange(userJobAdMatches);
             db.CompanyWatches.RemoveRange(companyWatches);
+            db.FollowedCompanyAdHits.RemoveRange(followedCompanyAdHits);
             db.JobSeekers.Remove(jobSeeker);
 
             // GDPR Art. 17 (#370, found by the #268 audit) — ParsedResume is an FK-less

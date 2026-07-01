@@ -47,6 +47,21 @@ public sealed partial class ResendEmailSender(
             cancellationToken);
     }
 
+    public Task SendFollowedCompanyNotificationEmailAsync(
+        string toEmail, FollowedCompanyNotificationEmail content,
+        FollowedCompanyNotificationIdempotencyKey idempotencyKey, CancellationToken cancellationToken)
+    {
+        // Fail loud on a missing key rather than silently sending non-idempotently — the
+        // company-follow digest is a retry-bearing send (ADR 0087 D5, parity the match path).
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey.Value);
+        return SendAsync(
+            toEmail,
+            EmailTemplates.FollowedCompanyNotification(_options.BaseUrl, content),
+            "followed-company-notification",
+            idempotencyKey.Value,
+            cancellationToken);
+    }
+
     private async Task SendAsync(
         string toEmail, EmailTemplates.EmailContent body, string emailKind,
         string idempotencyKey, CancellationToken cancellationToken)

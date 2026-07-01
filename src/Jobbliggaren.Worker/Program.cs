@@ -82,6 +82,12 @@ builder.Services.AddMatchingEngine();
 builder.Services.AddEmailSender(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>();
+// ADR 0087 D5 (#311 PR-4) — den nattliga företagsföljnings-scannen. Egen watermark, org.nr
+// IN-membership, INGEN scorer (drar inte in AddMatchingEngine-portar). Behöver bara IAppDbContext +
+// IDateTimeProvider. Wrapper + jobb i samma commit (TD-103: Worker ValidateOnBuild=false → en saknad
+// dep failar först vid Hangfire-invocation 03:25 UTC).
+builder.Services.AddScoped<Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.CompanyWatchScanWorker>();
 // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch (kadens-cap:ad sammanfattning). Två cron-ingångar
 // (Daglig/Veckovis) via DigestDispatchWorker; jobbet filtrerar konsenterade användare på den kadens
 // det anropas för (cron = fönstret). Cap via IOptions (Digest-sektionen, ValidateDataAnnotations +

@@ -288,9 +288,10 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         // (structural); this oracle proves the cascade RUNS for the three not yet
         // asserted here — Application (by JobSeekerId), Resume (by JobSeekerId; its
         // ResumeVersions go via DB-FK CASCADE), and UserJobAdMatch (FK-less by UserId,
-        // ADR 0080), plus CompanyWatch (FK-less by UserId, ADR 0087 D3, #311 PR-3).
+        // ADR 0080), plus CompanyWatch (FK-less by UserId, ADR 0087 D3, #311 PR-3) and
+        // FollowedCompanyAdHit (FK-less by UserId, ADR 0087 D5, #311 PR-4).
         // Together with the SavedSearches/RecentJobSearches/SavedJobAds/ParsedResume
-        // tests above, all 8 CascadeMap aggregates are now covered both structurally
+        // tests above, all 9 CascadeMap aggregates are now covered both structurally
         // (build-time) and behaviorally (here) — symmetric layers.
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
@@ -320,6 +321,12 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             var watch = CompanyWatch.Follow(
                 userId, OrganizationNumber.Create("5592804784").Value, seedClock).Value;
             db.CompanyWatches.Add(watch);
+
+            // FollowedCompanyAdHit — FK-less by UserId (ADR 0087 D5, #311 PR-4), the company-follow
+            // notification-delivery record.
+            var hit = FollowedCompanyAdHit.Create(
+                userId, JobAdId.New(), watch.Id, seedClock).Value;
+            db.FollowedCompanyAdHits.Add(hit);
 
             await db.SaveChangesAsync(ct);
         }
@@ -354,6 +361,11 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 .IgnoreQueryFilters().AsNoTracking()
                 .Where(w => w.UserId == userId).CountAsync(ct);
             watchCount.ShouldBe(1, "seed must persist exactly one company_watches row before the job runs");
+
+            var hitCount = await preDb.FollowedCompanyAdHits
+                .IgnoreQueryFilters().AsNoTracking()
+                .Where(h => h.UserId == userId).CountAsync(ct);
+            hitCount.ShouldBe(1, "seed must persist exactly one followed_company_ad_hits row before the job runs");
         }
 
         await RunJobAsync(now, ct);
@@ -386,6 +398,12 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             .Where(w => w.UserId == userId).CountAsync(ct);
         watchesAfter.ShouldBe(0,
             "CompanyWatch (FK-löst by UserId, ADR 0087 D3) ska hard-raderas vid konto-radering (GDPR Art. 17)");
+
+        var hitsAfter = await verifyDb.FollowedCompanyAdHits
+            .IgnoreQueryFilters().AsNoTracking()
+            .Where(h => h.UserId == userId).CountAsync(ct);
+        hitsAfter.ShouldBe(0,
+            "FollowedCompanyAdHit (FK-löst by UserId, ADR 0087 D5) ska hard-raderas vid konto-radering (GDPR Art. 17)");
     }
 
     // ─── Helpers ───

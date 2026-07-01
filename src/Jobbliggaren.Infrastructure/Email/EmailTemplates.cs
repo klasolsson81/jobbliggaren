@@ -68,4 +68,54 @@ internal static class EmailTemplates
                 Jobbliggaren
                 """);
     }
+
+    /// <summary>
+    /// ADR 0087 D5 (#311 PR-4) — company-follow notification. Icke-PII (jobbtitlar + PUBLIKA
+    /// företagsnamn, INGEN grad-label/siffra och ALDRIG org.nr — ADR 0087 D8). En OBLIGATORISK
+    /// inställnings-/avregistreringslänk (GDPR Art. 7(3)) byggs ur <paramref name="baseUrl"/>. Ingen
+    /// mottagar-adress, inget CV-innehåll. Civic-ton (1177/Digg): inga utropstecken, ingen em-dash.
+    /// </summary>
+    public static EmailContent FollowedCompanyNotification(
+        string baseUrl, FollowedCompanyNotificationEmail content)
+    {
+        var trimmed = baseUrl.TrimEnd('/');
+        var jobsLink = $"{trimmed}/jobb";
+        var settingsLink = $"{trimmed}/installningar";
+
+        var items = new StringBuilder();
+        foreach (var item in content.Items)
+        {
+            // Komma-separator (INTE em-dash) — em-dash är förbjudet i svensk UI-copy
+            // (feedback_no_em_dash_in_ui_copy; e-postkroppen är användarvänd copy).
+            items.AppendLine(CultureInfo.InvariantCulture,
+                $"- {item.JobTitle}, {item.CompanyName}");
+        }
+        var remaining = content.TotalCount - content.Items.Count;
+        var andMore = remaining > 0
+            ? $"\noch {remaining} till.\n"
+            : string.Empty;
+
+        var countPhrase = content.TotalCount == 1
+            ? "en ny annons"
+            : $"{content.TotalCount} nya annonser";
+
+        return new EmailContent(
+            Subject: "Nya annonser från företag du följer",
+            PlainTextBody: $"""
+                Företag du följer har publicerat {countPhrase} sedan sist:
+
+                {items.ToString().TrimEnd()}
+                {andMore}
+                Öppna annonserna:
+                {jobsLink}
+
+                Du får detta för att du har slagit på notiser för företag du följer.
+                Du kan ändra hur ofta du får dem, eller stänga av dem helt, i dina
+                inställningar:
+                {settingsLink}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """);
+    }
 }

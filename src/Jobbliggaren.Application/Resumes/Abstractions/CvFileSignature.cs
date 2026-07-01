@@ -5,7 +5,10 @@ namespace Jobbliggaren.Application.Resumes.Abstractions;
 /// from its magic bytes AND declared content-type (F4-8, security-auditor scope). The
 /// magic bytes are authoritative — a renamed <c>.exe</c> (or any non-PDF/DOCX payload)
 /// is rejected regardless of a spoofable declared MIME, and a declared content-type that
-/// contradicts the magic bytes is rejected as a mismatch.
+/// contradicts the magic bytes is rejected as a mismatch. Tolerating an ABSENT
+/// content-type is this resolver's own property (the format comes from the magic bytes);
+/// callers that require a declared content-type enforce that upstream (the CV-import path
+/// does, via its validator + the ParsedResume aggregate; audit #268/#428).
 /// </summary>
 public static class CvFileSignature
 {
@@ -24,8 +27,12 @@ public static class CvFileSignature
     /// Resolves the file kind from <paramref name="bytes"/> + <paramref name="contentType"/>.
     /// Returns <c>false</c> (unsupported/mismatch) when the magic bytes match no
     /// supported format, or when the declared content-type explicitly names the OTHER
-    /// supported format. An empty/unknown content-type is tolerated (the magic bytes
-    /// decide).
+    /// supported format. An empty/unknown content-type is tolerated by THIS resolver in
+    /// isolation (the magic bytes decide the format and never need a content-type). That
+    /// tolerance is NOT the CV-import contract: the import path requires a content-type
+    /// structurally upstream of this call (the ImportResumeCommandValidator NotEmpty rule
+    /// and the Domain invariant ParsedResume.SourceContentTypeRequired), so an empty
+    /// content-type never reaches this branch through import (audit #268/#428).
     /// </summary>
     public static bool TryResolve(string? contentType, ReadOnlySpan<byte> bytes, out CvFileKind kind)
     {

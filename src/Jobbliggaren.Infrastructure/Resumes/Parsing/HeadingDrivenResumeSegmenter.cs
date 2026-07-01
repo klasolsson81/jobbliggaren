@@ -92,18 +92,71 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
     // ── Heading detection ───────────────────────────────────────────────
 
-    private static List<(int Line, ParsedSectionKind Kind, string Matched)>
-        DetectHeadings(string[] lines)
+    // A detected section heading: its line index, section kind, the normalised matched form
+    // (structural evidence only — never PII), and any content carried inline on the same line
+    // after a colon ("Kompetenser: C#, …" → InlineContent "C#, …"). Inline content becomes the
+    // section block's first content line (#421, #252-class).
+    private readonly record struct HeadingHit(
+        int Line, ParsedSectionKind Kind, string Matched, string? InlineContent = null);
+
+    private static List<HeadingHit> DetectHeadings(string[] lines)
     {
-        var headings = new List<(int Line, ParsedSectionKind Kind, string Matched)>();
+        var headings = new List<HeadingHit>();
         for (var i = 0; i < lines.Length; i++)
         {
-            var normalized = NormalizeHeading(lines[i]);
-            if (normalized.Length > 0 && HeadingMap.TryGetValue(normalized, out var kind))
-                headings.Add((i, kind, normalized));
+            // Whole-line heading ("Kompetenser" / "Kompetenser:" — NormalizeHeading strips a
+            // trailing colon). Position-independent: a bare heading token is a heading anywhere.
+            if (TryMatchHeading(lines[i], out var kind, out var matched))
+            {
+                headings.Add(new HeadingHit(i, kind, matched));
+                continue;
+            }
+
+            // #421 (#252-class): a heading may carry its content inline on the same line after a
+            // colon ("Kompetenser: C#, PostgreSQL, Docker"). NormalizeHeading strips only a
+            // TRAILING colon, so the inline form would otherwise register no heading and silently
+            // drop the whole section (CLAUDE.md §5). Split on the FIRST colon only; when the left
+            // part is a known heading and real content follows, register the heading with that
+            // remainder as its first content line.
+            //
+            // Gate the inline split to a SECTION BOUNDARY (senior-cto-advisor 2026-07-01): a prose
+            // line whose first word happens to be a heading token ("Erfarenhet: över 10 år inom
+            // IT.", "Språk: flytande svenska") must NOT hijack and truncate the section it sits in
+            // into a phantom section — the mirror risk of the silent-drop fix. Content shape cannot
+            // distinguish the wanted inline "Profil: <prose>" from unwanted prose, so we gate on
+            // document POSITION with the one robust single-pass invariant: a line starts a section
+            // only if it is the document's first line or is preceded by a blank line. Prose sitting
+            // directly under a heading is therefore that heading's content, never a new section
+            // (adjacency without a blank line is a deliberate, safe miss). Every other colon line
+            // (URLs, times, "Ansvarig för: …" prose) is left untouched.
+            var atSectionBoundary = i == 0 || lines[i - 1].Trim().Length == 0;
+
+            var colon = lines[i].IndexOf(':');
+            if (atSectionBoundary && colon > 0)
+            {
+                var inlineContent = lines[i][(colon + 1)..].Trim();
+                if (inlineContent.Length > 0
+                    && TryMatchHeading(lines[i][..colon], out var inlineKind, out var inlineMatched))
+                {
+                    headings.Add(new HeadingHit(i, inlineKind, inlineMatched, inlineContent));
+                }
+            }
         }
 
         return headings;
+    }
+
+    // True when the line normalises to a known section heading, out-ing the matched (normalised,
+    // structural-evidence-only) form. Single-sources the HeadingMap lookup for both whole-line
+    // detection and inline "heading: content" splitting (#421).
+    private static bool TryMatchHeading(string line, out ParsedSectionKind kind, out string matched)
+    {
+        matched = NormalizeHeading(line);
+        if (matched.Length > 0 && HeadingMap.TryGetValue(matched, out kind))
+            return true;
+
+        kind = default;
+        return false;
     }
 
     // Lower-invariant, trim, strip trailing ':'/'.', collapse internal whitespace.
@@ -119,20 +172,23 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
     private static Dictionary<ParsedSectionKind, string> BuildSectionBlocks(
         string[] lines,
-        List<(int Line, ParsedSectionKind Kind, string Matched)> headings)
+        List<HeadingHit> headings)
     {
         var blocks = new Dictionary<ParsedSectionKind, string>();
         for (var h = 0; h < headings.Count; h++)
         {
             var start = headings[h].Line + 1;
             var end = h + 1 < headings.Count ? headings[h + 1].Line : lines.Length;
-            if (start >= end)
-            {
-                blocks.TryAdd(headings[h].Kind, string.Empty);
-                continue;
-            }
 
-            var block = string.Join('\n', lines.Skip(start).Take(end - start)).Trim();
+            IEnumerable<string> bodyLines =
+                start < end ? lines.Skip(start).Take(end - start) : [];
+
+            // Inline "heading: content" (#421): the remainder after the colon is the block's
+            // FIRST content line, ahead of any lines that follow the heading.
+            if (headings[h].InlineContent is { Length: > 0 } inlineContent)
+                bodyLines = bodyLines.Prepend(inlineContent);
+
+            var block = string.Join('\n', bodyLines).Trim();
             // Same section heading twice ⇒ concatenate the blocks deterministically.
             blocks[headings[h].Kind] = blocks.TryGetValue(headings[h].Kind, out var existing)
                 ? string.Concat(existing, "\n", block).Trim()
@@ -144,7 +200,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
     private static List<string> PreambleLines(
         string[] lines,
-        List<(int Line, ParsedSectionKind Kind, string Matched)> headings)
+        List<HeadingHit> headings)
     {
         var firstHeading = headings.Count > 0 ? headings[0].Line : lines.Length;
         return lines.Take(firstHeading).ToList();
@@ -437,7 +493,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     }
 
     private static SectionConfidence ProfileConfidence(
-        List<(int Line, ParsedSectionKind Kind, string Matched)> headings, string? profileText)
+        List<HeadingHit> headings, string? profileText)
     {
         var heading = MatchedHeading(headings, ParsedSectionKind.Profile);
         if (heading is null)
@@ -455,7 +511,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
     private static SectionConfidence ListSectionConfidence(
         ParsedSectionKind kind,
-        List<(int Line, ParsedSectionKind Kind, string Matched)> headings,
+        List<HeadingHit> headings,
         int count)
     {
         var heading = MatchedHeading(headings, kind);
@@ -472,7 +528,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     }
 
     private static string? MatchedHeading(
-        List<(int Line, ParsedSectionKind Kind, string Matched)> headings,
+        List<HeadingHit> headings,
         ParsedSectionKind kind)
     {
         foreach (var heading in headings)

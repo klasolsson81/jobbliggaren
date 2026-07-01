@@ -78,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # --- C#-only: SDK + NuGet-cache (krävs av manual build nedan) ----------
       # global.json låser 10.0.200 (rollForward latestFeature) — identiskt med
@@ -91,7 +91,7 @@ jobs:
 
       - name: Cache NuGet
         if: matrix.language == 'csharp'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}

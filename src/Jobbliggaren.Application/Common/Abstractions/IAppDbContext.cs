@@ -1,4 +1,5 @@
 using Jobbliggaren.Domain.Auditing;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -29,6 +30,8 @@ public interface IAppDbContext
     DbSet<SavedJobAd> SavedJobAds { get; }
     // ADR 0080 Vag 4 — background match results (read by digest/dispatch handlers).
     DbSet<UserJobAdMatch> UserJobAdMatches { get; }
+    // ADR 0087 D3 (#311 PR-3) — user follows of an employer by org.nr.
+    DbSet<CompanyWatch> CompanyWatches { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

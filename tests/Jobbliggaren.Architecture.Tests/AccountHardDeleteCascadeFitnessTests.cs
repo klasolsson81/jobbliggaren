@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -102,6 +103,7 @@ public class AccountHardDeleteCascadeFitnessTests
         [typeof(RecentJobSearch)] = "RecentJobSearches",
         [typeof(SavedJobAd)] = "SavedJobAds",
         [typeof(UserJobAdMatch)] = "UserJobAdMatches",
+        [typeof(CompanyWatch)] = "CompanyWatches",
     };
 
     /// <summary>
@@ -193,19 +195,20 @@ public class AccountHardDeleteCascadeFitnessTests
     {
         // Self-proving negative #1 (synthetic stand-in, never production). A read/count reference
         // must NOT satisfy the cascade — the exact false-pass a bare getter-invocation signal misses.
-        const string syntheticSixOfSeven = """
+        const string syntheticAllButOne = """
             {
                 db.Applications.RemoveRange(applications);
                 db.Resumes.RemoveRange(resumes);
                 db.SavedSearches.RemoveRange(savedSearches);
                 db.RecentJobSearches.RemoveRange(recentSearches);
                 db.SavedJobAds.RemoveRange(savedJobAds);
+                db.CompanyWatches.RemoveRange(companyWatches);
                 var queued = await db.UserJobAdMatches.Where(m => m.UserId == userId).CountAsync(ct);
                 await db.ParsedResumes.Where(p => p.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
             }
             """;
 
-        var unwired = HardDeleteCascadeScan.FindUnwiredDbSets(syntheticSixOfSeven, CascadeMap.Values);
+        var unwired = HardDeleteCascadeScan.FindUnwiredDbSets(syntheticAllButOne, CascadeMap.Values);
 
         unwired.ShouldBe(["UserJobAdMatches"],
             "Detektorn ska rapportera exakt det utelämnade aggregatet (UserJobAdMatches) som " +

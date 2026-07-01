@@ -35,6 +35,7 @@ function renderToolbar(over: ToolbarOverrides = {}) {
       includeRelated={false}
       matchningOff={false}
       hideApplied={false}
+      onlyMatched={false}
       resolvedLabels={{}}
       q=""
       sortBy="PublishedAtDesc"

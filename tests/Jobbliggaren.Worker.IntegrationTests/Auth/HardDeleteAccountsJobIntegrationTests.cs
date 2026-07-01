@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -287,9 +288,10 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         // (structural); this oracle proves the cascade RUNS for the three not yet
         // asserted here — Application (by JobSeekerId), Resume (by JobSeekerId; its
         // ResumeVersions go via DB-FK CASCADE), and UserJobAdMatch (FK-less by UserId,
-        // ADR 0080). Together with the SavedSearches/RecentJobSearches/SavedJobAds/
-        // ParsedResume tests above, all 7 CascadeMap aggregates are now covered both
-        // structurally (build-time) and behaviorally (here) — symmetric layers.
+        // ADR 0080), plus CompanyWatch (FK-less by UserId, ADR 0087 D3, #311 PR-3).
+        // Together with the SavedSearches/RecentJobSearches/SavedJobAds/ParsedResume
+        // tests above, all 8 CascadeMap aggregates are now covered both structurally
+        // (build-time) and behaviorally (here) — symmetric layers.
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
         var oldDeletedAt = now.AddDays(-(RestoreWindowDays + 1));
@@ -313,6 +315,11 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             var match = UserJobAdMatch.Create(
                 userId, JobAdId.New(), NotifiableMatchGrade.Top, ["csharp"], seedClock).Value;
             db.UserJobAdMatches.Add(match);
+
+            // CompanyWatch — FK-less by UserId (ADR 0087 D3, #311 PR-3), plaintext org.nr.
+            var watch = CompanyWatch.Follow(
+                userId, OrganizationNumber.Create("5592804784").Value, seedClock).Value;
+            db.CompanyWatches.Add(watch);
 
             await db.SaveChangesAsync(ct);
         }
@@ -342,6 +349,11 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 .IgnoreQueryFilters().AsNoTracking()
                 .Where(m => m.UserId == userId).CountAsync(ct);
             matchCount.ShouldBe(1, "seed must persist exactly one user_job_ad_match row before the job runs");
+
+            var watchCount = await preDb.CompanyWatches
+                .IgnoreQueryFilters().AsNoTracking()
+                .Where(w => w.UserId == userId).CountAsync(ct);
+            watchCount.ShouldBe(1, "seed must persist exactly one company_watches row before the job runs");
         }
 
         await RunJobAsync(now, ct);
@@ -368,6 +380,12 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             .Where(m => m.UserId == userId).CountAsync(ct);
         matchesAfter.ShouldBe(0,
             "UserJobAdMatch (FK-löst by UserId, ADR 0080) ska hard-raderas vid konto-radering (GDPR Art. 17)");
+
+        var watchesAfter = await verifyDb.CompanyWatches
+            .IgnoreQueryFilters().AsNoTracking()
+            .Where(w => w.UserId == userId).CountAsync(ct);
+        watchesAfter.ShouldBe(0,
+            "CompanyWatch (FK-löst by UserId, ADR 0087 D3) ska hard-raderas vid konto-radering (GDPR Art. 17)");
     }
 
     // ─── Helpers ───

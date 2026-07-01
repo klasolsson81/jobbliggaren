@@ -264,4 +264,39 @@ public class CvReviewEvidenceRedactionTests
                 "a clean span's Length must still equal its quote length (untouched by redaction).");
         }
     }
+
+    // ===============================================================
+    // 7. #268 C2 — a personnummer in the CV FILENAME (B8 StructuralEvidence) is masked.
+    //    B8 interpolates the raw SourceFileName into a StructuralEvidence observation; the
+    //    redactor now runs over that channel too, so a filename-borne pnr never surfaces.
+    // ===============================================================
+
+    [Theory]
+    [MemberData(nameof(BothProfiles))]
+    public async Task ReviewAsync_ShouldMaskAPersonnummerInTheFilename_InB8StructuralEvidence(RenderProfile profile)
+    {
+        // A user who names their CV with a personnummer ("CV_811218-9876.pdf"). The filename is not
+        // the recommended CV_Förnamn_Efternamn shape (digits where letters are required), so B8 warns
+        // and quotes the filename in a StructuralEvidence observation — which must be masked (Inv. 1).
+        var resume = Resume(sourceFileName: $"CV_{Pnr}.pdf");
+
+        var result = await ReviewAsync(resume, profile);
+
+        var b8 = Verdict(result, "B8");
+        b8.Verdict.ShouldBe(CriterionVerdict.Warn,
+            "a digit-bearing filename does not match the CV_Förnamn_Efternamn recommendation → B8 warns.");
+
+        foreach (var s in EvidenceStrings(b8))
+        {
+            s.ShouldNotContain(Pnr,
+                Case.Sensitive,
+                $"{profile}/B8: the filename's personnummer must be masked in the structural observation (Inv. 1).");
+            s.ShouldNotContain(RawDigits);
+        }
+
+        // Masking (not deletion): the masked form shows where the filename carried the pnr.
+        b8.Evidence.OfType<StructuralEvidence>()
+            .ShouldContain(e => e.Observation.Contains(Mask, StringComparison.Ordinal),
+                $"{profile}/B8: the structural observation should carry the mask '{Mask}'.");
+    }
 }

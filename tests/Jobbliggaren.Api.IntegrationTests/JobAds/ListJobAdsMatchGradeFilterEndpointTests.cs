@@ -93,4 +93,35 @@ public class ListJobAdsMatchGradeFilterEndpointTests(ApiFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task GET_job_ads_with_onlyMatched_binds_and_returns_200()
+    {
+        // #419 pt1 (CTO Approach A) — "Visa bara matchade": ?onlyMatched=true binds to the
+        // bool query-param (ASP.NET takes "true", not "1"). A new user has no stated
+        // occupation → the handler honest-fallbacks (no profile gate) but the binding must
+        // still succeed (200). The actual rank > 0 gating is oracle-pinned via the
+        // {Basic,Related,Good,Strong} subset in MatchSortGradeFilterOracleTests.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.GetAsync(
+            "/api/v1/job-ads?onlyMatched=true&pageSize=50", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GET_job_ads_with_onlyMatched_and_match_grades_returns_200()
+    {
+        // OnlyMatched composes freely with an explicit grade subset (the subset wins server-
+        // side; no validator mutex). Binding both must succeed.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.GetAsync(
+            "/api/v1/job-ads?onlyMatched=true&matchGrades=Strong&pageSize=50", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
 }

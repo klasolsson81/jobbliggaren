@@ -235,6 +235,50 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("audit_log", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Domain.CompanyWatches.CompanyWatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("OrganizationNumber")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("organization_number");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("target_type");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_company_watches");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_company_watches_user_id");
+
+                    b.HasIndex("UserId", "OrganizationNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ux_company_watches_user_orgnr_active")
+                        .HasFilter("\"deleted_at\" IS NULL");
+
+                    b.ToTable("company_watches", (string)null);
+                });
+
             modelBuilder.Entity("Jobbliggaren.Domain.JobAds.JobAd", b =>
                 {
                     b.Property<Guid>("Id")

@@ -609,6 +609,94 @@ public class ListJobAdsQueryHandlerTests
             Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
     }
 
+    // --- #419 pt1 (CTO Approach A): "Visa bara matchade" (OnlyMatched) ----------------------
+    // OnlyMatched enters the per-user path and — when NO explicit grade subset is set —
+    // injects the full filterable Fast band (Basic/Related/Good/Strong = all positive ranks),
+    // which the existing positive-only grade-WHERE turns into "exclude untagged (rank 0)".
+    // A specific grade subset WINS (OnlyMatched is the empty-subset case). No occupation →
+    // honest anon fallback (the FE hides the control then).
+
+    [Fact]
+    public async Task Handle_OnlyMatchedWithOccupation_EmptyGrades_InjectsAllFilterableGrades()
+    {
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(FullProfileWithOccupation());
+        IReadOnlyList<MatchGrade>? capturedGrades = null;
+        var capturedOrderByRank = true;
+        _matchSearch.SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Do<IReadOnlyList<MatchGrade>>(g => capturedGrades = g),
+            Arg.Any<JobAdSortBy>(), Arg.Do<bool>(o => capturedOrderByRank = o),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.PublishedAtDesc, OnlyMatched: true),
+            TestContext.Current.CancellationToken);
+
+        // The per-user path is taken (NOT the anon path) and the injected grade-set is the
+        // full filterable Fast band → the grade-WHERE excludes only the untagged (rank 0).
+        await _search.DidNotReceive().SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+        capturedGrades.ShouldBe(
+            [MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong]);
+        // OnlyMatched alone never forces match-rank order — the chosen plain sort is kept.
+        capturedOrderByRank.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_OnlyMatchedWithExplicitGradeSubset_SubsetWins_NotInjected()
+    {
+        // A specific grade subset is already a stricter "only matched" (every selected rank is
+        // positive) → the subset is the binding filter; OnlyMatched adds nothing (no injection).
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(FullProfileWithOccupation());
+        IReadOnlyList<MatchGrade>? capturedGrades = null;
+        _matchSearch.SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Do<IReadOnlyList<MatchGrade>>(g => capturedGrades = g),
+            Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(
+                Sort: ListJobAdsSort.PublishedAtDesc,
+                MatchGrades: [MatchGrade.Good],
+                OnlyMatched: true),
+            TestContext.Current.CancellationToken);
+
+        capturedGrades.ShouldBe([MatchGrade.Good]);
+    }
+
+    [Fact]
+    public async Task Handle_OnlyMatchedWithEmptyOccupation_FallsBackToDefaultSearch_NeverPerUserSearch()
+    {
+        // No stated occupation → no grade is computable → honest anon fallback (never an empty
+        // only-matched page). Parity with the grade-filter case-2 gate; FE hides the control.
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(EmptyFullProfile);
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(
+            new ListJobAdsQuery(Sort: ListJobAdsSort.PublishedAtDesc, OnlyMatched: true),
+            TestContext.Current.CancellationToken);
+
+        await _search.Received(1).SearchAsync(
+            Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
+        await _matchSearch.DidNotReceive().SearchPerUserAsync(
+            Arg.Any<JobAdFilterCriteria>(), Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(), Arg.Any<JobAdSortBy>(), Arg.Any<bool>(),
+            Arg.Any<JobAdStatusFilter>(), Arg.Any<JobSeekerId>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
     // --- #300 PR-5a: ListJobAdsQuery.IncludeRelated threads into BuildFullForSortAsync ----
     // The per-user path builds the FULL profile via BuildFullForSortAsync; PR-5a adds the
     // includeRelated arg that the FE toggle flips (ADR 0084 question A, off by default). The

@@ -6,6 +6,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { getLatestPendingParsedResume, getResumes } from "@/lib/api/resumes";
 import { getMyProfile } from "@/lib/api/me";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
+import { resolveSkillLabels } from "@/lib/api/skills";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ResumeCard } from "@/components/resumes/resume-card";
 import { CvMatchSetup } from "@/components/resumes/cv-match-setup";
@@ -58,6 +59,19 @@ export default async function CvListPage({
   const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
   const profile = profileResult.kind === "ok" ? profileResult.data : null;
   const pendingCv = pendingResult.kind === "ok" ? pendingResult.data : null;
+
+  // #422 (#253/#277 group-resolution): reverse-resolve the saved skill concept-
+  // ids to GROUPS server-side, mirroring installningar/page.tsx:47-52. Without
+  // this seed the match-setup wizard renders raw concept-ids for a returning
+  // user's saved skills on a cold load (SkillSection's CV auto-suggest is gated
+  // on parsedResumeId, which CvMatchSetup never passes). Depends on the profile
+  // → runs after the parallel fetch; absent profile or a failed resolve → empty
+  // list and the wizard keeps its graceful id-fallback. Empty preferredSkills
+  // short-circuits with no backend round-trip.
+  const skillGroupsResult =
+    profile !== null ? await resolveSkillLabels(profile.preferredSkills) : null;
+  const initialSkillGroups =
+    skillGroupsResult?.kind === "ok" ? skillGroupsResult.data : [];
 
   switch (result.kind) {
     case "ok":
@@ -160,6 +174,7 @@ export default async function CvListPage({
               persistedMunicipalities={profile.preferredMunicipalities}
               persistedEmploymentTypes={profile.preferredEmploymentTypes}
               persistedSkills={profile.preferredSkills}
+              persistedSkillGroups={initialSkillGroups}
               persistedOccupationExperience={profile.preferredOccupationExperience}
               importCvHref={IMPORT_CV_HREF}
               hasPreferences={profile.hasStatedDesiredOccupation}

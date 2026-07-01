@@ -9,6 +9,13 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Abstractions;
 // declared content-type that names the OTHER supported format is a mismatch → reject;
 // an empty/octet-stream content-type is tolerated (the magic bytes decide).
 //
+// These are RESOLVER-UNIT specs: the empty-tolerance below is a property of the resolver
+// in isolation, NOT the CV-import end-to-end contract. The import path requires a
+// content-type upstream of this resolver (ImportResumeCommandValidator NotEmpty +
+// ParsedResume.SourceContentTypeRequired), so an empty content-type never reaches the
+// tolerated branch through import (see ImportResumeCommandValidatorTests +
+// ParsedResumeTests.Create_EmptyContentType_ReturnsFailure; audit #268/#428).
+//
 // SPEC-DRIVEN.
 public class CvFileSignatureTests
 {

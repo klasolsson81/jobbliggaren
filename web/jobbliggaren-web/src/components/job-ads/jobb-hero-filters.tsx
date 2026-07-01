@@ -27,7 +27,6 @@ import {
   JobbFilterPopover,
   type PopoverGroup,
 } from "./jobb-filter-popover";
-import { InfoDialog } from "@/components/common/info-dialog";
 import { JobbToolbarPopover } from "./jobb-toolbar-popover";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
@@ -516,47 +515,32 @@ export function JobbHeroFilters({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
-      {/* [Matchning ▾] + "?" — flyttade hit från resultat-toolbaren (2026-06-30,
-          Klas: en form, en plats). Samma .jp-hero-pill som Ort/Yrke/Filter.
-          Renderas på hasStatedDesiredOccupation (så switchen i popovern kan slå PÅ
-          matchningen igen även när den är av). data-active = matchActive; prick när
-          PÅ; count-badge = antal smalnade grad-val (0 = alla visas, ingen badge).
-          Pillen + "?" hålls ihop i en inline-flex-grupp så "?" alltid wrappar
-          TILLSAMMANS med pillen (entydig referent — pill-raden bryts i den smala
-          hero-panelen, och en lös "?" hamnade annars på egen rad bredvid en annan
-          kontroll). */}
+      {/* [Matchning ▾]-pillen (2026-06-30, Klas: en form, en plats). Samma
+          .jp-hero-pill som Ort/Yrke/Filter. Renderas på hasStatedDesiredOccupation
+          (så switchen i popovern kan slå PÅ matchningen igen även när den är av).
+          data-active = matchActive; prick när PÅ; count-badge = antal smalnade grad-val
+          (0 = alla visas, ingen badge). #419 pt7 (Klas) — den tidigare EXTERNA "?" bredvid
+          pillen är borttagen; hjälpen bor nu per kontroll INNE i Matchning-popovern
+          (JobbMatchGradeFilter), där varje kontroll-rad har sin egen kontextuella "?". */}
       {hasStatedDesiredOccupation && (
-        <span className="inline-flex items-center gap-2">
-          <button
-            ref={matchBtnRef}
-            type="button"
-            className="jp-hero-pill"
-            data-active={openPop === "match" || matchActive}
-            aria-haspopup="dialog"
-            aria-expanded={openPop === "match"}
-            onClick={() => setOpenPop(openPop === "match" ? null : "match")}
-          >
-            {matchActive && (
-              <span className="jp-hero-pill__dot" aria-hidden="true" />
-            )}
-            {tGrade("toggleLabel")}
-            {matchActiveCount > 0 && (
-              <span className="jp-hero-pill__count">{matchActiveCount}</span>
-            )}
-            <ChevronDown size={14} aria-hidden="true" />
-          </button>
-          {/* "?" — ikon-only InfoDialog. Verbatim gradeFilter.help +
-              relatedToggleHelp (ingen omformulering). */}
-          <InfoDialog
-            iconOnly
-            title={tGrade("helpTitle")}
-            paragraphs={[
-              tGrade("help"),
-              tGrade("relatedToggleHelp"),
-              tGrade("onlyMatchedHelp"),
-            ]}
-          />
-        </span>
+        <button
+          ref={matchBtnRef}
+          type="button"
+          className="jp-hero-pill"
+          data-active={openPop === "match" || matchActive}
+          aria-haspopup="dialog"
+          aria-expanded={openPop === "match"}
+          onClick={() => setOpenPop(openPop === "match" ? null : "match")}
+        >
+          {matchActive && (
+            <span className="jp-hero-pill__dot" aria-hidden="true" />
+          )}
+          {tGrade("toggleLabel")}
+          {matchActiveCount > 0 && (
+            <span className="jp-hero-pill__count">{matchActiveCount}</span>
+          )}
+          <ChevronDown size={14} aria-hidden="true" />
+        </button>
       )}
 
       {/* [Dölj ansökta] — en enda toggle-pill (#383 → förenklat, Klas: droppat

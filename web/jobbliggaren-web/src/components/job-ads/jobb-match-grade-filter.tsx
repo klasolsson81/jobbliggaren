@@ -9,6 +9,7 @@ import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
+import { InfoDialog } from "@/components/common/info-dialog";
 
 /**
  * STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filtret på /jobb.
@@ -28,17 +29,22 @@ import { LIST_MATCH_GRADES, type ListMatchGrade } from "@/lib/dto/job-ad-match";
  *
  * #408 — kontrollen är nu PRESENTATIONS-kroppen i `[Matchning ▾]`-popovern
  * (`JobbToolbarPopover` → `.jp-popover.jp-panel`). Den läses som en ren kolumn:
- * switch-raden överst, sedan (när PÅ) "Visa relaterade också"-raden och
- * grad-kryssrutorna staplade i panel-rytm. Hjälptexten lever inte längre inline
- * — den bor i popoverns "?"-InfoDialog (verbatim `gradeFilter.help` +
- * `relatedToggleHelp`). #408 DECISION 1 tog bort det gamla `aria-pressed`-snabbvalet
+ * switch-raden överst, sedan (när PÅ) "Visa relaterade yrken"-raden, "Visa bara
+ * matchade" och grad-kryssrutorna staplade i panel-rytm. #419 pt7 (Klas) — varje
+ * icke-självklar kontroll-rad (Matchning, Visa relaterade yrken, Visa bara matchade)
+ * bär en kontextuell `InfoDialog iconOnly`-"?" (högerjusterad); den tidigare EXTERNA
+ * "?" bredvid Matchning-pillen är borttagen (hjälpen är nu per kontroll INNE i popovern,
+ * verbatim `gradeFilter.help`/`relatedToggleHelp`/`onlyMatchedHelp`). "?"-triggern är en
+ * Radix-modal-Dialog öppnad inifrån popovern — `useDismissable` ignorerar dialog-ytan
+ * (`data-slot="dialog-content"/"dialog-overlay"`) så popovern inte stängs under modalen.
+ * #408 DECISION 1 tog bort det gamla `aria-pressed`-snabbvalet
  * "Visa bara matchade" ur grad-filtret (en aria-pressed-knapp förbjöds där). #419 pt1
  * (CTO Approach A) återinför "Visa bara matchade" men som en `role="checkbox"`-rad (den
  * tillåtna formen, INTE aria-pressed): PÅ → listan visar bara annonser med positiv grad
  * (rank > 0, otaggade döljs); backend injicerar hela det filtrerbara Fast-bandet i
  * handlern. #292-master-gaten och #300 PR-5-related-divergensen är OFÖRÄNDRADE.
  *
- * #300 PR-5 (ADR 0084, design-reviewer bind) — "Visa relaterade också"-toggle:n:
+ * #300 PR-5 (ADR 0084, design-reviewer bind) — "Visa relaterade yrken"-toggle:n:
  * - En SEPARAT kontroll UNDERORDNAD "Matchning"-switchen (aldrig hopslagen med
  *   den). Renderas INNE i `{isOn && ...}`-blocket, som EGEN rad OVANFÖR
  *   grad-kryssrutorna. Den existerar bara när Matchning är PÅ.
@@ -93,7 +99,7 @@ interface JobbMatchGradeFilterProps {
    */
   selected: ReadonlyArray<string>;
   /**
-   * #300 PR-5 — "Visa relaterade också"-toggle:ns på/av (SSOT i föräldern:
+   * #300 PR-5 — "Visa relaterade yrken"-toggle:ns på/av (SSOT i föräldern:
    * `?relaterade=on`). PÅ → `Related`-kryssrutan renderas + related-graderade
    * annonser tas med i listan. Bara meningsfull när `active` (toggle:n renderas
    * inne i PÅ-blocket).
@@ -106,7 +112,7 @@ interface JobbMatchGradeFilterProps {
   /** issue #292 — switch AV → PÅ (föräldern tar bort off + lämnar grader tomma). */
   onTurnOn: () => void;
   /**
-   * #300 PR-5 — "Visa relaterade också"-toggle:n växlas. `next` = nästa läge.
+   * #300 PR-5 — "Visa relaterade yrken"-toggle:n växlas. `next` = nästa läge.
    * Föräldern skriver/tar bort `?relaterade=on` och — vid AV — droppar `Related`
    * ur den valda grad-listan (kontroll dold ⇒ inget kvarvarande filter).
    */
@@ -150,7 +156,7 @@ export function JobbMatchGradeFilter({
   // Den synliga "Matchning"-labeln ÄR det programmatiska namnet (a11y §2/§6):
   // switch-knappen pekar på syskon-spanen via aria-labelledby i stället för att
   // duplicera namnet i ett aria-label + dölja labeln för SR. Samma mönster för
-  // "Visa relaterade också"-toggle:n (#300 PR-5).
+  // "Visa relaterade yrken"-toggle:n (#300 PR-5).
   const labelId = useId();
   const relatedLabelId = useId();
 
@@ -159,7 +165,7 @@ export function JobbMatchGradeFilter({
   const isOn = active;
 
   // #300 PR-5 STATE-MODEL FLOW-TRAP — det AKTUELLT SYNLIGA grad-setet: `Related`
-  // ingår iff "Visa relaterade också"-toggle:n är på. ALL härledning nedan
+  // ingår iff "Visa relaterade yrken"-toggle:n är på. ALL härledning nedan
   // (allShown-normalisering, "alla ikryssade") räknas mot DETTA set, aldrig mot
   // en fast `GRADES.length` (annars blir "alla checkade" inkonsekvent när
   // toggle:n flippas). LIST_MATCH_GRADES förblir SPOT för ordinaliteten.
@@ -224,17 +230,31 @@ export function JobbMatchGradeFilter({
         <span id={labelId} className="jp-gradefilter__label">
           {t("toggleLabel")}
         </span>
+        {/* #419 pt7 (Klas) — kontextuell "?" per kontroll, högerjusterad (ml-auto).
+            Förklarar vad matchningsfiltret gör. Kontext-specifikt aria-namn så de tre
+            "?"-triggrarna i popovern inte kollapsar till samma generiska namn. Den
+            tidigare externa "?" bredvid Matchning-pillen är borttagen (hjälpen bor nu
+            per kontroll INNE i popovern). */}
+        <span className="ml-auto flex items-center">
+          <InfoDialog
+            iconOnly
+            title={t("helpTitle")}
+            paragraphs={[t("help")]}
+            ariaLabel={t("matchningHelpAria")}
+          />
+        </span>
       </div>
 
       {isOn && (
-        // PÅ-blocket: "Visa relaterade också"-toggle:n (#300 PR-5) OVANFÖR
-        // grad-kryssrutorna, sedan kryssrute-gruppen i panel-rytm.
+        // PÅ-blocket (uppifrån och ned): "Visa relaterade yrken"-toggle:n (#300 PR-5),
+        // "Visa bara matchade"-kryssrutan (#419 pt1), sedan grad-kryssrute-gruppen i
+        // panel-rytm. Varje rad bär sin egen kontextuella "?" (#419 pt7).
         <div className="flex flex-col gap-3">
-          {/* "Visa relaterade också" — subordinerad toggle, EGEN rad ovanför
+          {/* "Visa relaterade yrken" — subordinerad toggle, EGEN rad ovanför
               kryssrutorna. Återanvänder .jp-gradefilter__switch-tokenet +
               aria-labelledby-mönstret (a11y §2/§6 — synlig label = namnet).
-              #408 — hjälptexten bor nu i popoverns "?"-InfoDialog (verbatim
-              relatedToggleHelp), inte längre som inline-rad här. */}
+              #419 pt7 — kontextuell "?" (relatedToggleHelp) på raden; Klas: labeln
+              namnger nu "yrken" (var "relaterade också") + en "?" bredvid. */}
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -250,33 +270,54 @@ export function JobbMatchGradeFilter({
             <span id={relatedLabelId} className="jp-gradefilter__label">
               {t("relatedToggleLabel")}
             </span>
+            {/* #419 pt7 — "?" som förklarar vad "Visa relaterade yrken" gör (Klas: labeln
+                var tvetydig, nu namnger den yrken + en "?" bredvid). */}
+            <span className="ml-auto flex items-center">
+              <InfoDialog
+                iconOnly
+                title={t("helpTitle")}
+                paragraphs={[t("relatedToggleHelp")]}
+                ariaLabel={t("relatedToggleHelpAria")}
+              />
+            </span>
           </div>
 
           {/* "Visa bara matchade" (#419 pt1, CTO Approach A) — EGEN rad MELLAN "Visa
-              relaterade också" och grad-kryssrutorna. role="checkbox" precis som
+              relaterade yrken" och grad-kryssrutorna. role="checkbox" precis som
               grad-raderna (INTE en aria-pressed knapp — #408 DECISION 1 förbjöd ett
               aria-pressed snabbval i grad-filtret; en kryssruta är den tillåtna formen).
               Derive-checkad när en grad-delmängd är vald (en delmängd implicerar
               bara-matchade). Att kryssa UR den nollar onlyMatched OCH ev. grad-delmängd
               (föräldern) = visa allt igen, även otaggade. Återbrukar .jp-checkitem (ingen
               ny globals.css; samma kontroll-rad som grad-/status-popovern). */}
-          <div
-            className="jp-checkitem"
-            role="checkbox"
-            aria-checked={onlyMatchedChecked}
-            tabIndex={0}
-            onClick={() => onOnlyMatchedToggle(!onlyMatchedChecked)}
-            onKeyDown={(e) => {
-              if (e.key === " " || e.key === "Enter") {
-                e.preventDefault();
-                onOnlyMatchedToggle(!onlyMatchedChecked);
-              }
-            }}
-          >
-            <span className="jp-checkitem__box">
-              {onlyMatchedChecked && <Check size={14} aria-hidden="true" />}
-            </span>
-            {t("onlyMatchedLabel")}
+          {/* Rad: kryssrutan (grow = full-bredd) + "?" (#419 pt7). "?" ligger UTANFÖR
+              .jp-checkitem (syskon, ej barn) så ett klick på "?" öppnar dialogen utan att
+              toggla kryssrutan (kryssrutans onClick sitter på hela .jp-checkitem-diven). */}
+          <div className="flex items-center gap-3">
+            <div
+              className="jp-checkitem grow"
+              role="checkbox"
+              aria-checked={onlyMatchedChecked}
+              tabIndex={0}
+              onClick={() => onOnlyMatchedToggle(!onlyMatchedChecked)}
+              onKeyDown={(e) => {
+                if (e.key === " " || e.key === "Enter") {
+                  e.preventDefault();
+                  onOnlyMatchedToggle(!onlyMatchedChecked);
+                }
+              }}
+            >
+              <span className="jp-checkitem__box">
+                {onlyMatchedChecked && <Check size={14} aria-hidden="true" />}
+              </span>
+              {t("onlyMatchedLabel")}
+            </div>
+            <InfoDialog
+              iconOnly
+              title={t("helpTitle")}
+              paragraphs={[t("onlyMatchedHelp")]}
+              ariaLabel={t("onlyMatchedHelpAria")}
+            />
           </div>
 
           {/* Grad-kryssrutorna i panel-rytm (vertikal .jp-panel__group +

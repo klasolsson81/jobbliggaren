@@ -237,6 +237,23 @@ public class ImportResumeCommandHandlerTests
         added.Personnummer.Found.ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task Handle_LuhnInvalidNumberInFileName_LeavesFoundInFileNameFalse()
+    {
+        // Pins the safety claim on the new filename surface: Personnummer.TryParse (date+Luhn)
+        // stays the ONLY authority, so a pnr-SHAPED but checksum-invalid number in the filename
+        // ("CV_811218-9875.pdf" - last digit off by one) must NOT be flagged. Guards against a
+        // future loosening of the filename path to a naive regex without the Luhn gate.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nBackend-utvecklare", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        await CreateSut(db).Handle(PdfCommand("CV_811218-9875.pdf"), CancellationToken.None);
+
+        db.ParsedResumes.Local.ShouldHaveSingleItem().Personnummer.FoundInFileName.ShouldBeFalse();
+    }
+
     // ===============================================================
     // SSYK derivation call-site (F4-3): only when a title exists
     // ===============================================================

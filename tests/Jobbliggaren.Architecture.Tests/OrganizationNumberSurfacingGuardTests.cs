@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -51,6 +52,7 @@ public class OrganizationNumberSurfacingGuardTests
     private static readonly HashSet<Type> MaskingOrgNrDtos =
     [
         typeof(CompanyWatchDto), // PR-3: OrganizationNumber masked to null + IsProtectedIdentity flag
+        typeof(EmployerDisambiguationDto), // PR-2b C2: OrganizationNumber masked to null + IsProtectedIdentity flag
     ];
 
     /// <summary>

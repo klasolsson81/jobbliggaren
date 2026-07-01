@@ -340,4 +340,38 @@ public class PersonnummerTextNormalizerTests
         normalized.ShouldNotContain("8112189876");
         PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
     }
+
+    // ===============================================================
+    // #427 (2nd CTO ruling) — import path: R2 (a '-'/'+' separator ADJACENT to a space,
+    // "811218- 9876" / "811218 -9876") is now bridged too. R1 (zero-width between two
+    // spaces) is already handled by the \p{Cf} strip + the {1,2} bridge, asserted here
+    // for path symmetry. V3 (3+ visible columns) is unchanged. Gap points as \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218- 9876")] // R2a: dash then space
+    [InlineData("811218 -9876")] // R2b: space then dash
+    [InlineData("811218 \u200B 9876")] // R1 symmetry: space, U+200B ZERO WIDTH SPACE, space
+    public void Scan_SeparatorAdjacentOrInterleavedGap_FlaggedAfterNormalize(string gapped)
+    {
+        var text = $"Personnummer {gapped} i CV.";
+
+        // Directly the context-free scanner does not bridge the gap → false negative.
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        // After Normalize joins the digits, the SAME unchanged scanner flags it.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_TwoUnrelated_SeparatorAdjacentSpace_NotManufacturedAfterNormalize()
+    {
+        // The widened separator-adjacent-space bridge must NOT manufacture a valid pnr:
+        // "12345678- 0000" joins to 123456780000 whose month "34" fails date sanity.
+        const string text = "Referens 12345678- 0000 i systemet.";
+
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).ShouldBeEmpty();
+    }
 }

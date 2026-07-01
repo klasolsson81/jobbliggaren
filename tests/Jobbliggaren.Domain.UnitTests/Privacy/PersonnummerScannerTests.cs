@@ -274,4 +274,44 @@ public class PersonnummerScannerTests
     {
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
     }
+
+    // ===============================================================
+    // #427 (2nd CTO ruling) — two residual gap COMPOSITIONS closed on the redaction path:
+    //   R1: zero-width \p{Cf} INTERLEAVED between two visible spaces (the import path
+    //       already handled it via strip-first; the redaction path missed it because the
+    //       {1,2} space run was broken by the \p{Cf}).
+    //   R2: a '-'/'+' separator ADJACENT to a space ("811218- 9876" / "811218 -9876") —
+    //       a realistic OCR rendering of a legitimate separator, missed by both paths.
+    // Both lie INSIDE the already-bridged window (≤2 visible columns); the V3 accepted
+    // residual (3+ visible columns) is UNCHANGED. Still gated by the unchanged date+Luhn.
+    // Gap code points written as \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218 \u200B 9876")] // R1: space, U+200B ZERO WIDTH SPACE, space
+    [InlineData("811218- 9876")] // R2a: dash then space
+    [InlineData("811218 -9876")] // R2b: space then dash
+    public void ScanWithGaps_SeparatorOrInterleavedZeroWidthGap_IsFlagged(string gapped)
+    {
+        var text = $"Personnummer {gapped} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        // The span covers the whole gap in the original text, so the redactor masks in place.
+        text.Substring(match.StartOffset, match.Length).ShouldBe(gapped);
+        match.Masked.Length.ShouldBe(gapped.Length);
+        match.Masked.ShouldNotContain("811218");
+        match.Masked.ShouldNotContain("9876");
+    }
+
+    [Fact]
+    public void ScanWithGaps_TwoUnrelatedNumbers_SeparatorAdjacentSpace_NotManufactured()
+    {
+        // The widened separator-adjacent-space shape must NOT over-flag: "12345678- 0000"
+        // joins to 123456780000, whose month "34" fails date sanity → the unchanged gate rejects it.
+        const string text = "Referens 12345678- 0000 i systemet.";
+
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
 }

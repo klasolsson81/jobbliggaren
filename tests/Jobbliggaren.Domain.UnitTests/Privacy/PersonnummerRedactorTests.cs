@@ -361,4 +361,27 @@ public class PersonnummerRedactorTests
         redacted.ShouldStartWith("****** ****");
         redacted.ShouldEndWith(" är ett testnummer.");
     }
+
+    // ===============================================================
+    // #427 (2nd CTO ruling) — R1 (zero-width \p{Cf} interleaved between two visible
+    // spaces) and R2 (a '-'/'+' separator adjacent to a space) are now masked by the
+    // redactor too. Both lie INSIDE the already-bridged window (≤2 visible columns); the
+    // V3 accepted residual (3+ visible columns) is unchanged. Gap points as \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218 \u200B 9876")] // R1: space, U+200B ZERO WIDTH SPACE, space
+    [InlineData("811218- 9876")] // R2a: dash then space
+    [InlineData("811218 -9876")] // R2b: space then dash
+    public void Redact_SeparatorOrInterleavedZeroWidthGap_MasksTheRawDigits(string gapped)
+    {
+        var text = $"Personnummer {gapped} i CV.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotContain("811218");
+        redacted.ShouldNotContain("9876");
+        redacted.ShouldContain("*");
+        redacted.Length.ShouldBe(text.Length); // length-preserving in-place masking
+    }
 }

@@ -54,23 +54,29 @@ public static partial class PersonnummerScanner
         return matches is null ? [] : matches;
     }
 
-    // Gap-aware candidate for the REDACTION path (#427 V1/V2). The same personnummer
-    // shape as CandidateRegex, but tolerant of a bridging gap between the leading
-    // 8-or-6 digit run and the trailing 4 digits:
-    //   * Unicode space separators or a tab ([\p{Zs}\t], bounded {1,2} EXACTLY like
-    //     PersonnummerTextNormalizer — so a 3+ visible-column gap is deliberately NOT
-    //     bridged; a wider window would raise the chance of bridging two unrelated
-    //     numbers, and the {1,2} bound is a reviewed, accepted residual, #427 V3), and/or
-    //   * zero-width format characters (\p{Cf}: U+200B ZERO WIDTH SPACE, U+FEFF, ...)
-    //     which PDF/DOCX extraction emits and which are invisible non-content, so they
-    //     are unbounded (\p{Cf}*) — #427 V2.
-    // Unlike the import guard's Normalize→Scan path (which joins digits on a transient
-    // copy and discards offsets), the redactor must mask IN PLACE, so this match must
-    // span the ORIGINAL text INCLUDING the gap. The gap-class rule (\p{Zs}, \t, \p{Cf})
-    // is shared with PersonnummerTextNormalizer; the UNCHANGED Personnummer.TryParse
-    // date+Luhn gate stays the ONLY authority, so a wider candidate SHAPE can never
-    // manufacture a valid false positive out of two unrelated numbers.
-    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})\p{Cf}*(?:[-+]|[\p{Zs}\t]{1,2})?\p{Cf}*(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
+    // Gap-aware candidate for the REDACTION path (#427). The same personnummer shape as
+    // CandidateRegex, but tolerant of a bridging gap between the leading 8-or-6 digit run
+    // and the trailing 4 digits. The gap is composed of:
+    //   * up to TWO visible Unicode space separators or tabs ((?:[\p{Zs}\t]\p{Cf}*){0,2},
+    //     bounded {0,2} EXACTLY like PersonnummerTextNormalizer's {1,2} — a 3+ visible-column
+    //     gap is deliberately NOT bridged; a wider window would raise the chance of bridging
+    //     two unrelated numbers, the reviewed accepted residual #427 V3), and/or
+    //   * at most ONE '-'/'+' separator, permitted ADJACENT to the space run on either side
+    //     ((?:[-+]\p{Cf}*)? before AND after) — a realistic OCR rendering of a legitimate
+    //     separator, e.g. "811218- 9876" / "811218 -9876" (#427 2nd CTO ruling, R2), and/or
+    //   * any number of invisible zero-width format characters (\p{Cf}: U+200B, U+FEFF, ...)
+    //     that PDF/DOCX extraction emits, freely INTERLEAVED anywhere in the gap (\p{Cf}* at
+    //     each position) — so "811218<sp><ZWSP><sp>9876" bridges even though the \p{Cf} breaks
+    //     the visible-space run (#427 2nd CTO ruling, R1). Being invisible non-content they
+    //     are unbounded; they do not count toward the {0,2} visible-column bound.
+    // Unlike the import guard's Normalize→Scan path (which joins digits on a transient copy
+    // and discards offsets), the redactor must mask IN PLACE, so this match must span the
+    // ORIGINAL text INCLUDING the gap. All classes (\d, \p{Zs}\t, \p{Cf}, [-+]) are pairwise
+    // DISJOINT with bounded quantifiers, so the pattern is ReDoS-linear. The gap-class rule
+    // (\p{Zs}, \t, \p{Cf}, one [-+]) is shared with PersonnummerTextNormalizer; the UNCHANGED
+    // Personnummer.TryParse date+Luhn gate stays the ONLY authority, so a wider candidate
+    // SHAPE can never manufacture a valid false positive out of two unrelated numbers.
+    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})\p{Cf}*(?:[-+]\p{Cf}*)?(?:[\p{Zs}\t]\p{Cf}*){0,2}(?:[-+]\p{Cf}*)?(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex GapAwareCandidateRegex();
 
     /// <summary>

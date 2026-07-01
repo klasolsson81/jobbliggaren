@@ -246,4 +246,132 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(ValidPnr12Contiguous).ShouldHaveSingleItem();
         PersonnummerScanner.Scan(ValidPnr10Contiguous).ShouldHaveSingleItem();
     }
+
+    // ===============================================================
+    // #427 V2 (ADR 0074 Invariant 1): zero-width FORMAT characters (\p{Cf}) — e.g.
+    // U+200B ZERO WIDTH SPACE, U+FEFF ZERO WIDTH NO-BREAK SPACE, U+200C/D, U+2060 —
+    // that PDF/DOCX extraction emits are NOT in the \p{Zs} space-separator class, so a
+    // zero-width-gapped personnummer was a false negative (the import guard would store
+    // the CV flagged "no personnummer found"). Normalize now STRIPS \p{Cf} from the
+    // transient scan-copy first, so the SAME unchanged scanner flags the joined digits.
+    // Separators written as \u escapes so each code point is explicit.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218\u200B9876")] // U+200B ZERO WIDTH SPACE
+    [InlineData("811218\uFEFF9876")] // U+FEFF ZERO WIDTH NO-BREAK SPACE
+    [InlineData("811218\u200C9876")] // U+200C ZERO WIDTH NON-JOINER
+    [InlineData("811218\u200D9876")] // U+200D ZERO WIDTH JOINER
+    [InlineData("811218\u20609876")] // U+2060 WORD JOINER
+    public void Scan_ZeroWidthSeparatedPersonnummer_FalseNegativeDirectly_FlaggedAfterNormalize(
+        string spaced)
+    {
+        var text = $"Personnummer {spaced} i CV.";
+
+        // Directly: the context-free scanner does not bridge the zero-width gap → false negative.
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        // After Normalize strips the zero-width char, the SAME unchanged scanner flags it.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_ZeroWidthSeparated12DigitPersonnummer_FlaggedAfterNormalize()
+    {
+        // The 12-digit full-century form gapped by U+200B (a PDF/DOCX extraction artefact).
+        const string text = "19811218\u200B9876";
+
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_ZeroWidthThenNonBreakingSpaceGap_FlaggedAfterNormalize()
+    {
+        // A zero-width char adjacent to the NBSP digit-group separator: strip the ZW first,
+        // then the {1,2} \p{Zs} bridge joins the digits.
+        const string text = "Pnr 811218\u200B\u00A09876.";
+
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_TwoUnrelatedNumbers_ZeroWidthGap_NotManufacturedIntoMatch()
+    {
+        // Stripping \p{Cf} cannot manufacture a valid personnummer: the joined
+        // "123456780000" fails date-sanity ("34" is no month), so the untouched date+Luhn
+        // gate rejects it — the widening is candidate SHAPING only.
+        const string text = "Referens 12345678\u200B0000 i systemet.";
+
+        var normalized = PersonnummerTextNormalizer.Normalize(text);
+
+        normalized.ShouldContain("123456780000");
+        PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Normalize_ZeroWidthGapped_IsIdempotent()
+    {
+        const string text = "Personnummer 811218\u200B9876 i CV.";
+
+        var once = PersonnummerTextNormalizer.Normalize(text);
+        var twice = PersonnummerTextNormalizer.Normalize(once);
+
+        twice.ShouldBe(once);
+    }
+
+    // #427 V3 (accepted residual): a 3+ VISIBLE-column gap is deliberately NOT bridged
+    // (a wider window would risk bridging two unrelated numbers). The zero-width strip
+    // does not change this — the {1,2} bound governs the visible \p{Zs}\t separators only.
+    [Fact]
+    public void Normalize_ThreeVisibleColumnGap_NotBridged()
+    {
+        const string text = "Pnr 811218   9876 slut.";
+
+        var normalized = PersonnummerTextNormalizer.Normalize(text);
+
+        normalized.ShouldNotContain("8112189876");
+        PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
+    }
+
+    // ===============================================================
+    // #427 (2nd CTO ruling) — import path: R2 (a '-'/'+' separator ADJACENT to a space,
+    // "811218- 9876" / "811218 -9876") is now bridged too. R1 (zero-width between two
+    // spaces) is already handled by the \p{Cf} strip + the {1,2} bridge, asserted here
+    // for path symmetry. V3 (3+ visible columns) is unchanged. Gap points as \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218- 9876")] // R2a: dash then space
+    [InlineData("811218 -9876")] // R2b: space then dash
+    [InlineData("811218 \u200B 9876")] // R1 symmetry: space, U+200B ZERO WIDTH SPACE, space
+    public void Scan_SeparatorAdjacentOrInterleavedGap_FlaggedAfterNormalize(string gapped)
+    {
+        var text = $"Personnummer {gapped} i CV.";
+
+        // Directly the context-free scanner does not bridge the gap → false negative.
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        // After Normalize joins the digits, the SAME unchanged scanner flags it.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Theory]
+    [InlineData("Referens 12345678- 0000 i systemet.")] // R2a: dash then space
+    [InlineData("Referens 12345678 -0000 i systemet.")] // R2b: space then dash
+    public void Scan_TwoUnrelated_SeparatorAdjacentSpace_NotManufacturedAfterNormalize(string text)
+    {
+        // The widened separator-adjacent-space bridge must NOT manufacture a valid pnr:
+        // "12345678- 0000" joins to 123456780000 whose month "34" fails date sanity.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).ShouldBeEmpty();
+    }
 }

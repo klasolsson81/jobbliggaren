@@ -123,7 +123,7 @@ public sealed record Personnummer
         if (!PassesLuhn(significant))
             return false;
 
-        result = new Personnummer(new string(significant), kind, BuildMask(candidate));
+        result = new Personnummer(new string(significant), kind, MaskSpan(candidate));
         return true;
     }
 
@@ -158,13 +158,38 @@ public sealed record Personnummer
         return sum % 10 == 0;
     }
 
-    // Redacts every digit to '*', preserving any separator and the overall length
-    // so the shape stays recognisable without exposing a single real digit.
-    private static string BuildMask(ReadOnlySpan<char> candidate)
+    /// <summary>
+    /// Masks a personnummer-shaped text span: every ASCII digit → '*', every other
+    /// character (a '-'/'+' separator or a bridging whitespace / zero-width gap) is
+    /// kept and the overall length preserved, so a masked span maps 1:1 back onto the
+    /// original text it was found in — no offset translation. Exposes NONE of the real
+    /// digits (ADR 0074 Invariant 1; CLAUDE.md §5). Shared by the gap-aware scan
+    /// (<see cref="PersonnummerScanner.ScanWithGaps"/>) whose matched span may carry a
+    /// gap; the ordinary contiguous token is unaffected (identical output as before).
+    /// </summary>
+    internal static string MaskSpan(ReadOnlySpan<char> span)
     {
-        Span<char> buffer = stackalloc char[candidate.Length];
-        for (var i = 0; i < candidate.Length; i++)
-            buffer[i] = char.IsAsciiDigit(candidate[i]) ? '*' : candidate[i];
+        if (span.IsEmpty)
+            return string.Empty;
+
+        // The ordinary personnummer token is short and masks on the stack. A matched
+        // span may in principle be inflated by many bridging zero-width characters
+        // (\p{Cf}); fall back to the heap past a small threshold so masking a
+        // user-controlled span can never overflow the stack.
+        const int stackThreshold = 32;
+        if (span.Length <= stackThreshold)
+        {
+            Span<char> buffer = stackalloc char[stackThreshold];
+            return MaskInto(span, buffer[..span.Length]);
+        }
+
+        return MaskInto(span, new char[span.Length]);
+    }
+
+    private static string MaskInto(ReadOnlySpan<char> span, Span<char> buffer)
+    {
+        for (var i = 0; i < span.Length; i++)
+            buffer[i] = char.IsAsciiDigit(span[i]) ? '*' : span[i];
 
         return new string(buffer);
     }

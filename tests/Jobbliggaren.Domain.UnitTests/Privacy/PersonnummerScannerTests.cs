@@ -140,4 +140,216 @@ public class PersonnummerScannerTests
         match.Masked.ShouldNotContain("8112189876");
         match.Masked.ShouldNotContain(pnr);
     }
+
+    // ===============================================================
+    // #427 V1/V2 — ScanWithGaps: the gap-aware sibling of Scan for the REDACTION path.
+    // Returns match spans into the ORIGINAL text INCLUDING the bridging gap, so a
+    // redactor can mask IN PLACE. Contiguous parity with Scan; gated by the SAME
+    // UNCHANGED Personnummer.TryParse date+Luhn authority (no over-flag). The 3+
+    // visible-column gap stays a deliberately-unbridged accepted residual (V3).
+    // ===============================================================
+
+    [Fact]
+    public void ScanWithGaps_ContiguousPersonnummer_ParityWithScan()
+    {
+        const string prefix = "Personnummer: ";
+        const string pnr = "811218-9876";
+        var text = $"{prefix}{pnr} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        match.StartOffset.ShouldBe(prefix.Length);
+        match.Length.ShouldBe(pnr.Length);
+        match.Masked.ShouldBe("******-****");
+    }
+
+    [Fact]
+    public void ScanWithGaps_SpacedPersonnummer_SpanCoversTheGapInOriginalText()
+    {
+        const string prefix = "Personnummer ";
+        const string gapped = "811218 9876"; // ASCII-space gap (11 chars)
+        var text = $"{prefix}{gapped} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        // The span points into the ORIGINAL text and covers the gap, so masking
+        // [StartOffset, StartOffset+Length) removes the raw digits in place — the
+        // §12-load-bearing correctness (original spans, not an offset translation).
+        match.StartOffset.ShouldBe(prefix.Length);
+        match.Length.ShouldBe(gapped.Length);
+        text.Substring(match.StartOffset, match.Length).ShouldBe(gapped);
+        // Mask keeps the gap char and preserves length; no raw digit group survives.
+        match.Masked.ShouldBe("****** ****");
+        match.Masked.Length.ShouldBe(gapped.Length);
+    }
+
+    [Fact]
+    public void ScanWithGaps_ZeroWidthGapped_MaskedKeepsGapChar_LengthPreserved()
+    {
+        const string gapped = "811218\u200B9876"; // U+200B ZERO WIDTH SPACE gap
+        var text = $"Pnr {gapped}.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        match.Length.ShouldBe(gapped.Length);
+        match.Masked.Length.ShouldBe(gapped.Length);
+        match.Masked.ShouldNotContain("811218");
+        match.Masked.ShouldNotContain("9876");
+    }
+
+    [Fact]
+    public void ScanWithGaps_TwoUnrelatedNumbers_GappedButInvalid_NotFlagged()
+    {
+        // Bridged shape 123456780000 fails date sanity ("34" is no month) — the untouched
+        // date+Luhn gate rejects it, so the wider candidate shape does not over-flag.
+        const string text = "Referens 12345678 0000 i systemet.";
+
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_PersonnummerEmbeddedInLongerDigitRun_NotFlagged_TokenBoundary()
+    {
+        const string text = "Referensnummer 99811218987612 i systemet.";
+
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_ThreeVisibleColumnGap_NotBridged_NotFlagged()
+    {
+        // #427 V3 accepted residual: a 3+ visible-column gap is deliberately not bridged.
+        const string text = "Pnr 811218   9876 i CV.";
+
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_GappedSamordningsnummer_ReturnsSamordningsnummerKind()
+    {
+        // The day+60 branch of TryParse through the gap-aware path: 811278 (day 18+60=78)
+        // is a Luhn-valid samordningsnummer; spaced form must flag with the correct Kind.
+        const string text = "Samordningsnummer 811278 9873 i CV.";
+
+        PersonnummerScanner.ScanWithGaps(text)
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Samordningsnummer);
+    }
+
+    [Fact]
+    public void ScanWithGaps_ManyZeroWidthCharsInGap_MaskSpanUsesHeapPath_LengthPreserved()
+    {
+        // \p{Cf}* is unbounded, so a PDF/DOCX can emit a personnummer with many zero-width
+        // chars in the gap. 27x U+200B → span length 37 (> MaskSpan's 32-char stack
+        // threshold) → the heap-allocation branch runs. Proves the heap path masks the raw
+        // digits and preserves length (every non-digit, incl. the zero-width chars, is kept).
+        const string prefix = "Pnr ";
+        var gap = new string('\u200B', 27);
+        var gapped = $"811218{gap}9876"; // 6 + 27 + 4 = 37 chars
+        var text = $"{prefix}{gapped} slut.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        match.Length.ShouldBe(gapped.Length); // 37 — regex spanned the whole gap
+        match.Masked.Length.ShouldBe(gapped.Length); // heap-masked, length preserved
+        match.Masked.ShouldNotContain("811218");
+        match.Masked.ShouldNotContain("9876");
+        match.Masked.Count(c => c == '\u200B').ShouldBe(27); // the zero-width chars are kept
+        text.Substring(match.StartOffset, match.Length).ShouldBe(gapped);
+    }
+
+    // #427 — over-flag symmetry with Scan: the WIDER gap-aware shape (\d{8}|\d{6} + optional
+    // gap + \d{4}) is still gated by the UNCHANGED date+Luhn authority, so phone numbers and
+    // ISO dates that Scan rejects are rejected by ScanWithGaps too (no over-redaction).
+    [Theory]
+    [InlineData("Ring mig på 070-123 45 67 om du har frågor.")] // phone
+    [InlineData("Mobil: +46 70 123 45 67.")] // intl phone
+    [InlineData("Växel 08-123456 mellan 9 och 17.")] // landline
+    [InlineData("Senast uppdaterad 2026-06-14 av redaktören.")] // ISO date in prose
+    [InlineData("Projektet löpte 2024-01-01 till 2026-06-14.")] // two ISO dates
+    public void ScanWithGaps_FalsePositiveCandidates_ReturnsEmptyList(string text)
+    {
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    // ===============================================================
+    // #427 (2nd CTO ruling) — two residual gap COMPOSITIONS closed on the redaction path:
+    //   R1: zero-width \p{Cf} INTERLEAVED between two visible spaces (the import path
+    //       already handled it via strip-first; the redaction path missed it because the
+    //       {1,2} space run was broken by the \p{Cf}).
+    //   R2: a '-'/'+' separator ADJACENT to a space ("811218- 9876" / "811218 -9876") —
+    //       a realistic OCR rendering of a legitimate separator, missed by both paths.
+    // Both lie INSIDE the already-bridged window (≤2 visible columns); the V3 accepted
+    // residual (3+ visible columns) is UNCHANGED. Still gated by the unchanged date+Luhn.
+    // Gap code points written as \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218 \u200B 9876")] // R1: space, U+200B ZERO WIDTH SPACE, space
+    [InlineData("811218- 9876")] // R2a: dash then space
+    [InlineData("811218 -9876")] // R2b: space then dash
+    public void ScanWithGaps_SeparatorOrInterleavedZeroWidthGap_IsFlagged(string gapped)
+    {
+        var text = $"Personnummer {gapped} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        // The span covers the whole gap in the original text, so the redactor masks in place.
+        text.Substring(match.StartOffset, match.Length).ShouldBe(gapped);
+        match.Masked.Length.ShouldBe(gapped.Length);
+        match.Masked.ShouldNotContain("811218");
+        match.Masked.ShouldNotContain("9876");
+    }
+
+    [Theory]
+    [InlineData("Referens 12345678- 0000 i systemet.")] // R2a: dash then space
+    [InlineData("Referens 12345678 -0000 i systemet.")] // R2b: space then dash
+    public void ScanWithGaps_TwoUnrelatedNumbers_SeparatorAdjacentSpace_NotManufactured(string text)
+    {
+        // The widened separator-adjacent-space shape must NOT over-flag: "12345678- 0000"
+        // joins to 123456780000, whose month "34" fails date sanity → the unchanged gate rejects it.
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_DoubleSeparatorAroundSpace_NotFlagged_AndNeverThrows()
+    {
+        // The widened gap permits an optional '-'/'+' on EACH side of the space run, so
+        // "811218- -9876" strips to the 14-char token "811218--9876". This must NOT overflow
+        // the strip buffer (regression guard for the stackalloc size), and the UNCHANGED
+        // TryParse rejects the second separator, so the redaction path deliberately does NOT
+        // flag it — a documented residual (the import guard still flags the CV at import).
+        const string text = "Pnr 811218- -9876 i CV.";
+
+        var act = () => PersonnummerScanner.ScanWithGaps(text);
+
+        act.ShouldNotThrow().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_DoubleSeparatorNoSpace_NotFlagged_AndNeverThrows()
+    {
+        // "12345678--0000" (two adjacent separators, no space) also strips to a 14-char token;
+        // same buffer regression guard, same TryParse two-separator rejection.
+        const string text = "Referens 12345678--0000 i systemet.";
+
+        var act = () => PersonnummerScanner.ScanWithGaps(text);
+
+        act.ShouldNotThrow().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ScanWithGaps_SeparatorFlankedByTwoSpaces_NotBridged_V3BoundHolds()
+    {
+        // A '-'/'+' flanked by a space on BOTH sides ("811218 - 9876") is a 3-visible-column
+        // gap: the widening did not open it (the {0,2} space bound governs each side), so the
+        // V3 accepted residual still holds and the form is not flagged.
+        const string text = "Pnr 811218 - 9876 i CV.";
+
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
 }

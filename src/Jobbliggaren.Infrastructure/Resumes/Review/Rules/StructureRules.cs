@@ -112,14 +112,33 @@ internal sealed class B4PersonnummerRule : ICriterionRule
         var category = context.Criterion.Category;
         var outcome = context.Resume.Personnummer;
 
-        // Auto-fail when a personnummer is present — cite only the count/structure, NEVER the
-        // raw value or offsets (ADR 0074 Invariant 1; the outcome is PII-safe by construction).
-        return outcome.Found
-            ? CvCriterionVerdict.Assessed("B4", category, CriterionVerdict.Fail,
+        // Auto-fail when a personnummer is present IN THE CV BODY — cite only the count/
+        // structure, NEVER the raw value or offsets (ADR 0074 Invariant 1; the outcome is
+        // PII-safe by construction). #426: if the FILENAME also carries one, append the rename
+        // prompt to the same observation (the body fail dominates; the filename note rides
+        // along). Copy is em-dash-free per the design-copy skill (rendered Swedish text).
+        if (outcome.Found)
+        {
+            var note = outcome.FoundInFileName
+                ? $"Personnummer hittat ({outcome.Count} förekomst(er)) i CV-texten. Ta bort före användning (IMY-rekommendation). Filnamnet innehåller också ett personnummer. Byt filnamn."
+                : $"Personnummer hittat ({outcome.Count} förekomst(er)). Ta bort före användning (IMY-rekommendation).";
+            return CvCriterionVerdict.Assessed("B4", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Structural(note)));
+        }
+
+        // #426 (defense-in-depth): the body is clean but the FILENAME carries a personnummer.
+        // A Warn, not a Fail — a filename personnummer never reaches the canonical Resume, so it
+        // must not block promotion (ParsedResume.EnsureReadyForPromotion reads the body signal
+        // only); it prompts the user to rename the file.
+        if (outcome.FoundInFileName)
+        {
+            return CvCriterionVerdict.Assessed("B4", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Structural(
-                    $"Personnummer hittat ({outcome.Count} förekomst(er)) — ta bort före användning (IMY-rekommendation).")))
-            : CvCriterionVerdict.Assessed("B4", category, CriterionVerdict.Pass,
-                ReviewText.Cite(ReviewText.Structural("Inget personnummer hittat i CV-texten.")));
+                    "Personnummer i filnamnet. Byt filnamn före användning (IMY-rekommendation). Inget personnummer i själva CV-texten.")));
+        }
+
+        return CvCriterionVerdict.Assessed("B4", category, CriterionVerdict.Pass,
+            ReviewText.Cite(ReviewText.Structural("Inget personnummer hittat i CV-texten.")));
     }
 }
 

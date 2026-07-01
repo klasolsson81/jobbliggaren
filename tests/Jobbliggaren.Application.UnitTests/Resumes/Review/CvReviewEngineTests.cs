@@ -304,6 +304,37 @@ public class CvReviewEngineTests
             "B4 citerar antalet/utfallet strukturellt, aldrig råvärdet eller offsets (Inv.1).");
     }
 
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnB4_WhenPersonnummerOnlyInFileName()
+    {
+        // #426: a personnummer in the FILENAME (body clean) is a Warn, not a Fail — it does not
+        // block promotion; B4 prescribes a rename. The outcome carries FoundInFileName only.
+        var fileNameOnly = PersonnummerScanOutcome.FromMatches([], foundInFileName: true);
+
+        var result = await ReviewAsync(Resume(personnummer: fileNameOnly));
+
+        var b4 = Verdict(result, "B4");
+        b4.Verdict.ShouldBe(CriterionVerdict.Warn);
+        var evidence = b4.Evidence.OfType<StructuralEvidence>().ShouldHaveSingleItem();
+        evidence.Observation.ShouldContain("filnamn"); // prescribes the rename remedy
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailB4_WithFileNameNote_WhenPersonnummerInBothBodyAndFileName()
+    {
+        // Body pnr dominates (Fail), but the observation also flags the filename so the user
+        // fixes both. Count reflects the BODY only (the filename is a flag, not a count).
+        var both = PersonnummerScanOutcome.FromMatches(
+            PersonnummerScanner.Scan("Personnummer 811218-9876 i CV."), foundInFileName: true);
+
+        var result = await ReviewAsync(Resume(personnummer: both));
+
+        var b4 = Verdict(result, "B4");
+        b4.Verdict.ShouldBe(CriterionVerdict.Fail);
+        var evidence = b4.Evidence.OfType<StructuralEvidence>().ShouldHaveSingleItem();
+        evidence.Observation.ShouldContain("filnamn"); // rename note rides along with the body fail
+    }
+
     // ===============================================================
     // 8. B8 Filnamn — SourceFileName regex; structural
     // ===============================================================

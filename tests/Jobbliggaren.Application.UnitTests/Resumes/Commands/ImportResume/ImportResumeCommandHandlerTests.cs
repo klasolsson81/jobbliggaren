@@ -59,8 +59,8 @@ public class ImportResumeCommandHandlerTests
         new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver,
             _experienceDeriver, _skillResolver);
 
-    private static ImportResumeCommand PdfCommand() =>
-        new("cv.pdf", "application/pdf", PdfBytes);
+    private static ImportResumeCommand PdfCommand(string fileName = "cv.pdf") =>
+        new(fileName, "application/pdf", PdfBytes);
 
     private async Task<JobSeeker> SeedJobSeekerAsync(Infrastructure.Persistence.AppDbContext db)
     {
@@ -177,6 +177,64 @@ public class ImportResumeCommandHandlerTests
 
         var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
         added.Personnummer.Found.ShouldBeTrue();
+    }
+
+    // ===============================================================
+    // Filename personnummer guard (#426, defense-in-depth) — the guard also runs over
+    // command.FileName; a filename hit sets FoundInFileName WITHOUT setting the body
+    // Found (so it does not block promotion; B4 surfaces it as a Warn).
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_PersonnummerInFileName_BodyClean_FlagsFoundInFileName_ButNotFound()
+    {
+        // The CV body is clean but the FILENAME carries a Luhn-valid personnummer
+        // ("CV_811218-9876.pdf"). The import guard must flag FoundInFileName (so B4 warns and
+        // the user is prompted to rename) WITHOUT setting Found — a filename hit never reaches
+        // the canonical Resume, so it must not block promotion.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nBackend-utvecklare", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        var result = await CreateSut(db).Handle(
+            PdfCommand("CV_811218-9876.pdf"), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
+        added.Personnummer.FoundInFileName.ShouldBeTrue();
+        added.Personnummer.Found.ShouldBeFalse(); // body clean → promotion not blocked
+        added.Personnummer.Count.ShouldBe(0); // filename is a flag, never folded into the count
+    }
+
+    [Fact]
+    public async Task Handle_SpacedPersonnummerInFileName_IsBridgedAndFlagged()
+    {
+        // Same Normalize→Scan path as the body (#427 reuse): an OCR/spaced-gapped rename like
+        // "CV 811218 9876.pdf" is bridged too, so the filename flag is set.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        await CreateSut(db).Handle(PdfCommand("CV 811218 9876.pdf"), CancellationToken.None);
+
+        db.ParsedResumes.Local.ShouldHaveSingleItem().Personnummer.FoundInFileName.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_CleanFileName_AndCleanBody_LeavesFoundInFileNameFalse()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nBackend-utvecklare", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        await CreateSut(db).Handle(PdfCommand("CV_Anna_Andersson.pdf"), CancellationToken.None);
+
+        var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
+        added.Personnummer.FoundInFileName.ShouldBeFalse();
+        added.Personnummer.Found.ShouldBeFalse();
     }
 
     // ===============================================================

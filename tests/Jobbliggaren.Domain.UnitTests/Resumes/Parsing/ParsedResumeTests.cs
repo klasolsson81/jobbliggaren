@@ -359,6 +359,26 @@ public class ParsedResumeTests
     }
 
     [Fact]
+    public void EnsureReadyForPromotion_WhenPersonnummerOnlyInFileName_ReturnsSuccess()
+    {
+        // #426: a personnummer in the FILENAME sets FoundInFileName but NOT Found — the
+        // promotion gate reads the body signal (Found) only, because the filename never
+        // reaches the canonical Resume (built from user-approved content). Promotion is
+        // therefore NOT blocked; the filename hit is surfaced as a B4 Warn prompting a
+        // rename, not a hard block.
+        var fileNameOnly = PersonnummerScanOutcome.FromMatches([], foundInFileName: true);
+        var parsed = ParsedResume.Create(
+            Owner, "CV_811218-9876.pdf", "application/pdf", ResumeLanguage.Sv,
+            ConfidentContent(), "raw", ConfidentConfidence(),
+            fileNameOnly, [], Clock).Value;
+
+        parsed.Personnummer.FoundInFileName.ShouldBeTrue();
+        parsed.Personnummer.Found.ShouldBeFalse();
+        parsed.EnsureReadyForPromotion().IsSuccess.ShouldBeTrue();
+        parsed.Promote(Clock).IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
     public void EnsureReadyForPromotion_WhenNotPendingReview_ReturnsFailure()
     {
         var parsed = CreateConfident().Value;

@@ -63,7 +63,21 @@ public sealed class ImportResumeCommandHandler(
         //    the persisted raw text is the original, un-normalized extraction.
         var scanCopy = PersonnummerTextNormalizer.Normalize(extraction.RawText);
         var personnummerMatches = PersonnummerScanner.Scan(scanCopy);
-        var personnummer = PersonnummerScanOutcome.FromMatches(personnummerMatches);
+
+        // 2a. Defense-in-depth (#426, ADR 0074 Invariant 1): the CV FILENAME is a second
+        //     surface a personnummer can ride in on (e.g. "CV_811218-9876.pdf"); a body-only
+        //     scan leaves a clean-body CV whose filename carries one unflagged (B4 falsely
+        //     clean). Run the SAME Normalize→Scan path over the filename — a filename can
+        //     carry NBSP/zero-width noise too, so this reuses the #427 guard rather than a
+        //     weaker matcher — and carry the result as the SEPARATE FoundInFileName flag. It
+        //     does NOT fold into Found/Count/Kinds (those stay body-exclusive), so a
+        //     filename-only hit does NOT block promotion (the filename never reaches the
+        //     canonical Resume); B4 surfaces it as a Warn prompting a rename. The filename is
+        //     never logged and the outcome stays PII-safe (count + kinds + a location bool).
+        var fileNameScanCopy = PersonnummerTextNormalizer.Normalize(command.FileName);
+        var foundInFileName = PersonnummerScanner.Scan(fileNameScanCopy).Count > 0;
+
+        var personnummer = PersonnummerScanOutcome.FromMatches(personnummerMatches, foundInFileName);
 
         // 3. Segment (on the original text) → content + confidence + detected language,
         //    or a Failed confidence when extraction yielded no usable text (OQ5).

@@ -106,6 +106,18 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
             .IsRequired();
         worktimeExtent.Metadata.SetValueComparer(stringListComparer);
 
+        // #311 PR-2b C1 (ADR 0087 D6): employer_list (org.nr). Additiv migration på en levande
+        // cache-tabell — ny kolumn NOT NULL default '{}' (befintliga rader får tom lista;
+        // FilterHash-format-bump → benign dubblett, cap-20-eviction självläker). Samma shadow-
+        // backing-field-mönster som Klass 2.
+        var employer = builder.Property<List<string>>("_employer")
+            .HasField("_employer")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasColumnName("employer_list")
+            .HasColumnType("text[]")
+            .IsRequired();
+        employer.Metadata.SetValueComparer(stringListComparer);
+
         // Public IReadOnlyList<string>-getters är beräknade wrappers — EF
         // ska inte försöka mappa dem (skulle duplicera shadow-kolumnerna).
         builder.Ignore(r => r.OccupationGroup);
@@ -113,6 +125,7 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
         builder.Ignore(r => r.Region);
         builder.Ignore(r => r.EmploymentType);
         builder.Ignore(r => r.WorktimeExtent);
+        builder.Ignore(r => r.Employer);
 
         builder.Property(r => r.SortBy)
             .HasConversion<int>()

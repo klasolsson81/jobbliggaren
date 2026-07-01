@@ -4,6 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.RecentSearches;
@@ -135,6 +138,42 @@ public class RecentSearchesTests(ApiFactory factory)
             .Select(e => e.GetString())
             .ShouldContain(municipality);
         row.TryGetProperty("ssykList", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Searching_jobs_with_employer_only_persists_org_nr_to_column_without_surfacing_it()
+    {
+        // #311 PR-2b C1 (ADR 0087 D6): a committed ?employer= search captures a RecentJobSearch AND
+        // persists the org.nr into the employer_list text[] column — the ONLY DB-level proof of the
+        // shadow-backing-field + migration round-trip (the ListRecentSearches unit tests use EF
+        // In-Memory, which never exercises text[]). The org.nr is deliberately NOT surfaced on the
+        // wire (RecentJobSearchDto has no employer field — ADR 0087 D8(c): a user-owned org.nr is
+        // never displayed un-flagged), so the round-trip is verified by reading the column directly.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
+        var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
+        const string orgNr = "5566010101";
+
+        var searchResponse = await _client.GetAsync(
+            $"/api/v1/job-ads?employer={orgNr}&commit=true&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The recent-search row is captured (the default-browse guard now counts employer)...
+        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
+        var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        items.GetArrayLength().ShouldBe(1);
+        // ...but the org.nr is NOT on the wire (no employer/employerList field — D8(c) surfacing guard).
+        items[0].TryGetProperty("employer", out _).ShouldBeFalse();
+        items[0].TryGetProperty("employerList", out _).ShouldBeFalse();
+
+        // The employer_list text[] column round-trips through real Postgres: read this user's row.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == userId, ct);
+        var recent = await db.RecentJobSearches.AsNoTracking()
+            .Where(r => r.JobSeekerId == seeker.Id).ToListAsync(ct);
+        recent.ShouldHaveSingleItem().Employer.ShouldBe([orgNr]);
     }
 
     [Fact]

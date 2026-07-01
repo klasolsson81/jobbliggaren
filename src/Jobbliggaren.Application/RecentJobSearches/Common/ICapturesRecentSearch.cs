@@ -33,6 +33,13 @@ public interface ICapturesRecentSearch
     IReadOnlyList<string>? Region { get; }
     IReadOnlyList<string>? EmploymentType { get; }
     IReadOnlyList<string>? WorktimeExtent { get; }
+
+    // #311 PR-2b C1 (ADR 0087 D6) — arbetsgivar-dimensionen (org.nr). PR-2 höll den MEDVETET
+    // UTANFÖR detta interface (CONTAINED-scope: employer trådades bara in i live-sök-filtret, ej
+    // sök-identiteten) → ListJobAdsQuery.Employer fångades aldrig. Denna PR (2b C1) lägger till den
+    // så record-shapen matchar → en committad ?employer=-sökning fångas till RecentJobSearch.
+    IReadOnlyList<string>? Employer { get; }
+
     JobAdSortBy SortBy { get; }
 
     /// <summary>

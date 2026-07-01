@@ -101,11 +101,10 @@ public sealed class ListRecentSearchesQueryHandler(
                         // ADR 0067 Beslut 6 (Fas B2) — Klass 2 i count-filtret.
                         EmploymentType: r.EmploymentType,
                         WorktimeExtent: r.WorktimeExtent,
-                        // #311 D6 CONTAINED-seam (CTO-bind 2026-06-30): RecentJobSearch
-                        // bär INTE employer i PR-2 (ingen employer_list-kolumn) → en
-                        // återbesökt sökning räknar (ännu) inte arbetsgivar-filtrerat.
-                        // Sekvenserat till PR-2b (ADR 0087 D6/D7).
-                        Employer: [],
+                        // #311 PR-2b C1 (ADR 0087 D6): PR-2:s CONTAINED-seam (Employer: []) ersatt —
+                        // RecentJobSearch bär nu employer_list → en återbesökt sökning räknar
+                        // arbetsgivar-filtrerat (samma filter som reproduceras vid klick).
+                        Employer: r.Employer,
                         Q: r.Q),
                     cancellationToken);
             }

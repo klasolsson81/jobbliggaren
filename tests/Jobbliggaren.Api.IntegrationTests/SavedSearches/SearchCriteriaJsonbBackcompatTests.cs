@@ -243,6 +243,34 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
     }
 
+    [Fact]
+    public async Task MissingEmployerKey_ReadsAsEmptyList_CreatePasses()
+    {
+        // #311 PR-2b C1 (ADR 0087 D6) bakåtkompat (CTO-bind D4, obligatoriskt): en SavedSearch-rad
+        // lagrad FÖRE Employer-nyckeln infördes (nyckeln saknas helt) ska läsas som en tom lista →
+        // Create passerar (saknad nyckel → switch-default → [], samma tolerans-mönster som Klass 2).
+        // ALDRIG fail-loud (det är reserverat för den BORTTAGNA "Ssyk"-nyckeln; en TILLAGD nyckels
+        // frånvaro är benign).
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        // Pre-C1-rad: Employer-nyckeln saknas helt (även EmploymentType/WorktimeExtent finns här,
+        // så raden är i övrigt en aktuell form) — bara den nya arbetsgivar-nyckeln är frånvarande.
+        var json = """{"OccupationGroup":["g1"],"Municipality":[],"Region":[],"EmploymentType":[],"WorktimeExtent":[],"Q":null,"SortBy":0}""";
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
+
+        using var readScope = Factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await readDb.SavedSearches
+            .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
+
+        saved.Criteria.Employer.ShouldBeEmpty();
+        saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
+    }
+
     // ---------------------------------------------------------------
     // (4) Write-form on-disk — nya nycklar skrivs, "Ssyk" skrivs ALDRIG.
     // OBS: jsonb normaliserar nyckelordning i lagrad form — Write-blockets
@@ -264,6 +292,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         var criteria = SearchCriteria.Create(
             occupationGroup: ["g1"], municipality: ["m1"], region: ["r1"],
             employmentType: ["et_fast"], worktimeExtent: ["wt_heltid"],
+            employer: ["5566010101"],
             q: "backend", sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Write-form", criteria, false, clock).Value;
         db.SavedSearches.Add(saved);
@@ -280,6 +309,8 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         // (array-form, mellan Region och Q).
         raw.ShouldContain("\"EmploymentType\"");
         raw.ShouldContain("\"WorktimeExtent\"");
+        // #311 PR-2b C1: Employer-nyckeln skrivs alltid (array-form, mellan WorktimeExtent och Q).
+        raw.ShouldContain("\"Employer\"");
         raw.ShouldContain("\"Q\"");
         raw.ShouldContain("\"SortBy\"");
     }
@@ -303,6 +334,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
             region: ["stockholm", "uppsala"],
             employmentType: ["et_vikariat", "et_fast"],
             worktimeExtent: ["wt_heltid"],
+            employer: ["5566020202", "5566010101"],
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Roundtrip-rad", criteria, false, clock).Value;
@@ -319,6 +351,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         reloaded.Criteria.Region.ShouldBe(["stockholm", "uppsala"]);
         reloaded.Criteria.EmploymentType.ShouldBe(["et_fast", "et_vikariat"]); // sorterad ordinal
         reloaded.Criteria.WorktimeExtent.ShouldBe(["wt_heltid"]);
+        reloaded.Criteria.Employer.ShouldBe(["5566010101", "5566020202"]); // sorterad ordinal
         reloaded.Criteria.Q.ShouldBe("backend");
         reloaded.Criteria.ShouldBe(criteria); // strukturell equality bevarad
     }

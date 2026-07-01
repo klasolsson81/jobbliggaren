@@ -27,6 +27,7 @@ public class RecentJobSearchTests
             region: ["stockholm"],
             employmentType: null,
             worktimeExtent: null,
+            employer: ["5566010101"],
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
@@ -37,6 +38,7 @@ public class RecentJobSearchTests
             region: ["goteborg"],
             employmentType: null,
             worktimeExtent: null,
+            employer: ["5566020202"],
             q: "frontend",
             sortBy: JobAdSortBy.PublishedAtAsc).Value;
 
@@ -57,6 +59,8 @@ public class RecentJobSearchTests
         aggregate.OccupationGroup.ShouldHaveSingleItem().ShouldBe("grp_12345");
         aggregate.Municipality.ShouldHaveSingleItem().ShouldBe("sthlm_kn");
         aggregate.Region.ShouldHaveSingleItem().ShouldBe("stockholm");
+        // #311 PR-2b C1: employer (org.nr) projiceras in i recent-raden (employer_list).
+        aggregate.Employer.ShouldHaveSingleItem().ShouldBe("5566010101");
         aggregate.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         aggregate.LastSeenCount.ShouldBe(42);
         aggregate.LastViewedAt.ShouldBe(Clock.UtcNow);
@@ -70,7 +74,7 @@ public class RecentJobSearchTests
         // captureras — övriga listor projiceras som tomma.
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_only"], municipality: null, region: null,
-            employmentType: null, worktimeExtent: null,
+            employmentType: null, worktimeExtent: null, employer: null,
             q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
         var aggregate = RecentJobSearch.Capture(
@@ -141,10 +145,12 @@ public class RecentJobSearchTests
         var c1 = SearchCriteria.Create(
             occupationGroup: ["zzz", "aaa"], municipality: ["kkk", "jjj"],
             region: ["bbb", "ccc"], employmentType: null, worktimeExtent: null,
+            employer: ["5566020202", "5566010101"],
             q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var c2 = SearchCriteria.Create(
             occupationGroup: ["aaa", "zzz"], municipality: ["jjj", "kkk"],
             region: ["ccc", "bbb"], employmentType: null, worktimeExtent: null,
+            employer: ["5566010101", "5566020202"],
             q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
         var a = RecentJobSearch.Capture(ValidJobSeekerId, c1, 1, Clock.UtcNow);

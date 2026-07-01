@@ -20,6 +20,7 @@ public class SavedSearchCreateFromResumeTests
         SearchCriteria.Create(
             occupationGroup: occupationGroups.Length == 0 ? ["grp_12345"] : occupationGroups,
             municipality: null, region: null, employmentType: null, worktimeExtent: null,
+            employer: null,
             q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
     [Fact]

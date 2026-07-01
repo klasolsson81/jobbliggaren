@@ -28,7 +28,7 @@ public class PersonnummerRedactorTests
     private const string Personnummer = "811218-9876";
     private const string Samordningsnummer = "811278-9873";
 
-    // The mask the real Personnummer.BuildMask produces for either delimited 10-digit token:
+    // The mask the real Personnummer.MaskSpan produces for either delimited 10-digit token:
     // every ASCII digit → '*', the '-' separator preserved, length preserved.
     // Derived from the scanner's own Masked output below — NOT hardcoded blindly.
     private const string Mask = "******-****";
@@ -303,5 +303,62 @@ public class PersonnummerRedactorTests
         var redacted = PersonnummerRedactor.Redact(text);
 
         redacted.ShouldBe(text);
+    }
+
+    [Fact]
+    public void Redact_TwoSpacedNumbersInOneString_MasksBothInPlace_RightToLeftOffsetsHold()
+    {
+        // Two spaced-gapped numbers (pnr + samordningsnummer). The right-to-left masking
+        // must keep the EARLIER gap span's offset valid after the LATER gap span is
+        // replaced — the reason OrderByDescending exists, until now only tested on
+        // contiguous tokens. The realistic CV form: two people, both spaced.
+        const string first = "811218 9876"; // spaced personnummer, earlier offset
+        const string second = "811278 9873"; // spaced samordningsnummer, later offset
+        var text = $"Kandidat A {first} och kandidat B {second} i CV.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotContain("811218");
+        redacted.ShouldNotContain("9876");
+        redacted.ShouldNotContain("811278");
+        redacted.ShouldNotContain("9873");
+        redacted.Length.ShouldBe(text.Length); // length-preserving in-place masking
+        redacted.ShouldStartWith("Kandidat A ");
+        redacted.ShouldEndWith(" i CV.");
+        redacted.ShouldContain("kandidat B"); // prose between the two intact
+    }
+
+    [Fact]
+    public void Redact_ContiguousAndSpacedInSameText_MasksBoth()
+    {
+        // ScanWithGaps finds BOTH the contiguous and the spaced form in one pass (the
+        // optional separator group is empty for the contiguous one). The redactor masks
+        // both; a mixed input is the realistic CV form.
+        const string contiguous = "811218-9876"; // contiguous
+        const string spaced = "811278 9873";     // spaced
+        var text = $"Uppgift 1: {contiguous}. Uppgift 2: {spaced}.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotContain("811218");
+        redacted.ShouldNotContain("9876");
+        redacted.ShouldNotContain("811278");
+        redacted.ShouldNotContain("9873");
+        redacted.ShouldContain("*");
+    }
+
+    [Fact]
+    public void Redact_GappedPersonnummerAtStringStart_MasksIt_OffsetZeroEdge()
+    {
+        // A gapped personnummer at absolute offset 0 hardens the StartOffset == 0 edge of
+        // the Remove/Insert masking (all other gapped tests carry a prefix).
+        const string text = "811218 9876 är ett testnummer.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotContain("811218");
+        redacted.ShouldNotContain("9876");
+        redacted.ShouldStartWith("****** ****");
+        redacted.ShouldEndWith(" är ett testnummer.");
     }
 }

@@ -225,4 +225,53 @@ public class PersonnummerScannerTests
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
     }
+
+    [Fact]
+    public void ScanWithGaps_GappedSamordningsnummer_ReturnsSamordningsnummerKind()
+    {
+        // The day+60 branch of TryParse through the gap-aware path: 811278 (day 18+60=78)
+        // is a Luhn-valid samordningsnummer; spaced form must flag with the correct Kind.
+        const string text = "Samordningsnummer 811278 9873 i CV.";
+
+        PersonnummerScanner.ScanWithGaps(text)
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Samordningsnummer);
+    }
+
+    [Fact]
+    public void ScanWithGaps_ManyZeroWidthCharsInGap_MaskSpanUsesHeapPath_LengthPreserved()
+    {
+        // \p{Cf}* is unbounded, so a PDF/DOCX can emit a personnummer with many zero-width
+        // chars in the gap. 27x U+200B → span length 37 (> MaskSpan's 32-char stack
+        // threshold) → the heap-allocation branch runs. Proves the heap path masks the raw
+        // digits and preserves length (every non-digit, incl. the zero-width chars, is kept).
+        const string prefix = "Pnr ";
+        var gap = new string('\u200B', 27);
+        var gapped = $"811218{gap}9876"; // 6 + 27 + 4 = 37 chars
+        var text = $"{prefix}{gapped} slut.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        match.Length.ShouldBe(gapped.Length); // 37 — regex spanned the whole gap
+        match.Masked.Length.ShouldBe(gapped.Length); // heap-masked, length preserved
+        match.Masked.ShouldNotContain("811218");
+        match.Masked.ShouldNotContain("9876");
+        match.Masked.Count(c => c == '\u200B').ShouldBe(27); // the zero-width chars are kept
+        text.Substring(match.StartOffset, match.Length).ShouldBe(gapped);
+    }
+
+    // #427 — over-flag symmetry with Scan: the WIDER gap-aware shape (\d{8}|\d{6} + optional
+    // gap + \d{4}) is still gated by the UNCHANGED date+Luhn authority, so phone numbers and
+    // ISO dates that Scan rejects are rejected by ScanWithGaps too (no over-redaction).
+    [Theory]
+    [InlineData("Ring mig på 070-123 45 67 om du har frågor.")] // phone
+    [InlineData("Mobil: +46 70 123 45 67.")] // intl phone
+    [InlineData("Växel 08-123456 mellan 9 och 17.")] // landline
+    [InlineData("Senast uppdaterad 2026-06-14 av redaktören.")] // ISO date in prose
+    [InlineData("Projektet löpte 2024-01-01 till 2026-06-14.")] // two ISO dates
+    public void ScanWithGaps_FalsePositiveCandidates_ReturnsEmptyList(string text)
+    {
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
 }

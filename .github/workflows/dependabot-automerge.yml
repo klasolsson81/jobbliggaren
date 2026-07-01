@@ -65,7 +65,7 @@ jobs:
 
       - name: Checkout
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         if: ${{ steps.gate.outputs.eligible == 'true' }}

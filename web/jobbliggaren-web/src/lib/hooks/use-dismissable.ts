@@ -29,16 +29,25 @@ export function useDismissable<
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       const target = e.target as Element | null;
-      // Ignorera klick inuti Radix-portalerade ytor (Select/Popover/Dropdown
-      // /Menu/HoverCard via Popper) — de portaleras till document.body utanför
-      // panel-DOM:en, så ett SelectItem-klick inuti en modal skulle annars
-      // läsas som "klick utanför" och stänga modalen (Klas-rapporterad bug
-      // 2026-05-20: AddFollowUpForm Kanal + RecordFollowUpOutcomeForm Utfall
-      // gick ej att välja — samma rot, alla portalerade dropdowns inuti
-      // modaler påverkades).
+      // Ignorera klick inuti portalerade ytor som logiskt hör till den öppna
+      // panelen men lever utanför dess DOM (portalerade till document.body), så
+      // ett klick där inte miss-läses som "klick utanför" och stänger panelen:
+      // - `[data-radix-popper-content-wrapper]`: Popper-ytor (Select/Popover/
+      //   Dropdown/Menu/HoverCard). Klas-rapporterad bug 2026-05-20: AddFollowUpForm
+      //   Kanal + RecordFollowUpOutcomeForm Utfall gick ej att välja — SelectItem-
+      //   klick inuti en modal lästes som utanför-klick.
+      // - `[data-slot="dialog-content"]`/`[data-slot="dialog-overlay"]`: en Radix
+      //   MODAL Dialog (t.ex. InfoDialog "?") öppnad från INUTI en dismissable
+      //   popover. Dialogen är INTE Popper-baserad (ingen popper-content-wrapper)
+      //   och portaleras via DialogPortal, så utan detta skulle första mousedown
+      //   inuti dialogen/overlayen stänga popovern under modalen (#419 pt7). De
+      //   `data-slot`-attributen sätts av `ui/dialog.tsx` (våra egna stabila
+      //   konventionsattribut, robustare än ett Radix-internt data-attribut).
+      //   (Den tidigare `[data-radix-portal]`-token togs bort — den finns inte i
+      //   den installerade Radix-buildens output och matchade därför noll.)
       if (
         target?.closest?.(
-          '[data-radix-popper-content-wrapper], [data-radix-portal]',
+          '[data-radix-popper-content-wrapper], [data-slot="dialog-content"], [data-slot="dialog-overlay"]',
         )
       ) {
         return;
@@ -54,6 +63,21 @@ export function useDismissable<
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // #419 pt7 — om FOKUS just nu ligger inuti en modal Radix Dialog (t.ex. en
+        // InfoDialog "?" öppnad ovanpå popovern) äger DEN Escape (Radix stänger dialogen
+        // själv); stäng då INTE popovern under — annars stänger ett enda Escape båda lagren.
+        // Scopat till `document.activeElement.closest(...)` (INTE en dokument-bred
+        // querySelector): en modal dialog trap:ar fokus, så detta är precis "en dialog är
+        // det aktiva lagret". Det undviker att en ORELATERAD öppen dialog någon annanstans
+        // sväljer en app-shell-popovers Escape (WCAG 2.1.2) — endast den dialog som faktiskt
+        // har fokus defereras till. Dialogen bär `data-slot="dialog-content"` (ui/dialog.tsx).
+        if (
+          (document.activeElement as Element | null)?.closest?.(
+            '[data-slot="dialog-content"]',
+          )
+        ) {
+          return;
+        }
         onClose();
         triggerRef.current?.focus();
       }

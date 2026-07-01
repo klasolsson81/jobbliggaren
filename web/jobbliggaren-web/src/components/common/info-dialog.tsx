@@ -39,12 +39,21 @@ export function InfoDialog({
   triggerClassName,
   showIcon = true,
   iconOnly = false,
+  ariaLabel,
 }: {
   title: string;
   paragraphs: readonly string[];
   triggerClassName?: string;
   showIcon?: boolean;
   iconOnly?: boolean;
+  /**
+   * Kontext-specifikt tillgängligt namn för `iconOnly`-triggern. Default =
+   * `common.dialog.whatIsThis` ("Vad är detta?"). Sätt detta när flera "?"-
+   * triggers samexisterar på samma yta (t.ex. per-kontroll-hjälp i en popover),
+   * så skärmläsar-namnen inte kollapsar till samma generiska sträng (#419 pt7,
+   * WCAG 2.4.4/2.5.3 — unika, kontext-bärande namn).
+   */
+  ariaLabel?: string;
 }) {
   const t = useTranslations("common.dialog");
   const [first, ...rest] = paragraphs;
@@ -65,7 +74,7 @@ export function InfoDialog({
       <Dialog>
         <DialogTrigger
           className={triggerClassName ?? iconOnlyTriggerClassName}
-          aria-label={t("whatIsThis")}
+          aria-label={ariaLabel ?? t("whatIsThis")}
         >
           <HelpCircle size={15} aria-hidden="true" />
         </DialogTrigger>

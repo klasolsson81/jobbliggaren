@@ -23,6 +23,12 @@
       "footer": "Visa alla sparade annonser"
     }
   },
+  "follow": {
+    "follow": "Bevaka företaget",
+    "following": "Bevakar företaget",
+    "followAria": "Bevaka det här företaget",
+    "unfollowAria": "Sluta bevaka det här företaget"
+  },
   "recent": {
     "emptyTitle": "Inga senaste sökningar",
     "emptyBody": "Gör en sökning under Jobb. Den sparas här automatiskt.",
@@ -45,7 +51,10 @@
     "recentSearchDeleteFailed": "Kunde inte ta bort sökningen. Försök igen.",
     "savedJobAdNotFound": "Annonsen kunde inte hittas. Den kan ha tagits bort.",
     "savedJobAdSaveFailed": "Kunde inte spara annonsen. Försök igen.",
-    "savedJobAdRemoveFailed": "Kunde inte ta bort bokmärket. Försök igen."
+    "savedJobAdRemoveFailed": "Kunde inte ta bort bokmärket. Försök igen.",
+    "followCompanyNotFound": "Annonsen kunde inte hittas. Den kan ha tagits bort.",
+    "followCompanyFailed": "Kunde inte bevaka företaget. Försök igen.",
+    "unfollowCompanyFailed": "Kunde inte sluta bevaka företaget. Försök igen."
   },
   "enums": {
     "status": {

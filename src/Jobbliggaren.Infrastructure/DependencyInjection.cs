@@ -707,6 +707,16 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IEmployerDisambiguationQuery,
             JobAds.EmployerDisambiguationQuery>();
 
+        // #311 #455 (ADR 0087 D2/D8(c)) — IJobAdEmployerReader: resolves the STORED organization_number
+        // shadow column for a set of ads (id = ANY raw SQL + EF.Property, Npgsql-assembly concerns
+        // arch-forbidden in Application, parity IJobAdSearchQuery). Server-side org.nr resolution for the
+        // #455 follow-from-card command + follow-state batch (raw org.nr never surfaced, D8(c)). Scoped
+        // (shares the request AppDbContext). DI in the same commit as the port-impl
+        // (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Abstractions.IJobAdEmployerReader,
+            JobAds.JobAdEmployerReader>();
+
         // STEG 6 Approach B (2026-05-24) — fritext→SSYK-expansion för
         // recall-lift på terms som "systemutvecklare". IOptions-binding från
         // appsettings.json SearchSynonyms-sektion. DI i samma commit som

@@ -50,6 +50,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       worktimeExtent={[]}
       matchGrades={[]}
       sortBy="PublishedAtDesc"
+      initialCommitted={false}
       {...extra}
     />,
   );
@@ -176,6 +177,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         worktimeExtent={[]}
         matchGrades={[]}
         sortBy="PublishedAtDesc"
+        initialCommitted={false}
       />,
     );
     expect(input).toHaveValue("göteborg ");
@@ -234,6 +236,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         worktimeExtent={[]}
         matchGrades={[]}
         sortBy="PublishedAtDesc"
+        initialCommitted={false}
       />,
     );
     expect(input).toHaveValue("göteborg volvo ");
@@ -250,6 +253,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         worktimeExtent={[]}
         matchGrades={[]}
         sortBy="PublishedAtDesc"
+        initialCommitted={false}
       />,
     );
     expect(input).toHaveValue("göteborg volvo ");
@@ -271,6 +275,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         worktimeExtent={[]}
         matchGrades={[]}
         sortBy="PublishedAtDesc"
+        initialCommitted={false}
       />,
     );
     expect(screen.getByRole("combobox")).toHaveValue(
@@ -297,6 +302,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         worktimeExtent={[]}
         matchGrades={[]}
         sortBy="PublishedAtDesc"
+        initialCommitted={false}
       />,
     );
     expect(screen.getByRole("combobox")).toHaveValue("volvo lastbil");
@@ -317,6 +323,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         worktimeExtent={[]}
         matchGrades={[]}
         sortBy="PublishedAtDesc"
+        initialCommitted={false}
       />,
     );
     expect(screen.getByRole("combobox")).toHaveValue("");
@@ -471,11 +478,110 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         worktimeExtent={[]}
         matchGrades={[]}
         sortBy="PublishedAtDesc"
+        initialCommitted={false}
       />,
     );
     await user.type(screen.getByRole("combobox"), "göteborg ");
     expect(replaceMock).toHaveBeenCalledWith("/jobb?q=g%C3%B6teborg", {
       scroll: false,
     });
+  });
+});
+
+// #419 pt6 (Klas + CTO A1) — "Spara sökningen"-länken för typeahead-komponerade
+// (icke-committade) sök. Visas när ett sparbart sök inte committats med intent;
+// klick re-committar MED intent (?commit=true → backend auto-capturerar) + visar en
+// kort inline-bekräftelse; länken återkommer när söket redigeras igen.
+describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
+  it("visar länken när sökningen är osparad (initialCommitted=false + sparbart sök)", () => {
+    setup({ q: "utvecklare", initialCommitted: false });
+    expect(
+      screen.getByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("döljer länken när sökningen redan är sparad (initialCommitted=true, dvs efter Enter/Sök)", () => {
+    setup({ q: "utvecklare", initialCommitted: true });
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+  });
+
+  it("döljer länken när det inte finns något sparbart sök (tomt)", () => {
+    setup({ initialCommitted: false });
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+  });
+
+  it("klick capturerar (router.replace med commit=true) + visar bekräftelse + länken försvinner", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare", initialCommitted: false });
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(replaceMock).toHaveBeenCalledWith(
+      expect.stringContaining("commit=true"),
+      { scroll: false },
+    );
+    // Bekräftelsen visas (synlig span + den persistenta sr-only-annonsen bär samma
+    // text → två noder; getAllByText undviker multiple-match-fel).
+    expect(
+      screen.getAllByText("Sökningen är sparad i Senaste sökningar").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+  });
+
+  it("länken återkommer när användaren redigerar söket efter att ha sparat", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare", initialCommitted: false });
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+    // Live-delta (typa en term + avgränsare) → osparat igen → länken åter.
+    await user.type(screen.getByRole("combobox"), "göteborg ");
+    expect(
+      screen.getByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("StripCommitParam-roundtrip efter spara: länken förblir borta (own-roundtrip, ingen re-init)", async () => {
+    // nextjs-ui M2 — efter spara-klicket levereras samma filter-state igen (RSC-roundtrip
+    // + commit-strip). Own-roundtrip-detektorn klassar basen som EGEN och håller
+    // savedByIntent stabil; initialCommitted re-läses inte (useState-init körs en gång).
+    const user = userEvent.setup();
+    const props = {
+      taxonomy,
+      q: "utvecklare",
+      occupationGroup: [] as string[],
+      region: [] as string[],
+      municipality: [] as string[],
+      employmentType: [] as string[],
+      worktimeExtent: [] as string[],
+      matchGrades: [] as string[],
+      sortBy: "PublishedAtDesc" as const,
+      initialCommitted: false,
+    };
+    const { rerender } = render(<JobbHeroSearch {...props} />);
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+    // Färska array-refs → sentinel-grenen körs; samma filter-state → own-roundtrip.
+    rerender(
+      <JobbHeroSearch
+        {...props}
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
   });
 });

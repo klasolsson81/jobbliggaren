@@ -1164,6 +1164,29 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-size: 13px;
   color: var(--jp-hero-ink-soft);
 }
+/* #419 pt6 — "Spara sökningen"-länk (knapp stylad som text-länk) + spar-bekräftelse.
+   Delar hjälptextens soft-ink-ton (befintliga hero-tokens, inga nya); understruken så
+   den läses som en handling. Ingen radie/skugga/gradient. */
+.jp-hero__searchsaveaction {
+  margin: 6px 0 0;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--jp-hero-ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.jp-hero__searchsaveaction:hover {
+  color: var(--jp-hero-ink);
+}
+.jp-hero__searchsaved {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--jp-hero-ink-soft);
+}
 .jp-hero__searchlabels {
   display: block;
   font-size: 13px;

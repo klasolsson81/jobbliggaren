@@ -1099,7 +1099,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-hero__actions {
   display: flex;
-  justify-content: flex-end;
+  /* #419 pt4 (Klas 2026-07-01) — vänsterjusterad: linjerar med Ort/Yrke/Filter-
+     pillarna + sökrutan nedanför (gemensam vänsterkant, lugnare läsordning). Var
+     flex-end (höger); den smala breakpointen satte redan flex-start. */
+  justify-content: flex-start;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -1300,7 +1303,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
     gap: 28px;
   }
   .jp-hero__title { font-size: 32px; }
-  .jp-hero__actions { justify-content: flex-start; }
+  /* #419 pt4 — .jp-hero__actions är nu flex-start i bas-regeln (redundant override borttagen). */
   .jp-hero-chip,
   .jp-hero-pill { min-height: 44px; }
 }

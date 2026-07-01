@@ -29,6 +29,18 @@
     "followAria": "Follow this company",
     "unfollowAria": "Stop following this company"
   },
+  "companyWatches": {
+    "listLabel": "Followed companies",
+    "emptyTitle": "You are not following any companies yet",
+    "emptyBody": "Open an ad under Jobs and select <i>Follow the company</i>. The company is collected here.",
+    "unknownCompany": "The company name is not available",
+    "orgNr": "Org. no. {orgNr}",
+    "protectedIdentity": "Protected identity",
+    "protectedIdentityHint": "The organisation number is hidden because it may be a personal identity number.",
+    "activeAds": "{count, plural, =0 {No active ads right now} one {# active ad right now} other {# active ads right now}}",
+    "followedSince": "Followed since {date}",
+    "unfollowAria": "Unfollow {company}"
+  },
   "recent": {
     "emptyTitle": "No recent searches",
     "emptyBody": "Run a search under Jobs. It is saved here automatically.",

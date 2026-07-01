@@ -17,8 +17,8 @@ export type UnfollowCompanyResult =
 
 /**
  * #455 — follow a job ad's employer. Idempotent server-side (resurrect + race-safe). Returns the
- * CompanyWatchId so the toggle can unfollow by opaque id. Revalidates `/jobb` so the detail re-reads
- * follow-state on the next render.
+ * CompanyWatchId so the toggle can unfollow by opaque id. Revalidates `/jobb` (the detail re-reads
+ * follow-state) and `/foretag` (#448 — the followed-companies list re-reads on next render).
  */
 export async function followCompanyFromJobAdAction(
   jobAdId: string
@@ -28,6 +28,7 @@ export async function followCompanyFromJobAdAction(
   switch (result.kind) {
     case "ok":
       revalidatePath("/jobb");
+      revalidatePath("/foretag");
       return { success: true, companyWatchId: result.data.companyWatchId };
     case "unauthorized":
       return { success: false, error: t("notLoggedIn") };
@@ -41,7 +42,9 @@ export async function followCompanyFromJobAdAction(
 }
 
 /**
- * #455 — stop following, by the opaque CompanyWatchId. Idempotent. Revalidates `/jobb`.
+ * #455 / #448 — stop following, by the opaque CompanyWatchId. Idempotent. Revalidates `/jobb` (the
+ * detail toggle) and `/foretag` (the followed-companies list drops the row on the next RSC render —
+ * server state drives the removal, no client-side optimistic copy; CTO Q4 2026-07-01, §5).
  */
 export async function unfollowCompanyAction(
   companyWatchId: string
@@ -51,6 +54,7 @@ export async function unfollowCompanyAction(
   switch (result.kind) {
     case "ok":
       revalidatePath("/jobb");
+      revalidatePath("/foretag");
       return { success: true };
     case "unauthorized":
       return { success: false, error: t("notLoggedIn") };

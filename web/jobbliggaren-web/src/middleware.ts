@@ -12,6 +12,7 @@ const PROTECTED_PREFIXES = [
   "/jobb",
   "/sokningar",
   "/sparade",
+  "/foretag",
 ];
 
 export function middleware(request: NextRequest) {

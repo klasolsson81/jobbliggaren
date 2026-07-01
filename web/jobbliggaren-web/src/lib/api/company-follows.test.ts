@@ -15,6 +15,7 @@ import {
   followCompanyFromJobAd,
   unfollowCompany,
   getCompanyWatchStatus,
+  getCompanyWatches,
 } from "./company-follows";
 
 const VALID_ID = "11111111-1111-1111-1111-111111111111";
@@ -198,5 +199,71 @@ describe("getCompanyWatchStatus (#455) — fail-safe to not-followable", () => {
   it("network throw → fallback", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
     expect(await getCompanyWatchStatus(VALID_ID)).toEqual(fallback);
+  });
+});
+
+describe("getCompanyWatches (#448) — followed-company list read", () => {
+  const legalEntity = {
+    id: "cw-1",
+    organizationNumber: "5592804784",
+    isProtectedIdentity: false,
+    companyName: "Skatteverket",
+    followedAt: "2026-06-14T08:00:00+00:00",
+    activeAdCount: 3,
+  };
+  const soleProp = {
+    id: "cw-2",
+    organizationNumber: null,
+    isProtectedIdentity: true,
+    companyName: "Anna Andersson Konsult",
+    followedAt: "2026-06-10T08:00:00+00:00",
+    activeAdCount: 1,
+  };
+
+  it("no session → unauthorized without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await getCompanyWatches()).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 array (incl. masked sole-prop row) → ok, org.nr-null shape parses", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([legalEntity, soleProp]));
+
+    const result = await getCompanyWatches();
+
+    expect(result).toEqual({ kind: "ok", data: [legalEntity, soleProp] });
+    // The masked row keeps a null org.nr + protected flag (never a raw value).
+    if (result.kind === "ok") {
+      expect(result.data[1]!.organizationNumber).toBeNull();
+      expect(result.data[1]!.isProtectedIdentity).toBe(true);
+    }
+  });
+
+  it("200 empty array → ok with []", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([]));
+    expect(await getCompanyWatches()).toEqual({ kind: "ok", data: [] });
+  });
+
+  it("200 malformed body → error", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ not: "an array" }));
+    expect(await getCompanyWatches()).toEqual({ kind: "error" });
+  });
+
+  it("401 → unauthorized", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
+    expect(await getCompanyWatches()).toEqual({ kind: "unauthorized" });
+  });
+
+  it("404 (collection endpoint) → error, never notFound", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(404));
+    expect(await getCompanyWatches()).toEqual({ kind: "error" });
+  });
+
+  it("network throw → error", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
+    expect(await getCompanyWatches()).toEqual({ kind: "error" });
   });
 });

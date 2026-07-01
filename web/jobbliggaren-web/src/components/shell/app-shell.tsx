@@ -8,6 +8,7 @@ import {
   Bell,
   Bookmark,
   Briefcase,
+  Building2,
   Clock,
   Inbox,
   LayoutDashboard,
@@ -196,6 +197,13 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             onClick={() => setOpen(false)}
           >
             <Target size={16} aria-hidden="true" /> {t("userMenu.minaMatchningar")}
+          </Link>
+          <Link
+            href="/foretag"
+            className="jp-usermenu__item"
+            onClick={() => setOpen(false)}
+          >
+            <Building2 size={16} aria-hidden="true" /> {t("userMenu.bevakadeForetag")}
           </Link>
           <Link
             href="/cv"

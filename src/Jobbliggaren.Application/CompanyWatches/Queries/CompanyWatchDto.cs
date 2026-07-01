@@ -12,10 +12,20 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// normal legal-entity org.nr the full number is returned and the flag is <c>false</c>. This is
 /// data-minimisation (GDPR Art. 5.1(c)) at the surfacing boundary; the raw value is never logged.
 /// </para>
+///
+/// <para>
+/// <b><see cref="ActiveAdCount"/> — "X aktiva annonser just nu" (#447, ADR 0087 D2).</b> The number
+/// of currently-active public job ads for the watched employer (<c>status='Active'</c> for this
+/// org.nr, over the global soft-delete query filter — ADR 0048). This is a derived count over PUBLIC
+/// Platsbanken data — it carries NO user-PII, so it is surfaced even when the org.nr is masked (a
+/// sole-prop still shows its public open-role count). It is a plain <c>int</c>, never derived from or
+/// exposing the raw org.nr. Zero when the employer has no active ads (or none are ingested yet).
+/// </para>
 /// </summary>
 public sealed record CompanyWatchDto(
     Guid Id,
     string? OrganizationNumber,
     bool IsProtectedIdentity,
     string? CompanyName,
-    DateTimeOffset FollowedAt);
+    DateTimeOffset FollowedAt,
+    int ActiveAdCount);

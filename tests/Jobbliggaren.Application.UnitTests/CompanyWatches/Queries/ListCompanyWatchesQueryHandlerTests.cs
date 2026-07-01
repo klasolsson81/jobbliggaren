@@ -50,6 +50,27 @@ public class ListCompanyWatchesQueryHandlerTests
         dto.IsProtectedIdentity.ShouldBeFalse();
         dto.OrganizationNumber.ShouldBe("5592804784");
         dto.FollowedAt.ShouldBe(_clock.UtcNow);
+        // #447 — no job_ads seeded → count is 0 (InMemory cannot populate the generated
+        // organization_number column, so the count>0 branch is proven in the Testcontainers suite).
+        dto.ActiveAdCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_ForSoleProprietor_SurfacesActiveAdCount_EvenWhenOrgNumberMasked()
+    {
+        // #447 + D8(c) — the active-ad count is PUBLIC data, surfaced even when the org.nr is masked.
+        // Here no ads are seeded (InMemory) so the count is 0; the point is that the field is present
+        // and independent of the personnummer mask (the count>0 branch is a Testcontainers oracle).
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        Add(db, _userId, "9001011234"); // personnummer-shaped
+        await db.SaveChangesAsync(ct);
+
+        var dto = (await Handler(db).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.IsProtectedIdentity.ShouldBeTrue();
+        dto.OrganizationNumber.ShouldBeNull();
+        dto.ActiveAdCount.ShouldBe(0);
     }
 
     [Fact]

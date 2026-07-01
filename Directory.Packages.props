@@ -139,6 +139,17 @@
          >= 5.5.0 → uppåt-unifiering, ingen NU1605/downgrade. Web-verifierad 2026-06-30
          (nuget.org, GitHub Advisory Database). -->
     <PackageVersion Include="Scriban.Signed" Version="7.2.5" />
+    <!-- Transitive CVE pin: Microsoft.AspNetCore.OpenApi 10.0.9 pulls in Microsoft.OpenApi
+         2.0.0 transitively, which is vulnerable to GHSA-v5pm-xwqc-g5wc (HIGH — circular
+         schema references may terminate OpenAPI parsing; DoS). Vulnerable range
+         >= 2.0.0-preview11, <= 2.7.4; first patched 2.7.5. We do not reference
+         Microsoft.OpenApi directly — the pin applies only via
+         CentralPackageTransitivePinningEnabled (Directory.Build.props) to eliminate NU1903,
+         which otherwise fails restore repo-wide under TreatWarningsAsErrors. 2.7.5 stays in
+         the same 2.x major that Microsoft.AspNetCore.OpenApi 10.0.9 declares (>= 2.0.0) →
+         upward unification, no NU1605/downgrade. Verified 2026-07-01 (GitHub Advisory
+         Database GHSA-v5pm-xwqc-g5wc, nuget.org). -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Fas 4 lokal NLP-tier (ADR 0071 Beslut 6, BUILD.md §3.1 — INLÅST Pre-4 STEG 4;
          version-pin = Fas 4 STEG 0/F4-0). Deterministisk svensk NLP, ingen AI/LLM, körs
          lokalt på VPS:en. Catalyst medvetet UTE v1 (ADR 0071 Open Question 1, CTO-dom:

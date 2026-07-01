@@ -209,9 +209,7 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
         // Kind-agnostisk reverse-lookup → Klass 2-concept-ids resolveras
         // automatiskt (toolbar-chips + recent-/saved-search-labels) utan
         // resolver-ändring (CTO BESLUT 1).
-        var labelByConceptId = concepts
-            .GroupBy(c => c.ConceptId)
-            .ToDictionary(g => g.Key, g => g.First().Label, StringComparer.Ordinal);
+        var labelByConceptId = BuildLabelByConceptId(concepts);
 
         // ADR 0067 Beslut 5a — förberäknade typeahead-kandidater. Endast
         // filtrerbara kinds (Län/Kommun/Yrkesområde/Yrkesgrupp); occupation-name
@@ -249,6 +247,25 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             suggestable,
             relatedBySource);
     }
+
+    // #268 audit / #471 (parity with OccupationCodeDeriver's no-silent-First tie-break):
+    // reverse-lookup the display label per concept-id. GroupBy(ConceptId) then the
+    // Ordinal-MINIMUM label, never an enumeration-order-dependent First() -- this
+    // read-model's whole contract is reproducibility, and the sibling
+    // OccupationCodeDeriver.BuildAsync guards the identical shape the same way. Today the
+    // primary key on taxonomy_concepts.ConceptId makes duplicate concept-ids unreachable
+    // through the DB, so every group is a singleton and the tie-break never fires in
+    // production; this is a DEFENSIVE determinism pin for parity (and any future non-DB
+    // caller or schema change). internal static so the tie-break is unit-testable without
+    // a DB (InternalsVisibleTo Api.IntegrationTests), mirroring the deriver's test seam.
+    internal static Dictionary<string, string> BuildLabelByConceptId(
+        IReadOnlyList<TaxonomyConcept> concepts) =>
+        concepts
+            .GroupBy(c => c.ConceptId, StringComparer.Ordinal)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(x => x.Label, StringComparer.Ordinal).First().Label,
+                StringComparer.Ordinal);
 
     // ACL-översättning Infrastructure-intern TaxonomyConceptKind → publik
     // SuggestionKind. Endast suggest-bara kinds mappas (Occupation når aldrig

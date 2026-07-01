@@ -23,6 +23,7 @@ public class FilterHashCalculatorTests
         IEnumerable<string>? region = null,
         IEnumerable<string>? employmentType = null,
         IEnumerable<string>? worktimeExtent = null,
+        IEnumerable<string>? employer = null,
         string? q = "backend",
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc) =>
         SearchCriteria.Create(
@@ -31,6 +32,7 @@ public class FilterHashCalculatorTests
             region: region ?? ["stockholm"],
             employmentType: employmentType ?? ["et_fast"],
             worktimeExtent: worktimeExtent ?? ["wt_heltid"],
+            employer: employer ?? ["5566010101"],
             q: q,
             sortBy: sortBy).Value;
 
@@ -62,8 +64,11 @@ public class FilterHashCalculatorTests
         // MELLAN region och sortBy. Om Infrastructure/Domain ändrar
         // serialisering tyst förlorar vi unique-index-integritet — då ska detta
         // test falla.
+        // #311 PR-2b C1: "employer" ligger MELLAN worktimeExtent och sortBy (kanonisk ordning
+        // matchar VO:ts Equals/GetHashCode + jsonb-writern). Ett ändrat läge bryter unique-index-
+        // integriteten → detta test faller.
         const string canonicalJson =
-            """{"q":"backend","occupationGroup":["g1"],"municipality":["m1"],"region":["r1"],"employmentType":["e1"],"worktimeExtent":["w1"],"sortBy":0}""";
+            """{"q":"backend","occupationGroup":["g1"],"municipality":["m1"],"region":["r1"],"employmentType":["e1"],"worktimeExtent":["w1"],"employer":["5560000001"],"sortBy":0}""";
         var expected = Convert.ToHexStringLower(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonicalJson)));
 
@@ -74,6 +79,7 @@ public class FilterHashCalculatorTests
             region: ["r1"],
             employmentType: ["e1"],
             worktimeExtent: ["w1"],
+            employer: ["5560000001"],
             sortBy: JobAdSortBy.PublishedAtDesc);
 
         actual.ShouldBe(expected);
@@ -92,6 +98,7 @@ public class FilterHashCalculatorTests
             region: criteria.Region,
             employmentType: criteria.EmploymentType,
             worktimeExtent: criteria.WorktimeExtent,
+            employer: criteria.Employer,
             sortBy: criteria.SortBy);
 
         fromCriteria.ShouldBe(fromExplicit);
@@ -149,11 +156,11 @@ public class FilterHashCalculatorTests
         // dimensionerna åt — ["x1"] som yrkesgrupp ≠ ["x1"] som kommun.
         var a = FilterHashCalculator.Compute(
             q: null, occupationGroup: ["x1"], municipality: [], region: [],
-            employmentType: [], worktimeExtent: [],
+            employmentType: [], worktimeExtent: [], employer: [],
             sortBy: JobAdSortBy.PublishedAtDesc);
         var b = FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: ["x1"], region: [],
-            employmentType: [], worktimeExtent: [],
+            employmentType: [], worktimeExtent: [], employer: [],
             sortBy: JobAdSortBy.PublishedAtDesc);
 
         a.ShouldNotBe(b);
@@ -202,20 +209,24 @@ public class FilterHashCalculatorTests
     {
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: null!, municipality: [], region: [],
-            employmentType: [], worktimeExtent: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: null!, region: [],
-            employmentType: [], worktimeExtent: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: null!,
-            employmentType: [], worktimeExtent: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
         // B2: de två nya list-params bär samma null-guard som de befintliga.
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: null!, worktimeExtent: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: null!, worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: [], worktimeExtent: null!, sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: null!, employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
+        // #311 PR-2b C1: employer-param bär samma null-guard.
+        Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
+            q: null, occupationGroup: [], municipality: [], region: [],
+            employmentType: [], worktimeExtent: [], employer: null!, sortBy: JobAdSortBy.PublishedAtDesc));
     }
 
     // ===============================================================
@@ -262,11 +273,52 @@ public class FilterHashCalculatorTests
         // Dimension-förväxlingsgrind för de två nya nycklarna.
         var a = FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: ["x1"], worktimeExtent: [],
+            employmentType: ["x1"], worktimeExtent: [], employer: [],
             sortBy: JobAdSortBy.PublishedAtDesc);
         var b = FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: [], worktimeExtent: ["x1"],
+            employmentType: [], worktimeExtent: ["x1"], employer: [],
+            sortBy: JobAdSortBy.PublishedAtDesc);
+
+        a.ShouldNotBe(b);
+    }
+
+    // ===============================================================
+    // #311 PR-2b C1 (ADR 0087 D6) — Employer (org.nr) ingår i hashen.
+    // ===============================================================
+
+    [Fact]
+    public void Compute_DifferentEmployer_ProducesDifferentHash()
+    {
+        var a = FilterHashCalculator.Compute(Criteria(employer: ["5566010101"]));
+        var b = FilterHashCalculator.Compute(Criteria(employer: ["5566020202"]));
+
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void Compute_SameEmployerInputDifferentOrder_ProducesSameHash()
+    {
+        // VO:t normaliserar (sort+distinct) → osorterad org.nr-input ger samma hash.
+        var a = FilterHashCalculator.Compute(Criteria(employer: ["5566020202", "5566010101"]));
+        var b = FilterHashCalculator.Compute(Criteria(employer: ["5566010101", "5566020202"]));
+
+        a.ShouldBe(b);
+        a.Length.ShouldBe(64);
+    }
+
+    [Fact]
+    public void Compute_SameValueInEmployerVsOtherDimension_ProducesDifferentHash()
+    {
+        // Dimension-förväxlingsgrind på hash-nivå: samma sträng som "employer" vs som
+        // "occupationGroup" ger olika canonical-JSON-nyckel → olika hash (jsonb-dedupe-säkerhet).
+        var a = FilterHashCalculator.Compute(
+            q: null, occupationGroup: [], municipality: [], region: [],
+            employmentType: [], worktimeExtent: [], employer: ["5566010101"],
+            sortBy: JobAdSortBy.PublishedAtDesc);
+        var b = FilterHashCalculator.Compute(
+            q: null, occupationGroup: ["5566010101"], municipality: [], region: [],
+            employmentType: [], worktimeExtent: [], employer: [],
             sortBy: JobAdSortBy.PublishedAtDesc);
 
         a.ShouldNotBe(b);

@@ -50,6 +50,10 @@ public sealed class UpdateSavedSearchCommandHandler(
                 region: c.Region,
                 employmentType: c.EmploymentType,
                 worktimeExtent: c.WorktimeExtent,
+                // #311 PR-2b C1: SavedSearch WRITE path does not thread employer yet (no command
+                // field, no FE picker). The VO/jsonb are employer-aware; adding it here is a future
+                // additive change. Not a silent-drop — no employer flows in. (Parity CreateSavedSearch.)
+                employer: [],
                 q: c.Q,
                 sortBy: c.SortBy);
             if (criteriaResult.IsFailure)

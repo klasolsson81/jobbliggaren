@@ -71,11 +71,10 @@ public sealed class RunSavedSearchQueryHandler(
                     // ADR 0067 Beslut 6 (Fas B2) — VO:ts Klass 2 reproducerar filtret.
                     EmploymentType: criteria.EmploymentType,
                     WorktimeExtent: criteria.WorktimeExtent,
-                    // #311 D6 CONTAINED-seam (CTO-bind 2026-06-30): SavedSearch-VO:t
-                    // (SearchCriteria) bär INTE employer i PR-2 → en sparad sökning
-                    // reproducerar (ännu) inget arbetsgivar-filter. Threadingen in i
-                    // sök-identiteten är sekvenserad till PR-2b (ADR 0087 D6/D7).
-                    Employer: [],
+                    // #311 PR-2b C1 (ADR 0087 D6): PR-2:s CONTAINED-seam (Employer: []) ersatt —
+                    // SearchCriteria-VO:t bär nu employer (org.nr) → en sparad sökning reproducerar
+                    // sitt arbetsgivar-filter vid körning.
+                    Employer: criteria.Employer,
                     Q: criteria.Q),
                 criteria.SortBy,
                 query.Page,

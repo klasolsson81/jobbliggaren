@@ -41,7 +41,7 @@ public static class FilterHashCalculator
         return Compute(
             criteria.Q, criteria.OccupationGroup, criteria.Municipality,
             criteria.Region, criteria.EmploymentType, criteria.WorktimeExtent,
-            criteria.SortBy);
+            criteria.Employer, criteria.SortBy);
     }
 
     public static string Compute(
@@ -51,6 +51,7 @@ public static class FilterHashCalculator
         IReadOnlyList<string> region,
         IReadOnlyList<string> employmentType,
         IReadOnlyList<string> worktimeExtent,
+        IReadOnlyList<string> employer,
         JobAdSortBy sortBy)
     {
         ArgumentNullException.ThrowIfNull(occupationGroup);
@@ -58,6 +59,7 @@ public static class FilterHashCalculator
         ArgumentNullException.ThrowIfNull(region);
         ArgumentNullException.ThrowIfNull(employmentType);
         ArgumentNullException.ThrowIfNull(worktimeExtent);
+        ArgumentNullException.ThrowIfNull(employer);
 
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
@@ -92,6 +94,15 @@ public static class FilterHashCalculator
             writer.WriteStartArray("worktimeExtent");
             foreach (var w in worktimeExtent)
                 writer.WriteStringValue(w);
+            writer.WriteEndArray();
+
+            // #311 PR-2b C1 (ADR 0087 D6) — employer (org.nr) infogad MELLAN worktimeExtent och
+            // sortBy (dimensions-fält grupperade, sortBy kvar som svans; samma additiva mönster som
+            // Klass 2 Fas B2). Additivt format-bump: gamla recent-rader får annan hash → benign
+            // dubblett (cap-20-eviction självläker, ingen orphan). Ingen versionering.
+            writer.WriteStartArray("employer");
+            foreach (var emp in employer)
+                writer.WriteStringValue(emp);
             writer.WriteEndArray();
 
             writer.WriteNumber("sortBy", (int)sortBy);

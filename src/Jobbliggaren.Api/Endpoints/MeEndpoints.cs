@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateFollowedCompanyNotificationConsent;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateMyProfile;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 using Jobbliggaren.Application.JobSeekers.Queries.GetMyProfile;
@@ -63,6 +64,26 @@ public static class MeEndpoints
         // endpoint. MeWritePolicy (user-owned mutation, parity /match-preferences). 204 / Problem 400.
         group.MapPut("/notification-consent", async (
             UpdateNotificationConsentCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // ADR 0087 D3/D5 (#311 PR-2b) — company-follow notification consent (the SEPARATE opt-in
+        // toggle gating company-follow digests; a distinct GDPR Art. 6/7 processing purpose from
+        // background-match notifications, ADR 0087 D5). PUT = idempotent set of {enabled}; the
+        // aggregate owns the GDPR consent stamping (first opt-in immutable Art. 7(1); opt-out
+        // records the Art. 7(3) withdrawal). The current state is READ via GET /profile (the flag
+        // rides the JobSeekerProfileDto projection) — no dedicated read endpoint. The digest cadence
+        // is SHARED with background-match (ADR 0087 D2) and set via /notification-consent, so it is
+        // NOT part of this contract. Without this endpoint the shipped follow-notification rail
+        // (PR-4) is unreachable. MeWritePolicy (user-owned mutation, parity /notification-consent).
+        // 204 / Problem 400.
+        group.MapPut("/followed-company-notification-consent", async (
+            UpdateFollowedCompanyNotificationConsentCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             return result.IsSuccess

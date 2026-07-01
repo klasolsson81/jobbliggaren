@@ -37,6 +37,8 @@ public class RecentJobSearchCaptureBehaviorTests
         IReadOnlyList<string>? Region,
         IReadOnlyList<string>? EmploymentType = null,
         IReadOnlyList<string>? WorktimeExtent = null,
+        // #311 PR-2b C1 (ADR 0087 D6) — Employer i ICapturesRecentSearch-shapen.
+        IReadOnlyList<string>? Employer = null,
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
         bool Commit = true)
         : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
@@ -139,6 +141,28 @@ public class RecentJobSearchCaptureBehaviorTests
 
         await _capturer.Received(1).CaptureAsync(
             _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_EmployerOnly_CapturesSearch_WithOrgNr()
+    {
+        // #311 PR-2b C1 (ADR 0087 D6): default-browse-guarden räknar nu employer → en committad
+        // sökning med ENBART ?employer= släpps igenom OCH org.nr:t trådas in i den fångade criterian
+        // (PR-2:s live silent-drop stängd).
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Employer: ["5566010101"]));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured!.Employer.ShouldBe(["5566010101"]);
     }
 
     [Fact]

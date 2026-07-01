@@ -34,6 +34,13 @@ public sealed class CreateSavedSearchCommandHandler(
             region: command.Region,
             employmentType: command.EmploymentType,
             worktimeExtent: command.WorktimeExtent,
+            // #311 PR-2b C1: the SavedSearch WRITE path does not thread employer yet — the command
+            // carries no Employer field and there is no FE employer-picker to send one (YAGNI; issue
+            // #415 Concern 1 scopes the identity-threading to the RECENT-capture path + the VO/jsonb).
+            // The VO + jsonb converter ARE employer-aware, so a future SavedSearch-with-employer write
+            // (post-#448/#455 FE) only adds the field here — nothing to migrate. Not a silent-drop:
+            // no employer value flows in to drop.
+            employer: [],
             q: command.Q,
             sortBy: command.SortBy);
         if (criteriaResult.IsFailure)

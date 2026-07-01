@@ -73,6 +73,11 @@ internal sealed class PerUserJobAdSearchQuery(
     // gyllene rung testar `extracted_lexemes ?| @cvSkillIds` (EF.Functions.JsonExistAny).
     private const string ExtractedLexemesColumn = "ExtractedLexemes";
 
+    // #452 — STORED generated org.nr shadow column (ADR 0087 D1), the GROUP key for the per-employer
+    // matching-count. Column name is an Infrastructure secret (parity the columns above); it never
+    // leaks to Application. org.nr is read server-side as the GROUP key ONLY (never surfaced/logged).
+    private const string OrganizationNumberColumn = "OrganizationNumber";
+
     public async ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
         JobAdFilterCriteria filter,
         FullCandidateMatchProfile profile,
@@ -286,10 +291,10 @@ internal sealed class PerUserJobAdSearchQuery(
         // the GROUP BY, so the count is proven by the Testcontainers oracle (InMemory hides all).
         var counts = await db.JobAds
             .AsNoTracking()
-            .Where(j => orgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber"))
+            .Where(j => orgNrs.Contains(EF.Property<string?>(j, OrganizationNumberColumn))
                         && j.Status == JobAdStatus.Active)
             .Where(RankInSet(rankExpr, selectedRanks))
-            .GroupBy(j => EF.Property<string?>(j, "OrganizationNumber"))
+            .GroupBy(j => EF.Property<string?>(j, OrganizationNumberColumn))
             .Select(g => new { OrgNr = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
 

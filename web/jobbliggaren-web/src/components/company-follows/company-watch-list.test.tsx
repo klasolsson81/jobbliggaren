@@ -125,7 +125,7 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
 
   it("default = matchande vyn: visar matchande-räknaren OCH behåller aktiv-räknaren", () => {
     render(<CompanyWatchList items={[legalEntity]} />);
-    expect(screen.getByText("2 matchande annonser")).toBeInTheDocument();
+    expect(screen.getByText("2 matchande annonser just nu")).toBeInTheDocument();
     // #447/#448-raden lever kvar som sekundärt faktum oavsett vy-läge.
     expect(screen.getByText("3 aktiva annonser just nu")).toBeInTheDocument();
   });
@@ -134,7 +134,7 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
     const { rerender } = render(
       <CompanyWatchList items={[{ ...legalEntity, matchingAdCount: 1 }]} />
     );
-    expect(screen.getByText("1 matchande annons")).toBeInTheDocument();
+    expect(screen.getByText("1 matchande annons just nu")).toBeInTheDocument();
     rerender(
       <CompanyWatchList items={[{ ...legalEntity, matchingAdCount: 0 }]} />
     );
@@ -149,7 +149,7 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
     );
     expect(
       screen.getByText(
-        "Ange vilka yrken du söker för att se matchande annonser."
+        "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser."
       )
     ).toBeInTheDocument();
     // Nudge-länken pekar på den kanoniska matchnings-setup-rutten.
@@ -167,15 +167,15 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
     const user = userEvent.setup();
 
     // Default matchande-vy: matchande-signalen syns.
-    expect(screen.getByText("2 matchande annonser")).toBeInTheDocument();
+    expect(screen.getByText("2 matchande annonser just nu")).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Alla annonser" }));
-    expect(screen.queryByText("2 matchande annonser")).toBeNull();
+    expect(screen.queryByText("2 matchande annonser just nu")).toBeNull();
     expect(screen.getByText("3 aktiva annonser just nu")).toBeInTheDocument();
 
     // Tillbaka till matchande-vyn.
     await user.click(screen.getByRole("radio", { name: "Matchande" }));
-    expect(screen.getByText("2 matchande annonser")).toBeInTheDocument();
+    expect(screen.getByText("2 matchande annonser just nu")).toBeInTheDocument();
   });
 
   it("toggle döljer även nudgen i 'Alla annonser'-läget (nudge tillhör matchande-vyn)", async () => {
@@ -186,14 +186,14 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
 
     expect(
       screen.getByText(
-        "Ange vilka yrken du söker för att se matchande annonser."
+        "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser."
       )
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Alla annonser" }));
     expect(
       screen.queryByText(
-        "Ange vilka yrken du söker för att se matchande annonser."
+        "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser."
       )
     ).toBeNull();
     expect(screen.getByText("3 aktiva annonser just nu")).toBeInTheDocument();

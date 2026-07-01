@@ -70,7 +70,11 @@ public sealed class ListCompanyWatchesQueryHandler(
         // ad set for a prolific employer (avoids the §5 unpaginated-fetch smell). string? element type
         // so the EF.Property<string?> Contains translates cleanly (the column is nullable; a NULL
         // org.nr ad never matches via `= ANY(...)`). Values themselves non-null.
-        var orgNrs = watches.Select(w => (string?)w.OrganizationNumber.Value).Distinct().ToList();
+        // Distinct watched org.nrs, derived once. The non-null form drives the #452 matching-count
+        // port call; the string? projection is what the EF.Property<string?> Contains translations
+        // below bind (the shadow column is nullable — a NULL-org.nr ad never matches via `= ANY(...)`).
+        var watchedOrgNrs = watches.Select(w => w.OrganizationNumber.Value).Distinct().ToList();
+        var orgNrs = watchedOrgNrs.Select(o => (string?)o).ToList();
 
         var nameByOrgNr = (await db.JobAds
                 .AsNoTracking()
@@ -112,10 +116,6 @@ public sealed class ListCompanyWatchesQueryHandler(
         IReadOnlyDictionary<string, int>? matchingByOrgNr = null;
         if (profile.Fast.SsykGroupConceptIds.Count > 0)
         {
-            var watchedOrgNrs = watches
-                .Select(w => w.OrganizationNumber.Value)
-                .Distinct()
-                .ToList();
             matchingByOrgNr = await perUserSearch.CountPerUserByEmployerAsync(
                 watchedOrgNrs, profile, MatchingGrades, cancellationToken);
         }

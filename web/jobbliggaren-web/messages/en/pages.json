@@ -130,7 +130,7 @@
   },
   "foretag": {
     "title": "Followed companies",
-    "lede": "Companies you follow. Turn on company notifications under Settings to get a notice when a followed company publishes a new job ad.",
+    "lede": "Companies you follow. You start following a company from an ad under Jobs.",
     "loadErrorTitle": "Could not load followed companies"
   },
   "matchningar": {

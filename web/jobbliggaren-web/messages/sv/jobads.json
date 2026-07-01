@@ -39,7 +39,6 @@
     "protectedIdentityHint": "Organisationsnumret visas inte eftersom det kan vara ett personnummer.",
     "activeAds": "{count, plural, =0 {Inga aktiva annonser just nu} one {# aktiv annons just nu} other {# aktiva annonser just nu}}",
     "followedSince": "Bevakad sedan {date}",
-    "unfollow": "Sluta bevaka",
     "unfollowAria": "Sluta bevaka {company}"
   },
   "recent": {

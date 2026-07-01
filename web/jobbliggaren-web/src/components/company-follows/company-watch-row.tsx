@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ShieldAlert, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
@@ -38,6 +38,7 @@ export function CompanyWatchRow({ item }: CompanyWatchRowProps) {
   const format = useFormatter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const hintId = useId();
 
   const displayName = item.companyName ?? t("unknownCompany");
   const followedSince = formatDate(format, item.followedAt);
@@ -53,19 +54,28 @@ export function CompanyWatchRow({ item }: CompanyWatchRowProps) {
 
   return (
     <li>
-      <article
-        className="jp-job"
-        style={{ gridTemplateColumns: "1fr auto" }}
-        aria-busy={isPending || undefined}
-      >
+      <article className="jp-job" style={{ gridTemplateColumns: "1fr auto" }}>
         <div className="jp-job__body">
           <h3 className="jp-job__title">{displayName}</h3>
           <div className="jp-job__meta">
             {item.isProtectedIdentity ? (
-              <span title={t("protectedIdentityHint")}>
-                <ShieldAlert size={14} aria-hidden="true" /> {t("protectedIdentity")}
-              </span>
+              <>
+                <span aria-describedby={hintId}>
+                  <ShieldAlert size={14} aria-hidden="true" /> {t("protectedIdentity")}
+                </span>
+                {/* The reason the org.nr is hidden, reachable by screen readers
+                    (a non-focusable `title` is not) — keeps the meta visually compact. */}
+                <span id={hintId} className="sr-only">
+                  {t("protectedIdentityHint")}
+                </span>
+              </>
             ) : (
+              // Backend (ADR 0087 D8(c)) is the SINGLE authoritative personnummer guard: a
+              // personnummer-shaped sole-prop org.nr arrives as organizationNumber=null +
+              // isProtectedIdentity=true, so this branch only ever sees a legal-entity number. The FE
+              // renders on that contract and adds NO shape-heuristic of its own — D8 rejected a
+              // FE-layer heuristic (imperfect, wrong layer); the regression tripwire is the build-time
+              // OrganizationNumberSurfacingGuardTests, not a runtime FE check (senior-cto-advisor 2026-07-01).
               item.organizationNumber && (
                 <span>{t("orgNr", { orgNr: formatOrgNr(item.organizationNumber) })}</span>
               )
@@ -89,6 +99,7 @@ export function CompanyWatchRow({ item }: CompanyWatchRowProps) {
             type="button"
             className="jp-icon-btn"
             aria-label={t("unfollowAria", { company: displayName })}
+            aria-busy={isPending || undefined}
             onClick={handleUnfollow}
             style={isPending ? { opacity: 0.6 } : undefined}
           >

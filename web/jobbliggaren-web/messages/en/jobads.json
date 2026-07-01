@@ -39,7 +39,6 @@
     "protectedIdentityHint": "The organisation number is hidden because it may be a personal identity number.",
     "activeAds": "{count, plural, =0 {No active ads right now} one {# active ad right now} other {# active ads right now}}",
     "followedSince": "Followed since {date}",
-    "unfollow": "Unfollow",
     "unfollowAria": "Unfollow {company}"
   },
   "recent": {

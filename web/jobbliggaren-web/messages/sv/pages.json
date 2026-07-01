@@ -130,7 +130,7 @@
   },
   "foretag": {
     "title": "Bevakade företag",
-    "lede": "Företag du bevakar. Slå på företagsnotiser under Inställningar för att få en notis när ett bevakat företag publicerar en ny annons.",
+    "lede": "Företag du bevakar. Du börjar bevaka ett företag från en annons under Jobb.",
     "loadErrorTitle": "Kunde inte ladda bevakade företag"
   },
   "matchningar": {

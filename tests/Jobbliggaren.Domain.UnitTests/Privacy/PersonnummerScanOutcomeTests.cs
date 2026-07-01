@@ -16,6 +16,13 @@ public class PersonnummerScanOutcomeTests
     private const string Pnr = "811218-9876"; // personnummer
     private const string Samordning = "811278-9873"; // samordningsnummer
 
+    // The camelCase options ParsedResumeConfiguration.JsonOptions persists this outcome with
+    // (#426 back-compat tests). Cached once (CA1869 — never per-call).
+    private static readonly System.Text.Json.JsonSerializerOptions CamelCase = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+    };
+
     [Fact]
     public void None_IsTheCleanOutcome_FoundFalseCountZeroKindsEmpty()
     {
@@ -85,11 +92,12 @@ public class PersonnummerScanOutcomeTests
     }
 
     [Fact]
-    public void PersonnummerScanOutcome_ExposesNoRawValueOrOffset_OnlyFoundCountKinds()
+    public void PersonnummerScanOutcome_ExposesNoRawValueOrOffset_OnlyFoundCountKindsAndLocationFlag()
     {
-        // PII-safety boundary: the type must carry ONLY Found/Count/Kinds — no raw
-        // value, no offset, no masked-value member. Verified structurally so a
-        // future PII-leaking member breaks this test.
+        // PII-safety boundary: the type must carry ONLY Found/Count/Kinds plus the non-PII
+        // FoundInFileName LOCATION flag (#426) — no raw value, no offset, no masked-value
+        // member, no raw filename. Verified structurally so a future PII-leaking member
+        // breaks this test.
         var properties = typeof(PersonnummerScanOutcome)
             .GetProperties(System.Reflection.BindingFlags.Instance
                 | System.Reflection.BindingFlags.Public)
@@ -98,12 +106,112 @@ public class PersonnummerScanOutcomeTests
             .OrderBy(n => n)
             .ToArray();
 
-        properties.ShouldBe(["Count", "Found", "Kinds"]);
+        properties.ShouldBe(["Count", "Found", "FoundInFileName", "Kinds"]);
+
+        // FoundInFileName is a bare bool — a location discriminator, not a PII channel.
+        typeof(PersonnummerScanOutcome).GetProperty("FoundInFileName")!
+            .PropertyType.ShouldBe(typeof(bool));
 
         typeof(PersonnummerScanOutcome).GetProperty("Value").ShouldBeNull();
         typeof(PersonnummerScanOutcome).GetProperty("Raw").ShouldBeNull();
         typeof(PersonnummerScanOutcome).GetProperty("Offsets").ShouldBeNull();
         typeof(PersonnummerScanOutcome).GetProperty("Masked").ShouldBeNull();
         typeof(PersonnummerScanOutcome).GetProperty("Matches").ShouldBeNull();
+        typeof(PersonnummerScanOutcome).GetProperty("FileName").ShouldBeNull();
+    }
+
+    // ===============================================================
+    // #426 — filename personnummer flag (Variant B, senior-cto-advisor). The filename
+    // scan rides as a SEPARATE bool: Found/Count/Kinds stay BODY-exclusive, so a
+    // filename-only hit never blocks promotion; B4 surfaces it as a Warn instead.
+    // ===============================================================
+
+    [Fact]
+    public void None_FoundInFileName_IsFalse()
+    {
+        PersonnummerScanOutcome.None.FoundInFileName.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void FromMatches_BodyMatches_DefaultsFoundInFileNameFalse()
+    {
+        // The single-arg call path (PromoteParsedResume and the pre-#426 body scan) leaves
+        // FoundInFileName at its safe default.
+        var outcome = PersonnummerScanOutcome.FromMatches(PersonnummerScanner.Scan($"Pnr {Pnr}."));
+
+        outcome.Found.ShouldBeTrue();
+        outcome.FoundInFileName.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void FromMatches_EmptyBody_ButFoundInFileName_FoundStaysFalse_ButFlagSet()
+    {
+        // A clean CV body but a personnummer in the FILENAME: Found (the body signal that
+        // gates promotion) stays FALSE, Count 0, Kinds empty — only FoundInFileName is set.
+        // This is NOT the None singleton (a filename hit must survive round-trip).
+        var outcome = PersonnummerScanOutcome.FromMatches([], foundInFileName: true);
+
+        outcome.Found.ShouldBeFalse();
+        outcome.Count.ShouldBe(0);
+        outcome.Kinds.ShouldBeEmpty();
+        outcome.FoundInFileName.ShouldBeTrue();
+        outcome.ShouldNotBeSameAs(PersonnummerScanOutcome.None);
+    }
+
+    [Fact]
+    public void FromMatches_BodyAndFileName_BodyFieldsBodyOnly_FlagSet()
+    {
+        // Both surfaces carry a personnummer: Found/Count/Kinds describe the BODY ONLY
+        // (Count is the body count, not a body+filename union), while FoundInFileName is true.
+        var body = PersonnummerScanner.Scan($"A {Pnr} och B {Pnr}."); // 2 body detections
+        var outcome = PersonnummerScanOutcome.FromMatches(body, foundInFileName: true);
+
+        outcome.Found.ShouldBeTrue();
+        outcome.Count.ShouldBe(2); // body-exclusive — the filename is NOT counted in
+        outcome.Kinds.ShouldBe([PersonnummerKind.Personnummer]);
+        outcome.FoundInFileName.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void FromMatches_EmptyBody_NoFileName_ReturnsNone()
+    {
+        PersonnummerScanOutcome.FromMatches([], foundInFileName: false)
+            .ShouldBeSameAs(PersonnummerScanOutcome.None);
+    }
+
+    // ===============================================================
+    // #426 — jsonb back-compat: an outcome persisted BEFORE this slice has no
+    // `foundInFileName` key. It must round-trip to the safe default false (never a false
+    // alarm), matching ParsedResumeConfiguration.JsonOptions (camelCase).
+    // ===============================================================
+
+    [Fact]
+    public void Deserialize_LegacyJsonWithoutFoundInFileName_DefaultsToFalse()
+    {
+        // Exactly the shape ParsedResumeConfiguration.JsonOptions (camelCase) wrote before #426.
+        const string legacyJson = """{"found":true,"count":1,"kinds":[0]}""";
+
+        var outcome = System.Text.Json.JsonSerializer
+            .Deserialize<PersonnummerScanOutcome>(legacyJson, CamelCase);
+
+        outcome.ShouldNotBeNull();
+        outcome.Found.ShouldBeTrue();
+        outcome.Count.ShouldBe(1);
+        outcome.Kinds.ShouldBe([PersonnummerKind.Personnummer]);
+        outcome.FoundInFileName.ShouldBeFalse(); // missing key → safe default, no false alarm
+    }
+
+    [Fact]
+    public void Serialize_ThenDeserialize_RoundTripsFoundInFileName()
+    {
+        var outcome = PersonnummerScanOutcome.FromMatches([], foundInFileName: true);
+
+        var json = System.Text.Json.JsonSerializer.Serialize(outcome, CamelCase);
+        var roundTripped = System.Text.Json.JsonSerializer
+            .Deserialize<PersonnummerScanOutcome>(json, CamelCase);
+
+        json.ShouldContain("foundInFileName");
+        roundTripped!.FoundInFileName.ShouldBeTrue();
+        roundTripped.Found.ShouldBeFalse();
     }
 }

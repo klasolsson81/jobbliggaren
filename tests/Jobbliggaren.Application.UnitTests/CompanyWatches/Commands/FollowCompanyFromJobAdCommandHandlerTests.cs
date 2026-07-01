@@ -147,6 +147,23 @@ public class FollowCompanyFromJobAdCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenAdOrgNumberIsMalformed_ReturnsValidationError()
+    {
+        // The STORED column is derived from raw_payload — a malformed (non-10-digit) value is possible.
+        // OrganizationNumber.Create rejects it → not followable → 400 (same branch as NULL, CTO deldom 5).
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        ReaderReturns("123"); // not 10 digits
+
+        var result = await Handler(db).Handle(new FollowCompanyFromJobAdCommand(_jobAdId), ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("CompanyWatch.EmployerOrganizationNumberMissing");
+        result.Error.Kind.ShouldBe(ErrorKind.Validation);
+        (await db.CompanyWatches.CountAsync(ct)).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Handle_WhenUserNotAuthenticated_ReturnsUnauthorized()
     {
         var ct = TestContext.Current.CancellationToken;

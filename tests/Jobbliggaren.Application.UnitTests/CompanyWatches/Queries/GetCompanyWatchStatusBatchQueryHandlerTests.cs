@@ -130,6 +130,21 @@ public class GetCompanyWatchStatusBatchQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenDuplicateIds_ReturnsOneStatusPerDistinctAd()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var jobAdId = Guid.NewGuid();
+        ReaderReturns(new() { [jobAdId] = OtherOrgNr });
+
+        var result = await Handler(db).Handle(
+            new GetCompanyWatchStatusBatchQuery([jobAdId, jobAdId, jobAdId]), ct);
+
+        result.Statuses.Count.ShouldBe(1);
+        result.Statuses.Single().JobAdId.ShouldBe(jobAdId);
+    }
+
+    [Fact]
     public async Task Handle_MixedPage_MapsEachIndependently()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -322,6 +322,19 @@ public class CompanyWatchesTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task POST_status_over_cap_returns_400()
+    {
+        // The 100-id cap validator is wired into the pipeline for /status (parity ADR 0063).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var tooMany = Enumerable.Range(0, 101).Select(_ => Guid.NewGuid()).ToArray();
+
+        var response = await _client.PostAsJsonAsync(StatusEndpoint, new { jobAdIds = tooMany }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
     // Imports a public job_ad whose raw_payload carries employer.organization_number, so the STORED
     // generated `organization_number` column auto-populates (mirrors ListJobAdsEmployerFilterTests).
     // Returns the ad's id so the #455 by-job-ad endpoint can target it.

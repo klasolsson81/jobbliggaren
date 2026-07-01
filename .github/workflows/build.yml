@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # global.json låser till 10.0.200 (rollForward latestFeature). setup-dotnet
       # respekterar global.json om version inte angivs explicit.
@@ -39,7 +39,7 @@ jobs:
           global-json-file: global.json
 
       - name: Cache NuGet
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
@@ -85,7 +85,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -93,7 +93,7 @@ jobs:
           global-json-file: global.json
 
       - name: Cache NuGet
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
@@ -181,7 +181,7 @@ jobs:
         working-directory: web/jobbliggaren-web
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # pnpm-version pinnad — pnpm-lock.yaml är lockfileVersion 9.0 (pnpm 9.x).
       # När ./web/jobbliggaren-web/package.json får `"packageManager": "pnpm@..."`-
@@ -242,7 +242,7 @@ jobs:
         working-directory: web/jobbliggaren-web
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -291,7 +291,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -299,7 +299,7 @@ jobs:
           global-json-file: global.json
 
       - name: Cache NuGet
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
@@ -355,7 +355,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5

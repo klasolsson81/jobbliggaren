@@ -7,6 +7,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 
@@ -69,8 +70,63 @@ internal static class CvReviewFixtures
         string? title = "Backend-utvecklare",
         string? organization = "Acme AB",
         string? period = "2021–2024",
-        string? rawText = null) =>
-        new(title, organization, period, rawText ?? $"{title}, {organization}, {period}");
+        string? rawText = null,
+        IReadOnlyList<string>? bullets = null) =>
+        new(title, organization, period,
+            rawText ?? BuildEntryRawText(title, organization, period, bullets));
+
+    // The realistic entry shape HeadingDrivenResumeSegmenter emits: a header line
+    // (title — organization), the period on its own line, then the description bullets — one
+    // per line. The scored "bullets" (A1/A2/A6) are the DESCRIPTION lines, never the header/
+    // period block (#487). Defaults to one strong, quantified, action-verb-led bullet so the
+    // baseline fixture is a genuinely strong CV; pass `bullets: []` for a header-only entry.
+    private static readonly IReadOnlyList<string> DefaultBullets =
+        ["Ledde teamet om 8 personer och ökade konverteringen med 23 procent."];
+
+    private static string BuildEntryRawText(
+        string? title, string? organization, string? period, IReadOnlyList<string>? bullets)
+    {
+        var lines = new List<string>();
+        var header = string.Join(" — ",
+            new[] { title, organization }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        if (header.Length > 0)
+        {
+            lines.Add(header);
+        }
+
+        if (!string.IsNullOrWhiteSpace(period))
+        {
+            lines.Add(period);
+        }
+
+        lines.AddRange(bullets ?? DefaultBullets);
+        return string.Join('\n', lines);
+    }
+
+    /// <summary>
+    /// Segments raw CV text through the REAL <see cref="HeadingDrivenResumeSegmenter"/> and
+    /// builds the <see cref="ParsedResume"/> the engine reviews — the audit's format-test seam
+    /// (#487): the engine is exercised against genuine segmenter output, never hand-crafted
+    /// rawText the parser would never emit (the header line + own-line period are real).
+    /// </summary>
+    internal static ParsedResume ResumeFromCvText(
+        string cvText, string sourceFileName = "CV_Anna_Andersson.pdf")
+    {
+        var segmented = new HeadingDrivenResumeSegmenter().Segment(cvText);
+        var created = ParsedResume.Create(
+            JobSeekerId.New(),
+            sourceFileName,
+            "application/pdf",
+            segmented.DetectedLanguage,
+            segmented.Content,
+            cvText,
+            segmented.Confidence,
+            PersonnummerScanOutcome.None,
+            [],
+            FixedClock.Default);
+
+        return created.Value;
+    }
 
     internal static ParsedEducation Education(
         string? institution = "KTH",

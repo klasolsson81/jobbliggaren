@@ -116,8 +116,8 @@ public class CvReviewEngineTests
     {
         var resume = Resume(experience:
         [
-            Experience(rawText:
-                "Ledde teamet om 8 personer och ökade konverteringen med 23 % under 2024."),
+            Experience(bullets:
+                ["Ledde teamet om 8 personer och ökade konverteringen med 23 % under 2024."]),
         ]);
 
         var result = await ReviewAsync(resume);
@@ -132,7 +132,7 @@ public class CvReviewEngineTests
         // offending bullet span (TextSpan), never a structural-only note.
         var resume = Resume(experience:
         [
-            Experience(rawText: "Ansvarade för dagliga arbetsuppgifter och stöttade kollegor."),
+            Experience(bullets: ["Ansvarade för dagliga arbetsuppgifter och stöttade kollegor."]),
         ]);
 
         var result = await ReviewAsync(resume);
@@ -157,7 +157,7 @@ public class CvReviewEngineTests
 
         var resume = Resume(experience:
         [
-            Experience(rawText: $"{Capitalize(strong)} teamet om 8 personer med tydligt resultat 2024."),
+            Experience(bullets: [$"{Capitalize(strong)} teamet om 8 personer med tydligt resultat 2024."]),
         ]);
 
         var result = await ReviewAsync(resume);
@@ -174,7 +174,7 @@ public class CvReviewEngineTests
 
         var resume = Resume(experience:
         [
-            Experience(rawText: $"{Capitalize(weak)} ett område utan tydligt resultat."),
+            Experience(bullets: [$"{Capitalize(weak)} ett område utan tydligt resultat."]),
         ]);
 
         var result = await ReviewAsync(resume);
@@ -182,6 +182,271 @@ public class CvReviewEngineTests
         var a2 = Verdict(result, "A2");
         a2.Verdict.ShouldBeOneOf(CriterionVerdict.Warn, CriterionVerdict.Fail);
         a2.Evidence.ShouldContain(e => e is TextSpanEvidence);
+    }
+
+    // ===============================================================
+    // 2b. #487 — the scored bullet unit is the DESCRIPTION, not the whole
+    //     entry block (header + period). A1/A2/A6 read real bullet lines;
+    //     employment dates are masked out of the measurable-digit test.
+    // ===============================================================
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA1_WhenTheOnlyDigitsAreTheEmploymentDates()
+    {
+        // #487(a): the entry's date row ("2013–2021") is not a measurable result. A CV whose
+        // description carries no quantification must FAIL the critical A1 — pre-fix it PASSED
+        // vacuously because ContainsDigit saw the period's digits in the whole-block "bullet".
+        var resume = Resume(experience:
+        [
+            Experience(title: "Verksamhetsutvecklare", organization: "Region Skåne",
+                period: "2013–2021",
+                bullets: ["Ansvarade för dagliga arbetsuppgifter och stöttade kollegor."]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A1").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "A1 får inte passera på anställningsdatumets siffror — datumet är inte ett mätbart resultat (#487).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA2_WhenEveryBulletOpensWithAStrongVerb_EvenWithATitleHeader()
+    {
+        // #487(b): pre-fix A2 read the entry's first word = the job title, never a verb, and
+        // FAILED citing the title even when every bullet opens with a strong verb. With real
+        // bullet lines A2 PASSES.
+        var strong = RealVerbMapper().GetVerbMapping()
+            .StrongVerbGroups.SelectMany(g => g.Verbs).First();
+        var resume = Resume(experience:
+        [
+            Experience(title: "Backend-utvecklare", organization: "Acme AB", period: "2021–2024",
+                bullets:
+                [
+                    $"{Capitalize(strong)} teamet om 8 personer.",
+                    $"{Capitalize(strong)} en ny betalningsplattform.",
+                ]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A2").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "A2 ska läsa punktradernas verb, inte jobbtiteln i rubrikraden (#487).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNotCountDatesAsConcreteArtefactsInA6()
+    {
+        // #487(c): A6.IsConcrete counted the date's digits (and the header's capitalised
+        // organisation) as a "concrete artefact". A generic description whose only digits are
+        // the dates and whose only capitalised word is the header must NOT pass A6.
+        var resume = Resume(experience:
+        [
+            Experience(title: "Handläggare", organization: "Myndigheten", period: "2015–2020",
+                bullets: ["Skötte löpande ärenden och deltog i möten."]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A6").Verdict.ShouldBeOneOf(CriterionVerdict.Warn, CriterionVerdict.Fail);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldReportNoDescriptionBulletsReasonForA1_WhenEntriesAreHeaderOnly()
+    {
+        // #487(d): an entry that is only a header+period (no description lines) yields no
+        // scorable bullets → A1/A2/A6 report NotAssessed honestly (never a fabricated
+        // Pass/Fail). The reason distinguishes "experience stated but no description lines"
+        // from "no experience at all" (CTO Q2d honesty).
+        var resume = Resume(experience:
+        [
+            Experience(title: "Konsult", organization: "Firman", period: "2018–2022", bullets: []),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        foreach (var id in new[] { "A1", "A2", "A6" })
+        {
+            var verdict = Verdict(result, id);
+            verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
+                $"{id} ska vara NotAssessed när posterna saknar beskrivande punkter (#487).");
+            // Erfarenhet finns men utan punkter → skälet ska skilja sig från 'ingen erfarenhet'.
+            verdict.NotAssessedReason.ShouldNotBeNull();
+            verdict.NotAssessedReason!.ShouldContain("saknar beskrivande punkter");
+        }
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldReportNoExperienceReasonForA1_WhenThereIsNoExperienceAtAll()
+    {
+        // #487(d) sibling: no experience entries at all → the honest reason names "ingen
+        // arbetslivserfarenhet", distinct from the header-only "saknar beskrivande punkter".
+        var resume = Resume(experience: []);
+
+        var result = await ReviewAsync(resume);
+
+        var a1 = Verdict(result, "A1");
+        a1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        // Utan erfarenhetsposter ska skälet skilja sig från 'saknar beskrivande punkter' (#487).
+        a1.NotAssessedReason.ShouldNotBeNull();
+        a1.NotAssessedReason!.ShouldContain("Ingen arbetslivserfarenhet");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnA1_WhenSomeButNotAllBulletsAreQuantified()
+    {
+        // #487 mid-branch (0 < quantified < bullets → Warn) on the Critical A1 criterion.
+        var resume = Resume(experience:
+        [
+            Experience(bullets:
+            [
+                "Ökade konverteringen med 23 procent.",
+                "Ansvarade för teamets dagliga arbete.",
+            ]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A1").Verdict.ShouldBe(CriterionVerdict.Warn,
+            "En kvantifierad och en icke-kvantifierad punkt → A1 Warn (#487).");
+    }
+
+    // ── #487 date-MASKING isolation (StripDates): an inline date inside a bullet (not a
+    // standalone period line, so it survives DescriptionLines) must not count as a metric.
+    // These are the vectors that go RED if ContainsMeasurableDigit degrades to ContainsDigit.
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA1_WhenTheOnlyDigitInABulletIsAnInlineYear()
+    {
+        var resume = Resume(experience:
+        [
+            Experience(bullets: ["Migrerade det gamla 1998-systemet till en ny plattform."]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A1").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "Ett inline-år är inte ett mätbart resultat — datumet maskas ur siffertestet (#487).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA1_WhenTheOnlyDigitsInABulletAreAnInlineDateRange()
+    {
+        var resume = Resume(experience:
+        [
+            Experience(bullets: ["Arbetade under 2013–2021 med löpande förvaltning."]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A1").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "Ett inline datumintervall maskas — inte ett mätbart resultat (#487).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA1_WhenABulletHasARealMetricAlongsideAMaskedDate()
+    {
+        // The mask must not eat a real metric: "12 procent" survives while the year is masked.
+        var resume = Resume(experience:
+        [
+            Experience(bullets: ["Migrerade 1998-systemet och sänkte driftskostnaden med 12 procent."]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A1").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "En riktig metrik ska räknas även när ett årtal i samma punkt maskas (#487).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNotTreatAnInlineDateAsAConcreteArtefactInA6()
+    {
+        // A6.IsConcrete reuses the date-masked digit test — an inline year is not a concrete
+        // artefact (and there is no capitalised named system in this bullet).
+        var resume = Resume(experience:
+        [
+            Experience(bullets: ["deltog i det stora 2015-projektet och bidrog där det behövdes."]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        // Inline-år räknas inte som konkret artefakt i A6 (#487).
+        Verdict(result, "A6").Verdict.ShouldBeOneOf(CriterionVerdict.Warn, CriterionVerdict.Fail);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldMaskABareFourDigitYearEvenWhenItIsACount_DocumentedV1Tradeoff()
+    {
+        // Documented deterministic v1 tradeoff (CTO date-masking bind, #487): DatePatterns.Year()
+        // masks any bare 1900–2099 number, so a rare count that happens to be a four-digit year
+        // ("2000 ärenden") is masked like a date and A1 does not count it — honest-absent over
+        // confidently-wrong (ADR 0071: a lone four-digit year is far more often a date than a
+        // metric). A count OUTSIDE that band ("2500 ärenden") is unaffected. Pinned so the
+        // tradeoff is visible and intentional, never a silent mis-report.
+        var masked = Resume(experience: [Experience(bullets: ["Hanterade 2000 ärenden per år."])]);
+        var unmasked = Resume(experience: [Experience(bullets: ["Hanterade 2500 ärenden per år."])]);
+
+        Verdict(await ReviewAsync(masked), "A1").Verdict.ShouldBe(CriterionVerdict.Fail);
+        Verdict(await ReviewAsync(unmasked), "A1").Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldExcludeAnOwnLineOrganisationFromBullets_WhenTitleCompanyDatesLayout()
+    {
+        // Genuine segmenter output where the organisation sits on its OWN line (the
+        // "Title\nCompany\nDates" layout) — the organisation line is not a description bullet,
+        // so A2 reads the real bullet's verb and A1 sees the real metric (#487, DescriptionLines
+        // org-drop branch).
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Backend-utvecklare
+            Acme AB
+            2013 - 2021
+            Ledde teamet om 8 personer och ökade konverteringen med 23 procent.
+            """;
+
+        var resume = ResumeFromCvText(cv);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A2").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Organisationsraden (Acme AB) är ingen punkt — A2 ska läsa punktens verb (#487).");
+        Verdict(result, "A1").Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNotVacuouslyPassA1_WhenFedRealSegmenterOutput()
+    {
+        // #487 format-test (epic recommendation): feed genuine HeadingDrivenResumeSegmenter
+        // output — NOT hand-crafted rawText — through the engine. The header line carries the
+        // job title and the period sits on its own line; a description without quantification
+        // must not pass the critical A1 on the date row alone, A2 must read the bullet verb (a
+        // weak "ansvarade för" opener → not a Fail here since it IS a strong-mapping verb, so
+        // assert only that A2 is assessed), and A6 must not pass on the date/header alone.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Backend-utvecklare — Acme AB
+            2013 - 2021
+            Skötte löpande uppgifter och stöttade kollegor i det dagliga.
+            """;
+
+        var resume = ResumeFromCvText(cv);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A1").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "Segmenterar-utdata utan kvantifiering ska inte passera A1 på datumraden (#487 format-test).");
+        // A6 ska inte passera på datum/rubrik när punkten saknar konkret artefakt (#487 format-test).
+        Verdict(result, "A6").Verdict.ShouldBeOneOf(CriterionVerdict.Warn, CriterionVerdict.Fail);
+        Verdict(result, "A2").Verdict.ShouldNotBe(CriterionVerdict.NotAssessed,
+            "A2 ska bedömas på den riktiga punkten från segmenterar-utdatan (#487 format-test).");
     }
 
     // ===============================================================
@@ -658,7 +923,7 @@ public class CvReviewEngineTests
         var flagged = PersonnummerScanOutcome.FromMatches(
             PersonnummerScanner.Scan("Personnummer 811218-9876."));
         var resume = Resume(
-            experience: [Experience(rawText: "Ansvarade för diverse uppgifter utan resultat.")],
+            experience: [Experience(bullets: ["Ansvarade för diverse uppgifter utan resultat."])],
             personnummer: flagged);
 
         var result = await ReviewAsync(resume, RenderProfile.Ats);
@@ -731,7 +996,7 @@ public class CvReviewEngineTests
         var strong = Resume();
         var weak = Resume(
             profile: "Driven lagspelare. Resultatorienterad. Ansvarstagande.",
-            experience: [Experience(rawText: "Var ansvarig för diverse uppgifter.")]);
+            experience: [Experience(bullets: ["Var ansvarig för diverse uppgifter."])]);
 
         var strongContent = ContentBand(await ReviewAsync(strong));
         var weakContent = ContentBand(await ReviewAsync(weak));
@@ -806,7 +1071,7 @@ public class CvReviewEngineTests
             [
                 Experience(title: "Backend Engineer", organization: "Acme Inc",
                     period: "01/2022 – 06/2024",
-                    rawText: "Led a team of 8 and increased conversion by 23% in 2024."),
+                    bullets: ["Led a team of 8 and increased conversion by 23% in 2024."]),
             ]);
 
         var result = await ReviewAsync(resume);

@@ -19,10 +19,12 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
         if (bullets.Count == 0)
         {
             return CvCriterionVerdict.NotAssessed(
-                "A1", category, "Ingen arbetslivserfarenhet att bedöma mätbarhet på.");
+                "A1", category, ReviewText.NoBulletsReason(context, "mätbarhet"));
         }
 
-        var quantified = bullets.Where(ReviewText.ContainsDigit).ToList();
+        // A measurable result is a digit that is NOT an employment date — the date row itself
+        // is not quantification (#487). Dates are masked out of the digit test.
+        var quantified = bullets.Where(ReviewText.ContainsMeasurableDigit).ToList();
         if (quantified.Count == 0)
         {
             return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Fail,
@@ -32,7 +34,7 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
 
         if (quantified.Count < bullets.Count)
         {
-            var offending = bullets.First(b => !ReviewText.ContainsDigit(b));
+            var offending = bullets.First(b => !ReviewText.ContainsMeasurableDigit(b));
             return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Span(context.RawText, offending, "punkt utan mätbart resultat")));
         }
@@ -54,7 +56,7 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         if (bullets.Count == 0)
         {
             return CvCriterionVerdict.NotAssessed(
-                "A2", category, "Ingen arbetslivserfarenhet att bedöma handlingsverb på.");
+                "A2", category, ReviewText.NoBulletsReason(context, "handlingsverb"));
         }
 
         // Strong-verb openers via the F4-2 NLP tier: reduce each mapping verb to its first
@@ -175,7 +177,7 @@ internal sealed class A6ConcretionRule : ICriterionRule
         if (bullets.Count == 0)
         {
             return CvCriterionVerdict.NotAssessed(
-                "A6", category, "Ingen arbetslivserfarenhet att bedöma konkretion på.");
+                "A6", category, ReviewText.NoBulletsReason(context, "konkretion"));
         }
 
         var concrete = bullets.Where(IsConcrete).ToList();
@@ -192,11 +194,11 @@ internal sealed class A6ConcretionRule : ICriterionRule
             ReviewText.Cite(ReviewText.Span(context.RawText, vague, "generisk punkt utan konkret artefakt")));
     }
 
-    // Concrete = contains a digit OR a capitalised word past the first (proxy for a named
-    // tool/system/company/customer). Deterministic, no curated list.
+    // Concrete = contains a measurable digit (dates masked — #487) OR a capitalised word past
+    // the first (proxy for a named tool/system/company/customer). Deterministic, no curated list.
     private static bool IsConcrete(string bullet)
     {
-        if (ReviewText.ContainsDigit(bullet))
+        if (ReviewText.ContainsMeasurableDigit(bullet))
         {
             return true;
         }

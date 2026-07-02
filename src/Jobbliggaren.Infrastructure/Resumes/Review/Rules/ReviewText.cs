@@ -1,5 +1,7 @@
 using System.Text;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
@@ -10,12 +12,75 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 /// </summary>
 internal static class ReviewText
 {
-    /// <summary>Each experience entry's verbatim text (trimmed, non-empty) — the "bullets".</summary>
-    public static IReadOnlyList<string> ExperienceBullets(CvReviewContext context) =>
-        context.Content.Experience
-            .Select(e => e.RawText?.Trim() ?? string.Empty)
-            .Where(t => t.Length > 0)
+    /// <summary>
+    /// The scored description bullets across all experience entries — the DESCRIPTION lines,
+    /// NOT the whole entry block. Each entry's <see cref="ParsedExperience.RawText"/> is the
+    /// verbatim block the segmenter emits (a header line with the title/organisation, the
+    /// period on its own line, then the description). A1/A2/A6 must read the description, so
+    /// the header line and any pure-period / organisation line are excluded (#487) — pre-fix
+    /// the whole block was one "bullet", so A1 counted the employment DATES as a measurable
+    /// result and A2 read the job TITLE instead of a verb.
+    /// </summary>
+    public static IReadOnlyList<string> ExperienceBullets(CvReviewContext context)
+    {
+        var bullets = new List<string>();
+        foreach (var experience in context.Content.Experience)
+        {
+            bullets.AddRange(DescriptionLines(experience));
+        }
+
+        return bullets;
+    }
+
+    /// <summary>True if the CV states at least one experience entry (regardless of whether any
+    /// carries description bullets) — lets A1/A2/A6 tell "no experience stated" apart from
+    /// "experience stated but no scorable description lines" in their honest reason (#487).</summary>
+    public static bool HasExperienceEntries(CvReviewContext context) =>
+        context.Content.Experience.Count > 0;
+
+    /// <summary>The honest NotAssessed reason A1/A2/A6 carry when there are no scorable
+    /// bullets — distinguishing "no experience stated" from "experience stated but no
+    /// description lines to score" (#487; civic Swedish, §10). <paramref name="subject"/> is
+    /// the criterion's aspect ("mätbarhet"/"handlingsverb"/"konkretion").</summary>
+    public static string NoBulletsReason(CvReviewContext context, string subject) =>
+        HasExperienceEntries(context)
+            ? $"Arbetslivserfarenheten saknar beskrivande punkter att bedöma {subject} på."
+            : $"Ingen arbetslivserfarenhet att bedöma {subject} på.";
+
+    // The description lines of one experience entry: its RawText lines, EXCLUDING the header
+    // line (title/organisation — always the first line the segmenter emits) and any line that
+    // is purely the period or the organisation on its own line (the "Title\nCompany\nDates"
+    // layout). Reuses the already-structured ParsedExperience fields rather than re-guessing.
+    private static IEnumerable<string> DescriptionLines(ParsedExperience experience)
+    {
+        var lines = experience.RawText
+            .Split('\n')
+            .Select(l => l.Trim())
+            .Where(l => l.Length > 0)
             .ToList();
+
+        // lines[0] is the header (title/organisation, possibly with a trailing period the
+        // segmenter recovered separately) — never a description bullet.
+        for (var i = 1; i < lines.Count; i++)
+        {
+            var line = lines[i];
+
+            // A line that is purely the period ("2013–2021", "01/2022 – nuvarande") is not a bullet.
+            if (PeriodParser.TryParse(line, out _, out _, out _))
+            {
+                continue;
+            }
+
+            // The organisation on its own line (the "Title\nCompany\nDates" layout) is not a bullet.
+            if (!string.IsNullOrWhiteSpace(experience.Organization)
+                && string.Equals(line, experience.Organization, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            yield return line;
+        }
+    }
 
     /// <summary>Profile + all experience text joined, for whole-CV prose scans (lowercased on demand).</summary>
     public static string AllProse(CvReviewContext context)
@@ -38,6 +103,12 @@ internal static class ReviewText
     }
 
     public static bool ContainsDigit(string text) => text.Any(char.IsDigit);
+
+    /// <summary>True if <paramref name="text"/> carries a digit that is NOT part of an
+    /// employment date/period — dates are masked first (<see cref="DatePatterns.StripDates"/>)
+    /// so a date row is never counted as a measurable result / concrete artefact (#487).</summary>
+    public static bool ContainsMeasurableDigit(string text) =>
+        ContainsDigit(DatePatterns.StripDates(text));
 
     /// <summary>True if <paramref name="text"/> (lowercased) starts with <paramref name="phrase"/>
     /// on a word boundary (so "ledde" matches "ledde teamet" but not "ledning").</summary>

@@ -637,13 +637,13 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     [GeneratedRegex(@"\+?\d[\d\s()\-]{5,}\d", RegexOptions.CultureInvariant)]
     private static partial Regex PhoneRegex();
 
-    [GeneratedRegex(
-        @"\b(\d{4}|\d{2}/\d{4}|\d{4}-\d{2})\s*[-–—]\s*(\d{4}|\d{2}/\d{4}|\d{4}-\d{2}|nuvarande|pågående|pagaende|present|current|now|idag|nu)\b",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
-    private static partial Regex DateRangeRegex();
+    // #487: the date-range / bare-year patterns moved to the shared DatePatterns helper
+    // (Infrastructure/Resumes/Parsing) so the review engine masks the SAME date shapes this
+    // segmenter extracts — one owner, no drift (DRY, CLAUDE.md §9.1). Local aliases keep the
+    // existing call sites (StripTrailingPeriod / ExtractPeriod) unchanged.
+    private static Regex DateRangeRegex() => DatePatterns.DateRange();
 
-    [GeneratedRegex(@"\b(19|20)\d{2}\b", RegexOptions.CultureInvariant)]
-    private static partial Regex YearRegex();
+    private static Regex YearRegex() => DatePatterns.Year();
 
     // #252: list/keyword sections also separate skills by middot, bullet or pipe
     // ("X · Y · Z", "A • B", "A | B") — not only newline/comma/semicolon. Splitting these

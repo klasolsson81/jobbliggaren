@@ -91,15 +91,46 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     ).toBeInTheDocument();
   });
 
-  it("hero <h1> is the crawlable 01/02/03 ledger with real verb text", async () => {
+  it("hero <h1> is the crawlable verb stack with real verb text (no ledger numbers)", async () => {
     await renderAsyncPage();
     const heading = screen.getByRole("heading", { level: 1 });
-    for (const num of ["01", "02", "03"]) {
-      expect(screen.getByText(num)).toBeInTheDocument();
-    }
     for (const verb of ["Hitta jobbet.", "Sök jobbet.", "Följ upp ansökan."]) {
       expect(heading).toHaveTextContent(verb);
     }
+    // Plattan (förslag 3a) drops the 01/02/03 ledger numbers — pure verb stack.
+    for (const num of ["01", "02", "03"]) {
+      expect(screen.queryByText(num)).not.toBeInTheDocument();
+    }
+  });
+
+  it("renders the six feature cells including the three new features", async () => {
+    await renderAsyncPage();
+    const featureTitles = [
+      "Sökning",
+      "Matchning",
+      "Ansökningar",
+      "CV-granskning",
+      "Företagsbevakning",
+      "Påminnelser",
+    ];
+    for (const title of featureTitles) {
+      expect(
+        screen.getByRole("heading", { level: 3, name: title }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("shows the plate source line and the free line at the CTA", async () => {
+    await renderAsyncPage();
+    // The free line is unique to the hero ("helt gratis") — distinct from the
+    // footer's "Jobbliggaren är gratis att använda." closing row.
+    expect(
+      screen.getByText("Jobbliggaren är helt gratis att använda."),
+    ).toBeInTheDocument();
+    // The mono source line renders on the plate (and once more in the footer).
+    expect(
+      screen.getAllByText("Byggd på öppen data från Arbetsförmedlingen").length,
+    ).toBeGreaterThan(0);
   });
 
   it("renders live stats in the header (45 580 active ads)", async () => {

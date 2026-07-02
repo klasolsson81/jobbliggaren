@@ -17,10 +17,12 @@
     "newTodayLabel": "new today"
   },
   "hero": {
+    "kicker": "The Swedish job application manager",
     "step1": "Find the job.",
     "step2": "Apply for the job.",
     "step3": "Follow up on the application.",
     "ledgerLede": "Search every active job ad from Platsbanken, build your CV and keep track of every application, from draft to response. All in one place.",
+    "source": "Built on open data from the Swedish Public Employment Service",
     "guest": "Explore as a guest, without an account"
   },
   "features": {
@@ -30,13 +32,21 @@
       "key": "Search",
       "body": "All active job ads from Platsbanken, updated around the clock. Search by occupation and location, sort by recency or application deadline."
     },
-    "pipeline": {
-      "key": "Pipeline",
+    "matching": {
+      "key": "Matching",
+      "body": "Every job ad is matched against your profile with a clear percentage, so you can spend your time on the right applications."
+    },
+    "applications": {
+      "key": "Applications",
       "body": "Track every application from draft to response: interviews, offers and rejections. Nothing falls through the cracks."
     },
-    "cv": {
-      "key": "CV",
-      "body": "Create and organise several CV variants, and pick the right CV for each application. You own every line."
+    "cvReview": {
+      "key": "CV review",
+      "body": "Get concrete feedback on what your CV should contain: what is missing, what is unclear and what can be highlighted."
+    },
+    "companyWatch": {
+      "key": "Company watch",
+      "body": "Follow employers you want to work for and get notified as soon as they publish a new job ad."
     },
     "reminders": {
       "key": "Reminders",
@@ -47,6 +57,7 @@
     "tabRegister": "Create account",
     "tabLogin": "Log in",
     "tablistLabel": "Log in or create account",
+    "free": "Jobbliggaren is completely free to use.",
     "fine": "By creating an account you accept the terms of use and the privacy policy. Jobbliggaren never sells your data."
   },
   "footer": {

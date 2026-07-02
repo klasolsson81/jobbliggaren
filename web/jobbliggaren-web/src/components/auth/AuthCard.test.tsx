@@ -243,4 +243,16 @@ describe("AuthCard", () => {
       screen.queryByText(/Genom att skapa konto godkänner du/i),
     ).not.toBeInTheDocument();
   });
+
+  it("shows the free line (förslag 3a) only on the register tab", async () => {
+    const user = userEvent.setup();
+    render(<AuthCard />);
+    expect(
+      screen.getByText("Jobbliggaren är helt gratis att använda."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Logga in" }));
+    expect(
+      screen.queryByText("Jobbliggaren är helt gratis att använda."),
+    ).not.toBeInTheDocument();
+  });
 });

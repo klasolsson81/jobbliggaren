@@ -23,8 +23,14 @@ public static class FieldEncryptionSentinel
 {
     /// <summary>
     /// Aktuellt versionssentinel-prefix. Emitteras av
-    /// <see cref="IFieldEncryptor.Encrypt"/>. Bump:as vid DEK-version-rotation
-    /// (då blir detta v2: etc.; runtime-regexen <c>^v\d+:</c> tål redan det).
+    /// <see cref="IFieldEncryptor.Encrypt"/>; runtime-regexen <c>^v\d+:</c> tål
+    /// alla versioner. <b>Bumpa INTE till v2 fristående (#501):</b> läsvägen
+    /// (<c>KmsEnvelopeEncryptor.Decrypt</c> + <c>UserDataKeyStore.ResolveDekAsync</c>)
+    /// är versionsblind — en v2-sentinel utan (a) versionsmedveten
+    /// sentinel→DEK-version-matchning och (b) en re-encrypt-migration av befintlig
+    /// v1-ciphertext bricker all existerande data (fel DEK → AES-GCM-tag-mismatch).
+    /// Detta prefix och <c>UserDataKeyStore.CurrentDekVersion</c> måste flyttas
+    /// tillsammans. Se #501 / TD-102.
     /// </summary>
     public const string VersionPrefix = "v1:";
 

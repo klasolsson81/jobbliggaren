@@ -924,6 +924,178 @@ public class CvReviewEngineTests
         }
     }
 
+    // ===============================================================
+    // 12b. A4 gap detection — running max end date, not the immediately
+    //      previous role; incomplete date coverage → honest NotAssessed (#493)
+    // ===============================================================
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA4_WhenParallelRolesOverlapWithoutARealGap()
+    {
+        // #493: a long role (2010–2020) covers the span a shorter PARALLEL role (2012–2013) sits
+        // inside, then a later role (2021–nuvarande) resumes ~1 month after. Comparing each role to
+        // the immediately-previous one by start-order fabricated an 85-month gap (2013 → 2021);
+        // tracking the RUNNING MAX end date (coverage reaches 2020) shows there is no real gap.
+        var resume = Resume(experience:
+        [
+            Experience(period: "2010 – 2020", rawText: "Verksamhetschef 2010 – 2020"),
+            Experience(period: "2012 – 2013", rawText: "Styrelseledamot (parallellt) 2012 – 2013"),
+            Experience(period: "2021 – nuvarande", rawText: "Konsult 2021 – nuvarande"),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        Verdict(result, "A4").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "En parallell roll inuti en längre roll ska inte fabricera en tidslucka (#493).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnA4_WhenThereIsARealUnexplainedGapBetweenFullyDatedRoles()
+    {
+        // A genuine > 6-month gap between fully-dated roles (2015 → 2018) is still flagged, cited
+        // from the running max end so the reported span is correct.
+        var resume = Resume(experience:
+        [
+            Experience(period: "2010 – 2015", rawText: "Utvecklare 2010 – 2015"),
+            Experience(period: "2018 – 2020", rawText: "Utvecklare 2018 – 2020"),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        var a4 = Verdict(result, "A4");
+        a4.Verdict.ShouldBe(CriterionVerdict.Warn);
+        a4.Evidence.OfType<StructuralEvidence>().ShouldHaveSingleItem()
+            .Observation.ShouldContain("2015");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNotAssessA4_WhenAnApparentGapCoexistsWithAnUnparseablePeriod()
+    {
+        // #493 part 2: an unparseable period is silently dropped, so an apparent gap between two
+        // dated roles could actually be filled by the undated role. With incomplete date coverage
+        // A4 must not fabricate a Warn — it reports NotAssessed honestly.
+        var resume = Resume(experience:
+        [
+            Experience(period: "2010 – 2015", rawText: "Utvecklare 2010 – 2015"),
+            Experience(period: "2021 – 2022", rawText: "Utvecklare 2021 – 2022"),
+            Experience(period: "en period däremellan", rawText: "Föräldraledig en period däremellan"),
+        ]);
+
+        var result = await ReviewAsync(resume);
+
+        var a4 = Verdict(result, "A4");
+        a4.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
+            "En skenbar lucka mellan daterade roller kan fyllas av en odaterad roll → NotAssessed (#493).");
+        a4.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA4_WhenAnOngoingRoleInTheMiddleCoversLaterRoles()
+    {
+        // An ongoing role (End = DateOnly.MaxValue) sorted BEFORE later dated roles must stretch the
+        // running max end to "now", so no later role opens a gap behind it. Against the immediately-
+        // previous shorter role (2012–2013) a gap would be fabricated at 2020 (#493).
+        var resume = Resume(experience:
+        [
+            Experience(period: "2010 – nuvarande", rawText: "Verksamhetschef 2010 – nuvarande"),
+            Experience(period: "2012 – 2013", rawText: "Styrelseledamot 2012 – 2013"),
+            Experience(period: "2020 – 2021", rawText: "Konsult 2020 – 2021"),
+        ]);
+
+        Verdict(await ReviewAsync(resume), "A4").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "En pågående roll mitt i sekvensen täcker alla senare roller (#493).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCiteTheRunningMaxEnd_WhenAnOverlapPrecedesARealGap()
+    {
+        // A long role (2010–2020) overlaps a shorter parallel role (2012–2013); a real gap follows
+        // to 2022. The cited span must read the running max end (2020), NOT the immediately-previous
+        // shorter role's end (2013) — else the reported gap span is wrong (#493).
+        var resume = Resume(experience:
+        [
+            Experience(period: "2010 – 2020", rawText: "Verksamhetschef 2010 – 2020"),
+            Experience(period: "2012 – 2013", rawText: "Styrelseledamot 2012 – 2013"),
+            Experience(period: "2022 – 2023", rawText: "Konsult 2022 – 2023"),
+        ]);
+
+        var a4 = Verdict(await ReviewAsync(resume), "A4");
+        a4.Verdict.ShouldBe(CriterionVerdict.Warn);
+        var observation = a4.Evidence.OfType<StructuralEvidence>().ShouldHaveSingleItem().Observation;
+        observation.ShouldContain("2020-12");   // the running max end
+        observation.ShouldNotContain("2013");   // NOT the immediately-previous shorter role's end
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA4_WhenTimelineIsGapFreeDespiteAnUnparseablePeriod()
+    {
+        // The NotAssessed qualifier must fire ONLY when an apparent gap exists; a contiguous
+        // timeline with one extra undated role still Passes (an undated role can only add coverage).
+        var resume = Resume(experience:
+        [
+            Experience(period: "2010 – 2015", rawText: "Utvecklare 2010 – 2015"),
+            Experience(period: "2015 – 2020", rawText: "Utvecklare 2015 – 2020"),
+            Experience(period: "en period däremellan", rawText: "Föräldraledig en period däremellan"),
+        ]);
+
+        Verdict(await ReviewAsync(resume), "A4").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Gap-fri tidslinje med en odaterad roll ska passera, inte bli NotAssessed (#493).");
+    }
+
+    [Theory]
+    // Gap in whole months from the running max end to the next start; > 6 = Warn, exactly 6 = Pass (strict).
+    [InlineData("06/2019 – 01/2020", "07/2020 – 12/2020", CriterionVerdict.Pass)] // 2020-01→2020-07 = 6 mån
+    [InlineData("06/2019 – 01/2020", "08/2020 – 12/2020", CriterionVerdict.Warn)] // 2020-01→2020-08 = 7 mån
+    [InlineData("01/2018 – 10/2020", "04/2021 – 12/2021", CriterionVerdict.Pass)] // crosses year: 6 mån
+    [InlineData("01/2018 – 10/2020", "05/2021 – 12/2021", CriterionVerdict.Warn)] // crosses year: 7 mån
+    public async Task ReviewAsync_ShouldTreatSixMonthsAsTheStrictGapBoundary_ForA4(
+        string first, string second, CriterionVerdict expected)
+    {
+        var resume = Resume(experience:
+        [
+            Experience(period: first, rawText: $"Roll A {first}"),
+            Experience(period: second, rawText: $"Roll B {second}"),
+        ]);
+
+        Verdict(await ReviewAsync(resume), "A4").Verdict.ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldReportEveryGap_WhenThreeUnexplainedGapsExist()
+    {
+        // The running max end advances correctly past each gap → all three gaps are cited (§5
+        // explainability: the user sees every gap, not just the first).
+        var resume = Resume(experience:
+        [
+            Experience(period: "2000 – 2001", rawText: "Roll A 2000 – 2001"),
+            Experience(period: "2003 – 2004", rawText: "Roll B 2003 – 2004"),
+            Experience(period: "2006 – 2007", rawText: "Roll C 2006 – 2007"),
+            Experience(period: "2009 – 2010", rawText: "Roll D 2009 – 2010"),
+        ]);
+
+        var observation = Verdict(await ReviewAsync(resume), "A4")
+            .Evidence.OfType<StructuralEvidence>().ShouldHaveSingleItem().Observation;
+        observation.ShouldContain("2001-12");
+        observation.ShouldContain("2003-01");
+        observation.ShouldContain("2004-12");
+        observation.ShouldContain("2006-01");
+        observation.ShouldContain("2007-12");
+        observation.ShouldContain("2009-01");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA4_WhenThereIsOnlyOneDatedRole()
+    {
+        // The single-dated-role branch: no pair to compare → no gap → Pass (belt-and-suspenders
+        // coverage of an otherwise-untested A4 branch).
+        var resume = Resume(experience:
+        [
+            Experience(period: "2019 – 2021", rawText: "Utvecklare 2019 – 2021"),
+        ]);
+
+        Verdict(await ReviewAsync(resume), "A4").Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
     [Fact]
     public async Task ReviewAsync_ShouldPassB6_WhenIsoAndSlashPeriodsShareMonthGranularity()
     {

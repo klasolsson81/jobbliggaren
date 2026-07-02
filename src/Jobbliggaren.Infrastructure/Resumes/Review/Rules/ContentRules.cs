@@ -146,15 +146,36 @@ internal sealed class A4GapsRule : ICriterionRule
         }
 
         var gaps = new List<string>();
+        var maxEnd = dated[0].End!.Value;
         for (var i = 1; i < dated.Count; i++)
         {
-            var prevEnd = dated[i - 1].End!.Value;
             var nextStart = dated[i].Start!.Value;
-            var months = ((nextStart.Year - prevEnd.Year) * 12) + (nextStart.Month - prevEnd.Month);
+
+            // Measure the gap from the FURTHEST coverage so far (running max end), NOT the
+            // immediately-previous role by start-order — an overlapping/parallel role that ends
+            // earlier must not fabricate a gap once a longer role already covers the span (#493).
+            var months = ((nextStart.Year - maxEnd.Year) * 12) + (nextStart.Month - maxEnd.Month);
             if (months > 6)
             {
-                gaps.Add($"{prevEnd:yyyy-MM} → {nextStart:yyyy-MM} ({months} mån)");
+                gaps.Add($"{maxEnd:yyyy-MM} → {nextStart:yyyy-MM} ({months} mån)");
             }
+
+            if (dated[i].End!.Value > maxEnd)
+            {
+                maxEnd = dated[i].End!.Value;
+            }
+        }
+
+        // #493 part 2: an unparseable period was silently dropped from `dated`, so an apparent gap
+        // between two dated roles could actually be filled by the undated role. With incomplete date
+        // coverage A4 must not fabricate a Warn — report NotAssessed honestly (§5, parity with the
+        // all-unparseable NotAssessed above). A gap-free timeline still passes: an undated role can
+        // only add coverage, it cannot open a gap between roles that are already contiguous.
+        if (gaps.Count > 0 && context.DatedExperiences.Any(d => !d.Parsed))
+        {
+            return CvCriterionVerdict.NotAssessed(
+                "A4", category,
+                "Någon period kunde inte tolkas till datum, så tidsluckor kan inte bedömas säkert.");
         }
 
         return gaps.Count == 0

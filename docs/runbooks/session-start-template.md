@@ -22,6 +22,7 @@ diverge.
 
 ```
 Hej. Klas-prompt: {phase/scope name} — {one-line delivery goal}.
+Recommended run mode: {High | Max (xhigh) | Ultra (ultracode)} + {Plan-first | Auto} — {one-line why, calibrated to task size; see the Run-mode rubric below}.
 
 Pre-flight (CLAUDE.md §6.5, Modell 1 — worktree-first, ALDRIG huvudkopian):
 `git fetch origin`; `git worktree list` (se aktiva sessioner + deras branchar);
@@ -74,16 +75,38 @@ Concrete and verifiable. Includes the PR deliverable (ADR 0065).
 
 ---
 
+## Run-mode rubric (quality first — round UP when unsure)
+
+State a per-task **Recommended run mode** in section 1: an effort/orchestration tier
+plus Plan-vs-Auto, calibrated to the task's size and risk.
+
+Effort / orchestration:
+- **High** — small, well-scoped, low-ambiguity, single-file or mechanical (a one-line fix + test, a copy/config tweak).
+- **Max (xhigh)** — the default STEG: multi-file or non-trivial logic a single strong agent handles well.
+- **Ultra (ultracode)** — big / broad / high-stakes: multi-subsystem work, audits/reviews, multi-approach design or research, migrations/sweeps, or anything security/PII/architecture-critical where breadth + adversarial verification cuts risk. **A big task requires Ultra.**
+
+Plan vs Auto:
+- **Plan-first** — large or ambiguous scope, architectural choices, or an unclear approach: design the plan, get GO, then execute (pairs with Ultra for big work).
+- **Auto** — well-scoped and the approach is already CTO-bound/clear in the prompt, or the work is read-only/low-risk: execute autonomously.
+
+Bias: quality > tempo (§9.6). When unsure, round up (Max over High; Ultra + Plan for anything big, risky, or security/PII/architecture-touching). Never under-power a big task. Ultra costs roughly 3–5x the tokens of a single Max agent (the extra buys breadth + verification, not parallelism) — worth it for big/high-stakes work, wasteful for narrow single-file tasks.
+
+---
+
 ## Delivery rules
 
 - Always a fenced copy-paste block in chat, never a repo file
 - Self-contained for a `/clear` session, but lean — trust the auto-loaded context
 - Real values, never placeholders: verified HEAD SHA, dates, file paths
+- Recommend a run mode (effort tier + Plan/Auto) per the Run-mode rubric — quality first; a big/broad/high-stakes task gets Ultra (+ Plan when the approach is not obvious)
 - If CC or Klas discovers a start prompt missed something critical, update THIS
   template in the same session
 
 ## Version history
 
+- **2026-07-02:** Added the per-task "Recommended run mode" line (section 1) + the
+  Run-mode rubric (High / Max / Ultra + Plan / Auto, calibrated to task size, quality
+  first). Klas directive — deliberate, per-task mode selection; a big task requires Ultra.
 - **2026-06-12:** Rewritten from 12 sections to 4 (CC cold review, Klas-approved
   plan). Removed: mandatory-reads list, memory list, discipline section,
   prohibitions section, pending-operative section — all duplicated auto-loaded

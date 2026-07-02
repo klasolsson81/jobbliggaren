@@ -413,6 +413,18 @@ public class PersonnummerRedactorTests
     [InlineData("811218 -9876")] // R2b space-dash
     [InlineData("811218 \u200B 9876")] // R1 interleaved zero-width between two spaces
     [InlineData("CV_811218-9876.pdf")] // filename-wrapped (the #465 motivating shape)
+    // #498(a): \p{Cf} INSIDE a digit group (not just in the gap), the corpus gap the #465
+    // superset invariant missed. Flag path strips \p{Cf} globally and flags; redaction must
+    // mask too (widened gap-aware digit groups).
+    [InlineData("8112\u200B18-9876")] // U+200B inside the leading 6-digit group
+    [InlineData("811218-98\u200B76")] // U+200B inside the trailing 4-digit group
+    // #498(b): dash-space-dash, supersedes #427's accepted residual (leaked at rest).
+    [InlineData("811218- -9876")] // '-'/'+' adjacent to BOTH sides of the space run
+    // #497: Unicode-dash separators (contiguous + adjacent-space).
+    [InlineData("811218\u20139876")] // U+2013 EN DASH
+    [InlineData("811218\u20119876")] // U+2011 NON-BREAKING HYPHEN
+    [InlineData("811218\u22129876")] // U+2212 MINUS SIGN
+    [InlineData("811218\u2013 9876")] // U+2013 EN DASH adjacent to a space
     public void Redact_MasksEveryFormThe426FlagPathDetects_SupersetGuard(string form)
     {
         // Precondition: the #426 import-flag path detects a personnummer in this form. If a
@@ -424,5 +436,34 @@ public class PersonnummerRedactorTests
         // The load-bearing invariant: what #426 flags, the redactor masks, so the plaintext
         // is never left at rest when the flag fired.
         PersonnummerRedactor.Redact(form).ShouldNotBe(form);
+    }
+
+    // ===============================================================
+    // #497 / #498 direct redaction: the widened forms are masked at rest (the load-bearing
+    // invariant for the UNENCRYPTED source_file_name column + CV review/improve evidence).
+    // Every ASCII digit of the pnr is masked; the separator/gap/zero-width chars are kept so
+    // the span length is preserved and maps 1:1 onto the original. \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218\u20139876")] // #497 EN DASH
+    [InlineData("811218\u20119876")] // #497 NON-BREAKING HYPHEN
+    [InlineData("811218\u22129876")] // #497 MINUS SIGN
+    [InlineData("811218\u2013 9876")] // #497 en-dash adjacent to a space
+    [InlineData("8112\u200B18-9876")] // #498a \p{Cf} inside the leading digit group
+    [InlineData("811218-98\u200B76")] // #498a \p{Cf} inside the trailing digit group
+    [InlineData("811218- -9876")] // #498b dash-space-dash
+    public void Redact_UnicodeDashOrZeroWidthInGroupOrDoubleSep_MasksEveryRawDigit(string form)
+    {
+        var text = $"Personnummer: {form} (uppgift i CV).";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotBe(text);
+        // No ASCII digit of the pnr survives anywhere (the only digits in the text are the pnr).
+        redacted.Any(char.IsAsciiDigit).ShouldBeFalse();
+        redacted.ShouldContain("*");
+        // Length preserved (in-place, length-preserving masking).
+        redacted.Length.ShouldBe(text.Length);
     }
 }

@@ -374,4 +374,42 @@ public class PersonnummerTextNormalizerTests
         // "12345678- 0000" joins to 123456780000 whose month "34" fails date sanity.
         PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).ShouldBeEmpty();
     }
+
+    // ===============================================================
+    // #497 (ADR 0074 Invariant 1): a Unicode-dash separator ADJACENT to the space run
+    // ("811218<endash> 9876" / "811218 <endash>9876") is now bridged, the separator SHAPE
+    // class in SpacedCandidateRegex widened from ASCII [-+] to [-+\p{Pd}\u2212] (EN DASH
+    // U+2013, NON-BREAKING HYPHEN U+2011, MINUS SIGN U+2212). Word and PDF/DOCX emit the
+    // en-dash; before the fix these spaced Unicode-dash forms slipped both paths. \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218\u2013 9876")] // EN DASH then space
+    [InlineData("811218 \u20139876")] // space then EN DASH
+    [InlineData("811218\u2212 9876")] // MINUS SIGN then space
+    public void Scan_UnicodeDashAdjacentSpace_FlaggedAfterNormalize(string gapped)
+    {
+        var text = $"Personnummer {gapped} i CV.";
+
+        // Directly the context-free scanner does not bridge the gap (false negative).
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        // After Normalize bridges the digits, the SAME unchanged scanner flags it.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_ContiguousUnicodeDashPersonnummer_FlaggedWithoutNormalize()
+    {
+        // A CONTIGUOUS Unicode-dash form ("811218<endash>9876", no space) needs no bridge:
+        // the widened CandidateRegex separator class flags it directly (parity with the
+        // ASCII-hyphen contiguous form). Proves the widening reaches the contiguous flag path.
+        const string text = "Personnummer 811218\u20139876 i CV.";
+
+        PersonnummerScanner.Scan(text)
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
 }

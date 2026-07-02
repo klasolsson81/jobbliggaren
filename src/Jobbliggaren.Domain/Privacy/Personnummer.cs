@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace Jobbliggaren.Domain.Privacy;
 
@@ -44,8 +45,10 @@ public sealed record Personnummer
     /// <summary>
     /// Primary (and only) entry point. Attempts to parse and validate a single
     /// candidate token as a Swedish personnummer or samordningsnummer.
-    /// Accepts the 10-digit form <c>YYMMDD[-+]XXXX</c> / <c>YYMMDDXXXX</c> and the
-    /// 12-digit form <c>YYYYMMDD[-+]XXXX</c> / <c>YYYYMMDDXXXX</c>. Validation =
+    /// Accepts the 10-digit form <c>YYMMDD[sep]XXXX</c> / <c>YYMMDDXXXX</c> and the
+    /// 12-digit form <c>YYYYMMDD[sep]XXXX</c> / <c>YYYYMMDDXXXX</c>, where the optional
+    /// separator is ASCII '-'/'+', any Unicode dash (<c>\p{Pd}</c>) or U+2212 MINUS
+    /// (#497 — see <see cref="IsSeparator"/>). Validation =
     /// lenient date sanity (month 1–12, day 1–31; samordningsnummer = day+60,
     /// raw day 61–91) AND the Luhn (mod-10) checksum over the 10 significant
     /// digits. The century prefix (12-digit form) does not participate in Luhn.
@@ -61,8 +64,12 @@ public sealed record Personnummer
         if (candidate.IsEmpty)
             return false;
 
-        // Extract the significant digits, tolerating at most one '-'/'+' separator.
-        // Any other character (letter, second separator, 13th digit) is rejected.
+        // Extract the significant digits, tolerating at most one separator. The separator
+        // SHAPE is ASCII '-'/'+', any Unicode dash (\p{Pd}), or U+2212 MINUS SIGN (#497 —
+        // Word/PDF/DOCX and this product's own rendering emit these). This widens only the
+        // accepted separator CHARACTER SET; the at-most-one COUNT rule and the date+Luhn
+        // authority below are UNCHANGED, so the guard can never over-flag. Any other
+        // character (letter, second separator, 13th digit) is rejected.
         Span<char> digits = stackalloc char[12];
         var digitCount = 0;
         var separatorCount = 0;
@@ -75,7 +82,7 @@ public sealed record Personnummer
                     return false; // more than 12 digits — not a personnummer
                 digits[digitCount++] = c;
             }
-            else if (c is '-' or '+')
+            else if (IsSeparator(c))
             {
                 if (++separatorCount > 1)
                     return false;
@@ -134,6 +141,18 @@ public sealed record Personnummer
     /// (ADR 0074 Invariant 1; CLAUDE.md §5).
     /// </summary>
     public override string ToString() => Masked;
+
+    // A personnummer separator (#497): ASCII '-'/'+', any Unicode dash (\p{Pd}, e.g. U+2013
+    // EN DASH, U+2011 NON-BREAKING HYPHEN), or U+2212 MINUS SIGN (category Sm, not Pd, so it
+    // needs the explicit code-point check). This is EXACTLY the separator class the
+    // scanner/normalizer regexes admit — kept symmetric so the flag, redaction and
+    // validation paths accept the identical separator repertoire (no new divergence). The
+    // date+Luhn gate is untouched, so widening the accepted separator SHAPE cannot manufacture
+    // a valid false positive. U+2212 is written as (char)0x2212 to keep the source ASCII-only.
+    private static bool IsSeparator(char c) =>
+        c is '+'
+        || c == (char)0x2212
+        || char.GetUnicodeCategory(c) == UnicodeCategory.DashPunctuation;
 
     // Luhn (mod-10) over the 10 significant digits. Digits at even indices
     // (0-based: positions 1,3,5,7,9 one-based, counted from the left) are doubled;

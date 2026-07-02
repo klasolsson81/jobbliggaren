@@ -1,10 +1,8 @@
-using System.Text;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
-using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Common;
-using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
@@ -74,19 +72,13 @@ public sealed class PromoteParsedResumeCommandHandler(
         }
 
         // DQ6 (highest-severity PII): re-run the personnummer guard on the user-submitted
-        // content (the parse gate only covered the ORIGINAL parse). Same chain as
-        // ImportResumeCommandHandler; the outcome carries only count/kinds, never the raw
-        // value (ADR 0074 Invariant 1). A hit blocks promotion — nothing is mutated.
-        var scanCopy = PersonnummerTextNormalizer.Normalize(CollectFreeText(command.Content));
-        var personnummer = PersonnummerScanOutcome.FromMatches(PersonnummerScanner.Scan(scanCopy));
-        if (personnummer.Found)
-            // Deliberately a Resume-scoped code (distinct from the aggregate gate's
-            // ParsedResume.PersonnummerMustBeRemoved): this fires on the user-submitted
-            // gap-fill content, that one on the original parse. Same user message, distinct
-            // source for telemetry/debugging.
-            return Result.Failure<Guid>(DomainError.Validation(
-                "Resume.PersonnummerMustBeRemoved",
-                "Ta bort personnummer ur CV:t innan det kan användas."));
+        // content (the parse gate only covered the ORIGINAL parse). Shared with
+        // UpdateMasterContent (#499) via ResumeContentPersonnummerGuard so every
+        // ResumeContentDto write surface guards identically (DRY; the arch test requires it).
+        // A hit blocks promotion with a Resume-scoped code — nothing is mutated.
+        var guard = ResumeContentPersonnummerGuard.Check(command.Content);
+        if (guard.IsFailure)
+            return Result.Failure<Guid>(guard.Error);
 
         // Build the Resume from the approved payload (content validated by ValidateContent
         // inside the factory). No mutation of the staging artifact yet.
@@ -105,45 +97,5 @@ public sealed class PromoteParsedResumeCommandHandler(
         db.Resumes.Add(resume);
 
         return Result.Success(resume.Id.Value);
-    }
-
-    /// <summary>
-    /// Concatenates every user free-text field of the submitted content so the personnummer
-    /// guard scans the whole surface (DQ6 — name/contact, summary, experience role/company/
-    /// description, education institution/degree, skill names). Order is irrelevant — the
-    /// scanner only flags.
-    /// </summary>
-    private static string CollectFreeText(ResumeContentDto content)
-    {
-        var sb = new StringBuilder();
-
-        var pi = content.PersonalInfo;
-        if (pi is not null)
-        {
-            sb.AppendLine(pi.FullName);
-            sb.AppendLine(pi.Email);
-            sb.AppendLine(pi.Phone);
-            sb.AppendLine(pi.Location);
-        }
-
-        sb.AppendLine(content.Summary);
-
-        foreach (var e in content.Experiences)
-        {
-            sb.AppendLine(e.Company);
-            sb.AppendLine(e.Role);
-            sb.AppendLine(e.Description);
-        }
-
-        foreach (var ed in content.Educations)
-        {
-            sb.AppendLine(ed.Institution);
-            sb.AppendLine(ed.Degree);
-        }
-
-        foreach (var s in content.Skills)
-            sb.AppendLine(s.Name);
-
-        return sb.ToString();
     }
 }

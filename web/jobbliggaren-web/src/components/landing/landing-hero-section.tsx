@@ -1,54 +1,56 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Eye } from "lucide-react";
+import { Database, Eye } from "lucide-react";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthCardSkeleton } from "@/components/auth/AuthCardSkeleton";
 
 /**
- * LandingHeroSection — the "Liggaren" ledger hero (LP-4 / #257), rewritten from
- * the former product-peek hero. Two columns (`.jp-land-hero__inner--ledger`):
+ * LandingHeroSection — "Plattan" (förslag 3a, epic #267). The former light
+ * ledger hero (01/02/03 + dashed rules) is replaced by a full-bleed deep-green
+ * plate on the sanctioned hero gradient (ADR 0068 permits `--jp-hero-gradient`
+ * on the landing hero specifically). Two columns:
  *
- *  - left: an editorial numbered ledger `<h1>` (01/02/03 + 800-weight verbs with
- *    dashed rules) followed by one factual lede. The ledger is REAL heading text
- *    (not three icon-cards) so the page stays crawlable/SEO-meaningful. Verbs and
- *    lede resolve to ink-1 (K2 — no grey).
- *  - right (`.jp-land-hero__authcol`): the on-page tabbed `<AuthCard/>` (LP-6,
- *    the single account action) under a Suspense boundary. The inner Login/
+ *  - left: a gold mono kicker, a clean three-line verb `<h1>` (no numbers, no
+ *    rules, no colour shift — pure white typography, still REAL heading text so
+ *    the page stays crawlable/SEO-meaningful), one factual lede, and a mono
+ *    source line. Everything on the plate uses LITERAL white/gold values
+ *    (theme-stable, same doctrine as the footer) — never `--jp-ink-inverse`.
+ *  - right (`.jp-land-hero__authcol`): the on-page tabbed `<AuthCard/>` (the
+ *    single account action) under a Suspense boundary. The inner Login/
  *    RegisterForm read `useSearchParams`, so without the boundary `next build`
  *    fails static generation (same reason `/logga-in` wraps LoginForm). The
  *    fallback is a shape-matching skeleton, not `null`, because the card is above
- *    the fold. A discreet guest link sits below the card.
+ *    the fold. A white guest link sits below the card.
  *
- * Live stats live in the <LandingHeader/> and the single "gratis" mention lives
- * in the <SiteFooter/> closing row — neither is repeated here (design rule 2).
- * No CTA buttons, no OAuth, no gradient: civic-utility, deterministic.
+ * Live stats live in the <LandingHeader/> and are never repeated here (design
+ * rule 2). No CTA buttons, no OAuth: civic-utility, deterministic.
  *
  * Sync RSC: `useTranslations` resolves synchronously; only <AuthCard/> is a
  * client island.
  */
 
-const LEDGER = [
-  { num: "01", verbKey: "hero.step1" },
-  { num: "02", verbKey: "hero.step2" },
-  { num: "03", verbKey: "hero.step3" },
-] as const;
+const VERB_KEYS = ["hero.step1", "hero.step2", "hero.step3"] as const;
 
 export function LandingHeroSection() {
   const t = useTranslations("landing");
   return (
-    <section className="jp-land-hero">
-      <div className="jp-land-hero__inner jp-land-hero__inner--ledger">
+    <section className="jp-land-hero jp-land-hero--plate">
+      <div className="jp-land-hero__inner jp-land-hero__inner--plate">
         <div className="jp-land-hero__copy">
-          <h1 className="jp-land-hero__ledger">
-            {LEDGER.map((row) => (
-              <span key={row.num} className="jp-land-hero__ledger-row">
-                <span className="jp-land-hero__ledger-num">{row.num}</span>
-                <span className="jp-land-hero__ledger-verb">{t(row.verbKey)}</span>
+          <p className="jp-land-hero__kicker">{t("hero.kicker")}</p>
+          <h1 className="jp-land-hero__stack">
+            {VERB_KEYS.map((key) => (
+              <span key={key} className="jp-land-hero__stack-verb">
+                {t(key)}
               </span>
             ))}
           </h1>
-          <p className="jp-land-hero__ledger-lede">{t("hero.ledgerLede")}</p>
+          <p className="jp-land-hero__lede--plate">{t("hero.ledgerLede")}</p>
+          <p className="jp-land-hero__source">
+            <Database size={13} aria-hidden="true" />
+            {t("hero.source")}
+          </p>
         </div>
 
         <div className="jp-land-hero__authcol">

@@ -5,8 +5,9 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { ThemeProvider, ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
 
-// Weight ranges (LP-1 #254). Hanken carries 400–800: 800 = the Liggaren ledger
-// verbs (.jp-land-hero__ledger-verb) + .jp-pagehero__title, 700 = brand wordmark
+// Weight ranges (LP-1 #254). Hanken carries 400–800: 800 = the landing hero
+// verb stack (.jp-land-hero__stack-verb, förslag 3a) + .jp-pagehero__title,
+// 700 = brand wordmark
 // + stat numbers — both previously referenced unloaded weights (faux-bold), now
 // real. Mono carries 400–700: 700 backs the (mono) stat numbers
 // (.jp-land-top__stat__num, live). Mono has NO 800 consumer, so it is not loaded

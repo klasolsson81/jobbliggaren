@@ -4769,13 +4769,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-head__stats { display: flex; align-items: center; gap: 18px; }
 .jp-head__stat { display: flex; flex-direction: column; line-height: 1.1; }
 .jp-head__stat-num {
-  font-family: var(--jp-font-sans); font-size: 17px; font-weight: 700;
+  /* Förslag 3a: 17 → 21px (uppskalad statistik i den delade headern). */
+  font-family: var(--jp-font-sans); font-size: 21px; font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1); letter-spacing: -0.01em;
 }
 .jp-head__stat-label {
-  font-family: var(--jp-font-mono); font-size: 11.5px; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase; color: var(--jp-ink-1); margin-top: 2px;
+  font-family: var(--jp-font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--jp-ink-1); margin-top: 3px;
 }
 .jp-head__stat-delta { color: var(--jp-success); }
 .jp-head__sep { width: 1px; height: 28px; background: var(--jp-border); }
@@ -4849,6 +4850,92 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-auth-title { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--jp-ink-1); }
 .jp-auth-fine { margin: 0; font-size: 12.5px; color: var(--jp-ink-1); line-height: 1.5; }
 .jp-auth-fine a { font-weight: 600; }
+/* Gratis-rad i auth-kortet (förslag 3a) — direkt under submit, före fine
+   print, ENDAST register-fliken. Klartext, ingen chip/ikon/badge. */
+.jp-auth-free { margin: 0; font-size: 13px; font-weight: 600; color: var(--jp-ink-1); text-align: center; }
+
+/* ── Landnings-hero "Plattan" (förslag 3a, epic #267) ────────
+   Mörkgrön hero-platta på --jp-hero-gradient (sanktionerad på JUST
+   landing-hero per ADR 0068). Ersätter ledger-heron ovan (vars
+   .jp-land-hero__ledger*-klasser lämnas intakta tills städ-PR #517,
+   repots branch-by-abstraction). Verb-stack utan nummer/linjer,
+   guld-kicker, källrad, auth-kort som flyter på plattan.
+
+   ALLT på plattan använder LITERALA vita/guld-värden (tema-STABILT,
+   samma doktrin som footern) — ALDRIG --jp-ink-inverse (som vänder
+   mörk i dark och försvinner mot grönt). Kontrast uppmätt mot plattan
+   (identisk light+dark; gradient-tokens skiftar ej):
+     #FFFFFF på #1E6B4C (ljusaste hörn) ..... 5.90:1  (verb, gäst-länk)
+     rgba(255,255,255,0.94) lede ............ 7–8:1   (mitten)
+     #E8C77B kicker på #0B2A1E .............. 9.45:1  (mörka övre vänster)
+     rgba(255,255,255,0.72) källrad ......... ≥ 4.5:1 på sitt läge */
+.jp-land-hero--plate { background: var(--jp-hero-gradient); padding: 0; }
+.jp-land-hero__inner--plate {
+  max-width: 1232px;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 72px;
+  padding: 62px 40px 64px;
+}
+.jp-land-hero__kicker {
+  margin: 0 0 26px;
+  font-family: var(--jp-font-mono); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--jp-gold);
+}
+.jp-land-hero__stack { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.jp-land-hero__stack-verb {
+  font-size: clamp(40px, 4.6vw, 66px); font-weight: 800;
+  letter-spacing: -0.03em; line-height: 1.04; color: #FFFFFF;
+}
+.jp-land-hero__lede--plate {
+  margin: 26px 0 0; font-size: 18px; line-height: 1.55;
+  color: rgba(255, 255, 255, 0.94); max-width: 50ch;
+}
+.jp-land-hero__source {
+  margin: 28px 0 0; display: inline-flex; align-items: center; gap: 9px;
+  font-family: var(--jp-font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72);
+}
+/* Auth-kortet flyter på mörk platta → starkare pop-skugga. Scoped undantag
+   mot §5 (skugga > shadow-sm på cards) ENDAST i plattans kontext; motsvarar
+   footerns tema-stabila undantag. Design-reviewer-noterat (ADR-not). */
+.jp-land-hero--plate .jp-auth-tabcard { box-shadow: var(--jp-shadow-pop); }
+/* Gäst-länk vit på plattan (literal #FFFFFF, tema-stabil som footerns länkar).
+   MÅSTE scopas under plattan (0,2,0) för att slå den globala a:not(.jp-btn)-
+   länkfärgen (0,1,1) — basens .jp-land-hero__guestlink (0,1,0) räcker inte.
+   Basens gröna --jp-accent-700 syns dåligt mot grönt. */
+.jp-land-hero--plate .jp-land-hero__guestlink { color: #FFFFFF; }
+.jp-land-hero--plate .jp-land-hero__guestlink:hover {
+  color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px;
+}
+/* Vit fokusring ENDAST på gäst-länken (enda länken direkt på grön platta;
+   grön --jp-focus syns dåligt mot grönt, WCAG 2.4.7). Auth-kortets länkar
+   sitter på vit yta och behåller sin normala (gröna) fokusring. */
+.jp-land-hero--plate .jp-land-hero__guestlink:focus-visible {
+  outline: 2px solid #FFFFFF; outline-offset: 2px; border-radius: 2px;
+}
+@media (max-width: 980px) {
+  .jp-land-hero__inner--plate { grid-template-columns: 1fr; gap: 40px; padding: 40px 24px 48px; }
+}
+
+/* ── Funktioner-grid (förslag 3a): 6 celler, stark kontrast ───
+   Vit sektion under plattan. 3×2-grid (→ 2 kol <1040, 1 kol <700).
+   Ersätter de gamla mono-key/val-raderna (.jp-land-feature*, intakta
+   tills städ-PR #517): varje cell = 2px ink-1 topplinje + h3-rubrik +
+   brödtext, ALLT i --jp-ink-1 (K2 — ingen grå ink-2; hierarki via
+   storlek/vikt, inte urvattnad färg). */
+.jp-land-features--grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+.jp-land-featcell { border-top: 2px solid var(--jp-ink-1); padding-top: 16px; }
+.jp-land-featcell__title {
+  margin: 0 0 8px; font-size: 17.5px; font-weight: 700;
+  letter-spacing: -0.01em; color: var(--jp-ink-1);
+}
+.jp-land-featcell__body { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--jp-ink-1); }
+@media (max-width: 1040px) {
+  .jp-land-features--grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 700px) {
+  .jp-land-features--grid { grid-template-columns: 1fr; }
+}
 
 /* ── Stor djupgrön footer (.jp-foot-*) — Platsbanken-anda ────
    Bakgrund --jp-accent-900 (#0B2A1E, tema-STABIL: skiftar ej i dark).

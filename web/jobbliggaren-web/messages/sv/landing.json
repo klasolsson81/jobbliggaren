@@ -17,10 +17,12 @@
     "newTodayLabel": "nya idag"
   },
   "hero": {
+    "kicker": "Den svenska jobbansökningshanteraren",
     "step1": "Hitta jobbet.",
     "step2": "Sök jobbet.",
     "step3": "Följ upp ansökan.",
     "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, skapa ditt CV och håll koll på varje ansökan, från utkast till svar. Allt på ett ställe.",
+    "source": "Byggd på öppen data från Arbetsförmedlingen",
     "guest": "Utforska som gäst, utan konto"
   },
   "features": {
@@ -30,13 +32,21 @@
       "key": "Sökning",
       "body": "Alla aktiva annonser från Platsbanken, uppdaterade dygnet runt. Sök på yrke och ort, sortera efter nyhet eller sista ansökningsdag."
     },
-    "pipeline": {
-      "key": "Pipeline",
+    "matching": {
+      "key": "Matchning",
+      "body": "Varje annons matchas mot din profil med en tydlig procent, så att du lägger tiden på rätt ansökningar."
+    },
+    "applications": {
+      "key": "Ansökningar",
       "body": "Spåra varje ansökan från utkast till svar: intervjuer, erbjudanden och avslag. Inget tappas mellan stolarna."
     },
-    "cv": {
-      "key": "CV",
-      "body": "Skapa och organisera flera CV-varianter, och välj rätt CV för varje ansökan. Du äger varje rad."
+    "cvReview": {
+      "key": "CV-granskning",
+      "body": "Få konkret feedback på vad ditt CV bör innehålla: vad som saknas, vad som är otydligt och vad som kan lyftas fram."
+    },
+    "companyWatch": {
+      "key": "Företagsbevakning",
+      "body": "Följ arbetsgivare du vill till och få besked så fort de publicerar en ny annons."
     },
     "reminders": {
       "key": "Påminnelser",
@@ -47,6 +57,7 @@
     "tabRegister": "Skapa konto",
     "tabLogin": "Logga in",
     "tablistLabel": "Logga in eller skapa konto",
+    "free": "Jobbliggaren är helt gratis att använda.",
     "fine": "Genom att skapa konto godkänner du användarvillkoren och integritetspolicyn. Jobbliggaren säljer aldrig din data."
   },
   "footer": {

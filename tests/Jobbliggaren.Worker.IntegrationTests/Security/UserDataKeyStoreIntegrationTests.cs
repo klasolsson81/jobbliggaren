@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -254,8 +255,9 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         var failingProvider = new KmsDataKeyProvider(
             failingKms, NullLogger<KmsDataKeyProvider>.Instance);
         using var failCache = new ScopedUserDataKeyCache();
+        var inspector = dbScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>();
         var failStore = new UserDataKeyStore(
-            db, failingProvider, failCache, new FixedClock(DateTimeOffset.UtcNow));
+            db, failingProvider, failCache, new FixedClock(DateTimeOffset.UtcNow), inspector);
 
         Exception? caught = null;
         byte[]? leaked = null;
@@ -320,6 +322,46 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         ex.ShouldBeOfType<CryptographicException>(
             "otvetydigt versionsfel → CryptographicException, ingen fel-DEK-dekrypt");
         leaked.ShouldBeNull("ingen DEK får returneras när versionen inte stöds");
+    }
+
+    // ── Scenario 11 (Low2) — first-use-race: samtidiga GetOrCreate ger EN rad ─
+    [Fact]
+    public async Task GetOrCreateDataKey_ConcurrentFirstUse_NoDuplicateNoThrow()
+    {
+        // Low2: två+ parallella requests för samma NYA ägare skapade båda en DEK
+        // → PK-violation (job_seeker_id, dek_version) → förloraren 500:ade på
+        // DbUpdateException. Get-or-create-upsert:en ska i stället fånga 23505,
+        // re-query:a vinnaren och ge alla samma DEK — exakt EN rad, inget kast.
+        // Mot riktig Postgres (Testcontainers): 8-vägs samtidighet träffar PK-
+        // racen; invarianten (en rad, samma DEK, inget kast) håller oavsett om
+        // race-grenen träffas, så testet är icke-flaky.
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+
+        const int concurrency = 8;
+        var deks = await Task.WhenAll(
+            Enumerable.Range(0, concurrency).Select(_ => Task.Run(async () =>
+            {
+                using var scope = _fixture.Services.CreateScope();
+                var store = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
+                return await store.GetOrCreateDataKeyAsync(seeker.Id, ct);
+            }, ct)));
+
+        // Inget kast: en ohanterad DbUpdateException hade propagerats av WhenAll.
+        // Exakt EN wrapped-DEK-rad — ingen duplicerad first-use-insert.
+        using var verifyScope = _fixture.Services.CreateScope();
+        var db = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rows = await UserDataKeys(db)
+            .Where(k => k.JobSeekerId == seeker.Id)
+            .ToListAsync(ct);
+        rows.Count.ShouldBe(1, "samtidig first-use får skapa exakt EN user_data_keys-rad");
+        rows[0].DekVersion.ShouldBe(1);
+
+        // Alla anropare fick vinnarens DEK — ingen fick en förlorar-DEK.
+        foreach (var dek in deks)
+        {
+            dek.ShouldBe(deks[0], "alla samtidiga anropare ska få vinnarens DEK");
+        }
     }
 
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider

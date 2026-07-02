@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -19,7 +20,8 @@ public sealed class UserDataKeyStore(
     AppDbContext db,
     IDataKeyProvider dataKeyProvider,
     IUserDataKeyCache cache,
-    IDateTimeProvider clock) : IUserDataKeyStore
+    IDateTimeProvider clock,
+    IDbExceptionInspector dbExceptionInspector) : IUserDataKeyStore
 {
     // #501: single-version-invariant. DEK-versionen och sentinel-prefixet
     // (FieldEncryptionSentinel.VersionPrefix = "v1:") är låsta till SAMMA version.
@@ -58,19 +60,67 @@ public sealed class UserDataKeyStore(
         }
 
         // Första behovet: skapa + persistera wrapped-DEK (v1).
+        //
+        // Förutsättning (arch-not, PR2-granskning): denna create-väg får INTE köras
+        // inom en ambient transaktion på det delade AppDbContext:et. En 23505 nedan
+        // skulle annars abort:a den transaktionen → re-query:n skulle fela med 25P02
+        // ("current transaction is aborted"). Idag garanterat: FieldEncryptionKey-
+        // PrefetchBehavior kör i ett eget pipeline-steg FÖRE UnitOfWorkBehavior, och
+        // FieldEncryptionBackfiller replikerar prefetch i eget scope. En framtida
+        // callsite inuti en transaktion måste re-designa recovery:n (t.ex. savepoint).
         var generated = await dataKeyProvider
             .CreateDataKeyAsync(owner, ct)
             .ConfigureAwait(false);
 
-        db.Set<UserDataKey>().Add(new UserDataKey(
+        var entity = new UserDataKey(
             owner,
             dekVersion: CurrentDekVersion,
             wrappedDek: generated.WrappedDek,
             cmkKeyId: generated.CmkKeyId,
-            createdAt: clock.UtcNow));
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            createdAt: clock.UtcNow);
+        db.Set<UserDataKey>().Add(entity);
 
-        return generated.PlaintextDek;
+        var handedOff = false;
+        try
+        {
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            handedOff = true; // anroparen/cachen äger nu generated.PlaintextDek
+            return generated.PlaintextDek;
+        }
+        catch (DbUpdateException ex)
+            when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
+        {
+            // Low2 (first-use-race): en parallell request för samma NYA ägare hann
+            // före och infogade PK (job_seeker_id, dek_version). Vår Add förlorade →
+            // detacha den (annars retriggar nästa SaveChanges samma failing insert)
+            // och unwrappa VINNARENS rad (get-or-create-upsert, ADR 0032 §5). Vår
+            // oanvända förlorar-DEK nollas i finally (returneras aldrig). Fail-closed
+            // bevarat: unwrap-fel propageras, ingen fallback-DEK.
+            db.Entry(entity).State = EntityState.Detached;
+
+            var winner = await db.Set<UserDataKey>()
+                .AsNoTracking()
+                .Where(k => k.JobSeekerId == owner)
+                .OrderByDescending(k => k.DekVersion)
+                .FirstAsync(ct)
+                .ConfigureAwait(false);
+
+            EnsureSupportedVersion(winner.DekVersion);
+
+            return await dataKeyProvider
+                .UnwrapDataKeyAsync(owner, winner.WrappedDek, ct)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            // Nyckelhygien: den genererade first-use-DEK:en ägs av anroparen ENDAST
+            // på happy-return. På alla andra vägar (race-förlorare, annan
+            // DbUpdateException, guard-/unwrap-fel) returneras den aldrig → nolla.
+            if (!handedOff)
+            {
+                CryptographicOperations.ZeroMemory(generated.PlaintextDek);
+            }
+        }
     }
 
     // #501: hård single-version-guard. En dek_version != CurrentDekVersion betyder

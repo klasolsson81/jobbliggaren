@@ -36,6 +36,7 @@ function renderToolbar(over: ToolbarOverrides = {}) {
       matchningOff={false}
       hideApplied={false}
       onlyMatched={false}
+      employer={undefined}
       resolvedLabels={{}}
       q=""
       sortBy="PublishedAtDesc"
@@ -326,6 +327,48 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       );
       // Good borttagen, Strong kvar → ?matchGrades=Strong (ingen ?commit=true).
       expect(pushMock).toHaveBeenCalledWith("/jobb?matchGrades=Strong");
+    });
+  });
+
+  // #454 PR-0 — toolbar-lokal arbetsgivar-chip (grad-chips-mönstret): renderas
+  // när ?employer= är aktiv, formaterad NNNNNN-NNNN, × navigerar utan commit.
+  describe("arbetsgivar-chip (#454 PR-0)", () => {
+    it("renderar chippen med formaterat org.nr när employer är satt", () => {
+      renderToolbar({ employer: "5560125790" });
+      expect(screen.getByText("Arbetsgivare 556012-5790")).toBeInTheDocument();
+    });
+
+    it("ingen chip utan employer", () => {
+      renderToolbar({ employer: undefined });
+      expect(screen.queryByText(/Arbetsgivare /)).toBeNull();
+    });
+
+    it("× tar bort employer ur URL:en (navigate, utan commit) och bevarar övrig state", async () => {
+      const user = userEvent.setup();
+      renderToolbar({
+        employer: "5560125790",
+        matchGrades: ["Strong"],
+        matchActive: true,
+      });
+      await user.click(
+        screen.getByRole("button", {
+          name: "Ta bort filter Arbetsgivare 556012-5790",
+        }),
+      );
+      // employer borta, grad-filtret kvar; ingen ?commit=true (runtime-view-state).
+      expect(pushMock).toHaveBeenCalledWith("/jobb?matchGrades=Strong");
+    });
+
+    it("sort-byte bevarar employer (param-bevarande-basen)", async () => {
+      const user = userEvent.setup();
+      renderToolbar({ employer: "5560125790" });
+      await user.selectOptions(
+        screen.getByLabelText("Sortera"),
+        "ExpiresAtAsc",
+      );
+      const pushed = pushMock.mock.calls.at(-1)?.[0] as string;
+      expect(pushed).toContain("employer=5560125790");
+      expect(pushed).toContain("sortBy=ExpiresAtAsc");
     });
   });
 

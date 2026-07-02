@@ -42,7 +42,8 @@
         "list": [
           "Säkerhets- och händelselogg. Vi loggar händelser i tjänsten, till exempel inloggningar, tillsammans med IP-adress och webbläsarinformation. Vårt berättigade intresse är att skydda tjänsten och ditt konto mot missbruk, intrång och felaktig användning, och att kunna utreda säkerhetshändelser.",
           "Hämtning av jobbannonser från JobTech. Vi hämtar och bearbetar öppna data om lediga jobb från Arbetsförmedlingens JobTech. Vårt berättigade intresse är att kunna erbjuda en fungerande jobbtjänst. De annonser vi hämtar är offentliga data och är inte dina personuppgifter.",
-          "Markering av nytt sedan ditt förra besök. Vi håller reda på vad som är nytt för dig sedan du senast var inloggad, så att du snabbt ser vad som tillkommit. Vårt berättigade intresse är att ge dig en användbar och överskådlig tjänst."
+          "Markering av nytt sedan ditt förra besök. Vi håller reda på vad som är nytt för dig sedan du senast var inloggad, så att du snabbt ser vad som tillkommit. Vårt berättigade intresse är att ge dig en användbar och överskådlig tjänst.",
+          "Företagsuppslag mot SCB:s företagsregister (planerat). När du söker på ett organisationsnummer under Företag skickas numret du skriver in till Statistiska centralbyrån (SCB) för att hämta företagets namn. Vårt berättigade intresse är att du ska kunna hitta och bevaka arbetsgivare, även sådana som saknar annonser hos oss. Nummer som kan vara personnummer (enskild firma) slås aldrig upp och skickas aldrig. Detta är planerat och ännu inte i drift."
         ]
       },
       {
@@ -57,6 +58,7 @@
         "paragraphs": [
           "Jobbliggaren säljer aldrig dina uppgifter och delar dem inte för marknadsföring. För att kunna drifta tjänsten anlitar vi vissa leverantörer som behandlar uppgifter för vår räkning (personuppgiftsbiträden). Med dem har vi personuppgiftsbiträdesavtal.",
           "Arbetsförmedlingens JobTech (Platsbanken) är vår källa för öppna data om lediga jobb, inte en mottagare av dina personuppgifter. Vi skickar inga uppgifter om dig till JobTech.",
+          "Statistiska centralbyrån (SCB) planeras att ta emot de organisationsnummer som slås upp i företagssöket: när du söker på ett organisationsnummer skickas det till SCB:s företagsregister för att hämta företagets namn. SCB är en självständig myndighet med eget personuppgiftsansvar för sitt register och är inte vårt personuppgiftsbiträde. Detta är planerat och ännu inte i drift.",
           "Jobbliggaren skickar i dagsläget inga e-postnotiser, och inga uppgifter om dig lämnas till någon e-postleverantör. Om e-postnotiser införs i framtiden uppdaterar vi den här policyn och informerar om vilken leverantör som anlitas och hur dina uppgifter skyddas innan funktionen aktiveras."
         ],
         "list": [

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import {
+  followCompany,
   followCompanyFromJobAd,
   unfollowCompany,
 } from "@/lib/api/company-follows";
@@ -34,6 +35,31 @@ export async function followCompanyFromJobAdAction(
       return { success: false, error: t("notLoggedIn") };
     case "notFound":
       return { success: false, error: t("followCompanyNotFound") };
+    case "forbidden":
+    case "rateLimited":
+    case "error":
+      return { success: false, error: t("followCompanyFailed") };
+  }
+}
+
+/**
+ * #454 — follow an employer directly by org.nr (the /foretag lookup card's "bevaka"; works for a
+ * 0-ad company the by-job-ad path cannot reach). Idempotent server-side (resurrect + race-safe).
+ * Revalidates `/foretag` (the watch list gains the row) + `/jobb` (detail toggles re-read state).
+ */
+export async function followCompanyAction(
+  orgNr: string
+): Promise<FollowCompanyResult> {
+  const t = await getTranslations("jobads.actions");
+  const result = await followCompany(orgNr);
+  switch (result.kind) {
+    case "ok":
+      revalidatePath("/jobb");
+      revalidatePath("/foretag");
+      return { success: true, companyWatchId: result.data.companyWatchId };
+    case "unauthorized":
+      return { success: false, error: t("notLoggedIn") };
+    case "notFound":
     case "forbidden":
     case "rateLimited":
     case "error":

@@ -56,6 +56,39 @@ export async function followCompanyFromJobAd(
 }
 
 /**
+ * #454 (ADR 0088) — follow an employer DIRECTLY by org.nr (the lookup card's "bevaka" for a
+ * company with zero ads in our feed — the #455 by-job-ad path cannot reach those). Reuses the
+ * EXISTING `POST /api/v1/me/company-watches` (org.nr in the BODY per D8(c) — never a URL; the
+ * endpoint predates this first FE consumer). The caller passes an already-normalised 10-digit
+ * value; the backend validator + VO are the last barrier (400 → error).
+ */
+export async function followCompany(
+  orgNr: string
+): Promise<ApiResult<{ companyWatchId: string }>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await fetch(`${env.BACKEND_URL}${BASE}`, {
+      method: "POST",
+      headers: authHeaders(sessionId),
+      body: JSON.stringify({ organizationNumber: orgNr }),
+      cache: "no-store",
+    });
+    if (res.status === 201) {
+      const parsed = followCompanyResultSchema.safeParse(await res.json());
+      return parsed.success
+        ? { kind: "ok", data: { companyWatchId: parsed.data.id } }
+        : { kind: "error" };
+    }
+    if (res.status === 401) return { kind: "unauthorized" };
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
  * #455 — stop following, by the opaque CompanyWatchId (never the org.nr, per D8(c)). Idempotent
  * (already-unfollowed → 204). `DELETE /api/v1/me/company-watches/{companyWatchId}`.
  */

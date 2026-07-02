@@ -547,7 +547,11 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
     // state" (inte text-representabelt i fältet, men komparatorn ska vara
     // komplett så hero-sökets extern-divergens-detektor inte tappar ett aktivt
     // grad-filter när användaren ändrar sökordet).
-    sameList(a.matchGrades, b.matchGrades)
+    sameList(a.matchGrades, b.matchGrades) &&
+    // #454 PR-0 — arbetsgivar-filtret ingår i "samma filter-state" (inte
+    // text-representabelt; komparatorn ska vara komplett så en extern
+    // employer-ändring klassas som extern divergens, inte som no-op).
+    (a.employer ?? "") === (b.employer ?? "")
   );
 }
 

@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getCompanyWatches } from "@/lib/api/company-follows";
 import { assertNever } from "@/lib/dto/_helpers";
+import { CompanyLookup } from "@/components/company-follows/company-lookup";
 import { CompanyWatchList } from "@/components/company-follows/company-watch-list";
 
 type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
@@ -31,6 +32,16 @@ export default async function ForetagPage() {
   const t = await getTranslations("pages");
   const result = await getCompanyWatches();
 
+  // #454 (ADR 0088, F1(a) — CTO-bind + Klas 2026-07-02): registry-uppslags-sektionen är
+  // FEATURE-DARK i prod tills den riktiga SCB-adaptern aktiveras (en sökruta som alltid svarar
+  // "inte aktiverat" är en död civic-kontroll). Explicit env vinner ("true"/"false"); utan env
+  // följer den backends provider-gating — PÅ i development (Fake-providern), AV annars
+  // (Null-providern). Aktiverings-PR:en tänder prod via COMPANY_REGISTRY_ENABLED=true.
+  const registryEnabled =
+    process.env.COMPANY_REGISTRY_ENABLED === "true" ||
+    (process.env.COMPANY_REGISTRY_ENABLED !== "false" &&
+      process.env.NODE_ENV === "development");
+
   return (
     <>
       <section className="jp-pagehero">
@@ -42,7 +53,10 @@ export default async function ForetagPage() {
         </div>
       </section>
 
-      <div className="jp-container jp-page">{renderResult(result, t)}</div>
+      <div className="jp-container jp-page">
+        {registryEnabled && <CompanyLookup />}
+        {renderResult(result, t)}
+      </div>
     </>
   );
 }

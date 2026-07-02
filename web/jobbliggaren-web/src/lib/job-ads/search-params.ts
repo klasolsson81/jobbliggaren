@@ -78,6 +78,15 @@ export interface JobbUrlState {
   // commit-flaggan). Kontrollen (en kryssruta) bor i Matchning-popovern, gatad på
   // matchnings-axeln PÅ; FE mappar den till API-kontraktets engelska flagga `onlyMatched`.
   onlyMatched?: boolean;
+  // #454 PR-0 (ADR 0087 D6 FE-konsumtion; löser C1-flaggan "live silent-drop") —
+  // arbetsgivar-filtret: ett org.nr (exakt 10 siffror, validerat i page.tsx).
+  // SINGEL-värde v1 (företagskortets "se annonser"-länk bär ETT företag;
+  // backend binder string[] — FE skickar ett element). Frånvaro = inget
+  // arbetsgivar-filter (ren URL). Aldrig text-representabelt i hero-fältet
+  // (som popover-dimensionerna, CTO VAL 4a); syns som avtagbar chip i
+  // toolbaren. FE emitterar ALDRIG en pnr-shaped employer-param (länk-
+  // producenten gatar på IsProtectedIdentity — ADR 0087 D8(c)).
+  employer?: string;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -151,6 +160,25 @@ export function withCommitFlag(href: string): string {
     : `${href}?${COMMIT_PARAM}=${COMMIT_VALUE}`;
 }
 
+/**
+ * #454 PR-0 — SPOT-parser för `?employer=`-paramen (delas av page.tsx och
+ * buildPageHref — samma gate på båda ställen, annars divergerar de). Endast
+ * ett exakt 10-siffrigt värde accepteras (`^\d{10}$` — samma form som
+ * backend-validatorns OrganizationNumberPattern); allt annat droppas tyst så
+ * en manipulerad URL aldrig 400:ar list-queryn (drop-unknown-disciplinen,
+ * paritet matchGrades). Singel-värde v1: string[] → första elementet. OBS:
+ * detta är en FORMAT-gate, ingen pnr-diskriminator — ett 10-siffrigt
+ * personnummer är formatidentiskt med org.nr; det lastbärande skyddet är att
+ * FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-
+ * gaten) och backend-maskningen (ADR 0087 D8(c)).
+ */
+export function parseEmployerParam(
+  raw: string | string[] | undefined
+): string | undefined {
+  const first = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+  return first && /^\d{10}$/.test(first) ? first : undefined;
+}
+
 export function buildJobbHref(state: JobbUrlState): string {
   const params = new URLSearchParams();
   for (const v of state.occupationGroup)
@@ -161,6 +189,10 @@ export function buildJobbHref(state: JobbUrlState): string {
   // Beslut B). Ordnade efter ort/yrke så delningsbara URL:er får stabil form.
   for (const v of state.employmentType) params.append("employmentType", v);
   for (const v of state.worktimeExtent) params.append("worktimeExtent", v);
+  // #454 PR-0 — arbetsgivar-filtret (singel-org.nr). Skrivs BARA ut när satt
+  // (frånvaro = ren URL). Placeras efter Klass-2-dimensionerna, före
+  // matchGrades (stabil URL-form för delningsbara länkar).
+  if (state.employer) params.set("employer", state.employer);
   // STEG 5 — matchningsgrad (enum-namn). Upprepad param efter Klass-2-
   // dimensionerna, före q (stabil URL-form för delningsbara länkar). Tom
   // lista = inget param = alla grader visas (när matchningen är PÅ).

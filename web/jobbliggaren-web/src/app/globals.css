@@ -4628,37 +4628,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-1);
 }
 
-/* Features */
-.jp-land-features {
-  max-width: 880px;
-  margin-inline: auto;
-  border-top: 1px solid var(--jp-border);
-}
-.jp-land-feature {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 24px;
-  padding: 22px 8px;
-  border-bottom: 1px solid var(--jp-border);
-  align-items: baseline;
-}
-.jp-land-feature__key {
-  font-family: var(--jp-font-mono);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--jp-accent-700);
-}
-.jp-land-feature__val {
-  font-size: 16px;
-  color: var(--jp-ink-1);
-  line-height: 1.6;
-  max-width: 60ch;
-}
-@media (max-width: 700px) {
-  .jp-land-feature { grid-template-columns: 1fr; gap: 6px; }
-}
+/* Funktioner: den gamla mono-key/val-raden (.jp-land-features / .jp-land-feature*)
+   togs bort i #517 efter Plattan-cutover (#518). Den live 3×2-griden bor i
+   .jp-land-features--grid / .jp-land-featcell* längre ned. */
 
 /* Footer */
 .jp-land-foot {
@@ -4785,35 +4757,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   .jp-head__stats, .jp-head__sep { display: none; }
 }
 
-/* ── Ledger-hero (Variant A "Liggaren") ──────────────────────
-   Additiva sub-element som komponeras INUTI det befintliga
-   .jp-land-hero-skalet (bg/padding orörda). 01/02/03 + 800-verb,
-   streckade radlinjer, höger auth-kolumn, gäst-länk under. */
-.jp-land-hero__inner--ledger { grid-template-columns: minmax(0, 1fr) 440px; }
-.jp-land-hero__eyebrow {
-  display: inline-flex; align-items: center; gap: 10px;
-  font-family: var(--jp-font-mono); font-size: 12px; font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--jp-accent-700); margin-bottom: 18px;
-}
-.jp-land-hero__ledger { margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.jp-land-hero__ledger-row {
-  display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 18px; padding: 6px 0;
-}
-.jp-land-hero__ledger-row + .jp-land-hero__ledger-row { border-top: 1px dashed var(--jp-border); }
-.jp-land-hero__ledger-num {
-  font-family: var(--jp-font-sans); font-size: 16px; font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--jp-accent-700); padding-top: 10px;
-}
-.jp-land-hero__ledger-verb {
-  font-size: clamp(36px, 5.2vw, 60px); font-weight: 800; letter-spacing: -0.03em;
-  line-height: 1.0; color: var(--jp-ink-1);
-}
-/* Ledger-lede = ink-1 (K2; den befintliga .jp-land-hero__lede ovan är ink-2
-   och rörs inte — den bär nuvarande heron tills #257 byter komponenten). */
-.jp-land-hero__ledger-lede {
-  margin: 22px 0 0; font-size: 18px; line-height: 1.55; color: var(--jp-ink-1); max-width: 52ch;
-}
+/* ── Hero-subelement (delas av landnings-plattan, förslag 3a) ─
+   Auth-kolumn + gäst-länk under kortet. Ledger-heron (01/02/03 +
+   800-verb, streckade radlinjer) togs bort i #517 efter Plattan-
+   cutover (#518); gäst-länkens vita platt-variant + fokusring bor
+   i plattblocket nedan (scopad 0,2,0 för att slå globala
+   a:not(.jp-btn)). */
 .jp-land-hero__authcol { min-width: 0; }
 .jp-land-hero__guestrow { margin-top: 16px; display: flex; justify-content: center; }
 .jp-land-hero__guestlink {
@@ -4821,11 +4770,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-size: 14.5px; font-weight: 600; color: var(--jp-accent-700); text-decoration: none;
 }
 .jp-land-hero__guestlink:hover { color: var(--jp-accent-600); text-decoration: underline; text-underline-offset: 3px; }
-@media (max-width: 980px) {
-  /* .jp-land-hero__inner (bas) staplar redan vid 980px; modifieraren ärver det. */
-  .jp-land-hero__inner--ledger { grid-template-columns: 1fr; }
-  .jp-land-hero__ledger-verb { font-size: clamp(30px, 9vw, 48px); }
-}
 
 /* ── On-page auth-kort med flikar (.jp-auth-tabcard) ─────────
    Distinkt från .jp-auth-card/-wrap/-form/-foot (auth-SIDORNA ovan,
@@ -4856,9 +4800,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 
 /* ── Landnings-hero "Plattan" (förslag 3a, epic #267) ────────
    Mörkgrön hero-platta på --jp-hero-gradient (sanktionerad på JUST
-   landing-hero per ADR 0068). Ersätter ledger-heron ovan (vars
-   .jp-land-hero__ledger*-klasser lämnas intakta tills städ-PR #517,
-   repots branch-by-abstraction). Verb-stack utan nummer/linjer,
+   landing-hero per ADR 0068). Ersatte den tidigare ledger-heron
+   (dess .jp-land-hero__ledger*-klasser borttagna i #517 efter
+   cutover). Verb-stack utan nummer/linjer,
    guld-kicker, källrad, auth-kort som flyter på plattan.
 
    ALLT på plattan använder LITERALA vita/guld-värden (tema-STABILT,
@@ -4919,8 +4863,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 
 /* ── Funktioner-grid (förslag 3a): 6 celler, stark kontrast ───
    Vit sektion under plattan. 3×2-grid (→ 2 kol <1040, 1 kol <700).
-   Ersätter de gamla mono-key/val-raderna (.jp-land-feature*, intakta
-   tills städ-PR #517): varje cell = 2px ink-1 topplinje + h3-rubrik +
+   Ersatte de gamla mono-key/val-raderna (.jp-land-feature*, borttagna
+   i #517 efter cutover): varje cell = 2px ink-1 topplinje + h3-rubrik +
    brödtext, ALLT i --jp-ink-1 (K2 — ingen grå ink-2; hierarki via
    storlek/vikt, inte urvattnad färg). */
 .jp-land-features--grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }

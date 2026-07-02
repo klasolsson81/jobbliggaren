@@ -50,6 +50,10 @@ public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
 
         CryptographicOperations.ZeroMemory(plaintextBytes);
 
+        // Emitterar alltid v1-sentinel (single-version-invariant, #501). Prefixet
+        // och UserDataKeyStore.CurrentDekVersion är låsta till samma version — en
+        // framtida bump måste flytta BÅDA + göra Decrypt/ResolveDek versionsmedvetna
+        // + köra en re-encrypt-migration, annars bricks befintlig ciphertext.
         return FieldEncryptionSentinel.VersionPrefix + Convert.ToBase64String(payload);
     }
 

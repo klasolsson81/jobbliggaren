@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -253,8 +255,9 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         var failingProvider = new KmsDataKeyProvider(
             failingKms, NullLogger<KmsDataKeyProvider>.Instance);
         using var failCache = new ScopedUserDataKeyCache();
+        var inspector = dbScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>();
         var failStore = new UserDataKeyStore(
-            db, failingProvider, failCache, new FixedClock(DateTimeOffset.UtcNow));
+            db, failingProvider, failCache, new FixedClock(DateTimeOffset.UtcNow), inspector);
 
         Exception? caught = null;
         byte[]? leaked = null;
@@ -271,6 +274,94 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         leaked.ShouldBeNull("ingen klartext-DEK får returneras vid KMS-fel");
         failCache.TryPeekCachedDek(seeker.Id, out _).ShouldBeFalse(
             "cachen får INTE innehålla någon klartext/default-DEK efter KMS-fel");
+    }
+
+    // ── Scenario 10 (#501) — versionsblind läsväg: v2-rad kastar loud ────
+    [Fact]
+    public async Task ResolveDek_WhenHigherDekVersionExists_FailsClosed()
+    {
+        // #501 (Medium): en (owner, dek_version=2)-rad — vad naiv rotationskod
+        // skulle infoga — får ALDRIG tyst returneras och dekryptera v1-ciphertext
+        // med fel DEK (AES-GCM-tag-mismatch på varje läsning, hela datasetet
+        // oläsbart). Single-version-guarden ska kasta loud i stället.
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+
+        // v1 skapas normalt via store:n.
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
+            await store.GetOrCreateDataKeyAsync(seeker.Id, ct);
+        }
+
+        // Simulera naiv rotation: infoga en (owner, dek_version=2)-rad direkt.
+        using (var seedScope = _fixture.Services.CreateScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Set<UserDataKey>().Add(new UserDataKey(
+                seeker.Id,
+                dekVersion: 2,
+                wrappedDek: [0x4C, 0x01, 0x02, 0x03],
+                cmkKeyId: "rotated-v2",
+                createdAt: new FixedClock(DateTimeOffset.UtcNow).UtcNow));
+            await db.SaveChangesAsync(ct);
+        }
+
+        // Fresh scope (tom cache) → ResolveDek väljer högsta versionen (v2) →
+        // guarden kastar CryptographicException FÖRE unwrap; ingen tyst
+        // fel-DEK-dekryptering.
+        using var readScope = _fixture.Services.CreateScope();
+        var readStore = readScope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
+
+        byte[]? leaked = null;
+        var ex = await Record.ExceptionAsync(async () =>
+            leaked = await readStore.GetOrCreateDataKeyAsync(seeker.Id, ct));
+
+        ex.ShouldNotBeNull(
+            "en v2-rad utan versionsmedveten läsväg måste fail-closed:a (#501)");
+        ex.ShouldBeOfType<CryptographicException>(
+            "otvetydigt versionsfel → CryptographicException, ingen fel-DEK-dekrypt");
+        leaked.ShouldBeNull("ingen DEK får returneras när versionen inte stöds");
+    }
+
+    // ── Scenario 11 (Low2) — first-use-race: samtidiga GetOrCreate ger EN rad ─
+    [Fact]
+    public async Task GetOrCreateDataKey_ConcurrentFirstUse_NoDuplicateNoThrow()
+    {
+        // Low2: två+ parallella requests för samma NYA ägare skapade båda en DEK
+        // → PK-violation (job_seeker_id, dek_version) → förloraren 500:ade på
+        // DbUpdateException. Get-or-create-upsert:en ska i stället fånga 23505,
+        // re-query:a vinnaren och ge alla samma DEK — exakt EN rad, inget kast.
+        // Mot riktig Postgres (Testcontainers): 8-vägs samtidighet träffar PK-
+        // racen; invarianten (en rad, samma DEK, inget kast) håller oavsett om
+        // race-grenen träffas, så testet är icke-flaky.
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+
+        const int concurrency = 8;
+        var deks = await Task.WhenAll(
+            Enumerable.Range(0, concurrency).Select(_ => Task.Run(async () =>
+            {
+                using var scope = _fixture.Services.CreateScope();
+                var store = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
+                return await store.GetOrCreateDataKeyAsync(seeker.Id, ct);
+            }, ct)));
+
+        // Inget kast: en ohanterad DbUpdateException hade propagerats av WhenAll.
+        // Exakt EN wrapped-DEK-rad — ingen duplicerad first-use-insert.
+        using var verifyScope = _fixture.Services.CreateScope();
+        var db = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rows = await UserDataKeys(db)
+            .Where(k => k.JobSeekerId == seeker.Id)
+            .ToListAsync(ct);
+        rows.Count.ShouldBe(1, "samtidig first-use får skapa exakt EN user_data_keys-rad");
+        rows[0].DekVersion.ShouldBe(1);
+
+        // Alla anropare fick vinnarens DEK — ingen fick en förlorar-DEK.
+        foreach (var dek in deks)
+        {
+            dek.ShouldBe(deks[0], "alla samtidiga anropare ska få vinnarens DEK");
+        }
     }
 
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider

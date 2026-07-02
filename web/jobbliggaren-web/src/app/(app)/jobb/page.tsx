@@ -12,6 +12,7 @@ import {
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
+  parseEmployerParam,
 } from "@/lib/job-ads/search-params";
 // #419 pt1 — "Visa bara matchade"-sentinelparamen delar STATUS_ON_VALUE ("on") med
 // doljAnsokta/relaterade; den separata param-konstanten dokumenterar nyckeln.
@@ -56,6 +57,10 @@ type JobbSearchParams = {
   // #419 pt1 — "Visa bara matchade"-toggle:n. `?baraMatchade=on`. Frånvaro = hela
   // listan. Endast on-värdet parsas (paritet doljAnsokta/relaterade).
   baraMatchade?: string;
+  // #454 PR-0 — arbetsgivar-filtret: ETT org.nr (exakt 10 siffror). Felformat
+  // droppas tyst (paritet matchGrades drop-unknown; backend-validatorn skulle
+  // annars 400:a hela list-queryn). string[] (manipulerad URL) → första värdet.
+  employer?: string | string[];
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -111,6 +116,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // doljAnsokta/relaterade). Trådas vidare till hero-filterraden (kontrollen, gatad på
   // matchnings-axeln) + JobbResults (gatad på matchActive där, paritet includeRelated).
   const onlyMatched = params.baraMatchade === STATUS_ON_VALUE;
+  // #454 PR-0 — arbetsgivar-filtret. SPOT-parsern (search-params.ts) gatar
+  // på exakt 10 siffror med tyst drop (drop-unknown-disciplinen, paritet
+  // matchGrades); buildPageHref använder SAMMA parser så page-parse och
+  // paginerings-href aldrig divergerar.
+  const employer = parseEmployerParam(params.employer);
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -192,6 +202,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // #419 pt1 — "Visa bara matchade" ingår i Suspense-keyn så listan re-renderas (visar
   // skeleton) när toggle:n flippas (samma princip som status/matchnings-axeln).
   const onlyMatchedKey = onlyMatched ? "m" : "";
+  // #454 PR-0 — arbetsgivar-filtret ingår i Suspense-keyn så listan re-renderas
+  // (visar skeleton) när filtret sätts/tas bort (samma princip som dimensionerna).
+  const employerKey = employer ?? "";
 
   return (
     <>
@@ -246,6 +259,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 employmentType={employmentType}
                 worktimeExtent={worktimeExtent}
                 matchGrades={matchGrades}
+                employer={employer}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
                 initialCommitted={commit}
@@ -271,6 +285,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 hasStatedDesiredOccupation={hasStatedDesiredOccupation}
                 hasSeeker={hasSeeker}
                 q={q ?? ""}
+                employer={employer}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
               />
@@ -285,7 +300,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${employerKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -302,6 +317,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             includeRelated={includeRelated}
             hideApplied={hideApplied}
             onlyMatched={onlyMatched}
+            employer={employer}
             q={q ?? ""}
             commit={commit}
             rawParams={params}

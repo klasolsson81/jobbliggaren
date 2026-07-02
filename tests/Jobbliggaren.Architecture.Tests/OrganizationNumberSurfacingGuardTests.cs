@@ -52,6 +52,11 @@ public class OrganizationNumberSurfacingGuardTests
     [
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
+        // #454 (ADR 0088) — the lookup handler reads the raw org.nr (VO + registry entry) into
+        // scope; the cache decorator + providers see the raw value inside Infrastructure.
+        "src/Jobbliggaren.Application/Companies/Queries/LookupCompany/LookupCompanyQueryHandler.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegistry/CachedCompanyRegistry.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegistry/FakeCompanyRegistry.cs",
     ];
 
     /// <summary>
@@ -64,6 +69,10 @@ public class OrganizationNumberSurfacingGuardTests
     [
         typeof(CompanyWatchDto), // PR-3: OrganizationNumber masked to null + IsProtectedIdentity flag
         typeof(EmployerDisambiguationDto), // PR-2b C2: OrganizationNumber masked to null + IsProtectedIdentity flag
+        // #454 (ADR 0088 D4/D5): mask-capable defense-in-depth — the handler REFUSES pnr-shaped
+        // input upstream (Posture A), so the masked branch is normally unreachable, but the DTO
+        // still nulls+flags via IsPersonnummerShaped so no future path can surface a raw value.
+        typeof(Jobbliggaren.Application.Companies.Queries.LookupCompany.CompanyLookupDto),
     ];
 
     /// <summary>

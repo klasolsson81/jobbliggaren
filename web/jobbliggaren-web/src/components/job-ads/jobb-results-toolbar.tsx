@@ -12,6 +12,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { formatNumber } from "@/lib/i18n/format";
 import {
   Briefcase,
+  Building2,
   Clock,
   FileText,
   MapPin,
@@ -37,6 +38,7 @@ import {
   removeChipFromState,
   type SearchChip,
 } from "@/lib/job-ads/chip-models";
+import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
 
 /**
@@ -110,6 +112,15 @@ interface JobbResultsToolbarProps {
    * kontrollen (kryssrutan) ägs av Matchning-popovern i hero-filterraden.
    */
   onlyMatched: boolean;
+  /**
+   * #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret (ETT org.nr,
+   * page-validerat). Bärs i toolbarens bas-URL-state så sort/chip-×/Rensa
+   * bevarar det, och renderas som en toolbar-lokal avtagbar chip (samma
+   * mönster som grad-chipsen — ALDRIG via buildChipModels, som är SPOT med
+   * hero-fältets in-field-chips). Filtret sätts av företagskortets
+   * "se annonser"-länkar, aldrig av toolbaren själv.
+   */
+  employer: string | undefined;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -187,6 +198,7 @@ export function JobbResultsToolbar({
   matchningOff,
   hideApplied,
   onlyMatched,
+  employer,
   resolvedLabels,
   q,
   sortBy,
@@ -237,6 +249,9 @@ export function JobbResultsToolbar({
       // #419 pt1 — bär "Visa bara matchade" i basen så sort/chip-×/Rensa bevarar
       // `?baraMatchade=on` (samma param-bevarande-skäl; toolbaren togglar den ej).
       onlyMatched,
+      // #454 PR-0 — bär arbetsgivar-filtret i basen så sort/chip-×/Rensa
+      // bevarar `?employer=` (samma param-bevarande-skäl som ovan).
+      employer,
       sortBy,
       pageSize,
     }),
@@ -252,6 +267,7 @@ export function JobbResultsToolbar({
       matchningOff,
       hideApplied,
       onlyMatched,
+      employer,
       sortBy,
       pageSize,
     ],
@@ -331,6 +347,14 @@ export function JobbResultsToolbar({
     commit(removeChipFromState(urlState, chip));
   }
 
+  // #454 PR-0 — arbetsgivar-chipens ×. Navigering UTAN commit-intent (samma
+  // väg som grad-chipsen): employer är runtime-view-state satt av företags-
+  // kortets länk, inte en avsiktlig sökning som ska auto-capturas till
+  // Senaste sökningar (recent-search-href kan inte återskapa den).
+  function removeEmployer() {
+    navigate({ ...urlState, employer: undefined });
+  }
+
   // E2i (Klas-beslut 2026-06-11, ersätter E2e-domen "q bevaras"): q-orden
   // visas nu som taggar i samma rad → "Rensa alla filter" nollar ALLT
   // inkl. sökorden (least surprise — allt med × i raden försvinner; hero-
@@ -345,6 +369,9 @@ export function JobbResultsToolbar({
       // anställningsform/omfattning (least surprise — allt med × försvinner).
       employmentType: [],
       worktimeExtent: [],
+      // #454 PR-0 — arbetsgivar-filtret nollas också (det har × i samma rad;
+      // least surprise — allt med × försvinner, E2i-doktrinen).
+      employer: undefined,
       q: "",
     });
   }
@@ -384,10 +411,11 @@ export function JobbResultsToolbar({
           .filter(isListMatchGrade)
           .map((grade) => ({ grade, label: tGrade(`grade.${grade}`) }))
       : [];
-  // Chips-rad syns när det finns sök/q-chips ELLER smalnade grad-chips. Status-
-  // chips borttagna (Dölj ansökta syns på sin egen hero-toggle, inte som chip).
+  // Chips-rad syns när det finns sök/q-chips, smalnade grad-chips ELLER ett
+  // aktivt arbetsgivar-filter (#454 PR-0). Status-chips borttagna (Dölj
+  // ansökta syns på sin egen hero-toggle, inte som chip).
   const hasAnyToolbarChips =
-    chips.length > 0 || matchGradeChips.length > 0;
+    chips.length > 0 || matchGradeChips.length > 0 || Boolean(urlState.employer);
 
   return (
     <>
@@ -470,6 +498,32 @@ export function JobbResultsToolbar({
             </span>
           );
         })}
+
+        {/* Arbetsgivar-chip (#454 PR-0, toolbar-lokal som grad-chipsen —
+            ALDRIG via buildChipModels, SPOT med hero-fältets in-field-chips).
+            Label = "Arbetsgivare NNNNNN-NNNN" (org.nr; namnupplösning i chipen
+            är #408-adjacent polish, out-of-scope v1). × navigerar utan
+            commit-intent (removeEmployer). Civic-ikon: Building2. */}
+        {urlState.employer && (
+          <span className="jp-filterchip">
+            <Building2 size={12} aria-hidden="true" />
+            {t("toolbar.employerChip", {
+              orgNr: formatOrgNr(urlState.employer),
+            })}
+            <button
+              type="button"
+              className="jp-filterchip__rm"
+              onClick={removeEmployer}
+              aria-label={t("toolbar.removeFilter", {
+                label: t("toolbar.employerChip", {
+                  orgNr: formatOrgNr(urlState.employer),
+                }),
+              })}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </span>
+        )}
 
         {/* Grad-chips (toolbar-lokala, #408): en per smalnad grad. × kör samma
             navigate-väg som popover-avmarkering (onMatchGradesChange med graden

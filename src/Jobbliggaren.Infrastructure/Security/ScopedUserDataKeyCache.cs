@@ -43,7 +43,20 @@ public sealed class ScopedUserDataKeyCache : IUserDataKeyCache
         // Fail-closed: om factory:n kastar (KMS-fel) cachas INGENTING —
         // ingen klartext/default-DEK (ADR 0049 Beslut 4, CTO-domen).
         var dek = await unwrapFactory().ConfigureAwait(false);
-        ct.ThrowIfCancellationRequested();
+
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException)
+        {
+            // Low1 (epic #480): på cancellation EFTER unwrap men FÖRE cachning
+            // memoiseras den färsk-unwrappade plaintext-DEK:en aldrig → Dispose
+            // fångar den inte. Nolla den här så nyckelmaterial inte läcker
+            // o-zeroat. Success-vägen memoiserar oförändrat (dispose nollar då).
+            CryptographicOperations.ZeroMemory(dek);
+            throw;
+        }
 
         _cache[owner] = dek; // cache-ägd buffert (nollas vid dispose)
         _unwrapCounts[owner] = _unwrapCounts.GetValueOrDefault(owner) + 1;

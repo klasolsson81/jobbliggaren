@@ -85,12 +85,41 @@ public sealed class FieldEncryptionSaveChangesInterceptor : SaveChangesIntercept
                 {
                     var property = entry.Property(propertyName);
                     if (property.CurrentValue is not string plaintext
-                        || plaintext.Length == 0
-                        || fieldEncryptor.IsEncrypted(plaintext))
+                        || plaintext.Length == 0)
                     {
-                        // null / tom / redan krypterad → idempotent skip.
-                        // (System-jobb som re-sparar ciphertext träffar denna
-                        //  — ingen DEK-lookup, ingen krasch.)
+                        // null / tom → skip.
+                        continue;
+                    }
+
+                    // #500 (High): grinda på PROVENIENS, inte innehåll. Den
+                    // gamla gaten skippade allt som IsEncrypted(plaintext) (regex
+                    // ^v\d+:) matchade — men användarlevererad klartext som råkar
+                    // börja med "v1:" är omöjlig att skilja från VÅR ciphertext
+                    // på innehåll. Resultatet: en anteckning "v1: ringde..."
+                    // persisterades i klartext och 500:ade läsvägen permanent.
+                    //
+                    // Skippa ENDAST en sentinel-liknande sträng när den är en
+                    // genom-passering av vår EGEN ciphertext — dvs INTE
+                    // användarlevererad denna save. Added-entitet ELLER en
+                    // modifierad property = användarlevererad (ny/editerad) →
+                    // måste krypteras. IsEncrypted() smalnar bara av det tvetydiga
+                    // fallet; proveniensen avgör. Kortslutningen på State != Added
+                    // gör att IsModified aldrig läses för Added (ospecificerad
+                    // EF-semantik undviks). Konsekvens: klartext-at-rest blir
+                    // strukturellt omöjligt — en oförändrad property (!IsModified)
+                    // skrivs ändå aldrig av EF, så on-disk-ciphertext bevaras
+                    // oavsett interceptor↔Npgsql-snapshot-ordning (ADR 0049 not
+                    // 1/7). IsModified är tillförlitlig här: SavingChanges fyrar
+                    // efter DetectChanges (AppDbContext lämnar
+                    // AutoDetectChangesEnabled på default true).
+                    var isPassThroughCiphertext =
+                        fieldEncryptor.IsEncrypted(plaintext)
+                        && entry.State != EntityState.Added
+                        && !property.IsModified;
+                    if (isPassThroughCiphertext)
+                    {
+                        // Vår ciphertext, oförändrad (t.ex. system-jobb som
+                        // re-sparar) → idempotent skip, ingen DEK-lookup.
                         continue;
                     }
 

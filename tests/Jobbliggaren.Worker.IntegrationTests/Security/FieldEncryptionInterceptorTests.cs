@@ -790,6 +790,108 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
             "ingen klartext eller ciphertext-fallback får returneras");
     }
 
+    // ── 14. #500 — användarklartext som liknar sentinel krypteras (proveniens) ─
+    [Fact]
+    public async Task SaveApplicationNote_UserTextLooksLikeSentinel_PersistsCiphertext_RoundTrips()
+    {
+        // #500 (High): innehållsgaten (IsEncrypted(plaintext), regex ^v\d+:)
+        // tolkade användarklartext som börjar med sentinel-mönstret som "redan
+        // krypterad" → skippade kryptering → klartext-PII at-rest + permanent
+        // 500 på läsvägen (Decrypt fail-closar). Proveniensgaten (Added /
+        // IsModified, inte innehåll) krypterar den nu. Exakt fynd-repro: en
+        // anteckning vars text kolliderar med sentinel-prefixet.
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+        const string note = "v1: ringde rekryteraren om tjänsten och fick svar";
+
+        ApplicationId appId;
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            await PrefetchOwnerDekAsync(scope, seeker.Id, ct);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var app = NewApplication(seeker.Id, coverLetter: null);
+            app.AddNote(note, new FixedClock(DateTimeOffset.UtcNow))
+                .IsSuccess.ShouldBeTrue();
+            appId = app.Id;
+            db.Applications.Add(app);
+            await db.SaveChangesAsync(ct);
+        }
+
+        using var verifyScope = _fixture.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rawColumn = await RawScalarAsync(
+            verifyDb,
+            $"SELECT content FROM application_notes WHERE application_id = '{appId.Value}'",
+            ct);
+
+        rawColumn.ShouldNotBeNull();
+        rawColumn.ShouldStartWith("v1:");
+        // Bevis att den KRYPTERADES, ej lagrades rå: distinkt PII-fragment får
+        // inte finnas i on-disk-värdet (den buggiga koden lagrade klartext).
+        rawColumn.ShouldNotContain("ringde rekryteraren", Case.Sensitive);
+        // Exakt ETT sentinel-prefix (base64-alfabetet saknar kolon) — ingen
+        // dubbel-prefixning.
+        System.Text.RegularExpressions.Regex.Count(rawColumn, "v1:")
+            .ShouldBe(1);
+
+        // Rundresa: den sentinel-kolliderande klartexten ska överleva exakt
+        // (bevisar att den krypterades EN gång, ej dubbel-krypterades).
+        using var readScope = _fixture.Services.CreateScope();
+        await PrefetchOwnerDekAsync(readScope, seeker.Id, ct);
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var loaded = await readDb.Applications
+            .AsNoTrackingWithIdentityResolution()
+            .Include(a => a.Notes)
+            .SingleAsync(a => a.Id == appId, ct);
+        loaded.Notes.ShouldHaveSingleItem().Content.ShouldBe(note,
+            "sentinel-kolliderande klartext måste round-trippa exakt (#500)");
+    }
+
+    // ── 15. #500 — cover letter med "v2:"-liknande klartext (regex-bredd) ─
+    [Fact]
+    public async Task SaveApplication_CoverLetterLooksLikeSentinel_PersistsCiphertext_RoundTrips()
+    {
+        // Sentinel-regexen är ^v\d+: (alla versioner), inte bara literal "v1:".
+        // En cover letter som börjar med "v2:" måste också krypteras — inte
+        // felklassas som ciphertext.
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+        const string coverLetter = "v2: min ansökan börjar med en versionsliknande rad";
+
+        ApplicationId appId;
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            await PrefetchOwnerDekAsync(scope, seeker.Id, ct);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var app = NewApplication(seeker.Id, coverLetter);
+            appId = app.Id;
+            db.Applications.Add(app);
+            await db.SaveChangesAsync(ct);
+        }
+
+        using var verifyScope = _fixture.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rawColumn = await RawScalarAsync(
+            verifyDb,
+            $"SELECT cover_letter FROM applications WHERE id = '{appId.Value}'",
+            ct);
+
+        rawColumn.ShouldNotBeNull();
+        // Krypterad med v1-layouten (vår Encrypt emitterar alltid v1:).
+        rawColumn.ShouldStartWith("v1:");
+        rawColumn.ShouldNotContain("min ansökan", Case.Sensitive);
+        rawColumn.ShouldNotBe(coverLetter);
+
+        using var readScope = _fixture.Services.CreateScope();
+        await PrefetchOwnerDekAsync(readScope, seeker.Id, ct);
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var loaded = await readDb.Applications
+            .AsNoTracking()
+            .SingleAsync(a => a.Id == appId, ct);
+        loaded.CoverLetter.ShouldBe(coverLetter,
+            "\"v2:\"-liknande klartext ska round-trippa exakt (#500 regex-bredd)");
+    }
+
     // ── Hjälpare ────────────────────────────────────────────────────────
 
     /// <summary>

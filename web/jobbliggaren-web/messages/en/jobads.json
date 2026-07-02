@@ -49,6 +49,27 @@
       "all": "All ads"
     }
   },
+  "companyLookup": {
+    "heading": "Search for a company",
+    "lede": "Find a company by organisation number and follow it, even if it has no ads right now.",
+    "label": "Organisation number",
+    "help": "Enter the company's 10-digit organisation number, with or without a hyphen.",
+    "submit": "Search",
+    "seeAds": "See ads",
+    "seeMatchingAds": "See matching ads",
+    "follow": "Follow",
+    "alreadyFollowing": "Following",
+    "notFoundTitle": "No company found",
+    "notFoundBody": "Check the number. The company may also not be registered in the company register.",
+    "unavailableTitle": "Details cannot be fetched right now",
+    "unavailableBody": "Company register lookups are currently unavailable. Try again later.",
+    "refusedTitle": "The number cannot be looked up",
+    "refusedBody": "The number may be a personal identity number and can therefore not be looked up at present. Sole proprietorships can be followed from their ads under Jobs.",
+    "rateLimitedTitle": "Too many lookups",
+    "rateLimitedBody": "Wait {seconds} seconds and try again.",
+    "errorTitle": "The lookup could not be completed",
+    "errorBody": "A technical error interrupted the search. Wait a moment and then try again."
+  },
   "recent": {
     "emptyTitle": "No recent searches",
     "emptyBody": "Run a search under Jobs. It is saved here automatically.",

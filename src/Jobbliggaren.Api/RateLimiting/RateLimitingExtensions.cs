@@ -32,6 +32,7 @@ public static partial class RateLimitingExtensions
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
     public const string MeWritePolicy = "me-write";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
+    public const string CompanyLookupPolicy = "company-lookup";
     public const string ResumeImportPolicy = "resume-import";
     public const string ResumeRenderPolicy = "resume-render";
     public const string AdminWritePolicy = "admin-write";
@@ -415,6 +416,33 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.FollowSeenMark.PermitLimit / rateLimitOpts.FollowSeenMark.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.FollowSeenMark.WindowSeconds / (double)rateLimitOpts.FollowSeenMark.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // #454 (ADR 0088 D7) — POST /api/v1/companies/lookup. Egen policy (least common
+            // mechanism + bulkhead): varje lookup-miss är en potentiell UPPSTRÖMS-kostnad (SCB-
+            // anrop när den riktiga adaptern aktiveras; 10 anrop/10 s per API-Id) och delar
+            // därför inte budget med lätta lokala läsningar. TokenBucket per UserId (droppvis
+            // återfyllnad + rent Retry-After), QueueLimit=0 (kö = memory-DoS; en människa skriver
+            // en handfull uppslag). Anonym → NoLimiter (RequireAuthorization → 401 före endpoint).
+            // 12/min = CTO-riktvärdet (10–15/min-spann, 2026-07-02); security-auditor verifierar
+            // (BLOCKING). OBS per-user-taket skyddar INTE process-wide-SCB-budgeten — separat
+            // process-wide-limiter följer med SCB-aktiverings-PR:en. IOptions-bundna (§5.1).
+            options.AddPolicy(CompanyLookupPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-company-lookup");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.CompanyLookup.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.CompanyLookup.PermitLimit / rateLimitOpts.CompanyLookup.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.CompanyLookup.WindowSeconds / (double)rateLimitOpts.CompanyLookup.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

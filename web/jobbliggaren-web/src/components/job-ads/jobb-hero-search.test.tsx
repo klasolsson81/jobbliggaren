@@ -49,6 +49,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       employmentType={[]}
       worktimeExtent={[]}
       matchGrades={[]}
+      employer={undefined}
       sortBy="PublishedAtDesc"
       initialCommitted={false}
       {...extra}
@@ -176,6 +177,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
+        employer={undefined}
         sortBy="PublishedAtDesc"
         initialCommitted={false}
       />,
@@ -235,6 +237,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
+        employer={undefined}
         sortBy="PublishedAtDesc"
         initialCommitted={false}
       />,
@@ -252,6 +255,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
+        employer={undefined}
         sortBy="PublishedAtDesc"
         initialCommitted={false}
       />,
@@ -274,6 +278,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
+        employer={undefined}
         sortBy="PublishedAtDesc"
         initialCommitted={false}
       />,
@@ -301,6 +306,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
+        employer={undefined}
         sortBy="PublishedAtDesc"
         initialCommitted={false}
       />,
@@ -322,6 +328,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
+        employer={undefined}
         sortBy="PublishedAtDesc"
         initialCommitted={false}
       />,
@@ -477,6 +484,7 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
+        employer={undefined}
         sortBy="PublishedAtDesc"
         initialCommitted={false}
       />,
@@ -560,6 +568,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
       employmentType: [] as string[],
       worktimeExtent: [] as string[],
       matchGrades: [] as string[],
+      employer: undefined,
       sortBy: "PublishedAtDesc" as const,
       initialCommitted: false,
     };

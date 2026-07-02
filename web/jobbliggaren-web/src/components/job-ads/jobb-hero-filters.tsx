@@ -98,6 +98,13 @@ interface JobbHeroFiltersProps {
   hasSeeker: boolean;
   /** Hero-sökordet — bärs vidare så filter-klick inte raderar q. */
   q: string;
+  /**
+   * #454 PR-0 — aktivt arbetsgivar-filter (ETT org.nr, page-validerat). Ön
+   * redigerar det ALDRIG (chipen + × bor i toolbaren), men bär det vidare i
+   * varje buildJobbHref-commit så ett filter-pill-klick inte raderar det
+   * (samma param-bevarande-disciplin som q/sort — closure-prop, ej selection).
+   */
+  employer: string | undefined;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -142,6 +149,7 @@ export function JobbHeroFilters({
   hasStatedDesiredOccupation,
   hasSeeker,
   q,
+  employer,
   sortBy,
   pageSize,
 }: JobbHeroFiltersProps) {
@@ -260,6 +268,9 @@ export function JobbHeroFilters({
           includeRelated: next.includeRelated,
           hideApplied: next.hideApplied,
           onlyMatched: next.onlyMatched,
+          // #454 PR-0 — bärs vidare oförändrat (ön redigerar det aldrig) så
+          // ett pill-klick inte raderar arbetsgivar-filtret.
+          employer,
           sortBy,
           pageSize,
         }),

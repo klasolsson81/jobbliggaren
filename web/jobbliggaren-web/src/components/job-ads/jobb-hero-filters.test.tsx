@@ -68,6 +68,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroFilters>[0]>) {
       hasStatedDesiredOccupation={false}
       hasSeeker={false}
       q=""
+      employer={undefined}
       sortBy="PublishedAtDesc"
       {...extra}
     />,
@@ -237,6 +238,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         hasStatedDesiredOccupation={false}
         hasSeeker={false}
         q=""
+        employer={undefined}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -262,6 +264,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         hasStatedDesiredOccupation={false}
         hasSeeker={false}
         q=""
+        employer={undefined}
         sortBy="PublishedAtDesc"
       />,
     );
@@ -461,6 +464,7 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
         hasStatedDesiredOccupation={false}
         hasSeeker={false}
         q=""
+        employer={undefined}
         sortBy="PublishedAtDesc"
       />,
     );

@@ -161,6 +161,26 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
     }
 
     /// <summary>
+    /// #453 (audit #26) — Queued → Failed (terminal). The <c>StrandedMatchReaperJob</c> follow arm calls
+    /// this on a row that sat <see cref="FollowedCompanyAdHitStatus.Queued"/> past the strand threshold
+    /// (a send that never completed). Guarded: only a Queued hit can fail — a Pending row was never
+    /// claimed and a Sent row already delivered, so neither is reapable. NEVER re-sends (the "never
+    /// double-email" stance) and stamps no timestamp (aging is by <see cref="CreatedAt"/>, the reaper
+    /// logs the reap). Terminal: there is no transition out of Failed. Parity
+    /// <c>UserJobAdMatch.MarkFailed</c>.
+    /// </summary>
+    public Result MarkFailed()
+    {
+        if (NotificationStatus != FollowedCompanyAdHitStatus.Queued)
+            return Result.Failure(DomainError.Validation(
+                "FollowedCompanyAdHit.NotQueued",
+                "Endast en köad företagsträff kan markeras som misslyckad."));
+
+        NotificationStatus = FollowedCompanyAdHitStatus.Failed;
+        return Result.Success();
+    }
+
+    /// <summary>
     /// Soft-deletes the hit. Joins the Art. 17 hard-delete cascade by UserId
     /// (<c>AccountHardDeleter</c> RemoveRanges these rows), and the handler-managed cascade when the
     /// JobAd expires. Idempotent. Raises no domain event (mirrors <c>UserJobAdMatch</c> — batch

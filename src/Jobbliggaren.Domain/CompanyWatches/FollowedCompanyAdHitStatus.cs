@@ -16,11 +16,20 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// <b>Deliberately a SEPARATE enum from <c>NotificationStatus</c> (ADR 0087 D5):</b> the shared
 /// three-state SHAPE is a shared pattern, not shared knowledge — a company-follow hit models a
 /// different concept ("a new ad appeared at an employer you follow") than a skill-graded match, so
-/// duplicating the three states is NOT a DRY violation (it avoids coupling two aggregates). This
-/// enum has NO <c>Failed</c> member: the stranded-Queued reaper (TD-114) is a
-/// <c>UserJobAdMatch</c>-specific observability concern, out of scope here — a send failure simply
-/// strands the row in <see cref="Queued"/> (never re-sent), the same "never double-email &gt; never
-/// miss" MVP trade-off the digest already makes.
+/// duplicating the states is NOT a DRY violation (it avoids coupling two aggregates).
+/// </para>
+/// <para>
+/// <b><see cref="Failed"/> — stranded-Queued recovery (#453 commit 2, external audit #26; supersedes
+/// the original "no Failed member" trade-off):</b> the follow rail reuses the same claim-then-send
+/// spine as the match rail (<c>Pending → MarkQueued</c> + commit → send → <c>MarkSent</c>), so a send
+/// that never completes strands a row in <see cref="Queued"/> forever. The original ADR 0087 D5 posture
+/// deliberately OMITTED a Failed state (deemed a <c>UserJobAdMatch</c>-specific concern), but that
+/// re-shipped the exact permanent-invisible-strand failure class that <c>StrandedMatchReaperJob</c>
+/// (TD-114) was raised to close on the match rail — and which ADR 0080's prod-Resend flip checklist
+/// makes flip-blocking. So this rail now gets the same recovery: <see cref="Failed"/> is a terminal
+/// state (never re-sent — honours "never double-email"), the reaper's follow arm moves a long-stranded
+/// <see cref="Queued"/> row here so the strand becomes observable/queryable. Stored by NAME in the
+/// existing <c>varchar(20)</c> column → NO migration (same trick the match rail used).
 /// </para>
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -34,4 +43,11 @@ public enum FollowedCompanyAdHitStatus
 
     /// <summary>The follow-notification (digest) email was delivered.</summary>
     Sent,
+
+    /// <summary>
+    /// #453 (audit #26) — terminal. The reaper moved this row here because it sat <see cref="Queued"/>
+    /// past the strand threshold (a send that never completed). Never re-sent; makes a permanent strand
+    /// observable instead of silently swallowed.
+    /// </summary>
+    Failed,
 }

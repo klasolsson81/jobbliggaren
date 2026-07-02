@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -189,5 +190,137 @@ public class StrandedMatchReaperJobTests
 
         (await db.UserJobAdMatches.SingleAsync(m => m.Id == alreadyFailed.Id, ct))
             .NotificationStatus.ShouldBe(NotificationStatus.Failed);
+    }
+
+    // =================================================================
+    // #453 (audit #26) - company-follow rail (FollowedCompanyAdHit). Same strand mechanism, a
+    // different aggregate (no grade). The reaper's second arm queries
+    // `Where(status == Queued && CreatedAt < cutoff)` over FollowedCompanyAdHits.
+    // =================================================================
+
+    /// <summary>Seeds a follow-hit created at <paramref name="createdAt"/> in the target status.</summary>
+    private static FollowedCompanyAdHit SeedFollowHit(
+        AppDbContext db, DateTimeOffset createdAt, FollowedCompanyAdHitStatus status)
+    {
+        var clock = new FakeDateTimeProvider(createdAt);
+        var hit = FollowedCompanyAdHit.Create(
+            Guid.NewGuid(), JobAdId.New(), CompanyWatchId.New(), clock).Value;
+
+        if (status is FollowedCompanyAdHitStatus.Queued
+            or FollowedCompanyAdHitStatus.Sent
+            or FollowedCompanyAdHitStatus.Failed)
+            hit.MarkQueued();
+        if (status == FollowedCompanyAdHitStatus.Sent)
+            hit.MarkSent(clock);
+        if (status == FollowedCompanyAdHitStatus.Failed)
+            hit.MarkFailed();
+
+        db.FollowedCompanyAdHits.Add(hit);
+        return hit;
+    }
+
+    [Fact]
+    public async Task RunAsync_QueuedFollowHitOlderThanThreshold_IsMarkedFailed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var stranded = SeedFollowHit(db, Now.AddHours(-50), FollowedCompanyAdHitStatus.Queued); // 50h > 48h
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        var reloaded = await db.FollowedCompanyAdHits.SingleAsync(h => h.Id == stranded.Id, ct);
+        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Failed);
+    }
+
+    [Fact]
+    public async Task RunAsync_FreshlyQueuedFollowHitWithinThreshold_IsLeftUntouched()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var fresh = SeedFollowHit(db, Now.AddHours(-1), FollowedCompanyAdHitStatus.Queued); // mid-flight
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        var reloaded = await db.FollowedCompanyAdHits.SingleAsync(h => h.Id == fresh.Id, ct);
+        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued);
+    }
+
+    [Fact]
+    public async Task RunAsync_PendingAndSentFollowHits_AreNeverTouched_EvenWhenOld()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var pending = SeedFollowHit(db, Now.AddHours(-50), FollowedCompanyAdHitStatus.Pending);
+        var sent = SeedFollowHit(db, Now.AddHours(-50), FollowedCompanyAdHitStatus.Sent);
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        (await db.FollowedCompanyAdHits.SingleAsync(h => h.Id == pending.Id, ct))
+            .NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending);
+        (await db.FollowedCompanyAdHits.SingleAsync(h => h.Id == sent.Id, ct))
+            .NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_SoftDeletedStrandedQueuedFollowHit_IsNotReaped()
+    {
+        // Parity the match arm: the follow query rides the default soft-delete filter (DeletedAt == null),
+        // so a Queued hit removed by JobAd-expiry / the Art.17 cascade stays excluded.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var deleted = SeedFollowHit(db, Now.AddHours(-50), FollowedCompanyAdHitStatus.Queued);
+        deleted.SoftDelete(NowClock);
+        await db.SaveChangesAsync(ct);
+
+        await CreateJob(db).RunAsync(ct);
+
+        var reloaded = await db.FollowedCompanyAdHits.IgnoreQueryFilters()
+            .SingleAsync(h => h.Id == deleted.Id, ct);
+        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued); // untouched
+        reloaded.DeletedAt.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_ReapsBothRails_StrandedMatchAndFollowHit_InOneAtomicSave()
+    {
+        // #453 audit #26 - a stranded match AND a stranded follow-hit are both reaped in ONE run and
+        // committed by a SINGLE atomic SaveChanges (asserted via the SavingChanges event count).
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var strandedMatch = Seed(db, Now.AddHours(-50), NotificationStatus.Queued);
+        var strandedHit = SeedFollowHit(db, Now.AddHours(-50), FollowedCompanyAdHitStatus.Queued);
+        await db.SaveChangesAsync(ct);
+
+        var saveCount = 0;
+        db.SavingChanges += (_, _) => saveCount++;
+
+        await CreateJob(db).RunAsync(ct);
+
+        saveCount.ShouldBe(1, "both rails commit in a single atomic SaveChanges");
+        (await db.UserJobAdMatches.SingleAsync(m => m.Id == strandedMatch.Id, ct))
+            .NotificationStatus.ShouldBe(NotificationStatus.Failed);
+        (await db.FollowedCompanyAdHits.SingleAsync(h => h.Id == strandedHit.Id, ct))
+            .NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Failed);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenNothingStrandedOnEitherRail_DoesNotSaveChanges()
+    {
+        // Early-return: when BOTH arms reap 0, RunAsync returns before SaveChanges (no wasted write).
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        Seed(db, Now.AddHours(-2), NotificationStatus.Queued);          // fresh match (within threshold)
+        SeedFollowHit(db, Now.AddHours(-2), FollowedCompanyAdHitStatus.Queued); // fresh follow-hit
+        await db.SaveChangesAsync(ct);
+
+        var saveCount = 0;
+        db.SavingChanges += (_, _) => saveCount++;
+
+        await CreateJob(db).RunAsync(ct);
+
+        saveCount.ShouldBe(0, "nothing stranded on either rail -> early return, no SaveChanges");
     }
 }

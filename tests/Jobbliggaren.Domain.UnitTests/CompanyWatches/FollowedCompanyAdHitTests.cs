@@ -267,4 +267,63 @@ public class FollowedCompanyAdHitTests
             .ShouldBeFalse("a seen-in-app Pending hit must be excluded from the follow-digest due-set");
     }
 
+    // ---------------------------------------------------------------
+    // MarkFailed - #453 audit #26 stranded-Queued recovery (terminal)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void MarkFailed_FromQueued_TransitionsToFailed()
+    {
+        // The reaper's follow arm moves a long-stranded Queued row to terminal Failed.
+        var hit = CreateValid();
+        hit.MarkQueued();
+
+        var result = hit.MarkFailed();
+
+        result.IsSuccess.ShouldBeTrue();
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Failed);
+    }
+
+    [Fact]
+    public void MarkFailed_FromPending_Fails()
+    {
+        // A Pending row was never claimed - it is not reapable.
+        var hit = CreateValid();
+
+        var result = hit.MarkFailed();
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("FollowedCompanyAdHit.NotQueued");
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending);
+    }
+
+    [Fact]
+    public void MarkFailed_FromSent_Fails()
+    {
+        // A Sent row already delivered - never reaped.
+        var hit = CreateValid();
+        hit.MarkQueued();
+        hit.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+
+        var result = hit.MarkFailed();
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("FollowedCompanyAdHit.NotQueued");
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public void MarkFailed_WhenAlreadyFailed_Fails_Terminal()
+    {
+        // Failed is terminal - there is no transition out of it.
+        var hit = CreateValid();
+        hit.MarkQueued();
+        hit.MarkFailed();
+
+        var result = hit.MarkFailed();
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("FollowedCompanyAdHit.NotQueued");
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Failed);
+    }
 }

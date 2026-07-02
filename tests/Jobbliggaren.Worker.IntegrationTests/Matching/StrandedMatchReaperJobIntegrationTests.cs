@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -78,6 +79,131 @@ public class StrandedMatchReaperJobIntegrationTests(WorkerTestFixture fixture)
                 .SingleAsync(m => m.UserId == userId && m.JobAdId == jobAdId, ct);
             reloaded.NotificationStatus.ShouldBe(NotificationStatus.Failed);
         }
+    }
+
+    // --------------------------- #453 (audit #26) - company-follow rail against real Postgres
+
+    [Fact]
+    public async Task RunAsync_MarksLongStrandedQueuedFollowHit_Failed_AgainstRealPostgres()
+    {
+        // Proves the follow arm's `Queued -> Failed` round-trips the real varchar(20) by-name conversion
+        // and the `WHERE status == Queued AND CreatedAt < cutoff` query over followed_company_ad_hits.
+        var ct = TestContext.Current.CancellationToken;
+        var (userId, jobAdId, watchId) = await SeedQueuedFollowHitAsync(LongAgo, ct);
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var worker = scope.ServiceProvider.GetRequiredService<StrandedMatchReaperWorker>();
+            await worker.RunAsync(ct);
+        }
+
+        var reloaded = await GetFollowHitAsync(userId, jobAdId, watchId, ct);
+        reloaded.ShouldNotBeNull();
+        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Failed);
+    }
+
+    [Fact]
+    public async Task RunAsync_LeavesFreshQueuedFollowHit_Queued_AgainstRealPostgres()
+    {
+        // A follow-hit created ~now is far within the 48h threshold -> not stranded -> stays Queued.
+        var ct = TestContext.Current.CancellationToken;
+        var (userId, jobAdId, watchId) = await SeedQueuedFollowHitAsync(DateTimeOffset.UtcNow, ct);
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var worker = scope.ServiceProvider.GetRequiredService<StrandedMatchReaperWorker>();
+            await worker.RunAsync(ct);
+        }
+
+        var reloaded = await GetFollowHitAsync(userId, jobAdId, watchId, ct);
+        reloaded.ShouldNotBeNull();
+        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued);
+    }
+
+    [Fact]
+    public async Task RunAsync_ExcludesSoftDeletedQueuedFollowHit_AgainstRealPostgres()
+    {
+        // The follow query rides the global soft-delete filter (DeletedAt == null): a Queued hit removed
+        // by JobAd-expiry / the Art.17 cascade must stay excluded (never reaped).
+        var ct = TestContext.Current.CancellationToken;
+        var (userId, jobAdId, watchId) = await SeedQueuedFollowHitAsync(LongAgo, ct, softDeleted: true);
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var worker = scope.ServiceProvider.GetRequiredService<StrandedMatchReaperWorker>();
+            await worker.RunAsync(ct);
+        }
+
+        var reloaded = await GetFollowHitAsync(userId, jobAdId, watchId, ct, ignoreFilters: true);
+        reloaded.ShouldNotBeNull();
+        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued, "a soft-deleted hit is not reaped");
+        reloaded.DeletedAt.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_ReapsBothRails_InSingleRun_AgainstRealPostgres()
+    {
+        // Both rails reaped in one run: a stranded match AND a stranded follow-hit both -> Failed.
+        var ct = TestContext.Current.CancellationToken;
+        var matchUserId = Guid.NewGuid();
+        var matchAdId = JobAdId.New();
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var match = UserJobAdMatch.Create(
+                matchUserId, matchAdId, NotifiableMatchGrade.Top, ["csharp"], new FixedClock(LongAgo)).Value;
+            match.MarkQueued().IsSuccess.ShouldBeTrue();
+            db.UserJobAdMatches.Add(match);
+            await db.SaveChangesAsync(ct);
+        }
+        var (followUserId, followAdId, followWatchId) = await SeedQueuedFollowHitAsync(LongAgo, ct);
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var worker = scope.ServiceProvider.GetRequiredService<StrandedMatchReaperWorker>();
+            await worker.RunAsync(ct);
+        }
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.UserJobAdMatches.AsNoTracking()
+                .SingleAsync(m => m.UserId == matchUserId && m.JobAdId == matchAdId, ct))
+                .NotificationStatus.ShouldBe(NotificationStatus.Failed);
+        }
+        var reloadedHit = await GetFollowHitAsync(followUserId, followAdId, followWatchId, ct);
+        reloadedHit.ShouldNotBeNull();
+        reloadedHit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Failed);
+    }
+
+    // Seeds a Queued FollowedCompanyAdHit created at <paramref name="createdAt"/> for a fresh user.
+    // No FK on job_ad_id / company_watch_id (ADR 0058/0059), so fresh ids suffice - no ad/watch seeding.
+    private async Task<(Guid UserId, JobAdId JobAdId, CompanyWatchId WatchId)> SeedQueuedFollowHitAsync(
+        DateTimeOffset createdAt, CancellationToken ct, bool softDeleted = false)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock(createdAt);
+        var userId = Guid.NewGuid();
+        var hit = FollowedCompanyAdHit.Create(userId, JobAdId.New(), CompanyWatchId.New(), clock).Value;
+        hit.MarkQueued().IsSuccess.ShouldBeTrue();
+        if (softDeleted)
+            hit.SoftDelete(clock);
+        db.FollowedCompanyAdHits.Add(hit);
+        await db.SaveChangesAsync(ct);
+        return (userId, hit.JobAdId, hit.CompanyWatchId);
+    }
+
+    private async Task<FollowedCompanyAdHit?> GetFollowHitAsync(
+        Guid userId, JobAdId jobAdId, CompanyWatchId watchId, CancellationToken ct, bool ignoreFilters = false)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var query = db.FollowedCompanyAdHits.AsNoTracking();
+        if (ignoreFilters)
+            query = query.IgnoreQueryFilters();
+        return await query.FirstOrDefaultAsync(
+            h => h.UserId == userId && h.JobAdId == jobAdId && h.CompanyWatchId == watchId, ct);
     }
 
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider

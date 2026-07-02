@@ -11,9 +11,12 @@ type AuthTab = "register" | "login";
  * On-page auth-kort med flikar (LP-6 / #260). Handrullad APG-tablist (repot har
  * ingen shadcn Tabs) som återanvänder befintliga LoginForm/RegisterForm
  * OFÖRÄNDRADE — de läser fortsatt `pages.auth.*`. AuthCard levererar bara
- * flik-/fine-print-chrome från `landing.auth.*`. Ingen OAuth, inget Namn-fält,
- * ingen placeholder (epic #267). next-param bevaras av formulären själva (de
- * läser en dold `next` via `useSearchParams`); AuthCard rör den aldrig.
+ * flik-, gratis- och fine-print-chrome från `landing.auth.*`. Gratis-raden
+ * (`auth.free`) sitter direkt under RegisterForms submit, före fine print, och
+ * visas ENDAST på register-fliken (förslag 3a, Klas 2026-07-02). Ingen OAuth,
+ * inget Namn-fält, ingen placeholder (epic #267). next-param bevaras av
+ * formulären själva (de läser en dold `next` via `useSearchParams`); AuthCard
+ * rör den aldrig.
  *
  * DECISION (Klas 2026-06-27): registrering är ÖPPEN — båda flikarna är live och
  * default-fliken är "Skapa konto" (live RegisterForm), ingen closed-beta-panel.
@@ -111,6 +114,7 @@ export function AuthCard() {
         {active === "register" && (
           <>
             <RegisterForm />
+            <p className="jp-auth-free">{t("free")}</p>
             <p className="jp-auth-fine">{t("fine")}</p>
           </>
         )}

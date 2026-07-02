@@ -101,6 +101,15 @@ Identitetsbytet tas som egen fas **"G1"** (egen PR) FÖRE ADR 0067:s återståen
 - **Accent-700 som text består för INTERAKTION:** länkar (`a:not(.jp-btn)`), fokus, selektion/aktiv rad (`aria-selected`), kontroll-states (`.jp-save[data-saved]`, checked), semantiska brand-badges/tags/pills, notice-kategorisystemet.
 - **Spec-sync-status:** globals.css-tokenkommentaren uppdaterad i E2f-PR:n; **DESIGN.md §-raden + jobbpilot-design-tokens-skillen är spec-edits som väntar Klas `approve-spec-edit.sh`** (lyft i E2f-rapporten — token-tabellen får inte fortsätta säga "titlar = accent-700"). Tre kvarvarande de-grönings-kandidater (`.jp-land-top__link.is-active`, `.jp-land-feature__key`, `.jp-summary__row--highlight`-värdet) = Klas-dom, listade i design-review-rapporten.
 
+### Implementerings-notat 2026-07-02 (Landning-redesign "Plattan", epic #267 förslag 3a) — scoped skugg-undantag för flytande auth-kort på hero-plattan
+
+**Källa:** design-reviewer-granskning 2026-07-02 av landningssidans ("/") redesign "Plattan" (epic #267, förslag 3a) — en full-bleed hero-platta på `--jp-hero-gradient` (redan sanktionerad för landing-heron av denna ADR, Beslut 3). Additivt notat; inget tidigare beslut i denna ADR ändras.
+
+- **Sanktionerat undantag:** auth-kortet som flyter på landing-hero-plattan (`.jp-land-hero--plate .jp-auth-tabcard`) FÅR bära `--jp-shadow-pop` istället för bas-skuggan `--jp-shadow-card` — ett scoped undantag från DESIGN.md regel 1 ("inga skuggor tyngre än shadow-sm på kort").
+- **Scope-vakt:** undantaget gäller ENDAST innanför `.jp-land-hero--plate`-selektorn (`src/app/globals.css`: `.jp-land-hero--plate .jp-auth-tabcard { box-shadow: var(--jp-shadow-pop); }`). Auth-kortet på de fristående auth-sidorna (`/logga-in`, `/registrera`) behåller `--jp-shadow-card` oförändrat — undantaget appliceras aldrig utanför denna selektor.
+- **Rationale:** ett kort som flyter fritt på en mörk gradient-platta behöver en lager-/elevationssignal för att läsas som en egen yta ovanpå plattan — exakt det regel 1 tillåter skuggor att förmedla. `--jp-shadow-pop` är marinblå-tonad (`rgba(8, 23, 48, 0.16)` / `rgba(8, 23, 48, 0.08)`), ingen glow, ingen färgad eller `shadow-2xl`-liknande behandling. Undantaget speglar footerns befintliga tema-stabila literal-värde-undantag i mönster (ett medvetet, dokumenterat, smalt scope — inte ett generellt genombrott av regel 1).
+- **Tredje scoped undantag på denna ADR:** läggs vid sidan av Beslut 2:s gradient- och display-rubrik-undantag (p.1–2) — samma bevakningsdisciplin gäller: design-reviewer håller undantaget till exakt denna selektor och flaggar om det sprider sig till andra kort eller ytor.
+
 ## Implementation
 
 G1-PR: token-block + alias-flip + mekanisk rename + F4-banner (/jobb) + pagehero/empty-brand/landing-gradient + fokus-scoping + spec-filer + skills-sync. Referens-facit: `docs/handoff-banner/referens/F4-banner-referens.html` (komposition; neutraler/placeholder per CTO Beslut 1 + Klas-regel). Reviews: design-reviewer (med dessa dokumenterade undantag som granskningsbas), code-reviewer, security-auditor.

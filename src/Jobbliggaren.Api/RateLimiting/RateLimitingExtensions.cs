@@ -30,6 +30,7 @@ public static partial class RateLimitingExtensions
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
     public const string MeWritePolicy = "me-write";
+    public const string FollowSeenMarkPolicy = "follow-seen-mark";
     public const string ResumeImportPolicy = "resume-import";
     public const string ResumeRenderPolicy = "resume-render";
     public const string AdminWritePolicy = "admin-write";
@@ -358,6 +359,36 @@ public static partial class RateLimitingExtensions
                         PermitLimit = rateLimitOpts.MeWrite.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.MeWrite.WindowSeconds),
                         QueueLimit = 0,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Dedikerad follow-seen-mark-policy (#453) — ej
+            // MeWrite-återanvändning: least common mechanism (Saltzer/Schroeder) + bulkhead (Nygard).
+            // POST /me/company-watches/ad-hits/{jobAdId}/seen AUTO-avfyras server-side vid VARJE
+            // ad-detalj-open (RSC Promise.all, full + modal) — materiellt högre frekvens än någon
+            // genuin mutation. En delad MeWrite-bucket hade låtit den auto-avfyrade seen-marken svälta
+            // användarens deliberata Spara/Följ på samma yta (falsk paritet med markMatchesSeen som
+            // avfyras sällan). Egen bucket → kan varken svälta eller svältas av genuina writes. Auth-
+            // gated → anonym fångas av RequireAuthorization (NoLimiter bypass). senior-cto-advisor
+            // 2026-07-02 (b), riktvärde 60/min; security-auditor verifierar (BLOCKING). IOptions (§5.1).
+            options.AddPolicy(FollowSeenMarkPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-follow-seen-mark");
+
+                // TokenBucket (ej FixedWindow) — en högfrekvent auto-fire passar droppvis återfyllnad
+                // (mjuk kontinuerlig recovery + rent Retry-After) bättre än FixedWindows hel-fönster-
+                // bann som klustrar 429:or vid en ad-open-burst. QueueLimit=0 kvar (kö = memory-DoS).
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.FollowSeenMark.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.FollowSeenMark.PermitLimit / rateLimitOpts.FollowSeenMark.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.FollowSeenMark.WindowSeconds / (double)rateLimitOpts.FollowSeenMark.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 

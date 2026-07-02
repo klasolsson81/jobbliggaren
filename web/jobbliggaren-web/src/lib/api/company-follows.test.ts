@@ -16,6 +16,7 @@ import {
   unfollowCompany,
   getCompanyWatchStatus,
   getCompanyWatches,
+  markFollowedCompanyAdSeen,
 } from "./company-follows";
 
 const VALID_ID = "11111111-1111-1111-1111-111111111111";
@@ -43,7 +44,7 @@ afterEach(() => {
 });
 
 describe("followCompanyFromJobAd (#455) — status → kind mapping", () => {
-  it("no session → unauthorized without a backend round-trip", async () => {
+  it("no session -> unauthorized without a backend round-trip", async () => {
     getSessionIdMock.mockResolvedValue(null);
     const fetchMock = vi.fn();
     global.fetch = fetchMock;
@@ -80,7 +81,7 @@ describe("followCompanyFromJobAd (#455) — status → kind mapping", () => {
     expect(result).toEqual({ kind: "error" });
   });
 
-  it("401 → unauthorized", async () => {
+  it("401 -> unauthorized", async () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
     expect(await followCompanyFromJobAd(VALID_ID)).toEqual({ kind: "unauthorized" });
   });
@@ -95,7 +96,7 @@ describe("followCompanyFromJobAd (#455) — status → kind mapping", () => {
     expect(await followCompanyFromJobAd(VALID_ID)).toEqual({ kind: "error" });
   });
 
-  it("network throw → error", async () => {
+  it("network throw -> error", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
     expect(await followCompanyFromJobAd(VALID_ID)).toEqual({ kind: "error" });
   });
@@ -123,12 +124,12 @@ describe("unfollowCompany (#455)", () => {
     expect(await unfollowCompany(VALID_ID)).toEqual({ kind: "ok", data: undefined });
   });
 
-  it("401 → unauthorized", async () => {
+  it("401 -> unauthorized", async () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
     expect(await unfollowCompany(VALID_ID)).toEqual({ kind: "unauthorized" });
   });
 
-  it("network throw → error", async () => {
+  it("network throw -> error", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
     expect(await unfollowCompany(VALID_ID)).toEqual({ kind: "error" });
   });
@@ -223,7 +224,7 @@ describe("getCompanyWatches (#448) — followed-company list read", () => {
     matchingAdCount: null,
   };
 
-  it("no session → unauthorized without a backend round-trip", async () => {
+  it("no session -> unauthorized without a backend round-trip", async () => {
     getSessionIdMock.mockResolvedValue(null);
     const fetchMock = vi.fn();
     global.fetch = fetchMock;
@@ -255,7 +256,7 @@ describe("getCompanyWatches (#448) — followed-company list read", () => {
     expect(await getCompanyWatches()).toEqual({ kind: "error" });
   });
 
-  it("401 → unauthorized", async () => {
+  it("401 -> unauthorized", async () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
     expect(await getCompanyWatches()).toEqual({ kind: "unauthorized" });
   });
@@ -265,8 +266,47 @@ describe("getCompanyWatches (#448) — followed-company list read", () => {
     expect(await getCompanyWatches()).toEqual({ kind: "error" });
   });
 
-  it("network throw → error", async () => {
+  it("network throw -> error", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
     expect(await getCompanyWatches()).toEqual({ kind: "error" });
+  });
+});
+
+describe("markFollowedCompanyAdSeen (#453) - cross-channel dedup (fire-and-forget)", () => {
+  it("no session -> unauthorized without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await markFollowedCompanyAdSeen(VALID_ID)).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("non-GUID id -> notFound without a backend round-trip (path-injection guard)", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await markFollowedCompanyAdSeen("not-a-guid")).toEqual({ kind: "notFound" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("204 -> ok", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(204));
+    expect(await markFollowedCompanyAdSeen(VALID_ID)).toEqual({ kind: "ok", data: undefined });
+  });
+
+  it("401 -> unauthorized", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
+    expect(await markFollowedCompanyAdSeen(VALID_ID)).toEqual({ kind: "unauthorized" });
+  });
+
+  it("429 (rate-limited) -> error (safe direction: hit left un-stamped)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(429));
+    expect(await markFollowedCompanyAdSeen(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("network throw -> error", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
+    expect(await markFollowedCompanyAdSeen(VALID_ID)).toEqual({ kind: "error" });
   });
 });

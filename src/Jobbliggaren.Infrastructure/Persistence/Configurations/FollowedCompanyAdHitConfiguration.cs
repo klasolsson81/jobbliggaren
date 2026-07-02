@@ -68,6 +68,12 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
         builder.Property(h => h.SentAt);
         builder.Property(h => h.DeletedAt);
 
+        // #453 (cross-channel dedup) — nullable "seen in-app" stamp. NO dedicated index: the dispatch
+        // hot path already scopes to a tiny per-user set via ix_followed_company_ad_hits_user_status
+        // (user_id, notification_status='Pending'), and `seen_at IS NULL` is a cheap residual predicate
+        // over that handful of rows — a composite index buys nothing here (db-migration-writer 2026-07-02).
+        builder.Property(h => h.SeenAt);
+
         // UNIQUE (user_id, job_ad_id, company_watch_id) — the dedup spine. The scan is race-safe via
         // the Worker's DisableConcurrentExecution (single-writer) + a client-side existing-triple skip
         // (CompanyWatchScanJob), with this UNIQUE as the hard backstop (a concurrent insert would

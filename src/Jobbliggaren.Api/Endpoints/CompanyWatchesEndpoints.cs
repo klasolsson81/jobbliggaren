@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompanyFromJobAd;
+using Jobbliggaren.Application.CompanyWatches.Commands.MarkFollowedCompanyAdSeen;
 using Jobbliggaren.Application.CompanyWatches.Commands.UnfollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusBatch;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
@@ -77,5 +78,22 @@ public static class CompanyWatchesEndpoints
                 ? Results.NoContent()
                 : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #453 (ADR 0087 D5-addendum) — mark a followed-company ad SEEN in-app so the follow-digest
+        // suppresses the redundant email ("aldrig mejla något jag sett i appen"). JobAdId (non-PII) in
+        // the path; the handler stamps only the AUTHENTICATED user's own Pending hits (UserId from
+        // ICurrentUser, never the wire — IDOR-safe, §5/§12). 204 on Success (also for a benign no-op:
+        // no hit for this ad is indistinguishable from one that existed — never leaks follow-existence).
+        // Dedicated FollowSeenMarkPolicy (NOT MeWrite): this AUTO-fires on every ad-detail open, so a
+        // shared write-bucket would let it starve the user's deliberate Save/Follow (bulkhead; CTO
+        // 2026-07-02 (b)).
+        group.MapPost("/ad-hits/{jobAdId:guid}/seen", async (
+            Guid jobAdId, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new MarkFollowedCompanyAdSeenCommand(jobAdId), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.FollowSeenMarkPolicy);
     }
 }

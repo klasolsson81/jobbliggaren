@@ -174,4 +174,97 @@ public class FollowedCompanyAdHitTests
 
         hit.DeletedAt.ShouldBe(firstDeleteClock.UtcNow);
     }
+
+    // ---------------------------------------------------------------
+    // MarkSeen - #453 cross-channel dedup (Pending-only, idempotent)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_LeavesSeenAtNull()
+    {
+        // #453 - a fresh hit has never been opened in-app; the digest may still email it.
+        var hit = CreateValid();
+
+        hit.SeenAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void MarkSeen_FromPending_StampsSeenAtToClockNow()
+    {
+        // The user opened this ad in-app while the hit was still Pending -> the follow-digest suppresses
+        // the redundant email ("aldrig mejla nagot jag sett i appen").
+        var hit = CreateValid();
+        var seenClock = FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10));
+
+        var result = hit.MarkSeen(seenClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        hit.SeenAt.ShouldNotBeNull();
+        hit.SeenAt!.Value.ShouldBe(seenClock.UtcNow);
+        // Status is untouched - MarkSeen only stamps, it does not advance the notification machine.
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending);
+    }
+
+    [Fact]
+    public void MarkSeen_FromQueued_IsNoOpSuccess_AndLeavesSeenAtNull()
+    {
+        // Post-claim (Queued): the email decision is already taken, so MarkSeen is a deliberate no-op
+        // (Success, not a failure) and does NOT stamp SeenAt - the Sent-dedup prevents repetition.
+        var hit = CreateValid();
+        hit.MarkQueued();
+
+        var result = hit.MarkSeen(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10)));
+
+        result.IsSuccess.ShouldBeTrue();
+        hit.SeenAt.ShouldBeNull();
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued);
+    }
+
+    [Fact]
+    public void MarkSeen_FromSent_IsNoOpSuccess_AndLeavesSeenAtNull()
+    {
+        // Post-send (Sent): same deliberate no-op - the email already went out.
+        var hit = CreateValid();
+        hit.MarkQueued();
+        hit.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+
+        var result = hit.MarkSeen(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10)));
+
+        result.IsSuccess.ShouldBeTrue();
+        hit.SeenAt.ShouldBeNull();
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public void MarkSeen_WhenAlreadySeen_IsIdempotent_AndKeepsFirstStamp()
+    {
+        // First-seen wins: a re-open leaves the first stamp intact (the invariant is only SeenAt != null).
+        var hit = CreateValid();
+        var firstSeenClock = FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10));
+        hit.MarkSeen(firstSeenClock);
+
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(3));
+        var result = hit.MarkSeen(laterClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        hit.SeenAt!.Value.ShouldBe(firstSeenClock.UtcNow, "first-seen wins - a re-open never overwrites the stamp");
+    }
+
+    [Fact]
+    public void MarkSeen_OnPendingHit_YieldsStateThatDigestSuppressPredicateExcludes()
+    {
+        // State-machine cross-check: the follow-digest due-set is `Pending AND SeenAt == null`. A hit
+        // that has been MarkSeen'd while Pending has SeenAt != null AND status == Pending, so that
+        // predicate excludes it (it is never claimed -> never emailed -> falls dormant).
+        var hit = CreateValid();
+
+        hit.MarkSeen(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10)));
+
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending);
+        hit.SeenAt.ShouldNotBeNull();
+        // The digest's `Pending && SeenAt == null` gate is false for this hit.
+        (hit.NotificationStatus == FollowedCompanyAdHitStatus.Pending && hit.SeenAt is null)
+            .ShouldBeFalse("a seen-in-app Pending hit must be excluded from the follow-digest due-set");
+    }
+
 }

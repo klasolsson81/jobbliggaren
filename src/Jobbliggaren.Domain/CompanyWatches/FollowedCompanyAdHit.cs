@@ -43,6 +43,16 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
     public DateTimeOffset? SentAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
 
+    /// <summary>
+    /// #453 (cross-channel dedup) — when the user opened this ad in-app (any surface: the ad-detail
+    /// page/modal, reached via search/match/saved/shared link). While a hit is still
+    /// <see cref="FollowedCompanyAdHitStatus.Pending"/>, a non-null <see cref="SeenAt"/> SUPPRESSES the
+    /// follow-notification email (the digest due-set filters <c>Pending AND SeenAt == null</c>) — the
+    /// invariant "aldrig mejla något jag sett i appen". Null = not yet seen in-app. See
+    /// <see cref="MarkSeen"/> for the Pending-only transition.
+    /// </summary>
+    public DateTimeOffset? SeenAt { get; private set; }
+
     // EF Core constructor
     private FollowedCompanyAdHit() { }
 
@@ -118,6 +128,35 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
 
         NotificationStatus = FollowedCompanyAdHitStatus.Sent;
         SentAt = clock.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// #453 (cross-channel dedup) — stamps <see cref="SeenAt"/> because the user opened this ad in-app.
+    /// The follow-notification digest suppresses any hit with a non-null <see cref="SeenAt"/> ("aldrig
+    /// mejla något jag sett i appen").
+    /// <para>
+    /// <b>Pending-only, by design (senior-cto-advisor 2026-07-02, Q2):</b> only a
+    /// <see cref="FollowedCompanyAdHitStatus.Pending"/> hit can be marked seen. After the dispatch has
+    /// claimed the hit (<see cref="FollowedCompanyAdHitStatus.Queued"/>/<see cref="FollowedCompanyAdHitStatus.Sent"/>)
+    /// the email decision is already taken, so a post-claim MarkSeen is a deliberate no-op — the
+    /// Sent-dedup already prevents repetition. Idempotent: a re-open leaves the first-seen stamp intact
+    /// (the invariant is only <c>SeenAt != null</c>). A stamped-but-Pending hit falls dormant (the
+    /// digest never claims it, so it is never a strand candidate; the scan's
+    /// <c>UNIQUE(UserId, JobAdId, CompanyWatchId)</c> triple-dedup never re-creates it).
+    /// </para>
+    /// </summary>
+    public Result MarkSeen(IDateTimeProvider clock)
+    {
+        // Post-claim (Queued/Sent): the email decision is already made — deliberate no-op (not a failure).
+        if (NotificationStatus != FollowedCompanyAdHitStatus.Pending)
+            return Result.Success();
+
+        // Idempotent — first-seen wins (the invariant is only that SeenAt is non-null once seen).
+        if (SeenAt.HasValue)
+            return Result.Success();
+
+        SeenAt = clock.UtcNow;
         return Result.Success();
     }
 

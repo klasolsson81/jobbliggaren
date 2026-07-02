@@ -259,9 +259,14 @@ public sealed partial class DigestDispatchJob(
     {
         // The user's Pending follow-hit rows (tracked — MarkQueued/MarkSent mutate them). Ordered by
         // recency (CreatedAt desc, then Id for determinism) — no grade concept for follows.
+        // #453 (cross-channel dedup) — AND SeenAt == null: a hit the user already opened in-app is
+        // suppressed ("aldrig mejla något jag sett i appen"). A stamped-but-Pending hit is never claimed
+        // here (falls dormant) and the scan's triple-dedup never re-creates it. This predicate MUST match
+        // the displayRows fetch below, or the claimed set would diverge from the displayed set.
         var pending = await db.FollowedCompanyAdHits
             .Where(h => h.UserId == userId
-                        && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending)
+                        && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
+                        && h.SeenAt == null)
             .OrderByDescending(h => h.CreatedAt)
             .ThenBy(h => h.Id)
             .ToListAsync(ct);
@@ -278,6 +283,8 @@ public sealed partial class DigestDispatchJob(
                 from h in db.FollowedCompanyAdHits.AsNoTracking()
                 where h.UserId == userId
                       && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
+                      // #453 — MUST mirror the `pending` claim predicate above (suppress seen-in-app hits).
+                      && h.SeenAt == null
                 join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
                 orderby h.CreatedAt descending, h.Id
                 select new { j.Title, Company = j.Company.Name })

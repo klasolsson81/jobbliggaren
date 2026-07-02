@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// Fas 4 STEG 9 (F4-9, ADR 0071/0074) — the deterministic CV-review engine. NO AI/LLM:
 /// every verdict is a rule over the parsed CV + the versioned knowledge bank, with cited
 /// evidence (CLAUDE.md §5). Golden expectations are derived from the REAL committed assets
-/// (rubric.v1.0.1.json / cliche-list.v1.json / verb-mapping.v1.json) via the real loaders,
+/// (rubric.v1.1.0.json / cliche-list.v1.json / verb-mapping.v1.json) via the real loaders,
 /// so the tests can never drift from the data the engine actually reads.
 ///
 /// The internal sealed <see cref="CvReviewEngine"/> is constructed directly (Infrastructure
@@ -55,9 +55,9 @@ public class CvReviewEngineTests
     {
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        // Bumped 1.0.0 → 1.0.1 by the reason-relocation STEG (asset renamed
-        // rubric.v1.0.1.json; §2.8 patch = notAssessedReason added, no threshold change).
-        result.RubricVersion.ShouldBe(RubricVersion.Parse("1.0.1"));
+        // Bumped 1.0.1 → 1.1.0 by #488 (asset renamed rubric.v1.1.0.json; §2.8 minor =
+        // C5 reclassified not_assessed_v1 → scoring-behaviour change on the Språk band).
+        result.RubricVersion.ShouldBe(RubricVersion.Parse("1.1.0"));
         result.Profile.ShouldBe(RenderProfile.Ats);
     }
 
@@ -665,13 +665,14 @@ public class CvReviewEngineTests
     public static TheoryData<string> NotAssessedV1Criteria()
     {
         // The pinned/no-input NotAssessed-v1 set per the architect classification. A3 & D8
-        // are ad-dependent (no ad in F4-9); A5 & C1 are pinned NotAssessedV1 in the rubric;
-        // B2/B5 & D2/D3/D4/D5/D7/D9/D10 & E1–E8 are page-count/layout/font signals the
-        // deterministic parse cannot see. Every one MUST report NotAssessed.
+        // are ad-dependent (no ad in F4-9); A5, C1 & C5 are pinned NotAssessedV1 in the rubric
+        // (C5 sentence-level sv/en mixing joined in #488); B2/B5 & D2/D3/D4/D5/D7/D9/D10 &
+        // E1–E8 are page-count/layout/font signals the deterministic parse cannot see. Every
+        // one MUST report NotAssessed.
         var data = new TheoryData<string>();
         foreach (var id in new[]
         {
-            "A3", "A5", "B2", "B5", "C1",
+            "A3", "A5", "B2", "B5", "C1", "C5",
             "D2", "D3", "D4", "D5", "D7", "D8", "D9", "D10",
         })
         {
@@ -749,6 +750,38 @@ public class CvReviewEngineTests
             "Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
     }
 
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryAssetCivicReasonForC5_WhenPinnedNotAssessed()
+    {
+        // Parity A5/C1 (#488): the engine must surface C5's asset-authored civic reason — not the
+        // code fallback, not a fabricated claim. #488's whole point is that C5 stops asserting a
+        // property it never checks, so pin the exact user-facing wording.
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var c5 = Verdict(result, "C5");
+        c5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        c5.NotAssessedReason.ShouldBe(
+            "Vi kontrollerar inte språkblandning mening för mening i den här versionen.");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldTallyC5UnderLanguageAsNotAssessed_NeverPass_WhenCalled()
+    {
+        // #488 band consequence made explicit: C5 is High-weight and previously fed a fabricated
+        // Pass into the Språk band. Now NotAssessed it must sit in the Language category and be
+        // counted as NotAssessed — so it neither lifts the numerator nor enters the denominator
+        // (BuildCategories excludes NotAssessed). Combined with ShouldExposeVerdictCountsPerCategory
+        // (category counts == verdict tally) this proves C5 lands in Language.NotAssessedCount.
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var c5 = Verdict(result, "C5");
+        c5.Category.ShouldBe(RubricCategory.Language);
+        c5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+
+        result.Categories.Single(c => c.Category == RubricCategory.Language)
+            .NotAssessedCount.ShouldBeGreaterThan(0);
+    }
+
     // Test D — ad-dependent no-rule criteria (A3, D8) carry the ad-dependent civic reason
     // (replaces the old "matchnings-motorns ansvar, F4-5/6 — ej bedömt v1" string).
     [Fact]
@@ -802,7 +835,7 @@ public class CvReviewEngineTests
     // Test F — code-side civic FALLBACK when the asset omits notAssessedReason (N-1 asset).
     // Driven via a substitute IRubricProvider whose A5 criterion has NotAssessedReason ==
     // null, proving Evaluate resolves `criterion.NotAssessedReason ?? <civic fallback>` and
-    // never throws. The real v1.0.1 asset always authors the field (Test G part 2 guards
+    // never throws. The real v1.1.0 asset always authors the field (Test G part 2 guards
     // that), so this fallback is only reachable through an older (N-1) provider — exactly
     // the seam this test drives.
     [Fact]
@@ -1048,14 +1081,33 @@ public class CvReviewEngineTests
     [Fact]
     public async Task ReviewAsync_ShouldAssessLanguageCriteria_WhenCvIsSwedish()
     {
-        // A Swedish CV (DetectedLanguage.Sv) → the engine routes the NLP-tier criteria
-        // (C2/C3/C4/C5) through TextLanguage.Swedish and assesses them.
+        // A Swedish CV (DetectedLanguage.Sv) → the engine routes the assessed NLP-tier criteria
+        // (C2/C3/C4) through TextLanguage.Swedish and assesses them. C5 (sentence-level sv/en
+        // mixing) is NotAssessedV1 (#488) and C1 is pinned NotAssessedV1 — neither is claimed here.
         var resume = Resume(detectedLanguage: ResumeLanguage.Sv);
 
         var result = await ReviewAsync(resume);
 
         Verdict(result, "C2").Verdict.ShouldNotBe(CriterionVerdict.NotAssessed);
         Verdict(result, "C3").Verdict.ShouldNotBe(CriterionVerdict.NotAssessed);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldReportC5AsNotAssessed_BecauseSentenceLevelMixingIsNotChecked()
+    {
+        // #488: C5 Språkkonsistens previously returned an UNCONDITIONAL Pass with a fabricated
+        // citation — asserting a property the engine never checks (the F4-8 detector only picks
+        // a DOMINANT document language; a 50/50 sv/en CV still gets a dominant pick). Honest state
+        // = NotAssessed with no fabricated evidence (parity A5/C1), never a mis-reported Pass
+        // (CLAUDE.md §5/§12 honesty contract). The Språk-band consequence is asserted separately
+        // in ReviewAsync_ShouldTallyC5UnderLanguageAsNotAssessed_NeverPass.
+        var result = await ReviewAsync(Resume(), RenderProfile.Ats);
+
+        var c5 = Verdict(result, "C5");
+        c5.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
+            "C5 får aldrig fabricera ett Pass för språkkonsistens motorn inte kontrollerar (#488).");
+        c5.Evidence.ShouldBeEmpty();
+        c5.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]

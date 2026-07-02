@@ -136,7 +136,10 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         new C2ToneRule(),
         new C3ActiveVoiceRule(),
         new C4PerspectiveRule(),
-        new C5LanguageConsistencyRule(),
+        // C5 (Språkkonsistens sv/en) has NO rule — it is NotAssessedV1 in the rubric (#488):
+        // the F4-8 detector only picks a DOMINANT document language, so it cannot honestly
+        // assess sentence-level sv/en mixing. Evaluate short-circuits to NotAssessed with the
+        // asset-authored civic reason (parity A5/C1), never a fabricated Pass (§5 honesty).
         new C6AbbreviationsRule(),
         new D1FileFormatRule(),
         new D6StandardHeadingsRule(),

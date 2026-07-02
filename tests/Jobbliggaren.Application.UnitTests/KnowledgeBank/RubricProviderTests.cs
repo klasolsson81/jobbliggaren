@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 
 /// <summary>
-/// Fas 4 STEG 7 (F4-7) — the committed CV-rubric (rubric.v1.0.1.json) loads through
+/// Fas 4 STEG 7 (F4-7) — the committed CV-rubric (rubric.v1.1.0.json) loads through
 /// the real <see cref="RubricProvider"/> and satisfies the architect's authoritative
 /// classification (ADR 0071 OQ3 / ADR 0074). The rubric is VERSIONED DATA, not C#
 /// literals — these tests prove the data file (not a hardcoded list) is the source of
@@ -33,10 +33,11 @@ public class RubricProviderTests
 
         rubric.ShouldNotBeNull();
         // The committed rubric is the v1 baseline (ADR 0074). Version is carried as
-        // DATA (RubricVersion), not a C# literal. Bumped 1.0.0 → 1.0.1 by the
-        // reason-relocation STEG (§2.8 patch: notAssessedReason added to the asset,
-        // no threshold/criterion change) — asset renamed rubric.v1.0.1.json.
-        rubric.Version.ShouldBe(RubricVersion.Parse("1.0.1"));
+        // DATA (RubricVersion), not a C# literal. Bumped 1.0.1 → 1.1.0 (#488): C5
+        // Språkkonsistens reclassified deterministic_plus_nlp → not_assessed_v1, which
+        // removes it from the assessed set and changes the Språk band denominator —
+        // a scoring-behaviour change (§2.8 minor), asset renamed rubric.v1.1.0.json.
+        rubric.Version.ShouldBe(RubricVersion.Parse("1.1.0"));
         rubric.EffectiveDate.ShouldBeGreaterThan(default(DateOnly));
     }
 
@@ -70,41 +71,42 @@ public class RubricProviderTests
     // ───────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void GetRubric_ShouldMarkA5AndC1AsNotAssessedV1_WhenCalled()
+    public void GetRubric_ShouldMarkA5C1AndC5AsNotAssessedV1_WhenCalled()
     {
-        // HARD pin (load-bearing, ADR 0071 OQ3): A5 and C1 are the reduced-precision
+        // HARD pin (load-bearing, ADR 0071 OQ3): A5, C1 and C5 are the reduced-precision
         // criteria — they MUST be marked NotAssessedV1 and never mis-reported as
-        // deterministically assessed. This is the central honesty invariant.
+        // deterministically assessed. This is the central honesty invariant. C5 joined
+        // the set in #488 (sentence-level sv/en mixing is not assessed v1, parity A5/C1).
         var rubric = LoadRubric();
 
         Criterion(rubric, "A5").Assessability.ShouldBe(CriterionAssessability.NotAssessedV1);
         Criterion(rubric, "C1").Assessability.ShouldBe(CriterionAssessability.NotAssessedV1);
+        Criterion(rubric, "C5").Assessability.ShouldBe(CriterionAssessability.NotAssessedV1);
     }
 
     [Fact]
-    public void GetRubric_ShouldHaveExactlyTwoNotAssessedV1Criteria_WhenCalled()
+    public void GetRubric_ShouldHaveExactlyThreeNotAssessedV1Criteria_WhenCalled()
     {
-        // Exactly two criteria are NotAssessedV1 (A5 + C1). Pinned by COUNT (==2) as
-        // the architect specified; combined with the by-id pin above this proves the
-        // set is precisely {A5, C1}.
+        // Exactly three criteria are NotAssessedV1 (A5 + C1 + C5). Pinned by COUNT (==3);
+        // combined with the by-id pin above this proves the set is precisely {A5, C1, C5}.
         var rubric = LoadRubric();
 
         rubric.Criteria
             .Count(c => c.Assessability == CriterionAssessability.NotAssessedV1)
-            .ShouldBe(2);
+            .ShouldBe(3);
     }
 
     [Fact]
-    public void GetRubric_ShouldMarkTheTenBorderlineCriteriaAsDeterministicPlusNlp_WhenCalled()
+    public void GetRubric_ShouldMarkTheBorderlineCriteriaAsDeterministicPlusNlp_WhenCalled()
     {
-        // The ten det+nlp criteria per the architect's classification
-        // (A2,A3,A6,A7,A9,C2,C3,C4,C5,D8). Asserted by THESE SPECIFIC ids being
-        // det+nlp (drift-robust: NOT pinned as an exact global det+nlp count, since
-        // authoring may legitimately move a borderline criterion — the load-bearing
-        // pin is A5/C1=NotAssessedV1 above, not this set's cardinality).
+        // The det+nlp criteria per the architect's classification, minus C5 which was
+        // reclassified NotAssessedV1 in #488 (A2,A3,A6,A7,A9,C2,C3,C4,D8). Asserted by
+        // THESE SPECIFIC ids being det+nlp (drift-robust: NOT pinned as an exact global
+        // det+nlp count, since authoring may legitimately move a borderline criterion —
+        // the load-bearing pin is A5/C1/C5=NotAssessedV1 above, not this set's cardinality).
         var rubric = LoadRubric();
 
-        string[] detPlusNlp = ["A2", "A3", "A6", "A7", "A9", "C2", "C3", "C4", "C5", "D8"];
+        string[] detPlusNlp = ["A2", "A3", "A6", "A7", "A9", "C2", "C3", "C4", "D8"];
         foreach (var id in detPlusNlp)
         {
             Criterion(rubric, id).Assessability
@@ -136,7 +138,7 @@ public class RubricProviderTests
     // CvReviewEngine; CLAUDE.md §10/§5: civic Swedish, never dev-jargon).
     //
     // RED until RubricCriterion gains `string? NotAssessedReason` (trailing
-    // optional param) and the asset (rubric.v1.0.1.json) authors the field.
+    // optional param) and the asset (rubric.v1.1.0.json) authors the field.
     // ───────────────────────────────────────────────────────────────────
 
     // Test A — the loader maps the authored notAssessedReason JSON field through to
@@ -161,6 +163,20 @@ public class RubricProviderTests
 
         Criterion(rubric, "C1").NotAssessedReason
             .ShouldBe("Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
+    }
+
+    [Fact]
+    public void GetRubric_ShouldMapNotAssessedReasonFromAsset_ForC5()
+    {
+        // C5 (Språkkonsistens sv/en) became pinned NotAssessedV1 in #488. Pin its asset-authored
+        // civic reason EXACTLY (parity A5/C1) — this guards the honesty copy #488 introduced
+        // against a future edit that swaps it for a misleading-but-civil claim that would still
+        // pass the non-null + de-jargon guards (e.g. re-introducing "CV:t är skrivet på ett
+        // konsekvent språk", the fabricated assertion #488 removed).
+        var rubric = LoadRubric();
+
+        Criterion(rubric, "C5").NotAssessedReason
+            .ShouldBe("Vi kontrollerar inte språkblandning mening för mening i den här versionen.");
     }
 
     // Test G (part 1) — the §10 DE-JARGON GUARD: no criterion's NotAssessedReason may
@@ -210,12 +226,13 @@ public class RubricProviderTests
         // The criterion ids the engine has a registered ICriterionRule for (mirrors
         // CvReviewEngine.BuildRules). Anything NOT in this set, plus the pinned
         // NotAssessedV1 criteria, resolves to NotAssessed at review time and therefore
-        // needs an authored civic reason in the asset.
+        // needs an authored civic reason in the asset. C5 left this set in #488 (its rule
+        // was removed) → it now needs an authored notAssessedReason, which this test guards.
         string[] ruleCriteria =
         [
             "A1", "A2", "A4", "A6", "A7", "A8", "A9", "A10",
             "B1", "B3", "B4", "B6", "B7", "B8",
-            "C2", "C3", "C4", "C5", "C6",
+            "C2", "C3", "C4", "C6",
             "D1", "D6",
         ];
         var ruled = ruleCriteria.ToHashSet(StringComparer.Ordinal);

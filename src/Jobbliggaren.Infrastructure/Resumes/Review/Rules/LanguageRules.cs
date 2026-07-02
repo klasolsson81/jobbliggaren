@@ -105,25 +105,13 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
     }
 }
 
-/// <summary>C5 Språkkonsistens (High) — consistent with the detected document language.</summary>
-internal sealed class C5LanguageConsistencyRule : ICriterionRule
-{
-    public string CriterionId => "C5";
-
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
-    {
-        var category = context.Criterion.Category;
-
-        // v1: the F4-8 language detector classified the document as a single language; C5
-        // affirms consistency at that document level. Deeper sentence-level sv/en mixing
-        // detection (function-word data) is a measured future refinement — reported honestly,
-        // never over-claimed. The cited evidence is civic Swedish with no internal codenames
-        // or raw language tokens reaching the job-seeker (CLAUDE.md §10).
-        return CvCriterionVerdict.Assessed("C5", category, CriterionVerdict.Pass,
-            ReviewText.Cite(ReviewText.Structural(
-                "CV:t är konsekvent skrivet på ett och samma språk.")));
-    }
-}
+// C5 Språkkonsistens (sv/en) has NO rule (#488): it is NotAssessedV1 in the rubric. The
+// engine cannot honestly assess sentence-level sv/en mixing — the F4-8 detector only picks a
+// DOMINANT document language, so a 50/50 CV still resolves to one language. The old rule
+// returned an UNCONDITIONAL Pass with a fabricated citation, mis-reporting a property never
+// checked (CLAUDE.md §5/§12 honesty contract). Removed; CvReviewEngine.Evaluate now reports
+// NotAssessed with the asset-authored civic reason (parity A5/C1). Restoring a genuine
+// assessment needs function-word sentence-level detection + a rubric minor bump (forward-note).
 
 /// <summary>C6 Förkortningar förklarade (Low) — few unexplained acronyms.</summary>
 internal sealed partial class C6AbbreviationsRule : ICriterionRule

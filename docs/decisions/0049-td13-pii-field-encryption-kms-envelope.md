@@ -437,6 +437,40 @@ eller `ALTER COLUMN content DROP NOT NULL` till formell ADR-amendment om
 någon bedöms vara besluts-substans snarare än EF Core 10-doktrin-tvingad
 mekanik-precisering. Default (ingen override): mekanik-noter, ingen amendment.
 
+**Mekanik-not 7 (senior-cto-advisor-bind + dotnet-architect-CONFIRM 2026-07-02,
+audit-epik #480/#500 — encrypt-on-write skip-predikat):** extern revision
+(2026-07-02) fann att encrypt-on-write-interceptorns skip-villkor grindades på
+**innehåll** (`IFieldEncryptor.IsEncrypted(plaintext)`, regex `^v\d+:`) i stället
+för **proveniens**. Användarlevererad klartext som råkar börja med sentinel-
+mönstret (t.ex. en anteckning "v1: ringde rekryteraren…") felklassades som
+redan-krypterad → skippades → persisterades i **klartext** at-rest; läsvägen såg
+sedan `IsEncrypted==true`, fail-closade på Decrypt och 500:ade raden permanent
+(backfiller-fitnessen `LIKE 'v1:%'` grön-klassade dessutom raden som ciphertext).
+Innehåll kan aldrig skilja vår ciphertext från användarklartext som liknar den.
+Precisering: skip-villkoret grindas på proveniens —
+`IsEncrypted(v) && State != EntityState.Added && !property.IsModified` (genom-
+passering av vår EGEN oförändrade ciphertext, t.ex. system-scope-re-save per
+not 5b). En `Added`-entitet eller en modifierad property är användarlevererad →
+krypteras alltid; kortslutningen `State != Added` gör att `IsModified` aldrig
+läses för `Added` (ospecificerad EF-per-property-semantik undviks). Klartext-at-
+rest blir **strukturellt omöjligt**: enda skip-vägen kräver `!IsModified`, och EF
+skriver aldrig en oförändrad property i UPDATE SET → on-disk-ciphertext bevaras
+oavsett interceptor↔Npgsql-snapshot-ordning (den egenskap ADR 0049 kräver
+eftersom ordningen inte är normativt garanterad, not 1). De **fyra substans-
+invarianterna oförändrade** — idempotensen bevaras men blir *striktare* (bara
+äkta genom-passering skippas, inte användar-klartext som liknar sentinel), vilket
+ÅTERSTÄLLER den avsedda invarianten "all användar-PII krypterad at-rest" som den
+innehållsbaserade kontrollen bröt. Empirisk verdikt (paritet C4.0-disciplin,
+InMemory förbjudet): två Testcontainers-round-trip-regressioner (Added-anteckning
+"v1:…", "v2:"-cover letter) + 61 gröna Security-integ-tester. Mekanik-precisering
+tvingad av EF Core 10-doktrin — **ingen substans-ändring, ingen formell ADR-
+amendment, ingen Klas-STOPP** (senior-cto-advisor + dotnet-architect entydiga,
+§9.6 p.5; paritet not 1-6). Redan-korrupta rader (skrivna av den gamla buggen)
+är INTE app-reparerbara utan att bryta fail-closed → forward-fix; detektions-/
+saneringsuppföljning spårad som **#524**. **Flaggas i STOPP-rapporten; Klas kan
+override:a till formell amendment** om proveniens-predikatet bedöms vara besluts-
+substans.
+
 ### Beslut 5 — jsonb→text-skifte via expand/contract; aldrig in-place ALTER TYPE
 
 Gäller `resume_versions.content` (raw_payload berörs ej — Beslut 3). Ciphertext

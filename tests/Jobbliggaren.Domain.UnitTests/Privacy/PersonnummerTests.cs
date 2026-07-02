@@ -152,6 +152,46 @@ public class PersonnummerTests
     }
 
     // ===============================================================
+    // #497 (ADR 0074 Invariant 1): Unicode-dash separators. Word autoformats
+    // "811218 - 9876" to an EN DASH (U+2013); PDF/DOCX extraction and this product's
+    // OWN rendering emit U+2013 / U+2011 NON-BREAKING HYPHEN / U+2212 MINUS SIGN as the
+    // separator, all Luhn-valid, all previously rejected because the separator set was
+    // hardcoded ASCII [-+] (an end-to-end false negative: importScan=False AND
+    // redactor=False). TryParse now ACCEPTS the wider \p{Pd} + U+2212 separator SHAPE; the
+    // date+Luhn authority AND the at-most-one-separator COUNT rule are UNCHANGED, only the
+    // accepted separator character set widens. Separators as \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218\u20139876")] // U+2013 EN DASH
+    [InlineData("811218\u20119876")] // U+2011 NON-BREAKING HYPHEN (\p{Pd})
+    [InlineData("811218\u22129876")] // U+2212 MINUS SIGN (\p{Sm}, not \p{Pd})
+    [InlineData("19811218\u20139876")] // 12-digit full century, en-dash separator
+    public void TryParse_UnicodeDashSeparator_ReturnsTrueWithPersonnummerKind(string candidate)
+    {
+        var ok = Personnummer.TryParse(candidate, out var result);
+
+        ok.ShouldBeTrue();
+        result.ShouldNotBeNull();
+        result.Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Theory]
+    [InlineData("811218\u2013\u20139876")] // two EN DASHes
+    [InlineData("811218-\u20139876")] // ASCII hyphen then EN DASH
+    [InlineData("811218\u2013+9876")] // EN DASH then plus
+    public void TryParse_TwoSeparators_IncludingUnicodeDash_ReturnsFalse(string candidate)
+    {
+        // The at-most-one-separator COUNT rule is unchanged by the widened separator SHAPE
+        // class: two separators (any mix of ASCII/Unicode) is never a personnummer, even
+        // though the 10 digits are Luhn-valid. Backstops the digit-only redaction strip.
+        var ok = Personnummer.TryParse(candidate, out var result);
+
+        ok.ShouldBeFalse();
+        result.ShouldBeNull();
+    }
+
+    // ===============================================================
     // Group C — Century / separator edge cases
     // ===============================================================
 

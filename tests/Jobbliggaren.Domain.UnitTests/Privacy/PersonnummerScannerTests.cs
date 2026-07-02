@@ -316,25 +316,34 @@ public class PersonnummerScannerTests
     }
 
     [Fact]
-    public void ScanWithGaps_DoubleSeparatorAroundSpace_NotFlagged_AndNeverThrows()
+    public void ScanWithGaps_DoubleSeparatorAroundSpace_IsMasked_SupersedesAcceptedResidual()
     {
-        // The widened gap permits an optional '-'/'+' on EACH side of the space run, so
-        // "811218- -9876" strips to the 14-char token "811218--9876". This must NOT overflow
-        // the strip buffer (regression guard for the stackalloc size), and the UNCHANGED
-        // TryParse rejects the second separator, so the redaction path deliberately does NOT
-        // flag it — a documented residual (the import guard still flags the CV at import).
+        // #498 (SUPERSEDES #427's accepted-residual ruling; see PR body / review report):
+        // "811218- -9876" (a '-'/'+' separator adjacent to BOTH sides of the space run) IS
+        // flagged by the import guard (Normalize drops both separators via $1$2 to "8112189876"
+        // then Scan flags), but the redaction path previously left it, leaking the raw digits
+        // into the UNENCRYPTED parsed_resumes.source_file_name column and CV evidence. Under the
+        // digit-only strip (Approach A / Q2 CTO) the validation token is the digits alone, so the
+        // UNCHANGED TryParse date+Luhn validates it and the redactor masks the ORIGINAL span in
+        // place. Redaction is now a true SUPERSET of the flag path for this shape.
         const string text = "Pnr 811218- -9876 i CV.";
 
-        var act = () => PersonnummerScanner.ScanWithGaps(text);
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
 
-        act.ShouldNotThrow().ShouldBeEmpty();
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        text.Substring(match.StartOffset, match.Length).ShouldBe("811218- -9876");
+        match.Masked.Length.ShouldBe("811218- -9876".Length); // length-preserving, masked in place
+        match.Masked.Any(char.IsAsciiDigit).ShouldBeFalse(); // no raw digit survives
     }
 
     [Fact]
     public void ScanWithGaps_DoubleSeparatorNoSpace_NotFlagged_AndNeverThrows()
     {
-        // "12345678--0000" (two adjacent separators, no space) also strips to a 14-char token;
-        // same buffer regression guard, same TryParse two-separator rejection.
+        // "12345678--0000" (two adjacent separators, no space) strips (digit-only, Approach A)
+        // to the joined "123456780000", whose month field "56" fails date sanity, so the
+        // UNCHANGED TryParse rejects it (not for a two-separator token: the strip no longer keeps
+        // separators, but because it is not a valid date). Buffer regression guard: digit-only
+        // tokens are <= 12 chars, well within the stackalloc, and never throw.
         const string text = "Referens 12345678--0000 i systemet.";
 
         var act = () => PersonnummerScanner.ScanWithGaps(text);
@@ -351,5 +360,120 @@ public class PersonnummerScannerTests
         const string text = "Pnr 811218 - 9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    // ===============================================================
+    // #497 (ADR 0074 Invariant 1): Unicode-dash separators, EN DASH (U+2013),
+    // NON-BREAKING HYPHEN (U+2011, \p{Pd}), MINUS SIGN (U+2212, \p{Sm}), are all
+    // Luhn-valid personnummer separators the product itself renders/emits, but were an
+    // end-to-end false negative under the hardcoded ASCII [-+] classes. The widened
+    // separator SHAPE class is now shared by Scan (contiguous flag path) and ScanWithGaps
+    // (redaction path); TryParse's date+Luhn authority is unchanged. Separators as \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218\u20139876")] // U+2013 EN DASH
+    [InlineData("811218\u20119876")] // U+2011 NON-BREAKING HYPHEN
+    [InlineData("811218\u22129876")] // U+2212 MINUS SIGN
+    [InlineData("811218\u20109876")] // U+2010 HYPHEN (another \p{Pd}: pins the class is a category)
+    [InlineData("811218\u20149876")] // U+2014 EM DASH (another \p{Pd})
+    public void Scan_UnicodeDashPersonnummer_IsFlagged(string pnr)
+    {
+        var text = $"Personnummer {pnr} i CV.";
+
+        var match = PersonnummerScanner.Scan(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        match.StartOffset.ShouldBe(text.IndexOf(pnr, StringComparison.Ordinal));
+        match.Length.ShouldBe(pnr.Length);
+    }
+
+    [Theory]
+    [InlineData("811218\u20139876")] // U+2013 EN DASH
+    [InlineData("811218\u20119876")] // U+2011 NON-BREAKING HYPHEN
+    [InlineData("811218\u22129876")] // U+2212 MINUS SIGN
+    [InlineData("811218\u20109876")] // U+2010 HYPHEN (another \p{Pd}: pins the class is a category)
+    [InlineData("811218\u20149876")] // U+2014 EM DASH (another \p{Pd})
+    public void ScanWithGaps_UnicodeDashPersonnummer_IsMasked(string pnr)
+    {
+        var text = $"Personnummer {pnr} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        // Span covers the whole token in the ORIGINAL text so the redactor masks in place.
+        text.Substring(match.StartOffset, match.Length).ShouldBe(pnr);
+        match.Masked.Length.ShouldBe(pnr.Length);
+        match.Masked.Any(char.IsAsciiDigit).ShouldBeFalse(); // no raw digit survives
+    }
+
+    // ===============================================================
+    // #498(a) (ADR 0074 Invariant 1): a zero-width \p{Cf} character INSIDE a digit group
+    // (not just in the gap). The import flag path strips \p{Cf} GLOBALLY (Normalize) and so
+    // flags it, but the redaction GapAwareCandidateRegex required CONTINUOUS digit groups and
+    // missed it, leaving the raw digits at rest in the UNENCRYPTED source_file_name column
+    // (falsifies #465's superset invariant, whose corpus only placed \p{Cf} in the GAP). The
+    // gap-aware digit groups now tolerate interleaved \p{Cf} ((?:\d\p{Cf}*){n}). \u escapes.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("8112\u200B18-9876")] // U+200B ZERO WIDTH SPACE inside the leading 6-digit group
+    [InlineData("811218-98\u200B76")] // U+200B inside the trailing 4-digit group
+    [InlineData("81\uFEFF1218-9876")] // U+FEFF ZERO WIDTH NO-BREAK SPACE inside the leading group
+    public void ScanWithGaps_ZeroWidthInsideDigitGroup_IsMasked(string pnr)
+    {
+        var text = $"Personnummer {pnr} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        text.Substring(match.StartOffset, match.Length).ShouldBe(pnr);
+        match.Masked.Length.ShouldBe(pnr.Length);
+        match.Masked.Any(char.IsAsciiDigit).ShouldBeFalse(); // every raw digit masked, zero-width kept
+    }
+
+    [Fact]
+    public void ScanWithGaps_TwelveDigitUnicodeDashPersonnummer_IsMasked()
+    {
+        // #497 through the 12-digit full-century form (a DISTINCT regex alternative than the
+        // 10-digit one), on the redaction path - the earlier #497 vectors only cover 10-digit.
+        const string pnr = "19811218\u20139876";
+        var text = $"Kandidat {pnr} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        text.Substring(match.StartOffset, match.Length).ShouldBe(pnr);
+        match.Masked.Any(char.IsAsciiDigit).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void UnicodeDashSamordningsnummer_IsFlaggedOnBothPaths_WithSamordningsnummerKind()
+    {
+        // #497 through the samordningsnummer (day+60) branch: 811278-9873 with an EN DASH,
+        // on BOTH the contiguous flag path (Scan) and the redaction path (ScanWithGaps).
+        const string text = "Samordningsnummer 811278\u20139873 i CV.";
+
+        PersonnummerScanner.Scan(text)
+            .ShouldHaveSingleItem().Kind.ShouldBe(PersonnummerKind.Samordningsnummer);
+        PersonnummerScanner.ScanWithGaps(text)
+            .ShouldHaveSingleItem().Kind.ShouldBe(PersonnummerKind.Samordningsnummer);
+    }
+
+    [Fact]
+    public void ScanWithGaps_ZeroWidthAdjacentToSeparator_IsMasked()
+    {
+        // #498 regression guard (review pitfall 5): a \p{Cf} riding IMMEDIATELY AFTER the
+        // separator ("811218-<ZWSP>9876") must still be masked. This pins the \p{Cf}* that
+        // trails the separator group in GapAwareCandidateRegex - a mutation dropping it would
+        // pass every other vector while leaking this PDF/DOCX-realistic shape at rest.
+        const string pnr = "811218-\u200B9876";
+        var text = $"Personnummer {pnr} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(PersonnummerKind.Personnummer);
+        text.Substring(match.StartOffset, match.Length).ShouldBe(pnr);
+        match.Masked.Any(char.IsAsciiDigit).ShouldBeFalse();
     }
 }

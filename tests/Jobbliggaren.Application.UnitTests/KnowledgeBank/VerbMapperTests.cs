@@ -120,4 +120,51 @@ public class VerbMapperTests
             .ToList();
         weak.Distinct().Count().ShouldBe(weak.Count);
     }
+
+    [Fact]
+    public void GetVerbMapping_ShouldMarkExactlyTheTwoSameValencyPairsAsDropInSafe_WhenCalled()
+    {
+        // #494 drift-guard: only pairs with the SAME valency/rection may be a literal drop-in the
+        // improve engine proposes — {"var ansvarig för", "hade hand om"} → "ansvarade för". Every
+        // other pair is a double finite verb or a role-overreach (ADR 0071 no-invented-
+        // qualifications) and must stay dropInSafe=false (flagged by A2, never rewritten). Pinned
+        // by SET so a future asset edit that opts an overreach pair in fails CI.
+        var mapping = LoadMapping();
+
+        mapping.WeakVerbs
+            .Where(w => w.DropInSafe)
+            .Select(w => w.Weak)
+            .ShouldBe(["var ansvarig för", "hade hand om"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void GetVerbMapping_ShouldKeepEveryDropInSafeSuggestionAmongTheStrongVerbs_WhenCalled()
+    {
+        // A drop-in-safe pair still obeys the closure invariant (its suggestion is an endorsed
+        // strong verb) — belt-and-suspenders over the general closure test above.
+        var mapping = LoadMapping();
+        var strong = mapping.StrongVerbGroups
+            .SelectMany(g => g.Verbs)
+            .Select(v => v.Trim().ToLowerInvariant())
+            .ToHashSet();
+
+        mapping.WeakVerbs
+            .Where(w => w.DropInSafe)
+            .ShouldAllBe(w => strong.Contains(w.SuggestedStrong.Trim().ToLowerInvariant()));
+    }
+
+    [Fact]
+    public void WeakVerbFile_ShouldDefaultDropInSafeToFalse_WhenTheAssetOmitsTheField()
+    {
+        // #494 N-1 back-compat (house rule: a missing JSON key mapping to a CLR default MUST carry
+        // a back-compat test). An older asset without dropInSafe deserialises to DropInSafe=false —
+        // never a drop-in until an asset explicitly opts a pair in (fail-closed, privacy/no-synthesis
+        // by default).
+        var legacy = System.Text.Json.JsonSerializer.Deserialize<VerbMappingFile.WeakVerbFile>(
+            """{ "weak": "var ansvarig för", "suggestedStrong": "ansvarade för" }""",
+            KnowledgeBankJson.Options);
+
+        legacy.ShouldNotBeNull();
+        legacy!.DropInSafe.ShouldBeFalse();
+    }
 }

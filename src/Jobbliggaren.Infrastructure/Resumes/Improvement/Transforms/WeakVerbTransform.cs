@@ -34,12 +34,20 @@ internal sealed class WeakVerbTransform : ICvTransform
                 continue;
             }
 
-            var match = context.Verbs.WeakVerbs.FirstOrDefault(w => ReviewText.StartsWithWord(bullet, w.Weak));
+            // #494: only propose a literal rewrite for a DROP-IN-SAFE pair (same valency/rection,
+            // e.g. "var ansvarig för" → "ansvarade för"). A non-drop-in weak opener (a double
+            // finite verb, or a role-overreach ADR 0071 forbids inventing) is still FLAGGED by the
+            // F4-9 A2 review verdict, but the improve engine proposes NO rewrite for it (no synthesis).
+            var match = context.Verbs.WeakVerbs
+                .FirstOrDefault(w => w.DropInSafe && ReviewText.StartsWithWord(bullet, w.Weak));
             if (match is null)
             {
                 continue;
             }
 
+            // `bullet` is already Trim()'d above, so the opener is the verbatim first Weak.Length
+            // chars — StartsWithWord matched exactly that word-bounded prefix, so this is the cited
+            // Before span (equals the evidence Quote, satisfying the FromKnowledgeBank guard).
             var before = bullet[..match.Weak.Length];
             var evidence = ReviewText.Span(bullet, before, "inleds med ett svagt verb (se verb-mappningen)");
 

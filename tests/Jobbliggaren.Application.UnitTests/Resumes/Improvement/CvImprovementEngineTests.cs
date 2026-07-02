@@ -170,6 +170,118 @@ public class CvImprovementEngineTests
         Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade).ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeWeakVerbUpgrade_WhenTheWeakVerbIsNotDropInSafe()
+    {
+        // #494: an unsafe weak verb ("var med och" → "genomförde" = double finite verb; "deltog i"
+        // → "genomförde" = role-overreach ADR 0071 forbids inventing) must NOT get a literal KB
+        // replacement. The F4-9 A2 review verdict still FLAGS the weak opener; the improve engine
+        // proposes NO rewrite for it.
+        var notSafe = RealVerbMapping().WeakVerbs.First(w => !w.DropInSafe); // "var med och"
+        var resume = Resume(experience:
+        [
+            Experience(rawText: $"{Capitalize(notSafe.Weak)} ett projekt utan tydligt resultat."),
+        ]);
+
+        Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade).ShouldBeEmpty(
+            "Ett icke-drop-in-säkert svagt verb får ingen literal ersättning (#494, ADR 0071 no-synthesis).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeWeakVerbUpgrade_ForTheSecondDropInSafeVerb()
+    {
+        // Coverage of the second drop-in-safe pair: "hade hand om" → "ansvarade för" (same
+        // valency). The transform proposes it with the verbatim KB After.
+        var safe = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "hade hand om");
+        var resume = Resume(experience:
+        [
+            Experience(rawText: $"{Capitalize(safe.Weak)} budget och personal."),
+        ]);
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+        change.Replacement!.After.ShouldBe(safe.SuggestedStrong,
+            "After ska vara EXAKT SuggestedStrong ur verb-mapping (ingen syntes).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldAlignBeforeWithTheVerbatimOpener_WhenBulletHasLeadingWhitespace()
+    {
+        // Regression guard on the load-bearing Trim: the transform does experience.RawText.Trim()
+        // BEFORE the slice bullet[..Weak.Length], so the cited Before equals the verbatim opener
+        // even when the raw text has leading whitespace. (The #494 audit called the naive slice a
+        // misalignment; it is NOT one while the Trim stands — this test red-flags any future edit
+        // that removes the Trim and lets leading whitespace mis-cite the user's span.)
+        var safe = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för" (drop-in-safe)
+        var resume = Resume(experience:
+        [
+            Experience(rawText: $"   {Capitalize(safe.Weak)} ett område."),
+        ]);
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+        change.Replacement!.Before.ShouldBe(Capitalize(safe.Weak),
+            "Before ska vara det verbatim inledande verbet (trimmat), inte en felriktad slice (#494).");
+        var span = change.Evidence.ShouldBeOfType<TextSpanEvidence>();
+        span.Span.Quote.ShouldBe(change.Replacement.Before);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeWeakVerbUpgradeExactlyForDropInSafeVerbs_ForEveryWeakVerbInTheAsset()
+    {
+        // #494 full behaviour spec: iterate EVERY weak verb in the real asset and assert the
+        // transform proposes a literal replacement IFF the pair is drop-in-safe — and that After
+        // is the verbatim KB SuggestedStrong (no synthesis). Asset-driven (no hardcoded list) so
+        // it tracks the data in lock-step with the drift-guard.
+        foreach (var w in RealVerbMapping().WeakVerbs)
+        {
+            var resume = Resume(experience:
+            [
+                Experience(rawText: $"{Capitalize(w.Weak)} verksamheten under 2024."),
+            ]);
+
+            var changes = Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+
+            if (w.DropInSafe)
+            {
+                var change = changes.ShouldHaveSingleItem();
+                change.Replacement!.After.ShouldBe(w.SuggestedStrong,
+                    $"'{w.Weak}' är drop-in-säkert → After ska vara EXAKT SuggestedStrong (verbatim KB).");
+            }
+            else
+            {
+                changes.ShouldBeEmpty(
+                    $"'{w.Weak}' är INTE drop-in-säkert → ingen literal ersättning (#494, ADR 0071).");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeOnlyForTheDropInSafeBullets_WhenACvMixesSafeAndUnsafeWeakOpeners()
+    {
+        // #494 per-bullet selectivity in ONE realistic CV: safe + unsafe + safe experience rows.
+        // Only the two safe rows get a proposal; the unsafe one contributes zero; the two emitted
+        // changes carry DISTINCT stable targetIds; every After is a verbatim drop-in-safe KB value.
+        var safeA = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "var ansvarig för");
+        var unsafeB = RealVerbMapping().WeakVerbs.First(w => !w.DropInSafe); // "var med och"
+        var safeC = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "hade hand om");
+        var safeAfters = RealVerbMapping().WeakVerbs
+            .Where(w => w.DropInSafe).Select(w => w.SuggestedStrong).ToHashSet();
+
+        var resume = Resume(experience:
+        [
+            Experience(rawText: $"{Capitalize(safeA.Weak)} ett affärsområde."),
+            Experience(rawText: $"{Capitalize(unsafeB.Weak)} ett projekt."),
+            Experience(rawText: $"{Capitalize(safeC.Weak)} budget och personal."),
+        ]);
+
+        var changes = Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+
+        changes.Count.ShouldBe(2, "Bara de två drop-in-säkra raderna föreslås.");
+        changes.Select(c => c.TargetId).Distinct().Count().ShouldBe(2,
+            "Varje föreslagen ändring bär ett unikt stabilt targetId.");
+        changes.ShouldAllBe(c => safeAfters.Contains(c.Replacement!.After),
+            "Ingen syntes — varje After är ett verbatim drop-in-säkert KB-värde.");
+    }
+
     // ===============================================================
     // 3. DateNormalization (B6) — Structural arm ReformatDate, TextSpan on period
     // ===============================================================

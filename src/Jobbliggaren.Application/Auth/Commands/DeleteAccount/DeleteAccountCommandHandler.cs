@@ -47,8 +47,15 @@ public sealed class DeleteAccountCommandHandler(
         // Hämta alla user-ägda aggregat för cascade. Global query filter
         // exkluderar redan soft-deletade barn — vid första radering är
         // hela ägar-trädet aktivt eftersom JobSeeker själv inte är raderat.
+        //
+        // .Include(FollowUps/Notes) är LOAD-BEARING (#482/#505): Application.SoftDelete
+        // kaskaderar in-memory över _followUps/_notes — utan Include är de tomma i en
+        // färsk request-DbContext → barnraderna står deleted_at IS NULL hela 30-dagars-
+        // fönstret (paritet Resume-grenens .Include(Versions) nedan).
         var applications = await db.Applications
             .Where(a => a.JobSeekerId == jobSeeker.Id)
+            .Include(a => a.FollowUps)
+            .Include(a => a.Notes)
             .ToListAsync(cancellationToken);
 
         var resumes = await db.Resumes

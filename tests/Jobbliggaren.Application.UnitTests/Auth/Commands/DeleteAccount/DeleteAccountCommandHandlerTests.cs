@@ -117,6 +117,15 @@ public class DeleteAccountCommandHandlerTests
         db.Resumes.AddRange(resume1, resume2);
         await db.SaveChangesAsync(CancellationToken.None);
 
+        // #482/#505 — LOAD-BEARING: detach the seeded graph so the handler's query
+        // re-materialises Applications from the store with EMPTY FollowUps/Notes, exactly
+        // as a fresh request-scoped DbContext does in production. Without this Clear the
+        // seeded app1 stays in the identity map with its children still in memory, so the
+        // cascade "works" even without .Include — the false pass this test used to give.
+        // The child-DeletedAt assertions below therefore go RED against a no-Include
+        // handler and only pass because of the .Include(FollowUps).Include(Notes) fix.
+        db.ChangeTracker.Clear();
+
         var handler = new DeleteAccountCommandHandler(db, AuthenticatedAs(userId), Clock);
 
         var result = await handler.Handle(new DeleteAccountCommand(), CancellationToken.None);

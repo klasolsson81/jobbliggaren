@@ -56,6 +56,10 @@ type JobbSearchParams = {
   // #419 pt1 — "Visa bara matchade"-toggle:n. `?baraMatchade=on`. Frånvaro = hela
   // listan. Endast on-värdet parsas (paritet doljAnsokta/relaterade).
   baraMatchade?: string;
+  // #454 PR-0 — arbetsgivar-filtret: ETT org.nr (exakt 10 siffror). Felformat
+  // droppas tyst (paritet matchGrades drop-unknown; backend-validatorn skulle
+  // annars 400:a hela list-queryn). string[] (manipulerad URL) → första värdet.
+  employer?: string | string[];
   q?: string;
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
@@ -111,6 +115,12 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // doljAnsokta/relaterade). Trådas vidare till hero-filterraden (kontrollen, gatad på
   // matchnings-axeln) + JobbResults (gatad på matchActive där, paritet includeRelated).
   const onlyMatched = params.baraMatchade === STATUS_ON_VALUE;
+  // #454 PR-0 — arbetsgivar-filtret. Endast ett exakt 10-siffrigt värde
+  // accepteras (`^\d{10}$` — samma form som backend-validatorns
+  // OrganizationNumberPattern); allt annat droppas tyst så en manipulerad
+  // URL aldrig 400:ar list-queryn (drop-unknown-disciplinen, paritet
+  // matchGrades). Singel-värde v1: string[] → första elementet.
+  const employer = parseEmployer(params.employer);
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -192,6 +202,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // #419 pt1 — "Visa bara matchade" ingår i Suspense-keyn så listan re-renderas (visar
   // skeleton) när toggle:n flippas (samma princip som status/matchnings-axeln).
   const onlyMatchedKey = onlyMatched ? "m" : "";
+  // #454 PR-0 — arbetsgivar-filtret ingår i Suspense-keyn så listan re-renderas
+  // (visar skeleton) när filtret sätts/tas bort (samma princip som dimensionerna).
+  const employerKey = employer ?? "";
 
   return (
     <>
@@ -246,6 +259,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 employmentType={employmentType}
                 worktimeExtent={worktimeExtent}
                 matchGrades={matchGrades}
+                employer={employer}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
                 initialCommitted={commit}
@@ -271,6 +285,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 hasStatedDesiredOccupation={hasStatedDesiredOccupation}
                 hasSeeker={hasSeeker}
                 q={q ?? ""}
+                employer={employer}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
               />
@@ -285,7 +300,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
         <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}`}
+          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${employerKey}`}
           fallback={<JobAdListSkeleton />}
         >
           <JobbResults
@@ -302,6 +317,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             includeRelated={includeRelated}
             hideApplied={hideApplied}
             onlyMatched={onlyMatched}
+            employer={employer}
             q={q ?? ""}
             commit={commit}
             rawParams={params}
@@ -326,6 +342,15 @@ function parseSortBy(raw: string | undefined): JobAdSortBy {
 
 function emptyToUndefined(s: string | undefined): string | undefined {
   return s && s.trim().length > 0 ? s.trim() : undefined;
+}
+
+// #454 PR-0 — arbetsgivar-param-parsern: singel-värde, exakt 10 siffror,
+// annars undefined (tyst drop — backend-validatorn skulle 400:a annat).
+function parseEmployer(
+  raw: string | string[] | undefined
+): string | undefined {
+  const first = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+  return first && /^\d{10}$/.test(first) ? first : undefined;
 }
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).

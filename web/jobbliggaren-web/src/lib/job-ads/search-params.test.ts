@@ -178,6 +178,43 @@ describe("buildJobbHref #300 PR-5 (relaterade — Visa relaterade också)", () =
   });
 });
 
+describe("buildJobbHref #454 PR-0 (employer — arbetsgivar-filtret)", () => {
+  it("employer emitterar ?employer=<orgnr> (singel-värde)", () => {
+    expect(buildJobbHref({ ...empty, employer: "5560125790" })).toBe(
+      "/jobb?employer=5560125790",
+    );
+  });
+
+  it("employer utelämnad/undefined ger inget param (ren URL)", () => {
+    expect(buildJobbHref(empty)).toBe("/jobb");
+    expect(buildJobbHref({ ...empty, employer: undefined })).toBe("/jobb");
+  });
+
+  it("ordning: Klass-2-dimensioner → employer → matchGrades → q (stabil URL-form)", () => {
+    // employer placeras efter Klass-2-dimensionerna, före matchGrades —
+    // param-bevarande-kontraktet: en yta som bygger URL:en får inte tappa den.
+    expect(
+      buildJobbHref({
+        ...empty,
+        q: "volvo",
+        occupationGroup: ["og1"],
+        employmentType: ["et1"],
+        employer: "5560125790",
+        matchGrades: ["Strong"],
+        hideApplied: true,
+      }),
+    ).toBe(
+      "/jobb?occupationGroup=og1&employmentType=et1&employer=5560125790&matchGrades=Strong&doljAnsokta=on&q=volvo",
+    );
+  });
+
+  it("round-trip: buildJobbHref → URLSearchParams bevarar employer", () => {
+    const href = buildJobbHref({ ...empty, employer: "5560125790" });
+    const qs = href.slice(href.indexOf("?") + 1);
+    expect(new URLSearchParams(qs).get("employer")).toBe("5560125790");
+  });
+});
+
 describe("buildJobbHref #383 → förenklat (Dölj ansökta)", () => {
   it("hideApplied=true emitterar ?doljAnsokta=on", () => {
     expect(buildJobbHref({ ...empty, hideApplied: true })).toBe(

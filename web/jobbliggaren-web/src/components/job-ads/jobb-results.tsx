@@ -85,6 +85,12 @@ interface JobbResultsProps {
    * listan. Kontrollen (kryssrutan) bor i Matchning-popovern (hero-filterraden).
    */
   onlyMatched: boolean;
+  /**
+   * #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret: ETT org.nr
+   * (10 siffror, validerat i page.tsx). Skickas till list-queryn som ett
+   * string[]-element; ORTOGONAL mot matchningen (ren IN-equality-gallring).
+   */
+  employer: string | undefined;
   q: string;
   /**
    * E2j (ADR 0060 amend 2026-06-12) — commit-intent: när URL:en bär
@@ -114,6 +120,9 @@ interface JobbResultsProps {
     // #419 pt1 — bärs i paginerings-href:en så sida-2-klicket inte tappar "Visa bara
     // matchade" (samma felklass som doljAnsokta/relaterade).
     baraMatchade?: string;
+    // #454 PR-0 — bärs i paginerings-href:en så sida-2-klicket inte tappar
+    // arbetsgivar-filtret (samma felklass som ovan).
+    employer?: string | string[];
     q?: string;
   };
 }
@@ -132,6 +141,7 @@ export async function JobbResults({
   includeRelated,
   hideApplied,
   onlyMatched,
+  employer,
   q,
   commit,
   rawParams,
@@ -232,6 +242,9 @@ export async function JobbResults({
     // list-läget. Spegla den RÅA URL-staten (onlyMatched, INTE effectiveOnlyMatched) — målet
     // är close-URL === open-URL (paritet hideApplied/includeRelated/matchningOff).
     onlyMatched,
+    // #454 PR-0 — bär arbetsgivar-filtret i modal-soft-naven så öppna→stäng
+    // av ett jobbkort bevarar det (samma felklass som ovan).
+    employer,
     sortBy,
     pageSize: rawParams.pageSize,
   });
@@ -267,6 +280,9 @@ export async function JobbResults({
       // #419 pt1 — "Visa bara matchade" (gate:ad på matchActive ovan → effectiveOnlyMatched).
       // Backend visar då ENDAST annonser med positiv matchningsgrad för seekern.
       onlyMatched: effectiveOnlyMatched,
+      // #454 PR-0 — arbetsgivar-filtret (ortogonalt mot matchningen; skickas
+      // rakt igenom — backend IN-equality-gallrar på organization_number).
+      employer,
       q,
       commit,
     }),
@@ -363,6 +379,7 @@ export async function JobbResults({
             matchningOff={matchningOff}
             hideApplied={hideApplied}
             onlyMatched={onlyMatched}
+            employer={employer}
             resolvedLabels={resolvedLabels}
             q={q}
             sortBy={sortBy}
@@ -477,6 +494,12 @@ function buildPageHref(
   // #419 pt1 — utan denna rad tappar sida-2-klicket "Visa bara matchade" (samma felklass
   // som doljAnsokta ovan). Bevaras BARA när on (paritet buildJobbHref).
   if (params.baraMatchade === "on") url.set("baraMatchade", "on");
+  // #454 PR-0 — utan denna rad tappar sida-2-klicket arbetsgivar-filtret
+  // (samma felklass som ovan; buildPageHref är en andra URL-builder vid sidan
+  // av buildJobbHref). Samma 10-siffer-gate som page-parsern (tyst drop).
+  const employerRaw = toStringList(params.employer)[0];
+  if (employerRaw && /^\d{10}$/.test(employerRaw))
+    url.set("employer", employerRaw);
   if (params.q) url.set("q", params.q);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";

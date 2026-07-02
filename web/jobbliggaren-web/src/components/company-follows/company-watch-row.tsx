@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { ShieldAlert, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
+import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { unfollowCompanyAction } from "@/lib/actions/company-follows";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
 
@@ -40,15 +41,6 @@ const NUDGE_LINK_STYLE: CSSProperties = {
 interface CompanyWatchRowProps {
   item: CompanyWatch;
   mode: CompanyWatchViewMode;
-}
-
-/**
- * Formats a 10-digit legal-entity org.nr as NNNNNN-NNNN. Only ever called with a non-null
- * `organizationNumber`, which the backend guarantees is NOT personnummer-shaped (a sole-prop org.nr
- * arrives masked to null, ADR 0087 D8(c)). Any other length is shown verbatim rather than mis-split.
- */
-function formatOrgNr(orgNr: string): string {
-  return orgNr.length === 10 ? `${orgNr.slice(0, 6)}-${orgNr.slice(6)}` : orgNr;
 }
 
 /**

@@ -236,7 +236,8 @@
       "sortExpiresAsc": "Ansökningsdatum (sista ansökan)",
       "matchSortDisclosure": "Matchningssortering kräver att du anger vilka yrken du söker inom. Listan visas med nyaste först tills du ställt in det.",
       "matchSortDisclosureLink": "Ställ in matchning",
-      "unknownCode": "Okänd kod ({code})"
+      "unknownCode": "Okänd kod ({code})",
+      "employerChip": "Arbetsgivare {orgNr}"
     },
     "results": {
       "rateLimitedTitle": "För många förfrågningar",

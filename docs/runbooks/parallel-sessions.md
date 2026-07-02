@@ -36,12 +36,32 @@ worktree, including the stack-owner. NO session works in the shared main
 working copy** (`C:/DOTNET-UTB/JobbPilot`): two sessions there share one
 HEAD/index, so either's `git checkout` silently reverts the other's working
 tree (incident 2026-06-28). The stack-owner runs the real stack from its
-worktree by injecting secrets at runtime —
-`export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$POSTGRES_PASSWORD_DEV"`
-(read `POSTGRES_PASSWORD_DEV` from `.env`; the dev `appsettings` uses a
-`${...}` placeholder the launch must expand, else `28P01`). It does NOT copy
-`appsettings.Local.json` into the worktree. The main checkout is left on `main`
-and untouched (a fallback/reference, not a workspace).
+worktree by injecting **ALL `appsettings.Local.json`-borne secrets** at
+runtime — the worktree never has that file, so everything it carries must
+become an env override, not just the Postgres password (real incident
+2026-07-02: a worktree launch with only the Postgres var silently fell back
+to the retired AWS-KMS DEK provider — every PII flow 500:ed at first use
+while all DEK-free routes looked healthy):
+
+```bash
+# Values come from the MAIN checkout's gitignored files — never echo them.
+PW=$(grep -E '^POSTGRES_PASSWORD_DEV=' C:/DOTNET-UTB/JobbPilot/.env | head -1 | cut -d= -f2- | tr -d '\r')
+MK=$(sed -n 's/.*"LocalMasterKeyBase64"\s*:\s*"\([^"]*\)".*/\1/p' C:/DOTNET-UTB/JobbPilot/src/Jobbliggaren.Api/appsettings.Local.json)
+export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$PW"
+export FieldEncryption__Provider=Local
+export FieldEncryption__LocalMasterKeyBase64="$MK"   # required for BOTH Api and Worker
+```
+
+The dev `appsettings` Postgres string uses a `${...}` placeholder the launch
+must expand, else `28P01`. `FieldEncryption:Provider` code-defaults to `"Kms"`
+(deliberate prod fail-loud, ADR 0066), so omitting the FieldEncryption vars
+boots green but breaks every DEK-needing flow (CV import/read, crypto-erasure)
+at first use — and the master key MUST be the main copy's: it wrapped all
+existing per-user DEKs, a fresh key cannot unwrap them. Set the vars only in
+the launching shell — never persist them to a dotfile or a committed wrapper
+script (security-auditor 2026-07-02). The launch does NOT
+copy `appsettings.Local.json` into the worktree. The main checkout is left on
+`main` and untouched (a fallback/reference, not a workspace).
 
 ---
 
@@ -218,6 +238,14 @@ test:  Postgres 5433 · Redis 6380                (DB "jobbliggaren_test", profi
   `feedback_restart_stack_after_commit_stop`).
 - The Worker has **no** connection string of its own — it inherits Postgres/
   Redis from env or `appsettings.Local.json`.
+- **Field-encryption (DEK) config lives ONLY in the main copy's gitignored
+  `appsettings.Local.json`** (`FieldEncryption: Provider=Local` + master key) —
+  a worktree launch must inject `FieldEncryption__Provider` +
+  `FieldEncryption__LocalMasterKeyBase64` as env for **both Api and Worker**
+  (§2). Without them the code default `Kms` (retired AWS, ADR 0066) throws
+  `AmazonClientException` on every DEK flow; the CV-import BFF then masks that
+  500 as a misleading 400 "Filen kunde inte läsas…" (it never echoes backend
+  bodies — PII discipline), so diagnose by curling the Api directly.
 - **Single stack-owner:** Api/Worker/`dotnet ef`/Migrate all point at the same
   5435 DB → two live stacks collide on data + Hangfire state. Only the
   stack-owner runs against 5435; everyone else uses **Testcontainers**.
@@ -357,3 +385,8 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
   can show phantom removals — diff against `origin/main`.
 - **Post-merge local main sync:** `git fetch && git merge --ff-only origin/main`
   (not `pull`); don't `checkout main` over local-only docs.
+- **Worktree stack-launch without the FieldEncryption env vars** → boots green
+  and serves DEK-free routes fine, then the first PII flow (CV import) 500s on
+  the retired AWS-KMS default, surfaced to the browser as a misleading 400
+  "Filen kunde inte läsas". Inject both `FieldEncryption__*` vars for Api AND
+  Worker (§2/§7); incident 2026-07-02.

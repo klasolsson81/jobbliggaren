@@ -25,6 +25,7 @@ public static partial class RateLimitingExtensions
     public const string SuggestPolicy = "suggest";
     public const string TaxonomyReadPolicy = "taxonomy-read";
     public const string FacetCountsPolicy = "facet-counts";
+    public const string MatchCountPreviewPolicy = "match-count-preview";
     public const string LandingPublicReadPolicy = "landing-public-read";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
@@ -225,6 +226,33 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.FacetCounts.PermitLimit / rateLimitOpts.FacetCounts.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.FacetCounts.WindowSeconds / (double)rateLimitOpts.FacetCounts.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). Epik #526 (ADR 0088) — dedikerad bucket för
+            // live sök-preview-räknaren i matchnings-setup-modalen. Samma debounce-burst-profil
+            // som FacetCounts (~1 req/400 ms klient-debounce) → egen budget (least common
+            // mechanism / bulkhead, Nygard): en redigerings-burst i setup-modalen får inte svälta
+            // MeListRead som /oversikt redan fläktar ut ~7×. TokenBucket (ej SlidingWindow —
+            // populerar inte Retry-After; security-auditor BLOCKING 2026-06-24), QueueLimit=0
+            // (kö = memory-DoS). Auth-gated → anonym fångas av RequireAuthorization (NoLimiter
+            // bypass). Parametrar IOptions-bundna. security-auditor BLOCKING verifierar tal
+            // (riktvärde 30/10s, symmetri med FacetCounts).
+            options.AddPolicy(MatchCountPreviewPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-match-count-preview");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.MatchCountPreview.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.MatchCountPreview.PermitLimit / rateLimitOpts.MatchCountPreview.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.MatchCountPreview.WindowSeconds / (double)rateLimitOpts.MatchCountPreview.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

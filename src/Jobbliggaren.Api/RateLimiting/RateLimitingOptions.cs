@@ -113,6 +113,22 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// POST /me/match-count-preview (live sök-preview-räknaren i matchnings-setup-modalen,
+    /// epik #526, ADR 0088) — partitionerat per UserId (claim "sub"). Egen policy (bulkhead,
+    /// Nygard) — samma debounce-burst-profil som FacetCounts (~1 req/400 ms klient-debounce
+    /// medan användaren ändrar yrke/ort/form) och får inte dela budget med MeListRead som
+    /// /oversikt redan fläktar ut ~7×. 30/10s ≈ 3 req/s ger rikligt headroom över den
+    /// debouncade profilen och kapar script-flod inom sekunder (symmetri med FacetCounts/
+    /// Suggest). senior-cto-advisor 2026-07-02 (D5) — riktvärde, security-auditor verifierar/
+    /// justerar (BLOCKING). IOptions-bundet (§5.1).
+    /// </summary>
+    public PolicyOptions MatchCountPreview { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 10,
+    };
+
+    /// <summary>
     /// GET /api/v1/landing/stats (publik anonym landing-stats, ADR 0064) —
     /// partitionerat per IP. Egen policy (least common mechanism,
     /// Saltzer/Schroeder): publik anonym DoS-yta får inte dela skyddsbudget

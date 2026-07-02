@@ -44,15 +44,17 @@ public static partial class PersonnummerTextNormalizer
     // separators; invisible zero-width \p{Cf} noise is handled separately below (stripped,
     // unbounded), so the {1,2} bound is unaffected by that widening.
     //
-    // #427 (2nd CTO ruling, R2): an optional '-'/'+' separator is now tolerated ADJACENT to
-    // the {1,2} space run on either side ((?:[-+])? before AND after), so a realistic OCR
-    // rendering of a legitimate separator — "811218- 9876" / "811218 -9876" — is bridged too
-    // (the space is mandatory, so a pure contiguous "811218-9876" is still left to Scan, not
-    // double-processed). The replacement joins only the two digit groups ($1$2), dropping the
-    // dropped separator/space, so the joined token stays a valid Scan candidate.
-    // Safety is unchanged — Personnummer.TryParse's date+Luhn gate is still the only
-    // authority, so widening candidate SHAPING can never manufacture a valid false positive.
-    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?:[-+])?[\p{Zs}\t]{1,2}(?:[-+])?(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
+    // #427 (2nd CTO ruling, R2) + #497: an optional separator is now tolerated ADJACENT to the
+    // {1,2} space run on either side ((?:[-+\p{Pd}...])? before AND after), where the separator
+    // class is ASCII '-'/'+', any Unicode dash (\p{Pd}) or U+2212 MINUS (#497 — Word/PDF emit
+    // these), so a realistic rendering of a legitimate separator — "811218- 9876" / "811218 -9876"
+    // / a Unicode-dash spaced form — is bridged too (the space is mandatory, so a pure contiguous
+    // "811218-9876" is still left to Scan, not double-processed). The replacement joins only the
+    // two digit groups ($1$2), dropping the separator/space, so the joined token stays a valid Scan
+    // candidate. Safety is unchanged — Personnummer.TryParse's date+Luhn gate is still the only
+    // authority, so widening candidate SHAPING can never manufacture a valid false positive. This
+    // separator class is shared with PersonnummerScanner and Personnummer.TryParse (symmetry).
+    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?:[-+\p{Pd}\u2212])?[\p{Zs}\t]{1,2}(?:[-+\p{Pd}\u2212])?(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex SpacedCandidateRegex();
 
     // #427 V2 (ADR 0074 Invariant 1): zero-width FORMAT characters (\p{Cf} — U+200B

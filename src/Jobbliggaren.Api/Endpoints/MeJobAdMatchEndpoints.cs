@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview;
 using Jobbliggaren.Application.Matching.Commands.MarkMatchesSeen;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
@@ -22,6 +23,15 @@ public static class MeJobAdMatchEndpoints
     // related so related-occupation ads earn the Related tag. FE (PR-5b) maps ?relaterade=on.
     public sealed record JobAdMatchBatchRequest(
         IReadOnlyList<Guid> JobAdIds, bool IncludeRelated = false);
+
+    // Epik #526 (ADR 0088) — utkastet för live sök-preview-räknaren i matchnings-setup-modalen.
+    // Fyra sökbara facetter (INGA kompetenser — skills är kvalitet, ingen Platsbanken-sökfacett;
+    // se GetMatchCountPreviewQuery). Nullable optional-fält → handlern normaliserar null → [].
+    public sealed record MatchCountPreviewRequest(
+        IReadOnlyList<string>? OccupationGroups,
+        IReadOnlyList<string>? Regions,
+        IReadOnlyList<string>? Municipalities,
+        IReadOnlyList<string>? EmploymentTypes);
 
     public static void MapMeJobAdMatchEndpoints(this IEndpointRouteBuilder app)
     {
@@ -82,6 +92,31 @@ public static class MeJobAdMatchEndpoints
             .WithTags("Me")
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // Epik #526 (ADR 0088) — LIVE sök-preview-räknare för matchnings-setup-modalen: hur många
+        // aktiva annonser matchar ett UTKAST av sök-facetter (yrke/ort/anställningsform) medan
+        // användaren fyller i, debouncat ~400 ms klient-side. Ren sök-count (IJobAdSearchQuery
+        // .CountAsync — ingen grad, ingen profil, ingen per-användar-data), per konstruktion lika
+        // med den länkade /jobb-sökningens TotalCount. POST (ej GET): utkastet är en komplex body
+        // (flera listor), men semantiskt en what-if-beräkning som INTE persisterar något. Auth-
+        // gated: räknar bara den publika korpusen → auth är ren abuse-/DoS-grind (ingen
+        // cross-user-läcka möjlig). Egen bucket (MatchCountPreviewPolicy) — får inte dela budget
+        // med MeListRead som /oversikt redan fläktar ut. 200 { count: int }.
+        app.MapPost("/api/v1/me/match-count-preview", async (
+                MatchCountPreviewRequest body, IMediator mediator, CancellationToken ct) =>
+            {
+                // Named args: Regions/Municipalities ligger bredvid varandra i signaturen
+                // (samma tyst-fel-fälla som JobAdFilterCriteria tvingar named args för).
+                var result = await mediator.Send(new GetMatchCountPreviewQuery(
+                    OccupationGroups: body.OccupationGroups ?? [],
+                    Regions: body.Regions ?? [],
+                    Municipalities: body.Municipalities ?? [],
+                    EmploymentTypes: body.EmploymentTypes ?? []), ct);
+                return Results.Ok(result);
+            })
+            .WithTags("Me")
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingExtensions.MatchCountPreviewPolicy);
 
         // ADR 0080 Vag 4 PR-5 — Översikts "Nya matchningar"-räknare (bakgrundsmatchningar nya
         // sedan senaste besök, UserJobAdMatch.CreatedAt > LastSeenMatchesAt). Ersätter STEG 6:s

@@ -83,8 +83,12 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
 {
     public string CriterionId => "C4";
 
-    // Third-person pronouns (sv + en) as standalone words.
-    [GeneratedRegex(@"\b(han|hon|hen|denne|denna|he|she)\b",
+    // Third-person PERSONAL pronouns (sv + en) as standalone words. The Swedish demonstratives
+    // "denna/denne" are deliberately EXCLUDED (#491): they are not third-person narration —
+    // "i denna roll ansvarade jag …", "under denna period" is ordinary first-person CV prose, so
+    // flagging them raised a false "tredje person" Warn on the common case. The real fail case
+    // (name-as-subject, "Anna är en driven …") carries no pronoun and is out of scope for v1.
+    [GeneratedRegex(@"\b(han|hon|hen|he|she)\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex ThirdPersonRegex();
 
@@ -100,8 +104,12 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
                 ReviewText.Cite(ReviewText.Span(prose, match.Value, "tredje person — använd konsekvent perspektiv (svensk standard: utan pronomen)")));
         }
 
+        // Pass is scoped to what C4 actually checks — third-person PRONOUNS. Name-as-subject
+        // narration ("Anna är en driven …") carries no pronoun and is out of scope for v1, so the
+        // Pass claim is worded "inga tredje-persons-pronomen", never over-claiming that all
+        // third-person narration was ruled out (§5 honesty, parity with the #488 C5 ruling).
         return CvCriterionVerdict.Assessed("C4", category, CriterionVerdict.Pass,
-            ReviewText.Cite(ReviewText.Structural("Konsekvent perspektiv (ingen tredje-persons-narration).")));
+            ReviewText.Cite(ReviewText.Structural("Konsekvent perspektiv (inga tredje-persons-pronomen).")));
     }
 }
 

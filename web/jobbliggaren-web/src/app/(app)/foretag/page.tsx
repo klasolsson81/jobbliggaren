@@ -9,8 +9,14 @@ type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 
 /**
  * #311 #448 (ADR 0087 D2) — `/foretag`: the user's followed companies. A pure consumer of the existing
- * `GET /api/v1/me/company-watches` (no new backend). Parity with `/sparade` (RSC server-fetch +
- * discriminated-union result renderer + civic empty state).
+ * `GET /api/v1/me/company-watches` (no new backend). RSC server-fetch + discriminated-union result
+ * renderer + civic empty state (data-fetch parity `/sparade`).
+ *
+ * Layout (#515, Klas live-review 2026-07-02): the v3-native page standard — `jp-pagehero` (the green
+ * gradient plate, ADR 0068) + content in `jp-container jp-page`, with the route registered in
+ * `V3_NATIVE_ROUTES` (app-shell opts it out of the transitional width container). The initial #448
+ * delivery mirrored `/sparade`'s legacy header by mistake; /sparade + /sokningar + /matchningar remain
+ * legacy with their own removal trigger (out of #515's scope).
  *
  * The route is the stable "företag" hub noun (senior-cto-advisor 2026-07-01, Variant B). Today it
  * hosts only the followed-company list; the företagsdetalj (historik-räknare) + ansökningshistorik
@@ -26,14 +32,18 @@ export default async function ForetagPage() {
   const result = await getCompanyWatches();
 
   return (
-    <div className="flex flex-col">
-      <div>
-        <h1 className="jp-h1">{t("foretag.title")}</h1>
-        <p className="jp-lede">{t("foretag.lede")}</p>
-      </div>
+    <>
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <h1 className="jp-pagehero__title">{t("foretag.title")}</h1>
+            <p className="jp-pagehero__lede">{t("foretag.lede")}</p>
+          </div>
+        </div>
+      </section>
 
-      <div className="mt-7">{renderResult(result, t)}</div>
-    </div>
+      <div className="jp-container jp-page">{renderResult(result, t)}</div>
+    </>
   );
 }
 

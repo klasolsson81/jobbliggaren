@@ -12,8 +12,8 @@ const SETUP_WELCOMED_MAX_AGE = 365 * 24 * 60 * 60;
 
 /**
  * Server Action — sätter setup-welcome-cookien så modalen inte återkommer.
- * Anropas från `<WelcomeSetupModal>`-klient-komponenten på close/skip/Esc samt
- * efter att wizarden sparats eller stängts.
+ * Anropas från `<MatchSetupLauncher>`-klient-komponenten (epik #526) när
+ * matchnings-setup-modalen stängs (close/skip/Esc eller efter en sparning).
  */
 export async function markSetupWelcomeSeen(): Promise<void> {
   const cookieStore = await cookies();

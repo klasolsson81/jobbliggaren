@@ -16,6 +16,7 @@ import errors from "./errors.json";
 import guest from "./guest.json";
 import jobads from "./jobads.json";
 import landing from "./landing.json";
+import matchsetup from "./matchsetup.json";
 import metadata from "./metadata.json";
 import oversikt from "./oversikt.json";
 import pages from "./pages.json";
@@ -38,6 +39,7 @@ const messages = {
   guest,
   jobads,
   landing,
+  matchsetup,
   metadata,
   oversikt,
   pages,

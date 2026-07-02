@@ -1,0 +1,97 @@
+{
+  "aria": {
+    "dialog": "Ställ in din matchning",
+    "railNav": "Setup-steg"
+  },
+  "rail": {
+    "title": "Din matchning",
+    "subtitle": "Klart på någon minut",
+    "step": {
+      "start": "Start",
+      "yrken": "Yrken",
+      "kompetenser": "Kompetenser",
+      "orter": "Orter",
+      "former": "Anställningsform",
+      "granska": "Granska"
+    },
+    "meta": {
+      "frivilligtCv": "Frivilligt CV",
+      "cvInlast": "CV inläst",
+      "ejIfyllt": "Ej ifyllt",
+      "allaYrken": "Alla yrken",
+      "ingaValda": "Inga valda",
+      "helaLandet": "Hela landet",
+      "allaFormer": "Alla former",
+      "aterstar": "Återstår",
+      "sparad": "Sparad",
+      "valda": "{count, plural, one {# valt} other {# valda}}"
+    }
+  },
+  "counter": {
+    "label": "MATCHAR NU",
+    "unit": "annonser i Platsbanken. Uppdateras när du ändrar dina val."
+  },
+  "stepcounter": "STEG {step} AV 6",
+  "stepcounterDone": "KLART",
+  "start": {
+    "title": "Välkommen till Jobbliggaren",
+    "intro": "Ställ in din matchning så visar vi jobb som passar dig. Det tar någon minut och du kan ändra allt senare.",
+    "pitchTitle": "Vi matchar Platsbankens annonser mot din profil",
+    "pitchBody": "Berätta vad du söker: yrken, kompetenser och var du vill jobba. Vi lyfter fram annonser som passar och räknar nya matchningar varje dag.",
+    "uploadTitle": "Ladda upp ditt CV så fyller vi i förslag åt dig",
+    "uploadBody": "PDF eller Word (DOCX), max 10 MB. Vi föreslår yrken och kompetenser utifrån innehållet. Ditt CV ändras inte.",
+    "noCv": "Inget CV till hands? <b>Fortsätt utan CV</b> och välj allt själv.",
+    "cvDoneTitle": "CV inläst: {filename}",
+    "cvDoneBody": "Vi har fyllt i förslag på yrken och kompetenser i stegen. Förslagen sparas inte i ditt CV."
+  },
+  "yrken": {
+    "intro": "Välj de yrken du söker. Vi föreslår utifrån ditt CV, men du bestämmer vad som tas med.",
+    "introNoCv": "Välj de yrken du söker. Sök nedan och lägg till de som passar dig.",
+    "selected": "VALDA YRKEN ({count})",
+    "empty": "<b>Inga yrken valda ännu.</b> Välj ur förslagen eller sök nedan.",
+    "emptyNoCv": "<b>Inga yrken valda ännu.</b> Sök efter yrke nedan för att lägga till."
+  },
+  "komp": {
+    "intro": "Förslagen kommer från ditt CV. Ta bort det som inte stämmer och lägg till det som saknas.",
+    "introNoCv": "Lägg till de kompetenser du vill matcha på. Färre men träffsäkra ger bättre matchning än många breda.",
+    "selected": "VALDA KOMPETENSER ({count})",
+    "clear": "Rensa alla",
+    "empty": "<b>Inga kompetenser valda.</b> Vi matchar då utan kompetenskrav.",
+    "restore": "Återställ förslagen"
+  },
+  "orter": {
+    "intro": "Välj de län eller kommuner du vill arbeta i. Lämna tomt för hela landet.",
+    "selected": "VALDA ORTER ({count})",
+    "empty": "<b>Inga orter valda.</b> Vi matchar i hela landet."
+  },
+  "former": {
+    "intro": "Välj de anställningsformer du är öppen för. Lämna tomt för alla.",
+    "note": "<b>De flesta annonser ligger under Vanlig anställning.</b> Lämna tomt för att matcha alla."
+  },
+  "granska": {
+    "title": "Granska och spara",
+    "intro": "Kontrollera dina val. Du kan ändra varje del härifrån.",
+    "edit": "Ändra",
+    "captionYrken": "YRKEN",
+    "captionKompetenser": "KOMPETENSER",
+    "captionOrter": "ORTER",
+    "captionFormer": "ANSTÄLLNINGSFORM",
+    "emptyYrken": "Inga yrken, vi matchar brett",
+    "emptyKomp": "Inga kompetenser valda",
+    "emptyOrter": "Hela landet",
+    "emptyFormer": "Alla anställningsformer"
+  },
+  "done": {
+    "title": "Matchningen är sparad",
+    "body": "Nya matchningar dyker upp under Jobb och räknas på Översikt. Du kan ändra allt när som helst under Matchning."
+  },
+  "nav": {
+    "tillbaka": "Tillbaka",
+    "nasta": "Nästa",
+    "fortsatt": "Fortsätt",
+    "spara": "Spara matchning",
+    "stang": "Stäng",
+    "hoppaOver": "Hoppa över det här steget",
+    "gorSenare": "Gör det senare"
+  }
+}

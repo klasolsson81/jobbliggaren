@@ -1,0 +1,97 @@
+{
+  "aria": {
+    "dialog": "Set up your matching",
+    "railNav": "Setup steps"
+  },
+  "rail": {
+    "title": "Your matching",
+    "subtitle": "Done in about a minute",
+    "step": {
+      "start": "Start",
+      "yrken": "Occupations",
+      "kompetenser": "Skills",
+      "orter": "Locations",
+      "former": "Employment type",
+      "granska": "Review"
+    },
+    "meta": {
+      "frivilligtCv": "CV optional",
+      "cvInlast": "CV read",
+      "ejIfyllt": "Not filled in",
+      "allaYrken": "All occupations",
+      "ingaValda": "None selected",
+      "helaLandet": "Whole country",
+      "allaFormer": "All types",
+      "aterstar": "Remaining",
+      "sparad": "Saved",
+      "valda": "{count, plural, one {# selected} other {# selected}}"
+    }
+  },
+  "counter": {
+    "label": "MATCHING NOW",
+    "unit": "ads in Platsbanken. Updates when you change your choices."
+  },
+  "stepcounter": "STEP {step} OF 6",
+  "stepcounterDone": "DONE",
+  "start": {
+    "title": "Welcome to Jobbliggaren",
+    "intro": "Set up your matching and we will show jobs that suit you. It takes about a minute and you can change everything later.",
+    "pitchTitle": "We match Platsbanken ads against your profile",
+    "pitchBody": "Tell us what you are looking for: occupations, skills and where you want to work. We highlight ads that suit you and count new matches every day.",
+    "uploadTitle": "Upload your CV and we will fill in suggestions for you",
+    "uploadBody": "PDF or Word (DOCX), max 10 MB. We suggest occupations and skills from the content. Your CV is not changed.",
+    "noCv": "No CV to hand? <b>Continue without a CV</b> and choose everything yourself.",
+    "cvDoneTitle": "CV read: {filename}",
+    "cvDoneBody": "We have filled in suggested occupations and skills in the steps. The suggestions are not saved to your CV."
+  },
+  "yrken": {
+    "intro": "Choose the occupations you are looking for. We suggest based on your CV, but you decide what is included.",
+    "introNoCv": "Choose the occupations you are looking for. Search below and add the ones that suit you.",
+    "selected": "SELECTED OCCUPATIONS ({count})",
+    "empty": "<b>No occupations selected yet.</b> Choose from the suggestions or search below.",
+    "emptyNoCv": "<b>No occupations selected yet.</b> Search for an occupation below to add it."
+  },
+  "komp": {
+    "intro": "The suggestions come from your CV. Remove what does not fit and add what is missing.",
+    "introNoCv": "Add the skills you want to match on. Fewer but more accurate skills give better matching than many broad ones.",
+    "selected": "SELECTED SKILLS ({count})",
+    "clear": "Clear all",
+    "empty": "<b>No skills selected.</b> We then match without skill requirements.",
+    "restore": "Restore suggestions"
+  },
+  "orter": {
+    "intro": "Choose the counties or municipalities where you want to work. Leave empty for the whole country.",
+    "selected": "SELECTED LOCATIONS ({count})",
+    "empty": "<b>No locations selected.</b> We match across the whole country."
+  },
+  "former": {
+    "intro": "Choose the employment types you are open to. Leave empty for all.",
+    "note": "<b>Most ads are under Regular employment.</b> Leave empty to match all."
+  },
+  "granska": {
+    "title": "Review and save",
+    "intro": "Check your choices. You can change each part from here.",
+    "edit": "Change",
+    "captionYrken": "OCCUPATIONS",
+    "captionKompetenser": "SKILLS",
+    "captionOrter": "LOCATIONS",
+    "captionFormer": "EMPLOYMENT TYPE",
+    "emptyYrken": "No occupations, we match broadly",
+    "emptyKomp": "No skills selected",
+    "emptyOrter": "Whole country",
+    "emptyFormer": "All employment types"
+  },
+  "done": {
+    "title": "Your matching is saved",
+    "body": "New matches appear under Jobs and are counted on the Overview. You can change everything at any time under Matching."
+  },
+  "nav": {
+    "tillbaka": "Back",
+    "nasta": "Next",
+    "fortsatt": "Continue",
+    "spara": "Save matching",
+    "stang": "Close",
+    "hoppaOver": "Skip this step",
+    "gorSenare": "Do it later"
+  }
+}

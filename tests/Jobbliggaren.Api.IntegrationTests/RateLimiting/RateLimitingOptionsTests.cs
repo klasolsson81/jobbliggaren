@@ -75,6 +75,19 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_FollowSeenMark_Is60Per60s_TokenBucket()
+    {
+        // #453 (senior-cto-advisor 2026-07-02 (b)) — dedicated policy so the auto-fired
+        // ad-open seen-mark cannot starve the user's deliberate Save/Follow (bulkhead).
+        // 60/min with TokenBucket (SegmentsPerWindow=6 -> ~10s soft replenishment).
+        var sut = new RateLimitingOptions();
+
+        sut.FollowSeenMark.PermitLimit.ShouldBe(60);
+        sut.FollowSeenMark.WindowSeconds.ShouldBe(60);
+        sut.FollowSeenMark.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_ResumeImport_Is5Per60s()
     {
         var sut = new RateLimitingOptions();
@@ -170,6 +183,7 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.MeListReadPolicy.ShouldBe("me-list-read");
         RateLimitingExtensions.JobAdStatusBatchPolicy.ShouldBe("job-ad-status-batch");
         RateLimitingExtensions.MeWritePolicy.ShouldBe("me-write");
+        RateLimitingExtensions.FollowSeenMarkPolicy.ShouldBe("follow-seen-mark");
         RateLimitingExtensions.ResumeImportPolicy.ShouldBe("resume-import");
         RateLimitingExtensions.ResumeRenderPolicy.ShouldBe("resume-render");
     }

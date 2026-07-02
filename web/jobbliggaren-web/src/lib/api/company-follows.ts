@@ -111,6 +111,36 @@ export async function getCompanyWatchStatus(jobAdId: string): Promise<CompanyFol
 }
 
 /**
+ * #453 (cross-channel dedup) — mark this ad SEEN in-app so the company-follow digest suppresses the
+ * redundant email ("aldrig mejla något jag sett i appen"). Fire-and-forget: the caller ignores the
+ * outcome and this never throws (a rate-limit / network error just leaves the hit un-stamped → the
+ * digest may still send, which is the safe direction). Owner-scoped server-side (the UserId comes from
+ * the session, never the wire — IDOR-safe). `POST /api/v1/me/company-watches/ad-hits/{jobAdId}/seen`.
+ */
+export async function markFollowedCompanyAdSeen(jobAdId: string): Promise<ApiResult<void>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: reject a non-GUID before it reaches the backend URL (path-injection barrier).
+  if (!isValidId(jobAdId)) return { kind: "notFound" };
+
+  try {
+    const res = await fetch(
+      `${env.BACKEND_URL}${BASE}/ad-hits/${encodeURIComponent(jobAdId)}/seen`,
+      {
+        method: "POST",
+        headers: authHeaders(sessionId),
+        cache: "no-store",
+      }
+    );
+    if (res.status === 204) return { kind: "ok", data: undefined };
+    if (res.status === 401) return { kind: "unauthorized" };
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
  * #448 — list the current user's followed companies for the `/foretag` page. Auth-gated
  * (`GET /api/v1/me/company-watches`, parity with `getSavedJobAds`). The backend masks any
  * personnummer-shaped org.nr before it reaches the wire (ADR 0087 D8(c)) and never logs it. List

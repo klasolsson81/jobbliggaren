@@ -201,6 +201,65 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
         afterSecond.SentAt.ShouldBe(firstSentAt, "a re-run must not re-dispatch (SentAt unchanged)");
     }
 
+    // --------------------------- #453 cross-channel dedup - seen-in-app suppression
+    // The fixture uses ConsoleEmailSender (no body capture), so the observable proxy for
+    // "claimed set == displayed set" is the per-hit notification STATUS: a suppressed hit stays
+    // Pending (never claimed -> never in the emailed set) while an unseen hit is drained to Sent. The
+    // predicate parity between the claim-fetch and the displayRows-join is what the Application code
+    // guarantees; here we prove the end-to-end effect against real Postgres.
+
+    [Fact]
+    public async Task RunWeeklyAsync_SuppressesSeenHit_AndDispatchesOnlyUnseen()
+    {
+        // Two Pending hits for one consenting user; ONE is marked seen-in-app. The seen hit must stay
+        // Pending (suppressed, NOT claimed) while the unseen hit is drained to Sent.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await SeedConsentingWeeklyFollowUserAsync(ct);
+        var (seenAdId, seenWatchId) = await SeedAdAndWatchAsync(userId, ct);
+        await SeedPendingFollowHitAsync(userId, seenAdId, seenWatchId, ct);
+        var (unseenAdId, unseenWatchId) = await SeedAdAndWatchAsync(userId, ct);
+        await SeedPendingFollowHitAsync(userId, unseenAdId, unseenWatchId, ct);
+
+        await MarkHitSeenAsync(userId, seenAdId, seenWatchId, ct);
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var worker = scope.ServiceProvider.GetRequiredService<DigestDispatchWorker>();
+            await worker.RunWeeklyAsync(ct);
+        }
+
+        var seenHit = await GetHitAsync(userId, seenAdId, seenWatchId, ct);
+        seenHit!.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending,
+            "a seen-in-app hit is suppressed - never claimed, never emailed (stays dormant Pending)");
+        seenHit.SeenAt.ShouldNotBeNull("the seen stamp survives the run");
+
+        var unseenHit = await GetHitAsync(userId, unseenAdId, unseenWatchId, ct);
+        unseenHit!.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent,
+            "the unseen hit is the only member of the claimed/displayed set - dispatched to Sent");
+    }
+
+    [Fact]
+    public async Task RunWeeklyAsync_SendsNoEmail_WhenAllHitsSeen()
+    {
+        // Every Pending hit for the user is seen-in-app -> the due-set is empty -> no dispatch, no email.
+        // Proxy: the hit stays Pending (never claimed).
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await SeedConsentingWeeklyFollowUserAsync(ct);
+        var (jobAdId, watchId) = await SeedAdAndWatchAsync(userId, ct);
+        await SeedPendingFollowHitAsync(userId, jobAdId, watchId, ct);
+        await MarkHitSeenAsync(userId, jobAdId, watchId, ct);
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var worker = scope.ServiceProvider.GetRequiredService<DigestDispatchWorker>();
+            await worker.RunWeeklyAsync(ct);
+        }
+
+        var hit = await GetHitAsync(userId, jobAdId, watchId, ct);
+        hit!.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending,
+            "an all-seen due-set produces no dispatch (the only hit stays dormant Pending)");
+    }
+
     // ─────────────────────────── Seeding
 
     private Task<Guid> SeedConsentingWeeklyFollowUserAsync(CancellationToken ct)
@@ -301,6 +360,18 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var hit = FollowedCompanyAdHit.Create(userId, jobAdId, watchId, new FixedClock(Now)).Value;
         db.FollowedCompanyAdHits.Add(hit);
+        await db.SaveChangesAsync(ct);
+    }
+
+    // #453 - stamp SeenAt on a Pending hit (the in-app "opened this ad" signal) via the domain method.
+    private async Task MarkHitSeenAsync(
+        Guid userId, JobAdId jobAdId, CompanyWatchId watchId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hit = await db.FollowedCompanyAdHits.SingleAsync(
+            h => h.UserId == userId && h.JobAdId == jobAdId && h.CompanyWatchId == watchId, ct);
+        hit.MarkSeen(new FixedClock(Now)).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
     }
 

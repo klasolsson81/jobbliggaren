@@ -276,6 +276,27 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// POST /api/v1/me/company-watches/ad-hits/{jobAdId}/seen (#453 cross-channel follow-dedup) —
+    /// partitionerat per UserId (claim "sub"), anonym -> NoLimiter (RequireAuthorization-gated ->
+    /// 401 fore endpoint). Egen policy (ej MeWrite-atervanvandning) — least common mechanism
+    /// (Saltzer/Schroeder) + bulkhead (Nygard): denna mark-seen AUTO-avfyras server-side vid VARJE
+    /// ad-detalj-open (RSC Promise.all, full + modal), en materiellt hogre frekvens an nagon genuin
+    /// mutation. Delad MeWrite-budget hade latit den auto-avfyrade seen-marken svalta anvandarens
+    /// DELIBERATA Spara/Folj pa samma yta (bada annars MeWrite). TokenBucket (ej FixedWindow, parity
+    /// per-user-lasretunen 2026-06-24) — en hogfrekvent auto-fire passar droppvis aterfyllnad battre
+    /// an FixedWindows hel-fonster-bann (som klustrar 429:or vid en ad-open-burst) och populerar
+    /// Retry-After rent. 60/min ar generost for rask ad-click-through sa dedupen faktiskt fungerar
+    /// under normal bladdring, stramt nog mot patologisk loop; stampeln ar en billig indexerad
+    /// no-op-write (budgeten skyddar ingen tung resurs, bara isolerar bucketen). senior-cto-advisor
+    /// 2026-07-02 (b) — riktvarde, security-auditor verifierar/justerar (BLOCKING). IOptions (§5.1).
+    /// </summary>
+    public PolicyOptions FollowSeenMark { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

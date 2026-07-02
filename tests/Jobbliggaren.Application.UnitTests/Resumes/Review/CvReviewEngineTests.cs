@@ -1132,6 +1132,90 @@ public class CvReviewEngineTests
             "En engelsk CV ska bedömas via TextLanguage.English, inte kasta NotSupported.");
     }
 
+    // ===============================================================
+    // 16. C4 Konsekvent perspektiv — third-person pronouns only, NOT the
+    //     Swedish demonstratives "denna/denne" (#491)
+    // ===============================================================
+
+    [Theory]
+    [InlineData("I denna roll ansvarade jag för budget, personal och rekrytering.")]
+    [InlineData("Under denna period drev jag flera parallella projekt.")]
+    [InlineData("Denne kund var min största under 2024.")]
+    public async Task ReviewAsync_ShouldPassC4_WhenProseUsesTheDemonstrativeDennaDenne(string profile)
+    {
+        // #491: "denna/denne" are DEMONSTRATIVES, not third-person narration — "i denna roll
+        // ansvarade jag …" is ordinary first-person Swedish CV prose. C4 must not raise a false
+        // "tredje person" Warn on them (they were wrongly in the pronoun set).
+        var result = await ReviewAsync(Resume(profile: profile));
+
+        Verdict(result, "C4").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Demonstrativa 'denna/denne' är inte tredje-persons-narration → C4 Pass (#491).");
+    }
+
+    [Theory]
+    [InlineData("han")]
+    [InlineData("hon")]
+    [InlineData("hen")]
+    [InlineData("he")]
+    [InlineData("she")]
+    public async Task ReviewAsync_ShouldWarnC4_WhenProseUsesARealThirdPersonPronoun(string pronoun)
+    {
+        // The genuine third-person narration case is retained: a real personal pronoun ("Anna är
+        // en driven … han ledde …") is still flagged. Pinned so dropping the demonstratives does
+        // not weaken the real signal.
+        var result = await ReviewAsync(Resume(profile: $"Erfaren utvecklare, {pronoun} ledde teamet under 2024."));
+
+        var c4 = Verdict(result, "C4");
+        c4.Verdict.ShouldBe(CriterionVerdict.Warn,
+            $"Ett riktigt tredje-persons-pronomen ('{pronoun}') ska fortfarande flaggas av C4.");
+        c4.Evidence.ShouldContain(e => e is TextSpanEvidence);
+    }
+
+    [Theory]
+    [InlineData("Johan Svensson ledde teamet under 2024.")]           // "han" inside Johan
+    [InlineData("Johanna ansvarade för hela handeln på Acme.")]       // "han" inside Johanna/handeln
+    [InlineData("Levererade honung och honnörsavtal till kunden.")]   // "hon" inside honung/honnör
+    [InlineData("The shelf here shone when polished, hence pristine.")] // he/she/hen as substrings
+    public async Task ReviewAsync_ShouldPassC4_WhenAWordMerelyContainsAPronounAsASubstring(string profile)
+    {
+        // Non-regression on the word boundary (\b): a pronoun that is only a SUBSTRING of a longer
+        // word (Johan, handeln, honung; the/shelf/when/hence) is not third person → C4 stays Pass.
+        // Pins the anti-false-positive contract #491 exists to protect — a future weakening of the
+        // boundary would re-introduce a false "tredje person" Warn on every "e-handel" CV.
+        var result = await ReviewAsync(Resume(profile: profile));
+
+        Verdict(result, "C4").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Ett pronomen som substräng i ett längre ord är inte tredje person → C4 Pass (#491).");
+    }
+
+    [Theory]
+    [InlineData("Han")]
+    [InlineData("Hon")]
+    [InlineData("HON")]
+    [InlineData("She")]
+    public async Task ReviewAsync_ShouldWarnC4_WhenARealThirdPersonPronounIsCapitalised(string pronoun)
+    {
+        // Pins RegexOptions.IgnoreCase: the most common real third-person form is sentence-initial
+        // ("Anna är driven. Hon ledde teamet.") or upper-case. Without this a removed IgnoreCase
+        // would silently pass the canonical form.
+        var result = await ReviewAsync(Resume(profile: $"{pronoun} ledde teamet under 2024."));
+
+        Verdict(result, "C4").Verdict.ShouldBe(CriterionVerdict.Warn,
+            $"Ett versalt tredje-persons-pronomen ('{pronoun}') ska flaggas av C4 (IgnoreCase).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCiteTheOffendingPronounSpan_WhenC4Warns()
+    {
+        // Invariant 2 (§5): C4's TextSpan cites the PRONOUN itself (case-preserved), not an
+        // arbitrary offset — the verdict is grounded in the exact evidence it flags.
+        var result = await ReviewAsync(
+            Resume(profile: "Erfaren utvecklare. Hon ledde teamet under 2024."));
+
+        var span = Verdict(result, "C4").Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem();
+        span.Span.Quote.ShouldBe("Hon");
+    }
+
     private static string Capitalize(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }

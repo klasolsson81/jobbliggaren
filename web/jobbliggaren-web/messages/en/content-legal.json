@@ -42,7 +42,8 @@
         "list": [
           "Security and event log. We log events in the service, for example logins, together with the IP address and browser information. Our legitimate interest is to protect the service and your account against misuse, intrusion and incorrect use, and to be able to investigate security events.",
           "Retrieval of job ads from JobTech. We retrieve and process open data about job openings from Arbetsförmedlingen JobTech. Our legitimate interest is to be able to offer a functioning job service. The ads we retrieve are public data and are not your personal data.",
-          "Marking what is new since your last visit. We keep track of what is new for you since you were last logged in, so that you can quickly see what has been added. Our legitimate interest is to give you a useful and clear service."
+          "Marking what is new since your last visit. We keep track of what is new for you since you were last logged in, so that you can quickly see what has been added. Our legitimate interest is to give you a useful and clear service.",
+          "Company lookups against SCB's business register (planned). When you search for an organisation number under Companies, the number you enter is sent to Statistics Sweden (SCB) to fetch the company's name. Our legitimate interest is enabling you to find and follow employers, including those with no ads with us. Numbers that may be personal identity numbers (sole proprietorships) are never looked up and never sent. This is planned and not yet in operation."
         ]
       },
       {
@@ -57,6 +58,7 @@
         "paragraphs": [
           "Jobbliggaren never sells your data and does not share it for marketing purposes. In order to operate the service, we engage certain suppliers that process data on our behalf (data processors). We have data processing agreements with them.",
           "Arbetsförmedlingen JobTech (Platsbanken) is our source of open data about job openings, not a recipient of your personal data. We do not send any data about you to JobTech.",
+          "Statistics Sweden (SCB) is planned to receive the organisation numbers looked up in the company search: when you search for an organisation number, it is sent to SCB's business register to fetch the company's name. SCB is an independent public authority with its own data-controller responsibility for its register and is not our data processor. This is planned and not yet in operation.",
           "Jobbliggaren currently does not send any email notifications, and no data about you is disclosed to any email provider. If email notifications are introduced in the future, we will update this policy and inform you about which provider is engaged and how your data is protected before the feature is activated."
         ],
         "list": [

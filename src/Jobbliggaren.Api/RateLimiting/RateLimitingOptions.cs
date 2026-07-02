@@ -313,6 +313,25 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// POST /api/v1/companies/lookup (#454, ADR 0088 D7) — partitionerat per UserId (claim "sub"),
+    /// anonym -> NoLimiter (RequireAuthorization-gated -> 401 fore endpoint). Egen policy (ej
+    /// MeListRead-atervanvandning) — least common mechanism (Saltzer/Schroeder) + bulkhead
+    /// (Nygard): varje lookup-miss ar en potentiell UPPSTROMS-kostnad (SCB-anrop nar den riktiga
+    /// adaptern aktiveras; 10 anrop/10 s per API-Id) och far inte dela budget med latta lokala
+    /// lasningar. TokenBucket (droppvis aterfyllnad + rent Retry-After), QueueLimit=0 (ko = memory-
+    /// DoS; en manniska skriver en handfull uppslag). 12/min ar CTO-riktvardet (10-15/min-spann,
+    /// 2026-07-02) — manskligt tempo for medvetna uppslag, stramt mot enumeration/harvest via var
+    /// budget; security-auditor verifierar/justerar (BLOCKING). OBS: per-user-taket skyddar INTE
+    /// process-wide-SCB-budgeten — den separata process-wide-limitern följer med
+    /// SCB-aktiverings-PR:en (ADR 0088 forward-note). IOptions (§5.1).
+    /// </summary>
+    public PolicyOptions CompanyLookup { get; init; } = new()
+    {
+        PermitLimit = 12,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

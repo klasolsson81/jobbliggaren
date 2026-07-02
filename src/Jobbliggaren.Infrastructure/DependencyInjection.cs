@@ -48,9 +48,82 @@ public static class DependencyInjection
         services.AddHttpAuditing();
         services.AddEmailSender(configuration, environment);
         services.AddJobSources(configuration);
+        services.AddCompanyRegistry(configuration, environment);
         services.AddLandingStats();
         services.AddTextAnalysis();
         services.AddCvParsing();
+        return services;
+    }
+
+    /// <summary>
+    /// #454 (ADR 0088 D3/D6) — company-registry module: binds
+    /// <see cref="CompanyRegistry.CompanyRegistryOptions"/> and registers
+    /// <c>ICompanyRegistry</c> as a read-through cache decorator
+    /// (<see cref="CompanyRegistry.CachedCompanyRegistry"/>, Redis via <c>IDistributedCache</c>)
+    /// over the provider selected by <c>CompanyRegistry:Provider</c>: <c>Fake</c> (dev/test
+    /// allow-list, mirror <see cref="AddEmailSender"/>'s Console gating — falls back to Null
+    /// elsewhere) or <c>Off</c>/missing → <see cref="CompanyRegistry.NullCompanyRegistry"/> (always
+    /// Unavailable — the prod-dark backstop until the real SCB adapter lands; fail-CIVIC: the
+    /// lookup endpoint degrades, never crashes). Unknown values fail-stop. NO HttpClient in v1 —
+    /// the SCB adapter (Sept-2026 API-key API, DPIA-#456-gated) arrives as a follow-up provider
+    /// value with its own resilience pipeline + PROCESS-WIDE upstream limiter (10 calls/10 s per
+    /// API-Id — a per-user endpoint policy cannot protect a per-API-Id budget).
+    /// <para>
+    /// <c>IDistributedCache</c> förutsätts registrerad av anroparen (Api via
+    /// <see cref="AddIdentityAndSessions"/> — parity <see cref="AddLandingStats"/>-noten). Worker
+    /// anropar INTE denna modul (company-watch-scannen är registry-fri, ADR 0088).
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddCompanyRegistry(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        services.AddOptions<CompanyRegistry.CompanyRegistryOptions>()
+            .Bind(configuration.GetSection(CompanyRegistry.CompanyRegistryOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        var provider = configuration[
+            $"{CompanyRegistry.CompanyRegistryOptions.SectionName}:Provider"]
+            ?? CompanyRegistry.CompanyRegistryOptions.ProviderOff;
+
+        if (string.Equals(provider, CompanyRegistry.CompanyRegistryOptions.ProviderFake,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            // Dev/Test allow-list (mirror ConsoleEmailSender): fixture-tabellen får aldrig
+            // maskera sig som register-sanning utanför dev/test — annars Null.
+            if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
+                services.AddSingleton<CompanyRegistry.FakeCompanyRegistry>();
+            else
+                services.AddSingleton<CompanyRegistry.NullCompanyRegistry>();
+        }
+        else if (string.Equals(provider, CompanyRegistry.CompanyRegistryOptions.ProviderOff,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<CompanyRegistry.NullCompanyRegistry>();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"CompanyRegistry:Provider='{provider}' stöds inte i v1. Använd 'Fake' eller 'Off'.");
+        }
+
+        // Decorator-wiring: porten resolvar till cache-dekoratorn över den inre providern som
+        // switchen registrerade (Fake om registrerad, annars Null). Scoped — port-konsumenten
+        // (handlern) är scoped; dekoratorn själv är stateless.
+        services.AddScoped<Jobbliggaren.Application.Companies.Abstractions.ICompanyRegistry>(sp =>
+        {
+            Jobbliggaren.Application.Companies.Abstractions.ICompanyRegistry innerProvider =
+                (Jobbliggaren.Application.Companies.Abstractions.ICompanyRegistry?)
+                    sp.GetService<CompanyRegistry.FakeCompanyRegistry>()
+                ?? sp.GetRequiredService<CompanyRegistry.NullCompanyRegistry>();
+            return new CompanyRegistry.CachedCompanyRegistry(
+                innerProvider,
+                sp.GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>(),
+                sp.GetRequiredService<IOptions<CompanyRegistry.CompanyRegistryOptions>>());
+        });
+
         return services;
     }
 

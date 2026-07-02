@@ -49,6 +49,27 @@
       "all": "Alla annonser"
     }
   },
+  "companyLookup": {
+    "heading": "Sök företag",
+    "lede": "Hitta ett företag via organisationsnummer och bevaka det, även om det inte har några annonser just nu.",
+    "label": "Organisationsnummer",
+    "help": "Skriv företagets 10-siffriga organisationsnummer, med eller utan bindestreck.",
+    "submit": "Sök",
+    "seeAds": "Se annonser",
+    "seeMatchingAds": "Se matchande annonser",
+    "follow": "Bevaka",
+    "alreadyFollowing": "Bevakas",
+    "notFoundTitle": "Inget företag hittades",
+    "notFoundBody": "Kontrollera numret. Företaget kan också sakna registrering i företagsregistret.",
+    "unavailableTitle": "Uppgifter kan inte hämtas just nu",
+    "unavailableBody": "Uppslag mot företagsregistret är inte tillgängligt för tillfället. Försök igen senare.",
+    "refusedTitle": "Numret kan inte slås upp",
+    "refusedBody": "Numret kan vara ett personnummer och kan därför inte slås upp för närvarande. Enskilda firmor kan bevakas från sina annonser under Jobb.",
+    "rateLimitedTitle": "För många uppslag",
+    "rateLimitedBody": "Vänta {seconds} sekunder och försök igen.",
+    "errorTitle": "Något gick fel",
+    "errorBody": "Uppslaget kunde inte genomföras. Försök igen."
+  },
   "recent": {
     "emptyTitle": "Inga senaste sökningar",
     "emptyBody": "Gör en sökning under Jobb. Den sparas här automatiskt.",

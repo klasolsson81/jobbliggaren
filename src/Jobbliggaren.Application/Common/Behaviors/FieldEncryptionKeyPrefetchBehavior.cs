@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Mediator;
@@ -46,9 +47,14 @@ public sealed class FieldEncryptionKeyPrefetchBehavior<TMessage, TResponse>(
                 currentDataOwner.SetOwner(jobSeekerId);
                 // Värmer ScopedUserDataKeyCache (samma cache som
                 // encrypt-on-write). Fail-closed: KMS-fel kastar här.
-                await dataKeyStore
+                var dek = await dataKeyStore
                     .GetOrCreateDataKeyAsync(jobSeekerId, cancellationToken)
                     .ConfigureAwait(false);
+                // Prefetchen värmer bara cachen (som äger sin egen kopia och
+                // nollar den vid scope-dispose). Den returnerade klonen används
+                // aldrig → nolla den så plaintext-nyckelmaterial inte läcker
+                // o-zeroat (Low1, epic #480; paritet FieldEncryptionBackfiller).
+                CryptographicOperations.ZeroMemory(dek);
             }
         }
 

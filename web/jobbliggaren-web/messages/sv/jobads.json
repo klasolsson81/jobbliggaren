@@ -67,8 +67,8 @@
     "refusedBody": "Numret kan vara ett personnummer och kan därför inte slås upp för närvarande. Enskilda firmor kan bevakas från sina annonser under Jobb.",
     "rateLimitedTitle": "För många uppslag",
     "rateLimitedBody": "Vänta {seconds} sekunder och försök igen.",
-    "errorTitle": "Något gick fel",
-    "errorBody": "Uppslaget kunde inte genomföras. Försök igen."
+    "errorTitle": "Uppslaget kunde inte genomföras",
+    "errorBody": "Ett tekniskt fel gjorde att sökningen avbröts. Vänta en stund och försök sedan igen."
   },
   "recent": {
     "emptyTitle": "Inga senaste sökningar",

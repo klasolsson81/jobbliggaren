@@ -67,8 +67,8 @@
     "refusedBody": "The number may be a personal identity number and can therefore not be looked up at present. Sole proprietorships can be followed from their ads under Jobs.",
     "rateLimitedTitle": "Too many lookups",
     "rateLimitedBody": "Wait {seconds} seconds and try again.",
-    "errorTitle": "Something went wrong",
-    "errorBody": "The lookup could not be completed. Try again."
+    "errorTitle": "The lookup could not be completed",
+    "errorBody": "A technical error interrupted the search. Wait a moment and then try again."
   },
   "recent": {
     "emptyTitle": "No recent searches",

@@ -173,4 +173,47 @@ public class CachedCompanyRegistryTests
 
         result.Status.ShouldBe(CompanyRegistryStatus.Found);
     }
+
+    [Fact]
+    public async Task Lookup_EmptyCachedBytes_DegradesToMissAndCallsInner()
+    {
+        // Distinct from the null-miss and the garbage-json branch: a zero-length payload hits the
+        // `bytes.Length == 0` guard and returns BEFORE deserialisation — must fall through to inner,
+        // never surface an empty/garbled hit.
+        var ct = TestContext.Current.CancellationToken;
+        _cache.GetAsync(ExpectedKey, Arg.Any<CancellationToken>()).Returns(Array.Empty<byte>());
+        StubInner(LegalEntityOrgNr, CompanyRegistryLookup.Found(
+            new CompanyRegistryEntry(LegalEntityOrgNr, "Testbolaget AB")));
+
+        var result = await Sut().LookupAsync(OrgNr(LegalEntityOrgNr), ct);
+
+        result.Status.ShouldBe(CompanyRegistryStatus.Found);
+        result.Entry!.Name.ShouldBe("Testbolaget AB");
+        await _inner.ReceivedWithAnyArgs(1)
+            .LookupAsync(Arg.Any<OrganizationNumber>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Lookup_CacheMissThenFound_HonorsConfiguredTtl_NotAHardcodedDefault()
+    {
+        // The write TTL must come from PositiveCacheTtlDays, not a hardcoded 30 (the sibling
+        // WritesNameOnlyPayloadWithTtl asserts at the default 30 — a hardcoded 30 would pass it; this
+        // non-default value pins the IOptions plumbing).
+        var ct = TestContext.Current.CancellationToken;
+        _cache.GetAsync(ExpectedKey, Arg.Any<CancellationToken>()).Returns((byte[]?)null);
+        StubInner(LegalEntityOrgNr, CompanyRegistryLookup.Found(
+            new CompanyRegistryEntry(LegalEntityOrgNr, "Testbolaget AB")));
+
+        DistributedCacheEntryOptions? writtenOptions = null;
+        await _cache.SetAsync(
+            ExpectedKey,
+            Arg.Any<byte[]>(),
+            Arg.Do<DistributedCacheEntryOptions>(o => writtenOptions = o),
+            Arg.Any<CancellationToken>());
+
+        await Sut(ttlDays: 7).LookupAsync(OrgNr(LegalEntityOrgNr), ct);
+
+        writtenOptions.ShouldNotBeNull();
+        writtenOptions.AbsoluteExpirationRelativeToNow.ShouldBe(TimeSpan.FromDays(7));
+    }
 }

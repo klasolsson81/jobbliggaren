@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState, useTransition } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Check, ShieldAlert } from "lucide-react";
@@ -30,6 +31,22 @@ import { formatOrgNr } from "@/lib/company-follows/org-nr";
  * The "se annonser" links render ONLY for an unmasked legal entity (`!isProtectedIdentity` +
  * non-null org.nr) — a pnr-shaped value must never enter a browser URL (D8(c)).
  */
+
+// SPOT parity with company-watch-row.tsx (design-reviewer Major 1): the matchNudge line renders on
+// primary ink (never gray) and its CTA carries explicit link affordance — Tailwind Preflight strips
+// anchor color/underline, so an unstyled <Link> would read as gray body text.
+const MATCH_SETTINGS_HREF = "/installningar#matchning";
+const MATCH_LINE_STYLE: CSSProperties = {
+  margin: "6px 0 0",
+  fontSize: 15,
+  fontWeight: 500,
+  color: "var(--jp-ink-1)",
+};
+const NUDGE_LINK_STYLE: CSSProperties = {
+  color: "var(--jp-accent-700)",
+  fontWeight: 600,
+  textDecoration: "underline",
+};
 
 type LookupState =
   | { kind: "idle" }
@@ -114,7 +131,7 @@ export function CompanyLookup() {
 
   return (
     <section aria-labelledby={`${inputId}-heading`} className="mb-8">
-      <h2 id={`${inputId}-heading`} className="text-h3 font-semibold text-ink-900">
+      <h2 id={`${inputId}-heading`} className="text-h3 font-semibold text-text-primary">
         {t("heading")}
       </h2>
       <p className="jp-hint mt-1">{t("lede")}</p>
@@ -147,9 +164,16 @@ export function CompanyLookup() {
         </button>
       </form>
 
-      {/* Result region: focus lands here after a submit (a11y — the answer is announced and
-          reachable without hunting). tabIndex -1 = programmatic focus target only. */}
-      <div ref={resultRef} tabIndex={-1} className="mt-4 max-w-xl outline-none">
+      {/* Result region: focus lands here after a submit (a11y — the answer is reachable without
+          hunting) AND the region is a polite live-region so the happy path (found-kortet, som inte
+          bär role=status) annonseras för skärmläsare (design-reviewer Major 3). tabIndex -1 =
+          programmatic focus target only; nested role=alert (error/rateLimited) overridar politeness. */}
+      <div
+        ref={resultRef}
+        tabIndex={-1}
+        aria-live="polite"
+        className="mt-4 max-w-xl outline-none"
+      >
         {state.kind === "result" && state.data.status === "found" && (
           <article className="jp-job" style={{ gridTemplateColumns: "1fr" }}>
             <div className="jp-job__body">
@@ -174,9 +198,11 @@ export function CompanyLookup() {
                 )}
               </div>
               {state.data.matchingAdCount === null && (
-                <p className="jp-hint mt-1">
+                <p style={MATCH_LINE_STYLE}>
                   {tWatch("matchNudge")}{" "}
-                  <Link href="/installningar#matchning">{tWatch("matchNudgeCta")}</Link>
+                  <Link href={MATCH_SETTINGS_HREF} style={NUDGE_LINK_STYLE}>
+                    {tWatch("matchNudgeCta")}
+                  </Link>
                 </p>
               )}
               {/* Actions: links ONLY for an unmasked legal entity (D8(c) — a pnr-shaped value

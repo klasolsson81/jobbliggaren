@@ -340,9 +340,9 @@ public sealed class RateLimitingOptions
         /// <summary>
         /// Antal replenishment-slices per fönster för TokenBucket-policies (rate-limit-
         /// retune 2026-06-24, senior-cto-advisor). Endast meningsfullt för de per-user
-        /// LÄS-policies som använder <c>GetTokenBucketLimiter</c> (MeListRead/ListRead/
-        /// FacetCounts/Suggest/TaxonomyRead); ignoreras av FixedWindow-policies (IP-
-        /// säkerhet + write). Styr <c>ReplenishmentPeriod = Window/Segments</c> +
+        /// policies som använder TokenBucket (MeListRead/ListRead/FacetCounts/Suggest/
+        /// TaxonomyRead/FollowSeenMark/CompanyLookup); ignoreras av FixedWindow-policies
+        /// (IP-säkerhet + write). Styr <c>ReplenishmentPeriod = Window/Segments</c> +
         /// <c>TokensPerPeriod = PermitLimit/Segments</c> → tokens återfylls var ~Window/
         /// Segments-sekund (mjuk väntan i stället för hel-fönster-bann; Klas UX-rapport).
         /// TokenBucket (ej SlidingWindow) eftersom .NET:s SlidingWindow inte populerar

@@ -242,6 +242,38 @@ public class ResumesEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task PUT_master_with_personnummer_in_summary_returns_400_and_does_not_persist()
+    {
+        // #499 (ADR 0074 Invariant 1): the shared ResumeContentPersonnummerGuard blocks a
+        // personnummer typed into the master-edit payload end-to-end (endpoint -> handler ->
+        // guard -> 400 ProblemDetails), so it never reaches the canonical Resume (render/PDF).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var post = await _client.PostAsJsonAsync("/api/v1/resumes", CreateBody(), ct);
+        var id = (await post.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
+
+        var put = await _client.PutAsJsonAsync(
+            $"/api/v1/resumes/{id}/master",
+            MasterContentBody(summary: "Erfaren utvecklare. Pnr 811218-9876."),
+            ct);
+
+        put.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        // Pin the 400 to the personnummer guard (not another 400 source such as structural
+        // validation): ToProblemResult maps the DomainError.Code onto ProblemDetails.title.
+        var problem = await put.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("title").GetString().ShouldBe("Resume.PersonnummerMustBeRemoved");
+
+        // The blocked content never persisted — the master summary carries no personnummer digits.
+        var get = await _client.GetAsync($"/api/v1/resumes/{id}", ct);
+        var json = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var master = json.GetProperty("versions").EnumerateArray()
+            .First(v => v.GetProperty("kind").GetString() == "Master");
+        var summary = master.GetProperty("content").GetProperty("summary").GetString() ?? string.Empty;
+        summary.ShouldNotContain("811218");
+    }
+
+    [Fact]
     public async Task PUT_master_round_trips_full_resume_content_through_jsonb()
     {
         // Regression-skydd: ResumeContent serialiseras/deserialiseras via System.Text.Json

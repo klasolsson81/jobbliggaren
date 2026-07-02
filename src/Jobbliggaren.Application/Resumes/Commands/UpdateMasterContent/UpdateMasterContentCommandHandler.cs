@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 using Mediator;
@@ -44,6 +45,16 @@ public sealed class UpdateMasterContentCommandHandler(
             }
             throw new NotFoundException("CV hittades inte.");
         }
+
+        // #499 (ADR 0074 Invariant 1): re-run the personnummer guard on the user-submitted
+        // content BEFORE it becomes canonical Resume Master content. UpdateMasterContent runs
+        // only structural ValidateContent, so without this a personnummer typed into the master
+        // edit would reach an unflagged canonical Resume (render/PDF). Same shared guard as
+        // promote (highest-priority PII first — before ToDomain/ValidateContent). Owner already
+        // resolved above, so this never runs for a cross-user request.
+        var guard = ResumeContentPersonnummerGuard.Check(command.Content);
+        if (guard.IsFailure)
+            return guard;
 
         var content = ResumeContentMapper.ToDomain(command.Content);
         return resume.UpdateMasterContent(content, clock);

@@ -1,6 +1,6 @@
 {
-  "rubricVersion": "1.0.1",
-  "effectiveDate": "2026-05-17",
+  "rubricVersion": "1.1.0",
+  "effectiveDate": "2026-07-02",
   "weights": { "Kritisk": 3, "Hög": 2, "Medel": 1, "Låg": 0.5 },
   "categoryWeights": {
     "ats": { "A": 0.5, "B": 0.2, "C": 0.15, "D": 0.15 },
@@ -289,11 +289,12 @@
       "name": "Språkkonsistens (sv/en)",
       "weight": "Hög",
       "profile": "Båda",
-      "assessability": "deterministic_plus_nlp",
+      "assessability": "not_assessed_v1",
       "atsPassSignal": "Hela CV på ett språk. Engelska tekniska termer (Python, SaaS, B2B) OK i sv-CV",
       "atsFailSignal": "Blandning sv/en i bullets (\"Worked med kunder för att deliver...\")",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "notAssessedReason": "Vi kontrollerar inte språkblandning mening för mening i den här versionen."
     },
     {
       "id": "C6",

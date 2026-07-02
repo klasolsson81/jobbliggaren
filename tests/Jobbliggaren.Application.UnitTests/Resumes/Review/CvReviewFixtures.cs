@@ -18,11 +18,11 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// <list type="number">
 /// <item>The knowledge-bank ports are wired to the REAL Infrastructure loaders
 /// (<see cref="RubricProvider"/> / <see cref="ClicheLexicon"/> / <see cref="VerbMapper"/>).
-/// Golden expectations are derived from the committed assets (rubric.v1.0.1.json etc.) —
+/// Golden expectations are derived from the committed assets (rubric.v1.1.0.json etc.) —
 /// anti-stale, no guessed thresholds (the prompt's "derive from the real rubric asset"
 /// directive).</item>
 /// <item>The <see cref="ITextAnalyzer"/> is a real-ish stub. The engine consumes it for
-/// the NLP-tier criteria (A2/C3/C5 etc.); for the unit tests we feed a deterministic fake
+/// the NLP-tier criteria (A2/C3/C4 etc.); for the unit tests we feed a deterministic fake
 /// that lowercases + splits on whitespace so the assertions stay on the engine's RULE
 /// logic, not on Snowball/PG parity (which has its own integration gate).</item>
 /// </list>

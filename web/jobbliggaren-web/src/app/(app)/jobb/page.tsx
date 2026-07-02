@@ -12,6 +12,7 @@ import {
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
+  parseEmployerParam,
 } from "@/lib/job-ads/search-params";
 // #419 pt1 — "Visa bara matchade"-sentinelparamen delar STATUS_ON_VALUE ("on") med
 // doljAnsokta/relaterade; den separata param-konstanten dokumenterar nyckeln.
@@ -115,12 +116,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // doljAnsokta/relaterade). Trådas vidare till hero-filterraden (kontrollen, gatad på
   // matchnings-axeln) + JobbResults (gatad på matchActive där, paritet includeRelated).
   const onlyMatched = params.baraMatchade === STATUS_ON_VALUE;
-  // #454 PR-0 — arbetsgivar-filtret. Endast ett exakt 10-siffrigt värde
-  // accepteras (`^\d{10}$` — samma form som backend-validatorns
-  // OrganizationNumberPattern); allt annat droppas tyst så en manipulerad
-  // URL aldrig 400:ar list-queryn (drop-unknown-disciplinen, paritet
-  // matchGrades). Singel-värde v1: string[] → första elementet.
-  const employer = parseEmployer(params.employer);
+  // #454 PR-0 — arbetsgivar-filtret. SPOT-parsern (search-params.ts) gatar
+  // på exakt 10 siffror med tyst drop (drop-unknown-disciplinen, paritet
+  // matchGrades); buildPageHref använder SAMMA parser så page-parse och
+  // paginerings-href aldrig divergerar.
+  const employer = parseEmployerParam(params.employer);
   const q = emptyToUndefined(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
@@ -342,15 +342,6 @@ function parseSortBy(raw: string | undefined): JobAdSortBy {
 
 function emptyToUndefined(s: string | undefined): string | undefined {
   return s && s.trim().length > 0 ? s.trim() : undefined;
-}
-
-// #454 PR-0 — arbetsgivar-param-parsern: singel-värde, exakt 10 siffror,
-// annars undefined (tyst drop — backend-validatorn skulle 400:a annat).
-function parseEmployer(
-  raw: string | string[] | undefined
-): string | undefined {
-  const first = (Array.isArray(raw) ? raw[0] : raw)?.trim();
-  return first && /^\d{10}$/.test(first) ? first : undefined;
 }
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).

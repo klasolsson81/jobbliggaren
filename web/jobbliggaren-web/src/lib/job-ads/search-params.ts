@@ -160,6 +160,25 @@ export function withCommitFlag(href: string): string {
     : `${href}?${COMMIT_PARAM}=${COMMIT_VALUE}`;
 }
 
+/**
+ * #454 PR-0 — SPOT-parser för `?employer=`-paramen (delas av page.tsx och
+ * buildPageHref — samma gate på båda ställen, annars divergerar de). Endast
+ * ett exakt 10-siffrigt värde accepteras (`^\d{10}$` — samma form som
+ * backend-validatorns OrganizationNumberPattern); allt annat droppas tyst så
+ * en manipulerad URL aldrig 400:ar list-queryn (drop-unknown-disciplinen,
+ * paritet matchGrades). Singel-värde v1: string[] → första elementet. OBS:
+ * detta är en FORMAT-gate, ingen pnr-diskriminator — ett 10-siffrigt
+ * personnummer är formatidentiskt med org.nr; det lastbärande skyddet är att
+ * FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-
+ * gaten) och backend-maskningen (ADR 0087 D8(c)).
+ */
+export function parseEmployerParam(
+  raw: string | string[] | undefined
+): string | undefined {
+  const first = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+  return first && /^\d{10}$/.test(first) ? first : undefined;
+}
+
 export function buildJobbHref(state: JobbUrlState): string {
   const params = new URLSearchParams();
   for (const v of state.occupationGroup)

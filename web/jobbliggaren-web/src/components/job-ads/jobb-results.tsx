@@ -9,7 +9,7 @@ import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { MatchGrade, JobAdMatchBatch } from "@/lib/dto/job-ad-match";
 import { assertNever } from "@/lib/dto/_helpers";
-import { buildJobbHref } from "@/lib/job-ads/search-params";
+import { buildJobbHref, parseEmployerParam } from "@/lib/job-ads/search-params";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
@@ -496,10 +496,9 @@ function buildPageHref(
   if (params.baraMatchade === "on") url.set("baraMatchade", "on");
   // #454 PR-0 — utan denna rad tappar sida-2-klicket arbetsgivar-filtret
   // (samma felklass som ovan; buildPageHref är en andra URL-builder vid sidan
-  // av buildJobbHref). Samma 10-siffer-gate som page-parsern (tyst drop).
-  const employerRaw = toStringList(params.employer)[0];
-  if (employerRaw && /^\d{10}$/.test(employerRaw))
-    url.set("employer", employerRaw);
+  // av buildJobbHref). SPOT-gaten (parseEmployerParam) delas med page-parsern.
+  const employerParam = parseEmployerParam(params.employer);
+  if (employerParam) url.set("employer", employerParam);
   if (params.q) url.set("q", params.q);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";

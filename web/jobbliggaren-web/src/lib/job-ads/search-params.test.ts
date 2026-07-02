@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildJobbHref,
+  parseEmployerParam,
   withCommitFlag,
   COMMIT_PARAM,
   COMMIT_VALUE,
@@ -212,6 +213,29 @@ describe("buildJobbHref #454 PR-0 (employer — arbetsgivar-filtret)", () => {
     const href = buildJobbHref({ ...empty, employer: "5560125790" });
     const qs = href.slice(href.indexOf("?") + 1);
     expect(new URLSearchParams(qs).get("employer")).toBe("5560125790");
+  });
+});
+
+describe("parseEmployerParam (#454 PR-0 — SPOT-gaten, delad page ↔ buildPageHref)", () => {
+  it("accepterar exakt 10 siffror (trimmat)", () => {
+    expect(parseEmployerParam("5560125790")).toBe("5560125790");
+    expect(parseEmployerParam(" 5560125790 ")).toBe("5560125790");
+  });
+
+  it("droppar felformat tyst (drop-unknown — backend skulle annars 400:a)", () => {
+    expect(parseEmployerParam("556012-5790")).toBeUndefined(); // bindestreck
+    expect(parseEmployerParam("55601257")).toBeUndefined(); // för kort
+    expect(parseEmployerParam("55601257901")).toBeUndefined(); // för långt
+    expect(parseEmployerParam("556012579a")).toBeUndefined(); // icke-siffra
+    expect(parseEmployerParam("55601\n25790")).toBeUndefined(); // inbäddad newline-injektion
+    expect(parseEmployerParam("")).toBeUndefined();
+    expect(parseEmployerParam(undefined)).toBeUndefined();
+  });
+
+  it("singel-värde v1: string[] → första elementet (manipulerad URL dubblar inte)", () => {
+    expect(parseEmployerParam(["5560125790", "5560360793"])).toBe("5560125790");
+    expect(parseEmployerParam(["nonsens", "5560360793"])).toBeUndefined();
+    expect(parseEmployerParam([])).toBeUndefined();
   });
 });
 

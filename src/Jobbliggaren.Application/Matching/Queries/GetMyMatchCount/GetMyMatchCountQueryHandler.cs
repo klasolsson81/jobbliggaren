@@ -1,56 +1,58 @@
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
-using Jobbliggaren.Application.Matching.Grading;
 using Mediator;
 
 namespace Jobbliggaren.Application.Matching.Queries.GetMyMatchCount;
 
 /// <summary>
-/// ADR 0079 STEG 6 — bygger den autentiserade användarens DEK-fria profil (parity
-/// list-sort-vägen, <c>BuildFullForSortAsync</c>) och räknar matchningarna i headline-grad-
-/// setet via den delade per-användar-porten. SSYK-gate (parity GetJobAdMatchBatch /
-/// ListJobAdsQueryHandler): inget angivet yrke → honest 0 (Översikts setup-nudge äger
-/// "komplettera profil"-fallet; notisen visas då inte alls). NO AI/LLM; läser ingen CV/DEK/PII.
+/// ADR 0079 STEG 6, HARMONISERAD 2026-07-03 (Klas-ruling "samma siffra, inget brus";
+/// senior-cto-advisor bind H2) — notis-counten är en REN SÖK-FACETT-COUNT över den
+/// sparade matchningens val (yrke ∧ ort ∧ anställningsform som HÅRDA filter), via
+/// exakt samma port + SPOT som setup-räknaren (<see cref="IJobAdSearchQuery.CountAsync"/>
+/// → <c>JobAdSearchComposition.ApplyFilter</c>, parity <c>GetMatchCountPreviewQueryHandler</c>).
+/// Grad-bandet (Bra/Stark) är BORTTAGET ur notis-vägen: med orter/former som hårda krav
+/// var bandet redundant för hel-angivna profiler och kollapsade yrke-bara-profiler till 0.
+/// Graden lever vidare oförändrad som badges, match-sort och bakgrundsmatchning på /jobb.
+/// <para>
+/// Talet är därmed per konstruktion lika med BÅDE setup-modalens live-räknare och den
+/// länkade /jobb-sidans <c>TotalCount</c> för samma facetter (länken bär facetterna, inga
+/// <c>matchGrades</c>). SSYK-gate kvar (parity förr): inget angivet yrke → honest 0
+/// (Översikts setup-nudge äger "komplettera profil"-fallet; notisen visas då inte alls).
+/// NO AI/LLM; läser ingen CV/DEK/PII.
+/// </para>
 /// </summary>
 public sealed class GetMyMatchCountQueryHandler(
     IMatchProfileBuilder profileBuilder,
-    IPerUserJobAdSearchQuery perUserSearch)
+    IJobAdSearchQuery search)
     : IQueryHandler<GetMyMatchCountQuery, MyMatchCountDto>
 {
-    // Headline-grad-setet (Klas 2026-06-24): Bra + Stark (Good + Strong). MÅSTE förbli
-    // koherent med FE-notisens länk (?matchGrades=Good&matchGrades=Strong) — counten ÄR den
-    // länkade /jobb-sidans TotalCount per konstruktion (samma ApplyFilter-SPOT +
-    // GradeRankExpression). Topp ingår aldrig (Fast-bandet, G3-OPT-A); rubriken är grad-neutral.
-    private static readonly IReadOnlyList<MatchGrade> HeadlineGrades =
-        [MatchGrade.Good, MatchGrade.Strong];
-
-    // Notisen räknar över HELA den aktiva korpusen (ingen sök-/dimensions-filter) — bara
-    // profil-graden gallrar. Tom filter-SPOT = alla Active annonser. Named arguments per
-    // JobAdFilterCriteria:s konstruktions-kontrakt (sex listor i rad = tyst-fel-fälla).
-    private static readonly JobAdFilterCriteria NoFilter =
-        new(
-            OccupationGroup: [],
-            Municipality: [],
-            Region: [],
-            EmploymentType: [],
-            WorktimeExtent: [],
-            // #311 D6 — notisen filtrerar aldrig på arbetsgivare (grad-only).
-            Employer: [],
-            Q: null);
-
     public async ValueTask<MyMatchCountDto> Handle(
         GetMyMatchCountQuery query, CancellationToken cancellationToken)
     {
+        // DEK-fria SORT-profilen bär de sparade facetterna (Fast-listorna är
+        // MatchPreferences.Preferred* fält-för-fält, includeRelated=false →
+        // ingen related-expansion; samma set som FE-länken bär).
         var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
 
-        // Ingen användare / inget angivet yrke → tom SSYK → honest 0 (aldrig en fejkad
-        // siffra; notisen visas inte, setup-nudgen äger slotten).
+        // Ingen användare / inget angivet yrke → tom SSYK → honest 0 (aldrig en
+        // fejkad siffra; notisen visas inte, setup-nudgen äger slotten).
         if (profile.Fast.SsykGroupConceptIds.Count == 0)
             return MyMatchCountDto.Zero;
 
-        var count = await perUserSearch.CountPerUserAsync(
-            NoFilter, profile, HeadlineGrades, cancellationToken);
+        // Sparade val som HÅRDA filter (H2). Named arguments per
+        // JobAdFilterCriteria:s konstruktions-kontrakt (sex listor i rad =
+        // tyst-fel-fälla). WorktimeExtent/Employer/Q är tomma/null —
+        // matchningen exponerar inte de dimensionerna.
+        var filter = new JobAdFilterCriteria(
+            OccupationGroup: profile.Fast.SsykGroupConceptIds,
+            Municipality: profile.Fast.PreferredMunicipalityConceptIds,
+            Region: profile.Fast.PreferredRegionConceptIds,
+            EmploymentType: profile.Fast.PreferredEmploymentTypeConceptIds,
+            WorktimeExtent: [],
+            Employer: [],
+            Q: null);
 
+        var count = await search.CountAsync(filter, cancellationToken);
         return new MyMatchCountDto(count);
     }
 }

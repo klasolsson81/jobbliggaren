@@ -1,6 +1,7 @@
 using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 using Shouldly;
@@ -52,6 +53,10 @@ public class OrganizationNumberSurfacingGuardTests
     [
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
+        // #444 (ADR 0087 D2 / ADR 0090 D1) — the employer application-history projection reads the
+        // raw org.nr from the job_ads shadow column server-side to GROUP BY (masked + flagged before
+        // it leaves the handler; never logged).
+        "src/Jobbliggaren.Application/Applications/Queries/GetEmployerApplicationHistory/GetEmployerApplicationHistoryQueryHandler.cs",
         // #454 (ADR 0088) — the lookup handler reads the raw org.nr (VO + registry entry) into
         // scope; the cache decorator + providers see the raw value inside Infrastructure.
         "src/Jobbliggaren.Application/Companies/Queries/LookupCompany/LookupCompanyQueryHandler.cs",
@@ -69,6 +74,9 @@ public class OrganizationNumberSurfacingGuardTests
     [
         typeof(CompanyWatchDto), // PR-3: OrganizationNumber masked to null + IsProtectedIdentity flag
         typeof(EmployerDisambiguationDto), // PR-2b C2: OrganizationNumber masked to null + IsProtectedIdentity flag
+        // #444 (ADR 0090 D1 M1): the employer application-history row nulls a personnummer-shaped
+        // org.nr + flags it via IsProtectedIdentity (IsPersonnummerShaped).
+        typeof(EmployerApplicationHistoryDto),
         // #454 (ADR 0088 D4/D5): mask-capable defense-in-depth — the handler REFUSES pnr-shaped
         // input upstream (Posture A), so the masked branch is normally unreachable, but the DTO
         // still nulls+flags via IsPersonnummerShaped so no future path can surface a raw value.

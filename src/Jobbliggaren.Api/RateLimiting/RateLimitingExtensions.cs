@@ -232,7 +232,7 @@ public static partial class RateLimitingExtensions
                     });
             });
 
-            // Partition: UserId (claim "sub"). Epik #526 (ADR 0088) — dedikerad bucket för
+            // Partition: UserId (claim "sub"). Epik #526 (ADR 0089) — dedikerad bucket för
             // live sök-preview-räknaren i matchnings-setup-modalen. Samma debounce-burst-profil
             // som FacetCounts (~1 req/400 ms klient-debounce) → egen budget (least common
             // mechanism / bulkhead, Nygard): en redigerings-burst i setup-modalen får inte svälta
@@ -421,7 +421,7 @@ public static partial class RateLimitingExtensions
                     });
             });
 
-            // #454 (ADR 0088 D7) — POST /api/v1/companies/lookup. Egen policy (least common
+            // #454 (ADR 0089 D7) — POST /api/v1/companies/lookup. Egen policy (least common
             // mechanism + bulkhead): varje lookup-miss är en potentiell UPPSTRÖMS-kostnad (SCB-
             // anrop när den riktiga adaptern aktiveras; 10 anrop/10 s per API-Id) och delar
             // därför inte budget med lätta lokala läsningar. TokenBucket per UserId (droppvis

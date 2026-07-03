@@ -4,7 +4,7 @@ using Jobbliggaren.Domain.SavedSearches;
 namespace Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview;
 
 /// <summary>
-/// Epik #526 (ADR 0088) — speglar <c>GetFacetCountsQueryValidator</c>/<c>ListJobAdsQueryValidator</c>
+/// Epik #526 (ADR 0089) — speglar <c>GetFacetCountsQueryValidator</c>/<c>ListJobAdsQueryValidator</c>
 /// (defense-in-depth pre-handler-yta; Domain <see cref="SearchCriteria"/> är sanningskälla för
 /// konstanterna). Detta är input-härdnings-gränsen som skyddar <c>ApplyFilter</c>:s IN-clause mot
 /// en illvillig body: per-element concept-id-regex + per-lista-cap.

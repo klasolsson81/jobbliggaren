@@ -31,7 +31,8 @@
           "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext), visningsnamn och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Används för att skapa och säkra ditt konto och identifiera dig i tjänsten.",
           "Visningsnamn, språkval och dina matchningsönskemål, till exempel yrke, region, anställningsform och kompetenser du vill matcha mot. Används för att visa relevanta jobb och anpassa tjänsten efter dina val.",
           "Ditt cv och tolkat innehåll från det. Används för att spara, visa och arbeta med ditt cv i tjänsten.",
-          "Dina ansökningar, personliga brev, egna anteckningar och uppföljningar kopplade till jobb. Används för att hjälpa dig att hålla ordning på dina ansökningar och påminna dig om uppföljning."
+          "Dina ansökningar, personliga brev, egna anteckningar och uppföljningar kopplade till jobb. Används för att hjälpa dig att hålla ordning på dina ansökningar och påminna dig om uppföljning.",
+          "Ansökningshistorik och företagsöversikt (planerat). Vi sammanställer din egen ansökningshistorik per arbetsgivare så att du kan se hur många gånger du sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Sammanställningen visas bara för dig. Detta är planerat och ännu inte i drift."
         ]
       },
       {
@@ -81,7 +82,8 @@
           "Ditt konto och innehåll (cv, ansökningar, brev, anteckningar, uppföljningar) sparas så länge ditt konto är aktivt, så att du kan använda tjänsten. Du kan när som helst radera enskilt innehåll eller hela ditt konto.",
           "När du raderar ditt konto tas uppgifterna bort och de krypterade uppgifterna görs permanent oläsbara, se avsnittet om säkerhet. Efter att du begärt radering finns en period på 30 dagar då ett konto kan återställas, innan det raderas slutgiltigt.",
           "Säkerhets- och händelseloggen sparas i 90 dagar och rensas därefter automatiskt. När ditt konto raderas slutgiltigt avidentifieras de uppgifter i loggen som kan kopplas till dig.",
-          "Jobbannonser från JobTech rensas inom 30 dagar."
+          "Jobbannonser från JobTech rensas inom 30 dagar.",
+          "Ansökningshistorik (planerat). Historiken, inklusive uppgift om i vilket steg en ansökan avslutades, är en del av dina ansökningar och sparas lika länge som de: så länge ditt konto finns, och tas bort när kontot raderas enligt punkterna ovan."
         ]
       },
       {
@@ -112,10 +114,11 @@
         ]
       },
       {
-        "heading": "Inga automatiserade beslut och ingen profilering",
+        "heading": "Inga automatiserade beslut",
         "paragraphs": [
-          "Jobbliggaren fattar inga automatiserade beslut och använder ingen profilering med rättslig eller liknande betydande effekt för dig. Det finns inget sådant beslutsfattande enligt artikel 22 i dataskyddsförordningen.",
-          "Matchningen mellan dig och jobb är regelbaserad, förutsägbar och förklarbar. Den bygger på de önskemål och uppgifter du själv anger och på en bestämd jämförelse mot annonserna. Vi visar alltid vilka nyckelord som matchar och vilka som saknas, så att du kan se varför ett jobb föreslås. Jobbliggaren använder ingen AI och inga språkmodeller för matchning, bedömning eller beslut. Det är alltid du som avgör vilka jobb du söker."
+          "Jobbliggaren fattar inga automatiserade beslut med rättslig eller liknande betydande effekt för dig. Det finns inget sådant beslutsfattande enligt artikel 22 i dataskyddsförordningen.",
+          "Matchningen mellan dig och jobb är regelbaserad, förutsägbar och förklarbar. Den bygger på de önskemål och uppgifter du själv anger och på en bestämd jämförelse mot annonserna. Vi visar alltid vilka nyckelord som matchar och vilka som saknas, så att du kan se varför ett jobb föreslås. Jobbliggaren använder ingen AI och inga språkmodeller för matchning, bedömning eller beslut. Det är alltid du som avgör vilka jobb du söker.",
+          "Jobbliggaren planerar en översikt av din egen ansökningshistorik per arbetsgivare, till exempel hur många gånger du har sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Översikten är regelbaserad och förklarbar, bygger enbart på uppgifter du själv skapat i tjänsten, visas bara för dig och delas aldrig med arbetsgivare. Den används inte för att fatta några beslut om dig. Detta är planerat och ännu inte i drift."
         ]
       },
       {

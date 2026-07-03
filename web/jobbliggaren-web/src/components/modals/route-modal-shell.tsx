@@ -75,6 +75,12 @@ export function RouteModalShell({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // A nested Radix layer (Dialog / Select / Popover) handles Escape in the
+        // CAPTURE phase and calls preventDefault() before this bubble-phase
+        // listener runs. Yield to it — closing only the inner layer, not the
+        // whole modal. Critical here: this shell wraps the CV forms, so a stray
+        // Escape must not discard a half-filled form (#565 — shared contract).
+        if (e.defaultPrevented) return;
         e.preventDefault();
         close();
         return;

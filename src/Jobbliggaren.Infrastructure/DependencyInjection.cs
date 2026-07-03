@@ -986,7 +986,6 @@ public static class DependencyInjection
         services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();
 #pragma warning restore JOBBLIGGAREN0001
 
-        services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<ISessionStore, RedisSessionStore>();
         services.AddScoped<IUserAccountService, UserAccountService>();
 

@@ -35,17 +35,6 @@ public static class AuthEndpoints
             return Results.Ok(new { sessionId = result.Value.SessionId });
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
-        // [Obsolete] 410 Gone — ersatt av session-baserad auth i Turn 4, ADR 0017.
-        // Raderas i Fas 1 tillsammans med RefreshTokenStore och övrig JWT-infrastruktur.
-        group.MapPost("/refresh", () =>
-            Results.Problem(
-                detail: "Refresh-flödet är ersatt av session-baserad autentisering. " +
-                        "Använd /auth/login för ny session. Se ADR 0017.",
-                title: "Gone",
-                statusCode: StatusCodes.Status410Gone))
-            .ProducesProblem(StatusCodes.Status410Gone)
-            .WithSummary("[Obsolete] Refresh-flödet är ersatt av session-baserad auth — se ADR 0017");
-
         group.MapPost("/logout", async (IMediator mediator, CancellationToken ct) =>
         {
             await mediator.Send(new LogoutCommand(), ct);

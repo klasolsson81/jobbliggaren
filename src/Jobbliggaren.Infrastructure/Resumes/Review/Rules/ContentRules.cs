@@ -13,6 +13,12 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
 {
     public string CriterionId => "A1";
 
+    // A1's SECOND Fail clause the rubric prose fixes (atsFailSignal "... ELLER >50 % av punkterna
+    // saknar mätbarhet"). A code operationalisation of versioned rubric prose (documented v1
+    // posture), pinned by the A1 golden drift-guard so code that drifts from the rubric fails CI
+    // (parity A7/C3 #489).
+    private const double MissingFailRatio = 0.50;
+
     public CvCriterionVerdict Evaluate(CvReviewContext context)
     {
         var category = context.Criterion.Category;
@@ -28,20 +34,33 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
         var quantified = bullets.Where(ReviewText.ContainsMeasurableDigit).ToList();
         if (quantified.Count == 0)
         {
+            // First Fail clause: "0 siffror i hela arbetslivserfarenheten".
             return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Span(
                     context.RawText, bullets[0], "saknar mätbara resultat (inga siffror i erfarenheten)")));
         }
 
-        if (quantified.Count < bullets.Count)
+        var missing = bullets.Count - quantified.Count;
+        if (missing == 0)
         {
-            var offending = bullets.First(b => !ReviewText.ContainsMeasurableDigit(b));
-            return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Span(context.RawText, offending, "punkt utan mätbart resultat")));
+            return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Span(context.RawText, quantified[0], "kvantifierad uppgift")));
         }
 
-        return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Pass,
-            ReviewText.Cite(ReviewText.Span(context.RawText, quantified[0], "kvantifierad uppgift")));
+        var offending = bullets.First(b => !ReviewText.ContainsMeasurableDigit(b));
+
+        // #489 second Fail clause: ">50 % av punkterna saknar mätbarhet" is a CRITICAL Fail, not a
+        // Warn. Pre-fix ANY missing bullet was only a Warn regardless of ratio, suppressing this
+        // critical-fail surface on the Critical A1 criterion.
+        if ((double)missing / bullets.Count > MissingFailRatio)
+        {
+            return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Span(
+                    context.RawText, offending, "över hälften av punkterna saknar mätbart resultat")));
+        }
+
+        return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Warn,
+            ReviewText.Cite(ReviewText.Span(context.RawText, offending, "punkt utan mätbart resultat")));
     }
 }
 
@@ -280,10 +299,15 @@ internal sealed class A7ClicheRule : ICriterionRule
     }
 }
 
-/// <summary>A8 Profil-/sammanfattningstext (Medium) — present and not overlong.</summary>
+/// <summary>A8 Profil-/sammanfattningstext (Medium) — present, not overlong, not a bare list.</summary>
 internal sealed class A8ProfileRule : ICriterionRule
 {
     public string CriterionId => "A8";
+
+    // The A8 length Fail the rubric prose fixes (atsFailSignal "... ELLER >100 ord ..."). A code
+    // operationalisation of versioned rubric prose, pinned by the A8 golden drift-guard (parity
+    // A7/A1/C3 #489). Pre-fix ">100 ord" was only a Warn, contradicting the versioned rubric.
+    private const int MaxWords = 100;
 
     public CvCriterionVerdict Evaluate(CvReviewContext context)
     {
@@ -297,10 +321,40 @@ internal sealed class A8ProfileRule : ICriterionRule
         }
 
         var words = profile.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
-        if (words > 100)
+        if (words > MaxWords)
         {
-            return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Span(context.RawText, Truncate(profile), $"profiltext är lång ({words} ord)")));
+            // #489: ">100 ord" is a rubric Fail, not a Warn.
+            return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Span(
+                    context.RawText, Truncate(profile), $"profiltext är för lång ({words} ord, gränsen är {MaxWords})")));
+        }
+
+        // #489: the rubric's "Objective: To obtain..."-USA-style clause. A Swedish CV profile opening
+        // with the English "Objective" heading is the objective-statement anti-pattern the rubric
+        // fails (deterministic prefix, never a Swedish false positive; agent review completeness).
+        if (profile.TrimStart().StartsWith("Objective", StringComparison.OrdinalIgnoreCase))
+        {
+            return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Span(
+                    context.RawText, Truncate(profile), "profiltext i \"Objective\"-USA-stil, skriv en kort svensk sammanfattning")));
+        }
+
+        // #489: "ren adjektivlista" is a rubric Fail. Detect a bare list DOMINATED by curated
+        // soft-skill adjectives (kind==SoftSkill — versioned data, parity A9) with no concrete
+        // example: at least two of them AND at least half the words are such adjectives AND no
+        // measurable digit (dates masked, #487). The "half the words" dominance is a STRUCTURAL
+        // constant (a list, not a sentence), NOT a rubric numeral — so it carries no drift-guard
+        // (nothing in the rubric prose to derive it from), unlike MaxWords. v1 limitation (honest,
+        // no over-claim): only the curated soft-skill adjectives are recognised — a list of
+        // uncurated adjectives is not flagged (deterministic, ADR 0071; a general adjective detector
+        // needs POS tagging, v2).
+        var softAdjectives = context.Cliches.Entries
+            .Count(e => e.Kind == ClicheKind.SoftSkill && ReviewText.ContainsWord(profile, e.Phrase));
+        if (softAdjectives >= 2 && softAdjectives * 2 >= words && !ReviewText.ContainsMeasurableDigit(profile))
+        {
+            return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Span(
+                    context.RawText, Truncate(profile), "profiltext är en ren adjektivlista utan konkret innehåll")));
         }
 
         return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Pass,

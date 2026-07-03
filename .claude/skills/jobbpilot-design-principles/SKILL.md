@@ -67,7 +67,7 @@ or does it add cognitive load?**
 | `border-radius: 4px` | 16px+ rounded corners |
 | Muted status colors | Glow, drop shadow, glassmorphism |
 | Breadcrumbs + hierarchy | Flat pages without context |
-| Hanken Grotesk / JetBrains Mono | Display fonts, scripts, Inter/Roboto/Arial |
+| Source Sans 3 / JetBrains Mono | Display fonts, scripts, Inter/Roboto/Arial |
 | Content-first pages (hero-bannern är en saklig sök-/orienterings-yta per ADR 0068, inte marketing-hero) | Marketing-heros, vibey microcopy |
 | Quantified information | Vague "positive" feedback |
 | Solid backgrounds via tokens (undantag: hero-plattans `--jp-hero-gradient`, ADR 0068) | Gradient backgrounds i övrigt |

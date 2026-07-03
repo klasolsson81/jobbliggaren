@@ -176,8 +176,9 @@ ADR 0052: 6px rad/kort, 4px inputs, 8px modal, 12px ENDAST hero.
 | `--jp-font-sans` | `var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif` |
 | `--jp-font-mono` | `var(--font-mono), "SF Mono", Menlo, Consolas, monospace` |
 
-`--font-sans` (Hanken Grotesk) och `--font-mono` (JetBrains Mono) injiceras
-via `next/font/google`. Aldrig Inter/Roboto/Arial/system-ui som primär font;
+`--font-sans` (Source Sans 3, ersätter Hanken Grotesk — #549 WS4, ADR 0091)
+och `--font-mono` (JetBrains Mono, oförändrad) injiceras via
+`next/font/google`. Aldrig Inter/Roboto/Arial/system-ui som primär font;
 aldrig mono för brödtext.
 
 ## Typografi-skala (Tailwind `@theme`, on-disk)

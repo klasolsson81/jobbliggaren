@@ -1537,21 +1537,44 @@ public class CvReviewEngineTests
 
         var c3 = Verdict(await ReviewAsync(resume), "C3");
         c3.Verdict.ShouldBe(CriterionVerdict.Fail, "0,4 passiv/mening > 30 % → C3 Fail (#489).");
-        c3.Evidence.ShouldContain(e => e is TextSpanEvidence);
+        // §5: the Fail cites the FIRST genuine passive span ("hanterades"), never an arbitrary offset.
+        c3.Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem().Span.Quote.ShouldBe("hanterades");
     }
 
     [Fact]
-    public async Task ReviewAsync_ShouldWarnC3_WhenASingleGenuinePassiveIsBelowTheThreshold()
+    public async Task ReviewAsync_ShouldWarnC3AndCiteTheGenuinePassive_WhenASinglePassiveIsBelowTheThreshold()
     {
         // A single genuine passive below the 30 % ratio is a Warn (not a Fail, not a Pass) — pre-fix
-        // one passive was under the count-2 gate and silently PASSED.
+        // one passive was under the count-2 gate and silently PASSED. The Warn cites the passive.
         var resume = Resume(
             profile: "Rapporten hanterades av teamet. Jag ledde projektet. "
                 + "Jag ökade försäljningen. Jag byggde plattformen.",
             experience: []);
 
-        Verdict(await ReviewAsync(resume), "C3").Verdict.ShouldBe(CriterionVerdict.Warn,
-            "En äkta passiv under 30 %-gränsen → C3 Warn (#489).");
+        var c3 = Verdict(await ReviewAsync(resume), "C3");
+        c3.Verdict.ShouldBe(CriterionVerdict.Warn, "En äkta passiv under 30 %-gränsen → C3 Warn (#489).");
+        c3.Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem().Span.Quote.ShouldBe("hanterades",
+            "Warn ska citera den äkta passiven, inte ett godtyckligt span (§5).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCountOnlyGenuinePassives_WhenDeponensAndProperNounsCoexist()
+    {
+        // The core #492 claim, pinned: when a deponens ("lyckades") AND a proper noun ("Mercedes")
+        // AND one GENUINE passive ("hanterades") coexist, ONLY the genuine one is counted and cited.
+        // A regression that dropped ALL -ades/-des matches (incl. the genuine one) would still pass
+        // the isolated deponens/proper-noun tests, but fails HERE (the genuine passive must survive).
+        var resume = Resume(
+            profile: "Jag lyckades sälja en Mercedes. Rapporten hanterades av teamet. "
+                + "Jag ledde projektet. Jag byggde plattformen.",
+            experience: []);
+
+        var c3 = Verdict(await ReviewAsync(resume), "C3");
+        // 1 genuine passive ("hanterades") in 4 sentences = 0.25 → Warn (deponens + Mercedes excluded).
+        c3.Verdict.ShouldBe(CriterionVerdict.Warn,
+            "Bara den äkta passiven räknas; deponens och egennamn exkluderas (#492).");
+        c3.Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem().Span.Quote.ShouldBe("hanterades",
+            "Citatet ska peka på den äkta passiven, inte deponensen/egennamnet (#492).");
     }
 
     [Fact]

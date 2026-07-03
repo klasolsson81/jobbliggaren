@@ -214,9 +214,13 @@ aldrig `--jp-ink-3` (informationsbärande text, ADR 0038-golvet består).
 litteraler; rubrikvikt = bold (700), heavy (800) ENDAST display-klassen.
 Text/ikon PÅ färgad fill = `--jp-on-fill` (tema-stabil vit — ALDRIG
 `--jp-ink-inverse`, den flippar i dark). Scrim = `--jp-scrim`, input-fokus-glow
-= `--jp-focus-glow`. Transitional `--jp-fs-*`-tokens (0.5px-driftfamiljen,
-pinnade på exakta värden) är konsoliderings-kandidater — lägg ALDRIG nya
-konsumenter på dem. CSS-guarden (WS5) fäller nya font-size-/färg-litteraler;
+= `--jp-focus-glow`. Det transitionella `--jp-fs-*`-0.5px-drift-blocket är
+BORTKONSOLIDERAT (konsolideringspasset efter WS4/ADR 0091): varje token snappade
+till sin `--text-*`-rung mot Source Sans 3-metriken och mono-caps-kickers
+unifierades på `--text-overline` (11px). Kvar under `--jp-fs-*` finns ENBART
+komponentbundna storlekar (`-oversikt-day`/`-countcard-num`/`-brand-word`/
+`-hero-title*`/`-land-*`), aldrig skal-drift. CSS-guarden (WS5) fäller nya
+font-size-/färg-litteraler;
 dokumenterade undantag bär `/* guard-allow: <skäl> */`.
 
 **Fonts via `next/font/google`:** Source Sans 3 → `--font-sans` (weight

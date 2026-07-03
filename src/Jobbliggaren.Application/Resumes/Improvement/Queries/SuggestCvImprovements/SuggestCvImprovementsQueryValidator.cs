@@ -19,7 +19,7 @@ public sealed class SuggestCvImprovementsQueryValidator : AbstractValidator<Sugg
             .NotEmpty().WithMessage("ParsedResumeId krävs.");
 
         RuleFor(q => q.Profile)
-            .Must(p => Enum.TryParse<RenderProfile>(p, ignoreCase: false, out _))
+            .Must(RenderProfileNames.IsValidName)
             .WithMessage("Profilen måste vara 'Ats' eller 'Visual'.");
     }
 }

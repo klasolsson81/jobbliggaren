@@ -186,6 +186,26 @@ Turn 4. As of this change:
 - `POST /auth/refresh` will be **deleted entirely** in Fas 1, together with
   all JWT-related infrastructure.
 
+### Amendment 2026-07-03 (#504a, epic #482): refresh-token subsystem deleted
+
+The Fas 1 cleanup above was executed (partially) as a GDPR-Art.17 fix — the
+retired `identity.refresh_tokens` table let `user_id` + `created_by_ip` (PII)
+survive hard deletion (audit #482 / #504a).
+
+- **Deleted:** `RefreshToken` entity + `RefreshTokenConfiguration` + the
+  `refresh_tokens` table (migration `DropRefreshTokens`), `IRefreshTokenStore` +
+  `RefreshTokenStore` + its DI registration, `RefreshCommand` +
+  `RefreshCommandHandler`, `AuthTokensDto`, and the `/auth/refresh` route.
+  `POST /api/v1/auth/refresh` therefore now returns **404** (route removed), not
+  410 — the deletion is the intended Fas 1 end-state per the bullets above.
+- **Still pending (separate Fas 1 cleanup, no #482-TD):** the JWT-related
+  infrastructure — `JwtTokenGenerator`/`IJwtTokenGenerator`,
+  `RedisAccessTokenRevocationStore`/`IAccessTokenRevocationStore`, `JwtSettings`
+  and the design-time RSA key loading — remains `[Obsolete]` + DI-registered but
+  is now consumerless (a stateless dead subsystem with no PII table). Its
+  `[Obsolete]` messages still name the deleted `RefreshCommandHandler`; that
+  follow-up removes those files and references wholesale.
+
 ## Performance Budget
 
 | Operation                   | Target (prod Redis) | Measured (Docker Redis, 2026-05-06) |

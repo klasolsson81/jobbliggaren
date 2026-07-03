@@ -27,10 +27,16 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
             // POCO-tillägget deployats OCH en full re-ingest re-serialiserat raw_payload
             // med det nya fältet. Tills dess är org.nr-filter ett no-op (0 träffar).
             //
-            // GDPR / ENSKILD FIRMA-NOT (ADR 0087): ett org.nr på 10 siffror utan
-            // bindestreck kan vara ett personnummer (enskild firma). Publik
-            // Platsbanken-data; krypterad at-rest; ALDRIG loggad/surfad oflaggat
-            // (CLAUDE.md §5 anti-patterns).
+            // GDPR / ENSKILD FIRMA-NOT (ADR 0087 D8, Klas Art. 32 risk-accept
+            // 2026-06-30): ett org.nr på 10 siffror utan bindestreck kan vara ett
+            // personnummer (enskild firma). AT-REST: KLARTEXT, ingen at-rest-
+            // kryptering. (Den tidigare "krypterad at-rest"-noten var stale/felaktig
+            // — korrigerad per ADR 0087 D8, samma korrigering som raw_payload-noten i
+            // JobAdConfiguration; återuppväck den inte.) Kolumnen är MEDVETET klartext:
+            // redan publik Platsbanken-data, samma klartext-precedent som raw_payload,
+            // queryability-nödvändighet. Skyddet är surfacing-gränsen — org.nr
+            // maskeras/flaggas när det är personnummer-format, ALDRIG loggat/surfat
+            // oflaggat (CLAUDE.md §5 anti-patterns).
             migrationBuilder.AddColumn<string>(
                 name: "organization_number",
                 table: "job_ads",

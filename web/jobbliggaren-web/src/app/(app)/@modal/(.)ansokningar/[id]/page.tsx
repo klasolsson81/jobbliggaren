@@ -116,7 +116,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
           subtitle=""
         >
           <div className="jp-modal__body">
-            <p className="text-body-sm text-text-secondary">
+            <p className="text-body-sm text-text-primary">
               {t("common.rateLimitedBody", {
                 seconds: result.retryAfterSeconds,
               })}
@@ -132,7 +132,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
           subtitle=""
         >
           <div className="jp-modal__body">
-            <p className="text-body-sm text-text-secondary">
+            <p className="text-body-sm text-text-primary">
               {t("common.errorBodyRetry")}
             </p>
           </div>

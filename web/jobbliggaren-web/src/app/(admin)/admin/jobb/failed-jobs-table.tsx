@@ -36,7 +36,7 @@ export function FailedJobsTable({ data, format }: FailedJobsTableProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-body-sm text-text-secondary" role="status">
+      <p className="text-body-sm text-text-primary" role="status">
         {truncated
           ? t("failed.note.truncated", {
               returned: data.returned,

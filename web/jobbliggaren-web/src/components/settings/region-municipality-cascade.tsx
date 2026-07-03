@@ -267,7 +267,7 @@ export function RegionMunicipalityCascade({
                 maxLength={80}
                 aria-describedby={filterHelpId}
               />
-              <p id={filterHelpId} className="text-body-sm text-text-secondary">
+              <p id={filterHelpId} className="text-body-sm text-text-primary">
                 {t("matchPrefs.cascade.filterHint")}
               </p>
             </div>
@@ -275,7 +275,7 @@ export function RegionMunicipalityCascade({
             {isFiltering ? (
               <div className="jp-matchdialog__list">
                 {filteredMunicipalities.length === 0 ? (
-                  <p className="text-body-sm text-text-secondary px-4 py-3">
+                  <p className="text-body-sm text-text-primary px-4 py-3">
                     {t("matchPrefs.cascade.noMatch")}
                   </p>
                 ) : (
@@ -322,7 +322,7 @@ export function RegionMunicipalityCascade({
                     </span>
                   </div>
                   {regions.length === 0 ? (
-                    <p className="text-body-sm text-text-secondary px-4 py-3">
+                    <p className="text-body-sm text-text-primary px-4 py-3">
                       {t("matchPrefs.cascade.regionsUnavailable")}
                     </p>
                   ) : (
@@ -370,11 +370,11 @@ export function RegionMunicipalityCascade({
                     </span>
                   </div>
                   {activeRegionData === null ? (
-                    <p className="text-body-sm text-text-secondary px-4 py-3">
+                    <p className="text-body-sm text-text-primary px-4 py-3">
                       {t("matchPrefs.cascade.chooseRegion")}
                     </p>
                   ) : activeMunicipalities.length === 0 ? (
-                    <p className="text-body-sm text-text-secondary px-4 py-3">
+                    <p className="text-body-sm text-text-primary px-4 py-3">
                       {t("matchPrefs.cascade.municipalitiesUnavailable")}
                     </p>
                   ) : (

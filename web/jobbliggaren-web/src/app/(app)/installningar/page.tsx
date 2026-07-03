@@ -66,7 +66,7 @@ export default async function InstallningarPage() {
           initialSkillGroups={initialSkillGroups}
         />
       ) : (
-        <p className="text-body text-text-secondary">
+        <p className="text-body text-text-primary">
           {profileResult.kind === "notFound"
             ? t("installningar.profileNotCreated")
             : profileResult.kind === "rateLimited"

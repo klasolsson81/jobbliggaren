@@ -288,7 +288,7 @@ export function JobAdTypeahead({
         // ev. overflow:hidden-wrapper (hero-searchrowen) och blir läsbar på
         // surface-primary i stället för pill-bakgrunden (design-reviewer
         // Minor 1 E2d). Listan och rateLimited är ömsesidigt uteslutande.
-        <p className="absolute top-full left-0 z-10 mt-1 w-full rounded-md border border-border-default bg-surface-primary px-3 py-2 text-body-sm text-text-secondary shadow-md">
+        <p className="absolute top-full left-0 z-10 mt-1 w-full rounded-md border border-border-default bg-surface-primary px-3 py-2 text-body-sm text-text-primary shadow-md">
           {t("typeahead.rateLimited")}
         </p>
       )}

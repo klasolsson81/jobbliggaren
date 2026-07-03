@@ -115,7 +115,7 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
               aria-invalid={errors.confirmEmail ? true : undefined}
               {...register("confirmEmail")}
             />
-            <p className="text-body-sm text-text-secondary">
+            <p className="text-body-sm text-text-primary">
               {ts("account.delete.expected", { email: currentEmail })}
             </p>
           </div>

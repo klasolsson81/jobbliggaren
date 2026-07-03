@@ -357,7 +357,7 @@ export function OccupationSection({
                 maxLength={80}
                 aria-describedby={filterHelpId}
               />
-              <p id={filterHelpId} className="text-body-sm text-text-secondary">
+              <p id={filterHelpId} className="text-body-sm text-text-primary">
                 {t("matchPrefs.occupation.filterHint")}
               </p>
             </div>
@@ -365,7 +365,7 @@ export function OccupationSection({
             {isFiltering ? (
               <div className="jp-matchdialog__list">
                 {filteredOccupations.length === 0 ? (
-                  <p className="text-body-sm text-text-secondary px-4 py-3">
+                  <p className="text-body-sm text-text-primary px-4 py-3">
                     {t("matchPrefs.occupation.noMatch")}
                   </p>
                 ) : (
@@ -401,7 +401,7 @@ export function OccupationSection({
                     </span>
                   </div>
                   {occupationFields.length === 0 ? (
-                    <p className="text-body-sm text-text-secondary px-4 py-3">
+                    <p className="text-body-sm text-text-primary px-4 py-3">
                       {t("matchPrefs.occupation.fieldsUnavailable")}
                     </p>
                   ) : (
@@ -447,7 +447,7 @@ export function OccupationSection({
                     </span>
                   </div>
                   {activeField === null ? (
-                    <p className="text-body-sm text-text-secondary px-4 py-3">
+                    <p className="text-body-sm text-text-primary px-4 py-3">
                       {t("matchPrefs.occupation.chooseField")}
                     </p>
                   ) : (
@@ -721,7 +721,7 @@ function CvSuggestMessage({
           <p className="text-body-sm text-text-primary font-medium">
             {t("matchPrefs.occupation.noCvTitle")}
           </p>
-          <p className="text-body-sm text-text-secondary mt-1">
+          <p className="text-body-sm text-text-primary mt-1">
             {t("matchPrefs.occupation.noCvBody")}
           </p>
           {/* Spår 4: laddar upp inline i modalen i stället för att navigera bort. */}
@@ -737,7 +737,7 @@ function CvSuggestMessage({
       );
     case "noRole":
       return (
-        <p role="status" className="text-body-sm text-text-secondary">
+        <p role="status" className="text-body-sm text-text-primary">
           {t("matchPrefs.occupation.noRole")}
         </p>
       );

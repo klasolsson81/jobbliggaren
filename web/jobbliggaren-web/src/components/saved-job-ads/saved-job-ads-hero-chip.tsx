@@ -55,7 +55,7 @@ export function SavedJobAdsHeroChip({ items }: SavedJobAdsHeroChipProps) {
             </span>
             {company && (
               <span
-                className="text-micro text-text-secondary shrink-0 truncate"
+                className="text-micro text-text-primary shrink-0 truncate"
                 style={{
                   maxWidth: 140,
                 }}

@@ -64,7 +64,7 @@ export function FollowUpsSection({
       <div className="jp-section-label">{tUi("followUps.sectionLabel")}</div>
 
       {sorted.length === 0 ? (
-        <p className="text-body-sm text-text-secondary">
+        <p className="text-body-sm text-text-primary">
           {tUi("followUps.empty")}
         </p>
       ) : (

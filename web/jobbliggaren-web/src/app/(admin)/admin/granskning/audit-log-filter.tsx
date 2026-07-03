@@ -61,7 +61,7 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
         />
         <p
           id="filter-event-type-hint"
-          className="text-body-sm text-text-secondary"
+          className="text-body-sm text-text-primary"
         >
           {t("audit.filter.eventTypeHint")}
         </p>
@@ -81,7 +81,7 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
         />
         <p
           id="filter-aggregate-type-hint"
-          className="text-body-sm text-text-secondary"
+          className="text-body-sm text-text-primary"
         >
           {t("audit.filter.aggregateTypeHint")}
         </p>
@@ -98,7 +98,7 @@ export function AuditLogFilter({ current }: AuditLogFilterProps) {
         />
         <p
           id="filter-user-id-hint"
-          className="text-body-sm text-text-secondary"
+          className="text-body-sm text-text-primary"
         >
           {t("audit.filter.userIdHint")}
         </p>

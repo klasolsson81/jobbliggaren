@@ -24,7 +24,7 @@ export function DeleteAccountSection({ currentEmail }: DeleteAccountSectionProps
       >
         {t("account.danger.title")}
       </h2>
-      <p className="text-body text-text-secondary">
+      <p className="text-body text-text-primary">
         {t("account.danger.description")}
       </p>
       <div>

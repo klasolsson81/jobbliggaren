@@ -163,3 +163,17 @@ Strukturella `.jp-*` portas verbatim; shadcn överlever via bryggan.
   `.jp-container`/`.jp-page` (+ `/jobb`-hero edge-to-edge-opt-out) blir
   containern dubbel-padding och ska bort — verifieras analogt
   v2-alias-städningen (grep `jp-shell-transitional-container`).
+- **Rubrik-token-realignment — `--text-h1` 28→32 (#549 WS1, 2026-07-03, CTO
+  D1):** on-disk `--text-h1` had drifted to 28px against this ADR's own
+  Beslut 5 (32/700) — a pure drift, not a re-decision. Epic #549 WS1
+  re-aligns the token **to** the ADR's own documented value, not away from
+  it, and collapses the three divergent page-title tiers this drift had
+  allowed to co-exist — `.jp-page__title` (32/700), the legacy `.jp-h1` tier
+  (28/600, live on ~11 routes), and the auth-page h1 (20/500) — onto the
+  **one** `--text-h1` token at 32/700. Beslut 5's h1 spec itself is
+  unchanged; only the on-disk drift is closed. Paired with the heading
+  *colour* change (ink → navy ramp) in ADR 0068's 2026-07-03 (#549 WS1)
+  implementation note, landing in the same PR. Rides CLAUDE.md §12's STOPP
+  class (bundled with the E2f-override colour change) — pending Klas GO,
+  never automerge; design-reviewer rendered-veto open on the auth-h1
+  20→32 jump.

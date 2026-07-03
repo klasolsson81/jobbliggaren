@@ -99,7 +99,7 @@ export default async function InterceptedJobbModal({
       return (
         <JobAdModalShell title={t("common.rateLimitedTitle")} company="">
           <div className="jp-modal__body">
-            <p className="text-body-sm text-text-secondary">
+            <p className="text-body-sm text-text-primary">
               {t("common.rateLimitedBody", {
                 seconds: result.retryAfterSeconds,
               })}
@@ -115,7 +115,7 @@ export default async function InterceptedJobbModal({
       return (
         <JobAdModalShell title={t("jobb.detail.loadErrorTitle")} company="">
           <div className="jp-modal__body">
-            <p className="text-body-sm text-text-secondary">
+            <p className="text-body-sm text-text-primary">
               {t("common.errorBodyRetry")}
             </p>
           </div>

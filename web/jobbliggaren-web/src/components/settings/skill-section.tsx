@@ -381,7 +381,7 @@ export function SkillSection({
                 autoComplete="off"
                 aria-describedby={searchHelpId}
               />
-              <p id={searchHelpId} className="text-body-sm text-text-secondary">
+              <p id={searchHelpId} className="text-body-sm text-text-primary">
                 {t("matchPrefs.skill.searchHint")}
               </p>
             </div>
@@ -399,11 +399,11 @@ export function SkillSection({
                   {t("matchPrefs.skill.searching")}
                 </p>
               ) : showNoResults ? (
-                <p className="text-body-sm text-text-secondary px-4 py-3">
+                <p className="text-body-sm text-text-primary px-4 py-3">
                   {t("matchPrefs.skill.noResults")}
                 </p>
               ) : results.length === 0 ? (
-                <p className="text-body-sm text-text-secondary px-4 py-3">
+                <p className="text-body-sm text-text-primary px-4 py-3">
                   {t("matchPrefs.skill.searchPrompt")}
                 </p>
               ) : (
@@ -486,13 +486,13 @@ function SkillCvSuggestMessage({
       // Ett just uppladdat parsed_resume hittades inte (ovanligt i detta flöde)
       // → lugn rad, ingen larm-state (användaren kan söka manuellt).
       return (
-        <p role="status" className="text-body-sm text-text-secondary">
+        <p role="status" className="text-body-sm text-text-primary">
           {t("matchPrefs.skill.noCv")}
         </p>
       );
     case "noRole":
       return (
-        <p role="status" className="text-body-sm text-text-secondary">
+        <p role="status" className="text-body-sm text-text-primary">
           {t("matchPrefs.skill.noSkills")}
         </p>
       );

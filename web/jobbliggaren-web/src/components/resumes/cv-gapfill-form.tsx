@@ -229,7 +229,7 @@ export function CvGapFillForm({
         <Label htmlFor="cv-name">
           {tr("nameLabel")} <span aria-hidden="true" className="text-danger-600">*</span>
         </Label>
-        <p id="cv-name-hint" className="text-body-sm text-text-secondary">
+        <p id="cv-name-hint" className="text-body-sm text-text-primary">
           {tr("nameHint")}
         </p>
         <Input
@@ -298,7 +298,7 @@ export function CvGapFillForm({
         <Label htmlFor="summary" className="sr-only">
           {tr("summaryLabel")}
         </Label>
-        <p id="summary-hint" className="text-body-sm text-text-secondary">
+        <p id="summary-hint" className="text-body-sm text-text-primary">
           {tr("summaryHint")}
         </p>
         <Textarea
@@ -326,7 +326,7 @@ export function CvGapFillForm({
           </Button>
         </div>
         {experiences.fields.length === 0 && (
-          <p className="text-body-sm text-text-secondary">
+          <p className="text-body-sm text-text-primary">
             {tr("noExperience")}
           </p>
         )}
@@ -402,7 +402,7 @@ export function CvGapFillForm({
                     {periodHint && (
                       <p
                         id={dateHintId}
-                        className="text-body-sm text-text-secondary"
+                        className="text-body-sm text-text-primary"
                       >
                         {tr("periodHint", { period: periodHint })}
                       </p>
@@ -452,7 +452,7 @@ export function CvGapFillForm({
           </Button>
         </div>
         {educations.fields.length === 0 && (
-          <p className="text-body-sm text-text-secondary">
+          <p className="text-body-sm text-text-primary">
             {tr("noEducation")}
           </p>
         )}
@@ -528,7 +528,7 @@ export function CvGapFillForm({
                     {periodHint && (
                       <p
                         id={dateHintId}
-                        className="text-body-sm text-text-secondary"
+                        className="text-body-sm text-text-primary"
                       >
                         {tr("periodHint", { period: periodHint })}
                       </p>
@@ -567,7 +567,7 @@ export function CvGapFillForm({
           </Button>
         </div>
         {skills.fields.length === 0 && (
-          <p className="text-body-sm text-text-secondary">
+          <p className="text-body-sm text-text-primary">
             {tr("noSkills")}
           </p>
         )}

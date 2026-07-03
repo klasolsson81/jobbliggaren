@@ -8,7 +8,7 @@ export default function LoggaInPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-h2 font-medium text-text-primary">
+        <h1 className="text-h1 font-bold text-heading-1">
           {t("auth.login.title")}
         </h1>
         <p className="text-body text-text-secondary">{t("auth.login.brand")}</p>
@@ -18,7 +18,7 @@ export default function LoggaInPage() {
         <LoginForm />
       </Suspense>
 
-      <p className="text-body-sm leading-5 text-text-secondary text-center">
+      <p className="text-body-sm leading-5 text-text-primary text-center">
         {t("auth.login.noAccount")}{" "}
         <Link
           href="/registrera"

@@ -63,13 +63,13 @@ export function GuestWelcomeModal({ showWelcome }: GuestWelcomeModalProps) {
 
         <div className="flex flex-col gap-3 text-body-sm text-text-primary">
           <p>{t("welcome.canDoHeading")}</p>
-          <ul className="ml-4 list-disc space-y-1 text-text-secondary">
+          <ul className="ml-4 list-disc space-y-1 text-text-primary">
             <li>{t("welcome.canDoBrowse")}</li>
             <li>{t("welcome.canDoPipeline")}</li>
             <li>{t("welcome.canDoResumes")}</li>
           </ul>
           <p>{t("welcome.needsAccountHeading")}</p>
-          <ul className="ml-4 list-disc space-y-1 text-text-secondary">
+          <ul className="ml-4 list-disc space-y-1 text-text-primary">
             <li>{t("welcome.needsAccountSearch")}</li>
             <li>{t("welcome.needsAccountEdit")}</li>
             <li>{t("welcome.needsAccountNotices")}</li>

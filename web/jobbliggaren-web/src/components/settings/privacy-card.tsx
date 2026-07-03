@@ -20,7 +20,7 @@ export function PrivacyCard({ userEmail }: PrivacyCardProps) {
   return (
     <section className="jp-card">
       <h2 className="jp-card__title">{t("privacy.title")}</h2>
-      <p className="text-body-sm text-text-secondary">
+      <p className="text-body-sm text-text-primary">
         {t("privacy.description")}
       </p>
       <div className="flex flex-wrap gap-3 mt-2">

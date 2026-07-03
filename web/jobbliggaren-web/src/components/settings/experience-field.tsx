@@ -74,7 +74,7 @@ export function ExperienceField({
         aria-describedby={hintId}
         className="max-w-[12rem]"
       />
-      <p id={hintId} className="text-body-sm text-text-secondary">
+      <p id={hintId} className="text-body-sm text-text-primary">
         {t("matchPrefs.experience.hint")}
       </p>
     </div>

@@ -6,9 +6,11 @@ import { useTranslations } from "next-intl";
 
 // Client-island so the active admin nav link gets `aria-current="page"`
 // (WCAG 2.4.8 Location — parity with app-shell.tsx / guest-shell.tsx). The
-// admin surface is a topbar, not a sidebar, so the active state is a persistent
-// surface-tertiary fill (the resting form of the hover treatment) rather than
-// the 4px sidebar stripe — see issue #247.
+// admin surface is a topbar; styling lives in the scoped .jp-adminnav__link
+// class (globals.css) mirroring .jp-nav__link: ink text in BOTH states, and
+// the active state is carried by an accent ::after-bar + weight + aria-current
+// (three independent cues, CTO D4/#549 — the bar, never a fill; supersedes
+// the #247 fill after design-review Major 1).
 
 // i18n keys under `admin.nav.*` (literal union keeps next-intl typed-message
 // checking when the label resolves dynamically in the map below).
@@ -28,7 +30,6 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-const NAV_LINK_BASE = "rounded-md px-3 py-1.5 text-body-sm";
 
 export function AdminNav() {
   const pathname = usePathname();
@@ -43,11 +44,7 @@ export function AdminNav() {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`${NAV_LINK_BASE} ${
-              active
-                ? "bg-surface-tertiary text-text-primary"
-                : "text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
-            }`}
+            className="jp-adminnav__link"
           >
             {t(item.labelKey)}
           </Link>

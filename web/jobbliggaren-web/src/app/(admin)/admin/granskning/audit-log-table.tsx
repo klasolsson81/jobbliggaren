@@ -22,7 +22,7 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         <p className="text-body text-text-primary">
           {t("audit.table.empty.title")}
         </p>
-        <p className="mt-1 text-body-sm text-text-secondary">
+        <p className="mt-1 text-body-sm text-text-primary">
           {t("audit.table.empty.body")}
         </p>
       </div>

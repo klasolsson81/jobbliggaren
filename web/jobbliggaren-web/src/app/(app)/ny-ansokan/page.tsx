@@ -71,7 +71,7 @@ export default function NyAnsokningPage() {
             aria-describedby="url-hint"
             disabled={isPending}
           />
-          <p id="url-hint" className="text-body-sm text-text-secondary">
+          <p id="url-hint" className="text-body-sm text-text-primary">
             {t("ansokningar.new.urlHint")}
           </p>
         </div>
@@ -85,7 +85,7 @@ export default function NyAnsokningPage() {
             aria-describedby="expires-hint"
             disabled={isPending}
           />
-          <p id="expires-hint" className="text-body-sm text-text-secondary">
+          <p id="expires-hint" className="text-body-sm text-text-primary">
             {t("ansokningar.new.expiresAtHint")}
           </p>
         </div>
@@ -103,7 +103,7 @@ export default function NyAnsokningPage() {
           />
           <p
             id="cover-letter-hint"
-            className="text-body-sm text-text-secondary"
+            className="text-body-sm text-text-primary"
           >
             {t("ansokningar.new.coverLetterHint")}
           </p>

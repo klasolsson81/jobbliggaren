@@ -118,6 +118,7 @@
       "yearsLabel": "År i yrket",
       "yearsAria": "År i yrket {label}",
       "yearsHint": "Ungefär hur många år du arbetat i yrket. Frivilligt, och påverkar inte din matchningsgrad.",
+      "yearsWhatIsThis": "Om år i yrket",
       "reviewYearsValue": "{years} år",
       "reviewYearsEmpty": "År ej angivna"
     },

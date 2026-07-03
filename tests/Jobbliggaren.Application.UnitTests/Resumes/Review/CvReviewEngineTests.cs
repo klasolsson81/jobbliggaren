@@ -334,7 +334,31 @@ public class CvReviewEngineTests
         var a1 = Verdict(await ReviewAsync(resume), "A1");
         a1.Verdict.ShouldBe(CriterionVerdict.Fail,
             "Över hälften av punkterna utan mätbarhet → A1 (Kritisk) Fail (#489).");
-        a1.Evidence.ShouldContain(e => e is TextSpanEvidence);
+        // §5: the Fail cites the offending UNQUANTIFIED bullet, not the quantified one.
+        var quote = a1.Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem().Span.Quote;
+        quote.ShouldContain("Ansvarade för teamets dagliga arbete");
+        quote.ShouldNotContain("Ökade");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA1_WhenMostBulletsCarryOnlyAnEmploymentDate()
+    {
+        // #487 × #489: a bullet whose only digit is a masked employment date counts as UNQUANTIFIED
+        // toward the >50 % clause — three date-only bullets against one real metric (3/4) → Fail via
+        // the SECOND clause (not the "0 siffror" first clause, since one real metric exists).
+        var resume = Resume(experience:
+        [
+            Experience(bullets:
+            [
+                "Ökade försäljningen med 20 procent.",
+                "Arbetade under 2013–2021 med förvaltning.",
+                "Deltog i projektet 2019.",
+                "Ansvarade sedan 2020 för rutiner.",
+            ]),
+        ]);
+
+        Verdict(await ReviewAsync(resume), "A1").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "Datum-only-punkter räknas som okvantifierade → 3/4 > 50 % → A1 Fail (#487/#489).");
     }
 
     [Fact]
@@ -863,6 +887,42 @@ public class CvReviewEngineTests
             .Verdict.ShouldNotBe(CriterionVerdict.Fail, $"{wordLimit} ord (vid gränsen) → inte Fail.");
         Verdict(await ReviewAsync(Resume(profile: string.Join(" ", Enumerable.Repeat("ord", wordLimit + 1)))), "A8")
             .Verdict.ShouldBe(CriterionVerdict.Fail, $"{wordLimit + 1} ord (> gränsen) → Fail.");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA8_WhenProfileIsAnObjectiveStatement()
+    {
+        // #489 fourth Fail clause: rubric atsFailSignal "... ELLER \"Objective: To obtain...\"". A
+        // Swedish CV opening with the English "Objective" heading is the USA objective-statement
+        // anti-pattern (completeness — closes the A8↔rubric reconcile per the agent review).
+        var resume = Resume(profile: "Objective: To obtain a challenging position in software engineering.");
+
+        Verdict(await ReviewAsync(resume), "A8").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "\"Objective:\"-USA-stil är en rubrik-Fail (#489).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA8_WhenSoftAdjectivesAreNotMoreThanHalfTheWords()
+    {
+        // Isolates the "half the words" dominance guard: two curated soft adjectives inside a longer
+        // real sentence (not dominated by them, no digit) is NOT a bare list → Pass. Removing the
+        // `softAdjectives * 2 >= words` guard would wrongly Fail this on the Medium A8 criterion.
+        var resume = Resume(profile:
+            "Jag är en social och noggrann person som trivs med att arbeta i grupp och ta stort ansvar.");
+
+        Verdict(await ReviewAsync(resume), "A8").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Ett par mjuka adjektiv i en riktig mening är ingen ren adjektivlista (#489-gränsen).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA8_WhenOnlyOneSoftAdjectiveIsPresent()
+    {
+        // Isolates the `softAdjectives >= 2` count guard: a single soft adjective (no digit) is NOT a
+        // list → Pass. Lowering the guard to >= 1 would wrongly Fail this.
+        var resume = Resume(profile: "Jag är en social medarbetare med lång erfarenhet inom vård och omsorg.");
+
+        Verdict(await ReviewAsync(resume), "A8").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Ett enda mjukt adjektiv gör inte profilen till en ren adjektivlista (#489-gränsen).");
     }
 
     // ===============================================================

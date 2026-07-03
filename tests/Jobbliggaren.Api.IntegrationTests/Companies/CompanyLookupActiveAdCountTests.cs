@@ -72,7 +72,10 @@ public class CompanyLookupActiveAdCountTests
 
     // Private, legal-entity-shaped (third digit 5 ≥ 2) org.nr, unique per test run so the shared Api
     // Postgres never leaks a count between tests (reference_api_integration_shared_db_contamination).
-    private static string NewOrgNr() => $"55{Random.Shared.Next(10_000_000, 99_999_999)}";
+    // Third digit pinned to 6 (>= 2 ⇒ legal entity): a random third digit of 0/1 makes the value
+    // personnummer-shaped, which the handler CORRECTLY refuses (ADR 0088 D4) — the original
+    // "55" + 8 random digits generator drew a 1 in ~1/9 runs and flaked CI (PR #543 backend run).
+    private static string NewOrgNr() => $"556{Random.Shared.Next(1_000_000, 9_999_999)}";
 
     // Seeds one imported JobAd whose raw_payload carries employer.organization_number — the STORED
     // generated organization_number column is computed by Postgres at INSERT (never in C#, never in

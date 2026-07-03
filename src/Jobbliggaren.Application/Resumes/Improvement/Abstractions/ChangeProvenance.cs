@@ -12,7 +12,7 @@ public abstract record ChangeProvenance;
 
 /// <summary>
 /// The <c>After</c> text is verbatim from the versioned knowledge bank: the
-/// <c>BetterAlternative</c> (cliché) or <c>SuggestedStrong</c> (verb) resolved for
+/// <c>DropInReplacement</c> (cliché) or <c>SuggestedStrong</c> (verb) resolved for
 /// <paramref name="Key"/> in asset <paramref name="Source"/>@<paramref name="Version"/>.
 /// <paramref name="Source"/> ∈ {"cliche-list", "verb-mapping"} (the only KB assets that carry
 /// replacement strings).

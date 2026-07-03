@@ -116,8 +116,8 @@
     <EmbeddedResource Include="KnowledgeBank\rubric.v1.1.0.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.1.0.json</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="KnowledgeBank\cliche-list.v1.json">
-      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.v1.json</LogicalName>
+    <EmbeddedResource Include="KnowledgeBank\cliche-list.v2.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.v2.json</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="KnowledgeBank\verb-mapping.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.v1.json</LogicalName>

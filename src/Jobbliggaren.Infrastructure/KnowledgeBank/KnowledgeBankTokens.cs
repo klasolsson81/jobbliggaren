@@ -68,6 +68,15 @@ internal static class KnowledgeBankTokens
         ["Toppskikt"] = ScoreBandLabel.TopTier,
     };
 
+    // Cliché-lexicon entry kinds are English tokens (the phrases are Swedish, the discriminator
+    // is code — CLAUDE.md §1). A missing/null token defaults to Cliche (the safe minimal default:
+    // an N-1 asset without the field keeps the original anti-cliché-only behaviour, A7's domain).
+    private static readonly Dictionary<string, ClicheKind> ClicheKindTokens = new(StringComparer.Ordinal)
+    {
+        ["cliche"] = ClicheKind.Cliche,
+        ["softSkill"] = ClicheKind.SoftSkill,
+    };
+
     public static CriterionWeight Weight(string token) =>
         Resolve(WeightTokens, token, "vikt");
 
@@ -90,6 +99,14 @@ internal static class KnowledgeBankTokens
         token is null
             ? CriterionAssessability.NotAssessedV1
             : Resolve(AssessabilityTokens, token, "assessability");
+
+    /// <summary>Maps the cliché-entry kind token. A missing/null token defaults to
+    /// <see cref="ClicheKind.Cliche"/> (an older asset without the field keeps the original
+    /// anti-cliché-only routing); a present-but-unknown token fails loud (catches a typo).</summary>
+    public static ClicheKind ClicheEntryKind(string? token) =>
+        token is null
+            ? ClicheKind.Cliche
+            : Resolve(ClicheKindTokens, token, "cliché-kind");
 
     private static TEnum Resolve<TEnum>(Dictionary<string, TEnum> table, string token, string kind)
         where TEnum : struct, Enum =>

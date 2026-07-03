@@ -251,14 +251,14 @@ public class CvImprovementEvidenceRedactionTests
 
     [Theory]
     [MemberData(nameof(BothProfiles))]
-    public async Task SuggestAsync_ShouldLeaveKnowledgeBankAfterUntouched_ForClicheAndWeakVerb(RenderProfile profile)
+    public async Task SuggestAsync_ShouldLeaveKnowledgeBankAfterUntouched_ForWeakVerb(RenderProfile profile)
     {
-        // The pnr CV triggers a Cliché ("Brinner för") and a WeakVerb ("Var ansvarig för") whose
-        // After is a curated KB value with no pnr in it — redaction must NOT alter it.
-        // Expected values read from the real assets (cliche-list.v1.json / verb-mapping.v1.json).
-        const string ClicheAfter =
-            "Beskriv ett konkret projekt eller initiativ. \"På fritiden underhåller jag " +
-            "open-source-biblioteket X med 4 000 nedladdningar/månad\"";
+        // The pnr CV triggers a WeakVerb ("Var ansvarig för") whose After is a curated KB value
+        // with no pnr in it — redaction must NOT alter it. Expected value read from the real asset
+        // (verb-mapping.v1.json). NOTE (#495): the cliché arm no longer contributes a KB After —
+        // today's cliche-list.v2.json carries no genuine drop-in, so a cliché is flagged (A7) but
+        // never rewritten; the drop-in-untouched-by-redaction path is covered by the weak verb here
+        // (and by the fake-lexicon drop-in tests in CvImprovementEngineTests).
         const string WeakVerbAfter = "ansvarade för";
 
         var result = await SuggestAsync(ResumeWithPnr(), profile);
@@ -268,11 +268,9 @@ public class CvImprovementEvidenceRedactionTests
             .Select(c => c.Replacement!.After)
             .ToList();
 
-        kbAfters.ShouldContain(ClicheAfter,
-            $"{profile}: the cliché 'Brinner för' After must be the verbatim KB BetterAlternative " +
-            "(redaction must not touch a KnowledgeBankProvenance After).");
         kbAfters.ShouldContain(WeakVerbAfter,
-            $"{profile}: the weak-verb 'Var ansvarig för' After must be the verbatim KB SuggestedStrong.");
+            $"{profile}: the weak-verb 'Var ansvarig för' After must be the verbatim KB SuggestedStrong " +
+            "(redaction must not touch a KnowledgeBankProvenance After).");
     }
 
     // ===============================================================

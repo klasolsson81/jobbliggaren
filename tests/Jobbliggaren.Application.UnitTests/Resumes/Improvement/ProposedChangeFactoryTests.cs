@@ -31,7 +31,7 @@ public class ProposedChangeFactoryTests
         new(new TextSpan(0, quote.Length, quote), Note: "klyscha");
 
     private static KnowledgeBankProvenance KbProvenance(string key) =>
-        new(Source: "cliche-list.v1.json", Version: "1", Key: key);
+        new(Source: "cliche-list", Version: "2", Key: key);
 
     private static StructuralTransformProvenance StructProvenance(StructuralTransformKind kind) =>
         new(kind);

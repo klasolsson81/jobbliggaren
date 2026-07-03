@@ -57,6 +57,31 @@ describe("CvUploadForm — onUploaded-callback (ADR 0077 STEG 5)", () => {
     return userEvent.upload(input, file);
   }
 
+  it("autoUpload: filval laddar upp direkt utan submit-klick (och ingen submit-rad renderas)", async () => {
+    const onUploaded = vi.fn();
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ parsedResumeId: PARSED_ID }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    render(<CvUploadForm onUploaded={onUploaded} autoUpload showHelp={false} />);
+    // Auto-läget har ingen submit-knapp — uppladdningen startar vid filval.
+    expect(
+      screen.queryByRole("button", { name: "Ladda upp och granska CV" })
+    ).not.toBeInTheDocument();
+
+    const input = document.querySelector<HTMLInputElement>(
+      'input[type="file"]'
+    )!;
+    await selectFile(input);
+
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledTimes(1));
+    expect(onUploaded).toHaveBeenCalledWith(PARSED_ID, "cv.pdf");
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
   it("anropar onUploaded med parsedResumeId i stället för router.push vid 201", async () => {
     const user = userEvent.setup();
     const onUploaded = vi.fn();

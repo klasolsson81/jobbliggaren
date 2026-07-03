@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
+import { InfoDialog } from "@/components/common/info-dialog";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import {
   suggestOccupationsFromCvAction,
@@ -569,9 +570,21 @@ function OccupationChipsWithYears({
           );
         })}
       </ul>
-      <p id={hintId} className="text-body-sm text-text-secondary mt-2">
+      {/* Polish (Klas 2026-07-03): den synliga hint-texten ersatt av det
+          etablerade "?"-mönstret (InfoDialog, jfr /ansokningar + gradfiltret).
+          sr-only-stycket behåller describedby-kedjan så årsfältens SR-
+          beskrivning är oförändrad (WCAG 1.3.1). */}
+      <p id={hintId} className="sr-only">
         {t("matchPrefs.occupation.yearsHint")}
       </p>
+      <div className="mt-1">
+        <InfoDialog
+          iconOnly
+          ariaLabel={t("matchPrefs.occupation.yearsWhatIsThis")}
+          title={t("matchPrefs.occupation.yearsLabel")}
+          paragraphs={[t("matchPrefs.occupation.yearsHint")]}
+        />
+      </div>
     </div>
   );
 }

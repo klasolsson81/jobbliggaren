@@ -37,5 +37,16 @@ public sealed record StructuralEvidence(string Observation) : CitedEvidence;
 /// A span of CV text: <paramref name="Start"/> (0-based char index) and
 /// <paramref name="Length"/> into the source string, with the verbatim
 /// <paramref name="Quote"/> so the UI can highlight without re-reading the CV-PII.
+/// <para><see cref="Start"/> is <see cref="NotLocated"/> when the quote could not be located
+/// in its source — an honest "position unknown", never a fabricated offset 0 (#478 Low). The
+/// <paramref name="Quote"/> is always the verbatim ground truth; the UI highlights by text, so
+/// a NotLocated span still renders correctly.</para>
 /// </summary>
-public sealed record TextSpan(int Start, int Length, string Quote);
+public sealed record TextSpan(int Start, int Length, string Quote)
+{
+    /// <summary>Sentinel <see cref="Start"/> for a quote that could not be located in its
+    /// source string. The evidence still carries the verbatim <see cref="Quote"/>, but no
+    /// trustworthy offset — so "not located" is never masked as the valid position 0 (#478
+    /// Low; parity with the fail-loud discipline the rest of the parse pipeline already keeps).</summary>
+    public const int NotLocated = -1;
+}

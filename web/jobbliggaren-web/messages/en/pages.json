@@ -168,6 +168,8 @@
     "register": {
       "title": "Create account",
       "brand": "Jobbliggaren",
+      "nameLabel": "Name",
+      "nameHint": "This name is shown in your account.",
       "emailLabel": "Email address",
       "emailHint": "The format is name@domain.se",
       "passwordLabel": "Password",
@@ -179,6 +181,7 @@
     },
     "actions": {
       "credentialsRequired": "Email and password are required.",
+      "registrationFieldsRequired": "Name, email and password are required.",
       "loginFailed": "Login failed. Check your email and password.",
       "unexpectedError": "An unexpected error occurred. Try again.",
       "serverUnreachable": "Could not reach the server. Try again.",

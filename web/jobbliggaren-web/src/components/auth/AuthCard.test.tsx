@@ -182,6 +182,7 @@ describe("AuthCard", () => {
     searchParamsRef.current = new URLSearchParams("next=/jobb");
     const user = userEvent.setup();
     render(<AuthCard />);
+    await user.type(screen.getByLabelText("Namn"), "Ny Användare");
     await user.type(screen.getByLabelText("E-postadress"), "ny@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "hemligt8tecken");
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
@@ -191,6 +192,7 @@ describe("AuthCard", () => {
     if (!call) throw new Error("registerAction was not invoked");
     const data = call[1];
     expect(data).toBeInstanceOf(FormData);
+    expect(data.get("displayName")).toBe("Ny Användare");
     expect(data.get("email")).toBe("ny@example.se");
     expect(data.get("password")).toBe("hemligt8tecken");
     expect(data.get("next")).toBe("/jobb");
@@ -212,13 +214,15 @@ describe("AuthCard", () => {
     expect(data.get("password")).toBe("hemligt1");
   });
 
-  it("renders no OAuth, no Namn field, and no placeholder text", () => {
+  it("renders the Namn field (#541 open registration collects a display name), no OAuth, and no placeholder text", () => {
     const { container } = render(<AuthCard />);
     expect(screen.queryByText(/fortsätt med/i)).not.toBeInTheDocument();
     expect(
       screen.queryByText(/Google|GitHub|LinkedIn/i),
     ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/namn/i)).not.toBeInTheDocument();
+    // #541: the register form now collects DisplayName (the backend
+    // RegisterCommandValidator requires it). Placeholder-free per the copy rule.
+    expect(screen.getByLabelText("Namn")).toBeInTheDocument();
     container.querySelectorAll("input").forEach((input) => {
       expect(input).not.toHaveAttribute("placeholder");
     });

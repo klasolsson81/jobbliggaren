@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
@@ -246,21 +247,36 @@ internal sealed class A7ClicheRule : ICriterionRule
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
-        var lower = prose.ToLowerInvariant();
 
+        // A7 owns only the kind==Cliche entries (empty buzzword phrases); the soft-skill
+        // adjectives are A9's domain, so one phrase never draws two verdicts (#490). Matched on a
+        // WORD BOUNDARY over the raw prose, so "Social" hits "social kompetens" but never
+        // "sociala"/"socialsekreterare" and "Flexibel" never "flexibelt" (#490/#496).
         var hits = context.Cliches.Entries
-            .Where(e => lower.Contains(e.Phrase.ToLowerInvariant(), StringComparison.Ordinal))
+            .Where(e => e.Kind == ClicheKind.Cliche && ReviewText.ContainsWord(prose, e.Phrase))
             .ToList();
 
+        // Thresholds reconciled with the versioned rubric prose (#489): atsPassSignal
+        // "<2 förekomster" → 0-1 hits Pass; atsFailSignal "≥3 klyschor" → 3+ Fail; the 2-hit band
+        // between them is Warn. Pre-fix 1 hit was a spurious Warn where the rubric says Pass.
         if (hits.Count == 0)
         {
             return CvCriterionVerdict.Assessed("A7", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Structural("Inga klyschor från klyscha-listan funna i profil/erfarenhet.")));
         }
 
+        if (hits.Count < 2)
+        {
+            // A single cliché is under the rubric's "<2" Pass threshold — cite it so the pass is
+            // transparent (§5 explainability), never a hidden flag.
+            return CvCriterionVerdict.Assessed("A7", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.SpanWord(prose, hits[0].Phrase,
+                    $"enstaka klyscha under gränsen (<2): \"{hits[0].Phrase}\"")));
+        }
+
         var verdict = hits.Count >= 3 ? CriterionVerdict.Fail : CriterionVerdict.Warn;
         return CvCriterionVerdict.Assessed("A7", category, verdict,
-            ReviewText.Cite(ReviewText.SpanCaseInsensitive(prose, hits[0].Phrase, $"klyscha: \"{hits[0].Phrase}\"")));
+            ReviewText.Cite(ReviewText.SpanWord(prose, hits[0].Phrase, $"klyscha: \"{hits[0].Phrase}\"")));
     }
 }
 
@@ -303,11 +319,12 @@ internal sealed class A9SoftSkillsRule : ICriterionRule
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
-        var lower = prose.ToLowerInvariant();
 
-        // Reuse the cliché lexicon as the curated proxy for "unsupported soft phrases" (data, §5).
+        // A9's curated sub-list is the kind==SoftSkill entries only (bare personality adjectives) —
+        // a cliché-kind phrase belongs to A7, so one phrase never draws two verdicts (#490). Matched
+        // on a word boundary so "Social" never hits "sociala"/"socialsekreterare" (#490/#496).
         var softHits = context.Cliches.Entries
-            .Where(e => lower.Contains(e.Phrase.ToLowerInvariant(), StringComparison.Ordinal))
+            .Where(e => e.Kind == ClicheKind.SoftSkill && ReviewText.ContainsWord(prose, e.Phrase))
             .ToList();
 
         if (softHits.Count == 0)
@@ -316,13 +333,28 @@ internal sealed class A9SoftSkillsRule : ICriterionRule
                 ReviewText.Cite(ReviewText.Structural("Inga obestyrkta personlighetsadjektiv funna.")));
         }
 
-        // Backed if the prose carries any concrete example (a number) alongside the soft phrases.
-        var verdict = ReviewText.ContainsDigit(prose) ? CriterionVerdict.Warn : CriterionVerdict.Fail;
+        // "Backed" now means a MEASURABLE example sits in the SAME sentence as the adjective (#490),
+        // not merely any digit somewhere in the CV — an employment date always satisfied the old
+        // any-digit check, so the Fail branch was effectively dead. Dates are masked (#487).
+        var unsupported = softHits
+            .Where(e => !ReviewText.HasMeasurableExampleNear(prose, e.Phrase))
+            .ToList();
+
+        if (unsupported.Count == 0)
+        {
+            return CvCriterionVerdict.Assessed("A9", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    "Personlighetsadjektiv styrks med konkret exempel i samma mening.")));
+        }
+
+        // An unsupported adjective LIST (≥2) is the rubric's Fail case ("adjektivlista utan
+        // exempel"); a single unbacked adjective is a Warn (advise a concrete example).
+        var verdict = unsupported.Count >= 2 ? CriterionVerdict.Fail : CriterionVerdict.Warn;
         var note = verdict == CriterionVerdict.Fail
             ? "personlighetsadjektiv utan konkret exempel"
             : "personlighetsadjektiv – styrk med konkret exempel";
         return CvCriterionVerdict.Assessed("A9", category, verdict,
-            ReviewText.Cite(ReviewText.SpanCaseInsensitive(prose, softHits[0].Phrase, note)));
+            ReviewText.Cite(ReviewText.SpanWord(prose, unsupported[0].Phrase, note)));
     }
 }
 

@@ -5,6 +5,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Improvement;
+using NSubstitute;
 using Shouldly;
 using static Jobbliggaren.Application.UnitTests.Resumes.Improvement.CvImprovementFixtures;
 
@@ -19,8 +20,10 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 /// QuestPDF: Phase A is the BCL-only engine + contracts; the IDocument renderer is Phase B.
 ///
 /// Golden expectations come from the REAL committed assets via the real loaders
-/// (<c>cliche-list.v1.json</c> / <c>verb-mapping.v1.json</c> / <c>rubric.v1.1.0.json</c>), so
-/// the <c>After</c>-text can never drift from the data the engine actually reads.
+/// (<c>cliche-list.v2.json</c> / <c>verb-mapping.v1.json</c> / <c>rubric.v1.1.0.json</c>), so
+/// the <c>After</c>-text can never drift from the data the engine actually reads. The cliché
+/// drop-in arm is driven via a fake <c>IClicheLexicon</c> because today's real asset carries no
+/// genuine drop-in (#495 — advisory guidance is never applied verbatim).
 ///
 /// The internal sealed <see cref="CvImprovementEngine"/> is constructed directly
 /// (Infrastructure exposes internals to this assembly, parity CvReviewEngineTests). The
@@ -89,45 +92,121 @@ public class CvImprovementEngineTests
     }
 
     // ===============================================================
-    // 1. ClicheReplacement (A7) — KnowledgeBank arm, TextSpan evidence
+    // 1. ClicheReplacement (A7) — KnowledgeBank arm, drop-in ONLY (#495/#496)
     // ===============================================================
 
-    [Fact]
-    public async Task SuggestAsync_ShouldProposeClicheReplacement_WhenProfileContainsACliche()
-    {
-        // Use a REAL cliché phrase + its EXACT BetterAlternative from cliche-list.v1.json.
-        var entry = RealClicheList().Entries[0]; // "Brinner för"
-        var resume = Resume(profile: $"{entry.Phrase} kvalitet och samarbete.");
+    // A substitute IClicheLexicon serving a single synthetic entry, so the drop-in emit path is
+    // covered even though today's REAL asset carries no genuine drop-in (#495 — the advisory
+    // Guidance must never be applied verbatim). The engine reads the lexicon through the port, so
+    // a fake list is the honest way to drive the drop-in arm without inventing an asset drop-in.
+    private static IClicheLexicon FakeLexicon(
+        string phrase, string? dropIn, ClicheKind kind = ClicheKind.Cliche) =>
+        FakeLexiconFrom(new ClicheEntry(phrase, kind, "Tom passion-signal", "Var konkret", dropIn));
 
-        var change = Single(await SuggestAsync(resume), ProposedChangeKind.ClicheReplacement);
+    private static IClicheLexicon FakeLexiconFrom(params ClicheEntry[] entries)
+    {
+        var lexicon = Substitute.For<IClicheLexicon>();
+        lexicon.GetClicheList().Returns(new ClicheList("test-cliche", entries));
+        return lexicon;
+    }
+
+    private static async Task<CvImprovementResult> SuggestWithAsync(
+        IClicheLexicon lexicon, ParsedResume resume, CvReviewResult? review = null) =>
+        await new CvImprovementEngine(lexicon, RealVerbMapper(), RealRubricProvider(), Analyzer())
+            .SuggestAsync(resume, review, RenderProfile.Ats, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeNoClicheReplacement_FromTodaysRealAsset()
+    {
+        // #495: today's committed asset carries ZERO genuine drop-ins (every alternative is
+        // advisory Guidance that may embed illustrative numbers / a meta-instruction). A CV FULL of
+        // real clichés must therefore yield NO ClicheReplacement — the F4-9 A7 review flags them,
+        // the improve engine synthesises nothing.
+        var clicheProfile = string.Join(". ", RealClicheList().Entries.Take(4).Select(e => e.Phrase)) + ".";
+        var resume = Resume(profile: clicheProfile);
+
+        Of(await SuggestAsync(resume), ProposedChangeKind.ClicheReplacement).ShouldBeEmpty(
+            "Utan äkta drop-in i assetet föreslår motorn ingen klyscha-ersättning (#495).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeClicheReplacement_WhenTheEntryCarriesAGenuineDropIn()
+    {
+        // The drop-in emit path (driven via a fake lexicon): a phrase WITH a genuine same-meaning
+        // drop-in proposes it verbatim, with the KB provenance + the Why as rationale.
+        const string dropIn = "Byggde betalplattform som sänkte kostnaden med 30 procent";
+        var lexicon = FakeLexicon("Brinner för", dropIn);
+        var resume = Resume(profile: "Brinner för kvalitet och samarbete.");
+
+        var change = Single(await SuggestWithAsync(lexicon, resume), ProposedChangeKind.ClicheReplacement);
 
         change.Kind.ShouldBe(ProposedChangeKind.ClicheReplacement);
         change.Category.ShouldBe(RubricCategory.Content);
         change.Evidence.ShouldBeOfType<TextSpanEvidence>(
             "A7-klyscha citerar CV-spannet (TextSpanEvidence).");
         change.Replacement.ShouldNotBeNull();
-        change.Replacement!.Before.ShouldBe(entry.Phrase,
-            "Before ska vara den citerade klyschan ordagrant.");
-        change.Replacement.After.ShouldBe(entry.BetterAlternative,
-            "After ska vara EXAKT BetterAlternative ur cliche-list.v1.json (ingen syntes).");
+        change.Replacement!.Before.ShouldBe("Brinner för",
+            "Before ska vara den ordagrant citerade klyschan.");
+        change.Replacement.Before.ShouldBe(((TextSpanEvidence)change.Evidence).Span.Quote,
+            "Before måste vara EXAKT det citerade spannets Quote (propose-and-approve-kontraktet).");
+        change.Replacement.After.ShouldBe(dropIn,
+            "After ska vara EXAKT entryns DropInReplacement (ingen syntes).");
         change.Operation.ShouldBeNull("En KB-ersättning bär ingen StructuralOperation.");
 
         var kb = change.Provenance.ShouldBeOfType<KnowledgeBankProvenance>();
-        kb.Source.ShouldNotBeNullOrWhiteSpace();
-        kb.Version.ShouldBe(RealClicheList().Version);
-        kb.Key.ShouldBe(entry.Phrase,
-            "Provenance.Key ska peka på källfrasen i kunskapsbanken.");
-        change.Rationale.ShouldBe(entry.Why,
+        kb.Source.ShouldBe("cliche-list");
+        kb.Version.ShouldBe("test-cliche");
+        kb.Key.ShouldBe("Brinner för", "Provenance.Key ska peka på källfrasen i kunskapsbanken.");
+        change.Rationale.ShouldBe("Tom passion-signal",
             "Rationale ska komma från KB-entryns Why-fält (ingen påhittad motivering).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeClicheReplacement_WhenTheMatchedEntryHasNoDropIn()
+    {
+        // A cliché that matches but has NO drop-in (dropIn == null) is flagged by A7, never
+        // rewritten (#495) — the improve engine proposes nothing for it.
+        var lexicon = FakeLexicon("Brinner för", dropIn: null);
+        var resume = Resume(profile: "Brinner för kvalitet och samarbete.");
+
+        Of(await SuggestWithAsync(lexicon, resume), ProposedChangeKind.ClicheReplacement).ShouldBeEmpty();
     }
 
     [Fact]
     public async Task SuggestAsync_ShouldNotProposeClicheReplacement_WhenProfileHasNoCliche()
     {
+        var lexicon = FakeLexicon("Brinner för", dropIn: "Byggde X");
         var resume = Resume(profile:
             "Backend-utvecklare med 8 års erfarenhet av betalsystem. Migrerade 3 plattformar 2024.");
 
-        Of(await SuggestAsync(resume), ProposedChangeKind.ClicheReplacement).ShouldBeEmpty();
+        Of(await SuggestWithAsync(lexicon, resume), ProposedChangeKind.ClicheReplacement).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldMatchClicheDropInOnAWordBoundary_NotMidWord()
+    {
+        // #496: "Social" must not splice mid-word inside "sociala medier" (which produced a
+        // "…al medier" corruption); only a standalone occurrence proposes.
+        var lexicon = FakeLexicon("Social", dropIn: "Höll 12 kundpresentationer 2024");
+
+        Of(await SuggestWithAsync(lexicon, Resume(profile: "Ansvarade för sociala medier-strategin.")),
+            ProposedChangeKind.ClicheReplacement).ShouldBeEmpty(
+            "Klyschan 'Social' ska inte matcha inuti 'sociala' (#496).");
+
+        Single(await SuggestWithAsync(lexicon, Resume(profile: "Social och trevlig i teamet.")),
+            ProposedChangeKind.ClicheReplacement)
+            .Replacement!.Before.ShouldBe("Social", "En fristående förekomst ska matchas ordagrant.");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeEveryOccurrenceOfAClicheDropIn_Deterministically()
+    {
+        // #496: every word-bounded occurrence is proposed, left to right — not just the first.
+        var lexicon = FakeLexicon("Self-starter", dropIn: "Initierade pilotprojekt Y på 4 månader");
+        var resume = Resume(profile: "Self-starter i grunden. Alltid en self-starter i nya team.");
+
+        Of(await SuggestWithAsync(lexicon, resume), ProposedChangeKind.ClicheReplacement).Count
+            .ShouldBe(2, "Båda förekomsterna av klyschan ska föreslås deterministiskt (#496).");
     }
 
     // ===============================================================
@@ -590,11 +669,12 @@ public class CvImprovementEngineTests
     public async Task SuggestAsync_ShouldProposeWithNullCriterionId_WhenReviewIsNull()
     {
         // The engine still proposes without a prior review (it can detect a cliché on its own);
-        // the change carries a null CriterionId because no review criterion is bound to it.
-        var entry = RealClicheList().Entries[0];
-        var resume = Resume(profile: $"{entry.Phrase} kvalitet.");
+        // the change carries a null CriterionId because no review criterion is bound to it. Driven
+        // via a fake lexicon carrying a drop-in (today's real asset has none — #495).
+        var lexicon = FakeLexicon("Brinner för", dropIn: "Byggde X som gav Y");
+        var resume = Resume(profile: "Brinner för kvalitet.");
 
-        var change = Single(await SuggestAsync(resume, review: null), ProposedChangeKind.ClicheReplacement);
+        var change = Single(await SuggestWithAsync(lexicon, resume), ProposedChangeKind.ClicheReplacement);
 
         change.CriterionId.ShouldBeNull(
             "Utan föregående review är ingen kriterie-id bunden till ändringen.");
@@ -605,12 +685,12 @@ public class CvImprovementEngineTests
     {
         // A supplied review with an A7 FAIL (the cliché criterion) → the ClicheReplacement
         // change is bound to that criterion id (the propose step references the verdict).
-        var entry = RealClicheList().Entries[0];
-        var resume = Resume(profile: $"{entry.Phrase} kvalitet.");
+        var lexicon = FakeLexicon("Brinner för", dropIn: "Byggde X som gav Y");
+        var resume = Resume(profile: "Brinner för kvalitet.");
 
         var a7Fail = CvCriterionVerdict.Assessed(
             "A7", RubricCategory.Content, CriterionVerdict.Fail,
-            [new TextSpanEvidence(new TextSpan(0, entry.Phrase.Length, entry.Phrase), "klyscha")]);
+            [new TextSpanEvidence(new TextSpan(0, "Brinner för".Length, "Brinner för"), "klyscha")]);
         var review = new CvReviewResult(
             RealRubric().Version, RenderProfile.Ats,
             Categories: [],
@@ -619,7 +699,7 @@ public class CvImprovementEngineTests
             AssessedCount: 1,
             TotalCount: 1);
 
-        var change = Single(await SuggestAsync(resume, review: review), ProposedChangeKind.ClicheReplacement);
+        var change = Single(await SuggestWithAsync(lexicon, resume, review), ProposedChangeKind.ClicheReplacement);
 
         change.CriterionId.ShouldBe("A7",
             "Med en review som flaggar A7 ska klyscha-ändringen bindas till A7.");

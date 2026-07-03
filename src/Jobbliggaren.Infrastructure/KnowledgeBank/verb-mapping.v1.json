@@ -1,5 +1,5 @@
 {
-  "verbMappingVersion": "1",
+  "verbMappingVersion": "1.1",
   "strongVerbGroups": [
     {
       "group": "Ledarskap & ansvar",
@@ -98,13 +98,13 @@
     }
   ],
   "weakVerbs": [
-    { "weak": "var ansvarig för", "suggestedStrong": "ansvarade för", "group": "Ledarskap & ansvar" },
-    { "weak": "var med och", "suggestedStrong": "genomförde", "group": "Leverera & genomföra" },
-    { "weak": "hjälpte till med", "suggestedStrong": "samordnade", "group": "Ledarskap & ansvar" },
-    { "weak": "arbetade med", "suggestedStrong": "utvecklade", "group": "Bygga & skapa" },
-    { "weak": "deltog i", "suggestedStrong": "genomförde", "group": "Leverera & genomföra" },
-    { "weak": "fick möjlighet att", "suggestedStrong": "initierade", "group": "Bygga & skapa" },
-    { "weak": "hade hand om", "suggestedStrong": "ansvarade för", "group": "Ledarskap & ansvar" },
-    { "weak": "jobbade med", "suggestedStrong": "byggde", "group": "Bygga & skapa" }
+    { "weak": "var ansvarig för", "suggestedStrong": "ansvarade för", "group": "Ledarskap & ansvar", "dropInSafe": true },
+    { "weak": "var med och", "suggestedStrong": "genomförde", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "hjälpte till med", "suggestedStrong": "samordnade", "group": "Ledarskap & ansvar", "dropInSafe": false },
+    { "weak": "arbetade med", "suggestedStrong": "utvecklade", "group": "Bygga & skapa", "dropInSafe": false },
+    { "weak": "deltog i", "suggestedStrong": "genomförde", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "fick möjlighet att", "suggestedStrong": "initierade", "group": "Bygga & skapa", "dropInSafe": false },
+    { "weak": "hade hand om", "suggestedStrong": "ansvarade för", "group": "Ledarskap & ansvar", "dropInSafe": true },
+    { "weak": "jobbade med", "suggestedStrong": "byggde", "group": "Bygga & skapa", "dropInSafe": false }
   ]
 }

@@ -35,7 +35,7 @@ internal sealed class VerbMapper : IVerbMapper
             .ToList();
 
         var weak = file.WeakVerbs
-            .Select(w => new WeakVerbMapping(w.Weak, w.SuggestedStrong, w.Group))
+            .Select(w => new WeakVerbMapping(w.Weak, w.SuggestedStrong, w.Group, w.DropInSafe))
             .ToList();
 
         return new VerbMapping(file.Version, groups, weak);
@@ -61,5 +61,9 @@ internal sealed record VerbMappingFile
     internal sealed record WeakVerbFile(
         [property: JsonPropertyName("weak")] string Weak,
         [property: JsonPropertyName("suggestedStrong")] string SuggestedStrong,
-        [property: JsonPropertyName("group")] string? Group = null);
+        [property: JsonPropertyName("group")] string? Group = null,
+        // #494: nullable+defaulted (false) = N-1 tolerance — an older asset without the field
+        // maps every weak verb to "not a drop-in", so the transform proposes nothing until the
+        // asset opts a pair in. Only same-valency pairs are marked true.
+        [property: JsonPropertyName("dropInSafe")] bool DropInSafe = false);
 }

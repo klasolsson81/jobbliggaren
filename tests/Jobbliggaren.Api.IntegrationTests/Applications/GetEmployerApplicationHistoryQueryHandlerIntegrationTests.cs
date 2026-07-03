@@ -94,6 +94,19 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         return new GetEmployerApplicationHistoryQueryHandler(db, currentUser);
     }
 
+    /// <summary>
+    /// Pins an application's applied_at at the DB level so ordering / most-recent assertions are
+    /// deterministic. The registered real clock stamps ~identical timestamps on fast successive submits
+    /// (why <see cref="Handle_EntriesCarryAppliedAtAndCurrentStatusName_MostRecentFirst"/> uses
+    /// ignoreOrder), and no domain method backdates AppliedAt — so this uses the same ExecuteSqlRaw seam
+    /// as the retract test.
+    /// </summary>
+    private static async Task SetAppliedAtAsync(
+        AppDbContext db, Jobbliggaren.Domain.Applications.ApplicationId appId, DateTimeOffset appliedAt,
+        CancellationToken ct) =>
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE applications SET applied_at = {0} WHERE id = {1}", [appliedAt, appId.Value], ct);
+
     // --- auth guards ----------------------------------------------------------------------------
 
     [Fact]
@@ -186,6 +199,80 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         rejectedEntry.AppliedAt.ShouldBe(rejected.AppliedAt!.Value, TimeSpan.FromSeconds(1));
     }
 
+    // --- ordering (deterministic, distinct applied_at) ------------------------------------------
+
+    [Fact]
+    public async Task Handle_OrdersEmployersAndEntriesByMostRecentApplication()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var userId = Guid.NewGuid();
+        var seeker = await SeedSeekerAsync(db, clock, userId, ct);
+
+        var orgX = "5560360793";
+        var orgY = "5590123456";
+        var adX = await SeedJobAdAsync(db, clock, orgX, "Acme AB", ct);
+        var adY = await SeedJobAdAsync(db, clock, orgY, "Beta AB", ct);
+
+        // Two submissions to X, one to Y — then pin distinct, well-separated applied_at (the real clock
+        // stamps ~identical values). X's newest (base+2d) is the newest overall; Y's only one is base+1d.
+        var xOld = await SeedApplicationAsync(db, clock, seeker.Id, adX.Id, ApplicationStatus.Submitted, ct);
+        var xNew = await SeedApplicationAsync(db, clock, seeker.Id, adX.Id, ApplicationStatus.Submitted, ct);
+        var y = await SeedApplicationAsync(db, clock, seeker.Id, adY.Id, ApplicationStatus.Submitted, ct);
+
+        var baseTime = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        await SetAppliedAtAsync(db, xOld.Id, baseTime, ct);
+        await SetAppliedAtAsync(db, y.Id, baseTime.AddDays(1), ct);
+        await SetAppliedAtAsync(db, xNew.Id, baseTime.AddDays(2), ct);
+        db.ChangeTracker.Clear();
+
+        var result = await CreateHandler(db, userId).Handle(Query, ct);
+
+        result.Count.ShouldBe(2);
+        // Employers ordered by their most-recent application: X (base+2d) before Y (base+1d).
+        result[0].OrganizationNumber.ShouldBe(orgX);
+        result[1].OrganizationNumber.ShouldBe(orgY);
+        // Within X, entries are most-recent-first (base+2d before base).
+        result[0].Applications.Count.ShouldBe(2);
+        result[0].Applications[0].AppliedAt.ShouldBeGreaterThan(result[0].Applications[1].AppliedAt);
+    }
+
+    [Fact]
+    public async Task Handle_TakesCompanyNameFromMostRecentAd_WhenSameOrgNrCarriesTwoNames()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var userId = Guid.NewGuid();
+        var seeker = await SeedSeekerAsync(db, clock, userId, ct);
+
+        // Same legal entity (one org.nr), two ads whose employer NAME differs (e.g. a rebrand). The
+        // handler groups on org.nr and takes the name from the most-recently-applied ad.
+        var org = "5560360793";
+        var adOld = await SeedJobAdAsync(db, clock, org, "Gamla Namnet AB", ct);
+        var adNew = await SeedJobAdAsync(db, clock, org, "Nya Namnet AB", ct);
+        var appOld = await SeedApplicationAsync(db, clock, seeker.Id, adOld.Id, ApplicationStatus.Submitted, ct);
+        var appNew = await SeedApplicationAsync(db, clock, seeker.Id, adNew.Id, ApplicationStatus.Submitted, ct);
+
+        var baseTime = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        await SetAppliedAtAsync(db, appOld.Id, baseTime, ct);
+        await SetAppliedAtAsync(db, appNew.Id, baseTime.AddDays(1), ct);
+        db.ChangeTracker.Clear();
+
+        var result = await CreateHandler(db, userId).Handle(Query, ct);
+
+        var employer = result.ShouldHaveSingleItem();
+        employer.OrganizationNumber.ShouldBe(org);
+        employer.ApplicationCount.ShouldBe(2);
+        // One legal entity = one name: the most-recently-applied ad's employer name wins.
+        employer.CompanyName.ShouldBe("Nya Namnet AB");
+    }
+
     // --- exclusions -----------------------------------------------------------------------------
 
     [Fact]
@@ -247,6 +334,42 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
 
         // A submitted application with no JobAdId (manual/bare) carries no employer org.nr.
         await SeedApplicationAsync(db, clock, seeker.Id, jobAdId: null, ApplicationStatus.Submitted, ct);
+
+        var result = await CreateHandler(db, userId).Handle(Query, ct);
+
+        result.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_ExcludesApplicationsToLiveAdWithoutOrgNr()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var userId = Guid.NewGuid();
+        var seeker = await SeedSeekerAsync(db, clock, userId, ct);
+
+        // A LIVE ad whose payload carries no employer.organization_number -> the STORED shadow column
+        // is NULL -> the application cannot be attributed to an employer and is excluded (a realistic
+        // Platsbanken ad without an org.nr, distinct from a retracted ad or a manual application).
+        var externalId = $"eah-noorg-{Guid.NewGuid():N}";
+        var rawPayload = $"{{\"id\":\"{externalId}\",\"employer\":{{\"name\":\"No Org AB\"}}}}";
+        var ad = JobAd.Import(
+            title: "Testannons",
+            company: Company.Create("No Org AB").Value,
+            description: "beskrivning",
+            url: $"https://example.com/jobs/{externalId}",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: rawPayload,
+            publishedAt: clock.UtcNow.AddDays(-2),
+            expiresAt: clock.UtcNow.AddDays(30),
+            clock: clock).Value;
+        db.JobAds.Add(ad);
+        await db.SaveChangesAsync(ct);
+
+        await SeedApplicationAsync(db, clock, seeker.Id, ad.Id, ApplicationStatus.Submitted, ct);
 
         var result = await CreateHandler(db, userId).Handle(Query, ct);
 

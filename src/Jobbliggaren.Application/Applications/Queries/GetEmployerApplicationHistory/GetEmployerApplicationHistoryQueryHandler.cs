@@ -58,7 +58,10 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
         // gap, documented above). OrgNr is the STORED "OrganizationNumber" shadow column read
         // SERVER-SIDE to group on; Status is a value-converted SmartEnum projected WHOLE (its .Name is
         // read in memory, never in the expression tree). Bounded to one user's own submitted
-        // applications (no pagination, parity ListCompanyWatches).
+        // applications (no pagination v1, parity ListCompanyWatches). Unlike a curated company-watch
+        // set this history grows monotonically; if the hub ever becomes a hot path the preselected
+        // remedy is a server-side count + recent-N (or a soft cap) — LoggingBehavior already measures
+        // the latency as the observe-only ratchet signal (ADR 0045 / §2.5).
         var rows = await db.Applications
             .AsNoTracking()
             .Where(a => a.JobSeekerId == jobSeekerId && a.AppliedAt != null)
@@ -81,18 +84,17 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
             .GroupBy(r => r.OrgNr!)
             .Select(g =>
             {
+                // Sort the employer's applications once (most-recent first); both the entry list and
+                // the display name (one legal entity = one name -> the latest ad's name) derive from it.
+                var ordered = g.OrderByDescending(r => r.AppliedAt!.Value).ToList();
                 var isProtected = OrganizationNumber.FromTrusted(g.Key).IsPersonnummerShaped();
-                var entries = g
-                    .OrderByDescending(r => r.AppliedAt!.Value)
+                var entries = ordered
                     .Select(r => new ApplicationHistoryEntryDto(r.AppliedAt!.Value, r.Status.Name))
                     .ToList();
                 return new EmployerApplicationHistoryDto(
                     OrganizationNumber: isProtected ? null : g.Key,
                     IsProtectedIdentity: isProtected,
-                    // One legal entity = one name; take the most-recently-applied ad's employer name.
-                    CompanyName: g.OrderByDescending(r => r.AppliedAt!.Value)
-                        .Select(r => r.CompanyName)
-                        .FirstOrDefault(),
+                    CompanyName: ordered[0].CompanyName,
                     ApplicationCount: entries.Count,
                     Applications: entries);
             })

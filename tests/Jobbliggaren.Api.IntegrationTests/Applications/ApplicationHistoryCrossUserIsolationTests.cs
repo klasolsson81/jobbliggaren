@@ -82,6 +82,20 @@ public class ApplicationHistoryCrossUserIsolationTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Anonymous_request_is_rejected_401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // No Authorization header -> the transport RequireAuthorization() gate rejects before the
+        // handler runs (defense-in-depth beyond the IAuthenticatedRequest pipeline marker).
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(HistoryEndpoint, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Two_users_applying_to_same_employer_each_see_only_their_own_count()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -493,9 +493,24 @@ public class CvReviewEngineTests
         // versioned rubric it claims to implement.
         var oneCliche = Phrases(ClicheKind.Cliche)[0];
 
-        Verdict(await ReviewAsync(Resume(profile: $"{oneCliche} och mycket annat.")), "A7").Verdict
-            .ShouldBe(CriterionVerdict.Pass,
-                "En enda klyscha är under rubrikens <2-gräns → A7 Pass (#489).");
+        var a7 = Verdict(await ReviewAsync(Resume(profile: $"{oneCliche} och mycket annat.")), "A7");
+        a7.Verdict.ShouldBe(CriterionVerdict.Pass,
+            "En enda klyscha är under rubrikens <2-gräns → A7 Pass (#489).");
+        // The passing single cliché is still CITED (the rule cites it for §5 explainability, never
+        // a hidden flag) — pin the span so the "Pass-with-evidence" branch is covered.
+        a7.Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem().Span.Quote.ShouldBe(oneCliche);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCiteTheVerbatimOriginalCaseCliche_WhenProseIsLowercased()
+    {
+        // Inv.2: the cited span quotes the CV's OWN casing (verbatim), not the lexicon's — a
+        // lowercased "brinner för" in the CV is cited as written, at the word-bounded occurrence.
+        var lowerCliche = Phrases(ClicheKind.Cliche)[0].ToLowerInvariant();
+
+        var a7 = Verdict(await ReviewAsync(Resume(profile: $"Jag {lowerCliche} kvalitet i allt.")), "A7");
+        a7.Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem().Span.Quote.ShouldBe(lowerCliche,
+            "Citatet ska vara CV:ts egen gemena skrivning, inte lexikonets versalisering (Inv.2).");
     }
 
     [Fact]
@@ -564,6 +579,32 @@ public class CvReviewEngineTests
 
         Verdict(await ReviewAsync(resume), "A9").Verdict.ShouldBe(CriterionVerdict.Fail,
             "Ett anställningsdatum någon annanstans styrker inte adjektiven i profilen (#490).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnA9AndCiteTheUnbackedAdjective_WhenExactlyOneIsUnbacked()
+    {
+        // The Warn boundary (exactly one unbacked adjective) + the citation redirect: the span cites
+        // the UNSUPPORTED adjective ("Noggrann"), not the first soft hit ("Social", which IS backed).
+        var resume = Resume(profile: "Social med 12 genomförda kundmöten. Noggrann i mitt arbete.");
+
+        var a9 = Verdict(await ReviewAsync(resume), "A9");
+        a9.Verdict.ShouldBe(CriterionVerdict.Warn,
+            "Ett backat + ett obackat adjektiv → A9 Warn (#490).");
+        a9.Evidence.OfType<TextSpanEvidence>().ShouldHaveSingleItem().Span.Quote.ShouldBe("Noggrann",
+            "Citatet ska peka på det obestyrkta adjektivet, inte det backade (#490).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA9_WhenTheOnlyNearbyDigitIsAnEmploymentDateInTheSameSentence()
+    {
+        // #487 masking inside the SAME sentence: a date SITTING NEXT TO the adjective ("Social sedan
+        // 2015") is not a measurable example — StripDates masks it, so the adjective stays unbacked.
+        // Isolates the masking (remove StripDates and 2015/2018 would falsely back the adjectives).
+        var resume = Resume(profile: "Social sedan 2015. Noggrann sedan 2018.");
+
+        Verdict(await ReviewAsync(resume), "A9").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "Ett datum bredvid adjektivet styrker det inte — datumet maskas (#487/#490).");
     }
 
     [Fact]

@@ -19,8 +19,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 /// <list type="number">
 /// <item>The knowledge-bank ports are wired to the REAL committed Infrastructure loaders
 /// (<see cref="RubricProvider"/> / <see cref="ClicheLexicon"/> / <see cref="VerbMapper"/>),
-/// so the golden <c>After</c>-text (the EXACT <c>BetterAlternative</c>/<c>SuggestedStrong</c>)
-/// is read from <c>cliche-list.v1.json</c> / <c>verb-mapping.v1.json</c> — never guessed
+/// so the golden <c>After</c>-text (the EXACT cliché <c>DropInReplacement</c> /
+/// verb <c>SuggestedStrong</c>) is read from <c>cliche-list.v2.json</c> /
+/// <c>verb-mapping.v1.json</c> — never guessed
 /// (CLAUDE.md §5: "a CV verdict without cited textual evidence" and "synthesising prose the
 /// user did not write" are forbidden; the propose step may only resolve a KB-endorsed value).</item>
 /// <item>The <see cref="ITextAnalyzer"/> is the same deterministic lowercase+whitespace stub

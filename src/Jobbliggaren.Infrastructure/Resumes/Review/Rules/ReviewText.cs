@@ -213,26 +213,11 @@ internal static class ReviewText
         return new TextSpanEvidence(new TextSpan(index >= 0 ? index : 0, quote.Length, quote), note);
     }
 
-    /// <summary>A text-span citation that locates <paramref name="phrase"/> case-insensitively
-    /// in <paramref name="source"/> and quotes the verbatim (original-case) occurrence.</summary>
-    public static TextSpanEvidence SpanCaseInsensitive(string source, string phrase, string? note = null)
-    {
-        var index = string.IsNullOrEmpty(phrase)
-            ? -1
-            : source.IndexOf(phrase, StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
-        {
-            return new TextSpanEvidence(new TextSpan(0, phrase.Length, phrase), note);
-        }
-
-        var quote = source.Substring(index, phrase.Length);
-        return new TextSpanEvidence(new TextSpan(index, phrase.Length, quote), note);
-    }
-
     /// <summary>A text-span citation for the first WORD-BOUNDED occurrence of
     /// <paramref name="phrase"/> in <paramref name="source"/> (case-insensitive), quoting the
-    /// verbatim occurrence. Unlike <see cref="SpanCaseInsensitive"/> it never cites a mid-word
-    /// substring — the offset is the same word-bounded match the rule flagged (#490/#496).</summary>
+    /// verbatim occurrence. Unlike a plain case-insensitive substring lookup (<see cref="Span"/>
+    /// with a lowercased needle) it never cites a mid-word substring — the offset is the same
+    /// word-bounded match the rule flagged (#490/#496).</summary>
     public static TextSpanEvidence SpanWord(string source, string phrase, string? note = null)
     {
         var span = WordSpans(source, phrase).FirstOrDefault();

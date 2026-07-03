@@ -22,8 +22,9 @@ public enum ClicheKind
 /// One curated Swedish CV lexicon entry (research §6.1) with its diagnosis and constructive
 /// guidance. Versioned DATA (CLAUDE.md §5: "cliché lists ... versioned data/config per the
 /// knowledge bank, not inline strings"). Every entry carries <see cref="Why"/> (so the
-/// determinism can cite why it flagged) and advisory <see cref="Guidance"/> (rendered as an
-/// example the job-seeker adapts). The v2 split (#495): <see cref="Guidance"/> is ADVISORY —
+/// determinism can cite why it flagged) and advisory <see cref="Guidance"/> (intended for
+/// display as an example the job-seeker adapts, never applied verbatim; no consumer renders it
+/// yet). The v2 split (#495): <see cref="Guidance"/> is ADVISORY —
 /// it may embed illustrative numbers or meta-instructions and must NEVER be applied as a
 /// literal replacement — while the OPTIONAL <see cref="DropInReplacement"/> is a genuine
 /// same-meaning literal the propose step (F4-10) may offer verbatim. When

@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { ThemeProvider, ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
 
-// Weight ranges (LP-1 #254). Hanken carries 400–800: 800 = the landing hero
-// verb stack (.jp-land-hero__stack-verb, förslag 3a) + .jp-pagehero__title,
-// 700 = brand wordmark
-// + stat numbers — both previously referenced unloaded weights (faux-bold), now
-// real. Mono carries 400–700: 700 backs the (mono) stat numbers
-// (.jp-land-top__stat__num, live). Mono has NO 800 consumer, so it is not loaded
-// — an unused next/font weight is dead weight + an extra font-fetch against the
-// CWV budget (CLAUDE.md §5 / §2.5 / ADR 0045).
-const hankenGrotesk = Hanken_Grotesk({
+// Weight ranges (LP-1 #254; font swap #549 WS4 — Hanken Grotesk → Source Sans 3
+// per ADR 0091: higher x/cap 0.736, USWDS/CSN civic pedigree). Source Sans 3
+// ships 200–900; the app loads only its actual consumers 400–800: 800 = the
+// landing hero verb stack (.jp-land-hero__stack-verb, förslag 3a) +
+// .jp-pagehero__title, 700 = brand wordmark + stat numbers. Unused weights are
+// deliberately not loaded — dead weight + an extra font-fetch against the CWV
+// budget (CLAUDE.md §5 / §2.5 / ADR 0045). Mono carries 400–700: 700 backs the
+// (mono) stat numbers (.jp-land-top__stat__num, live). Mono has NO 800 consumer,
+// so it is not loaded.
+const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-sans",
@@ -68,7 +69,7 @@ export default async function RootLayout({
       lang={locale}
       data-density="standard"
       suppressHydrationWarning
-      className={`${hankenGrotesk.variable} ${jetBrainsMono.variable} h-full font-sans`}
+      className={`${sourceSans3.variable} ${jetBrainsMono.variable} h-full font-sans`}
     >
       <body className="min-h-full bg-surface-primary text-text-primary antialiased">
         <ThemeScript />

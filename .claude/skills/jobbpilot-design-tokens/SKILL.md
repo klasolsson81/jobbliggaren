@@ -219,8 +219,10 @@ pinnade på exakta värden) är konsoliderings-kandidater — lägg ALDRIG nya
 konsumenter på dem. CSS-guarden (WS5) fäller nya font-size-/färg-litteraler;
 dokumenterade undantag bär `/* guard-allow: <skäl> */`.
 
-**Fonts via `next/font/google`:** Hanken Grotesk → `--font-sans`;
-JetBrains Mono → `--font-mono`. Never Inter/Roboto/Arial/system-ui as
+**Fonts via `next/font/google`:** Source Sans 3 → `--font-sans` (weight
+400–800 loaded, family 200–900; replaces Hanken Grotesk — higher x/cap ratio
+0.736 vs 0.707 + USWDS/CSN civic pedigree, #549 WS4, ADR 0091); JetBrains
+Mono → `--font-mono` (unchanged). Never Inter/Roboto/Arial/system-ui as
 primary; never mono for body, headings, or button text. Never
 `text-xl`/`text-2xl` — always the semantic token class.
 

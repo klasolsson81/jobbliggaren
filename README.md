@@ -387,7 +387,7 @@ Versioner är låsta.
 | Forms | React Hook Form + Zod | RHF 7.72 / Zod 4.x |
 | Auth-klient | NextAuth.js (Auth.js) | 5 |
 | Datum | date-fns (svensk locale) | 4.x |
-| Typografi | Hanken Grotesk (fallback Inter) | — |
+| Typografi | Source Sans 3 (systemfont-fallback) | — |
 
 ### Datalager och infra
 

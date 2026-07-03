@@ -54,7 +54,7 @@
 | Auth-klient | NextAuth.js (Auth.js) | 5 | Integrerar mot backend Identity-JWT (cookie-sessions) |
 | Datum | date-fns | 4.x | Svensk locale |
 | Ikoner | Lucide React | ^1.8 | Minimalistiskt, civic-vänligt |
-| Typografi | Hanken Grotesk | Google Fonts | Primär; Inter som fallback |
+| Typografi | Source Sans 3 | Google Fonts | Primär (next/font/google, byte från Hanken Grotesk — ADR 0091 / #549 WS4); systemfont-fallback. JetBrains Mono för kod |
 
 > **AI SDK borttaget (ADR 0071):** `Anthropic`-NuGet och `AWSSDK.BedrockRuntime`
 > ingår inte — produkten har ingen AI/LLM. PdfPig / DocumentFormat.OpenXml /
@@ -1063,7 +1063,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
   /styles
     /globals.css               -- Tailwind + custom tokens
   /public
-    /fonts                     -- Hanken Grotesk
+    /fonts                     -- Source Sans 3
     /logo.svg
 ```
 

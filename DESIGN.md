@@ -37,7 +37,7 @@ Referenser som **inte** ska kännas:
 | `border-radius: 4px` | 16px+ rundade hörn |
 | Muted statusfärger | Glow, drop shadow, glasmorfism |
 | Breadcrumbs + hierarki | Flata sidor utan kontext |
-| Systemfont/Hanken Grotesk | Display-fonter, scripts |
+| Systemfont/Source Sans 3 | Display-fonter, scripts |
 | Content-first sidor (hero-bannern är en saklig sök-/orienterings-yta, ADR 0068) | Marketing-heros, vibey microcopy |
 | Kvantifierad info | Vag "positiv" feedback |
 
@@ -81,9 +81,9 @@ Exakta tokens och hex-värden (light+dark), kontrast-tabell, density-system och 
 
 ## 4. Typografi (sammanfattning)
 
-- **Primär:** Hanken Grotesk (`next/font/google`, variabel `--font-sans`) — weight 400–800 (LP-1 #254; 800 = display-klassen). Vikt-stegen är tokeniserad (`--jp-fw-*`, #549 WS2) — aldrig numeriska font-weight-litteraler i CSS/TSX.
+- **Primär:** Source Sans 3 (`next/font/google`, variabel `--font-sans`) — weight 400–800 laddade, hela familjen 200–900 (LP-1 #254; 800 = display-klassen). Ersätter Hanken Grotesk — högre x-höjd/versalkvot (0,736 vs 0,707) ger tydligare text vid samma px samt civic-pedigree (USWDS-default, CSN) (#549 WS4, ADR 0091). Vikt-stegen är tokeniserad (`--jp-fw-*`, #549 WS2) — aldrig numeriska font-weight-litteraler i CSS/TSX.
 - **Monospace:** JetBrains Mono (`next/font/google`, variabel `--font-mono`) — endast för bokstavs-/kod-identifierare och versala caps-labels (mono-kickers, kolumnrubriker, `SV`/`EN`, versioner, opaka stöd-koder) där rollen är *etikett/kod*, inte *läs talet*. Aldrig brödtext/rubriker/knapptext. **Aldrig för informationsbärande siffror** (#376 / ADR 0038-amendment).
-- **Informationsbärande siffror** (antal, belopp, datum, tider, räknare, stats, ID-/SSYK-siffror användaren läser): Hanken Grotesk (sans, `--font-sans`) med `font-variant-numeric: tabular-nums` — entydig läsbarhet vid synnedsättning (`0`≠`8`) med bibehållen kolumn-justering. Låg-syn-golvet (§1.1-målanvändaren, ADR 0038-linjen) väger tyngre än mono-kod-estetiken; `tabular-nums` är progressive enhancement (faller graciöst till proportionella figurer).
+- **Informationsbärande siffror** (antal, belopp, datum, tider, räknare, stats, ID-/SSYK-siffror användaren läser): Source Sans 3 (sans, `--font-sans`) med `font-variant-numeric: tabular-nums` — entydig läsbarhet vid synnedsättning (`0`≠`8`) med bibehållen kolumn-justering inom samma vikt (sifferbredd växer mellan vikter — verifierat riskfritt i appen idag, ADR 0091). Låg-syn-golvet (§1.1-målanvändaren, ADR 0038-linjen) väger tyngre än mono-kod-estetiken; `tabular-nums` är progressive enhancement (faller graciöst till proportionella figurer).
 - **App-UI-roller (ADR 0038 — GOV.UK-läsbarhetsgolv; #549 WS1 / ADR 0068-notat 2026-07-03):** body **16px/400** (golv — aldrig informationsbärande text < 16px), body-sm/small **14px** (min), lede **17px/400**, h3/h4 **18/16px/700/ink-1**, h2 **20px/700/`--jp-heading-2`** (navy-800), h1 **32px/700/`--jp-heading-1`** (navy-700 — enad sidtitel-tier, re-align mot ADR 0052 Beslut 5). Rubriker = navy (information), grönt = interaktion (E2f-kärnan består). Dark: rubriker ink-1.
 - **Display (banner-plattan, ADR 0068 G2):** 44px / 800 / line-height 1.1 / letter-spacing −0.025em (32px mobil) — följer F4-platta-komponenten var den används (/jobb-hero + pagehero på alla inre sidor). Landing-plattan: 56px-clamp / 700. Innehållsbredd-kanon app-wide = 1136px (header = platta = innehåll).
 - **Inline-data (datum, ID-siffror, räknare):** sans 13px/500 + `tabular-nums`, färg `text-secondary`/`text-primary` (aldrig `text-tertiary`) — siffror läsbara, kolumner justerade (#376; mono-bärande caps-labels förblir mono)

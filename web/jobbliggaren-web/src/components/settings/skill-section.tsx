@@ -112,7 +112,7 @@ interface SkillSectionProps {
  * inline-disclosure med ett sök-fält (search-as-you-type, server-resolverat).
  * Klonar OccupationSections struktur men ersätter kaskaden med sök, eftersom
  * skill-taxonomin är ett platt 20k-vokabulär utan hierarki. Återanvänds av
- * BÅDE match-preferences-dialog/-card och match-setup-wizard.
+ * BÅDE match-preferences-dialog/-card och match-setup-rail-modal.
  *
  * #277: enheten är en GRUPP — EN chip per delad exakt-etikett-yta (twin-par),
  * lagrad som ALLA member-id i den platta draften (grad-inert).

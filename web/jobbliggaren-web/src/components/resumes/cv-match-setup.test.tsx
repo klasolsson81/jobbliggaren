@@ -138,7 +138,7 @@ describe("CvMatchSetup — sparade skill-labels (#422, #253/#277-regr)", () => {
   // #422: /cv trådade `persistedSkills` (platta ids) men INTE `persistedSkillGroups`
   // (de reverse-resolvade labels-grupperna) → wizardens steg 2/5 renderade råa
   // concept-id:n för en återvändande användares sparade kompetenser på kall laddning.
-  // Detta pinnar att gruppen nu trådas hela vägen CvMatchSetup → MatchSetupWizard.
+  // Detta pinnar att gruppen nu trådas hela vägen CvMatchSetup → MatchSetupRailModal.
   it("kall laddning: steg 2 visar den svenska labeln, ALDRIG det råa concept-id:t", async () => {
     const user = userEvent.setup();
     renderSetup({

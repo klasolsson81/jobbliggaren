@@ -2,7 +2,7 @@
 
 // "use client": ort-sektionen håller en disclosure-toggle ("Lägg till orter"),
 // en aktiv-län-kolumn-state och en label-filter-state. Den delas av
-// match-setup-wizard OCH match-preferences-dialog (DRY, Spår 3 PR-D) — samma
+// match-setup-rail-modal OCH match-preferences-dialog (DRY, Spår 3 PR-D) — samma
 // roll som OccupationSection fyller för yrke. Inget av detta går i en Server
 // Component.
 //
@@ -58,7 +58,7 @@ interface RegionMunicipalityCascadeProps {
  * ORT-sektionen: pinnade chips (valda län + kommuner) + EN "Lägg till orter"-CTA
  * som veck-öppnar en tvåkolumns Län→Kommuner-kaskad med en "Hela länet"-rad
  * (samma UX som jobbsidans Ort-popover). Återanvänds av BÅDE
- * match-preferences-dialog och match-setup-wizard.
+ * match-preferences-dialog och match-setup-rail-modal.
  *
  * "Hela länet" = länets concept-id i `region` (matchar backend region-träff);
  * enskild kommun = kommun-concept-id i `municipality` (kommun-träff). Backend

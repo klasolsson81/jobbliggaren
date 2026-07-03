@@ -42,7 +42,7 @@ export default async function CvListPage({
   const showMatchPrompt = matchning === "1";
 
   // CV-listan + taxonomi + profil parallellt. Taxonomi/profil matar
-  // match-setup-wizarden (samma BFF-fetches som /installningar). Båda
+  // match-setup-rail-modalen (samma BFF-fetches som /installningar). Båda
   // degraderar civilt: utan taxonomi visas ingen wizard-trigger (yrkesväljaren
   // vore tom), så match-setup utelämnas hellre än renderas trasig.
   // Onboarding-frikoppling (DEL 1, CTO-bind pending-card): det senaste pending-

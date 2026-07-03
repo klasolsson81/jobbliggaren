@@ -72,7 +72,7 @@ hex; in prose use the token name, not raw hex.
 | `--jp-accent-900` | `#0B2A1E` | (skiftas EJ) | Mörkaste steg (hero-from, hover på vit knapp i pagehero) |
 | `--jp-accent-800` | `#15603F` | **(skiftas EJ)** | **FILL: primärknapp, checked checkbox** — alltid vit text |
 | `--jp-accent-800-hover` | `#1E6B4C` | **(skiftas EJ)** | Fill-hover, båda teman |
-| `--jp-accent-700` | `#15603F` | `#6EE7A8` | **TEXT/BORDER: länkar, aktiv nav, titlar, fokus** |
+| `--jp-accent-700` | `#15603F` | `#6EE7A8` | **TEXT/BORDER: länkar, fokus, selektion/aktiv rad** — titlar/tal = ALDRIG grönt (E2f; rubriker = navy per #549 WS1) |
 | `--jp-accent-600` | `#1E6B4C` | `#A7F3D0` | Länk-hover |
 | `--jp-accent-500` | `#2E8B63` | `#3E8E68` | Mellanton (input-fokus-glow-tint) |
 | `--jp-accent-300` | `#74C29A` | `#2E5C46` | — |
@@ -96,8 +96,9 @@ Logo-marken är **Sigillet** (grön skiva + guld + papper) och sätter sina fyll
 (= `--jp-gold` `#E8C77B`) och `--jp-mark-paper` (`#FFFFFF`, tema-stabil — ring/rader
 sitter på den gröna skivan, ej på sid-ytan). Den tidigare navy-kompassen + guldpricken
 `#FFCD00` (`--jp-brand-accent`) är pensionerade (ADR 0070 supersederar ADR 0068:s
-logo-mark-not). Navy-rampen (`--jp-navy-*`) är därmed helt utan konsument och städas i
-egen F-städ-fas. Full ramp → `references/tokens-full.md`.
+logo-mark-not). Navy-rampen (`--jp-navy-*`) är sedan #549 WS1 (ADR 0068-notat 2026-07-03)
+rubrikfärgens bärare via `--jp-heading-1/-2` — F-städ-planen är HÄVD.
+Full ramp → `references/tokens-full.md`.
 
 ### Surfaces
 
@@ -112,8 +113,10 @@ egen F-städ-fas. Full ramp → `references/tokens-full.md`.
 
 | Token | Light | Dark | Tailwind (alias) | Use |
 |---|---|---|---|---|
-| `--jp-ink-1` | `#0C1A2E` | `#F4F7FC` | `text-text-primary` | Brödtext, rubriker |
-| `--jp-ink-2` | `#455366` | `#C2CFE2` | `text-text-secondary` | Lede, metadata, all informationsbärande sekundärtext |
+| `--jp-ink-1` | `#0C1A2E` | `#F4F7FC` | `text-text-primary` | **Brödtext/innehåll = DEFAULT** (#549 WS1-doktrinen: ljusa tiers endast äkta metadata) + h3/h4 |
+| `--jp-heading-1` | `var(--jp-navy-700)` `#133F73` | `var(--jp-ink-1)` | `text-heading-1` | Sidtitel-tiern (h1 32/700) — navy = information, aldrig interaktion (#549 WS1) |
+| `--jp-heading-2` | `var(--jp-navy-800)` `#0A2647` | `var(--jp-ink-1)` | `text-heading-2` | Sektions-/overlay-titlar (h2-tiern 20–22/700) |
+| `--jp-ink-2` | `#455366` | `#C2CFE2` | `text-text-secondary` | ÄKTA metadata: timestamps, `<dt>`-etiketter, eyebrows, kvitton (#549 WS1: informationsbärande innehåll → ink-1) |
 | `--jp-ink-3` | `#4F5D72` | `#8DA0BD` | `text-text-tertiary` | ~6.7:1 på vit — AA-säker (mörkad från `#7C8AA0`/3.5:1, issue #296; min 5.45:1 över surfaces/info-bg). Demoterad metadata-tier (tider, hints, ids); placeholder = `--jp-placeholder` |
 | `--jp-ink-inverse` | `#FFFFFF` | `#0C1A2E` | `text-text-inverse` | Text på inverterad yta |
 | `--jp-placeholder` | `#626B78` | (tema-oberoende) | — | Placeholder i inputs — WCAG AA ≥4.5:1 mot både `#FFFFFF` (5.39:1) och dark-temats ljusa fält `#F0F4FB` (4.89:1) |
@@ -185,7 +188,7 @@ globals.css). Tailwind `@theme`-skala (on-disk):
 | Token | Size | Use |
 |---|---|---|
 | `text-display` | 56px | Landing hero **only** |
-| `text-h1` | 28px | Page header per view |
+| `text-h1` | 32px | Page header per view (#549 WS1: 28→32, re-align mot ADR 0052 Beslut 5; färg `--jp-heading-1`) |
 | `text-h2` | 20px | Section headers |
 | `text-h3` | 18px | Panel/card headers |
 | `text-h4` | 16px | Mindre rubriker |
@@ -195,6 +198,9 @@ globals.css). Tailwind `@theme`-skala (on-disk):
 | `text-caption` | 13px | Caption |
 | `text-label` | 14px | Form-labels |
 | `text-mono` | 13px | Bokstavs-/kod-IDs, caps-labels (JetBrains Mono). **Informationsbärande siffror → sans + `font-variant-numeric: tabular-nums`, ej mono** (#376 / ADR 0038-amendment) |
+| `text-ui` | 15px | Tät UI-krom: nav, toolbars, usermenu, tabellceller (#549 WS2) |
+| `text-micro` | 12px | Minsta informationstext: counts, proveniens, badge-text (#549 WS2) |
+| `text-overline` | 11px | Mono-caps-labels: kickers, kolumnhuvuden (#549 WS2) |
 
 **Dokumenterat undantag (ADR 0068):** hero-plattans display-rubrik är
 44px/800 — gäller ENBART `.jp-hero__title`, inte H1-token-skalan (28px).
@@ -202,6 +208,16 @@ globals.css). Tailwind `@theme`-skala (on-disk):
 Mono caps-labels (kickers, kolumnhuvuden, uppercase + letter-spacing
 0.08em) och mono inline-data ligger på `--jp-ink-2` eller `--jp-ink-1` —
 aldrig `--jp-ink-3` (informationsbärande text, ADR 0038-golvet består).
+
+**Vikt-stege + nya roller (#549 WS2/WS1):** font-weight ALLTID via
+`--jp-fw-regular/-medium/-semibold/-bold/-heavy` (400–800), aldrig numeriska
+litteraler; rubrikvikt = bold (700), heavy (800) ENDAST display-klassen.
+Text/ikon PÅ färgad fill = `--jp-on-fill` (tema-stabil vit — ALDRIG
+`--jp-ink-inverse`, den flippar i dark). Scrim = `--jp-scrim`, input-fokus-glow
+= `--jp-focus-glow`. Transitional `--jp-fs-*`-tokens (0.5px-driftfamiljen,
+pinnade på exakta värden) är konsoliderings-kandidater — lägg ALDRIG nya
+konsumenter på dem. CSS-guarden (WS5) fäller nya font-size-/färg-litteraler;
+dokumenterade undantag bär `/* guard-allow: <skäl> */`.
 
 **Fonts via `next/font/google`:** Hanken Grotesk → `--font-sans`;
 JetBrains Mono → `--font-mono`. Never Inter/Roboto/Arial/system-ui as

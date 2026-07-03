@@ -21,8 +21,10 @@
    ──────────────────────────────────────────────────────────── */
 :root {
   /* Brand — djup navy (v3-kanon). Var LOGO-ONLY för den gamla kompassen; logo-översynen
-     2026-06-13 ersatte kompassen med sigillet (grön skiva + guld), så navy-rampen är nu
-     helt utan konsument och städas i egen F-städ-fas (ADR 0068-amendment). */
+     2026-06-13 ersatte kompassen med sigillet (grön skiva + guld) och rampen stod då
+     helt utan konsument. F-städ-planen därifrån är HÄVD (ADR 0068 impl-notat
+     2026-07-03, #549 WS1): rampen är nu rubrikrollens bärare (--jp-heading-1/
+     --jp-heading-2 nedan) vid sidan av logo-substratet (.jp-brand currentColor). */
   --jp-navy-900: #08213F;
   --jp-navy-800: #0A2647;
   --jp-navy-700: #133F73;

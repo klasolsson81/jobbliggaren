@@ -1495,6 +1495,112 @@ public class CvReviewEngineTests
     }
 
     // ===============================================================
+    // 15b. C3 Aktivt språk — deponens exception + proper-noun exclusion
+    //      (#492) and a rubric-reconciled passive-ratio (#489)
+    // ===============================================================
+
+    [Theory]
+    [InlineData("Jag lyckades öka försäljningen med 30 procent. Jag trivdes i en ledande roll.")]
+    [InlineData("Under projektet hoppades jag på mer ansvar och andades ut när det gick vägen.")]
+    public async Task ReviewAsync_ShouldPassC3_WhenSwedishProseUsesDeponentVerbs(string profile)
+    {
+        // #492: deponens ("lyckades", "trivdes", "hoppades", "andades") are s-form but ACTIVE in
+        // meaning — exactly the achievement language A1 rewards. Pre-fix two such forms tripped the
+        // absolute count-2 Warn, so the engine contradicted itself. They are now excluded → Pass.
+        Verdict(await ReviewAsync(Resume(profile: profile, experience: [])), "C3").Verdict
+            .ShouldBe(CriterionVerdict.Pass,
+                "Deponens är aktiva i betydelse och ska inte flaggas som passiv (#492).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNotFlagCapitalInitialProperNounsAsPassive()
+    {
+        // #492: "Mercedes" ends in -des and matched the s-passive shape. A capital-initial token is a
+        // proper noun, never a verb mid-sentence → excluded. Two of them no longer trip a Warn.
+        var resume = Resume(
+            profile: "Jag sålde en Mercedes till kund. Jag levererade en annan Mercedes samma år.",
+            experience: []);
+
+        Verdict(await ReviewAsync(resume), "C3").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Egennamn som 'Mercedes' är inte passiv form (#492).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailC3WithTextSpan_WhenPassiveRatioExceedsThirtyPercent()
+    {
+        // #489 ratio reconcile: rubric atsFailSignal ">30 % passiv form". Two genuine s-passives in
+        // five sentences (0.4) FAIL — pre-fix an absolute count could never reach the rubric's Fail.
+        var resume = Resume(
+            profile: "Rapporten hanterades av teamet. Beslutet godkändes av chefen. "
+                + "Jag ledde projektet. Jag ökade försäljningen. Jag byggde plattformen.",
+            experience: []);
+
+        var c3 = Verdict(await ReviewAsync(resume), "C3");
+        c3.Verdict.ShouldBe(CriterionVerdict.Fail, "0,4 passiv/mening > 30 % → C3 Fail (#489).");
+        c3.Evidence.ShouldContain(e => e is TextSpanEvidence);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnC3_WhenASingleGenuinePassiveIsBelowTheThreshold()
+    {
+        // A single genuine passive below the 30 % ratio is a Warn (not a Fail, not a Pass) — pre-fix
+        // one passive was under the count-2 gate and silently PASSED.
+        var resume = Resume(
+            profile: "Rapporten hanterades av teamet. Jag ledde projektet. "
+                + "Jag ökade försäljningen. Jag byggde plattformen.",
+            experience: []);
+
+        Verdict(await ReviewAsync(resume), "C3").Verdict.ShouldBe(CriterionVerdict.Warn,
+            "En äkta passiv under 30 %-gränsen → C3 Warn (#489).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailC3_WhenEnglishProseLeansOnBePassive()
+    {
+        // The English be-passive arm is ratio-scored too: three be-passives in three sentences (1.0)
+        // → Fail. Deponens/proper-noun filters are Swedish-only and do not apply here.
+        var resume = Resume(
+            detectedLanguage: ResumeLanguage.En,
+            profile: "The system was designed by me. The report was written by the team. "
+                + "The plan was approved by the board.",
+            experience: []);
+
+        Verdict(await ReviewAsync(resume), "C3").Verdict.ShouldBe(CriterionVerdict.Fail);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_C3RatioShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // Golden drift-guard (#489, parity A7): derive the C3 Fail ratio from the versioned rubric
+        // prose (atsFailSignal ">30 % passiv form") rather than a hardcoded constant, so code that
+        // drifts from the rubric fails CI.
+        var c3 = RealRubric().Criteria.Single(c => c.Id == "C3");
+        var failPercent = FirstInt(c3.AtsFailSignal!);   // 30
+        var failRatio = failPercent / 100.0;             // 0.30
+
+        // 10 sentences: passivesAbove/10 strictly exceeds the ratio; passivesBelow/10 sits at it.
+        var passivesAbove = (int)Math.Floor(failRatio * 10) + 1;   // 4 → 0.40 > 0.30
+        var passivesBelow = (int)Math.Floor(failRatio * 10);       // 3 → 0.30, not > 0.30
+
+        Verdict(await ReviewAsync(Resume(profile: PassiveProse(passivesAbove, 10), experience: [])), "C3")
+            .Verdict.ShouldBe(CriterionVerdict.Fail, $"{passivesAbove}/10 > {failRatio:0.0#} → Fail.");
+        Verdict(await ReviewAsync(Resume(profile: PassiveProse(passivesBelow, 10), experience: [])), "C3")
+            .Verdict.ShouldNotBe(CriterionVerdict.Fail, $"{passivesBelow}/10 = {failRatio:0.0#} → inte Fail.");
+
+        // Builds `total` sentences of which `passive` are genuine s-passives and the rest active.
+        static string PassiveProse(int passive, int total)
+        {
+            var sentences = new List<string>();
+            for (var i = 0; i < total; i++)
+            {
+                sentences.Add(i < passive ? "Rapporten hanterades av teamet" : "Jag ledde arbetet");
+            }
+
+            return string.Join(". ", sentences) + ".";
+        }
+    }
+
+    // ===============================================================
     // 16. C4 Konsekvent perspektiv — third-person pronouns only, NOT the
     //     Swedish demonstratives "denna/denne" (#491)
     // ===============================================================

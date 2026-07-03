@@ -56,6 +56,11 @@ export function JobAdModalShell({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // A nested Radix layer (Dialog / Select / Popover) handles Escape in the
+        // CAPTURE phase and calls preventDefault() before this bubble-phase
+        // listener runs. Yield to it — closing only the inner layer, not the
+        // whole modal (#565 — shared contract across all modal shells).
+        if (e.defaultPrevented) return;
         e.preventDefault();
         close();
         return;

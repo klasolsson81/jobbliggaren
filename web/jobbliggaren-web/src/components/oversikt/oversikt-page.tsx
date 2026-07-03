@@ -230,7 +230,10 @@ export function OversiktPage({
       // samma copy som /jobb-disclosuren och match-sektionen (ingen drift).
       text: t("notices.setupText"),
       cta: t("notices.setupCta"),
-      href: "/installningar#matchning",
+      // Epik #526 — öppnar matchnings-setup-modalen (rail-flödet) i stället för
+      // att länka till /installningar. ?matchsetup=1 auto-öppnar den via
+      // MatchSetupLauncher på /oversikt (mirror /cv:s ?matchning=1-prompt).
+      href: "/oversikt?matchsetup=1",
       time: "",
     });
   } else if (matchCount !== null) {

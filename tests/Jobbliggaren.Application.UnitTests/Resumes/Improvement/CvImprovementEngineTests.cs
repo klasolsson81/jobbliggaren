@@ -493,6 +493,148 @@ public class CvImprovementEngineTests
             ProposedChangeKind.AtsSanitization).ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task SuggestAsync_ShouldDetectAstralPlaneEmoji_WhenSanitizingForAts()
+    {
+        // Emoji are among the most ATS-hostile glyphs and live in the ASTRAL planes (surrogate
+        // PAIRS in UTF-16). A per-char scan saw each half as a lone Surrogate and missed every
+        // emoji; the rune-based scan detects the whole glyph (#478 Low). The emoji is the ONLY
+        // non-standard char here, so pre-fix this yielded ZERO changes (Single would throw).
+        const string emoji = "\U0001F600"; // GRINNING FACE, U+1F600 — 2 UTF-16 code units
+        var resume = Resume(rawText: $"Anna Andersson\nLedde teamet {emoji} och drev projekt 2024.");
+
+        var change = Single(
+            await SuggestAsync(resume, profile: RenderProfile.Ats),
+            ProposedChangeKind.AtsSanitization);
+
+        var span = change.Evidence.ShouldBeOfType<TextSpanEvidence>().Span;
+        span.Quote.ShouldBe(emoji, "the cited quote is the WHOLE valid rune, never a split surrogate.");
+        span.Length.ShouldBe(2);
+        char.IsHighSurrogate(span.Quote[0]).ShouldBeTrue();
+        span.Start.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
+    // ── #478 Low 4 augmentation: astral-plane edge cases beyond the base emoji case ──
+    // The rune-based scan must cite the EXACT UTF-16 offset (offset != 0), track its own
+    // variable width per rune, count every offending glyph, handle a private-use astral
+    // codepoint, keep BMP↔astral widths straight, and never throw on ill-formed UTF-16.
+
+    [Fact]
+    public async Task SuggestAsync_ShouldCiteTheExactUtf16Offset_WhenTheAstralEmojiIsMidText()
+    {
+        // The base test only asserts Start >= 0. This pins the EXACT offset: an astral glyph sitting
+        // AFTER multi-byte Swedish letters must be cited at its true UTF-16 index (found here by an
+        // independent IndexOf oracle), and Substring(Start, Length) must round-trip back to the whole
+        // rune. Pre-fix the per-char scan never flagged the emoji at all (0 changes → Single throws).
+        const string emoji = "\U0001F4A1"; // ELECTRIC LIGHT BULB, U+1F4A1 — 2 UTF-16 code units
+        var resume = Resume(rawText: $"Förändrade kärnverksamheten på avdelningen {emoji} under 2024.");
+        var expectedStart = resume.RawText.IndexOf(emoji, StringComparison.Ordinal);
+
+        var span = Single(
+            await SuggestAsync(resume, profile: RenderProfile.Ats),
+            ProposedChangeKind.AtsSanitization)
+            .Evidence.ShouldBeOfType<TextSpanEvidence>().Span;
+
+        span.Start.ShouldBe(expectedStart,
+            "the offset must be the emoji's true UTF-16 index, not a fabricated 0 or a byte offset.");
+        span.Start.ShouldBeGreaterThan(0, "the glyph is genuinely mid-text, not at position 0.");
+        span.Length.ShouldBe(2);
+        resume.RawText.Substring(span.Start, span.Length).ShouldBe(emoji,
+            "Substring(Start, Length) must round-trip to the whole rune (offset+width line up with RawText).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldCountEveryAstralGlyphAndCiteTheFirst_WhenSeveralArePresent()
+    {
+        // Two DISTINCT astral emoji separated by ASCII: the scan must count BOTH (the count rides in
+        // the evidence note) and cite the FIRST one at its exact offset. Pre-fix the per-char scan saw
+        // four lone surrogates, none in a symbol category → count 0 → 0 changes (Single throws).
+        const string first = "\U0001F680"; // ROCKET, U+1F680
+        const string second = "\U0001F4C8"; // CHART INCREASING, U+1F4C8
+        var resume = Resume(rawText: $"Ledde teamet {first} och drev leveransen {second} till 2024.");
+        var expectedStart = resume.RawText.IndexOf(first, StringComparison.Ordinal);
+
+        var evidence = Single(
+            await SuggestAsync(resume, profile: RenderProfile.Ats),
+            ProposedChangeKind.AtsSanitization)
+            .Evidence.ShouldBeOfType<TextSpanEvidence>();
+
+        evidence.Span.Start.ShouldBe(expectedStart, "the FIRST offending rune is cited.");
+        evidence.Span.Quote.ShouldBe(first, "the cited quote is the first whole rune, not the second.");
+        evidence.Note.ShouldNotBeNull();
+        // The count rides as the numeric prefix of the note ("2 icke-standardtecken …") — a
+        // language-neutral count, not localized prose. Both astral glyphs must be counted.
+        evidence.Note!.ShouldStartWith("2 ");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldDetectAnAstralPrivateUseGlyph_WhenSanitizingForAts()
+    {
+        // A Supplementary Private Use Area-A codepoint (U+F0000, category PrivateUse) is astral too:
+        // it encodes as a surrogate pair, so the per-char scan missed it exactly like an emoji. The
+        // rune-based scan classifies the WHOLE rune as PrivateUse → flagged, quote round-trips (len 2).
+        const string pua = "\U000F0000"; // SUPPLEMENTARY PRIVATE USE AREA-A first codepoint
+        var resume = Resume(rawText: $"Anna Andersson\nDrev projektet {pua} till leverans 2024.");
+        var expectedStart = resume.RawText.IndexOf(pua, StringComparison.Ordinal);
+
+        var span = Single(
+            await SuggestAsync(resume, profile: RenderProfile.Ats),
+            ProposedChangeKind.AtsSanitization)
+            .Evidence.ShouldBeOfType<TextSpanEvidence>().Span;
+
+        span.Start.ShouldBe(expectedStart);
+        span.Length.ShouldBe(2, "an astral private-use codepoint is 2 UTF-16 code units.");
+        resume.RawText.Substring(span.Start, span.Length).ShouldBe(pua);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldCiteTheFirstOffendingRuneWithItsOwnWidth_WhenABmpSymbolPrecedesAnAstralEmoji()
+    {
+        // A single-unit BMP symbol (★ U+2605, OtherSymbol) sits BEFORE an astral emoji. The first
+        // offending rune is the ★ — cited with LENGTH 1 (its own UTF-16 width), NOT the emoji's 2 —
+        // while the count still includes the astral glyph the per-char scan would have missed. This
+        // pins that firstOffendingLength is the offending rune's real width, never a hardcoded 1-or-2.
+        const string star = "★"; // BLACK STAR, U+2605 — 1 UTF-16 code unit, OtherSymbol
+        const string emoji = "\U0001F600"; // GRINNING FACE, U+1F600 — 2 UTF-16 code units
+        var resume = Resume(rawText: $"Meriter\n{star} Ledde teamet {emoji} med resultat 2024.");
+        var expectedStart = resume.RawText.IndexOf(star, StringComparison.Ordinal);
+
+        var evidence = Single(
+            await SuggestAsync(resume, profile: RenderProfile.Ats),
+            ProposedChangeKind.AtsSanitization)
+            .Evidence.ShouldBeOfType<TextSpanEvidence>();
+
+        evidence.Span.Start.ShouldBe(expectedStart, "the BMP star is the first offending rune.");
+        evidence.Span.Quote.ShouldBe(star, "the first offending rune is the star, cited verbatim.");
+        evidence.Span.Length.ShouldBe(1, "a BMP symbol is 1 UTF-16 unit — its own width, not the emoji's 2.");
+        evidence.Note.ShouldNotBeNull();
+        // The count must include the astral emoji the old per-char scan missed (star + emoji = 2).
+        evidence.Note!.ShouldStartWith("2 ");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotThrowAndKeepTheSpanInRange_WhenRawTextContainsALoneSurrogate()
+    {
+        // Robustness guard (NOT a red-vs-pre-fix case — the per-char scan also never threw here): an
+        // ill-formed UTF-16 string carrying a LONE high surrogate must not crash the rune-based scan.
+        // EnumerateRunes substitutes U+FFFD for the ill-formed unit, so the whole engine completes and
+        // any emitted Ats span stays a valid, in-range slice of RawText (no out-of-range Substring).
+        const string loneSurrogate = "\uD83D"; // high surrogate with no following low surrogate
+        var resume = Resume(rawText: $"Anna Andersson\nLedde teamet {loneSurrogate} och drev projekt 2024.");
+
+        // A crash in the rune-based scan would surface as a thrown exception here — reaching the
+        // assertions below IS the no-crash proof (EnumerateRunes substitutes U+FFFD for the ill-formed unit).
+        var result = await SuggestAsync(resume, profile: RenderProfile.Ats);
+
+        foreach (var span in Of(result, ProposedChangeKind.AtsSanitization)
+            .Select(c => c.Evidence).OfType<TextSpanEvidence>().Select(e => e.Span))
+        {
+            span.Start.ShouldBeInRange(0, resume.RawText.Length - span.Length);
+            Should.NotThrow(() => resume.RawText.Substring(span.Start, span.Length),
+                "any cited Ats span must be a valid, in-range slice of RawText.");
+        }
+    }
+
     // ===============================================================
     // 6. PersonnummerStrip (B4) — Structural RemovePersonnummer;
     //    StructuralEvidence with count only (never value/offset); Replacement null

@@ -82,7 +82,12 @@ internal static class ReviewText
         }
     }
 
-    /// <summary>Profile + all experience text joined, for whole-CV prose scans (lowercased on demand).</summary>
+    /// <summary>Profile + all experience text joined, for whole-CV prose scans (lowercased on demand).
+    /// <para>NB (#478 Low, v1 scope): a citation resolved against this concatenation carries an offset
+    /// into the SYNTHETIC joined string, not into any single <c>RawText</c> field. The verbatim
+    /// <c>Quote</c> is the ground truth the UI highlights by; the offset is a positional hint only and
+    /// has no UI consumer today, so a precise per-field offset is deferred. What must never happen is a
+    /// FABRICATED offset when the quote is absent — see <see cref="Span"/> / <see cref="TextSpan.NotLocated"/>.</para></summary>
     public static string AllProse(CvReviewContext context)
     {
         var sb = new StringBuilder();
@@ -204,13 +209,17 @@ internal static class ReviewText
     // ── Cited-evidence builders (Invariant 2) ────────────────────────────
 
     /// <summary>A text-span citation: resolves the offset of <paramref name="quote"/> within
-    /// <paramref name="source"/> (best-effort; 0 if not found) and quotes it verbatim.</summary>
+    /// <paramref name="source"/> and quotes it verbatim. When the quote is not a substring of the
+    /// source, <see cref="TextSpan.Start"/> is <see cref="TextSpan.NotLocated"/> — an honest
+    /// "position unknown" rather than a fabricated offset 0 (#478 Low). The <see cref="TextSpan.Quote"/>
+    /// stays the verbatim ground truth the UI highlights by.</summary>
     public static TextSpanEvidence Span(string source, string quote, string? note = null)
     {
         var index = string.IsNullOrEmpty(quote)
             ? -1
             : source.IndexOf(quote, StringComparison.Ordinal);
-        return new TextSpanEvidence(new TextSpan(index >= 0 ? index : 0, quote.Length, quote), note);
+        return new TextSpanEvidence(
+            new TextSpan(index >= 0 ? index : TextSpan.NotLocated, quote.Length, quote), note);
     }
 
     /// <summary>A text-span citation for the first WORD-BOUNDED occurrence of
@@ -223,7 +232,7 @@ internal static class ReviewText
         var span = WordSpans(source, phrase).FirstOrDefault();
         return span is not null
             ? new TextSpanEvidence(span, note)
-            : new TextSpanEvidence(new TextSpan(0, phrase.Length, phrase), note);
+            : new TextSpanEvidence(new TextSpan(TextSpan.NotLocated, phrase.Length, phrase), note);
     }
 
     /// <summary>A non-PII structural observation citation (parity SectionConfidence.Evidence).</summary>

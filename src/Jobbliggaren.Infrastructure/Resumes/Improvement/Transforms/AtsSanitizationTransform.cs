@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Improvement.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
@@ -25,20 +26,27 @@ internal sealed class AtsSanitizationTransform : ICvTransform
             yield break;
         }
 
+        // Iterate Unicode SCALAR VALUES (runes), not UTF-16 code units: the most ATS-hostile
+        // glyphs — emoji — live in the astral planes and encode as surrogate PAIRS. A per-char
+        // loop sees each half as an isolated Surrogate (never a symbol category) and would miss
+        // every emoji; it would also Substring() a lone surrogate into an invalid quote (#478 Low).
         var firstOffending = -1;
+        var firstOffendingLength = 0;
         var count = 0;
-        for (var i = 0; i < rawText.Length; i++)
+        var offset = 0;
+        foreach (var rune in rawText.EnumerateRunes())
         {
-            if (!IsNonStandard(rawText[i]))
+            if (IsNonStandard(rune))
             {
-                continue;
+                count++;
+                if (firstOffending < 0)
+                {
+                    firstOffending = offset;
+                    firstOffendingLength = rune.Utf16SequenceLength;
+                }
             }
 
-            count++;
-            if (firstOffending < 0)
-            {
-                firstOffending = i;
-            }
+            offset += rune.Utf16SequenceLength;
         }
 
         if (count == 0)
@@ -46,9 +54,11 @@ internal sealed class AtsSanitizationTransform : ICvTransform
             yield break;
         }
 
-        var quote = rawText.Substring(firstOffending, 1);
+        // The cited span quotes the WHOLE offending rune (an astral glyph is 2 UTF-16 units), so
+        // the quote is always a valid string and the offset/length line up with RawText's char indices.
+        var quote = rawText.Substring(firstOffending, firstOffendingLength);
         var evidence = new TextSpanEvidence(
-            new TextSpan(firstOffending, 1, quote),
+            new TextSpan(firstOffending, firstOffendingLength, quote),
             $"{count} icke-standardtecken som en ATS-parser kan misstolka");
 
         yield return ProposedChange.FromStructuralOp(
@@ -66,15 +76,18 @@ internal sealed class AtsSanitizationTransform : ICvTransform
 
     // Non-standard for an ATS parser = a glyph ABOVE Latin-1 (so åäö and ASCII are always safe)
     // in a symbol / control / format / private-use category. The en/em dash (Pd) and ordinary
-    // letters/digits/punctuation are deliberately excluded.
-    private static bool IsNonStandard(char c)
+    // letters/digits/punctuation are deliberately excluded. Astral-plane emoji classify here as
+    // OtherSymbol once seen as a whole rune; a Rune can never BE a lone surrogate — EnumerateRunes
+    // folds any ill-formed UTF-16 fragment to U+FFFD (also OtherSymbol), so a broken glyph is
+    // flagged too, which is correct (malformed text is ATS-hostile).
+    private static bool IsNonStandard(Rune rune)
     {
-        if (c <= 'ÿ')
+        if (rune.Value <= 0xFF)
         {
             return false;
         }
 
-        return CharUnicodeInfo.GetUnicodeCategory(c) switch
+        return Rune.GetUnicodeCategory(rune) switch
         {
             UnicodeCategory.MathSymbol => true,
             UnicodeCategory.OtherSymbol => true,

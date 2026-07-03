@@ -96,7 +96,6 @@ export function HeroChip<T>({
             top: "calc(100% + 6px)",
             left: 0,
             width: 320,
-            color: "var(--jp-ink-1)",
             zIndex: 30,
           }}
         >
@@ -105,13 +104,7 @@ export function HeroChip<T>({
           </div>
           <div style={{ padding: "6px 0", maxHeight: 320, overflow: "auto" }}>
             {visible.length === 0 ? (
-              <div
-                style={{
-                  padding: "14px 16px",
-                  color: "var(--jp-ink-2)",
-                  fontSize: 14,
-                }}
-              >
+              <div className="jp-popover__empty px-4 py-3.5">
                 {emptyText}
               </div>
             ) : (
@@ -125,14 +118,7 @@ export function HeroChip<T>({
               <Link
                 href={footerHref}
                 onClick={close}
-                style={{
-                  display: "block",
-                  padding: "10px 16px",
-                  fontSize: 14,
-                  color: "var(--jp-accent-700)",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                }}
+                className="jp-popover__footlink"
               >
                 {footerLabel ?? t("heroChip.showAll")}
               </Link>

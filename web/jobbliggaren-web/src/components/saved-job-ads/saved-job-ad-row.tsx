@@ -56,12 +56,7 @@ export function SavedJobAdRow({
           }}
         >
           <div
-            className="jp-job__match"
-            style={{
-              background: "var(--jp-surface-3)",
-              borderColor: "var(--jp-border)",
-              color: "var(--jp-ink-2)",
-            }}
+            className="jp-job__match jp-job__match--neutral"
             aria-hidden="true"
           >
             <Bookmark size={20} />
@@ -102,23 +97,14 @@ export function SavedJobAdRow({
       >
         <Link
           href={`/jobb/${item.jobAdId}`}
-          className="jp-job__match"
-          style={{
-            background: "var(--jp-surface-3)",
-            borderColor: "var(--jp-border)",
-            color: "var(--jp-ink-2)",
-            textDecoration: "none",
-          }}
+          className="jp-job__match jp-job__match--neutral"
           aria-label={t("openAd", { title: item.jobAd.title })}
         >
           <Bookmark size={20} aria-hidden="true" />
         </Link>
         <div className="jp-job__body">
           <h3 className="jp-job__title">
-            <Link
-              href={`/jobb/${item.jobAdId}`}
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
+            <Link href={`/jobb/${item.jobAdId}`} className="text-inherit no-underline">
               {item.jobAd.title}
             </Link>
           </h3>

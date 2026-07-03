@@ -93,14 +93,12 @@ export function SaveJobAdToggle({
         <Icon
           size={14}
           aria-hidden="true"
-          style={{
-            color: saved ? "var(--jp-success, #2e7d32)" : undefined,
-          }}
+          className={saved ? "text-success-600" : undefined}
         />{" "}
         {label}
       </button>
       {error && (
-        <span role="alert" className="text-danger-700" style={{ fontSize: 12 }}>
+        <span role="alert" className="text-micro text-danger-700">
           {error}
         </span>
       )}

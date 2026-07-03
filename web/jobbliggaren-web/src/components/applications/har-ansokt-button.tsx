@@ -69,28 +69,27 @@ export function HarAnsoktButton({
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button
         type="button"
-        className="jp-btn jp-btn--secondary"
+        // Dimmad text när applied (civic tyst bekräftelse) men knappen
+        // förblir klickbar (för future "ångra"-flöde — i Fas 7 ev.).
+        className={
+          applied
+            ? "jp-btn jp-btn--secondary text-text-secondary"
+            : "jp-btn jp-btn--secondary"
+        }
         aria-label={ariaLabel}
         aria-pressed={applied}
         onClick={handleClick}
-        style={{
-          opacity,
-          // Dimmad text när applied (civic tyst bekräftelse) men knappen
-          // förblir klickbar (för future "ångra"-flöde — i Fas 7 ev.).
-          color: applied ? "var(--jp-ink-2)" : undefined,
-        }}
+        style={{ opacity }}
       >
         <Icon
           size={14}
           aria-hidden="true"
-          style={{
-            color: applied ? "var(--jp-success, #2e7d32)" : undefined,
-          }}
+          className={applied ? "text-success-600" : undefined}
         />{" "}
         {label}
       </button>
       {error && (
-        <span role="alert" className="text-danger-700" style={{ fontSize: 12 }}>
+        <span role="alert" className="text-micro text-danger-700">
           {error}
         </span>
       )}

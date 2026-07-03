@@ -65,15 +65,7 @@ function MatchSectionHeading({
 }) {
   return (
     <div className="jp-modal__matchsection-head">
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "var(--jp-ink-2)",
-        }}
-      >
+      <div className="jp-eyebrow">
         {/* Normal-case source; the heading element applies
             `text-transform: uppercase` (parity "Annonsbeskrivning"). */}
         {t("heading")}
@@ -262,7 +254,7 @@ function RequirementChecklist({
           <Check
             size={16}
             aria-hidden="true"
-            style={{ color: "var(--jp-success)", flexShrink: 0 }}
+            className="shrink-0 text-success-600"
           />
           <span>{item}</span>
           <span className="sr-only">{t("requirements.met")}</span>
@@ -273,7 +265,7 @@ function RequirementChecklist({
           <Minus
             size={16}
             aria-hidden="true"
-            style={{ color: "var(--jp-ink-2)", flexShrink: 0 }}
+            className="shrink-0 text-text-secondary"
           />
           <span className="jp-modal__matchrow-missing">{item}</span>
           <span className="sr-only">{t("requirements.unmet")}</span>
@@ -407,16 +399,9 @@ export function JobAdMatchSection({
     return (
       <section className="jp-modal__matchsection" aria-label={t("heading")}>
         <MatchSectionHeading t={t} />
-        <p style={{ margin: 0, fontSize: 14, color: "var(--jp-ink-1)" }}>
+        <p className="m-0 text-body-sm text-text-primary">
           {t("noStatedOccupation")}{" "}
-          <Link
-            href={MATCH_SETTINGS_HREF}
-            style={{
-              color: "var(--jp-accent-700)",
-              fontWeight: 600,
-              textDecoration: "underline",
-            }}
-          >
+          <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">
             {t("settingsCta")}
           </Link>
         </p>
@@ -455,36 +440,15 @@ export function JobAdMatchSection({
       {match.mustHaveCoverage.verdict === "NotAssessed" ? (
         <p
           className="jp-modal__matchfoot"
-          style={{
-            margin: "12px 0 0",
-            paddingTop: 12,
-            borderTop: "1px solid var(--jp-border-soft)",
-            fontSize: 14,
-            color: "var(--jp-ink-2)",
-          }}
         >
           {t("uploadCvFoot")}{" "}
-          <Link
-            href={CV_IMPORT_HREF}
-            style={{
-              color: "var(--jp-accent-700)",
-              fontWeight: 600,
-              textDecoration: "underline",
-            }}
-          >
+          <Link href={CV_IMPORT_HREF} className="jp-nudgelink">
             {t("uploadCvCta")}
           </Link>
         </p>
       ) : (
         <p
           className="jp-modal__matchfoot"
-          style={{
-            margin: "12px 0 0",
-            paddingTop: 12,
-            borderTop: "1px solid var(--jp-border-soft)",
-            fontSize: 14,
-            color: "var(--jp-ink-2)",
-          }}
         >
           {mustHaveSummary(match.mustHaveCoverage.verdict, t)}
         </p>

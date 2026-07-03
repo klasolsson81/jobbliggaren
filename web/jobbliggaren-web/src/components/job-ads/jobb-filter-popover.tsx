@@ -318,13 +318,7 @@ export function JobbFilterPopover({
             )}
           </div>
           {groups.length === 0 ? (
-            <div
-              style={{
-                padding: "12px 16px",
-                color: "var(--jp-ink-2)",
-                fontSize: 14,
-              }}
-            >
+            <div className="jp-popover__empty px-4 py-3">
               {emptyText}
             </div>
           ) : (
@@ -397,13 +391,7 @@ export function JobbFilterPopover({
             )}
           </div>
           {rightItems.length === 0 ? (
-            <div
-              style={{
-                padding: "12px 16px",
-                color: "var(--jp-ink-2)",
-                fontSize: 14,
-              }}
-            >
+            <div className="jp-popover__empty px-4 py-3">
               {rightEmptyText}
             </div>
           ) : (

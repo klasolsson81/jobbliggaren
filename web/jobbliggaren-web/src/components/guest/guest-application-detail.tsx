@@ -20,18 +20,8 @@ import type {
 // färgkodningen är identisk live/gäst. Tidigare hand-roll-mappning gav
 // "warning" för Rejected (live = "danger") och "info" för Submitted
 // (live = "brand") — funktionell felsignalering bröt
-// memory `project_crossref_badge_status`. SECTION_LABEL-rubrik tillagd för
-// typografisk paritet med live <ApplicationDetail> (m6).
-
-const SECTION_LABEL_STYLE: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--jp-ink-2)",
-  marginBottom: 10,
-  marginTop: 16,
-};
+// memory `project_crossref_badge_status`. Sektionsrubriken (.jp-eyebrow) ger
+// typografisk paritet med live <ApplicationDetail> (m6; #549 WS3).
 
 // GuestApplicationStatus är subset av live ApplicationStatus, mappad så
 // färg + etikett blir identiska (design-reviewer M1).
@@ -83,7 +73,7 @@ export function GuestApplicationDetail({
         </div>
       </dl>
 
-      <div style={SECTION_LABEL_STYLE}>{tg("detail.aboutHeading")}</div>
+      <div className="jp-eyebrow mt-4 mb-2.5">{tg("detail.aboutHeading")}</div>
       <p className="text-body-sm text-text-secondary">{tg("detail.aboutBody")}</p>
     </div>
   );

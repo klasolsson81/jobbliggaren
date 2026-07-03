@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { ShieldAlert, Trash2 } from "lucide-react";
@@ -24,19 +23,6 @@ const MATCH_SETTINGS_HREF = "/installningar#matchning";
 // The primary per-company matching line sits between the title and the meta row. Token-styled inline
 // (no new globals.css rule): primary ink for high contrast (never gray, per design), sized/weighted
 // like `.jp-job__company`. Both themes resolve via the same `--jp-*` tokens.
-const MATCH_LINE_STYLE: CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: 15,
-  fontWeight: 500,
-  color: "var(--jp-ink-1)",
-};
-
-// Nudge link — mirrors the JobAdMatchSection not-assessed signpost link style (SPOT).
-const NUDGE_LINK_STYLE: CSSProperties = {
-  color: "var(--jp-accent-700)",
-  fontWeight: 600,
-  textDecoration: "underline",
-};
 
 interface CompanyWatchRowProps {
   item: CompanyWatch;
@@ -93,16 +79,16 @@ export function CompanyWatchRow({ item, mode }: CompanyWatchRowProps) {
               // Honest not-assessed: the user stated no occupation, so matching is undefined. Render a
               // civic nudge to state occupations, never a false "0" (parity /jobb + /matchningar). Copy
               // + link style mirror the JobAdMatchSection not-assessed signpost (SPOT, no drift).
-              <p style={MATCH_LINE_STYLE}>
+              <p className="jp-matchline">
                 {t("matchNudge")}{" "}
-                <Link href={MATCH_SETTINGS_HREF} style={NUDGE_LINK_STYLE}>
+                <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">
                   {t("matchNudgeCta")}
                 </Link>
               </p>
             ) : (
               // A count of ADS over a named grade threshold (>= Good) — high-contrast primary ink,
               // tabular-nums for stable digits (#448), NEVER a score/percentage/meter (ADR 0071).
-              <p className="tabular-nums" style={MATCH_LINE_STYLE}>
+              <p className="jp-matchline tabular-nums">
                 {t("matchingAds", { count: item.matchingAdCount })}
               </p>
             ))}

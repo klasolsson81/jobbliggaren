@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useRef, useState, useTransition } from "react";
-import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Check, ShieldAlert } from "lucide-react";
@@ -36,17 +35,6 @@ import { formatOrgNr } from "@/lib/company-follows/org-nr";
 // primary ink (never gray) and its CTA carries explicit link affordance — Tailwind Preflight strips
 // anchor color/underline, so an unstyled <Link> would read as gray body text.
 const MATCH_SETTINGS_HREF = "/installningar#matchning";
-const MATCH_LINE_STYLE: CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: 15,
-  fontWeight: 500,
-  color: "var(--jp-ink-1)",
-};
-const NUDGE_LINK_STYLE: CSSProperties = {
-  color: "var(--jp-accent-700)",
-  fontWeight: 600,
-  textDecoration: "underline",
-};
 
 type LookupState =
   | { kind: "idle" }
@@ -198,9 +186,9 @@ export function CompanyLookup() {
                 )}
               </div>
               {state.data.matchingAdCount === null && (
-                <p style={MATCH_LINE_STYLE}>
+                <p className="jp-matchline">
                   {tWatch("matchNudge")}{" "}
-                  <Link href={MATCH_SETTINGS_HREF} style={NUDGE_LINK_STYLE}>
+                  <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">
                     {tWatch("matchNudgeCta")}
                   </Link>
                 </p>

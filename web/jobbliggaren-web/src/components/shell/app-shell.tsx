@@ -319,7 +319,7 @@ function Drawer({
         aria-labelledby={labelId}
       >
         <div className="jp-drawer__head">
-          <span id={labelId} style={{ fontSize: 17, fontWeight: 700 }}>
+          <span id={labelId} className="text-body-lg font-bold">
             {t("drawer.title")}
           </span>
           <button

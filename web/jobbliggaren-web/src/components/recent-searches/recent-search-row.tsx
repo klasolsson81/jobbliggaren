@@ -93,12 +93,7 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
         onClick={handleRowClick}
       >
         <div
-          className="jp-job__match"
-          style={{
-            background: "var(--jp-surface-3)",
-            borderColor: "var(--jp-border)",
-            color: "var(--jp-ink-2)",
-          }}
+          className="jp-job__match jp-job__match--neutral"
           aria-hidden="true"
         >
           <Clock size={20} />

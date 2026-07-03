@@ -127,7 +127,7 @@ export function ApplicationRow({ application, now }: ApplicationRowProps) {
         </span>
         <ChevronRight
           size={20}
-          style={{ color: "var(--jp-ink-3)" }}
+          className="text-text-tertiary"
           aria-hidden="true"
         />
       </div>

@@ -150,10 +150,12 @@
      rgba-litteral på input- och sortfield-focus. rgb(46,139,99) = accent-500. */
   --jp-focus-glow: rgba(46, 139, 99, 0.2);
 
-  /* Tema-stabila roller (#549 WS2, CTO D3): text/ikon PÅ färgad fill
+  /* Tema-stabila roller (#549 WS2, CTO D3): text/ikon/märke PÅ färgad fill
      (accent-/danger-/leaf-fills). Medvetet EGEN token — --jp-ink-inverse
-     FLIPPAR i dark, men knapp-kontraktet (ADR 0068) håller fillsen mörka i
-     båda teman, så on-fill-texten måste vara tema-stabilt vit. */
+     FLIPPAR i dark. Konsumenterna var literal-vita i BÅDA teman (ingen
+     dark-override fanns), så tokenen är tema-stabil; att vissa fills
+     (danger/leaf) själva ljusnar i dark är deras befintliga beteende och
+     ändras inte här (code-review Minor 1, 2026-07-03). */
   --jp-on-fill: #FFFFFF;
   /* Scrim bakom drawer/modal (#549 WS2): var duplicerad rgba-litteral. */
   --jp-scrim: rgba(8, 23, 48, 0.55);
@@ -1522,6 +1524,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-popover {
   position: absolute;
   background: var(--jp-surface);
+  color: var(--jp-ink-1); /* #549 WS3: reset från banner-chip-kontext (var inline i hero-chip) */
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
   box-shadow: var(--jp-shadow-pop);
@@ -6948,4 +6951,131 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
   font-size: var(--text-ui);
   color: var(--jp-ink-2);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   #549 WS3 — SPOT-extraktioner: inline-style-block som förekom
+   duplicerade i TSX är flyttade hit MEKANISKT (exakt samma värden;
+   tier-/doktrin-omdömen sker i WS1). Nya call-sites använder klasserna.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Eyebrow-sektionsrubrik (13px caps) — var 3 inline-kopior: job-ad-detail,
+   job-ad-match-section, guest-application-detail. Margins skiljer per plats
+   och bärs av utilities på call-siten. */
+.jp-eyebrow {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-ink-2);
+}
+
+/* Signpost-/nudgelänk (accent, semibold, underline) — var 4 inline-kopior:
+   match-sektionens CTA:er + company-lookup/company-watch-row. */
+.jp-nudgelink {
+  color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-semibold);
+  text-decoration: underline;
+}
+
+/* Matchrad under företagsnamn — var 2 inline-kopior (company-lookup +
+   company-watch-row, "SPOT"-kommentaren fanns redan i TSX). */
+.jp-matchline {
+  margin: 6px 0 0;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+}
+
+/* Popover-empty — var 4 inline-kopior (hero-chip, jobb-filter-popover x2,
+   jobb-klass2-panel). Padding skiljer per plats — bärs på call-siten. */
+.jp-popover__empty {
+  color: var(--jp-ink-2);
+  font-size: var(--text-body-sm);
+}
+
+/* Popover-radknapp (recent-searches- + saved-job-ads-hero-chip). JS-hovern
+   (onMouseOver/-Out mot surface-3) ersatt av :hover — samma visuella effekt. */
+.jp-popover__rowbtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--jp-ink-1);
+  font-size: var(--jp-fs-145);
+  gap: 12px;
+}
+.jp-popover__rowbtn:hover { background: var(--jp-surface-3); }
+
+/* Popover-fotlänk (hero-chip-popoverns "visa alla"). */
+.jp-popover__footlink {
+  display: block;
+  padding: 10px 16px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-accent-700);
+  text-decoration: none;
+  font-weight: var(--jp-fw-semibold);
+}
+
+/* Dropdown-radens count — #514/#485-fix: JetBrains Mono via inline-style
+   ersatt med sans + tabular-nums per ADR 0038-amendment (#376: §1.1-
+   målgruppen kan inte skilja 0/8, 6/8 i mono). Samma mönster som
+   .jp-hero-chip__count. MEDVETEN visuell ändring, a11y-sanktionerad. */
+.jp-popover__rowcount {
+  font-family: var(--jp-font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-micro);
+  color: var(--jp-ink-2);
+  flex-shrink: 0;
+}
+
+/* Neutral ikon-platta på rad (Bookmark/Clock) — var 3 inline-kopior
+   (saved-job-ad-row x2, recent-search-row). Link-varianten behöver
+   text-decoration none. */
+.jp-job__match--neutral {
+  background: var(--jp-surface-3);
+  border-color: var(--jp-border);
+  color: var(--jp-ink-2);
+  text-decoration: none;
+}
+
+/* Hero-sökhint (guest-jobb-page) — mjuk vit på gradientplattan. */
+.jp-hero__hint {
+  margin-top: 8px;
+  color: var(--jp-hero-ink-soft);
+}
+
+/* Modal-matchfotens signpost — klassen fanns i TSX men regeln saknades
+   (spökklass); värdena bars av 2 identiska inline-block. Definierad här. */
+.jp-modal__matchfoot {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+
+/* "Du har ansökt"-noten i modalfoten (job-ad-detail, enda konsument) —
+   också en spökklass vars värden bars inline. Länken ärver notens färg
+   (var(--jp-link, currentColor) var odefinierad → computed = currentColor). */
+.jp-muted {
+  margin-top: 8px;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  text-align: right;
+}
+.jp-muted a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* Admin-tabellernas täta mono-celler (audit-loggen) — 11.5px är en
+   D2-transitional (target --text-micro/-overline i konsolideringspasset). */
+.jp-admintable__dense {
+  font-size: var(--jp-fs-115);
 }

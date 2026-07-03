@@ -72,7 +72,7 @@ export function JobStateBadge({ state, className }: JobStateBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-pill px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-pill px-2 py-0.5 text-micro leading-4 font-medium",
         VARIANT_CLASSES[variant],
         className,
       )}

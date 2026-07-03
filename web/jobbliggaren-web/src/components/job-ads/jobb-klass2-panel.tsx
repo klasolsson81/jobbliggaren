@@ -125,13 +125,7 @@ export function JobbKlass2Panel({
       style={style}
     >
       {noOptions ? (
-        <div
-          style={{
-            padding: "16px",
-            color: "var(--jp-ink-2)",
-            fontSize: 14,
-          }}
-        >
+        <div className="jp-popover__empty p-4">
           {emptyText}
         </div>
       ) : (

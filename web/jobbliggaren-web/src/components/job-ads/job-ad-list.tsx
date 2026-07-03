@@ -27,6 +27,14 @@ interface JobAdListProps {
    */
   matchGradeById?: ReadonlyMap<string, MatchGrade>;
   /**
+   * #446 (#311) — per-arbetsgivare "tidigare ansökningar"-räknare per kort.
+   * Map<JobAdId, antal> för O(1)-lookup (paritet savedIdSet/matchGradeById).
+   * POSITIVE-ONLY: bara annonser med räknare > 0 finns i mappen ⇒ saknad nyckel
+   * = 0 tidigare ansökningar ⇒ ingen badge. Tom/utelämnad map = anonym/utan
+   * historik (ingen badge).
+   */
+  employerApplicationCountById?: ReadonlyMap<string, number>;
+  /**
    * #380 — nuvarande listans query-sträng (utan `?`), byggd i `JobbResults`.
    * Trådas oförändrat ner till varje `JobAdCard` så radlänken bär list-URL:ens
    * view-state in i modal-soft-naven (annars tappas filter/match-läget vid
@@ -41,6 +49,7 @@ export function JobAdList({
   savedIdSet,
   appliedIdSet,
   matchGradeById,
+  employerApplicationCountById,
   listQuery,
 }: JobAdListProps) {
   // Synchronous next-intl translator — keeps JobAdList a non-async RSC.
@@ -68,6 +77,7 @@ export function JobAdList({
             isSaved={savedIdSet?.has(jobAd.id) ?? false}
             isApplied={appliedIdSet?.has(jobAd.id) ?? false}
             matchGrade={matchGradeById?.get(jobAd.id)}
+            previousApplicationCount={employerApplicationCountById?.get(jobAd.id)}
             listQuery={listQuery}
           />
         </li>

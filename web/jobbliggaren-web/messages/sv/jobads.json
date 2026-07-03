@@ -125,7 +125,8 @@
       "publishedToday": "idag, kl. {time}",
       "publishedYesterday": "igår, kl. {time}",
       "publishedOlder": "{date}, kl. {time}",
-      "lastApplication": "Sista ansökan"
+      "lastApplication": "Sista ansökan",
+      "previousApplications": "Du har {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag"
     },
     "tags": {
       "new": "Ny",

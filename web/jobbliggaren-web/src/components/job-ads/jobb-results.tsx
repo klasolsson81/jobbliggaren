@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
 import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
+import { getEmployerApplicationCounts } from "@/lib/api/employer-application-counts";
 import { getMyProfile } from "@/lib/api/me";
 import { getJobsWatermark, markJobsSeen } from "@/lib/api/me-jobs";
 import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
@@ -326,7 +327,7 @@ export async function JobbResults({
       // grad-taggar alls → tom matchGradeById → inga MatchChip på korten. Status-
       // batchen (Sparad/Ansökt) är oberoende av matchnings-axeln och hämtas
       // alltid.
-      const [status, matchTags] = await Promise.all([
+      const [status, matchTags, employerApplicationCounts] = await Promise.all([
         getJobAdStatusBatch(itemIds),
         // F4-13 (ADR 0076) — graderad match-tagg-overlay. Anonym/utan-auth →
         // tom batch (degraderar civilt, inga taggar). POSITIVE-ONLY: bara
@@ -338,9 +339,21 @@ export async function JobbResults({
         matchActive
           ? getJobAdMatchTags(itemIds, effectiveIncludeRelated)
           : Promise.resolve<JobAdMatchBatch>({ entries: {} }),
+        // #446 (#311) — per-arbetsgivare "tidigare ansökningar"-räknare. ORTOGONAL
+        // mot matchnings-axeln (application-historik, inte match): hämtas ALLTID
+        // (paritet status-batchen), aldrig gate:ad på matchActive — badgen ska
+        // synas även vid ren bläddring, inte bara i match-läge. Anonym/utan-auth/
+        // fel → tom batch (civil degradering, inga badges). POSITIVE-ONLY.
+        getEmployerApplicationCounts(itemIds),
       ]);
       const savedIdSet = new Set(status.savedIds);
       const appliedIdSet = new Set(status.appliedIds);
+      // #446 — Map<JobAdId, antal> för O(1)-lookup per kort (paritet
+      // savedIdSet/matchGradeById). Bara positiva räknare finns i mappen ⇒ en
+      // saknad nyckel = 0 tidigare ansökningar ⇒ ingen badge.
+      const employerApplicationCountById = new Map<string, number>(
+        Object.entries(employerApplicationCounts.countsByJobAdId)
+      );
       // Map<JobAdId, MatchGrade> — O(1)-lookup per kort (paritet med
       // savedIdSet/appliedIdSet). `entries` är ett plain Record; bygg Map här.
       // matchActive=false ⇒ entries={} ⇒ tom Map ⇒ inga badges.
@@ -394,6 +407,7 @@ export async function JobbResults({
               savedIdSet={savedIdSet}
               appliedIdSet={appliedIdSet}
               matchGradeById={matchGradeById}
+              employerApplicationCountById={employerApplicationCountById}
               listQuery={listQuery}
             />
             <JobAdPagination

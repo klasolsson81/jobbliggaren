@@ -3,7 +3,7 @@
 // "use client": yrkes-sektionen håller filter-/aktiv-kolumn-state, en CV-suggest
 // (pending/diskriminerat resultat-state) och en disclosure-toggle för manuell
 // "Lägg till yrken"-kaskaden. Extraherad ur match-preferences-dialog (ADR 0077
-// STEG 5) och delad med match-setup-wizard. INGEN AI (deterministisk, ADR 0071);
+// STEG 5) och delad med match-setup-rail-modal (epik #526). INGEN AI (deterministisk, ADR 0071);
 // CV-förslag PRE-ADDAS till draften (chips) men skrivs ALDRIG till servern förrän
 // värdens "Spara matchning" (propose-and-approve, ADR 0040 Beslut 4 / 0076).
 
@@ -108,7 +108,7 @@ interface OccupationSectionProps {
  * YRKEN-sektionen: pinnade chips (inkl. CV-förslag pre-addade) + EN tydlig
  * "Lägg till yrken"-CTA som öppnar en inline-disclosure med
  * filter/tvåkolumns-kaskad. Den rikaste preferens-sektionen. Återanvänds av
- * BÅDE match-preferences-dialog och match-setup-wizard.
+ * BÅDE match-preferences-dialog och match-setup-rail-modal.
  */
 export function OccupationSection({
   occupationFields,

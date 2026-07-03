@@ -3287,9 +3287,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    .jp-modal-tokens (yta/kant/radie/skugga) så default-shadcn-looken ALDRIG
    skeppas. Generaliserad ur den tidigare ad-hoc .jp-matchdialog (CTO Decision
    A in-block); .jp-matchdialog komponerar nu på .jp-stdmodal (alias, ingen
-   beteendeändring). Två bredd-varianter:
-     --wide   min(840px, 94vw) — preferens-editor / wizard-steg med kaskad
-     --narrow min(440px, 92vw) — confirm / welcome / smala val-steg
+   beteendeändring). Bredd-varianter:
+     --wide   min(840px, 94vw) — preferens-editor med kaskad
+     (--narrow UTGICK 2026-07-03 med welcome-modalen — rail-modalen
+      .jp-wizard--rail sätter sin egen fasta storlek; epik #526 sweep.)
    INGEN ny hex, ingen radie > 8px (modal-undantaget), ingen shadow-2xl/glow. */
 .jp-stdmodal {
   max-height: 86vh;
@@ -3304,10 +3305,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-stdmodal--wide {
   width: min(840px, 94vw);
   max-width: min(840px, 94vw);
-}
-.jp-stdmodal--narrow {
-  width: min(440px, 92vw);
-  max-width: min(440px, 92vw);
 }
 
 /* Matchnings-dialogen (STEG A) komponerar på .jp-stdmodal. Behåller sin
@@ -3553,76 +3550,19 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-bottom-right-radius: var(--jp-r-lg);
 }
 
-/* ── Match-setup-wizard (ADR 0077 STEG 5 / design-bind A2) ──
-   Wide standardmodal med utbytbart steg-innehåll. Återanvänder
-   .jp-matchdialog__body/__section/__suggest/__pinned/__cascade/__list för
-   yrkes-/region-/anställningsform-stegen; egna klasser för stegräknare,
-   confirm-steg och footer-navigation. Ingen progress-bar-animation,
-   ingen gimmick (design-bind A2.i). */
-.jp-wizard__head {
-  position: relative;
-  padding: 22px 56px 16px 24px;
-  border-bottom: 1px solid var(--jp-border-soft);
-}
-/* Stegräknaren ("Steg 2 av 5") är informationsbärande siffror → sans +
-   tabular-nums (#376, CTO-376-A-numerals-to-sans). --jp-ink-2, aldrig --jp-ink-3. */
-.jp-wizard__counter {
-  display: block;
-  margin: 0 0 4px;
-  font-family: var(--jp-font-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-caption);
-  letter-spacing: 0.04em;
-  color: var(--jp-ink-2);
-}
-/* #251 (Del B) — hairline segmenterad progress-indikator. Klara/aktuella
-   segment i accent-700 (aktiv-tier; dark-skiftar själv till #6EE7A8), kommande
-   i --jp-border. Tunna pill-segment, ingen fill-animation (civic restraint,
-   ADR 0077 design-bind). Delar landingens mono/accent-språk inom låsta tokens. */
-.jp-wizard__progress {
-  display: flex;
-  gap: 4px;
-  margin: 0 0 12px;
-}
-.jp-wizard__progress-seg {
-  flex: 1 1 0;
-  height: 3px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-border);
-}
-.jp-wizard__progress-seg--done {
-  background: var(--jp-accent-700);
-}
-.jp-wizard__title {
-  margin: 0;
-  font-size: var(--text-h2);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: -0.015em;
-  color: var(--jp-ink-1);
-}
-/* DialogTitle får programmatisk fokus vid stegbyte (tabIndex=-1, WCAG 2.4.3).
-   Den globala fokus-ringen gäller; ingen outline:none. */
+/* ── Match-setup delade wizard-klasser (ADR 0077 STEG 5, amendad 2026-07-03) ──
+   Den gamla 5-stegs-wizarden är ERSATT av rail-modalen (.jp-wizard--rail, epik
+   #526); dess unika klasser (__head/__counter/__progress*/__title/__step/
+   __substeps) städades i cutover-then-sweep-PR:en efter rendered-verify. Kvar
+   här: de klasser rail-modalen fortsatt konsumerar (__intro/__skip/__foot*/
+   __error/__note*). */
+/* DialogDescription-intro under stegrubriken (fokus till H2 vid stegbyte,
+   tabIndex=-1, WCAG 2.4.3; den globala fokus-ringen gäller, ingen outline:none). */
 .jp-wizard__intro {
   margin: 6px 0 0;
   font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
-.jp-wizard__step {
-  padding: 20px 24px 24px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-/* STEG 3 / ADR 0079: kompetens-sektionen + erfarenhet-fältet på samma
-   wizard-steg — vertikal separation utan extra kort/ram. */
-.jp-wizard__substeps {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-/* Confirm-/klart-steget: stor grön check (status-token, ALDRIG emoji) +
-   typografisk rubrik. Ingen glow, ingen scale-in-bounce. */
 /* "Hoppa över det här steget" — a benign, non-destructive navigation affordance.
    Neutral ink, NOT .jp-clearlink (that primitive is destructive --jp-danger red):
    skipping a step must never read as a warning (WCAG 1.4.1; design-bind A2.iv,
@@ -4387,107 +4327,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
     min-width: 44px;
     min-height: 44px;
   }
-}
-
-/* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 / 0079 STEG 1 ──
-   Standardmodal med tre interna steg: upload → gapfill → done. Upload/done är
-   smala (.jp-stdmodal--narrow); gapfill (in-modal CV-komplettering, STEG 1) är
-   bred (.jp-stdmodal--wide) för det höga formuläret. Återanvänder modal-skinet;
-   egna klasser för head/body/footer + done-steget (grön check + typografisk
-   bekräftelse). Ingen glow, ingen scale-in-bounce, ingen gradient. */
-.jp-welcome__head {
-  position: relative;
-  padding: 22px 56px 16px 24px;
-  border-bottom: 1px solid var(--jp-border-soft);
-}
-.jp-welcome__title {
-  margin: 0;
-  font-size: var(--text-h2);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: -0.015em;
-  color: var(--jp-ink-1);
-}
-/* DialogTitle får programmatisk fokus vid stegbyte (tabIndex=-1, WCAG 2.4.3).
-   Den globala fokus-ringen gäller; ingen outline:none. */
-.jp-welcome__intro {
-  margin: 6px 0 0;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-}
-.jp-welcome__body {
-  padding: 20px 24px 24px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.jp-welcome__skiprow {
-  margin-top: 16px;
-  display: flex;
-  justify-content: center;
-}
-/* "Jag gör det senare"/"Hoppa över" — godartad, icke-destruktiv navigation.
-   Neutral ink, INTE .jp-clearlink (den primitiven är destruktiv röd): att
-   skippa får aldrig läsas som en varning (WCAG 1.4.1; samma doktrin som
-   .jp-wizard__skip). */
-.jp-welcome__skip {
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-.jp-welcome__skip:hover {
-  color: var(--jp-ink-1);
-}
-/* Confirm-steget: stor grön check (status-token, ALDRIG emoji) + typografisk
-   rubrik. Status bärs av text + ikon, inte färg ensam (WCAG 1.4.1). Ingen glow,
-   ingen scale-in-bounce. (CSS bor HÄR — STEG 4 tog bort oanvänd .jp-wizard__confirm.) */
-.jp-welcome__confirm {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 12px 0 8px;
-}
-.jp-welcome__confirm-icon {
-  color: var(--jp-success);
-}
-/* #251 (Del B) — Sigillet på välkomst sida-1 (brand-moment). Centrerat i
-   .jp-welcome__confirm; bara lite andrum. Ingen glow/gradient (marken bär sin
-   egen guld-/grön-signatur via mark-tokens, utanför interaktions-accenten). */
-.jp-welcome__brand {
-  margin: 4px 0 2px;
-}
-.jp-welcome__confirm-title {
-  margin: 4px 0 0;
-  font-size: var(--text-h2);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: -0.015em;
-  color: var(--jp-ink-1);
-}
-.jp-welcome__confirm-note {
-  margin: 0;
-  max-width: 52ch;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-}
-/* Footer per steg: vänster ev. ghost-skip · spacer · höger primär. */
-.jp-welcome__foot {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--jp-border-soft);
-}
-.jp-welcome__foot-spacer {
-  flex: 1 1 auto;
 }
 
 /* ── /cv match-setup-bar + post-promote-prompt (ADR 0077 STEG 5) ──

@@ -1,15 +1,19 @@
 import { z } from "zod";
 
 /**
- * ADR 0079 STEG 6 — Zod-mirror av backend `MyMatchCountDto`
+ * ADR 0079 STEG 6, HARMONISERAD 2026-07-03 (Klas "samma siffra"; CTO-bind H2) —
+ * Zod-mirror av backend `MyMatchCountDto`
  * (`Jobbliggaren.Application.Matching.Queries.GetMyMatchCount`). ADR 0020
  * single-source. `GET /api/v1/me/match-count` → `{ count: int }`.
  *
- * `count` = antalet aktiva annonser som matchar profilen i headline-grad-setet
- * (Bra + Stark / Good + Strong, Klas 2026-06-24). Per konstruktion samma
- * TotalCount som `/jobb?matchGrades=Good&matchGrades=Strong` landar på.
- * `count === 0` betyder antingen inget angivet yrke ELLER inga matchningar just
- * nu (båda honest — aldrig en fejkad mock-siffra; jfr `GetMyMatchCountQueryHandler`).
+ * `count` = antalet aktiva annonser som matchar den SPARADE matchningens
+ * sök-facetter (yrke ∧ ort ∧ anställningsform som hårda filter) — samma
+ * `ApplyFilter`-SPOT som setup-modalens live-räknare, INGA grad-band. Per
+ * konstruktion samma TotalCount som notisens facett-länk landar på (/jobb med
+ * de sparade facetterna, inga matchGrades). Grad-bandet lever kvar som badges/
+ * sort på /jobb — inte i den här siffran. `count === 0` betyder antingen inget
+ * angivet yrke ELLER inga annonser för valen just nu (båda honest — aldrig en
+ * fejkad mock-siffra; jfr `GetMyMatchCountQueryHandler`).
  */
 export const myMatchCountSchema = z.object({
   count: z.number().int().nonnegative(),
@@ -17,26 +21,16 @@ export const myMatchCountSchema = z.object({
 export type MyMatchCount = z.infer<typeof myMatchCountSchema>;
 
 /**
- * Headline-grad-setet som counten räknar över (ENUM-NAMN, ADR 0042 Beslut B
- * URL-kontrakt). Load-bearing trust-invariant: detta MÅSTE vara IDENTISKT med
- * backend `GetMyMatchCountQueryHandler.HeadlineGrades` ([Good, Strong]) — annars
- * visar notisen N men `/jobb?matchGrades=...` ett annat tal. Notisens länk byggs
- * från denna konstant (aldrig hårdkodade strängar inline) så counten och länken
- * inte kan drifta isär. Topp ingår aldrig (Fast-bandet, honest by design,
- * ADR 0076 G3-OPT-A) — rubriken är grad-neutral ("matchar din profil").
- */
-export const OVERSIKT_MATCH_GRADES: ReadonlyArray<string> = ["Good", "Strong"];
-
-/**
- * Epik #526 (ADR 0088) — Zod-mirror av backend `MatchCountPreviewDto`
+ * Epik #526 (ADR 0089) — Zod-mirror av backend `MatchCountPreviewDto`
  * (`Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview`). ADR 0020
  * single-source. `POST /api/v1/me/match-count-preview` → `{ count: int }`.
  *
  * Live sök-preview-räknaren i matchnings-setup-modalen: antalet aktiva annonser
  * som matchar utkastets sök-facetter (yrke/ort/anställningsform). En ren
- * hard-filter-count (samma `ApplyFilter`-SPOT som `/jobb`) — INTE grad-matchning.
- * MEDVETET åtskild från `myMatchCountSchema` (sparad grad-match) — de mäter olika
- * frågor (ADR 0088). Kompetenser ingår inte i counten (kvalitet, ej sökfacett).
+ * hard-filter-count (samma `ApplyFilter`-SPOT som `/jobb`). Sedan H2-
+ * harmoniseringen (2026-07-03) mäter den sparade notis-counten SAMMA fråga över
+ * den sparade profilen — talen är per konstruktion identiska för samma val.
+ * Kompetenser ingår inte i counten (kvalitet, ej sökfacett).
  */
 export const draftMatchCountSchema = z.object({
   count: z.number().int().nonnegative(),

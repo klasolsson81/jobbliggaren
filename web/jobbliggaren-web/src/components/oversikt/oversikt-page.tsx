@@ -20,7 +20,6 @@ import {
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
 import { OVERSIKT_MOCK } from "@/lib/oversikt/mock-data";
-import { OVERSIKT_MATCH_GRADES } from "@/lib/dto/match-count";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import { TodayCard } from "./today-card";
@@ -236,28 +235,28 @@ export function OversiktPage({
       href: "/oversikt?matchsetup=1",
       time: "",
     });
-  } else if (matchCount !== null) {
-    // ADR 0079 STEG 6 — LIVE per-användar count (ersätter mock-143). `null` =
-    // fetch:en degraderade ⇒ notisen utelämnas helt (denna gren körs inte),
-    // aldrig mock-fallback. Annars renderas notisen för bägge talen:
-    //   count > 0  → "Det finns N jobb som matchar din profil."
-    //   count == 0 → honest nollstate ("inga jobb ... just nu") — länken kvar.
+  } else if (matchCount !== null && profile.kind === "ok") {
+    // ADR 0079 STEG 6, HARMONISERAD 2026-07-03 (Klas "samma siffra, inget brus";
+    // CTO-bind H2) — notis-counten är nu en ren sök-facett-count över den SPARADE
+    // matchningens val (yrke ∧ ort ∧ form som hårda filter, samma ApplyFilter-SPOT
+    // som setup-modalens live-räknare). `null` = fetch:en degraderade ⇒ notisen
+    // utelämnas helt (denna gren körs inte), aldrig mock-fallback.
     //
-    // Trust-invariant (load-bearing): länkens grad-set MÅSTE vara counten:s
-    // grad-set, annars ser användaren N i notisen men ett annat tal på /jobb.
-    // Länken byggs från OVERSIKT_MATCH_GRADES (= backend
-    // GetMyMatchCountQueryHandler.HeadlineGrades, [Good, Strong]) via det
-    // delade buildJobbHref-URL-kontraktet (upprepad ?matchGrades= enum-namn).
-    // Grad-NEUTRAL copy ("matchar din profil") — aldrig "Toppmatchningar"
-    // (counten är Fast-bandet, honest by design, ADR 0076 G3-OPT-A).
+    // Trust-invariant (load-bearing): länken bär EXAKT samma facetter som
+    // backend-counten (GetMyMatchCountQueryHandler bygger sitt filter ur samma
+    // MatchPreferences som profile.data.preferred* speglar) och INGA matchGrades
+    // — /jobb-sidans TotalCount == notis-talet == setup-räknaren per konstruktion.
+    // Grad-bandet är BORTTAGET ur counten (H2); graden lever som badges/sort på
+    // /jobb. (profile.kind === "ok" är garanterat av hasStatedOccupation-grenen;
+    // villkoret upprepas för TS-narrowing.)
     const matchHref = buildJobbHref({
       q: "",
-      occupationGroup: [],
-      region: [],
-      municipality: [],
-      employmentType: [],
+      occupationGroup: [...profile.data.preferredOccupationGroups],
+      region: [...profile.data.preferredRegions],
+      municipality: [...profile.data.preferredMunicipalities],
+      employmentType: [...profile.data.preferredEmploymentTypes],
       worktimeExtent: [],
-      matchGrades: OVERSIKT_MATCH_GRADES,
+      matchGrades: [],
       sortBy: DEFAULT_SORT_BY,
     });
     infoNotices.push({

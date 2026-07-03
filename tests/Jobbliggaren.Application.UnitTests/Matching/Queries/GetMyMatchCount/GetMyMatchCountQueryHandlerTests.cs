@@ -2,29 +2,26 @@ using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.Matching.Abstractions;
-using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Queries.GetMyMatchCount;
-using Jobbliggaren.Domain.JobAds;
-using Jobbliggaren.Domain.JobSeekers;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Matching.Queries.GetMyMatchCount;
 
 /// <summary>
-/// ADR 0079 STEG 6 — the Översikt live-notis count handler. Mirrors the
-/// <see cref="GetJobAdMatchBatchQueryHandlerTests"/> style: hand-rolled ValueTask fakes for
-/// the two ValueTask-returning ports (NSubstitute trips CA2012 at the ValueTask call-setup
-/// site in this project), no DB. The handler's contract:
+/// ADR 0079 STEG 6, harmoniserad 2026-07-03 (Klas "samma siffra"; CTO-bind H2) — the
+/// Översikt notis count handler. Hand-rolled ValueTask fakes (NSubstitute trips CA2012 at
+/// the ValueTask call-setup site in this project), no DB. The harmonized contract:
 /// <list type="bullet">
 /// <item>builds the DEK-free SORT profile (<see cref="IMatchProfileBuilder.BuildFullForSortAsync"/>),
 /// NEVER the DEK-warmed verdict profile;</item>
 /// <item>SSYK-gate: empty <c>Fast.SsykGroupConceptIds</c> → honest <see cref="MyMatchCountDto.Zero"/>
-/// AND the count port is never touched (no query for a profile that cannot match);</item>
-/// <item>with a stated occupation: counts via <see cref="IPerUserJobAdSearchQuery.CountPerUserAsync"/>
-/// over an EMPTY filter with grades == [Good, Strong] (the headline band), returning the
-/// port's count unchanged.</item>
+/// AND the count port is never touched;</item>
+/// <item>with a stated occupation: the SAVED facets (yrke/ort/form) become HARD filters in a
+/// <see cref="JobAdFilterCriteria"/> counted via <see cref="IJobAdSearchQuery.CountAsync"/> —
+/// the same anon-cacheable SPOT as the setup preview counter, NO grade band. The number is
+/// therefore identical to the setup counter and the linked /jobb page's TotalCount by
+/// construction.</item>
 /// </list>
-/// RED until <c>GetMyMatchCountQueryHandler</c> exists.
 /// </summary>
 public class GetMyMatchCountQueryHandlerTests
 {
@@ -65,63 +62,43 @@ public class GetMyMatchCountQueryHandlerTests
                 "Count-handlern bygger den request-scopade SORT-profilen, aldrig by-id-bakgrundsvarianten.");
     }
 
-    private sealed class FakePerUserSearch(int countToReturn) : IPerUserJobAdSearchQuery
+    // H2: notisen räknar via den anon-cachebara sök-porten (samma som setup-preview),
+    // ALDRIG per-användar-grad-porten.
+    private sealed class FakeJobAdSearchQuery(int countToReturn) : IJobAdSearchQuery
     {
         public int CountCallCount { get; private set; }
         public JobAdFilterCriteria? LastFilter { get; private set; }
-        public FullCandidateMatchProfile? LastProfile { get; private set; }
-        public IReadOnlyList<MatchGrade>? LastGrades { get; private set; }
 
-        public ValueTask<int> CountPerUserAsync(
-            JobAdFilterCriteria filter,
-            FullCandidateMatchProfile profile,
-            IReadOnlyList<MatchGrade> grades,
-            CancellationToken cancellationToken)
+        public ValueTask<int> CountAsync(
+            JobAdFilterCriteria criteria, CancellationToken cancellationToken)
         {
             CountCallCount++;
-            LastFilter = filter;
-            LastProfile = profile;
-            LastGrades = grades;
+            LastFilter = criteria;
             return new ValueTask<int>(countToReturn);
         }
 
-        // The list path — not used by the count handler.
-        public ValueTask<PagedResult<JobAdDto>> SearchPerUserAsync(
-            JobAdFilterCriteria filter, FullCandidateMatchProfile profile,
-            IReadOnlyList<MatchGrade> grades, JobAdSortBy sort, bool orderByMatchRank,
-            JobAdStatusFilter status, JobSeekerId seekerId,
-            int page, int pageSize, CancellationToken cancellationToken)
+        public ValueTask<PagedResult<JobAdDto>> SearchAsync(
+            JobAdSearchCriteria criteria, CancellationToken cancellationToken)
             => throw new NotSupportedException(
-                "SearchPerUserAsync ska inte anropas av count-handlern — den counter:ar bara.");
+                "SearchAsync ska inte anropas av count-handlern — den counter:ar bara.");
 
-        // #383 — status-only list path; not used by the count handler.
-        public ValueTask<PagedResult<JobAdDto>> SearchByStatusAsync(
-            JobAdFilterCriteria filter, JobSeekerId seekerId, JobAdStatusFilter status,
-            JobAdSortBy sort, int page, int pageSize, CancellationToken cancellationToken)
+        public ValueTask<IReadOnlyDictionary<string, int>> FacetCountsAsync(
+            JobAdFilterCriteria criteria, FacetDimension dimension, CancellationToken cancellationToken)
             => throw new NotSupportedException(
-                "SearchByStatusAsync ska inte anropas av count-handlern — den counter:ar bara.");
-
-        // #452 — the per-employer hub match-count path; not used by the Översikt count handler
-        // (it belongs to the company-watch hub, ListCompanyWatchesQueryHandler).
-        public ValueTask<IReadOnlyDictionary<string, int>> CountPerUserByEmployerAsync(
-            IReadOnlyList<string> organizationNumbers, FullCandidateMatchProfile profile,
-            IReadOnlyList<MatchGrade> grades, CancellationToken cancellationToken)
-            => throw new NotSupportedException(
-                "CountPerUserByEmployerAsync ska inte anropas av Översikts count-handler — den " +
-                "counter:ar den globala match-siffran, aldrig per-arbetsgivare-hub-counten.");
+                "FacetCountsAsync ska inte anropas av count-handlern.");
     }
 
     // ---------------------------------------------------------------
     // Profile builders.
     // ---------------------------------------------------------------
-    private static FullCandidateMatchProfile ProfileWithOccupation() =>
+    private static FullCandidateMatchProfile ProfileWithFacets() =>
         new(
             new CandidateMatchProfile(
                 Title: string.Empty,
                 SsykGroupConceptIds: ["grp_12345"],
                 PreferredRegionConceptIds: ["region_AB"],
-                PreferredEmploymentTypeConceptIds: [],
-                PreferredMunicipalityConceptIds: []),
+                PreferredEmploymentTypeConceptIds: ["et_fast"],
+                PreferredMunicipalityConceptIds: ["kommun_0180"]),
             CvSkillConceptIds: []);
 
     // No stated occupation (no user / unconfigured profile) → empty SSYK → the gate.
@@ -129,7 +106,7 @@ public class GetMyMatchCountQueryHandlerTests
         new(new CandidateMatchProfile(string.Empty, [], [], [], []), []);
 
     private static GetMyMatchCountQueryHandler CreateHandler(
-        FakeProfileBuilder builder, FakePerUserSearch search) =>
+        FakeProfileBuilder builder, FakeJobAdSearchQuery search) =>
         new(builder, search);
 
     // =================================================================
@@ -141,7 +118,7 @@ public class GetMyMatchCountQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = new FakeProfileBuilder(EmptyProfile());
-        var search = new FakePerUserSearch(countToReturn: 999);
+        var search = new FakeJobAdSearchQuery(countToReturn: 999);
         var sut = CreateHandler(builder, search);
 
         var result = await sut.Handle(new GetMyMatchCountQuery(), ct);
@@ -155,7 +132,7 @@ public class GetMyMatchCountQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = new FakeProfileBuilder(EmptyProfile());
-        var search = new FakePerUserSearch(countToReturn: 999);
+        var search = new FakeJobAdSearchQuery(countToReturn: 999);
         var sut = CreateHandler(builder, search);
 
         await sut.Handle(new GetMyMatchCountQuery(), ct);
@@ -165,85 +142,60 @@ public class GetMyMatchCountQueryHandlerTests
     }
 
     // =================================================================
-    // Stated occupation → counts via the port with the headline band + empty filter.
+    // Stated occupation → the SAVED facets become HARD filters (H2), count via
+    // the shared anon-cacheable SPOT — no grade band anywhere.
     // =================================================================
 
     [Fact]
     public async Task Handle_ShouldReturnPortCountUnchanged_WhenOccupationStated()
     {
         var ct = TestContext.Current.CancellationToken;
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
-        var search = new FakePerUserSearch(countToReturn: 42);
+        var builder = new FakeProfileBuilder(ProfileWithFacets());
+        var search = new FakeJobAdSearchQuery(countToReturn: 183);
         var sut = CreateHandler(builder, search);
 
         var result = await sut.Handle(new GetMyMatchCountQuery(), ct);
 
         // The notis number is the port's count verbatim — never massaged, never a mock.
-        result.Count.ShouldBe(42);
+        result.Count.ShouldBe(183);
         search.CountCallCount.ShouldBe(1);
     }
 
     [Fact]
-    public async Task Handle_ShouldCountWithHeadlineGradesGoodAndStrong_WhenOccupationStated()
+    public async Task Handle_ShouldMapSavedFacetsToHardFilters_WhenOccupationStated()
     {
         var ct = TestContext.Current.CancellationToken;
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
-        var search = new FakePerUserSearch(countToReturn: 7);
+        var builder = new FakeProfileBuilder(ProfileWithFacets());
+        var search = new FakeJobAdSearchQuery(countToReturn: 5);
         var sut = CreateHandler(builder, search);
 
         await sut.Handle(new GetMyMatchCountQuery(), ct);
 
-        // The headline band (Klas 2026-06-24): EXACTLY {Good, Strong} — never Basic, never
-        // Top (Fast band, G3-OPT-A), and never Related (PR-4 #300, ADR-question D = count is
-        // LIST-ONLY — Related does NOT drive the notification count). This set MUST stay coherent
-        // with the FE notis link (?matchGrades=Good&matchGrades=Strong) so the number == the linked
-        // /jobb count.
-        search.LastGrades.ShouldNotBeNull();
-        search.LastGrades!.ShouldBe([MatchGrade.Good, MatchGrade.Strong], ignoreOrder: true);
-        search.LastGrades!.ShouldNotContain(MatchGrade.Basic);
-        search.LastGrades!.ShouldNotContain(MatchGrade.Related,
-            "Related ingår ALDRIG i headline-counten (ADR 0084 fråga D — counten är list-only; " +
-            "Related driver inte notis-siffran).");
-        search.LastGrades!.ShouldNotContain(MatchGrade.Top);
-    }
-
-    [Fact]
-    public async Task Handle_ShouldCountOverEmptyFilter_WhenOccupationStated()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
-        var search = new FakePerUserSearch(countToReturn: 3);
-        var sut = CreateHandler(builder, search);
-
-        await sut.Handle(new GetMyMatchCountQuery(), ct);
-
-        // The notis counts over the WHOLE active corpus — only the profile grade gallrar,
-        // no search/dimension filter. An empty filter-SPOT = all Active ads (Q null, every
-        // dimension list empty).
+        // H2 (Klas "samma siffra" 2026-07-03): every saved dimension is a HARD filter —
+        // exactly the setup preview's semantics, so the two numbers can never diverge.
         search.LastFilter.ShouldNotBeNull();
         var filter = search.LastFilter!;
-        filter.Q.ShouldBeNull();
-        filter.OccupationGroup.ShouldBeEmpty();
-        filter.Municipality.ShouldBeEmpty();
-        filter.Region.ShouldBeEmpty();
-        filter.EmploymentType.ShouldBeEmpty();
-        filter.WorktimeExtent.ShouldBeEmpty();
+        filter.OccupationGroup.ShouldBe(["grp_12345"]);
+        filter.Region.ShouldBe(["region_AB"]);
+        filter.Municipality.ShouldBe(["kommun_0180"]);
+        filter.EmploymentType.ShouldBe(["et_fast"]);
     }
 
     [Fact]
-    public async Task Handle_ShouldPassTheBuiltSortProfileToTheCountPort_WhenOccupationStated()
+    public async Task Handle_ShouldLeaveWorktimeEmployerAndQEmpty_WhenOccupationStated()
     {
         var ct = TestContext.Current.CancellationToken;
-        var profile = ProfileWithOccupation();
-        var builder = new FakeProfileBuilder(profile);
-        var search = new FakePerUserSearch(countToReturn: 1);
+        var builder = new FakeProfileBuilder(ProfileWithFacets());
+        var search = new FakeJobAdSearchQuery(countToReturn: 5);
         var sut = CreateHandler(builder, search);
 
         await sut.Handle(new GetMyMatchCountQuery(), ct);
 
-        // The exact profile the builder produced is what the count is taken over (no
-        // re-projection between build and count).
-        search.LastProfile.ShouldBeSameAs(profile);
+        // Matchningen exponerar varken omfattnings-, arbetsgivar- eller fritext-dimensionen.
+        var filter = search.LastFilter!;
+        filter.WorktimeExtent.ShouldBeEmpty();
+        filter.Employer.ShouldBeEmpty();
+        filter.Q.ShouldBeNull();
     }
 
     // =================================================================
@@ -254,8 +206,8 @@ public class GetMyMatchCountQueryHandlerTests
     public async Task Handle_ShouldBuildTheSortProfile_NotTheVerdictProfile_WhenOccupationStated()
     {
         var ct = TestContext.Current.CancellationToken;
-        var builder = new FakeProfileBuilder(ProfileWithOccupation());
-        var search = new FakePerUserSearch(countToReturn: 1);
+        var builder = new FakeProfileBuilder(ProfileWithFacets());
+        var search = new FakeJobAdSearchQuery(countToReturn: 1);
         var sut = CreateHandler(builder, search);
 
         await sut.Handle(new GetMyMatchCountQuery(), ct);
@@ -269,7 +221,7 @@ public class GetMyMatchCountQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = new FakeProfileBuilder(EmptyProfile());
-        var search = new FakePerUserSearch(countToReturn: 1);
+        var search = new FakeJobAdSearchQuery(countToReturn: 1);
         var sut = CreateHandler(builder, search);
 
         await sut.Handle(new GetMyMatchCountQuery(), ct);

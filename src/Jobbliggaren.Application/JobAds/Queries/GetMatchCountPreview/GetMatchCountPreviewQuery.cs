@@ -3,7 +3,7 @@ using Mediator;
 namespace Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview;
 
 /// <summary>
-/// Epik #526 (ADR 0088) — den LIVE sök-preview-räknaren för matchnings-setup-modalen.
+/// Epik #526 (ADR 0089) — den LIVE sök-preview-räknaren för matchnings-setup-modalen.
 /// Räknar hur många aktiva annonser som matchar ett UTKAST av sök-facetter (yrke/ort/
 /// anställningsform) medan användaren fyller i sin matchning, debouncat ~400 ms klient-side.
 /// <para>
@@ -22,9 +22,9 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview;
 /// betydelse (sök-antal ↔ grad-antal). Därför bär utkastet bara de fyra sökbara dimensionerna.
 /// </para>
 /// <para>
-/// <b>Åtskild från <c>GetMyMatchCount</c> (ADR 0079):</b> den räknar den SPARADE profilens
-/// grad-matchningar (Bra+Stark, region-agnostiskt); den här räknar ett OSPARAT utkasts
-/// sök-träffar. Två ärliga svar på två olika frågor — divergensen är avsiktlig (ADR 0088).
+/// <b>Systervägen <c>GetMyMatchCount</c> (ADR 0079, harmoniserad H2 2026-07-03):</b> den
+/// räknar SAMMA sök-facett-fråga över den SPARADE profilen (hårda filter, samma SPOT) —
+/// talen är per konstruktion identiska för samma val (Klas "samma siffra", ADR 0089).
 /// </para>
 /// <para>
 /// INTE <c>ICapturesRecentSearch</c> — en live-räkning är ingen sökhändelse; auto-capture hade

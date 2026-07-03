@@ -142,27 +142,6 @@
       "reviewValue": "{years} år",
       "reviewEmpty": "Inget angivet"
     },
-    "wizard": {
-      "stepOccupations": "Yrken",
-      "stepSkills": "Kompetenser",
-      "stepRegions": "Regioner",
-      "stepOrter": "Orter",
-      "stepEmployment": "Anställningsformer",
-      "stepDone": "Sammanfattning",
-      "counter": "Steg {step} av {total}",
-      "introOccupations": "Välj de yrken du söker. Vi föreslår utifrån ditt CV. Ändra om det inte stämmer; du väljer själv vilka som tas med.",
-      "introSkills": "Lägg till de kompetenser du har. Vi föreslår utifrån ditt CV. Du kan söka och lägga till fler, eller ta bort de som inte stämmer. Ange gärna antal års erfarenhet.",
-      "introRegions": "Välj de regioner du vill arbeta i. Lämna tomt för hela landet.",
-      "introOrter": "Välj de län eller kommuner du vill arbeta i. Lämna tomt för hela landet.",
-      "introEmployment": "Välj de anställningsformer du är öppen för. De flesta jobb ligger under Vanlig anställning. Lämna tomt för alla.",
-      "employmentVanligNote": "De flesta jobb ligger under Vanlig anställning. Lägg gärna till den för att inte missa träffar.",
-      "introReview": "Granska dina val. Du kan ta bort något här, eller gå tillbaka för att ändra.",
-      "back": "Tillbaka",
-      "skipStep": "Hoppa över det här steget",
-      "saving": "Sparar…",
-      "save": "Spara matchning",
-      "next": "Nästa"
-    },
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
@@ -209,20 +188,5 @@
       "wrongPassword": "Lösenordet är felaktigt.",
       "deleteFailed": "Kunde inte radera kontot."
     }
-  },
-  "onboarding": {
-    "welcomeTitle": "Välkommen till Jobbliggaren",
-    "welcomeBody": "Ställ in din matchning, så visar vi jobb och yrken som passar dig. Det tar någon minut, och du kan ändra allt senare.",
-    "welcomeStart": "Kom igång",
-    "welcomeLater": "Gör det senare",
-    "uploadTitle": "Ladda upp CV",
-    "uploadIntro": "Ladda upp ditt CV så föreslår vi yrken och kompetenser utifrån det. Du väljer själv vad som tas med, och kan hoppa över det här.",
-    "continueWithoutCv": "Fortsätt utan CV",
-    "setUpMatchTitle": "Ställ in din matchning",
-    "cvReadTitle": "CV inläst",
-    "cvReadNote": "Vi har läst ditt CV och föreslår yrken och kompetenser utifrån det. Det sparas inte automatiskt; du kan spara det under CV när du vill behålla det. Vill du ställa in din matchning nu?",
-    "setUpMatchNote": "Vill du ställa in din matchning nu? Det tar någon minut. Du kan hoppa över och göra det senare.",
-    "skip": "Hoppa över",
-    "confirm": "Ja, ställ in matchning"
   }
 }

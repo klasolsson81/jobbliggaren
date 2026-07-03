@@ -70,7 +70,7 @@ interface CvMatchSetupProps {
 
 /**
  * /cv match-setup-affordans: en trigger i innehållsytan (.jp-cvmatch-bar, ej
- * gradient-hero-asiden) som öppnar match-setup-wizarden, plus den dismissbara
+ * gradient-hero-asiden) som öppnar match-setup-rail-modalen (epik #526), plus den dismissbara
  * post-promote-prompten. Skriver inget själv — wizarden bär det enda PUT:et
  * (MatchPreferences).
  */

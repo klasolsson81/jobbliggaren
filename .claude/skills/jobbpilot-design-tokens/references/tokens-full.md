@@ -188,7 +188,7 @@ Global text-tracking `-0.005em` på `body` (16px, line-height 1.55).
 | Token | Värde |
 |---|---|
 | `--text-display` | 56px (landing hero only) |
-| `--text-h1` | 28px |
+| `--text-h1` | 32px (#549 WS1: 28->32, re-align ADR 0052 Beslut 5) |
 | `--text-h2` | 20px |
 | `--text-h3` | 18px |
 | `--text-h4` | 16px |
@@ -198,6 +198,9 @@ Global text-tracking `-0.005em` på `body` (16px, line-height 1.55).
 | `--text-caption` | 13px |
 | `--text-label` | 14px |
 | `--text-mono` | 13px |
+| `--text-ui` | 15px (tät UI-krom: nav, toolbars, usermenu, tabellceller; #549 WS2) |
+| `--text-micro` | 12px (minsta informationstext: counts, proveniens, numeriska delta; #549 WS2) |
+| `--text-overline` | 11px (mono-caps-kickers/kolumnhuvuden — den enda kicker-rungen efter #549-konsolideringen) |
 
 **Dokumenterat undantag (ADR 0068):** `.jp-hero__title` 44px/800 — ENBART
 hero-plattan, inte H1-skalan. Mono caps-labels och mono inline-data på

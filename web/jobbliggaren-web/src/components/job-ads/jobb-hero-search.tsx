@@ -85,6 +85,11 @@ interface JobbHeroSearchProps {
   // commit-/delta-vägen + no-JS-hidden-inputs så en sökord-ändring inte raderar
   // ett aktivt grad-filter (buildJobbHref kräver fältet).
   matchGrades: ReadonlyArray<string>;
+  // #454 PR-0 — aktivt arbetsgivar-filter (ETT org.nr, page-validerat). Som
+  // Klass-2-dimensionerna: aldrig text-representabelt i fältet, men bärs genom
+  // commit-/delta-vägen + no-JS-hidden-input så en sökord-ändring inte raderar
+  // ett aktivt arbetsgivar-filter (samma param-bevarande-disciplin).
+  employer: string | undefined;
   sortBy: JobAdSortBy;
   pageSize?: string;
   // #419 pt6 (CTO A1) — commit-intent på mount-URL:en (page.tsx parsar `?commit=true`).
@@ -105,6 +110,7 @@ export function JobbHeroSearch({
   employmentType,
   worktimeExtent,
   matchGrades,
+  employer,
   sortBy,
   pageSize,
   initialCommitted,
@@ -135,6 +141,9 @@ export function JobbHeroSearch({
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
+      // #454 PR-0 — bärs genom delta-/commit-vägen så en sökord-ändring inte
+      // raderar arbetsgivar-filtret (ingår i sameUrlState-komparatorn).
+      employer,
       sortBy,
       pageSize,
     }),
@@ -146,6 +155,7 @@ export function JobbHeroSearch({
       employmentType,
       worktimeExtent,
       matchGrades,
+      employer,
       sortBy,
       pageSize,
     ],
@@ -584,6 +594,11 @@ export function JobbHeroSearch({
           value={v}
         />
       ))}
+      {/* #454 PR-0 — no-JS-submit bär aktivt arbetsgivar-filter så en sökord-
+          sökning utan JS inte tappar det (paritet med dimensionerna ovan). */}
+      {lastCommitted.employer && (
+        <input type="hidden" name="employer" value={lastCommitted.employer} />
+      )}
       {sortBy !== DEFAULT_SORT_BY && (
         <input type="hidden" name="sortBy" value={sortBy} />
       )}

@@ -6,6 +6,7 @@ import {
   getTokenRange,
   isTextRepresentable,
   parseSearchText,
+  sameUrlState,
   serializeSearchText,
   updateTextForStateChange,
 } from "./tokenize";
@@ -335,5 +336,32 @@ describe("updateTextForStateChange (C′ regel 2/3)", () => {
     expect(
       updateTextForStateChange("göteborg volvo", prev, empty, resolve, index),
     ).toBe("");
+  });
+});
+
+describe("sameUrlState #454 PR-0 (employer i komparatorn)", () => {
+  it("olika employer ⇒ INTE samma filter-state (extern divergens-detektorn)", () => {
+    expect(
+      sameUrlState({ ...empty, employer: "5560125790" }, { ...empty }),
+    ).toBe(false);
+    expect(
+      sameUrlState(
+        { ...empty, employer: "5560125790" },
+        { ...empty, employer: "5560000108" },
+      ),
+    ).toBe(false);
+  });
+
+  it("samma employer (eller båda frånvarande) ⇒ samma filter-state", () => {
+    expect(
+      sameUrlState(
+        { ...empty, employer: "5560125790" },
+        { ...empty, employer: "5560125790" },
+      ),
+    ).toBe(true);
+    // undefined och utelämnad är ekvivalenta (?? ""-normalisering).
+    expect(sameUrlState({ ...empty, employer: undefined }, { ...empty })).toBe(
+      true,
+    );
   });
 });

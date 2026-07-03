@@ -26,6 +26,17 @@ interface JobAdCardProps {
    */
   matchGrade?: MatchGrade;
   /**
+   * #446 (#311) — antalet av den inloggade användarens EGNA tidigare (inskickade)
+   * ansökningar till annonsens arbetsgivare (samma org.nr), server-resolverat via
+   * `getEmployerApplicationCounts`. `undefined`/0 ⇒ ingen badge (POSITIVE-ONLY —
+   * mappen bär bara positiva räknare). Ett rent heltal: INGET org.nr färdas i
+   * texten, attribut eller URL (enskild firma = personnummer, CLAUDE.md §5). B1
+   * (senior-cto-advisor 2026-07-03): informativ text, INTE en länk — det finns
+   * ingen historik-yta att djuplänka till ännu (deferrad bakom #448); hela kortet
+   * är dessutom redan ETT `<Link>`, så en nästlad länk vore ogiltig.
+   */
+  previousApplicationCount?: number;
+  /**
    * #380 — den nuvarande listans query-sträng (filter + match + sort + sök,
    * byggd i `JobbResults` via `buildJobbHref`), utan inledande `?`. Bärs in i
    * radlänken så att soft-nav till modalen ALDRIG tappar list-URL:ens view-
@@ -107,6 +118,7 @@ export function JobAdCard({
   isSaved = false,
   isApplied = false,
   matchGrade,
+  previousApplicationCount,
   listQuery = "",
 }: JobAdCardProps) {
   // Synchronous next-intl translators — keep JobAdCard a non-async RSC (it
@@ -147,6 +159,18 @@ export function JobAdCard({
           {matchGrade && <MatchChip grade={matchGrade} />}
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>
+        {/* #446 (#311) — "Du har X tidigare ansökningar till detta företag".
+            POSITIVE-ONLY: bara när räknaren > 0 (mappen bär inga nollor). Egen
+            rad direkt under företaget (återbrukar .jp-job__meta → --jp-ink-1,
+            hög kontrast, ingen ny CSS). Informativ text, ingen länk (B1); rent
+            heltal, inget org.nr i text/attribut. ICU-plural bär ental/flertal. */}
+        {previousApplicationCount != null && previousApplicationCount > 0 && (
+          <div className="jp-job__meta">
+            <span>
+              {tUi("previousApplications", { count: previousApplicationCount })}
+            </span>
+          </div>
+        )}
         <div className="jp-job__meta">
           <span>{jobSourceLabel(t, jobAd.source)}</span>
           <span>

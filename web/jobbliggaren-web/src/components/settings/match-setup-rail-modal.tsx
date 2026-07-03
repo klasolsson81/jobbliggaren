@@ -667,7 +667,15 @@ export function MatchSetupRailModal({
                               {t("start.uploadBody")}
                             </p>
                           </div>
-                          <CvUploadForm onUploaded={handleCvUploaded} />
+                          {/* Polish (Klas 2026-07-03): auto-upload vid filval
+                              (inget extra klick) + formulärets egen hjälptext
+                              dold (upload-rubriken/brödtexten ovan bär redan
+                              instruktionen — ingen dubbeltext). */}
+                          <CvUploadForm
+                            onUploaded={handleCvUploaded}
+                            autoUpload
+                            showHelp={false}
+                          />
                           <p className="jp-wizard__nocv">
                             {t.rich("start.noCv", {
                               b: (chunks) => (

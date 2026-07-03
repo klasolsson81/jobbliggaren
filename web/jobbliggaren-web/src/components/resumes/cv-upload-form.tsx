@@ -103,9 +103,27 @@ interface CvUploadFormProps {
    * (navigera till granska-vyn) är oförändrat när proppen utelämnas.
    */
   readonly onUploaded?: (parsedResumeId: string, fileName?: string) => void;
+  /**
+   * Epik #526 polish (Klas rendered-verify 2026-07-03): starta uppladdningen
+   * direkt när en giltig fil valts — inget extra "Ladda upp"-klick, och
+   * submit-raden döljs (spinnern + värdens bekräftelse bär statusen). Default
+   * false = oförändrat tvåstegsflöde (/cv/importera).
+   */
+  readonly autoUpload?: boolean;
+  /**
+   * Epik #526 polish: dölj formulärets egen hjälptext när VÄRDEN redan bär
+   * instruktionen (rail-modalens Start-steg har en egen upload-rubrik + brödtext
+   * — dubbel text var Klas-fynd 1). Hjälptexten förblir describedby via sr-only
+   * (SR-användare behåller den). Default true = oförändrat.
+   */
+  readonly showHelp?: boolean;
 }
 
-export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
+export function CvUploadForm({
+  onUploaded,
+  autoUpload = false,
+  showHelp = true,
+}: CvUploadFormProps = {}) {
   const t = useTranslations("resumes.upload");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -130,6 +148,21 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
     const validationError = validateFile(file);
     setError(validationError ? t(validationError) : null);
     setSelectedFile(validationError ? null : file);
+
+    // Nollställ input-värdet så att SAMMA fil kan väljas om (change fyrar inte
+    // på oförändrat värde) — utan detta blir en same-file-retry efter t.ex. 429
+    // tyst död i auto-läget (code-reviewer Minor, 2026-07-03). UI:t läser
+    // `selectedFile`-staten, aldrig input-värdet, så resetten är sidoeffektfri.
+    event.target.value = "";
+
+    // Epik #526 polish: auto-upload — giltig fil valdes → ladda upp direkt
+    // (inget extra klick). Fel-vägen är oförändrad: väljs en ny (eller samma)
+    // fil efter t.ex. 429 körs ett nytt försök automatiskt.
+    if (autoUpload && !validationError && !isPending) {
+      startTransition(async () => {
+        await uploadFile(file);
+      });
+    }
   }
 
   async function uploadFile(file: File): Promise<void> {
@@ -246,7 +279,13 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
             />
           </div>
 
-          <p id={helpId} className="jp-cvupload__help">
+          {/* showHelp=false → sr-only: describedby-kedjan består (SR hör
+              instruktionen) men den synliga dubbletten mot värdens brödtext
+              försvinner (Klas-fynd 1). */}
+          <p
+            id={helpId}
+            className={showHelp ? "jp-cvupload__help" : "sr-only"}
+          >
             {t("help")}
           </p>
 
@@ -256,15 +295,19 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
             </p>
           )}
 
-          <div className="jp-cvupload__actions">
-            <button
-              type="submit"
-              className="jp-btn jp-btn--primary"
-              disabled={!selectedFile}
-            >
-              {t("submit")}
-            </button>
-          </div>
+          {/* Auto-upload-läget har ingen submit-rad: uppladdningen startar vid
+              filval och spinnern + värdens bekräftelse bär statusen. */}
+          {!autoUpload && (
+            <div className="jp-cvupload__actions">
+              <button
+                type="submit"
+                className="jp-btn jp-btn--primary"
+                disabled={!selectedFile}
+              >
+                {t("submit")}
+              </button>
+            </div>
+          )}
         </>
       )}
     </form>

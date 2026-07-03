@@ -3947,6 +3947,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard--rail .jp-cvupload__drop {
   border: 1.5px dashed var(--jp-border-input);
+  /* Polish (Klas 2026-07-03, fynd 1): kompaktare zon i modalen — Start-steget
+     ska inte behöva scrolla. Basens 28px-padding är för /cv/importera-sidan. */
+  padding: 14px 16px;
+  gap: 6px;
 }
 .jp-wizard--rail .jp-cvupload__drop:hover {
   background: var(--jp-accent-50);

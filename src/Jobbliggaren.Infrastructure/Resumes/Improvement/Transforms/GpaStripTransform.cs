@@ -11,6 +11,11 @@ namespace Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
 /// proposed for removal (SE-market convention — a numeric GPA is uncommon and rarely helps a
 /// Swedish CV). A PURE REMOVAL: it cites the offending span and the <c>RemoveGpa</c> operation,
 /// carrying no rewritten text. Education with no GPA reference yields nothing.
+/// <para>v1 scope (#478 Low): detection matches the literal English token "GPA" only. A Swedish
+/// grade average written as "betygssnitt" / "medelbetyg" / "betygsgenomsnitt" is NOT detected;
+/// widening to Swedish grade vocabulary — as versioned knowledge-bank data (§5, never inline
+/// strings) and pending a product ruling on whether letter grades (MVG/VG, A–F) count — is
+/// tracked in #571. The scope here is deliberately narrow, not an over-claiming label.</para>
 /// </summary>
 internal sealed partial class GpaStripTransform : ICvTransform
 {

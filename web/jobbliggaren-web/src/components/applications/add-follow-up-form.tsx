@@ -109,7 +109,7 @@ export function AddFollowUpForm({
         />
         <p
           id="follow-up-note-hint"
-          className="text-body-sm text-text-secondary"
+          className="text-body-sm text-text-primary"
         >
           {tUi("addFollowUp.noteHint")}
         </p>

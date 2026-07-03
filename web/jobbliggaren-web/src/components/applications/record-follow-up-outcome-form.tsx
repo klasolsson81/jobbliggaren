@@ -75,7 +75,7 @@ export function RecordFollowUpOutcomeForm({
     >
       <p
         id={noticeId}
-        className="text-body-sm text-text-secondary"
+        className="text-body-sm text-text-primary"
       >
         {tUi("recordOutcome.notice")}
       </p>

@@ -116,7 +116,7 @@ export function StatusEditCard({
         </div>
 
         {transitions.length === 0 && (
-          <p className="text-body-sm text-text-secondary">
+          <p className="text-body-sm text-text-primary">
             {tUi("statusEdit.closedNotice")}
           </p>
         )}
@@ -125,7 +125,7 @@ export function StatusEditCard({
           <div className="flex flex-col gap-3 border-t border-border-default pt-4">
             <p
               id={instructionId}
-              className="text-body-sm text-text-secondary"
+              className="text-body-sm text-text-primary"
             >
               {tUi.rich("statusEdit.singleNextStep", {
                 status: applicationStatusLabel(t, singleTransition),
@@ -163,7 +163,7 @@ export function StatusEditCard({
           <div className="flex flex-col gap-3 border-t border-border-default pt-4">
             <p
               id={instructionId}
-              className="text-body-sm text-text-secondary"
+              className="text-body-sm text-text-primary"
             >
               {tUi.rich("statusEdit.chooseInstruction", {
                 status: currentLabel,

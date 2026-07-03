@@ -45,8 +45,8 @@ export function AdminNav() {
             aria-current={active ? "page" : undefined}
             className={`${NAV_LINK_BASE} ${
               active
-                ? "bg-surface-tertiary text-text-primary"
-                : "text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
+                ? "bg-surface-tertiary font-semibold text-text-primary"
+                : "text-text-primary hover:bg-surface-tertiary"
             }`}
           >
             {t(item.labelKey)}

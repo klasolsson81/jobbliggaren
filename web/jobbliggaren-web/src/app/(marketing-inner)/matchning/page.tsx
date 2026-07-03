@@ -148,10 +148,10 @@ export default async function MatchningPage() {
             </span>
           </p>
         </div>
-        <p className="mt-4 text-body-sm text-text-secondary">
+        <p className="mt-4 text-body-sm text-text-primary">
           {t("grades.topNote")}
         </p>
-        <p className="mt-2 text-body-sm text-text-secondary">
+        <p className="mt-2 text-body-sm text-text-primary">
           {t("grades.cvNote")}
         </p>
 
@@ -178,7 +178,7 @@ export default async function MatchningPage() {
             </li>
           ))}
         </ol>
-        <p className="mt-4 text-body-sm text-text-secondary">
+        <p className="mt-4 text-body-sm text-text-primary">
           {t("order.worstNote")}
         </p>
 

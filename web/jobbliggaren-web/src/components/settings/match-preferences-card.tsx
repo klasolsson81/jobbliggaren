@@ -345,7 +345,7 @@ export function MatchPreferencesCard({
     return (
       <section className="jp-card" id="matchning">
         <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
-        <p className="text-body-sm text-text-secondary">
+        <p className="text-body-sm text-text-primary">
           {t("matchPrefs.degraded")}
         </p>
       </section>
@@ -378,7 +378,7 @@ export function MatchPreferencesCard({
   return (
     <section className="jp-card jp-matchprefs" id="matchning">
       <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
-      <p className="text-body-sm text-text-secondary">{t("matchPrefs.intro")}</p>
+      <p className="text-body-sm text-text-primary">{t("matchPrefs.intro")}</p>
 
       <div className="jp-matchprefs__facets mt-5">
         {(["occupations", "skills", "orter", "employment"] as const).map((facet) => {
@@ -398,7 +398,7 @@ export function MatchPreferencesCard({
                 {facetLabel[facet]}
               </p>
               {chips.length === 0 ? (
-                <p className="jp-matchprefs__empty text-body-sm text-text-secondary">
+                <p className="jp-matchprefs__empty text-body-sm text-text-primary">
                   {facetEmpty[facet]}
                 </p>
               ) : (
@@ -450,7 +450,7 @@ export function MatchPreferencesCard({
           >
             {t("matchPrefs.experience.label")}
           </p>
-          <p className="jp-matchprefs__empty text-body-sm text-text-secondary">
+          <p className="jp-matchprefs__empty text-body-sm text-text-primary">
             {experienceYears === null
               ? t("matchPrefs.experience.reviewEmpty")
               : t("matchPrefs.experience.reviewValue", { years: experienceYears })}

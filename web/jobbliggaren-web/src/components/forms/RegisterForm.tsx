@@ -32,7 +32,7 @@ export function RegisterForm() {
           aria-required="true"
           aria-describedby="email-hint"
         />
-        <p id="email-hint" className="text-body-sm text-text-secondary">
+        <p id="email-hint" className="text-body-sm text-text-primary">
           {t("auth.register.emailHint")}
         </p>
       </div>
@@ -50,7 +50,7 @@ export function RegisterForm() {
           aria-required="true"
           aria-describedby="password-hint"
         />
-        <p id="password-hint" className="text-body-sm text-text-secondary">
+        <p id="password-hint" className="text-body-sm text-text-primary">
           {t("auth.register.passwordHint")}
         </p>
       </div>

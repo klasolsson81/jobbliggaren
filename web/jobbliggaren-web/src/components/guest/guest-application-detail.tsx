@@ -74,7 +74,7 @@ export function GuestApplicationDetail({
       </dl>
 
       <div className="jp-eyebrow mt-4 mb-2.5">{tg("detail.aboutHeading")}</div>
-      <p className="text-body-sm text-text-secondary">{tg("detail.aboutBody")}</p>
+      <p className="text-body-sm text-text-primary">{tg("detail.aboutBody")}</p>
     </div>
   );
 }

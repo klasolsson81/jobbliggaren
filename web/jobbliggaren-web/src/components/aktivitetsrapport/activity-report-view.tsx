@@ -70,7 +70,7 @@ export function ActivityReportView({
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor="aktivitetsrapport-month"
-            className="text-label leading-5 font-medium text-text-secondary"
+            className="text-label leading-5 font-medium text-text-primary"
           >
             {t("month.label")}
           </label>
@@ -96,7 +96,7 @@ export function ActivityReportView({
             className={
               belowMinimum
                 ? "text-body-sm leading-5 font-medium text-warning-600"
-                : "text-body-sm leading-5 text-text-secondary"
+                : "text-body-sm leading-5 text-text-primary"
             }
           >
             {t("counter.minimum", { minimum: AF_MINIMUM })}
@@ -126,7 +126,7 @@ export function ActivityReportView({
             <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="aktivitetsrapport-filter"
-                className="text-label leading-5 font-medium text-text-secondary"
+                className="text-label leading-5 font-medium text-text-primary"
               >
                 {t("filter.label")}
               </label>
@@ -177,7 +177,7 @@ function ApplicationCard({ row }: { row: ActivityReportRow }) {
           {row.title ?? t("card.titleFallback")}
         </h2>
         {subtitle ? (
-          <p className="mt-0.5 text-body-sm leading-5 wrap-break-word text-text-secondary">
+          <p className="mt-0.5 text-body-sm leading-5 wrap-break-word text-text-primary">
             {subtitle}
           </p>
         ) : null}
@@ -192,7 +192,7 @@ function ApplicationCard({ row }: { row: ActivityReportRow }) {
         <div className="flex flex-col gap-1.5 border-t border-border py-3">
           <label
             htmlFor={`how-${row.applicationId}`}
-            className="text-label leading-5 font-medium text-text-secondary"
+            className="text-label leading-5 font-medium text-text-primary"
           >
             {t("fields.howApplied")}
           </label>

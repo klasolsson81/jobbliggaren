@@ -30,7 +30,7 @@ export function CreateResumeForm() {
     <form action={formAction} className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="cv-name">{t("createForm.nameLabel")}</Label>
-        <p id="cv-name-help" className="text-body-sm text-text-secondary">
+        <p id="cv-name-help" className="text-body-sm text-text-primary">
           {t("createForm.nameHelp")}
         </p>
         <Input
@@ -45,7 +45,7 @@ export function CreateResumeForm() {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="cv-fullname">{t("createForm.fullNameLabel")}</Label>
-        <p id="cv-fullname-help" className="text-body-sm text-text-secondary">
+        <p id="cv-fullname-help" className="text-body-sm text-text-primary">
           {t("createForm.fullNameHelp")}
         </p>
         <Input

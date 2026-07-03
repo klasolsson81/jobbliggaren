@@ -49,7 +49,7 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
       <div className="jp-section-label">{tUi("notes.sectionLabel")}</div>
 
       {sorted.length === 0 ? (
-        <p className="text-body-sm text-text-secondary">
+        <p className="text-body-sm text-text-primary">
           {tUi("notes.empty")}
         </p>
       ) : (

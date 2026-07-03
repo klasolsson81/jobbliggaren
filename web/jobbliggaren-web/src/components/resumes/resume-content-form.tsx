@@ -259,7 +259,7 @@ export function ResumeContentForm({
         <Label htmlFor="summary" className="sr-only">
           {tr("summaryLabel")}
         </Label>
-        <p id="summary-hint" className="text-body-sm text-text-secondary">
+        <p id="summary-hint" className="text-body-sm text-text-primary">
           {tr("summaryHint")}
         </p>
         <Textarea
@@ -287,7 +287,7 @@ export function ResumeContentForm({
           </Button>
         </div>
         {experiences.fields.length === 0 && (
-          <p className="text-body-sm text-text-secondary">
+          <p className="text-body-sm text-text-primary">
             {tr("noExperience")}
           </p>
         )}
@@ -387,7 +387,7 @@ export function ResumeContentForm({
           </Button>
         </div>
         {educations.fields.length === 0 && (
-          <p className="text-body-sm text-text-secondary">
+          <p className="text-body-sm text-text-primary">
             {tr("noEducation")}
           </p>
         )}
@@ -476,7 +476,7 @@ export function ResumeContentForm({
           </Button>
         </div>
         {skills.fields.length === 0 && (
-          <p className="text-body-sm text-text-secondary">
+          <p className="text-body-sm text-text-primary">
             {tr("noSkills")}
           </p>
         )}

@@ -108,7 +108,7 @@ export default async function CvImprovePage({ params, searchParams }: Props) {
     <div className="flex flex-col gap-6">
       <Link
         href={`/cv/granska/${parsedId}`}
-        className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary self-start"
+        className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"
       >
         <ChevronLeft size={16} aria-hidden="true" />
         <span>{t("cv.improve.backLink")}</span>

@@ -30,7 +30,7 @@ export function RecurringJobsTable({ jobs, format }: RecurringJobsTableProps) {
         <p className="text-body text-text-primary">
           {t("recurring.empty.title")}
         </p>
-        <p className="mt-1 text-body-sm text-text-secondary">
+        <p className="mt-1 text-body-sm text-text-primary">
           {t("recurring.empty.body")}
         </p>
       </div>
@@ -60,7 +60,7 @@ export function RecurringJobsTable({ jobs, format }: RecurringJobsTableProps) {
             return (
               <tr key={job.id} className="text-text-primary">
                 <td className="whitespace-nowrap font-medium">{job.id}</td>
-                <td className="whitespace-nowrap font-mono text-mono text-text-secondary">
+                <td className="whitespace-nowrap font-mono text-mono text-text-primary">
                   {job.cron ?? (
                     <span className="text-text-tertiary">
                       {t("recurring.table.noCron")}

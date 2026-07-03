@@ -14,7 +14,7 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   Success: "bg-success-50 text-success-700",
   Danger: "bg-danger-50 text-danger-700",
   Info: "bg-info-50 text-info-700",
-  Neutral: "bg-surface-tertiary text-text-secondary",
+  Neutral: "bg-surface-tertiary text-text-primary",
 };
 
 /**

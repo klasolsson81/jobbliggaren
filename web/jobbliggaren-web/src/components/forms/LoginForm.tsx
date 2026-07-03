@@ -42,7 +42,7 @@ export function LoginForm() {
           aria-required="true"
           aria-describedby="email-hint"
         />
-        <p id="email-hint" className="text-body-sm text-text-secondary">
+        <p id="email-hint" className="text-body-sm text-text-primary">
           {t("auth.login.emailHint")}
         </p>
       </div>

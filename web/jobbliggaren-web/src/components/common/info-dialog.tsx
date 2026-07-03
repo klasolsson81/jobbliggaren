@@ -66,8 +66,8 @@ export function InfoDialog({
   const iconOnlyTriggerClassName =
     "inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-sm p-1.5 text-text-secondary hover:text-text-primary [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:min-w-[44px]";
   const defaultTriggerClassName = showIcon
-    ? "inline-flex items-center gap-1.5 text-body-sm leading-5 font-medium text-text-secondary hover:text-text-primary hover:underline"
-    : "text-body-sm leading-5 font-medium text-text-secondary hover:text-text-primary hover:underline";
+    ? "inline-flex items-center gap-1.5 text-body-sm leading-5 font-medium text-brand-700 hover:underline"
+    : "text-body-sm leading-5 font-medium text-brand-700 hover:underline";
 
   if (iconOnly) {
     return (

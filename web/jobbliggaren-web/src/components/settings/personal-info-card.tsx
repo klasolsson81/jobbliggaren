@@ -59,7 +59,7 @@ export function PersonalInfoCard({
           />
           <p
             id="settings-email-hint"
-            className="text-body-sm text-text-secondary"
+            className="text-body-sm text-text-primary"
           >
             {t("personalInfo.emailHint")}
           </p>

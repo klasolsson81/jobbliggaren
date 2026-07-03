@@ -94,12 +94,12 @@ export function FollowCompanyToggle({
         <Building2
           size={14}
           aria-hidden="true"
-          style={{ color: following ? "var(--jp-success, #2e7d32)" : undefined }}
+          className={following ? "text-success-600" : undefined}
         />{" "}
         {label}
       </button>
       {error && (
-        <span role="alert" className="text-danger-700" style={{ fontSize: 12 }}>
+        <span role="alert" className="text-micro text-danger-700">
           {error}
         </span>
       )}

@@ -53,8 +53,7 @@ export function GuestJobbPage() {
                 </div>
                 <p
                   id="guest-jobb-q-hint"
-                  className="text-body-sm"
-                  style={{ marginTop: 8, color: "var(--jp-hero-ink-soft)" }}
+                  className="text-body-sm jp-hero__hint"
                 >
                   {t("jobb.searchHint")}
                 </p>

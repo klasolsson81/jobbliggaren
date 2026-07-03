@@ -24,7 +24,7 @@ export default function RegistreraPage() {
         <RegisterForm />
       </Suspense>
 
-      <p className="text-sm text-text-secondary text-center">
+      <p className="text-body-sm leading-5 text-text-secondary text-center">
         {t("auth.register.haveAccount")}{" "}
         <Link
           href="/logga-in"

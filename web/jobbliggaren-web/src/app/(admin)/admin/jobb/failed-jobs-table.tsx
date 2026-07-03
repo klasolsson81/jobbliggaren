@@ -63,11 +63,11 @@ export function FailedJobsTable({ data, format }: FailedJobsTableProps) {
               const failedAt = formatDateTime(format, job.failedAt);
               return (
                 <tr key={job.jobId} className="text-text-primary">
-                  <td className="whitespace-nowrap font-mono text-[13px] text-text-secondary">
+                  <td className="whitespace-nowrap font-mono text-mono text-text-secondary">
                     {job.jobId}
                   </td>
                   <td>{job.jobType}</td>
-                  <td className="whitespace-nowrap font-mono text-[13px] text-text-secondary">
+                  <td className="whitespace-nowrap font-mono text-mono text-text-secondary">
                     {failedAt ?? <span className="text-text-tertiary">–</span>}
                   </td>
                   <td className="font-medium text-danger-700">

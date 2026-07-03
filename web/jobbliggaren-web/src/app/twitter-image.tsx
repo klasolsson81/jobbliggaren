@@ -1,5 +1,13 @@
 import { ImageResponse } from "next/og";
 import { BrandMarkSvg } from "@/components/brand/brand-mark-svg";
+import {
+  OG_MARK_ACCENT,
+  OG_MARK_PAPER,
+  OG_MARK_PRIMARY,
+  OG_SURFACE,
+  OG_TAGLINE_STYLE,
+  OG_TITLE_STYLE,
+} from "@/lib/og-tokens";
 
 // Next.js 16 file convention: Twitter card-image (summary_large_image).
 // Återanvänder OG-kompositionen — paritet med opengraph-image.
@@ -20,7 +28,7 @@ export default function TwitterImage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#FFFFFF",
+          background: OG_SURFACE,
           padding: "80px",
           gap: "64px",
         }}
@@ -28,9 +36,9 @@ export default function TwitterImage() {
         <BrandMarkSvg
           width={240}
           height={240}
-          primaryFill="#15603F"
-          accentFill="#E8C77B"
-          paperFill="#FFFFFF"
+          primaryFill={OG_MARK_PRIMARY}
+          accentFill={OG_MARK_ACCENT}
+          paperFill={OG_MARK_PAPER}
         />
         <div
           style={{
@@ -40,25 +48,10 @@ export default function TwitterImage() {
             gap: "12px",
           }}
         >
-          <div
-            style={{
-              fontSize: "112px",
-              fontWeight: 700,
-              color: "#0C1A2E",
-              letterSpacing: "-0.025em",
-              lineHeight: 1,
-            }}
-          >
+          <div style={OG_TITLE_STYLE}>
             Jobbliggaren
           </div>
-          <div
-            style={{
-              fontSize: "32px",
-              fontWeight: 500,
-              color: "#455366",
-              lineHeight: 1.3,
-            }}
-          >
+          <div style={OG_TAGLINE_STYLE}>
             Den svenska jobbansökningshanteraren
           </div>
         </div>

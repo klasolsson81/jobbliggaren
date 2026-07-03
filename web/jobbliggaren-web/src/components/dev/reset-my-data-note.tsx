@@ -13,7 +13,7 @@ import { resetMyDataAction } from "@/lib/dev/reset-actions";
 export function ResetMyDataNote() {
   const t = useTranslations("common");
   return (
-    <div className="mt-8 rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+    <div className="mt-8 rounded-md border border-dashed border-border bg-muted/40 p-4 text-body-sm leading-5 text-text-secondary">
       <p className="mb-2">{t("dev.note")}</p>
       <form action={resetMyDataAction}>
         <Button type="submit" variant="outline" size="sm">

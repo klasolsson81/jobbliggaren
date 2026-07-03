@@ -60,14 +60,14 @@ export function RecurringJobsTable({ jobs, format }: RecurringJobsTableProps) {
             return (
               <tr key={job.id} className="text-text-primary">
                 <td className="whitespace-nowrap font-medium">{job.id}</td>
-                <td className="whitespace-nowrap font-mono text-[13px] text-text-secondary">
+                <td className="whitespace-nowrap font-mono text-mono text-text-secondary">
                   {job.cron ?? (
                     <span className="text-text-tertiary">
                       {t("recurring.table.noCron")}
                     </span>
                   )}
                 </td>
-                <td className="whitespace-nowrap font-mono text-[13px] text-text-secondary">
+                <td className="whitespace-nowrap font-mono text-mono text-text-secondary">
                   {last ?? (
                     <span className="text-text-secondary">
                       {t("recurring.table.neverRun")}
@@ -77,7 +77,7 @@ export function RecurringJobsTable({ jobs, format }: RecurringJobsTableProps) {
                 <td>
                   <JobStateBadge state={job.lastJobState} />
                 </td>
-                <td className="whitespace-nowrap font-mono text-[13px] text-text-secondary">
+                <td className="whitespace-nowrap font-mono text-mono text-text-secondary">
                   {next ?? <span className="text-text-tertiary">–</span>}
                 </td>
               </tr>

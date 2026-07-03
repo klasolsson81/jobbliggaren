@@ -151,16 +151,7 @@ export function JobAdDetail({
         )}
 
         <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              color: "var(--jp-ink-2)",
-              marginBottom: 8,
-            }}
-          >
+          <div className="jp-eyebrow mb-2">
             {tUi("detail.description")}
           </div>
           <div id="jp-modal-desc" className="jp-modal__description">
@@ -197,20 +188,9 @@ export function JobAdDetail({
         )}
       </div>
       {userActions?.applied && (
-        <p
-          className="jp-muted"
-          style={{
-            marginTop: 8,
-            fontSize: 13,
-            color: "var(--jp-ink-2)",
-            textAlign: "right",
-          }}
-        >
+        <p className="jp-muted">
           {tUi("detail.appliedNotice")}{" "}
-          <Link
-            href="/ansokningar"
-            style={{ color: "var(--jp-link, currentColor)", textDecoration: "underline" }}
-          >
+          <Link href="/ansokningar">
             {tUi("detail.appliedNoticeLink")}
           </Link>
           .

@@ -75,10 +75,7 @@ export function MatchList({ items }: MatchListProps) {
             >
               <div className="jp-job__body">
                 <h3 className="jp-job__title">
-                  <Link
-                    href={`/jobb/${item.jobAdId}`}
-                    style={{ color: "inherit", textDecoration: "none" }}
-                  >
+                  <Link href={`/jobb/${item.jobAdId}`} className="text-inherit no-underline">
                     {item.title}
                   </Link>
                   {item.isNew && (

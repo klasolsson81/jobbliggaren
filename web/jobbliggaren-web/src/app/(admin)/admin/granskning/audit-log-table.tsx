@@ -46,10 +46,10 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         <tbody>
           {entries.map((entry) => (
             <tr key={entry.id} className="text-text-primary">
-              <td className="whitespace-nowrap font-mono text-[11.5px] text-text-secondary">
+              <td className="whitespace-nowrap jp-admintable__dense font-mono text-text-secondary">
                 {formatDateTime(entry.occurredAt)}
               </td>
-              <td className="font-mono text-[11.5px] text-text-secondary">
+              <td className="jp-admintable__dense font-mono text-text-secondary">
                 {entry.userId ? shortId(entry.userId) : (
                   <span className="text-text-secondary">
                     {t("audit.table.systemUser")}
@@ -60,9 +60,9 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
               <td className="">
                 <span>{entry.aggregateType}</span>
                 <span className="text-text-tertiary"> · </span>
-                <span className="font-mono text-xs">{shortId(entry.aggregateId)}</span>
+                <span className="font-mono text-micro leading-4">{shortId(entry.aggregateId)}</span>
               </td>
-              <td className="font-mono text-[11.5px] text-text-secondary">
+              <td className="jp-admintable__dense font-mono text-text-secondary">
                 {entry.ipAddress ?? (
                   <span className="text-text-tertiary">–</span>
                 )}

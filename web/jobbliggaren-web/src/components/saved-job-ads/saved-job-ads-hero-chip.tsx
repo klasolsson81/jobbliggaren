@@ -41,26 +41,7 @@ export function SavedJobAdsHeroChip({ items }: SavedJobAdsHeroChipProps) {
               onClose();
               router.push(href);
             }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-              padding: "10px 16px",
-              background: "transparent",
-              border: "none",
-              textAlign: "left",
-              cursor: "pointer",
-              color: "var(--jp-ink-1)",
-              fontSize: 14.5,
-              gap: 12,
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "var(--jp-surface-3)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
+            className="jp-popover__rowbtn"
           >
             <span
               style={{
@@ -74,13 +55,8 @@ export function SavedJobAdsHeroChip({ items }: SavedJobAdsHeroChipProps) {
             </span>
             {company && (
               <span
+                className="text-micro text-text-secondary shrink-0 truncate"
                 style={{
-                  fontSize: 12,
-                  color: "var(--jp-ink-2)",
-                  flexShrink: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
                   maxWidth: 140,
                 }}
               >

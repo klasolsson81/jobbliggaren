@@ -173,7 +173,7 @@ Strukturella `.jp-*` portas verbatim; shadcn överlever via bryggan.
   **one** `--text-h1` token at 32/700. Beslut 5's h1 spec itself is
   unchanged; only the on-disk drift is closed. Paired with the heading
   *colour* change (ink → navy ramp) in ADR 0068's 2026-07-03 (#549 WS1)
-  implementation note, landing in the same PR. Rides CLAUDE.md §12's STOPP
-  class (bundled with the E2f-override colour change) — pending Klas GO,
-  never automerge; design-reviewer rendered-veto open on the auth-h1
-  20→32 jump.
+  implementation note, merged in the same PR. Rode CLAUDE.md §12's STOPP
+  class (bundled with the E2f-override colour change) — **Klas GO
+  2026-07-03, PR #562 merged manually** (never automerge); design-reviewer
+  rendered-verify passed the auth-h1 20→32 jump (gate c, round 1).

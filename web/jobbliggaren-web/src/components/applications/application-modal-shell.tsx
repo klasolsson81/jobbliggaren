@@ -64,6 +64,12 @@ export function ApplicationModalShell({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // A nested Radix layer (the destructive-status confirm Dialog / "Återta
+        // ansökan" Dialog, or a Select/Popover) handles Escape in the CAPTURE
+        // phase and calls preventDefault() before this bubble-phase listener
+        // runs. Yield to it — closing only the inner layer, not the whole modal
+        // (#565: a bare Escape here used to router.back() the entire detail).
+        if (e.defaultPrevented) return;
         e.preventDefault();
         close();
         return;

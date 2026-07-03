@@ -887,6 +887,41 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-radius: 2px 2px 0 0;
 }
 
+/* Admin-topbarens nav (#549 WS1, design-review Major 1 fix-round 2): speglar
+   .jp-nav__link-mönstret — ink-text i BÅDA states (CTO D4), accent-::after-bar
+   + vikt + aria-current bär aktiv-heten (tre oberoende cues; baren, aldrig
+   fill — supersederar #247-pillen). a-KVALIFICERAD selektor (0,1,1) binder
+   den globala a:not(.jp-btn)-färgen och vinner på källordning; ::after
+   undviker border-utility-konflikten som fällde Tailwind-varianten. */
+a.jp-adminnav__link {
+  position: relative;
+  padding: 6px 12px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-regular);
+  color: var(--jp-ink-1);
+  text-decoration: none;
+  border-radius: var(--jp-r-md);
+  transition: background 80ms linear;
+  white-space: nowrap;
+}
+a.jp-adminnav__link:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+}
+a.jp-adminnav__link[aria-current="page"] {
+  font-weight: var(--jp-fw-semibold);
+}
+a.jp-adminnav__link[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 3px;
+  background: var(--jp-accent-700);
+  border-radius: 2px 2px 0 0;
+}
+
 .jp-header__spacer { flex: 1; }
 
 .jp-header__actions {

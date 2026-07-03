@@ -27,7 +27,8 @@ internal sealed class D1FileFormatRule : ICriterionRule
 
             ParseFallbackReason.ExtractionFailed or ParseFallbackReason.EncodingSuspect =>
                 CvCriterionVerdict.Assessed("D1", category, CriterionVerdict.Warn,
-                    ReviewText.Cite(ReviewText.Structural($"Osäker textextraktion ({fallback})."))),
+                    ReviewText.Cite(ReviewText.Structural(
+                        $"Osäker textextraktion ({ReviewEvidenceLabels.Fallback(fallback)})."))),
 
             _ => CvCriterionVerdict.Assessed("D1", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Structural(
@@ -57,8 +58,9 @@ internal sealed class D6StandardHeadingsRule : ICriterionRule
                     "Inga standardsektioner kunde identifieras via rubriker (kreativa rubriker?).")));
         }
 
+        var labels = detected.Select(ReviewEvidenceLabels.Section);
         return CvCriterionVerdict.Assessed("D6", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural(
-                $"Standardsektioner identifierade via rubriker: {string.Join(", ", detected)}.")));
+                $"Standardsektioner identifierade via rubriker: {string.Join(", ", labels)}.")));
     }
 }

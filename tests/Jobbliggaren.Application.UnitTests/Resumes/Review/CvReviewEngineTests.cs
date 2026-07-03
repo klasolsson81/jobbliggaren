@@ -108,6 +108,111 @@ public class CvReviewEngineTests
     }
 
     // ===============================================================
+    // 0b. Swedish evidence copy — no English enum token leaks (#478 Low)
+    // ===============================================================
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNameSectionsInSwedish_WhenD6ListsDetectedHeadings()
+    {
+        // The default parse detects Contact + Experience. Pre-fix D6 joined the raw enum values
+        // ("Contact, Experience") into the Swedish evidence; now it uses the Swedish product
+        // vocabulary and never leaks the English token (§10 + §5 honesty).
+        var observation = Verdict(await ReviewAsync(Resume(), RenderProfile.Ats), "D6")
+            .Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+
+        observation.ShouldContain("kontakt");
+        observation.ShouldContain("arbetslivserfarenhet");
+        observation.ShouldNotContain("Experience");
+        observation.ShouldNotContain("Contact");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldExplainDegradationInSwedish_WhenD1WarnsOnUncertainExtraction()
+    {
+        // D1 Warn interpolated the raw ParseFallbackReason ("ExtractionFailed") into Swedish copy.
+        var resume = Resume(confidence: new ParseConfidence(
+            OverallConfidenceLevel.Degraded,
+            [new SectionConfidence(ParsedSectionKind.Contact, SectionConfidenceLevel.Confident, ["kontakt hittad"])],
+            ParseFallbackReason.ExtractionFailed));
+
+        var observation = Verdict(await ReviewAsync(resume, RenderProfile.Ats), "D1")
+            .Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+
+        observation.ShouldContain("extraktionen misslyckades");
+        observation.ShouldNotContain("ExtractionFailed");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNameEverySectionKindInSwedish_WhenAllSixHeadingsAreDetected()
+    {
+        // The default parse detects only Contact + Experience, so the base test exercises two of the
+        // six D6 labels. Drive the full set — a confidence carrying every ParsedSectionKind at a
+        // detected level — so each Swedish product-vocabulary label renders and NO English enum token
+        // leaks (§10 + §5). Same guarantee as ReviewEvidenceLabelsTests, but through the real engine.
+        var allDetected = new ParseConfidence(
+            OverallConfidenceLevel.Confident,
+            [.. Enum.GetValues<ParsedSectionKind>()
+                .Select(k => new SectionConfidence(k, SectionConfidenceLevel.Confident, ["hittad"]))],
+            ParseFallbackReason.None);
+
+        var observation = Verdict(await ReviewAsync(Resume(confidence: allDetected), RenderProfile.Ats), "D6")
+            .Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+
+        // Every Swedish label is present (literal expectation, decoupled from the label map so a
+        // map-and-test co-drift cannot hide) …
+        foreach (var swedish in new[]
+                 { "kontakt", "profil", "arbetslivserfarenhet", "utbildning", "kompetenser", "språk" })
+        {
+            observation.ShouldContain(swedish);
+        }
+
+        // … and no raw enum token (Contact/Profile/Experience/Education/Skills/Languages) survives.
+        foreach (var englishToken in Enum.GetNames<ParsedSectionKind>())
+        {
+            observation.ShouldNotContain(englishToken);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnD6InSwedishWithoutLeakingAnEnumToken_WhenNoSectionsAreDetected()
+    {
+        // The zero-detected branch (creative headings) is honest Swedish copy with no enum
+        // interpolation. Pin it so the Warn branch stays covered and no ParsedSectionKind token can
+        // creep into it under a later refactor.
+        var noneDetected = new ParseConfidence(
+            OverallConfidenceLevel.Degraded, [], ParseFallbackReason.NoSectionsDetected);
+
+        var d6 = Verdict(await ReviewAsync(Resume(confidence: noneDetected), RenderProfile.Ats), "D6");
+        var observation = d6.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+
+        d6.Verdict.ShouldBe(CriterionVerdict.Warn);
+        observation.ShouldContain("Inga standardsektioner");
+        foreach (var englishToken in Enum.GetNames<ParsedSectionKind>())
+        {
+            observation.ShouldNotContain(englishToken);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldExplainDegradationInSwedish_WhenD1WarnsOnSuspectEncoding()
+    {
+        // Sibling to the ExtractionFailed test: EncodingSuspect is the SECOND arm of D1's Warn pattern
+        // and a DIFFERENT label. Pre-fix the raw enum ("EncodingSuspect") was interpolated into the
+        // Swedish copy; now the degradation is explained in Swedish (§10 + §5).
+        var resume = Resume(confidence: new ParseConfidence(
+            OverallConfidenceLevel.Degraded,
+            [new SectionConfidence(ParsedSectionKind.Contact, SectionConfidenceLevel.Confident, ["kontakt hittad"])],
+            ParseFallbackReason.EncodingSuspect));
+
+        var d1 = Verdict(await ReviewAsync(resume, RenderProfile.Ats), "D1");
+        var observation = d1.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+
+        d1.Verdict.ShouldBe(CriterionVerdict.Warn);
+        observation.ShouldContain("teckenkodningen ser felaktig ut");
+        observation.ShouldNotContain("EncodingSuspect");
+    }
+
+    // ===============================================================
     // 1. A1 Mätbara resultat (Critical) — TextSpan evidence
     // ===============================================================
 

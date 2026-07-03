@@ -31,6 +31,13 @@ function DialogClose({
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
+// z-90 (not the shadcn default z-50): a Dialog can open from inside an
+// intercepting-route modal whose `.jp-modal-scrim` is z-80 with an OPAQUE panel
+// (globals.css). At z-50 the portalled overlay + content paint BEHIND that panel
+// -> the dialog is invisible and unclickable (#565: destructive-status confirm +
+// "Återta ansökan" were dead from the row-click modal). z-90 clears the scrim and
+// matches the SelectContent precedent (select.tsx), while staying below the
+// mobile drawer (99/100) and toast (200). Both overlay and content carry it.
 function DialogOverlay({
   className,
   ...props
@@ -39,7 +46,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        "fixed inset-0 z-90 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className
       )}
       {...props}
@@ -59,7 +66,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border-modal bg-background p-6 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "fixed left-1/2 top-1/2 z-90 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border-modal bg-background p-6 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className
         )}
         {...props}

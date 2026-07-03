@@ -118,6 +118,7 @@
       "yearsLabel": "Years in the occupation",
       "yearsAria": "Years in the occupation {label}",
       "yearsHint": "Roughly how many years you have worked in the occupation. Optional, and it does not affect your match grade.",
+      "yearsWhatIsThis": "About years in the occupation",
       "reviewYearsValue": "{years} years",
       "reviewYearsEmpty": "Years not stated"
     },

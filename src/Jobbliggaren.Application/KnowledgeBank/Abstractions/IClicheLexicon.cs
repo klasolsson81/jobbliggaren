@@ -7,6 +7,6 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// </summary>
 public interface IClicheLexicon
 {
-    /// <summary>The current committed cliché list (<c>cliche-list.v1.json</c>).</summary>
+    /// <summary>The current committed cliché list (<c>cliche-list.v2.json</c>).</summary>
     ClicheList GetClicheList();
 }

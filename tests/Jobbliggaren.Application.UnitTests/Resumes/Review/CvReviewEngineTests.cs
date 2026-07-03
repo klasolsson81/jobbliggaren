@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// Fas 4 STEG 9 (F4-9, ADR 0071/0074) — the deterministic CV-review engine. NO AI/LLM:
 /// every verdict is a rule over the parsed CV + the versioned knowledge bank, with cited
 /// evidence (CLAUDE.md §5). Golden expectations are derived from the REAL committed assets
-/// (rubric.v1.1.0.json / cliche-list.v1.json / verb-mapping.v1.json) via the real loaders,
+/// (rubric.v1.1.0.json / cliche-list.v2.json / verb-mapping.v1.json) via the real loaders,
 /// so the tests can never drift from the data the engine actually reads.
 ///
 /// The internal sealed <see cref="CvReviewEngine"/> is constructed directly (Infrastructure
@@ -450,25 +450,52 @@ public class CvReviewEngineTests
     }
 
     // ===============================================================
-    // 3. A7 Anti-klyschor — TextSpan; cliché phrases come from IClicheLexicon
+    // 3. A7 Anti-klyschor — kind==Cliche only, word-bounded, thresholds
+    //    reconciled with the rubric prose (#489/#490/#496)
     // ===============================================================
 
+    // The kind==Cliche / kind==SoftSkill phrases from the REAL committed asset (golden source):
+    // A7 owns the clichés, A9 owns the soft-skill adjectives — one phrase, one verdict (#490).
+    private static List<string> Phrases(ClicheKind kind) =>
+        RealClicheLexicon().GetClicheList().Entries
+            .Where(e => e.Kind == kind)
+            .Select(e => e.Phrase)
+            .ToList();
+
     [Fact]
-    public async Task ReviewAsync_ShouldFlagA7WithTextSpanEvidence_WhenProfileIsFullOfCliches()
+    public async Task ReviewAsync_ShouldFailA7WithTextSpanEvidence_WhenProfileHasThreeOrMoreCliches()
     {
-        // Use real cliché phrases from cliche-list.v1.json (golden). atsFailSignal:
-        // "≥3 klyschor utan stöd".
-        var cliches = RealClicheLexicon().GetClicheList().Entries.Take(3).Select(e => e.Phrase).ToList();
-        var profile = string.Join(". ", cliches) + ".";
+        // Rubric A7 atsFailSignal: "≥3 klyschor utan stöd". Three real kind==Cliche phrases → Fail,
+        // citing the offending span (TextSpan).
+        var profile = string.Join(". ", Phrases(ClicheKind.Cliche).Take(3)) + ".";
 
-        var resume = Resume(profile: profile);
+        var a7 = Verdict(await ReviewAsync(Resume(profile: profile)), "A7");
 
-        var result = await ReviewAsync(resume);
-
-        var a7 = Verdict(result, "A7");
-        a7.Verdict.ShouldBeOneOf(CriterionVerdict.Warn, CriterionVerdict.Fail);
+        a7.Verdict.ShouldBe(CriterionVerdict.Fail);
         a7.Evidence.ShouldContain(e => e is TextSpanEvidence,
             "A7 ska citera klyscha-spannet (TextSpanEvidence).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnA7_WhenProfileHasExactlyTwoCliches()
+    {
+        // The band between the rubric's "<2" Pass and "≥3" Fail is Warn (exactly 2 clichés).
+        var profile = string.Join(". ", Phrases(ClicheKind.Cliche).Take(2)) + ".";
+
+        Verdict(await ReviewAsync(Resume(profile: profile)), "A7").Verdict.ShouldBe(CriterionVerdict.Warn);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA7_WhenProfileHasExactlyOneCliche()
+    {
+        // #489 threshold reconcile: rubric atsPassSignal is "<2 förekomster" → a SINGLE cliché
+        // PASSES. Pre-fix the code passed only on 0 hits and Warned on 1, contradicting the
+        // versioned rubric it claims to implement.
+        var oneCliche = Phrases(ClicheKind.Cliche)[0];
+
+        Verdict(await ReviewAsync(Resume(profile: $"{oneCliche} och mycket annat.")), "A7").Verdict
+            .ShouldBe(CriterionVerdict.Pass,
+                "En enda klyscha är under rubrikens <2-gräns → A7 Pass (#489).");
     }
 
     [Fact]
@@ -477,10 +504,132 @@ public class CvReviewEngineTests
         var resume = Resume(profile:
             "Backend-utvecklare med 8 års erfarenhet av betalsystem. Migrerade 3 plattformar till molnet 2024.");
 
-        var result = await ReviewAsync(resume);
-
-        VerdictOf(result, "A7").ShouldBe(CriterionVerdict.Pass);
+        VerdictOf(await ReviewAsync(resume), "A7").ShouldBe(CriterionVerdict.Pass);
     }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNotCountACliche_WhenItIsOnlyASubstringOfALongerWord()
+    {
+        // #490/#496 word boundary: "Resultatorienterad" must not match inside "resultatorienterade";
+        // three such near-misses must NOT trip the ≥3 Fail. Pre-fix naive Contains counted all three.
+        var resume = Resume(profile:
+            "Levererade resultatorienterade, lösningsorienterade och kunddrivna insatser i teamet.");
+
+        Verdict(await ReviewAsync(resume), "A7").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "En klyscha som bara är en substräng i ett längre ord ska inte räknas (#490/#496).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldNotDoublePunishTheSamePhraseAcrossA7AndA9()
+    {
+        // #490 double-punishment: a soft-skill adjective ("Social") is A9's domain, NOT A7's; a
+        // cliché ("Brinner för") is A7's, NOT A9's. Pre-fix both rules reused the whole lexicon, so
+        // one phrase drew two simultaneous verdicts.
+        var soft = Resume(profile: $"{Phrases(ClicheKind.SoftSkill)[0]} och trevlig i teamet.");
+        var cliche = Resume(profile: $"{Phrases(ClicheKind.Cliche)[0]} allt jag gör.");
+
+        // A soft-skill phrase alone leaves A7 clean (0 clichés → Pass); the cliché alone leaves A9
+        // clean (0 soft adjectives → Pass).
+        Verdict(await ReviewAsync(soft), "A7").Verdict.ShouldBe(CriterionVerdict.Pass);
+        Verdict(await ReviewAsync(cliche), "A9").Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    // ===============================================================
+    // 3b. A9 Soft skills underbyggda — kind==SoftSkill only, "backed" means
+    //     a MEASURABLE example in the SAME sentence, not any digit (#490)
+    // ===============================================================
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA9_WhenProfileIsAnUnbackedAdjectiveList()
+    {
+        // Rubric A9 atsFailSignal: "Adjektivlista utan exempel". Two+ soft adjectives with no nearby
+        // example → Fail, citing the offending adjective span.
+        var profile = $"{Phrases(ClicheKind.SoftSkill)[0]}. {Phrases(ClicheKind.SoftSkill)[1]}.";
+
+        var a9 = Verdict(await ReviewAsync(Resume(profile: profile)), "A9");
+        a9.Verdict.ShouldBe(CriterionVerdict.Fail);
+        a9.Evidence.ShouldContain(e => e is TextSpanEvidence);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA9_EvenWhenAnEmploymentDateExistsElsewhereInTheCv()
+    {
+        // #490 dead-branch fix: the old "ContainsDigit over ALL prose" check was satisfied by any
+        // employment date, so A9's Fail branch was effectively dead — an adjective list with a dated
+        // job always Warned. Now "backed" means a MEASURABLE example in the SAME sentence (dates
+        // masked, #487), so this must FAIL.
+        var resume = Resume(
+            profile: "Social och trevlig kollega. Mycket noggrann i mitt arbete.",
+            experience: [Experience(period: "2013–2021", rawText: "Handläggare 2013–2021\nSkötte löpande ärenden.")]);
+
+        Verdict(await ReviewAsync(resume), "A9").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "Ett anställningsdatum någon annanstans styrker inte adjektiven i profilen (#490).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA9_WhenEachAdjectiveHasAMeasurableExampleInTheSameSentence()
+    {
+        // Rubric A9 atsPassSignal: soft skills mentioned ONLY with a concrete example. Each adjective
+        // sits in a sentence carrying a real metric (12, 300) → all backed → Pass.
+        var resume = Resume(profile:
+            "Social med 12 genomförda kundmöten. Noggrann med noll fel i 300 granskade fakturor.");
+
+        Verdict(await ReviewAsync(resume), "A9").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Varje adjektiv styrks av en mätbar siffra i samma mening → A9 Pass (#490).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA9_WhenAnAdjectiveIsOnlyASubstringOfALongerWord()
+    {
+        // #490/#496 word boundary: "Social" must not match inside "socialtjänsten"/"socialförvaltning";
+        // no soft adjective is really present → A9 Pass.
+        var resume = Resume(profile: "Arbetar inom socialtjänsten och socialförvaltningen sedan länge.");
+
+        Verdict(await ReviewAsync(resume), "A9").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "'Social' som substräng i 'socialtjänsten' är inget personlighetsadjektiv (#490/#496).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_A7ThresholdsShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // Golden drift-guard (#489): A7's numeric thresholds are DERIVED from the versioned rubric
+        // prose, not from a hardcoded expectation — so code that drifts from the rubric it claims to
+        // implement fails CI (the audit's whole finding: the code's threshold had silently diverged
+        // from the versioned data). atsPassSignal "<2 förekomster" is the Pass ceiling; atsFailSignal
+        // "≥3 klyschor" is the Fail floor; the strict band between them is Warn.
+        var a7 = RealRubric().Criteria.Single(c => c.Id == "A7");
+        var passCeiling = FirstInt(a7.AtsPassSignal!);   // the N in "<N förekomster"
+        var failFloor = FirstInt(a7.AtsFailSignal!);     // the M in "≥M klyschor"
+
+        passCeiling.ShouldBeLessThan(failFloor, "rubrikens Pass-tak måste ligga under Fail-golvet.");
+
+        var cliches = Phrases(ClicheKind.Cliche);
+        failFloor.ShouldBeLessThanOrEqualTo(cliches.Count, "assetet måste bära nog med klyschor för testet.");
+
+        // Strictly under the "<N" ceiling → Pass.
+        Verdict(await ReviewAsync(WithCliches(passCeiling - 1)), "A7").Verdict
+            .ShouldBe(CriterionVerdict.Pass, $"färre än {passCeiling} klyschor → rubrikens Pass.");
+
+        // At/over the "≥M" floor → Fail.
+        Verdict(await ReviewAsync(WithCliches(failFloor)), "A7").Verdict
+            .ShouldBe(CriterionVerdict.Fail, $"minst {failFloor} klyschor → rubrikens Fail.");
+
+        // The strict band between the two thresholds → Warn.
+        for (var n = passCeiling; n < failFloor; n++)
+        {
+            Verdict(await ReviewAsync(WithCliches(n)), "A7").Verdict.ShouldBe(CriterionVerdict.Warn,
+                $"{n} klyschor ligger i Warn-bandet mellan rubrikens <{passCeiling} och ≥{failFloor}.");
+        }
+
+        ParsedResume WithCliches(int count) =>
+            Resume(profile: string.Join(". ", Phrases(ClicheKind.Cliche).Take(count)) + ".");
+    }
+
+    // The first integer embedded in a rubric prose signal ("<2 …" → 2, "≥3 …" → 3).
+    private static int FirstInt(string prose) =>
+        int.Parse(
+            new string(prose.SkipWhile(c => !char.IsDigit(c)).TakeWhile(char.IsDigit).ToArray()),
+            System.Globalization.CultureInfo.InvariantCulture);
 
     // ===============================================================
     // 4. A8 Profiltext — length-based; TextSpan/structural on the profile

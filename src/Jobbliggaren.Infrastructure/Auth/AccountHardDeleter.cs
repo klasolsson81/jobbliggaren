@@ -1,11 +1,13 @@
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Infrastructure.Auth;
 
@@ -25,23 +27,41 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// distribuerade transaktioner mot samma fysiska Postgres bara för nominell
 /// atomicitet.
 /// </summary>
-public sealed class AccountHardDeleter(
+public sealed partial class AccountHardDeleter(
     AppDbContext db,
     UserManager<ApplicationUser> userManager,
     IAuditTrailEraser auditTrailEraser,
-    IUserDataKeyStore dataKeyStore)
+    IUserDataKeyStore dataKeyStore,
+    IDateTimeProvider clock,
+    ILogger<AccountHardDeleter> logger)
     : IAccountHardDeleter
 {
+    /// <summary>
+    /// #508 (ADR 0024 D6) orphan-sweep grace window. Registration commits the Identity
+    /// user first (own SaveChanges) and the JobSeeker later (UnitOfWork, with a Redis
+    /// roundtrip in between) — ADR 0024's deliberate two-boundary model. An Identity user
+    /// with no JobSeeker that is YOUNGER than this window is therefore presumed to be an
+    /// in-flight registration, not an orphan, and is never swept — sweeping it would
+    /// permanently delete a live account being created (the TOCTOU this control hardens;
+    /// the CTO bind rejects the query-presence-only mechanic C). 1 h is far wider than the
+    /// real registration window (sub-second) so a slow/stalled registration is never
+    /// mistaken for an orphan; the cost of waiting one extra daily cron cycle to reap a
+    /// genuine orphan is nil. Hardcoded in Fas 1 — the same hardcoded-constant pattern as
+    /// <see cref="HardDeleteAccountsJob"/>.RestoreWindowDays (the pattern, not the value:
+    /// that window is 30 days, this one is 1 h); flips to IOptions if the policy ever changes.
+    /// </summary>
+    private static readonly TimeSpan OrphanGraceWindow = TimeSpan.FromHours(1);
+
     public async Task<int> CleanupIdentityOrphansAsync(CancellationToken cancellationToken)
     {
         // Cross-context query — Identity och domain har separata DbContexts (ADR 0013)
-        // men träffar samma fysiska Postgres. Vi materialiserar båda user-id-listor
-        // och diffar i C# (HashSet för O(1) lookup). Volym i Fas 1 < 1000 users
-        // → C#-side diff är OK; SQL JOIN över schemas hade krävt raw SQL och
-        // kringgått EF-modellen.
-        var identityUserIds = await userManager.Users
+        // men träffar samma fysiska Postgres. Vi materialiserar båda sidor (id + created_at
+        // för Identity) och diffar i C# (HashSet för O(1) lookup). Volym i Fas 1 < 1000 users
+        // → C#-side diff är OK; SQL JOIN över schemas hade krävt raw SQL och kringgått
+        // EF-modellen.
+        var identityUsers = await userManager.Users
             .AsNoTracking()
-            .Select(u => u.Id)
+            .Select(u => new { u.Id, u.CreatedAt })
             .ToListAsync(cancellationToken);
 
         var domainUserIds = (await db.JobSeekers
@@ -51,7 +71,32 @@ public sealed class AccountHardDeleter(
                 .ToListAsync(cancellationToken))
             .ToHashSet();
 
-        var orphanIds = identityUserIds.Where(id => !domainUserIds.Contains(id)).ToList();
+        // #508 forward-orphan grace filter (ADR 0024 D6). Sweep a JobSeeker-less Identity
+        // user ONLY if it is OLDER than the grace window; a younger one is presumed
+        // mid-registration (Identity committed, JobSeeker not yet) and left alone. Root
+        // cause (non-atomic two-boundary registration) is deliberately NOT "fixed" here —
+        // we harden the compensating control, we do not introduce a cross-context tx.
+        // Skew assumption: CreatedAt is stamped by Postgres now() while the threshold uses
+        // the app clock (IDateTimeProvider). The 1 h window dwarfs any realistic skew (Fas 1
+        // runs DB + Worker on one host, ADR 0066; prod relies on NTP), so skew cannot make
+        // the window ineffective; the only skew failure mode (app clock >1 h AHEAD of the DB)
+        // is a gross misconfiguration, not drift.
+        var graceThreshold = clock.UtcNow - OrphanGraceWindow;
+        var orphanIds = identityUsers
+            .Where(u => !domainUserIds.Contains(u.Id) && u.CreatedAt <= graceThreshold)
+            .Select(u => u.Id)
+            .ToList();
+
+        // #508 reverse-orphan detector (defense-in-depth, log-only). A JobSeeker whose
+        // UserId has no Identity user is the mirror of the same TOCTOU race — the account is
+        // locked out and can never exercise Art. 17. We SURFACE it (Warning) for remediation
+        // but never delete it here (a separate concern, #524). Count only — no name/email/CV
+        // PII is logged (CLAUDE.md §5); the runbook §3.3 reverse-orphan query surfaces the
+        // UserId set to ops on demand.
+        var identityUserIds = identityUsers.Select(u => u.Id).ToHashSet();
+        var reverseOrphanCount = domainUserIds.Count(id => !identityUserIds.Contains(id));
+        if (reverseOrphanCount > 0)
+            LogReverseOrphansDetected(logger, reverseOrphanCount);
 
         var cleaned = 0;
         foreach (var orphanId in orphanIds)
@@ -232,4 +277,13 @@ public sealed class AccountHardDeleter(
         if (user is not null)
             await userManager.DeleteAsync(user);
     }
+
+    // #508 — reverse-orphan är utelåsta konton (JobSeeker utan Identity-user) som aldrig
+    // kan utöva Art. 17. Warning-nivå (alertbar signal), count-only (ingen PII i loggen,
+    // CLAUDE.md §5). EventId i HardDeleteAccounts-serien (25xx). Driftmeddelande på svenska
+    // per områdets konvention (jfr HardDeleteAccountsJob + runbook account-deletion.md §3.2).
+    [LoggerMessage(EventId = 2503, Level = LogLevel.Warning,
+        Message = "CleanupIdentityOrphansAsync: {Count} reverse-orphan JobSeeker(s) saknar Identity-user "
+            + "(utelåst konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#508/#524)")]
+    private static partial void LogReverseOrphansDetected(ILogger logger, int count);
 }

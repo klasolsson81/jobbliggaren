@@ -289,6 +289,7 @@ app.MapHealthChecks("/api/ready", new HealthCheckOptions
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapApplicationsEndpoints();
+app.MapApplicationHistoryEndpoints();
 app.MapResumesEndpoints();
 app.MapAdminEndpoints();
 app.MapAdminJobAdsEndpoints();

@@ -29,7 +29,7 @@ builder.Logging.AddJobbliggarenLogging(builder.Configuration);
 // laddar MEDVETET bara sin minimala DI-yta per ADR 0023 (HTTP-fri) — INTE
 // AddIdentityAndSessions. Eager ValidateOnBuild
 // försöker därför konstruera Api-only-handlers (Auth) vars
-// deps (ISessionStore/IRefreshTokenStore) Worker
+// deps (t.ex. ISessionStore) Worker
 // aldrig registrerar och aldrig kör → falsk positiv. (IEmailSender registreras
 // via den extraherade AddEmailSender för Vag 4-notisjobben, ADR 0080
 // PR-4b.) På Fargate

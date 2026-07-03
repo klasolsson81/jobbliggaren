@@ -543,3 +543,35 @@ Cascade-tabellen utökad:
 ### Disciplin
 
 Amendment är additivt — originaltexten + Cross-ref-amendment 2026-05-13 + Amendment 2026-05-20 består oförändrade. Ingen separat TD lyfts; cascade-tillägget är in-block-fix i samma commit-batch som SavedJobAd-aggregatet introducerades (commit c015918), enligt CLAUDE.md §9.6 (samma fas, samma blast-radius som ADR 0060-cascade-utökningen 2026-05-20).
+
+---
+
+## Amendment 2026-07-03 — Orphan-sweep grace-fönster kräver `ApplicationUser.CreatedAt` (per #508, epik #482 PR-2)
+
+**Datum:** 2026-07-03
+**Källa:** CTO-bind `docs/reviews/2026-07-02-persistence-482-cto.md` (BESLUT 2.#508) + review-rond (security-auditor + dotnet-architect flaggade att D5/Konsekvenser behöver kvalificeras)
+**Trigger:** #508 — `CleanupIdentityOrphansAsync` (D6 Steg 0) hade en TOCTOU: en user som registrerar sig mellan sweepens två snapshots (Identity-ids, sedan JobSeeker-UserIds) raderades som orphan → JobSeeker-raden commit:ade sedan med dangling UserId (permanent utelåst live-konto, själv en Art. 17-lucka).
+
+### Bakgrund
+
+D5 avvisade ett nytt fält på `ApplicationUser` FÖR RESTORE-FÖNSTRET, med motiveringen att `JobSeeker.DeletedAt` är en 1:1-proxy (JobSeeker existerar för ett raderat konto). Den motiveringen är strukturellt OTILLGÄNGLIG för orphan-grace-fallet: grace-fönstret gäller per definition en Identity-user som ÄNNU INTE har en JobSeeker-rad (in-flight registrering, Identity committad först per D6:s två-boundary-modell). Det finns ingen JobSeeker-rad att proxya mot → ett Identity-fält är nödvändigt här, till skillnad från restore-fallet.
+
+### Beslut (CTO-bunden mekanik A; mekanik C avvisad)
+
+Lägg `ApplicationUser.CreatedAt` (DB store-default `now()` via `.HasDefaultValueSql("now()")` → `ValueGeneratedOnAdd`; `UserManager.CreateAsync` insertar utan kolumnen → DB stämplar → ingen wiring i `RegisterCommandHandler`). Identity-migration `AddApplicationUserCreatedAt` (schema `identity`, additiv ADD COLUMN; backfill av pre-existerande rader till epoch `1970-01-01` så de är omedelbart sweepbara — de föregår kolumnen och är ej mid-registrering).
+
+Grace-filter i `CleanupIdentityOrphansAsync`: sopa en JobSeeker-lös Identity-user ENDAST om den är äldre än ett grace-fönster (1 h, hårdkodad Fas 1-konstant i paritet med `HardDeleteAccountsJob.RestoreWindowDays`). Root-orsaken (icke-atomisk två-boundary-registrering) fixas MEDVETET INTE — vi härdar den kompenserande kontrollen (orphan-sweepen), vi inför ingen cross-context-transaktion (linje med D6:s medvetna gränsdragning + ADR 0013).
+
+Reverse-orphan-detektor (defense-in-depth, log-only): en `JobSeeker` vars `UserId` saknar Identity-user LOGGAS (Warning, count-only, EventId 2503) men RADERAS ALDRIG här; remediation ägs av #524.
+
+Mekanik C (query-domän-presence-only re-check) avvisad: smalnar men stänger ej race:et; felläget = permanent radering av ett levande konto.
+
+### Klargörande — D5 återöppnas INTE
+
+Restore-fönstret modelleras FORTSATT via `JobSeeker.DeletedAt` (D5 oförändrad i sak). `CreatedAt` tjänar ENBART orphan-grace-fönstret för det JobSeeker-lösa in-flight-fallet. Konsekvenser-utfästelsen "Inga Identity-tabell-migrationer" gäller D5:s restore-scope, inte hela ADR:n — den kvalificeras härmed: D6:s kompenserande kontroll kräver en additiv Identity-migration.
+
+### Disciplin
+
+Additivt amendment (originaltext + tidigare amendments oförändrade). Ingen separat TD; docs-sync i samma PR som scope (ADR 0065). Tester: 3 Testcontainers-integrationstester (färsk orphan sopas EJ [RED-bevisad], åldrad orphan sopas, reverse-orphan icke-destruktiv). security-auditor CONDITIONAL-GREEN (0 Blockers), dotnet-architect + code-reviewer APPROVE.
+
+**Referenser:** #508, #482, #524, ADR 0013, ADR 0066, CTO-bind 2026-07-02, CLAUDE.md §5/§9.2/§12.

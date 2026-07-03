@@ -24,7 +24,7 @@ public static class MeJobAdMatchEndpoints
     public sealed record JobAdMatchBatchRequest(
         IReadOnlyList<Guid> JobAdIds, bool IncludeRelated = false);
 
-    // Epik #526 (ADR 0088) — utkastet för live sök-preview-räknaren i matchnings-setup-modalen.
+    // Epik #526 (ADR 0089) — utkastet för live sök-preview-räknaren i matchnings-setup-modalen.
     // Fyra sökbara facetter (INGA kompetenser — skills är kvalitet, ingen Platsbanken-sökfacett;
     // se GetMatchCountPreviewQuery). Nullable optional-fält → handlern normaliserar null → [].
     public sealed record MatchCountPreviewRequest(
@@ -93,7 +93,7 @@ public static class MeJobAdMatchEndpoints
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
-        // Epik #526 (ADR 0088) — LIVE sök-preview-räknare för matchnings-setup-modalen: hur många
+        // Epik #526 (ADR 0089) — LIVE sök-preview-räknare för matchnings-setup-modalen: hur många
         // aktiva annonser matchar ett UTKAST av sök-facetter (yrke/ort/anställningsform) medan
         // användaren fyller i, debouncat ~400 ms klient-side. Ren sök-count (IJobAdSearchQuery
         // .CountAsync — ingen grad, ingen profil, ingen per-användar-data), per konstruktion lika

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDraftMatchCount } from "@/lib/api/match-count";
 
 /**
- * Epik #526 (ADR 0088) — live sök-preview-count-proxy. Den klientburna
+ * Epik #526 (ADR 0089) — live sök-preview-count-proxy. Den klientburna
  * setup-modalen kan inte anropa den `server-only` `getDraftMatchCount`-fetchern
  * direkt (session-cookie + BACKEND_URL är serverkontext). Speglar
  * `/api/jobb/facet-counts/route.ts`-mönstret: coerce:a body:n billigt här,

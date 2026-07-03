@@ -114,7 +114,7 @@ public sealed class RateLimitingOptions
 
     /// <summary>
     /// POST /me/match-count-preview (live sök-preview-räknaren i matchnings-setup-modalen,
-    /// epik #526, ADR 0088) — partitionerat per UserId (claim "sub"). Egen policy (bulkhead,
+    /// epik #526, ADR 0089) — partitionerat per UserId (claim "sub"). Egen policy (bulkhead,
     /// Nygard) — samma debounce-burst-profil som FacetCounts (~1 req/400 ms klient-debounce
     /// medan användaren ändrar yrke/ort/form) och får inte dela budget med MeListRead som
     /// /oversikt redan fläktar ut ~7×. 30/10s ≈ 3 req/s ger rikligt headroom över den
@@ -314,7 +314,7 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// POST /api/v1/companies/lookup (#454, ADR 0088 D7) — partitionerat per UserId (claim "sub"),
+    /// POST /api/v1/companies/lookup (#454, ADR 0089 D7) — partitionerat per UserId (claim "sub"),
     /// anonym -> NoLimiter (RequireAuthorization-gated -> 401 fore endpoint). Egen policy (ej
     /// MeListRead-atervanvandning) — least common mechanism (Saltzer/Schroeder) + bulkhead
     /// (Nygard): varje lookup-miss ar en potentiell UPPSTROMS-kostnad (SCB-anrop nar den riktiga
@@ -324,7 +324,7 @@ public sealed class RateLimitingOptions
     /// 2026-07-02) — manskligt tempo for medvetna uppslag, stramt mot enumeration/harvest via var
     /// budget; security-auditor verifierar/justerar (BLOCKING). OBS: per-user-taket skyddar INTE
     /// process-wide-SCB-budgeten — den separata process-wide-limitern följer med
-    /// SCB-aktiverings-PR:en (ADR 0088 forward-note). IOptions (§5.1).
+    /// SCB-aktiverings-PR:en (ADR 0089 forward-note). IOptions (§5.1).
     /// </summary>
     public PolicyOptions CompanyLookup { get; init; } = new()
     {

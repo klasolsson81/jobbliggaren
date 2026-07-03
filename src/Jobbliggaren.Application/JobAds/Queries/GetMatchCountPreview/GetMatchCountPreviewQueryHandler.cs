@@ -4,7 +4,7 @@ using Mediator;
 namespace Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview;
 
 /// <summary>
-/// Epik #526 (ADR 0088) — tunn adapter (parity <c>GetFacetCountsQueryHandler</c>): mappar
+/// Epik #526 (ADR 0089) — tunn adapter (parity <c>GetFacetCountsQueryHandler</c>): mappar
 /// utkastets fyra sök-listor till en <see cref="JobAdFilterCriteria"/> och delegerar till den
 /// delade filter-SPOT:en <see cref="IJobAdSearchQuery.CountAsync"/>.
 /// <para>

@@ -39,11 +39,12 @@ function renderOversikt(
   hasStatedDesiredOccupation: boolean,
   matchCount: number | null = 42,
   newMatchCount = 0,
-  recentSearches: ApiResult<ListRecentSearchesResult> = errored
+  recentSearches: ApiResult<ListRecentSearchesResult> = errored,
+  profileOverrides: Partial<JobSeekerProfileDto> = {}
 ) {
   const profile: ApiResult<JobSeekerProfileDto> = {
     kind: "ok",
-    data: { ...baseProfile, hasStatedDesiredOccupation },
+    data: { ...baseProfile, hasStatedDesiredOccupation, ...profileOverrides },
   };
   return render(
     <OversiktPage
@@ -129,14 +130,22 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     expect(text).not.toContain("Mjukvaru- och systemutvecklare");
   });
 
-  it("count > 0 → länken bär grad-koherent enum-namn-URL (Good+Strong)", () => {
-    renderOversikt(true, 42);
+  it("count > 0 → länken bär de sparade facetterna som hårda filter, INGA matchGrades (H2)", () => {
+    renderOversikt(true, 42, 0, errored, {
+      preferredOccupationGroups: ["grp_dev"],
+      preferredRegions: ["region_AB"],
+      preferredMunicipalities: ["kommun_0180"],
+      preferredEmploymentTypes: ["et_fast"],
+    });
 
     const cta = screen.getByRole("link", { name: /Visa annonser/ });
-    // Trust-invariant: länkens grad-set = counten:s grad-set (HeadlineGrades).
+    // Trust-invariant (harmoniserad 2026-07-03, Klas "samma siffra"; CTO H2):
+    // länken bär EXAKT samma facetter som backend-counten hård-filtrerar på och
+    // inga matchGrades — /jobb-landningens TotalCount == notis-talet == setup-
+    // räknaren per konstruktion.
     expect(cta).toHaveAttribute(
       "href",
-      "/jobb?matchGrades=Good&matchGrades=Strong"
+      "/jobb?occupationGroup=grp_dev&region=region_AB&municipality=kommun_0180&employmentType=et_fast"
     );
   });
 
@@ -144,14 +153,12 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     renderOversikt(true, 0);
 
     expect(
-      screen.getByText(/inga jobb som matchar din profil just nu/)
+      screen.getByText(/inga annonser som matchar dina val just nu/)
     ).toBeInTheDocument();
-    // Notisen ska fortfarande renderas med en fungerande länk.
+    // Notisen ska fortfarande renderas med en fungerande länk (tomma facetter →
+    // ren /jobb; profilen i detta test har inga sparade orter/former).
     const cta = screen.getByRole("link", { name: /Visa annonser/ });
-    expect(cta).toHaveAttribute(
-      "href",
-      "/jobb?matchGrades=Good&matchGrades=Strong"
-    );
+    expect(cta).toHaveAttribute("href", "/jobb");
   });
 
   it("count === null (fetch degraderade) → match-notis utelämnas, resten renderar", () => {

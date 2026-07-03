@@ -6,7 +6,7 @@ import type { DraftMatchCountRequest } from "@/lib/dto/match-count";
 const DEBOUNCE_MS = 400;
 
 /**
- * Epik #526 (ADR 0088) — live sök-preview-räknaren för matchnings-setup-modalen.
+ * Epik #526 (ADR 0089) — live sök-preview-räknaren för matchnings-setup-modalen.
  * Räknar (debouncat ~400 ms) hur många aktiva annonser som matchar utkastets
  * sök-facetter, via BFF-routen `POST /api/me/match-count-preview`.
  *

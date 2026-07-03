@@ -146,6 +146,17 @@
      (accent-700 skiftar själv i dark-blocket; ingen separat dark-fokus-hex).
      Gradient-ytor scopar om till vit ring (se .jp-hero__plate m.fl.). */
   --jp-focus: var(--jp-accent-700);
+  /* Fokus-glow för input-fält (#549 WS2): accent-500 @ 20% — var duplicerad
+     rgba-litteral på input- och sortfield-focus. rgb(46,139,99) = accent-500. */
+  --jp-focus-glow: rgba(46, 139, 99, 0.2);
+
+  /* Tema-stabila roller (#549 WS2, CTO D3): text/ikon PÅ färgad fill
+     (accent-/danger-/leaf-fills). Medvetet EGEN token — --jp-ink-inverse
+     FLIPPAR i dark, men knapp-kontraktet (ADR 0068) håller fillsen mörka i
+     båda teman, så on-fill-texten måste vara tema-stabilt vit. */
+  --jp-on-fill: #FFFFFF;
+  /* Scrim bakom drawer/modal (#549 WS2): var duplicerad rgba-litteral. */
+  --jp-scrim: rgba(8, 23, 48, 0.55);
 
   /* Radius (v3-kanon — ADR 0052: 6 rad/kort, 4 inputs, 8 modal, 12 ENDAST hero) */
   --jp-r-sm:   4px;
@@ -158,6 +169,50 @@
   --jp-font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
 
+  /* Vikt-stege (#549 D2, CTO 2026-07-03): hierarki bärs av vikt — vikterna är
+     tema-API, inte per-selektor-litteraler. Ändra stegen HÄR, aldrig inline. */
+  --jp-fw-regular:  400;
+  --jp-fw-medium:   500;
+  --jp-fw-semibold: 600;
+  --jp-fw-bold:     700;
+  --jp-fw-heavy:    800;   /* ENDAST display-klass (hero-/pagehero-titlar, ADR 0068) */
+
+  /* TRANSITIONAL konsoliderings-kandidater (#549 D2-C, CTO 2026-07-03).
+     0.5px-familjen är DRIFT (samma mono-caps-mönster förekommer på fem olika
+     storlekar) — pinnas här på EXAKTA nuvarande värden för ett lossless svep.
+     Varje token snappar till sin target-rung i det design-gatade
+     konsolideringspasset EFTER WS4-fontbeslutet (#549). Lägg ALDRIG nya
+     konsumenter på dessa. */
+  --jp-fs-175: 17.5px;  /* target: --text-h3 18px */
+  --jp-fs-155: 15.5px;  /* target: --text-body 16px */
+  --jp-fs-145: 14.5px;  /* target: --text-ui 15px */
+  --jp-fs-135: 13.5px;  /* target: --text-body-sm 14px */
+  --jp-fs-125: 12.5px;  /* target: --text-caption 13px */
+  --jp-fs-115: 11.5px;  /* target: --text-micro 12px (text) / --text-overline 11px (caps) */
+  --jp-fs-105: 10.5px;  /* target: --text-overline 11px */
+  --jp-fs-95:  9.5px;   /* .jp-foot__tag — kandidat för namngivet undantag */
+  /* Heltals-enstaka utanför skalan — samma transitional-status: */
+  --jp-fs-36: 36px;     /* .jp-h1--display (legacy v2-shim) — target: display-översyn WS1 */
+  --jp-fs-30: 30px;     /* .jp-oversikt__today__day (stor datum-numeral) */
+  --jp-fs-26: 26px;     /* .jp-wizard__countcard-num + .jp-auth-card h1 — target: WS1-tier */
+  --jp-fs-22: 22px;     /* .jp-modal__title — target: --text-h2 20px el. egen modal-rung */
+  --jp-fs-21: 21px;     /* .jp-wizard__h2 + .jp-head__stat-num — target: --text-h2 20px */
+  --jp-fs-19: 19px;     /* .jp-summary__row__value — target: --text-h3 18px */
+  --jp-fs-page-title: 32px;  /* .jp-page__title — target: enad H1-tier 32/700 per #549 D1 (WS1) */
+  --jp-fs-brand-word: 24px;  /* brand-lockupens ordmärke — komponentbunden, ej skal-kandidat */
+
+  /* Display-klassens komponentbundna storlekar (#549 WS2): ADR 0068-undantagen
+     flyttade till namngivna tokens (dokumenterade, swappbara) — INTE en del av
+     H-skalan. Hero-/pagehero-titeln är display-klass per ADR 0068 Beslut 2 p.2. */
+  --jp-fs-hero-title:    44px;   /* .jp-hero__title / .jp-pagehero__title (ADR 0068) */
+  --jp-fs-hero-title-sm: 32px;   /* dito, mobil */
+
+  /* Landing-displayens clamp()-storlekar (dokumenterade, ADR 0068 Beslut 3):
+     komponentbundna display-tokens — ingår INTE i H-skalan. */
+  --jp-fs-land-title:   clamp(40px, 5vw, 56px);   /* .jp-land-hero__title */
+  --jp-fs-land-section: clamp(28px, 3.5vw, 38px); /* .jp-land-section__title */
+  --jp-fs-land-verb:    clamp(40px, 4.6vw, 66px); /* .jp-land-hero__stack-verb (förslag 3a) */
+
   /* Kontroll-storlek (SSOT — ändra HÄR, aldrig inline per komponent).
      /jobb-filterraden (hero-pills + sort-select) läser dessa två så alla
      kontroller delar EN höjd och EN textstorlek (Klas 2026-06-30: symmetri +
@@ -165,7 +220,7 @@
      textstorlek 14px = body-sm-golvet (DESIGN.md §4 — aldrig informationsbärande
      kontrolltext < 14px). Mobil bumpar hit-targets till 44px nedan (WCAG 2.5.5). */
   --jp-control-h:  40px;
-  --jp-control-fs: 14px;
+  --jp-control-fs: var(--text-body-sm);  /* #549 WS2: = body-sm-golvet, nu via skalan */
   --jp-control-px: 14px;
 
   /* Density-multiplikator — v2-system, behålls (v3 har ingen density men
@@ -237,6 +292,13 @@
   --jp-surface-2:  #142136;
   --jp-surface-3:  #283C5E;
   --jp-canvas:     #0B1525;        /* mörk navy-grå, INTE svart */
+
+  /* Ljusa input-fält i dark (#549 WS2): HANDOVER §5.2 "icke-förhandlingsbart:
+     dark input ljus bg" — trion var duplicerad verbatim ×3 (.jp-input-familjen,
+     data-slot-reparationen, .jp-sortfield__select). SSOT här. */
+  --jp-dark-field-bg:     #F0F4FB;
+  --jp-dark-field-ink:    #0C1A2E;
+  --jp-dark-field-border: #94A3B8;
 
   --jp-ink-1: #F4F7FC;
   --jp-ink-2: #C2CFE2;
@@ -375,6 +437,15 @@
   --text-caption:  13px;
   --text-label:    14px;
   --text-mono:     13px;
+  /* #549 D2 (CTO 2026-07-03): rungs minted for the previously off-scale
+     integer sizes so the .jp-* layer consumes the same scale as TSX.
+     ui = dense UI chrome (nav, toolbars, usermenu, table cells);
+     micro = smallest informational text (counts, provenance, badge text);
+     overline = the mono caps-label pattern (kickers, column heads —
+     uppercase + letter-spacing, JetBrains Mono). */
+  --text-ui:       15px;
+  --text-micro:    12px;
+  --text-overline: 11px;
 }
 
 /* ── Base styles ──────────────────────────────────── */
@@ -393,7 +464,7 @@ body {
   background-color: var(--jp-canvas);
   color: var(--jp-text-primary);
   font-family: var(--jp-font-sans);
-  font-size: 16px;
+  font-size: var(--text-body);
   line-height: 1.55;
   letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
@@ -598,14 +669,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin-bottom: 32px;
 }
 .jp-page__title {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: var(--jp-fs-page-title);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.02em;
   margin: 0;
   color: var(--jp-ink-1);
 }
 .jp-page__lede {
-  font-size: 17px;
+  font-size: var(--text-body-lg);
   color: var(--jp-ink-2);
   margin: 8px 0 0;
   max-width: 60ch;
@@ -622,8 +693,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 
 /* Header förblir ljus även i dark mode — en vit remsa förstör inte mörkt tema */
 [data-theme="dark"] .jp-header {
-  background: #FFFFFF;
-  border-bottom-color: #C9D2E0;
+  background: var(--jp-surface);
+  border-bottom-color: var(--jp-border);
   /* Scoped token-override så alla barn (nav-länkar, ikoner, popovers) renderas i ljust läge */
   --jp-surface:    #FFFFFF;
   --jp-surface-2:  #F4F6FA;
@@ -648,7 +719,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      (#6EE7A8, AA-fail på vit remsa) — re-substituerar mot pinnad light. */
   --jp-focus: var(--jp-accent-700);
   --jp-shadow-pop: 0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
-  color: #0C1A2E;
+  color: var(--jp-ink-1);
 }
 
 .jp-header__inner {
@@ -693,14 +764,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 3px;
 }
 .jp-brand__word {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--jp-fs-brand-word);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.02em;
   line-height: 1;
 }
 .jp-brand__tagline {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--text-micro);
+  font-weight: var(--jp-fw-medium);
   line-height: 1.15;
   color: var(--jp-ink-2);
 }
@@ -759,8 +830,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-nav__link {
   position: relative;
   padding: 10px 14px;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-2);
   text-decoration: none;
   border-radius: var(--jp-r-md);
@@ -776,7 +847,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      (::after nedan) bär plats-indikationen ensam (GOV.UK-mönstret;
      grönt reserveras för interaktion, inte rubriker). */
   color: var(--jp-ink-1);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-nav__link[aria-current="page"]::after {
   content: "";
@@ -828,8 +899,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: transparent;
   border: 0;
   font-family: var(--jp-font-mono);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--text-micro);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-2);
   cursor: pointer;
 }
@@ -847,8 +918,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: var(--jp-fw-bold);
+  font-size: var(--text-caption);
   border: 1px solid var(--jp-border);
   cursor: pointer;
 }
@@ -881,15 +952,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-header-stats__num {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
   letter-spacing: -0.01em;
 }
 .jp-header-stats__label {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
+  font-size: var(--jp-fs-105);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--jp-ink-2);
@@ -906,8 +977,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   right: 0;
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-success);
   white-space: nowrap;
   animation: jp-header-stats-delta-in 200ms ease-out both;
@@ -942,13 +1013,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin-bottom: 6px;
 }
 .jp-usermenu__name {
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
-  font-size: 14.5px;
+  font-size: var(--jp-fs-145);
 }
 .jp-usermenu__email {
   font-family: var(--jp-font-mono);
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
   margin-top: 2px;
 }
@@ -961,7 +1032,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: transparent;
   border: 0;
   border-radius: var(--jp-r-sm);
-  font-size: 14.5px;
+  font-size: var(--jp-fs-145);
   color: var(--jp-ink-1);
   cursor: pointer;
   text-align: left;
@@ -978,7 +1049,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-drawer-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(8, 23, 48, 0.55);
+  background: var(--jp-scrim);
   z-index: 99;
   animation: jp-fade 150ms ease;
 }
@@ -1009,8 +1080,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: transparent;
   border: 0;
   color: var(--jp-ink-1);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
   cursor: pointer;
 }
 .jp-drawer__list {
@@ -1023,8 +1094,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 12px;
   padding: 14px 14px;
-  font-size: 17px;
-  font-weight: 500;
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
   text-decoration: none;
   border-radius: var(--jp-r-md);
@@ -1036,7 +1107,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      (samma mönster som .jp-nav__link[aria-current]). */
   border-left-color: var(--jp-accent-700);
   color: var(--jp-ink-1);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 
 /* ── Hero (F4 Hybrid — G1, ADR 0068) ─────────────────────────────────
@@ -1076,15 +1147,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   /* DOKUMENTERAT undantag (ADR 0068): display-rubrik 44px/800 — gäller
      ENBART hero-plattan, inte H1-token-skalan (28px). */
   margin: 0;
-  font-size: 44px;
-  font-weight: 800;
+  font-size: var(--jp-fs-hero-title);
+  font-weight: var(--jp-fw-heavy);
   letter-spacing: -0.025em;
   line-height: 1.1;
   color: var(--jp-hero-ink);
 }
 .jp-hero__lede {
   margin: 14px 0 0;
-  font-size: 16px;
+  font-size: var(--text-body);
   line-height: 1.5;
   max-width: 42ch;
   color: var(--jp-hero-ink-soft);
@@ -1119,21 +1190,21 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border: 1px solid var(--jp-hero-pill-border);
   border-radius: var(--jp-r-sm);
   color: var(--jp-hero-pill-ink);
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: var(--jp-fs-135);
+  font-weight: var(--jp-fw-semibold);
   cursor: pointer;
 }
 .jp-hero-chip:hover {
   /* Banner-lokala hover-värden (tema-stabila — ljus slate, ej token) */
-  background: #E8EDF4;
-  border-color: #97A4B8;
+  background: #E8EDF4; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  border-color: #97A4B8; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-hero-chip__count {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  color: #455366; /* banner-lokal v3-light-ink-2 — tema-stabil på vit chip */
-  font-size: 13px;
-  font-weight: 600;
+  color: #455366; /* banner-lokal v3-light-ink-2 — tema-stabil på vit chip */ /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
   margin-left: -2px;
 }
 
@@ -1161,7 +1232,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    placeholder). Ink-soft på plattan, läsbar i båda teman. */
 .jp-hero__searchhelp {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-hero-ink-soft);
 }
 /* #419 pt6 — "Spara sökningen"-länk (knapp stylad som text-länk) + spar-bekräftelse.
@@ -1173,7 +1244,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: none;
   border: none;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-hero-ink-soft);
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -1184,12 +1255,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-hero__searchsaved {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-hero-ink-soft);
 }
 .jp-hero__searchlabels {
   display: block;
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-hero-ink-soft);
   margin-bottom: 6px;
 }
@@ -1207,7 +1278,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   padding: 0 16px;
   height: 52px;
   font-family: inherit;
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-hero-pill-ink);
   background: transparent;
   min-width: 0;
@@ -1257,18 +1328,18 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 8px;
   /* Ink — INTE grön (CTO Beslut 1: handoffens #0F172A → v3-ink #0C1A2E) */
   background: var(--jp-hero-sok-bg);
-  color: #fff;
+  color: var(--jp-on-fill);
   border: 0;
   height: 52px;
   padding: 0 26px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
   cursor: pointer;
   letter-spacing: -0.01em;
 }
-.jp-hero__searchbtn:hover { background: #233650; color: #fff; } /* ljusare ink-nyans */
+.jp-hero__searchbtn:hover { background: #233650; color: var(--jp-on-fill); } /* ljusare ink-nyans */ /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 .jp-hero__searchbtn:focus-visible {
-  outline: 2px solid #FFFFFF;
+  outline: 2px solid var(--jp-focus);
   outline-offset: -3px; /* inåtvänd — yttre ring klipps av searchrow-overflow */
 }
 
@@ -1290,7 +1361,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border: 1px solid var(--jp-hero-pill-border);
   border-radius: var(--jp-r-sm);
   font-size: var(--jp-control-fs);
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
   cursor: pointer;
 }
 .jp-hero-pill[data-active="true"] {
@@ -1303,15 +1374,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   width: 8px;
   height: 8px;
   border-radius: var(--jp-r-pill);
-  background: #2C8A3F; /* banner-lokal light-leaf — tema-stabil på vit pill */
+  background: #2C8A3F; /* banner-lokal light-leaf — tema-stabil på vit pill */ /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-hero-pill__count {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--text-micro);
+  font-weight: var(--jp-fw-bold);
   background: var(--jp-accent-800); /* EJ dark-skiftad — tema-stabil fill */
-  color: #fff;
+  color: var(--jp-on-fill);
   padding: 1px 7px;
   border-radius: var(--jp-r-pill);
 }
@@ -1325,7 +1396,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
     padding: 28px 24px;
     gap: 28px;
   }
-  .jp-hero__title { font-size: 32px; }
+  .jp-hero__title { font-size: var(--jp-fs-hero-title-sm); }
   /* #419 pt4 — .jp-hero__actions är nu flex-start i bas-regeln (redundant override borttagen). */
   .jp-hero-chip,
   .jp-hero-pill { min-height: 44px; }
@@ -1358,24 +1429,24 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 @media (max-width: 720px) {
   .jp-pagehero { padding: 16px 20px 0; }
   .jp-pagehero__inner { padding: 28px 24px; }
-  .jp-pagehero__title { font-size: 32px; }
+  .jp-pagehero__title { font-size: var(--jp-fs-hero-title-sm); }
 }
 .jp-pagehero__main { flex: 1 1 320px; min-width: 0; }
 .jp-pagehero__kicker {
   font-family: var(--jp-font-mono);
-  font-size: 11.5px; font-weight: 600;
+  font-size: var(--jp-fs-115); font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.10em; text-transform: uppercase;
   color: var(--jp-hero-ink-soft); margin: 0 0 8px;
 }
 .jp-pagehero__title {
   /* G2: samma display-skala som .jp-hero__title (ADR 0068-undantaget) —
      konsekvent rubrik-typografi över alla banners. */
-  font-size: 44px; font-weight: 800;
+  font-size: var(--jp-fs-hero-title); font-weight: var(--jp-fw-heavy);
   letter-spacing: -0.025em; line-height: 1.1;
   margin: 0; color: var(--jp-hero-ink);
 }
 .jp-pagehero__lede {
-  margin: 8px 0 0; font-size: 16px;
+  margin: 8px 0 0; font-size: var(--text-body);
   color: var(--jp-hero-ink-soft); max-width: 60ch;
 }
 .jp-pagehero__aside {
@@ -1386,18 +1457,18 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: inline-flex; align-items: baseline; gap: 8px;
   padding: 10px 14px;
   border-radius: var(--jp-r-md);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  border: 1px solid rgba(255,255,255,0.14); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
   color: var(--jp-hero-ink);
 }
 .jp-pagehero-chip__value {
-  font-family: var(--jp-font-sans); font-weight: 700;
+  font-family: var(--jp-font-sans); font-weight: var(--jp-fw-bold);
   font-variant-numeric: tabular-nums;
-  font-size: 18px; letter-spacing: -0.01em;
+  font-size: var(--text-h3); letter-spacing: -0.01em;
   color: var(--jp-hero-ink);
 }
 .jp-pagehero-chip__label {
-  font-family: var(--jp-font-mono); font-size: 11px;
+  font-family: var(--jp-font-mono); font-size: var(--text-overline);
   letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--jp-hero-ink-soft);
 }
@@ -1405,17 +1476,17 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   white-space: nowrap;
 }
 .jp-pagehero .jp-btn--primary {
-  background: #fff; color: var(--jp-hero-bg); border-color: #fff;
+  background: #fff; color: var(--jp-hero-bg); border-color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-pagehero .jp-btn--primary:hover {
   background: var(--jp-accent-50); color: var(--jp-accent-900); border-color: var(--jp-accent-50);
 }
 .jp-pagehero .jp-btn--ghost {
   color: var(--jp-hero-ink); background: transparent;
-  border-color: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.24); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-pagehero .jp-btn--ghost:hover {
-  background: rgba(255,255,255,0.08); color: #fff;
+  background: rgba(255,255,255,0.08); color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 /* G1 fokus-scoping (WCAG 2.4.7): gradient-ytor får vit ring via property-
    scoping av --jp-focus (grön ring syns inte mot grönt). Ersätter de
@@ -1476,7 +1547,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-checkitem--all {
   border-bottom: 1px solid var(--jp-border-soft);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-popover__head {
   display: flex;
@@ -1486,8 +1557,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-bottom: 1px solid var(--jp-border-soft);
 }
 .jp-popover__title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--jp-ink-2);
@@ -1501,8 +1572,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: transparent;
   border: 0;
   color: var(--jp-danger);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -1533,7 +1604,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   justify-content: space-between;
   padding: 11px 16px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: var(--text-ui);
   border-left: 4px solid transparent;
   /* Raden är nu ett <button> (knapp-grupp, ej listbox) — nollställ
      browser-default knappstil så den ser ut exakt som förr. */
@@ -1552,7 +1623,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-popover-row[aria-pressed="true"] {
   background: var(--jp-accent-50);
   color: var(--jp-accent-700);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
   border-left-color: var(--jp-accent-700);
 }
 .jp-popover-row__chev {
@@ -1565,7 +1636,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 12px;
   padding: 11px 16px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: var(--text-ui);
 }
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {
@@ -1587,7 +1658,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      EJ dark-skiftad — accent-700 hade gett #6EE7A8-fyll i dark). */
   background: var(--jp-accent-800);
   border-color: var(--jp-accent-800);
-  color: #fff;
+  color: var(--jp-on-fill);
 }
 .jp-checkitem[aria-checked="mixed"] .jp-checkitem__box {
   /* Tri-state (WCAG 1.4.1): partiellt val ("Hela länet" med några kommuner
@@ -1604,7 +1675,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   width: 10px;
   height: 2px;
   border-radius: 1px;
-  background: #fff;
+  background: var(--jp-on-fill);
 }
 /* E2c (ADR 0067 Beslut 4) — per-option-count efter rad-labeln,
    "Solna (12)". Mono + ink-2 = samma sekundärtals-konvention som
@@ -1616,7 +1687,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-variant-numeric: tabular-nums;
   /* 13px = chip-count-precedenten (design-reviewer Minor 1 E2c — inga
      off-scale-fraktioner). */
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-ink-2);
   flex-shrink: 0;
 }
@@ -1661,7 +1732,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 12px;
   padding: 11px 16px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: var(--text-ui);
 }
 .jp-radioitem:hover { background: var(--jp-surface-3); }
 .jp-radioitem:focus-visible {
@@ -1706,8 +1777,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   height: 44px;
   padding: 0 18px;
   border-radius: var(--jp-r-md);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: -0.005em;
   cursor: pointer;
   text-decoration: none;
@@ -1716,13 +1787,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-btn--primary {
   background: var(--jp-accent-800);
-  color: #FFFFFF;
+  color: var(--jp-on-fill);
   border-color: var(--jp-accent-800);
 }
 .jp-btn--primary:hover { background: var(--jp-accent-800-hover); border-color: var(--jp-accent-800-hover); }
 [data-theme="dark"] .jp-btn--primary {
   background: var(--jp-accent-800);
-  color: #FFFFFF;
+  color: var(--jp-on-fill);
   border-color: var(--jp-accent-800);
 }
 [data-theme="dark"] .jp-btn--primary:hover {
@@ -1748,11 +1819,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-btn--danger {
   background: var(--jp-danger);
-  color: #fff;
+  color: var(--jp-on-fill);
   border-color: var(--jp-danger);
 }
-.jp-btn--sm { height: 36px; padding: 0 14px; font-size: 14px; }
-.jp-btn--lg { height: 52px; padding: 0 24px; font-size: 16px; }
+.jp-btn--sm { height: 36px; padding: 0 14px; font-size: var(--text-body-sm); }
+.jp-btn--lg { height: 52px; padding: 0 24px; font-size: var(--text-body); }
 .jp-btn--block { width: 100%; }
 /* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
    Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).
@@ -1770,12 +1841,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 6px;
 }
 .jp-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--text-label);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
 }
 .jp-hint {
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
 .jp-input,
@@ -1789,7 +1860,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface);
   color: var(--jp-ink-1);
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--text-body);
   outline: 0;
   transition: border-color 80ms, box-shadow 80ms;
 }
@@ -1804,15 +1875,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-textarea:focus {
   border-color: var(--jp-accent-700);
   /* G1: glow-tint = accent-500 #2E8B63 i rgb (var navy-500 rgb(46,108,194)) */
-  box-shadow: 0 0 0 3px rgba(46, 139, 99, 0.20);
+  box-shadow: 0 0 0 3px var(--jp-focus-glow);
 }
 [data-theme="dark"] .jp-input,
 [data-theme="dark"] .jp-select,
 [data-theme="dark"] .jp-textarea {
   /* User-krav: ljusa input-fält med mörk text i dark mode */
-  background: #F0F4FB;
-  color: #0C1A2E;
-  border-color: #94A3B8;
+  background: var(--jp-dark-field-bg);
+  color: var(--jp-dark-field-ink);
+  border-color: var(--jp-dark-field-border);
 }
 [data-theme="dark"] .jp-input::placeholder,
 [data-theme="dark"] .jp-textarea::placeholder { color: var(--jp-ink-3); }
@@ -1827,9 +1898,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] [data-slot="input"],
 [data-theme="dark"] [data-slot="textarea"],
 [data-theme="dark"] [data-slot="select-trigger"] {
-  background: #F0F4FB !important;
-  color: #0C1A2E !important;
-  border-color: #94A3B8 !important;
+  background: var(--jp-dark-field-bg) !important;
+  color: var(--jp-dark-field-ink) !important;
+  border-color: var(--jp-dark-field-border) !important;
 }
 [data-theme="dark"] [data-slot="input"]::placeholder,
 [data-theme="dark"] [data-slot="textarea"]::placeholder { color: var(--jp-ink-3); }
@@ -1878,8 +1949,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   background: var(--jp-leaf-50);
   color: var(--jp-leaf-600);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 2px 8px;
@@ -1909,7 +1980,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-tag {
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--text-overline);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 2px 8px;
@@ -1922,18 +1993,18 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-tag--accent {
   background: var(--jp-leaf-50);
   color: var(--jp-leaf-600);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 }
 .jp-tag--neutral {
   background: transparent;
   color: var(--jp-ink-2);
   border-color: var(--jp-border);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-tag--brand {
   background: var(--jp-accent-50);
   color: var(--jp-accent-700);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 [data-theme="dark"] .jp-tag--neutral {
   color: var(--jp-ink-2);
@@ -1970,7 +2041,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
   border-color: var(--jp-border);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 }
 /* freshness — subtle neutral chip (lowest emphasis of the four). ink-2 on
    surface-2. Light 7.24:1, dark 10.24:1. */
@@ -1978,7 +2049,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-2);
   color: var(--jp-ink-2);
   border-color: var(--jp-border);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 /* SPARAD — lighter blue chip (a personal, non-terminal action). info text on
    info-bg fill. Light 6.28:1, dark 6.49:1. */
@@ -1986,7 +2057,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-info-bg);
   color: var(--jp-info);
   border-color: var(--jp-info-bg);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 }
 /* ANSÖKT — SOLID blue chip, the most visible status (Klas: "you can't see
    you've APPLIED"). Inverse ink on a solid info fill so it reads as a filled
@@ -1996,7 +2067,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-info);
   color: var(--jp-ink-inverse);
   border-color: var(--jp-info);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 }
 /* #336 slice 1 — APPLICATION STATUS TAG FAMILY (Klas decisions + design-
    reviewer bind 2026-06-28). Replaces the rounded .jp-pill status pill in the
@@ -2018,45 +2089,45 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-2);
   color: var(--jp-info);
   border-color: var(--jp-info);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 } /* light 7.12:1 · dark 8.29:1 */
 .jp-tag[data-tag="status-brand"] {
   background: var(--jp-surface-2);
   color: var(--jp-accent-700);
   border-color: var(--jp-accent-700);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 } /* light 6.99:1 · dark 10.50:1 */
 .jp-tag[data-tag="status-success"] {
   background: var(--jp-surface-2);
   color: var(--jp-success);
   border-color: var(--jp-success);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 } /* light 5.06:1 · dark 9.01:1 */
 .jp-tag[data-tag="status-warning"] {
   background: var(--jp-surface-2);
   color: var(--jp-warning);
   border-color: var(--jp-warning);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 } /* light 4.61:1 · dark 10.01:1 */
 .jp-tag[data-tag="status-danger"] {
   background: var(--jp-surface-2);
   color: var(--jp-danger);
   border-color: var(--jp-danger);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 } /* light 5.77:1 · dark 6.95:1 */
 .jp-tag[data-tag="status-neutral"] {
   background: var(--jp-surface-2);
   color: var(--jp-ink-2);
   border-color: var(--jp-border-strong);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 } /* light 7.24:1 · dark 10.24:1 */
 .jp-matchchip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-family: var(--jp-font-mono);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-mono);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-2);
   padding: 3px 9px;
   border-radius: var(--jp-r-sm);
@@ -2107,7 +2178,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    5.17:1. Topp<->Stark fill step 2.14:1 light / 2.53:1 dark (clearly visible).
    border leaf-600 vs white card 5.77:1 / vs dark card 6.93:1. */
 .jp-matchchip--top {
-  color: #ffffff;
+  color: var(--jp-on-fill);
   background: var(--jp-leaf-700);
   border-color: var(--jp-leaf-600);
 }
@@ -2116,7 +2187,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    leaf-600 (= its own fill on the card edge; merges with the fill but the
    strong fill-vs-card contrast already defines the chip). */
 .jp-matchchip--high {
-  color: #ffffff;
+  color: var(--jp-on-fill);
   background: var(--jp-leaf-600);
   border-color: var(--jp-leaf-600);
 }
@@ -2172,8 +2243,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-job__title,
 .jp-app__title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-semibold);
   /* E2f: ink — titlar är information, inte interaktion (dark hade redan
      ink-1; light blir nu konsekvent). Grönt = knappar/checked/aktiv/fokus. */
   color: var(--jp-ink-1);
@@ -2187,9 +2258,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-job__company,
 .jp-app__company {
   margin-top: 6px;
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-ink-1);
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
 }
 .jp-job__meta,
 .jp-app__meta {
@@ -2197,7 +2268,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   flex-wrap: wrap;
   gap: 6px 16px;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
   align-items: center;
 }
@@ -2205,7 +2276,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-app__meta b {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
   margin-left: 4px;
 }
@@ -2220,14 +2291,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] .jp-job__title,
 [data-theme="dark"] .jp-app__title {
   color: var(--jp-ink-1);
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
 }
 [data-theme="dark"] .jp-save[data-saved="true"] {
   /* G1: fill bakom vit text → accent-800 (EJ dark-skiftad; accent-700
      hade gett #6EE7A8-fyll bakom vit text = kontraktsbrott). */
   background: var(--jp-accent-800);
   border-color: var(--jp-accent-800);
-  color: #FFFFFF;
+  color: var(--jp-on-fill);
 }
 .jp-save {
   display: inline-flex;
@@ -2239,8 +2310,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
   color: var(--jp-ink-2);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: var(--jp-fs-135);
+  font-weight: var(--jp-fw-medium);
   cursor: pointer;
 }
 .jp-save:hover { background: var(--jp-surface-3); color: var(--jp-ink-1); }
@@ -2299,13 +2370,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-sortfield__select:focus {
   border-color: var(--jp-accent-700);
-  box-shadow: 0 0 0 3px rgba(46, 139, 99, 0.20);
+  box-shadow: 0 0 0 3px var(--jp-focus-glow);
 }
 [data-theme="dark"] .jp-sortfield__select {
   /* Paritet .jp-select dark: ljust fält, mörk text (HANDOVER §5.2). */
-  background: #F0F4FB;
-  color: #0C1A2E;
-  border-color: #94A3B8;
+  background: var(--jp-dark-field-bg);
+  color: var(--jp-dark-field-ink);
+  border-color: var(--jp-dark-field-border);
 }
 /* F4-16 (design-reviewer 2026-06-20 §3.D) — in-/jobb-disclosure: platt civic
    info-not under sort-toolbaren. INGEN boxad alert/skugga/gradient, ingen ny
@@ -2318,13 +2389,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-left: 3px solid var(--jp-info);
   background: var(--jp-info-bg);
   border-radius: var(--jp-r-sm);
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   line-height: 1.5;
   color: var(--jp-ink-1);
 }
 .jp-matchsort-note__link {
   color: var(--jp-accent-700);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
   text-decoration: underline;
 }
 
@@ -2373,10 +2444,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-gradefilter__switch[data-checked="true"] .jp-gradefilter__thumb {
   transform: translateX(16px);
-  background: #FFFFFF;
+  background: var(--jp-on-fill);
 }
 .jp-gradefilter__label {
-  font-size: 14px;
+  font-size: var(--text-label);
   color: var(--jp-ink-2);
 }
 .jp-gradefilter__grades {
@@ -2391,7 +2462,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-gradefilter__grade {
   gap: 8px;
   padding: 6px 10px;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   border-radius: var(--jp-r-sm);
   /* Hit-target-golv (ADR 0038) — primära innehållsval, inte toolbar-knappar,
      så 32px in-app-golv (44px touch nedan), explicit i stället för line-height-
@@ -2408,13 +2479,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   }
 }
 .jp-results-count {
-  font-size: 17px;
+  font-size: var(--text-body-lg);
   color: var(--jp-ink-1);
 }
 .jp-results-count b {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
   /* E2f: ink — talet är information, inte interaktion. */
   color: var(--jp-ink-1);
 }
@@ -2435,7 +2506,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-3);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-pill);
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-1);
 }
 .jp-filterchip__rm {
@@ -2467,7 +2538,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-modal-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(8, 23, 48, 0.55);
+  background: var(--jp-scrim);
   z-index: 80;
   display: flex;
   align-items: center;
@@ -2495,14 +2566,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-modal__title {
   flex: 1;
   margin: 0;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--jp-fs-22);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.015em;
   color: var(--jp-ink-1);
 }
 .jp-modal__company {
   margin: 4px 0 0;
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-ink-2);
 }
 .jp-modal__body {
@@ -2530,7 +2601,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-modal-loading__text {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-ink-2);
 }
 .jp-modal__metarow {
@@ -2543,20 +2614,20 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border: 1px solid var(--jp-border-soft);
 }
 .jp-modal__metaitem dt {
-  font-size: 12px;
+  font-size: var(--text-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--jp-ink-2);
   margin-bottom: 2px;
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-modal__metaitem dd {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-ink-1);
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
 }
 .jp-modal__match {
   display: flex;
@@ -2572,7 +2643,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    Var död v3-prototyp-kod — borttagen så ingen kan koppla in den igen. */
 .jp-modal__match__expl b {
   color: var(--jp-ink-1);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 /* F4-16 (design-reviewer 2026-06-20 §2.F) — matchnings-sektionen i JobAdDetail
    (modal + fullsida). Sitter i .jp-modal__body-flexkolumnen ovanför
@@ -2604,21 +2675,21 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: start;
   padding: 10px 0;
   border-top: 1px solid var(--jp-border-soft);
-  font-size: 14px;
+  font-size: var(--text-body-sm);
 }
 .jp-modal__matchrow:first-child {
   border-top: none;
 }
 .jp-modal__matchrow-label {
   color: var(--jp-ink-2);
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
 }
 .jp-modal__matchrow-verdict {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   color: var(--jp-ink-2);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
   white-space: nowrap;
 }
 /* Verdict-prick: ärver currentColor (fylld). "Matchar" sätter success;
@@ -2657,7 +2728,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   }
 }
 .jp-modal__description {
-  font-size: 15.5px;
+  font-size: var(--jp-fs-155);
   line-height: 1.65;
   color: var(--jp-ink-1);
 }
@@ -2670,8 +2741,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    alla tokens från jobbliggaren-v3.css. */
 .jp-ad-desc__h3 {
   margin: 28px 0 8px 0;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--jp-ink-2);
@@ -2737,7 +2808,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-bottom-right-radius: 0;
 }
 .jp-disclosure-row__primary {
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
   flex-shrink: 0;
 }
@@ -2748,14 +2819,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   flex: 1 1 auto;
   min-width: 0;
   color: var(--jp-ink-2);
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .jp-disclosure-row__date {
   flex-shrink: 0;
-  font-size: 12.5px;
+  font-size: var(--jp-fs-125);
   color: var(--jp-ink-3);
 }
 .jp-disclosure-row__chevron {
@@ -2780,8 +2851,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 /* Shared section label — previously duplicated as SECTION_LABEL_STYLE in
    application-detail / follow-ups-section / notes-section (DRY). */
 .jp-section-label {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--jp-ink-2);
@@ -2822,8 +2893,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 /* Status label — uppercase key line, coloured per status variant. */
 .jp-status-block__label {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 2px;
@@ -2850,16 +2921,16 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-2);
 }
 .jp-status-block__value {
-  font-size: 16px;
+  font-size: var(--text-body);
 }
 .jp-status-block__next {
   margin-top: 4px;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
 .jp-status-block__next-date {
   color: var(--jp-ink-1);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 
 /* Status / action separation (ADR 0047 — "where I am" vs "what I can do").
@@ -2881,8 +2952,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   cursor: pointer;
   list-style: none;
   /* reuse section-label typography */
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--jp-ink-2);
@@ -2921,7 +2992,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-timeline__date {
   /* Längsta sv-SE month:"short"-datum ("30 sep. 2026") får aldrig
      wrappa/trunkeras (F5 design-reviewer M2). ink-2 not ink-3 (#344 §5). */
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
   width: 120px;
   flex-shrink: 0;
@@ -2929,10 +3000,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-timeline__label {
   color: var(--jp-ink-1);
-  font-weight: 400;
+  font-weight: var(--jp-fw-regular);
 }
 .jp-timeline__label--primary {
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 
 /* Cover-letter / detail prose readability cap (was inline maxWidth:"68ch"). */
@@ -2960,8 +3031,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
   background: transparent;
   border: 0;
@@ -2980,7 +3051,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-segment__opt[data-active="true"] {
   background: var(--jp-accent-800);
-  color: #FFFFFF;
+  color: var(--jp-on-fill);
 }
 .jp-segment__opt:disabled {
   opacity: 0.55;
@@ -3013,13 +3084,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   min-width: 0;
 }
 .jp-togglerow__label {
-  font-size: 15px;
-  font-weight: 500;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
   line-height: 1.4;
 }
 .jp-togglerow__desc {
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
   line-height: 1.45;
 }
@@ -3059,7 +3130,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-togglerow__switch[data-checked="true"] .jp-togglerow__thumb {
   transform: translateX(16px);
-  background: #FFFFFF;
+  background: var(--jp-on-fill);
 }
 
 /* ── Inställningar-grid + field-block — F6 Prompt 2 ──────────
@@ -3091,12 +3162,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin-top: 20px;
 }
 .jp-settings-field__label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--text-label);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
 }
 .jp-settings-field__hint {
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
   margin: 0;
 }
@@ -3119,8 +3190,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
   line-height: 1.4;
   color: var(--jp-ink-1);
   background: transparent;
@@ -3216,9 +3287,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    .jp-modal-tokens (yta/kant/radie/skugga) så default-shadcn-looken ALDRIG
    skeppas. Generaliserad ur den tidigare ad-hoc .jp-matchdialog (CTO Decision
    A in-block); .jp-matchdialog komponerar nu på .jp-stdmodal (alias, ingen
-   beteendeändring). Två bredd-varianter:
-     --wide   min(840px, 94vw) — preferens-editor / wizard-steg med kaskad
-     --narrow min(440px, 92vw) — confirm / welcome / smala val-steg
+   beteendeändring). Bredd-varianter:
+     --wide   min(840px, 94vw) — preferens-editor med kaskad
+     (--narrow UTGICK 2026-07-03 med welcome-modalen — rail-modalen
+      .jp-wizard--rail sätter sin egen fasta storlek; epik #526 sweep.)
    INGEN ny hex, ingen radie > 8px (modal-undantaget), ingen shadow-2xl/glow. */
 .jp-stdmodal {
   max-height: 86vh;
@@ -3233,10 +3305,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-stdmodal--wide {
   width: min(840px, 94vw);
   max-width: min(840px, 94vw);
-}
-.jp-stdmodal--narrow {
-  width: min(440px, 92vw);
-  max-width: min(440px, 92vw);
 }
 
 /* Matchnings-dialogen (STEG A) komponerar på .jp-stdmodal. Behåller sin
@@ -3291,14 +3359,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-matchdialog__title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.015em;
   color: var(--jp-ink-1);
 }
 .jp-matchdialog__intro {
   margin: 6px 0 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
 .jp-matchdialog__body {
@@ -3367,7 +3435,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   flex: 0 0 auto;
 }
 .jp-occexp__years-label {
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-ink-2);
   white-space: nowrap;
 }
@@ -3451,8 +3519,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 8px;
   height: 40px;
   padding: 0 14px;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-medium);
   letter-spacing: -0.005em;
   color: var(--jp-ink-1);
   background: var(--jp-surface);
@@ -3482,82 +3550,25 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-bottom-right-radius: var(--jp-r-lg);
 }
 
-/* ── Match-setup-wizard (ADR 0077 STEG 5 / design-bind A2) ──
-   Wide standardmodal med utbytbart steg-innehåll. Återanvänder
-   .jp-matchdialog__body/__section/__suggest/__pinned/__cascade/__list för
-   yrkes-/region-/anställningsform-stegen; egna klasser för stegräknare,
-   confirm-steg och footer-navigation. Ingen progress-bar-animation,
-   ingen gimmick (design-bind A2.i). */
-.jp-wizard__head {
-  position: relative;
-  padding: 22px 56px 16px 24px;
-  border-bottom: 1px solid var(--jp-border-soft);
-}
-/* Stegräknaren ("Steg 2 av 5") är informationsbärande siffror → sans +
-   tabular-nums (#376, CTO-376-A-numerals-to-sans). --jp-ink-2, aldrig --jp-ink-3. */
-.jp-wizard__counter {
-  display: block;
-  margin: 0 0 4px;
-  font-family: var(--jp-font-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  color: var(--jp-ink-2);
-}
-/* #251 (Del B) — hairline segmenterad progress-indikator. Klara/aktuella
-   segment i accent-700 (aktiv-tier; dark-skiftar själv till #6EE7A8), kommande
-   i --jp-border. Tunna pill-segment, ingen fill-animation (civic restraint,
-   ADR 0077 design-bind). Delar landingens mono/accent-språk inom låsta tokens. */
-.jp-wizard__progress {
-  display: flex;
-  gap: 4px;
-  margin: 0 0 12px;
-}
-.jp-wizard__progress-seg {
-  flex: 1 1 0;
-  height: 3px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-border);
-}
-.jp-wizard__progress-seg--done {
-  background: var(--jp-accent-700);
-}
-.jp-wizard__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--jp-ink-1);
-}
-/* DialogTitle får programmatisk fokus vid stegbyte (tabIndex=-1, WCAG 2.4.3).
-   Den globala fokus-ringen gäller; ingen outline:none. */
+/* ── Match-setup delade wizard-klasser (ADR 0077 STEG 5, amendad 2026-07-03) ──
+   Den gamla 5-stegs-wizarden är ERSATT av rail-modalen (.jp-wizard--rail, epik
+   #526); dess unika klasser (__head/__counter/__progress*/__title/__step/
+   __substeps) städades i cutover-then-sweep-PR:en efter rendered-verify. Kvar
+   här: de klasser rail-modalen fortsatt konsumerar (__intro/__skip/__foot*/
+   __error/__note*). */
+/* DialogDescription-intro under stegrubriken (fokus till H2 vid stegbyte,
+   tabIndex=-1, WCAG 2.4.3; den globala fokus-ringen gäller, ingen outline:none). */
 .jp-wizard__intro {
   margin: 6px 0 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
-.jp-wizard__step {
-  padding: 20px 24px 24px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-/* STEG 3 / ADR 0079: kompetens-sektionen + erfarenhet-fältet på samma
-   wizard-steg — vertikal separation utan extra kort/ram. */
-.jp-wizard__substeps {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-/* Confirm-/klart-steget: stor grön check (status-token, ALDRIG emoji) +
-   typografisk rubrik. Ingen glow, ingen scale-in-bounce. */
 /* "Hoppa över det här steget" — a benign, non-destructive navigation affordance.
    Neutral ink, NOT .jp-clearlink (that primitive is destructive --jp-danger red):
    skipping a step must never read as a warning (WCAG 1.4.1; design-bind A2.iv,
    skip ≠ destructive). */
 .jp-wizard__skip {
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -3607,7 +3618,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   padding: 10px 12px;
   background: var(--jp-info-bg);
   border-radius: var(--jp-r-md);
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   line-height: 1.45;
   color: var(--jp-ink-1);
 }
@@ -3671,12 +3682,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   min-width: 0;
 }
 .jp-wizard__railbrand-title {
-  font-size: 14.5px;
-  font-weight: 700;
+  font-size: var(--jp-fs-145);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-wizard__railbrand-sub {
-  font-size: 12.5px;
+  font-size: var(--jp-fs-125);
   color: var(--jp-ink-2);
 }
 .jp-wizard__raillist {
@@ -3731,7 +3742,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-wizard__railind[data-state="done"] {
   background: var(--jp-accent-800);
   border-color: var(--jp-accent-800);
-  color: #fff;
+  color: var(--jp-on-fill);
 }
 .jp-wizard__railind[data-state="active"] {
   border-color: var(--jp-accent-700);
@@ -3739,8 +3750,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__railnum {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   font-variant-numeric: tabular-nums;
 }
 .jp-wizard__railitem-text {
@@ -3749,8 +3760,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   min-width: 0;
 }
 .jp-wizard__railitem-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-2);
 }
 .jp-wizard__railitem[data-state="done"] .jp-wizard__railitem-label {
@@ -3768,7 +3779,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__railmeta {
   max-width: 100%;
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3798,22 +3809,22 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__countcard-label {
   font-family: var(--jp-font-mono);
-  font-size: 10.5px;
-  font-weight: 700;
+  font-size: var(--jp-fs-105);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: 0.08em;
   color: var(--jp-ink-2);
 }
 .jp-wizard__countcard-num {
   margin: 4px 0 2px;
-  font-size: 26px;
-  font-weight: 800;
+  font-size: var(--jp-fs-26);
+  font-weight: var(--jp-fw-heavy);
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1);
 }
 .jp-wizard__countcard-unit {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-micro);
   line-height: 1.4;
   color: var(--jp-ink-2);
 }
@@ -3850,8 +3861,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: block;
   margin: 0 0 6px;
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
@@ -3863,14 +3874,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__h2 {
   margin: 0;
-  font-size: 21px;
-  font-weight: 700;
+  font-size: var(--jp-fs-21);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.015em;
   color: var(--jp-ink-1);
 }
 .jp-wizard--rail .jp-wizard__intro {
   margin: 6px 0 0;
-  font-size: 14.5px;
+  font-size: var(--jp-fs-145);
   line-height: 1.5;
   color: var(--jp-ink-2);
 }
@@ -3910,15 +3921,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__pitch-title {
   margin: 2px 0 0;
-  font-size: 17.5px;
-  font-weight: 700;
+  font-size: var(--jp-fs-175);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.01em;
   color: var(--jp-ink-1);
 }
 .jp-wizard__pitch-body {
   margin: 6px 0 0;
   max-width: 56ch;
-  font-size: 15px;
+  font-size: var(--text-ui);
   line-height: 1.6;
   color: var(--jp-ink-2);
 }
@@ -3929,14 +3940,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__upload-title {
   margin: 0;
-  font-size: 15.5px;
-  font-weight: 700;
+  font-size: var(--jp-fs-155);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-wizard__upload-body {
   margin: 4px 0 0;
   max-width: 60ch;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   line-height: 1.5;
   color: var(--jp-ink-2);
 }
@@ -3947,6 +3958,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard--rail .jp-cvupload__drop {
   border: 1.5px dashed var(--jp-border-input);
+  /* Polish (Klas 2026-07-03, fynd 1): kompaktare zon i modalen — Start-steget
+     ska inte behöva scrolla. Basens 28px-padding är för /cv/importera-sidan. */
+  padding: 14px 16px;
+  gap: 6px;
 }
 .jp-wizard--rail .jp-cvupload__drop:hover {
   background: var(--jp-accent-50);
@@ -3955,13 +3970,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 /* "Fortsätt utan CV" — grön länk-knapp (aldrig danger; skip ≠ destruktivt). */
 .jp-wizard__nocv {
   margin: 4px 0 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
 }
 .jp-wizard__startlink {
   color: var(--jp-accent-700);
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
   background: none;
   border: 0;
   padding: 0;
@@ -3988,20 +4003,20 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin-top: 1px;
   border-radius: var(--jp-r-pill);
   background: var(--jp-success);
-  color: #fff;
+  color: var(--jp-on-fill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .jp-wizard__cvdone-title {
   margin: 0;
-  font-size: 14.5px;
-  font-weight: 700;
+  font-size: var(--jp-fs-145);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-wizard__cvdone-body {
   margin: 3px 0 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   line-height: 1.5;
   color: var(--jp-ink-2);
 }
@@ -4009,8 +4024,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 /* ── Mono-caption (VALDA … (n) + Granska-rubriker) ── */
 .jp-wizard__groupcaption {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
@@ -4046,7 +4061,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-wizard--rail .jp-chip--removable {
   background: var(--jp-accent-50);
   border: 1.5px solid var(--jp-accent-800);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-chip--valid::before,
 .jp-wizard--rail .jp-chip--removable::before {
@@ -4079,7 +4094,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface);
   border: 1px dashed var(--jp-border-input);
   color: var(--jp-ink-1);
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
 }
 .jp-chip--suggest::before {
   content: "";
@@ -4138,8 +4153,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: transparent;
   border: 0;
   padding-left: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-wizard--rail .jp-occexp__row .jp-chip--removable::before {
   display: none;
@@ -4177,8 +4192,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__editlink {
   color: var(--jp-accent-700);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
   background: none;
   border: 0;
   padding: 0;
@@ -4210,14 +4225,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-wizard__done-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.015em;
   color: var(--jp-ink-1);
 }
 .jp-wizard__done-body {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-ui);
   line-height: 1.6;
   color: var(--jp-ink-2);
 }
@@ -4231,8 +4246,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-bottom: 1px solid var(--jp-border-soft);
 }
 .jp-wizard__mobilebar-title {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-wizard__mobileprog {
@@ -4253,8 +4268,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: none;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: var(--jp-fs-135);
+  font-weight: var(--jp-fw-semibold);
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1);
 }
@@ -4314,107 +4329,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   }
 }
 
-/* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 / 0079 STEG 1 ──
-   Standardmodal med tre interna steg: upload → gapfill → done. Upload/done är
-   smala (.jp-stdmodal--narrow); gapfill (in-modal CV-komplettering, STEG 1) är
-   bred (.jp-stdmodal--wide) för det höga formuläret. Återanvänder modal-skinet;
-   egna klasser för head/body/footer + done-steget (grön check + typografisk
-   bekräftelse). Ingen glow, ingen scale-in-bounce, ingen gradient. */
-.jp-welcome__head {
-  position: relative;
-  padding: 22px 56px 16px 24px;
-  border-bottom: 1px solid var(--jp-border-soft);
-}
-.jp-welcome__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--jp-ink-1);
-}
-/* DialogTitle får programmatisk fokus vid stegbyte (tabIndex=-1, WCAG 2.4.3).
-   Den globala fokus-ringen gäller; ingen outline:none. */
-.jp-welcome__intro {
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: var(--jp-ink-2);
-}
-.jp-welcome__body {
-  padding: 20px 24px 24px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.jp-welcome__skiprow {
-  margin-top: 16px;
-  display: flex;
-  justify-content: center;
-}
-/* "Jag gör det senare"/"Hoppa över" — godartad, icke-destruktiv navigation.
-   Neutral ink, INTE .jp-clearlink (den primitiven är destruktiv röd): att
-   skippa får aldrig läsas som en varning (WCAG 1.4.1; samma doktrin som
-   .jp-wizard__skip). */
-.jp-welcome__skip {
-  font-size: 14px;
-  color: var(--jp-ink-2);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-.jp-welcome__skip:hover {
-  color: var(--jp-ink-1);
-}
-/* Confirm-steget: stor grön check (status-token, ALDRIG emoji) + typografisk
-   rubrik. Status bärs av text + ikon, inte färg ensam (WCAG 1.4.1). Ingen glow,
-   ingen scale-in-bounce. (CSS bor HÄR — STEG 4 tog bort oanvänd .jp-wizard__confirm.) */
-.jp-welcome__confirm {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 12px 0 8px;
-}
-.jp-welcome__confirm-icon {
-  color: var(--jp-success);
-}
-/* #251 (Del B) — Sigillet på välkomst sida-1 (brand-moment). Centrerat i
-   .jp-welcome__confirm; bara lite andrum. Ingen glow/gradient (marken bär sin
-   egen guld-/grön-signatur via mark-tokens, utanför interaktions-accenten). */
-.jp-welcome__brand {
-  margin: 4px 0 2px;
-}
-.jp-welcome__confirm-title {
-  margin: 4px 0 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--jp-ink-1);
-}
-.jp-welcome__confirm-note {
-  margin: 0;
-  max-width: 52ch;
-  font-size: 14px;
-  color: var(--jp-ink-2);
-}
-/* Footer per steg: vänster ev. ghost-skip · spacer · höger primär. */
-.jp-welcome__foot {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--jp-border-soft);
-}
-.jp-welcome__foot-spacer {
-  flex: 1 1 auto;
-}
-
 /* ── /cv match-setup-bar + post-promote-prompt (ADR 0077 STEG 5) ──
    Bar = kort med ledtext + wizard-trigger; prompten wrap:ar full bredd under. */
 .jp-cvmatch-bar {
@@ -4435,14 +4349,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cvmatch-bar__title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-cvmatch-bar__text {
   margin: 4px 0 0;
   max-width: 68ch;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
 /* Post-promote-prompten: full bredd under baren, vänster accent-kant
@@ -4466,14 +4380,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-matchnudge__title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-matchnudge__text {
   margin: 4px 0 0;
   max-width: 68ch;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
 .jp-matchnudge__actions {
@@ -4520,8 +4434,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   height: 26px;
   padding: 0 11px;
   border-radius: var(--jp-r-pill);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
   border: 1px solid transparent;
@@ -4555,8 +4469,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   box-shadow: none;
 }
 .jp-attention__title {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
   margin: 0 0 14px;
   padding-bottom: 10px;
   letter-spacing: -0.01em;
@@ -4574,8 +4488,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 8px;
   margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
   /* Aldrig grå: informationsbärande text, hög kontrast (WCAG 1.4.1). */
   color: var(--jp-ink-1);
 }
@@ -4614,15 +4528,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-bottom: 2px solid var(--jp-border);
 }
 .jp-section__title {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
   margin: 0;
   letter-spacing: -0.01em;
 }
 .jp-section__count {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
 
@@ -4649,8 +4563,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 /* Titel-typografin flyttad från .jp-section__title (h2) till en inre span,
    eftersom h2 nu är wrappern. Samma 20px/700/letter-spacing. */
 .jp-section__title-text {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.01em;
 }
 .jp-section__toggle .jp-section__count {
@@ -4696,7 +4610,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-app__id {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
   background: var(--jp-surface-2);
   border: 1px solid var(--jp-border-soft);
@@ -4737,12 +4651,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cv__title {
   margin: 0;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-cv__role {
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   margin-top: 2px;
 }
@@ -4751,7 +4665,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 14px;
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
+  font-size: var(--jp-fs-125);
   color: var(--jp-ink-2);
   border-top: 1px solid var(--jp-border-soft);
   padding-top: 12px;
@@ -4784,7 +4698,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-2);
   border: 1px solid var(--jp-border-soft);
   border-radius: var(--jp-r-sm);
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-1);
   line-height: 1.4;
   white-space: nowrap;
@@ -4821,8 +4735,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-empty__title {
   color: var(--jp-ink-1);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-semibold);
   margin: 0 0 4px;
 }
 
@@ -4839,38 +4753,38 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-empty--brand .jp-empty__kicker {
   font-family: var(--jp-font-mono);
-  font-size: 11.5px; font-weight: 600;
+  font-size: var(--jp-fs-115); font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.10em; text-transform: uppercase;
   color: var(--jp-hero-ink-soft); margin: 0;
 }
 .jp-empty--brand .jp-empty__title {
   color: var(--jp-hero-ink);
-  font-size: 20px; font-weight: 700;
+  font-size: var(--text-h2); font-weight: var(--jp-fw-bold);
   letter-spacing: -0.015em; margin: 0;
   text-wrap: balance;
 }
 .jp-empty--brand .jp-empty__body {
   color: var(--jp-hero-ink-soft);
   max-width: 52ch; margin: 0;
-  font-size: 15px; line-height: 1.5;
+  font-size: var(--text-ui); line-height: 1.5;
 }
 .jp-empty--brand .jp-empty__actions {
   display: flex; gap: 10px; margin-top: 6px;
   flex-wrap: wrap; justify-content: center;
 }
 .jp-empty--brand .jp-btn--primary {
-  background: #fff; color: var(--jp-hero-bg); border-color: #fff;
+  background: #fff; color: var(--jp-hero-bg); border-color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-empty--brand .jp-btn--primary:hover {
   background: var(--jp-accent-50); color: var(--jp-accent-900); border-color: var(--jp-accent-50);
 }
 .jp-empty--brand .jp-btn--ghost {
   color: var(--jp-hero-ink); background: transparent;
-  border-color: rgba(255,255,255,0.30);
+  border-color: rgba(255,255,255,0.30); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-empty--brand .jp-btn--ghost:hover {
-  background: rgba(255,255,255,0.08); color: #fff;
-  border-color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.08); color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  border-color: rgba(255,255,255,0.45); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 /* :focus-visible-specialregeln borttagen (G1) — vit ring kommer via
    --jp-focus-scopingen i gradient-blocket (se .jp-pagehero-sektionen). */
@@ -4923,7 +4837,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      rymmer label + select. */
 .jp-skeleton__status-text {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--text-body-lg);
   color: var(--jp-ink-1);
 }
 .jp-skeleton--sort {
@@ -4946,8 +4860,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-notif__head {
   padding: 12px 14px;
   border-bottom: 1px solid var(--jp-border-soft);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--jp-ink-2);
@@ -4959,13 +4873,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 2px;
   padding: 12px 12px;
   border-radius: var(--jp-r-sm);
-  font-size: 14px;
+  font-size: var(--text-body-sm);
 }
 .jp-notif__item:hover { background: var(--jp-surface-3); }
 .jp-notif__item__time {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 11.5px;
+  font-size: var(--jp-fs-115);
   color: var(--jp-ink-3);
 }
 
@@ -4980,7 +4894,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   padding: 12px 20px;
   border-radius: var(--jp-r-md);
   box-shadow: var(--jp-shadow-pop);
-  font-size: 14.5px;
+  font-size: var(--jp-fs-145);
   z-index: 200;
   display: inline-flex;
   align-items: center;
@@ -5008,8 +4922,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-auth-card h1 {
   margin: 0 0 6px;
-  font-size: 26px;
-  font-weight: 700;
+  font-size: var(--jp-fs-26);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.02em;
 }
 .jp-auth-card p.lede {
@@ -5019,7 +4933,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-auth-form { display: flex; flex-direction: column; gap: 14px; }
 .jp-auth-foot {
   margin-top: 16px;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   text-align: center;
 }
@@ -5033,8 +4947,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-card__title {
   margin: 0 0 16px;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 
@@ -5049,8 +4963,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   z-index: 30;
 }
 [data-theme="dark"] .jp-land-top {
-  background: #FFFFFF;
-  border-bottom-color: #C9D2E0;
+  background: var(--jp-surface);
+  border-bottom-color: var(--jp-border);
   --jp-surface:    #FFFFFF;
   --jp-surface-3:  #E8EDF4;
   --jp-ink-1: #0C1A2E;
@@ -5064,13 +4978,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   --jp-accent-100: #D3E7DC;
   --jp-accent-50:  #E9F2ED;
   --jp-focus: var(--jp-accent-700); /* se .jp-header-pin-kommentaren */
-  color: #0C1A2E;
+  color: var(--jp-ink-1);
 }
 [data-theme="dark"] .jp-land-top .jp-brand {
   /* scoped-vit-topbar är vit-på-vit oavsett tema → wordmarken måste vara mörk även i
      dark (ink-1 skiftar annars till ljust och blir osynligt). Lås till ink-1 light-värde
      (#0C1A2E, ~16:1 mot vit). Logo-översyn 2026-06-13. */
-  color: #0C1A2E;
+  color: var(--jp-ink-1);
 }
 .jp-land-top__inner {
   max-width: 1200px;
@@ -5106,15 +5020,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-land-top__stat__num {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
   letter-spacing: -0.01em;
 }
 .jp-land-top__stat__label {
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--jp-fs-115);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--jp-ink-2);
@@ -5140,15 +5054,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: transparent;
   border: 0;
   padding: 10px 16px;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-2);
   text-decoration: none;
   cursor: pointer;
   border-radius: var(--jp-r-md);
 }
 .jp-land-top__link:hover { background: var(--jp-surface-3); color: var(--jp-accent-700); }
-.jp-land-top__link.is-active { color: var(--jp-accent-700); font-weight: 600; }
+.jp-land-top__link.is-active { color: var(--jp-accent-700); font-weight: var(--jp-fw-semibold); }
 
 @media (max-width: 720px) {
   .jp-land-top__inner { padding: 0 20px; }
@@ -5176,15 +5090,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-land-hero__title {
   margin: 0;
-  font-size: clamp(40px, 5vw, 56px);
-  font-weight: 700;
+  font-size: var(--jp-fs-land-title);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.03em;
   line-height: 1.05;
   color: var(--jp-ink-1);
 }
 .jp-land-hero__lede {
   margin: 24px 0 0;
-  font-size: 18px;
+  font-size: var(--text-h3);
   line-height: 1.55;
   color: var(--jp-ink-2);
   max-width: 56ch;
@@ -5219,8 +5133,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-land-peek__band-kicker {
   display: block;
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--jp-fs-115);
+  font-weight: var(--jp-fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--jp-hero-ink-soft);
@@ -5242,7 +5156,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   padding: 0 14px;
   height: 44px;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-hero-pill-ink);
   white-space: nowrap;
   overflow: hidden;
@@ -5253,11 +5167,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 7px;
   background: var(--jp-hero-sok-bg);
-  color: #fff;
+  color: var(--jp-on-fill);
   height: 44px;
   padding: 0 18px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: -0.005em;
 }
 /* Resultat-kort: flat/papper, hairline-separerade (regel 1 + 2). */
@@ -5279,20 +5193,20 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: baseline;
   gap: 12px;
   font-family: var(--jp-font-mono);
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
   margin-bottom: 6px;
 }
 .jp-land-peek__card-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: -0.005em;
   /* E2f: ink — peeken avbildar jobbkorten, vars titlar nu är ink. */
   color: var(--jp-ink-1);
 }
 .jp-land-peek__card-meta {
   margin-top: 3px;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
 }
 
@@ -5310,8 +5224,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-land-section__head { text-align: center; margin-bottom: 48px; }
 .jp-land-kicker {
   font-family: var(--jp-font-mono);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--text-micro);
+  font-weight: var(--jp-fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--jp-ink-2);
@@ -5319,8 +5233,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-land-section__title {
   margin: 0;
-  font-size: clamp(28px, 3.5vw, 38px);
-  font-weight: 700;
+  font-size: var(--jp-fs-land-section);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: -0.02em;
   color: var(--jp-ink-1);
 }
@@ -5349,7 +5263,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
 }
 .jp-land-foot__links a {
@@ -5363,7 +5277,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--text-mono);
   color: var(--jp-ink-2);
   font-family: var(--jp-font-mono);
 }
@@ -5403,7 +5317,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-pill);
-  font-size: 13px; font-weight: 600; color: var(--jp-ink-1);
+  font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1);
   white-space: nowrap;
 }
 .jp-land-chip__seal {
@@ -5419,7 +5333,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-land-chip--free { border-color: var(--jp-accent-300); background: var(--jp-accent-50); color: var(--jp-accent-900); }
 .jp-land-chip--free .jp-land-chip__seal { background: var(--jp-accent-800); }
 /* --ghost = för mörk/grön yta (literal vit, tema-stabil) */
-.jp-land-chip--ghost { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.28); color: #FFFFFF; }
+.jp-land-chip--ghost { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.28); color: #FFFFFF; } /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 
 /* ── Delad publik header (.jp-head-*) ────────────────────────
    Shell-agnostisk: brand vänster + live-stats höger, INGEN login-länk
@@ -5439,12 +5353,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-head__stat { display: flex; flex-direction: column; line-height: 1.1; }
 .jp-head__stat-num {
   /* Förslag 3a: 17 → 21px (uppskalad statistik i den delade headern). */
-  font-family: var(--jp-font-sans); font-size: 21px; font-weight: 700;
+  font-family: var(--jp-font-sans); font-size: var(--jp-fs-21); font-weight: var(--jp-fw-bold);
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1); letter-spacing: -0.01em;
 }
 .jp-head__stat-label {
-  font-family: var(--jp-font-mono); font-size: 11px; font-weight: 600;
+  font-family: var(--jp-font-mono); font-size: var(--text-overline); font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--jp-ink-1); margin-top: 3px;
 }
 .jp-head__stat-delta { color: var(--jp-success); }
@@ -5464,7 +5378,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-land-hero__guestrow { margin-top: 16px; display: flex; justify-content: center; }
 .jp-land-hero__guestlink {
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 14.5px; font-weight: 600; color: var(--jp-accent-700); text-decoration: none;
+  font-size: var(--jp-fs-145); font-weight: var(--jp-fw-semibold); color: var(--jp-accent-700); text-decoration: none;
 }
 .jp-land-hero__guestlink:hover { color: var(--jp-accent-600); text-decoration: underline; text-underline-offset: 3px; }
 
@@ -5479,7 +5393,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-auth-tabs { display: flex; border-bottom: 1px solid var(--jp-border); }
 .jp-auth-tab {
   position: relative; flex: 1; padding: 15px 10px; background: var(--jp-surface-2);
-  border: 0; font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--jp-ink-1); cursor: pointer;
+  border: 0; font-family: inherit; font-size: var(--jp-fs-145); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); cursor: pointer;
 }
 .jp-auth-tab + .jp-auth-tab { border-left: 1px solid var(--jp-border); }
 .jp-auth-tab[aria-selected="true"] { background: var(--jp-surface); }
@@ -5488,12 +5402,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-auth-panel { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
 .jp-auth-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.jp-auth-title { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--jp-ink-1); }
-.jp-auth-fine { margin: 0; font-size: 12.5px; color: var(--jp-ink-1); line-height: 1.5; }
-.jp-auth-fine a { font-weight: 600; }
+.jp-auth-title { margin: 0; font-size: var(--text-h3); font-weight: var(--jp-fw-bold); letter-spacing: -0.01em; color: var(--jp-ink-1); }
+.jp-auth-fine { margin: 0; font-size: var(--jp-fs-125); color: var(--jp-ink-1); line-height: 1.5; }
+.jp-auth-fine a { font-weight: var(--jp-fw-semibold); }
 /* Gratis-rad i auth-kortet (förslag 3a) — direkt under submit, före fine
    print, ENDAST register-fliken. Klartext, ingen chip/ikon/badge. */
-.jp-auth-free { margin: 0; font-size: 13px; font-weight: 600; color: var(--jp-ink-1); text-align: center; }
+.jp-auth-free { margin: 0; font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); text-align: center; }
 
 /* ── Landnings-hero "Plattan" (förslag 3a, epic #267) ────────
    Mörkgrön hero-platta på --jp-hero-gradient (sanktionerad på JUST
@@ -5519,22 +5433,22 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-land-hero__kicker {
   margin: 0 0 26px;
-  font-family: var(--jp-font-mono); font-size: 12px; font-weight: 600;
+  font-family: var(--jp-font-mono); font-size: var(--text-micro); font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.14em; text-transform: uppercase; color: var(--jp-gold);
 }
 .jp-land-hero__stack { margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .jp-land-hero__stack-verb {
-  font-size: clamp(40px, 4.6vw, 66px); font-weight: 800;
-  letter-spacing: -0.03em; line-height: 1.04; color: #FFFFFF;
+  font-size: var(--jp-fs-land-verb); font-weight: var(--jp-fw-heavy);
+  letter-spacing: -0.03em; line-height: 1.04; color: var(--jp-hero-ink);
 }
 .jp-land-hero__lede--plate {
-  margin: 26px 0 0; font-size: 18px; line-height: 1.55;
-  color: rgba(255, 255, 255, 0.94); max-width: 50ch;
+  margin: 26px 0 0; font-size: var(--text-h3); line-height: 1.55;
+  color: rgba(255, 255, 255, 0.94); max-width: 50ch; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-land-hero__source {
   margin: 28px 0 0; display: inline-flex; align-items: center; gap: 9px;
-  font-family: var(--jp-font-mono); font-size: 11px; font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72);
+  font-family: var(--jp-font-mono); font-size: var(--text-overline); font-weight: var(--jp-fw-semibold);
+  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 /* Auth-kortet flyter på mörk platta → starkare pop-skugga. Scoped undantag
    mot §5 (skugga > shadow-sm på cards) ENDAST i plattans kontext; motsvarar
@@ -5544,15 +5458,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    MÅSTE scopas under plattan (0,2,0) för att slå den globala a:not(.jp-btn)-
    länkfärgen (0,1,1) — basens .jp-land-hero__guestlink (0,1,0) räcker inte.
    Basens gröna --jp-accent-700 syns dåligt mot grönt. */
-.jp-land-hero--plate .jp-land-hero__guestlink { color: #FFFFFF; }
+.jp-land-hero--plate .jp-land-hero__guestlink { color: var(--jp-hero-ink); }
 .jp-land-hero--plate .jp-land-hero__guestlink:hover {
-  color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px;
+  color: var(--jp-hero-ink); text-decoration: underline; text-underline-offset: 3px;
 }
 /* Vit fokusring ENDAST på gäst-länken (enda länken direkt på grön platta;
    grön --jp-focus syns dåligt mot grönt, WCAG 2.4.7). Auth-kortets länkar
    sitter på vit yta och behåller sin normala (gröna) fokusring. */
 .jp-land-hero--plate .jp-land-hero__guestlink:focus-visible {
-  outline: 2px solid #FFFFFF; outline-offset: 2px; border-radius: 2px;
+  outline: 2px solid #FFFFFF; /* guard-allow: vit ring pa fargad yta - scoped literal, ej --jp-focus-pin (pin skulle kaskada in i vita barn-ytor, #549 WS2) */ outline-offset: 2px; border-radius: 2px;
 }
 @media (max-width: 980px) {
   .jp-land-hero__inner--plate { grid-template-columns: 1fr; gap: 40px; padding: 40px 24px 48px; }
@@ -5567,10 +5481,10 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-land-features--grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
 .jp-land-featcell { border-top: 2px solid var(--jp-ink-1); padding-top: 16px; }
 .jp-land-featcell__title {
-  margin: 0 0 8px; font-size: 17.5px; font-weight: 700;
+  margin: 0 0 8px; font-size: var(--jp-fs-175); font-weight: var(--jp-fw-bold);
   letter-spacing: -0.01em; color: var(--jp-ink-1);
 }
-.jp-land-featcell__body { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--jp-ink-1); }
+.jp-land-featcell__body { margin: 0; font-size: var(--jp-fs-155); line-height: 1.6; color: var(--jp-ink-1); }
 @media (max-width: 1040px) {
   .jp-land-features--grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -5591,50 +5505,50 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
      rgba(255,255,255,0.40) ........  3.64:1  (legal-separator, dekorativ — klarar ändå 3:1)
      rgba(255,255,255,0.20) ........  1.89:1  (bar-avdelare, dekorativ hairline — exempt som --jp-border)
    --jp-accent-900 på --jp-gold (NEW-tagg) = 9.45:1. */
-.jp-foot { background: var(--jp-accent-900); color: #FFFFFF; }
+.jp-foot { background: var(--jp-accent-900); color: #FFFFFF; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__main { max-width: 1200px; margin-inline: auto; padding: 64px 32px 40px; }
 .jp-foot__cols { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 40px 32px; }
 .jp-foot__brandcol { max-width: 320px; }
-.jp-foot .jp-brand__word { color: #FFFFFF; }
-.jp-foot .jp-brand__tagline { color: rgba(255, 255, 255, 0.92); }
-.jp-foot__blurb { margin: 18px 0 0; font-size: 14px; line-height: 1.6; color: #FFFFFF; }
+.jp-foot .jp-brand__word { color: #FFFFFF; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+.jp-foot .jp-brand__tagline { color: rgba(255, 255, 255, 0.92); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+.jp-foot__blurb { margin: 18px 0 0; font-size: var(--text-body-sm); line-height: 1.6; color: #FFFFFF; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__src {
   margin-top: 16px; display: inline-flex; align-items: center; gap: 8px;
-  font-size: 12.5px; color: rgba(255, 255, 255, 0.92);
+  font-size: var(--jp-fs-125); color: rgba(255, 255, 255, 0.92); /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 }
 .jp-foot__colhead {
-  margin: 0 0 14px; font-family: var(--jp-font-mono); font-size: 11.5px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.72);
+  margin: 0 0 14px; font-family: var(--jp-font-mono); font-size: var(--jp-fs-115); font-weight: var(--jp-fw-semibold);
+  text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.72); /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 }
 .jp-foot__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
-.jp-foot__links a { color: #FFFFFF; text-decoration: none; font-size: 14.5px; }
+.jp-foot__links a { color: #FFFFFF; text-decoration: none; font-size: var(--jp-fs-145); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 /* Re-pin hover to literal white (15.39:1 on #0B2A1E). Without it the global
    `a:not(.jp-btn):hover` brand-green (globals.css:415) bleeds through → green
    text on the green footer (same class as the 2026-06-10 green-on-green button
    fix). Mirrors `.jp-foot__legal a:hover`. */
-.jp-foot__links a:hover { color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px; }
+.jp-foot__links a:hover { color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__tag {
-  margin-left: 7px; font-family: var(--jp-font-mono); font-size: 9.5px; font-weight: 700;
+  margin-left: 7px; font-family: var(--jp-font-mono); font-size: var(--jp-fs-95); font-weight: var(--jp-fw-bold);
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--jp-accent-900);
   background: var(--jp-gold); border-radius: 3px; padding: 1px 5px; vertical-align: middle;
 }
-.jp-foot__bar { border-top: 1px solid rgba(255, 255, 255, 0.20); }
+.jp-foot__bar { border-top: 1px solid rgba(255, 255, 255, 0.20); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__bar-inner {
   max-width: 1200px; margin-inline: auto; padding: 22px 32px;
   display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
 }
-.jp-foot__legal { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13px; color: rgba(255, 255, 255, 0.92); }
-.jp-foot__legal a { color: rgba(255, 255, 255, 0.92); text-decoration: none; }
-.jp-foot__legal a:hover { color: #FFFFFF; text-decoration: underline; }
-.jp-foot__legal-sep { color: rgba(255, 255, 255, 0.40); }
+.jp-foot__legal { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: var(--text-caption); color: rgba(255, 255, 255, 0.92); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+.jp-foot__legal a { color: rgba(255, 255, 255, 0.92); text-decoration: none; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+.jp-foot__legal a:hover { color: #FFFFFF; text-decoration: underline; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+.jp-foot__legal-sep { color: rgba(255, 255, 255, 0.40); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__lang {
-  display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: var(--jp-r-md); overflow: hidden;
+  display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: var(--jp-r-md); overflow: hidden; /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 }
 .jp-foot__lang-btn {
   width: 40px; height: 32px; background: transparent; border: 0; cursor: pointer;
-  font-family: var(--jp-font-mono); font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.92);
+  font-family: var(--jp-font-mono); font-size: var(--text-micro); font-weight: var(--jp-fw-semibold); color: rgba(255, 255, 255, 0.92); /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 }
-.jp-foot__lang-btn[aria-pressed="true"] { background: #FFFFFF; color: var(--jp-accent-900); }
+.jp-foot__lang-btn[aria-pressed="true"] { background: #FFFFFF; color: var(--jp-accent-900); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__lang-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 @media (max-width: 1040px) {
   /* Brand spans the row; the four nav columns stay even (mirror the desktop
@@ -5662,35 +5576,35 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 
 /* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/mig/sokningar/admin) */
 .jp-h1 {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: var(--text-h1);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: -0.02em;
   color: var(--jp-text-primary);
   line-height: 1.2;
   margin: 0;
 }
 .jp-h1--display {
-  font-size: 36px;
-  font-weight: 600;
+  font-size: var(--jp-fs-36);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: -0.025em;
   line-height: 1.15;
 }
 .jp-h2 {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: -0.01em;
   color: var(--jp-text-primary);
   margin: 0;
 }
 .jp-h3 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-text-primary);
   margin: 0;
 }
 .jp-lede {
   color: var(--jp-text-secondary);
-  font-size: 17px;
+  font-size: var(--text-body-lg);
   max-width: 60ch;
   margin: 8px 0 0;
   line-height: 1.55;
@@ -5719,7 +5633,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 /* jp-sidebar__tag — marketing v2 versions-chip (refaktoreras F6) */
 .jp-sidebar__tag {
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
+  font-size: var(--jp-fs-115);
   color: var(--jp-text-secondary);
   letter-spacing: 0;
   padding: 1px 5px;
@@ -5732,9 +5646,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: var(--text-body);
   color: var(--jp-text-primary);
-  font-weight: 400;
+  font-weight: var(--jp-fw-regular);
   white-space: nowrap;
 }
 .jp-statusDot__d {
@@ -5756,8 +5670,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 8px;
   font-family: var(--jp-font-mono);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-mono);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-text-secondary);
 }
 .jp-match__bar {
@@ -5777,15 +5691,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-match__fill--mid { background: var(--jp-info-600); }
 
 /* jp-table — admin-granskning ledger (utanför v3-scope, behålls v2) */
-.jp-table { width: 100%; border-collapse: collapse; font-size: 16px; }
+.jp-table { width: 100%; border-collapse: collapse; font-size: var(--text-body); }
 .jp-table thead th {
   text-align: left;
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
+  font-size: var(--jp-fs-115);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--jp-text-secondary);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
   padding: 12px 12px 10px;
   border-top: 2px solid var(--jp-border-strong);
   border-bottom: 1px solid var(--jp-border-strong);
@@ -5821,8 +5735,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-oversikt__kicker {
   font-family: var(--jp-font-mono);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--jp-fs-115);
+  font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.10em;
   text-transform: uppercase;
   color: var(--jp-ink-2);
@@ -5851,8 +5765,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-oversikt__today__kicker {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: 0.10em;
   text-transform: uppercase;
   color: var(--jp-ink-2);
@@ -5864,8 +5778,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-oversikt__today__day {
   font-family: var(--jp-font-sans);
-  font-size: 30px;
-  font-weight: 700;
+  font-size: var(--jp-fs-30);
+  font-weight: var(--jp-fw-bold);
   /* E2f: ink — datumet är information, inte interaktion. */
   color: var(--jp-ink-1);
   line-height: 1;
@@ -5878,12 +5792,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 1px;
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 11.5px;
+  font-size: var(--jp-fs-115);
   line-height: 1.2;
   letter-spacing: 0.02em;
 }
 .jp-oversikt__today__weekday {
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
   text-transform: lowercase;
 }
@@ -5893,7 +5807,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 
 .jp-oversikt__today__empty {
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-3);
   font-style: italic;
   padding: 4px 0 6px;
@@ -5915,7 +5829,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: baseline;
   padding-left: 10px;
   border-left: 2px solid var(--jp-accent-700);
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   line-height: 1.35;
 }
 .jp-oversikt__today__event--google {
@@ -5923,18 +5837,18 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-oversikt__today__time {
   font-family: var(--jp-font-sans);
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: var(--jp-fw-bold);
+  font-size: var(--text-caption);
   color: var(--jp-ink-1);
   font-variant-numeric: tabular-nums;
 }
 .jp-oversikt__today__title {
   color: var(--jp-ink-1);
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
 }
 .jp-oversikt__today__where {
   grid-column: 2;
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-3);
 }
 
@@ -5942,7 +5856,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--jp-fs-115);
   color: var(--jp-ink-3);
   border-top: 1px dashed var(--jp-border);
   padding-top: 8px;
@@ -5986,8 +5900,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 
 .jp-notice__label {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--jp-ink-2);
@@ -5999,20 +5913,20 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-notice--success .jp-notice__label { color: var(--jp-success); }
 
 .jp-notice__text {
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-ink-1);
   line-height: 1.45;
   padding: 14px 0;
 }
 .jp-notice__text b {
-  font-weight: 700;
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-notice__text em {
   font-style: normal;
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
 }
 
@@ -6021,8 +5935,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   align-items: center;
   gap: 4px;
   color: var(--jp-accent-700);
-  font-weight: 600;
-  font-size: 13.5px;
+  font-weight: var(--jp-fw-semibold);
+  font-size: var(--jp-fs-135);
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -6038,7 +5952,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-notice__time {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-3);
   white-space: nowrap;
   text-align: right;
@@ -6098,8 +6012,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-summary__group:last-child { border-right: 0; }
 .jp-summary__group__title {
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.10em;
   color: var(--jp-ink-2);
@@ -6114,7 +6028,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 10px;
   padding: 11px 0 10px;
   border-bottom: 1px dotted var(--jp-border);
-  font-size: 14.5px;
+  font-size: var(--jp-fs-145);
   background: transparent;
   border-left: 0;
   border-right: 0;
@@ -6139,7 +6053,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-summary__row__label {
   color: var(--jp-ink-1);
-  font-weight: 500;
+  font-weight: var(--jp-fw-medium);
   min-width: 0;
   /* Tillåt wrap så hela texten syns ("Senaste sökning",
      "Profilen synlig för", "Nya matchningar i dag · profil"
@@ -6152,8 +6066,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-summary__row__hint {
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: var(--jp-fs-115);
+  font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-3);
   letter-spacing: 0;
 }
@@ -6165,8 +6079,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-summary__row__value {
   font-family: var(--jp-font-sans);
-  font-weight: 700;
-  font-size: 19px;
+  font-weight: var(--jp-fw-bold);
+  font-size: var(--jp-fs-19);
   color: var(--jp-ink-1);
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
@@ -6199,8 +6113,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 18px 0 6px;
   padding-bottom: 4px;
   font-family: var(--jp-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: 0.10em;
   text-transform: uppercase;
 }
@@ -6217,7 +6131,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-3);
-  font-weight: 600;
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-notice-group__count::before {
   content: "(";
@@ -6236,7 +6150,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   /* G1: fill bakom vit text → accent-800 (tema-stabil); border ett snäpp
      mörkare (accent-900) — bevarar v3-intentionen "mörkare underkant". */
   background: var(--jp-accent-800);
-  color: #fff;
+  color: var(--jp-on-fill);
   border-bottom: 1px solid var(--jp-accent-900);
 }
 .jp-demo-banner__inner {
@@ -6252,29 +6166,29 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   display: inline-block;
   padding: 2px 8px;
   border-radius: 3px;
-  background: #fff;
+  background: var(--jp-on-fill);
   /* G1: accent-800 (tema-stabil) — accent-700 flippar till #6EE7A8 i dark
      vilket vore oläsbart på den vita etiketten. */
   color: var(--jp-accent-800);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   flex-shrink: 0;
 }
 .jp-demo-banner__text {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   line-height: 1.45;
   flex: 1 1 auto;
   min-width: 240px;
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 255, 255, 0.92); /* guard-allow: banner-lokal tema-stabil (demo-banner, dok. undantag) */
 }
 .jp-demo-banner__cta {
   flex-shrink: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-on-fill);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -6282,7 +6196,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   text-decoration-thickness: 2px;
 }
 .jp-demo-banner :focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid #FFFFFF; /* guard-allow: vit ring pa fargad yta - scoped literal, ej --jp-focus-pin (pin skulle kaskada in i vita barn-ytor, #549 WS2) */
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -6290,9 +6204,9 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    offset + lätt bakgrundskontrast så ringen syns tydligt mot navy-700-bg
    (WCAG 2.4.7 Focus Visible). */
 .jp-demo-banner__cta:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid #FFFFFF; /* guard-allow: vit ring pa fargad yta - scoped literal, ej --jp-focus-pin (pin skulle kaskada in i vita barn-ytor, #549 WS2) */
   outline-offset: 3px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12); /* guard-allow: banner-lokal tema-stabil (demo-banner, dok. undantag) */
   border-radius: 3px;
 }
 
@@ -6309,14 +6223,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-guest-resume__title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-semibold);
 }
 .jp-guest-resume__meta {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 4px 12px;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   margin: 8px 0;
 }
 .jp-guest-resume__meta dt {
@@ -6333,12 +6247,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-guest-applist__empty {
   color: var(--jp-ink-2);
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   margin: 8px 0 0;
 }
 [data-theme="dark"] .jp-demo-banner {
   background: var(--jp-accent-800);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.08); /* guard-allow: banner-lokal tema-stabil (demo-banner, dok. undantag) */
 }
 @media (max-width: 600px) {
   .jp-demo-banner__inner {
@@ -6368,11 +6282,11 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-pagehero .jp-btn--secondary {
   background: transparent;
   color: var(--jp-hero-ink);
-  border-color: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.32); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-pagehero .jp-btn--secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.08); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 
 /* ── Upload-form ─────────────────────────────────── */
@@ -6422,13 +6336,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-accent-700);
 }
 .jp-cvupload__drop-text {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
   word-break: break-word;
 }
 .jp-cvupload__drop-hint {
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
 /* Input:et är visuellt dolt men kvarstår fokuserbart + i tab-ordningen
@@ -6446,14 +6360,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cvupload__help {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-2);
   line-height: 1.5;
   max-width: 68ch;
 }
 .jp-cvupload__error {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-danger);
   line-height: 1.5;
 }
@@ -6476,14 +6390,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-cvupload__pending-text {
   margin: 0;
   max-width: 36ch;
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-ink-2);
 }
 
 /* ── Granska-vyns fil-meta ───────────────────────── */
 .jp-cv-meta {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
 }
 .jp-cv-meta__file {
   font-family: var(--jp-font-mono);
@@ -6516,14 +6430,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-pnr-warning__title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
   line-height: 1.3;
 }
 .jp-pnr-warning__body {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
@@ -6548,13 +6462,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-parse-summary__title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-parse-summary__lede {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   line-height: 1.5;
   max-width: 68ch;
@@ -6568,7 +6482,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-info-bg);
   border: 1px solid var(--jp-info);
   border-radius: var(--jp-r-sm);
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-1);
   line-height: 1.45;
 }
@@ -6599,8 +6513,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 12px;
 }
 .jp-parse-summary__section-name {
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: var(--jp-fs-145);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
 }
 .jp-parse-summary__evidence {
@@ -6612,7 +6526,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   gap: 2px;
 }
 .jp-parse-summary__evidence-item {
-  font-size: 12.5px;
+  font-size: var(--jp-fs-125);
   color: var(--jp-ink-2);
   line-height: 1.45;
 }
@@ -6629,13 +6543,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-occupations__title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-occupations__lede {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   line-height: 1.5;
   max-width: 68ch;
@@ -6657,8 +6571,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cvreview__title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
   letter-spacing: -0.01em;
 }
@@ -6667,14 +6581,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cvreview__summary {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   line-height: 1.55;
   max-width: 68ch;
 }
 .jp-cvreview__rubric {
   font-family: var(--jp-font-mono);
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
 }
 .jp-cvreview__unavailable {
@@ -6683,7 +6597,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-2);
   border: 1px solid var(--jp-border-soft);
   border-radius: var(--jp-r-md);
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   line-height: 1.55;
   max-width: 68ch;
@@ -6702,13 +6616,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cvreview__todo-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-cvreview__todo-empty {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   line-height: 1.55;
   max-width: 68ch;
@@ -6739,15 +6653,15 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   border-radius: var(--jp-r-sm);
 }
 .jp-cvreview__count-label {
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
 }
 .jp-cvreview__count-value {
   margin: 0;
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
 .jp-cvreview__count[data-tone="success"] .jp-cvreview__count-value { color: var(--jp-success); }
@@ -6768,8 +6682,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cvreview__unassessed-summary {
   padding: 12px 16px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-2);
   cursor: pointer;
   list-style: none;
@@ -6809,14 +6723,14 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 /* Primär rad-rubrik: den läsbara svenska rubrik-rubriken (B.3). */
 .jp-criterion__name {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
   line-height: 1.4;
 }
 /* Rad-kontext-tagg: kategori-etikett när verdiktet är utlyft ur sitt kort. */
 .jp-criterion__category {
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
   background: var(--jp-surface-2);
   border: 1px solid var(--jp-border-soft);
@@ -6828,7 +6742,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-criterion__id {
   margin-left: auto;
   font-family: var(--jp-font-mono);
-  font-size: 11px;
+  font-size: var(--text-overline);
   color: var(--jp-ink-3);
   background: var(--jp-surface-2);
   border: 1px solid var(--jp-border-soft);
@@ -6840,6 +6754,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    content, so it stays at readable --jp-ink-2 and does not float right. */
 .jp-improve__target {
   font-family: var(--jp-font-mono);
+  /* guard-allow: relativ storlek (0.9em av omgivande mening) — inline-koden
+     ska skala med sin värdtext oavsett rung, medvetet ej skal-token (#549 WS2) */
   font-size: 0.9em;
   color: var(--jp-ink-2);
   background: var(--jp-surface-2);
@@ -6867,13 +6783,13 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   background: var(--jp-surface-2);
   border-left: 3px solid var(--jp-border);
   border-radius: var(--jp-r-sm);
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-1);
   line-height: 1.5;
 }
 .jp-criterion__note {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-caption);
   color: var(--jp-ink-2);
   line-height: 1.5;
   max-width: 68ch;
@@ -6896,7 +6812,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-pdf-frame__fallback {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
 }
 
 .jp-cv-cta {
@@ -6908,7 +6824,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cv-cta__hint {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
 }
 /* Förbättra-CTA (sekundär) + spara-CTA (primär) sida vid sida; staplas på smal skärm. */
 .jp-cv-cta__actions {
@@ -6944,7 +6860,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 0;
   font-family: var(--jp-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
 }
 /* Före→efter-par: två märkta kolumner. Aldrig enbart färg som signal (WCAG 1.4.1) —
@@ -6962,8 +6878,8 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   min-width: 0;
 }
 .jp-improve__diff-label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--text-micro);
+  font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-2);
 }
 .jp-improve__diff-before {
@@ -6974,7 +6890,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-improve__operation {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--jp-fs-135);
   color: var(--jp-ink-1);
   line-height: 1.5;
 }
@@ -6986,12 +6902,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 .jp-improve__provenance {
   margin: 0;
   font-family: var(--jp-font-mono);
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
 }
 .jp-improve__empty {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-body-sm);
   /* Brödtext-kontrast: --jp-ink-2 (~7,8:1 light / ~11,6:1 dark), paritet med
      .jp-cvreview__unavailable. Löpande prosa använder ink-2, inte ink-3 — ink-3
      (#296-mörkad till ~6,7:1, klarar nu AA) är metadata-tier (tider/ids/hints),
@@ -7010,7 +6926,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   padding-top: 8px;
   border-top: 1px solid var(--jp-border-soft);
   font-family: var(--jp-font-mono);
-  font-size: 12px;
+  font-size: var(--text-micro);
   color: var(--jp-ink-2);
 }
 @media (max-width: 720px) {
@@ -7030,6 +6946,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
 }
 .jp-cv-loading__text {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-ui);
   color: var(--jp-ink-2);
 }

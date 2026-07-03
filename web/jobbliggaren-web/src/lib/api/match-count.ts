@@ -41,7 +41,7 @@ export async function getMatchCount(): Promise<ApiResult<MyMatchCount>> {
 }
 
 /**
- * Epik #526 (ADR 0088) — live sök-preview-count för matchnings-setup-modalen.
+ * Epik #526 (ADR 0089) — live sök-preview-count för matchnings-setup-modalen.
  * Konsumerar `POST /api/v1/me/match-count-preview` (auth-gated,
  * MatchCountPreviewPolicy) med utkastets sök-facetter i body:n. Speglar
  * `getMatchCount`s Result/fel-mönster; till skillnad från den GET-baserade

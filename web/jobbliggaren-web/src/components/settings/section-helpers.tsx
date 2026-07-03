@@ -2,7 +2,7 @@
 
 // "use client": rena presentations-helpers (kryssrute-rad + pinnade chips) som
 // bär onClick/onKeyDown. De delas mellan match-preferences-dialog OCH
-// match-setup-wizard (DRY, ADR 0077 STEG 5) — extraherade ur dialogen utan
+// match-setup-rail-modal (DRY, ADR 0077 STEG 5, amendad #526) — extraherade ur dialogen utan
 // beteendeändring (samma roller/etiketter/markup som tidigare).
 
 import { Check } from "lucide-react";

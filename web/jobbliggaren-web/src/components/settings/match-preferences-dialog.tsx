@@ -4,7 +4,7 @@
 // useTransition runt save-action. De tre väljar-sektionerna (yrken med
 // CV-suggest + titel-derive + kaskad/filter, regioner, anställningsformer) är
 // extraherade till delade presentations-komponenter (ADR 0077 STEG 5) och delas
-// med match-setup-wizard — ingen logik dupliceras. Inget av detta går i en
+// med match-setup-rail-modal — ingen logik dupliceras. Inget av detta går i en
 // Server Component.
 
 import { useState, useTransition } from "react";

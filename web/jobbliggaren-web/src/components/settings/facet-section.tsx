@@ -5,7 +5,7 @@
 // Driver i dag Anställningsformer; ort flyttades till RegionMunicipalityCascade
 // (Spår 3 PR-D) men formen är densamma för vilken platt facet som helst.
 // Extraherad ur match-preferences-dialog (ADR 0077 STEG 5), delad med
-// match-setup-wizard.
+// match-setup-rail-modal.
 
 import { useTranslations } from "next-intl";
 import { labelsForSelected, type Option } from "./match-preferences-shared";

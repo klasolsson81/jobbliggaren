@@ -58,23 +58,68 @@ internal sealed partial class C3ActiveVoiceRule : ICriterionRule
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex EnglishPassiveRegex();
 
+    // Swedish DEPONENS preterites: s-form but ACTIVE in meaning (#492). Their shape ends in
+    // -ades/-des so the s-passive regex catches them, yet "lyckades öka försäljningen" / "trivdes i
+    // en ledande roll" is exactly the achievement language A1 rewards — flagging it as passive makes
+    // the engine contradict itself. A small CLOSED linguistic FUNCTION-WORD set (not knowledge-bank
+    // data — parity the pronoun/acronym function-word patterns in this file; §5 holds). Only forms
+    // that actually end in -ades/-des are listed (others never reach the filter).
+    private static readonly HashSet<string> SwedishDeponentPreterites = new(StringComparer.Ordinal)
+    {
+        "lyckades", "trivdes", "hoppades", "andades", "låtsades", "vistades",
+        "skämdes", "mindes", "nöjdes", "envisades", "samsades", "avundades",
+    };
+
+    // The C3 Fail ratio the rubric prose fixes (atsFailSignal ">30 % passiv form"). A code
+    // operationalisation of versioned rubric PROSE (documented v1 posture), pinned by the C3 golden
+    // drift-guard so code that drifts from the rubric fails CI (parity A7 #489).
+    private const double FailRatio = 0.30;
+
     public CvCriterionVerdict Evaluate(CvReviewContext context)
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
 
-        var regex = context.Language == TextLanguage.English ? EnglishPassiveRegex() : SwedishPassiveRegex();
-        var matches = regex.Matches(prose);
+        // #489 ratio reconcile: score passives-per-sentence against the rubric's ">30 %", not an
+        // absolute count (pre-fix "count >= 2" could never reach the rubric's ratio-based Fail, and
+        // deponens/proper-noun false positives inflated that count). Swedish bli-passive detection
+        // ("blev utsedd") is a deferred forward-note (needs a rubric-minor bump; out of scope here).
+        var passives = RealPassives(context.Language, prose);
+        var sentenceCount = Math.Max(1, ReviewText.Sentences(prose).Count);
+        var ratio = (double)passives.Count / sentenceCount;
 
-        // A couple of incidental passives are fine; flag only a clear lean on passive voice.
-        if (matches.Count >= 2)
+        if (ratio > FailRatio)
+        {
+            return CvCriterionVerdict.Assessed("C3", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Span(prose, passives[0], "hög andel passiv form, föredra aktivt språk")));
+        }
+
+        if (passives.Count > 0)
         {
             return CvCriterionVerdict.Assessed("C3", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Span(prose, matches[0].Value, "passiv konstruktion — föredra aktivt språk")));
+                ReviewText.Cite(ReviewText.Span(prose, passives[0], "passiv konstruktion, föredra aktivt språk")));
         }
 
         return CvCriterionVerdict.Assessed("C3", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural("Övervägande aktivt språk (få eller inga passiveringar).")));
+    }
+
+    // The GENUINE passive constructions in the prose, in order. Swedish s-passives exclude the
+    // deponens list (s-form but active — #492) AND capital-initial tokens (proper nouns like
+    // "Mercedes"/"Archimedes", never a verb mid-sentence; a sentence-initial real passive is the
+    // rare, documented false-negative of that exclusion). English be-passives need neither filter.
+    private static List<string> RealPassives(TextLanguage language, string prose)
+    {
+        if (language == TextLanguage.English)
+        {
+            return EnglishPassiveRegex().Matches(prose).Select(m => m.Value).ToList();
+        }
+
+        return SwedishPassiveRegex().Matches(prose)
+            .Select(m => m.Value)
+            .Where(w => w.Length > 0 && !char.IsUpper(w[0]))
+            .Where(w => !SwedishDeponentPreterites.Contains(w.ToLowerInvariant()))
+            .ToList();
     }
 }
 

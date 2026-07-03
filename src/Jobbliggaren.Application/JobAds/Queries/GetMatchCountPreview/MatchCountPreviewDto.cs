@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview;
 
 /// <summary>
-/// Epik #526 (ADR 0088) — svaret för live sök-preview-räknaren: antalet aktiva annonser som
+/// Epik #526 (ADR 0089) — svaret för live sök-preview-räknaren: antalet aktiva annonser som
 /// matchar utkastets sök-facetter. Ett wrappat <c>{ count: int }</c>-objekt (inte en bar int) så
 /// wire-formen är ett evolverbart JSON-objekt.
 /// <para>

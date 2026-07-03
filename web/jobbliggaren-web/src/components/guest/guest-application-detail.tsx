@@ -20,9 +20,8 @@ import type {
 // färgkodningen är identisk live/gäst. Tidigare hand-roll-mappning gav
 // "warning" för Rejected (live = "danger") och "info" för Submitted
 // (live = "brand") — funktionell felsignalering bröt
-// memory `project_crossref_badge_status`. SECTION_LABEL-rubrik tillagd för
-// typografisk paritet med live <ApplicationDetail> (m6).
-
+// memory `project_crossref_badge_status`. Sektionsrubriken (.jp-eyebrow) ger
+// typografisk paritet med live <ApplicationDetail> (m6; #549 WS3).
 
 // GuestApplicationStatus är subset av live ApplicationStatus, mappad så
 // färg + etikett blir identiska (design-reviewer M1).

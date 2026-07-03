@@ -125,7 +125,8 @@
       "publishedToday": "today, at {time}",
       "publishedYesterday": "yesterday, at {time}",
       "publishedOlder": "{date}, at {time}",
-      "lastApplication": "Application deadline"
+      "lastApplication": "Application deadline",
+      "previousApplications": "You have {count, plural, one {# previous application} other {# previous applications}} to this employer"
     },
     "tags": {
       "new": "New",

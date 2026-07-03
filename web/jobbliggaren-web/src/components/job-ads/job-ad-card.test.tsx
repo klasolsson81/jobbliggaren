@@ -111,4 +111,41 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
       screen.queryByRole("button", { name: /spara/i })
     ).not.toBeInTheDocument();
   });
+
+  // #446 (#311) — "tidigare ansökningar"-badge. POSITIVE-ONLY: bara när räknaren > 0.
+  it("does not render the previous-applications badge without the prop (POSITIVE-ONLY)", () => {
+    render(<JobAdCard jobAd={baseAd} />);
+    expect(
+      screen.queryByText(/tidigare ansökning/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render the previous-applications badge when the count is 0", () => {
+    render(<JobAdCard jobAd={baseAd} previousApplicationCount={0} />);
+    expect(
+      screen.queryByText(/tidigare ansökning/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the singular previous-applications badge for count 1 (du-form, no org.nr)", () => {
+    render(<JobAdCard jobAd={baseAd} previousApplicationCount={1} />);
+    // ICU one-branch: "ansökan", not "ansökningar"; a plain integer, never an org.nr.
+    expect(
+      screen.getByText("Du har 1 tidigare ansökan till detta företag")
+    ).toBeInTheDocument();
+  });
+
+  it("renders the plural previous-applications badge for count > 1", () => {
+    render(<JobAdCard jobAd={baseAd} previousApplicationCount={3} />);
+    expect(
+      screen.getByText("Du har 3 tidigare ansökningar till detta företag")
+    ).toBeInTheDocument();
+  });
+
+  // The badge is informative text, never a nested link (B1): the whole card is already one <Link>.
+  it("renders the previous-applications badge as plain text, not a nested link", () => {
+    render(<JobAdCard jobAd={baseAd} previousApplicationCount={2} />);
+    // Exactly one link (the row itself) — the badge adds no second anchor.
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
 });
